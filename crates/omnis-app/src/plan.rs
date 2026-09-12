@@ -3,7 +3,8 @@
 //! against the test pack; the renderer only spawns what the plan says.
 //!
 //! Order within the viewport: rows far to near; within a row floors and ceilings, then side
-//! walls from the outer offsets inward, then front walls and doors. Each shared wall plane is
+//! walls from the outer offsets inward, then front walls and doors, then blocks (a block's
+//! near face stands a whole tile nearer than the row's walls). Each shared wall plane is
 //! drawn once: a tile's left edge at offsets `<= 0`, its right edge at offsets `>= 0`.
 
 use crate::layout::Camera;
@@ -80,12 +81,7 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
         return ops;
     };
     let camera = Camera::new(tileset.viewport);
-    let width = i8::try_from(tileset.width).unwrap_or(i8::MAX);
-    let mut tiles: Vec<_> = view
-        .tiles
-        .iter()
-        .filter(|t| t.offset.abs() <= width)
-        .collect();
+    let mut tiles: Vec<_> = view.tiles.iter().collect();
     // Far to near, outer offsets first.
     tiles.sort_by_key(|t| {
         (
@@ -98,9 +94,9 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
     for t in tiles.iter().filter(|t| t.depth >= view.detail_depth) {
         let terrain = &map.def.terrains[usize::from(t.terrain)];
         let z_far = f32::from(t.depth) + 1.0;
-        let z_near = f32::from(t.depth);
-        let x0 = camera.sx(f32::from(t.offset) - 0.5, z_far);
-        let x1 = camera.sx(f32::from(t.offset) + 0.5, z_far);
+        // The loader refuses detail depth 0, so the near edge is at least one tile away.
+        let z_near = f32::from(t.depth).max(1.0);
+        let (lo, hi) = (f32::from(t.offset) - 0.5, f32::from(t.offset) + 0.5);
         let fade = shade(
             terrain.color,
             t.depth,
@@ -108,15 +104,19 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
             view.visibility_depth,
         );
         if terrain.opaque {
-            // A silhouette the height of a wall at that distance.
-            let y0 = camera.sy(1.0, z_far);
-            let y1 = camera.sy(0.0, z_far);
+            // A block: its near face, a full tile high.
+            let (x0, x1) = (camera.sx(lo, z_near), camera.sx(hi, z_near));
+            let (y0, y1) = (camera.sy(1.0, z_near), camera.sy(0.0, z_near));
             push_rect(&mut ops, fade, x0, y0, x1, y1);
         } else {
-            // The ground between the far and near edges.
-            let y0 = camera.sy(0.0, z_far);
-            let y1 = camera.sy(0.0, z_near);
+            // The ground between the far and near edges, and the ceiling above it.
+            let (x0, x1) = (camera.sx(lo, z_far), camera.sx(hi, z_far));
+            let (y0, y1) = (camera.sy(0.0, z_far), camera.sy(0.0, z_near));
             push_rect(&mut ops, fade, x0, y0, x1, y1);
+            if terrain.ceiling.is_some() {
+                let (y0, y1) = (camera.sy(1.0, z_near), camera.sy(1.0, z_far));
+                push_rect(&mut ops, fade, x0, y0, x1, y1);
+            }
         }
     }
 
@@ -152,7 +152,17 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
                 EdgeView::Door { open: false } => {
                     push_slot(&mut ops, tileset, &map.def.door, depth, t.offset)
                 }
-                EdgeView::Door { open: true } | EdgeView::Open => {}
+                EdgeView::Door { open: true } => {
+                    if let Some(frame) = &map.def.door_open {
+                        push_slot(&mut ops, tileset, frame, depth, t.offset);
+                    }
+                }
+                EdgeView::Open => {}
+            }
+        }
+        for t in &row {
+            if let Some(block) = &map.def.terrains[usize::from(t.terrain)].block {
+                push_slot(&mut ops, tileset, block, depth, t.offset);
             }
         }
     }
@@ -421,6 +431,93 @@ mod tests {
             (59, 7),
             "slot position comes from the tileset"
         );
+    }
+
+    fn place(world: &mut World, map: MapId, x: u16, y: u16, facing: Facing) {
+        world.position = Position { map, x, y, facing };
+    }
+
+    #[test]
+    fn a_pillar_is_a_block_drawn_after_its_row() {
+        let data = data();
+        let mut world = World::new(&data, 1).unwrap();
+        let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+        // The pillar at (8, 8) two tiles ahead; the room's north wall is in the same row.
+        place(&mut world, dungeon, 6, 8, Facing::East);
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        let block = paths
+            .iter()
+            .position(|p| p.ends_with("rock_d2_o0.png"))
+            .expect("the pillar ahead is a block");
+        let last_wall_d2 = paths
+            .iter()
+            .rposition(|p| p.contains("wall") && p.contains("_d2_"))
+            .expect("wall.left_d2_o-2 along the north wall");
+        let floor_d2 = paths
+            .iter()
+            .position(|p| p.ends_with("floor_d2_o0.png"))
+            .unwrap();
+        assert!(floor_d2 < last_wall_d2 && last_wall_d2 < block);
+        assert!(
+            paths.iter().any(|p| p.contains("_d0_")),
+            "the party's own row still comes after: {paths:?}"
+        );
+        assert!(
+            paths.iter().position(|p| p.contains("_d0_")).unwrap() > block,
+            "nearer rows paint over the block"
+        );
+    }
+
+    #[test]
+    fn an_open_door_draws_its_frame_and_a_far_corridor_has_a_ceiling_band() {
+        let data = data();
+        let mut world = World::new(&data, 1).unwrap();
+        let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+        place(&mut world, dungeon, 9, 5, Facing::South);
+        apply(&mut world, &data, Command::Interact).unwrap();
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        assert_eq!(view.tiles[0].front, EdgeView::Door { open: true });
+        assert!(paths.contains(&"assets/tilesets/dungeon/door.open_d0_o0.png"));
+        assert!(!paths.iter().any(|p| p.ends_with("door_d0_o0.png")));
+
+        // Five tiles back, the open door lets the cone reach a seventh row: the band.
+        for _ in 0..5 {
+            apply(&mut world, &data, Command::Step(Direction::Back)).unwrap();
+        }
+        assert_eq!((world.position.x, world.position.y), (9, 0));
+        let view = query::viewport(&world, &data).unwrap();
+        assert!(view.tiles.iter().any(|t| t.depth == 6), "{:?}", view.tiles);
+        let ops = viewport(&view, &data);
+        let band: Vec<_> = ops
+            .iter()
+            .take_while(|o| matches!(o.paint, Paint::Fill { .. }))
+            .collect();
+        let horizon = 135 / 2;
+        assert!(band.iter().any(|o| o.y > horizon), "a ground band");
+        assert!(band.iter().any(|o| o.y < horizon), "and a ceiling band");
+    }
+
+    #[test]
+    fn distant_trees_are_silhouettes_at_their_near_edge() {
+        let data = data();
+        let mut world = World::new(&data, 1).unwrap();
+        let meadow = world.position.map;
+        place(&mut world, meadow, 5, 16, Facing::North);
+        let view = query::viewport(&world, &data).unwrap();
+        let tallest = viewport(&view, &data)
+            .iter()
+            .filter_map(|o| match o.paint {
+                Paint::Fill { height, .. } => Some(height),
+                Paint::Sprite(_) => None,
+            })
+            .max()
+            .unwrap();
+        // The clump's near edge at (5, 8) is eight tiles off: a tile is 121.5 / 8 px tall.
+        assert_eq!(tallest, 15);
     }
 
     #[test]
