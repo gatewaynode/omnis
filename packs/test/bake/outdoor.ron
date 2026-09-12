@@ -11,11 +11,12 @@
     surfaces: {
         "grass": (kind: Floor, tile: (16, 144)),
         "road": (kind: Floor, tile: (16, 224)),
-        "trees": (kind: Floor, tile: (64, 160)),
+        "trees": (kind: Block, tile: (64, 160)),
         "water": (kind: Floor, tile: (0, 64)),
         "hedge": (kind: WallFront, tile: (208, 16)),
         "hedge.left": (kind: WallLeft, tile: (208, 16)),
         "hedge.right": (kind: WallRight, tile: (208, 16)),
         "gate": (kind: Door, tile: (208, 96)),
+        "gate.open": (kind: DoorFrame, tile: (208, 16)),
     },
 )

@@ -84,7 +84,7 @@ fn test_pack_loads_with_both_maps() {
         dungeon
             .terrain(dungeon.cell(1, 1).unwrap())
             .visibility_depth,
-        4
+        6
     );
 }
 
@@ -115,7 +115,7 @@ fn portals_and_tileset_slots_resolve() {
 
     // Tileset slots resolve to the baked sprite paths.
     let tileset = &data.tilesets[&dungeon.tileset];
-    assert_eq!((tileset.detail_depth, tileset.width), (4, 3));
+    assert_eq!((tileset.detail_depth, tileset.width), (6, 5));
     assert_eq!(
         tileset.slot("wall", 2, -1),
         Some("assets/tilesets/dungeon/wall_d2_o-1.png")
