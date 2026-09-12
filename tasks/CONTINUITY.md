@@ -1,12 +1,13 @@
 # Continuity notes
 
-Written 2026-09-12 at the end of the M2 build, before the owner's restart test. Rewrite this file every time it is used.
+Written 2026-09-12 after M2 was verified from the session and the owner's screenshots. Rewrite this file every time it is used.
 
 ## Where we are
 - Omnis: turn-based first-person grid-crawler RPG, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule). World is Toel (`docs/background/introduction.md`). `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are the source of truth; build order follows `tasks/TODO.md` milestones.
-- Branch `m2-tasks` (from main after PR #2). Commits: `7e28d02`/`bf66df8`/`9981f63`/`1bc85e1` M1 follow-ups (blocks, door frames, dungeon detail 6); `8ce7f4e` CLI + `omnis_sim::ops`; `f92c67a` dev socket; `5a5a5f8` MCP bridge + `.mcp.json`; then the lock file and the M2 close-out docs. Tree clean. Never push; the owner opens PRs.
+- Branch `m2-tasks` (from main after PR #2). Commits: `7e28d02`/`bf66df8`/`9981f63`/`1bc85e1` M1 follow-ups (blocks, door frames, dungeon detail 6); `8ce7f4e` CLI + `omnis_sim::ops`; `f92c67a` dev socket; `5a5a5f8` MCP bridge + `.mcp.json`; `9478f08` shell launcher; `77ac82f` era verified + `Visible` compaction; `6a39db7` socket test split; `b016b03` depth-0 follow-up. HEAD `b016b03`, tree clean. Never push; the owner opens PRs.
 - **M2 is done and verified from the session** (`tasks/TODO.md` M2 review): Claude Code 2.1.269 speaks the legacy era (`initialize` at `2025-11-25`), starts the server in the project root, and does not expand or export `CLAUDE_PROJECT_DIR`; `.mcp.json` is a `sh -c` launcher. From the session: tools listed, the party walked into the dungeon, map text read, screenshot received as an image. The bridge compacts `Visible` events to counts in tool results.
-- **Next: M3 "Party and characters"** in `tasks/TODO.md`. Re-read PRD's party/character sections and ARCH §4 before planning; M3 has no approved plan yet, so plan mode first.
+- **Owner's walk-through of M2 (full-window screenshots): "good progress".** One artifact recorded as a TODO follow-up under the M2 review: the tiles beside the party at depth 0 are never drawn (cone has only offset 0 there), so the backdrop shows at the viewport's bottom corners and, in the dungeon, as black wedges at the edges. Fix: cone offsets ±1 at depth 0, bake slots `(0, ±1)` for floors and ceilings, re-baseline. About an hour.
+- **Next: the owner picks** the depth-0 fix first or M3 "Party and characters" in `tasks/TODO.md`. M3 has no approved plan: re-read the PRD's party and character sections and ARCH §4, then plan mode.
 
 ## Decisions and facts easy to get wrong after a compact
 - Crate deps: app → sim + bevy (+ optional `serde_json` under `devtools`); cli → sim, data, core, png, serde; mcp → cli, serde_json. `omnis_sim` re-exports `omnis_core` and `omnis_data`; `omnis_cli` re-exports `omnis_sim`. New crates go in `Cargo.toml` members and `scripts/lint-sim.sh` `SIM_CRATES` (sim crates only) in the same change.
@@ -32,6 +33,7 @@ Written 2026-09-12 at the end of the M2 build, before the owner's restart test. 
 - Ask before changing vision documents on drift; factual corrections are flagged in the commit and the report (ARCH §8.3 slot kinds, §9.2 dual era this branch).
 
 ## Open items
-- M3 next. The `.omnis/mcp.log` grows with every request; rotate or delete it when it gets large.
+- Depth-0 neighbours follow-up (TODO, M2 review), then M3. `.omnis/mcp.log` grows with every request (rotate it); `.omnis/mcp-hand-session.log` is a leftover to delete.
+- Owner's machine: `~/.zshrc.d/completions.zsh` evals `ngrok completion`, so every tool shell triggers a macOS prompt about ngrok; not Omnis. Told the owner 2026-09-12.
 - Art horizons: block far sides, door leaves, object and monster slots (M4), CC0 monster/portrait art (owner, before M4).
 - PRD §14 component economy and non-goal horizons; resolution 320×180 provisional; README rewrite when asked; Linux/Windows CI later; `.cargo/config.toml` when a fast linker exists; Socket re-audit of rhai 1.26.1 due 2026-10-10; Krea hallway PNGs under a set folder when first used.
