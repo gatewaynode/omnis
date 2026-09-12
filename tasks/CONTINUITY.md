@@ -4,7 +4,7 @@ Written 2026-09-12 before a compact. Rewrite this file every time it is used.
 
 ## Where we are
 - Project: Omnis, a turn-based first-person grid-crawler RPG in the Might and Magic I/II lineage, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule).
-- No code yet beyond a hello-world `src/main.rs`. Nothing committed; the repo has one untracked skeleton.
+- No code yet beyond a hello-world `src/main.rs`. Three commits on `main`, tree clean; the latest is "Arch reviewed, moving on to planning."
 - `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are written and owner-reviewed. They are the source of truth; re-read both before planning. Decision logs: PRD §6 (D1–D20), ARCHITECTURE §17 (A1–A14).
 - Next step: plan Phase 0 tasks in `tasks/TODO.md` (workspace, core, expr, data, sim skeleton, cli, mcp headless), then check in with the owner before implementing.
 

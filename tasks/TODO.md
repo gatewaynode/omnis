@@ -8,12 +8,12 @@
 - [x] Draft PRD v0.1
 - [x] Owner review of PRD v0.1; rules inverted to SRD spine (D1), decisions D10–D19 recorded
 - [x] Resolve §14 open questions (three remain, none blocking)
-- [ ] Derive ARCHITECTURE.md from the PRD
+- [x] Derive ARCHITECTURE.md from the PRD (v0.2, owner-reviewed 2026-09-12)
 - [ ] Fix README.md typos and align it with the PRD vision paragraph
 
 ## Architecture (2026-09-11)
 - [x] Decide MCP approach: own minimal MCP, stdio bridge binary to a game localhost socket
-- [x] Decide rules expression: tiny in-house sandboxed expression language in RON
+- [x] Decide rules expression: tiny in-house language first, revised to Rhai in review (A4)
 - [x] Research: MCP spec and transports; Bevy 0.19 headless, assets, UI, structure; dependency versions
 - [x] Decide editor UI toolkit with owner: bevy_egui for the editor, bevy_ui for the game
 - [x] Write ARCHITECTURE.md v0.1
