@@ -101,7 +101,7 @@ pub struct World {
     pub quests: QuestState,
     pub mode: Mode,                  // Explore | Combat(CombatState) | Town(ServiceState) | ...
     pub flags: BTreeMap<FlagId, i64>,
-    pub settings: Difficulty,        // save rule, permadeath (D17)
+    pub settings: Settings,          // save rule (anywhere, relief, inn only), permadeath (D17)
 }
 ```
 
@@ -219,24 +219,25 @@ A `Replay` is `(initial World fingerprint, pack fingerprints, Vec<Command>)`. Ap
 Serves the owner's direction that rules will change a lot, PRD goal 2, and D12 (formula is data). Owner decision (A4, revised 2026-09-12): rule formulas are written in Rhai rather than a hand-rolled language. `omnis-expr` keeps its name and its place in the crate graph; its job changes from implementing a language to hosting one under strict configuration. Facts about Rhai below were verified against its repository, book, and crates.io on 2026-09-12.
 
 ### 5.1 What `omnis-expr` owns
-- **Engine construction.** One `Engine::new_raw()` per profile, with only the packages we choose registered: arithmetic and logic, plus our own `min`, `max`, `clamp`, `abs`, `floor_div`, and `d(n, sides)`. `new_raw` starts with no built-in functions, so nothing enters the sandbox by default.
+- **Engine construction.** One `Engine::new_raw()` per profile, with only the packages we choose registered: arithmetic (unary minus, `abs`) and logic (`!`, `min`, `max`), plus our own `clamp`, `floor_div`, and `d(n, sides)`. Binary integer operators and comparisons are built into the evaluator. `new_raw` starts with no other functions, so nothing else enters the sandbox.
 - **Profiles.** `Formula` is the only profile in v1: a single expression per slot, no statements. `Script` is the later profile for quest logic (PRD §13, "scripting for mods") with functions, arrays, and maps enabled and higher limits; it is designed for but not built.
-- **Slots and inputs.** Every rule slot declares its input names and types in `omnis-data`. `omnis-expr` compiles each slot's source to an `AST` at pack load and checks that every variable the AST references is a declared input, by walking the AST (Rhai's `internals` feature) or, if that API proves unstable, by a dry-run evaluation with all inputs bound. Unknown identifiers are pack validation errors with file, line, and column.
+- **Slots and inputs.** Every rule slot declares its input names in `omnis-data`; values are integers or booleans. `omnis-expr` compiles each slot's source to an `AST` at pack load and checks that every variable the AST references is a declared input, by walking the AST (Rhai's `internals` feature) or, if that API proves unstable, by a dry-run evaluation with all inputs bound. Unknown identifiers are pack validation errors with file, line, and column.
 - **Evaluation.** `eval(slot, inputs, rng_stream) -> Result<i64 | bool, RuleError>` builds a `Scope` from the inputs, binds the RNG stream for `d`, and runs `eval_ast_with_scope`. A `RuleError` is a bug or bad data, never a rejection; it names the slot and the Rhai error.
 - **Hot swap.** `set_slot(slot, source)` recompiles and replaces the AST in place (dev builds, via MCP `rules.set`). ASTs are not serializable, so packs and saves carry source text and every load recompiles.
 
 ### 5.2 Build features and sandbox limits
-Rhai features enabled for the v1 formula build: `only_i64` (one integer type), `no_float` (no floating point exists in the language), `sync` (ASTs and closures are `Send + Sync`, required because compiled rules live in a Bevy resource), `no_time`, `no_custom_syntax`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object` (no user functions, closures, imports, arrays, or maps in formulas). The `unchecked` feature is never enabled: integer overflow and division by zero are runtime errors, not wraps. Enabling the `Script` profile later means removing the last five flags in one rebuild; the `Formula` profile keeps enforcing its subset through `disable_symbol` regardless.
+Rhai features enabled for the v1 formula build: `only_i64` (one integer type), `no_float` (no floating point exists in the language), `sync` (ASTs and closures are `Send + Sync`, required because compiled rules live in a Bevy resource), `no_time`, `no_custom_syntax`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object` (no user functions, closures, imports, arrays, or maps in formulas), and `internals` for the AST walk; `default-features = false` drops `ahash/runtime-rng`. The `unchecked` feature is never enabled: integer overflow and division by zero are runtime errors, not wraps. Enabling the `Script` profile later means removing the last five flags in one rebuild; the `Formula` profile keeps enforcing its subset through `disable_symbol` regardless.
 
 Engine limits per profile:
 
 | Limit | Formula | Script (later) |
 |---|---|---|
-| `disable_symbol` | `fn`, `loop`, `while`, `for`, `do`, `let`, `const`, `import`, `export`, `eval`, `throw`, `try`, string literals | `import`, `export`, `eval` |
+| `disable_symbol` | `fn`, `loop`, `while`, `for`, `do`, `let`, `const`, `import`, `export`, `eval`, `throw`, `try`, `return`, `switch` | `import`, `export`, `eval` |
+| string and character literals | refused by the AST walk at compile time (literals are not symbols, and `set_max_string_size(0)` means unlimited) | allowed, 4 KB |
 | `set_max_operations` | 10 000 | 1 000 000 |
-| `set_max_expr_depths` | (32, 16) | (64, 32) |
-| `set_max_call_levels` | 8 | 32 |
-| `set_max_string_size`, `array_size`, `map_size` | 0 (types unavailable) | 4 KB, 4 096, 1 024 |
+| `set_max_expr_depths` | 32 (one argument: `no_function` removes the function-body depth) | (64, 32) |
+| `set_max_call_levels` | compiled out by `no_function` | 32 |
+| `set_max_array_size`, `set_max_map_size` | compiled out by `no_index`, `no_object` | 4 096, 1 024 |
 
 ### 5.3 Determinism
 - Integers only, checked arithmetic, `only_i64`: results are identical on every platform. `/` truncates toward zero and `%` follows the sign of the dividend, matching Rust; rule authors are told this in the pack documentation.
@@ -249,17 +250,21 @@ Engine limits per profile:
 - Security (R8): the formula build has no I/O, no modules, no functions, no strings, no time, bounded operations and depth, and checked arithmetic. A mod pack can make a rule slow or wrong; it cannot reach the filesystem, the network, or the process. The `Script` profile, when it comes, keeps the no-I/O guarantee and adds only computation.
 - Dependency footprint: `rhai` pulls `smallvec`, `thin-vec`, `ahash`, `num-traits`, `once_cell`, `bitflags`, `smartstring`, and the `rhai_codegen` proc-macro crate. `smartstring` is MPL-2.0; it is file-scoped copyleft, compatible with linking into MIT or Apache-2.0 code, and is listed in the attribution file. Several of these crates are already in Bevy's tree and must resolve to Bevy's versions (§12).
 
-### 5.5 Example rule slot (data, not code)
+### 5.5 Example rules file (data, not code)
+Every `data/rules/*.ron` file has one shape: named formula `slots`, plain integer `values`, and integer `tables`. Files merge into one rule set in id order; a later file's slot, value, or table with the same name replaces the earlier one, so a mod can override one formula. Slots are addressed by name everywhere (`rules.get { slot: "spell_points.pool" }`).
 ```ron
 // packs/base/data/rules/casting.ron
 (
-  schema: 1,
-  spell_points: (
-    inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
-    pool: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
-    cost: "spell_level",
-  ),
-  component_threshold: 5,
+    schema: 1,
+    id: "base:rules:casting",
+    slots: {
+        "spell_points.pool": (
+            inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
+            expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
+        ),
+        "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
+    },
+    values: {"component_threshold": 5},
 )
 ```
 
@@ -339,7 +344,7 @@ Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources o
 ### 8.1 Structure
 - One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys and gamepad to `Command`), `ViewportPlugin`, `HudPlugin`, `MenusPlugin`, `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
 - Bevy features: `default-features = false, features = ["2d", "ui", "png"]`, plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
-- App states (`bevy_state`): `Boot → MainMenu → {NewGame, Load} → Playing | Editor`, with `SubStates` under `Playing`: `Explore | Encounter | Combat | Service | Journal | Paused`. `OnEnter` and `OnExit` build and tear down presentation entities per state.
+- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Paused`, joined by `Encounter | Combat | Service | Journal` as their milestones arrive. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
 - The `World` is a Bevy `Resource` wrapped in `SimWorld` (in 0.19 resources are components on singleton entities; `Res` and `ResMut` are unchanged). Only `SimPlugin` systems mutate it, in one ordered system set in `Update`: `collect commands → apply → push events`. All other systems read events from a buffered `Message` queue (`MessageWriter`/`MessageReader`, 0.19's name for the old buffered events) and read the world through `query::*`. Bevy's ECS holds presentation entities only (sprites, UI nodes, sounds); it never holds game state.
 - Simulation events are re-published as Bevy messages one to one; observers (`On<E>`) are used only for presentation-internal triggers (a floating number finished, a menu closed).
 - Events drive animation. A `Damage` event spawns a floating number; `Moved` starts a step transition; `Visible` updates the viewport model. Presentation may lag the simulation by an animation queue, but the simulation is never blocked by it.
@@ -448,7 +453,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 
 ## 13. Dependencies (initial)
 
-Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved versions first, N-1 and 30 days for the rest, Socket audit when in doubt. Socket `depscore` audited on 2026-09-12; every crate scored 100 on license, maintenance, and vulnerability and 93 on quality, except smartstring's license score (70, MPL-2.0) and thin-vec's vulnerability score (84). Supply-chain scores: ron 100, bevy_egui 100, smallvec 100, bitflags 100, once_cell 100, thin-vec 100, rhai 1.26.1 71 (owner-reviewed, see row), serde_json 82, serde 81, ahash 82, num-traits 82, thiserror 79, bevy 74. See the rhai row for the 1.25.x anomaly.
+Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved versions first, N-1 and 30 days for the rest, Socket audit when in doubt. Socket `depscore` audited on 2026-09-12; every crate scored 100 on license, maintenance, and vulnerability and 93 on quality, except smartstring's license score (70, MPL-2.0) and thin-vec's vulnerability score (84). Supply-chain scores: ron 100, bevy_egui 100, smallvec 100, bitflags 100, once_cell 100, thin-vec 100, rhai 1.26.1 71 (owner-reviewed, see row), serde_json 82, serde 81, ahash 82, num-traits 82, thiserror 79, bevy 74. See the rhai row for the 1.25.x anomaly. Resolved on 2026-09-12 when `omnis-expr` first pulled rhai: rhai_codegen 3.2.0, smartstring 1.0.1, thin-vec 0.2.19, no-std-compat 0.4.1 and spin 0.5.2 (from `sync`), const-random 0.1.18 and tiny-keccak 2.0.2 (ahash's compile-time seed), and a second getrandom 0.2.17, already on the duplicate allow list; ahash, smallvec, num-traits, once_cell, and bitflags resolved to Bevy's copies.
 
 | Crate | Pin | Used by | Note |
 |---|---|---|---|
