@@ -60,6 +60,15 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - [x] `packs/test` (2026-09-12): one 24×24 dungeon level with doors and a 32×32 outdoor patch (visibility depth 4 vs 12), one tileset baked from the OpenRTP dungeon and exterior sheets
 - **Done when**: the owner runs the app, walks both maps in first person, opens a door, watches the automap fill, saves and reloads, and the replay fingerprint is recorded as a golden value in CI (cross-platform compare when Linux CI returns)
 
+#### M1 review (2026-09-12, awaiting the owner's walk-through)
+- Built in eight commits on `m1-tasks` (`8d4bbe3` core … `895c47c` app). 66 tests, all on `packs/test`; clippy, fmt, `lint-sim`, `check-duplicates` green; CI unchanged (the golden replay `crates/omnis-sim/tests/replays/walk.ron` runs under `cargo test`).
+- Run: `cargo run -p omnis-app -- [--seed N] [--pack DIR]`. Devtools: `--script forward,turn-left,use,map --screenshot-canvas out.png` renders unattended. F5/F9 use `.omnis/quick.ron`.
+- Verified by eye from canvas captures: meadow with road and shaded horizon band, a dungeon room with side walls and a pillar shadow, a front wall, the automap with walls, door, and party mark. Not verified here: the window itself and the HUD text (Bevy's window screenshot and macOS `screencapture` both return black on this machine; the canvas capture is the trusted path). The owner's run is the acceptance.
+- Decisions made during the build: map layout is a text grid with shared edges (`crates/omnis-data/src/map.rs` docs); line of sight is an integer supercover ray to a tile's centre or any corner, either way round exact corners; door state is a canonical edge key in `MapState`; `Slot` carries `x`/`y` placement and `Tileset` a `viewport`; `Terrain` has `opaque` and `color`; manifest `entry` names the start map; `omnis-sim` re-exports `omnis_core` and `omnis_data`; `omnis-cli` depends on `omnis-data` and `png` 0.18.1 (Bevy's version).
+- Known placeholders: opaque impassable tiles (pillars, trees) draw as floor swatches, not blocks; open doors draw nothing; the party's own tile is a thin strip at the bottom (focal 0.9·height); tree/rock silhouettes in the band are flat colour.
+- Sentrux at M1 end: signal 6508 (M0 baseline 10000 was an empty skeleton); bottleneck modularity 0.20, depth 7, equality 0.46 (`query/path.rs` is the largest file); no rule violations; five functions Sentrux calls complex, none over `max_cc 25`.
+- Next: M2 grows from `omnis-app/src/dev.rs` (script and screenshot) and `omnis-cli` (validate, replay, headless).
+
 ### M2 — Live instrumentation: MCP and CLI
 - [ ] `omnis-cli`: `validate`, `schema dump`, `map text`, `play --script`, `replay` (asserts fingerprint), `omnis_cli::Headless` library; CI switches the replay job to it
 - [ ] `omnis-app` feature `devtools`: `DevSocketPlugin`, non-blocking loopback listener polled per frame, `.omnis/dev.addr`, newline JSON protocol, input validation per ARCH §6.2, ops `game.status`, `world.query`, `sim.command`, `sim.script`, `events.tail`, `viewport.get`, `map.text`, `automap.get`, `save.write`, `save.read`, `pack.reload`, `screenshot`

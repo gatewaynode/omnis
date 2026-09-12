@@ -1,44 +1,35 @@
 # Continuity notes
 
-Written 2026-09-12 before a compact, at the end of M0. Rewrite this file every time it is used.
+Written 2026-09-12 at the end of M1, before the owner's walk-through. Rewrite this file every time it is used.
 
 ## Where we are
-- Omnis: turn-based first-person grid-crawler RPG, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule). World is Toel (`docs/background/introduction.md`).
-- `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are owner-reviewed and remain the source of truth; both carry a note that build order follows the milestones in `tasks/TODO.md`, not their phase tables.
-- Branch `task-planning-1` (owner opened a PR from it; remote is `origin`). Commits since main: docs tidy, delivery plan + asset reorg, M0, CI fix, CI macOS-only. Tree clean.
-- **M0 is done**: workspace with exact pins, six stub crates (`core`, `data`, `sim`, `app`, `cli`, `mcp`), `scripts/lint-sim.sh` (with `--self-test`), `scripts/check-duplicates.sh` + allow list, CI on macOS, licences, `ATTRIBUTION.md`, `packs/test/pack.ron`. All checks green locally after the final edit.
-- **Next: M1 "Walkable"** in `tasks/TODO.md`. Start with `omnis-core` (typed IDs, `Fixed`, PCG32 named streams with FNV-1a + splitmix64, `RollTrace`, Direction/Rotation/Position/Clock), then `omnis-data` loader, `omnis-sim` movement/viewport/automap/save/replay, `omnis-cli tileset bake`, `omnis-app` pixel pipeline and viewport, `packs/test` maps. Re-read TODO M1 items and ARCH §4, §6, §8 before coding. Check in with the owner is not needed again for M1 (plan approved), but report at each checked item.
+- Omnis: turn-based first-person grid-crawler RPG, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule). World is Toel (`docs/background/introduction.md`). `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are the source of truth; build order follows `tasks/TODO.md` milestones.
+- Branch `m1-tasks` (from main after PR #1). M1 commits: `8d4bbe3` core, `27b0a8b`+`3b481cf` data, `95da8bf` sim, `56190fe` bake, `d691d0b` planner, `895c47c` app, then the docs commit. Never push; the owner opens PRs.
+- **M1 "Walkable" is code-complete**; every TODO item is checked and the review section in `tasks/TODO.md` lists what was verified and what the owner must confirm by running `cargo run -p omnis-app`. Acceptance is the owner's walk-through.
+- **Next: M2 "Live instrumentation"** in `tasks/TODO.md`: `omnis-cli` subcommands (`validate`, `schema dump`, `map text`, `play --script`, `replay`) and `omnis_cli::Headless`; `DevSocketPlugin` in the app (grow it from `crates/omnis-app/src/dev.rs`); `omnis-mcp` bridge with the dual-era handshake; `.mcp.json`. Re-read ARCH §9, §10 and TODO M2 before starting. Plan is approved; report per checked item.
 
 ## Decisions and facts easy to get wrong after a compact
-- Rules: SRD 5.1 is the spine; MM2 adaptations only where they serve the crawl loop. Party six slots, hirelings fill open slots (D10). Spell points: level × casting mod + other two mental mods, half casters half level, floor level (D12). Components list on spells, hard from spell level 5 by config (D11).
-- Time: no global clock; per-holder `Clock`, `Contact` records, partial reconciliation on contact; single era in v1 (D20/A13). M1 has only the party clock.
-- Viewport: detail depth 4 as sprites, visibility depth up to 20 as a procedural horizon band; internal resolution **320×180** (provisional, PRD §14).
-- Scripting: Rhai in `omnis-expr` (M3), Formula profile flags in ARCH §5.2; never `unchecked`. Pinned 1.26.1 by owner exception, Socket re-audit due 2026-10-10.
-- RNG (A14): one world seed; stream state = splitmix64(seed ^ fnv1a64(name)), increment = splitmix64(fnv1a64(name)) | 1; stateful streams persisted in `World.rngs`; `gen:*` streams stateless.
-- MCP (A3): own stdio bridge, dual-era handshake, newline JSON loopback socket, `devtools` feature (default on, release uses `--no-default-features`), headless via `omnis_cli::Headless`. Tool JSON schemas from our own builder, no `schemars`.
-- Simulation crate rules (CLAUDE.md section): eight crates; `core`, `rules`, `gen`, `eco`, `story`, `sim` are `#![no_std]`; every sim crate carries `#![deny(clippy::float_arithmetic)]`; only `omnis-data` does file I/O. A new crate goes in `Cargo.toml` members (explicit list, no glob) and `SIM_CRATES` in `scripts/lint-sim.sh` in the same change.
-- Dependency policy: match Bevy's resolved versions; `check-duplicates.sh` allow list holds Bevy's own 30 duplicates; `--update` rewrites it only for an intentional change.
-- Assets: `assets/openrtp-tiles/` is CC0 and committed (16×16 top-down chipsets, no monsters or characters). `assets/private/time-fantasy-icons/` is paid, gitignored, never shipped in a pack. `assets/simple-hallway*.png` are the owner's Krea-generated 3D renders, committed by the owner; file under a set folder when first used. No first-person crawler art exists: M1 bakes per-depth slots from 16×16 textures via `omnis-cli tileset bake`.
-- CI: macOS only per owner (2026-09-12). Restore the Linux matrix, apt packages, fingerprint artifacts, and the compare job when asked; the workflow header lists them.
-- Sentrux: no ignore setting; scan `crates/` (repo root counts the SRD markdown). Rules live in `crates/.sentrux/rules.toml`, gitignored per owner; free tier checks 5 of 18 rules. Baseline signal 10000 on `crates/` at M0 end.
+- Crate deps are exactly: app → sim + bevy (data and core reach the app via `omnis_sim::omnis_data` / `omnis_sim::omnis_core` re-exports); cli → sim, data, core, png, serde; mcp → cli, serde_json. New crates go in `Cargo.toml` members (explicit list) and `scripts/lint-sim.sh` `SIM_CRATES` in the same change.
+- Maps are a text grid: `2h+1` rows of `2w+1` chars, odd positions tiles, even positions edges (`-`/`|` wall, `=`/`:` door, space open); boundary must be walls. Loader collects every error; `tests/packs-bad/` is the corpus and its test asserts the full message list.
+- Any edit to `packs/test` changes the pack fingerprint and therefore the golden replay: re-baseline with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit. Tileset files under `packs/test/data/tiles/` are generated: edit `packs/test/bake/*.ron` and run `cargo run -p omnis-cli -- tileset bake packs/test/bake/dungeon.ron packs/test/bake/outdoor.ron`; a test fails if the committed file drifts from a fresh bake.
+- Visibility (`crates/omnis-sim/src/visibility.rs`): integer supercover rays in half-tile coordinates to the target's centre and four corners, both orders at exact corner ties; opaque terrain seen but not seen through; edges checked at every crossing. Cone offsets are `-d..=d`; the tileset `width` clamps only what the renderer draws.
+- Viewport geometry (bake and renderer agree): eye at the near edge of the party's tile, half a tile up, focal `0.9 × viewport height`; tile at depth `d` has its far edge at distance `d+1`. Canvas 320×180, viewport 240×135 at the top-left, automap overlay at (8,8) with 4 px tiles.
+- Screenshot verification: `omnis --script ... --screenshot-canvas file.png` works; `--screenshot` (window) and macOS `screencapture` return black on this machine, so never trust a black window capture as evidence of a bug.
+- Sentrux: scan `crates/`; rules in `crates/.sentrux/rules.toml` (local, gitignored); `max_fn_lines 100` bites integration tests too (split long tests). M1 end signal 6508.
+- Editing Rust with `sed` breaks on `|` closures and on rustfmt's rewrapping: use a Python replace with an assert, after `cargo fmt`, matching the formatted text.
 
 ## Verified facts worth not re-researching
-- Bevy 0.19.1 features: `2d` and `ui` expand to `default_app` (asset, log, state, async_executor, reflect_auto_register) and `default_platform` (std, winit, x11, wayland, gilrs, multi_threaded, webgl2, default_font); `png` is separate; `3d` never enabled. crates.io checksum 4bfadbeb…df8f.
-- Toolchain: rustc 1.98.0 locally, `rust-toolchain.toml` pins 1.98.0, MSRV 1.95. No lld/mold installed; no `.cargo/config.toml` yet.
-- Bevy's tree duplicates `thiserror` 1 (via `calloop` in the Wayland stack), `bitflags`, `syn`, `windows-sys`, and 26 others; recorded in `scripts/duplicates.allow`.
-- GitHub Actions pinned by SHA (all >30 days old): checkout v7.0.1 3d3c42e…, rust-cache v2.9.2 6323deb…; upload/download-artifact SHAs are in git history (`c436158`) if needed again.
-- `gh` is not installed on this machine; use the REST API with `json.loads(strict=False)` (release notes contain control characters).
-- Earlier facts (Bevy API names, MCP spec 2026-07-28, Rhai 1.26.1 details, policy pins with Socket audits) are in ARCH §5, §9, §13 and the previous continuity notes are superseded by those sections.
+- Bevy 0.19.1 API (from sources, 2026-09-12): `RenderTarget` is a component beside `Camera`; `Anchor::TOP_LEFT` is a separate component; `TextFont::from_font_size(f32)`; `MessageWriter::write`/`MessageReader::read`; `StatesPlugin` and `InputPlugin` are not in `MinimalPlugins`; `register_asset_source` must precede `DefaultPlugins`; `Image::new_target_texture(w, h, format, None)` makes a render target; `Screenshot::image(handle)` + `save_to_disk`; `LoadState::Failed(Arc<_>)`.
+- `png` 0.18.1 is in Bevy's tree (no new duplicate); `Transformations::ALPHA` expands palettes to RGBA.
+- Earlier facts (feature groups, toolchain 1.98.0, action SHAs, no `gh`, `json.loads(strict=False)`) are in ARCH §5, §9, §13, §14 and git history.
 
 ## Working agreements observed
-- Owner wants numbers before opinions; both directions of any hybrid; v1 choices are horizons (see `LESSONS.md`, four entries).
-- Verification runs only after the last tree change; a fresh `cargo metadata` first when workspace contents change (LESSONS 2026-09-12, from the CI failure).
-- Commit per checked item or small group with the attribution trailer; never push (owner pushes and opens PRs). Never stage with `add -A` when unreviewed files may be present.
-- Ask before updating vision documents on drift; owner chose to keep PRD §13 / ARCH §16 and annotate.
-- Sentrux review after each task; `session_end` compares against the M0 baseline.
+- Owner wants numbers before opinions; both directions of any hybrid; v1 choices are horizons (`LESSONS.md`).
+- Verification runs only after the last tree change; fresh `cargo metadata` when workspace contents change. Commit per checked item with the attribution trailer; stage files by name, never `add -A`.
+- Ask before changing vision documents on drift; small factual notes were added to ARCH §3, §4.2, §8.3, §13 at M1 end and are listed in the docs commit for the owner to review.
 
 ## Open items
-- PRD §14: component economy; non-goal horizons (browser, 3D, LLM) still unanswered; resolution and depth are provisional.
-- README.md rewrite from the PRD vision paragraph when asked (typos, predates decisions).
-- Windows CI and Linux CI later; `.cargo/config.toml` when a fast linker is available.
-- Monster and portrait art: owner to source a CC0 set before M4.
+- Owner acceptance of M1 (walk both maps, door, automap, F5/F9). HUD text and window scaling unverified by capture.
+- Placeholders to revisit: opaque tiles as blocks, open-door art, horizon silhouettes, first-person sprites for objects and monsters (M4), CC0 monster/portrait art (owner, before M4).
+- PRD §14 component economy and non-goal horizons still open; resolution 320×180 provisional.
+- README.md rewrite when asked; Linux/Windows CI later; `.cargo/config.toml` when a fast linker exists; Socket re-audit of rhai 1.26.1 due 2026-10-10; file the Krea hallway PNGs under a set folder when first used.
