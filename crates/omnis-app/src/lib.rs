@@ -37,7 +37,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
-            packs: vec![PathBuf::from("packs/test")],
+            packs: vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")],
             seed: 1,
             save_path: PathBuf::from(".omnis/quick.ron"),
         }

@@ -22,7 +22,7 @@ pub struct DevScript {
 }
 
 /// One scripted action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScriptStep {
     /// A simulation command.
     Play(Command),
@@ -86,7 +86,7 @@ fn drive(
     if let Some(step) = script.commands.get(progress.next) {
         match step {
             ScriptStep::Play(c) => {
-                play.write(PlayerCommand(*c));
+                play.write(PlayerCommand(c.clone()));
             }
             ScriptStep::Shell(s) => {
                 shell.write(*s);

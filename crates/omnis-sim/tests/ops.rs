@@ -272,4 +272,9 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
     for command in script {
         assert_eq!(Command::from_word(command.word()), Some(command));
     }
+    assert_eq!(
+        Command::from_word("party"),
+        None,
+        "party commands carry data"
+    );
 }

@@ -221,12 +221,14 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         mode: omnis_sim::Mode::Explore,
         flags: BTreeMap::new(),
         settings: Default::default(),
+        party: Default::default(),
         turn: 0,
         log: Vec::new(),
     };
     let replay = Replay {
         seed: 1,
         packs: vec![fingerprint],
+        settings: Default::default(),
         commands: vec![Command::Step(omnis_sim::omnis_core::Direction::Forward)],
         fingerprint: 0,
     };

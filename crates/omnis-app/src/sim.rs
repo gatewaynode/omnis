@@ -4,7 +4,7 @@
 use crate::AppConfig;
 use bevy::prelude::*;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, World, apply};
+use omnis_sim::{Command, Event, Settings, World, apply};
 use std::path::{Path, PathBuf};
 
 /// Top-level app state. Menus arrive with M3.
@@ -35,7 +35,7 @@ pub struct PackData(pub Data);
 pub struct SimWorld(pub World);
 
 /// A player action for the simulation.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCommand(pub Command);
 
 /// Something outside the simulation: saving, loading, overlays, quitting.
@@ -117,7 +117,7 @@ fn boot(
             return;
         }
     };
-    match World::new(&data, config.seed) {
+    match World::new(&data, config.seed, Settings::default()) {
         Ok(world) => {
             info!(
                 "new game on {} pack(s), seed {:#x}",
@@ -142,7 +142,7 @@ fn apply_commands(
     mut events: MessageWriter<SimEvent>,
 ) {
     for PlayerCommand(command) in incoming.read() {
-        match apply(&mut world.0, &data.0, *command) {
+        match apply(&mut world.0, &data.0, command.clone()) {
             Ok(produced) => {
                 for event in produced {
                     events.write(SimEvent(event));

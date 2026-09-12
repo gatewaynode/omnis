@@ -105,10 +105,11 @@ fn play(args: Args) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     for command in commands {
         let turn = game.world.turn;
+        let word = command.word();
         match game.handle(&Op::SimCommand { command }) {
             Ok(Reply::Events { events }) => {
                 for event in events {
-                    println!("{turn} {}: {event:?}", command.word());
+                    println!("{turn} {word}: {event:?}");
                 }
             }
             Ok(other) => return Err(format!("unexpected reply {other:?}")),

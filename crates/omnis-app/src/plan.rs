@@ -337,6 +337,7 @@ fn dim(c: (u8, u8, u8)) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::Settings;
     use omnis_sim::omnis_core::{Direction, Facing, Position};
     use omnis_sim::omnis_data::load_packs;
     use omnis_sim::{Command, apply, query};
@@ -359,7 +360,7 @@ mod tests {
     #[test]
     fn meadow_start_draws_far_to_near_with_a_horizon_band() {
         let data = data();
-        let world = World::new(&data, 1).unwrap();
+        let world = World::new(&data, 1, Settings::default()).unwrap();
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let fills = ops
@@ -401,7 +402,7 @@ mod tests {
     #[test]
     fn dungeon_corridor_draws_each_wall_plane_once() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         world.position = Position {
             map: dungeon,
@@ -454,7 +455,7 @@ mod tests {
     #[test]
     fn tiles_beside_the_party_fill_the_corners() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let paths = sprites(&ops);
@@ -493,7 +494,7 @@ mod tests {
     #[test]
     fn a_neighbours_front_lies_under_the_partys_side_wall() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         place(&mut world, dungeon, 3, 6, Facing::North);
         let mut view = query::viewport(&world, &data).unwrap();
@@ -523,7 +524,7 @@ mod tests {
     #[test]
     fn a_pillar_is_a_block_drawn_after_its_row() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         // The pillar at (8, 8) two tiles ahead; the room's north wall is in the same row.
         place(&mut world, dungeon, 6, 8, Facing::East);
@@ -556,7 +557,7 @@ mod tests {
     #[test]
     fn an_open_door_draws_its_frame_and_a_far_corridor_has_a_ceiling_band() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         place(&mut world, dungeon, 9, 5, Facing::South);
         apply(&mut world, &data, Command::Interact).unwrap();
@@ -587,7 +588,7 @@ mod tests {
     #[test]
     fn distant_trees_are_silhouettes_at_their_near_edge() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let meadow = world.position.map;
         place(&mut world, meadow, 5, 16, Facing::North);
         let view = query::viewport(&world, &data).unwrap();
@@ -606,7 +607,7 @@ mod tests {
     #[test]
     fn automap_marks_known_tiles_walls_and_the_party() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         world.position = Position {
             map: world.position.map,
             x: 6,
@@ -642,7 +643,7 @@ mod tests {
     #[test]
     fn automap_window_centres_small_maps_and_scrolls_large_ones() {
         let data = data();
-        let world = World::new(&data, 1).unwrap();
+        let world = World::new(&data, 1, Settings::default()).unwrap();
         let rect = (248, 8, 64, 64);
         let fitted = automap_window(&world, &data, rect, 2);
         let inside = |op: &DrawOp| match op.paint {

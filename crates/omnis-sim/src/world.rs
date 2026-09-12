@@ -2,6 +2,8 @@
 //! is this struct as RON text; the fingerprint hashes that text.
 
 use crate::command::Event;
+use crate::migrate::{WorldV1, v1_to_v2};
+use crate::party::Party;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -13,8 +15,8 @@ use omnis_core::{
 use omnis_data::{Data, DataError, PackFingerprint};
 use serde::{Deserialize, Serialize};
 
-/// The save schema this build writes.
-pub const SAVE_SCHEMA: u32 = 1;
+/// The save schema this build writes. Schema 1 (no party, a save switch) migrates on load.
+pub const SAVE_SCHEMA: u32 = 2;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,17 +105,36 @@ pub enum Mode {
     Explore,
 }
 
-/// Difficulty options (D17). Only the save rule exists so far.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Settings {
-    /// Whether the player may save anywhere rather than at inns only.
-    pub save_anywhere: bool,
+/// Where the player may save (PRD D17), easiest first.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum SaveRule {
+    /// Anywhere, any time.
+    #[default]
+    Anywhere,
+    /// At inns, and wherever an item or spell grants a save (M6).
+    Relief,
+    /// At inns only.
+    InnOnly,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Settings {
-            save_anywhere: true,
+/// Difficulty options (D17), fixed when the game starts and kept in the save.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Settings {
+    /// Where saving is allowed.
+    pub save_rule: SaveRule,
+    /// A dead member stays dead; enforced when death arrives (M4).
+    pub permadeath: bool,
+}
+
+impl Settings {
+    /// Whether a save is allowed here. There are no inns yet, so only `Anywhere` says yes.
+    #[must_use]
+    pub const fn may_save(&self, at_inn: bool) -> bool {
+        match self.save_rule {
+            SaveRule::Anywhere => true,
+            SaveRule::Relief | SaveRule::InnOnly => at_inn,
         }
     }
 }
@@ -143,6 +164,8 @@ pub struct World {
     pub flags: BTreeMap<FlagId, i64>,
     /// Difficulty options.
     pub settings: Settings,
+    /// The party.
+    pub party: Party,
     /// Commands applied so far.
     pub turn: u64,
     /// Recent events for clients that poll (`events.tail`). Not part of the save or the
@@ -169,7 +192,7 @@ impl fmt::Display for NewGameError {
 pub enum LoadError {
     /// The text is not a world.
     Parse(DataError),
-    /// The save was written by another schema; migrations arrive with the second schema.
+    /// The save was written by a schema this build has no migration for.
     Schema(u32),
     /// The save's packs differ from the loaded ones; pass `force` to load anyway.
     PackMismatch,
@@ -192,8 +215,8 @@ impl fmt::Display for LoadError {
 }
 
 impl World {
-    /// A new game on the packs' entry map.
-    pub fn new(data: &Data, seed: u64) -> Result<World, NewGameError> {
+    /// A new game on the packs' entry map, with an empty party and the given settings.
+    pub fn new(data: &Data, seed: u64, settings: Settings) -> Result<World, NewGameError> {
         let map = data.entry.ok_or(NewGameError::NoEntryMap)?;
         let (x, y, facing) = data.maps[&map].def.start;
         let mut clocks = BTreeMap::new();
@@ -209,10 +232,17 @@ impl World {
             automap: Automap::default(),
             mode: Mode::Explore,
             flags: BTreeMap::new(),
-            settings: Settings::default(),
+            settings,
+            party: Party::default(),
             turn: 0,
             log: Vec::new(),
         })
+    }
+
+    /// Whether the settings allow a save where the party stands.
+    #[must_use]
+    pub const fn may_save(&self) -> bool {
+        self.settings.may_save(false)
     }
 
     /// The RNG stream `name`, created from the seed on first use.
@@ -257,13 +287,22 @@ impl World {
         Ok(fnv1a64(self.to_ron()?.as_bytes()))
     }
 
-    /// A world from save text, checked against the loaded packs. `force` skips the pack
-    /// fingerprint comparison, not the structural checks.
+    /// A world from save text, migrated from an older schema when one applies and checked
+    /// against the loaded packs. `force` skips the pack fingerprint comparison, not the
+    /// structural checks.
     pub fn from_ron(text: &str, data: &Data, force: bool) -> Result<World, LoadError> {
-        let world: World = omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?;
-        if world.schema != SAVE_SCHEMA {
-            return Err(LoadError::Schema(world.schema));
+        #[derive(Deserialize)]
+        struct Header {
+            schema: u32,
         }
+        let header: Header = omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?;
+        let world: World = match header.schema {
+            1 => omnis_data::ron_io::parse::<WorldV1>(text)
+                .map(v1_to_v2)
+                .map_err(LoadError::Parse)?,
+            SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
+            other => return Err(LoadError::Schema(other)),
+        };
         if !force && world.packs != data.fingerprints {
             return Err(LoadError::PackMismatch);
         }

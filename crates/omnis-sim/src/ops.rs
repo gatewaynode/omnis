@@ -292,7 +292,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
                 value: query::path(world, path),
             })
         }
-        Op::SimCommand { command } => apply(world, data, *command)
+        Op::SimCommand { command } => apply(world, data, command.clone())
             .map(|events| Reply::Events { events })
             .map_err(|rejection| OpError::Rejected { rejection }),
         Op::SimScript { commands } => script(world, data, commands),
@@ -362,7 +362,7 @@ fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply,
     let mut applied = 0;
     let mut rejected = None;
     for command in commands {
-        match apply(world, data, *command) {
+        match apply(world, data, command.clone()) {
             Ok(more) => {
                 events.extend(more);
                 applied += 1;

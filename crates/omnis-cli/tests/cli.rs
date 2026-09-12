@@ -1,6 +1,7 @@
 //! The binary's subcommands on the real test pack, the bad-pack corpus, and the golden replay.
 
 use omnis_data::load_packs;
+use omnis_sim::Settings;
 use omnis_sim::command::parse_script;
 use std::path::PathBuf;
 use std::process::Command;
@@ -71,9 +72,9 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         lines.iter().any(|l| l.starts_with("3 use: Message")),
         "{out}"
     );
-    let data = load_packs(&[&repo().join("packs/test")]).unwrap();
+    let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
     let commands = parse_script(text).unwrap();
-    let expected = omnis_sim::replay::run(&data, 9, &commands).unwrap();
+    let expected = omnis_sim::replay::run(&data, 9, Settings::default(), &commands).unwrap();
     assert_eq!(
         lines.last().copied(),
         Some(format!("fingerprint: {expected:016x}").as_str())
@@ -90,7 +91,14 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
 #[test]
 fn replay_checks_the_golden_file_and_catches_tampering() {
     let golden = "crates/omnis-sim/tests/replays/walk.ron";
-    let (ok, out, err) = cli(&["replay", golden, "--pack", "packs/test"]);
+    let (ok, out, err) = cli(&[
+        "replay",
+        golden,
+        "--pack",
+        "packs/base",
+        "--pack",
+        "packs/test",
+    ]);
     assert!(ok, "{err}");
     assert!(
         out.starts_with("ok: ") && out.contains("commands reproduce fingerprint"),
@@ -118,7 +126,7 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         "# pack.ron (schema 1)",
         "# data/tiles/<name>.ron (schema 1)",
         "# data/maps/<name>.ron (schema 1)",
-        "# save (schema 1)",
+        "# save (schema 2)",
         "# replay",
         "# protocol ops",
     ] {
