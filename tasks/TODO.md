@@ -35,7 +35,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - [x] Crates: `omnis-core`, `omnis-data`, `omnis-sim`, `omnis-app`, `omnis-cli`, `omnis-mcp` as compiling stubs; `core` and `sim` are `#![no_std]`
 - [x] `scripts/lint-sim.sh` with `--self-test`; denies floats, hashed collections, time/thread/net, file I/O outside `omnis-data`, Bevy edges in `cargo tree`, unsafe Rhai features; requires `#![no_std]` and `deny(clippy::float_arithmetic)`
 - [x] `scripts/check-duplicates.sh` with a committed allow list of Bevy's own duplicate crates; fails on any new duplicate
-- [x] CI (GitHub Actions, macOS + Linux, actions pinned by commit SHA): fmt, lint-sim self-test and lint, duplicates, clippy `-D warnings`, tests, fingerprint artifact and cross-platform compare job (populated in M1)
+- [x] CI (GitHub Actions, macOS only per owner 2026-09-12, actions pinned by commit SHA): fmt, lint-sim self-test and lint, duplicates, clippy `-D warnings`, tests. Linux runner and the cross-platform fingerprint compare return later.
 - [x] `LICENSE-MIT`, `LICENSE-APACHE`, `ATTRIBUTION.md`, `.gitignore`
 - [x] `assets/` folder convention agreed and applied (`assets/README.md`)
 - [x] `packs/test/pack.ron` manifest
@@ -58,7 +58,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - [ ] `omnis-app`: pixel pipeline (`pixel_grid_snap` pattern, `default_nearest`, internal resolution placeholder), `PackAssetPlugin` (images by pack-relative path, magenta placeholder for missing), `SimPlugin` (`SimWorld` resource, ordered `collect → apply → publish` set, events as `Message`s), `InputPlugin` (arrows/WASD/QE, F5 save, F9 load), `ViewportPlugin` (detail rows from tileset slots, procedural horizon band), minimal `HudPlugin` (position, facing, clock, last message), automap overlay toggle, states `Boot → Playing::Explore` (main menu comes with M3). Smoke test: `MinimalPlugins` + `run_once`, boot, step, no panic
 - [ ] `omnis-cli tileset bake`: generate per-depth viewport slot sprites from 16×16 textures (checked into `packs/test/assets/` as ordinary PNGs so the game never bakes at runtime)
 - [ ] `packs/test`: one 24×24 dungeon level with doors and a 32×32 outdoor patch (visibility depth 4 vs 12), one tileset baked from the OpenRTP dungeon and exterior sheets
-- **Done when**: the owner runs the app, walks both maps in first person, opens a door, watches the automap fill, saves and reloads, and the replay fingerprint matches on macOS and Linux CI
+- **Done when**: the owner runs the app, walks both maps in first person, opens a door, watches the automap fill, saves and reloads, and the replay fingerprint is recorded as a golden value in CI (cross-platform compare when Linux CI returns)
 
 ### M2 — Live instrumentation: MCP and CLI
 - [ ] `omnis-cli`: `validate`, `schema dump`, `map text`, `play --script`, `replay` (asserts fingerprint), `omnis_cli::Headless` library; CI switches the replay job to it
