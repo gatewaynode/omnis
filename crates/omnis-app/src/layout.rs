@@ -17,8 +17,6 @@ pub const PANEL_COLOR: (u8, u8, u8) = (24, 24, 34);
 pub const SIDEBAR_MAP: (i32, i32, u32, u32) = (248, 8, 64, 64);
 /// Pixels per tile in the sidebar minimap.
 pub const SIDEBAR_MAP_SCALE: i32 = 2;
-/// Where the large automap overlay sits on the canvas.
-pub const OVERLAY_MAP_ORIGIN: (i32, i32) = (8, 8);
 /// Pixels per tile in the large automap overlay.
 pub const OVERLAY_MAP_SCALE: i32 = 4;
 /// The party panel: the sidebar column under the minimap (x, y, width, height).

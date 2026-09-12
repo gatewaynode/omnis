@@ -6,7 +6,9 @@
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use omnis_app::{AppConfig, assets, cursor, hud, input, menus, party_panel, pixel, sim, viewport};
+use omnis_app::{
+    AppConfig, assets, cursor, hud, input, menus, party_panel, pixel, sim, ui, viewport,
+};
 use std::path::PathBuf;
 
 #[cfg(feature = "devtools")]
@@ -170,6 +172,7 @@ fn main() -> AppExit {
         hud::HudPlugin,
         menus::MenusPlugin,
         party_panel::PartyPanelPlugin,
+        ui::UiPlugin,
     ));
     #[cfg(feature = "devtools")]
     {

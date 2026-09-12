@@ -1,7 +1,11 @@
-//! `InputPlugin`: keys to commands. Arrows or WASD move and turn, Q and E sidestep, Space or
-//! Enter interact, M toggles the automap, F5 saves, F9 loads, Escape pauses.
+//! `InputPlugin`: keys and the movement pad to commands. Arrows or WASD move and turn, Q and
+//! E sidestep, Space or Enter interact, M toggles the automap, F5 saves, F9 loads, Escape
+//! pauses; a click on a pad button sends the same command as its key.
 
+use crate::cursor::UiSet;
+use crate::screen::WidgetId;
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
+use crate::ui::UiClick;
 use bevy::prelude::*;
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};
@@ -11,12 +15,20 @@ pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ButtonInput<KeyCode>>().add_systems(
-            Update,
-            map_keys
-                .in_set(SimSet::Collect)
-                .run_if(in_state(PlayState::Explore)),
-        );
+        app.init_resource::<ButtonInput<KeyCode>>()
+            .add_message::<UiClick>()
+            .add_systems(
+                Update,
+                map_keys
+                    .in_set(SimSet::Collect)
+                    .run_if(in_state(PlayState::Explore)),
+            )
+            .add_systems(
+                Update,
+                map_pad
+                    .in_set(UiSet::Dispatch)
+                    .run_if(in_state(PlayState::Explore)),
+            );
     }
 }
 
@@ -57,6 +69,14 @@ fn map_keys(
             commands.write(PlayerCommand(command));
         } else if let Some(action) = shell_for(*key) {
             shell.write(action);
+        }
+    }
+}
+
+fn map_pad(mut clicks: MessageReader<UiClick>, mut commands: MessageWriter<PlayerCommand>) {
+    for UiClick(hit) in clicks.read() {
+        if let WidgetId::Pad(button) = hit.id {
+            commands.write(PlayerCommand(button.command()));
         }
     }
 }

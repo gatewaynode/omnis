@@ -95,7 +95,8 @@ fn track_window(
     }
 }
 
-fn track_pointer(
+/// The pointer from this frame's cursor and button messages; `ui::hit` runs after it.
+pub fn track_pointer(
     mut moved: MessageReader<CursorMoved>,
     mut left: MessageReader<CursorLeft>,
     mut buttons: MessageReader<MouseButtonInput>,

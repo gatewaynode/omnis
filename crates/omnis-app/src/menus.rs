@@ -1,16 +1,20 @@
 //! `MenusPlugin`: the title, new game, character creation, and pause screens as lists of text
 //! driven by the state machines in `menu.rs`. A screen is spawned on state entry and despawned
-//! on exit; keys arrive as logical `KeyboardInput` so names and seeds can be typed.
+//! on exit; keys arrive as logical `KeyboardInput` so names and seeds can be typed, and clicks
+//! on the composed frame's widgets arrive as `UiClick`s that become the same keys.
 
 use crate::AppConfig;
+use crate::cursor::UiSet;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
     Title, TitleAction,
 };
+use crate::screen::{self, Hit, Target};
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, SimEvent,
-    SimSet, SimWorld, StartIn, load,
+    SimWorld, StartIn, WorldReplaced, load,
 };
+use crate::ui::UiClick;
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -38,34 +42,49 @@ struct MenuLine(usize);
 
 /// Which screen is up, if any.
 #[derive(SystemParam)]
-struct Where<'w> {
+pub struct Where<'w> {
     app: Res<'w, State<AppState>>,
     menu: Option<Res<'w, State<MenuState>>>,
     play: Option<Res<'w, State<PlayState>>>,
 }
 
-/// The screen as a triple, for matching.
-enum Screen {
+/// The active screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Active {
+    /// The title.
     Title,
+    /// The new game form.
     NewGame,
+    /// Character creation.
     CreateParty,
+    /// The pause overlay.
     Paused,
+    /// No screen: booting or exploring.
     None,
 }
 
 impl Where<'_> {
-    fn screen(&self) -> Screen {
+    /// The active screen.
+    #[must_use]
+    pub fn screen(&self) -> Active {
         match (
             self.app.get(),
             self.menu.as_deref().map(State::get),
             self.play.as_deref().map(State::get),
         ) {
-            (AppState::MainMenu, Some(MenuState::Title), _) => Screen::Title,
-            (AppState::MainMenu, Some(MenuState::NewGame), _) => Screen::NewGame,
-            (AppState::Playing, _, Some(PlayState::CreateParty)) => Screen::CreateParty,
-            (AppState::Playing, _, Some(PlayState::Paused)) => Screen::Paused,
-            _ => Screen::None,
+            (AppState::MainMenu, Some(MenuState::Title), _) => Active::Title,
+            (AppState::MainMenu, Some(MenuState::NewGame), _) => Active::NewGame,
+            (AppState::Playing, _, Some(PlayState::CreateParty)) => Active::CreateParty,
+            (AppState::Playing, _, Some(PlayState::Paused)) => Active::Paused,
+            _ => Active::None,
         }
+    }
+
+    /// Whether the party is walking the map.
+    #[must_use]
+    pub fn exploring(&self) -> bool {
+        *self.app.get() == AppState::Playing
+            && self.play.as_deref().map(State::get) == Some(&PlayState::Explore)
     }
 }
 
@@ -78,6 +97,7 @@ pub struct MenusPlugin;
 impl Plugin for MenusPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<KeyboardInput>()
+            .add_message::<UiClick>()
             .init_resource::<Screens>()
             .add_systems(OnEnter(MenuState::Title), |c: Commands| {
                 spawn_screen(c, DespawnOnExit(MenuState::Title), 32.0);
@@ -89,8 +109,8 @@ impl Plugin for MenusPlugin {
             .add_systems(OnEnter(PlayState::Paused), |c: Commands| {
                 spawn_screen(c, DespawnOnExit(PlayState::Paused), 24.0);
             })
-            .add_systems(Update, menu_keys.in_set(SimSet::Collect))
-            .add_systems(Update, refresh.in_set(SimSet::Publish));
+            .add_systems(Update, menu_keys.in_set(UiSet::Dispatch))
+            .add_systems(Update, refresh.in_set(UiSet::Model));
     }
 }
 
@@ -152,6 +172,18 @@ fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
     })
 }
 
+/// The keys a click on the active screen stands for.
+fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
+    let target = match active {
+        Active::Title => Target::Title(&mut screens.title),
+        Active::NewGame => Target::NewGame(&mut screens.new_game),
+        Active::CreateParty => Target::Creation(&mut screens.creation),
+        Active::Paused => Target::Pause(&mut screens.pause),
+        Active::None => return Vec::new(),
+    };
+    screen::click(target, hit)
+}
+
 /// State transitions the menus request.
 #[derive(SystemParam)]
 struct Next<'w> {
@@ -161,21 +193,24 @@ struct Next<'w> {
 }
 
 /// What a menu action may touch.
-struct Actions<'a, 'c, 'cs, 'n, 'p, 'e> {
+struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
     commands: &'a mut Commands<'c, 'cs>,
     next: &'a mut Next<'n>,
     data: Option<&'a PackData>,
     config: &'a AppConfig,
     player: &'a mut MessageWriter<'p, PlayerCommand>,
     exit: &'a mut MessageWriter<'e, AppExit>,
+    replaced: &'a mut MessageWriter<'r, WorldReplaced>,
     notice: &'a mut Notice,
 }
 
-impl Actions<'_, '_, '_, '_, '_, '_> {
+impl Actions<'_, '_, '_, '_, '_, '_, '_> {
     fn start_game(&mut self, world: World, start: PlayState) {
         self.commands.insert_resource(SimWorld(world));
         self.commands.insert_resource(StartIn(start));
         self.next.app.set(AppState::Playing);
+        // Presentation draws the new world before its first step.
+        self.replaced.write(WorldReplaced);
     }
 
     fn leave_game(&mut self) {
@@ -187,6 +222,7 @@ impl Actions<'_, '_, '_, '_, '_, '_> {
 #[allow(clippy::too_many_arguments)]
 fn menu_keys(
     mut keys: MessageReader<KeyboardInput>,
+    mut clicks: MessageReader<UiClick>,
     mut commands: Commands,
     at: Where,
     mut next: Next,
@@ -196,9 +232,15 @@ fn menu_keys(
     world: Option<Res<SimWorld>>,
     mut player: MessageWriter<PlayerCommand>,
     mut exit: MessageWriter<AppExit>,
+    mut replaced: MessageWriter<WorldReplaced>,
     mut notice: ResMut<Notice>,
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let active = at.screen();
+    let mut pressed: Vec<MenuKey> = keys.read().filter_map(menu_key).collect();
+    for UiClick(hit) in clicks.read() {
+        pressed.extend(click_keys(&mut screens, active, *hit));
+    }
     let mut act = Actions {
         commands: &mut commands,
         next: &mut next,
@@ -206,9 +248,10 @@ fn menu_keys(
         config: &config,
         player: &mut player,
         exit: &mut exit,
+        replaced: &mut replaced,
         notice: &mut notice,
     };
-    for key in keys.read().filter_map(menu_key) {
+    for key in pressed {
         let Screens {
             title,
             new_game,
@@ -216,33 +259,33 @@ fn menu_keys(
             catalog,
             pause,
         } = &mut *screens;
-        match at.screen() {
-            Screen::Title => {
+        match active {
+            Active::Title => {
                 if let Some(action) = title.key(key) {
                     title_action(action, &mut act);
                 }
             }
-            Screen::NewGame => {
+            Active::NewGame => {
                 if let Some(action) = new_game.key(key) {
                     new_game_action(action, new_game, &mut act);
                 }
             }
-            Screen::CreateParty => {
+            Active::CreateParty => {
                 if let Some(action) = creation.key(key, catalog, members) {
                     creation_action(action, &mut act);
                 }
             }
-            Screen::Paused => {
+            Active::Paused => {
                 if let Some(action) = pause.key(key) {
                     pause_action(action, &mut act);
                 }
             }
-            Screen::None => {}
+            Active::None => {}
         }
     }
 }
 
-fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
     match action {
         TitleAction::NewGame => act.next.menu.set(MenuState::NewGame),
         TitleAction::Load => {
@@ -261,7 +304,7 @@ fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) 
 fn new_game_action(
     action: NewGameAction,
     form: &NewGameForm,
-    act: &mut Actions<'_, '_, '_, '_, '_, '_>,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>,
 ) {
     match action {
         NewGameAction::Start => {
@@ -278,7 +321,7 @@ fn new_game_action(
     }
 }
 
-fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
     match action {
         CreationAction::Add(draft) => {
             act.player
@@ -289,7 +332,7 @@ fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_,
     }
 }
 
-fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
     match action {
         PauseAction::Resume => act.next.play.set(PlayState::Explore),
         PauseAction::QuitToTitle => act.leave_game(),
@@ -318,9 +361,9 @@ fn refresh(
         screens.creation.message = rejection.to_string();
     }
     let text = match at.screen() {
-        Screen::Title => screens.title.lines(),
-        Screen::NewGame => screens.new_game.lines(),
-        Screen::CreateParty => {
+        Active::Title => screens.title.lines(),
+        Active::NewGame => screens.new_game.lines(),
+        Active::CreateParty => {
             let names: Vec<String> = world
                 .as_ref()
                 .map(|w| {
@@ -340,7 +383,7 @@ fn refresh(
                 .unwrap_or_default();
             screens.creation.lines(&screens.catalog, &names)
         }
-        Screen::Paused => {
+        Active::Paused => {
             let (settings, seed) = world
                 .as_ref()
                 .map_or((omnis_sim::Settings::default(), 0), |w| {
@@ -348,7 +391,7 @@ fn refresh(
                 });
             screens.pause.lines(settings, seed)
         }
-        Screen::None => return,
+        Active::None => return,
     };
     for (mut line, MenuLine(i)) in &mut lines {
         let wanted = text.get(*i).map_or("", String::as_str);
