@@ -28,8 +28,8 @@ fn a_new_game_starts_on_the_entry_map_and_sees_the_meadow() {
     );
     let view = query::viewport(&world, &data).expect("map loaded");
     assert_eq!((view.detail_depth, view.visibility_depth), (4, 12));
-    // Row 0 holds the tiles beside the party as well.
-    let near: usize = 2 + (0..=5).map(|d| 2 * d + 1).sum::<usize>();
+    // Each row is one tile wider than the diagonal on both sides.
+    let near: usize = (0..=5).map(|d| 2 * (d + 1) + 1).sum();
     assert!(
         view.tiles[..near].iter().all(|t| t.depth <= 5),
         "nearest rows first"
