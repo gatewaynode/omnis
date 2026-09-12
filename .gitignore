@@ -1,1 +1,5 @@
 /target
+.DS_Store
+.omnis/
+# Purchased or otherwise non-redistributable art lives here and is never committed.
+/assets/private/

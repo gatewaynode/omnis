@@ -490,6 +490,8 @@ omnis/
 
 ## 16. Phase mapping
 
+> **Note (2026-09-12):** build order follows the milestones in `tasks/TODO.md`, which front-load `omnis-app` and `omnis-mcp` so there is a testable build early. The crate-to-phase mapping below stays as the long-range map; revisit once the milestones settle.
+
 | PRD phase | Crates built | Exit test |
 |---|---|---|
 | 0 Foundation | core, expr, data, sim skeleton, cli, mcp (headless mode) | `packs/test` loads and round-trips; expression tests; MCP `game.status` headless |

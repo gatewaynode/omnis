@@ -304,6 +304,8 @@ Observations. F1 falls to roughly a quarter of SRD capacity. F2 tracks the SRD f
 
 Each phase produces a runnable build. Criteria are testable.
 
+> **Note (2026-09-12):** implementation priorities differ from this phase order. Development runs as vertical-slice milestones in `tasks/TODO.md` (a playable app first, then one system at a time across the full scope) so the owner can test from the start. The phases below remain the long-range scope and exit criteria; revisit this section once the milestones settle.
+
 ### Phase 0 — Foundation
 - Workspace layout, simulation crate with no Bevy dependency, data schema and loader, save round-trip, CI with tests on macOS and Linux.
 - **Done when**: a data pack loads, validates, and round-trips through save and load with no loss; a golden procgen seed produces identical bytes on both CI platforms.
@@ -336,6 +338,6 @@ Each phase produces a runnable build. Criteria are testable.
 
 Answered questions have moved to the decisions log (D10–D19). Remaining:
 
-- **Exact detail depth** (4, 5, or 6 tiles) and the internal resolution. Decide with the art direction.
+- **Exact detail depth and internal resolution:** provisionally 320×180 and detail depth 4 (2026-09-12, chosen for exact integer scaling on 720p, 1080p, 1440p, and 4K and for the 16×16 placeholder tiles). Revisit with final art direction.
 - **Component economy:** how gems and other reagents enter the world (found only, or also ecosystem-driven trade and crafting), and whether the highest spell levels also need a per-day cap on top of components.
 - **Non-goal horizons:** browser builds, 3D rendering, and language-model-generated content are listed as v1 non-goals. Owner to state which are rejected outright and which are deferred.
