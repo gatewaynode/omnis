@@ -6,8 +6,8 @@
     tileset_id: "test:tileset:dungeon",
     name: "dungeon",
     viewport: (240, 135),
-    detail_depth: 4,
-    width: 3,
+    detail_depth: 6,
+    width: 5,
     surfaces: {
         "floor": (kind: Floor, tile: (192, 48)),
         "ceiling": (kind: Ceiling, tile: (192, 64)),
@@ -15,6 +15,7 @@
         "wall.left": (kind: WallLeft, tile: (192, 0)),
         "wall.right": (kind: WallRight, tile: (192, 0)),
         "door": (kind: Door, tile: (240, 32)),
-        "rock": (kind: Floor, tile: (240, 0)),
+        "door.open": (kind: DoorFrame, tile: (192, 0)),
+        "rock": (kind: Block, tile: (240, 0)),
     },
 )

@@ -49,6 +49,9 @@ pub struct Terrain {
     /// Tileset surface for the ceiling, or none for sky.
     #[serde(default)]
     pub ceiling: Option<String>,
+    /// Tileset `Block` surface drawn over the tile, for solid terrain such as pillars.
+    #[serde(default)]
+    pub block: Option<String>,
     /// Whether the party may enter the tile.
     pub passable: bool,
     /// Whether the tile blocks line of sight (rock, dense trees). Water does not.
@@ -116,8 +119,11 @@ pub struct MapDef {
     pub start: (u16, u16, Facing),
     /// Tileset surfaces for walls on this map.
     pub wall: WallSurfaces,
-    /// Tileset surface for doors on this map.
+    /// Tileset surface for closed doors on this map.
     pub door: String,
+    /// Tileset surface for open doors, or none to draw an open doorway as empty.
+    #[serde(default)]
+    pub door_open: Option<String>,
     /// The terrains, each with a distinct glyph.
     pub terrains: Vec<Terrain>,
     /// The grid as text; see the module documentation.
@@ -329,11 +335,13 @@ mod tests {
                 right: "wall.right".into(),
             },
             door: "door".into(),
+            door_open: None,
             terrains: vec![Terrain {
                 glyph: '.',
                 name: "floor".into(),
                 floor: "floor".into(),
                 ceiling: None,
+                block: None,
                 passable: true,
                 opaque: false,
                 color: (128, 128, 128),

@@ -3775,6 +3775,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "omnis-sim",
+ "serde_json",
 ]
 
 [[package]]

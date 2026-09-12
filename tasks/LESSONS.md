@@ -19,3 +19,12 @@
 - **What happened**: I launched clippy and tests in the same step as moving a directory into `crates/`. The checks ran against the tree before the move, passed, and I reported M0 green. CI then failed because the workspace glob matched the new directory.
 - **Rule**: The verification run that backs a "done" claim starts only after the final edit to the tree, including moves, renames, and config-only changes. Never run checks concurrently with edits.
 - **Rule**: Anything that changes what the workspace contains (new directory, member list, feature flags) gets a fresh `cargo metadata` before any other check, because every cargo command depends on it.
+
+## 2026-09-12 — Patch the file as it is, not as it was written
+- **What happened**: Four patches in a row failed or misfired because `cargo fmt` had rewrapped the lines I anchored on since I last saw them, and one assertion-less run left a file half-edited.
+- **Rule**: Before any text replacement, look at the current text of the region (a `sed -n` of the lines is enough). After every `cargo fmt`, treat earlier views of that file as stale.
+- **Rule**: When more than a few lines change, rewrite the whole function or file rather than anchoring on formatter-controlled lines.
+
+## 2026-09-12 — A game loop under test must keep looping
+- **What happened**: The socket test sent a request, ran one frame, and waited for the reply; loopback delivery is not synchronous, so the request sometimes arrived after the frame and the test timed out. A megabyte written in one blocking call then deadlocked: the game reads only between frames, and the test could not run frames while blocked in the write.
+- **Rule**: A test peer of a polled server sends, then alternates short reads with `app.update()` until the reply arrives; large payloads are written from another thread.

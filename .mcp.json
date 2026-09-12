@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "omnis": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "root=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; mkdir -p \"$root/.omnis\"; printf 'launch: cwd=%s CLAUDE_PROJECT_DIR=%s\\n' \"$PWD\" \"${CLAUDE_PROJECT_DIR:-unset}\" >> \"$root/.omnis/mcp.log\"; exec \"$root/target/debug/omnis-mcp\" --root \"$root\" --log \"$root/.omnis/mcp.log\""
+      ]
+    }
+  }
+}

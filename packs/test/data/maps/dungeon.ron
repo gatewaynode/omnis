@@ -11,9 +11,10 @@
     start: (1, 0, South),
     wall: (front: "wall", left: "wall.left", right: "wall.right"),
     door: "door",
+    door_open: Some("door.open"),
     terrains: [
-        (glyph: '.', name: "floor", floor: "floor", ceiling: Some("ceiling"), passable: true, color: (110, 90, 70), visibility_depth: 4, step_minutes: 1),
-        (glyph: '#', name: "rock", floor: "rock", ceiling: Some("ceiling"), passable: false, opaque: true, color: (60, 50, 45), visibility_depth: 4, step_minutes: 1),
+        (glyph: '.', name: "floor", floor: "floor", ceiling: Some("ceiling"), passable: true, color: (110, 90, 70), visibility_depth: 6, step_minutes: 1),
+        (glyph: '#', name: "rock", floor: "floor", ceiling: Some("ceiling"), block: Some("rock"), passable: false, opaque: true, color: (60, 50, 45), visibility_depth: 6, step_minutes: 1),
     ],
     layout: [
         "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",

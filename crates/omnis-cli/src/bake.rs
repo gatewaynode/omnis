@@ -2,8 +2,10 @@
 //! flat 16×16 textures, and write the tileset file that declares them (ARCHITECTURE.md §8.3;
 //! `tasks/TODO.md` M1). No first-person crawler art exists in the placeholder sets, so front
 //! walls are tiled and scaled per depth, side walls are sheared into trapezoids, and floors
-//! and ceilings are perspective-mapped bands. Hand-drawn art replaces any slot later by
-//! pointing its path elsewhere; the game never bakes at runtime.
+//! and ceilings are perspective-mapped bands. A block (pillar, tree clump) is its near face
+//! plus the side face toward the party; a door frame is a front face with the opening cut out.
+//! Hand-drawn art replaces any slot later by pointing its path elsewhere; the game never
+//! bakes at runtime.
 //!
 //! Geometry: the eye sits at the near edge of the party's tile, half a tile up, looking down
 //! the facing axis. The far edge of the tile at depth `d` is at distance `d + 1`. A point at
@@ -208,7 +210,8 @@ fn clear_pngs(dir: &Path) -> Result<(), BakeError> {
 }
 
 /// The `(depth, offset)` pairs a surface kind needs: every cone position for floors,
-/// ceilings, front walls, and doors; only the party's side for side walls.
+/// ceilings, front walls, and doors; only the party's side for side walls; never the
+/// party's own tile for blocks.
 #[must_use]
 pub fn slot_positions(detail_depth: u8, width: u8, kind: SlotKind) -> Vec<(u8, i8)> {
     let mut out = Vec::new();
@@ -218,6 +221,7 @@ pub fn slot_positions(detail_depth: u8, width: u8, kind: SlotKind) -> Vec<(u8, i
             let keep = match kind {
                 SlotKind::WallLeft => offset <= 0,
                 SlotKind::WallRight => offset >= 0,
+                SlotKind::Block => depth > 0,
                 SlotKind::Object | SlotKind::Monster => false,
                 _ => true,
             };
@@ -370,10 +374,24 @@ pub fn render(
     match kind {
         SlotKind::WallFront => front(geo, &mut canvas, d, o, texture, geo.texels_per_unit),
         SlotKind::Door => front(geo, &mut canvas, d, o, texture, f64::from(texture.width)),
+        SlotKind::DoorFrame => {
+            front(geo, &mut canvas, d, o, texture, geo.texels_per_unit);
+            punch(geo, &mut canvas, d, o);
+        }
         SlotKind::WallLeft => side(geo, &mut canvas, d, o - 0.5, texture),
         SlotKind::WallRight => side(geo, &mut canvas, d, o + 0.5, texture),
         SlotKind::Floor => band(geo, &mut canvas, d, o, texture, 0.0),
         SlotKind::Ceiling => band(geo, &mut canvas, d, o, texture, 1.0),
+        SlotKind::Block if depth == 0 => return None,
+        SlotKind::Block => {
+            if o > 0.0 {
+                side(geo, &mut canvas, d, o - 0.5, texture);
+            } else if o < 0.0 {
+                side(geo, &mut canvas, d, o + 0.5, texture);
+            }
+            // The near face stands at distance `d`: the far edge of the tile before it.
+            front(geo, &mut canvas, d - 1.0, o, texture, geo.texels_per_unit);
+        }
         SlotKind::Object | SlotKind::Monster => return None,
     }
     let (x, y, w, h) = canvas.bounds()?;
@@ -394,6 +412,19 @@ fn front(geo: &Geometry, canvas: &mut Image, d: f64, o: f64, tex: &Image, texels
             let u = (f64::from(x) + 0.5 - x0) / scale * texels;
             let v = (f64::from(y) + 0.5 - y0) / scale * texels;
             canvas.put(x, y, tex.wrap_sample(u, v));
+        }
+    }
+}
+
+/// Clear the opening of a door frame on the far edge of tile `(d, o)`: everything but a jamb
+/// on each side and a lintel above, each an eighth of a tile.
+fn punch(geo: &Geometry, canvas: &mut Image, d: f64, o: f64) {
+    let z = d + 1.0;
+    let (x0, x1) = (geo.sx(o - 0.375, z), geo.sx(o + 0.375, z));
+    let (y0, y1) = (geo.sy(0.875, z), geo.sy(0.0, z));
+    for y in geo.rows(y0, y1) {
+        for x in geo.columns(x0, x1) {
+            canvas.put(x, y, [0; 4]);
         }
     }
 }
@@ -564,6 +595,66 @@ mod tests {
             "width clamps the cone"
         );
         assert!(slot_positions(4, 3, SlotKind::Monster).is_empty());
+        assert_eq!(
+            slot_positions(2, 3, SlotKind::Block),
+            [(1, -1), (1, 0), (1, 1)],
+            "the party never stands in a block"
+        );
+    }
+
+    #[test]
+    fn blocks_show_the_near_face_and_the_side_toward_the_party() {
+        let geo = Geometry::new((240, 135), 16);
+        let tex = checker();
+        assert!(render(&geo, SlotKind::Block, 0, 0, &tex).is_none());
+        assert_eq!(
+            render(&geo, SlotKind::Block, 1, 0, &tex),
+            render(&geo, SlotKind::WallFront, 0, 0, &tex),
+            "dead ahead, a block is its near face alone, on the party's far edge"
+        );
+        let (right, rx, _) = render(&geo, SlotKind::Block, 1, 1, &tex).unwrap();
+        let (face, fx, _) = render(&geo, SlotKind::WallFront, 0, 1, &tex).unwrap();
+        assert!(rx < fx, "the side face reaches toward the centre");
+        assert_eq!(
+            rx + i16::try_from(right.width).unwrap(),
+            fx + i16::try_from(face.width).unwrap(),
+            "and the near face ends where the wall would"
+        );
+        let (left, lx, _) = render(&geo, SlotKind::Block, 1, -1, &tex).unwrap();
+        assert!(
+            (lx + i16::try_from(left.width).unwrap()).abs_diff(240 - rx) <= 1,
+            "mirror image on the left, up to pixel phase"
+        );
+    }
+
+    #[test]
+    fn door_frames_are_front_faces_with_the_opening_cut_out() {
+        let geo = Geometry::new((240, 135), 16);
+        let tex = checker();
+        let (frame, x, y) = render(&geo, SlotKind::DoorFrame, 0, 0, &tex).unwrap();
+        let (wall, wx, wy) = render(&geo, SlotKind::WallFront, 0, 0, &tex).unwrap();
+        assert_eq!(
+            (x, y, frame.width, frame.height),
+            (wx, wy, wall.width, wall.height),
+            "same outline as the wall"
+        );
+        let (cx, cy) = (frame.width / 2, frame.height / 2);
+        assert_eq!(frame.get(cx, cy)[3], 0, "open in the middle");
+        assert_eq!(
+            frame.get(cx, frame.height - 1)[3],
+            0,
+            "open down to the floor"
+        );
+        assert_ne!(frame.get(cx, 0)[3], 0, "a lintel above");
+        let jamb = frame.width / 8;
+        assert_ne!(frame.get(jamb - 2, cy)[3], 0, "a jamb on the left");
+        assert_eq!(frame.get(jamb + 1, cy)[3], 0);
+        assert_ne!(
+            frame.get(frame.width - jamb + 1, cy)[3],
+            0,
+            "and on the right"
+        );
+        assert_eq!(frame.get(frame.width - jamb - 2, cy)[3], 0);
     }
 
     #[test]

@@ -13,6 +13,7 @@ extern crate alloc;
 
 pub mod apply;
 pub mod command;
+pub mod ops;
 pub mod query;
 pub mod replay;
 pub mod visibility;
@@ -24,7 +25,8 @@ pub use omnis_core;
 pub use omnis_data;
 
 pub use apply::apply;
-pub use command::{BlockReason, Command, Event, MessageKey, Rejection, SeenTile};
+pub use command::{BlockReason, Command, Event, MessageKey, Rejection, ScriptError, SeenTile};
+pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use replay::{Replay, ReplayError};
 pub use world::{Automap, Known, LoadError, MapState, Mode, NewGameError, Settings, World};
 

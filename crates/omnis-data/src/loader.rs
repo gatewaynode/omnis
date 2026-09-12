@@ -469,10 +469,16 @@ fn check_surfaces(def: &MapDef, tileset: &Tileset, file: &Path, errors: &mut Vec
     surface(&def.wall.left, SlotKind::WallLeft, "wall left");
     surface(&def.wall.right, SlotKind::WallRight, "wall right");
     surface(&def.door, SlotKind::Door, "door");
+    if let Some(open) = &def.door_open {
+        surface(open, SlotKind::DoorFrame, "open door");
+    }
     for terrain in &def.terrains {
         surface(&terrain.floor, SlotKind::Floor, "terrain floor");
         if let Some(ceiling) = &terrain.ceiling {
             surface(ceiling, SlotKind::Ceiling, "terrain ceiling");
+        }
+        if let Some(block) = &terrain.block {
+            surface(block, SlotKind::Block, "terrain block");
         }
     }
 }

@@ -8,6 +8,13 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "omnis-mcp"
+path = "src/main.rs"
+
 [dependencies]
 omnis-cli = { workspace = true }
 serde_json = { workspace = true }

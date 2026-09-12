@@ -25,6 +25,10 @@ pub enum SlotKind {
     WallRight,
     /// A door on the far edge of a tile.
     Door,
+    /// An open door on the far edge of a tile: the frame with the opening cut out.
+    DoorFrame,
+    /// A solid tile (pillar, tree clump): its near face and the side face toward the party.
+    Block,
     /// An object standing on a tile.
     Object,
     /// A monster standing on a tile.

@@ -70,6 +70,8 @@ fn every_error_in_a_broken_pack_is_reported() {
         "wall left surface 'floor' is a Floor surface, not WallLeft",
         "terrain floor surface 'sky' is a Ceiling surface, not Floor",
         "terrain ceiling surface 'floor' is a Floor surface, not Ceiling",
+        "terrain block surface 'sky' is a Ceiling surface, not Block",
+        "open door surface 'floor' is a Floor surface, not DoorFrame",
         "name text key 'broken:text:map.refs.name' is not defined in any language",
         "portal at (0, 0) leads to unknown map 'broken:map:nowhere'",
         "portal at (0, 0) lands outside map 'broken:map:glyph'",

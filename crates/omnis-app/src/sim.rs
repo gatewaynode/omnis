@@ -168,7 +168,7 @@ fn shell(
                 Ok(()) => notice.0 = format!("Saved to {}", config.save_path.display()),
                 Err(e) => notice.0 = format!("Save failed: {e}"),
             },
-            ShellCommand::Load => match load(&data.0, &config.save_path) {
+            ShellCommand::Load => match load(&data.0, &config.save_path, false) {
                 Ok(loaded) => {
                     world.0 = loaded;
                     replaced.write(WorldReplaced);
@@ -193,8 +193,8 @@ pub fn save(world: &World, path: &Path) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
-/// Read a world from `path`, checked against the loaded packs.
-pub fn load(data: &Data, path: &Path) -> Result<World, String> {
+/// Read a world from `path`, checked against the loaded packs unless `force`.
+pub fn load(data: &Data, path: &Path, force: bool) -> Result<World, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    World::from_ron(&text, data, false).map_err(|e| e.to_string())
+    World::from_ron(&text, data, force).map_err(|e| e.to_string())
 }

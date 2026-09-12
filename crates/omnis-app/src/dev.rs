@@ -6,7 +6,6 @@ use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use omnis_sim::Command;
-use omnis_sim::omnis_core::{Direction, Rotation};
 use std::path::PathBuf;
 
 /// What to do unattended.
@@ -31,22 +30,18 @@ pub enum ScriptStep {
     Shell(ShellCommand),
 }
 
-/// Parse a comma-separated script: `forward`, `back`, `left`, `right` (sidesteps),
-/// `turn-left`, `turn-right`, `around`, `use`, `map`, `save`, `load`.
+/// Parse a comma-separated script: the simulation's command words (`Command::from_word`:
+/// `forward`, `back`, `left`, `right`, `turn-left`, `turn-right`, `around`, `use`) plus the
+/// shell words `map`, `save`, `load`.
 pub fn parse_script(text: &str) -> Result<Vec<ScriptStep>, String> {
     text.split(',')
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(|word| {
+            if let Some(command) = Command::from_word(word) {
+                return Ok(ScriptStep::Play(command));
+            }
             Ok(match word {
-                "forward" => ScriptStep::Play(Command::Step(Direction::Forward)),
-                "back" => ScriptStep::Play(Command::Step(Direction::Back)),
-                "left" => ScriptStep::Play(Command::Step(Direction::Left)),
-                "right" => ScriptStep::Play(Command::Step(Direction::Right)),
-                "turn-left" => ScriptStep::Play(Command::Turn(Rotation::Left)),
-                "turn-right" => ScriptStep::Play(Command::Turn(Rotation::Right)),
-                "around" => ScriptStep::Play(Command::Turn(Rotation::Around)),
-                "use" => ScriptStep::Play(Command::Interact),
                 "map" => ScriptStep::Shell(ShellCommand::ToggleAutomap),
                 "save" => ScriptStep::Shell(ShellCommand::Save),
                 "load" => ScriptStep::Shell(ShellCommand::Load),
@@ -121,6 +116,7 @@ fn drive(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::omnis_core::Rotation;
 
     #[test]
     fn scripts_parse() {

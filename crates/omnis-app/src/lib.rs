@@ -17,6 +17,8 @@ pub mod layout;
 pub mod pixel;
 pub mod plan;
 pub mod sim;
+#[cfg(feature = "devtools")]
+pub mod socket;
 pub mod viewport;
 
 use std::path::PathBuf;
