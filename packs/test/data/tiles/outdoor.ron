@@ -31,6 +31,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/gate_d1_o-2.png",
+                    x: 0,
+                    y: 37,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/gate_d1_o-1.png",
                     x: 29,
@@ -49,6 +56,20 @@
                     path: "assets/tilesets/outdoor/gate_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/gate_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/gate_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -83,6 +104,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/gate_d2_o2.png",
                     x: 181,
+                    y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/gate_d2_o3.png",
+                    x: 221,
                     y: 47,
                 ),
                 (
@@ -162,6 +190,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/gate.open_d1_o-2.png",
+                    x: 0,
+                    y: 37,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/gate.open_d1_o-1.png",
                     x: 29,
@@ -180,6 +215,20 @@
                     path: "assets/tilesets/outdoor/gate.open_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/gate.open_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/gate.open_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -214,6 +263,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/gate.open_d2_o2.png",
                     x: 181,
+                    y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/gate.open_d2_o3.png",
+                    x: 221,
                     y: 47,
                 ),
                 (
@@ -293,6 +349,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/grass_d1_o-2.png",
+                    x: 0,
+                    y: 98,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/grass_d1_o-1.png",
                     x: 0,
@@ -311,6 +374,20 @@
                     path: "assets/tilesets/outdoor/grass_d1_o1.png",
                     x: 151,
                     y: 98,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/grass_d1_o2.png",
+                    x: 213,
+                    y: 98,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/grass_d2_o-3.png",
+                    x: 0,
+                    y: 88,
                 ),
                 (
                     depth: 2,
@@ -345,6 +422,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/grass_d2_o2.png",
                     x: 183,
+                    y: 88,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/grass_d2_o3.png",
+                    x: 225,
                     y: 88,
                 ),
                 (
@@ -424,6 +508,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/hedge_d1_o-2.png",
+                    x: 0,
+                    y: 37,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/hedge_d1_o-1.png",
                     x: 29,
@@ -442,6 +533,20 @@
                     path: "assets/tilesets/outdoor/hedge_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/hedge_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/hedge_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -476,6 +581,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/hedge_d2_o2.png",
                     x: 181,
+                    y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/hedge_d2_o3.png",
+                    x: 221,
                     y: 47,
                 ),
                 (
@@ -705,6 +817,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/road_d1_o-2.png",
+                    x: 0,
+                    y: 98,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/road_d1_o-1.png",
                     x: 0,
@@ -723,6 +842,20 @@
                     path: "assets/tilesets/outdoor/road_d1_o1.png",
                     x: 151,
                     y: 98,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/road_d1_o2.png",
+                    x: 213,
+                    y: 98,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/road_d2_o-3.png",
+                    x: 0,
+                    y: 88,
                 ),
                 (
                     depth: 2,
@@ -757,6 +890,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/road_d2_o2.png",
                     x: 183,
+                    y: 88,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/road_d2_o3.png",
+                    x: 225,
                     y: 88,
                 ),
                 (
@@ -829,6 +969,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/trees_d1_o-2.png",
+                    x: 0,
+                    y: 28,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/trees_d1_o-1.png",
                     x: 0,
@@ -847,6 +994,20 @@
                     path: "assets/tilesets/outdoor/trees_d1_o1.png",
                     x: 150,
                     y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/trees_d1_o2.png",
+                    x: 211,
+                    y: 28,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/trees_d2_o-3.png",
+                    x: 0,
+                    y: 44,
                 ),
                 (
                     depth: 2,
@@ -882,6 +1043,13 @@
                     path: "assets/tilesets/outdoor/trees_d2_o2.png",
                     x: 181,
                     y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/trees_d2_o3.png",
+                    x: 221,
+                    y: 44,
                 ),
                 (
                     depth: 3,
@@ -960,6 +1128,13 @@
                 ),
                 (
                     depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/outdoor/water_d1_o-2.png",
+                    x: 0,
+                    y: 98,
+                ),
+                (
+                    depth: 1,
                     offset: -1,
                     path: "assets/tilesets/outdoor/water_d1_o-1.png",
                     x: 0,
@@ -978,6 +1153,20 @@
                     path: "assets/tilesets/outdoor/water_d1_o1.png",
                     x: 151,
                     y: 98,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/outdoor/water_d1_o2.png",
+                    x: 213,
+                    y: 98,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/outdoor/water_d2_o-3.png",
+                    x: 0,
+                    y: 88,
                 ),
                 (
                     depth: 2,
@@ -1012,6 +1201,13 @@
                     offset: 2,
                     path: "assets/tilesets/outdoor/water_d2_o2.png",
                     x: 183,
+                    y: 88,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/outdoor/water_d2_o3.png",
+                    x: 225,
                     y: 88,
                 ),
                 (
