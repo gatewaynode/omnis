@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.1, derived from `PRD.md` v0.2 |
+| Status | Draft v0.2, reviewed by owner; derived from `PRD.md` v0.3 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -16,7 +16,7 @@ Every section cites the PRD goal, decision, or constraint it serves. When this d
 These follow from PRD goals 2, 3, 7 and constraints §11, and from the owner's direction that rules will be tweaked heavily and features will keep arriving.
 
 1. **The simulation is a library.** Rules, world state, combat, exploration, ecosystem, and story run as pure Rust with no Bevy, no I/O, no wall clock, no threads. Input is a command; output is a list of events. Everything else (renderer, editor, MCP, CLI, tests, future co-op) is a client of that library.
-2. **Everything is data, including formulas.** Content is RON. Rule formulas are expressions in RON evaluated by a small in-house language. Changing a number or a formula never requires a rebuild.
+2. **Everything is data, including formulas.** Content is RON. Rule formulas are Rhai expressions in RON, evaluated by a strictly sandboxed engine. Changing a number or a formula never requires a rebuild.
 3. **Events are the only way out.** The simulation never calls a client. Clients read the event log and query the world. This is what makes replay, tests, MCP, and co-op the same problem.
 4. **Boundaries are crates.** Cargo enforces the dependency direction; a crate that must not know Bevy cannot import it.
 5. **Thin adapters at every edge.** Bevy is wrapped once, in one crate. MCP is a separate binary that speaks a private protocol to the game. Both can be replaced without touching the simulation.
@@ -64,7 +64,7 @@ Cargo workspace at the repository root. Crates under `crates/`. Names use the `o
 | Crate | Kind | Purpose | Allowed dependencies |
 |---|---|---|---|
 | `omnis-core` | lib | Typed IDs, integer and fixed-point math, dice, deterministic RNG (own PCG32), calendar and time, ordered collection aliases, error type. | `serde` |
-| `omnis-expr` | lib | Rule expression language: lexer, parser, validator, evaluator, context trait. | `serde` (for embedding in RON) |
+| `omnis-expr` | lib | Sandboxed rule scripting host on Rhai: engine profiles, slot compilation and validation, evaluation with named RNG streams, hot swap. | `rhai`, `serde` |
 | `omnis-data` | lib | Schema structs for every content type, pack manifest, pack loader, ID registry and interning, validation with limits, schema versions and migrations, RON read and write. | `core`, `expr`, `serde`, `ron` |
 | `omnis-rules` | lib | SRD-derived mechanics as pure functions: character build, checks, attacks, saves, damage and conditions, spell points and components, leveling, rest. | `core`, `expr`, `data` |
 | `omnis-gen` | lib | Procedural generation layers producing ordinary map and region data. | `core`, `data` |
@@ -91,7 +91,8 @@ pub struct World {
     pub schema: u32,                 // save schema version
     pub packs: Vec<PackFingerprint>, // id, version, content hash
     pub rng: Pcg32,                  // state and stream counter, serialized
-    pub calendar: Calendar,          // year, day, minute
+    pub clocks: BTreeMap<HolderId, Clock>,       // subjective time per holder (§4.4); no global clock
+    pub contacts: BTreeMap<(HolderId, HolderId), Contact>,
     pub party: Party,                // up to 6 members (D10), gold, gems, food, inventory
     pub position: Position,          // map, tile, facing
     pub maps: BTreeMap<MapId, MapState>,   // mutable per-map state; static tiles come from data
@@ -131,7 +132,8 @@ pub enum Command {
 pub enum Event {
     Moved { from: Position, to: Position },
     Blocked { reason: BlockReason },
-    TimeAdvanced { minutes: u32, day_rolled: bool },
+    TimeAdvanced { holder: HolderId, minutes: u32, day_rolled: bool },
+    Reconciled { a: HolderId, b: HolderId, delta_a: i64, delta_b: i64, era_b: EraId },
     Visible { tiles: Vec<SeenTile> },        // what the party perceives this turn
     EncounterStarted { stacks: Vec<StackRef>, surprise: Surprise },
     Initiative { order: Vec<ActorRef> },
@@ -158,11 +160,50 @@ pub enum Event {
 
 Read-only views for clients: `query::party(&World)`, `query::viewport(&World, &Data) -> ViewportModel` (the tiles within visibility depth, with detail-depth cut, see §8.3), `query::automap(map)`, `query::region(id)`, `query::journal()`, `query::path(&World, "party.members[0].hp")` for MCP's generic inspector. Queries never mutate and never roll dice.
 
-### 4.4 Turn and time
+### 4.4 Subjective time
 
-- A command may consume time. Time is minutes on a calendar (year, day of 360, minute of 1440; the calendar shape is data). Stepping outdoors, resting, and services cost data-defined minutes.
-- When a day boundary passes, `omnis-sim` runs `omnis-eco::tick` for every loaded region and folds its `RegionEvent`s into the event list. Lazy: regions not yet materialized keep a "last ticked" day and catch up on first materialization by running the missed ticks from their seed.
-- Night is a calendar predicate used by rules and visibility.
+Source: `docs/background/introduction.md`. In Toel, time is local to each traveller and converges only briefly when people meet; the standard greeting is a question about how much time has passed for the other person. This is not flavour on top of a global clock. The architecture has no global clock.
+
+**Temporal holders.** Every entity that experiences time carries its own clock.
+
+```rust
+pub struct Clock {
+    pub elapsed: i64,          // subjective minutes since the holder's origin
+    pub era: EraId,            // which age of the world this holder is living in; one era in v1 content
+}
+pub struct Contact {
+    pub other: HolderId,
+    pub self_elapsed: i64,     // my clock when we last met
+    pub other_elapsed: i64,    // their clock when we last met
+}
+pub enum HolderId { Party(PartyId), Region(RegionId), Actor(ActorId), Character(CharacterId), Project(ProjectId) }
+```
+
+Holders in v1: the party (one clock shared by its members while they travel together), every region (owning its maps, lairs, respawns, and ecosystem state), every named actor (empty in v1 content, filled by NPC agency later), and characters who are separated from the party (a dismissed hireling waiting at an inn ages on their own clock). Construction projects and other player parties are holders the model already admits (§4.4, "What this buys").
+
+**Advancing.** A command advances only the clock of the holder that acted. A step, a rest, or a service advances the party's clock by data-defined minutes and emits `TimeAdvanced { holder, minutes }`. Nothing else in the world moves. The player's calendar (year, day of 360, minute of 1440; shape is data) is a rendering of the party's own elapsed time, and night is a predicate on it.
+
+**Reconciliation.** When two holders interact, their clocks reconcile, and only somewhat. Interactions are explicit in the simulation: the party enters a region, meets an actor, opens a project, or two parties meet. On interaction between `a` (the initiator) and `b`:
+
+1. Look up the last `Contact` between them, or treat `b` as never met.
+2. `delta_a` = how much `a` has experienced since that contact.
+3. `delta_b` = `reconcile(delta_a, stability_b, coupling_ab, rng)`, a rule expression in data. The v1 base rule is a ratio around 1 with a jitter drawn from the named RNG stream `time:<a>:<b>`, bounded by the region's temporal stability: a stable town might drift by a few percent, a ruin in flux by months. `delta_b` is never negative in v1.
+4. `b` catches up by `delta_b`: a region runs its ecosystem catch-up (§7.3), respawns, and project progress for that much time; an actor runs their agency catch-up (later).
+5. Both `Contact` records are updated and the simulation emits `Reconciled { a, b, delta_a, delta_b, era_b }`. The greeting in the background text is a `Message` whose arguments are exactly those two deltas.
+
+Holders that are not part of the interaction do not move. A region the party has not visited for a year of subjective time has experienced nothing yet; it experiences its share when the party returns. This is "the world changes without the player" from PRD goal 4, delivered lazily and deterministically.
+
+**Coupling between non-party holders.** Regions declare couplings in data (a road, a trade route, a river). When a region reconciles with the party, it also reconciles once with each coupled region using the same rule, so migration and trade flow across a neighbourhood without a world-wide tick. Coupling depth is one in v1 and is data.
+
+**Eras.** `EraId` on a clock and `BTreeMap<EraId, RegionState>` on a region let a reconciliation land the party in a different age of the same place: the ruin encountered alive, the kingdom that vanished overnight. In v1 content every holder is in the single era `present` and the reconciliation rule never changes era; the data model and the event carry the field so that content and rules can use it later without a save migration.
+
+**Combat and shared clocks.** During an encounter, all combatants share the encounter's clock; reconciliation happens once at encounter start. Party members share the party clock; a member who leaves becomes a holder with a copy of the party's clock at that moment.
+
+**Determinism.** Reconciliation jitter draws from named RNG streams per holder pair, so an added interaction elsewhere does not perturb it. Catch-up of `delta_b` days is bounded: ecosystem catch-up runs in coarse steps (§7.3), and a cap per reconciliation (data, default 10 years) prevents pathological work.
+
+**What this buys.** NPC agency: an actor is a holder with a clock; their off-screen life is catch-up at contact. Multiplayer: each party is a holder; parties reconcile when they meet, and no global tick has to be agreed between players. Construction and travel: a project is a holder whose progress is its reconciled time times a rate; a long journey is the party's clock advancing, then reconciling on arrival. Aging: a character's age is subjective elapsed time, which is why members separated from the party keep their own clocks.
+
+**What it costs.** Every interaction site in the simulation must call reconcile; forgetting one leaves a holder frozen. The interaction points are enumerated in `omnis-sim::time` and tested: region entry, actor meeting, project inspection, party meeting, encounter start.
 
 ### 4.5 Combat state machine
 
@@ -172,43 +213,49 @@ Read-only views for clients: `query::party(&World)`, `query::viewport(&World, &D
 
 A `Replay` is `(initial World fingerprint, pack fingerprints, Vec<Command>)`. Applying the commands to the same initial world must reproduce the final fingerprint; this is a CI test. Networked co-op later is "share the command stream", which is why commands carry no client-side state.
 
-## 5. Rule expression language (`omnis-expr`)
+## 5. Rule scripting host (`omnis-expr`, Rhai)
 
-Serves the owner's direction that rules will change a lot, PRD goal 2, and D12 (formula is data).
+Serves the owner's direction that rules will change a lot, PRD goal 2, and D12 (formula is data). Owner decision (A4, revised 2026-09-12): rule formulas are written in Rhai rather than a hand-rolled language. `omnis-expr` keeps its name and its place in the crate graph; its job changes from implementing a language to hosting one under strict configuration. Facts about Rhai below were verified against its repository, book, and crates.io on 2026-09-12.
 
-### 5.1 Scope
-Integers and booleans only. No strings, loops, assignment, recursion, or user functions. This is a formula language, not a script; scripting remains a later horizon (PRD §13).
+### 5.1 What `omnis-expr` owns
+- **Engine construction.** One `Engine::new_raw()` per profile, with only the packages we choose registered: arithmetic and logic, plus our own `min`, `max`, `clamp`, `abs`, `floor_div`, and `d(n, sides)`. `new_raw` starts with no built-in functions, so nothing enters the sandbox by default.
+- **Profiles.** `Formula` is the only profile in v1: a single expression per slot, no statements. `Script` is the later profile for quest logic (PRD §13, "scripting for mods") with functions, arrays, and maps enabled and higher limits; it is designed for but not built.
+- **Slots and inputs.** Every rule slot declares its input names and types in `omnis-data`. `omnis-expr` compiles each slot's source to an `AST` at pack load and checks that every variable the AST references is a declared input, by walking the AST (Rhai's `internals` feature) or, if that API proves unstable, by a dry-run evaluation with all inputs bound. Unknown identifiers are pack validation errors with file, line, and column.
+- **Evaluation.** `eval(slot, inputs, rng_stream) -> Result<i64 | bool, RuleError>` builds a `Scope` from the inputs, binds the RNG stream for `d`, and runs `eval_ast_with_scope`. A `RuleError` is a bug or bad data, never a rejection; it names the slot and the Rhai error.
+- **Hot swap.** `set_slot(slot, source)` recompiles and replaces the AST in place (dev builds, via MCP `rules.set`). ASTs are not serializable, so packs and saves carry source text and every load recompiles.
 
-Grammar:
-```
-expr     := or
-or       := and ("or" and)*
-and      := not ("and" not)*
-not      := "not" not | cmp
-cmp      := sum (("<" | "<=" | "==" | "!=" | ">=" | ">") sum)?
-sum      := prod (("+" | "-") prod)*
-prod     := unary (("*" | "/" | "%") unary)*      // "/" is floor division
-unary    := "-" unary | primary
-primary  := int | "true" | "false" | ident | call | "(" expr ")" | "if" expr "then" expr "else" expr
-ident    := name ("." name)*                     // e.g. caster.level, target.ac
-call     := name "(" (expr ("," expr)*)? ")"     // min max clamp abs d(n, sides) floor_div
-```
+### 5.2 Build features and sandbox limits
+Rhai features enabled for the v1 formula build: `only_i64` (one integer type), `no_float` (no floating point exists in the language), `sync` (ASTs and closures are `Send + Sync`, required because compiled rules live in a Bevy resource), `no_time`, `no_custom_syntax`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object` (no user functions, closures, imports, arrays, or maps in formulas). The `unchecked` feature is never enabled: integer overflow and division by zero are runtime errors, not wraps. Enabling the `Script` profile later means removing the last five flags in one rebuild; the `Formula` profile keeps enforcing its subset through `disable_symbol` regardless.
 
-### 5.2 Evaluation
-- Parsed once at pack load into an AST; parse errors are pack validation errors with file, line, and column.
-- Every formula slot (for example `rules.spell_points.pool`) declares its input names in `omnis-data`; the validator rejects unknown identifiers at load, not at play.
-- `d(n, sides)` draws from the `Context`'s RNG, which is the world's RNG, so dice in formulas are deterministic and appear in `RollTrace`.
-- Limits: 256 AST nodes, depth 32, and integer overflow is a rejection, not a wrap.
-- Hot swap: `Data::rules` is a map from slot to AST; `DevCommand::SetRule(slot, source)` reparses and replaces in dev builds.
+Engine limits per profile:
 
-### 5.3 Example rules slots (data, not code)
+| Limit | Formula | Script (later) |
+|---|---|---|
+| `disable_symbol` | `fn`, `loop`, `while`, `for`, `do`, `let`, `const`, `import`, `export`, `eval`, `throw`, `try`, string literals | `import`, `export`, `eval` |
+| `set_max_operations` | 10 000 | 1 000 000 |
+| `set_max_expr_depths` | (32, 16) | (64, 32) |
+| `set_max_call_levels` | 8 | 32 |
+| `set_max_string_size`, `array_size`, `map_size` | 0 (types unavailable) | 4 KB, 4 096, 1 024 |
+
+### 5.3 Determinism
+- Integers only, checked arithmetic, `only_i64`: results are identical on every platform. `/` truncates toward zero and `%` follows the sign of the dividend, matching Rust; rule authors are told this in the pack documentation.
+- `d(n, sides)` draws from the named RNG stream passed in by the caller (§11), so dice in formulas are deterministic and appear in `RollTrace`.
+- Rhai's `Map` is a `BTreeMap`, so map iteration is ordered; it is unavailable in the formula build anyway.
+- Rhai randomizes its internal function-lookup hashing seed per process unless `set_hashing_seed` is called; `omnis-expr` sets a fixed seed before the first engine is built. This affects only lookup internals, not script results, and is set for hygiene.
+
+### 5.4 Cost and security
+- Performance: Rhai is an AST interpreter, published at roughly two to three times slower than CPython on its own benchmarks. A ten-operation formula costs on the order of a microsecond. Combat with fifty rolls per round is negligible. Ecosystem catch-up is the heavy case: a region catching up a subjective year at fifty coarse ticks and twenty rules per tick is about a thousand evaluations, a few milliseconds. Only regions in contact do this work (§4.4).
+- Security (R8): the formula build has no I/O, no modules, no functions, no strings, no time, bounded operations and depth, and checked arithmetic. A mod pack can make a rule slow or wrong; it cannot reach the filesystem, the network, or the process. The `Script` profile, when it comes, keeps the no-I/O guarantee and adds only computation.
+- Dependency footprint: `rhai` pulls `smallvec`, `thin-vec`, `ahash`, `num-traits`, `once_cell`, `bitflags`, `smartstring`, and the `rhai_codegen` proc-macro crate. `smartstring` is MPL-2.0; it is file-scoped copyleft, compatible with linking into MIT or Apache-2.0 code, and is listed in the attribution file. Several of these crates are already in Bevy's tree and must resolve to Bevy's versions (§12).
+
+### 5.5 Example rule slot (data, not code)
 ```ron
 // packs/base/data/rules/casting.ron
 (
   schema: 1,
   spell_points: (
     inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
-    pool: "max(level, (if half_caster then level / 2 else level) * cast_mod + other_mental_mods)",
+    pool: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
     cost: "spell_level",
   ),
   component_threshold: 5,
@@ -267,17 +314,19 @@ pub struct RegionState {
     pub resources: BTreeMap<ResourceId, u32>,
     pub prosperity: u32, pub danger: u32, pub weather: WeatherState,
     pub actors: BTreeSet<ActorId>,     // named entities present; empty in v1 content
-    pub last_tick_day: u32,
+    pub stability: u32,                // temporal stability for reconciliation (§4.4); data
+    pub couplings: Vec<RegionId>,       // regions that reconcile alongside this one (§4.4)
 }
 pub enum RegionEvent { PopulationChanged, FactionShift, ResourceChanged, WeatherChanged, ActorMoved, ActorActed, Derived(Outputs) }
 ```
 - State changes only through `apply_region_event`. Rules in `data/eco/*.ron` are expressions over region inputs that emit events. Player actions that touch a region (clearing a lair, trading) are emitted by `omnis-sim` as region events through the same path.
-- `tick(region, neighbours, rules, rng)` runs ordered phases: environment, populations, factions, actors (no-op in v1), economy, derived outputs. Adding NPC agency later inserts logic into the actors phase without changing the others.
+- `tick(region, neighbours, rules, rng, dt_days)` runs ordered phases: environment, populations, factions, actors (no-op in v1), economy, derived outputs. Adding NPC agency later inserts logic into the actors phase without changing the others.
+- Ticks are driven by reconciliation (§4.4), not by a global day. `catch_up(region, delta_days)` runs `tick` with `dt_days` up to a data-defined coarse step (default 7) until the delta is consumed, so a region that receives a year runs about fifty coarse ticks, not 360 fine ones. Rules are written per day and scale by `dt_days`; the golden tests include a fine-versus-coarse equivalence check within tolerance.
 - Derived outputs (encounter table weights, price multipliers, rumor keys, generated quest availability) are recomputed each tick and read by `omnis-sim` and `omnis-story`.
-- Budget: a region tick is a few hundred integer ops; 1000 regions tick well under 100 ms (PRD §9.2).
+- Budget: a region catching up a subjective year is about a thousand rule evaluations, a few milliseconds (§5.4); only regions in contact do work (PRD §9.2).
 
 ### 7.4 Story (`omnis-story`)
-- **Quest graph**: nodes (`Dialogue`, `Choice`, `Check`, `SetFlag`, `Reward`, `Spawn`, `MapChange`, `End`) with edges guarded by expressions over `{flags, party, calendar, region, quest}`. Stored in `data/quests/*.ron`, edited in the editor's graph view.
+- **Quest graph**: nodes (`Dialogue`, `Choice`, `Check`, `SetFlag`, `Reward`, `Spawn`, `MapChange`, `End`) with edges guarded by expressions over `{flags, party, party clock, region, quest}`. Stored in `data/quests/*.ron`, edited in the editor's graph view.
 - **Static check** at pack load: every node reachable from start reaches an `End`; every `Check` has both outcomes wired; every referenced flag, item, monster, and map exists. Failures are validation errors (PRD §9.3).
 - **Templates** in `data/templates/*.ron` declare `requires` (bindings: a town, a dungeon within N regions, a creature group with population above X), `instantiate` (the graph to stamp with bindings substituted), and `effects` (region events on completion). `omnis-sim` asks `omnis-story` for candidate templates in a town each tick and instantiates deterministically from the world RNG.
 - The journal is a query over `QuestState`.
@@ -340,7 +389,8 @@ sequenceDiagram
 ### 9.3 Tool set (v1)
 | Tool | Purpose |
 |---|---|
-| `game.status` | mode, calendar, position, packs, fingerprint |
+| `game.status` | mode, party clock and calendar, position, packs, fingerprint |
+| `time.clocks`, `time.reconcile` | list holder clocks and contacts; force a reconciliation between two holders (dev) |
 | `world.query` | read any path (`party.members[0].hp`) |
 | `party.get`, `party.create` | inspect and build a party from data |
 | `sim.command` | apply one `Command`, return events with roll traces |
@@ -365,7 +415,15 @@ Headless, Bevy-free, fast to compile. Subcommands: `validate <packs>`, `schema d
 ## 11. Determinism and testing
 
 Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
-- **RNG**: own PCG32 (state, increment, and draw counter serialized). Streams are derived per subsystem (`world`, `combat`, `gen:layer:<n>`, `eco:<region>`) so an added draw in one system does not perturb another.
+- **RNG and seeds** (A14, approved 2026-09-12):
+  - **One world seed**, `u64`, fixed at new game. The app layer offers a text seed (hashed with FNV-1a 64) or draws one from OS entropy; the simulation never touches entropy and only ever receives the number. The seed is shown on the new-game and save screens so worlds can be shared, and it is stored in the save.
+  - **Named streams.** Every consumer draws from a stream identified by a canonical name. A stream's initial state is a pure function of the world seed and the name: `state = splitmix64(world_seed ^ fnv1a64(name))`, `increment = splitmix64(fnv1a64(name)) | 1`. Stream names in v1: `party`, `combat`, `time:<a>:<b>` (holder IDs in canonical order), `eco:<region>`, `story:<region>`, `gen:<x>:<y>:<layer>`. Adding a stream never perturbs an existing one; adding a draw inside a stream perturbs that stream's later draws only, and golden tests are re-baselined in the same commit.
+  - **Stateful streams are persisted.** `World.rngs: BTreeMap<StreamName, Pcg32>` holds every stream that has been used, with its state and draw count, so a loaded save continues exactly. A stream absent from the map is created on first use from the formula above, which is why lazily generated regions and never-met holders cost nothing until touched.
+  - **Generation streams are stateless.** `omnis-gen` derives each layer's stream fresh from `gen:<x>:<y>:<layer>` and never persists it, so regenerating a layer is a pure function of seed, coordinates, and parameters regardless of play history. Locked tiles are re-applied after generation.
+  - **Dice in formulas** draw from the stream of the calling subsystem, passed in the evaluation context; a combat roll and an ecosystem roll never share a stream.
+  - **Every draw is traceable.** `RollTrace` records stream name, draw index, and raw output; a replay divergence therefore names the first stream and index that differed.
+  - **Hashing is our own.** FNV-1a 64 and splitmix64 are a few lines each in `omnis-core`. `std::hash::DefaultHasher` and any randomized hasher are banned from the simulation crates because their output is unspecified across Rust versions and, for randomized hashers, across runs.
+  - **Later**: multiplayer shares the world seed and gives each party its own `party:<id>` stream.
 - **No floats** in simulation crates, enforced by a CI lint. Ordered collections only.
 - **Test tiers**:
   1. Unit tests in each leaf crate on real pack data (`packs/test`), no mocks.
@@ -379,25 +437,30 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 ## 12. Security
 
 - Packs, saves, socket input: §6.2 limits and normalization; never panic, always report.
-- No code execution from data: the expression language has no side effects and bounded cost.
+- Scripts from data run only in the Rhai formula profile (§5.2): no I/O, no modules, no functions, no strings, bounded operations and depth, checked arithmetic.
 - Dev socket: loopback only, compiled out of release, single client, request size cap (1 MB), op allowlist. `Dev` commands are rejected by `apply` unless the world was created with `devtools` enabled.
 - Saves record pack fingerprints; loading with different packs warns and refuses unless forced.
-- Dependencies: pinned exact versions in `[workspace.dependencies]`; policy N-1 and older than 30 days for everything except Bevy (D9); each addition audited with Socket before merge; `Cargo.lock` committed.
+- Dependencies: pinned exact versions in `[workspace.dependencies]`; `Cargo.lock` committed. Policy, in priority order (owner direction 2026-09-12):
+  1. **Match Bevy's requirements.** Any crate Bevy already pulls (ron, serde, and so on) is pinned to the version Bevy 0.19 resolves, so the tree stays single-copy. `cargo tree --duplicates` must be empty for those crates; CI checks it.
+  2. **N-1 and older than 30 days** for crates Bevy does not pull, per `CLAUDE.md`. Bevy itself is exempt (D9). Owner-granted exceptions are recorded in the §13 table with the date and reason; rhai 1.26.1 is the first.
+  3. **When in doubt, audit with Socket** (`depscore`) before adding or bumping, and default to whatever Bevy requires.
 
 ## 13. Dependencies (initial)
 
-Verified against crates.io on 2026-09-11 (policy: N-1, older than 30 days, Bevy exempt).
+Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved versions first, N-1 and 30 days for the rest, Socket audit when in doubt. Socket `depscore` audited on 2026-09-12; every crate scored 100 on license, maintenance, and vulnerability and 93 on quality, except smartstring's license score (70, MPL-2.0) and thin-vec's vulnerability score (84). Supply-chain scores: ron 100, bevy_egui 100, smallvec 100, bitflags 100, once_cell 100, thin-vec 100, rhai 1.26.1 71 (owner-reviewed, see row), serde_json 82, serde 81, ahash 82, num-traits 82, thiserror 79, bevy 74. See the rhai row for the 1.25.x anomaly.
 
 | Crate | Pin | Used by | Note |
 |---|---|---|---|
 | bevy | 0.19.1 | app | D9 exemption; `default-features = false`, features `2d`, `ui`, `png` (§8.1) |
 | serde | 1.0.228 | all | derive |
 | serde_json | 1.0.150 | mcp, app devtools | protocol only |
-| ron | 0.12.x (Bevy 0.19 pins `ron = "0.12"`) | data | match Bevy's version to avoid two copies; pick the 0.12 patch older than 30 days (0.12.1 as of writing; 0.12.2 is 2026-06-22 and also qualifies) |
+| ron | 0.12.2 | data | Bevy 0.19 pins `ron = "0.12"`; match its resolved version, single copy in the tree (§12) |
 | thiserror | 2.0.19 | core | error derives |
 | bevy_egui | 0.41.1 | app (editor only) | A11; 0.42.0 fails the 30-day rule as of writing |
+| rhai | 1.26.1 | expr | A4. Owner exception to the N-1 and 30-day rule (2026-09-12): 1.26.1 was released 2026-09-10; the owner reviewed the project and release and judged it not compromised. Context: the N-1 minor, 1.25.x, scores 58 on Socket supply chain against 98 for 1.24.0 and 71 for 1.26.1, with no new dependency, build script, or file-set change to explain it; 1.26.1 also contains fixes to the optimizer, function-pointer argument order, and switch matching found while building the Grain VM. The `grain` feature is not enabled. MSRV 1.66, MIT OR Apache-2.0. Re-audit with Socket at 30 days (2026-10-10). |
+| smartstring (via rhai) | Bevy's or rhai's resolved | expr | MPL-2.0, file-scoped copyleft; listed in attribution. Socket license score 70 for that reason. |
 
-Deliberately absent: `rand` (own PCG32), `tokio` (no async), any scripting engine, any MCP SDK, any procgen or noise crate (own value noise and hashing in `omnis-gen`). Bevy's MSRV is 1.95; the workspace sets `rust-version = "1.95"`.
+Deliberately absent: `rand` (own PCG32), `tokio` (no async), any MCP SDK, any procgen or noise crate (own value noise and hashing in `omnis-gen`). Bevy's MSRV is 1.95; the workspace sets `rust-version = "1.95"`.
 
 ## 14. Build and CI
 
@@ -443,12 +506,14 @@ omnis/
 | A1 | Cargo workspace of small crates with a Bevy-free simulation | Single crate with modules | Cargo enforces the boundary; faster incremental builds; CLI and MCP headless need the sim without Bevy. |
 | A2 | Command in, events out; clients never called by the sim | Callbacks, ECS-driven rules | Replay, tests, MCP, and co-op all reduce to the same stream. |
 | A3 | Own minimal MCP bridge over stdio, private newline-JSON socket to the game | rmcp SDK in game or bridge | Owner decision; no async runtime in the game; a few hundred lines we own; dual-era handshake because the spec just broke compatibility. |
-| A4 | In-house integer expression language for rule formulas | Formulas in Rust; Rhai or Lua | Owner decision; heavy rule tweaking without rebuilds; hot swap via MCP; bounded and deterministic. |
+| A4 | Rhai, integer-only, sandboxed to a formula profile, hosted by `omnis-expr` | In-house expression language (first draft); formulas in Rust; Lua | Owner decision 2026-09-12: a maintained language with a parser, optimizer, and limits already built beats a hand-rolled one; the formula profile keeps the same bounded, deterministic, no-I/O posture. Later `Script` profile serves quest scripting. |
 | A5 | Integers and fixed-point only in the simulation | Floats with care | Cross-platform determinism without doubt (R6). |
 | A6 | Own PCG32 with named streams | `rand` | Tiny, serializable, stream-per-subsystem isolation, one fewer dependency. |
 | A7 | RON for content and saves | TOML, JSON | D15; native enums and nested structs. |
 | A8 | Ecosystem state changes only through typed region events | Direct mutation | NPC agency later inserts as an event source (PRD §9.2). |
 | A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). |
 | A10 | Game state lives in one serializable `World`, not in Bevy ECS | ECS for game state | Save, replay, and headless become trivial; Bevy churn (R2) cannot reach game state. |
-| A11 | `bevy_egui` for the editor, `bevy_ui` for the game | Feathers everywhere; egui everywhere | Owner decision; tool UI productivity where it matters, first-party pixel UI for players, egui isolated to one plugin. |
+| A11 | `bevy_egui` for the editor, `bevy_ui` for the game | Feathers everywhere; egui everywhere | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, first-party pixel UI for players, egui isolated to one plugin. |
 | A12 | Packs bypass Bevy's asset system; only images and audio go through an `AssetLoader` | RON as Bevy assets | Packs are validated untrusted data with cross-file references; Bevy's loader is per-file and has no RON loader anyway. |
+| A13 | No global clock; subjective clocks per holder, reconciled on interaction by a data rule with bounded drift | Global calendar with a world-wide daily tick | Owner direction from `docs/background/introduction.md`; makes NPC agency, multiplayer, construction, and travel the same mechanism; lazy and deterministic. Cost: every interaction site must reconcile. |
+| A14 | One world seed; named PCG32 streams derived by FNV-1a and splitmix64; stateful streams persisted in the save, generation streams stateless | Single global RNG; per-entity RNG objects | Approved 2026-09-12. Isolation between subsystems, exact continuation after load, pure regeneration, traceable draws. |

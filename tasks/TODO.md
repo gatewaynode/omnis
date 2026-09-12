@@ -17,7 +17,11 @@
 - [x] Research: MCP spec and transports; Bevy 0.19 headless, assets, UI, structure; dependency versions
 - [x] Decide editor UI toolkit with owner: bevy_egui for the editor, bevy_ui for the game
 - [x] Write ARCHITECTURE.md v0.1
-- [ ] Owner review of ARCHITECTURE.md
+- [x] Owner review round 1: A4 changed to Rhai, A11 confirmed; §5 rewritten as Rhai host; §4.4 subjective time; A14 RNG seed strategy proposed
+- [x] rhai pinned at 1.26.1 by owner exception (re-audit 2026-10-10)
+- [x] A14 seed strategy approved
+- [x] ARCHITECTURE.md v0.2 reviewed by owner
+- [ ] Plan Phase 0 tasks (after compact)
 - [ ] Sentrux review once code exists
 
 ## Phase 0 — Foundation (not started; see PRD §13)

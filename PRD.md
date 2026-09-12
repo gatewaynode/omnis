@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.1, under discussion |
+| Status | Draft v0.3, under discussion |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Companion | `ARCHITECTURE.md` (derived from this document), `README.md` |
@@ -16,6 +16,8 @@ This document says what Omnis is, who it is for, why it exists, what it must do,
 Omnis is a turn-based, party-based, first-person grid-crawling RPG in the lineage of Might and Magic I and II (1986–1988), rebuilt for the present. It keeps what made those games durable: a large open world you may explore in any order, a party you build from scratch, mass combat against groups of monsters, and a sense that the world is bigger than the story. It adds what they could not do: a living regional ecosystem, a story engine that mixes authored and generated quests, procedural generation of arbitrarily large regions, and an in-game editor and content management system that ships to players and modders as a first-class feature.
 
 The presentation is deliberately retro: 2D pixel art in a first-person viewport with discrete steps and 90° turns. The systems underneath are not retro.
+
+The world is Toel (`docs/background/introduction.md`): a vast, dangerous, rich place settled in waves through portals that open between worlds, humming with reality-twisting forces. Time itself is one of those forces. It runs separately for every traveller and every place, and converges only briefly when they meet; the standard greeting is a question about how much time has passed for the other person. Ruins are sometimes met alive, and towns appear or vanish between visits. That subjective time is a founding rule of the game's world model (§7.8), not a story device layered on top of it.
 
 ## 2. Consumers
 
@@ -41,7 +43,7 @@ Ranked. When two conflict, the higher-ranked one wins.
 1. **A complete, fun crawler loop.** Create a party, explore, fight, level, shop, rest, save. If this is not good, nothing else matters.
 2. **Everything is data.** Maps, monsters, spells, items, quests, regions, ecosystem rules, and the base campaign itself live in human-readable text files that the editor reads and writes. No content is hard-coded.
 3. **The editor is a shipped feature.** It runs in the same binary, edits the same data, and is documented for modders.
-4. **A world that changes without the player.** Regional ecosystem state (populations, factions, resources, prices) advances on a coarse clock and visibly affects encounters, economy, and quests.
+4. **A world that changes without the player.** Regional ecosystem state (populations, factions, resources, prices) advances on each region's own subjective clock, catching up when the party makes contact, and visibly affects encounters, economy, and quests.
 5. **Stories from two sources.** Authored quest graphs with full designer control, plus template-driven generated quests bound to procedurally generated places and to ecosystem state.
 6. **Infinite canvas.** Any region can be procedurally generated at any scale, then kept as-is, curated by hand, or overwritten. Hand-authored and generated content coexist in the same map format.
 7. **Deterministic, replayable simulation.** The game rules run as a pure function of state, seed, and inputs, separate from rendering and input handling. This makes tests real, bugs reproducible, and networked co-op a future addition instead of a rewrite.
@@ -71,7 +73,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 | D4 | First playable milestone | Crawler loop plus editor | Loop only; loop plus procgen | All base content is built with the shipped editor; proves the tooling early. |
 | D5 | Platform and play mode | Desktop single-player (macOS, Linux, Windows); co-op later | Add WASM; single-player only forever | Deterministic input-driven sim keeps co-op possible without rewrite. |
 | D6 | Licensing | Open source code, open content | Open engine with closed content; fully proprietary | Maximizes modding; SRD attribution is simple. See §11.2. |
-| D7 | Ecosystem engine v1 | Regional simulation on a coarse tick | Static world with scheduled events; agent-level sim | Visible consequences at tractable cost. Agent-level simulation for a limited set of important NPCs is a later horizon, not rejected. |
+| D7 | Ecosystem engine v1 | Regional simulation on coarse steps of each region's subjective time (D20) | Static world with scheduled events; agent-level sim | Visible consequences at tractable cost. Agent-level simulation for a limited set of important NPCs is a later horizon, not rejected. |
 | D8 | Story engine v1 | Authored quest graph plus procedural quest templates | Authored only; LLM-assisted | Deterministic, testable, and binds to procgen and ecosystem. |
 | D9 | Engine | Bevy, latest stable (0.19.x at time of writing), explicitly exempt from the N-1 dependency rule in `CLAUDE.md` | Pin to N-1 | Owner decision; Bevy moves fast and back-porting fixes to old versions is not practical. All other dependencies follow the N-1 rule. |
 | D10 | Party size | Six party slots, filled by created characters and, when slots are open, hirelings | MM2's eight | Closer to SRD encounter math. Hirelings beyond the six slots are a later sidecar system (§13). |
@@ -84,6 +86,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 | D17 | Saves | Difficulty option (inn-only through save-anywhere); on harder settings some items and magic grant relief | One fixed rule | Player choice of commitment level. |
 | D18 | Remote sensing | Active sensing runs layered perception tests per fidelity layer; all remotely sensed knowledge is immediately stale | Flat reveal | Uses SRD perception checks; the automap records what was seen and when. |
 | D19 | Title | "Omnis" | — | Working title confirmed. |
+| D20 | Time model | Subjective time: no global clock; every party, region, named actor, separated character, and project keeps its own clock; clocks reconcile only partially on contact, by a data rule with bounded drift | Global calendar with a world-wide daily tick | Owner direction from the world background (2026-09-12). One mechanism serves NPC agency, multiplayer, construction, travel, and aging. See §7.8. |
 
 ## 7. Core experience: the player loop
 
@@ -97,7 +100,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 - The world is a grid of square tiles. The party occupies one tile and faces one of four directions. Movement is one tile forward or backward, or a 90° turn.
 - The viewport is a first-person 2D pixel-art rendering of the tiles ahead, showing walls, doors, terrain, sky or ceiling, and any visible monsters or objects.
 - Two depths govern what the player sees (D16). **Detail depth** is fixed at roughly 4–6 tiles: the viewport draws these with full sprites. **Visibility depth** is a property of the environment and the party, not the camera: a dark dungeon allows 3–4 tiles, an open plain 10–20, fog 1, heavy rain 2, modified by light sources, time of day, and character abilities, computed per tile per turn from data. Tiles beyond detail depth but within visibility depth are drawn as a low-detail horizon band of terrain colour and landmark silhouettes, and are recorded to the automap as passive sensing in a forward cone.
-- Time advances per step and per action. There is a calendar with day and night. Night changes encounters, visibility, and some services.
+- Time advances per step and per action on the party's own clock (§7.8). The party's calendar, with day and night, is a rendering of that clock. Night changes encounters, visibility, and some services.
 - Terrain types gate movement by skill or item (mountains, forest, swamp, water, desert). Food and rest are resources.
 - **Automap and remote sensing.** The automap is the persistent record of everything the party knows about the world, and it is the game's substitute for free look. Knowledge enters it from several sources:
   - Walking: visited tiles and the tiles within visibility depth in the facing cone, gated by a cartography skill or item as in MM2.
@@ -105,9 +108,9 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
   - Skills: a scouting or navigation skill widens the recorded radius around the party, indoors or outdoors, by skill rank.
   - Spells: divination spells reveal a large area at once (a radius, a whole 16×16 map, or a region), possibly with extra layers such as secret doors, monsters, or treasure.
   - Purchased or found maps: an item that adds a fixed area to the automap when used.
-  - Every source is data with the same shape: a reveal geometry (radius, cone, line-of-sight ray, whole map, whole region), a fidelity (terrain only; walls and doors; objects and triggers; monsters), and a persistence (permanent, or a temporary overlay that expires with the calendar). New sources are added by content, not code.
+  - Every source is data with the same shape: a reveal geometry (radius, cone, line-of-sight ray, whole map, whole region), a fidelity (terrain only; walls and doors; objects and triggers; monsters), and a persistence (permanent, or a temporary overlay that expires on the party's clock). New sources are added by content, not code.
   - Active sensing (spyglass, scouting, divination) resolves as layered perception tests: one SRD-style check per fidelity layer (terrain, structure, objects, creatures) against a difficulty set by distance, cover, light, and the target's own concealment. Passing a layer reveals that layer; failing stops there (D18).
-  - Revealed knowledge is per party and saved with the game with the calendar time it was seen. Everything remotely sensed is treated as stale the moment it is recorded; the automap shows what was seen and when, not what is. Ecosystem changes (§9.2) are one reason the two diverge.
+  - Revealed knowledge is per party and saved with the game with the party-clock time it was seen. Everything remotely sensed is treated as stale the moment it is recorded; the automap shows what was seen and when, not what is. Ecosystem changes (§9.2) are one reason the two diverge.
   - The viewport never changes for any of these. Remote sensing is read on the automap.
 - Outdoor, town, dungeon, and special maps share one format; only their rules and rendering assets differ.
 
@@ -124,7 +127,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 - Training: level up for a fee once experience is sufficient.
 - Blacksmith: buy, sell, identify, repair equipment.
 - Tavern: rumors, food, hireling recruitment, quest hooks.
-- Bank: deposit gold and gems; earns interest on the calendar.
+- Bank: deposit gold and gems; earns interest on the bank's region clock, so the balance grows by however much time that town has experienced when the party returns (§7.8).
 - Guilds: buy spells by level for members.
 - Every service is a data-defined building placed on a map tile; there is nothing special about "a town" beyond its tiles.
 
@@ -132,7 +135,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 - Experience is earned in combat and from quests; levels are bought at a trainer.
 - Each level grants SRD hit points, class features, and spell points where applicable.
 - Skills and tool proficiencies come from SRD background and class; crawler abilities such as cartography and wilderness travel are proficiencies, items, or spells (§7.2, §8.1).
-- Ability scores change from SRD magic items, ability score improvements at SRD levels, and content-defined shrines. Characters have a birth date on the calendar; aging effects are not in v1 (§8.3).
+- Ability scores change from SRD magic items, ability score improvements at SRD levels, and content-defined shrines. A character's age is their own subjective elapsed time (§7.8); aging effects are not in v1 (§8.3).
 
 ### 7.6 Quests
 - Quest state is a set of typed flags and counters on the save, never on the map.
@@ -140,10 +143,20 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 - Quests may require, reward, or change ecosystem state (§9.2).
 
 ### 7.7 Save and load
-- A save is the complete world state: party, every map's mutable state, ecosystem state, quest flags, calendar, and RNG seed and counter.
+- A save is the complete world state: party, every map's mutable state, ecosystem state, quest flags, every holder's clock and contact records, and RNG seed and counter.
 - Saves are files the player owns. There is no cloud dependency.
 - When and where the player may save is a difficulty option ranging from inn-only to anywhere (D17). On harder settings, specific items and spells grant save opportunities. A full party wipe returns the player to the last save with no other recovery (D14).
 - Save format is versioned and migratable. A save from build N loads in build N+1.
+
+### 7.8 Subjective time
+Time in Toel is local. There is no world clock.
+- **Every holder keeps its own clock**: the party (shared by its members while they travel together), every region with its towns, dungeons, lairs, and ecosystem, every named non-player character, any character separated from the party, and, later, construction projects and other players' parties.
+- **Only the actor's clock moves.** A step, a rest, or a service advances the party's clock. Nothing else in the world moves until it is met.
+- **Clocks reconcile on contact, and only somewhat.** Entering a region, meeting a named character, or two parties meeting compares how much time each has lived since their last contact. The other side catches up by an amount set by a data rule: near equal for stable places, drifting by months for places in flux, never backwards in v1. Both remember the contact. The exchange of "how long has it been for you" is the visible face of this rule.
+- **Places connected by roads, rivers, and trade** reconcile with each other when either meets the party, so change spreads through a neighbourhood without a global tick.
+- **Eras are part of the model.** A place can exist in more than one age, and a reconciliation may in principle land the party in an older or newer one. V1 content uses a single era and the rule never changes it; the save format carries the field from day one.
+- **Consequences the player feels**: a region left for a subjective year has changed by roughly a year when revisited; a bank balance grows by the bank's time, not the party's; a hireling left at an inn has aged on their own; a quest deadline is counted on the clock of whoever set it; rumors report how long ago on the teller's clock.
+- **Why this shape**: it makes NPC free agency, multiplayer, construction time, long travel, and aging the same mechanism, and it keeps the simulation lazy and deterministic. The cost is that every place where things meet must reconcile; those places are enumerated and tested in the architecture.
 
 ## 8. Rules: SRD 5.1 structure with MM2 crawler adaptations
 
@@ -177,7 +190,7 @@ Each adaptation names the loop problem it solves. An MM2 mechanic that does not 
 | Overnight rest with food and ambush | Rest costs food, restores fully, may be ambushed | The SRD long rest is free; food, light, and ambush make deep dungeon runs a resource problem. Long rest is the MM2 rest. |
 | Levels bought at a trainer | Training grounds | Keeps towns relevant and makes returning to the surface part of the loop. Experience accrues anywhere; the level is granted in town. |
 | Guilds and temples sell spells | Mage guild, temple | Spells beyond the ones granted at level-up are bought or found, so gold and exploration both feed the spell list. |
-| Calendar and aging | Day and year, aging effects | Calendar is required by the ecosystem tick (§9.2). Aging as a stat effect is deferred past v1 (D13); characters carry a birth date so it can be added without a save migration. |
+| Calendar and aging | Day and year, aging effects | The party's calendar renders its subjective clock (§7.8); the ecosystem runs on each region's own clock. Aging as a stat effect is deferred past v1 (D13); each character's subjective elapsed time is already tracked, so it can be added without a save migration. |
 | Inn-only saves | Sign in at an inn | Turns every dungeon into a commitment. Adopted as the hardest setting of a save difficulty option (D17); easier settings allow save-anywhere; harder settings gain relief through specific items and spells. |
 
 ### 8.3 Reconciliation rules
@@ -226,15 +239,15 @@ Observations. F1 falls to roughly a quarter of SRD capacity. F2 tracks the SRD f
 
 ### 9.2 Ecosystem and environment engine
 - The world is divided into regions. Each region has state: populations per creature group, faction presence and attitude, resource levels, prosperity, danger, and weather trend.
-- State advances on a coarse tick (per in-game day) by data-defined rules: predation, breeding, migration, faction conflict, harvest, trade.
+- State advances on the region's own subjective clock (§7.8). When the party or a coupled region makes contact, the region catches up by the reconciled amount in coarse steps, applying data-defined rules written per day: predation, breeding, migration, faction conflict, harvest, trade.
 - Player actions feed back: clearing a lair reduces a population; over-hunting collapses it; trading raises prosperity; unpaid factions turn hostile.
 - Outputs that the player can observe: encounter tables, encounter sizes, shop prices and stock, rumors, available generated quests, and some map changes (a ruined village, a new camp).
-- Ticks are deterministic and cheap: a world of 1000 regions ticks in well under 100 ms.
+- Catch-up is deterministic and cheap: a region catching up a subjective year runs in a few milliseconds, and only regions in contact do any work.
 - The editor exposes region state and rules for inspection and override.
 - **Forward compatibility with agents.** The long-term goal is that a limited set of important non-player characters (rulers, rivals, quest-givers, notable monsters) act with free agency: they hold goals, move between regions, and change region state on the tick, so the world stays dynamic in single player. The extent is decided when the regional engine exists and its cost is known. To keep that door open, the v1 region model must satisfy three requirements: a region's state is changed only through typed events that any source (rule, player, or future agent) can emit; named entities can be located in a region and referenced by ID from quests and rumors; and the tick is ordered and deterministic so agent actions can be inserted as one more phase.
 
 ### 9.3 Story building engine
-- **Authored quests** are graphs of nodes (dialogue, choice, check, flag set, reward, spawn, map change) with conditions on quest flags, party state, calendar, and ecosystem state. Written in data, edited in the editor with a graph view.
+- **Authored quests** are graphs of nodes (dialogue, choice, check, flag set, reward, spawn, map change) with conditions on quest flags, party state, the relevant holder's clock, and ecosystem state. Deadlines are counted on the clock of the holder that set them (§7.8). Written in data, edited in the editor with a graph view.
 - **Generated quests** are instantiated from templates (clear, fetch, escort, deliver, investigate, rumor chain, bounty) that bind to generated or authored places, monsters, and NPCs, and to current ecosystem state. Templates declare what they need and what they change.
 - Dialogue is data with variable substitution. No free-text generation at runtime.
 - Every quest, authored or generated, is completable, failable, or expirable, and the engine can prove that statically for authored graphs (no dead-end nodes).
@@ -282,9 +295,10 @@ Observations. F1 falls to roughly a quarter of SRD capacity. F2 tracks the SRD f
 | R5 | Editor-first delays the fun | Medium | Medium | The editor's first version is minimal (tile paint, place object, set trigger, playtest). Fancier views follow content needs. |
 | R6 | Determinism drifts (float math, hash ordering, platform differences) | Medium | High | Rules use integer math; ordered collections in the sim; cross-platform golden tests in CI. |
 | R7 | Procgen output is bland | Medium | Medium | Layered generation with authored set-piece insertion; ecosystem and quests give generated places meaning. |
-| R8 | Mod packs as attack surface | Medium | Medium | Packs are data only; strict schema validation; size and path limits; no scripting language in v1. |
+| R8 | Mod packs as attack surface | Medium | Medium | Packs are data plus rule formulas; strict schema validation; size and path limits; formulas run in a sandboxed integer-only scripting engine with no I/O, no functions, and bounded cost (architecture §5); general scripting for mods stays deferred. |
 | R9 | Save incompatibility across builds | Medium | Medium | Versioned formats with migrations and round-trip tests from day one. |
 | R10 | Art pipeline for a first-person viewport (wall permutations, distance layers) is larger than expected | Medium | Medium | Fixed detail depth (D16) and a strict tileset contract; the horizon band is procedural, not sprite art; procedural placeholder art so systems can be built before art exists. |
+| R11 | Subjective time confuses players or breaks quest logic (a deadline that means different things to two holders) | Medium | Medium | Every clock-dependent rule names its holder; the journal shows deadlines on the party's clock with the drift range; a debug view of all clocks in dev builds; playtest the greeting exchange early. |
 
 ## 13. Phased scope and success criteria
 
@@ -295,7 +309,7 @@ Each phase produces a runnable build. Criteria are testable.
 - **Done when**: a data pack loads, validates, and round-trips through save and load with no loss; a golden procgen seed produces identical bytes on both CI platforms.
 
 ### Phase 1 — Crawler loop plus editor (first playable, D4)
-- Party creation, one town with all services, one multi-level dungeon, outdoor area connecting them, movement, viewport rendering, turn-based mass combat, spells, items, leveling, conditions, calendar, save and load.
+- Party creation, one town with all services, one multi-level dungeon, outdoor area connecting them, movement, viewport rendering, turn-based mass combat, spells, items, leveling, conditions, subjective clocks with reconciliation on region entry, save and load.
 - Editor: tile paint, objects, triggers, data tables, playtest. All Phase 1 content is built with it.
 - **Done when**: a new player can create a party, clear the dungeon, and return to town in under two hours without hitting a crash, a soft-lock, or an untestable rule; every rule has a test; the content was authored entirely in the editor.
 
@@ -305,7 +319,7 @@ Each phase produces a runnable build. Criteria are testable.
 
 ### Phase 3 — Ecosystem
 - Region state, tick rules, feedback from player actions, observable outputs in encounters, prices, rumors.
-- **Done when**: clearing a lair measurably changes encounter tables and prices in neighboring regions over the following in-game week, and the effect is visible to the player through rumors.
+- **Done when**: clearing a lair measurably changes encounter tables and prices in coupled neighbouring regions on the party's next contact after a subjective week or more has passed, and the effect is visible to the player through rumors that report the teller's own elapsed time.
 
 ### Phase 4 — Story engine
 - Authored quest graph format and editor view; generated quest templates bound to procgen and ecosystem; journal.
@@ -316,7 +330,7 @@ Each phase produces a runnable build. Criteria are testable.
 - **Done when**: external playtesters complete the opening act; a modder outside the team ships a working pack from the documentation alone.
 
 ### Later
-- Free agency for a limited set of important non-player characters on top of the regional ecosystem (§9.2), extent set by measured cost. A sidecar party system for hirelings in massive battles (D10). Aging as an optional rule (D13). Networked co-op on the deterministic sim. Additional platforms. Scripting for mods, if data-only proves insufficient.
+- Free agency for a limited set of important non-player characters on top of the regional ecosystem (§9.2), extent set by measured cost. A sidecar party system for hirelings in massive battles (D10). Aging as an optional rule (D13). Networked co-op on the deterministic sim. Additional platforms. General scripting for mods (quest logic beyond the graph), using the same sandboxed engine the rule formulas already run on, if data-only proves insufficient.
 
 ## 14. Open questions
 
