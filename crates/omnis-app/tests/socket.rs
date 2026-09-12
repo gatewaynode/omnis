@@ -11,7 +11,7 @@ use omnis_sim::Event;
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 struct Peer {
@@ -84,12 +84,8 @@ fn messages<M: Message + Clone>(app: &App) -> Vec<M> {
     cursor.read(messages).cloned().collect()
 }
 
-#[test]
-fn a_client_drives_the_game_over_loopback() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("socket");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::env::set_current_dir(&dir).unwrap();
+/// A headless app with the socket bound, and the address it wrote.
+fn boot(dir: &Path) -> (App, SocketAddr) {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let addr_file = dir.join("dev.addr");
     let mut app = App::new();
@@ -113,17 +109,18 @@ fn a_client_drives_the_game_over_loopback() {
         .parse()
         .unwrap();
     assert!(addr.ip().is_loopback());
+    (app, addr)
+}
 
-    let mut peer = Peer::connect(addr);
-    app.update();
-    let reply = peer.send(&mut app, r#"{"id": 1, "op": "game.status"}"#);
+fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
+    let reply = peer.send(app, r#"{"id": 1, "op": "game.status"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert_eq!(reply["id"], json!(1));
     assert_eq!(reply["result"]["map"], json!("test:map:meadow"));
     assert_eq!(reply["result"]["turn"], json!(0));
 
     let reply = peer.send(
-        &mut app,
+        app,
         r#"{"id": 2, "op": "sim.command", "args": {"command": {"Step": "Forward"}}}"#,
     );
     assert_eq!(reply["ok"], json!(true), "{reply}");
@@ -131,14 +128,14 @@ fn a_client_drives_the_game_over_loopback() {
     let position = app.world().resource::<SimWorld>().0.position;
     assert_eq!((position.x, position.y), (16, 15));
     assert!(
-        messages::<SimEvent>(&app)
+        messages::<SimEvent>(app)
             .iter()
             .any(|e| matches!(e.0, Event::Visible { .. })),
         "the socket's events reach presentation"
     );
 
     let reply = peer.send(
-        &mut app,
+        app,
         r#"{"id": "x", "op": "map.text", "args": {"map": "test:map:dungeon"}}"#,
     );
     assert_eq!(reply["id"], json!("x"));
@@ -146,72 +143,64 @@ fn a_client_drives_the_game_over_loopback() {
         reply["result"]["text"].as_str().unwrap().starts_with("+-+"),
         "{reply}"
     );
+}
 
-    let reply = peer.send(&mut app, "not json");
+fn refusals(app: &mut App, peer: &mut Peer) {
+    let reply = peer.send(app, "not json");
     assert_eq!(reply["ok"], json!(false));
     assert_eq!(reply["id"], Value::Null);
     assert_eq!(reply["error"]["kind"], json!("BadRequest"));
-    let reply = peer.send(&mut app, r#"{"id": 5, "op": "fly"}"#);
+    let reply = peer.send(app, r#"{"id": 5, "op": "fly"}"#);
     assert_eq!(
         (reply["id"].clone(), reply["error"]["kind"].clone()),
         (json!(5), json!("BadRequest"))
     );
     let reply = peer.send(
-        &mut app,
+        app,
         r#"{"id": 6, "op": "save.write", "args": {"path": "../x.ron"}}"#,
     );
     assert_eq!(reply["error"]["kind"], json!("Failed"), "{reply}");
-    assert!(
-        reply["error"]["message"]
-            .as_str()
-            .unwrap()
-            .starts_with("path '"),
-        "{reply}"
-    );
-    let reply = peer.send(&mut app, r#"{"id": 7, "op": "screenshot"}"#);
-    assert!(
-        reply["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("no canvas"),
-        "headless: {reply}"
-    );
+    let message = reply["error"]["message"].as_str().unwrap();
+    assert!(message.starts_with("path '"), "{reply}");
+    let reply = peer.send(app, r#"{"id": 7, "op": "screenshot"}"#);
+    let message = reply["error"]["message"].as_str().unwrap();
+    assert!(message.contains("no canvas"), "headless: {reply}");
+}
 
+fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
     let reply = peer.send(
-        &mut app,
+        app,
         r#"{"id": 8, "op": "save.write", "args": {"path": "saves/a.ron"}}"#,
     );
     assert_eq!(reply["result"]["path"], json!("saves/a.ron"), "{reply}");
     assert!(dir.join("saves/a.ron").is_file());
     peer.send(
-        &mut app,
+        app,
         r#"{"id": 9, "op": "sim.command", "args": {"command": {"Turn": "Left"}}}"#,
     );
     let reply = peer.send(
-        &mut app,
+        app,
         r#"{"id": 10, "op": "save.read", "args": {"path": "saves/a.ron"}}"#,
     );
     assert_eq!(reply["result"]["turn"], json!(1), "{reply}");
     assert_eq!(app.world().resource::<SimWorld>().0.turn, 1);
     assert_eq!(
-        messages::<WorldReplaced>(&app).len(),
+        messages::<WorldReplaced>(app).len(),
         1,
         "presentation redraws"
     );
-    let reply = peer.send(&mut app, r#"{"id": 11, "op": "pack.reload"}"#);
+    let reply = peer.send(app, r#"{"id": 11, "op": "pack.reload"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
+}
 
-    // A second caller is told to wait and dropped.
+/// A second caller is told to wait and dropped; an oversize line ends the first connection
+/// with a reason, and the slot frees up.
+fn second_client_and_flood(app: &mut App, peer: &mut Peer, addr: SocketAddr) {
     let mut other = Peer::connect(addr);
-    let busy = other.read(&mut app);
-    assert!(
-        busy["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("another client"),
-        "{busy}"
-    );
-    other.expect_closed(&mut app);
+    let busy = other.read(app);
+    let message = busy["error"]["message"].as_str().unwrap();
+    assert!(message.contains("another client"), "{busy}");
+    other.expect_closed(app);
     assert!(
         app.world()
             .resource::<omnis_app::socket::DevSocket>()
@@ -219,22 +208,34 @@ fn a_client_drives_the_game_over_loopback() {
         "the first client stays"
     );
 
-    // An oversize line ends the connection with a reason, and the slot frees up. The game
-    // reads only between frames, so a megabyte is written from another thread while this
-    // one keeps the frames coming; otherwise the kernel buffers fill and both sides wait.
+    // The game reads only between frames, so a megabyte is written from another thread
+    // while this one keeps the frames coming; otherwise the kernel buffers fill and both
+    // sides wait.
     let mut writer = peer.stream.try_clone().unwrap();
     let flood = std::thread::spawn(move || writer.write_all(&vec![b'x'; MAX_LINE + 1]));
-    let reply = peer.read(&mut app);
+    let reply = peer.read(app);
     let _ = flood.join().unwrap();
-    assert!(
-        reply["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("longer than"),
-        "{reply}"
-    );
-    peer.expect_closed(&mut app);
+    let message = reply["error"]["message"].as_str().unwrap();
+    assert!(message.contains("longer than"), "{reply}");
+    peer.expect_closed(app);
     let mut again = Peer::connect(addr);
-    let reply = again.send(&mut app, r#"{"id": 12, "op": "game.status"}"#);
+    let reply = again.send(app, r#"{"id": 12, "op": "game.status"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
+}
+
+/// One test, one process: `save.write` paths are relative, so the working directory is set
+/// once for the whole run.
+#[test]
+fn a_client_drives_the_game_over_loopback() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("socket");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::env::set_current_dir(&dir).unwrap();
+    let (mut app, addr) = boot(&dir);
+    let mut peer = Peer::connect(addr);
+    app.update();
+    status_commands_and_queries(&mut app, &mut peer);
+    refusals(&mut app, &mut peer);
+    saves_and_reload(&mut app, &mut peer, &dir);
+    second_client_and_flood(&mut app, &mut peer, addr);
 }
