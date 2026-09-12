@@ -3781,7 +3781,11 @@ dependencies = [
 name = "omnis-cli"
 version = "0.1.0"
 dependencies = [
+ "omnis-core",
+ "omnis-data",
  "omnis-sim",
+ "png",
+ "serde",
 ]
 
 [[package]]

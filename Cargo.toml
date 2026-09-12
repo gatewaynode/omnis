@@ -42,6 +42,8 @@ thiserror = { version = "=2.0.19", default-features = false }
 rhai = { version = "=1.26.1", default-features = false }
 # Editor only (A11); used from M5 by omnis-app's EditorPlugin.
 bevy_egui = "=0.41.1"
+# PNG codec for the tileset bake tool, at the version Bevy's image stack resolves.
+png = "=0.18.1"
 
 # Workspace crates compile with light optimisation, dependencies (Bevy) with full optimisation,
 # so iteration stays fast after the first build (ARCHITECTURE.md §14).

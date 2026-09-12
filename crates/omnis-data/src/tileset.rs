@@ -40,6 +40,12 @@ pub struct Slot {
     pub offset: i8,
     /// Pack-relative image path.
     pub path: String,
+    /// Where the sprite's top-left corner sits in the viewport, in pixels.
+    #[serde(default)]
+    pub x: i16,
+    /// Where the sprite's top-left corner sits in the viewport, in pixels.
+    #[serde(default)]
+    pub y: i16,
 }
 
 /// A named surface: a kind plus its slots.
@@ -62,6 +68,8 @@ pub struct Tileset {
     pub detail_depth: u8,
     /// Lateral half-width covered by slots; offsets beyond it are clamped by the renderer.
     pub width: u8,
+    /// The viewport canvas the slots are laid out on, in pixels.
+    pub viewport: (u16, u16),
     /// Surfaces by name, referenced from map terrains.
     pub surfaces: BTreeMap<String, Surface>,
 }
@@ -87,6 +95,12 @@ impl Tileset {
                     "detail_depth {} must be 1..={MAX_DETAIL_DEPTH}",
                     self.detail_depth
                 ),
+            ));
+        }
+        if self.viewport.0 == 0 || self.viewport.1 == 0 {
+            errors.push(DataError::new(
+                file,
+                "viewport must have a non-zero width and height",
             ));
         }
         if self.width > MAX_DETAIL_DEPTH {

@@ -323,7 +323,13 @@ fn doors_block_until_opened_and_pillars_always() {
             reason: BlockReason::ClosedDoor
         }]
     );
+}
 
+#[test]
+fn sealed_walls_pillars_and_empty_edges() {
+    let data = data();
+    let mut world = world(&data);
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     // A sealed room wall and a pillar.
     world.position = Position {
         map: dungeon,
