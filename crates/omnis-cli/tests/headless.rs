@@ -54,7 +54,7 @@ fn headless_writes_reads_and_reloads() {
             .handle(&Op::SaveWrite { path: bad.into() })
             .unwrap_err();
         assert!(
-            matches!(&error, OpError::Failed { message } if message.starts_with("save path")),
+            matches!(&error, OpError::Failed { message } if message.starts_with("path '")),
             "{bad}: {error}"
         );
     }

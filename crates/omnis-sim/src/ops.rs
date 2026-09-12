@@ -15,7 +15,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{EraId, MapId, Position};
-use omnis_data::limits::string_fits;
+use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use serde::{Deserialize, Serialize};
 
@@ -231,6 +231,11 @@ pub enum OpError {
     },
     /// The op needs the host; the simulation alone cannot do it.
     HostOnly,
+    /// The request itself was malformed: not JSON, not an op, or too long.
+    BadRequest {
+        /// What was wrong.
+        message: String,
+    },
     /// The host or the data layer failed; the message says how.
     Failed {
         /// What went wrong.
@@ -246,6 +251,7 @@ impl fmt::Display for OpError {
             OpError::TooLong { limit } => write!(f, "string longer than {limit} bytes"),
             OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
+            OpError::BadRequest { message } => write!(f, "bad request: {message}"),
             OpError::Failed { message } => f.write_str(message),
         }
     }
@@ -258,6 +264,22 @@ impl OpError {
             message: error.to_string(),
         }
     }
+
+    /// A malformed request from anything that displays.
+    pub fn bad_request<E: fmt::Display>(error: E) -> OpError {
+        OpError::BadRequest {
+            message: error.to_string(),
+        }
+    }
+}
+
+/// A file path from a client, allowed only when relative, free of `.` and `..` components,
+/// and ending in one of `extensions` (§6.2). Returns the path unchanged.
+pub fn client_path<'a>(path: &'a str, extensions: &[&str]) -> Result<&'a str, OpError> {
+    bounded(path)?;
+    check_asset_path(path, extensions)
+        .map(|()| path)
+        .map_err(|fault| OpError::failed(format!("path '{path}': {}", fault.reason())))
 }
 
 /// Answer a simulation op. Host ops return `OpError::HostOnly`.

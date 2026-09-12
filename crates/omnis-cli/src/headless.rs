@@ -3,9 +3,9 @@
 //! uses it in `--headless` mode. Host ops (files, packs) are handled here; the rest go to
 //! `omnis_sim::dispatch`.
 
-use omnis_data::limits::check_asset_path;
 use omnis_data::ron_io::read_text;
 use omnis_data::{Data, LoadReport, load_packs};
+use omnis_sim::ops::client_path;
 use omnis_sim::{NewGameError, Op, OpError, Reply, World, dispatch, ops};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -53,7 +53,7 @@ impl Headless {
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
         match op {
             Op::SaveWrite { path } => {
-                let file = save_path(path)?;
+                let file = PathBuf::from(client_path(path, &["ron"])?);
                 let text = self.world.to_ron().map_err(OpError::failed)?;
                 if let Some(parent) = file.parent().filter(|p| !p.as_os_str().is_empty()) {
                     std::fs::create_dir_all(parent).map_err(OpError::failed)?;
@@ -62,7 +62,7 @@ impl Headless {
                 Ok(Reply::Written { path: path.clone() })
             }
             Op::SaveRead { path, force } => {
-                let file = save_path(path)?;
+                let file = PathBuf::from(client_path(path, &["ron"])?);
                 let text = read_text(&file, &file).map_err(OpError::failed)?;
                 self.world = World::from_ron(&text, &self.data, *force).map_err(OpError::failed)?;
                 ops::status(&self.world, &self.data).map(Reply::Status)
@@ -94,11 +94,4 @@ impl Headless {
 fn load(packs: &[PathBuf]) -> Result<Data, LoadReport> {
     let roots: Vec<&Path> = packs.iter().map(PathBuf::as_path).collect();
     load_packs(&roots)
-}
-
-/// A save path from a client: relative, no `.` or `..` components, `.ron`.
-fn save_path(path: &str) -> Result<PathBuf, OpError> {
-    check_asset_path(path, &["ron"])
-        .map(|()| PathBuf::from(path))
-        .map_err(|fault| OpError::failed(format!("save path '{path}': {}", fault.reason())))
 }

@@ -1,5 +1,7 @@
 //! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--window <w>x<h>]`.
-//! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]`.
+//! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]
+//! [--dev-socket <ip:port>] [--no-dev-socket]`; the dev socket listens on a free loopback port
+//! unless disabled, and writes its address to `.omnis/dev.addr`.
 #![forbid(unsafe_code)]
 
 use bevy::prelude::*;
@@ -11,14 +13,34 @@ use std::path::PathBuf;
 type Script = omnis_app::dev::DevScript;
 #[cfg(not(feature = "devtools"))]
 type Script = ();
+#[cfg(feature = "devtools")]
+type Socket = Option<omnis_app::socket::DevSocketPlugin>;
+#[cfg(not(feature = "devtools"))]
+type Socket = ();
 
-fn parse_args() -> Result<(AppConfig, Script, (u32, u32)), String> {
+struct Launch {
+    config: AppConfig,
+    script: Script,
+    socket: Socket,
+    window: (u32, u32),
+}
+
+#[cfg(feature = "devtools")]
+fn default_socket() -> Socket {
+    Some(omnis_app::socket::DevSocketPlugin::default())
+}
+#[cfg(not(feature = "devtools"))]
+fn default_socket() -> Socket {}
+
+fn parse_args() -> Result<Launch, String> {
     let mut config = AppConfig {
         packs: Vec::new(),
         ..AppConfig::default()
     };
     #[allow(unused_mut, clippy::let_unit_value)]
     let mut script = Script::default();
+    #[allow(unused_mut, clippy::let_unit_value)]
+    let mut socket = default_socket();
     let mut seeded = false;
     let mut window = (3840, 2160);
     let mut args = std::env::args().skip(1);
@@ -64,6 +86,15 @@ fn parse_args() -> Result<(AppConfig, Script, (u32, u32)), String> {
                 script.canvas = true;
             }
             #[cfg(feature = "devtools")]
+            "--dev-socket" => {
+                socket = Some(omnis_app::socket::DevSocketPlugin {
+                    addr: args.next().ok_or("--dev-socket needs <ip:port>")?,
+                    ..Default::default()
+                });
+            }
+            #[cfg(feature = "devtools")]
+            "--no-dev-socket" => socket = None,
+            #[cfg(feature = "devtools")]
             "--settle" => {
                 let value = args.next().ok_or("--settle needs a frame count")?;
                 script.settle_frames = value
@@ -79,7 +110,12 @@ fn parse_args() -> Result<(AppConfig, Script, (u32, u32)), String> {
     if !seeded {
         config.seed = entropy_seed();
     }
-    Ok((config, script, window))
+    Ok(Launch {
+        config,
+        script,
+        socket,
+        window,
+    })
 }
 
 /// A seed from the clock. The simulation never touches entropy; it only receives the number.
@@ -91,8 +127,13 @@ fn entropy_seed() -> u64 {
 }
 
 fn main() -> AppExit {
-    let (config, script, window) = match parse_args() {
-        Ok(c) => c,
+    let Launch {
+        config,
+        script,
+        socket,
+        window,
+    } = match parse_args() {
+        Ok(launch) => launch,
         Err(e) => {
             eprintln!("omnis: {e}");
             return AppExit::error();
@@ -124,9 +165,14 @@ fn main() -> AppExit {
         hud::HudPlugin,
     ));
     #[cfg(feature = "devtools")]
-    app.insert_resource(script)
-        .add_plugins(omnis_app::dev::DevPlugin);
+    {
+        app.insert_resource(script)
+            .add_plugins(omnis_app::dev::DevPlugin);
+        if let Some(socket) = socket {
+            app.add_plugins(socket);
+        }
+    }
     #[cfg(not(feature = "devtools"))]
-    let () = script;
+    let ((), ()) = (script, socket);
     app.run()
 }
