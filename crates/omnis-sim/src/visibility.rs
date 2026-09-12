@@ -1,5 +1,6 @@
 //! The forward cone the party perceives (PRD §7.2, D16). Visibility depth comes from the tile
-//! the party stands on; occlusion follows walls, closed doors, and opaque terrain.
+//! the party stands on; occlusion follows walls, closed doors, and opaque terrain. Row `d` spans
+//! offsets `-d..=d`, except row 0, which includes the tiles beside the party.
 //!
 //! A tile at `(depth, offset)` is visible when a straight line from the party's tile reaches
 //! it: the line is walked one orthogonal tile step at a time (a supercover line, so every
@@ -135,7 +136,9 @@ pub fn cone(world: &World, data: &Data) -> Vec<SeenTile> {
     let max_depth = depth_from(map, pos);
     let mut seen = Vec::new();
     for depth in 0..=max_depth {
-        let half = i8::try_from(depth).unwrap_or(i8::MAX);
+        // The party sees the tiles beside it too: line of sight through the shared edge
+        // handles a wall there.
+        let half = i8::try_from(depth.max(1)).unwrap_or(i8::MAX);
         let mut offsets: Vec<i8> = (0..=half).collect();
         offsets.extend((1..=half).map(|o| -o));
         for offset in offsets {
