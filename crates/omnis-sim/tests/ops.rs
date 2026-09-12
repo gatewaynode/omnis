@@ -244,6 +244,26 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         Op::Screenshot {
             path: Some("p.png".into()),
         },
+        Op::PartyGet,
+        Op::PartyCreate {
+            character: omnis_sim::omnis_rules::Draft {
+                name: "Brenna".into(),
+                race: "base:race:human".into(),
+                class: "base:class:fighter".into(),
+                background: "base:background:acolyte".into(),
+                alignment: omnis_data::Alignment::NeutralGood,
+                scores: [15, 14, 13, 12, 10, 8],
+                skills: vec![],
+            },
+        },
+        Op::RulesList,
+        Op::RulesGet {
+            slot: "spell_points.pool".into(),
+        },
+        Op::RulesSet {
+            slot: "spell_points.pool".into(),
+            source: "level".into(),
+        },
     ];
     for op in &ops {
         let text = to_string(op).unwrap();

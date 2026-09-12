@@ -256,6 +256,26 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::PackReload,
         Op::Screenshot { path: None },
+        Op::PartyGet,
+        Op::PartyCreate {
+            character: omnis_sim::omnis_rules::Draft {
+                name: "Brenna".into(),
+                race: "example:race:human".into(),
+                class: "example:class:fighter".into(),
+                background: "example:background:acolyte".into(),
+                alignment: omnis_data::Alignment::NeutralGood,
+                scores: [15, 14, 13, 12, 10, 8],
+                skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
+            },
+        },
+        Op::RulesList,
+        Op::RulesGet {
+            slot: "spell_points.pool".into(),
+        },
+        Op::RulesSet {
+            slot: "spell_points.pool".into(),
+            source: "level * 10".into(),
+        },
     ];
     section(out, &format!("save (schema {SAVE_SCHEMA})"), &world)?;
     section(out, "replay", &replay)?;

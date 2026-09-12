@@ -13,7 +13,7 @@ use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, save
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{client_path, status};
+use omnis_sim::ops::{bounded, client_path, slot_view, status};
 use omnis_sim::{Op, OpError, Reply, dispatch};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
@@ -362,6 +362,14 @@ fn handle(
                 data.0 = fresh;
                 replaced.write(WorldReplaced);
                 Ok(Reply::Done {})
+            }
+            Op::RulesSet { slot, source } => {
+                bounded(source)?;
+                data.0
+                    .rules
+                    .set_slot(slot, source)
+                    .map_err(OpError::bad_request)?;
+                slot_view(&data.0, slot).map(|rule| Reply::Rule { rule })
             }
             other => {
                 let reply = dispatch(&mut world.0, &data.0, other)?;

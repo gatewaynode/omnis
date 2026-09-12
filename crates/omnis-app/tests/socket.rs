@@ -91,7 +91,7 @@ fn boot(dir: &Path) -> (App, SocketAddr) {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin))
         .insert_resource(AppConfig {
-            packs: vec![repo.join("packs/test")],
+            packs: vec![repo.join("packs/base"), repo.join("packs/test")],
             seed: 3,
             save_path: dir.join("quick.ron"),
         })
@@ -195,6 +195,33 @@ fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
 
 /// A second caller is told to wait and dropped; an oversize line ends the first connection
 /// with a reason, and the slot frees up.
+/// The party and the rules through the same socket, after the save has been reloaded.
+fn party_and_rules(app: &mut App, peer: &mut Peer) {
+    let reply = peer.send(
+        app,
+        r#"{"id": 3, "op": "rules.set", "args": {"slot": "spell_points.pool", "source": "level * 10"}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    assert_eq!(reply["result"]["rule"]["source"], json!("level * 10"));
+    let reply = peer.send(
+        app,
+        r#"{"id": 4, "op": "party.create", "args": {"character": {"name": "Ilvara", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10], "skills": ["Arcana", "History"]}}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    let reply = peer.send(app, r#"{"id": 5, "op": "party.get"}"#);
+    assert_eq!(
+        reply["result"]["party"]["members"][0]["spell_points_max"],
+        json!(10),
+        "{reply}"
+    );
+    assert!(
+        messages::<SimEvent>(app)
+            .iter()
+            .any(|e| e.0 == Event::PartyChanged),
+        "party changes reach presentation"
+    );
+}
+
 fn second_client_and_flood(app: &mut App, peer: &mut Peer, addr: SocketAddr) {
     let mut other = Peer::connect(addr);
     let busy = other.read(app);
@@ -237,5 +264,6 @@ fn a_client_drives_the_game_over_loopback() {
     status_commands_and_queries(&mut app, &mut peer);
     refusals(&mut app, &mut peer);
     saves_and_reload(&mut app, &mut peer, &dir);
+    party_and_rules(&mut app, &mut peer);
     second_client_and_flood(&mut app, &mut peer, addr);
 }

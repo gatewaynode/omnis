@@ -7,7 +7,10 @@ use common::{data, step, world};
 use omnis_core::Direction;
 use omnis_data::{Alignment, Skill};
 use omnis_rules::{CreationError, Draft};
-use omnis_sim::{Command, Event, PartyCommand, Rejection, Replay, Settings, World, apply, query};
+use omnis_sim::{
+    Command, Event, Op, OpError, PartyCommand, Rejection, Replay, Reply, Settings, World, apply,
+    dispatch, query,
+};
 
 fn draft(name: &str, race: &str, class: &str, scores: [u8; 6], skills: &[Skill]) -> Draft {
     Draft {
@@ -200,4 +203,88 @@ fn a_party_survives_a_save_and_a_replay() {
     let mut again = world.clone();
     step(&mut again, &data);
     assert_ne!(again.fingerprint().unwrap(), replay.fingerprint);
+}
+
+#[test]
+fn the_ops_expose_the_party_and_the_rules() {
+    let data = data();
+    let mut world = world(&data);
+    let reply = dispatch(
+        &mut world,
+        &data,
+        &Op::PartyCreate {
+            character: six().remove(0),
+        },
+    )
+    .unwrap();
+    assert!(matches!(&reply, Reply::Events { events } if events.contains(&Event::PartyChanged)));
+    let Reply::Party { party } = dispatch(&mut world, &data, &Op::PartyGet).unwrap() else {
+        panic!("party.get answers with the party");
+    };
+    assert_eq!(
+        (party.slots, party.front_row, party.gold, party.food),
+        (6, 3, 15, 10)
+    );
+    let member = &party.members[0];
+    assert_eq!(
+        (member.index, member.name.as_str(), member.race.as_str()),
+        (0, "Brenna", "base:race:human")
+    );
+    assert_eq!(
+        (
+            member.class.as_str(),
+            member.level,
+            member.hp_max,
+            member.ac
+        ),
+        ("base:class:fighter", 1, 12, 18)
+    );
+    assert!(member.front && member.conditions.is_empty());
+    let text = omnis_data::ron_io::to_string(&Reply::Party {
+        party: party.clone(),
+    })
+    .unwrap();
+    assert_eq!(
+        omnis_data::ron_io::parse::<Reply>(&text).unwrap(),
+        Reply::Party { party }
+    );
+
+    let Reply::Rules { rules } = dispatch(&mut world, &data, &Op::RulesList).unwrap() else {
+        panic!("rules.list answers with the rules");
+    };
+    assert!(rules.slots.iter().any(|s| s.name == "spell_points.pool"));
+    assert_eq!(rules.values["point_budget"], 27);
+    assert_eq!(rules.tables["point_cost"].len(), 8);
+    let get =
+        |world: &mut World, slot: &str| dispatch(world, &data, &Op::RulesGet { slot: slot.into() });
+    assert!(
+        matches!(get(&mut world, "spell_points.pool").unwrap(), Reply::Rule { rule } if rule.inputs.len() == 4 && rule.source.starts_with("max("))
+    );
+    assert_eq!(
+        get(&mut world, "nope").unwrap_err(),
+        OpError::UnknownSlot {
+            slot: "nope".into()
+        }
+    );
+    assert_eq!(
+        dispatch(
+            &mut world,
+            &data,
+            &Op::RulesSet {
+                slot: "spell_points.pool".into(),
+                source: "1".into()
+            }
+        )
+        .unwrap_err(),
+        OpError::HostOnly
+    );
+    let bad = Op::PartyCreate {
+        character: draft("", "human", "fighter", [8; 6], &[]),
+    };
+    assert!(matches!(
+        dispatch(&mut world, &data, &bad).unwrap_err(),
+        OpError::Rejected {
+            rejection: Rejection::Character(CreationError::Name)
+        }
+    ));
 }

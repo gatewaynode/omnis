@@ -86,6 +86,14 @@ impl Headless {
             Op::Screenshot { .. } => Err(OpError::failed(
                 "a screenshot needs the game window; this is headless",
             )),
+            Op::RulesSet { slot, source } => {
+                ops::bounded(source)?;
+                self.data
+                    .rules
+                    .set_slot(slot, source)
+                    .map_err(OpError::bad_request)?;
+                ops::slot_view(&self.data, slot).map(|rule| Reply::Rule { rule })
+            }
             other => dispatch(&mut self.world, &self.data, other),
         }
     }

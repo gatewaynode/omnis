@@ -2,6 +2,8 @@
 //! drift from what the protocol deserializes. No `schemars`.
 
 use omnis_cli::omnis_sim::Command;
+use omnis_cli::omnis_sim::omnis_data::{Alignment, Skill};
+use omnis_cli::omnis_sim::omnis_rules::Draft;
 use serde_json::{Value, json};
 
 /// A type that can describe itself as JSON Schema.
@@ -40,14 +42,49 @@ impl<T: Schema> Schema for Vec<T> {
     }
 }
 
+impl Schema for Draft {
+    fn schema() -> Value {
+        let names = |list: &[&dyn std::fmt::Debug]| -> Vec<String> {
+            list.iter().map(|v| format!("{v:?}")).collect()
+        };
+        let alignments: Vec<&dyn std::fmt::Debug> = Alignment::ALL
+            .iter()
+            .map(|a| a as &dyn std::fmt::Debug)
+            .collect();
+        let skills: Vec<&dyn std::fmt::Debug> = Skill::ALL
+            .iter()
+            .map(|s| s as &dyn std::fmt::Debug)
+            .collect();
+        json!({
+            "description": "A character draft: ids as pack:type:name, six bought scores in SRD order (8..=15, 27 points), and the class's skill picks.",
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "minLength": 1, "maxLength": 32},
+                "race": {"type": "string"},
+                "class": {"type": "string"},
+                "background": {"type": "string"},
+                "alignment": {"type": "string", "enum": names(&alignments)},
+                "scores": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 30}, "minItems": 6, "maxItems": 6},
+                "skills": {"type": "array", "items": {"type": "string", "enum": names(&skills)}}
+            },
+            "required": ["name", "race", "class", "background", "alignment", "scores"],
+            "additionalProperties": false
+        })
+    }
+}
+
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, or Interact (use the facing edge, such as a door).",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), or a party change.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
-                {"type": "string", "enum": ["Interact"]}
+                {"type": "string", "enum": ["Interact"]},
+                {"type": "object", "properties": {"Party": {"oneOf": [
+                    {"type": "object", "properties": {"Create": Draft::schema()}, "required": ["Create"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": {"type": "integer", "minimum": 0}}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false}
+                ]}}, "required": ["Party"], "additionalProperties": false}
             ]
         })
     }
@@ -123,7 +160,15 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .len(),
-            3
+            4
+        );
+        assert_eq!(Draft::schema()["required"].as_array().unwrap().len(), 6);
+        assert_eq!(
+            Draft::schema()["properties"]["alignment"]["enum"]
+                .as_array()
+                .unwrap()
+                .len(),
+            9
         );
         assert_eq!(schema["additionalProperties"], json!(false));
         assert_eq!(object(&[])["required"], json!([]));
