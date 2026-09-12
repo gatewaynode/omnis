@@ -1,0 +1,26 @@
+[package]
+name = "omnis-app"
+description = "Omnis game application: presentation, input, editor, dev socket"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "omnis"
+path = "src/main.rs"
+
+[features]
+default = ["devtools"]
+# Dev socket and Dev commands (ARCHITECTURE.md §9). Release builds use --no-default-features.
+devtools = []
+# Local iteration only, never shipped: dynamic linking and hot asset reload.
+dev = ["bevy/dynamic_linking", "bevy/bevy_dev_tools", "bevy/file_watcher"]
+
+[dependencies]
+omnis-sim = { workspace = true }
+# `2d` and `ui` pull in default_app (asset, log, state) and default_platform (winit, x11, wayland).
+# The `3d` group is never enabled (ARCHITECTURE.md §8.1).
+bevy = { workspace = true, features = ["2d", "ui", "png"] }

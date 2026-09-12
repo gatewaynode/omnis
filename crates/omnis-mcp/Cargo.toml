@@ -1,0 +1,13 @@
+[package]
+name = "omnis-mcp"
+description = "MCP bridge: JSON-RPC over stdio to Claude Code, private protocol to the running Omnis game or in-process headless"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+omnis-cli = { workspace = true }
+serde_json = { workspace = true }

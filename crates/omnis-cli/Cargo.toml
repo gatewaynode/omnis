@@ -1,0 +1,19 @@
+[package]
+name = "omnis-cli"
+description = "Headless Omnis tool: validate packs, generate worlds, render maps as text, run scripts, replay saves"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "omnis-cli"
+path = "src/main.rs"
+
+[dependencies]
+omnis-sim = { workspace = true }

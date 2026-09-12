@@ -30,15 +30,25 @@ Owner direction: reach a user-testable app as soon as feasible, then widen acros
 
 Standing rules for every milestone: tests on real `packs/test` data, no mocks; sim-crate lint green (CLAUDE.md); Sentrux review; `LESSONS.md` updated after any correction; one commit per checked item or small group; MCP tools and CLI subcommands ship with the system they expose, never later.
 
-### M0 — Skeleton that builds and lints
-- [ ] Workspace `Cargo.toml`: `rust-version = "1.95"`, edition 2024, `[workspace.dependencies]` pins (bevy 0.19.1, serde 1.0.228, serde_json 1.0.150, ron 0.12.2, thiserror 2.0.19, rhai 1.26.1, bevy_egui 0.41.1), profiles from ARCH §14, `.cargo/config.toml` fast linker
-- [ ] Crates: `omnis-core`, `omnis-data`, `omnis-sim`, `omnis-app`, `omnis-cli`, `omnis-mcp` as compiling stubs (`expr`, `rules`, `gen`, `eco`, `story` are created in the milestone that first needs them and added to the lint list in the same change)
-- [ ] `scripts/lint-sim.sh`: denies `f32|f64`, `HashMap|HashSet|DefaultHasher|RandomState`, `std::time`, `std::thread`, network I/O, file I/O outside `omnis-data`, and any `bevy` edge in `cargo tree` for the listed crates; exits non-zero with file and line
-- [ ] CI (GitHub Actions, macOS + Linux): fmt, clippy `-D warnings`, lint-sim, `cargo test --workspace`, `cargo tree --duplicates` check, replay fingerprint compared across runners (job exists from M0, populated in M1)
-- [ ] `LICENSE-MIT`, `LICENSE-APACHE`, `ATTRIBUTION.md` (SRD CC-BY-4.0 notice, smartstring MPL-2.0, CC0 asset sets as they arrive), `.gitignore` (`target/`, `.omnis/`)
+### M0 — Skeleton that builds and lints (done 2026-09-12)
+- [x] Workspace `Cargo.toml`: `rust-version = "1.95"`, edition 2024, exact pins (bevy 0.19.1, serde 1.0.228, serde_json 1.0.150, ron 0.12.2, thiserror 2.0.19, rhai 1.26.1, bevy_egui 0.41.1), profiles from ARCH §14, `rust-toolchain.toml` at 1.98.0
+- [x] Crates: `omnis-core`, `omnis-data`, `omnis-sim`, `omnis-app`, `omnis-cli`, `omnis-mcp` as compiling stubs; `core` and `sim` are `#![no_std]`
+- [x] `scripts/lint-sim.sh` with `--self-test`; denies floats, hashed collections, time/thread/net, file I/O outside `omnis-data`, Bevy edges in `cargo tree`, unsafe Rhai features; requires `#![no_std]` and `deny(clippy::float_arithmetic)`
+- [x] `scripts/check-duplicates.sh` with a committed allow list of Bevy's own duplicate crates; fails on any new duplicate
+- [x] CI (GitHub Actions, macOS + Linux, actions pinned by commit SHA): fmt, lint-sim self-test and lint, duplicates, clippy `-D warnings`, tests, fingerprint artifact and cross-platform compare job (populated in M1)
+- [x] `LICENSE-MIT`, `LICENSE-APACHE`, `ATTRIBUTION.md`, `.gitignore`
 - [x] `assets/` folder convention agreed and applied (`assets/README.md`)
-- [ ] `packs/test/pack.ron` manifest
-- **Done when**: `cargo build --workspace` and CI are green on both platforms with zero tests, and lint-sim fails on a deliberately planted `f64`
+- [x] `packs/test/pack.ron` manifest
+- [x] Sentrux rules in `crates/.sentrux/rules.toml` (layers and boundaries from ARCH §3); baseline signal 10000 on `crates/`
+- **Done**: `cargo build`, clippy, tests, lint, and duplicate check green locally on macOS; lint self-test catches every planted violation. CI on GitHub runs on first push.
+
+#### M0 review
+- Six simulation crates are `#![no_std]` so the compiler, not only the lint, rules out `HashMap`, `std::time`, `std::thread`, `std::fs`, and `std::net`. `omnis-data` (file I/O) and `omnis-expr` (Rhai) stay `std` and rely on the lint. Every simulation crate also carries `#![deny(clippy::float_arithmetic)]` to catch unsuffixed float literals the grep cannot see.
+- "Single-copy tree" is enforced relative to Bevy: Bevy 0.19.1's own tree already contains 30 duplicated crates (`thiserror` 1 via `calloop` in the Wayland stack, `bitflags`, `syn`, `windows-sys`, and so on). The allow list records them; any duplicate we introduce fails CI.
+- No `.cargo/config.toml` yet: no `lld` or `mold` is installed here and Apple's linker is already fast. Add one when a Linux developer or CI needs it.
+- CI could not be run from this machine (`gh` is not installed and pushing is the owner's call). The workflow uses `rustup toolchain install` from `rust-toolchain.toml` and two third-party actions (`checkout`, `rust-cache`) plus the artifact pair, all pinned by SHA and older than 30 days.
+- Sentrux has no ignore setting, so it is scanned on `crates/` (the repo root scan counted the SRD markdown). Its free tier checks 5 of the 18 rules defined.
+- `assets/simple-hallway*.png` (two photographic 3D renders) arrived during M0 with no licence file; they are untracked until the owner states their source and terms.
 
 ### M1 — Walkable: first user-testable build
 - [ ] `omnis-core`: typed ID newtypes, `Fixed` (i64, 1/1000), `Pcg32` with named streams (`fnv1a64`, `splitmix64`, `RollTrace`), `Direction`, `Rotation`, `Position`, `Clock`, error type. Tests: PCG32 known-answer vectors, stream derivation golden values, `Fixed` arithmetic edge cases
