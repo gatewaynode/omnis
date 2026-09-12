@@ -21,6 +21,18 @@ macro_rules! define_id {
             }
         }
 
+        impl From<u32> for $name {
+            fn from(index: u32) -> Self {
+                $name(index)
+            }
+        }
+
+        impl From<$name> for u32 {
+            fn from(id: $name) -> u32 {
+                id.0
+            }
+        }
+
         impl fmt::Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "{}#{}", stringify!($name), self.0)

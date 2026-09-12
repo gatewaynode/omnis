@@ -1,0 +1,7 @@
+(
+    schema: 1,
+    id: "syntax-error",
+    version: "0.1.0"
+    name: "missing comma above",
+    license: "MIT",
+)

@@ -1,0 +1,7 @@
+(
+    schema: 1,
+    entries: {
+        "broken:text:map.glyph.name": "Glyph map",
+        "not-an-id": "no colons",
+    },
+)

@@ -1,0 +1,21 @@
+(
+    schema: 1,
+    id: "broken:tileset:bad",
+    detail_depth: 2,
+    width: 1,
+    surfaces: {
+        "floor": (kind: Floor, slots: [
+            (depth: 0, offset: 0, path: "assets/floor_d0_o0.png"),
+            (depth: 0, offset: 0, path: "assets/floor_d0_o0.png"),
+            (depth: 5, offset: 0, path: "assets/floor_d5_o0.png"),
+            (depth: 1, offset: 3, path: "assets/floor_d1_o3.png"),
+            (depth: 1, offset: 1, path: "../../etc/passwd.png"),
+            (depth: 1, offset: -1, path: "assets/floor.exe"),
+        ]),
+        "wall": (kind: WallFront, slots: []),
+        "wall.left": (kind: WallLeft, slots: []),
+        "wall.right": (kind: WallRight, slots: []),
+        "door": (kind: Door, slots: []),
+        "sky": (kind: Ceiling, slots: []),
+    },
+)
