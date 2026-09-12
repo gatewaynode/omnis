@@ -3,3 +3,5 @@
 .omnis/
 # Purchased or otherwise non-redistributable art lives here and is never committed.
 /assets/private/
+# Sentrux architectural sensor: local tooling, not part of the repository or CI.
+.sentrux/

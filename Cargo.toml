@@ -1,6 +1,15 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+# Explicit membership: a new crate is added here deliberately (and to scripts/lint-sim.sh in the
+# same change). A glob would also pick up tool directories such as crates/.sentrux.
+members = [
+    "crates/omnis-core",
+    "crates/omnis-data",
+    "crates/omnis-sim",
+    "crates/omnis-app",
+    "crates/omnis-cli",
+    "crates/omnis-mcp",
+]
 
 [workspace.package]
 version = "0.1.0"

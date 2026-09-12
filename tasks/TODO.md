@@ -39,7 +39,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - [x] `LICENSE-MIT`, `LICENSE-APACHE`, `ATTRIBUTION.md`, `.gitignore`
 - [x] `assets/` folder convention agreed and applied (`assets/README.md`)
 - [x] `packs/test/pack.ron` manifest
-- [x] Sentrux rules in `crates/.sentrux/rules.toml` (layers and boundaries from ARCH §3); baseline signal 10000 on `crates/`
+- [x] Sentrux rules in `crates/.sentrux/rules.toml` (layers and boundaries from ARCH §3), kept local and gitignored per owner; baseline signal 10000 on `crates/`
 - **Done**: `cargo build`, clippy, tests, lint, and duplicate check green locally on macOS; lint self-test catches every planted violation. CI on GitHub runs on first push.
 
 #### M0 review
@@ -48,6 +48,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - No `.cargo/config.toml` yet: no `lld` or `mold` is installed here and Apple's linker is already fast. Add one when a Linux developer or CI needs it.
 - CI could not be run from this machine (`gh` is not installed and pushing is the owner's call). The workflow uses `rustup toolchain install` from `rust-toolchain.toml` and two third-party actions (`checkout`, `rust-cache`) plus the artifact pair, all pinned by SHA and older than 30 days.
 - Sentrux has no ignore setting, so it is scanned on `crates/` (the repo root scan counted the SRD markdown). Its free tier checks 5 of the 18 rules defined.
+- CI failure on the first PR: the `crates/*` member glob matched `crates/.sentrux`. Fixed with an explicit member list (a new crate is now added deliberately, alongside the lint list) and the sentrux directory is gitignored. Root cause of the missed local check is in `LESSONS.md`.
 - `assets/simple-hallway*.png` (two photographic 3D renders) arrived during M0 with no licence file; they are untracked until the owner states their source and terms.
 
 ### M1 — Walkable: first user-testable build
