@@ -1,42 +1,44 @@
 # Continuity notes
 
-Written 2026-09-12 before a compact. Rewrite this file every time it is used.
+Written 2026-09-12 before a compact, at the end of M0. Rewrite this file every time it is used.
 
 ## Where we are
-- Project: Omnis, a turn-based first-person grid-crawler RPG in the Might and Magic I/II lineage, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule).
-- No code yet beyond a hello-world `src/main.rs`. Three commits on `main`, tree clean; the latest is "Arch reviewed, moving on to planning."
-- `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are written and owner-reviewed. They are the source of truth; re-read both before planning. Decision logs: PRD §6 (D1–D20), ARCHITECTURE §17 (A1–A14).
-- Next step: plan Phase 0 tasks in `tasks/TODO.md` (workspace, core, expr, data, sim skeleton, cli, mcp headless), then check in with the owner before implementing.
+- Omnis: turn-based first-person grid-crawler RPG, Rust, Bevy 0.19.1 (owner exempts Bevy from the N-1 rule). World is Toel (`docs/background/introduction.md`).
+- `PRD.md` v0.3 and `ARCHITECTURE.md` v0.2 are owner-reviewed and remain the source of truth; both carry a note that build order follows the milestones in `tasks/TODO.md`, not their phase tables.
+- Branch `task-planning-1` (owner opened a PR from it; remote is `origin`). Commits since main: docs tidy, delivery plan + asset reorg, M0, CI fix, CI macOS-only. Tree clean.
+- **M0 is done**: workspace with exact pins, six stub crates (`core`, `data`, `sim`, `app`, `cli`, `mcp`), `scripts/lint-sim.sh` (with `--self-test`), `scripts/check-duplicates.sh` + allow list, CI on macOS, licences, `ATTRIBUTION.md`, `packs/test/pack.ron`. All checks green locally after the final edit.
+- **Next: M1 "Walkable"** in `tasks/TODO.md`. Start with `omnis-core` (typed IDs, `Fixed`, PCG32 named streams with FNV-1a + splitmix64, `RollTrace`, Direction/Rotation/Position/Clock), then `omnis-data` loader, `omnis-sim` movement/viewport/automap/save/replay, `omnis-cli tileset bake`, `omnis-app` pixel pipeline and viewport, `packs/test` maps. Re-read TODO M1 items and ARCH §4, §6, §8 before coding. Check in with the owner is not needed again for M1 (plan approved), but report at each checked item.
 
-## Decisions that are easy to get wrong after a compact
-- Rules: SRD 5.1 is the structural spine; MM2 adaptations only where they serve the crawl loop (PRD §8). Not the other way round (first draft was inverted and the owner reversed it).
-- Party: six slots, hirelings fill open slots (D10). Spell points: level × casting mod + other two mental mods, half casters half level, floor level (D12). Components: point cost is the primary curve; spells carry an item-quantity component list, hard requirement from spell level 5 by config (D11).
-- Time: no global clock. Subjective clocks per holder, reconciled only partially on contact by a data rule; eras in the model, single era in v1 (PRD §7.8, ARCH §4.4, D20/A13).
-- Viewport: fixed detail depth 4–6 tiles drawn as sprites; variable visibility depth up to 20 drawn as a procedural horizon band and fed to the automap (D16, A9).
-- Remote sensing: layered perception tests; all remotely sensed knowledge is stale on record (D18).
-- Non-goals with horizons: NPC free agency and aging are deferred, not rejected. Owner still has not said whether browser, 3D, and LLM content are rejected or deferred (PRD §14).
-- Scripting: Rhai, not a hand-rolled language (A4 revised). `omnis-expr` is the Rhai host. Formula profile in v1: `only_i64`, `no_float`, `sync`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object`, `no_time`, `no_custom_syntax`; never `unchecked`. Pinned 1.26.1 by owner exception; Socket re-audit due 2026-10-10.
-- MCP: own minimal bridge binary over stdio, dual-era handshake (legacy `initialize` and 2026-07-28 `server/discover`), newline-JSON socket to the game on loopback, devtools feature compiled out of release, headless mode through `omnis-cli` (A3, ARCH §9).
-- RNG: one world seed; named PCG32 streams derived with own FNV-1a + splitmix64; stateful streams persisted; gen streams stateless (A14, ARCH §11).
-- UI: `bevy_egui` 0.41.1 for the editor only; `bevy_ui` for the game (A11).
-- Data: RON everywhere, matching Bevy's ron 0.12.2 (D15, A7). Packs bypass Bevy's asset system (A12). Game state lives in one serializable `World`, never in ECS (A10). No floats in simulation crates (A5).
-- Dependency policy (memory file `dependency-policy-match-bevy`): match Bevy's resolved versions, single-copy tree, N-1 and 30 days otherwise, Socket audit when in doubt, owner exceptions logged in ARCH §13.
+## Decisions and facts easy to get wrong after a compact
+- Rules: SRD 5.1 is the spine; MM2 adaptations only where they serve the crawl loop. Party six slots, hirelings fill open slots (D10). Spell points: level × casting mod + other two mental mods, half casters half level, floor level (D12). Components list on spells, hard from spell level 5 by config (D11).
+- Time: no global clock; per-holder `Clock`, `Contact` records, partial reconciliation on contact; single era in v1 (D20/A13). M1 has only the party clock.
+- Viewport: detail depth 4 as sprites, visibility depth up to 20 as a procedural horizon band; internal resolution **320×180** (provisional, PRD §14).
+- Scripting: Rhai in `omnis-expr` (M3), Formula profile flags in ARCH §5.2; never `unchecked`. Pinned 1.26.1 by owner exception, Socket re-audit due 2026-10-10.
+- RNG (A14): one world seed; stream state = splitmix64(seed ^ fnv1a64(name)), increment = splitmix64(fnv1a64(name)) | 1; stateful streams persisted in `World.rngs`; `gen:*` streams stateless.
+- MCP (A3): own stdio bridge, dual-era handshake, newline JSON loopback socket, `devtools` feature (default on, release uses `--no-default-features`), headless via `omnis_cli::Headless`. Tool JSON schemas from our own builder, no `schemars`.
+- Simulation crate rules (CLAUDE.md section): eight crates; `core`, `rules`, `gen`, `eco`, `story`, `sim` are `#![no_std]`; every sim crate carries `#![deny(clippy::float_arithmetic)]`; only `omnis-data` does file I/O. A new crate goes in `Cargo.toml` members (explicit list, no glob) and `SIM_CRATES` in `scripts/lint-sim.sh` in the same change.
+- Dependency policy: match Bevy's resolved versions; `check-duplicates.sh` allow list holds Bevy's own 30 duplicates; `--update` rewrites it only for an intentional change.
+- Assets: `assets/openrtp-tiles/` is CC0 and committed (16×16 top-down chipsets, no monsters or characters). `assets/private/time-fantasy-icons/` is paid, gitignored, never shipped in a pack. `assets/simple-hallway*.png` are the owner's Krea-generated 3D renders, committed by the owner; file under a set folder when first used. No first-person crawler art exists: M1 bakes per-depth slots from 16×16 textures via `omnis-cli tileset bake`.
+- CI: macOS only per owner (2026-09-12). Restore the Linux matrix, apt packages, fingerprint artifacts, and the compare job when asked; the workflow header lists them.
+- Sentrux: no ignore setting; scan `crates/` (repo root counts the SRD markdown). Rules live in `crates/.sentrux/rules.toml`, gitignored per owner; free tier checks 5 of 18 rules. Baseline signal 10000 on `crates/` at M0 end.
 
 ## Verified facts worth not re-researching
-- Bevy 0.19.1 (2026-08-13), MSRV 1.95, edition 2024, `ron = "0.12"`; resources are components on singleton entities; buffered events are `Message`; Feathers exists but is experimental with no tabs, trees, or tables; `pixel_grid_snap` example is the integer-scaling pattern; no generic RON asset loader.
-- MCP spec 2026-07-28 removed `initialize`/`ping`/sessions in favour of `server/discover` + `_meta`; Claude Code's support for it is unverified as of 2026-08-13 reports.
-- Rhai 1.26.1 (2026-09-10), MSRV 1.66, actively maintained; `only_i64` exists; `Map` is a `BTreeMap`; `AST` is `!Send` without `sync`; `AST` is not serializable; hashing seed randomized per process unless set.
-- Policy pins: serde 1.0.228, serde_json 1.0.150, thiserror 2.0.19, bevy_egui 0.41.1, ron 0.12.2, rhai 1.26.1. All Socket-audited 2026-09-12.
-- MM2 mechanics reference was extracted from `docs/c64man_might-magic-2.pdf` into PRD §8.2 (adaptation table) during the first session; the manual is copyrighted, design reference only.
+- Bevy 0.19.1 features: `2d` and `ui` expand to `default_app` (asset, log, state, async_executor, reflect_auto_register) and `default_platform` (std, winit, x11, wayland, gilrs, multi_threaded, webgl2, default_font); `png` is separate; `3d` never enabled. crates.io checksum 4bfadbeb…df8f.
+- Toolchain: rustc 1.98.0 locally, `rust-toolchain.toml` pins 1.98.0, MSRV 1.95. No lld/mold installed; no `.cargo/config.toml` yet.
+- Bevy's tree duplicates `thiserror` 1 (via `calloop` in the Wayland stack), `bitflags`, `syn`, `windows-sys`, and 26 others; recorded in `scripts/duplicates.allow`.
+- GitHub Actions pinned by SHA (all >30 days old): checkout v7.0.1 3d3c42e…, rust-cache v2.9.2 6323deb…; upload/download-artifact SHAs are in git history (`c436158`) if needed again.
+- `gh` is not installed on this machine; use the REST API with `json.loads(strict=False)` (release notes contain control characters).
+- Earlier facts (Bevy API names, MCP spec 2026-07-28, Rhai 1.26.1 details, policy pins with Socket audits) are in ARCH §5, §9, §13 and the previous continuity notes are superseded by those sections.
 
-## Working agreements observed this session
-- Owner wants objective analysis with numbers before decisions (spell point table, viewport depth math both changed decisions).
-- Ask before updating vision documents when implementation drifts; the owner said yes to PRD updates for subjective time.
-- Record every correction in `tasks/LESSONS.md` (three entries so far: non-goals vs information, v1 choice is a horizon, offer both hybrid directions).
-- Use subagents for research; verify engine and protocol facts against sources, never from memory.
-- Sentrux review after each task once code exists (none yet).
+## Working agreements observed
+- Owner wants numbers before opinions; both directions of any hybrid; v1 choices are horizons (see `LESSONS.md`, four entries).
+- Verification runs only after the last tree change; a fresh `cargo metadata` first when workspace contents change (LESSONS 2026-09-12, from the CI failure).
+- Commit per checked item or small group with the attribution trailer; never push (owner pushes and opens PRs). Never stage with `add -A` when unreviewed files may be present.
+- Ask before updating vision documents on drift; owner chose to keep PRD §13 / ARCH §16 and annotate.
+- Sentrux review after each task; `session_end` compares against the M0 baseline.
 
 ## Open items
-- PRD §14: exact detail depth; component economy; non-goal horizons (browser, 3D, LLM).
-- README.md still has typos and predates the PRD; rewrite from the PRD vision paragraph when asked.
-- CLAUDE.md preamble date was filled in (2026-09-11).
+- PRD §14: component economy; non-goal horizons (browser, 3D, LLM) still unanswered; resolution and depth are provisional.
+- README.md rewrite from the PRD vision paragraph when asked (typos, predates decisions).
+- Windows CI and Linux CI later; `.cargo/config.toml` when a fast linker is available.
+- Monster and portrait art: owner to source a CC0 set before M4.
