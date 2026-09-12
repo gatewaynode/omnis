@@ -1,0 +1,15 @@
+// Spell points (PRD D12, §8.3 F3): pool = caster level × casting modifier + the other two
+// mental modifiers, half casters at half level, floor of the character level. Cost = spell level.
+// Components are required from `component_threshold` up (D11). Change through `rules.set`.
+(
+    schema: 1,
+    id: "base:rules:casting",
+    slots: {
+        "spell_points.pool": (
+            inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
+            expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
+        ),
+        "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
+    },
+    values: {"component_threshold": 5},
+)

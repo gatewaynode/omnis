@@ -1,0 +1,13 @@
+// SRD 5.1 Human (docs/dnd.srd.5.1/01_Races). Subrace traits are folded in.
+(
+    schema: 1,
+    id: "base:race:human",
+    name: "base:text:race.human.name",
+    ability_bonuses: {Strength: 1, Dexterity: 1, Constitution: 1, Intelligence: 1, Wisdom: 1, Charisma: 1},
+    size: Medium,
+    speed: 30,
+    starting_age: 18,
+    features: [
+        (name: "base:text:race.human.languages"),
+    ],
+)

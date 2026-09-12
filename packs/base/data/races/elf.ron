@@ -1,0 +1,19 @@
+// SRD 5.1 Elf (high elf) (docs/dnd.srd.5.1/01_Races). Subrace traits are folded in.
+(
+    schema: 1,
+    id: "base:race:elf",
+    name: "base:text:race.elf.name",
+    ability_bonuses: {Dexterity: 2, Intelligence: 1},
+    size: Medium,
+    speed: 30,
+    starting_age: 100,
+    features: [
+        (name: "base:text:race.elf.darkvision", effect: Darkvision(feet: 60)),
+        (name: "base:text:race.elf.keen_senses", effect: SkillProficiency(Perception)),
+        (name: "base:text:race.elf.fey_ancestry", effect: SaveAdvantage(Charm)),
+        (name: "base:text:race.elf.trance"),
+        (name: "base:text:race.elf.weapon_training"),
+        (name: "base:text:race.elf.cantrip"),
+        (name: "base:text:race.elf.extra_language"),
+    ],
+)

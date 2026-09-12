@@ -1,0 +1,27 @@
+// English strings for the base pack's item content. Keys are `base:text:item.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "base:text:item.arrows.name": "Arrow",
+        "base:text:item.chain_mail.name": "Chain mail",
+        "base:text:item.component_pouch.name": "Component pouch",
+        "base:text:item.crossbow_bolts.name": "Crossbow bolt",
+        "base:text:item.dagger.name": "Dagger",
+        "base:text:item.gem.name": "Gem (50 gp)",
+        "base:text:item.handaxe.name": "Handaxe",
+        "base:text:item.holy_symbol.name": "Holy symbol (amulet)",
+        "base:text:item.leather.name": "Leather armor",
+        "base:text:item.light_crossbow.name": "Light crossbow",
+        "base:text:item.longsword.name": "Longsword",
+        "base:text:item.mace.name": "Mace",
+        "base:text:item.quarterstaff.name": "Quarterstaff",
+        "base:text:item.rapier.name": "Rapier",
+        "base:text:item.scale_mail.name": "Scale mail",
+        "base:text:item.scimitar.name": "Scimitar",
+        "base:text:item.shield.name": "Shield",
+        "base:text:item.shortbow.name": "Shortbow",
+        "base:text:item.shortsword.name": "Shortsword",
+        "base:text:item.spellbook.name": "Spellbook",
+        "base:text:item.thieves_tools.name": "Thieves' tools",
+    },
+)

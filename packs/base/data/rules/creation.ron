@@ -1,0 +1,18 @@
+// Character creation: point buy (27 points over six scores of 8..=15, cost by score) and the
+// party's shape (six slots, three in the front row, D10). Starting food per member.
+(
+    schema: 1,
+    id: "base:rules:creation",
+    slots: {
+        "ability.modifier": (inputs: ["score"], expr: "floor_div(score - 10, 2)"),
+    },
+    values: {
+        "point_budget": 27,
+        "score_min": 8,
+        "score_max": 15,
+        "party_slots": 6,
+        "front_row": 3,
+        "starting_food": 10,
+    },
+    tables: {"point_cost": [0, 1, 2, 3, 4, 5, 7, 9]},
+)

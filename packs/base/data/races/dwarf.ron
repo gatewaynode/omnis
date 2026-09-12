@@ -1,0 +1,19 @@
+// SRD 5.1 Dwarf (hill dwarf) (docs/dnd.srd.5.1/01_Races). Subrace traits are folded in.
+(
+    schema: 1,
+    id: "base:race:dwarf",
+    name: "base:text:race.dwarf.name",
+    ability_bonuses: {Constitution: 2, Wisdom: 1},
+    size: Medium,
+    speed: 25,
+    starting_age: 50,
+    features: [
+        (name: "base:text:race.dwarf.darkvision", effect: Darkvision(feet: 60)),
+        (name: "base:text:race.dwarf.resilience", effect: SaveAdvantage(Poison)),
+        (name: "base:text:race.dwarf.resilience_resistance", effect: Resistance(Poison)),
+        (name: "base:text:race.dwarf.combat_training"),
+        (name: "base:text:race.dwarf.tool_proficiency"),
+        (name: "base:text:race.dwarf.stonecunning"),
+        (name: "base:text:race.dwarf.toughness", effect: HitPointsPerLevel(1)),
+    ],
+)

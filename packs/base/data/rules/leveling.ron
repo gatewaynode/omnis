@@ -1,0 +1,14 @@
+// SRD 5.1 advancement: experience thresholds and proficiency bonus by level (index = level - 1),
+// hit points at level 1 and per later level (the average roll, as the SRD offers).
+(
+    schema: 1,
+    id: "base:rules:leveling",
+    slots: {
+        "hit_points.first_level": (inputs: ["hit_die", "con_mod", "per_level"], expr: "max(1, hit_die + con_mod + per_level)"),
+        "hit_points.per_level": (inputs: ["hit_die", "con_mod", "per_level"], expr: "max(1, hit_die / 2 + 1 + con_mod + per_level)"),
+    },
+    tables: {
+        "xp_thresholds": [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000],
+        "proficiency_bonus": [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6],
+    },
+)

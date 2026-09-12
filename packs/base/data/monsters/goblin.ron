@@ -1,0 +1,17 @@
+// SRD 5.1 stat block (docs/dnd.srd.5.1/10_Monsters), reduced to what the crawler uses.
+(
+    schema: 1,
+    id: "base:monster:goblin",
+    name: "base:text:monster.goblin.name",
+    size: Small,
+    ac: 15,
+    hit_points: (count: 2, sides: 6, modifier: 0),
+    speed: 30,
+    abilities: (8, 14, 10, 10, 8, 8),
+    challenge: (1, 4),
+    xp: 50,
+    attacks: [
+        (name: "base:text:monster.goblin.scimitar", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Slashing),
+        (name: "base:text:monster.goblin.shortbow", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
+    ],
+)

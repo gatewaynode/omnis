@@ -1,0 +1,24 @@
+// SRD 5.1 Fighter (docs/dnd.srd.5.1/02_Classes). Starting equipment is the first option of
+// each SRD line; packs of gear are not itemised yet. Prepared casters get a fixed number of
+// spells per level (PRD §8.3), so `spells_at_1` stands in for "Wisdom modifier + level".
+(
+    schema: 1,
+    id: "base:class:fighter",
+    name: "base:text:class.fighter.name",
+    hit_die: 10,
+    saving_throws: (Strength, Constitution),
+    armor: [Light, Medium, Heavy, Shield],
+    weapons: [Simple, Martial],
+    weapon_ids: [],
+    skills: (choose: 2, from: [Acrobatics, AnimalHandling, Athletics, History, Insight, Intimidation, Perception, Survival]),
+    starting_equipment: [("base:item:chain_mail", 1), ("base:item:longsword", 1), ("base:item:shield", 1), ("base:item:light_crossbow", 1), ("base:item:crossbow_bolts", 20)],
+    casting: None,
+    features: [
+        (level: 1, name: "base:text:class.fighter.fighting_style"),
+        (level: 1, name: "base:text:class.fighter.second_wind"),
+        (level: 2, name: "base:text:class.fighter.action_surge"),
+        (level: 3, name: "base:text:class.fighter.martial_archetype"),
+        (level: 4, name: "base:text:class.fighter.ability_score_improvement"),
+        (level: 5, name: "base:text:class.fighter.extra_attack"),
+    ],
+)

@@ -1,0 +1,2 @@
+// SRD 5.1 equipment (docs/dnd.srd.5.1/04_Equipment). Costs in copper, weight in tenths of a pound.
+(schema: 1, id: "base:item:component_pouch", name: "base:text:item.component_pouch.name", kind: Focus, cost_cp: 2500, weight_tenths: 20)

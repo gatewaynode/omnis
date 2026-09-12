@@ -1,0 +1,3 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+(schema: 1, id: "base:spell:cure_wounds", name: "base:text:spell.cure_wounds.name", level: 1, school: Evocation, classes: ["base:class:cleric"], concentration: false, ritual: false, description: "base:text:spell.cure_wounds.description")

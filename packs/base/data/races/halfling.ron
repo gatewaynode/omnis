@@ -1,0 +1,16 @@
+// SRD 5.1 Halfling (lightfoot) (docs/dnd.srd.5.1/01_Races). Subrace traits are folded in.
+(
+    schema: 1,
+    id: "base:race:halfling",
+    name: "base:text:race.halfling.name",
+    ability_bonuses: {Dexterity: 2, Charisma: 1},
+    size: Small,
+    speed: 25,
+    starting_age: 20,
+    features: [
+        (name: "base:text:race.halfling.lucky"),
+        (name: "base:text:race.halfling.brave", effect: SaveAdvantage(Fear)),
+        (name: "base:text:race.halfling.nimbleness"),
+        (name: "base:text:race.halfling.naturally_stealthy"),
+    ],
+)

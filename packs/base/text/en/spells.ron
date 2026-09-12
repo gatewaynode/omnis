@@ -1,0 +1,28 @@
+// English strings for the base pack's spell content. Keys are `base:text:spell.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "base:text:spell.bless.description": "Up to three creatures add 1d4 to attack rolls and saving throws for a minute.",
+        "base:text:spell.bless.name": "Bless",
+        "base:text:spell.burning_hands.description": "A 15-foot cone of flame: 3d6 fire damage, half on a successful Dexterity save; +1d6 per level above 1st.",
+        "base:text:spell.burning_hands.name": "Burning Hands",
+        "base:text:spell.cure_wounds.description": "A touched creature regains 1d8 + your casting modifier hit points; +1d8 per level above 1st.",
+        "base:text:spell.cure_wounds.name": "Cure Wounds",
+        "base:text:spell.fire_bolt.description": "A ranged spell attack for 1d10 fire damage; 2d10 at level 5, 3d10 at 11, 4d10 at 17.",
+        "base:text:spell.fire_bolt.name": "Fire Bolt",
+        "base:text:spell.guidance.description": "A willing creature adds 1d4 to one ability check within the next minute.",
+        "base:text:spell.guidance.name": "Guidance",
+        "base:text:spell.healing_word.description": "A bonus action: a creature you can see regains 1d4 + your casting modifier hit points; +1d4 per level above 1st.",
+        "base:text:spell.healing_word.name": "Healing Word",
+        "base:text:spell.light.description": "An object sheds bright light in a 20-foot radius and dim light 20 feet beyond for an hour.",
+        "base:text:spell.light.name": "Light",
+        "base:text:spell.mage_hand.description": "A spectral hand manipulates objects up to 10 pounds within 30 feet for a minute.",
+        "base:text:spell.mage_hand.name": "Mage Hand",
+        "base:text:spell.magic_missile.description": "Three darts of force hit chosen targets for 1d4 + 1 force damage each; one more dart per level above 1st.",
+        "base:text:spell.magic_missile.name": "Magic Missile",
+        "base:text:spell.sacred_flame.description": "Radiance descends on a creature; it takes 1d8 radiant damage unless it succeeds on a Dexterity save. Scales like Fire Bolt.",
+        "base:text:spell.sacred_flame.name": "Sacred Flame",
+        "base:text:spell.shield.description": "A reaction when hit: +5 to AC until your next turn and no damage from Magic Missile.",
+        "base:text:spell.shield.name": "Shield",
+    },
+)

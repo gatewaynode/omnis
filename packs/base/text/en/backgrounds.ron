@@ -1,0 +1,8 @@
+// English strings for the base pack's background content. Keys are `base:text:background.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "base:text:background.acolyte.name": "Acolyte",
+        "base:text:background.acolyte.shelter": "Shelter of the Faithful",
+    },
+)

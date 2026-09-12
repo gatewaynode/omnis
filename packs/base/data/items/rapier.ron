@@ -1,0 +1,2 @@
+// SRD 5.1 equipment (docs/dnd.srd.5.1/04_Equipment). Costs in copper, weight in tenths of a pound.
+(schema: 1, id: "base:item:rapier", name: "base:text:item.rapier.name", kind: Weapon(kind: Martial, damage: (count: 1, sides: 8, modifier: 0), damage_type: Piercing), cost_cp: 2500, weight_tenths: 20)
