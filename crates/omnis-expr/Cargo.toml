@@ -1,0 +1,29 @@
+[package]
+name = "omnis-expr"
+description = "Rhai formula host for Omnis rules: a sandboxed, integer-only, deterministic expression profile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+omnis-core = { workspace = true }
+# Formula profile (ARCHITECTURE.md §5.2): one integer type, no floats, no clock, no user
+# functions, closures, modules, arrays, or maps; `internals` exposes the AST walk that checks
+# every identifier a formula names. `unchecked` is never enabled.
+rhai = { workspace = true, features = [
+    "std",
+    "sync",
+    "only_i64",
+    "no_float",
+    "no_time",
+    "no_custom_syntax",
+    "no_function",
+    "no_closure",
+    "no_module",
+    "no_index",
+    "no_object",
+    "internals",
+] }
