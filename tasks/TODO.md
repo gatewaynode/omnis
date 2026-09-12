@@ -24,7 +24,7 @@
 - [ ] Plan Phase 0 tasks (after compact)
 - [ ] Sentrux review once code exists
 
-## Delivery plan (2026-09-12, awaiting owner approval)
+## Delivery plan (2026-09-12, approved)
 
 Owner direction: reach a user-testable app as soon as feasible, then widen across the full scope while there is something to test. So: one vertical slice first (M0–M2), then each later milestone adds one system end to end (data schema → sim → app UI → MCP tool → CLI → tests) so every milestone leaves a build the owner can play. This reorders PRD §13 (Phase 0 there has no app); see the check-in questions at the end.
 
@@ -35,7 +35,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - [x] Crates: `omnis-core`, `omnis-data`, `omnis-sim`, `omnis-app`, `omnis-cli`, `omnis-mcp` as compiling stubs; `core` and `sim` are `#![no_std]`
 - [x] `scripts/lint-sim.sh` with `--self-test`; denies floats, hashed collections, time/thread/net, file I/O outside `omnis-data`, Bevy edges in `cargo tree`, unsafe Rhai features; requires `#![no_std]` and `deny(clippy::float_arithmetic)`
 - [x] `scripts/check-duplicates.sh` with a committed allow list of Bevy's own duplicate crates; fails on any new duplicate
-- [x] CI (GitHub Actions, macOS + Linux, actions pinned by commit SHA): fmt, lint-sim self-test and lint, duplicates, clippy `-D warnings`, tests, fingerprint artifact and cross-platform compare job (populated in M1)
+- [x] CI (GitHub Actions, macOS only per owner 2026-09-12, actions pinned by commit SHA): fmt, lint-sim self-test and lint, duplicates, clippy `-D warnings`, tests. Linux runner and the cross-platform fingerprint compare return later.
 - [x] `LICENSE-MIT`, `LICENSE-APACHE`, `ATTRIBUTION.md`, `.gitignore`
 - [x] `assets/` folder convention agreed and applied (`assets/README.md`)
 - [x] `packs/test/pack.ron` manifest
@@ -52,13 +52,26 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - `assets/simple-hallway*.png` (two photographic 3D renders) arrived during M0 with no licence file; they are untracked until the owner states their source and terms.
 
 ### M1 — Walkable: first user-testable build
-- [ ] `omnis-core`: typed ID newtypes, `Fixed` (i64, 1/1000), `Pcg32` with named streams (`fnv1a64`, `splitmix64`, `RollTrace`), `Direction`, `Rotation`, `Position`, `Clock`, error type. Tests: PCG32 known-answer vectors, stream derivation golden values, `Fixed` arithmetic edge cases
-- [ ] `omnis-data`: `pack.ron` manifest, `tiles/*.ron` (tileset with `detail_depth`, `width`, per-depth slot sprite paths), `maps/*.ron` (terrain, wall masks, doors, start tile, per-tile visibility depth), `text/<lang>`, `Registry` with ID interning, loader that collects every error, path normalization and size limits from ARCH §6.2, RON read and write. Tests: `packs/test` loads; `tests/packs-bad/` corpus rejected with expected error lists; write→read round trip
-- [ ] `omnis-sim`: `World` (schema, packs, rngs, clocks with the party holder only, position, maps, automap, mode `Explore`, flags, settings), `Command::{Step, Turn, Interact}`, `Event::{Moved, Blocked, Visible, TimeAdvanced}`, `query::viewport` with detail-depth cut and visibility-depth cone, `query::automap`, `query::path`, save/load RON, `World::fingerprint`, `World::log`. Tests: movement and wall blocking on the test map, doors, automap fill, save round trip, one recorded replay under `tests/replays/` with a golden fingerprint
-- [ ] `omnis-app`: pixel pipeline (`pixel_grid_snap` pattern, `default_nearest`, internal resolution placeholder), `PackAssetPlugin` (images by pack-relative path, magenta placeholder for missing), `SimPlugin` (`SimWorld` resource, ordered `collect → apply → publish` set, events as `Message`s), `InputPlugin` (arrows/WASD/QE, F5 save, F9 load), `ViewportPlugin` (detail rows from tileset slots, procedural horizon band), minimal `HudPlugin` (position, facing, clock, last message), automap overlay toggle, states `Boot → Playing::Explore` (main menu comes with M3). Smoke test: `MinimalPlugins` + `run_once`, boot, step, no panic
-- [ ] `omnis-cli tileset bake`: generate per-depth viewport slot sprites from 16×16 textures (checked into `packs/test/assets/` as ordinary PNGs so the game never bakes at runtime)
-- [ ] `packs/test`: one 24×24 dungeon level with doors and a 32×32 outdoor patch (visibility depth 4 vs 12), one tileset baked from the OpenRTP dungeon and exterior sheets
-- **Done when**: the owner runs the app, walks both maps in first person, opens a door, watches the automap fill, saves and reloads, and the replay fingerprint matches on macOS and Linux CI
+- [x] `omnis-core` (2026-09-12): typed ID newtypes, `Fixed` (i64, 1/1000), `Pcg32` with named streams (`fnv1a64`, `splitmix64`, `RollTrace`), `Direction`, `Rotation`, `Position`, `Clock`, error type. Tests: PCG32 known-answer vectors, stream derivation golden values, `Fixed` arithmetic edge cases
+- [x] `omnis-data` (2026-09-12): `pack.ron` manifest, `tiles/*.ron` (tileset with `detail_depth`, `width`, per-depth slot sprite paths), `maps/*.ron` (terrain, wall masks, doors, start tile, per-tile visibility depth), `text/<lang>`, `Registry` with ID interning, loader that collects every error, path normalization and size limits from ARCH §6.2, RON read and write. Tests: `packs/test` loads; `tests/packs-bad/` corpus rejected with expected error lists; write→read round trip
+- [x] `omnis-sim` (2026-09-12): `World` (schema, packs, rngs, clocks with the party holder only, position, maps, automap, mode `Explore`, flags, settings), `Command::{Step, Turn, Interact}`, `Event::{Moved, Blocked, Visible, TimeAdvanced}`, `query::viewport` with detail-depth cut and visibility-depth cone, `query::automap`, `query::path`, save/load RON, `World::fingerprint`, `World::log`. Tests: movement and wall blocking on the test map, doors, automap fill, save round trip, one recorded replay under `tests/replays/` with a golden fingerprint
+- [x] `omnis-app` (2026-09-12): pixel pipeline (`pixel_grid_snap` pattern, `default_nearest`, internal resolution placeholder), `PackAssetPlugin` (images by pack-relative path, magenta placeholder for missing), `SimPlugin` (`SimWorld` resource, ordered `collect → apply → publish` set, events as `Message`s), `InputPlugin` (arrows/WASD/QE, F5 save, F9 load), `ViewportPlugin` (detail rows from tileset slots, procedural horizon band), minimal `HudPlugin` (position, facing, clock, last message), automap overlay toggle, states `Boot → Playing::Explore` (main menu comes with M3). Smoke test: `MinimalPlugins` + `run_once`, boot, step, no panic
+- [x] `omnis-cli tileset bake` (2026-09-12): generate per-depth viewport slot sprites from 16×16 textures (checked into `packs/test/assets/` as ordinary PNGs so the game never bakes at runtime)
+- [x] `packs/test` (2026-09-12): one 24×24 dungeon level with doors and a 32×32 outdoor patch (visibility depth 4 vs 12), one tileset baked from the OpenRTP dungeon and exterior sheets
+- **Done when**: the owner runs the app, walks both maps in first person, opens a door, watches the automap fill, saves and reloads, and the replay fingerprint is recorded as a golden value in CI (cross-platform compare when Linux CI returns)
+
+#### M1 review (2026-09-12, awaiting the owner's walk-through)
+- Built in eight commits on `m1-tasks` (`8d4bbe3` core … `895c47c` app). 66 tests, all on `packs/test`; clippy, fmt, `lint-sim`, `check-duplicates` green; CI unchanged (the golden replay `crates/omnis-sim/tests/replays/walk.ron` runs under `cargo test`).
+- Run: `cargo run -p omnis-app -- [--seed N] [--pack DIR]`. Devtools: `--script forward,turn-left,use,map --screenshot-canvas out.png` renders unattended. F5/F9 use `.omnis/quick.ron`.
+- Verified by eye from canvas captures: meadow with road and shaded horizon band, a dungeon room with side walls and a pillar shadow, a front wall, the automap with walls, door, and party mark. Not verified here: the window itself and the HUD text (Bevy's window screenshot and macOS `screencapture` both return black on this machine; the canvas capture is the trusted path). The owner's run is the acceptance.
+- Decisions made during the build: map layout is a text grid with shared edges (`crates/omnis-data/src/map.rs` docs); line of sight is an integer supercover ray to a tile's centre or any corner, either way round exact corners; door state is a canonical edge key in `MapState`; `Slot` carries `x`/`y` placement and `Tileset` a `viewport`; `Terrain` has `opaque` and `color`; manifest `entry` names the start map; `omnis-sim` re-exports `omnis_core` and `omnis_data`; `omnis-cli` depends on `omnis-data` and `png` 0.18.1 (Bevy's version).
+- Known placeholders: opaque impassable tiles (pillars, trees) draw as floor swatches, not blocks; open doors draw nothing; the party's own tile is a thin strip at the bottom (focal 0.9·height); tree/rock silhouettes in the band are flat colour.
+- Sentrux at M1 end: signal 6508 (M0 baseline 10000 was an empty skeleton); bottleneck modularity 0.20, depth 7, equality 0.46 (`query/path.rs` is the largest file); no rule violations; five functions Sentrux calls complex, none over `max_cc 25`.
+- Owner's walk-through (2026-09-12): "pretty decent for a first pass". Fixed on the spot: backdrop confined to the viewport with a panel colour around it; last message clears on a move; window launches at 3840×2160 (`--window WxH`); sidebar minimap always on at 2 px/tile, M toggles the large overlay.
+- Follow-ups from the walk-through:
+  - [ ] Opaque impassable terrain (pillars, trees) draws as a floor swatch, not a block. Add a `Block` slot kind to the bake (front face plus two sides from the terrain texture) and to the draw plan; open doors need a frame sprite too.
+  - [ ] Dungeon feel: with visibility 4 and detail depth 4 the far wall of a 6-wide room is dark and the depth-4 ground band is a bare bar with no ceiling band. Decide between raising dungeon visibility (6) with a ceiling band, or keeping the darkness; owner's call.
+- Next: M2 grows from `omnis-app/src/dev.rs` (script and screenshot) and `omnis-cli` (validate, replay, headless).
 
 ### M2 — Live instrumentation: MCP and CLI
 - [ ] `omnis-cli`: `validate`, `schema dump`, `map text`, `play --script`, `replay` (asserts fingerprint), `omnis_cli::Headless` library; CI switches the replay job to it

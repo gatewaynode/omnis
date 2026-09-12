@@ -1,0 +1,20 @@
+(
+    schema: 1,
+    id: "broken:map:rows",
+    name: "broken:text:map.rows.name",
+    kind: Dungeon,
+    tileset: "broken:tileset:missing",
+    width: 2,
+    height: 1,
+    start: (0, 0, North),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+",
+        "|. . .|",
+        "+-+-+",
+    ],
+)

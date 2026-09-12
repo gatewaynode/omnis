@@ -1,0 +1,24 @@
+(
+    schema: 1,
+    id: "broken:map:refs",
+    name: "broken:text:map.refs.name",
+    kind: Outdoor,
+    tileset: "broken:tileset:bad",
+    width: 1,
+    height: 1,
+    start: (0, 0, North),
+    wall: (front: "nowhere", left: "floor", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: ',', name: "grass", floor: "sky", ceiling: Some("floor"), passable: true, visibility_depth: 12, step_minutes: 2),
+    ],
+    layout: [
+        "+-+",
+        "|,|",
+        "+-+",
+    ],
+    portals: [
+        (x: 0, y: 0, to_map: "broken:map:nowhere", to_x: 0, to_y: 0, to_facing: North),
+        (x: 0, y: 0, to_map: "broken:map:glyph", to_x: 9, to_y: 0, to_facing: North),
+    ],
+)

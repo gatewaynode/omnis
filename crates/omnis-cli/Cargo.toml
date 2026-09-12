@@ -16,4 +16,8 @@ name = "omnis-cli"
 path = "src/main.rs"
 
 [dependencies]
+omnis-core = { workspace = true }
+omnis-data = { workspace = true }
 omnis-sim = { workspace = true }
+png = { workspace = true }
+serde = { workspace = true, features = ["std"] }

@@ -10,4 +10,5 @@
         ("OpenRTP tiles by finalbossblues", "CC0-1.0", "assets/openrtp-tiles/LICENSE.txt"),
     ],
     depends: [],
+    entry: Some("test:map:meadow"),
 )

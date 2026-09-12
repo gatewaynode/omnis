@@ -1,0 +1,27 @@
+(
+    schema: 1,
+    id: "broken:map:glyph",
+    name: "broken:text:map.glyph.name",
+    kind: Dungeon,
+    tileset: "broken:tileset:bad",
+    width: 2,
+    height: 2,
+    start: (2, 0, North),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: Some("sky"), passable: true, visibility_depth: 0, step_minutes: 1),
+        (glyph: '.', name: "again", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+        (glyph: '-', name: "reserved", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+",
+        "|.|?|",
+        "+ + +",
+        "|. .|",
+        "+-+-+",
+    ],
+    portals: [
+        (x: 5, y: 5, to_map: "broken:map:glyph", to_x: 0, to_y: 0, to_facing: North),
+    ],
+)

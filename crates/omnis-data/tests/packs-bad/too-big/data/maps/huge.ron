@@ -1,0 +1,16 @@
+(
+    schema: 1,
+    id: "too-big:map:huge",
+    name: "too-big:text:huge",
+    kind: Outdoor,
+    tileset: "too-big:tileset:none",
+    width: 300,
+    height: 300,
+    start: (0, 0, North),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: ',', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 12, step_minutes: 2),
+    ],
+    layout: ["+-+"],
+)

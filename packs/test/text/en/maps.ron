@@ -1,0 +1,8 @@
+// English strings for the test pack. Keys are `test:text:<name>`; `{arg}` marks an argument.
+(
+    schema: 1,
+    entries: {
+        "test:text:map.dungeon.name": "Test Dungeon",
+        "test:text:map.meadow.name": "Test Meadow",
+    },
+)

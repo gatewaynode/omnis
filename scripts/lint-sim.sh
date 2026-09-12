@@ -31,7 +31,7 @@ for crate in "${SIM_CRATES[@]}"; do
   [ -d "$dir" ] || continue
 
   # Floats: the types, suffixed literals, and `as` casts.
-  grep_src '(^|[^A-Za-z0-9_])f(32|64)([^A-Za-z0-9_]|$)|[0-9_]f(32|64)([^A-Za-z0-9_]|$)' "$dir" "float type or literal"
+  grep_src '(^|[^A-Za-z0-9_])f(32|64)([^A-Za-z0-9_]|$)|[0-9]_?f(32|64)([^A-Za-z0-9_]|$)' "$dir" "float type or literal"
   # Hashed collections and hashers: iteration order is unspecified; output differs across runs.
   grep_src 'HashMap|HashSet|DefaultHasher|RandomState|hash_map|hash_set|BuildHasher' "$dir" "hashed collection or hasher"
   # Wall clock, threads, network.

@@ -12,19 +12,14 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
 
+# macOS only for now (owner, 2026-09-12). When Linux returns, restore the OS matrix, the apt
+# packages for winit/wayland, the fingerprint artifact upload, and the cross-platform compare job
+# (ARCHITECTURE.md §11, test tier 3).
 jobs:
   check:
-    name: check (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Linux packages for Bevy (winit, wayland, gilrs)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
       - name: Toolchain from rust-toolchain.toml
         run: rustup toolchain install && rustup show
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -35,28 +30,3 @@ jobs:
         run: scripts/check-duplicates.sh
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      - name: Collect replay fingerprints (populated from M1)
-        run: mkdir -p target/fingerprints
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: fingerprints-${{ matrix.os }}
-          path: target/fingerprints
-          if-no-files-found: ignore
-
-  determinism:
-    name: fingerprints match across platforms
-    needs: check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: fingerprints-*
-          path: fp
-      - name: Compare
-        run: |
-          ls -R fp || true
-          if [ -d fp/fingerprints-ubuntu-latest ] && [ -d fp/fingerprints-macos-latest ]; then
-            diff -r fp/fingerprints-ubuntu-latest fp/fingerprints-macos-latest && echo "fingerprints identical"
-          else
-            echo "no fingerprints yet (M1 populates)"
-          fi

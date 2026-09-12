@@ -1,0 +1,21 @@
+// Bake spec for the outdoor tileset: `omnis-cli tileset bake packs/test/bake/outdoor.ron`.
+// Sheet coordinates are the top-left pixel of a 16x16 tile in the OpenRTP exterior chipset.
+(
+    sheet: "../../../assets/openrtp-tiles/exterior.png",
+    tile_size: 16,
+    tileset_id: "test:tileset:outdoor",
+    name: "outdoor",
+    viewport: (240, 135),
+    detail_depth: 4,
+    width: 3,
+    surfaces: {
+        "grass": (kind: Floor, tile: (16, 144)),
+        "road": (kind: Floor, tile: (16, 224)),
+        "trees": (kind: Floor, tile: (64, 160)),
+        "water": (kind: Floor, tile: (0, 64)),
+        "hedge": (kind: WallFront, tile: (208, 16)),
+        "hedge.left": (kind: WallLeft, tile: (208, 16)),
+        "hedge.right": (kind: WallRight, tile: (208, 16)),
+        "gate": (kind: Door, tile: (208, 96)),
+    },
+)
