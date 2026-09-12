@@ -227,71 +227,7 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
         let cells = map.cells(&file, errors).unwrap_or_default();
         raw.maps.insert(map.id.clone(), (file, map, cells));
     }
-    let content = &mut raw.content;
-    gather(
-        root,
-        "data/races",
-        "race",
-        &mut hasher,
-        errors,
-        &mut content.races,
-    );
-    gather(
-        root,
-        "data/classes",
-        "class",
-        &mut hasher,
-        errors,
-        &mut content.classes,
-    );
-    gather(
-        root,
-        "data/backgrounds",
-        "background",
-        &mut hasher,
-        errors,
-        &mut content.backgrounds,
-    );
-    gather(
-        root,
-        "data/items",
-        "item",
-        &mut hasher,
-        errors,
-        &mut content.items,
-    );
-    gather(
-        root,
-        "data/conditions",
-        "condition",
-        &mut hasher,
-        errors,
-        &mut content.conditions,
-    );
-    gather(
-        root,
-        "data/spells",
-        "spell",
-        &mut hasher,
-        errors,
-        &mut content.spells,
-    );
-    gather(
-        root,
-        "data/monsters",
-        "monster",
-        &mut hasher,
-        errors,
-        &mut content.monsters,
-    );
-    gather(
-        root,
-        "data/rules",
-        "rules",
-        &mut hasher,
-        errors,
-        &mut content.rules,
-    );
+    gather_content(root, &mut hasher, errors, &mut raw.content);
     for lang in list_dirs(root, Path::new("text"), errors) {
         let lang_name = lang
             .file_name()
@@ -417,6 +353,79 @@ fn gather<T: DeserializeOwned + HasSchema + Content>(
         value.validate(&file, errors);
         out.insert(value.id().to_owned(), (file, value));
     }
+}
+
+/// Every content type besides tiles, maps, and text, one directory each.
+fn gather_content(
+    root: &Path,
+    hasher: &mut PackHasher,
+    errors: &mut Vec<DataError>,
+    content: &mut RawContent,
+) {
+    gather(
+        root,
+        "data/races",
+        "race",
+        hasher,
+        errors,
+        &mut content.races,
+    );
+    gather(
+        root,
+        "data/classes",
+        "class",
+        hasher,
+        errors,
+        &mut content.classes,
+    );
+    gather(
+        root,
+        "data/backgrounds",
+        "background",
+        hasher,
+        errors,
+        &mut content.backgrounds,
+    );
+    gather(
+        root,
+        "data/items",
+        "item",
+        hasher,
+        errors,
+        &mut content.items,
+    );
+    gather(
+        root,
+        "data/conditions",
+        "condition",
+        hasher,
+        errors,
+        &mut content.conditions,
+    );
+    gather(
+        root,
+        "data/spells",
+        "spell",
+        hasher,
+        errors,
+        &mut content.spells,
+    );
+    gather(
+        root,
+        "data/monsters",
+        "monster",
+        hasher,
+        errors,
+        &mut content.monsters,
+    );
+    gather(
+        root,
+        "data/rules",
+        "rules",
+        hasher,
+        errors,
+        &mut content.rules,
+    );
 }
 
 trait HasSchema {

@@ -151,8 +151,12 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
             .starts_with("Failed: path"),
         "{reply}"
     );
+}
 
-    // The party and the rules, through the same pipe.
+#[test]
+fn the_party_and_the_rules_go_through_the_same_pipe() {
+    let mut server = Server::headless();
+    server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}}));
     let draft = json!({"name": "Ilvara", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10], "skills": ["Arcana", "History"]});
     let reply = server.tool(10, "party_create", json!({"character": draft}));
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");

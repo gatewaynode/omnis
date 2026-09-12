@@ -160,6 +160,30 @@ struct Next<'w> {
     play: ResMut<'w, NextState<PlayState>>,
 }
 
+/// What a menu action may touch.
+struct Actions<'a, 'c, 'cs, 'n, 'p, 'e> {
+    commands: &'a mut Commands<'c, 'cs>,
+    next: &'a mut Next<'n>,
+    data: Option<&'a PackData>,
+    config: &'a AppConfig,
+    player: &'a mut MessageWriter<'p, PlayerCommand>,
+    exit: &'a mut MessageWriter<'e, AppExit>,
+    notice: &'a mut Notice,
+}
+
+impl Actions<'_, '_, '_, '_, '_, '_> {
+    fn start_game(&mut self, world: World, start: PlayState) {
+        self.commands.insert_resource(SimWorld(world));
+        self.commands.insert_resource(StartIn(start));
+        self.next.app.set(AppState::Playing);
+    }
+
+    fn leave_game(&mut self) {
+        self.commands.remove_resource::<SimWorld>();
+        self.next.app.set(AppState::MainMenu);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn menu_keys(
     mut keys: MessageReader<KeyboardInput>,
@@ -175,71 +199,102 @@ fn menu_keys(
     mut notice: ResMut<Notice>,
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let mut act = Actions {
+        commands: &mut commands,
+        next: &mut next,
+        data: data.as_deref(),
+        config: &config,
+        player: &mut player,
+        exit: &mut exit,
+        notice: &mut notice,
+    };
     for key in keys.read().filter_map(menu_key) {
+        let Screens {
+            title,
+            new_game,
+            creation,
+            catalog,
+            pause,
+        } = &mut *screens;
         match at.screen() {
-            Screen::Title => match screens.title.key(key) {
-                Some(TitleAction::NewGame) => next.menu.set(MenuState::NewGame),
-                Some(TitleAction::Load) => {
-                    let Some(data) = data.as_ref() else { continue };
-                    match load(&data.0, &config.save_path, false) {
-                        Ok(world) => {
-                            commands.insert_resource(SimWorld(world));
-                            commands.insert_resource(StartIn(PlayState::Explore));
-                            next.app.set(AppState::Playing);
-                        }
-                        Err(e) => notice.0 = format!("Load failed: {e}"),
-                    }
-                }
-                Some(TitleAction::Quit) => {
-                    exit.write(AppExit::Success);
-                }
-                None => {}
-            },
-            Screen::NewGame => match screens.new_game.key(key) {
-                Some(NewGameAction::Start) => {
-                    let Some(data) = data.as_ref() else { continue };
-                    let form = &screens.new_game;
-                    match World::new(&data.0, form.seed(crate::entropy_seed()), form.settings) {
-                        Ok(world) => {
-                            info!("new game, seed {:#x}, {:?}", world.seed, world.settings);
-                            commands.insert_resource(SimWorld(world));
-                            commands.insert_resource(StartIn(PlayState::CreateParty));
-                            next.app.set(AppState::Playing);
-                        }
-                        Err(e) => notice.0 = format!("{e}"),
-                    }
-                }
-                Some(NewGameAction::Back) => next.menu.set(MenuState::Title),
-                None => {}
-            },
-            Screen::CreateParty => {
-                let Screens {
-                    creation, catalog, ..
-                } = &mut *screens;
-                match creation.key(key, catalog, members) {
-                    Some(CreationAction::Add(draft)) => {
-                        player.write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
-                    }
-                    Some(CreationAction::Begin) => next.play.set(PlayState::Explore),
-                    Some(CreationAction::Back) => {
-                        commands.remove_resource::<SimWorld>();
-                        next.app.set(AppState::MainMenu);
-                    }
-                    None => {}
+            Screen::Title => {
+                if let Some(action) = title.key(key) {
+                    title_action(action, &mut act);
                 }
             }
-            Screen::Paused => match screens.pause.key(key) {
-                Some(PauseAction::Resume) => next.play.set(PlayState::Explore),
-                Some(PauseAction::QuitToTitle) => {
-                    commands.remove_resource::<SimWorld>();
-                    next.app.set(AppState::MainMenu);
+            Screen::NewGame => {
+                if let Some(action) = new_game.key(key) {
+                    new_game_action(action, new_game, &mut act);
                 }
-                Some(PauseAction::Quit) => {
-                    exit.write(AppExit::Success);
+            }
+            Screen::CreateParty => {
+                if let Some(action) = creation.key(key, catalog, members) {
+                    creation_action(action, &mut act);
                 }
-                None => {}
-            },
+            }
+            Screen::Paused => {
+                if let Some(action) = pause.key(key) {
+                    pause_action(action, &mut act);
+                }
+            }
             Screen::None => {}
+        }
+    }
+}
+
+fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+    match action {
+        TitleAction::NewGame => act.next.menu.set(MenuState::NewGame),
+        TitleAction::Load => {
+            let Some(data) = act.data else { return };
+            match load(&data.0, &act.config.save_path, false) {
+                Ok(world) => act.start_game(world, PlayState::Explore),
+                Err(e) => act.notice.0 = format!("Load failed: {e}"),
+            }
+        }
+        TitleAction::Quit => {
+            act.exit.write(AppExit::Success);
+        }
+    }
+}
+
+fn new_game_action(
+    action: NewGameAction,
+    form: &NewGameForm,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_>,
+) {
+    match action {
+        NewGameAction::Start => {
+            let Some(data) = act.data else { return };
+            match World::new(&data.0, form.seed(crate::entropy_seed()), form.settings) {
+                Ok(world) => {
+                    info!("new game, seed {:#x}, {:?}", world.seed, world.settings);
+                    act.start_game(world, PlayState::CreateParty);
+                }
+                Err(e) => act.notice.0 = format!("{e}"),
+            }
+        }
+        NewGameAction::Back => act.next.menu.set(MenuState::Title),
+    }
+}
+
+fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+    match action {
+        CreationAction::Add(draft) => {
+            act.player
+                .write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
+        }
+        CreationAction::Begin => act.next.play.set(PlayState::Explore),
+        CreationAction::Back => act.leave_game(),
+    }
+}
+
+fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_>) {
+    match action {
+        PauseAction::Resume => act.next.play.set(PlayState::Explore),
+        PauseAction::QuitToTitle => act.leave_game(),
+        PauseAction::Quit => {
+            act.exit.write(AppExit::Success);
         }
     }
 }

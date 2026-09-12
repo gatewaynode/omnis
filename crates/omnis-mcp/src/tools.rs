@@ -34,6 +34,13 @@ fn tool(name: &'static str, op: &'static str, description: &'static str, fields:
 /// Every tool, in the order `tools/list` reports them.
 #[must_use]
 pub fn tools() -> Vec<Tool> {
+    let mut all = game_tools();
+    all.extend(party_tools());
+    all
+}
+
+/// The game tools: status, commands, views, saves, packs, screenshot.
+fn game_tools() -> Vec<Tool> {
     let map = || {
         Field::new::<Option<String>>(
             "map",
@@ -130,6 +137,12 @@ pub fn tools() -> Vec<Tool> {
                 "A relative .png path; default .omnis/screenshot.png.",
             )],
         ),
+    ]
+}
+
+/// The party and the rules.
+fn party_tools() -> Vec<Tool> {
+    vec![
         tool(
             "party_get",
             "party.get",
