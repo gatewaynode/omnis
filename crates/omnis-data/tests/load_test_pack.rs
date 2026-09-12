@@ -11,6 +11,7 @@ fn test_pack_loads_with_both_maps() {
     assert_eq!(data.packs.len(), 1);
     assert_eq!(data.packs[0].id, "test");
     assert_eq!(data.fingerprints[0].id, "test");
+    assert_eq!(data.entry, data.registry.maps.get("test:map:meadow"));
     assert_ne!(data.fingerprints[0].hash, 0);
 
     let dungeon_id = data
@@ -61,10 +62,10 @@ fn test_pack_loads_with_both_maps() {
         dungeon.cell(5, 2).unwrap().walls.has(Facing::East),
         "wall where there is no door"
     );
-    assert!(
-        !dungeon.terrain(dungeon.cell(3, 3).unwrap()).passable,
-        "pillar at (3,3)"
-    );
+    let pillar = dungeon.terrain(dungeon.cell(3, 3).unwrap());
+    assert!(!pillar.passable && pillar.opaque, "pillar at (3,3)");
+    let water = meadow.terrain(meadow.cell(8, 22).unwrap());
+    assert!(!water.passable && !water.opaque, "water can be seen across");
 
     // The meadow is open inside the hedge; the road runs north to the portal.
     assert_eq!(meadow.cell(10, 10).unwrap().walls, Edges::NONE);

@@ -13,7 +13,7 @@
     door: "door",
     terrains: [
         (glyph: '.', name: "floor", floor: "floor", ceiling: Some("ceiling"), passable: true, visibility_depth: 4, step_minutes: 1),
-        (glyph: '#', name: "rock", floor: "rock", ceiling: Some("ceiling"), passable: false, visibility_depth: 4, step_minutes: 1),
+        (glyph: '#', name: "rock", floor: "rock", ceiling: Some("ceiling"), passable: false, opaque: true, visibility_depth: 4, step_minutes: 1),
     ],
     layout: [
         "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",

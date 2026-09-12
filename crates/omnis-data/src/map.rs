@@ -51,6 +51,9 @@ pub struct Terrain {
     pub ceiling: Option<String>,
     /// Whether the party may enter the tile.
     pub passable: bool,
+    /// Whether the tile blocks line of sight (rock, dense trees). Water does not.
+    #[serde(default)]
+    pub opaque: bool,
     /// How far the party sees while standing on this terrain.
     pub visibility_depth: u8,
     /// Minutes one step onto this terrain costs the party's clock.
@@ -325,6 +328,7 @@ mod tests {
                 floor: "floor".into(),
                 ceiling: None,
                 passable: true,
+                opaque: false,
                 visibility_depth: 4,
                 step_minutes: 1,
             }],

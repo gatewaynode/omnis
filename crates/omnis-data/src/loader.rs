@@ -99,6 +99,8 @@ pub struct Data {
     pub maps: BTreeMap<MapId, MapData>,
     /// Language code to text key to string.
     pub text: BTreeMap<String, BTreeMap<TextKey, String>>,
+    /// Where a new game starts, from the last manifest that set `entry`.
+    pub entry: Option<MapId>,
 }
 
 impl Data {
@@ -486,6 +488,15 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     portals,
                 },
             );
+        }
+    }
+    if let Some(entry) = data.packs.iter().rev().find_map(|p| p.entry.as_deref()) {
+        match data.registry.maps.get(entry) {
+            Some(id) => data.entry = Some(id),
+            None => errors.push(DataError::new(
+                "pack.ron",
+                format!("entry map '{entry}' is not defined by any loaded pack"),
+            )),
         }
     }
     if errors.len() > before {

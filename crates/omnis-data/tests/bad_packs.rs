@@ -135,4 +135,21 @@ fn dependencies_must_load_first() {
         2,
         "the mod adds nothing and removes nothing"
     );
+    assert_eq!(
+        data.entry,
+        data.registry.maps.get("test:map:meadow"),
+        "the mod sets no entry, so the base's stands"
+    );
+
+    let dir = common::scratch("entry-pack");
+    std::fs::write(
+        dir.join("pack.ron"),
+        r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"], entry: Some("mod:map:none"))"#,
+    )
+    .unwrap();
+    let report = load_packs(&[&common::test_pack(), &dir]).unwrap_err();
+    assert_eq!(
+        report.messages(),
+        ["entry map 'mod:map:none' is not defined by any loaded pack"]
+    );
 }

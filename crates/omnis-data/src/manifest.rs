@@ -24,6 +24,9 @@ pub struct PackManifest {
     /// Ids of packs that must load first.
     #[serde(default)]
     pub depends: Vec<String>,
+    /// The map a new game starts on. The last loaded pack that sets it wins.
+    #[serde(default)]
+    pub entry: Option<String>,
 }
 
 /// Whether `id` is a well-formed pack id: `[a-z0-9_-]+`.

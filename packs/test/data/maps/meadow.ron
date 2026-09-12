@@ -14,7 +14,7 @@
     terrains: [
         (glyph: ',', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 12, step_minutes: 2),
         (glyph: 'r', name: "road", floor: "road", ceiling: None, passable: true, visibility_depth: 12, step_minutes: 1),
-        (glyph: 'T', name: "trees", floor: "trees", ceiling: None, passable: false, visibility_depth: 6, step_minutes: 4),
+        (glyph: 'T', name: "trees", floor: "trees", ceiling: None, passable: false, opaque: true, visibility_depth: 6, step_minutes: 4),
         (glyph: '~', name: "water", floor: "water", ceiling: None, passable: false, visibility_depth: 12, step_minutes: 2),
     ],
     layout: [

@@ -18,6 +18,11 @@ pub fn from_str<T: DeserializeOwned>(text: &str, file: &Path) -> Result<T, DataE
         .map_err(|e| DataError::at(file, e.span.start.line, format!("parse error: {}", e.code)))
 }
 
+/// Parse a RON document held in memory (a save, a socket message).
+pub fn parse<T: DeserializeOwned>(text: &str) -> Result<T, DataError> {
+    from_str(text, Path::new("<memory>"))
+}
+
 /// Render a value as pretty RON, the way the editor writes it.
 pub fn to_string<T: Serialize>(value: &T) -> Result<String, DataError> {
     let config = ron::ser::PrettyConfig::new()
