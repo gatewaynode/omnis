@@ -1,0 +1,15 @@
+[package]
+name = "omnis-data"
+description = "Content schemas, pack manifest and loader, ID registry, validation, and RON read/write for Omnis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+omnis-core = { workspace = true }
+serde = { workspace = true, features = ["std"] }
+ron = { workspace = true }
+thiserror = { workspace = true, features = ["std"] }

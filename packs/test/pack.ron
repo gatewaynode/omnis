@@ -1,0 +1,13 @@
+// Test fixture pack: the smallest content set the simulation and app tests run against.
+// Schema: ARCHITECTURE.md §6.1. Every data file starts with `schema`.
+(
+    schema: 1,
+    id: "test",
+    version: "0.1.0",
+    name: "Omnis test fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [
+        ("OpenRTP tiles by finalbossblues", "CC0-1.0", "assets/openrtp-tiles/LICENSE.txt"),
+    ],
+    depends: [],
+)

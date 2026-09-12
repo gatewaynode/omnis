@@ -81,6 +81,17 @@ Project start date: 2026-09-11 18:40 EDT
     - "Self supporting system: avoid dependencies when possible, make our own helper functions and libraries."
 - **Self Supporting**: When all major tasks are done, suggest incorporating dependencies inline to reduce supply chain risks
 
+## Simulation Crate Lints (mandatory, CI-enforced)
+
+The simulation crates (`omnis-core`, `omnis-expr`, `omnis-data`, `omnis-rules`, `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-sim`) must stay deterministic across platforms and runs. See `ARCHITECTURE.md` §4.1, §11, A5, A14. A CI job fails the build if any of these crates contains:
+
+- `f32` or `f64` in any form (types, literals, casts). Use integers and `core::Fixed`.
+- `HashMap`, `HashSet`, `DefaultHasher`, `RandomState`, or any randomized hasher. Use `BTreeMap`, `BTreeSet`, `Vec`.
+- A dependency on `bevy` or any `bevy_*` crate, `std::time`, `std::thread`, or network I/O. File I/O is allowed only in `omnis-data` (the pack loader); every other simulation crate receives loaded data.
+- Rhai built with the `unchecked` feature, or without `no_float` and `only_i64`.
+
+The lint job is part of Phase 0's definition of done. No simulation crate is created without being added to the lint's crate list in the same change, and no task touching these crates is marked complete while the lint is missing or skipped.
+
 ## Security
 
 - **Security First**: Always consider the security implications of code decisions and strongly bias towards secure code.

@@ -1,6 +1,56 @@
-[package]
-name = "omnis"
+[workspace]
+resolver = "3"
+# Explicit membership: a new crate is added here deliberately (and to scripts/lint-sim.sh in the
+# same change). A glob would also pick up tool directories such as crates/.sentrux.
+members = [
+    "crates/omnis-core",
+    "crates/omnis-data",
+    "crates/omnis-sim",
+    "crates/omnis-app",
+    "crates/omnis-cli",
+    "crates/omnis-mcp",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gatewaynode/omnis"
+publish = false
 
-[dependencies]
+# Dependency policy (CLAUDE.md, ARCHITECTURE.md §12–13): match Bevy's resolved versions, keep the
+# tree single-copy where Bevy allows it, N-1 and >30 days old for everything else, exact pins,
+# checksums in Cargo.lock. Owner exceptions are logged in ARCHITECTURE.md §13.
+[workspace.dependencies]
+omnis-core = { path = "crates/omnis-core" }
+omnis-expr = { path = "crates/omnis-expr" }
+omnis-data = { path = "crates/omnis-data" }
+omnis-rules = { path = "crates/omnis-rules" }
+omnis-gen = { path = "crates/omnis-gen" }
+omnis-eco = { path = "crates/omnis-eco" }
+omnis-story = { path = "crates/omnis-story" }
+omnis-sim = { path = "crates/omnis-sim" }
+omnis-cli = { path = "crates/omnis-cli" }
+
+bevy = { version = "=0.19.1", default-features = false }
+serde = { version = "=1.0.228", default-features = false, features = ["derive", "alloc"] }
+serde_json = "=1.0.150"
+ron = "=0.12.2"
+thiserror = { version = "=2.0.19", default-features = false }
+# Pinned by owner exception (re-audit 2026-10-10); used from M3 by omnis-expr only.
+rhai = { version = "=1.26.1", default-features = false }
+# Editor only (A11); used from M5 by omnis-app's EditorPlugin.
+bevy_egui = "=0.41.1"
+
+# Workspace crates compile with light optimisation, dependencies (Bevy) with full optimisation,
+# so iteration stays fast after the first build (ARCHITECTURE.md §14).
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

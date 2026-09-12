@@ -14,3 +14,8 @@
 - **What happened**: I offered "SRD content on MM2 structure" as the only hybrid option. The owner chose it, then inverted it after seeing the draft: SRD structure with MM2 adaptations limited to what serves the crawl loop.
 - **Rule**: When two systems could be combined, present both directions as separate options with what each keeps and gives up. A single "hybrid" option hides the real decision.
 - **Rule**: When adapting a mechanic from a secondary source, require a stated reason tied to the core loop. If no reason exists, do not adopt it.
+
+## 2026-09-12 — Verification runs after the last change, never alongside it
+- **What happened**: I launched clippy and tests in the same step as moving a directory into `crates/`. The checks ran against the tree before the move, passed, and I reported M0 green. CI then failed because the workspace glob matched the new directory.
+- **Rule**: The verification run that backs a "done" claim starts only after the final edit to the tree, including moves, renames, and config-only changes. Never run checks concurrently with edits.
+- **Rule**: Anything that changes what the workspace contains (new directory, member list, feature flags) gets a fresh `cargo metadata` before any other check, because every cargo command depends on it.
