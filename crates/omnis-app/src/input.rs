@@ -1,5 +1,5 @@
 //! `InputPlugin`: keys to commands. Arrows or WASD move and turn, Q and E sidestep, Space or
-//! Enter interact, M toggles the automap, F5 saves, F9 loads, Escape quits.
+//! Enter interact, M toggles the automap, F5 saves, F9 loads, Escape pauses.
 
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
 use bevy::prelude::*;
@@ -42,7 +42,7 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::F5 => ShellCommand::Save,
         KeyCode::F9 => ShellCommand::Load,
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
-        KeyCode::Escape => ShellCommand::Quit,
+        KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })
 }

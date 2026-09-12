@@ -295,7 +295,12 @@ fn serve(
             }
         };
         let (Some(world), Some(data)) = (world.as_deref_mut(), data.as_deref_mut()) else {
-            socket.queue(&id, &Err(OpError::bad_request("the game is still booting")));
+            socket.queue(
+                &id,
+                &Err(OpError::bad_request(
+                    "no game is running; start one from the menu or launch with --autostart",
+                )),
+            );
             continue;
         };
         if let Op::Screenshot { path } = &op {
@@ -335,6 +340,9 @@ fn handle(
     {
         match op {
             Op::SaveWrite { path } => {
+                if !world.0.may_save() {
+                    return Err(OpError::failed("the save rule forbids saving here"));
+                }
                 let path = client_path(path, &["ron"])?;
                 save(&world.0, Path::new(path)).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.into() })

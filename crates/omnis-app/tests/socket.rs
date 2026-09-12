@@ -94,6 +94,7 @@ fn boot(dir: &Path) -> (App, SocketAddr) {
             packs: vec![repo.join("packs/base"), repo.join("packs/test")],
             seed: 3,
             save_path: dir.join("quick.ron"),
+            autostart: true,
         })
         .add_plugins((
             SimPlugin,

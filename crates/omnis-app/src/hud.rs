@@ -138,7 +138,7 @@ fn refresh(
             }
             HudLine::Help => {
                 text.0 =
-                    "Arrows/WASD move  QE sidestep  Space use  M map  F5 save  F9 load  Esc quit"
+                    "Arrows/WASD move  QE sidestep  Space use  M map  F5 save  F9 load  Esc menu"
                         .into()
             }
         }

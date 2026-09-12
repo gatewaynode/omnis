@@ -1,4 +1,4 @@
-//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--window <w>x<h>]`.
+//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--autostart] [--window <w>x<h>]`.
 //! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]
 //! [--dev-socket <ip:port>] [--no-dev-socket]`; the dev socket listens on a free loopback port
 //! unless disabled, and writes its address to `.omnis/dev.addr`.
@@ -6,7 +6,7 @@
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use omnis_app::{AppConfig, assets, hud, input, pixel, sim, viewport};
+use omnis_app::{AppConfig, assets, hud, input, menus, party_panel, pixel, sim, viewport};
 use std::path::PathBuf;
 
 #[cfg(feature = "devtools")]
@@ -55,6 +55,7 @@ fn parse_args() -> Result<Launch, String> {
                 seeded = true;
             }
             "--save" => config.save_path = PathBuf::from(args.next().ok_or("--save needs a file")?),
+            "--autostart" => config.autostart = true,
             "--window" => {
                 let value = args.next().ok_or("--window needs <width>x<height>")?;
                 let (w, h) = value
@@ -108,8 +109,10 @@ fn parse_args() -> Result<Launch, String> {
         config.packs = AppConfig::default().packs;
     }
     if !seeded {
-        config.seed = entropy_seed();
+        config.seed = omnis_app::entropy_seed();
     }
+    // A seed, a script, or a capture means an unattended run: skip the menus.
+    config.autostart |= seeded || script_given(&script);
     Ok(Launch {
         config,
         script,
@@ -118,12 +121,13 @@ fn parse_args() -> Result<Launch, String> {
     })
 }
 
-/// A seed from the clock. The simulation never touches entropy; it only receives the number.
-fn entropy_seed() -> u64 {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    omnis_sim::omnis_core::splitmix64(nanos as u64 ^ (nanos >> 64) as u64)
+#[cfg(feature = "devtools")]
+fn script_given(script: &Script) -> bool {
+    !script.commands.is_empty() || script.screenshot.is_some()
+}
+#[cfg(not(feature = "devtools"))]
+fn script_given(_script: &Script) -> bool {
+    false
 }
 
 fn main() -> AppExit {
@@ -163,6 +167,8 @@ fn main() -> AppExit {
         assets::PackAssetPlugin,
         viewport::ViewportPlugin,
         hud::HudPlugin,
+        menus::MenusPlugin,
+        party_panel::PartyPanelPlugin,
     ));
     #[cfg(feature = "devtools")]
     {

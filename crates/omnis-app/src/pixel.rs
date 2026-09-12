@@ -78,9 +78,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 /// Integer scale: the reciprocal of the rounded smaller window-to-canvas ratio.
 #[must_use]
 pub fn integer_scale(window_width: f32, window_height: f32) -> f32 {
-    let h = window_width / CANVAS_WIDTH as f32;
-    let v = window_height / CANVAS_HEIGHT as f32;
-    1.0 / h.min(v).round().max(1.0)
+    1.0 / crate::layout::window_scale(window_width, window_height)
 }
 
 fn fit_canvas(

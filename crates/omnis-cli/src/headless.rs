@@ -53,6 +53,9 @@ impl Headless {
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
         match op {
             Op::SaveWrite { path } => {
+                if !self.world.may_save() {
+                    return Err(OpError::failed("the save rule forbids saving here"));
+                }
                 let file = PathBuf::from(client_path(path, &["ron"])?);
                 let text = self.world.to_ron().map_err(OpError::failed)?;
                 if let Some(parent) = file.parent().filter(|p| !p.as_os_str().is_empty()) {
