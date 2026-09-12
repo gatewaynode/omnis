@@ -24,7 +24,7 @@
 - [ ] Plan Phase 0 tasks (after compact)
 - [ ] Sentrux review once code exists
 
-## Delivery plan (2026-09-12, awaiting owner approval)
+## Delivery plan (2026-09-12, approved)
 
 Owner direction: reach a user-testable app as soon as feasible, then widen across the full scope while there is something to test. So: one vertical slice first (M0–M2), then each later milestone adds one system end to end (data schema → sim → app UI → MCP tool → CLI → tests) so every milestone leaves a build the owner can play. This reorders PRD §13 (Phase 0 there has no app); see the check-in questions at the end.
 
@@ -52,7 +52,7 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - `assets/simple-hallway*.png` (two photographic 3D renders) arrived during M0 with no licence file; they are untracked until the owner states their source and terms.
 
 ### M1 — Walkable: first user-testable build
-- [ ] `omnis-core`: typed ID newtypes, `Fixed` (i64, 1/1000), `Pcg32` with named streams (`fnv1a64`, `splitmix64`, `RollTrace`), `Direction`, `Rotation`, `Position`, `Clock`, error type. Tests: PCG32 known-answer vectors, stream derivation golden values, `Fixed` arithmetic edge cases
+- [x] `omnis-core` (2026-09-12): typed ID newtypes, `Fixed` (i64, 1/1000), `Pcg32` with named streams (`fnv1a64`, `splitmix64`, `RollTrace`), `Direction`, `Rotation`, `Position`, `Clock`, error type. Tests: PCG32 known-answer vectors, stream derivation golden values, `Fixed` arithmetic edge cases
 - [ ] `omnis-data`: `pack.ron` manifest, `tiles/*.ron` (tileset with `detail_depth`, `width`, per-depth slot sprite paths), `maps/*.ron` (terrain, wall masks, doors, start tile, per-tile visibility depth), `text/<lang>`, `Registry` with ID interning, loader that collects every error, path normalization and size limits from ARCH §6.2, RON read and write. Tests: `packs/test` loads; `tests/packs-bad/` corpus rejected with expected error lists; write→read round trip
 - [ ] `omnis-sim`: `World` (schema, packs, rngs, clocks with the party holder only, position, maps, automap, mode `Explore`, flags, settings), `Command::{Step, Turn, Interact}`, `Event::{Moved, Blocked, Visible, TimeAdvanced}`, `query::viewport` with detail-depth cut and visibility-depth cone, `query::automap`, `query::path`, save/load RON, `World::fingerprint`, `World::log`. Tests: movement and wall blocking on the test map, doors, automap fill, save round trip, one recorded replay under `tests/replays/` with a golden fingerprint
 - [ ] `omnis-app`: pixel pipeline (`pixel_grid_snap` pattern, `default_nearest`, internal resolution placeholder), `PackAssetPlugin` (images by pack-relative path, magenta placeholder for missing), `SimPlugin` (`SimWorld` resource, ordered `collect → apply → publish` set, events as `Message`s), `InputPlugin` (arrows/WASD/QE, F5 save, F9 load), `ViewportPlugin` (detail rows from tileset slots, procedural horizon band), minimal `HudPlugin` (position, facing, clock, last message), automap overlay toggle, states `Boot → Playing::Explore` (main menu comes with M3). Smoke test: `MinimalPlugins` + `run_once`, boot, step, no panic
