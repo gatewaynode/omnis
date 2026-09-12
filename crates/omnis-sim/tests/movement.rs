@@ -184,7 +184,11 @@ fn trees_are_opaque() {
         "open ground straight ahead and to the left"
     );
     assert!(at(21, 10), "the nearest tree is seen");
-    assert!(!at(21, 9), "the tile behind it is not");
+    assert!(
+        at(21, 9),
+        "the tile behind a lone tree shows past its corner"
+    );
+    assert!(!at(22, 9), "but nothing behind the clump's edge");
     assert!(!at(23, 9) && !at(24, 8), "nor anything past the clump");
     assert!(at(19, 8), "but the line that skirts the clump is clear");
 }
@@ -356,13 +360,22 @@ fn sealed_walls_pillars_and_empty_edges() {
         }]
     );
     let view = query::viewport(&world, &data).unwrap();
+    let at = |x: u16, y: u16| view.tiles.iter().any(|t| (t.x, t.y) == (x, y));
+    assert!(at(3, 3), "the pillar is seen");
+    assert!(!at(4, 3), "but not through");
     assert!(
-        view.tiles.iter().any(|t| (t.x, t.y) == (3, 3)),
-        "the pillar is seen"
+        at(3, 2) && at(3, 4),
+        "the diagonals beside a pillar are seen round the corner"
+    );
+    assert!(at(5, 0), "and the far corner past them");
+    assert!(
+        !at(5, 5),
+        "the other far corner lies squarely behind the pillar"
     );
     assert!(
-        !view.tiles.iter().any(|t| (t.x, t.y) == (4, 3)),
-        "but not through"
+        view.tiles.len() >= 10,
+        "a lit room is mostly visible: {}",
+        view.tiles.len()
     );
 
     // Interacting with a plain wall says so.

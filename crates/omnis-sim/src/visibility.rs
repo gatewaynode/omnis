@@ -4,8 +4,11 @@
 //! A tile at `(depth, offset)` is visible when a straight line from the party's tile reaches
 //! it: the line is walked one orthogonal tile step at a time (a supercover line, so every
 //! consecutive pair of tiles shares an edge), each shared edge must be open, and every tile
-//! before the target must be see-through. Opaque tiles are seen but not seen through. All
-//! arithmetic is integer, so the cone is identical on every platform.
+//! before the target must be see-through. Opaque tiles are seen but not seen through. A tile
+//! is seen if the ray to its centre or to any of its corners gets there, and where a ray
+//! passes exactly through a corner either way round it may be taken, so a pillar hides only
+//! what lies squarely behind it. All arithmetic is integer, so the cone is identical on every
+//! platform.
 
 use crate::command::SeenTile;
 use crate::world::{MapState, World};
@@ -41,33 +44,68 @@ pub fn depth_from(map: &MapData, pos: Position) -> u8 {
         .map_or(0, |c| map.terrain(c).visibility_depth)
 }
 
-/// Whether `(x1, y1)` can be seen from `(x0, y0)`.
+/// Whether `to` can be seen from `from`: a ray from the centre of `from` reaches the centre
+/// of `to` or any of its four corners. Each ray is tried both ways round every exact corner
+/// crossing.
 fn line_of_sight(
     map: &MapData,
     state: Option<&MapState>,
-    (x0, y0): (u16, u16),
-    (x1, y1): (u16, u16),
+    from: (u16, u16),
+    to: (u16, u16),
 ) -> bool {
-    let opaque = |x: u16, y: u16| map.cell(x, y).is_some_and(|c| map.terrain(c).opaque);
-    let (dx, dy) = (i32::from(x1) - i32::from(x0), i32::from(y1) - i32::from(y0));
+    let start = (2 * i32::from(from.0) + 1, 2 * i32::from(from.1) + 1);
+    let (tx, ty) = (2 * i32::from(to.0), 2 * i32::from(to.1));
+    let ends = [
+        (tx + 1, ty + 1),
+        (tx, ty),
+        (tx + 2, ty),
+        (tx, ty + 2),
+        (tx + 2, ty + 2),
+    ];
+    ends.iter().any(|&end| {
+        walk(map, state, from, to, start, end, true)
+            || walk(map, state, from, to, start, end, false)
+    })
+}
+
+/// One supercover walk from the point `start` (a tile centre) to the point `end`, in half-tile
+/// coordinates where tile `(x, y)` spans `[2x, 2x + 2]`. Every boundary crossing checks the
+/// edge it passes; a tile other than the origin blocks further travel when it is opaque.
+/// `x_first` decides which way round an exact corner crossing goes. Succeeds on entering
+/// `target`, or on arriving at `end` (a point on the target's boundary) unblocked.
+fn walk(
+    map: &MapData,
+    state: Option<&MapState>,
+    from: (u16, u16),
+    target: (u16, u16),
+    start: (i32, i32),
+    end: (i32, i32),
+    x_first: bool,
+) -> bool {
+    let (dx, dy) = (end.0 - start.0, end.1 - start.1);
     let (nx, ny) = (dx.abs(), dy.abs());
+    // Boundaries lie at even coordinates; from an odd start they sit at distances 1, 3, 5, ...
+    let (crossings_x, crossings_y) = ((nx + 1) / 2, (ny + 1) / 2);
     let step_x = if dx > 0 { Facing::East } else { Facing::West };
     let step_y = if dy > 0 { Facing::South } else { Facing::North };
-    let (mut x, mut y) = (x0, y0);
+    let (mut x, mut y) = from;
     let (mut ix, mut iy) = (0, 0);
-    while ix < nx || iy < ny {
-        // Which tile boundary does the line from centre to centre cross next? Compare the
-        // parameters t at which x = ix + 1/2 and y = iy + 1/2, cross-multiplied.
+    if (x, y) == target {
+        return true;
+    }
+    while ix < crossings_x || iy < crossings_y {
         let toward_x = (2 * ix + 1) * ny;
         let toward_y = (2 * iy + 1) * nx;
-        let facing = if iy >= ny || (ix < nx && toward_x <= toward_y) {
+        let step_x_now = iy >= crossings_y
+            || (ix < crossings_x && (toward_x < toward_y || (toward_x == toward_y && x_first)));
+        let facing = if step_x_now {
             ix += 1;
             step_x
         } else {
             iy += 1;
             step_y
         };
-        if (x, y) != (x0, y0) && opaque(x, y) {
+        if (x, y) != from && map.cell(x, y).is_some_and(|c| map.terrain(c).opaque) {
             return false;
         }
         if !edge_open(map, state, x, y, facing) {
@@ -76,6 +114,12 @@ fn line_of_sight(
         let (fx, fy) = facing.delta();
         x = u16::try_from(i32::from(x) + fx).unwrap_or(u16::MAX);
         y = u16::try_from(i32::from(y) + fy).unwrap_or(u16::MAX);
+        if map.cell(x, y).is_none() {
+            return false;
+        }
+        if (x, y) == target {
+            return true;
+        }
     }
     true
 }
