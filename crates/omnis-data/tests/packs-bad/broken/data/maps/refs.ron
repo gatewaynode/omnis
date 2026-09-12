@@ -9,8 +9,9 @@
     start: (0, 0, North),
     wall: (front: "nowhere", left: "floor", right: "wall.right"),
     door: "door",
+    door_open: Some("floor"),
     terrains: [
-        (glyph: ',', name: "grass", floor: "sky", ceiling: Some("floor"), passable: true, visibility_depth: 12, step_minutes: 2),
+        (glyph: ',', name: "grass", floor: "sky", ceiling: Some("floor"), block: Some("sky"), passable: true, visibility_depth: 12, step_minutes: 2),
     ],
     layout: [
         "+-+",
