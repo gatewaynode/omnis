@@ -9,3 +9,7 @@ pub mod headless;
 pub mod schema;
 
 pub use headless::{Headless, HeadlessError};
+
+// The MCP bridge depends on this crate alone (ARCHITECTURE.md §3); the simulation's protocol
+// types reach it through this re-export.
+pub use omnis_sim;
