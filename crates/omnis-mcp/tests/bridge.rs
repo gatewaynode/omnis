@@ -109,10 +109,21 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
     assert_eq!(reply["result"]["content"][0]["type"], json!("text"));
     assert_eq!(reply["result"]["isError"], json!(false));
     let reply = server.tool(5, "sim_command", json!({"command": {"Step": "Forward"}}));
+    let events = reply["result"]["structuredContent"]["events"]
+        .as_array()
+        .unwrap();
+    assert!(events[0]["Moved"].is_object(), "{reply}");
+    let visible = events.iter().find(|e| e.get("Visible").is_some()).unwrap();
     assert!(
-        reply["result"]["structuredContent"]["events"][0]["Moved"].is_object(),
-        "{reply}"
+        visible["Visible"]["count"].as_u64().unwrap() > 10,
+        "{visible}"
     );
+    assert!(
+        visible["Visible"].get("tiles").is_none(),
+        "tiles compact to a count"
+    );
+    let text = reply["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(!text.contains("\"depth\""), "no tiles in the text either");
     let reply = server.tool(6, "world_query", json!({"path": "position.y"}));
     assert_eq!(reply["result"]["structuredContent"]["value"], json!("15"));
     let reply = server.tool(7, "map_text", json!({"map": "test:map:dungeon"}));

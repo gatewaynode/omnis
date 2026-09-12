@@ -214,6 +214,7 @@ impl Bridge {
     }
 
     fn success(&self, tool: &tools::Tool, value: Value) -> Value {
+        let value = compact_visible(value);
         let mut content = Vec::new();
         match tool.op {
             "map.text" => content.push(json!({"type": "text", "text": value["text"].as_str().unwrap_or("")})),
@@ -230,4 +231,23 @@ impl Bridge {
         }
         json!({"content": content, "isError": false, "structuredContent": value})
     }
+}
+
+/// Replace every `Visible` event's tile list with its count: a script of twenty steps on the
+/// meadow otherwise returns thousands of tiles the model did not ask for. `viewport_get`
+/// and `automap_get` are the tools for tiles.
+fn compact_visible(mut value: Value) -> Value {
+    if let Some(events) = value.get_mut("events").and_then(Value::as_array_mut) {
+        for event in events {
+            if let Some(tiles) = event
+                .get_mut("Visible")
+                .and_then(|v| v.get_mut("tiles"))
+                .and_then(Value::as_array_mut)
+            {
+                let count = tiles.len();
+                event["Visible"] = json!({"count": count});
+            }
+        }
+    }
+    value
 }
