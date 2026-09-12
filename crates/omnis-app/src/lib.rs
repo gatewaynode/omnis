@@ -12,6 +12,7 @@
 pub mod assets;
 #[cfg(feature = "devtools")]
 pub mod dev;
+pub mod font;
 pub mod hud;
 pub mod input;
 pub mod layout;
@@ -20,6 +21,7 @@ pub mod menus;
 pub mod party_panel;
 pub mod pixel;
 pub mod plan;
+pub mod raster;
 pub mod sim;
 #[cfg(feature = "devtools")]
 pub mod socket;
