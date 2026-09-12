@@ -1,0 +1,454 @@
+# Omnis — Architecture
+
+| | |
+|---|---|
+| Status | Draft v0.1, derived from `PRD.md` v0.2 |
+| Date | 2026-09-11 |
+| Owner | john@gatewaynode.com |
+| Scope | How the system is built. What and why live in `PRD.md`. |
+
+Every section cites the PRD goal, decision, or constraint it serves. When this document and the PRD disagree, the PRD wins and this document is wrong.
+
+---
+
+## 1. Principles
+
+These follow from PRD goals 2, 3, 7 and constraints §11, and from the owner's direction that rules will be tweaked heavily and features will keep arriving.
+
+1. **The simulation is a library.** Rules, world state, combat, exploration, ecosystem, and story run as pure Rust with no Bevy, no I/O, no wall clock, no threads. Input is a command; output is a list of events. Everything else (renderer, editor, MCP, CLI, tests, future co-op) is a client of that library.
+2. **Everything is data, including formulas.** Content is RON. Rule formulas are expressions in RON evaluated by a small in-house language. Changing a number or a formula never requires a rebuild.
+3. **Events are the only way out.** The simulation never calls a client. Clients read the event log and query the world. This is what makes replay, tests, MCP, and co-op the same problem.
+4. **Boundaries are crates.** Cargo enforces the dependency direction; a crate that must not know Bevy cannot import it.
+5. **Thin adapters at every edge.** Bevy is wrapped once, in one crate. MCP is a separate binary that speaks a private protocol to the game. Both can be replaced without touching the simulation.
+6. **Untrusted input everywhere.** Packs, saves, socket messages, and expressions are validated with limits before use (PRD §11.3, R8).
+7. **Small files, small crates.** Files at or under 1000 lines; a crate does one thing (`CLAUDE.md`).
+
+## 2. System overview
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    APP[omnis-app<br/>Bevy: viewport, UI, editor]
+    CLI[omnis-cli<br/>headless: validate, gen, play scripts]
+    MCP[omnis-mcp<br/>stdio MCP bridge]
+    TEST[tests]
+  end
+  subgraph sim [Simulation library, no Bevy]
+    SIM[omnis-sim<br/>World, Command, Event, apply, query]
+    RULES[omnis-rules]
+    GEN[omnis-gen]
+    ECO[omnis-eco]
+    STORY[omnis-story]
+    DATA[omnis-data<br/>schemas, packs, loader, validator]
+    EXPR[omnis-expr]
+    CORE[omnis-core<br/>ids, int math, rng, calendar]
+  end
+  APP --> SIM
+  CLI --> SIM
+  TEST --> SIM
+  MCP -. localhost socket .-> APP
+  MCP -. in-process headless .-> CLI
+  SIM --> RULES & GEN & ECO & STORY
+  RULES & GEN & ECO & STORY --> DATA
+  DATA --> EXPR
+  RULES & ECO & STORY --> EXPR
+  DATA & EXPR & SIM --> CORE
+```
+
+The game loop, in words: a client turns player input into a `Command`; `omnis-sim::apply` mutates the `World` and returns `Vec<Event>`; the client renders the events and the new state. The MCP bridge is just another client that sends commands and queries over a socket.
+
+## 3. Workspace and crates
+
+Cargo workspace at the repository root. Crates under `crates/`. Names use the `omnis-` prefix; binary names are `omnis`, `omnis-cli`, `omnis-mcp`.
+
+| Crate | Kind | Purpose | Allowed dependencies |
+|---|---|---|---|
+| `omnis-core` | lib | Typed IDs, integer and fixed-point math, dice, deterministic RNG (own PCG32), calendar and time, ordered collection aliases, error type. | `serde` |
+| `omnis-expr` | lib | Rule expression language: lexer, parser, validator, evaluator, context trait. | `serde` (for embedding in RON) |
+| `omnis-data` | lib | Schema structs for every content type, pack manifest, pack loader, ID registry and interning, validation with limits, schema versions and migrations, RON read and write. | `core`, `expr`, `serde`, `ron` |
+| `omnis-rules` | lib | SRD-derived mechanics as pure functions: character build, checks, attacks, saves, damage and conditions, spell points and components, leveling, rest. | `core`, `expr`, `data` |
+| `omnis-gen` | lib | Procedural generation layers producing ordinary map and region data. | `core`, `data` |
+| `omnis-eco` | lib | Regional ecosystem state, typed region events, daily tick. | `core`, `expr`, `data` |
+| `omnis-story` | lib | Quest graphs, quest templates, static completability check, journal. | `core`, `expr`, `data`, `eco` (types only) |
+| `omnis-sim` | lib | The orchestrator: `World`, `Command`, `Event`, `apply`, `query`, save and load, replay. Owns exploration, visibility, combat state machine, towns, party, time. | all of the above |
+| `omnis-app` | bin `omnis` | Bevy application: presentation, input, audio, editor, pack asset loading, dev socket server. The only crate that imports Bevy. | `sim` and Bevy |
+| `omnis-cli` | bin `omnis-cli` | Headless tool: validate packs, generate worlds, render maps as text, run command scripts, replay saves, dump schemas. Also exposes a library so `omnis-mcp` can run headless. | `sim` |
+| `omnis-mcp` | bin `omnis-mcp` | MCP bridge: JSON-RPC over stdio to Claude Code, private protocol to the game socket, or in-process headless via `omnis-cli`. | `serde_json`, `omnis-cli` (lib) |
+
+Rules the dependency graph enforces:
+- Nothing below `omnis-app` may depend on Bevy. CI greps `Cargo.lock` paths to prove it.
+- `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-rules` are leaves that never import each other, except `story` reading `eco` types. Cross-cutting flows go through `omnis-sim`.
+- Only `omnis-data` reads or writes files. Everything else receives loaded data.
+
+## 4. Simulation model (`omnis-sim`)
+
+Serves PRD goal 7 (determinism), D5 (co-op later), and the MCP requirement.
+
+### 4.1 World
+
+```rust
+pub struct World {
+    pub schema: u32,                 // save schema version
+    pub packs: Vec<PackFingerprint>, // id, version, content hash
+    pub rng: Pcg32,                  // state and stream counter, serialized
+    pub calendar: Calendar,          // year, day, minute
+    pub party: Party,                // up to 6 members (D10), gold, gems, food, inventory
+    pub position: Position,          // map, tile, facing
+    pub maps: BTreeMap<MapId, MapState>,   // mutable per-map state; static tiles come from data
+    pub regions: BTreeMap<RegionId, RegionState>,
+    pub automap: Automap,            // per-map known tiles with layer bits and seen-at time
+    pub quests: QuestState,
+    pub mode: Mode,                  // Explore | Combat(CombatState) | Town(ServiceState) | ...
+    pub flags: BTreeMap<FlagId, i64>,
+    pub settings: Difficulty,        // save rule, permadeath (D17)
+}
+```
+
+- All collections are ordered (`BTreeMap`, `Vec`); iteration order is part of determinism.
+- All numbers are integers. Ratios use `core::Fixed` (i64 with 1/1000 scale) where needed. No `f32` or `f64` anywhere in the simulation crates; CI denies the types with a lint.
+- The world is `serde::Serialize + Deserialize`; a save is the world in RON (D15), optionally compressed on disk.
+- `World::fingerprint()` hashes the canonical serialization; equal fingerprints on two platforms is the determinism test.
+
+### 4.2 Command and Event
+
+```rust
+pub enum Command {
+    Step(Direction),            // forward or back
+    Turn(Rotation),
+    Interact,                   // door, sign, NPC, trigger on the facing tile
+    Rest,
+    Party(PartyCommand),        // create, reorder, exchange, dismiss hireling
+    Service(ServiceCommand),    // inn, temple, trainer, smith, tavern, bank, guild
+    Combat(CombatCommand),      // per actor: attack, cast, use, dodge, exchange, run
+    Encounter(EncounterChoice), // attack, bribe, hide, run
+    Cast(SpellCast),            // out of combat
+    UseItem(ItemUse),
+    Sense(SenseSource),         // spyglass, scouting, divination (PRD §7.2)
+    Journal(JournalCommand),
+    Dev(DevCommand),            // feature "devtools" only: teleport, set flag, tick eco, set rule
+}
+
+pub enum Event {
+    Moved { from: Position, to: Position },
+    Blocked { reason: BlockReason },
+    TimeAdvanced { minutes: u32, day_rolled: bool },
+    Visible { tiles: Vec<SeenTile> },        // what the party perceives this turn
+    EncounterStarted { stacks: Vec<StackRef>, surprise: Surprise },
+    Initiative { order: Vec<ActorRef> },
+    AttackResolved { attacker, target, roll: RollTrace, outcome },
+    Damage { target, amount, kind },
+    Condition { target, condition, applied: bool },
+    SpellCast { caster, spell, points, components_consumed },
+    Death { target },
+    CombatEnded { outcome, xp, loot },
+    LevelUp { member, level, gains },
+    Region(RegionEvent),                     // from omnis-eco
+    Quest(QuestEvent),                       // from omnis-story
+    Message { key: TextKey, args: Vec<Arg> }, // localized by clients
+    Saved, Loaded,
+}
+```
+
+- `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs.
+- Every dice roll produces a `RollTrace` in the event so a client can show the math and a test can assert it.
+- Events are appended to `World::log` (bounded ring in release, unbounded in dev) so MCP `events.tail` and replay work.
+- Text never appears in events; only keys and arguments. Clients localize from pack `text/`.
+
+### 4.3 Query
+
+Read-only views for clients: `query::party(&World)`, `query::viewport(&World, &Data) -> ViewportModel` (the tiles within visibility depth, with detail-depth cut, see §8.3), `query::automap(map)`, `query::region(id)`, `query::journal()`, `query::path(&World, "party.members[0].hp")` for MCP's generic inspector. Queries never mutate and never roll dice.
+
+### 4.4 Turn and time
+
+- A command may consume time. Time is minutes on a calendar (year, day of 360, minute of 1440; the calendar shape is data). Stepping outdoors, resting, and services cost data-defined minutes.
+- When a day boundary passes, `omnis-sim` runs `omnis-eco::tick` for every loaded region and folds its `RegionEvent`s into the event list. Lazy: regions not yet materialized keep a "last ticked" day and catch up on first materialization by running the missed ticks from their seed.
+- Night is a calendar predicate used by rules and visibility.
+
+### 4.5 Combat state machine
+
+`Mode::Combat(CombatState)` holds initiative order, the party rows, monster stacks in order, per-actor resources this round, and round count. Transitions: `Encounter → (choice) → Combat → (all stacks dead | party fled | party dead) → Explore`. Each `CombatCommand` is validated against whose turn it is. Monster turns are resolved by `omnis-rules::monster_ai` when the next actor is a monster, before returning events, so one player command may produce many actors' worth of events.
+
+### 4.6 Replay and co-op readiness
+
+A `Replay` is `(initial World fingerprint, pack fingerprints, Vec<Command>)`. Applying the commands to the same initial world must reproduce the final fingerprint; this is a CI test. Networked co-op later is "share the command stream", which is why commands carry no client-side state.
+
+## 5. Rule expression language (`omnis-expr`)
+
+Serves the owner's direction that rules will change a lot, PRD goal 2, and D12 (formula is data).
+
+### 5.1 Scope
+Integers and booleans only. No strings, loops, assignment, recursion, or user functions. This is a formula language, not a script; scripting remains a later horizon (PRD §13).
+
+Grammar:
+```
+expr     := or
+or       := and ("or" and)*
+and      := not ("and" not)*
+not      := "not" not | cmp
+cmp      := sum (("<" | "<=" | "==" | "!=" | ">=" | ">") sum)?
+sum      := prod (("+" | "-") prod)*
+prod     := unary (("*" | "/" | "%") unary)*      // "/" is floor division
+unary    := "-" unary | primary
+primary  := int | "true" | "false" | ident | call | "(" expr ")" | "if" expr "then" expr "else" expr
+ident    := name ("." name)*                     // e.g. caster.level, target.ac
+call     := name "(" (expr ("," expr)*)? ")"     // min max clamp abs d(n, sides) floor_div
+```
+
+### 5.2 Evaluation
+- Parsed once at pack load into an AST; parse errors are pack validation errors with file, line, and column.
+- Every formula slot (for example `rules.spell_points.pool`) declares its input names in `omnis-data`; the validator rejects unknown identifiers at load, not at play.
+- `d(n, sides)` draws from the `Context`'s RNG, which is the world's RNG, so dice in formulas are deterministic and appear in `RollTrace`.
+- Limits: 256 AST nodes, depth 32, and integer overflow is a rejection, not a wrap.
+- Hot swap: `Data::rules` is a map from slot to AST; `DevCommand::SetRule(slot, source)` reparses and replaces in dev builds.
+
+### 5.3 Example rules slots (data, not code)
+```ron
+// packs/base/data/rules/casting.ron
+(
+  schema: 1,
+  spell_points: (
+    inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
+    pool: "max(level, (if half_caster then level / 2 else level) * cast_mod + other_mental_mods)",
+    cost: "spell_level",
+  ),
+  component_threshold: 5,
+)
+```
+
+## 6. Data model and packs (`omnis-data`)
+
+Serves PRD goals 2 and 3, D3, D15, §10, §11.3.
+
+### 6.1 Pack layout
+```
+packs/<pack_id>/
+  pack.ron            # manifest: id, version, name, license, attribution, depends, schema
+  data/
+    races/*.ron  classes/*.ron  backgrounds/*.ron  spells/*.ron  monsters/*.ron
+    items/*.ron  conditions/*.ron  tiles/*.ron  maps/*.ron  regions/*.ron
+    quests/*.ron  templates/*.ron  eco/*.ron  rules/*.ron  tables/*.ron
+  text/<lang>/*.ron   # TextKey -> string with {arg} placeholders
+  assets/
+    tilesets/  sprites/  ui/  fonts/  audio/
+```
+- Every data file is one RON struct with a `schema: u32` field first. Migrations are functions `vN -> vN+1` registered per type; loading an old schema runs them in order and reports it.
+- IDs are strings `pack:type:name` in files and are interned to `u32` newtypes (`SpellId`, `MonsterId`, ...) in a `Registry` at load. Unknown references are load errors with the referencing file named.
+- Later packs override earlier packs by ID. The manifest declares `depends: ["base >= 1.0"]` and load order is a topological sort; cycles are errors.
+- The base campaign is `packs/base`. A mod is any other directory in the user's packs folder. The editor writes the same format.
+
+### 6.2 Validation as untrusted input
+Applies to packs, saves, and anything crossing the dev socket.
+- Path normalization; any component of `..`, absolute paths, or symlinks out of the pack root is rejected.
+- Size limits per file (4 MB text), per pack (256 MB), per map (256×256 tiles), per collection (65 536 entries), per string (4 KB).
+- Asset extensions whitelisted; images are decoded with dimension caps before upload.
+- RON is parsed with a recursion limit. Expressions have the limits in §5.2.
+- Every error is collected, not short-circuited; the report lists all of them with file and line. The game never panics on bad data; it refuses the pack.
+
+### 6.3 Attribution
+`pack.ron` carries `attribution: [(source, license, text)]`. The base pack carries the SRD 5.1 CC-BY-4.0 notice (PRD §11.2). The credits screen renders every loaded pack's attribution.
+
+## 7. World, generation, ecosystem, story
+
+### 7.1 Map and world graph
+- A **map** is a rectangular tile grid up to 256×256 with a tile type per cell, a wall mask per edge (N, E, S, W), objects, triggers, and a kind (outdoor, town, dungeon, special). MM2's 16×16 is a size, not a rule.
+- A **region** is an ecosystem unit that owns one outdoor map and any number of sub-maps (towns, dungeons). Regions tile the world in a grid; region edges link to neighbours.
+- Maps link through **portals** (stairs, doors, edges, teleporters), each a typed tile trigger.
+- A map or region may be `Materialized(data)` or `Pending { seed, params }`. The simulation materializes on first entry by calling `omnis-gen` and stores the result in the save. Nothing else distinguishes generated from authored content (PRD §9.1).
+
+### 7.2 Generation (`omnis-gen`)
+Layered pipeline, each layer a pure function `(seed, params, prior layers) -> layer data`, run from a per-layer sub-seed so re-running one layer does not change the others: terrain → hydrology and roads → settlements → dungeons → encounters and loot → quest hooks. Each layer output is ordinary `omnis-data` structs. A `LockMask` per map marks tiles the editor has hand-edited; regeneration of a layer skips locked tiles. Golden tests pin seed → fingerprint on all CI platforms.
+
+### 7.3 Ecosystem (`omnis-eco`)
+Serves PRD §9.2 and the NPC-agency forward compatibility requirement.
+```rust
+pub struct RegionState {
+    pub populations: BTreeMap<CreatureGroupId, u32>,
+    pub factions: BTreeMap<FactionId, FactionStanding>,
+    pub resources: BTreeMap<ResourceId, u32>,
+    pub prosperity: u32, pub danger: u32, pub weather: WeatherState,
+    pub actors: BTreeSet<ActorId>,     // named entities present; empty in v1 content
+    pub last_tick_day: u32,
+}
+pub enum RegionEvent { PopulationChanged, FactionShift, ResourceChanged, WeatherChanged, ActorMoved, ActorActed, Derived(Outputs) }
+```
+- State changes only through `apply_region_event`. Rules in `data/eco/*.ron` are expressions over region inputs that emit events. Player actions that touch a region (clearing a lair, trading) are emitted by `omnis-sim` as region events through the same path.
+- `tick(region, neighbours, rules, rng)` runs ordered phases: environment, populations, factions, actors (no-op in v1), economy, derived outputs. Adding NPC agency later inserts logic into the actors phase without changing the others.
+- Derived outputs (encounter table weights, price multipliers, rumor keys, generated quest availability) are recomputed each tick and read by `omnis-sim` and `omnis-story`.
+- Budget: a region tick is a few hundred integer ops; 1000 regions tick well under 100 ms (PRD §9.2).
+
+### 7.4 Story (`omnis-story`)
+- **Quest graph**: nodes (`Dialogue`, `Choice`, `Check`, `SetFlag`, `Reward`, `Spawn`, `MapChange`, `End`) with edges guarded by expressions over `{flags, party, calendar, region, quest}`. Stored in `data/quests/*.ron`, edited in the editor's graph view.
+- **Static check** at pack load: every node reachable from start reaches an `End`; every `Check` has both outcomes wired; every referenced flag, item, monster, and map exists. Failures are validation errors (PRD §9.3).
+- **Templates** in `data/templates/*.ron` declare `requires` (bindings: a town, a dungeon within N regions, a creature group with population above X), `instantiate` (the graph to stamp with bindings substituted), and `effects` (region events on completion). `omnis-sim` asks `omnis-story` for candidate templates in a town each tick and instantiates deterministically from the world RNG.
+- The journal is a query over `QuestState`.
+
+## 8. Presentation (`omnis-app`)
+
+Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources on 2026-09-11.
+
+### 8.1 Structure
+- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys and gamepad to `Command`), `ViewportPlugin`, `HudPlugin`, `MenusPlugin`, `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
+- Bevy features: `default-features = false, features = ["2d", "ui", "png"]`, plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
+- App states (`bevy_state`): `Boot → MainMenu → {NewGame, Load} → Playing | Editor`, with `SubStates` under `Playing`: `Explore | Encounter | Combat | Service | Journal | Paused`. `OnEnter` and `OnExit` build and tear down presentation entities per state.
+- The `World` is a Bevy `Resource` wrapped in `SimWorld` (in 0.19 resources are components on singleton entities; `Res` and `ResMut` are unchanged). Only `SimPlugin` systems mutate it, in one ordered system set in `Update`: `collect commands → apply → push events`. All other systems read events from a buffered `Message` queue (`MessageWriter`/`MessageReader`, 0.19's name for the old buffered events) and read the world through `query::*`. Bevy's ECS holds presentation entities only (sprites, UI nodes, sounds); it never holds game state.
+- Simulation events are re-published as Bevy messages one to one; observers (`On<E>`) are used only for presentation-internal triggers (a floating number finished, a menu closed).
+- Events drive animation. A `Damage` event spawns a floating number; `Moved` starts a step transition; `Visible` updates the viewport model. Presentation may lag the simulation by an animation queue, but the simulation is never blocked by it.
+
+### 8.2 Pixel pipeline
+- Fixed internal resolution (PRD §14, to decide with art; placeholder 320×180 or 480×270) using the pattern from Bevy's `pixel_grid_snap` example: an inner `Camera2d` rendering to an `Image` target on its own render layer with MSAA off, an outer camera showing that canvas as a sprite, and a resize system that sets the outer projection scale to the reciprocal of the rounded minimum of the horizontal and vertical scale factors, which yields integer scaling. `ImagePlugin::default_nearest()` for all sampling. UI text renders on the outer camera at native resolution so it stays readable.
+- Asset loading: `omnis-data` loads packs to structs outside Bevy's asset system, because packs are validated data, not assets. A small custom `AssetLoader` (0.19 signature: async `load(reader, settings, load_context)`) handles only pack images and audio by pack-relative path into `Handle<Image>` and atlases. No RON goes through Bevy's asset system; Bevy has no generic RON loader and does not need one here. Missing assets resolve to a generated magenta placeholder (PRD §10).
+
+### 8.3 Viewport contract (D16)
+- `query::viewport` returns a `ViewportModel`: a forward cone of tiles up to visibility depth, each with terrain, wall mask, objects, monsters, light, and a `distance`.
+- The renderer draws rows `0..detail_depth` (fixed, 4–6) from the tileset's per-depth sprite slots: for each depth `d` and lateral offset `o` in `-d..=d` (clamped to the tileset's width), slots `floor`, `ceiling`, `wall_front`, `wall_left`, `wall_right`, `door`, `object`, `monster`. A tileset declares `detail_depth` and `width`; that is the whole art contract, so art scope is bounded (R10).
+- Rows beyond detail depth up to visibility depth are drawn as a horizon band: one column per lateral position, a terrain colour swatch plus optional landmark silhouette sprite, height falling with distance. Procedural, not sprite art.
+- Visibility depth per tile comes from the simulation (environment, light, weather, abilities), not from the renderer.
+
+### 8.4 Editor
+- Lives in the `Editor` app state in the same binary. Edits `omnis-data` structs in memory and writes RON through `omnis-data`; the loader and the writer are the same code path (PRD §10).
+- Views: tile map (paint terrain, edges, objects, triggers, lock mask), region (state and rules), quest graph, data tables, procgen panel (generate, regenerate a layer, lock), text keys, and a playtest button that builds a `World` from the in-memory pack at the cursor tile.
+- UI toolkit (A11): `bevy_egui` for the editor only, pinned at 0.41.1 for Bevy 0.19. Immediate-mode tables, property panels, docking, and node-graph widgets make the editor views cheap to build and change. Player-facing HUD and menus use first-party `bevy_ui` so the game keeps its pixel look; Feathers widgets are used there only where they fit (text and number inputs in character creation) and are treated as experimental. `bevy_egui` is confined to `EditorPlugin` so a lag at each Bevy release stalls only the editor build, and the editor can be feature-gated off if a release lags badly (R2).
+
+## 9. Dev socket and MCP (`omnis-app` feature `devtools`, `omnis-mcp`)
+
+Serves the owner's requirement to interact with the live game as it is built. Design follows the decision: own minimal MCP, stdio bridge, private socket protocol.
+
+```mermaid
+sequenceDiagram
+  participant CC as Claude Code
+  participant B as omnis-mcp (stdio)
+  participant G as omnis (game, devtools)
+  CC->>B: initialize / server.discover
+  B-->>CC: capabilities, tools
+  CC->>B: tools/call sim.command {Step Forward}
+  B->>G: {"id":7,"op":"sim.command","args":{...}}\n
+  G-->>B: {"id":7,"ok":true,"result":{"events":[...]}}\n
+  B-->>CC: content[text json], structuredContent
+```
+
+### 9.1 Game side
+- `omnis --dev-socket [addr]` (feature `devtools`, on by default in debug builds, compiled out of release builds) listens on `127.0.0.1:0` by default and writes the bound address to `.omnis/dev.addr` in the working directory; the bridge reads that file. Loopback only, one client at a time, no auth beyond loopback in v1; an optional shared token file is a later addition.
+- Transport: TCP, newline-delimited JSON, one request per line, one response per line, `{"id", "op", "args"}` → `{"id", "ok", "result" | "error"}`. No async runtime; a Bevy system polls a non-blocking listener each frame, reads complete lines, dispatches on the main thread with full access to the world, and writes responses. Long operations (tick 1000 days) run in bounded slices across frames and report progress.
+- Ops mirror MCP tools one to one, so the bridge is a pure translator.
+
+### 9.2 Bridge
+- `omnis-mcp` speaks MCP JSON-RPC 2.0 over stdio, one message per line, stdout only for protocol, logs to stderr, exits on stdin EOF.
+- **Dual era.** The 2026-07-28 spec revision removed `initialize`, `notifications/initialized`, and `ping` in favour of `server/discover` with per-request `_meta`; whether Claude Code speaks the new revision is unverified as of writing. The bridge answers both: legacy `initialize` (echoing a supported version) and modern `server/discover`; `tools/list` and `tools/call` shapes are common to both, with `resultType: "complete"` and `ttlMs`/`cacheScope` added when the modern era was negotiated.
+- Registration: `.mcp.json` at project scope with `{"mcpServers": {"omnis": {"command": "${CLAUDE_PROJECT_DIR}/target/debug/omnis-mcp"}}}`.
+- Modes: `omnis-mcp` (connect to the running game via `.omnis/dev.addr`) and `omnis-mcp --headless [pack...]` (run the simulation in-process through `omnis-cli`'s library, no window, for fast rule testing and CI-style checks).
+
+### 9.3 Tool set (v1)
+| Tool | Purpose |
+|---|---|
+| `game.status` | mode, calendar, position, packs, fingerprint |
+| `world.query` | read any path (`party.members[0].hp`) |
+| `party.get`, `party.create` | inspect and build a party from data |
+| `sim.command` | apply one `Command`, return events with roll traces |
+| `sim.script` | apply a list of commands |
+| `events.tail` | last N events |
+| `viewport.get`, `map.text` | the viewport model; a map rendered as text with the party marker |
+| `automap.get` | known tiles with layers and seen-at |
+| `rules.list`, `rules.get`, `rules.set` | inspect and hot-swap expression slots |
+| `pack.validate`, `pack.reload` | run the validator; reload packs into the running game |
+| `eco.region`, `eco.tick` | region state; advance N days |
+| `story.state`, `story.check` | quest state; run the static check |
+| `save.write`, `save.read` | snapshot to and from a path |
+| `screenshot` | PNG of the window as image content (game mode only) |
+| `editor.*` | later: open map, paint, place, lock |
+
+Every tool has a JSON Schema `inputSchema` generated from the Rust argument types so the bridge, the socket, and the docs cannot drift.
+
+## 10. CLI (`omnis-cli`)
+
+Headless, Bevy-free, fast to compile. Subcommands: `validate <packs>`, `schema dump`, `gen region --seed --params`, `map text <map>`, `play --script <file>` (runs commands, prints events), `replay <save> <commands>` (asserts fingerprint), `bench eco --regions N --days D`. CI uses it for golden and determinism tests. It exposes `omnis_cli::Headless` for the MCP bridge.
+
+## 11. Determinism and testing
+
+Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
+- **RNG**: own PCG32 (state, increment, and draw counter serialized). Streams are derived per subsystem (`world`, `combat`, `gen:layer:<n>`, `eco:<region>`) so an added draw in one system does not perturb another.
+- **No floats** in simulation crates, enforced by a CI lint. Ordered collections only.
+- **Test tiers**:
+  1. Unit tests in each leaf crate on real pack data (`packs/test`), no mocks.
+  2. Golden tests: seed → fingerprint for gen and eco; a change must be intentional and re-baselined in the same commit.
+  3. Replay tests: recorded command scripts under `tests/replays/` reproduce fingerprints; run on macOS and Linux in CI.
+  4. Save round-trip: load every fixture save, save, compare fingerprints; migration fixtures for each schema version.
+  5. Pack validation corpus: known-bad packs must be rejected with the expected error list.
+  6. App smoke tests with `MinimalPlugins` and `ScheduleRunnerPlugin::run_once()` (no window, no GPU): boot to main menu, start a game, step once, no panics. These are the only tests that touch Bevy.
+- Every bug fix ships with a failing-then-passing test (`CLAUDE.md`).
+
+## 12. Security
+
+- Packs, saves, socket input: §6.2 limits and normalization; never panic, always report.
+- No code execution from data: the expression language has no side effects and bounded cost.
+- Dev socket: loopback only, compiled out of release, single client, request size cap (1 MB), op allowlist. `Dev` commands are rejected by `apply` unless the world was created with `devtools` enabled.
+- Saves record pack fingerprints; loading with different packs warns and refuses unless forced.
+- Dependencies: pinned exact versions in `[workspace.dependencies]`; policy N-1 and older than 30 days for everything except Bevy (D9); each addition audited with Socket before merge; `Cargo.lock` committed.
+
+## 13. Dependencies (initial)
+
+Verified against crates.io on 2026-09-11 (policy: N-1, older than 30 days, Bevy exempt).
+
+| Crate | Pin | Used by | Note |
+|---|---|---|---|
+| bevy | 0.19.1 | app | D9 exemption; `default-features = false`, features `2d`, `ui`, `png` (§8.1) |
+| serde | 1.0.228 | all | derive |
+| serde_json | 1.0.150 | mcp, app devtools | protocol only |
+| ron | 0.12.x (Bevy 0.19 pins `ron = "0.12"`) | data | match Bevy's version to avoid two copies; pick the 0.12 patch older than 30 days (0.12.1 as of writing; 0.12.2 is 2026-06-22 and also qualifies) |
+| thiserror | 2.0.19 | core | error derives |
+| bevy_egui | 0.41.1 | app (editor only) | A11; 0.42.0 fails the 30-day rule as of writing |
+
+Deliberately absent: `rand` (own PCG32), `tokio` (no async), any scripting engine, any MCP SDK, any procgen or noise crate (own value noise and hashing in `omnis-gen`). Bevy's MSRV is 1.95; the workspace sets `rust-version = "1.95"`.
+
+## 14. Build and CI
+
+- Workspace `Cargo.toml` with `[workspace.dependencies]` pins, `rust-version = "1.95"`, and profiles: `dev` with `opt-level = 1` for workspace crates and `opt-level = 3` for dependencies; `release` with thin LTO and one codegen unit; `bevy/dynamic_linking` in a `dev` feature for the app only. A `.cargo/config.toml` selects a fast linker where available.
+- `just` or plain `cargo` aliases: `cargo run -p omnis-app`, `cargo run -p omnis-cli -- validate packs/base`, `cargo test --workspace`.
+- CI (GitHub Actions, macOS and Linux): fmt, clippy with `-D warnings`, no-float lint, `cargo test --workspace`, replay fingerprints compared across the two runners, pack validation of `packs/base`.
+- Windows builds in CI once Phase 1 is playable.
+
+## 15. Repository layout
+
+```
+omnis/
+  Cargo.toml              # workspace
+  crates/
+    omnis-core/  omnis-expr/  omnis-data/  omnis-rules/  omnis-gen/
+    omnis-eco/   omnis-story/ omnis-sim/   omnis-app/    omnis-cli/  omnis-mcp/
+  packs/
+    base/                 # the campaign, authored in the editor
+    test/                 # minimal fixtures for tests
+  tests/
+    replays/  saves/  packs-bad/
+  docs/                   # references (SRD, manual), design notes
+  tasks/                  # TODO, LESSONS, BUGS, CONTINUITY
+  .mcp.json               # omnis-mcp registration for Claude Code
+  PRD.md  ARCHITECTURE.md  README.md  CLAUDE.md
+```
+
+## 16. Phase mapping
+
+| PRD phase | Crates built | Exit test |
+|---|---|---|
+| 0 Foundation | core, expr, data, sim skeleton, cli, mcp (headless mode) | `packs/test` loads and round-trips; expression tests; MCP `game.status` headless |
+| 1 Crawler loop plus editor | rules, sim complete, app (viewport, HUD, menus, editor v1), devtools socket | Phase 1 done criteria (PRD §13); MCP drives a full dungeon run |
+| 2 Procedural world | gen, lazy materialization, editor procgen panel | 100-region seed traversable; golden fingerprints |
+| 3 Ecosystem | eco, region events, derived outputs | lair clearance changes neighbours within a week |
+| 4 Story | story, graph editor, templates | static check on the main quest; generated quests in every town |
+| 5 Release | base pack content, packaging, docs | external playtest; external mod pack |
+
+## 17. Architecture decisions
+
+| # | Decision | Alternatives | Why |
+|---|---|---|---|
+| A1 | Cargo workspace of small crates with a Bevy-free simulation | Single crate with modules | Cargo enforces the boundary; faster incremental builds; CLI and MCP headless need the sim without Bevy. |
+| A2 | Command in, events out; clients never called by the sim | Callbacks, ECS-driven rules | Replay, tests, MCP, and co-op all reduce to the same stream. |
+| A3 | Own minimal MCP bridge over stdio, private newline-JSON socket to the game | rmcp SDK in game or bridge | Owner decision; no async runtime in the game; a few hundred lines we own; dual-era handshake because the spec just broke compatibility. |
+| A4 | In-house integer expression language for rule formulas | Formulas in Rust; Rhai or Lua | Owner decision; heavy rule tweaking without rebuilds; hot swap via MCP; bounded and deterministic. |
+| A5 | Integers and fixed-point only in the simulation | Floats with care | Cross-platform determinism without doubt (R6). |
+| A6 | Own PCG32 with named streams | `rand` | Tiny, serializable, stream-per-subsystem isolation, one fewer dependency. |
+| A7 | RON for content and saves | TOML, JSON | D15; native enums and nested structs. |
+| A8 | Ecosystem state changes only through typed region events | Direct mutation | NPC agency later inserts as an event source (PRD §9.2). |
+| A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). |
+| A10 | Game state lives in one serializable `World`, not in Bevy ECS | ECS for game state | Save, replay, and headless become trivial; Bevy churn (R2) cannot reach game state. |
+| A11 | `bevy_egui` for the editor, `bevy_ui` for the game | Feathers everywhere; egui everywhere | Owner decision; tool UI productivity where it matters, first-party pixel UI for players, egui isolated to one plugin. |
+| A12 | Packs bypass Bevy's asset system; only images and audio go through an `AssetLoader` | RON as Bevy assets | Packs are validated untrusted data with cross-file references; Bevy's loader is per-file and has no RON loader anyway. |
