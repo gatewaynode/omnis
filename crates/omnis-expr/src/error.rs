@@ -2,10 +2,11 @@
 //! bug or bad data too. Neither is a rule refusal.
 
 use core::fmt;
+use serde::{Deserialize, Serialize};
 
 /// A formula was rejected at compile time. Positions are 1-based; `None` when the problem has no
 /// single position (a missing slot, an unknown input name).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompileError {
     /// Line within the formula text.
     pub line: Option<usize>,
@@ -47,7 +48,7 @@ impl std::error::Error for CompileError {}
 
 /// A formula failed at evaluation: unknown slot, a missing input, a runtime error such as
 /// division by zero or the operation limit, or a result of the wrong type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleError {
     /// The slot being evaluated.
     pub slot: String,
@@ -56,7 +57,8 @@ pub struct RuleError {
 }
 
 impl RuleError {
-    pub(crate) fn new(slot: &str, message: impl Into<String>) -> Self {
+    /// An error in `slot`, for callers that layer their own rules on the formulas.
+    pub fn new(slot: &str, message: impl Into<String>) -> Self {
         RuleError {
             slot: slot.to_owned(),
             message: message.into(),

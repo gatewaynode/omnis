@@ -36,7 +36,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.monsters.len(),
             data.rules.slot_names().count(),
         ),
-        (4, 4, 1, 21, 15, 11, 3, 5)
+        (4, 4, 1, 21, 15, 11, 3, 4)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -127,18 +127,6 @@ fn the_base_rules_evaluate() {
     let eval = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| {
         rules.eval(slot, inputs, rng, &stream).unwrap().value
     };
-    assert_eq!(
-        eval("ability.modifier", &[("score", Value::Int(15))], &mut rng),
-        Value::Int(2)
-    );
-    assert_eq!(
-        eval("ability.modifier", &[("score", Value::Int(9))], &mut rng),
-        Value::Int(-1)
-    );
-    assert_eq!(
-        eval("ability.modifier", &[("score", Value::Int(8))], &mut rng),
-        Value::Int(-1)
-    );
     // PRD §8.3, focused caster at level 5: 5 × 3 + 1 = 16.
     let pool = |level: i64, cast: i64, other: i64, half: bool, rng: &mut Pcg32| {
         eval(

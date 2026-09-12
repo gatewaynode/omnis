@@ -3854,6 +3854,7 @@ version = "0.1.0"
 dependencies = [
  "omnis-core",
  "rhai",
+ "serde",
 ]
 
 [[package]]
@@ -3862,6 +3863,16 @@ version = "0.1.0"
 dependencies = [
  "omnis-cli",
  "serde_json",
+]
+
+[[package]]
+name = "omnis-rules"
+version = "0.1.0"
+dependencies = [
+ "omnis-core",
+ "omnis-data",
+ "omnis-expr",
+ "serde",
 ]
 
 [[package]]

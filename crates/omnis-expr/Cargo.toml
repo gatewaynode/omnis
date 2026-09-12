@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 omnis-core = { workspace = true }
+serde = { workspace = true }
 # Formula profile (ARCHITECTURE.md §5.2): one integer type, no floats, no clock, no user
 # functions, closures, modules, arrays, or maps; `internals` exposes the AST walk that checks
 # every identifier a formula names. `unchecked` is never enabled.

@@ -6,6 +6,7 @@ members = [
     "crates/omnis-core",
     "crates/omnis-expr",
     "crates/omnis-data",
+    "crates/omnis-rules",
     "crates/omnis-sim",
     "crates/omnis-app",
     "crates/omnis-cli",

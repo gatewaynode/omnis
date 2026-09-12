@@ -3,9 +3,6 @@
 (
     schema: 1,
     id: "base:rules:creation",
-    slots: {
-        "ability.modifier": (inputs: ["score"], expr: "floor_div(score - 10, 2)"),
-    },
     values: {
         "point_budget": 27,
         "score_min": 8,
