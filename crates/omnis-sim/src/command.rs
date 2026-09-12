@@ -2,7 +2,9 @@
 //! Commands carry no client state so a command stream is a replay and, later, a network
 //! protocol. Events carry keys, never text.
 
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use core::fmt;
 use omnis_core::{Direction, Facing, HolderId, MapId, Position, Rotation};
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +17,79 @@ pub enum Command {
     Turn(Rotation),
     /// Use whatever is on the facing edge or tile: a door in M1.
     Interact,
+}
+
+impl Command {
+    /// The script word for this command; see [`parse_script`].
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Command::Step(Direction::Forward) => "forward",
+            Command::Step(Direction::Back) => "back",
+            Command::Step(Direction::Left) => "left",
+            Command::Step(Direction::Right) => "right",
+            Command::Turn(Rotation::Left) => "turn-left",
+            Command::Turn(Rotation::Right) => "turn-right",
+            Command::Turn(Rotation::Around) => "around",
+            Command::Interact => "use",
+        }
+    }
+
+    /// The command for a script word, if it is one.
+    #[must_use]
+    pub fn from_word(word: &str) -> Option<Command> {
+        Some(match word {
+            "forward" => Command::Step(Direction::Forward),
+            "back" => Command::Step(Direction::Back),
+            "left" => Command::Step(Direction::Left),
+            "right" => Command::Step(Direction::Right),
+            "turn-left" => Command::Turn(Rotation::Left),
+            "turn-right" => Command::Turn(Rotation::Right),
+            "around" => Command::Turn(Rotation::Around),
+            "use" => Command::Interact,
+            _ => return None,
+        })
+    }
+}
+
+/// A word in a script that is not a command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptError {
+    /// One-based line of the word.
+    pub line: usize,
+    /// The word.
+    pub word: String,
+}
+
+impl fmt::Display for ScriptError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "line {}: unknown command '{}'", self.line, self.word)
+    }
+}
+
+/// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
+/// `turn-left`, `turn-right`, `around`, `use`, separated by whitespace or commas; `#` starts
+/// a comment that runs to the end of the line.
+pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
+    let mut commands = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let code = line.split('#').next().unwrap_or("");
+        for word in code.split(|c: char| c.is_whitespace() || c == ',') {
+            if word.is_empty() {
+                continue;
+            }
+            match Command::from_word(word) {
+                Some(command) => commands.push(command),
+                None => {
+                    return Err(ScriptError {
+                        line: index + 1,
+                        word: word.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(commands)
 }
 
 /// Why a step did not happen. Not an error and not a rejection: the turn was taken.
