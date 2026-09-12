@@ -86,7 +86,8 @@ pub struct Title {
 }
 
 impl Title {
-    const ITEMS: [&'static str; 3] = ["New game", "Load quick save", "Quit"];
+    /// The items, in cursor order.
+    pub const ITEMS: [&'static str; 3] = ["New game", "Load quick save", "Quit"];
 
     /// Handle a key.
     pub fn key(&mut self, key: MenuKey) -> Option<TitleAction> {
@@ -142,6 +143,16 @@ pub struct NewGameForm {
     pub cursor: usize,
 }
 
+/// The save rule as the screens name it.
+#[must_use]
+pub fn rule_label(rule: SaveRule) -> &'static str {
+    match rule {
+        SaveRule::Anywhere => "Anywhere",
+        SaveRule::Relief => "Inns, items, and spells",
+        SaveRule::InnOnly => "Inns only",
+    }
+}
+
 impl NewGameForm {
     const RULES: [SaveRule; 3] = [SaveRule::Anywhere, SaveRule::Relief, SaveRule::InnOnly];
 
@@ -191,11 +202,7 @@ impl NewGameForm {
     /// The screen as lines.
     #[must_use]
     pub fn lines(&self) -> Vec<String> {
-        let rule = match self.settings.save_rule {
-            SaveRule::Anywhere => "Anywhere",
-            SaveRule::Relief => "Inns, items, and spells",
-            SaveRule::InnOnly => "Inns only",
-        };
+        let rule = rule_label(self.settings.save_rule);
         vec![
             "NEW GAME".to_owned(),
             String::new(),
@@ -307,7 +314,9 @@ impl Catalog {
         }
     }
 
-    fn label<'a>(&'a self, id: &'a str) -> &'a str {
+    /// The display name of a race, class, or background id.
+    #[must_use]
+    pub fn label<'a>(&'a self, id: &'a str) -> &'a str {
         self.labels.get(id).map_or(id, String::as_str)
     }
 }
@@ -348,17 +357,26 @@ pub struct CreationForm {
     pub message: String,
 }
 
-/// Row indices of the creation form.
-const ROW_NAME: usize = 0;
-const ROW_RACE: usize = 1;
-const ROW_CLASS: usize = 2;
-const ROW_BACKGROUND: usize = 3;
-const ROW_ALIGNMENT: usize = 4;
-const ROW_SCORES: usize = 5;
-const ROW_SKILLS: usize = 11;
-const ROW_ADD: usize = 12;
-const ROW_BEGIN: usize = 13;
-const ROWS: usize = 14;
+/// Row index of the name field.
+pub const ROW_NAME: usize = 0;
+/// Row index of the race choice.
+pub const ROW_RACE: usize = 1;
+/// Row index of the class choice.
+pub const ROW_CLASS: usize = 2;
+/// Row index of the background choice.
+pub const ROW_BACKGROUND: usize = 3;
+/// Row index of the alignment choice.
+pub const ROW_ALIGNMENT: usize = 4;
+/// Row index of the first score; the six scores follow.
+pub const ROW_SCORES: usize = 5;
+/// Row index of the skill picks.
+pub const ROW_SKILLS: usize = 11;
+/// Row index of the Add member button.
+pub const ROW_ADD: usize = 12;
+/// Row index of the Begin button.
+pub const ROW_BEGIN: usize = 13;
+/// Rows the cursor cycles through.
+pub const ROWS: usize = 14;
 
 impl CreationForm {
     /// A blank form at the catalog's minimum scores.
@@ -374,7 +392,9 @@ impl CreationForm {
         catalog.classes.get(self.class).map_or("", String::as_str)
     }
 
-    fn skill_list<'a>(&self, catalog: &'a Catalog) -> (u8, &'a [Skill]) {
+    /// How many skills the drafted class picks, and from which.
+    #[must_use]
+    pub fn skill_list<'a>(&self, catalog: &'a Catalog) -> (u8, &'a [Skill]) {
         catalog
             .class_skills
             .get(self.class_id(catalog))
@@ -621,6 +641,9 @@ pub struct Pause {
 }
 
 impl Pause {
+    /// The items, in cursor order.
+    pub const ITEMS: [&'static str; 3] = ["Resume", "Quit to title", "Quit"];
+
     /// Handle a key.
     pub fn key(&mut self, key: MenuKey) -> Option<PauseAction> {
         match key {
@@ -650,9 +673,9 @@ impl Pause {
                 if settings.permadeath { "on" } else { "off" }
             ),
             String::new(),
-            mark(self.cursor, 0, "Resume".to_owned()),
-            mark(self.cursor, 1, "Quit to title".to_owned()),
-            mark(self.cursor, 2, "Quit".to_owned()),
+            mark(self.cursor, 0, Self::ITEMS[0].to_owned()),
+            mark(self.cursor, 1, Self::ITEMS[1].to_owned()),
+            mark(self.cursor, 2, Self::ITEMS[2].to_owned()),
             String::new(),
             "Up/Down select   Enter confirm   Esc resume".to_owned(),
         ]

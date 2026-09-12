@@ -18,10 +18,13 @@ pub mod input;
 pub mod layout;
 pub mod menu;
 pub mod menus;
+pub mod panels;
 pub mod party_panel;
 pub mod pixel;
 pub mod plan;
 pub mod raster;
+pub mod screen;
+pub mod screens;
 pub mod sim;
 #[cfg(feature = "devtools")]
 pub mod socket;
