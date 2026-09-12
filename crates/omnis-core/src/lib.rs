@@ -22,8 +22,9 @@ pub use error::Error;
 pub use fixed::Fixed;
 pub use geom::{Direction, Edges, Facing, Position, Rotation};
 pub use id::{
-    ActorId, CharacterId, EraId, FlagId, HolderId, ItemId, MapId, MonsterId, PartyId, ProjectId,
-    QuestId, RegionId, SpellId, StreamName, TextKey, TilesetId,
+    ActorId, BackgroundId, CharacterId, ClassId, ConditionId, EraId, FlagId, HolderId, ItemId,
+    MapId, MonsterId, PartyId, ProjectId, QuestId, RaceId, RegionId, SpellId, StreamName, TextKey,
+    TilesetId,
 };
 pub use rng::{Dice, DieRoll, Pcg32, RollTrace, fnv1a64, splitmix64};
 pub use time::{Clock, Contact};

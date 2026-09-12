@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:class:mute", name: "badc:text:class.mute.name", hit_die: 6, saving_throws: (Intelligence, Wisdom), skills: (choose: 1, from: [Arcana]), casting: Some((ability: Intelligence, cantrips_at_1: 0, spells_at_1: 1)))

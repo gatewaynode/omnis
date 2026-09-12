@@ -77,7 +77,12 @@ fn every_error_in_a_broken_pack_is_reported() {
         "portal at (0, 0) lands outside map 'broken:map:glyph'",
         "tileset 'broken:tileset:missing' is not defined by any loaded pack",
     ];
-    let got = messages("broken");
+    assert_reports("broken", &expected);
+}
+
+/// The pack's report is exactly `expected`, each message once, in any order.
+fn assert_reports(name: &str, expected: &[&str]) {
+    let got = messages(name);
     let missing: Vec<&&str> = expected
         .iter()
         .filter(|e| !got.contains(&(**e).to_owned()))
@@ -91,6 +96,52 @@ fn every_error_in_a_broken_pack_is_reported() {
         "missing: {missing:#?}\nextra: {extra:#?}\nall: {got:#?}"
     );
     assert_eq!(got.len(), expected.len(), "each reported once");
+}
+
+#[test]
+fn every_error_in_bad_content_is_reported() {
+    let expected = [
+        // data/races/orc.ron, wrong.ron
+        "speed must be 1..=120",
+        "starting_age must be at least 1",
+        "Strength bonus 9 must be -5..=5",
+        "text key 'badc:text:race.orc.fierce' is not defined in any language",
+        "id 'badc:item:wrong' must have type 'race'",
+        // data/classes/warlord.ron, mute.ron
+        "hit_die must be 6, 8, 10, or 12",
+        "saving_throws must name two abilities",
+        "skills: cannot choose 3 from 2",
+        "starting_equipment counts must be at least 1",
+        "weapon 'badc:item:none' is not defined by any loaded pack",
+        "spell 'badc:spell:none' is not defined by any loaded pack",
+        "casting: spells_at_1 > 0 needs a spell list",
+        // data/backgrounds/twice.ron
+        "skills are listed twice",
+        "equipment counts must be at least 1",
+        "equipment 'badc:item:none' is not defined by any loaded pack",
+        // data/items
+        "weapon damage needs dice",
+        "armor base_ac must be 1..=30",
+        // data/conditions/dizzy.ron
+        "text key 'badc:text:condition.dizzy.description' is not defined in any language",
+        // data/spells/zap.ron, hex.ron
+        "level must be 0..=9",
+        "a spell must be on at least one class list",
+        "component counts must be at least 1",
+        "class 'badc:class:none' is not defined by any loaded pack",
+        "component 'badc:item:none' is not defined by any loaded pack",
+        // data/monsters/blob.ron
+        "ac must be 1..=30",
+        "hit_points needs dice",
+        "abilities must be 1..=30",
+        "challenge denominator must be at least 1",
+        "attack damage needs dice",
+        // data/rules/bad.ron: a structural check, then two compile errors with positions
+        "slot 'a': input '1x' is not an identifier",
+        "slot 'b': 1:9: unknown input 'bonus'",
+        "slot 'c': 1:1: strings are not allowed in formulas",
+    ];
+    assert_reports("bad-content", &expected);
 }
 
 #[test]

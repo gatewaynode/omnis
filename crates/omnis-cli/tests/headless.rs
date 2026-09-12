@@ -3,7 +3,10 @@
 
 use omnis_cli::{Headless, schema};
 use omnis_data::ron_io::parse;
-use omnis_data::{MapDef, PackManifest, Tileset};
+use omnis_data::{
+    Background, Class, Condition, Item, MapDef, Monster, PackManifest, Race, RulesFile, Spell,
+    Tileset,
+};
 use omnis_sim::omnis_core::Direction;
 use omnis_sim::{Command, Op, OpError, Replay, Reply, World};
 use std::path::{Path, PathBuf};
@@ -101,6 +104,17 @@ fn schema_dump_sections_parse_with_the_real_types() {
         errors.is_empty(),
         "the example map passes its own checks: {errors:?}"
     );
+    parse::<Race>(&body("# data/races/<name>.ron\n")).unwrap();
+    let class = parse::<Class>(&body("# data/classes/<name>.ron\n")).unwrap();
+    assert_eq!(class.hit_die, 10);
+    parse::<Background>(&body("# data/backgrounds/<name>.ron\n")).unwrap();
+    parse::<Item>(&body("# data/items/<name>.ron\n")).unwrap();
+    parse::<Condition>(&body("# data/conditions/<name>.ron\n")).unwrap();
+    let spell = parse::<Spell>(&body("# data/spells/<name>.ron\n")).unwrap();
+    assert_eq!(spell.point_cost(), 1);
+    parse::<Monster>(&body("# data/monsters/<name>.ron\n")).unwrap();
+    let rules = parse::<RulesFile>(&body("# data/rules/<name>.ron\n")).unwrap();
+    assert!(rules.slots.contains_key("spell_points.pool"));
     parse::<World>(&body("# save (schema 1)\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =

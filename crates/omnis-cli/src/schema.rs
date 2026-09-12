@@ -3,7 +3,10 @@
 //! writer the game reads with, so it always parses.
 
 use omnis_data::ron_io::{parse, to_string};
-use omnis_data::{DataError, MapDef, PackFingerprint, PackManifest, SCHEMA, Tileset};
+use omnis_data::{
+    Background, Class, Condition, DataError, Item, MapDef, Monster, PackFingerprint, PackManifest,
+    Race, RulesFile, SCHEMA, Spell, Tileset,
+};
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
 use omnis_sim::world::SAVE_SCHEMA;
 use omnis_sim::{Command, Op, PARTY, Replay, World};
@@ -61,9 +64,141 @@ const MAP: &str = r#"(
     portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East)],
 )"#;
 
+const RACE: &str = r#"(
+    schema: 1,
+    id: "example:race:human",
+    name: "example:text:race.human.name",
+    ability_bonuses: {Strength: 1, Dexterity: 1, Constitution: 1, Intelligence: 1, Wisdom: 1, Charisma: 1},
+    size: Medium,
+    speed: 30,
+    starting_age: 18,
+    features: [(name: "example:text:race.human.languages"), (name: "example:text:race.human.keen", effect: Darkvision(feet: 60))],
+)"#;
+
+const CLASS: &str = r#"(
+    schema: 1,
+    id: "example:class:fighter",
+    name: "example:text:class.fighter.name",
+    hit_die: 10,
+    saving_throws: (Strength, Constitution),
+    armor: [Light, Medium, Heavy, Shield],
+    weapons: [Simple, Martial],
+    weapon_ids: [],
+    skills: (choose: 2, from: [Acrobatics, Athletics, Perception]),
+    starting_equipment: [("example:item:longsword", 1)],
+    casting: Some((ability: Intelligence, half: false, cantrips_at_1: 3, spells_at_1: 6, list: ["example:spell:magic_missile"])),
+    features: [(level: 1, name: "example:text:class.fighter.second_wind")],
+)"#;
+
+const BACKGROUND: &str = r#"(
+    schema: 1,
+    id: "example:background:acolyte",
+    name: "example:text:background.acolyte.name",
+    skills: [Insight, Religion],
+    equipment: [("example:item:holy_symbol", 1)],
+    gold: 15,
+    feature: (name: "example:text:background.acolyte.shelter"),
+)"#;
+
+const ITEM: &str = r#"(
+    schema: 1,
+    id: "example:item:longsword",
+    name: "example:text:item.longsword.name",
+    kind: Weapon(kind: Martial, damage: (count: 1, sides: 8, modifier: 0), damage_type: Slashing, ranged: false, two_handed: false),
+    cost_cp: 1500,
+    weight_tenths: 30,
+)"#;
+
+const CONDITION: &str = r#"(
+    schema: 1,
+    id: "example:condition:poisoned",
+    name: "example:text:condition.poisoned.name",
+    description: "example:text:condition.poisoned.description",
+)"#;
+
+const SPELL: &str = r#"(
+    schema: 1,
+    id: "example:spell:magic_missile",
+    name: "example:text:spell.magic_missile.name",
+    level: 1,
+    school: Evocation,
+    classes: ["example:class:wizard"],
+    concentration: false,
+    ritual: false,
+    points: None,
+    components: [("example:item:gem", 1)],
+    description: "example:text:spell.magic_missile.description",
+)"#;
+
+const MONSTER: &str = r#"(
+    schema: 1,
+    id: "example:monster:goblin",
+    name: "example:text:monster.goblin.name",
+    size: Small,
+    ac: 15,
+    hit_points: (count: 2, sides: 6, modifier: 0),
+    speed: 30,
+    abilities: (8, 14, 10, 10, 8, 8),
+    challenge: (1, 4),
+    xp: 50,
+    attacks: [(name: "example:text:monster.goblin.scimitar", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Slashing)],
+)"#;
+
+const RULES: &str = r#"(
+    schema: 1,
+    id: "example:rules:casting",
+    slots: {
+        "spell_points.pool": (inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"], expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)"),
+    },
+    values: {"component_threshold": 5},
+    tables: {"point_cost": [0, 1, 2, 3, 4, 5, 7, 9]},
+)"#;
+
 /// Every data file type as a parsed-and-rewritten example, then a save, a replay, and the
 /// protocol ops.
 pub fn dump() -> Result<String, DataError> {
+    let mut out = String::new();
+    data_sections(&mut out)?;
+    world_sections(&mut out)?;
+    Ok(out)
+}
+
+fn data_sections(out: &mut String) -> Result<(), DataError> {
+    section(
+        out,
+        &format!("pack.ron (schema {SCHEMA})"),
+        &parse::<PackManifest>(MANIFEST)?,
+    )?;
+    section(
+        out,
+        &format!("data/tiles/<name>.ron (schema {SCHEMA})"),
+        &parse::<Tileset>(TILESET)?,
+    )?;
+    section(
+        out,
+        &format!("data/maps/<name>.ron (schema {SCHEMA})"),
+        &parse::<MapDef>(MAP)?,
+    )?;
+    section(out, "data/races/<name>.ron", &parse::<Race>(RACE)?)?;
+    section(out, "data/classes/<name>.ron", &parse::<Class>(CLASS)?)?;
+    section(
+        out,
+        "data/backgrounds/<name>.ron",
+        &parse::<Background>(BACKGROUND)?,
+    )?;
+    section(out, "data/items/<name>.ron", &parse::<Item>(ITEM)?)?;
+    section(
+        out,
+        "data/conditions/<name>.ron",
+        &parse::<Condition>(CONDITION)?,
+    )?;
+    section(out, "data/spells/<name>.ron", &parse::<Spell>(SPELL)?)?;
+    section(out, "data/monsters/<name>.ron", &parse::<Monster>(MONSTER)?)?;
+    section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
+    Ok(())
+}
+
+fn world_sections(out: &mut String) -> Result<(), DataError> {
     let fingerprint = PackFingerprint {
         id: "example".into(),
         version: "0.1.0".into(),
@@ -120,30 +255,10 @@ pub fn dump() -> Result<String, DataError> {
         Op::PackReload,
         Op::Screenshot { path: None },
     ];
-    let mut out = String::new();
-    section(
-        &mut out,
-        &format!("pack.ron (schema {SCHEMA})"),
-        &parse::<PackManifest>(MANIFEST)?,
-    )?;
-    section(
-        &mut out,
-        &format!("data/tiles/<name>.ron (schema {SCHEMA})"),
-        &parse::<Tileset>(TILESET)?,
-    )?;
-    section(
-        &mut out,
-        &format!("data/maps/<name>.ron (schema {SCHEMA})"),
-        &parse::<MapDef>(MAP)?,
-    )?;
-    section(&mut out, &format!("save (schema {SAVE_SCHEMA})"), &world)?;
-    section(&mut out, "replay", &replay)?;
-    section(
-        &mut out,
-        "protocol ops (JSON on the dev socket; RON here)",
-        &ops,
-    )?;
-    Ok(out)
+    section(out, &format!("save (schema {SAVE_SCHEMA})"), &world)?;
+    section(out, "replay", &replay)?;
+    section(out, "protocol ops (JSON on the dev socket; RON here)", &ops)?;
+    Ok(())
 }
 
 fn section<T: serde::Serialize>(out: &mut String, title: &str, value: &T) -> Result<(), DataError> {

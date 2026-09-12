@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:item:plate", name: "badc:text:item.plate.name", kind: Armor(kind: Heavy, base_ac: 0))

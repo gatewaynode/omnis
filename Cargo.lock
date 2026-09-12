@@ -3842,6 +3842,7 @@ name = "omnis-data"
 version = "0.1.0"
 dependencies = [
  "omnis-core",
+ "omnis-expr",
  "ron",
  "serde",
  "thiserror 2.0.19",

@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:class:warlord", name: "badc:text:class.warlord.name", hit_die: 7, saving_throws: (Strength, Strength), skills: (choose: 3, from: [Athletics, History]), weapon_ids: ["badc:item:none"], starting_equipment: [("badc:item:blade", 0)], casting: Some((ability: Intelligence, cantrips_at_1: 2, spells_at_1: 1, list: ["badc:spell:none"])))

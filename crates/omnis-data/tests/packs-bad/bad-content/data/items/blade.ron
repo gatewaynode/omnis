@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:item:blade", name: "badc:text:item.blade.name", kind: Weapon(kind: Martial, damage: (count: 0, sides: 6, modifier: 0), damage_type: Slashing))

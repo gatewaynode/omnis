@@ -3,15 +3,26 @@
 //! simulation can use without touching the file system again.
 
 use crate::SCHEMA;
+use crate::character::{Background, Class, Race};
+use crate::condition::Condition;
+use crate::content::{Content, Files, RawContent, resolve_content};
 use crate::error::{DataError, LoadReport};
+use crate::item::Item;
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::{Cell, MapDef, Terrain};
+use crate::monster::Monster;
 use crate::registry::Registry;
 use crate::ron_io::{from_str, read_text};
+use crate::rules::RulesFile;
+use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
-use omnis_core::{Facing, MapId, TextKey, TilesetId, fnv1a64};
+use omnis_core::{
+    BackgroundId, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId, SpellId, TextKey,
+    TilesetId, fnv1a64,
+};
+use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -101,6 +112,22 @@ pub struct Data {
     pub text: BTreeMap<String, BTreeMap<TextKey, String>>,
     /// Where a new game starts, from the last manifest that set `entry`.
     pub entry: Option<MapId>,
+    /// Races by id.
+    pub races: BTreeMap<RaceId, Race>,
+    /// Classes by id.
+    pub classes: BTreeMap<ClassId, Class>,
+    /// Backgrounds by id.
+    pub backgrounds: BTreeMap<BackgroundId, Background>,
+    /// Items by id.
+    pub items: BTreeMap<ItemId, Item>,
+    /// Conditions by id.
+    pub conditions: BTreeMap<ConditionId, Condition>,
+    /// Spells by id.
+    pub spells: BTreeMap<SpellId, Spell>,
+    /// Monsters by id.
+    pub monsters: BTreeMap<MonsterId, Monster>,
+    /// The compiled rule set from every `data/rules` file.
+    pub rules: Rules,
 }
 
 impl Data {
@@ -112,15 +139,26 @@ impl Data {
             String::as_str,
         )
     }
+
+    /// A localized string by key string, for content whose keys are stored as written; the key
+    /// itself when it is unknown.
+    #[must_use]
+    pub fn label<'a>(&'a self, lang: &str, key: &'a str) -> &'a str {
+        self.registry
+            .text
+            .get(key)
+            .map_or(key, |k| self.text(lang, k))
+    }
 }
 
 /// Files gathered from the packs before resolution, keyed by content id so later packs
 /// override earlier ones.
 #[derive(Default)]
 struct Raw {
-    tilesets: BTreeMap<String, (PathBuf, Tileset)>,
+    tilesets: Files<Tileset>,
     maps: BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
     text: BTreeMap<String, BTreeMap<String, String>>,
+    content: RawContent,
 }
 
 /// Load packs from `roots`, in order. A pack's dependencies must appear earlier in the list.
@@ -171,15 +209,14 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
     }
     let pack = manifest.id.clone();
 
-    for rel in list_ron(root, Path::new("data/tiles"), errors) {
-        let Some(tileset) = read_checked::<Tileset>(root, &rel, &mut hasher, errors) else {
-            continue;
-        };
-        let file = root.join(&rel);
-        check_id(&tileset.id, "tileset", &file, errors);
-        tileset.validate(&file, errors);
-        raw.tilesets.insert(tileset.id.clone(), (file, tileset));
-    }
+    gather(
+        root,
+        "data/tiles",
+        "tileset",
+        &mut hasher,
+        errors,
+        &mut raw.tilesets,
+    );
     for rel in list_ron(root, Path::new("data/maps"), errors) {
         let Some(map) = read_checked::<MapDef>(root, &rel, &mut hasher, errors) else {
             continue;
@@ -190,6 +227,71 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
         let cells = map.cells(&file, errors).unwrap_or_default();
         raw.maps.insert(map.id.clone(), (file, map, cells));
     }
+    let content = &mut raw.content;
+    gather(
+        root,
+        "data/races",
+        "race",
+        &mut hasher,
+        errors,
+        &mut content.races,
+    );
+    gather(
+        root,
+        "data/classes",
+        "class",
+        &mut hasher,
+        errors,
+        &mut content.classes,
+    );
+    gather(
+        root,
+        "data/backgrounds",
+        "background",
+        &mut hasher,
+        errors,
+        &mut content.backgrounds,
+    );
+    gather(
+        root,
+        "data/items",
+        "item",
+        &mut hasher,
+        errors,
+        &mut content.items,
+    );
+    gather(
+        root,
+        "data/conditions",
+        "condition",
+        &mut hasher,
+        errors,
+        &mut content.conditions,
+    );
+    gather(
+        root,
+        "data/spells",
+        "spell",
+        &mut hasher,
+        errors,
+        &mut content.spells,
+    );
+    gather(
+        root,
+        "data/monsters",
+        "monster",
+        &mut hasher,
+        errors,
+        &mut content.monsters,
+    );
+    gather(
+        root,
+        "data/rules",
+        "rules",
+        &mut hasher,
+        errors,
+        &mut content.rules,
+    );
     for lang in list_dirs(root, Path::new("text"), errors) {
         let lang_name = lang
             .file_name()
@@ -296,29 +398,53 @@ fn read_checked<T: DeserializeOwned + HasSchema>(
     Some(value)
 }
 
+/// Read, check, and validate every `.ron` file of one content type under `root/dir`, keyed
+/// by id so a later pack overrides an earlier one.
+fn gather<T: DeserializeOwned + HasSchema + Content>(
+    root: &Path,
+    dir: &str,
+    kind: &str,
+    hasher: &mut PackHasher,
+    errors: &mut Vec<DataError>,
+    out: &mut Files<T>,
+) {
+    for rel in list_ron(root, Path::new(dir), errors) {
+        let Some(value) = read_checked::<T>(root, &rel, hasher, errors) else {
+            continue;
+        };
+        let file = root.join(&rel);
+        check_id(value.id(), kind, &file, errors);
+        value.validate(&file, errors);
+        out.insert(value.id().to_owned(), (file, value));
+    }
+}
+
 trait HasSchema {
     fn schema(&self) -> u32;
 }
-impl HasSchema for PackManifest {
-    fn schema(&self) -> u32 {
-        self.schema
-    }
+macro_rules! has_schema {
+    ($($t:ty),* $(,)?) => {$(
+        impl HasSchema for $t {
+            fn schema(&self) -> u32 {
+                self.schema
+            }
+        }
+    )*};
 }
-impl HasSchema for Tileset {
-    fn schema(&self) -> u32 {
-        self.schema
-    }
-}
-impl HasSchema for MapDef {
-    fn schema(&self) -> u32 {
-        self.schema
-    }
-}
-impl HasSchema for TextFile {
-    fn schema(&self) -> u32 {
-        self.schema
-    }
-}
+has_schema!(
+    PackManifest,
+    Tileset,
+    MapDef,
+    TextFile,
+    Race,
+    Class,
+    Background,
+    Item,
+    Condition,
+    Spell,
+    Monster,
+    RulesFile,
+);
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
     if !is_content_id(id) {
@@ -441,6 +567,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             )),
         }
     }
+    resolve_content(raw.content, data, errors);
     if errors.len() > before {
         data.maps.clear();
     }

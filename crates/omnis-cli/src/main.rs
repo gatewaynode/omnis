@@ -47,11 +47,19 @@ fn validate(roots: &[&str]) -> Result<(), String> {
     let roots: Vec<&Path> = roots.iter().map(Path::new).collect();
     let data = load_packs(&roots).map_err(|report| report.to_string())?;
     println!(
-        "ok: {} packs, {} maps, {} tilesets, {} languages",
+        "ok: {} packs, {} maps, {} tilesets, {} languages, {} races, {} classes, {} backgrounds, {} items, {} conditions, {} spells, {} monsters, {} rule slots",
         data.packs.len(),
         data.maps.len(),
         data.tilesets.len(),
-        data.text.len()
+        data.text.len(),
+        data.races.len(),
+        data.classes.len(),
+        data.backgrounds.len(),
+        data.items.len(),
+        data.conditions.len(),
+        data.spells.len(),
+        data.monsters.len(),
+        data.rules.slot_names().count(),
     );
     Ok(())
 }

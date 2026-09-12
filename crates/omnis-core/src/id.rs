@@ -70,6 +70,14 @@ define_id! {
     ProjectId,
     /// An age of the world. v1 content has one era, `present`.
     EraId,
+    /// A playable race.
+    RaceId,
+    /// A character class.
+    ClassId,
+    /// A character background.
+    BackgroundId,
+    /// A condition a creature can be under.
+    ConditionId,
 }
 
 /// Anything that experiences subjective time (ARCHITECTURE.md §4.4).

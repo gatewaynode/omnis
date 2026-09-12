@@ -1,0 +1,19 @@
+(
+    schema: 1,
+    entries: {
+        "badc:text:race.orc.name": "Orc",
+        "badc:text:class.warlord.name": "Warlord",
+        "badc:text:class.mute.name": "Mute",
+        "badc:text:background.twice.name": "Twice",
+        "badc:text:background.twice.feature": "Again",
+        "badc:text:item.blade.name": "Blade",
+        "badc:text:item.plate.name": "Plate",
+        "badc:text:condition.dizzy.name": "Dizzy",
+        "badc:text:spell.zap.name": "Zap",
+        "badc:text:spell.zap.description": "Zaps.",
+        "badc:text:spell.hex.name": "Hex",
+        "badc:text:spell.hex.description": "Hexes.",
+        "badc:text:monster.blob.name": "Blob",
+        "badc:text:monster.blob.slam": "Slam",
+    },
+)

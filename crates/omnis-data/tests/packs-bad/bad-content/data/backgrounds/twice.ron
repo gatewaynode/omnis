@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:background:twice", name: "badc:text:background.twice.name", skills: [Insight, Insight], equipment: [("badc:item:none", 1), ("badc:item:blade", 0)], feature: (name: "badc:text:background.twice.feature"))
