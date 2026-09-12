@@ -10,9 +10,23 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/ceiling_d0_o-1.png",
+                    x: 0,
+                    y: 0,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/ceiling_d0_o0.png",
                     x: 53,
+                    y: 0,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/ceiling_d0_o1.png",
+                    x: 181,
                     y: 0,
                 ),
                 (
@@ -267,9 +281,23 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/door_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/door_d0_o0.png",
                     x: 59,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/door_d0_o1.png",
+                    x: 181,
                     y: 7,
                 ),
                 (
@@ -524,9 +552,23 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/door.open_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/door.open_d0_o0.png",
                     x: 59,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/door.open_d0_o1.png",
+                    x: 181,
                     y: 7,
                 ),
                 (
@@ -781,9 +823,23 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/floor_d0_o-1.png",
+                    x: 0,
+                    y: 128,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/floor_d0_o0.png",
                     x: 53,
+                    y: 128,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/floor_d0_o1.png",
+                    x: 181,
                     y: 128,
                 ),
                 (
@@ -1037,6 +1093,20 @@
             kind: Block,
             slots: [
                 (
+                    depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/rock_d0_o-1.png",
+                    x: 0,
+                    y: 0,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/rock_d0_o1.png",
+                    x: 181,
+                    y: 0,
+                ),
+                (
                     depth: 1,
                     offset: -1,
                     path: "assets/tilesets/dungeon/rock_d1_o-1.png",
@@ -1288,9 +1358,23 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/wall_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/wall_d0_o0.png",
                     x: 59,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/wall_d0_o1.png",
+                    x: 181,
                     y: 7,
                 ),
                 (

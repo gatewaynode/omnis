@@ -211,17 +211,17 @@ fn clear_pngs(dir: &Path) -> Result<(), BakeError> {
 
 /// The `(depth, offset)` pairs a surface kind needs: every cone position for floors,
 /// ceilings, front walls, and doors; only the party's side for side walls; never the
-/// party's own tile for blocks.
+/// party's own tile for blocks. Row 0 includes the tiles beside the party, like the cone.
 #[must_use]
 pub fn slot_positions(detail_depth: u8, width: u8, kind: SlotKind) -> Vec<(u8, i8)> {
     let mut out = Vec::new();
     for depth in 0..detail_depth {
-        let half = i8::try_from(depth.min(width)).unwrap_or(i8::MAX);
+        let half = i8::try_from(depth.max(1).min(width)).unwrap_or(i8::MAX);
         for offset in -half..=half {
             let keep = match kind {
                 SlotKind::WallLeft => offset <= 0,
                 SlotKind::WallRight => offset >= 0,
-                SlotKind::Block => depth > 0,
+                SlotKind::Block => depth > 0 || offset != 0,
                 SlotKind::Object | SlotKind::Monster => false,
                 _ => true,
             };
@@ -294,7 +294,7 @@ impl Image {
                 }
             }
         }
-        (x0 != u32::MAX).then_some((x0, y0, x1 - x0 + 1, y1 - y0 + 1))
+        (x0 != u32::MAX).then(|| (x0, y0, x1 - x0 + 1, y1 - y0 + 1))
     }
 
     /// Nearest-neighbour sample with wrap-around, in texture pixels.
@@ -382,15 +382,19 @@ pub fn render(
         SlotKind::WallRight => side(geo, &mut canvas, d, o + 0.5, texture),
         SlotKind::Floor => band(geo, &mut canvas, d, o, texture, 0.0),
         SlotKind::Ceiling => band(geo, &mut canvas, d, o, texture, 1.0),
-        SlotKind::Block if depth == 0 => return None,
+        SlotKind::Block if depth == 0 && offset == 0 => return None,
         SlotKind::Block => {
             if o > 0.0 {
                 side(geo, &mut canvas, d, o - 0.5, texture);
             } else if o < 0.0 {
                 side(geo, &mut canvas, d, o + 0.5, texture);
             }
-            // The near face stands at distance `d`: the far edge of the tile before it.
-            front(geo, &mut canvas, d - 1.0, o, texture, geo.texels_per_unit);
+            // The near face stands at distance `d`: the far edge of the tile before it. A
+            // block beside the party has its near face in the camera plane, so only its
+            // side shows.
+            if depth > 0 {
+                front(geo, &mut canvas, d - 1.0, o, texture, geo.texels_per_unit);
+            }
         }
         SlotKind::Object | SlotKind::Monster => return None,
     }
@@ -579,27 +583,46 @@ mod tests {
     fn slot_positions_follow_the_cone_and_the_side() {
         assert_eq!(
             slot_positions(2, 3, SlotKind::Floor),
-            [(0, 0), (1, -1), (1, 0), (1, 1)]
+            [(0, -1), (0, 0), (0, 1), (1, -1), (1, 0), (1, 1)],
+            "row 0 has the tiles beside the party"
         );
         assert_eq!(
             slot_positions(2, 3, SlotKind::WallLeft),
-            [(0, 0), (1, -1), (1, 0)]
+            [(0, -1), (0, 0), (1, -1), (1, 0)]
         );
         assert_eq!(
             slot_positions(2, 3, SlotKind::WallRight),
-            [(0, 0), (1, 0), (1, 1)]
+            [(0, 0), (0, 1), (1, 0), (1, 1)]
         );
         assert_eq!(
             slot_positions(4, 1, SlotKind::Door).len(),
-            1 + 3 + 3 + 3,
+            3 + 3 + 3 + 3,
             "width clamps the cone"
         );
         assert!(slot_positions(4, 3, SlotKind::Monster).is_empty());
         assert_eq!(
             slot_positions(2, 3, SlotKind::Block),
-            [(1, -1), (1, 0), (1, 1)],
+            [(0, -1), (0, 1), (1, -1), (1, 0), (1, 1)],
             "the party never stands in a block"
         );
+    }
+
+    #[test]
+    fn the_tiles_beside_the_party_reach_the_canvas_edges() {
+        let geo = Geometry::new((240, 135), 16);
+        let tex = checker();
+        let (floor, x, _) = render(&geo, SlotKind::Floor, 0, 1, &tex).unwrap();
+        assert_eq!(x + i16::try_from(floor.width).unwrap(), 240);
+        assert_eq!(x, 181, "starts where the party's own floor ends");
+        let (front, fx, fy) = render(&geo, SlotKind::WallFront, 0, 1, &tex).unwrap();
+        let (own, _, oy) = render(&geo, SlotKind::WallFront, 0, 0, &tex).unwrap();
+        assert_eq!((fx, fy, front.height), (181, oy, own.height), "same plane");
+        assert_eq!(fx + i16::try_from(front.width).unwrap(), 240, "clipped");
+        assert!(
+            render(&geo, SlotKind::WallLeft, 0, -1, &tex).is_none(),
+            "a neighbour's far side wall lies off-screen"
+        );
+        assert!(render(&geo, SlotKind::WallRight, 0, 1, &tex).is_none());
     }
 
     #[test]
@@ -607,6 +630,15 @@ mod tests {
         let geo = Geometry::new((240, 135), 16);
         let tex = checker();
         assert!(render(&geo, SlotKind::Block, 0, 0, &tex).is_none());
+        assert_eq!(
+            render(&geo, SlotKind::Block, 0, 1, &tex),
+            render(&geo, SlotKind::WallRight, 0, 0, &tex),
+            "a block beside the party is its side wall"
+        );
+        assert_eq!(
+            render(&geo, SlotKind::Block, 0, -1, &tex),
+            render(&geo, SlotKind::WallLeft, 0, 0, &tex)
+        );
         assert_eq!(
             render(&geo, SlotKind::Block, 1, 0, &tex),
             render(&geo, SlotKind::WallFront, 0, 0, &tex),
