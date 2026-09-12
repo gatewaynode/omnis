@@ -6,7 +6,7 @@
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use omnis_app::{AppConfig, assets, hud, input, menus, party_panel, pixel, sim, viewport};
+use omnis_app::{AppConfig, assets, cursor, hud, input, menus, party_panel, pixel, sim, viewport};
 use std::path::PathBuf;
 
 #[cfg(feature = "devtools")]
@@ -42,7 +42,7 @@ fn parse_args() -> Result<Launch, String> {
     #[allow(unused_mut, clippy::let_unit_value)]
     let mut socket = default_socket();
     let mut seeded = false;
-    let mut window = (3840, 2160);
+    let mut window = (1280, 720);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -163,6 +163,7 @@ fn main() -> AppExit {
     .add_plugins((
         sim::SimPlugin,
         input::InputPlugin,
+        cursor::CursorPlugin,
         pixel::PixelPlugin,
         assets::PackAssetPlugin,
         viewport::ViewportPlugin,

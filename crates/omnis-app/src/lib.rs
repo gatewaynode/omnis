@@ -10,6 +10,7 @@
 #![warn(missing_docs)]
 
 pub mod assets;
+pub mod cursor;
 #[cfg(feature = "devtools")]
 pub mod dev;
 pub mod font;

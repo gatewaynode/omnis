@@ -1,13 +1,13 @@
 //! `PixelPlugin`: the fixed internal resolution pipeline (ARCHITECTURE.md §8.2, Bevy's
 //! `pixel_grid_snap` example). An inner camera renders the canvas image; an outer camera shows
-//! it as a sprite at the largest integer scale that fits the window.
+//! it as a sprite at the largest integer scale that fits the window (`cursor::WindowSize`).
 
+use crate::cursor::WindowSize;
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, PANEL_COLOR};
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureFormat;
-use bevy::window::WindowResized;
 
 /// Everything drawn at internal resolution.
 pub const PIXEL_LAYER: RenderLayers = RenderLayers::layer(0);
@@ -35,8 +35,9 @@ pub struct PixelPlugin;
 
 impl Plugin for PixelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup)
-            .add_systems(Update, fit_canvas);
+        app.init_resource::<WindowSize>()
+            .add_systems(Startup, setup)
+            .add_systems(Update, fit_canvas.run_if(resource_changed::<WindowSize>));
     }
 }
 
@@ -81,16 +82,13 @@ pub fn integer_scale(window_width: f32, window_height: f32) -> f32 {
     1.0 / crate::layout::window_scale(window_width, window_height)
 }
 
-fn fit_canvas(
-    mut resized: MessageReader<WindowResized>,
-    mut projection: Single<&mut Projection, With<OuterCamera>>,
-) {
+/// Fit the canvas whenever the tracked window size changes, including the first frame, so a
+/// window that opens at the requested size (winit sends no resize for it) is scaled too.
+fn fit_canvas(size: Res<WindowSize>, mut projection: Single<&mut Projection, With<OuterCamera>>) {
     let Projection::Orthographic(projection) = &mut **projection else {
         return;
     };
-    for resize in resized.read() {
-        projection.scale = integer_scale(resize.width, resize.height);
-    }
+    projection.scale = integer_scale(size.0, size.1);
 }
 
 #[cfg(test)]
