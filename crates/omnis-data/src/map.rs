@@ -54,10 +54,17 @@ pub struct Terrain {
     /// Whether the tile blocks line of sight (rock, dense trees). Water does not.
     #[serde(default)]
     pub opaque: bool,
+    /// Colour for the automap and the horizon band, as RGB.
+    #[serde(default = "grey")]
+    pub color: (u8, u8, u8),
     /// How far the party sees while standing on this terrain.
     pub visibility_depth: u8,
     /// Minutes one step onto this terrain costs the party's clock.
     pub step_minutes: u32,
+}
+
+fn grey() -> (u8, u8, u8) {
+    (128, 128, 128)
 }
 
 /// A tile trigger that moves the party to another map or tile when stepped on.
@@ -329,6 +336,7 @@ mod tests {
                 ceiling: None,
                 passable: true,
                 opaque: false,
+                color: (128, 128, 128),
                 visibility_depth: 4,
                 step_minutes: 1,
             }],

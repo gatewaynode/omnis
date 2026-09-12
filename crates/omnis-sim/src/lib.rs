@@ -18,6 +18,11 @@ pub mod replay;
 pub mod visibility;
 pub mod world;
 
+// Clients depend on this crate alone (ARCHITECTURE.md §3); the types they need from the
+// crates below reach them through these re-exports.
+pub use omnis_core;
+pub use omnis_data;
+
 pub use apply::apply;
 pub use command::{BlockReason, Command, Event, MessageKey, Rejection, SeenTile};
 pub use replay::{Replay, ReplayError};
