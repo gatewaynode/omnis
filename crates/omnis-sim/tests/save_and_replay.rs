@@ -1,0 +1,177 @@
+//! Saves round-trip through RON text with equal fingerprints, refuse the wrong packs or
+//! schema, and replays reproduce the golden fingerprint under `tests/replays/`.
+
+mod common;
+
+use common::{data, interact, step, turn, world};
+use omnis_core::{Direction, Facing, Position, Rotation};
+use omnis_data::ron_io::{read_ron, write_ron};
+use omnis_sim::{Command, LoadError, Replay, ReplayError, World, query};
+use std::path::PathBuf;
+
+fn replay_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/replays")
+        .join(format!("{name}.ron"))
+}
+
+/// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon,
+/// through the first door, and a bump against a pillar.
+fn walk() -> Vec<Command> {
+    let mut commands = vec![Command::Step(Direction::Forward); 11];
+    commands.extend([Command::Step(Direction::Forward); 3]);
+    commands.extend([
+        Command::Turn(Rotation::Left),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Turn(Rotation::Around),
+        Command::Interact,
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Turn(Rotation::Right),
+        Command::Step(Direction::Back),
+        Command::Interact,
+    ]);
+    commands
+}
+
+#[test]
+fn save_round_trip_keeps_the_fingerprint() {
+    let data = data();
+    let mut world = world(&data);
+    for _ in 0..12 {
+        step(&mut world, &data);
+    }
+    turn(&mut world, &data, Rotation::Left);
+    interact(&mut world, &data);
+    let text = world.to_ron().unwrap();
+    let loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(loaded.fingerprint().unwrap(), world.fingerprint().unwrap());
+    assert_eq!(loaded.position, world.position);
+    assert_eq!(loaded.automap, world.automap);
+    assert!(loaded.log.is_empty(), "the log starts empty after a load");
+    let mut a = loaded.clone();
+    let mut b = world.clone();
+    let ea = step(&mut a, &data);
+    let eb = step(&mut b, &data);
+    assert_eq!(ea, eb, "a loaded world continues identically");
+}
+
+#[test]
+fn loads_are_checked() {
+    let data = data();
+    let world = world(&data);
+    let text = world.to_ron().unwrap();
+
+    let other = text.replacen("schema: 1", "schema: 7", 1);
+    assert_eq!(
+        World::from_ron(&other, &data, false).unwrap_err(),
+        LoadError::Schema(7)
+    );
+
+    let mut foreign = world.clone();
+    foreign.packs[0].hash ^= 1;
+    let foreign_text = foreign.to_ron().unwrap();
+    assert_eq!(
+        World::from_ron(&foreign_text, &data, false).unwrap_err(),
+        LoadError::PackMismatch
+    );
+    assert!(
+        World::from_ron(&foreign_text, &data, true).is_ok(),
+        "force skips only the pack check"
+    );
+
+    let mut lost = world.clone();
+    lost.position = Position {
+        map: omnis_core::MapId(99),
+        x: 0,
+        y: 0,
+        facing: Facing::North,
+    };
+    let lost_text = lost.to_ron().unwrap();
+    assert_eq!(
+        World::from_ron(&lost_text, &data, true).unwrap_err(),
+        LoadError::BadPosition(lost.position)
+    );
+
+    assert!(matches!(
+        World::from_ron("(", &data, false).unwrap_err(),
+        LoadError::Parse(_)
+    ));
+}
+
+#[test]
+fn path_query_reads_the_world() {
+    let data = data();
+    let mut world = world(&data);
+    step(&mut world, &data);
+    assert_eq!(query::path(&world, "position.x").as_deref(), Some("16"));
+    assert_eq!(query::path(&world, "position.y").as_deref(), Some("15"));
+    assert_eq!(
+        query::path(&world, "position.facing").as_deref(),
+        Some("North")
+    );
+    assert_eq!(
+        query::path(&world, "clocks.Party(0).elapsed").as_deref(),
+        Some("1")
+    );
+    assert_eq!(query::path(&world, "turn").as_deref(), Some("1"));
+    assert_eq!(query::path(&world, "mode").as_deref(), Some("Explore"));
+    assert_eq!(query::path(&world, "packs.0.id").as_deref(), Some("test"));
+    let map = world.position.map.0;
+    assert_eq!(
+        query::path(&world, &format!("automap.maps.{map}.16,15.layers")).as_deref(),
+        Some("7")
+    );
+    assert_eq!(query::path(&world, "party.members"), None);
+}
+
+#[test]
+fn replays_are_deterministic() {
+    let data = data();
+    let commands = walk();
+    let a = omnis_sim::replay::run(&data, 1, &commands).unwrap();
+    let b = omnis_sim::replay::run(&data, 1, &commands).unwrap();
+    let c = omnis_sim::replay::run(&data, 2, &commands).unwrap();
+    assert_eq!(a, b);
+    assert_ne!(a, c, "the seed is part of the world");
+    let recorded = Replay::record(&data, 1, commands).unwrap();
+    assert_eq!(recorded.check(&data), Ok(()));
+    let mut wrong = recorded.clone();
+    wrong.fingerprint ^= 1;
+    assert!(matches!(
+        wrong.check(&data),
+        Err(ReplayError::Diverged { .. })
+    ));
+    let mut other_packs = recorded;
+    other_packs.packs.clear();
+    assert_eq!(other_packs.check(&data), Err(ReplayError::PackMismatch));
+}
+
+/// The golden replay. When `packs/test` or the simulation changes on purpose, re-baseline in
+/// the same commit with `cargo test -p omnis-sim rebaseline -- --ignored`.
+#[test]
+fn golden_walk_replay_reproduces() {
+    let data = data();
+    let replay: Replay =
+        read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        replay.commands,
+        walk(),
+        "the script in this file is the recorded one"
+    );
+    replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
+}
+
+#[test]
+#[ignore = "writes the golden file; run deliberately"]
+fn rebaseline_walk_replay() {
+    let data = data();
+    let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, walk()).unwrap();
+    write_ron(&replay_path("walk"), &replay).unwrap();
+}

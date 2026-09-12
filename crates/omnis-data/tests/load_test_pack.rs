@@ -86,6 +86,23 @@ fn test_pack_loads_with_both_maps() {
             .visibility_depth,
         4
     );
+}
+
+#[test]
+fn portals_and_tileset_slots_resolve() {
+    let data = load_packs(&[&common::test_pack()]).unwrap_or_else(|report| panic!("{report}"));
+    let dungeon_id = data
+        .registry
+        .maps
+        .get("test:map:dungeon")
+        .expect("dungeon interned");
+    let meadow_id = data
+        .registry
+        .maps
+        .get("test:map:meadow")
+        .expect("meadow interned");
+    let dungeon = &data.maps[&dungeon_id];
+    let meadow = &data.maps[&meadow_id];
 
     // Portals link the maps both ways.
     let down = meadow.portal_at(16, 5).expect("entrance");

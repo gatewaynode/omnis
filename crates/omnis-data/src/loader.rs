@@ -404,35 +404,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             ));
             continue;
         };
-        let tileset = &data.tilesets[&tileset_id];
-        let mut surface = |name: &str, kind: SlotKind, what: &str| match tileset.surfaces.get(name)
-        {
-            None => errors.push(DataError::new(
-                file,
-                format!(
-                    "{what} surface '{name}' is not in tileset '{}'",
-                    def.tileset
-                ),
-            )),
-            Some(s) if s.kind != kind => errors.push(DataError::new(
-                file,
-                format!(
-                    "{what} surface '{name}' is a {:?} surface, not {kind:?}",
-                    s.kind
-                ),
-            )),
-            Some(_) => {}
-        };
-        surface(&def.wall.front, SlotKind::WallFront, "wall front");
-        surface(&def.wall.left, SlotKind::WallLeft, "wall left");
-        surface(&def.wall.right, SlotKind::WallRight, "wall right");
-        surface(&def.door, SlotKind::Door, "door");
-        for terrain in &def.terrains {
-            surface(&terrain.floor, SlotKind::Floor, "terrain floor");
-            if let Some(ceiling) = &terrain.ceiling {
-                surface(ceiling, SlotKind::Ceiling, "terrain ceiling");
-            }
-        }
+        check_surfaces(def, &data.tilesets[&tileset_id], file, errors);
         let name = match data.registry.text.get(&def.name) {
             Some(key) => key,
             None => {
@@ -446,37 +418,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 TextKey(0)
             }
         };
-        let mut portals = Vec::with_capacity(def.portals.len());
-        for portal in &def.portals {
-            let Some(&to_map) = map_ids.get(portal.to_map.as_str()) else {
-                errors.push(DataError::new(
-                    file,
-                    format!(
-                        "portal at ({}, {}) leads to unknown map '{}'",
-                        portal.x, portal.y, portal.to_map
-                    ),
-                ));
-                continue;
-            };
-            let (_, target, _) = &raw.maps[&portal.to_map];
-            if portal.to_x >= target.width || portal.to_y >= target.height {
-                errors.push(DataError::new(
-                    file,
-                    format!(
-                        "portal at ({}, {}) lands outside map '{}'",
-                        portal.x, portal.y, portal.to_map
-                    ),
-                ));
-            }
-            portals.push(ResolvedPortal {
-                x: portal.x,
-                y: portal.y,
-                to_map,
-                to_x: portal.to_x,
-                to_y: portal.to_y,
-                to_facing: portal.to_facing,
-            });
-        }
+        let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],
@@ -502,4 +444,77 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     if errors.len() > before {
         data.maps.clear();
     }
+}
+
+/// Every surface a map names must exist in its tileset with the right kind.
+fn check_surfaces(def: &MapDef, tileset: &Tileset, file: &Path, errors: &mut Vec<DataError>) {
+    let mut surface = |name: &str, kind: SlotKind, what: &str| match tileset.surfaces.get(name) {
+        None => errors.push(DataError::new(
+            file,
+            format!(
+                "{what} surface '{name}' is not in tileset '{}'",
+                def.tileset
+            ),
+        )),
+        Some(s) if s.kind != kind => errors.push(DataError::new(
+            file,
+            format!(
+                "{what} surface '{name}' is a {:?} surface, not {kind:?}",
+                s.kind
+            ),
+        )),
+        Some(_) => {}
+    };
+    surface(&def.wall.front, SlotKind::WallFront, "wall front");
+    surface(&def.wall.left, SlotKind::WallLeft, "wall left");
+    surface(&def.wall.right, SlotKind::WallRight, "wall right");
+    surface(&def.door, SlotKind::Door, "door");
+    for terrain in &def.terrains {
+        surface(&terrain.floor, SlotKind::Floor, "terrain floor");
+        if let Some(ceiling) = &terrain.ceiling {
+            surface(ceiling, SlotKind::Ceiling, "terrain ceiling");
+        }
+    }
+}
+
+/// Portals must lead to a known map and land inside it.
+fn resolve_portals(
+    def: &MapDef,
+    file: &Path,
+    map_ids: &BTreeMap<&str, MapId>,
+    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
+    errors: &mut Vec<DataError>,
+) -> Vec<ResolvedPortal> {
+    let mut portals = Vec::with_capacity(def.portals.len());
+    for portal in &def.portals {
+        let Some(&to_map) = map_ids.get(portal.to_map.as_str()) else {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "portal at ({}, {}) leads to unknown map '{}'",
+                    portal.x, portal.y, portal.to_map
+                ),
+            ));
+            continue;
+        };
+        let (_, target, _) = &maps[&portal.to_map];
+        if portal.to_x >= target.width || portal.to_y >= target.height {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "portal at ({}, {}) lands outside map '{}'",
+                    portal.x, portal.y, portal.to_map
+                ),
+            ));
+        }
+        portals.push(ResolvedPortal {
+            x: portal.x,
+            y: portal.y,
+            to_map,
+            to_x: portal.to_x,
+            to_y: portal.to_y,
+            to_facing: portal.to_facing,
+        });
+    }
+    portals
 }
