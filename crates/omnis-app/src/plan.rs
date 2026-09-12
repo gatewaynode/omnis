@@ -197,19 +197,17 @@ fn shade(color: (u8, u8, u8), depth: u8, detail: u8, visibility: u8) -> (u8, u8,
     (scale(color.0), scale(color.1), scale(color.2))
 }
 
-/// Pixels per automap tile.
-pub const AUTOMAP_SCALE: i32 = 4;
-
-/// The automap overlay for the party's current map: known tiles as terrain colour, dimmed
-/// unless visited, walls and doors as one-pixel edges, the party as a white mark.
+/// The automap for the party's current map at `scale` pixels per tile, top-left at `origin`:
+/// known tiles as terrain colour, dimmed unless visited, walls and doors as one-pixel edges,
+/// the party as a white mark with a red pixel on its facing edge.
 #[must_use]
-pub fn automap(world: &World, data: &Data, origin: (i32, i32)) -> Vec<DrawOp> {
+pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Vec<DrawOp> {
     let mut ops = Vec::new();
     let map_id = world.position.map;
     let Some(map) = data.maps.get(&map_id) else {
         return ops;
     };
-    let s = AUTOMAP_SCALE;
+    let s = scale.max(1);
     ops.push(DrawOp::fill(
         (20, 20, 28),
         origin.0 - 1,
@@ -243,13 +241,17 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32)) -> Vec<DrawOp> {
     }
     let p = world.position;
     let (cx, cy) = (origin.0 + i32::from(p.x) * s, origin.1 + i32::from(p.y) * s);
-    ops.push(DrawOp::fill(
-        (255, 255, 255),
-        cx + 1,
-        cy + 1,
-        (s - 2) as u32,
-        (s - 2) as u32,
-    ));
+    if s >= 4 {
+        ops.push(DrawOp::fill(
+            (255, 255, 255),
+            cx + 1,
+            cy + 1,
+            (s - 2) as u32,
+            (s - 2) as u32,
+        ));
+    } else {
+        ops.push(DrawOp::fill((255, 255, 255), cx, cy, s as u32, s as u32));
+    }
     // A red pixel on the facing edge of the party's cell.
     let (dx, dy) = p.facing.delta();
     let along = |d: i32| if d == 0 { s / 2 } else { (d + 1) / 2 * (s - 1) };
@@ -261,6 +263,57 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32)) -> Vec<DrawOp> {
         1,
     ));
     ops
+}
+
+/// The automap fitted into `rect` (x, y, width, height): centred when the map fits, otherwise
+/// scrolled so the party is as central as the map's edges allow, and clipped to the rect.
+#[must_use]
+pub fn automap_window(
+    world: &World,
+    data: &Data,
+    rect: (i32, i32, u32, u32),
+    scale: i32,
+) -> Vec<DrawOp> {
+    let Some(map) = data.maps.get(&world.position.map) else {
+        return Vec::new();
+    };
+    let s = scale.max(1);
+    let (rw, rh) = (rect.2 as i32, rect.3 as i32);
+    let (mw, mh) = (i32::from(map.def.width) * s, i32::from(map.def.height) * s);
+    let place = |room: i32, size: i32, party: i32| {
+        if size <= room {
+            (room - size) / 2
+        } else {
+            (room / 2 - party * s - s / 2).clamp(room - size, 0)
+        }
+    };
+    let origin = (
+        rect.0 + place(rw, mw, i32::from(world.position.x)),
+        rect.1 + place(rh, mh, i32::from(world.position.y)),
+    );
+    let mut ops = vec![DrawOp::fill((20, 20, 28), rect.0, rect.1, rect.2, rect.3)];
+    ops.extend(
+        automap(world, data, origin, s)
+            .into_iter()
+            .filter_map(|op| clip(op, rect)),
+    );
+    ops
+}
+
+/// A fill cut down to `rect`, or `None` when nothing remains. Sprites pass through.
+fn clip(op: DrawOp, rect: (i32, i32, u32, u32)) -> Option<DrawOp> {
+    let Paint::Fill {
+        color,
+        width,
+        height,
+    } = op.paint
+    else {
+        return Some(op);
+    };
+    let (x0, y0) = (op.x.max(rect.0), op.y.max(rect.1));
+    let x1 = (op.x + width as i32).min(rect.0 + rect.2 as i32);
+    let y1 = (op.y + height as i32).min(rect.1 + rect.3 as i32);
+    (x1 > x0 && y1 > y0).then(|| DrawOp::fill(color, x0, y0, (x1 - x0) as u32, (y1 - y0) as u32))
 }
 
 fn dim(c: (u8, u8, u8)) -> (u8, u8, u8) {
@@ -381,7 +434,7 @@ mod tests {
             facing: Facing::West,
         };
         apply(&mut world, &data, Command::Step(Direction::Forward)).unwrap();
-        let ops = automap(&world, &data, (10, 10));
+        let ops = automap(&world, &data, (10, 10), 4);
         assert!(ops.len() > 2);
         let party = &ops[ops.len() - 2];
         assert_eq!((party.x, party.y), (10 + 5 * 4 + 1, 10 + 16 * 4 + 1));
@@ -404,5 +457,55 @@ mod tests {
             })
             .count();
         assert!(wall_edges > 0, "the hedge is in view to the west");
+    }
+
+    #[test]
+    fn automap_window_centres_small_maps_and_scrolls_large_ones() {
+        let data = data();
+        let world = World::new(&data, 1).unwrap();
+        let rect = (248, 8, 64, 64);
+        let fitted = automap_window(&world, &data, rect, 2);
+        let inside = |op: &DrawOp| match op.paint {
+            Paint::Fill { width, height, .. } => {
+                op.x >= rect.0
+                    && op.y >= rect.1
+                    && op.x + width as i32 <= rect.0 + 64
+                    && op.y + height as i32 <= rect.1 + 64
+            }
+            Paint::Sprite(_) => false,
+        };
+        assert!(
+            fitted.iter().all(inside),
+            "a 32x32 map at 2 px fits the sidebar"
+        );
+        assert_eq!(
+            (fitted[1].x, fitted[1].y),
+            (248, 8),
+            "a 64 px map fills the sidebar; its border is clipped"
+        );
+        let scrolled = automap_window(&world, &data, rect, 4);
+        assert!(
+            scrolled.iter().all(inside),
+            "a 128 px map is clipped to the 64 px sidebar"
+        );
+        let party = &scrolled[scrolled.len() - 2];
+        assert_eq!(
+            (party.x, party.y),
+            (248 + 32 - 2 + 1, 8 + 32 - 2 + 1),
+            "party centred"
+        );
+        let mut edge = world.clone();
+        edge.position = Position {
+            x: 0,
+            y: 0,
+            ..edge.position
+        };
+        let cornered = automap_window(&edge, &data, rect, 4);
+        let party = &cornered[cornered.len() - 2];
+        assert_eq!(
+            (party.x, party.y),
+            (249, 9),
+            "the map's edge stays at the rect's edge"
+        );
     }
 }

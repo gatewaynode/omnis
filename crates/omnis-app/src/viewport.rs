@@ -2,8 +2,10 @@
 //! draw plan, and the automap overlay when it is shown.
 
 use crate::assets::PackImages;
-use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, VIEWPORT_ORIGIN};
-use crate::pixel::InnerCamera;
+use crate::layout::{
+    CANVAS_HEIGHT, CANVAS_WIDTH, OVERLAY_MAP_ORIGIN, OVERLAY_MAP_SCALE, SIDEBAR_MAP,
+    SIDEBAR_MAP_SCALE, VIEWPORT_ORIGIN, VIEWPORT_SIZE,
+};
 use crate::plan::{self, DrawOp, Paint};
 use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, WorldReplaced};
 use bevy::prelude::*;
@@ -19,7 +21,8 @@ pub struct ViewportSprite;
 #[derive(Component)]
 pub struct AutomapSprite;
 
-/// Whether the automap overlay is shown.
+/// Whether the large automap overlay is shown over the viewport. The sidebar minimap is
+/// always shown.
 #[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AutomapShown(pub bool);
 
@@ -107,7 +110,6 @@ fn redraw(
     mut images: ResMut<PackImages>,
     old_view: Query<Entity, With<ViewportSprite>>,
     old_map: Query<Entity, With<AutomapSprite>>,
-    mut inner: Query<&mut Camera, With<InnerCamera>>,
 ) {
     let saw_visible = events.read().any(|e| matches!(e.0, Event::Visible { .. }));
     let was_replaced = replaced.read().count() > 0;
@@ -126,11 +128,25 @@ fn redraw(
     let Some(view) = query::viewport(&world.0, &data.0) else {
         return;
     };
+    // Sky or darkness inside the viewport only; the panel colour shows around it.
     let backdrop = plan::backdrop(&data.0, world.0.position.map);
-    for mut camera in &mut inner {
-        camera.clear_color =
-            ClearColorConfig::Custom(Color::srgb_u8(backdrop.0, backdrop.1, backdrop.2));
-    }
+    let sky = DrawOp {
+        paint: Paint::Fill {
+            color: backdrop,
+            width: VIEWPORT_SIZE.0,
+            height: VIEWPORT_SIZE.1,
+        },
+        x: 0,
+        y: 0,
+    };
+    spawn_ops::<ViewportSprite>(
+        &mut commands,
+        &server,
+        &mut images,
+        &[sky],
+        VIEWPORT_ORIGIN,
+        0.5,
+    );
     spawn_ops::<ViewportSprite>(
         &mut commands,
         &server,
@@ -139,14 +155,17 @@ fn redraw(
         VIEWPORT_ORIGIN,
         1.0,
     );
+    let sidebar = plan::automap_window(&world.0, &data.0, SIDEBAR_MAP, SIDEBAR_MAP_SCALE);
+    spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &sidebar, (0, 0), 10.0);
     if shown.0 {
+        let overlay = plan::automap(&world.0, &data.0, (0, 0), OVERLAY_MAP_SCALE);
         spawn_ops::<AutomapSprite>(
             &mut commands,
             &server,
             &mut images,
-            &plan::automap(&world.0, &data.0, (0, 0)),
-            (8, 8),
-            10.0,
+            &overlay,
+            OVERLAY_MAP_ORIGIN,
+            20.0,
         );
     }
 }

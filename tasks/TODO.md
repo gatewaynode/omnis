@@ -67,6 +67,10 @@ Standing rules for every milestone: tests on real `packs/test` data, no mocks; s
 - Decisions made during the build: map layout is a text grid with shared edges (`crates/omnis-data/src/map.rs` docs); line of sight is an integer supercover ray to a tile's centre or any corner, either way round exact corners; door state is a canonical edge key in `MapState`; `Slot` carries `x`/`y` placement and `Tileset` a `viewport`; `Terrain` has `opaque` and `color`; manifest `entry` names the start map; `omnis-sim` re-exports `omnis_core` and `omnis_data`; `omnis-cli` depends on `omnis-data` and `png` 0.18.1 (Bevy's version).
 - Known placeholders: opaque impassable tiles (pillars, trees) draw as floor swatches, not blocks; open doors draw nothing; the party's own tile is a thin strip at the bottom (focal 0.9·height); tree/rock silhouettes in the band are flat colour.
 - Sentrux at M1 end: signal 6508 (M0 baseline 10000 was an empty skeleton); bottleneck modularity 0.20, depth 7, equality 0.46 (`query/path.rs` is the largest file); no rule violations; five functions Sentrux calls complex, none over `max_cc 25`.
+- Owner's walk-through (2026-09-12): "pretty decent for a first pass". Fixed on the spot: backdrop confined to the viewport with a panel colour around it; last message clears on a move; window launches at 3840×2160 (`--window WxH`); sidebar minimap always on at 2 px/tile, M toggles the large overlay.
+- Follow-ups from the walk-through:
+  - [ ] Opaque impassable terrain (pillars, trees) draws as a floor swatch, not a block. Add a `Block` slot kind to the bake (front face plus two sides from the terrain texture) and to the draw plan; open doors need a frame sprite too.
+  - [ ] Dungeon feel: with visibility 4 and detail depth 4 the far wall of a 6-wide room is dark and the depth-4 ground band is a bare bar with no ceiling band. Decide between raising dungeon visibility (6) with a ceiling band, or keeping the darkness; owner's call.
 - Next: M2 grows from `omnis-app/src/dev.rs` (script and screenshot) and `omnis-cli` (validate, replay, headless).
 
 ### M2 — Live instrumentation: MCP and CLI

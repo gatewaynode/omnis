@@ -1,4 +1,4 @@
-//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>]`.
+//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--window <w>x<h>]`.
 //! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]`.
 #![forbid(unsafe_code)]
 
@@ -12,7 +12,7 @@ type Script = omnis_app::dev::DevScript;
 #[cfg(not(feature = "devtools"))]
 type Script = ();
 
-fn parse_args() -> Result<(AppConfig, Script), String> {
+fn parse_args() -> Result<(AppConfig, Script, (u32, u32)), String> {
     let mut config = AppConfig {
         packs: Vec::new(),
         ..AppConfig::default()
@@ -20,6 +20,7 @@ fn parse_args() -> Result<(AppConfig, Script), String> {
     #[allow(unused_mut, clippy::let_unit_value)]
     let mut script = Script::default();
     let mut seeded = false;
+    let mut window = (3840, 2160);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -32,6 +33,16 @@ fn parse_args() -> Result<(AppConfig, Script), String> {
                 seeded = true;
             }
             "--save" => config.save_path = PathBuf::from(args.next().ok_or("--save needs a file")?),
+            "--window" => {
+                let value = args.next().ok_or("--window needs <width>x<height>")?;
+                let (w, h) = value
+                    .split_once('x')
+                    .ok_or_else(|| format!("bad window size '{value}'"))?;
+                window = (
+                    w.parse().map_err(|_| format!("bad window width '{w}'"))?,
+                    h.parse().map_err(|_| format!("bad window height '{h}'"))?,
+                );
+            }
             #[cfg(feature = "devtools")]
             "--script" => {
                 script.commands =
@@ -68,7 +79,7 @@ fn parse_args() -> Result<(AppConfig, Script), String> {
     if !seeded {
         config.seed = entropy_seed();
     }
-    Ok((config, script))
+    Ok((config, script, window))
 }
 
 /// A seed from the clock. The simulation never touches entropy; it only receives the number.
@@ -80,7 +91,7 @@ fn entropy_seed() -> u64 {
 }
 
 fn main() -> AppExit {
-    let (config, script) = match parse_args() {
+    let (config, script, window) = match parse_args() {
         Ok(c) => c,
         Err(e) => {
             eprintln!("omnis: {e}");
@@ -97,7 +108,7 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Omnis".into(),
-                    resolution: WindowResolution::new(1280, 720),
+                    resolution: WindowResolution::new(window.0, window.1),
                     ..default()
                 }),
                 ..default()

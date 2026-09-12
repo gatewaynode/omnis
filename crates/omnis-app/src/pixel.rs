@@ -2,7 +2,7 @@
 //! `pixel_grid_snap` example). An inner camera renders the canvas image; an outer camera shows
 //! it as a sprite at the largest integer scale that fits the window.
 
-use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
+use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, PANEL_COLOR};
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
@@ -53,7 +53,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         Camera2d,
         Camera {
             order: -1,
-            clear_color: ClearColorConfig::Custom(Color::BLACK),
+            clear_color: ClearColorConfig::Custom(Color::srgb_u8(
+                PANEL_COLOR.0,
+                PANEL_COLOR.1,
+                PANEL_COLOR.2,
+            )),
             ..default()
         },
         RenderTarget::Image(handle.clone().into()),

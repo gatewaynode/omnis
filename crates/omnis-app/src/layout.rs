@@ -8,6 +8,18 @@ pub const CANVAS_WIDTH: u32 = 320;
 pub const CANVAS_HEIGHT: u32 = 180;
 /// The viewport's top-left corner on the canvas.
 pub const VIEWPORT_ORIGIN: (i32, i32) = (0, 0);
+/// The viewport's size on the canvas; the tileset's `viewport` must match.
+pub const VIEWPORT_SIZE: (u32, u32) = (240, 135);
+/// The panel colour around the viewport.
+pub const PANEL_COLOR: (u8, u8, u8) = (24, 24, 34);
+/// The sidebar minimap rectangle on the canvas: x, y, width, height.
+pub const SIDEBAR_MAP: (i32, i32, u32, u32) = (248, 8, 64, 64);
+/// Pixels per tile in the sidebar minimap.
+pub const SIDEBAR_MAP_SCALE: i32 = 2;
+/// Where the large automap overlay sits on the canvas.
+pub const OVERLAY_MAP_ORIGIN: (i32, i32) = (8, 8);
+/// Pixels per tile in the large automap overlay.
+pub const OVERLAY_MAP_SCALE: i32 = 4;
 
 /// The same camera the bake tool uses (`omnis-cli`, `bake.rs`): eye at the near edge of the
 /// party's tile, half a tile up; focal length `0.9 × viewport height`. The renderer needs it

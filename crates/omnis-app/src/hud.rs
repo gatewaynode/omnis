@@ -43,8 +43,9 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            right: Val::Px(16.0),
-            top: Val::Px(16.0),
+            // Below the sidebar minimap (canvas rows 8..72 of 180).
+            right: Val::Percent(1.5),
+            top: Val::Percent(42.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(6.0),
             ..default()
@@ -104,10 +105,15 @@ fn refresh(
         return;
     };
     let mut message = None;
+    let mut moved = false;
     for SimEvent(event) in events.read() {
+        moved |= matches!(event, Event::Moved { .. });
         if let Some(text) = event_text(event) {
             message = Some(text);
         }
+    }
+    if moved && message.is_none() {
+        message = Some(String::new());
     }
     if notice.is_changed() && !notice.0.is_empty() {
         message = Some(notice.0.clone());
