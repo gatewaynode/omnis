@@ -366,7 +366,6 @@ mod tests {
         FightView {
             phase: omnis_sim::ModeKind::Combat,
             round: 2,
-            actor: Some("Brenna".to_owned()),
             own: Some(0),
             disposition: omnis_sim::omnis_data::Disposition::Hostile,
             stacks: [

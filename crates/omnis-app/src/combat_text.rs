@@ -282,9 +282,6 @@ fn round_line(event: &Event, names: &Names) -> Option<Line> {
             Line::same(format!("Initiative: {list}"))
         }
         Event::RoundStarted { round } => Line::same(format!("Round {round}")),
-        Event::Turn {
-            actor: actor @ ActorRef::Member(_),
-        } => Line::same(format!("{} to act", names.actor(actor))),
         Event::Waited { actor } => Line::same(format!("{} wait", names.actor(actor))),
         Event::Dodging { actor } => Line::same(format!("{} dodges", names.actor(actor))),
         Event::Exchanged { a, b } => Line::same(format!("Slots {} and {} exchange", a + 1, b + 1)),
@@ -756,13 +753,14 @@ mod tests {
         let lines = batch_lines(&events, &wide_names());
         assert_eq!(
             lines.len(),
-            events.len() - 3,
-            "the monster turn, the encounter check, and PartyChanged are silent"
+            events.len() - 4,
+            "the turns, the encounter check, and PartyChanged are silent"
         );
         for line in &lines {
             assert!(line.long.chars().count() <= LONG_CELLS, "{}", line.long);
             assert!(line.short.chars().count() <= SHORT_CELLS, "{}", line.short);
             assert!(!line.short.is_empty());
+            assert!(!line.long.ends_with(" to act"), "the header shows the turn");
         }
         clipped(
             &lines[0].short,
@@ -792,44 +790,43 @@ mod tests {
             "Initiative: Brennagh-of-the-Long-Hall",
         );
         assert_eq!(lines[6].long, "Round 999");
-        assert_eq!(lines[7].long, "Brennagh-of-the-Long-Hall to act");
-        assert_eq!(lines[8].long, "Ancient Red Dragon Wys wait");
-        assert_eq!(lines[9].long, "Brennagh-of-the-Long-Hall dodges");
-        assert_eq!(lines[10].long, "Slots 1 and 4 exchange");
-        assert_eq!(lines[11].long, "Brennagh-of-the-Long-Hall falls");
+        assert_eq!(lines[7].long, "Ancient Red Dragon Wys wait");
+        assert_eq!(lines[8].long, "Brennagh-of-the-Long-Hall dodges");
+        assert_eq!(lines[9].long, "Slots 1 and 4 exchange");
+        assert_eq!(lines[10].long, "Brennagh-of-the-Long-Hall falls");
         clipped(
-            &lines[12].long,
+            &lines[11].long,
             LONG_CELLS,
             "Brennagh-of-the-Long-Hall is wounded: 2 of 3 fail",
         );
         clipped(
-            &lines[13].long,
+            &lines[12].long,
             LONG_CELLS,
             "Brennagh-of-the-Long-Hall death save: failure 2/3",
         );
         clipped(
-            &lines[14].short,
+            &lines[13].short,
             SHORT_CELLS,
             "Brennagh-of-the-Long-Hall comes to at",
         );
-        assert_eq!(lines[15].long, "Brennagh-of-the-Long-Hall is ?");
+        assert_eq!(lines[14].long, "Brennagh-of-the-Long-Hall is ?");
         clipped(
-            &lines[16].long,
+            &lines[15].long,
             LONG_CELLS,
             "Ancient Red Dragon Wy 3 dies, dropping 8 gold (2d4 [",
         );
         clipped(
-            &lines[16].short,
+            &lines[15].short,
             SHORT_CELLS,
             "Ancient Red Dragon Wy 3 dies, dropping",
         );
-        assert_eq!(lines[17].long, "Brennagh-of-the-Long-Hall dies");
+        assert_eq!(lines[16].long, "Brennagh-of-the-Long-Hall dies");
         clipped(
-            &lines[18].long,
+            &lines[17].long,
             LONG_CELLS,
             "Victory! 99999 XP each, 99999 gold; lost: Brennagh",
         );
-        assert_eq!(lines[19].long, "The party has fallen");
+        assert_eq!(lines[18].long, "The party has fallen");
     }
 
     #[test]

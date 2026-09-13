@@ -38,9 +38,6 @@ pub const DEFEAT_RECT: Rect = Rect::new(48, 24, 144, 80);
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
     panels(frame);
     label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
-    if let Some(actor) = &view.actor {
-        label_right(frame, 0, &format!("{actor:.10} to act"), TEXT);
-    }
     stacks(frame, view, Some(menu.target));
     counts(frame, view);
     for (i, (text, column)) in CombatMenu::ACTIONS
@@ -195,12 +192,11 @@ mod tests {
     use omnis_sim::ModeKind;
     use omnis_sim::omnis_data::{Disposition, Size};
 
-    /// Four stacks of the widest names and counts, the widest round and actor.
+    /// Four stacks of the widest names and counts, the widest round.
     fn widest_view(phase: ModeKind) -> FightView {
         FightView {
             phase,
             round: 999,
-            actor: Some("Bartholomew Longname".to_owned()),
             own: Some(0),
             disposition: Disposition::Friendly,
             stacks: (0..4)

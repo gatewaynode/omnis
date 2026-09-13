@@ -59,8 +59,6 @@ pub struct FightView {
     pub phase: ModeKind,
     /// The round, zero before the fight.
     pub round: u32,
-    /// The acting member's name, when the fight waits on one.
-    pub actor: Option<String>,
     /// The acting member's slot.
     pub own: Option<usize>,
     /// How the monsters feel about the party.
@@ -146,7 +144,6 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
     Some(FightView {
         phase: view.phase,
         round: view.round,
-        actor: own.map(|i| world.party.members[i].name.clone()),
         own,
         disposition: view.disposition,
         stacks,
@@ -480,7 +477,7 @@ pub(crate) mod tests {
             [Size::Small, Size::Small]
         );
         assert_eq!(view.actors().len(), 2);
-        assert_eq!(view.actor, None);
+        assert_eq!(view.own, None);
         // Goblins 50 xp × 3 + rats 25 xp × 2 = 200; hostile pays it all.
         assert_eq!(view.bribe, Some(200));
         assert_eq!(view.bribe_label(), "Bribe 200g");
@@ -499,7 +496,7 @@ pub(crate) mod tests {
         let view = fight_view(&world, &data).unwrap();
         assert_eq!(view.phase, ModeKind::Combat);
         assert_eq!(view.round, 1);
-        assert!(view.actor.is_some(), "a member is to act");
+        assert!(view.own.is_some(), "a member is to act");
         assert_eq!(view.bribe, None);
         assert!(
             view.stacks.iter().all(StackRow::reachable),
@@ -524,7 +521,7 @@ pub(crate) mod tests {
         )
         .unwrap();
         let view = fight_view(&world, &data).unwrap();
-        assert_eq!(view.actor.as_deref(), Some("Brenna"), "{view:#?}");
+        assert_eq!(view.own, Some(0), "Brenna acts: {view:#?}");
         let back = &view.stacks[2];
         assert!(back.alive && !back.front && !back.reachable(), "{view:#?}");
         assert_eq!(
@@ -547,7 +544,6 @@ pub(crate) mod tests {
         FightView {
             phase: ModeKind::Combat,
             round: 1,
-            actor: own.map(|_| "Brenna".to_owned()),
             own,
             disposition: Disposition::Hostile,
             stacks: stacks

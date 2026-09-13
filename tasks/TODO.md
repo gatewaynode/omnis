@@ -134,6 +134,22 @@ Scope: monsters as stacks with rows, fixed and random encounters keyed to map ti
 - **Accepted 2026-09-13**: the owner played the walkthrough to the rats at (3, 8) and verified it working.
 - **Review (2026-09-13)**: the simulation half landed in seven commits (`7498554` to `6bdaa4e`), the app half in six (`24fa0e8` to `1f07d8d`). As built: SRD attacks, damage, defenses, death saves, initiative, reach by rows, surprise, the four encounter choices, XP and gold, permadeath both ways, save schema 3 with a migration fixture, `combat.get` on the protocol and the MCP, the golden fight `tests/replays/fight.ron`; in the app the encounter, combat, and defeat screens over a visible viewport with silhouettes and counts, the roll math in the band and a four-line log, the play state following the mode, fights by mouse and by keys under test, and the dev script's `party` word so a capture has a party. Deviations from the plan: the roll math is `1d20+4 [17]=21 vs AC 16` (the planned spacing overflowed the band by one cell); the app's view type is `FightView`, not `CombatView` (the sim exports that name); stack rows are plain text before a fight; silhouettes truncate to 12 to 60 px; the stock recruit is a fighter with the standard array. Fixed on the way: a notice overrode every later message (the menus system marked it changed every frame); the command systems skip the frame the world leaves on a quit from the defeat modal. Horizons: a scrollable roll log; saving from the pause overlay mid-fight; healing downed members outside combat (M7); item loot and encounter budgets (M9); monster spellcasting and multiattack; `Surprise::Monsters`; `screen.text`; localized event text (client English for now); silhouette shapes and depth after the owner's first look; finesse weapons; a `dead` condition is required for members to die; floating damage numbers (ARCH §8.1 still describes them).
 
+### Display rework (D20, before M5) — plan approved 2026-09-13
+The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the build is early (PRD D20). Canvas 1280×720 (213×90 cells, the 5×7 font unchanged), viewport 960×540 by re-baking the tilesets at 4×, whole multiples only with `--window small|medium|large|huge` (1280×720, 2560×1440, 3840×2160, 7680×2160) and borderless fullscreen by default, the fit counted in physical pixels; the acting member as a roster highlight; the roll math in a band log. Plan: `~/.claude/plans/nested-growing-bear.md`.
+- [x] Text (2026-09-13): the member `Turn` line is silent (the header, log, and message line no longer say "to act"); `FightView.actor` removed
+- [ ] Silhouette rims: a one-pixel light edge under the four fills
+- [ ] Layout derivation with no behaviour change: every region a `const` expression of the inputs; `FRONT_FEET_Y`; modal and pad constants
+- [ ] Tests as invariants at 320×180; `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
+- [ ] `ui.rs`: compose into a scratch frame, upload on change
+- [ ] Bake `texel_scale`
+- [ ] The resize and the bake in one commit (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)
+- [ ] Physical fit, scale factor, size classes, fullscreen default
+- [ ] Menu box: an 80×16-cell framed area centred in the viewport, row indices unchanged
+- [ ] Band: `band.rs` with one roster row per member (group, name, class, level, HP, SP, AC, condition), the acting row as a FRAME bar with the marker, the selected name HI, an 18-row event log with the long lines
+- [ ] Combat screens re-laid: top panel rows 0–8, counts under the feet, bottom panel rows 60–66, blocked reasons on the stack rows, the defeat modal with four full lines
+- [ ] Docs: ARCH §8.2, PRD §14, this review, CONTINUITY
+- **Done when**: the owner runs the game fullscreen on the 4K, walks to the rats and fights them, and sees 3×3 text pixels, the roster highlight following the turn, the dice traces in the band log, and the rat against the wall
+
 ### M5 — Editor v1 (`bevy_egui`)
 - [ ] `Editor` app state: tile paint (terrain, edges, doors, visibility depth), objects and triggers, encounter placement, data tables, text keys, playtest at cursor; writer is the loader's code path
 - **Done when**: the M1 test maps are re-authored in the editor and every later map is built with it (D4)

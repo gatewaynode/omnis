@@ -77,6 +77,12 @@ fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
         frame_has(&app, WidgetId::Stack(0)) && frame_has(&app, WidgetId::Action(3)),
         "the fight screen is up"
     );
+    let line = app.world().resource::<MessageLine>();
+    assert!(
+        !line.0.text.ends_with(" to act"),
+        "the turn is shown, not said: {}",
+        line.0.text
+    );
     for _ in 0..400 {
         if play_state(&app) != PlayState::Combat {
             break;
@@ -102,6 +108,7 @@ fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
     );
     let log = app.world().resource::<RollLog>();
     assert!(log.0.len() >= 4, "{:?}", log.0);
+    assert!(log.0.iter().all(|l| !l.ends_with(" to act")), "{:?}", log.0);
     assert!(
         log.0
             .iter()
