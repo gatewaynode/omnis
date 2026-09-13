@@ -2,50 +2,18 @@
 //! level, points, armour class, and condition), the event log with the roll math beside it,
 //! and the help line. The acting member's row is barred and marked, the way the menus mark
 //! their cursor; the mouse's selection keeps its highlighted name, so both read at once.
-//! Bevy-free; the geometry is text rows of `layout::BAND`.
+//! Bevy-free; the rows and columns are `canvas.rs` constants.
 
 use crate::font::fit;
-use crate::layout::{BAND, CANVAS_WIDTH, CELL, Rect, cell};
+use crate::layout::{CELL, Rect};
 use crate::panels::Message;
 use crate::raster::Rgb;
 use crate::widget::{ALERT, DIM, FRAME, Frame, HI, Kind, SP, TEXT, Widget, WidgetId};
 
-/// The band's first text row on the canvas grid: its top is not on the grid.
-pub const BAND_ROW0: i32 = (BAND.y + CELL.1 - 1) / CELL.1;
-/// The message line's row, from the band's first row.
-pub const MESSAGE_ROW: i32 = 0;
-/// The captions over the roster and the log.
-pub const CAPTION_ROW: i32 = 2;
-/// The first member's row; one row per slot follows.
-pub const FIRST_MEMBER_ROW: i32 = 3;
-/// Rows the roster has: the party's six slots.
-pub const MEMBER_ROWS: usize = 6;
-/// The column the event log starts at.
-pub const LOG_COLUMN: i32 = 63;
-/// Rows of the event log, from the first member's row down.
-pub const LOG_ROWS: usize = 18;
-/// The help line's row.
-pub const HELP_ROW: i32 = 21;
-/// Rows the band uses.
-pub const ROWS_USED: i32 = 22;
-/// Text cells across the band from its first column.
-pub const BAND_COLUMNS: usize = ((CANVAS_WIDTH as i32 - band_cell(0, 0).0) / CELL.0) as usize;
-/// Cells of a roster row.
-pub const ROSTER_CELLS: usize = 61;
-/// Cells of a log line.
-pub const LOG_CELLS: usize = BAND_COLUMNS - LOG_COLUMN as usize;
-// The rows fit the band, the roster leaves room for the rule before the log, and the log's
-// rows end above the help line.
-const _: () = assert!((BAND_ROW0 + ROWS_USED) * CELL.1 <= BAND.y + BAND.h as i32);
-const _: () = assert!(ROSTER_CELLS as i32 + 2 <= LOG_COLUMN);
-const _: () = assert!(FIRST_MEMBER_ROW + LOG_ROWS as i32 <= HELP_ROW);
-const _: () = assert!(FIRST_MEMBER_ROW + MEMBER_ROWS as i32 <= HELP_ROW);
-
-/// The canvas pixel of a band cell: one column in, so the marker fits before the roster.
-#[must_use]
-pub const fn band_cell(column: i32, row: i32) -> (i32, i32) {
-    cell(1 + column, BAND_ROW0 + row)
-}
+pub use crate::canvas::{
+    BAND_COLUMNS, BAND_ROW0, CAPTION_ROW, FIRST_MEMBER_ROW, HELP_ROW, LOG_CELLS, LOG_COLUMN,
+    LOG_ROWS, MEMBER_ROWS, MESSAGE_ROW, ROSTER_CELLS, ROWS_USED, band_cell,
+};
 
 /// The roster's columns: where each run starts and its caption.
 const COLUMNS: [(i32, &str); 8] = [
@@ -230,6 +198,7 @@ fn log(frame: &mut Frame, lines: &[String]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::BAND;
     use crate::widget::PANEL;
 
     fn member(name: &str) -> MemberRow {
