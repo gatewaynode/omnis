@@ -33,3 +33,7 @@
 - **What happened**: The socket test asserted `PartyChanged` by reading `Messages<SimEvent>` after a second round trip. Bevy keeps a message for two frames; loopback delivery sometimes needs a second frame, so the message was gone on a slow CI runner while every local run passed.
 - **Rule**: A headless test that asserts on messages collects them into a resource with a reader system ordered after the writer (`after(SimSet::Publish)`); it never reads `Messages<M>` directly.
 - **Rule**: When a CI-only failure involves timing, reproduce it deterministically first (extra `app.update()` calls, a forced delay) and keep that reproduction in the test as the guard.
+
+## 2026-09-13 — Check the last push's CI before planning the next milestone
+- **What happened**: With the M3 branch pushed and its CI red, I entered plan mode for M4. The owner had to interrupt the plan to point at the failure ("a bit premature to enter planning").
+- **Rule**: At a session start or after the owner reports a push, ask whether CI passed (or read the failure they paste) before planning or starting the next milestone; a red build is the first task.
