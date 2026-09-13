@@ -83,14 +83,25 @@ impl Plugin for DevPlugin {
     }
 }
 
-/// A stock member: the catalog's first race, class, and background at the default scores,
-/// with the first skills the class allows that the background does not already grant,
-/// named `Scout <n>`.
+/// A stock member: a human fighter when the packs have one (else the catalog's first race
+/// and class), the first background, the standard array, and the first skills the class
+/// allows that the background does not already grant, named `Scout <n>`.
 #[must_use]
 pub fn recruit(data: &Data, index: usize) -> Draft {
     let catalog = Catalog::from_data(data);
     let mut form = CreationForm::new(&catalog);
     form.name = format!("Scout {}", index + 1);
+    form.race = catalog
+        .races
+        .iter()
+        .position(|r| r == "base:race:human")
+        .unwrap_or(0);
+    form.class = catalog
+        .classes
+        .iter()
+        .position(|c| c == "base:class:fighter")
+        .unwrap_or(0);
+    form.scores = [15, 14, 13, 12, 10, 8];
     let granted = data
         .registry
         .backgrounds
@@ -181,6 +192,7 @@ mod tests {
         for i in 0..2 {
             let draft = recruit(&data, world.party.members.len());
             assert_eq!(draft.name, format!("Scout {}", i + 1));
+            assert_eq!(draft.class, "base:class:fighter");
             apply(
                 &mut world,
                 &data,

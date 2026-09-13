@@ -126,7 +126,7 @@ Scope: monsters as stacks with rows, fixed and random encounters keyed to map ti
 - [x] App screens (2026-09-13): `WidgetId::{Stack, Action}`, `item_state` and `modal` helpers, `combat_screen.rs` (stack rows, action row, log tail, defeat modal; the window between stays clear), `screen.rs` targets, menus, click arms, `covers_viewport`, dump entries
 - [x] Silhouettes (2026-09-13): `actors.rs` (slots, sizes, four fills per living stack, front at z 3 and back at z 4.5), the viewport redraws on fight events and spawns them over the scene, the counts sit under them
 - [x] Wiring (2026-09-13): `PlayState::{Encounter, Combat, Defeat}` following `World.mode`, commands apply in every play state but Paused, `CombatPlugin` (keys, clicks, roll log, names), help lines, combat messages in the band, the dev script gains `party` and runs in fights
-- [ ] `tests/common/mod.rs` and `tests/combat.rs`: a fixed encounter fought by mouse, Run, the Defeat modal, Escape pauses a fight
+- [x] `tests/common/mod.rs` and `tests/combat.rs` (2026-09-13): a fixed encounter fought by mouse to Victory, Run per its check, the Defeat modal loads or quits, Escape pauses a fight and Resume returns, a friendly bribe by mouse; fixed on the way: a notice no longer overrides every later message
 - [ ] Horizon sliver: ground strips at their near-edge width
 - [ ] Docs: ARCH §4.2, §4.5, §8.1, §9.3, §11 (approved-by-plan drift), this block's review, CONTINUITY
 - **Done when**: the owner clears a fixed encounter in the test dungeon and a replay of the fight reproduces its fingerprint

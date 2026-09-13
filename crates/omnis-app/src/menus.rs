@@ -220,6 +220,11 @@ fn menu_keys(
     for UiClick(hit) in clicks.read() {
         pressed.extend(click_keys(&mut screens, active, *hit));
     }
+    if pressed.is_empty() {
+        // Nothing to do, and no mutable borrow of the notice: taking `&mut` on it marks it
+        // changed, which the message line reads as a new notice every frame.
+        return;
+    }
     let mut act = Actions {
         commands: &mut commands,
         next: &mut next,

@@ -2,157 +2,23 @@
 //! window would send, without a window, and the whole menu flow driven by clicks on the
 //! composed frame's widgets.
 
+mod common;
+
 use bevy::input::ButtonState;
-use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::input::mouse::{MouseButton, MouseButtonInput};
 use bevy::prelude::*;
-use bevy::state::app::StatesPlugin;
-use bevy::window::{CursorLeft, CursorMoved, WindowCreated, WindowResized, WindowResolution};
-use omnis_app::AppConfig;
-use omnis_app::cursor::{CursorPlugin, Pointer, WindowSize};
-use omnis_app::input::InputPlugin;
-use omnis_app::menu::{ROW_ADD, ROW_BEGIN, ROW_CLASS, ROW_RACE, ROW_SCORES};
-use omnis_app::menus::{MenusPlugin, Screens};
-use omnis_app::sim::{
-    AppState, MenuState, PlayState, ShellCommand, SimPlugin, SimWorld, WorldReplaced,
+use bevy::window::{CursorLeft, WindowCreated, WindowResized, WindowResolution};
+use common::{
+    button, click, click_at, draft_fighter_by_mouse, escape, frame, move_to, play_state, point_at,
+    pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
 };
-use omnis_app::ui::{MessageLine, Selected, UiFrame, UiPlugin};
-use omnis_app::widget::{ALERT, PadButton, Part, Widget, WidgetId};
+use omnis_app::cursor::{Pointer, WindowSize};
+use omnis_app::menu::ROW_BEGIN;
+use omnis_app::menus::Screens;
+use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
+use omnis_app::ui::{MessageLine, Selected};
+use omnis_app::widget::{ALERT, PadButton, Part, WidgetId};
 use omnis_sim::SaveRule;
 use omnis_sim::omnis_core::Facing;
-use std::path::PathBuf;
-
-/// How many `WorldReplaced` messages presentation saw.
-#[derive(Resource, Default)]
-struct Replaced(usize);
-
-fn ui_app(autostart: bool) -> App {
-    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, StatesPlugin))
-        .insert_resource(AppConfig {
-            packs: vec![repo.join("packs/base"), repo.join("packs/test")],
-            seed: 7,
-            save_path: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("pointer-save.ron"),
-            autostart,
-        })
-        .add_plugins((SimPlugin, InputPlugin, MenusPlugin, CursorPlugin, UiPlugin))
-        .init_resource::<Replaced>()
-        .add_systems(
-            Update,
-            |mut replaced: MessageReader<WorldReplaced>, mut count: ResMut<Replaced>| {
-                count.0 += replaced.read().count();
-            },
-        );
-    app
-}
-
-fn move_to(app: &mut App, x: f32, y: f32) {
-    app.world_mut()
-        .resource_mut::<Messages<CursorMoved>>()
-        .write(CursorMoved {
-            window: Entity::PLACEHOLDER,
-            position: Vec2::new(x, y),
-            delta: None,
-        });
-}
-
-fn button(app: &mut App, state: ButtonState) {
-    app.world_mut()
-        .resource_mut::<Messages<MouseButtonInput>>()
-        .write(MouseButtonInput {
-            button: MouseButton::Left,
-            state,
-            window: Entity::PLACEHOLDER,
-        });
-}
-
-fn pointer(app: &App) -> Pointer {
-    *app.world().resource::<Pointer>()
-}
-
-fn frame(app: &App) -> &UiFrame {
-    app.world().resource::<UiFrame>()
-}
-
-fn widget(app: &App, id: WidgetId) -> Widget {
-    *frame(app)
-        .frame
-        .widget(id)
-        .unwrap_or_else(|| panic!("{id:?} is not on the screen"))
-}
-
-/// Put the pointer on a canvas pixel directly, as a window's `CursorMoved` would.
-fn point_at(app: &mut App, at: (i32, i32)) {
-    app.world_mut().resource_mut::<Pointer>().canvas = Some(at);
-}
-
-/// A canvas pixel inside the widget's part.
-fn spot(w: &Widget, part: Part) -> (i32, i32) {
-    let r = match part {
-        Part::Body => w.rect,
-        Part::Left => w.left.expect("a left arrow"),
-        Part::Right => w.right.expect("a right arrow"),
-    };
-    (r.x + 2, r.y + 3)
-}
-
-/// Click a widget of the current frame: press, a frame to dispatch, a frame to apply, release.
-fn click(app: &mut App, id: WidgetId, part: Part) {
-    let w = widget(app, id);
-    click_at(app, spot(&w, part));
-}
-
-fn click_at(app: &mut App, at: (i32, i32)) {
-    point_at(app, at);
-    button(app, ButtonState::Pressed);
-    app.update();
-    app.update();
-    button(app, ButtonState::Released);
-    app.update();
-}
-
-fn key(app: &mut App, logical: Key) {
-    app.world_mut()
-        .resource_mut::<Messages<KeyboardInput>>()
-        .write(KeyboardInput {
-            key_code: KeyCode::F24,
-            logical_key: logical,
-            state: ButtonState::Pressed,
-            text: None,
-            repeat: false,
-            window: Entity::PLACEHOLDER,
-        });
-    app.update();
-    app.update();
-}
-
-fn type_text(app: &mut App, text: &str) {
-    for c in text.chars() {
-        key(app, Key::Character(c.to_string().into()));
-    }
-}
-
-/// Escape through the key table. `reset_all`, not `clear`: `clear` keeps the key pressed,
-/// so a second press would not count as one.
-fn escape(app: &mut App) {
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::Escape);
-    app.update();
-    app.world_mut()
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .reset_all();
-    app.update();
-}
-
-fn play_state(app: &App) -> PlayState {
-    *app.world().resource::<State<PlayState>>().get()
-}
-
-fn world(app: &App) -> &omnis_sim::World {
-    &app.world().resource::<SimWorld>().0
-}
 
 #[test]
 fn cursor_messages_map_through_the_letterbox_and_track_the_button() {
@@ -244,51 +110,6 @@ fn the_window_size_follows_creation_and_resizes() {
     assert_eq!(pointer(&app).canvas, Some((50, 25)));
 }
 
-/// Title, new game by mouse: seed 42 typed, the save rule clicked to Relief, Start.
-fn start_new_game_by_mouse(app: &mut App) {
-    app.update();
-    app.update();
-    click(app, WidgetId::Row(0), Part::Body);
-    assert_eq!(
-        *app.world().resource::<State<MenuState>>().get(),
-        MenuState::NewGame
-    );
-    click(app, WidgetId::Row(0), Part::Body);
-    type_text(app, "42");
-    click(app, WidgetId::Row(1), Part::Right);
-    assert_eq!(
-        app.world()
-            .resource::<Screens>()
-            .new_game
-            .settings
-            .save_rule,
-        SaveRule::Relief
-    );
-    click(app, WidgetId::Row(3), Part::Body);
-    assert_eq!(
-        *app.world().resource::<State<AppState>>().get(),
-        AppState::Playing
-    );
-    assert_eq!(play_state(app), PlayState::CreateParty);
-}
-
-/// The same human fighter the key test builds, by clicks: STR 15, DEX 14, CON 13, INT 12,
-/// WIS 10, CHA 8, Athletics and Perception.
-fn draft_fighter_by_mouse(app: &mut App) {
-    click(app, WidgetId::Row(0), Part::Body);
-    type_text(app, "Brenna");
-    click(app, WidgetId::Row(ROW_RACE), Part::Left);
-    click(app, WidgetId::Row(ROW_CLASS), Part::Right);
-    for (k, raise) in [7, 6, 5, 4, 2, 0].into_iter().enumerate() {
-        for _ in 0..raise {
-            click(app, WidgetId::Row(ROW_SCORES + k), Part::Right);
-        }
-    }
-    click(app, WidgetId::Skill(2), Part::Body);
-    click(app, WidgetId::Skill(6), Part::Body);
-    click(app, WidgetId::Row(ROW_ADD), Part::Body);
-}
-
 #[test]
 fn the_mouse_starts_a_game_and_builds_a_party() {
     let mut app = ui_app(false);
@@ -303,7 +124,7 @@ fn the_mouse_starts_a_game_and_builds_a_party() {
     assert_eq!(world(&app).seed, 42);
     assert_eq!(world(&app).settings.save_rule, SaveRule::Relief);
     assert_eq!(
-        app.world().resource::<Replaced>().0,
+        seen(&app).replaced,
         1,
         "a new game redraws the world before its first step"
     );
@@ -424,4 +245,14 @@ fn the_message_line_shows_rejections_and_notices() {
     let line = app.world().resource::<MessageLine>();
     assert!(line.0.text.contains("save rule"), "{}", line.0.text);
     assert!(line.0.alert);
+
+    // A notice is shown once; the next event takes the line back.
+    app.world_mut()
+        .resource_mut::<Messages<omnis_app::sim::PlayerCommand>>()
+        .write(omnis_app::sim::PlayerCommand(omnis_sim::Command::Interact));
+    app.update();
+    app.update();
+    let line = app.world().resource::<MessageLine>();
+    assert_eq!(line.0.text, "sim:message:nothing_here");
+    assert!(!line.0.alert);
 }

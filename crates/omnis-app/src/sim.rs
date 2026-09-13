@@ -151,7 +151,8 @@ impl Plugin for SimPlugin {
                 (apply_commands, shell)
                     .chain()
                     .in_set(SimSet::Apply)
-                    .run_if(unpaused),
+                    // The world may leave mid-frame (quit to title): skip until the state follows.
+                    .run_if(unpaused.and_then(resource_exists::<SimWorld>)),
             );
     }
 }
