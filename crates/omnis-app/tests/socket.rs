@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
 use omnis_app::AppConfig;
-use omnis_app::sim::{SimEvent, SimPlugin, SimWorld, WorldReplaced};
+use omnis_app::sim::{SimEvent, SimPlugin, SimSet, SimWorld, WorldReplaced};
 use omnis_app::socket::{DevSocketPlugin, MAX_LINE};
 use omnis_sim::Event;
 use serde_json::{Value, json};
@@ -78,10 +78,26 @@ impl Peer {
     }
 }
 
-fn messages<M: Message + Clone>(app: &App) -> Vec<M> {
-    let messages = app.world().resource::<Messages<M>>();
-    let mut cursor = messages.get_cursor();
-    cursor.read(messages).cloned().collect()
+/// What presentation saw, gathered at the end of every frame: Bevy keeps a message for two
+/// frames only, and a socket round trip takes as many frames as loopback delivery needs, so a
+/// test that read the buffers directly failed on a slow runner.
+#[derive(Resource, Default)]
+struct Seen {
+    events: Vec<Event>,
+    replaced: usize,
+}
+
+fn collect(
+    mut seen: ResMut<Seen>,
+    mut events: MessageReader<SimEvent>,
+    mut replaced: MessageReader<WorldReplaced>,
+) {
+    seen.events.extend(events.read().map(|e| e.0.clone()));
+    seen.replaced += replaced.read().count();
+}
+
+fn seen(app: &App) -> &Seen {
+    app.world().resource::<Seen>()
 }
 
 /// A headless app with the socket bound, and the address it wrote.
@@ -102,7 +118,9 @@ fn boot(dir: &Path) -> (App, SocketAddr) {
                 addr: "127.0.0.1:0".into(),
                 addr_file: addr_file.clone(),
             },
-        ));
+        ))
+        .init_resource::<Seen>()
+        .add_systems(Update, collect.after(SimSet::Publish));
     app.update();
     let addr: SocketAddr = std::fs::read_to_string(&addr_file)
         .unwrap()
@@ -129,9 +147,10 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     let position = app.world().resource::<SimWorld>().0.position;
     assert_eq!((position.x, position.y), (16, 15));
     assert!(
-        messages::<SimEvent>(app)
+        seen(app)
+            .events
             .iter()
-            .any(|e| matches!(e.0, Event::Visible { .. })),
+            .any(|e| matches!(e, Event::Visible { .. })),
         "the socket's events reach presentation"
     );
 
@@ -185,11 +204,7 @@ fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
     );
     assert_eq!(reply["result"]["turn"], json!(1), "{reply}");
     assert_eq!(app.world().resource::<SimWorld>().0.turn, 1);
-    assert_eq!(
-        messages::<WorldReplaced>(app).len(),
-        1,
-        "presentation redraws"
-    );
+    assert_eq!(seen(app).replaced, 1, "presentation redraws");
     let reply = peer.send(app, r#"{"id": 11, "op": "pack.reload"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
 }
@@ -215,10 +230,11 @@ fn party_and_rules(app: &mut App, peer: &mut Peer) {
         json!(10),
         "{reply}"
     );
+    // Presentation may read events frames later than the reply arrives.
+    app.update();
+    app.update();
     assert!(
-        messages::<SimEvent>(app)
-            .iter()
-            .any(|e| e.0 == Event::PartyChanged),
+        seen(app).events.contains(&Event::PartyChanged),
         "party changes reach presentation"
     );
 }
