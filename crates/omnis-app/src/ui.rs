@@ -3,6 +3,8 @@
 //! canvas sprite above the viewport. Headless-capable: without a render stack the frame is
 //! still composed as a resource and nothing is uploaded.
 
+use crate::combat_menu::{FightView, fight_view};
+use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
@@ -49,6 +51,32 @@ pub struct Selected(pub Option<usize>);
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
 pub struct MessageLine(pub Message);
 
+/// The names events refer to, kept fresh by the combat plugin.
+#[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
+pub struct EventNames(pub Names);
+
+/// The roll log, oldest first; the fight screen shows its tail.
+#[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
+pub struct RollLog(pub Vec<String>);
+
+impl RollLog {
+    /// How many lines are kept.
+    pub const CAPACITY: usize = 32;
+
+    /// Append a line, dropping the oldest past the capacity.
+    pub fn push(&mut self, line: String) {
+        self.0.push(line);
+        if self.0.len() > Self::CAPACITY {
+            self.0.remove(0);
+        }
+    }
+
+    /// Forget every line.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+}
+
 /// Help while exploring.
 pub const HELP_EXPLORE: &str = "Arrows/pad move  M map  F5 save  F9 load  Esc menu";
 /// Help on the title.
@@ -59,6 +87,12 @@ pub const HELP_NEW_GAME: &str = "Arrows or click  Enter ok  Esc back";
 pub const HELP_CREATION: &str = "Arrows or click  Enter ok  Esc abandon";
 /// Help while paused.
 pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
+/// Help before a fight.
+pub const HELP_ENCOUNTER: &str = "Left/Right choose  Enter ok  Esc menu";
+/// Help in a fight.
+pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  Enter ok  Esc menu";
+/// Help after a wipe.
+pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -69,6 +103,8 @@ impl Plugin for UiPlugin {
             .init_resource::<UiFrame>()
             .init_resource::<Selected>()
             .init_resource::<MessageLine>()
+            .init_resource::<EventNames>()
+            .init_resource::<RollLog>()
             .add_systems(
                 Update,
                 hit.in_set(UiSet::Cursor).after(cursor::track_pointer),
@@ -86,7 +122,8 @@ impl Plugin for UiPlugin {
     }
 }
 
-/// A one-line description of an event, or `None` for events the message line skips.
+/// A one-line description of an exploration event, or `None` for events the message line
+/// skips; combat events read through `combat_text::batch_lines`.
 #[must_use]
 pub fn event_text(event: &Event) -> Option<String> {
     Some(match event {
@@ -180,20 +217,28 @@ fn select_member(mut clicks: MessageReader<UiClick>, mut selected: ResMut<Select
     }
 }
 
-fn message_line(
+pub(crate) fn message_line(
     mut events: MessageReader<SimEvent>,
     mut refused: MessageReader<CommandRefused>,
     notice: Res<Notice>,
+    names: Res<EventNames>,
     at: Where,
     mut line: ResMut<MessageLine>,
 ) {
     let mut next = None;
     let mut moved = false;
-    for SimEvent(event) in events.read() {
+    let batch: Vec<Event> = events.read().map(|e| e.0.clone()).collect();
+    for event in &batch {
         moved |= matches!(event, Event::Moved { .. });
         if let Some(text) = event_text(event) {
             next = Some(Message { text, alert: false });
         }
+    }
+    if let Some(last) = batch_lines(&batch, &names.0).pop() {
+        next = Some(Message {
+            text: last.long,
+            alert: false,
+        });
     }
     if moved && next.is_none() {
         next = Some(Message::default());
@@ -262,6 +307,69 @@ pub fn hud_text(world: &World, data: &Data) -> Hud {
     )
 }
 
+/// The message a screen's model reports, when it has one.
+fn model_message(active: Active, screens: &Screens) -> Option<Message> {
+    let text = match active {
+        Active::CreateParty => &screens.creation.message,
+        Active::Encounter => &screens.encounter.message,
+        Active::Combat => &screens.combat.message,
+        _ => return None,
+    };
+    (!text.is_empty()).then(|| Message {
+        text: text.clone(),
+        alert: true,
+    })
+}
+
+/// The menu and help line for the active screen.
+fn menu_for<'a>(
+    active: Active,
+    screens: &'a Screens,
+    world: Option<&World>,
+    fight: Option<&'a FightView>,
+    members: usize,
+    log: &'a [String],
+) -> (Menu<'a>, &'static str) {
+    match (active, fight) {
+        (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
+        (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
+        (Active::CreateParty, _) => (
+            Menu::Creation {
+                form: &screens.creation,
+                catalog: &screens.catalog,
+                members,
+            },
+            HELP_CREATION,
+        ),
+        (Active::Paused, _) => (
+            Menu::Pause {
+                pause: &screens.pause,
+                settings: world.map_or_else(Default::default, |w| w.settings),
+                seed: world.map_or(0, |w| w.seed),
+            },
+            HELP_PAUSE,
+        ),
+        (Active::Encounter, Some(view)) => (
+            Menu::Encounter {
+                menu: &screens.encounter,
+                view,
+            },
+            HELP_ENCOUNTER,
+        ),
+        (Active::Combat, Some(view)) => (
+            Menu::Combat {
+                menu: &screens.combat,
+                view,
+                log,
+            },
+            HELP_COMBAT,
+        ),
+        (Active::Defeat, _) => (Menu::Defeat(&screens.defeat), HELP_DEFEAT),
+        (Active::None | Active::Encounter | Active::Combat, _) => (Menu::None, HELP_EXPLORE),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn build_frame(
     at: Where,
     screens: Res<Screens>,
@@ -269,43 +377,26 @@ fn build_frame(
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     line: Res<MessageLine>,
+    log: Res<RollLog>,
     mut ui: ResMut<UiFrame>,
 ) {
     let active = at.screen();
     let loaded = world.as_ref().zip(data.as_ref());
     let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
     let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
+    let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
-    let creation_message = (active == Active::CreateParty && !screens.creation.message.is_empty())
-        .then(|| Message {
-            text: screens.creation.message.clone(),
-            alert: true,
-        });
-    let (menu, help) = match active {
-        Active::Title => (Menu::Title(&screens.title), HELP_TITLE),
-        Active::NewGame => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
-        Active::CreateParty => (
-            Menu::Creation {
-                form: &screens.creation,
-                catalog: &screens.catalog,
-                members: members.len(),
-            },
-            HELP_CREATION,
-        ),
-        Active::Paused => (
-            Menu::Pause {
-                pause: &screens.pause,
-                settings: world
-                    .as_ref()
-                    .map_or_else(Default::default, |w| w.0.settings),
-                seed: world.as_ref().map_or(0, |w| w.0.seed),
-            },
-            HELP_PAUSE,
-        ),
-        Active::None => (Menu::None, HELP_EXPLORE),
-    };
+    let model_message = model_message(active, &screens);
+    let (menu, help) = menu_for(
+        active,
+        &screens,
+        world.as_ref().map(|w| &w.0),
+        fight.as_ref(),
+        members.len(),
+        &log.0,
+    );
     let pad = if world.is_none() {
         PadState::Hidden
     } else if at.exploring() {
@@ -321,7 +412,7 @@ fn build_frame(
         selected: selected.0.filter(|s| *s < members.len()),
         creating: active == Active::CreateParty,
         pad,
-        message: creation_message.as_ref().unwrap_or(&line.0),
+        message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
     ui.frame = screen::compose(&view, ui.hover, ui.pressed);

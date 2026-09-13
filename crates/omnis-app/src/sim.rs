@@ -5,7 +5,7 @@ use crate::AppConfig;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
+use omnis_sim::{Command, Event, Mode, Rejection, Settings, World, apply};
 use std::path::{Path, PathBuf};
 
 /// Top-level app state (ARCHITECTURE.md §8.1).
@@ -40,8 +40,32 @@ pub enum PlayState {
     CreateParty,
     /// Walking the map.
     Explore,
+    /// Monsters ahead: attack, bribe, hide, or run.
+    Encounter,
+    /// The fight.
+    Combat,
     /// The pause overlay.
     Paused,
+    /// Every member is down: load or quit.
+    Defeat,
+}
+
+impl PlayState {
+    /// The play state the world's mode calls for.
+    #[must_use]
+    pub const fn for_mode(mode: &Mode) -> PlayState {
+        match mode {
+            Mode::Explore => PlayState::Explore,
+            Mode::Encounter(_) => PlayState::Encounter,
+            Mode::Combat(_) => PlayState::Combat,
+        }
+    }
+}
+
+/// Whether a game is running and not paused: commands apply in every other play state.
+#[must_use]
+pub fn unpaused(state: Option<Res<State<PlayState>>>) -> bool {
+    state.is_some_and(|s| *s.get() != PlayState::Paused)
 }
 
 /// Where a newly started game begins; read once on entering `Playing`.
@@ -127,7 +151,7 @@ impl Plugin for SimPlugin {
                 (apply_commands, shell)
                     .chain()
                     .in_set(SimSet::Apply)
-                    .run_if(in_state(PlayState::Explore).or_else(in_state(PlayState::CreateParty))),
+                    .run_if(unpaused),
             );
     }
 }
@@ -262,4 +286,34 @@ pub fn save(world: &World, path: &Path) -> Result<(), String> {
 pub fn load(data: &Data, path: &Path, force: bool) -> Result<World, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     World::from_ron(&text, data, force).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_play_state_follows_the_mode_and_only_the_pause_stops_commands() {
+        assert_eq!(PlayState::for_mode(&Mode::Explore), PlayState::Explore);
+        let mut app = App::new();
+        app.add_plugins(bevy::state::app::StatesPlugin)
+            .init_state::<AppState>()
+            .add_sub_state::<PlayState>();
+        assert!(!app.world_mut().run_system_cached(unpaused).unwrap());
+        app.world_mut()
+            .resource_mut::<NextState<AppState>>()
+            .set(AppState::Playing);
+        app.update();
+        assert!(app.world_mut().run_system_cached(unpaused).unwrap());
+        app.world_mut()
+            .resource_mut::<NextState<PlayState>>()
+            .set(PlayState::Paused);
+        app.update();
+        assert!(!app.world_mut().run_system_cached(unpaused).unwrap());
+        app.world_mut()
+            .resource_mut::<NextState<PlayState>>()
+            .set(PlayState::Defeat);
+        app.update();
+        assert!(app.world_mut().run_system_cached(unpaused).unwrap());
+    }
 }
