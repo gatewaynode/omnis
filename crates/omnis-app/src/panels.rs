@@ -1,9 +1,10 @@
 //! The parts of the frame that live outside the menus: the location lines and the movement
-//! pad in the right column, and the backdrop under them and the band (`band.rs` paints the
-//! band itself). Text models are fitted to their cells here so the widths are testable.
+//! pad in the right column, and the backdrop under everything (`band.rs` paints the band
+//! itself). Text models are fitted to their cells here so the widths are testable.
 
+use crate::canvas::Layout;
 use crate::font::{GLYPH_HEIGHT, fit};
-use crate::layout::{BAND, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP};
+use crate::layout::{CELL, HUD_COLUMNS, HUD_LINES, Rect};
 use crate::widget::{
     DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, TEXT, Widget, WidgetId,
 };
@@ -68,28 +69,13 @@ pub struct Message {
     pub alert: bool,
 }
 
-/// Paint the column and band backdrop: opaque panel around the minimap and across the band,
-/// so viewport sprites that overhang the viewport's edges never show there.
-pub fn backdrop(frame: &mut Frame) {
-    let map = Rect::new(SIDEBAR_MAP.0, SIDEBAR_MAP.1, SIDEBAR_MAP.2, SIDEBAR_MAP.3);
-    let column = RIGHT_COLUMN;
-    let above = Rect::new(column.x, column.y, column.w, (map.y - column.y) as u32);
-    let left = Rect::new(column.x, map.y, (map.x - column.x) as u32, map.h);
-    let right = Rect::new(
-        map.right(),
-        map.y,
-        (column.right() - map.right()) as u32,
-        map.h,
-    );
-    let below = Rect::new(
-        column.x,
-        map.bottom(),
-        column.w,
-        (column.bottom() - map.bottom()) as u32,
-    );
-    for rect in [above, left, right, below, BAND] {
-        frame.raster.fill(rect, PANEL);
-    }
+/// Paint the backdrop: opaque panel everywhere but the viewport and the minimap, so viewport
+/// sprites that overhang the viewport's edges never show outside it.
+pub fn backdrop(frame: &mut Frame, layout: &Layout) {
+    frame.raster.fill(layout.canvas(), PANEL);
+    frame.raster.erase(layout.viewport());
+    let (x, y, w, h) = layout.minimap();
+    frame.raster.erase(Rect::new(x, y, w, h));
 }
 
 /// Paint the location lines.
@@ -132,7 +118,8 @@ pub fn pad(frame: &mut Frame, state: PadState, pressed: Option<WidgetId>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::{CANVAS, VIEWPORT};
+    use crate::canvas::NARROW;
+    use crate::layout::{BAND, CANVAS, RIGHT_COLUMN, SIDEBAR_MAP, VIEWPORT};
 
     #[test]
     fn location_lines_fit_the_hud() {
@@ -155,7 +142,7 @@ mod tests {
     #[test]
     fn the_backdrop_covers_the_column_and_band_but_not_the_minimap() {
         let mut frame = Frame::default();
-        backdrop(&mut frame);
+        backdrop(&mut frame, &NARROW);
         let panel = [PANEL.0, PANEL.1, PANEL.2, 255];
         let (mx, my, mw, mh) = SIDEBAR_MAP;
         let clear = Some([0, 0, 0, 0]);

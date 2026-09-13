@@ -3,9 +3,10 @@
 //! Bevy-free.
 
 use crate::band::{self, Band, MemberRow};
+use crate::canvas::{Layout, NARROW};
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
-use crate::layout::{MENU_BOX, VIEWPORT};
+use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Hud, Message};
 use crate::screens;
@@ -163,23 +164,60 @@ pub struct View<'a> {
     pub help: &'a str,
 }
 
-/// Compose a frame; `hover` outlines a widget and `pressed` shows a pad button held down.
+/// Compose a frame on the narrow canvas; `hover` outlines a widget and `pressed` shows a pad
+/// button held down.
 #[must_use]
 pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetId>) -> Frame {
+    compose_in(&NARROW, view, hover, pressed)
+}
+
+/// Compose a frame on a canvas of the layout's width.
+#[must_use]
+pub fn compose_in(
+    layout: &Layout,
+    view: &View<'_>,
+    hover: Option<WidgetId>,
+    pressed: Option<WidgetId>,
+) -> Frame {
     let mut frame = Frame::default();
-    compose_into(&mut frame, view, hover, pressed);
+    compose_into(&mut frame, layout, view, hover, pressed);
     frame
 }
 
-/// Compose into an existing frame, reusing its buffer: cleared first, then painted.
+/// Compose into an existing frame, reusing its buffer when the size is unchanged: the
+/// backdrop, then the core (the menus or the fight overlay, the location lines, the pad)
+/// through its origin, then the band, then the hover outline.
 pub fn compose_into(
     frame: &mut Frame,
+    layout: &Layout,
     view: &View<'_>,
     hover: Option<WidgetId>,
     pressed: Option<WidgetId>,
 ) {
-    frame.clear();
-    panels::backdrop(frame);
+    frame.reset(layout.width, CANVAS_HEIGHT);
+    panels::backdrop(frame, layout);
+    frame.within(layout.core, |frame| core(frame, view, pressed));
+    band::band(
+        frame,
+        layout,
+        &Band {
+            message: view.message,
+            members: view.members,
+            front_row: view.front_row,
+            selected: view.selected,
+            acting: view.acting,
+            log: view.log,
+            help: view.help,
+        },
+    );
+    if let Some(id) = hover {
+        frame.outline(id);
+    }
+}
+
+/// The core in its own coordinates: the menu box and the menus, or the fight overlay; the
+/// location lines; the pad.
+fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
     if view.menu.covers_viewport() {
         frame.raster.fill(VIEWPORT, PANEL);
         frame.raster.stroke(MENU_BOX, FRAME);
@@ -206,27 +244,12 @@ pub fn compose_into(
         panels::hud(frame, hud);
     }
     panels::pad(frame, view.pad, pressed);
-    band::band(
-        frame,
-        &Band {
-            message: view.message,
-            members: view.members,
-            front_row: view.front_row,
-            selected: view.selected,
-            acting: view.acting,
-            log: view.log,
-            help: view.help,
-        },
-    );
-    if let Some(id) = hover {
-        frame.outline(id);
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::PadButton;
+    use crate::widget::{HI, PadButton, hit};
     use omnis_sim::omnis_data::load_packs;
     use std::path::PathBuf;
 
@@ -393,7 +416,7 @@ mod tests {
         let fresh = compose(&view, Some(WidgetId::Row(0)), None);
         let mut reused = compose(&view, Some(WidgetId::Row(1)), None);
         assert_ne!(reused, fresh, "a different hover outlines a different row");
-        compose_into(&mut reused, &view, Some(WidgetId::Row(0)), None);
+        compose_into(&mut reused, &NARROW, &view, Some(WidgetId::Row(0)), None);
         assert_eq!(reused, fresh, "nothing of the earlier paint survives");
         reused.clear();
         assert!(reused.widgets.is_empty());
@@ -530,7 +553,8 @@ mod tests {
         .to_vec()
     }
 
-    /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`.
+    /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`, and the
+    /// same on a 2560-wide canvas as `<dir>/<name>-wide.ppm`.
     fn dump(dir: &str, name: &str, menu: Menu<'_>, hud: Option<&Hud>, message: &Message) {
         let log = sample_log();
         let members = sample_members();
@@ -551,12 +575,12 @@ mod tests {
             message,
             help: "Arrows or click  Enter ok  Esc back",
         };
-        let frame = compose(
-            &view,
-            Some(WidgetId::Row(1)),
-            Some(WidgetId::Pad(PadButton::Use)),
-        );
+        let hover = Some(WidgetId::Row(1));
+        let pressed = Some(WidgetId::Pad(PadButton::Use));
+        let frame = compose(&view, hover, pressed);
         std::fs::write(format!("{dir}/{name}.ppm"), ppm(&frame)).unwrap();
+        let wide = compose_in(&Layout::for_width(2560), &view, hover, pressed);
+        std::fs::write(format!("{dir}/{name}-wide.ppm"), ppm(&wide)).unwrap();
     }
 
     /// `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
@@ -619,5 +643,125 @@ mod tests {
             log: &log,
         };
         dump(&dir, "defeat", fallen, Some(&hud), &event);
+    }
+
+    /// The sample explore view: no menu, the location lines, the pad enabled.
+    fn explore<'a>(
+        members: &'a [MemberRow],
+        hud: &'a Hud,
+        log: &'a [String],
+        message: &'a Message,
+    ) -> View<'a> {
+        View {
+            menu: Menu::None,
+            hud: Some(hud),
+            members,
+            front_row: 3,
+            selected: Some(1),
+            acting: None,
+            log,
+            pad: PadState::Enabled,
+            message,
+            help: "help",
+        }
+    }
+
+    #[test]
+    fn a_wide_canvas_shifts_the_core_widgets_by_its_origin_and_seats_the_roster_in_the_wing() {
+        let wide = Layout::for_width(2560);
+        let wing = wide.wing.expect("wide");
+        let members = sample_members();
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let log = sample_log();
+        let message = Message::default();
+        let fight = sample_fight();
+        let combat = CombatMenu::default();
+        let views = [
+            explore(&members, &hud, &log, &message),
+            View {
+                menu: Menu::Title(&Title::default()),
+                ..explore(&members, &hud, &log, &message)
+            },
+            View {
+                menu: Menu::Combat {
+                    menu: &combat,
+                    view: &fight,
+                },
+                acting: Some(0),
+                ..explore(&members, &hud, &log, &message)
+            },
+        ];
+        for view in &views {
+            let narrow = compose(view, None, None);
+            let frame = compose_in(&wide, view, None, None);
+            assert_eq!(frame.raster.width, 2560);
+            assert_eq!(frame.widgets.len(), narrow.widgets.len());
+            for (a, b) in narrow.widgets.iter().zip(&frame.widgets) {
+                assert_eq!(a.id, b.id);
+                if let WidgetId::Member(_) = a.id {
+                    assert!(wing.encloses(b.rect), "{:?} leaves the wing", b.rect);
+                    continue;
+                }
+                let (dx, dy) = wide.core;
+                assert_eq!(b.rect, a.rect.shifted(dx, dy), "{:?}", a.id);
+                assert_eq!(b.left, a.left.map(|r| r.shifted(dx, dy)), "{:?}", a.id);
+                assert_eq!(b.right, a.right.map(|r| r.shifted(dx, dy)), "{:?}", a.id);
+            }
+        }
+    }
+
+    #[test]
+    fn a_wide_canvas_keeps_the_scene_and_the_minimap_clear_and_frames_the_menu_where_it_sits() {
+        let wide = Layout::for_width(2560);
+        let members = sample_members();
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let log = sample_log();
+        let message = Message::default();
+        let view = explore(&members, &hud, &log, &message);
+        let frame = compose_in(&wide, &view, Some(WidgetId::Member(0)), None);
+        let rgba = |x, y| frame.raster.get(x, y);
+        let panel = Some([PANEL.0, PANEL.1, PANEL.2, 255]);
+        let clear = Some([0, 0, 0, 0]);
+        let viewport = wide.viewport();
+        assert_eq!(rgba(viewport.x + 480, viewport.y + 270), clear, "the scene");
+        assert_eq!(rgba(viewport.x - 1, 270), panel, "the wing beside it");
+        assert_eq!(rgba(viewport.right(), 270), panel, "the column beside it");
+        let (mx, my, mw, mh) = wide.minimap();
+        assert_eq!(
+            rgba(mx + mw as i32 / 2, my + mh as i32 / 2),
+            clear,
+            "the minimap"
+        );
+        assert_eq!(rgba(mx - 1, my), panel);
+        assert_eq!(rgba(10, 300), panel, "the margin");
+        assert_eq!(rgba(2559, 719), panel, "the far corner");
+        assert_eq!(
+            rgba(480, 270),
+            panel,
+            "the narrow scene's centre is panel now"
+        );
+        let member = frame.widget(WidgetId::Member(0)).unwrap();
+        let hi = Some([HI.0, HI.1, HI.2, 255]);
+        assert_eq!(
+            rgba(member.rect.x - 1, member.rect.y - 1),
+            hi,
+            "the outline"
+        );
+        assert_eq!(hit(&frame.widgets, 7, 568).map(|h| h.id), None);
+        let title = View {
+            menu: Menu::Title(&Title::default()),
+            ..explore(&members, &hud, &log, &message)
+        };
+        let frame = compose_in(&wide, &title, None, None);
+        let boxed = MENU_BOX.shifted(wide.core.0, wide.core.1);
+        let rgb = |x, y| frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]));
+        assert_eq!(rgb(boxed.x, boxed.y), Some(FRAME));
+        assert_eq!(rgb(boxed.right() - 1, boxed.bottom() - 1), Some(FRAME));
+        assert_eq!(
+            rgb(MENU_BOX.x, MENU_BOX.y),
+            Some(PANEL),
+            "not at the narrow corner"
+        );
+        assert!(boxed.encloses(frame.widget(WidgetId::Row(0)).unwrap().rect));
     }
 }

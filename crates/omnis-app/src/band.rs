@@ -4,6 +4,7 @@
 //! their cursor; the mouse's selection keeps its highlighted name, so both read at once.
 //! Bevy-free; the rows and columns are `canvas.rs` constants.
 
+use crate::canvas::Layout;
 use crate::font::fit;
 use crate::layout::{CELL, Rect};
 use crate::panels::Message;
@@ -107,12 +108,6 @@ pub fn row_style(acting: bool, selected: bool) -> RowStyle {
     }
 }
 
-/// Where a party slot's row starts, if the roster has a row for it.
-#[must_use]
-pub fn slot_origin(slot: usize) -> Option<(i32, i32)> {
-    (slot < MEMBER_ROWS).then(|| band_cell(0, FIRST_MEMBER_ROW + slot as i32))
-}
-
 /// What the band shows.
 pub struct Band<'a> {
     /// The message line.
@@ -131,32 +126,36 @@ pub struct Band<'a> {
     pub help: &'a str,
 }
 
-/// Paint the band: message, captions, roster, the rule, the log, help.
-pub fn band(frame: &mut Frame, view: &Band<'_>) {
-    let (x, y) = band_cell(0, MESSAGE_ROW);
+/// Paint the band: message, captions, roster, the rule, the log, help. The roster sits in
+/// the wing when the layout has one, else beside the log with a rule between.
+pub fn band(frame: &mut Frame, layout: &Layout, view: &Band<'_>) {
+    let columns = layout.band_columns();
+    let (x, y) = layout.band_cell(0, MESSAGE_ROW);
     let color = if view.message.alert { ALERT } else { TEXT };
     frame
         .raster
-        .text(x, y, &fit(&view.message.text, BAND_COLUMNS), color);
-    roster(frame, view);
-    let (x, y) = band_cell(LOG_COLUMN - 1, CAPTION_ROW);
-    let height = ((HELP_ROW - CAPTION_ROW) * CELL.1) as u32;
-    frame.raster.fill(Rect::new(x + 2, y, 1, height), FRAME);
-    log(frame, view.log);
-    let (x, y) = band_cell(0, HELP_ROW);
-    frame.raster.text(x, y, &fit(view.help, BAND_COLUMNS), DIM);
+        .text(x, y, &fit(&view.message.text, columns), color);
+    roster(frame, layout, view);
+    if !layout.is_wide() {
+        let (x, y) = layout.band_cell(LOG_COLUMN - 1, CAPTION_ROW);
+        let height = ((HELP_ROW - CAPTION_ROW) * CELL.1) as u32;
+        frame.raster.fill(Rect::new(x + 2, y, 1, height), FRAME);
+    }
+    let (x, y) = layout.band_cell(layout.log_column(), CAPTION_ROW);
+    frame.raster.text(x, y, "EVENTS", DIM);
+    log(frame, layout, view.log);
+    let (x, y) = layout.band_cell(0, HELP_ROW);
+    frame.raster.text(x, y, &fit(view.help, columns), DIM);
 }
 
 /// The captions and one row per member, the acting one barred and marked.
-fn roster(frame: &mut Frame, view: &Band<'_>) {
-    let (x, y) = band_cell(0, CAPTION_ROW);
+fn roster(frame: &mut Frame, layout: &Layout, view: &Band<'_>) {
+    let (x, y) = layout.roster_origin();
     for (column, caption) in COLUMNS {
         frame.raster.text(x + column * CELL.0, y, caption, DIM);
     }
-    let (lx, _) = band_cell(LOG_COLUMN, CAPTION_ROW);
-    frame.raster.text(lx, y, "EVENTS", DIM);
     for (slot, member) in view.members.iter().enumerate() {
-        let Some((x, y)) = slot_origin(slot) else {
+        let Some((x, y)) = layout.slot_origin(slot) else {
             break;
         };
         let group = if slot == 0 {
@@ -182,20 +181,22 @@ fn roster(frame: &mut Frame, view: &Band<'_>) {
 }
 
 /// The log's tail, newest at the bottom in full colour, the older lines dim.
-fn log(frame: &mut Frame, lines: &[String]) {
+fn log(frame: &mut Frame, layout: &Layout, lines: &[String]) {
     let tail = &lines[lines.len().saturating_sub(LOG_ROWS)..];
     let first = FIRST_MEMBER_ROW + LOG_ROWS as i32 - tail.len() as i32;
+    let cells = layout.log_cells();
     for (i, line) in tail.iter().enumerate() {
-        let (x, y) = band_cell(LOG_COLUMN, first + i as i32);
+        let (x, y) = layout.band_cell(layout.log_column(), first + i as i32);
         let newest = i + 1 == tail.len();
         let color = if newest { TEXT } else { DIM };
-        frame.raster.text(x, y, &fit(line, LOG_CELLS), color);
+        frame.raster.text(x, y, &fit(line, cells), color);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::canvas::NARROW;
     use crate::layout::BAND;
     use crate::widget::PANEL;
 
@@ -252,7 +253,7 @@ mod tests {
         );
         let rows: Vec<Rect> = (0..MEMBER_ROWS)
             .map(|slot| {
-                let (x, y) = slot_origin(slot).unwrap();
+                let (x, y) = NARROW.slot_origin(slot).unwrap();
                 Rect::new(x, y, ROSTER_CELLS as u32 * CELL.0 as u32, CELL.1 as u32)
             })
             .collect();
@@ -264,7 +265,7 @@ mod tests {
         for r in &rows {
             assert!(!r.overlaps(log), "{r:?}");
         }
-        assert!(slot_origin(MEMBER_ROWS).is_none());
+        assert!(NARROW.slot_origin(MEMBER_ROWS).is_none());
         assert!(
             band_cell(0, 0).0 >= 5,
             "room for the marker before the roster"
@@ -306,9 +307,13 @@ mod tests {
         let members = [member("Brenna"), member("Durin"), member("Ilvara")];
         let message = Message::default();
         let mut frame = Frame::default();
-        band(&mut frame, &view(&members, Some(1), Some(0), &[], &message));
+        band(
+            &mut frame,
+            &NARROW,
+            &view(&members, Some(1), Some(0), &[], &message),
+        );
         let bar = |slot: usize| {
-            let (x, y) = slot_origin(slot).unwrap();
+            let (x, y) = NARROW.slot_origin(slot).unwrap();
             // The gap cell between the group word and the name is bare on a plain row.
             rgb(&frame, x + 5 * CELL.0 + 2, y + 3)
         };
@@ -316,7 +321,7 @@ mod tests {
         assert_eq!(bar(1), Some((0, 0, 0)), "the selected row is not");
         assert_eq!(bar(2), Some((0, 0, 0)));
         let name_ink = |slot: usize| {
-            let (x, y) = slot_origin(slot).unwrap();
+            let (x, y) = NARROW.slot_origin(slot).unwrap();
             (0..16 * CELL.0)
                 .flat_map(|dx| (0..CELL.1).map(move |dy| (dx, dy)))
                 .find_map(|(dx, dy)| {
@@ -325,19 +330,23 @@ mod tests {
         };
         assert_eq!(name_ink(1), Some(HI), "the selected name is highlighted");
         assert_eq!(name_ink(2), Some(TEXT));
-        let (x, y) = slot_origin(0).unwrap();
+        let (x, y) = NARROW.slot_origin(0).unwrap();
         assert_eq!(
             rgb(&frame, x - 4, y + 3),
             Some(HI),
             "the marker points at the acting row"
         );
-        let (x, y) = slot_origin(1).unwrap();
+        let (x, y) = NARROW.slot_origin(1).unwrap();
         assert_ne!(rgb(&frame, x - 4, y + 3), Some(HI));
         assert_eq!(frame.widgets.len(), 3);
         // Acting and selected on one row: barred, marked, and highlighted.
         let mut frame = Frame::default();
-        band(&mut frame, &view(&members, Some(1), Some(1), &[], &message));
-        let (x, y) = slot_origin(1).unwrap();
+        band(
+            &mut frame,
+            &NARROW,
+            &view(&members, Some(1), Some(1), &[], &message),
+        );
+        let (x, y) = NARROW.slot_origin(1).unwrap();
         assert_eq!(rgb(&frame, x + 5 * CELL.0 + 2, y + 3), Some(FRAME));
         assert_eq!(rgb(&frame, x - 4, y + 3), Some(HI));
         assert_eq!(name_ink(1), Some(HI));
@@ -350,7 +359,11 @@ mod tests {
         let message = Message::default();
         let lines: Vec<String> = (0..3).map(|i| format!("Line {i} HHHH")).collect();
         let mut frame = Frame::default();
-        band(&mut frame, &view(&members, None, None, &lines, &message));
+        band(
+            &mut frame,
+            &NARROW,
+            &view(&members, None, None, &lines, &message),
+        );
         let last = FIRST_MEMBER_ROW + LOG_ROWS as i32 - 1;
         let ink = |row: i32| {
             let (x, y) = band_cell(LOG_COLUMN, row);
@@ -363,7 +376,11 @@ mod tests {
         // A line past the log's width is clipped at it.
         let long = vec!["H".repeat(LOG_CELLS + 20)];
         let mut frame = Frame::default();
-        band(&mut frame, &view(&members, None, None, &long, &message));
+        band(
+            &mut frame,
+            &NARROW,
+            &view(&members, None, None, &long, &message),
+        );
         let (x, y) = band_cell(LOG_COLUMN, last);
         assert_eq!(
             rgb(&frame, x + (LOG_CELLS as i32 - 1) * CELL.0, y + 3),
@@ -379,10 +396,70 @@ mod tests {
             alert: true,
         };
         let mut frame = Frame::default();
-        band(&mut frame, &view(&members, None, None, &[], &message));
+        band(
+            &mut frame,
+            &NARROW,
+            &view(&members, None, None, &[], &message),
+        );
         let (x, y) = band_cell(0, MESSAGE_ROW);
         assert!((0..30).any(|dx| rgb(&frame, x + dx, y + 3) == Some(ALERT)));
         let (x, y) = band_cell(0, HELP_ROW);
         assert!((0..24).any(|dx| rgb(&frame, x + dx, y + 3) == Some(DIM)));
+    }
+
+    #[test]
+    fn a_wide_band_seats_the_roster_in_the_wing_and_the_log_at_its_first_column() {
+        let wide = Layout::for_width(2560);
+        let wing = wide.wing.expect("2560 is wide");
+        let members = [member("Ann"), member("Bob")];
+        let message = Message {
+            text: "hello".to_owned(),
+            alert: false,
+        };
+        let long = vec!["X".repeat(400)];
+        let mut frame = Frame::default();
+        frame.reset(wide.width, wide.canvas().h);
+        band(
+            &mut frame,
+            &wide,
+            &view(&members, Some(1), Some(0), &long, &message),
+        );
+        for slot in 0..2 {
+            let w = frame.widget(WidgetId::Member(slot)).expect("a row");
+            assert!(wing.encloses(w.rect), "{:?} leaves the wing", w.rect);
+            assert!(!wide.band.overlaps(w.rect), "the roster is out of the band");
+        }
+        let (x, y) = wide.slot_origin(0).unwrap();
+        assert_eq!(rgb(&frame, x - 4, y + 3), Some(HI), "the acting marker");
+        assert_eq!(
+            rgb(&frame, x + 5 * CELL.0 + 2, y + 3),
+            Some(FRAME),
+            "the bar"
+        );
+        let (x, y) = wide.band_cell(0, CAPTION_ROW);
+        assert_eq!(
+            rgb(&frame, x, y),
+            Some(DIM),
+            "EVENTS at the band's first column"
+        );
+        let ink = |x, y| frame.raster.get(x, y).is_some_and(|p| p[3] != 0);
+        let (nx, ny) = wide.band_cell(LOG_COLUMN, CAPTION_ROW);
+        let old_caption = (0..6 * CELL.0).any(|dx| ink(nx + dx, ny));
+        assert!(!old_caption, "nothing at the narrow caption column");
+        let (rx, ry) = wide.band_cell(LOG_COLUMN - 1, CAPTION_ROW);
+        let rule = (0..(HELP_ROW - CAPTION_ROW) * CELL.1)
+            .any(|dy| rgb(&frame, rx + 2, ry + dy) == Some(FRAME));
+        assert!(!rule, "no rule on a wide band");
+        let cells = wide.log_cells();
+        let (x, y) = wide.band_cell(0, FIRST_MEMBER_ROW + LOG_ROWS as i32 - 1);
+        assert_eq!(rgb(&frame, x + (cells as i32 - 1) * CELL.0, y), Some(TEXT));
+        assert!(!ink(x + cells as i32 * CELL.0, y), "cut at the log's width");
+        assert!(x + cells as i32 * CELL.0 <= wide.band.right());
+        let (x, y) = wide.band_cell(0, MESSAGE_ROW);
+        assert_eq!(
+            rgb(&frame, x, y),
+            Some(TEXT),
+            "the message at the band's first column"
+        );
     }
 }

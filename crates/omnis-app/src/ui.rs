@@ -4,6 +4,7 @@
 //! still composed as a resource and nothing is uploaded.
 
 use crate::band::MemberRow;
+use crate::canvas::NARROW;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
@@ -426,7 +427,7 @@ fn build_frame(
     };
     // Paint into the scratch buffer; the resource changes only when the pixels or widgets do,
     // so the upload and everything gated on the frame run only then.
-    screen::compose_into(&mut scratch, &view, ui.hover, ui.pressed);
+    screen::compose_into(&mut scratch, &NARROW, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
     }
