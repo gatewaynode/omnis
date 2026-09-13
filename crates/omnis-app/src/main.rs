@@ -1,11 +1,14 @@
-//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--autostart] [--window <w>x<h>]`.
+//! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--autostart]
+//! [--window small|medium|large|huge]`; without `--window` it opens fullscreen on the current
+//! monitor, the canvas at the largest whole multiple that fits (PRD D20).
 //! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]
 //! [--dev-socket <ip:port>] [--no-dev-socket]`; the dev socket listens on a free loopback port
 //! unless disabled, and writes its address to `.omnis/dev.addr`.
 #![forbid(unsafe_code)]
 
 use bevy::prelude::*;
-use bevy::window::WindowResolution;
+use bevy::window::{MonitorSelection, WindowMode, WindowResolution};
+use omnis_app::layout::SizeClass;
 use omnis_app::{AppConfig, assets, combat, cursor, input, menus, pixel, sim, ui, viewport};
 use std::path::PathBuf;
 
@@ -22,7 +25,7 @@ struct Launch {
     config: AppConfig,
     script: Script,
     socket: Socket,
-    window: (u32, u32),
+    window: Option<SizeClass>,
 }
 
 #[cfg(feature = "devtools")]
@@ -42,7 +45,7 @@ fn parse_args() -> Result<Launch, String> {
     #[allow(unused_mut, clippy::let_unit_value)]
     let mut socket = default_socket();
     let mut seeded = false;
-    let mut window = (1280, 720);
+    let mut window = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -57,14 +60,12 @@ fn parse_args() -> Result<Launch, String> {
             "--save" => config.save_path = PathBuf::from(args.next().ok_or("--save needs a file")?),
             "--autostart" => config.autostart = true,
             "--window" => {
-                let value = args.next().ok_or("--window needs <width>x<height>")?;
-                let (w, h) = value
-                    .split_once('x')
-                    .ok_or_else(|| format!("bad window size '{value}'"))?;
-                window = (
-                    w.parse().map_err(|_| format!("bad window width '{w}'"))?,
-                    h.parse().map_err(|_| format!("bad window height '{h}'"))?,
-                );
+                let value = args
+                    .next()
+                    .ok_or("--window needs small|medium|large|huge")?;
+                window = Some(SizeClass::parse(&value).ok_or_else(|| {
+                    format!("bad window size '{value}': small|medium|large|huge")
+                })?);
             }
             #[cfg(feature = "devtools")]
             "--script" => {
@@ -111,8 +112,13 @@ fn parse_args() -> Result<Launch, String> {
     if !seeded {
         config.seed = omnis_app::entropy_seed();
     }
-    // A seed, a script, or a capture means an unattended run: skip the menus.
-    config.autostart |= seeded || script_given(&script);
+    // A seed, a script, or a capture means an unattended run: skip the menus, and stay in a
+    // small window rather than take the screen.
+    let unattended = seeded || script_given(&script);
+    config.autostart |= unattended;
+    if unattended && window.is_none() {
+        window = Some(SizeClass::Small);
+    }
     Ok(Launch {
         config,
         script,
@@ -153,13 +159,21 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Omnis".into(),
-                    resolution: WindowResolution::new(window.0, window.1),
+                    mode: match window {
+                        Some(_) => WindowMode::Windowed,
+                        None => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+                    },
+                    resolution: {
+                        let (w, h) = window.map_or((1280, 720), SizeClass::physical);
+                        WindowResolution::new(w, h)
+                    },
                     ..default()
                 }),
                 ..default()
             }),
     )
     .insert_resource(config)
+    .insert_resource(pixel::RequestedWindow(window))
     .add_plugins((
         sim::SimPlugin,
         input::InputPlugin,

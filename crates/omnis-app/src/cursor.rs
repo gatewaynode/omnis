@@ -2,20 +2,53 @@
 //! window messages rather than the `Window` entity, so headless tests feed the same messages a
 //! window would. The plugin also declares the UI system sets the other UI plugins slot into.
 
-use crate::layout::window_to_canvas;
+use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, Fit, fit, physical_size, window_to_canvas};
 use crate::sim::SimSet;
 use bevy::input::ButtonState;
 use bevy::input::mouse::{MouseButton, MouseButtonInput};
 use bevy::prelude::*;
-use bevy::window::{CursorLeft, CursorMoved, WindowCreated, WindowResized};
+use bevy::window::{
+    CursorLeft, CursorMoved, WindowCreated, WindowResized, WindowScaleFactorChanged,
+};
 
-/// The primary window's logical size.
+/// The primary window's logical size and scale factor; the canvas fits its physical pixels.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
-pub struct WindowSize(pub f32, pub f32);
+pub struct WindowSize {
+    /// Logical width.
+    pub width: f32,
+    /// Logical height.
+    pub height: f32,
+    /// Physical pixels per logical pixel.
+    pub scale_factor: f32,
+}
 
 impl Default for WindowSize {
     fn default() -> Self {
-        WindowSize(1280.0, 720.0)
+        WindowSize {
+            width: CANVAS_WIDTH as f32,
+            height: CANVAS_HEIGHT as f32,
+            scale_factor: 1.0,
+        }
+    }
+}
+
+impl WindowSize {
+    /// The window in physical pixels.
+    #[must_use]
+    pub fn physical(&self) -> (u32, u32) {
+        physical_size((self.width, self.height), self.scale_factor)
+    }
+
+    /// How the canvas fits the window.
+    #[must_use]
+    pub fn fit(&self) -> Fit {
+        fit(self.physical())
+    }
+
+    /// The canvas pixel under a logical window position.
+    #[must_use]
+    pub fn to_canvas(&self, logical: (f32, f32)) -> Option<(i32, i32)> {
+        window_to_canvas(logical, (self.width, self.height), self.scale_factor)
     }
 }
 
@@ -51,6 +84,7 @@ impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<WindowCreated>()
             .add_message::<WindowResized>()
+            .add_message::<WindowScaleFactorChanged>()
             .add_message::<CursorMoved>()
             .add_message::<CursorLeft>()
             .add_message::<MouseButtonInput>()
@@ -73,24 +107,34 @@ impl Plugin for CursorPlugin {
     }
 }
 
+/// The window's size from its creation, resizes, and scale factor changes; the backend
+/// reports the scale factor on creation without a change message, so it is read from the
+/// window then.
 fn track_window(
     mut created: MessageReader<WindowCreated>,
     mut resized: MessageReader<WindowResized>,
+    mut rescaled: MessageReader<WindowScaleFactorChanged>,
     windows: Query<&Window>,
     mut size: ResMut<WindowSize>,
 ) {
-    let mut wanted = None;
+    let mut wanted = *size;
     for event in created.read() {
         if let Ok(window) = windows.get(event.window) {
-            wanted = Some(WindowSize(window.width(), window.height()));
+            wanted = WindowSize {
+                width: window.width(),
+                height: window.height(),
+                scale_factor: window.scale_factor(),
+            };
         }
     }
     for event in resized.read() {
-        wanted = Some(WindowSize(event.width, event.height));
+        wanted.width = event.width;
+        wanted.height = event.height;
     }
-    if let Some(wanted) = wanted
-        && *size != wanted
-    {
+    for event in rescaled.read() {
+        wanted.scale_factor = event.scale_factor as f32;
+    }
+    if *size != wanted {
         *size = wanted;
     }
 }
@@ -106,7 +150,7 @@ pub fn track_pointer(
     let mut next = *pointer;
     next.clicked = false;
     for event in moved.read() {
-        next.canvas = window_to_canvas((event.position.x, event.position.y), size.0, size.1);
+        next.canvas = size.to_canvas((event.position.x, event.position.y));
     }
     if left.read().next().is_some() {
         next.canvas = None;

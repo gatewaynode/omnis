@@ -143,7 +143,7 @@ The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the 
 - [x] `ui.rs` (2026-09-13): compose into a scratch frame, upload on change
 - [x] Bake `texel_scale` (2026-09-13)
 - [x] The resize and the bake in one commit (2026-09-13) (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)
-- [ ] Physical fit, scale factor, size classes, fullscreen default
+- [x] Physical fit, scale factor, size classes, fullscreen default (2026-09-13)
 - [ ] Menu box: an 80×16-cell framed area centred in the viewport, row indices unchanged
 - [ ] Band: `band.rs` with one roster row per member (group, name, class, level, HP, SP, AC, condition), the acting row as a FRAME bar with the marker, the selected name HI, an 18-row event log with the long lines
 - [ ] Combat screens re-laid: top panel rows 0–8, counts under the feet, bottom panel rows 60–66, blocked reasons on the stack rows, the defeat modal with four full lines

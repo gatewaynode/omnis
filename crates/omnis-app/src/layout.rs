@@ -234,57 +234,157 @@ pub const fn rows(from: i32, to: i32) -> Rect {
     )
 }
 
-/// The integer scale the canvas is shown at in a window of this logical size: the largest
-/// whole multiple that fits both ways, at least 1.
-#[must_use]
-pub fn window_scale(window_width: f32, window_height: f32) -> f32 {
-    let h = window_width / CANVAS_WIDTH as f32;
-    let v = window_height / CANVAS_HEIGHT as f32;
-    h.min(v).floor().max(1.0)
+/// A window's physical size class: what `--window` accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SizeClass {
+    /// 1280×720: the canvas at 1×.
+    Small,
+    /// 2560×1440: 2×.
+    Medium,
+    /// 3840×2160, a 4K monitor: 3×, the display target (PRD D20).
+    Large,
+    /// 7680×2160, an 8K ultrawide: 3× with bars at the sides.
+    Huge,
 }
 
-/// The window pixel offset of the canvas's top-left corner: the letterbox that centres it.
-fn letterbox(window_width: f32, window_height: f32) -> (f32, f32, f32) {
-    let s = window_scale(window_width, window_height);
+/// The classes with their names on the command line and their physical sizes.
+pub const SIZE_CLASSES: [(SizeClass, &str, (u32, u32)); 4] = [
+    (SizeClass::Small, "small", (1280, 720)),
+    (SizeClass::Medium, "medium", (2560, 1440)),
+    (SizeClass::Large, "large", (3840, 2160)),
+    (SizeClass::Huge, "huge", (7680, 2160)),
+];
+
+impl SizeClass {
+    /// The class named on the command line.
+    #[must_use]
+    pub fn parse(name: &str) -> Option<SizeClass> {
+        SIZE_CLASSES
+            .iter()
+            .find(|(_, n, _)| *n == name)
+            .map(|(class, _, _)| *class)
+    }
+
+    /// The window's size in physical pixels.
+    #[must_use]
+    pub fn physical(self) -> (u32, u32) {
+        SIZE_CLASSES
+            .iter()
+            .find(|(class, _, _)| *class == self)
+            .map_or((CANVAS_WIDTH, CANVAS_HEIGHT), |(_, _, size)| *size)
+    }
+}
+
+/// How the canvas fits a window's physical pixels: the whole multiple it is shown at and
+/// the letterbox that centres it, in whole pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fit {
+    /// Physical pixels per canvas pixel, at least 1.
+    pub scale: u32,
+    /// The physical pixel of the canvas's top-left corner; negative when the window is
+    /// smaller than the canvas.
+    pub offset: (i32, i32),
+}
+
+/// The fit for a window of this physical size: the largest whole multiple that fits both
+/// ways, at least 1, centred to a whole pixel.
+#[must_use]
+pub const fn fit(physical: (u32, u32)) -> Fit {
+    let h = physical.0 / CANVAS_WIDTH;
+    let v = physical.1 / CANVAS_HEIGHT;
+    let scale = if h < v { h } else { v };
+    let scale = if scale < 1 { 1 } else { scale };
+    let shown = (
+        (CANVAS_WIDTH * scale) as i64,
+        (CANVAS_HEIGHT * scale) as i64,
+    );
+    Fit {
+        scale,
+        offset: (
+            ((physical.0 as i64 - shown.0) / 2) as i32,
+            ((physical.1 as i64 - shown.1) / 2) as i32,
+        ),
+    }
+}
+
+/// A canvas rectangle as physical pixels `(left, top, width, height)`.
+#[must_use]
+pub fn canvas_rect_to_physical(rect: (i32, i32, u32, u32), fit: Fit) -> (i32, i32, u32, u32) {
+    let s = fit.scale as i32;
     (
-        (window_width - CANVAS_WIDTH as f32 * s) / 2.0,
-        (window_height - CANVAS_HEIGHT as f32 * s) / 2.0,
-        s,
+        fit.offset.0 + rect.0 * s,
+        fit.offset.1 + rect.1 * s,
+        rect.2 * fit.scale,
+        rect.3 * fit.scale,
     )
 }
 
-/// A canvas rectangle as window pixels `(left, top, width, height)`: scaled by the integer
-/// scale and offset by the letterbox that centres the canvas.
+/// The canvas pixel under a physical position (origin top-left), or `None` in the letterbox
+/// or outside the window.
 #[must_use]
-pub fn canvas_rect_to_window(
-    rect: (i32, i32, u32, u32),
-    window_width: f32,
-    window_height: f32,
-) -> (f32, f32, f32, f32) {
-    let (offset_x, offset_y, s) = letterbox(window_width, window_height);
-    (
-        offset_x + rect.0 as f32 * s,
-        offset_y + rect.1 as f32 * s,
-        rect.2 as f32 * s,
-        rect.3 as f32 * s,
-    )
-}
-
-/// The canvas pixel under a window position (logical pixels, origin top-left), or `None` in the
-/// letterbox or outside the window.
-#[must_use]
-pub fn window_to_canvas(
-    cursor: (f32, f32),
-    window_width: f32,
-    window_height: f32,
-) -> Option<(i32, i32)> {
-    let (offset_x, offset_y, s) = letterbox(window_width, window_height);
-    let x = ((cursor.0 - offset_x) / s).floor();
-    let y = ((cursor.1 - offset_y) / s).floor();
+pub fn physical_to_canvas(cursor: (f32, f32), fit: Fit) -> Option<(i32, i32)> {
+    let s = fit.scale as f32;
+    let x = ((cursor.0 - fit.offset.0 as f32) / s).floor();
+    let y = ((cursor.1 - fit.offset.1 as f32) / s).floor();
     if x < 0.0 || y < 0.0 || x >= CANVAS_WIDTH as f32 || y >= CANVAS_HEIGHT as f32 {
         return None;
     }
     Some((x as i32, y as i32))
+}
+
+/// Where the canvas sprite's centre sits in world units (canvas pixels, y up) so that its
+/// corner lands on the fit's whole-pixel offset: zero for even letterbox bars, half a
+/// physical pixel for odd ones.
+#[must_use]
+pub fn canvas_translation(fit: Fit, physical: (u32, u32)) -> (f32, f32) {
+    let s = fit.scale as f32;
+    let centre = (
+        fit.offset.0 as f32 + CANVAS_WIDTH as f32 * s / 2.0,
+        fit.offset.1 as f32 + CANVAS_HEIGHT as f32 * s / 2.0,
+    );
+    (
+        (centre.0 - physical.0 as f32 / 2.0) / s,
+        (physical.1 as f32 / 2.0 - centre.1) / s,
+    )
+}
+
+/// A window's logical size and scale factor as physical pixels, rounded.
+#[must_use]
+pub fn physical_size(logical: (f32, f32), scale_factor: f32) -> (u32, u32) {
+    (
+        (logical.0 * scale_factor).round() as u32,
+        (logical.1 * scale_factor).round() as u32,
+    )
+}
+
+/// A canvas rectangle as logical window pixels `(left, top, width, height)` for a window of
+/// this logical size and scale factor.
+#[must_use]
+pub fn canvas_rect_to_window(
+    rect: (i32, i32, u32, u32),
+    logical: (f32, f32),
+    scale_factor: f32,
+) -> (f32, f32, f32, f32) {
+    let fit = fit(physical_size(logical, scale_factor));
+    let (x, y, w, h) = canvas_rect_to_physical(rect, fit);
+    (
+        x as f32 / scale_factor,
+        y as f32 / scale_factor,
+        w as f32 / scale_factor,
+        h as f32 / scale_factor,
+    )
+}
+
+/// The canvas pixel under a logical window position, or `None` in the letterbox or outside
+/// the window.
+#[must_use]
+pub fn window_to_canvas(
+    cursor: (f32, f32),
+    logical: (f32, f32),
+    scale_factor: f32,
+) -> Option<(i32, i32)> {
+    let fit = fit(physical_size(logical, scale_factor));
+    physical_to_canvas((cursor.0 * scale_factor, cursor.1 * scale_factor), fit)
 }
 
 /// The same camera the bake tool uses (`omnis-cli`, `bake.rs`): eye at the near edge of the
@@ -329,76 +429,142 @@ impl Camera {
 mod tests {
     use super::*;
 
-    /// The canvas as floats, for windows of a whole multiple of it.
-    const W: f32 = CANVAS_WIDTH as f32;
-    const H: f32 = CANVAS_HEIGHT as f32;
+    #[test]
+    fn size_classes_fit_at_whole_physical_multiples() {
+        let fits: Vec<(SizeClass, Fit)> = SIZE_CLASSES
+            .iter()
+            .map(|(class, _, size)| (*class, fit(*size)))
+            .collect();
+        let at = |scale, offset| Fit { scale, offset };
+        assert_eq!(
+            fits,
+            [
+                (SizeClass::Small, at(1, (0, 0))),
+                (SizeClass::Medium, at(2, (0, 0))),
+                (SizeClass::Large, at(3, (0, 0))),
+                (SizeClass::Huge, at(3, (1920, 0))),
+            ]
+        );
+        assert_eq!(SizeClass::parse("large"), Some(SizeClass::Large));
+        assert_eq!(SizeClass::parse("Large"), None);
+        assert_eq!(SizeClass::Huge.physical(), (7680, 2160));
+        // The ultrawide shows the canvas centred with bars at the sides.
+        let huge = fit(SizeClass::Huge.physical());
+        assert_eq!(
+            canvas_rect_to_physical(CANVAS.tuple(), huge),
+            (1920, 0, 3840, 2160)
+        );
+        assert_eq!(physical_to_canvas((1919.0, 0.0), huge), None);
+        assert_eq!(physical_to_canvas((1920.0, 0.0), huge), Some((0, 0)));
+        assert_eq!(
+            physical_to_canvas((5759.9, 2159.9), huge),
+            Some((1279, 719))
+        );
+        assert_eq!(physical_to_canvas((5760.0, 0.0), huge), None);
+    }
 
     #[test]
-    fn canvas_rectangles_land_on_the_letterboxed_canvas() {
-        assert_eq!(window_scale(4.0 * W, 4.0 * H), 4.0);
-        assert_eq!(window_scale(12.0 * W, 12.0 * H), 12.0);
-        assert_eq!(window_scale(3.0 * W + 40.0, 3.0 * H + 60.0), 3.0);
-        assert_eq!(window_scale(W / 3.0, H / 3.0), 1.0, "never below one");
-        let (x, y, w, h) = PAD.tuple();
+    fn a_two_x_panel_shows_three_physical_pixels_per_canvas_pixel() {
+        // A 4K panel driven at 2x logical: 1920x1080 logical, 3840x2160 physical.
+        let logical = (1920.0, 1080.0);
+        assert_eq!(physical_size(logical, 2.0), (3840, 2160));
+        let three = fit((3840, 2160));
         assert_eq!(
-            canvas_rect_to_window(PAD.tuple(), 4.0 * W, 4.0 * H),
+            three,
+            Fit {
+                scale: 3,
+                offset: (0, 0)
+            }
+        );
+        assert_eq!(
+            window_to_canvas((960.0, 540.0), logical, 2.0),
+            Some((640, 360))
+        );
+        assert_eq!(window_to_canvas((0.4, 0.4), logical, 2.0), Some((0, 0)));
+        assert_eq!(
+            window_to_canvas((1919.9, 1079.9), logical, 2.0),
+            Some((1279, 719))
+        );
+        assert_eq!(window_to_canvas((1920.0, 0.0), logical, 2.0), None);
+        assert_eq!(
+            canvas_rect_to_window(CANVAS.tuple(), logical, 2.0),
+            (0.0, 0.0, 1920.0, 1080.0)
+        );
+        assert_eq!(
+            canvas_rect_to_window(PAD.tuple(), logical, 2.0),
             (
-                4.0 * x as f32,
-                4.0 * y as f32,
-                4.0 * w as f32,
-                4.0 * h as f32
+                PAD.x as f32 * 1.5,
+                PAD.y as f32 * 1.5,
+                PAD.w as f32 * 1.5,
+                PAD.h as f32 * 1.5
             )
         );
-        // A window 120 px taller than 6x shows the canvas at 6x with 60 px above and below.
+        // The same panel at 1x logical is the same physical fit.
         assert_eq!(
-            canvas_rect_to_window(CANVAS.tuple(), 6.0 * W, 6.0 * H + 120.0),
-            (0.0, 60.0, 6.0 * W, 6.0 * H)
+            window_to_canvas((1920.0, 1080.0), (3840.0, 2160.0), 1.0),
+            Some((640, 360))
         );
     }
 
     #[test]
-    fn the_scale_never_overflows_the_window() {
-        // Just under 4x: rounding gave 4 and a canvas larger than the window.
-        assert_eq!(window_scale(4.0 * W - 130.0, 4.0 * H - 70.0), 3.0);
-        assert_eq!(window_scale(4.0 * W - 1.0, 4.0 * H), 3.0);
-        assert_eq!(window_scale(7.0 * W + 222.0, 7.0 * H + 24.0), 7.0);
+    fn odd_letterboxes_snap_to_whole_pixels() {
+        let even = fit((1282, 722));
+        assert_eq!(
+            even,
+            Fit {
+                scale: 1,
+                offset: (1, 1)
+            }
+        );
+        assert_eq!(canvas_translation(even, (1282, 722)), (0.0, 0.0));
+        let odd = fit((1281, 721));
+        assert_eq!(
+            odd,
+            Fit {
+                scale: 1,
+                offset: (0, 0)
+            }
+        );
+        assert_eq!(canvas_translation(odd, (1281, 721)), (-0.5, 0.5));
+        let three = fit((3841, 2160));
+        assert_eq!(
+            three,
+            Fit {
+                scale: 3,
+                offset: (0, 0)
+            }
+        );
+        let (x, y) = canvas_translation(three, (3841, 2160));
+        assert!((x + 0.5 / 3.0).abs() < 1e-6 && y == 0.0);
+        // Never a fraction of a physical pixel at the canvas's corner.
+        for size in [(1920, 1200), (2462, 1284), (5000, 3000)] {
+            let f = fit(size);
+            let (x, y, _, _) = canvas_rect_to_physical((0, 0, 1, 1), f);
+            assert_eq!((x, y), f.offset);
+            assert!(f.scale >= 1 && (x as u32) * 2 <= size.0 && (y as u32) * 2 <= size.1);
+        }
     }
 
     #[test]
-    fn window_positions_map_back_to_canvas_pixels() {
-        let (px, py) = (PAD.x as f32, PAD.y as f32);
-        let four = (4.0 * W, 4.0 * H);
+    fn windows_smaller_than_the_canvas_still_map_the_centre() {
+        let small = fit((640, 360));
         assert_eq!(
-            window_to_canvas((4.0 * px, 4.0 * py), four.0, four.1),
-            Some((PAD.x, PAD.y))
+            small,
+            Fit {
+                scale: 1,
+                offset: (-320, -180)
+            }
         );
+        assert_eq!(physical_to_canvas((320.0, 180.0), small), Some((640, 360)));
+        assert_eq!(physical_to_canvas((0.0, 0.0), small), Some((320, 180)));
         assert_eq!(
-            window_to_canvas((4.0 * px + 3.9, 4.0 * py + 3.9), four.0, four.1),
-            Some((PAD.x, PAD.y))
+            canvas_rect_to_physical((320, 180, 2, 2), small),
+            (0, 0, 2, 2)
         );
-        assert_eq!(window_to_canvas((0.0, 0.0), four.0, four.1), Some((0, 0)));
-        let last = (CANVAS_WIDTH as i32 - 1, CANVAS_HEIGHT as i32 - 1);
-        assert_eq!(
-            window_to_canvas((four.0 - 1.0, four.1 - 1.0), four.0, four.1),
-            Some(last)
-        );
-        assert_eq!(
-            window_to_canvas((four.0, four.1 - 1.0), four.0, four.1),
-            None
-        );
-        // 120 px taller than 6x: the top 60 px are letterbox.
-        let six = (6.0 * W, 6.0 * H + 120.0);
-        assert_eq!(window_to_canvas((0.0, 30.0), six.0, six.1), None);
-        assert_eq!(window_to_canvas((0.0, 60.0), six.0, six.1), Some((0, 0)));
-        assert_eq!(
-            window_to_canvas((six.0 - 1.0, 59.0 + 6.0 * H), six.0, six.1),
-            Some(last)
-        );
-        assert_eq!(
-            window_to_canvas((six.0 - 1.0, 60.0 + 6.0 * H), six.0, six.1),
-            None
-        );
-        assert_eq!(window_to_canvas((-1.0, 100.0), four.0, four.1), None);
+        assert_eq!(fit((100, 50)).scale, 1, "never below one");
+        // Just under 2x: rounding gave 2 and a canvas larger than the window.
+        assert_eq!(fit((2559, 1440)).scale, 1);
+        assert_eq!(fit((2560, 1439)).scale, 1);
     }
 
     #[test]

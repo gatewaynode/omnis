@@ -6,7 +6,9 @@ mod common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
-use bevy::window::{CursorLeft, WindowCreated, WindowResized, WindowResolution};
+use bevy::window::{
+    CursorLeft, WindowCreated, WindowResized, WindowResolution, WindowScaleFactorChanged,
+};
 use common::{
     button, click, click_at, draft_fighter_by_mouse, escape, frame, move_to, play_state, point_at,
     pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
@@ -27,19 +29,19 @@ fn cursor_messages_map_through_the_letterbox_and_track_the_button() {
     app.update();
     assert_eq!(
         *app.world().resource::<WindowSize>(),
-        WindowSize(1280.0, 720.0)
+        size(1280.0, 720.0, 1.0)
     );
-    let (x, y, _, _) = canvas_rect_to_window((250, 100, 1, 1), 1280.0, 720.0);
+    let (x, y, _, _) = canvas_rect_to_window((250, 100, 1, 1), (1280.0, 720.0), 1.0);
     move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((250, 100)));
 
     // A 1920x1200 window letterboxes the canvas: its corner is outside.
-    app.insert_resource(WindowSize(1920.0, 1200.0));
+    app.insert_resource(size(1920.0, 1200.0, 1.0));
     move_to(&mut app, 5.0, 5.0);
     app.update();
     assert_eq!(pointer(&app).canvas, None);
-    let (x, y, _, _) = canvas_rect_to_window((100, 100, 1, 1), 1920.0, 1200.0);
+    let (x, y, _, _) = canvas_rect_to_window((100, 100, 1, 1), (1920.0, 1200.0), 1.0);
     move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((100, 100)));
@@ -76,6 +78,64 @@ fn cursor_messages_map_through_the_letterbox_and_track_the_button() {
     );
 }
 
+fn size(width: f32, height: f32, scale_factor: f32) -> WindowSize {
+    WindowSize {
+        width,
+        height,
+        scale_factor,
+    }
+}
+
+#[test]
+fn a_hidpi_window_fits_in_physical_pixels() {
+    // A 4K panel at 2x logical: the window is 1920x1080 logical, 3840x2160 physical.
+    let mut app = ui_app(false);
+    app.update();
+    let mut resolution = WindowResolution::new(3840, 2160);
+    resolution.set_scale_factor(2.0);
+    let window = app
+        .world_mut()
+        .spawn(Window {
+            resolution,
+            ..default()
+        })
+        .id();
+    app.world_mut()
+        .resource_mut::<Messages<WindowCreated>>()
+        .write(WindowCreated { window });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<WindowSize>(),
+        size(1920.0, 1080.0, 2.0)
+    );
+    assert_eq!(app.world().resource::<WindowSize>().fit().scale, 3);
+    move_to(&mut app, 960.0, 540.0);
+    app.update();
+    assert_eq!(pointer(&app).canvas, Some((640, 360)));
+    move_to(&mut app, 319.0, 179.0);
+    app.update();
+    assert_eq!(pointer(&app).canvas, Some((212, 119)), "inside at 3x");
+    // Moved to a 1x monitor of the same logical size: 1x, letterboxed.
+    app.world_mut()
+        .resource_mut::<Messages<WindowScaleFactorChanged>>()
+        .write(WindowScaleFactorChanged {
+            window,
+            scale_factor: 1.0,
+        });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<WindowSize>(),
+        size(1920.0, 1080.0, 1.0)
+    );
+    assert_eq!(app.world().resource::<WindowSize>().fit().scale, 1);
+    move_to(&mut app, 319.0, 179.0);
+    app.update();
+    assert_eq!(pointer(&app).canvas, None, "in the letterbox at 1x");
+    move_to(&mut app, 960.0, 540.0);
+    app.update();
+    assert_eq!(pointer(&app).canvas, Some((640, 360)));
+}
+
 #[test]
 fn the_window_size_follows_creation_and_resizes() {
     let mut app = ui_app(false);
@@ -93,7 +153,7 @@ fn the_window_size_follows_creation_and_resizes() {
     app.update();
     assert_eq!(
         *app.world().resource::<WindowSize>(),
-        WindowSize(1000.0, 600.0)
+        size(1000.0, 600.0, 1.0)
     );
     app.world_mut()
         .resource_mut::<Messages<WindowResized>>()
@@ -105,10 +165,10 @@ fn the_window_size_follows_creation_and_resizes() {
     app.update();
     assert_eq!(
         *app.world().resource::<WindowSize>(),
-        WindowSize(640.0, 360.0)
+        size(640.0, 360.0, 1.0)
     );
     // The pointer maps through the new size.
-    let (x, y, _, _) = canvas_rect_to_window((50, 25, 1, 1), 640.0, 360.0);
+    let (x, y, _, _) = canvas_rect_to_window((50, 25, 1, 1), (640.0, 360.0), 1.0);
     move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((50, 25)));
