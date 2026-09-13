@@ -166,34 +166,46 @@ pub struct View<'a> {
 #[must_use]
 pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetId>) -> Frame {
     let mut frame = Frame::default();
-    panels::backdrop(&mut frame);
+    compose_into(&mut frame, view, hover, pressed);
+    frame
+}
+
+/// Compose into an existing frame, reusing its buffer: cleared first, then painted.
+pub fn compose_into(
+    frame: &mut Frame,
+    view: &View<'_>,
+    hover: Option<WidgetId>,
+    pressed: Option<WidgetId>,
+) {
+    frame.clear();
+    panels::backdrop(frame);
     if view.menu.covers_viewport() {
         frame.raster.fill(VIEWPORT, PANEL);
     }
     match &view.menu {
         Menu::None => {}
-        Menu::Title(title) => screens::title(&mut frame, title),
-        Menu::NewGame(form) => screens::new_game(&mut frame, form),
+        Menu::Title(title) => screens::title(frame, title),
+        Menu::NewGame(form) => screens::new_game(frame, form),
         Menu::Creation {
             form,
             catalog,
             members,
-        } => screens::creation(&mut frame, form, catalog, *members),
+        } => screens::creation(frame, form, catalog, *members),
         Menu::Pause {
             pause,
             settings,
             seed,
-        } => screens::pause(&mut frame, pause, *settings, *seed),
-        Menu::Encounter { menu, view } => combat_screen::encounter(&mut frame, view, menu),
-        Menu::Combat { menu, view, log } => combat_screen::combat(&mut frame, view, menu, log),
-        Menu::Defeat { menu, log } => combat_screen::defeat(&mut frame, menu, log),
+        } => screens::pause(frame, pause, *settings, *seed),
+        Menu::Encounter { menu, view } => combat_screen::encounter(frame, view, menu),
+        Menu::Combat { menu, view, log } => combat_screen::combat(frame, view, menu, log),
+        Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
     }
     if let Some(hud) = view.hud {
-        panels::hud(&mut frame, hud);
+        panels::hud(frame, hud);
     }
-    panels::pad(&mut frame, view.pad, pressed);
+    panels::pad(frame, view.pad, pressed);
     panels::band(
-        &mut frame,
+        frame,
         &Band {
             message: view.message,
             members: view.members,
@@ -206,7 +218,6 @@ pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetI
     if let Some(id) = hover {
         frame.outline(id);
     }
-    frame
 }
 
 #[cfg(test)]
@@ -321,6 +332,33 @@ mod tests {
         assert_eq!(click(Target::Pause(&mut pause), stack), vec![]);
         assert_eq!(click(Target::Pause(&mut pause), action), vec![]);
         assert_eq!(pause.cursor, 0);
+    }
+
+    #[test]
+    fn composing_into_a_used_frame_matches_a_fresh_one() {
+        let view = View {
+            menu: Menu::Title(&Title::default()),
+            hud: None,
+            members: &[],
+            front_row: 3,
+            selected: None,
+            creating: false,
+            pad: PadState::Hidden,
+            message: &Message::default(),
+            help: "help",
+        };
+        let fresh = compose(&view, Some(WidgetId::Row(0)), None);
+        let mut reused = compose(&view, Some(WidgetId::Row(1)), None);
+        assert_ne!(reused, fresh, "a different hover outlines a different row");
+        compose_into(&mut reused, &view, Some(WidgetId::Row(0)), None);
+        assert_eq!(reused, fresh, "nothing of the earlier paint survives");
+        reused.clear();
+        assert!(reused.widgets.is_empty());
+        assert!(reused.raster.rgba.iter().all(|b| *b == 0));
+        assert_eq!(
+            reused.raster.width, fresh.raster.width,
+            "the buffer is kept"
+        );
     }
 
     #[test]

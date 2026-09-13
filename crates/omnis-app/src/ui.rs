@@ -111,7 +111,12 @@ impl Plugin for UiPlugin {
             )
             .add_systems(Update, select_member.in_set(UiSet::Dispatch))
             .add_systems(Update, message_line.in_set(UiSet::Model))
-            .add_systems(Update, (build_frame, upload).chain().in_set(UiSet::Draw))
+            .add_systems(
+                Update,
+                (build_frame, upload.run_if(resource_changed::<UiFrame>))
+                    .chain()
+                    .in_set(UiSet::Draw),
+            )
             .add_systems(Startup, make_sprite)
             .add_systems(
                 OnExit(AppState::Playing),
@@ -165,22 +170,13 @@ fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
     commands.insert_resource(UiImage(handle));
 }
 
-/// Copy the frame's pixels into the sprite's image when they changed.
-fn upload(
-    ui: Res<UiFrame>,
-    target: Option<Res<UiImage>>,
-    images: Option<ResMut<Assets<Image>>>,
-    mut last: Local<Vec<u8>>,
-) {
+/// Copy the frame's pixels into the sprite's image; runs only when the frame changed.
+fn upload(ui: Res<UiFrame>, target: Option<Res<UiImage>>, images: Option<ResMut<Assets<Image>>>) {
     let (Some(target), Some(mut images)) = (target, images) else {
         return;
     };
-    if *last == ui.frame.raster.rgba {
-        return;
-    }
     if let Some(mut image) = images.get_mut(&target.0) {
         image.data = Some(ui.frame.raster.rgba.clone());
-        last.clone_from(&ui.frame.raster.rgba);
     }
 }
 
@@ -385,6 +381,7 @@ fn build_frame(
     line: Res<MessageLine>,
     log: Res<RollLog>,
     mut ui: ResMut<UiFrame>,
+    mut scratch: Local<Frame>,
 ) {
     let active = at.screen();
     let loaded = world.as_ref().zip(data.as_ref());
@@ -421,5 +418,10 @@ fn build_frame(
         message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
-    ui.frame = screen::compose(&view, ui.hover, ui.pressed);
+    // Paint into the scratch buffer; the resource changes only when the pixels or widgets do,
+    // so the upload and everything gated on the frame run only then.
+    screen::compose_into(&mut scratch, &view, ui.hover, ui.pressed);
+    if ui.frame != *scratch {
+        ui.frame.clone_from(&scratch);
+    }
 }

@@ -217,6 +217,12 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// Blank the pixels and forget the widgets, keeping the buffer.
+    pub fn clear(&mut self) {
+        self.raster.clear();
+        self.widgets.clear();
+    }
+
     /// The widget with this id, if painted.
     #[must_use]
     pub fn widget(&self, id: WidgetId) -> Option<&Widget> {
