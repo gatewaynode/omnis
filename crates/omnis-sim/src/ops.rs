@@ -10,6 +10,7 @@ use crate::command::{Command, Rejection};
 use crate::event::Event;
 use crate::party::{self, PartyCommand};
 use crate::query::{self, ViewportModel};
+use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, World};
 use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
 use alloc::borrow::ToOwned;
@@ -111,6 +112,9 @@ pub enum Op {
         /// The draft.
         character: Draft,
     },
+    /// The encounter or fight in progress: stacks, order, whose turn, round.
+    #[serde(rename = "combat.get")]
+    CombatGet,
     /// Every rule slot with its inputs and source, plus the values and tables.
     #[serde(rename = "rules.list")]
     RulesList,
@@ -327,6 +331,11 @@ pub enum Reply {
         /// The slot.
         rule: SlotView,
     },
+    /// `combat.get`.
+    Combat {
+        /// The encounter or fight.
+        combat: CombatView,
+    },
     /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
     /// variants in order and an absent `Option` field reads as `None`, so this variant and
     /// `Done` stay last: they would swallow any object.
@@ -369,6 +378,8 @@ pub enum OpError {
     },
     /// The op needs the host; the simulation alone cannot do it.
     HostOnly,
+    /// No encounter or fight is in progress.
+    NoEncounter,
     /// The request itself was malformed: not JSON, not an op, or too long.
     BadRequest {
         /// What was wrong.
@@ -390,6 +401,7 @@ impl fmt::Display for OpError {
             OpError::TooLong { limit } => write!(f, "string longer than {limit} bytes"),
             OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
+            OpError::NoEncounter => f.write_str("no encounter or fight is in progress"),
             OpError::BadRequest { message } => write!(f, "bad request: {message}"),
             OpError::Failed { message } => f.write_str(message),
         }
@@ -477,6 +489,9 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         )
         .map(|events| Reply::Events { events })
         .map_err(|rejection| OpError::Rejected { rejection }),
+        Op::CombatGet => combat_view(world, data)
+            .map(|combat| Reply::Combat { combat })
+            .ok_or(OpError::NoEncounter),
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),

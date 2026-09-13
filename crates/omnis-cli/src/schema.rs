@@ -280,6 +280,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
                 skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
             },
         },
+        Op::CombatGet,
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),

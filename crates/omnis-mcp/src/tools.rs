@@ -156,6 +156,12 @@ fn party_tools() -> Vec<Tool> {
             &[Field::new::<Draft>("character", true, "The draft.")],
         ),
         tool(
+            "combat_get",
+            "combat.get",
+            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far. Fails while exploring.",
+            &[],
+        ),
+        tool(
             "rules_list",
             "rules.list",
             "Every rule slot with its inputs and source, plus the rule values and tables.",
@@ -232,6 +238,7 @@ mod tests {
                 "party_create",
                 json!({"character": {"name": "Brenna", "race": "base:race:human", "class": "base:class:fighter", "background": "base:background:acolyte", "alignment": "NeutralGood", "scores": [15, 14, 13, 12, 10, 8], "skills": ["Athletics", "Perception"]}}),
             ),
+            ("combat_get", json!({})),
             ("rules_list", json!({})),
             ("rules_get", json!({"slot": "spell_points.pool"})),
             (
@@ -267,6 +274,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 17);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 18);
     }
 }

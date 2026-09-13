@@ -275,6 +275,13 @@ pub enum Event {
         /// Who.
         target: CharacterId,
     },
+    /// Damage to a member already at zero: a failed death save, two for a critical hit.
+    Wounded {
+        /// Who.
+        member: CharacterId,
+        /// Failures after it.
+        failures: u8,
+    },
     /// A death saving throw at the end of a round.
     DeathSave {
         /// Who.

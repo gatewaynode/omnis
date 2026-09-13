@@ -2,12 +2,13 @@
 //! Commands carry no client state so a command stream is a replay and, later, a network
 //! protocol. What happened is `event::Event`.
 
+use crate::combat::CombatCommand;
 use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Direction, Rotation};
-use omnis_rules::CreationError;
+use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
 
 /// One player action.
@@ -21,11 +22,13 @@ pub enum Command {
     Interact,
     /// Build or reorder the party.
     Party(PartyCommand),
+    /// Act in a fight, on the acting member's turn.
+    Combat(CombatCommand),
 }
 
 impl Command {
     /// The script word for this command; see [`parse_script`]. Party commands carry data and
-    /// have no script word; they log as `party`.
+    /// have no script word; they log as `party`. Combat commands log their bare verb.
     #[must_use]
     pub const fn word(&self) -> &'static str {
         match self {
@@ -38,6 +41,10 @@ impl Command {
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
             Command::Party(_) => "party",
+            Command::Combat(CombatCommand::Attack { .. }) => "attack",
+            Command::Combat(CombatCommand::Dodge) => "dodge",
+            Command::Combat(CombatCommand::Exchange { .. }) => "swap",
+            Command::Combat(CombatCommand::Run) => "flee",
         }
     }
 
@@ -53,7 +60,24 @@ impl Command {
             "turn-right" => Command::Turn(Rotation::Right),
             "around" => Command::Turn(Rotation::Around),
             "use" => Command::Interact,
-            _ => return None,
+            "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
+            "dodge" => Command::Combat(CombatCommand::Dodge),
+            "flee" => Command::Combat(CombatCommand::Run),
+            _ => {
+                if let Some(n) = word.strip_prefix("attack-") {
+                    return n
+                        .parse()
+                        .ok()
+                        .map(|stack| Command::Combat(CombatCommand::Attack { stack }));
+                }
+                if let Some(n) = word.strip_prefix("swap-") {
+                    return n
+                        .parse()
+                        .ok()
+                        .map(|with| Command::Combat(CombatCommand::Exchange { with }));
+                }
+                return None;
+            }
         })
     }
 }
@@ -74,8 +98,9 @@ impl fmt::Display for ScriptError {
 }
 
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
-/// `turn-left`, `turn-right`, `around`, `use`, separated by whitespace or commas; `#` starts
-/// a comment that runs to the end of the line.
+/// `turn-left`, `turn-right`, `around`, `use`, and in a fight `attack` (the first stack),
+/// `attack-N`, `dodge`, `swap-N`, `flee`, separated by whitespace or commas; `#` starts a
+/// comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
     for (index, line) in text.lines().enumerate() {
@@ -109,6 +134,41 @@ pub enum Rejection {
     Character(CreationError),
     /// The order is not a permutation of the current members.
     BadOrder,
+    /// The fight is not waiting on a member, or not on a living one.
+    NotYourTurn,
+    /// No stack has that index.
+    NoSuchStack {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// Nobody in that stack still stands.
+    StackDead {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// A front-row member without a ranged weapon cannot reach a stack behind the front.
+    OutOfReach {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// A back-row member needs a ranged weapon to attack at all.
+    NeedsRangedWeapon,
+    /// No member has that slot.
+    NoSuchMember {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// A member cannot exchange with themselves.
+    SameMember,
+    /// The party cannot pay.
+    CannotAfford {
+        /// The price.
+        cost: u32,
+        /// The purse.
+        gold: u32,
+    },
+    /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
+    Rule(RuleError),
 }
 
 impl core::fmt::Display for Rejection {
@@ -118,6 +178,24 @@ impl core::fmt::Display for Rejection {
             Rejection::PartyFull => f.write_str("the party is full"),
             Rejection::Character(e) => write!(f, "{e}"),
             Rejection::BadOrder => f.write_str("order must list every member once"),
+            Rejection::NotYourTurn => f.write_str("it is not a member's turn"),
+            Rejection::NoSuchStack { stack } => write!(f, "there is no stack {stack}"),
+            Rejection::StackDead { stack } => write!(f, "stack {stack} is dead"),
+            Rejection::OutOfReach { stack } => {
+                write!(
+                    f,
+                    "stack {stack} is behind the front; a ranged weapon reaches it"
+                )
+            }
+            Rejection::NeedsRangedWeapon => {
+                f.write_str("a back-row member needs a ranged weapon to attack")
+            }
+            Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
+            Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
+            Rejection::CannotAfford { cost, gold } => {
+                write!(f, "that costs {cost} gold; the party has {gold}")
+            }
+            Rejection::Rule(e) => write!(f, "rule error: {e}"),
         }
     }
 }

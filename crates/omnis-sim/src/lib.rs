@@ -22,6 +22,7 @@ pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
+pub mod view;
 pub mod visibility;
 pub mod world;
 
@@ -32,7 +33,7 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use combat::{CombatState, Initiative};
+pub use combat::{CombatCommand, CombatState, Initiative};
 pub use command::{Command, Rejection, ScriptError};
 pub use encounter::{EncounterSource, EncounterState, Stack};
 pub use event::{
@@ -41,6 +42,7 @@ pub use event::{
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
+pub use view::{CombatView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };

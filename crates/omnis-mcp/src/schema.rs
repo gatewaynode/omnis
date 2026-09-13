@@ -76,7 +76,7 @@ impl Schema for Draft {
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), or a party change.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change, or in a fight a Combat action on the acting member's turn.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -84,7 +84,12 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Party": {"oneOf": [
                     {"type": "object", "properties": {"Create": Draft::schema()}, "required": ["Create"], "additionalProperties": false},
                     {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": {"type": "integer", "minimum": 0}}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false}
-                ]}}, "required": ["Party"], "additionalProperties": false}
+                ]}}, "required": ["Party"], "additionalProperties": false},
+                {"type": "object", "properties": {"Combat": {"oneOf": [
+                    {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
+                    {"type": "string", "enum": ["Dodge", "Run"]},
+                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                ]}}, "required": ["Combat"], "additionalProperties": false}
             ]
         })
     }
@@ -160,7 +165,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .len(),
-            4
+            5
         );
         assert_eq!(Draft::schema()["required"].as_array().unwrap().len(), 6);
         assert_eq!(

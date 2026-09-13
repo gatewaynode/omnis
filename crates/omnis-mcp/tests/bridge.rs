@@ -96,7 +96,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}));
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 17);
+    assert_eq!(tools.len(), 18);
     assert!(
         tools
             .iter()
@@ -256,7 +256,7 @@ fn modern_requests_are_stateless_and_versioned() {
         &json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": meta()}}),
     );
     assert_eq!(reply["result"]["resultType"], json!("complete"));
-    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 17);
+    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 18);
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "game_status", "arguments": {}, "_meta": meta()}}));
     assert_eq!(reply["result"]["resultType"], json!("complete"));
     assert_eq!(reply["result"]["structuredContent"]["turn"], json!(0));

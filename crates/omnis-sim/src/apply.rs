@@ -1,5 +1,6 @@
 //! `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>` (ARCHITECTURE.md §4.2).
 
+use crate::combat;
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::party;
@@ -13,16 +14,18 @@ use omnis_data::Data;
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
 /// appends the events to the log, and ends with what the party now sees.
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
-    match &world.mode {
-        Mode::Explore => {}
-        Mode::Encounter(_) | Mode::Combat(_) => return Err(Rejection::WrongMode),
-    }
     let mut events = Vec::new();
-    match &command {
-        Command::Step(direction) => step(world, data, *direction, &mut events),
-        Command::Turn(rotation) => turn(world, *rotation),
-        Command::Interact => interact(world, data, &mut events),
-        Command::Party(command) => party::apply(world, data, command, &mut events)?,
+    match (&world.mode, &command) {
+        (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events),
+        (Mode::Explore, Command::Turn(rotation)) => turn(world, *rotation),
+        (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
+        (Mode::Explore, Command::Party(command)) => {
+            party::apply(world, data, command, &mut events)?;
+        }
+        (Mode::Combat(_), Command::Combat(command)) => {
+            combat::apply(world, data, *command, &mut events)?;
+        }
+        _ => return Err(Rejection::WrongMode),
     }
     look(world, data, &mut events);
     world.turn += 1;
@@ -30,7 +33,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     Ok(events)
 }
 
-fn advance(world: &mut World, minutes: u32, events: &mut Vec<Event>) {
+pub(crate) fn advance(world: &mut World, minutes: u32, events: &mut Vec<Event>) {
     let clock = world.clocks.entry(PARTY).or_insert_with(world_clock_origin);
     let day_rolled = clock.advance(minutes, MINUTES_PER_DAY);
     events.push(Event::TimeAdvanced {
@@ -152,7 +155,7 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
 }
 
 /// Record the party's own tile as visited.
-fn visit(world: &mut World, data: &Data) {
+pub(crate) fn visit(world: &mut World, data: &Data) {
     let pos = world.position;
     let Some(cell) = data.maps.get(&pos.map).and_then(|m| m.cell(pos.x, pos.y)) else {
         return;
