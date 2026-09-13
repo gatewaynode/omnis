@@ -23,7 +23,7 @@ pub use attack::{
     best_weapon, damage_roll, death_save, initiative, weapons, wound_at_zero,
 };
 pub use character::{Character, CreationError, DeathSaves, Draft, NAME_MAX_BYTES, create};
-pub use condition::{ConditionFlags, Defenses, flags, member_defenses};
+pub use condition::{ConditionFlags, Defenses, condition_id, flags, member_defenses};
 pub use monster::{
     choose_target, defenses as monster_defenses, hit_points as monster_hit_points, modifier_of,
     passive_perception, pick_attack,

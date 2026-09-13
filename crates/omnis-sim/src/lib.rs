@@ -4,7 +4,7 @@
 //! Exploration and the party: one party holder with its own clock, movement with walls,
 //! doors, portals, a visibility cone that fills the automap, a party of up to six characters
 //! built from pack data, difficulty settings, saves as RON text with migrations, fingerprints,
-//! and replays.
+//! and replays. Combat: encounters on map tiles and the fight state (M4).
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(clippy::float_arithmetic)]
@@ -13,7 +13,10 @@
 extern crate alloc;
 
 pub mod apply;
+pub mod combat;
 pub mod command;
+pub mod encounter;
+pub mod event;
 mod migrate;
 pub mod ops;
 pub mod party;
@@ -29,12 +32,17 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use command::{BlockReason, Command, Event, MessageKey, Rejection, ScriptError, SeenTile};
+pub use combat::{CombatState, Initiative};
+pub use command::{Command, Rejection, ScriptError};
+pub use encounter::{EncounterSource, EncounterState, Stack};
+pub use event::{
+    ActorRef, BlockReason, CheckKind, CombatOutcome, Event, MessageKey, SeenTile, Surprise,
+};
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
 pub use world::{
-    Automap, Known, LoadError, MapState, Mode, NewGameError, SaveRule, Settings, World,
+    Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };
 
 use omnis_core::{HolderId, PartyId};

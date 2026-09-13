@@ -5,6 +5,20 @@ use crate::character::Character;
 use omnis_core::ConditionId;
 use omnis_data::{DamageType, Data, Effect};
 
+/// The condition a pack defines under `<pack>:condition:<name>`: the first interned id whose
+/// name ends in `:<name>`, so the simulation finds `dead` and `unconscious` in any pack.
+#[must_use]
+pub fn condition_id(data: &Data, name: &str) -> Option<ConditionId> {
+    let registry = &data.registry.conditions;
+    (0..u32::try_from(registry.len()).unwrap_or(u32::MAX))
+        .map(ConditionId)
+        .find(|id| {
+            registry
+                .name(*id)
+                .is_some_and(|n| n.rsplit(':').next() == Some(name) && n.contains(':'))
+        })
+}
+
 /// Every condition flag in effect, OR-ed over the conditions a combatant carries.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ConditionFlags {

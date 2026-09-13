@@ -1,6 +1,7 @@
 //! `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>` (ARCHITECTURE.md §4.2).
 
-use crate::command::{BlockReason, Command, Event, MessageKey, Rejection};
+use crate::command::{Command, Rejection};
+use crate::event::{BlockReason, Event, MessageKey};
 use crate::party;
 use crate::visibility;
 use crate::world::{Known, Mode, World, door_key, layer};
@@ -12,8 +13,9 @@ use omnis_data::Data;
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
 /// appends the events to the log, and ends with what the party now sees.
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
-    match world.mode {
+    match &world.mode {
         Mode::Explore => {}
+        Mode::Encounter(_) | Mode::Combat(_) => return Err(Rejection::WrongMode),
     }
     let mut events = Vec::new();
     match &command {

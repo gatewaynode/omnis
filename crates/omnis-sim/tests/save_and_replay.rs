@@ -6,8 +6,10 @@ mod common;
 use common::{data, interact, step, turn, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{read_ron, write_ron};
+use omnis_sim::omnis_rules::DeathSaves;
 use omnis_sim::{
-    Command, LoadError, PartyCommand, Replay, ReplayError, SaveRule, Settings, World, apply, query,
+    Command, LoadError, Mode, PartyCommand, Replay, ReplayError, SaveRule, Settings, World, apply,
+    query,
 };
 use std::path::PathBuf;
 
@@ -69,7 +71,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 2", "schema: 7", 1);
+    let other = text.replacen("schema: 3", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -155,14 +157,45 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 2);
+    assert_eq!(world.schema, 3);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 2").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 3").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
     assert!(!world.may_save());
+}
+
+/// A schema-2 save (captured from the M3 build, `capture_schema_2_fixture`) loads through the
+/// migration: the mode, cleared encounters, and death saves default.
+#[test]
+fn a_schema_2_save_migrates() {
+    let data = data();
+    let path = save_path("v2");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 2") && !text.contains("death_saves"));
+    assert_eq!(
+        World::from_ron(&text, &data, false).unwrap_err(),
+        LoadError::PackMismatch,
+        "the fixture's base pack predates the combat rules"
+    );
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 3);
+    assert_eq!(world.mode, Mode::Explore);
+    assert_eq!(world.party.members.len(), 1);
+    assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
+    assert!(!world.party.members[0].is_down());
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].cleared.is_empty());
+    let text = world.to_ron().unwrap();
+    assert_eq!(text.matches("schema: 3").count(), 1);
+    assert_eq!(
+        World::from_ron(&text, &data, true).unwrap(),
+        world,
+        "written back at schema 3, still on the fixture's pack hashes"
+    );
 }
 
 #[test]

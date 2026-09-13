@@ -6,10 +6,11 @@
 //! scripts are bounded before they are looked at.
 
 use crate::apply::apply;
-use crate::command::{Command, Event, Rejection};
+use crate::command::{Command, Rejection};
+use crate::event::Event;
 use crate::party::{self, PartyCommand};
 use crate::query::{self, ViewportModel};
-use crate::world::{Known, Mode, World};
+use crate::world::{Known, ModeKind, World};
 use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
@@ -20,7 +21,7 @@ use core::fmt;
 use omnis_core::{CharacterId, EraId, MapId, Position};
 use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
-use omnis_rules::Draft;
+use omnis_rules::{DeathSaves, Draft, condition_id};
 use serde::{Deserialize, Serialize};
 
 /// Most commands one `sim.script` may carry.
@@ -166,7 +167,7 @@ pub struct ClockView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Status {
     /// What the party is doing.
-    pub mode: Mode,
+    pub mode: ModeKind,
     /// Commands applied.
     pub turn: u64,
     /// Where the party is.
@@ -225,6 +226,12 @@ pub struct MemberView {
     pub front: bool,
     /// Condition ids in effect.
     pub conditions: Vec<String>,
+    /// At zero hit points.
+    pub down: bool,
+    /// Dead: carries the pack's `dead` condition.
+    pub dead: bool,
+    /// Death saving throws in progress.
+    pub death_saves: DeathSaves,
 }
 
 /// The party as a client sees it.
@@ -486,6 +493,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
 #[must_use]
 pub fn party_view(world: &World, data: &Data) -> PartyView {
     let front_row = party::front_row(data);
+    let dead = condition_id(data, "dead");
     let name_of = |name: Option<&str>| name.unwrap_or("?").to_owned();
     let members = world
         .party
@@ -512,6 +520,9 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
                 .iter()
                 .map(|c| name_of(data.registry.conditions.name(*c)))
                 .collect(),
+            down: member.is_down(),
+            dead: dead.is_some_and(|d| member.conditions.contains(&d)),
+            death_saves: member.death_saves,
         })
         .collect();
     PartyView {
@@ -556,7 +567,7 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
     let clock = world.party_clock();
     let day_length = i64::from(MINUTES_PER_DAY);
     Ok(Status {
-        mode: world.mode,
+        mode: world.mode.kind(),
         turn: world.turn,
         position: world.position,
         map: map_name(world.position.map, data),
