@@ -109,8 +109,10 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
             let (y0, y1) = (camera.sy(1.0, z_near), camera.sy(0.0, z_near));
             push_rect(&mut ops, fade, x0, y0, x1, y1);
         } else {
-            // The ground between the far and near edges, and the ceiling above it.
-            let (x0, x1) = (camera.sx(lo, z_far), camera.sx(hi, z_far));
+            // The ground between the far and near edges, and the ceiling above it, at the
+            // near edge's width: a strip drawn at its far edge's width leaves a wedge of
+            // sky at its near end, while nearer strips paint over any overlap.
+            let (x0, x1) = (camera.sx(lo, z_near), camera.sx(hi, z_near));
             let (y0, y1) = (camera.sy(0.0, z_far), camera.sy(0.0, z_near));
             push_rect(&mut ops, fade, x0, y0, x1, y1);
             if terrain.ceiling.is_some() {
@@ -602,6 +604,45 @@ mod tests {
             .unwrap();
         // The clump's near edge at (5, 8) is eight tiles off: a tile is 121.5 / 8 px tall.
         assert_eq!(tallest, 15);
+    }
+
+    #[test]
+    fn horizon_strips_reach_their_near_edge_width() {
+        let data = data();
+        let world = World::new(&data, 1, Settings::default()).unwrap();
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let covered = |x: i32, y: i32| {
+            ops.iter().any(|o| match o.paint {
+                Paint::Fill { width, height, .. } => {
+                    x >= o.x && x < o.x + width as i32 && y >= o.y && y < o.y + height as i32
+                }
+                Paint::Sprite(_) => false,
+            })
+        };
+        // The visibility cone clips the rows beyond depth 4 on the right, so a strip drawn
+        // at its far edge's width stops short of the viewport's edge or of the next nearer
+        // row: a wedge of sky at the strip's near end (depth 5: x 233 to 240 at y 79 on
+        // the old width).
+        let camera = Camera::new((240, 135));
+        let mut checked = 0;
+        for depth in view.detail_depth..=8 {
+            let Some(outer) = view
+                .tiles
+                .iter()
+                .filter(|t| t.depth == depth)
+                .map(|t| t.offset)
+                .max()
+            else {
+                continue;
+            };
+            let z = f32::from(depth);
+            let y = camera.sy(0.0, z).round() as i32 - 1;
+            let x = (camera.sx(f32::from(outer) + 0.5, z).round() as i32 - 1).min(239);
+            assert!(covered(x, y), "depth {depth}: ({x}, {y}) is sky");
+            checked += 1;
+        }
+        assert_eq!(checked, 5);
     }
 
     #[test]
