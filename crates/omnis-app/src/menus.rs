@@ -1,7 +1,7 @@
-//! `MenusPlugin`: the title, new game, character creation, and pause screens as lists of text
-//! driven by the state machines in `menu.rs`. A screen is spawned on state entry and despawned
-//! on exit; keys arrive as logical `KeyboardInput` so names and seeds can be typed, and clicks
-//! on the composed frame's widgets arrive as `UiClick`s that become the same keys.
+//! `MenusPlugin`: the title, new game, character creation, and pause screens, driven by the
+//! state machines in `menu.rs` and painted by `screens.rs` through `ui.rs`. Keys arrive as
+//! logical `KeyboardInput` so names and seeds can be typed; clicks on the composed frame's
+//! widgets arrive as `UiClick`s and become the same keys.
 
 use crate::AppConfig;
 use crate::cursor::UiSet;
@@ -35,10 +35,6 @@ pub struct Screens {
     /// The pause overlay.
     pub pause: Pause,
 }
-
-/// One line of the active screen.
-#[derive(Component)]
-struct MenuLine(usize);
 
 /// Which screen is up, if any.
 #[derive(SystemParam)]
@@ -88,9 +84,6 @@ impl Where<'_> {
     }
 }
 
-/// Lines a screen may show; the rest stay blank.
-const MAX_LINES: usize = 24;
-
 /// The menus plugin.
 pub struct MenusPlugin;
 
@@ -99,52 +92,15 @@ impl Plugin for MenusPlugin {
         app.add_message::<KeyboardInput>()
             .add_message::<UiClick>()
             .init_resource::<Screens>()
-            .add_systems(OnEnter(MenuState::Title), |c: Commands| {
-                spawn_screen(c, DespawnOnExit(MenuState::Title), 32.0);
-            })
-            .add_systems(OnEnter(MenuState::NewGame), |c: Commands| {
-                spawn_screen(c, DespawnOnExit(MenuState::NewGame), 24.0);
-            })
             .add_systems(OnEnter(PlayState::CreateParty), open_creation)
-            .add_systems(OnEnter(PlayState::Paused), |c: Commands| {
-                spawn_screen(c, DespawnOnExit(PlayState::Paused), 24.0);
-            })
             .add_systems(Update, menu_keys.in_set(UiSet::Dispatch))
             .add_systems(Update, refresh.in_set(UiSet::Model));
     }
 }
 
-fn spawn_screen<S: States>(mut commands: Commands, scope: DespawnOnExit<S>, font: f32) {
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(6.0),
-                top: Val::Percent(8.0),
-                padding: UiRect::all(Val::Px(16.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
-            scope,
-        ))
-        .with_children(|parent| {
-            for i in 0..MAX_LINES {
-                parent.spawn((
-                    Text::new(""),
-                    TextFont::from_font_size(font),
-                    TextColor(Color::WHITE),
-                    MenuLine(i),
-                ));
-            }
-        });
-}
-
-fn open_creation(commands: Commands, data: Res<PackData>, mut screens: ResMut<Screens>) {
+fn open_creation(data: Res<PackData>, mut screens: ResMut<Screens>) {
     screens.catalog = Catalog::from_data(&data.0);
     screens.creation = CreationForm::new(&screens.catalog);
-    spawn_screen(commands, DespawnOnExit(PlayState::CreateParty), 20.0);
 }
 
 /// A logical key press as the menus see it.
@@ -345,11 +301,7 @@ fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
 fn refresh(
     mut events: MessageReader<SimEvent>,
     mut refused: MessageReader<CommandRefused>,
-    at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
-    data: Option<Res<PackData>>,
-    mut lines: Query<(&mut Text, &MenuLine)>,
 ) {
     if events.read().any(|e| e.0 == Event::PartyChanged) {
         let Screens {
@@ -359,44 +311,5 @@ fn refresh(
     }
     for CommandRefused(rejection) in refused.read() {
         screens.creation.message = rejection.to_string();
-    }
-    let text = match at.screen() {
-        Active::Title => screens.title.lines(),
-        Active::NewGame => screens.new_game.lines(),
-        Active::CreateParty => {
-            let names: Vec<String> = world
-                .as_ref()
-                .map(|w| {
-                    w.0.party
-                        .members
-                        .iter()
-                        .map(|m| {
-                            let class = data
-                                .as_ref()
-                                .and_then(|d| d.0.registry.classes.name(m.class))
-                                .and_then(|id| id.rsplit(':').next())
-                                .unwrap_or("?");
-                            format!("{} ({class})", m.name)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            screens.creation.lines(&screens.catalog, &names)
-        }
-        Active::Paused => {
-            let (settings, seed) = world
-                .as_ref()
-                .map_or((omnis_sim::Settings::default(), 0), |w| {
-                    (w.0.settings, w.0.seed)
-                });
-            screens.pause.lines(settings, seed)
-        }
-        Active::None => return,
-    };
-    for (mut line, MenuLine(i)) in &mut lines {
-        let wanted = text.get(*i).map_or("", String::as_str);
-        if line.0 != wanted {
-            line.0 = wanted.to_owned();
-        }
     }
 }

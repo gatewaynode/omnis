@@ -335,6 +335,7 @@ pub struct View<'a> {
 #[must_use]
 pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetId>) -> Frame {
     let mut frame = Frame::default();
+    panels::backdrop(&mut frame);
     match &view.menu {
         Menu::None => {}
         Menu::Title(title) => {
@@ -376,6 +377,9 @@ pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetI
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::menu::Catalog;
+    use omnis_sim::omnis_data::load_packs;
+    use std::path::PathBuf;
 
     fn choice(row: usize, x: i32) -> Widget {
         let mut w = Widget::new(WidgetId::Row(row), Rect::new(x, 16, 100, 8), Kind::Choice);
@@ -501,5 +505,127 @@ mod tests {
         assert_eq!(frame.raster.get(100, 100), Some([HI.0, HI.1, HI.2, 255]));
         assert_eq!(frame.raster.get(99, 99), Some([0, 0, 0, 0]));
         frame.outline(WidgetId::Row(5));
+    }
+
+    /// `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
+    /// writes every screen as a PPM for a look without a window (`sips -s format png` converts).
+    #[test]
+    #[ignore = "writes files; run by hand with OMNIS_DUMP_SCREENS set"]
+    fn dump_screens() {
+        let Ok(dir) = std::env::var("OMNIS_DUMP_SCREENS") else {
+            return;
+        };
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let data = load_packs(&[&repo.join("packs/base")]).unwrap_or_else(|r| panic!("{r}"));
+        let catalog = Catalog::from_data(&data);
+        let mut form = CreationForm::new(&catalog);
+        form.name = "Oswin".into();
+        form.cursor = crate::menu::ROW_ADD;
+        form.skills = vec![omnis_sim::omnis_data::Skill::Religion];
+        form.message = "This class picks 2 skills".into();
+        let members = [
+            ("Brenna", "Fighter", 12, 12, 0),
+            ("Wren", "Cleric", 9, 9, 2),
+            ("Ilvara", "Wizard", 2, 7, 4),
+            ("Tam", "Rogue", 9, 9, 0),
+        ]
+        .map(|(name, class, hp, hp_max, sp)| MemberRow {
+            name: name.into(),
+            class: class.into(),
+            hp,
+            hp_max,
+            sp,
+            condition: None,
+        });
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let message = Message {
+            text: "The door opens.".into(),
+            alert: false,
+        };
+        let creation_message = Message {
+            text: form.message.clone(),
+            alert: true,
+        };
+        let title = Title::default();
+        let new_game = NewGameForm::default();
+        let pause = Pause::default();
+        let screens = [
+            (
+                "title",
+                Menu::Title(&title),
+                None,
+                PadState::Hidden,
+                &message,
+                false,
+            ),
+            (
+                "new_game",
+                Menu::NewGame(&new_game),
+                None,
+                PadState::Hidden,
+                &message,
+                false,
+            ),
+            (
+                "creation",
+                Menu::Creation {
+                    form: &form,
+                    catalog: &catalog,
+                    members: 4,
+                },
+                Some(&hud),
+                PadState::Disabled,
+                &creation_message,
+                true,
+            ),
+            (
+                "pause",
+                Menu::Pause {
+                    pause: &pause,
+                    settings: Settings::default(),
+                    seed: 42,
+                },
+                Some(&hud),
+                PadState::Disabled,
+                &message,
+                false,
+            ),
+            (
+                "explore",
+                Menu::None,
+                Some(&hud),
+                PadState::Enabled,
+                &message,
+                false,
+            ),
+        ];
+        for (name, menu, hud, pad, message, creating) in screens {
+            let view = View {
+                menu,
+                hud,
+                members: &members,
+                front_row: 3,
+                selected: Some(1),
+                creating,
+                pad,
+                message,
+                help: "Arrows or click  Enter ok  Esc back",
+            };
+            let frame = compose(
+                &view,
+                Some(WidgetId::Row(1)),
+                Some(WidgetId::Pad(PadButton::Use)),
+            );
+            let mut ppm =
+                format!("P6 {} {} 255\n", frame.raster.width, frame.raster.height).into_bytes();
+            for px in frame.raster.rgba.chunks(4) {
+                // Composite over the panel colour, as the canvas would.
+                let a = u32::from(px[3]);
+                for (c, panel) in px[..3].iter().zip([PANEL.0, PANEL.1, PANEL.2]) {
+                    ppm.push(((u32::from(*c) * a + u32::from(panel) * (255 - a)) / 255) as u8);
+                }
+            }
+            std::fs::write(format!("{dir}/{name}.ppm"), ppm).unwrap();
+        }
     }
 }

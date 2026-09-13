@@ -1,10 +1,11 @@
 //! The Omnis Bevy application as a library, so tests can build the app without a window and
 //! the binary in `main.rs` stays a few lines.
 //!
-//! Bevy-free modules (`layout`, `plan`, `menu`) hold everything that can be unit-tested; the
-//! plugins hold only ECS wiring and drawing. `SimPlugin`, `InputPlugin`, and `MenusPlugin` run
-//! headless under `MinimalPlugins`; `assets`, `pixel`, `viewport`, `hud`, and `party_panel`
-//! need the render stack.
+//! Bevy-free modules (`layout`, `plan`, `menu`, `font`, `raster`, `screen`, `screens`,
+//! `panels`) hold everything that can be unit-tested; the plugins hold only ECS wiring.
+//! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CursorPlugin`, and `UiPlugin` run headless under
+//! `MinimalPlugins` (the UI frame is composed without being uploaded); `assets`, `pixel`, and
+//! `viewport` need the render stack.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -14,13 +15,11 @@ pub mod cursor;
 #[cfg(feature = "devtools")]
 pub mod dev;
 pub mod font;
-pub mod hud;
 pub mod input;
 pub mod layout;
 pub mod menu;
 pub mod menus;
 pub mod panels;
-pub mod party_panel;
 pub mod pixel;
 pub mod plan;
 pub mod raster;

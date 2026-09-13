@@ -19,8 +19,6 @@ pub const SIDEBAR_MAP: (i32, i32, u32, u32) = (248, 8, 64, 64);
 pub const SIDEBAR_MAP_SCALE: i32 = 2;
 /// Pixels per tile in the large automap overlay.
 pub const OVERLAY_MAP_SCALE: i32 = 4;
-/// The party panel: the sidebar column under the minimap (x, y, width, height).
-pub const SIDEBAR_PARTY: (i32, i32, u32, u32) = (244, 76, 72, 100);
 
 /// A text cell: glyphs are 5×7 in a 6×8 cell.
 pub const CELL: (i32, i32) = (6, 8);
@@ -247,8 +245,8 @@ mod tests {
         assert_eq!(window_scale(1000.0, 600.0), 3.0);
         assert_eq!(window_scale(100.0, 50.0), 1.0);
         assert_eq!(
-            canvas_rect_to_window(SIDEBAR_PARTY, 1280.0, 720.0),
-            (976.0, 304.0, 288.0, 400.0)
+            canvas_rect_to_window(PAD.tuple(), 1280.0, 720.0),
+            (976.0, 400.0, 304.0, 140.0)
         );
         // 1920x1200 shows the canvas at 6x with 60 px of letterbox above and below.
         assert_eq!(

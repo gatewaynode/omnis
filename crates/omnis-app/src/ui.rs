@@ -1,16 +1,29 @@
 //! `UiPlugin`: hover and clicks over the composed frame, the member selection, the message
-//! line, and the frame itself, composed every frame from the models. Headless-capable: the
-//! frame is a resource that `pixel` shows as a sprite when there is a render stack.
+//! line, and the frame itself, composed every frame from the models and uploaded into a
+//! canvas sprite above the viewport. Headless-capable: without a render stack the frame is
+//! still composed as a resource and nothing is uploaded.
 
 use crate::cursor::{self, Pointer, UiSet};
-use crate::hud::event_text;
+use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, MemberRow, Message};
+use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Frame, Hit, Menu, PadState, View, WidgetId};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
+use crate::viewport::canvas_to_world;
+use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::sprite::Anchor;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{Event, World};
+
+/// The canvas sprite the frame is uploaded into.
+#[derive(Resource, Debug, Clone)]
+pub struct UiImage(pub Handle<Image>);
+
+/// Z of the UI sprite: above the viewport, the minimap, and the overlay automap.
+const UI_Z: f32 = 50.0;
 
 /// The frame the last `Update` composed, with what the pointer is over.
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
@@ -61,13 +74,75 @@ impl Plugin for UiPlugin {
             )
             .add_systems(Update, select_member.in_set(UiSet::Dispatch))
             .add_systems(Update, message_line.in_set(UiSet::Model))
-            .add_systems(Update, build_frame.in_set(UiSet::Draw))
+            .add_systems(Update, (build_frame, upload).chain().in_set(UiSet::Draw))
+            .add_systems(Startup, make_sprite)
             .add_systems(
                 OnExit(AppState::Playing),
                 |mut selected: ResMut<Selected>| {
                     selected.0 = None;
                 },
             );
+    }
+}
+
+/// A one-line description of an event, or `None` for events the message line skips.
+#[must_use]
+pub fn event_text(event: &Event) -> Option<String> {
+    Some(match event {
+        Event::Blocked { reason } => format!("Blocked: {reason:?}"),
+        Event::Door { open: true, .. } => "The door opens.".into(),
+        Event::Door { open: false, .. } => "The door closes.".into(),
+        Event::Message { key } => key.text_key().to_owned(),
+        Event::Moved { from, to } if from.map != to.map => "You pass through.".into(),
+        Event::TimeAdvanced {
+            day_rolled: true, ..
+        } => "A new day.".into(),
+        _ => return None,
+    })
+}
+
+/// The transparent canvas-sized image and its sprite; skipped without a render stack.
+fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
+    let Some(mut images) = images else {
+        return;
+    };
+    let image = Image::new(
+        Extent3d {
+            width: CANVAS_WIDTH,
+            height: CANVAS_HEIGHT,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        vec![0; (CANVAS_WIDTH * CANVAS_HEIGHT * 4) as usize],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    let handle = images.add(image);
+    commands.spawn((
+        Sprite::from_image(handle.clone()),
+        Anchor::TOP_LEFT,
+        Transform::from_translation(canvas_to_world(0, 0, UI_Z)),
+        PIXEL_LAYER,
+    ));
+    commands.insert_resource(UiImage(handle));
+}
+
+/// Copy the frame's pixels into the sprite's image when they changed.
+fn upload(
+    ui: Res<UiFrame>,
+    target: Option<Res<UiImage>>,
+    images: Option<ResMut<Assets<Image>>>,
+    mut last: Local<Vec<u8>>,
+) {
+    let (Some(target), Some(mut images)) = (target, images) else {
+        return;
+    };
+    if *last == ui.frame.raster.rgba {
+        return;
+    }
+    if let Some(mut image) = images.get_mut(&target.0) {
+        image.data = Some(ui.frame.raster.rgba.clone());
+        last.clone_from(&ui.frame.raster.rgba);
     }
 }
 

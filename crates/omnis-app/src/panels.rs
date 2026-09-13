@@ -4,8 +4,8 @@
 
 use crate::font::fit;
 use crate::layout::{
-    BAND_BACK_X, BAND_COLUMNS, BAND_FRONT_X, BAND_HELP, BAND_MESSAGE, BAND_ROW_COLUMNS, BAND_ROWS,
-    CELL, HUD_COLUMNS, HUD_LINES, Rect,
+    BAND, BAND_BACK_X, BAND_COLUMNS, BAND_FRONT_X, BAND_HELP, BAND_MESSAGE, BAND_ROW_COLUMNS,
+    BAND_ROWS, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP,
 };
 use crate::screen::{
     ALERT, DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, SP, TEXT, View, Widget,
@@ -114,6 +114,30 @@ pub struct Message {
     pub text: String,
     /// Whether it is a rejection or a failure.
     pub alert: bool,
+}
+
+/// Paint the column and band backdrop: opaque panel around the minimap and across the band,
+/// so viewport sprites that overhang the viewport's edges never show there.
+pub fn backdrop(frame: &mut Frame) {
+    let map = Rect::new(SIDEBAR_MAP.0, SIDEBAR_MAP.1, SIDEBAR_MAP.2, SIDEBAR_MAP.3);
+    let column = RIGHT_COLUMN;
+    let above = Rect::new(column.x, column.y, column.w, (map.y - column.y) as u32);
+    let left = Rect::new(column.x, map.y, (map.x - column.x) as u32, map.h);
+    let right = Rect::new(
+        map.right(),
+        map.y,
+        (column.right() - map.right()) as u32,
+        map.h,
+    );
+    let below = Rect::new(
+        column.x,
+        map.bottom(),
+        column.w,
+        (column.bottom() - map.bottom()) as u32,
+    );
+    for rect in [above, left, right, below, BAND] {
+        frame.raster.fill(rect, PANEL);
+    }
 }
 
 /// Paint the location lines.
@@ -265,6 +289,31 @@ mod tests {
         };
         assert!(
             (long_class.name_text() + long_class.class_text().as_str()).len() <= BAND_ROW_COLUMNS
+        );
+    }
+
+    #[test]
+    fn the_backdrop_covers_the_column_and_band_but_not_the_minimap() {
+        let mut frame = Frame::default();
+        backdrop(&mut frame);
+        let panel = [PANEL.0, PANEL.1, PANEL.2, 255];
+        assert_eq!(
+            frame.raster.get(240, 60),
+            Some(panel),
+            "left of the minimap"
+        );
+        assert_eq!(frame.raster.get(319, 0), Some(panel), "the column's corner");
+        assert_eq!(frame.raster.get(300, 100), Some(panel), "under the minimap");
+        assert_eq!(frame.raster.get(100, 150), Some(panel), "the band");
+        assert_eq!(
+            frame.raster.get(280, 40),
+            Some([0, 0, 0, 0]),
+            "the minimap shows through"
+        );
+        assert_eq!(
+            frame.raster.get(100, 100),
+            Some([0, 0, 0, 0]),
+            "the viewport shows through"
         );
     }
 
