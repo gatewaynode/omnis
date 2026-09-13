@@ -141,7 +141,7 @@ The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the 
 - [x] Layout derivation with no behaviour change (2026-09-13): every region a `const` expression of the inputs; `FRONT_FEET_Y`; modal and pad constants
 - [x] Tests as invariants at 320×180 (2026-09-13); `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
 - [x] `ui.rs` (2026-09-13): compose into a scratch frame, upload on change
-- [ ] Bake `texel_scale`
+- [x] Bake `texel_scale` (2026-09-13)
 - [ ] The resize and the bake in one commit (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)
 - [ ] Physical fit, scale factor, size classes, fullscreen default
 - [ ] Menu box: an 80×16-cell framed area centred in the viewport, row indices unchanged
