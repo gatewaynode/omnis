@@ -1,7 +1,10 @@
 //! `ViewportPlugin`: after every simulation event batch, rebuild the viewport sprites from the
-//! draw plan, and the automap overlay when it is shown.
+//! draw plan, the monster silhouettes when a fight is on, and the automap overlay when it is
+//! shown.
 
+use crate::actors;
 use crate::assets::PackImages;
+use crate::combat_menu::{fight_view, redraws};
 use crate::layout::{
     CANVAS_HEIGHT, CANVAS_WIDTH, OVERLAY_MAP_CLIP, OVERLAY_MAP_SCALE, SIDEBAR_MAP,
     SIDEBAR_MAP_SCALE, VIEWPORT_ORIGIN, VIEWPORT_SIZE,
@@ -111,7 +114,9 @@ fn redraw(
     old_view: Query<Entity, With<ViewportSprite>>,
     old_map: Query<Entity, With<AutomapSprite>>,
 ) {
-    let saw_visible = events.read().any(|e| matches!(e.0, Event::Visible { .. }));
+    let saw_visible = events
+        .read()
+        .any(|e| matches!(e.0, Event::Visible { .. }) || redraws(&e.0));
     let was_replaced = replaced.read().count() > 0;
     if !(saw_visible || was_replaced || shown.is_changed()) {
         return;
@@ -155,6 +160,18 @@ fn redraw(
         VIEWPORT_ORIGIN,
         1.0,
     );
+    // Whoever stands before the party, over the scene and under the UI frame.
+    if let Some(fight) = fight_view(&world.0, &data.0) {
+        let ops = actors::ops(&actors::silhouettes(&fight.actors()));
+        spawn_ops::<ViewportSprite>(
+            &mut commands,
+            &server,
+            &mut images,
+            &ops,
+            VIEWPORT_ORIGIN,
+            2.0,
+        );
+    }
     let sidebar = plan::automap_window(&world.0, &data.0, SIDEBAR_MAP, SIDEBAR_MAP_SCALE);
     spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &sidebar, (0, 0), 10.0);
     if shown.0 {

@@ -3,9 +3,10 @@
 //! menu takes a key and answers with an intent; `combat.rs` feeds keys and applies intents.
 //! Bevy-free, so every transition is unit-tested against a real fight.
 
+use crate::actors::Actor;
 use crate::menu::{MenuKey, cycle};
 use omnis_sim::combat::weapon_for;
-use omnis_sim::omnis_data::{Data, Disposition};
+use omnis_sim::omnis_data::{Data, Disposition, Size};
 use omnis_sim::{
     ActorRef, CombatCommand, EncounterChoice, Event, Mode, ModeKind, World, bribe_cost, combat_view,
 };
@@ -21,6 +22,8 @@ pub struct StackRow {
     pub count: u8,
     /// How many there were.
     pub initial: u8,
+    /// The monster's size, for its silhouette.
+    pub size: Size,
     /// Whether it stands in front.
     pub front: bool,
     /// Whether anyone in it still stands.
@@ -91,6 +94,18 @@ impl FightView {
     fn living(&self) -> impl Iterator<Item = &StackRow> {
         self.stacks.iter().filter(|s| s.alive)
     }
+
+    /// The living stacks as the silhouettes need them.
+    #[must_use]
+    pub fn actors(&self) -> Vec<Actor> {
+        self.living()
+            .map(|s| Actor {
+                index: s.index,
+                size: s.size,
+                front: s.front,
+            })
+            .collect()
+    }
 }
 
 /// The view, or `None` while exploring.
@@ -113,6 +128,12 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             name: data.label("en", &s.name).to_owned(),
             count: u8::try_from(s.hp.len()).unwrap_or(u8::MAX),
             initial: s.initial,
+            size: data
+                .registry
+                .monsters
+                .get(&s.monster)
+                .and_then(|id| data.monsters.get(&id))
+                .map_or(Size::Medium, |m| m.size),
             front: s.front,
             alive: s.alive,
             blocked: fight.zip(own).and_then(|(state, own)| {
@@ -454,6 +475,11 @@ pub(crate) mod tests {
             .map(|s| (s.name.as_str(), s.count, s.state()))
             .collect();
         assert_eq!(rows, [("Goblin", 3, "front"), ("Giant Rat", 2, "front")]);
+        assert_eq!(
+            view.stacks.iter().map(|s| s.size).collect::<Vec<_>>(),
+            [Size::Small, Size::Small]
+        );
+        assert_eq!(view.actors().len(), 2);
         assert_eq!(view.actor, None);
         // Goblins 50 xp × 3 + rats 25 xp × 2 = 200; hostile pays it all.
         assert_eq!(view.bribe, Some(200));
@@ -531,6 +557,7 @@ pub(crate) mod tests {
                     name: format!("Stack {index}"),
                     count: u8::from(*alive),
                     initial: 1,
+                    size: Size::Medium,
                     front: *alive && *index < 2,
                     alive: *alive,
                     blocked: blocked.map(str::to_owned),

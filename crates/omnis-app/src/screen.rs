@@ -376,6 +376,7 @@ mod tests {
                 name: name.to_owned(),
                 count,
                 initial,
+                size: omnis_sim::omnis_data::Size::Small,
                 front: alive && i < 2,
                 alive,
                 blocked: None,

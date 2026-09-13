@@ -2,6 +2,7 @@
 //! view, the action row and the roll log below it, and the modal that follows a wipe. The
 //! middle rows stay clear so the scene and the silhouettes show through. Bevy-free.
 
+use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::SHORT_CELLS;
 use crate::font::fit;
@@ -19,6 +20,8 @@ const FIRST_STACK_ROW: i32 = 1;
 const ACTION_ROW: i32 = 11;
 /// The first roll-log row; the log runs to the last row of the viewport.
 const FIRST_LOG_ROW: i32 = 12;
+/// The row of the count digits under the silhouettes.
+const COUNT_ROW: i32 = 10;
 /// Rows of the roll log tail.
 pub const LOG_ROWS: usize = 4;
 /// Cells of a stack row: `99 {name:<20} front`.
@@ -38,6 +41,7 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[Str
         label_right(frame, 0, &format!("{actor:.10} to act"), TEXT);
     }
     stacks(frame, view, Some(menu.target));
+    counts(frame, view);
     for (i, (text, column)) in CombatMenu::ACTIONS
         .iter()
         .zip(COMBAT_ACTION_COLUMNS)
@@ -62,6 +66,7 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     label(frame, 1, 0, "ENCOUNTER", HI);
     label_right(frame, 0, &format!("{:?}", view.disposition), TEXT);
     stacks(frame, view, None);
+    counts(frame, view);
     let bribe = view.bribe_label();
     let texts = [
         EncounterMenu::ACTIONS[0],
@@ -138,6 +143,19 @@ fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
     }
 }
 
+/// The living count of each stack, centred under its silhouette.
+fn counts(frame: &mut Frame, view: &FightView) {
+    let y = crate::layout::cell(0, COUNT_ROW).1;
+    for s in actors::silhouettes(&view.actors()) {
+        let Some(stack) = view.stacks.iter().find(|row| row.index == s.index) else {
+            continue;
+        };
+        let text = stack.count.to_string();
+        let x = s.rect.x + s.rect.w as i32 / 2 - 3 * text.len() as i32;
+        frame.raster.text(x, y, &text, TEXT);
+    }
+}
+
 /// The last lines of the log, newest at the bottom in full colour, the older ones dim.
 fn roll_log(frame: &mut Frame, log: &[String]) {
     let tail = &log[log.len().saturating_sub(LOG_ROWS)..];
@@ -161,7 +179,7 @@ mod tests {
     use crate::screens::tests::assert_laid_out;
     use crate::widget::hit;
     use omnis_sim::ModeKind;
-    use omnis_sim::omnis_data::Disposition;
+    use omnis_sim::omnis_data::{Disposition, Size};
 
     /// Four stacks of the widest names and counts, the widest round and actor.
     fn widest_view(phase: ModeKind) -> FightView {
@@ -177,6 +195,7 @@ mod tests {
                     name: format!("Ancient Red Dragon {i}x"),
                     count: 99,
                     initial: 99,
+                    size: Size::Gargantuan,
                     front: i < 2,
                     alive: i != 3,
                     blocked: (i == 2).then(|| "behind".to_owned()),
@@ -237,6 +256,16 @@ mod tests {
         let action = frame.widget(WidgetId::Action(2)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
         assert_eq!((h.id, h.kind), (WidgetId::Action(2), Kind::Button));
+        let (_, y) = cell(0, COUNT_ROW);
+        let digits = (0..240)
+            .filter(|x| rgb(&frame, *x, y + 1) == Some(TEXT))
+            .count();
+        assert!(digits > 0, "the counts sit under the silhouettes");
+        assert_eq!(
+            frame.raster.get(120, y - 1),
+            Some([0, 0, 0, 0]),
+            "row 9 is clear"
+        );
     }
 
     #[test]
