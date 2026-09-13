@@ -35,7 +35,7 @@ pub use omnis_rules;
 pub use apply::apply;
 pub use combat::{CombatCommand, CombatState, Initiative};
 pub use command::{Command, Rejection, ScriptError};
-pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack};
+pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, Event, MessageKey, SeenTile, Surprise,
 };

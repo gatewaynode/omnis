@@ -348,10 +348,17 @@ pub(crate) fn apply_choice(
     }
 }
 
-fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
+/// What the monsters ahead ask to leave (`bribe.cost` over their total XP and their
+/// disposition), so a client can show the price before the choice. The formula draws no dice;
+/// the world is read only.
+pub fn bribe_cost(world: &World, data: &Data) -> Result<u32, Rejection> {
     let Mode::Encounter(state) = &world.mode else {
         return Err(Rejection::WrongMode);
     };
+    cost_of(state, data, &mut Roller::take(world))
+}
+
+fn cost_of(state: &EncounterState, data: &Data, roller: &mut Roller) -> Result<u32, Rejection> {
     let xp: i64 = state
         .stacks
         .iter()
@@ -360,8 +367,6 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
             each * i64::from(s.initial)
         })
         .sum();
-    let disposition = state.disposition;
-    let mut roller = Roller::take(world);
     let cost = data
         .rules
         .eval(
@@ -370,18 +375,25 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
                 ("xp", Value::Int(xp)),
                 (
                     "disposition",
-                    Value::Int(i64::try_from(disposition.index()).unwrap_or(0)),
+                    Value::Int(i64::try_from(state.disposition.index()).unwrap_or(0)),
                 ),
             ],
             &mut roller.rng,
             &roller.stream,
         )
         .map_err(Rejection::Rule)?;
-    let cost = cost
-        .value
+    cost.value
         .as_int()
         .map(|c| u32::try_from(c.max(0)).unwrap_or(u32::MAX))
-        .ok_or_else(|| Rejection::Rule(RuleError::new("bribe.cost", "must be an integer")))?;
+        .ok_or_else(|| Rejection::Rule(RuleError::new("bribe.cost", "must be an integer")))
+}
+
+fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
+    let Mode::Encounter(state) = &world.mode else {
+        return Err(Rejection::WrongMode);
+    };
+    let mut roller = Roller::take(world);
+    let cost = cost_of(state, data, &mut roller)?;
     if world.party.gold < cost {
         return Err(Rejection::CannotAfford {
             cost,

@@ -122,7 +122,7 @@ Scope: monsters as stacks with rows, fixed and random encounters keyed to map ti
 - [x] Sim schema 3 (2026-09-13, `ccc081d`, Sentrux fixes `dc937ba`): `event.rs`, `Mode::{Explore, Encounter, Combat}` and `ModeKind`, `MapState.cleared`, `v2_to_v3`, `LoadError::BadCombat`, wire views; walk replay rebaselined
 - [x] Combat engine (2026-09-13, `5521f24`): `combat/*`, `Command::Combat`, rejections that leave the RNG untouched, monster turns auto-resolved, death saves, `finish` with xp, gold, permadeath; `combat.get` op and MCP tool; tests on a hand-built encounter
 - [x] Encounters (2026-09-13, `6bdaa4e`): `encounter.rs`, `Command::Encounter`, the trigger in `step`, the `encounter` stream, test-pack monsters and encounter data, `tests/replays/fight.ron` golden; walk replay rebaselined
-- [ ] App models and text: `combat_menu.rs`, `combat_text.rs`
+- [x] App models and text (2026-09-13): `combat_menu.rs` (the fight view with labels and reach reasons, the combat, encounter, and defeat menus), `combat_text.rs` (one line per event with the roll math, long and short forms); the sim exposes `bribe_cost`
 - [ ] App screens: widget ids, `item_state`, `modal`, `combat_screen.rs`, `screen.rs` arms, screen dump entries
 - [ ] Silhouettes: `actors.rs`, viewport trigger and spawn
 - [ ] Wiring: `PlayState::{Encounter, Combat, Defeat}` from `World.mode`, `CombatPlugin`, roll log, help, message text, script words

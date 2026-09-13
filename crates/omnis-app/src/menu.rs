@@ -46,7 +46,7 @@ pub fn words(name: &str) -> String {
     out
 }
 
-fn cycle(index: usize, len: usize, key: MenuKey) -> usize {
+pub(crate) fn cycle(index: usize, len: usize, key: MenuKey) -> usize {
     if len == 0 {
         return 0;
     }
