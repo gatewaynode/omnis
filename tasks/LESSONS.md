@@ -47,3 +47,9 @@
 - **What happened**: I chained the checks and the commit with `;`, so a commit went in with a parse error the checks had just printed (amended before anything was pushed). Earlier, an edit script with relative paths ran from the wrong directory, edited nothing, and the tests "passed" on the untouched tree.
 - **Rule**: The commit follows its checks with `&&`, or runs in a separate call after the check output has been read; never `;`. A commit made in the same command as its checks is proven by building HEAD.
 - **Rule**: Edit scripts anchor on the repository root (`cd` first or absolute paths), and a green run after an edit counts only when `git status` shows the files changed.
+
+## 2026-09-13 — A display target is measured on the owner's primary display
+- **What happened**: The display rework sized the canvas for a 16:9 4K monitor because the PRD named one. The owner's primary display is a 5120×1440 ultrawide; the fixed 16:9 canvas left half of it empty and every windowed class fell to 1× under the menu bar. A second rework followed the same day.
+- **Rule**: Before a decision about display size, scale, or aspect, ask which display is primary and read the machine (`system_profiler SPDisplaysDataType` on macOS: physical and "looks like" sizes for every panel), then measure the design on every panel listed, windowed and fullscreen, before proposing it.
+- **Rule**: A layout is designed for the aspect range the hardware shows, not for one canvas: state what fills the screen on each panel and what stays empty, with numbers, so the owner decides on the bars before the code exists.
+
