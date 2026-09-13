@@ -1,39 +1,52 @@
 //! The fight painted over the viewport (ARCHITECTURE.md §8.1): the stack rows above the 3D
-//! view, the action row and the roll log below it, and the modal that follows a wipe. The
-//! middle rows stay clear so the scene and the silhouettes show through. Bevy-free.
+//! view, the counts under the silhouettes' feet, the action row below the scene, and the
+//! modal that follows a wipe. The rows between stay clear so the scene and the silhouettes
+//! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::LONG_CELLS;
 use crate::font::fit;
-use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, cell, row_y, rows};
+use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
 use crate::raster::Rgb;
 use crate::screens::{ItemState, MODAL_TEXT_X, item_state_at, modal};
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
-/// The first stack row.
-const FIRST_STACK_ROW: i32 = 1;
+/// The header's row: `COMBAT  Round n` or `ENCOUNTER` and the disposition.
+const HEADER_ROW: i32 = 1;
+/// The first stack row, a blank row under the header.
+const FIRST_STACK_ROW: i32 = 3;
 /// Stack rows on the screen.
-const STACK_ROWS: i32 = 4;
-/// The panel above the clear window: the header and the stack rows.
-pub const TOP_PANEL: Rect = rows(0, FIRST_STACK_ROW + STACK_ROWS);
-/// The row of the count digits: the last row that ends above the front silhouettes' feet.
-const COUNT_ROW: i32 = (actors::FRONT_FEET_Y - 1) / CELL.1;
-/// The action row, under the counts.
-const ACTION_ROW: i32 = COUNT_ROW + 1;
-/// The panel below the clear window: from the action row to the viewport's bottom edge.
+const STACK_ROWS: i32 = 5;
+/// The panel above the clear window: the header, the stack rows, a blank row.
+pub const TOP_PANEL: Rect = rows(0, FIRST_STACK_ROW + STACK_ROWS + 1);
+/// The row of the count digits: the first row at or under the front silhouettes' feet.
+const COUNT_ROW: i32 = (actors::FRONT_FEET_Y + CELL.1 - 1) / CELL.1;
+/// Rows of the panel below the clear window.
+const BOTTOM_ROWS: i32 = 7;
+/// The bottom panel's first row.
+const BOTTOM_ROW: i32 = VIEWPORT_ROWS - BOTTOM_ROWS;
+/// The panel below the clear window, to the viewport's bottom edge.
 pub const BOTTOM_PANEL: Rect = Rect::new(
     VIEWPORT.x,
-    VIEWPORT.y + row_y(ACTION_ROW),
+    VIEWPORT.y + row_y(BOTTOM_ROW),
     VIEWPORT.w,
-    VIEWPORT.h - row_y(ACTION_ROW) as u32,
+    VIEWPORT.h - row_y(BOTTOM_ROW) as u32,
 );
-/// Cells of a stack row: `99 {name:<20} front`.
-const STACK_CELLS: usize = 29;
+/// The action row, in the middle of the bottom panel.
+const ACTION_ROW: i32 = BOTTOM_ROW + 3;
+/// Cells of a stack row's text: `99 {name:<20} front`.
+const STACK_TEXT_CELLS: usize = 29;
+/// The column a stack's reason for being out of reach starts at, in a fight.
+const REASON_COLUMN: i32 = 32;
+/// Cells the reason may take.
+const REASON_CELLS: usize = 24;
+/// Cells of a stack row: the text, a gap, the reason.
+const STACK_CELLS: usize = REASON_COLUMN as usize - 1 + REASON_CELLS;
 /// The action row columns for the fight: Attack, Dodge, Exchange, Run.
-const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 9, 16, 26];
+const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 11, 20, 32];
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
-const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 9, 22, 28];
+const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 11, 26, 34];
 /// Cells a modal line may take inside the defeat box: a whole log line.
 const DEFEAT_LINE_CELLS: usize = LONG_CELLS;
 /// The defeat box's height in rows: the title, the log lines, two buttons, and the gaps
@@ -51,9 +64,14 @@ pub const DEFEAT_RECT: Rect = Rect::new(
     DEFEAT_SIZE.0,
     DEFEAT_SIZE.1,
 );
-// The rows fit the viewport's grid, the panels and the box sit inside it, and a defeat line
-// fits its box with the modal's margins.
+// The rows fit the viewport's grid, the panels and the box sit inside it, the counts sit
+// between the feet and the bottom panel, and a defeat line fits its box with the modal's
+// margins.
 const _: () = assert!((STACK_CELLS as i32) < VIEWPORT_COLUMNS);
+const _: () = assert!((1 + STACK_TEXT_CELLS as i32) < REASON_COLUMN);
+const _: () = assert!(row_y(COUNT_ROW) >= actors::FRONT_FEET_Y);
+const _: () = assert!(row_y(COUNT_ROW) + CELL.1 <= BOTTOM_PANEL.y);
+const _: () = assert!(TOP_PANEL.bottom() <= row_y(COUNT_ROW));
 const _: () = assert!(VIEWPORT.encloses(TOP_PANEL) && VIEWPORT.encloses(BOTTOM_PANEL));
 const _: () = assert!(!TOP_PANEL.overlaps(BOTTOM_PANEL) && VIEWPORT.encloses(DEFEAT_RECT));
 const _: () =
@@ -71,9 +89,9 @@ fn vp_label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
     frame.raster.text(x, y, text, color);
 }
 
-/// Paint text right-aligned to the viewport's last column.
+/// Paint text right-aligned a column in from the viewport's edge.
 fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
-    let column = VIEWPORT_COLUMNS - text.chars().count() as i32;
+    let column = VIEWPORT_COLUMNS - 1 - text.chars().count() as i32;
     vp_label(frame, column.max(0), row, text, color);
 }
 
@@ -81,7 +99,13 @@ fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
 /// the log.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     panels(frame);
-    vp_label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
+    vp_label(
+        frame,
+        1,
+        HEADER_ROW,
+        &format!("COMBAT  Round {}", view.round),
+        HI,
+    );
     stacks(frame, view, Some(menu.target));
     counts(frame, view);
     for (i, (text, column)) in CombatMenu::ACTIONS
@@ -103,8 +127,8 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
 /// The choice before a fight: header with the disposition, the stacks, the four choices.
 pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     panels(frame);
-    vp_label(frame, 1, 0, "ENCOUNTER", HI);
-    vp_label_right(frame, 0, &format!("{:?}", view.disposition), TEXT);
+    vp_label(frame, 1, HEADER_ROW, "ENCOUNTER", HI);
+    vp_label_right(frame, HEADER_ROW, &format!("{:?}", view.disposition), TEXT);
     stacks(frame, view, None);
     counts(frame, view);
     let bribe = view.bribe_label();
@@ -160,10 +184,11 @@ fn panels(frame: &mut Frame) {
 }
 
 /// One row per stack: the living count, the name, and front, back, or slain. In a fight the
-/// rows are targets the mouse can pick and the current target is marked; slain rows are
-/// inert. Before the fight they are plain text.
+/// rows are targets the mouse can pick, the current target is marked, a stack the acting
+/// member cannot reach says why, and slain rows are inert. Before the fight they are plain
+/// text.
 fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
-    for (i, stack) in view.stacks.iter().enumerate() {
+    for (i, stack) in view.stacks.iter().enumerate().take(STACK_ROWS as usize) {
         let row = FIRST_STACK_ROW + i as i32;
         let text = format!(
             "{:>2} {:<20} {}",
@@ -175,6 +200,9 @@ fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
             vp_label(frame, 1, row, &text, if stack.alive { TEXT } else { DIM });
             continue;
         };
+        if let Some(reason) = stack.blocked.as_deref().filter(|_| stack.alive) {
+            vp_label(frame, REASON_COLUMN, row, &fit(reason, REASON_CELLS), DIM);
+        }
         let state = if !stack.alive {
             ItemState::Disabled
         } else {
@@ -270,6 +298,23 @@ mod tests {
         assert!(run.rect.right() <= VIEWPORT.right());
         let mid = VIEWPORT.w as i32 / 2;
         let (top, bottom) = (TOP_PANEL, BOTTOM_PANEL);
+        // The reason a stack is out of reach stands after its row's text, dim.
+        let (rx, ry) = cell(REASON_COLUMN, FIRST_STACK_ROW + 2);
+        assert!(
+            (0..30).any(|dx| rgb(&frame, rx + dx, ry + 3) == Some(DIM)),
+            "behind"
+        );
+        let (rx, ry) = cell(REASON_COLUMN, FIRST_STACK_ROW);
+        assert!((0..30).all(|dx| rgb(&frame, rx + dx, ry + 3) == Some(PANEL)));
+        // The panels clear the tallest front silhouette's head and stand off its feet.
+        let giant = actors::Actor {
+            index: 0,
+            size: Size::Gargantuan,
+            front: true,
+        };
+        let head = actors::silhouettes(&[giant])[0].rect.y;
+        assert!(top.bottom() <= head, "{} vs head {head}", top.bottom());
+        assert!(cell(0, COUNT_ROW).1 >= actors::FRONT_FEET_Y);
         assert_eq!(rgb(&frame, top.right() - 2, top.y + 4), Some(PANEL), "top");
         assert_eq!(rgb(&frame, bottom.right() - 2, bottom.y + 4), Some(PANEL));
         let clear = Some([0, 0, 0, 0]);
