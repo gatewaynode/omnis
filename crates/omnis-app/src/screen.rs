@@ -119,8 +119,13 @@ pub enum Menu<'a> {
         /// The roll log, oldest first.
         log: &'a [String],
     },
-    /// The modal after a wipe, over the scene.
-    Defeat(&'a DefeatMenu),
+    /// The modal after a wipe, over the scene, with the roll log's tail.
+    Defeat {
+        /// The menu.
+        menu: &'a DefeatMenu,
+        /// The roll log, oldest first.
+        log: &'a [String],
+    },
 }
 
 impl Menu<'_> {
@@ -130,7 +135,7 @@ impl Menu<'_> {
     pub const fn covers_viewport(&self) -> bool {
         !matches!(
             self,
-            Menu::None | Menu::Encounter { .. } | Menu::Combat { .. } | Menu::Defeat(_)
+            Menu::None | Menu::Encounter { .. } | Menu::Combat { .. } | Menu::Defeat { .. }
         )
     }
 }
@@ -181,7 +186,7 @@ pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetI
         } => screens::pause(&mut frame, pause, *settings, *seed),
         Menu::Encounter { menu, view } => combat_screen::encounter(&mut frame, view, menu),
         Menu::Combat { menu, view, log } => combat_screen::combat(&mut frame, view, menu, log),
-        Menu::Defeat(menu) => combat_screen::defeat(&mut frame, menu),
+        Menu::Defeat { menu, log } => combat_screen::defeat(&mut frame, menu, log),
     }
     if let Some(hud) = view.hud {
         panels::hud(&mut frame, hud);
@@ -520,6 +525,10 @@ mod tests {
         dump(&dir, "explore", Menu::None, Some(&hud), &event);
         dump(&dir, "encounter", before, Some(&hud), &event);
         dump(&dir, "combat", in_fight, Some(&hud), &event);
-        dump(&dir, "defeat", Menu::Defeat(&defeat), Some(&hud), &event);
+        let fallen = Menu::Defeat {
+            menu: &defeat,
+            log: &log,
+        };
+        dump(&dir, "defeat", fallen, Some(&hud), &event);
     }
 }

@@ -364,7 +364,13 @@ fn menu_for<'a>(
             },
             HELP_COMBAT,
         ),
-        (Active::Defeat, _) => (Menu::Defeat(&screens.defeat), HELP_DEFEAT),
+        (Active::Defeat, _) => (
+            Menu::Defeat {
+                menu: &screens.defeat,
+                log,
+            },
+            HELP_DEFEAT,
+        ),
         (Active::None | Active::Encounter | Active::Combat, _) => (Menu::None, HELP_EXPLORE),
     }
 }

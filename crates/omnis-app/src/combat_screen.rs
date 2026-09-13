@@ -92,13 +92,26 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     }
 }
 
-/// "The party has fallen", boxed over the world, with the two ways out.
-pub fn defeat(frame: &mut Frame, menu: &DefeatMenu) {
+/// Lines of the roll log the defeat modal shows: how the end came.
+pub const DEFEAT_LOG_ROWS: usize = 3;
+/// Cells a modal line may take inside the defeat box.
+const DEFEAT_LINE_CELLS: usize = 20;
+
+/// "The party has fallen", boxed over the world, with the last of the roll log so a fight
+/// that ended inside one command still reads, and the two ways out.
+pub fn defeat(frame: &mut Frame, menu: &DefeatMenu, log: &[String]) {
+    let tail = &log[log.len().saturating_sub(DEFEAT_LOG_ROWS)..];
+    let lines: Vec<String> = if tail.is_empty() {
+        vec!["Every member is down.".to_owned()]
+    } else {
+        tail.iter().map(|l| fit(l, DEFEAT_LINE_CELLS)).collect()
+    };
+    let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
     modal(
         frame,
         DEFEAT_RECT,
         "The party has fallen",
-        &["Every member is down."],
+        &lines,
         &DefeatMenu::ITEMS,
         menu.cursor,
     );
@@ -290,10 +303,31 @@ mod tests {
     }
 
     #[test]
-    fn the_defeat_modal_sits_in_the_window() {
+    fn the_defeat_modal_sits_in_the_window_and_tells_how_it_ended() {
         let mut frame = Frame::default();
-        defeat(&mut frame, &DefeatMenu { cursor: 1 });
+        defeat(&mut frame, &DefeatMenu { cursor: 1 }, &[]);
         assert_laid_out(&frame);
+        let empty = frame.raster.fingerprint();
+        let mut frame = Frame::default();
+        let log: Vec<String> = (0..5)
+            .map(|i| format!("Line {i} {}", "x".repeat(40)))
+            .collect();
+        defeat(&mut frame, &DefeatMenu { cursor: 1 }, &log);
+        assert_laid_out(&frame);
+        assert_ne!(
+            frame.raster.fingerprint(),
+            empty,
+            "the log's tail is painted"
+        );
+        // Three lines of at most 20 cells fit between the title and the buttons: the
+        // longest line ends inside the box.
+        let right = DEFEAT_RECT.x + 12 + 6 * DEFEAT_LINE_CELLS as i32;
+        assert!(right < DEFEAT_RECT.right(), "{right}");
+        assert_eq!(
+            frame.raster.get(right + 2, DEFEAT_RECT.y + 19),
+            Some([PANEL.0, PANEL.1, PANEL.2, 255]),
+            "nothing past the clipped line"
+        );
         assert_eq!(frame.widgets.len(), 2);
         for w in &frame.widgets {
             assert!(DEFEAT_RECT.encloses(w.rect));
@@ -303,6 +337,8 @@ mod tests {
             Some([0, 0, 0, 0]),
             "the world shows"
         );
-        assert_eq!(rgb(&frame, 120, 60), Some(PANEL));
+        // The log lines cross the box's middle; its margin past them stays panel.
+        assert_eq!(rgb(&frame, DEFEAT_RECT.right() - 3, 60), Some(PANEL));
+        assert_eq!(rgb(&frame, 120, DEFEAT_RECT.y + 16), Some(PANEL));
     }
 }
