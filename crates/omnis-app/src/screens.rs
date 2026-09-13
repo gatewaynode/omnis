@@ -113,6 +113,17 @@ pub(crate) fn item_state(
     frame.widgets.push(widget);
 }
 
+/// A modal's text starts two cells in from its left edge.
+pub(crate) const MODAL_TEXT_X: i32 = 2 * CELL.0;
+/// The title's top, from the box's top.
+pub(crate) const MODAL_TITLE_Y: i32 = 6;
+/// The first line's top, from the box's top.
+pub(crate) const MODAL_LINES_Y: i32 = 18;
+/// Buttons are a row plus two pixels apart.
+pub(crate) const MODAL_BUTTON_PITCH: i32 = CELL.1 + 2;
+/// The gap under the last button.
+pub(crate) const MODAL_BOTTOM_PAD: i32 = 4;
+
 /// A boxed message over whatever is behind it: a title, some lines, and buttons as
 /// `WidgetId::Row(i)`, one per line from the bottom of the box up.
 pub(crate) fn modal(
@@ -125,14 +136,15 @@ pub(crate) fn modal(
 ) {
     frame.raster.fill(rect, PANEL);
     frame.raster.stroke(rect, FRAME);
-    let x = rect.x + 12;
-    frame.raster.text(x, rect.y + 6, title, HI);
+    let x = rect.x + MODAL_TEXT_X;
+    frame.raster.text(x, rect.y + MODAL_TITLE_Y, title, HI);
     for (i, line) in lines.iter().enumerate() {
-        frame.raster.text(x, rect.y + 18 + 8 * i as i32, line, TEXT);
+        let y = rect.y + MODAL_LINES_Y + CELL.1 * i as i32;
+        frame.raster.text(x, y, line, TEXT);
     }
-    let first = rect.bottom() - 10 * buttons.len() as i32 - 4;
+    let first = rect.bottom() - MODAL_BUTTON_PITCH * buttons.len() as i32 - MODAL_BOTTOM_PAD;
     for (i, text) in buttons.iter().enumerate() {
-        let y = first + 10 * i as i32;
+        let y = first + MODAL_BUTTON_PITCH * i as i32;
         let cells = text.chars().count();
         let rect = Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32);
         let selected = cursor == i;

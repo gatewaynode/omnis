@@ -17,6 +17,8 @@ pub const FRONT_Z: f32 = 3.0;
 pub const BACK_Z: f32 = 4.5;
 /// The front silhouettes' colour.
 pub const FRONT_COLOR: (u8, u8, u8) = (20, 14, 24);
+/// The canvas y of the front silhouettes' feet: the floor line at `FRONT_Z`.
+pub const FRONT_FEET_Y: i32 = (Camera::new(VIEWPORT_SIZE).sy(0.0, FRONT_Z) + 0.5) as i32;
 /// The back silhouettes' colour, a shade lighter for depth.
 pub const BACK_COLOR: (u8, u8, u8) = (36, 30, 44);
 /// The one-pixel rim around a front silhouette, so a dark shape reads against a dark wall.
@@ -63,7 +65,7 @@ pub const fn height_tiles(size: Size) -> f32 {
 /// height follows its size, the width is half the height.
 #[must_use]
 pub fn silhouettes(actors: &[Actor]) -> Vec<Silhouette> {
-    let camera = Camera::new((VIEWPORT_SIZE.0 as u16, VIEWPORT_SIZE.1 as u16));
+    let camera = Camera::new(VIEWPORT_SIZE);
     actors
         .iter()
         .map(|actor| {
@@ -180,6 +182,7 @@ mod tests {
                 assert_eq!(placed.len(), 5);
                 for s in &placed {
                     assert_eq!(s.rect.bottom(), if front { 88 } else { 81 }, "{size:?}");
+                    assert!(!front || s.rect.bottom() == FRONT_FEET_Y);
                     assert!(VIEWPORT.encloses(s.rect), "{size:?} {s:?}");
                 }
                 let fills = ops(&placed);

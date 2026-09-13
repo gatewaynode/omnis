@@ -1,7 +1,8 @@
-//! Canvas geometry shared by the renderer, the draw planner, and the UI. Internal resolution is
-//! provisional (PRD §14): 320×180 with a 240×135 viewport in the top-left, a right column for
-//! the minimap, the location lines, and the movement pad, and a bottom band for the message
-//! line, the party, and the help line. Text is laid out on a grid of 6×8 cells (`font`).
+//! Canvas geometry shared by the renderer, the draw planner, and the UI. The internal
+//! resolution is provisional (PRD §14): a canvas with the viewport in its top-left, a right
+//! column for the minimap, the location lines, and the movement pad, and a bottom band for the
+//! message line, the party, and the help line. Text is laid out on a grid of 6×8 cells
+//! (`font`). Every region is an expression of the inputs at the top of the file.
 
 /// Internal canvas width in pixels.
 pub const CANVAS_WIDTH: u32 = 320;
@@ -9,23 +10,37 @@ pub const CANVAS_WIDTH: u32 = 320;
 pub const CANVAS_HEIGHT: u32 = 180;
 /// The viewport's top-left corner on the canvas.
 pub const VIEWPORT_ORIGIN: (i32, i32) = (0, 0);
-/// The viewport's size on the canvas; the tileset's `viewport` must match.
-pub const VIEWPORT_SIZE: (u32, u32) = (240, 135);
+/// The viewport's size on the canvas; every tileset's `viewport` must match.
+pub const VIEWPORT_SIZE: (u16, u16) = (240, 135);
 /// The panel colour around the viewport.
 pub const PANEL_COLOR: (u8, u8, u8) = (24, 24, 34);
-/// The sidebar minimap rectangle on the canvas: x, y, width, height.
-pub const SIDEBAR_MAP: (i32, i32, u32, u32) = (248, 8, 64, 64);
-/// Pixels per tile in the sidebar minimap.
-pub const SIDEBAR_MAP_SCALE: i32 = 2;
-/// Pixels per tile in the large automap overlay.
-pub const OVERLAY_MAP_SCALE: i32 = 4;
-
 /// A text cell: glyphs are 5×7 in a 6×8 cell.
 pub const CELL: (i32, i32) = (6, 8);
+/// Pixels per tile in the sidebar minimap.
+pub const SIDEBAR_MAP_SCALE: i32 = 2;
+/// Tiles across the sidebar minimap.
+pub const SIDEBAR_MAP_TILES: i32 = 32;
+/// Pixels per tile in the large automap overlay.
+pub const OVERLAY_MAP_SCALE: i32 = 4;
+/// Both maps' inset from the edges of their regions.
+pub const MAP_INSET: i32 = CELL.1;
+/// The gap between the minimap and the first location line.
+pub const HUD_GAP: i32 = 2;
+/// A pad button's size.
+pub const PAD_BUTTON: (u32, u32) = (24, 11);
+/// The gap between pad buttons, across and down.
+pub const PAD_GAP: (i32, i32) = (2, 1);
+/// The pad's inset from the right column's right and bottom edges.
+pub const PAD_INSET: (i32, i32) = (0, 0);
+/// The band's text inset from the canvas edge.
+pub const BAND_X: i32 = 4;
+/// The band's padding above the message line.
+pub const BAND_PAD: i32 = 2;
+
 /// The canvas as text cells.
-pub const COLUMNS: i32 = 53;
+pub const COLUMNS: i32 = CANVAS_WIDTH as i32 / CELL.0;
 /// The canvas as text rows.
-pub const ROWS: i32 = 22;
+pub const ROWS: i32 = CANVAS_HEIGHT as i32 / CELL.1;
 
 /// A rectangle in canvas pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,57 +105,133 @@ impl Rect {
     }
 }
 
-/// The whole canvas.
+/// The canvas.
 pub const CANVAS: Rect = Rect::new(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 /// The viewport.
-pub const VIEWPORT: Rect = Rect::new(0, 0, VIEWPORT_SIZE.0, VIEWPORT_SIZE.1);
-/// The menu screens fill the viewport; their text uses 40 columns × 16 rows of it.
-pub const MENU_COLUMNS: i32 = 40;
+pub const VIEWPORT: Rect = Rect::new(
+    VIEWPORT_ORIGIN.0,
+    VIEWPORT_ORIGIN.1,
+    VIEWPORT_SIZE.0 as u32,
+    VIEWPORT_SIZE.1 as u32,
+);
+/// The menu screens fill the viewport; their text uses its columns and rows.
+pub const MENU_COLUMNS: i32 = VIEWPORT.w as i32 / CELL.0;
 /// Rows of text a menu screen may use.
-pub const MENU_ROWS: i32 = 16;
+pub const MENU_ROWS: i32 = VIEWPORT.h as i32 / CELL.1;
 /// The large automap overlay is clipped to this, inside the viewport.
-pub const OVERLAY_MAP_CLIP: Rect = Rect::new(8, 8, 224, 119);
+pub const OVERLAY_MAP_CLIP: Rect = Rect::new(
+    VIEWPORT.x + MAP_INSET,
+    VIEWPORT.y + MAP_INSET,
+    VIEWPORT.w - 2 * MAP_INSET as u32,
+    VIEWPORT.h - 2 * MAP_INSET as u32,
+);
 /// The right column: minimap, location lines, movement pad.
-pub const RIGHT_COLUMN: Rect = Rect::new(240, 0, 80, 135);
+pub const RIGHT_COLUMN: Rect = Rect::new(
+    VIEWPORT.right(),
+    VIEWPORT.y,
+    CANVAS_WIDTH - VIEWPORT.right() as u32,
+    VIEWPORT.h,
+);
+/// The sidebar minimap's side in pixels.
+const SIDEBAR_MAP_SIDE: u32 = (SIDEBAR_MAP_TILES * SIDEBAR_MAP_SCALE) as u32;
+/// The sidebar minimap rectangle on the canvas: x, y, width, height; centred in the column.
+pub const SIDEBAR_MAP: (i32, i32, u32, u32) = (
+    RIGHT_COLUMN.x + (RIGHT_COLUMN.w - SIDEBAR_MAP_SIDE) as i32 / 2,
+    RIGHT_COLUMN.y + MAP_INSET,
+    SIDEBAR_MAP_SIDE,
+    SIDEBAR_MAP_SIDE,
+);
 /// Text cells across the right column.
-pub const HUD_COLUMNS: usize = 13;
+pub const HUD_COLUMNS: usize = ((RIGHT_COLUMN.w as i32 - 2) / CELL.0) as usize;
 /// Top-left of the three location lines: map name, position, clock.
-pub const HUD_LINES: [(i32, i32); 3] = [(241, 74), (241, 82), (241, 90)];
-/// The movement pad.
-pub const PAD: Rect = Rect::new(244, 100, 76, 35);
+pub const HUD_LINES: [(i32, i32); 3] = [hud_line(0), hud_line(1), hud_line(2)];
+/// The location line `i`: under the minimap, one pixel in from the column's edge.
+const fn hud_line(i: i32) -> (i32, i32) {
+    (
+        cell(MENU_COLUMNS, 0).0,
+        SIDEBAR_MAP.1 + SIDEBAR_MAP.3 as i32 + HUD_GAP + i * CELL.1,
+    )
+}
+/// The pad's size: three buttons across, three down, the gaps between.
+const PAD_SIZE: (u32, u32) = (
+    3 * PAD_BUTTON.0 + 2 * PAD_GAP.0 as u32,
+    3 * PAD_BUTTON.1 + 2 * PAD_GAP.1 as u32,
+);
+/// The movement pad, against the column's right and bottom edges less its inset.
+pub const PAD: Rect = Rect::new(
+    RIGHT_COLUMN.right() - PAD_INSET.0 - PAD_SIZE.0 as i32,
+    RIGHT_COLUMN.bottom() - PAD_INSET.1 - PAD_SIZE.1 as i32,
+    PAD_SIZE.0,
+    PAD_SIZE.1,
+);
+/// The pad button at a column and row of the pad's grid.
+pub const fn pad_button(column: i32, row: i32) -> Rect {
+    Rect::new(
+        PAD.x + column * (PAD_BUTTON.0 as i32 + PAD_GAP.0),
+        PAD.y + row * (PAD_BUTTON.1 as i32 + PAD_GAP.1),
+        PAD_BUTTON.0,
+        PAD_BUTTON.1,
+    )
+}
 /// The pad's buttons in reading order: turn left, forward, turn right, sidestep left, back,
-/// sidestep right, use.
+/// sidestep right, use (the full width of the bottom row).
 pub const PAD_BUTTONS: [Rect; 7] = [
-    Rect::new(244, 100, 24, 11),
-    Rect::new(270, 100, 24, 11),
-    Rect::new(296, 100, 24, 11),
-    Rect::new(244, 112, 24, 11),
-    Rect::new(270, 112, 24, 11),
-    Rect::new(296, 112, 24, 11),
-    Rect::new(244, 124, 76, 11),
+    pad_button(0, 0),
+    pad_button(1, 0),
+    pad_button(2, 0),
+    pad_button(0, 1),
+    pad_button(1, 1),
+    pad_button(2, 1),
+    Rect::new(PAD.x, pad_button(0, 2).y, PAD.w, PAD_BUTTON.1),
 ];
 /// The bottom band: message line, party rows, help line.
-pub const BAND: Rect = Rect::new(0, 135, 320, 45);
+pub const BAND: Rect = Rect::new(
+    0,
+    VIEWPORT.bottom(),
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT - VIEWPORT.bottom() as u32,
+);
 /// Top-left of the message line.
-pub const BAND_MESSAGE: (i32, i32) = (4, 137);
+pub const BAND_MESSAGE: (i32, i32) = (BAND_X, BAND.y + BAND_PAD);
 /// Text cells across the message and help lines.
-pub const BAND_COLUMNS: usize = 52;
+pub const BAND_COLUMNS: usize = ((CANVAS_WIDTH as i32 - 2 * BAND_X) / CELL.0) as usize;
+/// The top of party row `i`: a pixel under the message line, then one row each.
+const fn band_row(i: i32) -> i32 {
+    BAND_MESSAGE.1 + CELL.1 + 1 + i * CELL.1
+}
 /// Top of each of the three party rows.
-pub const BAND_ROWS: [i32; 3] = [146, 154, 162];
-/// Left edge of the front-row column and the back-row column.
-pub const BAND_FRONT_X: i32 = 4;
-/// Left edge of the back-row column.
-pub const BAND_BACK_X: i32 = 164;
+pub const BAND_ROWS: [i32; 3] = [band_row(0), band_row(1), band_row(2)];
+/// Left edge of the front-row column.
+pub const BAND_FRONT_X: i32 = BAND_X;
+/// Left edge of the back-row column: the second half of the canvas.
+pub const BAND_BACK_X: i32 = BAND_X + CANVAS_WIDTH as i32 / 2;
 /// Text cells per party row.
-pub const BAND_ROW_COLUMNS: usize = 26;
-/// Top-left of the help line.
-pub const BAND_HELP: (i32, i32) = (4, 171);
+pub const BAND_ROW_COLUMNS: usize = ((CANVAS_WIDTH as i32 / 2 - BAND_X) / CELL.0) as usize;
+/// Top-left of the help line: a pixel under the last party row.
+pub const BAND_HELP: (i32, i32) = (BAND_X, band_row(2) + CELL.1 + 1);
 
 /// The canvas pixel of a text cell in the menu area: one pixel in from the left edge so the
-/// first glyph has a margin, and column 40 lands one pixel clear of the viewport.
+/// first glyph has a margin, and the column past the viewport lands one pixel clear of it.
 #[must_use]
 pub const fn cell(column: i32, row: i32) -> (i32, i32) {
     (1 + column * CELL.0, row * CELL.1)
+}
+
+/// The canvas y of a text row.
+#[must_use]
+pub const fn row_y(row: i32) -> i32 {
+    row * CELL.1
+}
+
+/// The viewport-wide strip from row `from` up to row `to` (exclusive).
+#[must_use]
+pub const fn rows(from: i32, to: i32) -> Rect {
+    Rect::new(
+        VIEWPORT.x,
+        VIEWPORT.y + row_y(from),
+        VIEWPORT.w,
+        ((to - from) * CELL.1) as u32,
+    )
 }
 
 /// The integer scale the canvas is shown at in a window of this logical size: the largest
@@ -212,10 +303,10 @@ pub struct Camera {
 impl Camera {
     /// For a viewport of the given size.
     #[must_use]
-    pub fn new(viewport: (u16, u16)) -> Camera {
-        let height = f32::from(viewport.1);
+    pub const fn new(viewport: (u16, u16)) -> Camera {
+        let height = viewport.1 as f32;
         Camera {
-            width: f32::from(viewport.0),
+            width: viewport.0 as f32,
             height,
             focal: 0.9 * height,
         }
@@ -223,13 +314,13 @@ impl Camera {
 
     /// Screen x of lateral world offset `x` at distance `z`.
     #[must_use]
-    pub fn sx(&self, x: f32, z: f32) -> f32 {
+    pub const fn sx(&self, x: f32, z: f32) -> f32 {
         self.width / 2.0 + x * self.focal / z
     }
 
     /// Screen y of world height `h` (0 floor, 1 ceiling) at distance `z`.
     #[must_use]
-    pub fn sy(&self, h: f32, z: f32) -> f32 {
+    pub const fn sy(&self, h: f32, z: f32) -> f32 {
         self.height / 2.0 - (h - 0.5) * self.focal / z
     }
 }

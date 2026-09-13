@@ -6,22 +6,29 @@ use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::SHORT_CELLS;
 use crate::font::fit;
-use crate::layout::Rect;
+use crate::layout::{CELL, Rect, VIEWPORT, row_y, rows};
 use crate::screens::{ItemState, item_state, label, label_right, modal};
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
-/// The panel above the clear window: rows 0 to 4.
-pub const TOP_PANEL: Rect = Rect::new(0, 0, 240, 40);
-/// The panel below it: rows 11 to 15.
-pub const BOTTOM_PANEL: Rect = Rect::new(0, 88, 240, 47);
 /// The first stack row.
 const FIRST_STACK_ROW: i32 = 1;
-/// The action row.
-const ACTION_ROW: i32 = 11;
+/// Stack rows on the screen.
+const STACK_ROWS: i32 = 4;
+/// The panel above the clear window: the header and the stack rows.
+pub const TOP_PANEL: Rect = rows(0, FIRST_STACK_ROW + STACK_ROWS);
+/// The row of the count digits: the last row that ends above the front silhouettes' feet.
+const COUNT_ROW: i32 = (actors::FRONT_FEET_Y - 1) / CELL.1;
+/// The action row, under the counts.
+const ACTION_ROW: i32 = COUNT_ROW + 1;
 /// The first roll-log row; the log runs to the last row of the viewport.
-const FIRST_LOG_ROW: i32 = 12;
-/// The row of the count digits under the silhouettes.
-const COUNT_ROW: i32 = 10;
+const FIRST_LOG_ROW: i32 = ACTION_ROW + 1;
+/// The panel below the clear window: from the action row to the viewport's bottom edge.
+pub const BOTTOM_PANEL: Rect = Rect::new(
+    VIEWPORT.x,
+    VIEWPORT.y + row_y(ACTION_ROW),
+    VIEWPORT.w,
+    VIEWPORT.h - row_y(ACTION_ROW) as u32,
+);
 /// Rows of the roll log tail.
 pub const LOG_ROWS: usize = 4;
 /// Cells of a stack row: `99 {name:<20} front`.
@@ -30,9 +37,23 @@ const STACK_CELLS: usize = 29;
 const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 9, 16, 26];
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
 const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 9, 22, 28];
-/// Where the defeat modal sits: a title, three log lines, and two buttons, each on its own
-/// row (title at +6, lines from +18, buttons from the bottom at ten pixels a row).
-pub const DEFEAT_RECT: Rect = Rect::new(48, 24, 144, 80);
+/// Cells a modal line may take inside the defeat box.
+const DEFEAT_LINE_CELLS: usize = 20;
+/// The defeat box's height in rows: the title, three log lines, two buttons, and the gaps
+/// (`screens::modal` places them).
+const DEFEAT_ROWS: i32 = 10;
+/// The defeat box's size: the lines plus two cells of margin each side.
+const DEFEAT_SIZE: (u32, u32) = (
+    (DEFEAT_LINE_CELLS as i32 + 4) as u32 * CELL.0 as u32,
+    (DEFEAT_ROWS * CELL.1) as u32,
+);
+/// Where the defeat modal sits: centred in the viewport, its top on a text row.
+pub const DEFEAT_RECT: Rect = Rect::new(
+    VIEWPORT.x + (VIEWPORT.w - DEFEAT_SIZE.0) as i32 / 2,
+    VIEWPORT.y + row_y((VIEWPORT.h - DEFEAT_SIZE.1) as i32 / 2 / CELL.1),
+    DEFEAT_SIZE.0,
+    DEFEAT_SIZE.1,
+);
 
 /// The fight: header, stack rows with the target marked, the four actions, the log tail.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
@@ -92,9 +113,6 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
 
 /// Lines of the roll log the defeat modal shows: how the end came.
 pub const DEFEAT_LOG_ROWS: usize = 3;
-/// Cells a modal line may take inside the defeat box.
-const DEFEAT_LINE_CELLS: usize = 20;
-
 /// "The party has fallen", boxed over the world, with the last of the roll log so a fight
 /// that ended inside one command still reads, and the two ways out.
 pub fn defeat(frame: &mut Frame, menu: &DefeatMenu, log: &[String]) {
@@ -162,7 +180,7 @@ fn counts(frame: &mut Frame, view: &FightView) {
             continue;
         };
         let text = stack.count.to_string();
-        let x = s.rect.x + s.rect.w as i32 / 2 - 3 * text.len() as i32;
+        let x = s.rect.x + s.rect.w as i32 / 2 - CELL.0 / 2 * text.len() as i32;
         frame.raster.text(x, y, &text, TEXT);
     }
 }

@@ -2,7 +2,7 @@
 //! pad in the right column, and the bottom band with the message, the party, and the help
 //! line. Text models are fitted to their cells here so the widths are testable.
 
-use crate::font::fit;
+use crate::font::{GLYPH_HEIGHT, fit};
 use crate::layout::{
     BAND, BAND_BACK_X, BAND_COLUMNS, BAND_FRONT_X, BAND_HELP, BAND_MESSAGE, BAND_ROW_COLUMNS,
     BAND_ROWS, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP,
@@ -40,19 +40,24 @@ impl Hud {
     }
 }
 
-/// The clock as `Day d hh:mm`, or `Dd hh:mm` once the day number no longer fits.
+/// The clock as `Day d hh:mm`, or `Dd hh:mm` once the day number no longer fits the HUD.
 #[must_use]
 pub fn clock_text(elapsed: i64) -> String {
+    clock_text_in(elapsed, HUD_COLUMNS)
+}
+
+/// The clock fitted to `columns` cells.
+pub(crate) fn clock_text_in(elapsed: i64, columns: usize) -> String {
     let per_day = i64::from(MINUTES_PER_DAY);
     let day = elapsed.div_euclid(per_day) + 1;
     let minute = elapsed.rem_euclid(per_day);
     let long = format!("Day {day} {:02}:{:02}", minute / 60, minute % 60);
-    if long.len() <= HUD_COLUMNS {
+    if long.len() <= columns {
         long
     } else {
         fit(
             &format!("D{day} {:02}:{:02}", minute / 60, minute % 60),
-            HUD_COLUMNS,
+            columns,
         )
     }
 }
@@ -165,9 +170,10 @@ pub fn pad(frame: &mut Frame, state: PadState, pressed: Option<WidgetId>) {
         frame.raster.stroke(rect, frame_color);
         let label = button.label();
         let width = label.len() as i32 * CELL.0 - 1;
+        let y = rect.y + (rect.h as i32 - GLYPH_HEIGHT) / 2;
         frame
             .raster
-            .text(rect.x + (rect.w as i32 - width) / 2, rect.y + 2, label, ink);
+            .text(rect.x + (rect.w as i32 - width) / 2, y, label, ink);
         let mut widget = Widget::new(id, rect, Kind::Button);
         widget.framed = true;
         widget.enabled = state == PadState::Enabled;

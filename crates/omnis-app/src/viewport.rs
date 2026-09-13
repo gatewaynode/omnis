@@ -138,8 +138,8 @@ fn redraw(
     let sky = DrawOp {
         paint: Paint::Fill {
             color: backdrop,
-            width: VIEWPORT_SIZE.0,
-            height: VIEWPORT_SIZE.1,
+            width: u32::from(VIEWPORT_SIZE.0),
+            height: u32::from(VIEWPORT_SIZE.1),
         },
         x: 0,
         y: 0,
