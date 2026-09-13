@@ -110,6 +110,11 @@ fn portals_and_tileset_slots_resolve() {
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
     );
+    assert!(
+        dungeon.encounters.is_empty() && dungeon.random.is_none() && meadow.random.is_none(),
+        "no encounters until M4 places them"
+    );
+    assert_eq!(dungeon.encounter_at(0, 0), None);
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
 

@@ -6,6 +6,7 @@ use crate::SCHEMA;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
+use crate::encounter::{self, ResolvedEncounter, ResolvedRandom};
 use crate::error::{DataError, LoadReport};
 use crate::item::Item;
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
@@ -69,6 +70,10 @@ pub struct MapData {
     pub name: TextKey,
     /// Portals with interned destinations.
     pub portals: Vec<ResolvedPortal>,
+    /// Fixed encounters with interned monsters, in file order.
+    pub encounters: Vec<ResolvedEncounter>,
+    /// The random table with interned monsters, if the map has one.
+    pub random: Option<ResolvedRandom>,
 }
 
 impl MapData {
@@ -92,6 +97,17 @@ impl MapData {
     #[must_use]
     pub fn portal_at(&self, x: u16, y: u16) -> Option<&ResolvedPortal> {
         self.portals.iter().find(|p| p.x == x && p.y == y)
+    }
+
+    /// The fixed encounter on a tile with its index (the key a cleared encounter is remembered
+    /// by), if any.
+    #[must_use]
+    pub fn encounter_at(&self, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
+        self.encounters
+            .iter()
+            .enumerate()
+            .find(|(_, e)| e.x == x && e.y == y)
+            .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
     }
 }
 
@@ -522,6 +538,8 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         }
         data.text.insert(lang, interned);
     }
+    // Content first, so encounters can name the monsters it interns.
+    resolve_content(raw.content, data, errors);
     // Two passes so portals can refer to maps defined later in the order.
     let map_ids: BTreeMap<&str, MapId> = raw
         .maps
@@ -554,6 +572,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             }
         };
         let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
+        let (encounters, random) = encounter::resolve(def, file, &data.registry.monsters, errors);
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],
@@ -563,6 +582,8 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     tileset: tileset_id,
                     name,
                     portals,
+                    encounters,
+                    random,
                 },
             );
         }
@@ -576,7 +597,6 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             )),
         }
     }
-    resolve_content(raw.content, data, errors);
     if errors.len() > before {
         data.maps.clear();
     }

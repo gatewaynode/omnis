@@ -19,6 +19,8 @@ pub const RON_RECURSION_LIMIT: usize = 64;
 pub const MAX_DETAIL_DEPTH: u8 = 8;
 /// Largest visibility depth a tile may declare (PRD §7.2: an open plain reaches 20).
 pub const MAX_VISIBILITY_DEPTH: u8 = 32;
+/// Stacks an encounter may hold: the combat screen lists four.
+pub const MAX_STACKS: usize = 4;
 /// Image extensions a pack may reference.
 pub const IMAGE_EXTENSIONS: [&str; 1] = ["png"];
 

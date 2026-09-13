@@ -22,4 +22,16 @@
         (x: 0, y: 0, to_map: "broken:map:nowhere", to_x: 0, to_y: 0, to_facing: North),
         (x: 0, y: 0, to_map: "broken:map:glyph", to_x: 9, to_y: 0, to_facing: North),
     ],
+    encounters: [
+        (x: 9, y: 9, stacks: [("broken:monster:none", 0)]),
+        (x: 0, y: 0, stacks: [], disposition: Wary, once: true),
+        (x: 0, y: 0, stacks: [("broken:monster:none", 1), ("broken:monster:none", 1), ("broken:monster:none", 1), ("broken:monster:none", 1), ("broken:monster:none", 1)]),
+    ],
+    random: Some((
+        chance_percent: 101,
+        entries: [
+            (weight: 0, stacks: []),
+            (weight: 1, stacks: [("broken:monster:none", (count: 0, sides: 4, modifier: 0))], disposition: Friendly),
+        ],
+    )),
 )

@@ -4,6 +4,7 @@ use crate::error::DataError;
 use crate::terms::{DamageType, Size};
 use omnis_core::Dice;
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// One attack in a stat block.
@@ -17,6 +18,9 @@ pub struct Attack {
     pub damage: Dice,
     /// Damage type.
     pub damage_type: DamageType,
+    /// Usable from the back and against the party's back row.
+    #[serde(default)]
+    pub ranged: bool,
 }
 
 /// One monster type.
@@ -45,6 +49,18 @@ pub struct Monster {
     /// Attacks, in order of preference.
     #[serde(default)]
     pub attacks: Vec<Attack>,
+    /// Gold carried by one individual, rolled when it dies.
+    #[serde(default)]
+    pub gold: Option<Dice>,
+    /// Damage types dealt at half.
+    #[serde(default)]
+    pub resistances: Vec<DamageType>,
+    /// Damage types that do nothing.
+    #[serde(default)]
+    pub immunities: Vec<DamageType>,
+    /// Damage types dealt double.
+    #[serde(default)]
+    pub vulnerabilities: Vec<DamageType>,
 }
 
 impl Monster {
@@ -71,6 +87,25 @@ impl Monster {
             .any(|a| a.damage.count == 0 || a.damage.sides == 0)
         {
             errors.push(DataError::new(file, "attack damage needs dice"));
+        }
+        if self.gold.is_some_and(|g| g.count == 0 || g.sides == 0) {
+            errors.push(DataError::new(file, "gold needs dice"));
+        }
+        let mut lists: BTreeMap<DamageType, usize> = BTreeMap::new();
+        for list in [&self.resistances, &self.immunities, &self.vulnerabilities] {
+            for kind in list.iter().collect::<BTreeSet<_>>() {
+                *lists.entry(*kind).or_default() += 1;
+            }
+        }
+        for (kind, n) in lists {
+            if n > 1 {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "damage type {kind:?} appears in two of resistances, immunities, vulnerabilities"
+                    ),
+                ));
+            }
         }
     }
 }

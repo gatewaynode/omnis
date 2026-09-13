@@ -10,6 +10,7 @@
 pub mod character;
 pub mod condition;
 mod content;
+pub mod encounter;
 pub mod error;
 pub mod item;
 pub mod limits;
@@ -27,6 +28,10 @@ pub mod tileset;
 
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
+pub use encounter::{
+    Disposition, FixedEncounter, RandomEncounters, RandomEntry, ResolvedEncounter, ResolvedEntry,
+    ResolvedRandom,
+};
 pub use error::{DataError, LoadReport};
 pub use item::{Item, ItemKind};
 pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
