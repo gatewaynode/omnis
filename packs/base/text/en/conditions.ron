@@ -6,6 +6,8 @@
         "base:text:condition.blinded.name": "Blinded",
         "base:text:condition.charmed.description": "Cannot attack the charmer, who has advantage on social checks against it.",
         "base:text:condition.charmed.name": "Charmed",
+        "base:text:condition.dead.description": "Dead. A temple can raise them, unless the game was started with permadeath.",
+        "base:text:condition.dead.name": "Dead",
         "base:text:condition.deafened.description": "Cannot hear; fails hearing checks.",
         "base:text:condition.deafened.name": "Deafened",
         "base:text:condition.exhaustion.description": "Six levels of mounting penalties from disadvantage on checks to death.",

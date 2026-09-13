@@ -62,6 +62,8 @@ const MAP: &str = r#"(
         "+-+-+",
     ],
     portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East)],
+    encounters: [(x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
+    random: Some((chance_percent: 4, entries: [(weight: 1, stacks: [("example:monster:goblin", (count: 1, sides: 4, modifier: 1))], disposition: Hostile)])),
 )"#;
 
 const RACE: &str = r#"(
@@ -114,6 +116,12 @@ const CONDITION: &str = r#"(
     id: "example:condition:poisoned",
     name: "example:text:condition.poisoned.name",
     description: "example:text:condition.poisoned.description",
+    incapacitated: false,
+    attacks_against_advantage: false,
+    own_attacks_disadvantage: true,
+    auto_fail_str_dex_saves: false,
+    melee_hits_crit: false,
+    resist_all: false,
 )"#;
 
 const SPELL: &str = r#"(
@@ -141,7 +149,11 @@ const MONSTER: &str = r#"(
     abilities: (8, 14, 10, 10, 8, 8),
     challenge: (1, 4),
     xp: 50,
-    attacks: [(name: "example:text:monster.goblin.scimitar", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Slashing)],
+    attacks: [(name: "example:text:monster.goblin.scimitar", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Slashing, ranged: false)],
+    gold: Some((count: 1, sides: 6, modifier: 0)),
+    resistances: [],
+    immunities: [Poison],
+    vulnerabilities: [Bludgeoning],
 )"#;
 
 const RULES: &str = r#"(
@@ -268,6 +280,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
                 skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
             },
         },
+        Op::CombatGet,
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),

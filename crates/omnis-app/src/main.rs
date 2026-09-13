@@ -6,7 +6,7 @@
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use omnis_app::{AppConfig, assets, cursor, input, menus, pixel, sim, ui, viewport};
+use omnis_app::{AppConfig, assets, combat, cursor, input, menus, pixel, sim, ui, viewport};
 use std::path::PathBuf;
 
 #[cfg(feature = "devtools")]
@@ -168,6 +168,7 @@ fn main() -> AppExit {
         assets::PackAssetPlugin,
         viewport::ViewportPlugin,
         menus::MenusPlugin,
+        combat::CombatPlugin,
         ui::UiPlugin,
     ));
     #[cfg(feature = "devtools")]

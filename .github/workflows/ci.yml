@@ -30,7 +30,9 @@ jobs:
         run: scripts/check-duplicates.sh
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      - name: Golden replay through the CLI
-        run: cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack packs/test
+      - name: Golden replays through the CLI
+        run: |
+          cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack packs/test
+          cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/fight.ron --pack packs/base --pack packs/test
       - name: Pack validation
         run: cargo run -p omnis-cli --locked -- validate packs/base packs/test

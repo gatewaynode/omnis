@@ -12,7 +12,7 @@
 //! what lies squarely behind it. All arithmetic is integer, so the cone is identical on every
 //! platform.
 
-use crate::command::SeenTile;
+use crate::event::SeenTile;
 use crate::world::{MapState, World};
 use alloc::vec::Vec;
 use omnis_core::{Facing, Position};

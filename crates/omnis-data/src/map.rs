@@ -17,6 +17,7 @@
 //! Corners are `+` and are ignored. Because an edge character sits between two tiles, both
 //! tiles agree on it by construction; the outer boundary is always treated as a wall.
 
+use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
 use omnis_core::{Edges, Facing};
@@ -131,6 +132,12 @@ pub struct MapDef {
     /// Tile triggers.
     #[serde(default)]
     pub portals: Vec<Portal>,
+    /// Groups placed on tiles.
+    #[serde(default)]
+    pub encounters: Vec<FixedEncounter>,
+    /// The random encounter table, if the map has one.
+    #[serde(default)]
+    pub random: Option<RandomEncounters>,
 }
 
 /// One tile after the layout is parsed.
@@ -240,7 +247,7 @@ impl MapDef {
         (errors.len() == before).then_some(cells)
     }
 
-    /// Checks that need no other file: sizes, glyphs, start tile, portal coordinates.
+    /// Checks that need no other file: sizes, glyphs, start tile, portal and encounter shapes.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
         if self.width == 0
             || self.height == 0
@@ -312,6 +319,13 @@ impl MapDef {
                 ));
             }
         }
+        encounter::validate(
+            (self.width, self.height),
+            &self.encounters,
+            self.random.as_ref(),
+            file,
+            errors,
+        );
     }
 }
 
@@ -350,6 +364,8 @@ mod tests {
             }],
             layout: layout.iter().map(|s| (*s).to_owned()).collect(),
             portals: vec![],
+            encounters: vec![],
+            random: None,
         }
     }
 

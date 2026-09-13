@@ -1,0 +1,17 @@
+// The base pack's SRD stat block, copied so the test pack's maps can place it without depending
+// on base (the test pack loads on its own in seven tests).
+(
+    schema: 1,
+    id: "test:monster:giant_rat",
+    name: "test:text:monster.giant_rat.name",
+    size: Small,
+    ac: 12,
+    hit_points: (count: 2, sides: 6, modifier: 0),
+    speed: 30,
+    abilities: (7, 15, 11, 2, 10, 4),
+    challenge: (1, 8),
+    xp: 25,
+    attacks: [
+        (name: "test:text:monster.giant_rat.bite", to_hit: 4, damage: (count: 1, sides: 4, modifier: 2), damage_type: Piercing),
+    ],
+)

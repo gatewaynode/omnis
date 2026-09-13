@@ -1,0 +1,21 @@
+// The base pack's SRD stat block, copied so the test pack's maps can place it without depending
+// on base (the test pack loads on its own in seven tests).
+(
+    schema: 1,
+    id: "test:monster:skeleton",
+    name: "test:text:monster.skeleton.name",
+    size: Medium,
+    ac: 13,
+    hit_points: (count: 2, sides: 8, modifier: 4),
+    speed: 30,
+    abilities: (10, 14, 15, 6, 8, 5),
+    challenge: (1, 4),
+    xp: 50,
+    attacks: [
+        (name: "test:text:monster.skeleton.shortsword", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
+        (name: "test:text:monster.skeleton.shortbow", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing, ranged: true),
+    ],
+    gold: Some((count: 1, sides: 4, modifier: 0)),
+    immunities: [Poison],
+    vulnerabilities: [Bludgeoning],
+)

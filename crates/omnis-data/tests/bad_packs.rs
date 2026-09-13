@@ -60,7 +60,16 @@ fn every_error_in_a_broken_pack_is_reported() {
         "start (2, 0) is outside the map",
         "portal at (5, 5) is outside the map",
         "tile (1, 0) has unknown glyph '?'",
-        // data/maps/refs.ron: nothing structural
+        // data/maps/refs.ron: encounters
+        "encounter 0 at (9, 9) is outside the map",
+        "encounter 0 stack count must be at least 1",
+        "encounter 1 has no stacks",
+        "encounter 2 shares tile (0, 0) with encounter 1",
+        "encounter 2 has more than 4 stacks",
+        "random chance_percent must be 0..=100",
+        "random entry 0 weight must be at least 1",
+        "random entry 0 has no stacks",
+        "random entry 1 count needs dice",
         // data/maps/rows.ron
         "layout row 1 has 7 characters; a 2-tile-wide map needs 5",
         // text/en/strings.ron
@@ -75,6 +84,9 @@ fn every_error_in_a_broken_pack_is_reported() {
         "name text key 'broken:text:map.refs.name' is not defined in any language",
         "portal at (0, 0) leads to unknown map 'broken:map:nowhere'",
         "portal at (0, 0) lands outside map 'broken:map:glyph'",
+        "encounter 0 monster 'broken:monster:none' is not defined by any loaded pack",
+        "encounter 2 monster 'broken:monster:none' is not defined by any loaded pack",
+        "random entry 1 monster 'broken:monster:none' is not defined by any loaded pack",
         "tileset 'broken:tileset:missing' is not defined by any loaded pack",
     ];
     assert_reports("broken", &expected);
@@ -136,6 +148,9 @@ fn every_error_in_bad_content_is_reported() {
         "abilities must be 1..=30",
         "challenge denominator must be at least 1",
         "attack damage needs dice",
+        "gold needs dice",
+        "damage type Fire appears in two of resistances, immunities, vulnerabilities",
+        "damage type Cold appears in two of resistances, immunities, vulnerabilities",
         // data/rules/bad.ron: a structural check, then two compile errors with positions
         "slot 'a': input '1x' is not an identifier",
         "slot 'b': 1:9: unknown input 'bonus'",

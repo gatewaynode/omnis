@@ -4,6 +4,7 @@
 //! widgets arrive as `UiClick`s and become the same keys.
 
 use crate::AppConfig;
+use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu};
 use crate::cursor::UiSet;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
@@ -35,6 +36,12 @@ pub struct Screens {
     pub catalog: Catalog,
     /// The pause overlay.
     pub pause: Pause,
+    /// The choice before a fight.
+    pub encounter: EncounterMenu,
+    /// The fight.
+    pub combat: CombatMenu,
+    /// The modal after a wipe.
+    pub defeat: DefeatMenu,
 }
 
 /// Which screen is up, if any.
@@ -56,6 +63,12 @@ pub enum Active {
     CreateParty,
     /// The pause overlay.
     Paused,
+    /// The choice before a fight.
+    Encounter,
+    /// The fight.
+    Combat,
+    /// The modal after a wipe.
+    Defeat,
     /// No screen: booting or exploring.
     None,
 }
@@ -73,6 +86,9 @@ impl Where<'_> {
             (AppState::MainMenu, Some(MenuState::NewGame), _) => Active::NewGame,
             (AppState::Playing, _, Some(PlayState::CreateParty)) => Active::CreateParty,
             (AppState::Playing, _, Some(PlayState::Paused)) => Active::Paused,
+            (AppState::Playing, _, Some(PlayState::Encounter)) => Active::Encounter,
+            (AppState::Playing, _, Some(PlayState::Combat)) => Active::Combat,
+            (AppState::Playing, _, Some(PlayState::Defeat)) => Active::Defeat,
             _ => Active::None,
         }
     }
@@ -105,7 +121,7 @@ fn open_creation(data: Res<PackData>, mut screens: ResMut<Screens>) {
 }
 
 /// A logical key press as the menus see it.
-fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
+pub(crate) fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
     if input.state != ButtonState::Pressed {
         return None;
     }
@@ -136,7 +152,8 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::NewGame => Target::NewGame(&mut screens.new_game),
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
-        Active::None => return Vec::new(),
+        // The combat plugin handles its screens' clicks.
+        Active::Encounter | Active::Combat | Active::Defeat | Active::None => return Vec::new(),
     };
     screen::click(target, hit)
 }
@@ -159,6 +176,8 @@ struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
     exit: &'a mut MessageWriter<'e, AppExit>,
     replaced: &'a mut MessageWriter<'r, WorldReplaced>,
     notice: &'a mut Notice,
+    /// The play state the current world's mode calls for: where Resume goes.
+    resume: PlayState,
 }
 
 impl Actions<'_, '_, '_, '_, '_, '_, '_> {
@@ -193,10 +212,18 @@ fn menu_keys(
     mut notice: ResMut<Notice>,
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let resume = world
+        .as_ref()
+        .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode));
     let active = at.screen();
     let mut pressed: Vec<MenuKey> = keys.read().filter_map(menu_key).collect();
     for UiClick(hit) in clicks.read() {
         pressed.extend(click_keys(&mut screens, active, *hit));
+    }
+    if pressed.is_empty() {
+        // Nothing to do, and no mutable borrow of the notice: taking `&mut` on it marks it
+        // changed, which the message line reads as a new notice every frame.
+        return;
     }
     let mut act = Actions {
         commands: &mut commands,
@@ -207,6 +234,7 @@ fn menu_keys(
         exit: &mut exit,
         replaced: &mut replaced,
         notice: &mut notice,
+        resume,
     };
     for key in pressed {
         let Screens {
@@ -215,6 +243,7 @@ fn menu_keys(
             creation,
             catalog,
             pause,
+            ..
         } = &mut *screens;
         match active {
             Active::Title => {
@@ -237,7 +266,8 @@ fn menu_keys(
                     pause_action(action, &mut act);
                 }
             }
-            Active::None => {}
+            // The combat plugin handles its screens' keys.
+            Active::Encounter | Active::Combat | Active::Defeat | Active::None => {}
         }
     }
 }
@@ -248,7 +278,10 @@ fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
         TitleAction::Load => {
             let Some(data) = act.data else { return };
             match load(&data.0, &act.config.save_path, false) {
-                Ok(world) => act.start_game(world, PlayState::Explore),
+                Ok(world) => {
+                    let start = PlayState::for_mode(&world.mode);
+                    act.start_game(world, start);
+                }
                 Err(e) => act.notice.0 = format!("Load failed: {e}"),
             }
         }
@@ -291,7 +324,7 @@ fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_,
 
 fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
     match action {
-        PauseAction::Resume => act.next.play.set(PlayState::Explore),
+        PauseAction::Resume => act.next.play.set(act.resume),
         PauseAction::QuitToTitle => act.leave_game(),
         PauseAction::Quit => {
             act.exit.write(AppExit::Success);

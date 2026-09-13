@@ -70,4 +70,20 @@
     portals: [
         (x: 0, y: 0, to_map: "test:map:meadow", to_x: 16, to_y: 6, to_facing: South),
     ],
+    // Placed groups in the second row of rooms, rats only until the fight systems have been
+    // played (owner, 2026-09-13): the pair the M4 acceptance clears (from the start: forward
+    // x5, turn left, forward x2, turn right, use, forward x3), a wary one that comes back, and
+    // a friendly one. A small random table of rats on top.
+    encounters: [
+        (x: 3, y: 8, stacks: [("test:monster:giant_rat", 2)], disposition: Hostile, once: true),
+        (x: 9, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Wary),
+        (x: 15, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Friendly, once: true),
+    ],
+    random: Some((
+        chance_percent: 3,
+        entries: [
+            (weight: 3, stacks: [("test:monster:giant_rat", (count: 1, sides: 2, modifier: 0))]),
+            (weight: 1, stacks: [("test:monster:giant_rat", (count: 1, sides: 1, modifier: 0))], disposition: Wary),
+        ],
+    )),
 )

@@ -1,13 +1,15 @@
-//! What a client may ask the simulation to do, and what it says happened (ARCHITECTURE.md §4.2).
+//! What a client may ask the simulation to do, and why it may refuse (ARCHITECTURE.md §4.2).
 //! Commands carry no client state so a command stream is a replay and, later, a network
-//! protocol. Events carry keys, never text.
+//! protocol. What happened is `event::Event`.
 
+use crate::combat::CombatCommand;
+use crate::encounter::EncounterChoice;
 use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{Direction, Facing, HolderId, MapId, Position, Rotation};
-use omnis_rules::CreationError;
+use omnis_core::{Direction, Rotation};
+use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
 
 /// One player action.
@@ -21,11 +23,15 @@ pub enum Command {
     Interact,
     /// Build or reorder the party.
     Party(PartyCommand),
+    /// Choose what to do about the monsters ahead.
+    Encounter(EncounterChoice),
+    /// Act in a fight, on the acting member's turn.
+    Combat(CombatCommand),
 }
 
 impl Command {
     /// The script word for this command; see [`parse_script`]. Party commands carry data and
-    /// have no script word; they log as `party`.
+    /// have no script word; they log as `party`. Combat commands log their bare verb.
     #[must_use]
     pub const fn word(&self) -> &'static str {
         match self {
@@ -38,6 +44,14 @@ impl Command {
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
             Command::Party(_) => "party",
+            Command::Encounter(EncounterChoice::Attack) => "fight",
+            Command::Encounter(EncounterChoice::Bribe) => "bribe",
+            Command::Encounter(EncounterChoice::Hide) => "hide",
+            Command::Encounter(EncounterChoice::Run) => "run",
+            Command::Combat(CombatCommand::Attack { .. }) => "attack",
+            Command::Combat(CombatCommand::Dodge) => "dodge",
+            Command::Combat(CombatCommand::Exchange { .. }) => "swap",
+            Command::Combat(CombatCommand::Run) => "flee",
         }
     }
 
@@ -53,7 +67,28 @@ impl Command {
             "turn-right" => Command::Turn(Rotation::Right),
             "around" => Command::Turn(Rotation::Around),
             "use" => Command::Interact,
-            _ => return None,
+            "fight" => Command::Encounter(EncounterChoice::Attack),
+            "bribe" => Command::Encounter(EncounterChoice::Bribe),
+            "hide" => Command::Encounter(EncounterChoice::Hide),
+            "run" => Command::Encounter(EncounterChoice::Run),
+            "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
+            "dodge" => Command::Combat(CombatCommand::Dodge),
+            "flee" => Command::Combat(CombatCommand::Run),
+            _ => {
+                if let Some(n) = word.strip_prefix("attack-") {
+                    return n
+                        .parse()
+                        .ok()
+                        .map(|stack| Command::Combat(CombatCommand::Attack { stack }));
+                }
+                if let Some(n) = word.strip_prefix("swap-") {
+                    return n
+                        .parse()
+                        .ok()
+                        .map(|with| Command::Combat(CombatCommand::Exchange { with }));
+                }
+                return None;
+            }
         })
     }
 }
@@ -74,8 +109,9 @@ impl fmt::Display for ScriptError {
 }
 
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
-/// `turn-left`, `turn-right`, `around`, `use`, separated by whitespace or commas; `#` starts
-/// a comment that runs to the end of the line.
+/// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
+/// and in one `attack` (the first stack), `attack-N`, `dodge`, `swap-N`, `flee`, separated by
+/// whitespace or commas; `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
     for (index, line) in text.lines().enumerate() {
@@ -98,100 +134,6 @@ pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     Ok(commands)
 }
 
-/// Why a step did not happen. Not an error and not a rejection: the turn was taken.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum BlockReason {
-    /// A wall on the edge.
-    Wall,
-    /// A closed door on the edge.
-    ClosedDoor,
-    /// The target terrain cannot be entered.
-    Impassable,
-    /// The target is off the map or the map is unknown.
-    MapEdge,
-}
-
-/// A message for the player, named so packs can localize it under `sim:message:<name>`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum MessageKey {
-    /// Interact found nothing.
-    NothingHere,
-}
-
-impl MessageKey {
-    /// The text key clients look up.
-    #[must_use]
-    pub const fn text_key(self) -> &'static str {
-        match self {
-            MessageKey::NothingHere => "sim:message:nothing_here",
-        }
-    }
-}
-
-/// A tile the party perceived this turn, in viewport coordinates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct SeenTile {
-    /// Column.
-    pub x: u16,
-    /// Row.
-    pub y: u16,
-    /// Tiles ahead of the party.
-    pub depth: u8,
-    /// Tiles to the right of the facing line; negative is left.
-    pub offset: i8,
-}
-
-/// What happened.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Event {
-    /// The party moved, possibly to another map through a portal.
-    Moved {
-        /// Where it was.
-        from: Position,
-        /// Where it is.
-        to: Position,
-    },
-    /// A step did not happen.
-    Blocked {
-        /// Why.
-        reason: BlockReason,
-    },
-    /// A holder's clock advanced.
-    TimeAdvanced {
-        /// Whose clock.
-        holder: HolderId,
-        /// By how much.
-        minutes: u32,
-        /// Whether a day boundary was crossed.
-        day_rolled: bool,
-    },
-    /// What the party perceives after the command.
-    Visible {
-        /// Every visible tile, nearest first.
-        tiles: Vec<SeenTile>,
-    },
-    /// A door changed state.
-    Door {
-        /// The map.
-        map: MapId,
-        /// The tile the party stands on.
-        x: u16,
-        /// The tile the party stands on.
-        y: u16,
-        /// The edge the door is on.
-        facing: Facing,
-        /// Its new state.
-        open: bool,
-    },
-    /// A message for the player.
-    Message {
-        /// Which message.
-        key: MessageKey,
-    },
-    /// The party's members or their order changed.
-    PartyChanged,
-}
-
 /// A command the rules refuse. Not an error: the world is unchanged.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rejection {
@@ -203,6 +145,41 @@ pub enum Rejection {
     Character(CreationError),
     /// The order is not a permutation of the current members.
     BadOrder,
+    /// The fight is not waiting on a member, or not on a living one.
+    NotYourTurn,
+    /// No stack has that index.
+    NoSuchStack {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// Nobody in that stack still stands.
+    StackDead {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// A front-row member without a ranged weapon cannot reach a stack behind the front.
+    OutOfReach {
+        /// The index asked for.
+        stack: u8,
+    },
+    /// A back-row member needs a ranged weapon to attack at all.
+    NeedsRangedWeapon,
+    /// No member has that slot.
+    NoSuchMember {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// A member cannot exchange with themselves.
+    SameMember,
+    /// The party cannot pay.
+    CannotAfford {
+        /// The price.
+        cost: u32,
+        /// The purse.
+        gold: u32,
+    },
+    /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
+    Rule(RuleError),
 }
 
 impl core::fmt::Display for Rejection {
@@ -212,6 +189,24 @@ impl core::fmt::Display for Rejection {
             Rejection::PartyFull => f.write_str("the party is full"),
             Rejection::Character(e) => write!(f, "{e}"),
             Rejection::BadOrder => f.write_str("order must list every member once"),
+            Rejection::NotYourTurn => f.write_str("it is not a member's turn"),
+            Rejection::NoSuchStack { stack } => write!(f, "there is no stack {stack}"),
+            Rejection::StackDead { stack } => write!(f, "stack {stack} is dead"),
+            Rejection::OutOfReach { stack } => {
+                write!(
+                    f,
+                    "stack {stack} is behind the front; a ranged weapon reaches it"
+                )
+            }
+            Rejection::NeedsRangedWeapon => {
+                f.write_str("a back-row member needs a ranged weapon to attack")
+            }
+            Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
+            Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
+            Rejection::CannotAfford { cost, gold } => {
+                write!(f, "that costs {cost} gold; the party has {gold}")
+            }
+            Rejection::Rule(e) => write!(f, "rule error: {e}"),
         }
     }
 }

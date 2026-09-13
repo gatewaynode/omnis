@@ -117,11 +117,11 @@ fn schema_dump_sections_parse_with_the_real_types() {
     parse::<Monster>(&body("# data/monsters/<name>.ron\n")).unwrap();
     let rules = parse::<RulesFile>(&body("# data/rules/<name>.ron\n")).unwrap();
     assert!(rules.slots.contains_key("spell_points.pool"));
-    parse::<World>(&body("# save (schema 2)\n")).unwrap();
+    parse::<World>(&body("# save (schema 3)\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();
-    assert_eq!(ops.len(), 17);
+    assert_eq!(ops.len(), 18);
 }
 
 /// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.

@@ -110,6 +110,22 @@ fn portals_and_tileset_slots_resolve() {
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
     );
+    assert_eq!(dungeon.encounters.len(), 3);
+    let (index, rats) = dungeon.encounter_at(3, 8).expect("the rats");
+    assert_eq!(index, 0);
+    assert_eq!(rats.stacks.len(), 1);
+    assert_eq!(
+        (
+            data.registry.monsters.name(rats.stacks[0].0),
+            rats.stacks[0].1
+        ),
+        (Some("test:monster:giant_rat"), 2)
+    );
+    assert!(rats.once);
+    assert_eq!(dungeon.encounter_at(0, 0), None);
+    assert_eq!(dungeon.random.as_ref().map(|r| r.chance_percent), Some(3));
+    assert_eq!(dungeon.random.as_ref().map(|r| r.total_weight()), Some(4));
+    assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
 

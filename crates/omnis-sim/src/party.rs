@@ -1,7 +1,8 @@
 //! The party: up to six members in marching order, the shared purse and larder, and the
 //! commands that build and reorder it (PRD §7.1, D10).
 
-use crate::command::{Event, Rejection};
+use crate::command::Rejection;
+use crate::event::Event;
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, StreamName};

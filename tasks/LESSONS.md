@@ -33,3 +33,13 @@
 - **What happened**: The socket test asserted `PartyChanged` by reading `Messages<SimEvent>` after a second round trip. Bevy keeps a message for two frames; loopback delivery sometimes needs a second frame, so the message was gone on a slow CI runner while every local run passed.
 - **Rule**: A headless test that asserts on messages collects them into a resource with a reader system ordered after the writer (`after(SimSet::Publish)`); it never reads `Messages<M>` directly.
 - **Rule**: When a CI-only failure involves timing, reproduce it deterministically first (extra `app.update()` calls, a forced delay) and keep that reproduction in the test as the guard.
+
+## 2026-09-13 — Check the last push's CI before planning the next milestone
+- **What happened**: With the M3 branch pushed and its CI red, I entered plan mode for M4. The owner had to interrupt the plan to point at the failure ("a bit premature to enter planning").
+- **Rule**: At a session start or after the owner reports a push, ask whether CI passed (or read the failure they paste) before planning or starting the next milestone; a red build is the first task.
+
+## 2026-09-13 — First content is measured before the owner plays it
+- **What happened**: The M4 acceptance placement was three goblins and two rats with a surprise check at the trigger. The owner's two-member party stepped onto it and the fight ended inside that step, before a single turn: the first thing they saw of combat was the defeat modal. Measured afterwards: a 94% wipe rate for two members, 7% of fights over before any turn.
+- **Rule**: Before an encounter reaches the owner, measure it: wipe rate over a few hundred seeds for a two-member level-one party, fighting every turn. The first placements stay trivial (a rat or two) until the systems have been played, whatever the golden fight needs.
+- **Rule**: A mechanic that can end a fight before the player's first turn (surprise at the trigger, monster turns resolved inside the trigger command) ships off by default as a rules value, and the screen that follows a fast end shows what happened.
+

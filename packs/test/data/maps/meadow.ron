@@ -88,4 +88,7 @@
     portals: [
         (x: 16, y: 5, to_map: "test:map:dungeon", to_x: 1, to_y: 0, to_facing: South),
     ],
+    // A random table that never fires: every step still rolls its check on the encounter stream,
+    // which the stream-isolation tests count.
+    random: Some((chance_percent: 0, entries: [(weight: 1, stacks: [("test:monster:giant_rat", (count: 1, sides: 2, modifier: 0))])])),
 )

@@ -4,12 +4,12 @@
         (
             id: "base",
             version: "0.1.0",
-            hash: 10049577318010711650,
+            hash: 3079377783759628558,
         ),
         (
             id: "test",
             version: "0.1.0",
-            hash: 17258532121896991947,
+            hash: 17955209190420728737,
         ),
     ],
     settings: (
@@ -30,6 +30,7 @@
         Step(Forward),
         Step(Forward),
         Step(Forward),
+        Encounter(Attack),
         Step(Forward),
         Turn(Left),
         Step(Forward),
@@ -47,5 +48,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 16460664581249301881,
+    fingerprint: 11950233103111899688,
 )

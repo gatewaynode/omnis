@@ -1,0 +1,37 @@
+// Combat resolution (SRD 5.1 with the PRD §8.2 rows): Rust rolls every die and passes the faces
+// in, these formulas add and compare. `die` is the kept d20 face; `disposition` is 0 Hostile,
+// 1 Wary, 2 Neutral, 3 Friendly.
+(
+    schema: 1,
+    id: "base:rules:combat",
+    slots: {
+        // Attack roll: a natural 20 always hits and is a critical, a natural 1 always misses.
+        "attack.total": (inputs: ["die", "bonus", "proficiency"], expr: "die + bonus + proficiency"),
+        "attack.hit": (inputs: ["die", "total", "ac"], expr: "die == 20 || (die != 1 && total >= ac)"),
+        "attack.crit": (inputs: ["die"], expr: "die == 20"),
+        // Damage: `dice` is the summed dice (rolled twice on a critical), `bonus` the ability
+        // modifier; never below zero. Resistance halves (rounded down), vulnerability doubles.
+        "damage.total": (inputs: ["dice", "bonus"], expr: "max(0, dice + bonus)"),
+        "damage.adjusted": (inputs: ["amount", "resist", "vulnerable", "immune"], expr: "if immune { 0 } else if resist { amount / 2 } else if vulnerable { amount * 2 } else { amount }"),
+        // Initiative: a d20 plus the Dexterity modifier, one roll per member and per stack.
+        "initiative": (inputs: ["die", "dex_mod"], expr: "die + dex_mod"),
+        // Hit points of one monster: the SRD average. A pack may write "d(count, sides) + modifier".
+        "monster.hit_points": (inputs: ["count", "sides", "modifier"], expr: "count * (sides + 1) / 2 + modifier"),
+        // Bribe: a share of the group's experience value, cheaper the friendlier the group.
+        "bribe.cost": (inputs: ["xp", "disposition"], expr: "if disposition >= 3 { 0 } else { max(1, xp * (3 - disposition) / 3) }"),
+        // Random encounter: `roll` is 1d100 from the encounter stream.
+        "encounter.random": (inputs: ["roll", "chance_percent"], expr: "roll <= chance_percent"),
+    },
+    values: {
+        "monster_front_stacks": 2,
+        "death_save_dc": 10,
+        "combat_round_minutes": 1,
+        // 1 rolls the monsters' Stealth against the party's best passive Perception when a
+        // group is met; an unnoticed party skips the choice and starts the fight surprised.
+        // Off (0) until the fight systems have been played: a first placement that ends
+        // inside one step is not a first encounter.
+        "surprise": 0,
+    },
+    // Run and Flee difficulty by disposition; Friendly never rolls.
+    tables: {"run_dc": [15, 12, 10, 0]},
+)

@@ -1,8 +1,10 @@
 //! The complete game state (ARCHITECTURE.md §4.1). Ordered collections, integers, serde. A save
 //! is this struct as RON text; the fingerprint hashes that text.
 
-use crate::command::Event;
-use crate::migrate::{WorldV1, v1_to_v2};
+use crate::combat::CombatState;
+use crate::encounter::EncounterState;
+use crate::event::{ActorRef, Event};
+use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3};
 use crate::party::Party;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -15,14 +17,18 @@ use omnis_core::{
 use omnis_data::{Data, DataError, PackFingerprint};
 use serde::{Deserialize, Serialize};
 
-/// The save schema this build writes. Schema 1 (no party, a save switch) migrates on load.
-pub const SAVE_SCHEMA: u32 = 2;
+/// The save schema this build writes. Schema 1 (no party, a save switch) and schema 2 (no
+/// combat) migrate on load.
+pub const SAVE_SCHEMA: u32 = 3;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapState {
     /// Open doors by canonical edge (see `door_key`).
     pub open_doors: BTreeSet<(u16, u16, Facing)>,
+    /// Fixed encounters cleared for good, by their index in the map file.
+    #[serde(default)]
+    pub cleared: BTreeSet<u16>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
@@ -98,11 +104,38 @@ impl Automap {
     }
 }
 
-/// What the party is doing. Combat, town, and journal modes arrive with their milestones.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// What the party is doing. Town and journal modes arrive with their milestones.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     /// Walking the map.
     Explore,
+    /// Monsters ahead; the party chooses what to do.
+    Encounter(EncounterState),
+    /// Fighting.
+    Combat(CombatState),
+}
+
+impl Mode {
+    /// The mode without its state.
+    #[must_use]
+    pub const fn kind(&self) -> ModeKind {
+        match self {
+            Mode::Explore => ModeKind::Explore,
+            Mode::Encounter(_) => ModeKind::Encounter,
+            Mode::Combat(_) => ModeKind::Combat,
+        }
+    }
+}
+
+/// A mode by name, for status lines and state machines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ModeKind {
+    /// Walking the map.
+    Explore,
+    /// Choosing before a fight.
+    Encounter,
+    /// Fighting.
+    Combat,
 }
 
 /// Where the player may save (PRD D17), easiest first.
@@ -198,6 +231,8 @@ pub enum LoadError {
     PackMismatch,
     /// The party stands on a map no loaded pack defines, or outside it.
     BadPosition(Position),
+    /// The saved encounter or fight is not one this build can continue.
+    BadCombat(&'static str),
 }
 
 impl fmt::Display for LoadError {
@@ -210,6 +245,7 @@ impl fmt::Display for LoadError {
             ),
             LoadError::PackMismatch => f.write_str("save was made with different packs"),
             LoadError::BadPosition(p) => write!(f, "save position {p} is not on a loaded map"),
+            LoadError::BadCombat(why) => write!(f, "save combat cannot continue: {why}"),
         }
     }
 }
@@ -299,6 +335,10 @@ impl World {
         let world: World = match header.schema {
             1 => omnis_data::ron_io::parse::<WorldV1>(text)
                 .map(v1_to_v2)
+                .map(v2_to_v3)
+                .map_err(LoadError::Parse)?,
+            2 => omnis_data::ron_io::parse::<World>(text)
+                .map(v2_to_v3)
                 .map_err(LoadError::Parse)?,
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
@@ -307,9 +347,46 @@ impl World {
             return Err(LoadError::PackMismatch);
         }
         let p = world.position;
-        match data.maps.get(&p.map) {
-            Some(map) if map.cell(p.x, p.y).is_some() => Ok(world),
-            _ => Err(LoadError::BadPosition(p)),
+        if !data
+            .maps
+            .get(&p.map)
+            .is_some_and(|map| map.cell(p.x, p.y).is_some())
+        {
+            return Err(LoadError::BadPosition(p));
         }
+        world.check_mode(data)?;
+        Ok(world)
+    }
+
+    /// A saved encounter or fight must name known monsters and, in a fight, wait on a living
+    /// member: the turn loop parks there between commands, so anything else is a hand-edited
+    /// save.
+    fn check_mode(&self, data: &Data) -> Result<(), LoadError> {
+        let stacks = match &self.mode {
+            Mode::Explore => return Ok(()),
+            Mode::Encounter(e) => &e.stacks,
+            Mode::Combat(c) => &c.encounter.stacks,
+        };
+        if stacks
+            .iter()
+            .any(|s| !data.monsters.contains_key(&s.monster))
+        {
+            return Err(LoadError::BadCombat("a stack names an unknown monster"));
+        }
+        if let Mode::Combat(c) = &self.mode {
+            let waiting = c
+                .order
+                .get(usize::from(c.current))
+                .and_then(|entry| match entry.actor {
+                    ActorRef::Member(id) => self.party.members.iter().find(|m| m.id == id),
+                    _ => None,
+                });
+            if !waiting.is_some_and(|m| !m.is_down()) {
+                return Err(LoadError::BadCombat(
+                    "the fight is not waiting on a living member",
+                ));
+            }
+        }
+        Ok(())
     }
 }

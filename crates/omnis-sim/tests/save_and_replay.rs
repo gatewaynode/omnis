@@ -3,10 +3,16 @@
 
 mod common;
 
-use common::{data, interact, step, turn, world};
+use common::{data, interact, play, six, step, turn, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
+use omnis_data::Data;
 use omnis_data::ron_io::{read_ron, write_ron};
-use omnis_sim::{Command, LoadError, Replay, ReplayError, SaveRule, Settings, World, query};
+use omnis_sim::Event;
+use omnis_sim::omnis_rules::DeathSaves;
+use omnis_sim::{
+    Command, EncounterChoice, LoadError, Mode, PartyCommand, Replay, ReplayError, SaveRule,
+    Settings, World, apply, query,
+};
 use std::path::PathBuf;
 
 fn replay_path(name: &str) -> PathBuf {
@@ -17,6 +23,7 @@ fn replay_path(name: &str) -> PathBuf {
 
 /// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon,
 /// through the first door, and a bump against a pillar.
+/// A walk through the first row of rooms, for the determinism checks under any seed.
 fn walk() -> Vec<Command> {
     let mut commands = vec![Command::Step(Direction::Forward); 14];
     commands.extend([
@@ -36,6 +43,15 @@ fn walk() -> Vec<Command> {
         Command::Step(Direction::Back),
         Command::Interact,
     ]);
+    commands
+}
+
+/// The same walk under the golden seed, where the dungeon's random table fires on the
+/// thirteenth step: an empty party meets rats, fights, falls at once, and walks on (surprise
+/// is off, so the choice waits for a command).
+fn golden_walk() -> Vec<Command> {
+    let mut commands = walk();
+    commands.insert(13, Command::Encounter(EncounterChoice::Attack));
     commands
 }
 
@@ -67,7 +83,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 2", "schema: 7", 1);
+    let other = text.replacen("schema: 3", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -153,14 +169,45 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 2);
+    assert_eq!(world.schema, 3);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 2").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 3").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
     assert!(!world.may_save());
+}
+
+/// A schema-2 save (captured from the M3 build, `capture_schema_2_fixture`) loads through the
+/// migration: the mode, cleared encounters, and death saves default.
+#[test]
+fn a_schema_2_save_migrates() {
+    let data = data();
+    let path = save_path("v2");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 2") && !text.contains("death_saves"));
+    assert_eq!(
+        World::from_ron(&text, &data, false).unwrap_err(),
+        LoadError::PackMismatch,
+        "the fixture's base pack predates the combat rules"
+    );
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 3);
+    assert_eq!(world.mode, Mode::Explore);
+    assert_eq!(world.party.members.len(), 1);
+    assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
+    assert!(!world.party.members[0].is_down());
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].cleared.is_empty());
+    let text = world.to_ron().unwrap();
+    assert_eq!(text.matches("schema: 3").count(), 1);
+    assert_eq!(
+        World::from_ron(&text, &data, true).unwrap(),
+        world,
+        "written back at schema 3, still on the fixture's pack hashes"
+    );
 }
 
 #[test]
@@ -201,7 +248,51 @@ fn golden_walk_replay_reproduces() {
         read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         replay.commands,
-        walk(),
+        golden_walk(),
+        "the script in this file is the recorded one"
+    );
+    replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
+}
+
+/// The command script behind `tests/replays/fight.ron`: six members, the walk to the rats
+/// at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
+/// dice bring on the way (a random encounter, a member down) is part of the record.
+fn fight(data: &Data) -> Vec<Command> {
+    let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
+    let mut commands = Vec::new();
+    for draft in six() {
+        let command = Command::Party(PartyCommand::Create(draft));
+        apply(&mut world, data, command.clone()).unwrap();
+        commands.push(command);
+    }
+    let (taken, events) = play(&mut world, data, &walk_to_the_rats());
+    commands.extend(taken);
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::CombatEnded {
+                outcome: omnis_sim::CombatOutcome::Victory,
+                ..
+            }
+        )),
+        "the rats are cleared"
+    );
+    assert_eq!(world.mode, Mode::Explore);
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].cleared.contains(&0));
+    commands
+}
+
+/// The golden fight; re-baseline with `cargo test -p omnis-sim rebaseline -- --ignored` when
+/// the packs or the simulation change on purpose.
+#[test]
+fn golden_fight_replay_reproduces() {
+    let data = data();
+    let replay: Replay =
+        read_ron(&replay_path("fight"), &replay_path("fight")).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        replay.commands,
+        fight(&data),
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
@@ -209,8 +300,66 @@ fn golden_walk_replay_reproduces() {
 
 #[test]
 #[ignore = "writes the golden file; run deliberately"]
+fn rebaseline_fight_replay() {
+    let data = data();
+    let commands = fight(&data);
+    let replay =
+        Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), commands).unwrap();
+    write_ron(&replay_path("fight"), &replay).unwrap();
+}
+
+#[test]
+#[ignore = "writes the golden file; run deliberately"]
 fn rebaseline_walk_replay() {
     let data = data();
-    let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), walk()).unwrap();
+    let replay = Replay::record(
+        &data,
+        0x0123_4567_89ab_cdef,
+        Settings::default(),
+        golden_walk(),
+    )
+    .unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
+}
+
+fn save_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/saves")
+        .join(format!("{name}.ron"))
+}
+
+/// Captures `tests/saves/v2.ron` from a schema-2 build: one member and one open door, so the
+/// migration test exercises every field a party and a map state carry. Run once, deliberately,
+/// before the schema moves on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-2 build"]
+fn capture_schema_2_fixture() {
+    let data = data();
+    let mut world = world(&data);
+    let draft = omnis_rules::Draft {
+        name: "Brenna".to_owned(),
+        race: "base:race:human".to_owned(),
+        class: "base:class:fighter".to_owned(),
+        background: "base:background:acolyte".to_owned(),
+        alignment: omnis_data::Alignment::LawfulGood,
+        scores: [15, 14, 13, 12, 10, 8],
+        skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
+    };
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Create(draft)),
+    )
+    .unwrap();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert_eq!(world.schema, 2);
+    write_ron(&save_path("v2"), &world).unwrap();
 }

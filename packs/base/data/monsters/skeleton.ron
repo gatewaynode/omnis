@@ -12,6 +12,9 @@
     xp: 50,
     attacks: [
         (name: "base:text:monster.skeleton.shortsword", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
-        (name: "base:text:monster.skeleton.shortbow", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
+        (name: "base:text:monster.skeleton.shortbow", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing, ranged: true),
     ],
+    gold: Some((count: 1, sides: 4, modifier: 0)),
+    immunities: [Poison],
+    vulnerabilities: [Bludgeoning],
 )
