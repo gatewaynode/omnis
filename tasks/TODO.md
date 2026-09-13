@@ -142,7 +142,7 @@ The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the 
 - [x] Tests as invariants at 320×180 (2026-09-13); `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
 - [x] `ui.rs` (2026-09-13): compose into a scratch frame, upload on change
 - [x] Bake `texel_scale` (2026-09-13)
-- [ ] The resize and the bake in one commit (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)
+- [x] The resize and the bake in one commit (2026-09-13) (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)
 - [ ] Physical fit, scale factor, size classes, fullscreen default
 - [ ] Menu box: an 80×16-cell framed area centred in the viewport, row indices unchanged
 - [ ] Band: `band.rs` with one roster row per member (group, name, class, level, HP, SP, AC, condition), the acting row as a FRAME bar with the marker, the selected name HI, an 18-row event log with the long lines

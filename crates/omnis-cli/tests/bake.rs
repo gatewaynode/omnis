@@ -1,7 +1,7 @@
 //! The committed test pack is exactly what the bake specs produce, and the baked sprites are
 //! well-formed PNGs inside the viewport.
 
-use omnis_cli::bake::{bake_to, load_png};
+use omnis_cli::bake::{BakeSpec, bake_to, load_png};
 use omnis_data::ron_io::read_ron;
 use omnis_data::{SlotKind, Tileset, load_packs};
 use std::path::{Path, PathBuf};
@@ -85,7 +85,15 @@ fn committed_tilesets_match_a_fresh_bake() {
 fn the_baked_pack_loads() {
     let data = load_packs(&[&repo().join("packs/test")]).unwrap_or_else(|r| panic!("{r}"));
     let dungeon = &data.tilesets[&data.registry.tilesets.get("test:tileset:dungeon").unwrap()];
-    assert_eq!(dungeon.viewport, (240, 135));
+    let spec: BakeSpec = read_ron(
+        &repo().join("packs/test/bake/dungeon.ron"),
+        Path::new("spec"),
+    )
+    .unwrap();
+    assert_eq!(
+        dungeon.viewport, spec.viewport,
+        "baked for the spec's viewport"
+    );
     assert!(dungeon.slot("wall", 0, 0).is_some());
     assert!(
         dungeon.slot("floor", 0, 0).is_some(),

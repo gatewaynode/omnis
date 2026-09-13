@@ -1,37 +1,37 @@
 //! Canvas geometry shared by the renderer, the draw planner, and the UI. The internal
-//! resolution is provisional (PRD §14): a canvas with the viewport in its top-left, a right
+//! resolution is 1280×720 for the 4K target (PRD D20): a canvas with the viewport in its top-left, a right
 //! column for the minimap, the location lines, and the movement pad, and a bottom band for the
 //! message line, the party, and the help line. Text is laid out on a grid of 6×8 cells
 //! (`font`). Every region is an expression of the inputs at the top of the file.
 
 /// Internal canvas width in pixels.
-pub const CANVAS_WIDTH: u32 = 320;
+pub const CANVAS_WIDTH: u32 = 1280;
 /// Internal canvas height in pixels.
-pub const CANVAS_HEIGHT: u32 = 180;
+pub const CANVAS_HEIGHT: u32 = 720;
 /// The viewport's top-left corner on the canvas.
 pub const VIEWPORT_ORIGIN: (i32, i32) = (0, 0);
 /// The viewport's size on the canvas; every tileset's `viewport` must match.
-pub const VIEWPORT_SIZE: (u16, u16) = (240, 135);
+pub const VIEWPORT_SIZE: (u16, u16) = (960, 540);
 /// The panel colour around the viewport.
 pub const PANEL_COLOR: (u8, u8, u8) = (24, 24, 34);
 /// A text cell: glyphs are 5×7 in a 6×8 cell.
 pub const CELL: (i32, i32) = (6, 8);
 /// Pixels per tile in the sidebar minimap.
-pub const SIDEBAR_MAP_SCALE: i32 = 2;
+pub const SIDEBAR_MAP_SCALE: i32 = 8;
 /// Tiles across the sidebar minimap.
 pub const SIDEBAR_MAP_TILES: i32 = 32;
 /// Pixels per tile in the large automap overlay.
-pub const OVERLAY_MAP_SCALE: i32 = 4;
+pub const OVERLAY_MAP_SCALE: i32 = 16;
 /// Both maps' inset from the edges of their regions.
 pub const MAP_INSET: i32 = CELL.1;
 /// The gap between the minimap and the first location line.
 pub const HUD_GAP: i32 = 2;
 /// A pad button's size.
-pub const PAD_BUTTON: (u32, u32) = (24, 11);
+pub const PAD_BUTTON: (u32, u32) = (96, 40);
 /// The gap between pad buttons, across and down.
-pub const PAD_GAP: (i32, i32) = (2, 1);
+pub const PAD_GAP: (i32, i32) = (8, 8);
 /// The pad's inset from the right column's right and bottom edges.
-pub const PAD_INSET: (i32, i32) = (0, 0);
+pub const PAD_INSET: (i32, i32) = (8, 8);
 /// The band's text inset from the canvas edge.
 pub const BAND_X: i32 = 4;
 /// The band's padding above the message line.

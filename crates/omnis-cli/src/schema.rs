@@ -28,7 +28,7 @@ const TILESET: &str = r#"(
     id: "example:tileset:stone",
     detail_depth: 1,
     width: 0,
-    viewport: (240, 135),
+    viewport: (960, 540),
     surfaces: {
         "floor": (kind: Floor, slots: [(depth: 0, offset: 0, path: "assets/tilesets/stone/floor_d0_o0.png", x: 0, y: 68)]),
         "wall": (kind: WallFront, slots: []),

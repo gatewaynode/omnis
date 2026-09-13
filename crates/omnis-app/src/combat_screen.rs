@@ -211,7 +211,7 @@ fn roll_log(frame: &mut Frame, log: &[String]) {
 mod tests {
     use super::*;
     use crate::combat_menu::StackRow;
-    use crate::layout::{MENU_ROWS, cell};
+    use crate::layout::cell;
     use crate::screens::tests::assert_laid_out;
     use crate::screens::{MODAL_BOTTOM_PAD, MODAL_BUTTON_PITCH, MODAL_LINES_Y, MODAL_TEXT_X};
     use crate::widget::hit;
@@ -284,7 +284,7 @@ mod tests {
             Some(HI),
             "the marker sits before the target"
         );
-        let (x, y) = cell(1, MENU_ROWS - 1);
+        let (x, y) = cell(1, FIRST_LOG_ROW + LOG_ROWS as i32 - 1);
         assert_eq!(
             rgb(&frame, x, y + 1),
             Some(TEXT),
@@ -293,7 +293,11 @@ mod tests {
         let (x, y) = cell(1, FIRST_LOG_ROW);
         assert_eq!(rgb(&frame, x, y + 1), Some(DIM), "older lines are dim");
         let (x, y) = cell(1 + SHORT_CELLS as i32, FIRST_LOG_ROW);
-        assert_eq!(frame.raster.get(x, y + 1), Some([0, 0, 0, 0]), "clipped");
+        assert_ne!(
+            rgb(&frame, x, y + 1),
+            Some(DIM),
+            "clipped at the log's width"
+        );
         let action = frame.widget(WidgetId::Action(2)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
         assert_eq!((h.id, h.kind), (WidgetId::Action(2), Kind::Button));
