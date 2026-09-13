@@ -110,11 +110,19 @@ fn portals_and_tileset_slots_resolve() {
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
     );
-    assert!(
-        dungeon.encounters.is_empty() && dungeon.random.is_none() && meadow.random.is_none(),
-        "no encounters until M4 places them"
+    assert_eq!(dungeon.encounters.len(), 3);
+    let (index, goblins) = dungeon.encounter_at(3, 8).expect("the goblins");
+    assert_eq!(index, 0);
+    assert_eq!(goblins.stacks.len(), 2);
+    assert_eq!(
+        data.registry.monsters.name(goblins.stacks[0].0),
+        Some("test:monster:goblin")
     );
+    assert!(goblins.once);
     assert_eq!(dungeon.encounter_at(0, 0), None);
+    assert_eq!(dungeon.random.as_ref().map(|r| r.chance_percent), Some(3));
+    assert_eq!(dungeon.random.as_ref().map(|r| r.total_weight()), Some(4));
+    assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
 

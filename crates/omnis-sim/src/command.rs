@@ -3,6 +3,7 @@
 //! protocol. What happened is `event::Event`.
 
 use crate::combat::CombatCommand;
+use crate::encounter::EncounterChoice;
 use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -22,6 +23,8 @@ pub enum Command {
     Interact,
     /// Build or reorder the party.
     Party(PartyCommand),
+    /// Choose what to do about the monsters ahead.
+    Encounter(EncounterChoice),
     /// Act in a fight, on the acting member's turn.
     Combat(CombatCommand),
 }
@@ -41,6 +44,10 @@ impl Command {
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
             Command::Party(_) => "party",
+            Command::Encounter(EncounterChoice::Attack) => "fight",
+            Command::Encounter(EncounterChoice::Bribe) => "bribe",
+            Command::Encounter(EncounterChoice::Hide) => "hide",
+            Command::Encounter(EncounterChoice::Run) => "run",
             Command::Combat(CombatCommand::Attack { .. }) => "attack",
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
@@ -60,6 +67,10 @@ impl Command {
             "turn-right" => Command::Turn(Rotation::Right),
             "around" => Command::Turn(Rotation::Around),
             "use" => Command::Interact,
+            "fight" => Command::Encounter(EncounterChoice::Attack),
+            "bribe" => Command::Encounter(EncounterChoice::Bribe),
+            "hide" => Command::Encounter(EncounterChoice::Hide),
+            "run" => Command::Encounter(EncounterChoice::Run),
             "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
             "dodge" => Command::Combat(CombatCommand::Dodge),
             "flee" => Command::Combat(CombatCommand::Run),
@@ -98,9 +109,9 @@ impl fmt::Display for ScriptError {
 }
 
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
-/// `turn-left`, `turn-right`, `around`, `use`, and in a fight `attack` (the first stack),
-/// `attack-N`, `dodge`, `swap-N`, `flee`, separated by whitespace or commas; `#` starts a
-/// comment that runs to the end of the line.
+/// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
+/// and in one `attack` (the first stack), `attack-N`, `dodge`, `swap-N`, `flee`, separated by
+/// whitespace or commas; `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
     for (index, line) in text.lines().enumerate() {

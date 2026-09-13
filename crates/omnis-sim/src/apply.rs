@@ -2,6 +2,7 @@
 
 use crate::combat;
 use crate::command::{Command, Rejection};
+use crate::encounter;
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::party;
 use crate::visibility;
@@ -16,11 +17,14 @@ use omnis_data::Data;
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
     let mut events = Vec::new();
     match (&world.mode, &command) {
-        (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events),
+        (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events)?,
         (Mode::Explore, Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
         (Mode::Explore, Command::Party(command)) => {
             party::apply(world, data, command, &mut events)?;
+        }
+        (Mode::Encounter(_), Command::Encounter(choice)) => {
+            encounter::apply_choice(world, data, *choice, &mut events)?;
         }
         (Mode::Combat(_), Command::Combat(command)) => {
             combat::apply(world, data, *command, &mut events)?;
@@ -47,26 +51,42 @@ fn world_clock_origin() -> omnis_core::Clock {
     omnis_core::Clock::new(omnis_core::EraId(0))
 }
 
-fn step(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<Event>) {
+/// A step; when it lands somewhere, the tile's encounter may follow.
+fn step(
+    world: &mut World,
+    data: &Data,
+    direction: Direction,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let from = world.position;
+    let facing = from.facing.toward(direction);
+    if !r#move(world, data, direction, events) {
+        return Ok(());
+    }
+    encounter::trigger(world, data, from, facing, events).map_err(Rejection::Rule)
+}
+
+/// The move itself: walls, doors, terrain, portals. Whether the party ended up somewhere.
+fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<Event>) -> bool {
     let pos = world.position;
     let facing = pos.facing.toward(direction);
     let Some(map) = data.maps.get(&pos.map) else {
         events.push(Event::Blocked {
             reason: BlockReason::MapEdge,
         });
-        return;
+        return false;
     };
     let Some(cell) = map.cell(pos.x, pos.y) else {
         events.push(Event::Blocked {
             reason: BlockReason::MapEdge,
         });
-        return;
+        return false;
     };
     if cell.walls.has(facing) {
         events.push(Event::Blocked {
             reason: BlockReason::Wall,
         });
-        return;
+        return false;
     }
     if cell.doors.has(facing)
         && !world
@@ -77,7 +97,7 @@ fn step(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<E
         events.push(Event::Blocked {
             reason: BlockReason::ClosedDoor,
         });
-        return;
+        return false;
     }
     let target = pos
         .neighbour(facing)
@@ -86,14 +106,14 @@ fn step(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<E
         events.push(Event::Blocked {
             reason: BlockReason::MapEdge,
         });
-        return;
+        return false;
     };
     let terrain = map.terrain(target_cell);
     if !terrain.passable {
         events.push(Event::Blocked {
             reason: BlockReason::Impassable,
         });
-        return;
+        return false;
     }
     let to = pos.at(x, y);
     world.position = to;
@@ -117,6 +137,22 @@ fn step(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<E
             visit(world, data);
         }
     }
+    true
+}
+
+/// The party steps to `to` (where it came from, facing away): the move, its minutes, the
+/// visit. Used by Run before a fight and by flight from one.
+pub(crate) fn retreat(world: &mut World, data: &Data, to: Position, events: &mut Vec<Event>) {
+    let from = world.position;
+    world.position = to;
+    events.push(Event::Moved { from, to });
+    let minutes = data
+        .maps
+        .get(&to.map)
+        .and_then(|m| m.cell(to.x, to.y).map(|c| m.terrain(c).step_minutes))
+        .unwrap_or(1);
+    advance(world, minutes, events);
+    visit(world, data);
 }
 
 fn turn(world: &mut World, rotation: Rotation) {

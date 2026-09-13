@@ -3,9 +3,11 @@
 
 mod common;
 
-use common::{data, interact, step, turn, world};
+use common::{data, interact, play, six, step, turn, walk_to_goblins, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
+use omnis_data::Data;
 use omnis_data::ron_io::{read_ron, write_ron};
+use omnis_sim::Event;
 use omnis_sim::omnis_rules::DeathSaves;
 use omnis_sim::{
     Command, LoadError, Mode, PartyCommand, Replay, ReplayError, SaveRule, Settings, World, apply,
@@ -240,6 +242,60 @@ fn golden_walk_replay_reproduces() {
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
+}
+
+/// The command script behind `tests/replays/fight.ron`: six members, the walk to the goblins
+/// at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
+/// dice bring on the way (a random encounter, a member down) is part of the record.
+fn fight(data: &Data) -> Vec<Command> {
+    let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
+    let mut commands = Vec::new();
+    for draft in six() {
+        let command = Command::Party(PartyCommand::Create(draft));
+        apply(&mut world, data, command.clone()).unwrap();
+        commands.push(command);
+    }
+    let (taken, events) = play(&mut world, data, &walk_to_goblins());
+    commands.extend(taken);
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::CombatEnded {
+                outcome: omnis_sim::CombatOutcome::Victory,
+                ..
+            }
+        )),
+        "the goblins are cleared"
+    );
+    assert_eq!(world.mode, Mode::Explore);
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].cleared.contains(&0));
+    commands
+}
+
+/// The golden fight; re-baseline with `cargo test -p omnis-sim rebaseline -- --ignored` when
+/// the packs or the simulation change on purpose.
+#[test]
+fn golden_fight_replay_reproduces() {
+    let data = data();
+    let replay: Replay =
+        read_ron(&replay_path("fight"), &replay_path("fight")).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        replay.commands,
+        fight(&data),
+        "the script in this file is the recorded one"
+    );
+    replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
+}
+
+#[test]
+#[ignore = "writes the golden file; run deliberately"]
+fn rebaseline_fight_replay() {
+    let data = data();
+    let commands = fight(&data);
+    let replay =
+        Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), commands).unwrap();
+    write_ron(&replay_path("fight"), &replay).unwrap();
 }
 
 #[test]

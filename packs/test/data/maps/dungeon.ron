@@ -70,4 +70,19 @@
     portals: [
         (x: 0, y: 0, to_map: "test:map:meadow", to_x: 16, to_y: 6, to_facing: South),
     ],
+    // Placed groups in the second row of rooms: the goblins the M4 acceptance clears (from the
+    // start: forward x5, turn left, forward x2, turn right, use, forward x3), wary skeletons
+    // that come back, and friendly rats. A small random table on top.
+    encounters: [
+        (x: 3, y: 8, stacks: [("test:monster:goblin", 3), ("test:monster:giant_rat", 2)], disposition: Hostile, once: true),
+        (x: 9, y: 8, stacks: [("test:monster:skeleton", 2)], disposition: Wary),
+        (x: 15, y: 8, stacks: [("test:monster:giant_rat", 3)], disposition: Friendly, once: true),
+    ],
+    random: Some((
+        chance_percent: 3,
+        entries: [
+            (weight: 3, stacks: [("test:monster:giant_rat", (count: 1, sides: 4, modifier: 1))]),
+            (weight: 1, stacks: [("test:monster:goblin", (count: 1, sides: 3, modifier: 0)), ("test:monster:giant_rat", (count: 1, sides: 2, modifier: 0))], disposition: Wary),
+        ],
+    )),
 )

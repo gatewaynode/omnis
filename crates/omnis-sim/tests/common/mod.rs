@@ -5,7 +5,8 @@ use omnis_core::{Direction, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
-    Command, EncounterSource, EncounterState, Event, PartyCommand, Settings, Stack, World, apply,
+    CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event, Mode,
+    PartyCommand, Settings, Stack, World, apply, combat_view,
 };
 use std::path::PathBuf;
 
@@ -38,11 +39,12 @@ pub fn interact(world: &mut World, data: &Data) -> Vec<Event> {
     apply(world, data, Command::Interact).expect("explore accepts interact")
 }
 
-/// Everything but the trailing `Visible`.
+/// Everything but the per-step chatter: the trailing `Visible` and the random encounter check
+/// a map with a table rolls on every step.
 pub fn without_visible(events: Vec<Event>) -> Vec<Event> {
     events
         .into_iter()
-        .filter(|e| !matches!(e, Event::Visible { .. }))
+        .filter(|e| !matches!(e, Event::Visible { .. } | Event::EncounterCheck { .. }))
         .collect()
 }
 
@@ -139,4 +141,63 @@ pub fn encounter(
         disposition,
         retreat,
     }
+}
+
+/// From the meadow start to the goblins at (3, 8) of the dungeon: up the road through the
+/// portal, down the first room, left to the door, through it, and three tiles in.
+pub fn walk_to_goblins() -> Vec<Command> {
+    let mut commands = vec![Command::Step(Direction::Forward); 16];
+    commands.extend([
+        Command::Turn(Rotation::Left),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Turn(Rotation::Right),
+        Command::Interact,
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+        Command::Step(Direction::Forward),
+    ]);
+    commands
+}
+
+/// The first living stack the acting member can reach.
+pub fn reachable_stack(world: &World, data: &Data) -> Option<u8> {
+    combat_view(world, data)?
+        .stacks
+        .iter()
+        .find(|s| s.alive && s.reachable)
+        .map(|s| s.index)
+}
+
+/// Fight whatever stands in the way until the party explores again: attack on an encounter,
+/// then the nearest reachable stack on every member turn. Every command taken is appended to
+/// `commands`; the events come back.
+pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Vec<Event> {
+    let mut events = Vec::new();
+    for _ in 0..1000 {
+        let command = match &world.mode {
+            Mode::Explore => return events,
+            Mode::Encounter(_) => Command::Encounter(EncounterChoice::Attack),
+            Mode::Combat(_) => {
+                let stack = reachable_stack(world, data).expect("something to hit");
+                Command::Combat(CombatCommand::Attack { stack })
+            }
+        };
+        events.extend(apply(world, data, command.clone()).unwrap_or_else(|r| panic!("{r}")));
+        commands.push(command);
+    }
+    panic!("the fight did not end");
+}
+
+/// Apply commands in order, settling any fight on the way; returns every command taken and
+/// every event.
+pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>, Vec<Event>) {
+    let mut commands = Vec::new();
+    let mut events = Vec::new();
+    for command in script {
+        events.extend(apply(world, data, command.clone()).unwrap_or_else(|r| panic!("{r}")));
+        commands.push(command.clone());
+        events.extend(settle(world, data, &mut commands));
+    }
+    (commands, events)
 }

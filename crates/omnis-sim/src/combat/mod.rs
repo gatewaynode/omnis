@@ -8,6 +8,7 @@ pub mod state;
 mod turn;
 
 pub use state::{CombatState, Initiative, monster_front_stacks};
+pub use turn::run_dc;
 
 use crate::command::Rejection;
 use crate::encounter::EncounterState;

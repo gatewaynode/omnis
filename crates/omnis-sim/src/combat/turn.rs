@@ -4,11 +4,12 @@
 use super::resolve;
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
-use crate::apply::{advance, visit};
-use crate::encounter::{EncounterSource, EncounterState};
+use crate::apply::{advance, retreat};
+use crate::encounter::{EncounterState, clear_once};
 use crate::event::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
+use core::cmp::Reverse;
 use omnis_core::{CharacterId, RollTrace};
 use omnis_data::{Ability, Data, Disposition};
 use omnis_rules::{RollMode, RuleError, check, initiative, modifier, modifier_of};
@@ -167,7 +168,7 @@ fn flee(
         .members
         .iter()
         .filter(|m| can_fight(m, data))
-        .max_by_key(|m| modifier(m.scores[Ability::Dexterity.index()]))
+        .min_by_key(|m| Reverse(modifier(m.scores[Ability::Dexterity.index()])))
     else {
         return Ok(false);
     };
@@ -319,19 +320,9 @@ fn finish(
             xp = award_xp(world, data, state);
             gold = state.gold;
             world.party.gold = world.party.gold.saturating_add(gold);
-            if let EncounterSource::Fixed(i) = state.encounter.source {
-                let map = world.position.map;
-                let once = data
-                    .maps
-                    .get(&map)
-                    .and_then(|m| m.encounters.get(usize::from(i)))
-                    .is_some_and(|e| e.once);
-                if once {
-                    world.map_state(map).cleared.insert(i);
-                }
-            }
+            clear_once(world, data, state.encounter.source);
         }
-        CombatOutcome::Fled => retreat(world, data, state, events),
+        CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}
     }
     let fallen = resolve::bury(world, data);
@@ -376,19 +367,4 @@ fn award_xp(world: &mut World, data: &Data, state: &CombatState) -> u32 {
         member.xp = member.xp.saturating_add(share);
     }
     share
-}
-
-/// The party steps back to where it came from, facing away, and the step costs its minutes.
-fn retreat(world: &mut World, data: &Data, state: &CombatState, events: &mut Vec<Event>) {
-    let from = world.position;
-    let to = state.encounter.retreat;
-    world.position = to;
-    events.push(Event::Moved { from, to });
-    let minutes = data
-        .maps
-        .get(&to.map)
-        .and_then(|m| m.cell(to.x, to.y).map(|c| m.terrain(c).step_minutes))
-        .unwrap_or(1);
-    advance(world, minutes, events);
-    visit(world, data);
 }

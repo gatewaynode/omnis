@@ -1,0 +1,14 @@
+// English strings for the test pack's monster copies. Keys are `test:text:monster.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "test:text:monster.giant_rat.bite": "Bite",
+        "test:text:monster.giant_rat.name": "Giant Rat",
+        "test:text:monster.goblin.name": "Goblin",
+        "test:text:monster.goblin.scimitar": "Scimitar",
+        "test:text:monster.goblin.shortbow": "Shortbow",
+        "test:text:monster.skeleton.name": "Skeleton",
+        "test:text:monster.skeleton.shortbow": "Shortbow",
+        "test:text:monster.skeleton.shortsword": "Shortsword",
+    },
+)
