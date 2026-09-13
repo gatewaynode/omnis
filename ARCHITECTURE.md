@@ -120,8 +120,8 @@ pub enum Command {
     Rest,
     Party(PartyCommand),        // create, reorder, exchange, dismiss hireling
     Service(ServiceCommand),    // inn, temple, trainer, smith, tavern, bank, guild
-    Combat(CombatCommand),      // per actor: attack, cast, use, dodge, exchange, run
-    Encounter(EncounterChoice), // attack, bribe, hide, run
+    Combat(CombatCommand),      // per actor: attack { stack }, dodge, exchange { with }, run (M4); cast, use (M6)
+    Encounter(EncounterChoice), // attack, bribe, hide, run (M4)
     Cast(SpellCast),            // out of combat
     UseItem(ItemUse),
     Sense(SenseSource),         // spyglass, scouting, divination (PRD §7.2)
@@ -135,14 +135,23 @@ pub enum Event {
     TimeAdvanced { holder: HolderId, minutes: u32, day_rolled: bool },
     Reconciled { a: HolderId, b: HolderId, delta_a: i64, delta_b: i64, era_b: EraId },
     Visible { tiles: Vec<SeenTile> },        // what the party perceives this turn
-    EncounterStarted { stacks: Vec<StackRef>, surprise: Surprise },
-    Initiative { order: Vec<ActorRef> },
-    AttackResolved { attacker, target, roll: RollTrace, outcome },
-    Damage { target, amount, kind },
+    PartyChanged,                            // M3: members or their order changed
+    // M4 as built (`omnis-sim/src/event.rs`): integers, ids, and roll traces only.
+    EncounterCheck { roll: RollTrace, chance: u8, fired: bool },   // the map's random table, every step
+    EncounterStarted { source, stacks: Vec<(MonsterId, u8)>, disposition, counts: Vec<RollTrace>,
+                       stealth: Option<Roll>, perception: i64, noticed: bool },
+    Check { actor: ActorRef, kind: CheckKind, roll: Option<Roll>, dc: i64, success: bool }, // hide, run, flee
+    Bribed { cost: u32 },
+    CombatStarted { surprised: Surprise },
+    Initiative { order: Vec<(ActorRef, i64)>, rolls: Vec<RollTrace> },
+    RoundStarted { round }, Turn { actor }, Waited { actor }, Dodging { actor }, Exchanged { a, b },
+    AttackResolved { attacker, target, roll: Roll, ac: i64, hit: bool, crit: bool },
+    Damage { target, kind: DamageType, rolls: Vec<RollTrace>, raw: i64, amount: i64, adjust: DamageAdjust },
+    Down { target: CharacterId }, Wounded { member, failures }, DeathSave { member, roll, result, successes, failures },
     Condition { target, condition, applied: bool },
-    SpellCast { caster, spell, points, components_consumed },
-    Death { target },
-    CombatEnded { outcome, xp, loot },
+    Death { target: ActorRef, gold: Option<RollTrace> },
+    CombatEnded { outcome: Victory | Fled | Defeat, xp: u32, gold: u32, fallen: Vec<CharacterId> },
+    SpellCast { caster, spell, points, components_consumed },   // M6
     LevelUp { member, level, gains },
     Region(RegionEvent),                     // from omnis-eco
     Quest(QuestEvent),                       // from omnis-story
@@ -153,7 +162,7 @@ pub enum Event {
 ```
 
 - `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs.
-- Every dice roll produces a `RollTrace` in the event so a client can show the math and a test can assert it.
+- Every dice roll produces a `RollTrace` in the event so a client can show the math and a test can assert it. A `Roll` (M4) is a d20 with its mode (normal, advantage, disadvantage: both dice in the trace, the kept face named), the modifier, the proficiency bonus, and the total.
 - Events are appended to `World::log` (bounded ring in release, unbounded in dev) so MCP `events.tail` and replay work.
 - Text never appears in events; only keys and arguments. Clients localize from pack `text/`.
 
@@ -208,7 +217,7 @@ Holders that are not part of the interaction do not move. A region the party has
 
 ### 4.5 Combat state machine
 
-`Mode::Combat(CombatState)` holds initiative order, the party rows, monster stacks in order, per-actor resources this round, and round count. Transitions: `Encounter → (choice) → Combat → (all stacks dead | party fled | party dead) → Explore`. Each `CombatCommand` is validated against whose turn it is. Monster turns are resolved by `omnis-rules::monster_ai` when the next actor is a monster, before returning events, so one player command may produce many actors' worth of events.
+As built in M4. `Mode::Encounter(EncounterState)` holds the stacks (monster, initial count, the living's hit points), their disposition, the source (a placement by index, or the map's random table), and the retreat tile; `Mode::Combat(CombatState)` adds the initiative order, the current actor, the round, who was surprised, who dodges this round, and the gold looted so far. Emptied stacks stay in the list so indices are stable; "front" is the first `monster_front_stacks` living stacks. Transitions: `Explore → (a step onto a placement, or the random table fires) → Encounter → (attack, or a failed hide or run) → Combat → (every stack dead | the party fled | every member down) → Explore`; a bribe or a successful hide or run returns to `Explore` from the encounter, and monsters the party fails to notice (their Stealth against its best passive Perception) skip the choice, the party surprised. Each `CombatCommand` is validated in full against whose turn it is and what the acting member can reach (front-row melee against the front stacks; a ranged weapon anywhere) before the first die is rolled, on a copy of the `combat` stream written back only on success, so a rejection never perturbs the stream. Monster turns resolve inside the same command until a member can act or the fight ends, so one player command may produce many actors' worth of events; death saves and the round's minutes are resolved at the round's end. Permadeath (a setting) removes a dead member at the fight's end with their kit into the party inventory; otherwise the member keeps their slot with the `dead` condition for the temple (M7). A wipe ends the fight with `Defeat` and the app offers the last save (D14). Every number is a rule slot or value in `packs/base/data/rules/combat.ron`; Rust rolls every die, Rhai adds and compares.
 
 ### 4.6 Replay and co-op readiness
 
@@ -342,9 +351,9 @@ pub enum RegionEvent { PopulationChanged, FactionShift, ResourceChanged, Weather
 Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources on 2026-09-11.
 
 ### 8.1 Structure
-- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys, the on-screen pad, and gamepad to `Command`), `CursorPlugin` (window size and pointer as a canvas pixel, from window messages), `ViewportPlugin`, `MenusPlugin` (the menu state machines and their key and click dispatch), `UiPlugin` (composes the frame: menus, location lines, pad, party band; hit-tests the pointer; uploads the frame into a canvas sprite), `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
+- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys, the on-screen pad, and gamepad to `Command`), `CursorPlugin` (window size and pointer as a canvas pixel, from window messages), `ViewportPlugin`, `MenusPlugin` (the menu state machines and their key and click dispatch), `CombatPlugin` (the encounter, fight, and defeat screens, the play state following the world's mode, the roll log), `UiPlugin` (composes the frame: menus, location lines, pad, party band; hit-tests the pointer; uploads the frame into a canvas sprite), `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
 - Bevy features: `default-features = false, features = ["2d", "png"]` (the game UI is canvas sprites, so `ui` is off; the editor's `bevy_egui` brings its own rendering), plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
-- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Paused`, joined by `Encounter | Combat | Service | Journal` as their milestones arrive. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
+- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Encounter | Combat | Paused | Defeat` (M4), joined by `Service | Journal` as their milestones arrive. The play state follows the world's mode after every event batch (`PlayState::for_mode`), so a loaded or resumed game lands in the state its mode calls for; `Defeat` is entered on a wipe and left by a load or by quitting to the title. Commands apply in every play state but `Paused`. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
 - The `World` is a Bevy `Resource` wrapped in `SimWorld` (in 0.19 resources are components on singleton entities; `Res` and `ResMut` are unchanged). Only `SimPlugin` systems mutate it, in one ordered system set in `Update`: `collect commands → apply → push events`. All other systems read events from a buffered `Message` queue (`MessageWriter`/`MessageReader`, 0.19's name for the old buffered events) and read the world through `query::*`. Bevy's ECS holds presentation entities only (sprites, UI nodes, sounds); it never holds game state.
 - Simulation events are re-published as Bevy messages one to one; observers (`On<E>`) are used only for presentation-internal triggers (a floating number finished, a menu closed).
 - Events drive animation. A `Damage` event spawns a floating number; `Moved` starts a step transition; `Visible` updates the viewport model. Presentation may lag the simulation by an animation queue, but the simulation is never blocked by it.
@@ -400,6 +409,7 @@ sequenceDiagram
 | `world.query` | read any path (`party.members[0].hp`) |
 | `party.get`, `party.create` | inspect and build a party from data |
 | `sim.command` | apply one `Command`, return events with roll traces |
+| `combat.get` | the encounter or fight (M4): stacks with hit points, front or back, and reach for the acting member; the order, the round, whose turn |
 | `sim.script` | apply a list of commands |
 | `events.tail` | last N events |
 | `viewport.get`, `map.text` | the viewport model; a map rendered as text with the party marker |
@@ -423,7 +433,7 @@ Headless, Bevy-free, fast to compile. Subcommands: `validate <packs>`, `schema d
 Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 - **RNG and seeds** (A14, approved 2026-09-12):
   - **One world seed**, `u64`, fixed at new game. The app layer offers a text seed (hashed with FNV-1a 64) or draws one from OS entropy; the simulation never touches entropy and only ever receives the number. The seed is shown on the new-game and save screens so worlds can be shared, and it is stored in the save.
-  - **Named streams.** Every consumer draws from a stream identified by a canonical name. A stream's initial state is a pure function of the world seed and the name: `state = splitmix64(world_seed ^ fnv1a64(name))`, `increment = splitmix64(fnv1a64(name)) | 1`. Stream names in v1: `party`, `combat`, `time:<a>:<b>` (holder IDs in canonical order), `eco:<region>`, `story:<region>`, `gen:<x>:<y>:<layer>`. Adding a stream never perturbs an existing one; adding a draw inside a stream perturbs that stream's later draws only, and golden tests are re-baselined in the same commit.
+  - **Named streams.** Every consumer draws from a stream identified by a canonical name. A stream's initial state is a pure function of the world seed and the name: `state = splitmix64(world_seed ^ fnv1a64(name))`, `increment = splitmix64(fnv1a64(name)) | 1`. Stream names in v1: `party`, `combat` (every die of a fight, and the monsters' Stealth at the trigger), `encounter` (the random table's d100 on every step of a map with one, and its count dice), `time:<a>:<b>` (holder IDs in canonical order), `eco:<region>`, `story:<region>`, `gen:<x>:<y>:<layer>`. Adding a stream never perturbs an existing one; adding a draw inside a stream perturbs that stream's later draws only, and golden tests are re-baselined in the same commit.
   - **Stateful streams are persisted.** `World.rngs: BTreeMap<StreamName, Pcg32>` holds every stream that has been used, with its state and draw count, so a loaded save continues exactly. A stream absent from the map is created on first use from the formula above, which is why lazily generated regions and never-met holders cost nothing until touched.
   - **Generation streams are stateless.** `omnis-gen` derives each layer's stream fresh from `gen:<x>:<y>:<layer>` and never persists it, so regenerating a layer is a pure function of seed, coordinates, and parameters regardless of play history. Locked tiles are re-applied after generation.
   - **Dice in formulas** draw from the stream of the calling subsystem, passed in the evaluation context; a combat roll and an ecosystem roll never share a stream.
@@ -437,7 +447,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
   3. Replay tests: recorded command scripts under `tests/replays/` reproduce fingerprints; run on macOS and Linux in CI.
   4. Save round-trip: load every fixture save, save, compare fingerprints; migration fixtures for each schema version.
   5. Pack validation corpus: known-bad packs must be rejected with the expected error list.
-  6. App smoke tests with `MinimalPlugins` and `ScheduleRunnerPlugin::run_once()` (no window, no GPU): boot to main menu, start a game, step once, no panics. These are the only tests that touch Bevy.
+  6. App tests with `MinimalPlugins` (no window, no GPU): boot to main menu, start a game, step once, no panics; the menu, party, and fight flows driven by clicks on the composed frame's widgets and by logical keys (`tests/common/mod.rs`); the dev socket over loopback. These are the only tests that touch Bevy.
 - Every bug fix ships with a failing-then-passing test (`CLAUDE.md`).
 
 ## 12. Security
