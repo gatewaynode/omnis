@@ -17,6 +17,17 @@ use serde::{Deserialize, Serialize};
 /// Longest name a character may have, in bytes.
 pub const NAME_MAX_BYTES: usize = 32;
 
+/// Death saving throws in progress: counters while a member lies at zero hit points.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeathSaves {
+    /// Successes so far, 0..=3.
+    pub successes: u8,
+    /// Failures so far, 0..=3.
+    pub failures: u8,
+    /// Stable: no more saves until healed or hurt again.
+    pub stable: bool,
+}
+
 /// A party member's sheet. Scores include racial bonuses; everything carried counts as worn
 /// until equipment slots arrive (M6).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,6 +70,17 @@ pub struct Character {
     pub age_years: u16,
     /// The party clock when the character was created.
     pub created_at: i64,
+    /// Death saving throws in progress, meaningful while `hp` is zero.
+    #[serde(default)]
+    pub death_saves: DeathSaves,
+}
+
+impl Character {
+    /// At zero hit points or below: unconscious or dead, out of the fight.
+    #[must_use]
+    pub const fn is_down(&self) -> bool {
+        self.hp <= 0
+    }
 }
 
 /// What the player chooses. Ids are strings so a command carries no pack-specific numbers.
@@ -217,6 +239,7 @@ pub fn create(
         conditions: vec![],
         age_years: race.starting_age,
         created_at,
+        death_saves: DeathSaves::default(),
     };
     let pool = spell_point_pool(&character, data, rng)?;
     character.spell_points = pool;

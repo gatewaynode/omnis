@@ -5,6 +5,7 @@ use alloc::format;
 use omnis_core::{Dice, Pcg32, RollTrace, StreamName};
 use omnis_data::{Ability, ArmorKind, Data, ItemKind, Skill, Spell};
 use omnis_expr::{RuleError, Value};
+use serde::{Deserialize, Serialize};
 
 /// The SRD ability modifier: `(score - 10) / 2` rounded down.
 #[must_use]
@@ -87,17 +88,67 @@ pub fn armor_class(character: &Character, data: &Data) -> i64 {
     best + shield
 }
 
-/// A d20 roll with its parts, so a client can show the math.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Whether a d20 is rolled once, or twice keeping the better or the worse die.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum RollMode {
+    /// One die.
+    #[default]
+    Normal,
+    /// Two dice, the higher counts.
+    Advantage,
+    /// Two dice, the lower counts.
+    Disadvantage,
+}
+
+impl RollMode {
+    /// The SRD rule: any advantage and any disadvantage cancel to a normal roll.
+    #[must_use]
+    pub const fn combine(advantage: bool, disadvantage: bool) -> RollMode {
+        match (advantage, disadvantage) {
+            (true, false) => RollMode::Advantage,
+            (false, true) => RollMode::Disadvantage,
+            _ => RollMode::Normal,
+        }
+    }
+}
+
+/// A d20 roll with its parts, so a client can show the math. Under advantage or disadvantage
+/// the trace holds both dice (its own total is their sum) and `face` is the one kept.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Roll {
-    /// The die.
+    /// The dice.
     pub trace: RollTrace,
-    /// Ability modifier added.
+    /// How many dice were rolled and which counts.
+    pub mode: RollMode,
+    /// The die that counts.
+    pub face: u32,
+    /// Ability modifier (or a monster's attack bonus) added.
     pub modifier: i64,
     /// Proficiency bonus added, zero when not proficient.
     pub proficiency: i64,
-    /// Die plus both.
+    /// Face plus both.
     pub total: i64,
+}
+
+/// One d20 under a mode: the trace and the face that counts.
+pub fn kept_d20(
+    mode: RollMode,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<(RollTrace, u32), RuleError> {
+    let count = if mode == RollMode::Normal { 1 } else { 2 };
+    let trace = Dice::new(count, 20)
+        .roll(rng, stream)
+        .map_err(|e| RuleError::new("d20", format!("{e}")))?;
+    let faces = trace.rolls.iter().map(|r| r.value);
+    let face = match mode {
+        RollMode::Normal | RollMode::Advantage => faces.max(),
+        RollMode::Disadvantage => faces.min(),
+    }
+    .unwrap_or(1);
+    Ok((trace, face))
 }
 
 fn d20(
@@ -105,21 +156,22 @@ fn d20(
     data: &Data,
     ability: Ability,
     proficient: bool,
+    mode: RollMode,
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
-    let trace = Dice::new(1, 20)
-        .roll(rng, stream)
-        .map_err(|e| RuleError::new("d20", format!("{e}")))?;
+    let (trace, face) = kept_d20(mode, rng, stream)?;
     let modifier = modifier(character.scores[ability.index()]);
     let proficiency = if proficient {
         proficiency_bonus(character.level, data)?
     } else {
         0
     };
-    let total = i64::from(trace.total) + modifier + proficiency;
+    let total = i64::from(face) + modifier + proficiency;
     Ok(Roll {
         trace,
+        mode,
+        face,
         modifier,
         proficiency,
         total,
@@ -132,11 +184,12 @@ pub fn check(
     data: &Data,
     skill: Option<Skill>,
     ability: Ability,
+    mode: RollMode,
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
     let proficient = skill.is_some_and(|s| character.skills.contains(&s));
-    d20(character, data, ability, proficient, rng, stream)
+    d20(character, data, ability, proficient, mode, rng, stream)
 }
 
 /// A saving throw; the class's two saving throws are proficient.
@@ -144,6 +197,7 @@ pub fn save(
     character: &Character,
     data: &Data,
     ability: Ability,
+    mode: RollMode,
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
@@ -151,7 +205,23 @@ pub fn save(
         .classes
         .get(&character.class)
         .is_some_and(|c| c.saving_throws.contains(&ability));
-    d20(character, data, ability, proficient, rng, stream)
+    d20(character, data, ability, proficient, mode, rng, stream)
+}
+
+/// A skill's bonus without a die: the ability modifier plus proficiency when proficient.
+pub fn skill_bonus(character: &Character, data: &Data, skill: Skill) -> Result<i64, RuleError> {
+    let ability = modifier(character.scores[skill.ability().index()]);
+    let proficiency = if character.skills.contains(&skill) {
+        proficiency_bonus(character.level, data)?
+    } else {
+        0
+    };
+    Ok(ability + proficiency)
+}
+
+/// A passive score: 10 plus the skill's bonus (SRD passive checks).
+pub fn passive(character: &Character, data: &Data, skill: Skill) -> Result<i64, RuleError> {
+    Ok(10 + skill_bonus(character, data, skill)?)
 }
 
 /// The spell point pool of a caster at their level (D12, slot `spell_points.pool`); zero for a

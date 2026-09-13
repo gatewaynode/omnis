@@ -4,7 +4,7 @@ use omnis_core::{CharacterId, Pcg32, StreamName};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Ability, Alignment, Data, Skill, load_packs};
 use omnis_rules::{
-    Character, CreationError, Draft, armor_class, check, create, level_for_xp, modifier,
+    Character, CreationError, Draft, RollMode, armor_class, check, create, level_for_xp, modifier,
     point_cost, proficiency_bonus, save, spell_cost, spell_point_pool,
 };
 use std::path::PathBuf;
@@ -283,12 +283,14 @@ fn checks_and_saves_roll_a_traced_d20() {
         &data,
         Some(Skill::Athletics),
         Ability::Strength,
+        RollMode::Normal,
         &mut rng,
         &stream(),
     )
     .unwrap();
     assert_eq!((athletics.modifier, athletics.proficiency), (3, 2));
-    assert_eq!(athletics.total, i64::from(athletics.trace.total) + 5);
+    assert_eq!(athletics.total, i64::from(athletics.face) + 5);
+    assert_eq!(i64::from(athletics.face), i64::from(athletics.trace.total));
     assert_eq!(athletics.trace.stream, stream());
     assert_eq!(rng.draws(), 1);
     let stealth = check(
@@ -296,14 +298,31 @@ fn checks_and_saves_roll_a_traced_d20() {
         &data,
         Some(Skill::Stealth),
         Ability::Dexterity,
+        RollMode::Normal,
         &mut rng,
         &stream(),
     )
     .unwrap();
     assert_eq!((stealth.modifier, stealth.proficiency), (2, 0));
-    let con = save(&fighter, &data, Ability::Constitution, &mut rng, &stream()).unwrap();
+    let con = save(
+        &fighter,
+        &data,
+        Ability::Constitution,
+        RollMode::Normal,
+        &mut rng,
+        &stream(),
+    )
+    .unwrap();
     assert_eq!(con.proficiency, 2, "a fighter's saving throw");
-    let dex = save(&fighter, &data, Ability::Dexterity, &mut rng, &stream()).unwrap();
+    let dex = save(
+        &fighter,
+        &data,
+        Ability::Dexterity,
+        RollMode::Normal,
+        &mut rng,
+        &stream(),
+    )
+    .unwrap();
     assert_eq!(dex.proficiency, 0);
     let mut again = Pcg32::for_stream(3, &stream());
     let replayed = check(
@@ -311,6 +330,7 @@ fn checks_and_saves_roll_a_traced_d20() {
         &data,
         Some(Skill::Athletics),
         Ability::Strength,
+        RollMode::Normal,
         &mut again,
         &stream(),
     )
