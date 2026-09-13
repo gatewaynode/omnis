@@ -43,3 +43,7 @@
 - **Rule**: Before an encounter reaches the owner, measure it: wipe rate over a few hundred seeds for a two-member level-one party, fighting every turn. The first placements stay trivial (a rat or two) until the systems have been played, whatever the golden fight needs.
 - **Rule**: A mechanic that can end a fight before the player's first turn (surprise at the trigger, monster turns resolved inside the trigger command) ships off by default as a rules value, and the screen that follows a fast end shows what happened.
 
+## 2026-09-13 — A commit is gated on its checks, and an edit is proven by the diff
+- **What happened**: I chained the checks and the commit with `;`, so a commit went in with a parse error the checks had just printed (amended before anything was pushed). Earlier, an edit script with relative paths ran from the wrong directory, edited nothing, and the tests "passed" on the untouched tree.
+- **Rule**: The commit follows its checks with `&&`, or runs in a separate call after the check output has been read; never `;`. A commit made in the same command as its checks is proven by building HEAD.
+- **Rule**: Edit scripts anchor on the repository root (`cd` first or absolute paths), and a green run after an edit counts only when `git status` shows the files changed.
