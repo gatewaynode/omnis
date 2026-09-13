@@ -12,6 +12,7 @@ use common::{
     pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
 };
 use omnis_app::cursor::{Pointer, WindowSize};
+use omnis_app::layout::{CANVAS_WIDTH, canvas_rect_to_window};
 use omnis_app::menu::ROW_BEGIN;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
@@ -28,16 +29,18 @@ fn cursor_messages_map_through_the_letterbox_and_track_the_button() {
         *app.world().resource::<WindowSize>(),
         WindowSize(1280.0, 720.0)
     );
-    move_to(&mut app, 1000.0, 400.0);
+    let (x, y, _, _) = canvas_rect_to_window((250, 100, 1, 1), 1280.0, 720.0);
+    move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((250, 100)));
 
-    // A 1920x1200 window letterboxes 60 px above and below the canvas.
+    // A 1920x1200 window letterboxes the canvas: its corner is outside.
     app.insert_resource(WindowSize(1920.0, 1200.0));
     move_to(&mut app, 5.0, 5.0);
     app.update();
     assert_eq!(pointer(&app).canvas, None);
-    move_to(&mut app, 600.0, 660.0);
+    let (x, y, _, _) = canvas_rect_to_window((100, 100, 1, 1), 1920.0, 1200.0);
+    move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((100, 100)));
 
@@ -104,8 +107,9 @@ fn the_window_size_follows_creation_and_resizes() {
         *app.world().resource::<WindowSize>(),
         WindowSize(640.0, 360.0)
     );
-    // The pointer maps through the new size: 640x360 shows the canvas at 2x.
-    move_to(&mut app, 100.0, 50.0);
+    // The pointer maps through the new size.
+    let (x, y, _, _) = canvas_rect_to_window((50, 25, 1, 1), 640.0, 360.0);
+    move_to(&mut app, x, y);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((50, 25)));
 }
@@ -228,7 +232,7 @@ fn the_message_line_shows_rejections_and_notices() {
         "Add at least one member"
     );
     let raster = &frame(&app).frame.raster;
-    let alert = (0..320).any(|x| {
+    let alert = (0..CANVAS_WIDTH as i32).any(|x| {
         raster
             .get(x, omnis_app::layout::BAND_MESSAGE.1 + 3)
             .is_some_and(|p| (p[0], p[1], p[2]) == ALERT)

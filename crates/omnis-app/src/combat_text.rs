@@ -13,6 +13,9 @@ use std::collections::BTreeMap;
 pub const LONG_CELLS: usize = 52;
 /// Cells a short line may take: a roll-log row under the viewport.
 pub const SHORT_CELLS: usize = 39;
+// A long line fits the band's message line; a short one fits the log tail's indent.
+const _: () = assert!(LONG_CELLS <= crate::layout::BAND_COLUMNS);
+const _: () = assert!((SHORT_CELLS as i32) < crate::layout::MENU_COLUMNS);
 
 /// The names events refer to by id. Members are remembered by id after they leave the party
 /// and stacks after a fight ends, so the batch that ends a fight still reads.

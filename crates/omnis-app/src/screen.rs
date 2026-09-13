@@ -351,9 +351,15 @@ mod tests {
             None,
             None,
         );
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]), "the window");
+        let mid = VIEWPORT.w as i32 / 2;
+        let top = crate::combat_screen::TOP_PANEL;
         assert_eq!(
-            frame.raster.get(120, 20),
+            frame.raster.get(mid, top.bottom() + 8),
+            Some([0, 0, 0, 0]),
+            "the window"
+        );
+        assert_eq!(
+            frame.raster.get(top.right() - 2, top.y + 4),
             Some([PANEL.0, PANEL.1, PANEL.2, 255])
         );
         assert!(frame.widget(WidgetId::Stack(0)).is_some());

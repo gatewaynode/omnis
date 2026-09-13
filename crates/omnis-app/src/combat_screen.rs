@@ -6,8 +6,8 @@ use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::SHORT_CELLS;
 use crate::font::fit;
-use crate::layout::{CELL, Rect, VIEWPORT, row_y, rows};
-use crate::screens::{ItemState, item_state, label, label_right, modal};
+use crate::layout::{CELL, MENU_COLUMNS, Rect, VIEWPORT, row_y, rows};
+use crate::screens::{ItemState, MODAL_TEXT_X, item_state, label, label_right, modal};
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
 /// The first stack row.
@@ -54,6 +54,13 @@ pub const DEFEAT_RECT: Rect = Rect::new(
     DEFEAT_SIZE.0,
     DEFEAT_SIZE.1,
 );
+// The rows fit the viewport's grid, the panels and the box sit inside it, and a defeat line
+// fits its box with the modal's margins.
+const _: () = assert!((STACK_CELLS as i32) < MENU_COLUMNS);
+const _: () = assert!(VIEWPORT.encloses(TOP_PANEL) && VIEWPORT.encloses(BOTTOM_PANEL));
+const _: () = assert!(!TOP_PANEL.overlaps(BOTTOM_PANEL) && VIEWPORT.encloses(DEFEAT_RECT));
+const _: () =
+    assert!(CELL.0 as u32 * DEFEAT_LINE_CELLS as u32 + 2 * MODAL_TEXT_X as u32 <= DEFEAT_SIZE.0);
 
 /// The fight: header, stack rows with the target marked, the four actions, the log tail.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
@@ -204,8 +211,9 @@ fn roll_log(frame: &mut Frame, log: &[String]) {
 mod tests {
     use super::*;
     use crate::combat_menu::StackRow;
-    use crate::layout::cell;
+    use crate::layout::{MENU_ROWS, cell};
     use crate::screens::tests::assert_laid_out;
+    use crate::screens::{MODAL_BOTTOM_PAD, MODAL_BUTTON_PITCH, MODAL_LINES_Y, MODAL_TEXT_X};
     use crate::widget::hit;
     use omnis_sim::ModeKind;
     use omnis_sim::omnis_data::{Disposition, Size};
@@ -259,40 +267,49 @@ mod tests {
             assert_eq!(w.rect.right(), cell(1 + STACK_CELLS as i32, 0).0);
             assert_eq!(w.enabled, i != 3, "the slain row is inert");
         }
-        assert!(frame.widget(WidgetId::Action(3)).unwrap().rect.right() <= 240);
-        assert_eq!(rgb(&frame, 120, 20), Some(PANEL), "the top band");
-        assert_eq!(rgb(&frame, 120, 100), Some(PANEL), "the bottom band");
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]), "the window");
-        assert_eq!(frame.raster.get(120, 87), Some([0, 0, 0, 0]));
-        assert_eq!(rgb(&frame, 120, 88), Some(PANEL));
+        let run = frame.widget(WidgetId::Action(3)).unwrap();
+        assert!(run.rect.right() <= VIEWPORT.right());
+        let mid = VIEWPORT.w as i32 / 2;
+        let (top, bottom) = (TOP_PANEL, BOTTOM_PANEL);
+        assert_eq!(rgb(&frame, top.right() - 2, top.y + 4), Some(PANEL), "top");
+        assert_eq!(rgb(&frame, bottom.right() - 2, bottom.y + 4), Some(PANEL));
+        let clear = Some([0, 0, 0, 0]);
+        assert_eq!(frame.raster.get(mid, top.bottom() + 8), clear, "the window");
+        assert_eq!(frame.raster.get(mid, top.bottom()), clear);
+        assert_eq!(frame.raster.get(mid, bottom.y - 1), clear);
+        assert_eq!(rgb(&frame, mid, bottom.y), Some(PANEL));
         let target = frame.widget(WidgetId::Stack(1)).unwrap();
         assert_eq!(
             rgb(&frame, target.rect.x - 5, target.rect.y + 1),
             Some(HI),
             "the marker sits before the target"
         );
-        let (x, y) = cell(1, 15);
+        let (x, y) = cell(1, MENU_ROWS - 1);
         assert_eq!(
             rgb(&frame, x, y + 1),
             Some(TEXT),
             "the newest line is bright"
         );
-        let (x, y) = cell(1, 12);
+        let (x, y) = cell(1, FIRST_LOG_ROW);
         assert_eq!(rgb(&frame, x, y + 1), Some(DIM), "older lines are dim");
-        let (x, y) = cell(1 + SHORT_CELLS as i32, 12);
+        let (x, y) = cell(1 + SHORT_CELLS as i32, FIRST_LOG_ROW);
         assert_eq!(frame.raster.get(x, y + 1), Some([0, 0, 0, 0]), "clipped");
         let action = frame.widget(WidgetId::Action(2)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
         assert_eq!((h.id, h.kind), (WidgetId::Action(2), Kind::Button));
         let (_, y) = cell(0, COUNT_ROW);
-        let digits = (0..240)
+        let digits = (0..VIEWPORT.right())
             .filter(|x| rgb(&frame, *x, y + 1) == Some(TEXT))
             .count();
         assert!(digits > 0, "the counts sit under the silhouettes");
         assert_eq!(
-            frame.raster.get(120, y - 1),
-            Some([0, 0, 0, 0]),
-            "row 9 is clear"
+            frame.raster.get(mid, y - 1),
+            clear,
+            "the row above is clear"
+        );
+        assert!(
+            y + CELL.1 <= bottom.y,
+            "the counts end above the bottom panel"
         );
     }
 
@@ -306,15 +323,19 @@ mod tests {
         assert_eq!(frame.widgets.len(), 4, "the stacks are text before a fight");
         let bribe = frame.widget(WidgetId::Action(1)).unwrap();
         assert!(!bribe.enabled, "9999 gold is more than the purse");
-        assert_eq!(bribe.rect.w, 6 * "Bribe 9999g".len() as u32);
+        assert_eq!(bribe.rect.w, CELL.0 as u32 * "Bribe 9999g".len() as u32);
         assert!(frame.widget(WidgetId::Action(0)).unwrap().enabled);
         view.bribe = Some(0);
         let mut frame = Frame::default();
         encounter(&mut frame, &view, &menu);
         let bribe = frame.widget(WidgetId::Action(1)).unwrap();
         assert!(bribe.enabled);
-        assert_eq!(bribe.rect.w, 6 * "Bribe free".len() as u32);
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]));
+        assert_eq!(bribe.rect.w, CELL.0 as u32 * "Bribe free".len() as u32);
+        let mid = VIEWPORT.w as i32 / 2;
+        assert_eq!(
+            frame.raster.get(mid, TOP_PANEL.bottom() + 8),
+            Some([0, 0, 0, 0])
+        );
     }
 
     #[test]
@@ -334,12 +355,12 @@ mod tests {
             empty,
             "the log's tail is painted"
         );
-        // Three lines of at most 20 cells fit between the title and the buttons: the
-        // longest line ends inside the box.
-        let right = DEFEAT_RECT.x + 12 + 6 * DEFEAT_LINE_CELLS as i32;
+        // The lines fit between the title and the buttons: the longest ends inside the box.
+        let right = DEFEAT_RECT.x + MODAL_TEXT_X + CELL.0 * DEFEAT_LINE_CELLS as i32;
         assert!(right < DEFEAT_RECT.right(), "{right}");
+        let first_line = DEFEAT_RECT.y + MODAL_LINES_Y;
         assert_eq!(
-            frame.raster.get(right + 2, DEFEAT_RECT.y + 19),
+            frame.raster.get(right + 2, first_line + 1),
             Some([PANEL.0, PANEL.1, PANEL.2, 255]),
             "nothing past the clipped line"
         );
@@ -348,16 +369,22 @@ mod tests {
             assert!(DEFEAT_RECT.encloses(w.rect));
         }
         assert_eq!(
-            frame.raster.get(10, 10),
+            frame.raster.get(DEFEAT_RECT.x - 10, DEFEAT_RECT.y - 10),
             Some([0, 0, 0, 0]),
             "the world shows"
         );
         // The log lines cross the box's middle; its margin past them stays panel.
-        assert_eq!(rgb(&frame, DEFEAT_RECT.right() - 3, 60), Some(PANEL));
-        assert_eq!(rgb(&frame, 120, DEFEAT_RECT.y + 16), Some(PANEL));
+        assert_eq!(
+            rgb(&frame, DEFEAT_RECT.right() - 3, first_line + 4),
+            Some(PANEL)
+        );
+        let mid = DEFEAT_RECT.x + DEFEAT_RECT.w as i32 / 2;
+        assert_eq!(rgb(&frame, mid, first_line - 2), Some(PANEL));
         // The last line ends above the first button's row.
-        let last_line_bottom = DEFEAT_RECT.y + 18 + 8 * DEFEAT_LOG_ROWS as i32;
-        let first_button = DEFEAT_RECT.bottom() - 10 * DefeatMenu::ITEMS.len() as i32 - 4;
+        let last_line_bottom = first_line + CELL.1 * DEFEAT_LOG_ROWS as i32;
+        let first_button = DEFEAT_RECT.bottom()
+            - MODAL_BUTTON_PITCH * DefeatMenu::ITEMS.len() as i32
+            - MODAL_BOTTOM_PAD;
         assert!(
             last_line_bottom < first_button,
             "{last_line_bottom} vs {first_button}"

@@ -329,56 +329,76 @@ impl Camera {
 mod tests {
     use super::*;
 
+    /// The canvas as floats, for windows of a whole multiple of it.
+    const W: f32 = CANVAS_WIDTH as f32;
+    const H: f32 = CANVAS_HEIGHT as f32;
+
     #[test]
     fn canvas_rectangles_land_on_the_letterboxed_canvas() {
-        assert_eq!(window_scale(1280.0, 720.0), 4.0);
-        assert_eq!(window_scale(3840.0, 2160.0), 12.0);
-        assert_eq!(window_scale(1000.0, 600.0), 3.0);
-        assert_eq!(window_scale(100.0, 50.0), 1.0);
+        assert_eq!(window_scale(4.0 * W, 4.0 * H), 4.0);
+        assert_eq!(window_scale(12.0 * W, 12.0 * H), 12.0);
+        assert_eq!(window_scale(3.0 * W + 40.0, 3.0 * H + 60.0), 3.0);
+        assert_eq!(window_scale(W / 3.0, H / 3.0), 1.0, "never below one");
+        let (x, y, w, h) = PAD.tuple();
         assert_eq!(
-            canvas_rect_to_window(PAD.tuple(), 1280.0, 720.0),
-            (976.0, 400.0, 304.0, 140.0)
+            canvas_rect_to_window(PAD.tuple(), 4.0 * W, 4.0 * H),
+            (
+                4.0 * x as f32,
+                4.0 * y as f32,
+                4.0 * w as f32,
+                4.0 * h as f32
+            )
         );
-        // 1920x1200 shows the canvas at 6x with 60 px of letterbox above and below.
+        // A window 120 px taller than 6x shows the canvas at 6x with 60 px above and below.
         assert_eq!(
-            canvas_rect_to_window((0, 0, 320, 180), 1920.0, 1200.0),
-            (0.0, 60.0, 1920.0, 1080.0)
+            canvas_rect_to_window(CANVAS.tuple(), 6.0 * W, 6.0 * H + 120.0),
+            (0.0, 60.0, 6.0 * W, 6.0 * H)
         );
     }
 
     #[test]
     fn the_scale_never_overflows_the_window() {
-        // 1150x650 is just under 4x: rounding gave 4 and a 1280x720 canvas in a smaller window.
-        assert_eq!(window_scale(1150.0, 650.0), 3.0);
-        assert_eq!(window_scale(1279.0, 720.0), 3.0);
-        assert_eq!(window_scale(2462.0, 1284.0), 7.0);
+        // Just under 4x: rounding gave 4 and a canvas larger than the window.
+        assert_eq!(window_scale(4.0 * W - 130.0, 4.0 * H - 70.0), 3.0);
+        assert_eq!(window_scale(4.0 * W - 1.0, 4.0 * H), 3.0);
+        assert_eq!(window_scale(7.0 * W + 222.0, 7.0 * H + 24.0), 7.0);
     }
 
     #[test]
     fn window_positions_map_back_to_canvas_pixels() {
+        let (px, py) = (PAD.x as f32, PAD.y as f32);
+        let four = (4.0 * W, 4.0 * H);
         assert_eq!(
-            window_to_canvas((976.0, 304.0), 1280.0, 720.0),
-            Some((244, 76))
+            window_to_canvas((4.0 * px, 4.0 * py), four.0, four.1),
+            Some((PAD.x, PAD.y))
         );
         assert_eq!(
-            window_to_canvas((979.9, 307.9), 1280.0, 720.0),
-            Some((244, 76))
+            window_to_canvas((4.0 * px + 3.9, 4.0 * py + 3.9), four.0, four.1),
+            Some((PAD.x, PAD.y))
         );
-        assert_eq!(window_to_canvas((0.0, 0.0), 1280.0, 720.0), Some((0, 0)));
+        assert_eq!(window_to_canvas((0.0, 0.0), four.0, four.1), Some((0, 0)));
+        let last = (CANVAS_WIDTH as i32 - 1, CANVAS_HEIGHT as i32 - 1);
         assert_eq!(
-            window_to_canvas((1279.0, 719.0), 1280.0, 720.0),
-            Some((319, 179))
+            window_to_canvas((four.0 - 1.0, four.1 - 1.0), four.0, four.1),
+            Some(last)
         );
-        assert_eq!(window_to_canvas((1280.0, 719.0), 1280.0, 720.0), None);
-        // 1920x1200: the top 60 px are letterbox.
-        assert_eq!(window_to_canvas((0.0, 30.0), 1920.0, 1200.0), None);
-        assert_eq!(window_to_canvas((0.0, 60.0), 1920.0, 1200.0), Some((0, 0)));
         assert_eq!(
-            window_to_canvas((1919.0, 1139.0), 1920.0, 1200.0),
-            Some((319, 179))
+            window_to_canvas((four.0, four.1 - 1.0), four.0, four.1),
+            None
         );
-        assert_eq!(window_to_canvas((1919.0, 1140.0), 1920.0, 1200.0), None);
-        assert_eq!(window_to_canvas((-1.0, 100.0), 1280.0, 720.0), None);
+        // 120 px taller than 6x: the top 60 px are letterbox.
+        let six = (6.0 * W, 6.0 * H + 120.0);
+        assert_eq!(window_to_canvas((0.0, 30.0), six.0, six.1), None);
+        assert_eq!(window_to_canvas((0.0, 60.0), six.0, six.1), Some((0, 0)));
+        assert_eq!(
+            window_to_canvas((six.0 - 1.0, 59.0 + 6.0 * H), six.0, six.1),
+            Some(last)
+        );
+        assert_eq!(
+            window_to_canvas((six.0 - 1.0, 60.0 + 6.0 * H), six.0, six.1),
+            None
+        );
+        assert_eq!(window_to_canvas((-1.0, 100.0), four.0, four.1), None);
     }
 
     #[test]
@@ -430,8 +450,18 @@ mod tests {
         assert!(BAND.encloses(message) && BAND.encloses(help));
         assert!(message.bottom() <= BAND_ROWS[0] && BAND_ROWS[2] + CELL.1 <= help.y);
         assert_eq!(cell(0, 0), (1, 0));
-        assert_eq!(cell(MENU_COLUMNS, 0).0, 241);
+        assert_eq!(
+            cell(MENU_COLUMNS, 0).0,
+            VIEWPORT.right() + 1,
+            "the column past the menu grid clears the viewport by a pixel"
+        );
         assert!(cell(MENU_COLUMNS - 1, MENU_ROWS - 1).1 + CELL.1 <= VIEWPORT.bottom());
-        assert_eq!((COLUMNS * CELL.0, ROWS * CELL.1), (318, 176));
+        let (w, h) = (CANVAS_WIDTH as i32, CANVAS_HEIGHT as i32);
+        assert!(COLUMNS * CELL.0 <= w && (COLUMNS + 1) * CELL.0 > w);
+        assert!(ROWS * CELL.1 <= h && (ROWS + 1) * CELL.1 > h);
+        assert!(
+            HUD_LINES[2].1 + CELL.1 <= PAD.y,
+            "the location lines end above the pad"
+        );
     }
 }

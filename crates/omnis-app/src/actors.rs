@@ -175,13 +175,15 @@ mod tests {
 
     #[test]
     fn every_size_stands_on_its_floor_line_inside_the_viewport() {
+        let camera = Camera::new(VIEWPORT_SIZE);
         for size in SIZES {
             for front in [true, false] {
                 let actors: Vec<Actor> = (0..5).map(|i| actor(i, size, front)).collect();
                 let placed = silhouettes(&actors);
                 assert_eq!(placed.len(), 5);
                 for s in &placed {
-                    assert_eq!(s.rect.bottom(), if front { 88 } else { 81 }, "{size:?}");
+                    let feet = camera.sy(0.0, if front { FRONT_Z } else { BACK_Z }).round();
+                    assert_eq!(s.rect.bottom(), feet as i32, "{size:?}");
                     assert!(!front || s.rect.bottom() == FRONT_FEET_Y);
                     assert!(VIEWPORT.encloses(s.rect), "{size:?} {s:?}");
                 }
@@ -191,7 +193,9 @@ mod tests {
             }
         }
         let front = silhouettes(&[actor(0, Size::Tiny, true), actor(1, Size::Gargantuan, true)]);
-        assert_eq!((front[0].rect.h, front[1].rect.h), (12, 60));
+        let tiles = |size| (height_tiles(size) * camera.focal / FRONT_Z) as u32;
+        let expected = (tiles(Size::Tiny), tiles(Size::Gargantuan));
+        assert_eq!((front[0].rect.h, front[1].rect.h), expected);
         let back = silhouettes(&[actor(0, Size::Large, false)]);
         assert!(back[0].rect.h < front[1].rect.h, "distance shrinks");
     }
@@ -204,7 +208,7 @@ mod tests {
             .iter()
             .map(|s| s.rect.x + s.rect.w as i32 / 2)
             .collect();
-        assert_eq!(centres[0], 120);
+        assert_eq!(centres[0], i32::from(VIEWPORT_SIZE.0) / 2);
         assert!(centres[3] < centres[1] && centres[1] < centres[0]);
         assert!(centres[0] < centres[2] && centres[2] < centres[4]);
         assert_eq!(centres[0] - centres[1], centres[2] - centres[0]);

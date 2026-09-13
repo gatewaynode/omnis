@@ -139,7 +139,7 @@ The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the 
 - [x] Text (2026-09-13): the member `Turn` line is silent (the header, log, and message line no longer say "to act"); `FightView.actor` removed
 - [x] Silhouette rims (2026-09-13): a one-pixel light edge under the four fills
 - [x] Layout derivation with no behaviour change (2026-09-13): every region a `const` expression of the inputs; `FRONT_FEET_Y`; modal and pad constants
-- [ ] Tests as invariants at 320×180; `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
+- [x] Tests as invariants at 320×180 (2026-09-13); `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
 - [ ] `ui.rs`: compose into a scratch frame, upload on change
 - [ ] Bake `texel_scale`
 - [ ] The resize and the bake in one commit (1280×720, 960×540, scales 8/16, pad 96×40; specs, tiles, PNGs; replays rebaselined with the sim fingerprints unchanged)

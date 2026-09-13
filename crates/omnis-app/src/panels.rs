@@ -250,18 +250,22 @@ pub fn band(frame: &mut Frame, view: &Band<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::{CANVAS, VIEWPORT};
 
     #[test]
-    fn location_lines_fit_thirteen_cells() {
+    fn location_lines_fit_the_hud() {
         let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
         assert_eq!(hud.map, "Test Dungeon");
         assert_eq!(hud.position, "3,4 S");
         assert_eq!(hud.clock, "Day 1 03:28");
-        let wide = Hud::new("The Sunken Cathedral", 65535, 65535, "north", 0);
-        assert_eq!(wide.map, "The Sunken Ca");
+        let name = "The Sunken Cathedral of the Drowned Kings and Their Court";
+        let wide = Hud::new(name, 65535, 65535, "north", 0);
+        assert_eq!(wide.map, fit(name, HUD_COLUMNS));
+        assert!(wide.map.len() <= HUD_COLUMNS && wide.position.len() <= HUD_COLUMNS);
         assert_eq!(wide.position, "65535,65535 N");
-        assert_eq!(clock_text(1440 * 998 + 208), "Day 999 03:28");
-        assert_eq!(clock_text(1440 * 999 + 208), "D1000 03:28");
+        // At thirteen cells the day number runs out of room after day 999.
+        assert_eq!(clock_text_in(1440 * 998 + 208, 13), "Day 999 03:28");
+        assert_eq!(clock_text_in(1440 * 999 + 208, 13), "D1000 03:28");
         assert!(clock_text(i64::MAX).len() <= HUD_COLUMNS);
         assert_eq!(Hud::new("", 0, 0, "", 0).position, "0,0 ?");
     }
@@ -318,24 +322,34 @@ mod tests {
         let mut frame = Frame::default();
         backdrop(&mut frame);
         let panel = [PANEL.0, PANEL.1, PANEL.2, 255];
+        let (mx, my, mw, mh) = SIDEBAR_MAP;
+        let clear = Some([0, 0, 0, 0]);
+        let get = |x, y| frame.raster.get(x, y);
         assert_eq!(
-            frame.raster.get(240, 60),
+            get(RIGHT_COLUMN.x, my + 10),
             Some(panel),
             "left of the minimap"
         );
-        assert_eq!(frame.raster.get(319, 0), Some(panel), "the column's corner");
-        assert_eq!(frame.raster.get(300, 100), Some(panel), "under the minimap");
-        assert_eq!(frame.raster.get(100, 150), Some(panel), "the band");
         assert_eq!(
-            frame.raster.get(280, 40),
-            Some([0, 0, 0, 0]),
-            "the minimap shows through"
+            get(CANVAS.right() - 1, 0),
+            Some(panel),
+            "the column's corner"
         );
         assert_eq!(
-            frame.raster.get(100, 100),
-            Some([0, 0, 0, 0]),
-            "the viewport shows through"
+            get(mx + 10, my + mh as i32 + 2),
+            Some(panel),
+            "under the minimap"
         );
+        assert_eq!(get(mx + mw as i32, my + 10), Some(panel), "right of it");
+        assert_eq!(get(100, BAND.y + 10), Some(panel), "the band");
+        assert_eq!(get(mx + 10, my + 10), clear, "the minimap shows through");
+        assert_eq!(get(mx + mw as i32 - 1, my + mh as i32 - 1), clear);
+        assert_eq!(
+            get(VIEWPORT.w as i32 / 2, VIEWPORT.h as i32 / 2),
+            clear,
+            "the viewport"
+        );
+        assert_eq!(get(VIEWPORT.right() - 1, VIEWPORT.bottom() - 1), clear);
     }
 
     #[test]

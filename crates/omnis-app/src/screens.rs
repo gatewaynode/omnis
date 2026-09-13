@@ -477,7 +477,7 @@ pub(crate) mod tests {
                 .right
                 .unwrap()
                 .right()
-                <= 241
+                <= cell(MENU_COLUMNS, 0).0
         );
         let mut frame = Frame::default();
         let catalog = catalog();
@@ -509,7 +509,8 @@ pub(crate) mod tests {
         let right = race.right.unwrap();
         let h = hit(&frame.widgets, right.x, right.y).unwrap();
         assert_eq!((h.id, h.part), (WidgetId::Row(ROW_RACE), Part::Right));
-        let h = hit(&frame.widgets, race.rect.x + 100, race.rect.y).unwrap();
+        let mid = race.rect.x + race.rect.w as i32 / 2;
+        let h = hit(&frame.widgets, mid, race.rect.y).unwrap();
         assert_eq!((h.id, h.part), (WidgetId::Row(ROW_RACE), Part::Body));
         let str_row = frame.widget(WidgetId::Row(ROW_SCORES)).unwrap();
         assert_eq!(str_row.left.unwrap().x, cell(5, 6).0);
@@ -524,7 +525,7 @@ pub(crate) mod tests {
             Kind::Toggle
         );
         assert_eq!(hit(&frame.widgets, 0, 0), None);
-        assert_eq!(hit(&frame.widgets, 300, 100), None);
+        assert_eq!(hit(&frame.widgets, VIEWPORT.right() + 60, 100), None);
     }
 
     fn press(form: &mut CreationForm, catalog: &Catalog, keys: Vec<MenuKey>) {
@@ -588,6 +589,8 @@ pub(crate) mod tests {
         assert_eq!(frame.raster.get(x, y + 1), Some([DIM.0, DIM.1, DIM.2, 255]));
         let mut frame = Frame::default();
         let rect = Rect::new(48, 32, 144, 64);
+        let inside = (rect.x + 2, rect.y + rect.h as i32 / 2);
+        let outside = (rect.x - 10, rect.y - 10);
         modal(
             &mut frame,
             rect,
@@ -602,15 +605,16 @@ pub(crate) mod tests {
             assert!(rect.encloses(w.rect), "{:?}", w.id);
         }
         assert_eq!(
-            frame.raster.get(48, 32),
+            frame.raster.get(rect.x, rect.y),
             Some([FRAME.0, FRAME.1, FRAME.2, 255])
         );
         assert_eq!(
-            frame.raster.get(100, 60),
-            Some([PANEL.0, PANEL.1, PANEL.2, 255])
+            frame.raster.get(inside.0, inside.1),
+            Some([PANEL.0, PANEL.1, PANEL.2, 255]),
+            "the margin inside the frame is panel"
         );
         assert_eq!(
-            frame.raster.get(20, 20),
+            frame.raster.get(outside.0, outside.1),
             Some([0, 0, 0, 0]),
             "outside is untouched"
         );

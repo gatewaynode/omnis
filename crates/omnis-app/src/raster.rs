@@ -215,8 +215,8 @@ mod tests {
         let mut a = Raster::default();
         let b = a.clone();
         assert_eq!(a.fingerprint(), b.fingerprint());
-        a.set(319, 179, INK);
+        a.set(CANVAS_WIDTH as i32 - 1, CANVAS_HEIGHT as i32 - 1, INK);
         assert_ne!(a.fingerprint(), b.fingerprint());
-        assert_eq!(a.get(320, 0), None);
+        assert_eq!(a.get(CANVAS_WIDTH as i32, 0), None);
     }
 }

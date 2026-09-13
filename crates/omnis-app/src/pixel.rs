@@ -91,10 +91,11 @@ mod tests {
 
     #[test]
     fn scale_is_an_integer_fit() {
-        assert_eq!(integer_scale(1280.0, 720.0), 0.25);
-        assert_eq!(integer_scale(1920.0, 1080.0), 1.0 / 6.0);
-        assert_eq!(integer_scale(2560.0, 1440.0), 0.125);
-        assert_eq!(integer_scale(3840.0, 2160.0), 1.0 / 12.0);
-        assert_eq!(integer_scale(200.0, 100.0), 1.0, "never below one");
+        let (w, h) = (CANVAS_WIDTH as f32, CANVAS_HEIGHT as f32);
+        assert_eq!(integer_scale(4.0 * w, 4.0 * h), 0.25);
+        assert_eq!(integer_scale(6.0 * w, 6.0 * h), 1.0 / 6.0);
+        assert_eq!(integer_scale(8.0 * w + 100.0, 8.0 * h), 0.125);
+        assert_eq!(integer_scale(12.0 * w, 12.0 * h), 1.0 / 12.0);
+        assert_eq!(integer_scale(w / 2.0, h / 2.0), 1.0, "never below one");
     }
 }
