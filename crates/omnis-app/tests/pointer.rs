@@ -294,7 +294,10 @@ fn the_message_line_shows_rejections_and_notices() {
     let raster = &frame(&app).frame.raster;
     let alert = (0..CANVAS_WIDTH as i32).any(|x| {
         raster
-            .get(x, omnis_app::layout::BAND_MESSAGE.1 + 3)
+            .get(
+                x,
+                omnis_app::band::band_cell(0, omnis_app::band::MESSAGE_ROW).1 + 3,
+            )
             .is_some_and(|p| (p[0], p[1], p[2]) == ALERT)
     });
     assert!(alert, "the rejection is painted in the alert colour");

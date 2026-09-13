@@ -1,14 +1,11 @@
 //! The parts of the frame that live outside the menus: the location lines and the movement
-//! pad in the right column, and the bottom band with the message, the party, and the help
-//! line. Text models are fitted to their cells here so the widths are testable.
+//! pad in the right column, and the backdrop under them and the band (`band.rs` paints the
+//! band itself). Text models are fitted to their cells here so the widths are testable.
 
 use crate::font::{GLYPH_HEIGHT, fit};
-use crate::layout::{
-    BAND, BAND_BACK_X, BAND_COLUMNS, BAND_FRONT_X, BAND_HELP, BAND_MESSAGE, BAND_ROW_COLUMNS,
-    BAND_ROWS, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP,
-};
+use crate::layout::{BAND, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP};
 use crate::widget::{
-    ALERT, DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, SP, TEXT, Widget, WidgetId,
+    DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, TEXT, Widget, WidgetId,
 };
 use omnis_sim::MINUTES_PER_DAY;
 
@@ -59,55 +56,6 @@ pub(crate) fn clock_text_in(elapsed: i64, columns: usize) -> String {
             &format!("D{day} {:02}:{:02}", minute / 60, minute % 60),
             columns,
         )
-    }
-}
-
-/// One party slot as the band shows it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct MemberRow {
-    /// The name.
-    pub name: String,
-    /// The class's display name.
-    pub class: String,
-    /// Hit points.
-    pub hp: i32,
-    /// Hit point maximum.
-    pub hp_max: i32,
-    /// Spell points.
-    pub sp: u32,
-    /// The first condition's initial.
-    pub condition: Option<char>,
-}
-
-impl MemberRow {
-    /// The name column: ten cells.
-    #[must_use]
-    pub fn name_text(&self) -> String {
-        format!("{:<10}", fit(&self.name, 10))
-    }
-
-    /// The points column after the name: ` hp/max sp c`, twelve cells at most.
-    #[must_use]
-    pub fn points_text(&self) -> String {
-        format!(
-            " {:>3}/{:<3} {:>2} {}",
-            self.hp.clamp(-99, 999),
-            self.hp_max.clamp(0, 999),
-            self.sp.min(99),
-            crate::font::printable(self.condition.unwrap_or(' '))
-        )
-    }
-
-    /// The class column after the name, while creating.
-    #[must_use]
-    pub fn class_text(&self) -> String {
-        format!(" {}", fit(&self.class, BAND_ROW_COLUMNS - 11))
-    }
-
-    /// Whether hit points are below a quarter.
-    #[must_use]
-    pub fn hp_low(&self) -> bool {
-        self.hp * 4 < self.hp_max
     }
 }
 
@@ -181,72 +129,6 @@ pub fn pad(frame: &mut Frame, state: PadState, pressed: Option<WidgetId>) {
     }
 }
 
-/// Where a party slot's row starts, if it is shown: the front row fills the left column,
-/// the back row the right one.
-#[must_use]
-pub fn slot_origin(slot: usize, front_row: usize) -> Option<(i32, i32)> {
-    let front = front_row.min(BAND_ROWS.len());
-    if slot < front {
-        Some((BAND_FRONT_X, BAND_ROWS[slot]))
-    } else {
-        BAND_ROWS.get(slot - front).map(|y| (BAND_BACK_X, *y))
-    }
-}
-
-/// What the band shows.
-pub struct Band<'a> {
-    /// The message line.
-    pub message: &'a Message,
-    /// The party, in marching order.
-    pub members: &'a [MemberRow],
-    /// How many members stand in front.
-    pub front_row: usize,
-    /// The member the mouse selected.
-    pub selected: Option<usize>,
-    /// Whether rows show classes (creation) instead of points.
-    pub creating: bool,
-    /// The help line.
-    pub help: &'a str,
-}
-
-/// Paint the band: message, party rows, help.
-pub fn band(frame: &mut Frame, view: &Band<'_>) {
-    let color = if view.message.alert { ALERT } else { TEXT };
-    frame.raster.text(
-        BAND_MESSAGE.0,
-        BAND_MESSAGE.1,
-        &fit(&view.message.text, BAND_COLUMNS),
-        color,
-    );
-    for (slot, member) in view.members.iter().enumerate() {
-        let Some((x, y)) = slot_origin(slot, view.front_row) else {
-            continue;
-        };
-        let selected = view.selected == Some(slot);
-        let name_color = if selected { HI } else { TEXT };
-        frame.raster.text(x, y, &member.name_text(), name_color);
-        let after = x + 10 * CELL.0;
-        if view.creating {
-            frame.raster.text(after, y, &member.class_text(), TEXT);
-        } else {
-            let points = member.points_text();
-            let hp_color = if member.hp_low() { ALERT } else { TEXT };
-            frame.raster.text(after, y, &points[..8], hp_color);
-            frame.raster.text(after + 8 * CELL.0, y, &points[8..11], SP);
-            frame
-                .raster
-                .text(after + 11 * CELL.0, y, &points[11..], ALERT);
-        }
-        let rect = Rect::new(x, y, BAND_ROW_COLUMNS as u32 * CELL.0 as u32, CELL.1 as u32);
-        frame
-            .widgets
-            .push(Widget::new(WidgetId::Member(slot), rect, Kind::Button));
-    }
-    frame
-        .raster
-        .text(BAND_HELP.0, BAND_HELP.1, &fit(view.help, BAND_COLUMNS), DIM);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,53 +150,6 @@ mod tests {
         assert_eq!(clock_text_in(1440 * 999 + 208, 13), "D1000 03:28");
         assert!(clock_text(i64::MAX).len() <= HUD_COLUMNS);
         assert_eq!(Hud::new("", 0, 0, "", 0).position, "0,0 ?");
-    }
-
-    #[test]
-    fn party_rows_fit_twenty_six_cells_at_their_widest() {
-        let row = MemberRow {
-            name: "Bartholomew Longname".into(),
-            class: "Fighter".into(),
-            hp: -99,
-            hp_max: 999,
-            sp: 99,
-            condition: Some('P'),
-        };
-        let text = row.name_text() + row.points_text().as_str();
-        assert_eq!(text, "Bartholome -99/999 99 P");
-        assert!(text.len() <= BAND_ROW_COLUMNS);
-        let brenna = MemberRow {
-            name: "Brenna".into(),
-            class: "Wizard".into(),
-            hp: 12,
-            hp_max: 12,
-            sp: 4,
-            condition: None,
-        };
-        assert_eq!(
-            brenna.name_text() + brenna.points_text().as_str(),
-            "Brenna      12/12   4  "
-        );
-        assert_eq!(
-            brenna.name_text() + brenna.class_text().as_str(),
-            "Brenna     Wizard"
-        );
-        assert!(!brenna.hp_low());
-        assert!(
-            MemberRow {
-                hp: 2,
-                hp_max: 9,
-                ..brenna.clone()
-            }
-            .hp_low()
-        );
-        let long_class = MemberRow {
-            class: "Battle Chaplain of the Dawn".into(),
-            ..brenna
-        };
-        assert!(
-            (long_class.name_text() + long_class.class_text().as_str()).len() <= BAND_ROW_COLUMNS
-        );
     }
 
     #[test]
@@ -350,16 +185,5 @@ mod tests {
             "the viewport"
         );
         assert_eq!(get(VIEWPORT.right() - 1, VIEWPORT.bottom() - 1), clear);
-    }
-
-    #[test]
-    fn slots_fill_the_front_column_then_the_back_column() {
-        assert_eq!(slot_origin(0, 3), Some((BAND_FRONT_X, BAND_ROWS[0])));
-        assert_eq!(slot_origin(2, 3), Some((BAND_FRONT_X, BAND_ROWS[2])));
-        assert_eq!(slot_origin(3, 3), Some((BAND_BACK_X, BAND_ROWS[0])));
-        assert_eq!(slot_origin(5, 3), Some((BAND_BACK_X, BAND_ROWS[2])));
-        assert_eq!(slot_origin(6, 3), None);
-        assert_eq!(slot_origin(1, 1), Some((BAND_BACK_X, BAND_ROWS[0])));
-        assert_eq!(slot_origin(3, 4), Some((BAND_BACK_X, BAND_ROWS[0])));
     }
 }

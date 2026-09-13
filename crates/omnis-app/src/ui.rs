@@ -3,12 +3,13 @@
 //! canvas sprite above the viewport. Headless-capable: without a render stack the frame is
 //! still composed as a resource and nothing is uploaded.
 
+use crate::band::MemberRow;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
-use crate::panels::{Hud, MemberRow, Message};
+use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
@@ -55,7 +56,7 @@ pub struct MessageLine(pub Message);
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
 pub struct EventNames(pub Names);
 
-/// The roll log, oldest first; the fight screen shows its tail.
+/// The event log, oldest first, with the roll math; the band shows its tail.
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
 pub struct RollLog(pub Vec<String>);
 
@@ -274,14 +275,16 @@ pub fn member_rows(world: &World, data: &Data) -> Vec<MemberRow> {
                 .get(&m.class)
                 .map_or("?", |c| data.label("en", &c.name))
                 .to_owned(),
+            level: m.level,
             hp: m.hp,
             hp_max: m.hp_max,
             sp: m.spell_points,
+            ac: omnis_sim::omnis_rules::armor_class(m, data),
             condition: m
                 .conditions
                 .first()
                 .and_then(|c| data.conditions.get(c))
-                .and_then(|c| data.label("en", &c.name).chars().next()),
+                .map(|c| data.label("en", &c.name).to_owned()),
         })
         .collect()
 }
@@ -356,7 +359,6 @@ fn menu_for<'a>(
             Menu::Combat {
                 menu: &screens.combat,
                 view,
-                log,
             },
             HELP_COMBAT,
         ),
@@ -413,7 +415,11 @@ fn build_frame(
         members: &members,
         front_row,
         selected: selected.0.filter(|s| *s < members.len()),
-        creating: active == Active::CreateParty,
+        acting: fight
+            .as_ref()
+            .and_then(|f| f.own)
+            .filter(|s| *s < members.len()),
+        log: &log.0,
         pad,
         message: model_message.as_ref().unwrap_or(&line.0),
         help,

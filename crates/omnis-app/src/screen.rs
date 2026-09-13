@@ -2,11 +2,12 @@
 //! the composition of the menus, the location lines, the pad, and the band into one frame.
 //! Bevy-free.
 
+use crate::band::{self, Band, MemberRow};
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
 use crate::layout::{MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
-use crate::panels::{self, Band, Hud, MemberRow, Message};
+use crate::panels::{self, Hud, Message};
 use crate::screens;
 use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
 use omnis_sim::Settings;
@@ -110,14 +111,12 @@ pub enum Menu<'a> {
         /// The view.
         view: &'a FightView,
     },
-    /// The fight, over the scene, with the roll log.
+    /// The fight, over the scene.
     Combat {
         /// The menu.
         menu: &'a CombatMenu,
         /// The view.
         view: &'a FightView,
-        /// The roll log, oldest first.
-        log: &'a [String],
     },
     /// The modal after a wipe, over the scene, with the roll log's tail.
     Defeat {
@@ -152,8 +151,10 @@ pub struct View<'a> {
     pub front_row: usize,
     /// The member the mouse selected.
     pub selected: Option<usize>,
-    /// Whether the band shows classes (creation) instead of points.
-    pub creating: bool,
+    /// The member whose turn it is.
+    pub acting: Option<usize>,
+    /// The event log, oldest first.
+    pub log: &'a [String],
     /// The pad.
     pub pad: PadState,
     /// The message line.
@@ -198,21 +199,22 @@ pub fn compose_into(
             seed,
         } => screens::pause(frame, pause, *settings, *seed),
         Menu::Encounter { menu, view } => combat_screen::encounter(frame, view, menu),
-        Menu::Combat { menu, view, log } => combat_screen::combat(frame, view, menu, log),
+        Menu::Combat { menu, view } => combat_screen::combat(frame, view, menu),
         Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
     }
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
     }
     panels::pad(frame, view.pad, pressed);
-    panels::band(
+    band::band(
         frame,
         &Band {
             message: view.message,
             members: view.members,
             front_row: view.front_row,
             selected: view.selected,
-            creating: view.creating,
+            acting: view.acting,
+            log: view.log,
             help: view.help,
         },
     );
@@ -343,7 +345,8 @@ mod tests {
             members: &[],
             front_row: 3,
             selected: None,
-            creating: false,
+            acting: None,
+            log: &[],
             pad: PadState::Hidden,
             message: &Message::default(),
             help: "",
@@ -381,7 +384,8 @@ mod tests {
             members: &[],
             front_row: 3,
             selected: None,
-            creating: false,
+            acting: None,
+            log: &[],
             pad: PadState::Hidden,
             message: &Message::default(),
             help: "help",
@@ -409,7 +413,6 @@ mod tests {
         let menu = Menu::Combat {
             menu: &combat,
             view: &view,
-            log: &log,
         };
         assert!(!menu.covers_viewport());
         assert!(Menu::Title(&Title::default()).covers_viewport());
@@ -420,7 +423,8 @@ mod tests {
                 members: &members,
                 front_row: 3,
                 selected: None,
-                creating: false,
+                acting: Some(0),
+                log: &log,
                 pad: PadState::Disabled,
                 message: &Message::default(),
                 help: "",
@@ -484,10 +488,12 @@ mod tests {
         .map(|(name, class, hp, hp_max, sp)| MemberRow {
             name: name.into(),
             class: class.into(),
+            level: 1,
             hp,
             hp_max,
             sp,
-            condition: None,
+            ac: 14,
+            condition: (hp < hp_max).then(|| "Wounded".to_owned()),
         })
     }
 
@@ -526,6 +532,7 @@ mod tests {
 
     /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`.
     fn dump(dir: &str, name: &str, menu: Menu<'_>, hud: Option<&Hud>, message: &Message) {
+        let log = sample_log();
         let members = sample_members();
         let pad = match (&menu, hud) {
             (Menu::None, _) => PadState::Enabled,
@@ -538,7 +545,8 @@ mod tests {
             members: &members,
             front_row: 3,
             selected: Some(1),
-            creating: name == "creation",
+            acting: (name == "combat").then_some(0),
+            log: if hud.is_some() { &log } else { &[] },
             pad,
             message,
             help: "Arrows or click  Enter ok  Esc back",
@@ -594,7 +602,6 @@ mod tests {
         let in_fight = Menu::Combat {
             menu: &combat,
             view: &fight,
-            log: &log,
         };
         let before = Menu::Encounter {
             menu: &encounter,

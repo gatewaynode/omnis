@@ -4,7 +4,7 @@
 
 use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
-use crate::combat_text::SHORT_CELLS;
+use crate::combat_text::LONG_CELLS;
 use crate::font::fit;
 use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, cell, row_y, rows};
 use crate::raster::Rgb;
@@ -21,8 +21,6 @@ pub const TOP_PANEL: Rect = rows(0, FIRST_STACK_ROW + STACK_ROWS);
 const COUNT_ROW: i32 = (actors::FRONT_FEET_Y - 1) / CELL.1;
 /// The action row, under the counts.
 const ACTION_ROW: i32 = COUNT_ROW + 1;
-/// The first roll-log row; the log runs to the last row of the viewport.
-const FIRST_LOG_ROW: i32 = ACTION_ROW + 1;
 /// The panel below the clear window: from the action row to the viewport's bottom edge.
 pub const BOTTOM_PANEL: Rect = Rect::new(
     VIEWPORT.x,
@@ -30,19 +28,17 @@ pub const BOTTOM_PANEL: Rect = Rect::new(
     VIEWPORT.w,
     VIEWPORT.h - row_y(ACTION_ROW) as u32,
 );
-/// Rows of the roll log tail.
-pub const LOG_ROWS: usize = 4;
 /// Cells of a stack row: `99 {name:<20} front`.
 const STACK_CELLS: usize = 29;
 /// The action row columns for the fight: Attack, Dodge, Exchange, Run.
 const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 9, 16, 26];
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
 const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 9, 22, 28];
-/// Cells a modal line may take inside the defeat box.
-const DEFEAT_LINE_CELLS: usize = 20;
-/// The defeat box's height in rows: the title, three log lines, two buttons, and the gaps
+/// Cells a modal line may take inside the defeat box: a whole log line.
+const DEFEAT_LINE_CELLS: usize = LONG_CELLS;
+/// The defeat box's height in rows: the title, the log lines, two buttons, and the gaps
 /// (`screens::modal` places them).
-const DEFEAT_ROWS: i32 = 10;
+const DEFEAT_ROWS: i32 = 12;
 /// The defeat box's size: the lines plus two cells of margin each side.
 const DEFEAT_SIZE: (u32, u32) = (
     (DEFEAT_LINE_CELLS as i32 + 4) as u32 * CELL.0 as u32,
@@ -81,8 +77,9 @@ fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
     vp_label(frame, column.max(0), row, text, color);
 }
 
-/// The fight: header, stack rows with the target marked, the four actions, the log tail.
-pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
+/// The fight: header, stack rows with the target marked, the four actions; the band shows
+/// the log.
+pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     panels(frame);
     vp_label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
     stacks(frame, view, Some(menu.target));
@@ -101,7 +98,6 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[Str
             ItemState::from_selected(menu.cursor == i),
         );
     }
-    roll_log(frame, log);
 }
 
 /// The choice before a fight: header with the disposition, the stacks, the four choices.
@@ -135,8 +131,8 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     }
 }
 
-/// Lines of the roll log the defeat modal shows: how the end came.
-pub const DEFEAT_LOG_ROWS: usize = 3;
+/// Lines of the log the defeat modal shows: how the end came.
+pub const DEFEAT_LOG_ROWS: usize = 4;
 /// "The party has fallen", boxed over the world, with the last of the roll log so a fight
 /// that ended inside one command still reads, and the two ways out.
 pub fn defeat(frame: &mut Frame, menu: &DefeatMenu, log: &[String]) {
@@ -208,21 +204,6 @@ fn counts(frame: &mut Frame, view: &FightView) {
     }
 }
 
-/// The last lines of the log, newest at the bottom in full colour, the older ones dim.
-fn roll_log(frame: &mut Frame, log: &[String]) {
-    let tail = &log[log.len().saturating_sub(LOG_ROWS)..];
-    for (i, line) in tail.iter().enumerate() {
-        let newest = i + 1 == tail.len();
-        vp_label(
-            frame,
-            1,
-            FIRST_LOG_ROW + i as i32,
-            &fit(line, SHORT_CELLS),
-            if newest { TEXT } else { DIM },
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,10 +245,6 @@ mod tests {
         }
     }
 
-    fn wide_log() -> Vec<String> {
-        (0..6).map(|i| format!("{i}{}", "x".repeat(60))).collect()
-    }
-
     fn rgb(frame: &Frame, x: i32, y: i32) -> Option<(u8, u8, u8)> {
         frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]))
     }
@@ -281,7 +258,7 @@ mod tests {
             target: 1,
             message: String::new(),
         };
-        combat(&mut frame, &view, &menu, &wide_log());
+        combat(&mut frame, &view, &menu);
         laid_out(&frame);
         assert_eq!(frame.widgets.len(), 8, "four stacks, four actions");
         for i in 0..4 {
@@ -305,20 +282,6 @@ mod tests {
             rgb(&frame, target.rect.x - 5, target.rect.y + 1),
             Some(HI),
             "the marker sits before the target"
-        );
-        let (x, y) = cell(1, FIRST_LOG_ROW + LOG_ROWS as i32 - 1);
-        assert_eq!(
-            rgb(&frame, x, y + 1),
-            Some(TEXT),
-            "the newest line is bright"
-        );
-        let (x, y) = cell(1, FIRST_LOG_ROW);
-        assert_eq!(rgb(&frame, x, y + 1), Some(DIM), "older lines are dim");
-        let (x, y) = cell(1 + SHORT_CELLS as i32, FIRST_LOG_ROW);
-        assert_ne!(
-            rgb(&frame, x, y + 1),
-            Some(DIM),
-            "clipped at the log's width"
         );
         let action = frame.widget(WidgetId::Action(2)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
@@ -372,7 +335,7 @@ mod tests {
         let empty = frame.raster.fingerprint();
         let mut frame = Frame::default();
         let log: Vec<String> = (0..5)
-            .map(|i| format!("Line {i} {}", "x".repeat(40)))
+            .map(|i| format!("Line {i} {}", "x".repeat(120)))
             .collect();
         defeat(&mut frame, &DefeatMenu { cursor: 1 }, &log);
         laid_out(&frame);

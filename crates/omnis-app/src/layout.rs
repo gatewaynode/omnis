@@ -32,10 +32,6 @@ pub const PAD_BUTTON: (u32, u32) = (96, 40);
 pub const PAD_GAP: (i32, i32) = (8, 8);
 /// The pad's inset from the right column's right and bottom edges.
 pub const PAD_INSET: (i32, i32) = (8, 8);
-/// The band's text inset from the canvas edge.
-pub const BAND_X: i32 = 4;
-/// The band's padding above the message line.
-pub const BAND_PAD: i32 = 2;
 /// The menu grid's top-left cell on the canvas grid, and its size in cells: an 80×16 area
 /// centred in the viewport; the row indices the menu models use are rows of this grid.
 pub const MENU_ORIGIN: (i32, i32) = (40, 25);
@@ -200,31 +196,13 @@ pub const PAD_BUTTONS: [Rect; 7] = [
     pad_button(2, 1),
     Rect::new(PAD.x, pad_button(0, 2).y, PAD.w, PAD_BUTTON.1),
 ];
-/// The bottom band: message line, party rows, help line.
+/// The bottom band: the message line, the roster, the event log, the help line (`band.rs`).
 pub const BAND: Rect = Rect::new(
     0,
     VIEWPORT.bottom(),
     CANVAS_WIDTH,
     CANVAS_HEIGHT - VIEWPORT.bottom() as u32,
 );
-/// Top-left of the message line.
-pub const BAND_MESSAGE: (i32, i32) = (BAND_X, BAND.y + BAND_PAD);
-/// Text cells across the message and help lines.
-pub const BAND_COLUMNS: usize = ((CANVAS_WIDTH as i32 - 2 * BAND_X) / CELL.0) as usize;
-/// The top of party row `i`: a pixel under the message line, then one row each.
-const fn band_row(i: i32) -> i32 {
-    BAND_MESSAGE.1 + CELL.1 + 1 + i * CELL.1
-}
-/// Top of each of the three party rows.
-pub const BAND_ROWS: [i32; 3] = [band_row(0), band_row(1), band_row(2)];
-/// Left edge of the front-row column.
-pub const BAND_FRONT_X: i32 = BAND_X;
-/// Left edge of the back-row column: the second half of the canvas.
-pub const BAND_BACK_X: i32 = BAND_X + CANVAS_WIDTH as i32 / 2;
-/// Text cells per party row.
-pub const BAND_ROW_COLUMNS: usize = ((CANVAS_WIDTH as i32 / 2 - BAND_X) / CELL.0) as usize;
-/// Top-left of the help line: a pixel under the last party row.
-pub const BAND_HELP: (i32, i32) = (BAND_X, band_row(2) + CELL.1 + 1);
 
 /// The canvas pixel of a text cell in the menu area: one pixel in from the left edge so the
 /// first glyph has a margin, and the column past the viewport lands one pixel clear of it.
@@ -626,17 +604,6 @@ mod tests {
                 assert!(!a.overlaps(*b), "{a:?} overlaps {b:?}");
             }
         }
-        let row_width = BAND_ROW_COLUMNS as u32 * CELL.0 as u32;
-        for y in BAND_ROWS {
-            let front = Rect::new(BAND_FRONT_X, y, row_width, CELL.1 as u32);
-            let back = Rect::new(BAND_BACK_X, y, row_width, CELL.1 as u32);
-            assert!(BAND.encloses(front) && BAND.encloses(back) && !front.overlaps(back));
-        }
-        let line_width = BAND_COLUMNS as u32 * CELL.0 as u32;
-        let message = Rect::new(BAND_MESSAGE.0, BAND_MESSAGE.1, line_width, CELL.1 as u32);
-        let help = Rect::new(BAND_HELP.0, BAND_HELP.1, line_width, CELL.1 as u32);
-        assert!(BAND.encloses(message) && BAND.encloses(help));
-        assert!(message.bottom() <= BAND_ROWS[0] && BAND_ROWS[2] + CELL.1 <= help.y);
         assert_eq!(cell(0, 0), (1, 0));
         assert_eq!(
             cell(VIEWPORT_COLUMNS, 0).0,

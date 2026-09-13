@@ -14,6 +14,7 @@
 
 pub mod actors;
 pub mod assets;
+pub mod band;
 pub mod combat;
 pub mod combat_menu;
 pub mod combat_screen;

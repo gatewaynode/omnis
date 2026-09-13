@@ -112,6 +112,13 @@ fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
     assert!(
         log.0
             .iter()
+            .any(|l| l.contains('[') && l.contains(" vs AC ")),
+        "the roll math is in the log: {:?}",
+        log.0
+    );
+    assert!(
+        log.0
+            .iter()
             .any(|l| l.contains(" hits ") || l.contains(" misses "))
     );
     let line = app.world().resource::<MessageLine>();

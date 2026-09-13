@@ -10,12 +10,12 @@ use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Mode, Surprise, World
 use std::collections::BTreeMap;
 
 /// Cells a long line may take: the band's message line.
-pub const LONG_CELLS: usize = 52;
+pub const LONG_CELLS: usize = 100;
 /// Cells a short line may take: a roll-log row under the viewport.
 pub const SHORT_CELLS: usize = 39;
-// A long line fits the band's message line; a short one fits the log tail's indent.
-const _: () = assert!(LONG_CELLS <= crate::layout::BAND_COLUMNS);
-const _: () = assert!((SHORT_CELLS as i32) < crate::layout::VIEWPORT_COLUMNS);
+// A long line fits the band's log and its message line.
+const _: () = assert!(LONG_CELLS <= crate::band::LOG_CELLS);
+const _: () = assert!(LONG_CELLS <= crate::band::BAND_COLUMNS);
 
 /// The names events refer to by id. Members are remembered by id after they leave the party
 /// and stacks after a fight ends, so the batch that ends a fight still reads.
@@ -490,10 +490,45 @@ mod tests {
         names
     }
 
-    /// A line clipped at its cell limit fills it and still starts with what matters.
+    /// A line fits its cell limit and starts with what matters.
     fn clipped(text: &str, cells: usize, prefix: &str) {
-        assert_eq!(text.chars().count(), cells, "{text}");
+        assert!(text.chars().count() <= cells, "{text}");
         assert!(text.starts_with(prefix), "{text}");
+    }
+
+    #[test]
+    fn a_line_past_the_budget_is_cut_at_it() {
+        let names = wide_names();
+        let me = CharacterId(0);
+        let order: Vec<(ActorRef, i64)> = (0..6)
+            .map(|i| {
+                let actor = if i % 2 == 0 {
+                    ActorRef::Member(me)
+                } else {
+                    ActorRef::Stack(0)
+                };
+                (actor, 20 - i)
+            })
+            .collect();
+        let lines = batch_lines(
+            &[Event::Initiative {
+                order,
+                rolls: vec![],
+            }],
+            &names,
+        );
+        assert_eq!(
+            lines[0].long.chars().count(),
+            LONG_CELLS,
+            "{}",
+            lines[0].long
+        );
+        assert_eq!(lines[0].short.chars().count(), SHORT_CELLS);
+        assert!(
+            lines[0]
+                .long
+                .starts_with("Initiative: Brennagh-of-the-Long-Hall")
+        );
     }
 
     #[test]

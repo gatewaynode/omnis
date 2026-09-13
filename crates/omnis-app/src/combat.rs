@@ -94,8 +94,11 @@ fn combat_model(
         log.clear();
     }
     names.0.refresh(&world.0, &data.0);
+    for text in batch.iter().filter_map(crate::ui::event_text) {
+        log.push(text);
+    }
     for line in batch_lines(&batch, &names.0) {
-        log.push(line.short);
+        log.push(line.long);
     }
     if let Some(view) = fight_view(&world.0, &data.0) {
         screens.combat.sync(&view);
