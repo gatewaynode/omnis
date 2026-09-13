@@ -2,9 +2,9 @@
 
 mod common;
 
-use omnis_core::{Pcg32, StreamName};
+use omnis_core::{Dice, Pcg32, StreamName};
 use omnis_data::omnis_expr::Value;
-use omnis_data::{Ability, ArmorKind, Effect, ItemKind, Skill, load_packs};
+use omnis_data::{Ability, ArmorKind, DamageType, Effect, ItemKind, Skill, load_packs};
 use std::path::PathBuf;
 
 fn base_pack() -> PathBuf {
@@ -36,7 +36,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.monsters.len(),
             data.rules.slot_names().count(),
         ),
-        (4, 4, 1, 21, 15, 11, 3, 4)
+        (4, 4, 1, 21, 16, 11, 3, 13)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -110,6 +110,35 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let goblin = &data.monsters[&data.registry.monsters.get("base:monster:goblin").unwrap()];
     assert_eq!((goblin.ac, goblin.xp, goblin.challenge), (15, 50, (1, 4)));
     assert_eq!(data.label("en", &goblin.attacks[0].name), "Scimitar");
+    assert!(!goblin.attacks[0].ranged && goblin.attacks[1].ranged);
+    assert_eq!(goblin.gold, Some(Dice::new(2, 4)));
+    let skeleton = &data.monsters[&data.registry.monsters.get("base:monster:skeleton").unwrap()];
+    assert_eq!(skeleton.immunities, [DamageType::Poison]);
+    assert_eq!(skeleton.vulnerabilities, [DamageType::Bludgeoning]);
+    assert!(skeleton.resistances.is_empty());
+    let condition = |name: &str| {
+        &data.conditions[&data
+            .registry
+            .conditions
+            .get(&format!("base:condition:{name}"))
+            .unwrap()]
+    };
+    let unconscious = condition("unconscious");
+    assert!(
+        unconscious.incapacitated
+            && unconscious.auto_fail_str_dex_saves
+            && unconscious.attacks_against_advantage
+            && unconscious.melee_hits_crit
+            && !unconscious.own_attacks_disadvantage
+            && !unconscious.resist_all
+    );
+    assert!(condition("petrified").resist_all);
+    assert!(condition("poisoned").own_attacks_disadvantage);
+    let dead = condition("dead");
+    assert!(dead.incapacitated && !dead.melee_hits_crit);
+    assert_eq!(data.label("en", &dead.name), "Dead");
+    let blinded = condition("charmed");
+    assert!(!blinded.incapacitated && !blinded.attacks_against_advantage);
 }
 
 #[test]
@@ -167,6 +196,91 @@ fn the_base_rules_evaluate() {
         ),
         Value::Int(1)
     );
+    let attack = |die: i64, total: i64, ac: i64, rng: &mut Pcg32| {
+        eval(
+            "attack.hit",
+            &[
+                ("die", Value::Int(die)),
+                ("total", Value::Int(total)),
+                ("ac", Value::Int(ac)),
+            ],
+            rng,
+        )
+    };
+    assert_eq!(attack(20, 21, 99, &mut rng), Value::Bool(true));
+    assert_eq!(attack(1, 30, 1, &mut rng), Value::Bool(false));
+    assert_eq!(attack(10, 16, 16, &mut rng), Value::Bool(true));
+    assert_eq!(attack(10, 15, 16, &mut rng), Value::Bool(false));
+    assert_eq!(
+        eval("attack.crit", &[("die", Value::Int(20))], &mut rng),
+        Value::Bool(true)
+    );
+    let adjusted = |amount: i64, resist: bool, vulnerable: bool, immune: bool, rng: &mut Pcg32| {
+        eval(
+            "damage.adjusted",
+            &[
+                ("amount", Value::Int(amount)),
+                ("resist", Value::Bool(resist)),
+                ("vulnerable", Value::Bool(vulnerable)),
+                ("immune", Value::Bool(immune)),
+            ],
+            rng,
+        )
+    };
+    assert_eq!(adjusted(7, true, false, false, &mut rng), Value::Int(3));
+    assert_eq!(adjusted(7, false, true, false, &mut rng), Value::Int(14));
+    assert_eq!(adjusted(7, true, true, true, &mut rng), Value::Int(0));
+    assert_eq!(
+        eval(
+            "damage.total",
+            &[("dice", Value::Int(1)), ("bonus", Value::Int(-3))],
+            &mut rng
+        ),
+        Value::Int(0)
+    );
+    assert_eq!(
+        eval(
+            "monster.hit_points",
+            &[
+                ("count", Value::Int(2)),
+                ("sides", Value::Int(8)),
+                ("modifier", Value::Int(4))
+            ],
+            &mut rng
+        ),
+        Value::Int(13),
+        "the SRD average of 2d8+4"
+    );
+    let bribe = |xp: i64, disposition: i64, rng: &mut Pcg32| {
+        eval(
+            "bribe.cost",
+            &[
+                ("xp", Value::Int(xp)),
+                ("disposition", Value::Int(disposition)),
+            ],
+            rng,
+        )
+    };
+    assert_eq!(bribe(200, 0, &mut rng), Value::Int(200));
+    assert_eq!(bribe(200, 2, &mut rng), Value::Int(66));
+    assert_eq!(bribe(200, 3, &mut rng), Value::Int(0));
+    assert_eq!(
+        bribe(1, 2, &mut rng),
+        Value::Int(1),
+        "never free unless friendly"
+    );
+    assert_eq!(
+        eval(
+            "encounter.random",
+            &[("roll", Value::Int(4)), ("chance_percent", Value::Int(4))],
+            &mut rng
+        ),
+        Value::Bool(true)
+    );
+    assert_eq!(rules.value("monster_front_stacks"), Some(2));
+    assert_eq!(rules.value("death_save_dc"), Some(10));
+    assert_eq!(rules.value("combat_round_minutes"), Some(1));
+    assert_eq!(rules.table("run_dc").unwrap(), [15, 12, 10, 0]);
     assert_eq!(rng.draws(), 0, "no base formula rolls dice");
 }
 

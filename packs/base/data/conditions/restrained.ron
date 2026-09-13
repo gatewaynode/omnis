@@ -1,2 +1,2 @@
 // SRD 5.1 condition (docs/dnd.srd.5.1/08_Gamemastering/Conditions.md).
-(schema: 1, id: "base:condition:restrained", name: "base:text:condition.restrained.name", description: "base:text:condition.restrained.description")
+(schema: 1, id: "base:condition:restrained", name: "base:text:condition.restrained.name", description: "base:text:condition.restrained.description", attacks_against_advantage: true, own_attacks_disadvantage: true)
