@@ -103,6 +103,12 @@ impl Rect {
             && inner.bottom() <= self.bottom()
     }
 
+    /// The same rectangle moved by an offset.
+    #[must_use]
+    pub const fn shifted(self, dx: i32, dy: i32) -> Rect {
+        Rect::new(self.x + dx, self.y + dy, self.w, self.h)
+    }
+
     /// As the `(x, y, width, height)` tuple the older helpers take.
     #[must_use]
     pub const fn tuple(self) -> (i32, i32, u32, u32) {

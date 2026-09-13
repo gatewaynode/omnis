@@ -120,7 +120,7 @@ impl Layout {
     /// A core rectangle on this canvas.
     #[must_use]
     pub const fn shift(&self, rect: Rect) -> Rect {
-        Rect::new(rect.x + self.core.0, rect.y + self.core.1, rect.w, rect.h)
+        rect.shifted(self.core.0, self.core.1)
     }
 
     /// The viewport.

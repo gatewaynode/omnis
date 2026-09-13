@@ -223,14 +223,38 @@ impl Frame {
         self.widgets.clear();
     }
 
+    /// A blank frame of this size, keeping the buffer when the size is unchanged.
+    pub fn reset(&mut self, width: u32, height: u32) {
+        self.raster.reset(width, height);
+        self.widgets.clear();
+    }
+
+    /// Paint a region through its origin: the closure's coordinates are relative to it, in
+    /// pixels and in the widgets it pushes; the origin is `(0, 0)` again afterwards.
+    pub fn within(&mut self, origin: (i32, i32), paint: impl FnOnce(&mut Frame)) {
+        self.raster.origin = origin;
+        paint(self);
+        self.raster.origin = (0, 0);
+    }
+
+    /// Register a widget painted at the current origin: its rectangles land in canvas space.
+    pub fn push(&mut self, mut widget: Widget) {
+        let (dx, dy) = self.raster.origin;
+        widget.rect = widget.rect.shifted(dx, dy);
+        widget.left = widget.left.map(|r| r.shifted(dx, dy));
+        widget.right = widget.right.map(|r| r.shifted(dx, dy));
+        self.widgets.push(widget);
+    }
+
     /// The widget with this id, if painted.
     #[must_use]
     pub fn widget(&self, id: WidgetId) -> Option<&Widget> {
         self.widgets.iter().find(|w| w.id == id)
     }
 
-    /// Outline the hovered widget.
+    /// Outline the hovered widget; widgets are in canvas space, so the origin must be off.
     pub fn outline(&mut self, id: WidgetId) {
+        debug_assert_eq!(self.raster.origin, (0, 0), "outline inside `within`");
         let Some(w) = self.widget(id).copied() else {
             return;
         };
@@ -313,5 +337,39 @@ mod tests {
         assert_eq!(frame.raster.get(100, 100), Some([HI.0, HI.1, HI.2, 255]));
         assert_eq!(frame.raster.get(99, 99), Some([0, 0, 0, 0]));
         frame.outline(WidgetId::Row(5));
+    }
+
+    #[test]
+    fn widgets_pushed_within_an_origin_land_in_canvas_space() {
+        let mut frame = Frame::default();
+        frame.within((100, 50), |f| {
+            f.raster.set(0, 0, HI);
+            let mut w = choice(0, 7);
+            w.left = Some(Rect::new(7, 16, 6, 8));
+            w.right = Some(Rect::new(101, 16, 6, 8));
+            f.push(w);
+            assert_eq!(f.raster.origin, (100, 50));
+        });
+        assert_eq!(frame.raster.origin, (0, 0), "the origin is restored");
+        assert_eq!(frame.raster.get(100, 50), Some([HI.0, HI.1, HI.2, 255]));
+        let w = frame.widget(WidgetId::Row(0)).copied().expect("pushed");
+        assert_eq!(w.rect, Rect::new(107, 66, 100, 8));
+        assert_eq!(w.left, Some(Rect::new(107, 66, 6, 8)));
+        assert_eq!(w.right, Some(Rect::new(201, 66, 6, 8)));
+        assert_eq!(
+            hit(&frame.widgets, 202, 70).map(|h| h.part),
+            Some(Part::Right)
+        );
+        assert_eq!(
+            hit(&frame.widgets, 7, 16),
+            None,
+            "nothing at the untranslated spot"
+        );
+        frame.outline(WidgetId::Row(0));
+        assert_eq!(frame.raster.get(106, 65), Some([HI.0, HI.1, HI.2, 255]));
+        frame.reset(64, 32);
+        assert!(frame.widgets.is_empty());
+        assert_eq!((frame.raster.width, frame.raster.height), (64, 32));
+        assert_eq!(frame.raster.get(0, 0), Some([0, 0, 0, 0]));
     }
 }

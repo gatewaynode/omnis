@@ -177,9 +177,7 @@ fn roster(frame: &mut Frame, view: &Band<'_>) {
         if style.marker {
             frame.raster.marker(x - 5, y + 1, HI);
         }
-        frame
-            .widgets
-            .push(Widget::new(WidgetId::Member(slot), rect, Kind::Button));
+        frame.push(Widget::new(WidgetId::Member(slot), rect, Kind::Button));
     }
 }
 

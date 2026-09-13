@@ -128,7 +128,7 @@ pub(crate) fn item_state_at(
         widget.left = left;
         widget.right = right;
     }
-    frame.widgets.push(widget);
+    frame.push(widget);
 }
 
 /// A modal's text starts two cells in from its left edge.
@@ -172,9 +172,7 @@ pub(crate) fn modal(
         if selected {
             frame.raster.marker(rect.x - 5, rect.y + 1, HI);
         }
-        frame
-            .widgets
-            .push(Widget::new(WidgetId::Row(i), rect, Kind::Button));
+        frame.push(Widget::new(WidgetId::Row(i), rect, Kind::Button));
     }
 }
 

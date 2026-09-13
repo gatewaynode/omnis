@@ -125,7 +125,7 @@ pub fn pad(frame: &mut Frame, state: PadState, pressed: Option<WidgetId>) {
         let mut widget = Widget::new(id, rect, Kind::Button);
         widget.framed = true;
         widget.enabled = state == PadState::Enabled;
-        frame.widgets.push(widget);
+        frame.push(widget);
     }
 }
 
