@@ -2,29 +2,51 @@
 //! messages (ARCHITECTURE.md §8.1). Runs headless.
 
 use crate::AppConfig;
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, World, apply};
+use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
 use std::path::{Path, PathBuf};
 
-/// Top-level app state. Menus arrive with M3.
+/// Top-level app state (ARCHITECTURE.md §8.1).
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
-    /// Loading packs and creating the world.
+    /// Loading packs.
     #[default]
     Boot,
+    /// The title and new game screens; no world exists.
+    MainMenu,
     /// A game is running.
     Playing,
+}
+
+/// Which menu screen is up.
+#[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[source(AppState = AppState::MainMenu)]
+pub enum MenuState {
+    /// New game, load, quit.
+    #[default]
+    Title,
+    /// Seed and difficulty.
+    NewGame,
 }
 
 /// What the player is doing while playing.
 #[derive(SubStates, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[source(AppState = AppState::Playing)]
 pub enum PlayState {
-    /// Walking the map.
+    /// Building the party before the first step.
     #[default]
+    CreateParty,
+    /// Walking the map.
     Explore,
+    /// The pause overlay.
+    Paused,
 }
+
+/// Where a newly started game begins; read once on entering `Playing`.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StartIn(pub PlayState);
 
 /// The loaded packs.
 #[derive(Resource)]
@@ -35,10 +57,10 @@ pub struct PackData(pub Data);
 pub struct SimWorld(pub World);
 
 /// A player action for the simulation.
-#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct PlayerCommand(pub Command);
 
-/// Something outside the simulation: saving, loading, overlays, quitting.
+/// Something outside the simulation: saving, loading, overlays, pausing, quitting.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellCommand {
     /// Write the quick save.
@@ -47,6 +69,8 @@ pub enum ShellCommand {
     Load,
     /// Show or hide the automap.
     ToggleAutomap,
+    /// Open the pause overlay.
+    Pause,
     /// Exit the application.
     Quit,
 }
@@ -54,6 +78,10 @@ pub enum ShellCommand {
 /// One simulation event, re-published one to one.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct SimEvent(pub Event);
+
+/// A command the rules refused, for the screen that sent it.
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub struct CommandRefused(pub Rejection);
 
 /// The whole world changed (a load); presentation redraws everything.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,10 +108,12 @@ pub struct SimPlugin;
 impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<AppState>()
+            .add_sub_state::<MenuState>()
             .add_sub_state::<PlayState>()
             .add_message::<PlayerCommand>()
             .add_message::<ShellCommand>()
             .add_message::<SimEvent>()
+            .add_message::<CommandRefused>()
             .add_message::<WorldReplaced>()
             .init_resource::<Notice>()
             .configure_sets(
@@ -91,12 +121,13 @@ impl Plugin for SimPlugin {
                 (SimSet::Collect, SimSet::Apply, SimSet::Publish).chain(),
             )
             .add_systems(Startup, boot)
+            .add_systems(OnEnter(AppState::Playing), start_in)
             .add_systems(
                 Update,
                 (apply_commands, shell)
                     .chain()
                     .in_set(SimSet::Apply)
-                    .run_if(in_state(PlayState::Explore)),
+                    .run_if(in_state(PlayState::Explore).or_else(in_state(PlayState::CreateParty))),
             );
     }
 }
@@ -117,7 +148,13 @@ fn boot(
             return;
         }
     };
-    match World::new(&data, config.seed) {
+    if !config.autostart {
+        info!("{} pack(s) loaded; main menu", data.packs.len());
+        commands.insert_resource(PackData(data));
+        next.set(AppState::MainMenu);
+        return;
+    }
+    match World::new(&data, config.seed, Settings::default()) {
         Ok(world) => {
             info!(
                 "new game on {} pack(s), seed {:#x}",
@@ -126,6 +163,7 @@ fn boot(
             );
             commands.insert_resource(SimWorld(world));
             commands.insert_resource(PackData(data));
+            commands.insert_resource(StartIn(PlayState::Explore));
             next.set(AppState::Playing);
         }
         Err(e) => {
@@ -135,22 +173,47 @@ fn boot(
     }
 }
 
+/// Enter the play state the starter asked for; the sub-state's default is party creation.
+fn start_in(
+    mut commands: Commands,
+    start: Option<Res<StartIn>>,
+    mut next: ResMut<NextState<PlayState>>,
+) {
+    if let Some(start) = start {
+        next.set(start.0);
+        commands.remove_resource::<StartIn>();
+    }
+}
+
 fn apply_commands(
     mut incoming: MessageReader<PlayerCommand>,
     mut world: ResMut<SimWorld>,
     data: Res<PackData>,
     mut events: MessageWriter<SimEvent>,
+    mut refused: MessageWriter<CommandRefused>,
 ) {
     for PlayerCommand(command) in incoming.read() {
-        match apply(&mut world.0, &data.0, *command) {
+        match apply(&mut world.0, &data.0, command.clone()) {
             Ok(produced) => {
                 for event in produced {
                     events.write(SimEvent(event));
                 }
             }
-            Err(rejection) => info!("{command:?} refused: {rejection}"),
+            Err(rejection) => {
+                info!("{command:?} refused: {rejection}");
+                refused.write(CommandRefused(rejection));
+            }
         }
     }
+}
+
+/// What the shell writes: the notice line, the world-replaced flag, exit, and the pause.
+#[derive(SystemParam)]
+struct ShellOut<'w> {
+    notice: ResMut<'w, Notice>,
+    replaced: MessageWriter<'w, WorldReplaced>,
+    exit: MessageWriter<'w, AppExit>,
+    next_play: ResMut<'w, NextState<PlayState>>,
 }
 
 fn shell(
@@ -158,26 +221,28 @@ fn shell(
     mut world: ResMut<SimWorld>,
     data: Res<PackData>,
     config: Res<AppConfig>,
-    mut notice: ResMut<Notice>,
-    mut replaced: MessageWriter<WorldReplaced>,
-    mut exit: MessageWriter<AppExit>,
+    mut out: ShellOut,
 ) {
     for command in incoming.read() {
         match command {
+            ShellCommand::Save if !world.0.may_save() => {
+                out.notice.0 = "The save rule forbids saving here".to_owned();
+            }
             ShellCommand::Save => match save(&world.0, &config.save_path) {
-                Ok(()) => notice.0 = format!("Saved to {}", config.save_path.display()),
-                Err(e) => notice.0 = format!("Save failed: {e}"),
+                Ok(()) => out.notice.0 = format!("Saved to {}", config.save_path.display()),
+                Err(e) => out.notice.0 = format!("Save failed: {e}"),
             },
             ShellCommand::Load => match load(&data.0, &config.save_path, false) {
                 Ok(loaded) => {
                     world.0 = loaded;
-                    replaced.write(WorldReplaced);
-                    notice.0 = format!("Loaded {}", config.save_path.display());
+                    out.replaced.write(WorldReplaced);
+                    out.notice.0 = format!("Loaded {}", config.save_path.display());
                 }
-                Err(e) => notice.0 = format!("Load failed: {e}"),
+                Err(e) => out.notice.0 = format!("Load failed: {e}"),
             },
+            ShellCommand::Pause => out.next_play.set(PlayState::Paused),
             ShellCommand::Quit => {
-                exit.write(AppExit::Success);
+                out.exit.write(AppExit::Success);
             }
             ShellCommand::ToggleAutomap => {}
         }

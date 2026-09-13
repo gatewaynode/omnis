@@ -73,7 +73,7 @@ fn make_placeholder(mut images: ResMut<Assets<Image>>, mut pack: ResMut<PackImag
     pack.placeholder = images.add(image);
 }
 
-/// Sprites whose image failed to load show the placeholder instead of nothing.
+/// Sprites whose file failed to load show the placeholder instead of nothing.
 fn substitute_failed(
     server: Res<AssetServer>,
     pack: Res<PackImages>,

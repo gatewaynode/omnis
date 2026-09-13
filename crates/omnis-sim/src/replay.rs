@@ -1,9 +1,9 @@
-//! A replay is a seed, the packs, and a command stream (ARCHITECTURE.md §4.6). Applying the
-//! commands to a fresh world must reproduce the recorded fingerprint.
+//! A replay is a seed, the packs, the settings, and a command stream (ARCHITECTURE.md §4.6).
+//! Applying the commands to a fresh world must reproduce the recorded fingerprint.
 
 use crate::apply::apply;
 use crate::command::Command;
-use crate::world::{NewGameError, World};
+use crate::world::{NewGameError, Settings, World};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_data::{Data, DataError, PackFingerprint};
@@ -16,6 +16,9 @@ pub struct Replay {
     pub seed: u64,
     /// The packs the session ran on.
     pub packs: Vec<PackFingerprint>,
+    /// The difficulty the game was started with.
+    #[serde(default)]
+    pub settings: Settings,
     /// The commands, in order.
     pub commands: Vec<Command>,
     /// The fingerprint after the last command.
@@ -62,11 +65,17 @@ impl fmt::Display for ReplayError {
 
 impl Replay {
     /// Run `commands` on a fresh world and record the result.
-    pub fn record(data: &Data, seed: u64, commands: Vec<Command>) -> Result<Replay, ReplayError> {
-        let fingerprint = run(data, seed, &commands)?;
+    pub fn record(
+        data: &Data,
+        seed: u64,
+        settings: Settings,
+        commands: Vec<Command>,
+    ) -> Result<Replay, ReplayError> {
+        let fingerprint = run(data, seed, settings, &commands)?;
         Ok(Replay {
             seed,
             packs: data.fingerprints.clone(),
+            settings,
             commands,
             fingerprint,
         })
@@ -77,7 +86,7 @@ impl Replay {
         if self.packs != data.fingerprints {
             return Err(ReplayError::PackMismatch);
         }
-        let actual = run(data, self.seed, &self.commands)?;
+        let actual = run(data, self.seed, self.settings, &self.commands)?;
         if actual == self.fingerprint {
             Ok(())
         } else {
@@ -90,10 +99,15 @@ impl Replay {
 }
 
 /// Apply `commands` to a fresh world and return the final fingerprint.
-pub fn run(data: &Data, seed: u64, commands: &[Command]) -> Result<u64, ReplayError> {
-    let mut world = World::new(data, seed).map_err(ReplayError::NewGame)?;
+pub fn run(
+    data: &Data,
+    seed: u64,
+    settings: Settings,
+    commands: &[Command],
+) -> Result<u64, ReplayError> {
+    let mut world = World::new(data, seed, settings).map_err(ReplayError::NewGame)?;
     for (index, command) in commands.iter().enumerate() {
-        apply(&mut world, data, *command).map_err(|_| ReplayError::Rejected { index })?;
+        apply(&mut world, data, command.clone()).map_err(|_| ReplayError::Rejected { index })?;
     }
     world.fingerprint().map_err(ReplayError::Fingerprint)
 }

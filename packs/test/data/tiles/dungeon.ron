@@ -10,10 +10,31 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/ceiling_d0_o-1.png",
+                    x: 0,
+                    y: 0,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/ceiling_d0_o0.png",
                     x: 53,
                     y: 0,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/ceiling_d0_o1.png",
+                    x: 181,
+                    y: 0,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/ceiling_d1_o-2.png",
+                    x: 0,
+                    y: 28,
                 ),
                 (
                     depth: 1,
@@ -35,6 +56,20 @@
                     path: "assets/tilesets/dungeon/ceiling_d1_o1.png",
                     x: 151,
                     y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/ceiling_d1_o2.png",
+                    x: 213,
+                    y: 28,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/ceiling_d2_o-3.png",
+                    x: 0,
+                    y: 44,
                 ),
                 (
                     depth: 2,
@@ -70,6 +105,20 @@
                     path: "assets/tilesets/dungeon/ceiling_d2_o2.png",
                     x: 183,
                     y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/ceiling_d2_o3.png",
+                    x: 225,
+                    y: 44,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/ceiling_d3_o-4.png",
+                    x: 0,
+                    y: 50,
                 ),
                 (
                     depth: 3,
@@ -119,6 +168,20 @@
                     path: "assets/tilesets/dungeon/ceiling_d3_o3.png",
                     x: 200,
                     y: 47,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/ceiling_d3_o4.png",
+                    x: 232,
+                    y: 50,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/ceiling_d4_o-5.png",
+                    x: 0,
+                    y: 54,
                 ),
                 (
                     depth: 4,
@@ -182,6 +245,13 @@
                     path: "assets/tilesets/dungeon/ceiling_d4_o4.png",
                     x: 211,
                     y: 52,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/ceiling_d4_o5.png",
+                    x: 237,
+                    y: 54,
                 ),
                 (
                     depth: 5,
@@ -267,10 +337,31 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/door_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/door_d0_o0.png",
                     x: 59,
                     y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/door_d0_o1.png",
+                    x: 181,
+                    y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/door_d1_o-2.png",
+                    x: 0,
+                    y: 37,
                 ),
                 (
                     depth: 1,
@@ -292,6 +383,20 @@
                     path: "assets/tilesets/dungeon/door_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/door_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/door_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -327,6 +432,20 @@
                     path: "assets/tilesets/dungeon/door_d2_o2.png",
                     x: 181,
                     y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/door_d2_o3.png",
+                    x: 221,
+                    y: 47,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/door_d3_o-4.png",
+                    x: 0,
+                    y: 52,
                 ),
                 (
                     depth: 3,
@@ -376,6 +495,20 @@
                     path: "assets/tilesets/dungeon/door_d3_o3.png",
                     x: 196,
                     y: 52,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/door_d3_o4.png",
+                    x: 226,
+                    y: 52,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/door_d4_o-5.png",
+                    x: 0,
+                    y: 55,
                 ),
                 (
                     depth: 4,
@@ -438,6 +571,13 @@
                     offset: 4,
                     path: "assets/tilesets/dungeon/door_d4_o4.png",
                     x: 205,
+                    y: 55,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/door_d4_o5.png",
+                    x: 229,
                     y: 55,
                 ),
                 (
@@ -524,10 +664,31 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/door.open_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/door.open_d0_o0.png",
                     x: 59,
                     y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/door.open_d0_o1.png",
+                    x: 181,
+                    y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/door.open_d1_o-2.png",
+                    x: 0,
+                    y: 37,
                 ),
                 (
                     depth: 1,
@@ -549,6 +710,20 @@
                     path: "assets/tilesets/dungeon/door.open_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/door.open_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/door.open_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -584,6 +759,20 @@
                     path: "assets/tilesets/dungeon/door.open_d2_o2.png",
                     x: 181,
                     y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/door.open_d2_o3.png",
+                    x: 221,
+                    y: 47,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/door.open_d3_o-4.png",
+                    x: 0,
+                    y: 52,
                 ),
                 (
                     depth: 3,
@@ -633,6 +822,20 @@
                     path: "assets/tilesets/dungeon/door.open_d3_o3.png",
                     x: 196,
                     y: 52,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/door.open_d3_o4.png",
+                    x: 226,
+                    y: 52,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/door.open_d4_o-5.png",
+                    x: 0,
+                    y: 55,
                 ),
                 (
                     depth: 4,
@@ -695,6 +898,13 @@
                     offset: 4,
                     path: "assets/tilesets/dungeon/door.open_d4_o4.png",
                     x: 205,
+                    y: 55,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/door.open_d4_o5.png",
+                    x: 229,
                     y: 55,
                 ),
                 (
@@ -781,10 +991,31 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/floor_d0_o-1.png",
+                    x: 0,
+                    y: 128,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/floor_d0_o0.png",
                     x: 53,
                     y: 128,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/floor_d0_o1.png",
+                    x: 181,
+                    y: 128,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/floor_d1_o-2.png",
+                    x: 0,
+                    y: 98,
                 ),
                 (
                     depth: 1,
@@ -806,6 +1037,20 @@
                     path: "assets/tilesets/dungeon/floor_d1_o1.png",
                     x: 151,
                     y: 98,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/floor_d1_o2.png",
+                    x: 213,
+                    y: 98,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/floor_d2_o-3.png",
+                    x: 0,
+                    y: 88,
                 ),
                 (
                     depth: 2,
@@ -841,6 +1086,20 @@
                     path: "assets/tilesets/dungeon/floor_d2_o2.png",
                     x: 183,
                     y: 88,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/floor_d2_o3.png",
+                    x: 225,
+                    y: 88,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/floor_d3_o-4.png",
+                    x: 0,
+                    y: 83,
                 ),
                 (
                     depth: 3,
@@ -890,6 +1149,20 @@
                     path: "assets/tilesets/dungeon/floor_d3_o3.png",
                     x: 200,
                     y: 83,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/floor_d3_o4.png",
+                    x: 232,
+                    y: 83,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/floor_d4_o-5.png",
+                    x: 0,
+                    y: 80,
                 ),
                 (
                     depth: 4,
@@ -952,6 +1225,13 @@
                     offset: 4,
                     path: "assets/tilesets/dungeon/floor_d4_o4.png",
                     x: 211,
+                    y: 80,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/floor_d4_o5.png",
+                    x: 237,
                     y: 80,
                 ),
                 (
@@ -1037,6 +1317,27 @@
             kind: Block,
             slots: [
                 (
+                    depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/rock_d0_o-1.png",
+                    x: 0,
+                    y: 0,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/rock_d0_o1.png",
+                    x: 181,
+                    y: 0,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/rock_d1_o-2.png",
+                    x: 0,
+                    y: 28,
+                ),
+                (
                     depth: 1,
                     offset: -1,
                     path: "assets/tilesets/dungeon/rock_d1_o-1.png",
@@ -1056,6 +1357,20 @@
                     path: "assets/tilesets/dungeon/rock_d1_o1.png",
                     x: 150,
                     y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/rock_d1_o2.png",
+                    x: 211,
+                    y: 28,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/rock_d2_o-3.png",
+                    x: 0,
+                    y: 44,
                 ),
                 (
                     depth: 2,
@@ -1091,6 +1406,20 @@
                     path: "assets/tilesets/dungeon/rock_d2_o2.png",
                     x: 181,
                     y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/rock_d2_o3.png",
+                    x: 221,
+                    y: 44,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/rock_d3_o-4.png",
+                    x: 0,
+                    y: 50,
                 ),
                 (
                     depth: 3,
@@ -1140,6 +1469,20 @@
                     path: "assets/tilesets/dungeon/rock_d3_o3.png",
                     x: 196,
                     y: 47,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/rock_d3_o4.png",
+                    x: 226,
+                    y: 50,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/rock_d4_o-5.png",
+                    x: 0,
+                    y: 54,
                 ),
                 (
                     depth: 4,
@@ -1203,6 +1546,13 @@
                     path: "assets/tilesets/dungeon/rock_d4_o4.png",
                     x: 205,
                     y: 52,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/rock_d4_o5.png",
+                    x: 229,
+                    y: 54,
                 ),
                 (
                     depth: 5,
@@ -1288,10 +1638,31 @@
             slots: [
                 (
                     depth: 0,
+                    offset: -1,
+                    path: "assets/tilesets/dungeon/wall_d0_o-1.png",
+                    x: 0,
+                    y: 7,
+                ),
+                (
+                    depth: 0,
                     offset: 0,
                     path: "assets/tilesets/dungeon/wall_d0_o0.png",
                     x: 59,
                     y: 7,
+                ),
+                (
+                    depth: 0,
+                    offset: 1,
+                    path: "assets/tilesets/dungeon/wall_d0_o1.png",
+                    x: 181,
+                    y: 7,
+                ),
+                (
+                    depth: 1,
+                    offset: -2,
+                    path: "assets/tilesets/dungeon/wall_d1_o-2.png",
+                    x: 0,
+                    y: 37,
                 ),
                 (
                     depth: 1,
@@ -1313,6 +1684,20 @@
                     path: "assets/tilesets/dungeon/wall_d1_o1.png",
                     x: 150,
                     y: 37,
+                ),
+                (
+                    depth: 1,
+                    offset: 2,
+                    path: "assets/tilesets/dungeon/wall_d1_o2.png",
+                    x: 211,
+                    y: 37,
+                ),
+                (
+                    depth: 2,
+                    offset: -3,
+                    path: "assets/tilesets/dungeon/wall_d2_o-3.png",
+                    x: 0,
+                    y: 47,
                 ),
                 (
                     depth: 2,
@@ -1348,6 +1733,20 @@
                     path: "assets/tilesets/dungeon/wall_d2_o2.png",
                     x: 181,
                     y: 47,
+                ),
+                (
+                    depth: 2,
+                    offset: 3,
+                    path: "assets/tilesets/dungeon/wall_d2_o3.png",
+                    x: 221,
+                    y: 47,
+                ),
+                (
+                    depth: 3,
+                    offset: -4,
+                    path: "assets/tilesets/dungeon/wall_d3_o-4.png",
+                    x: 0,
+                    y: 52,
                 ),
                 (
                     depth: 3,
@@ -1397,6 +1796,20 @@
                     path: "assets/tilesets/dungeon/wall_d3_o3.png",
                     x: 196,
                     y: 52,
+                ),
+                (
+                    depth: 3,
+                    offset: 4,
+                    path: "assets/tilesets/dungeon/wall_d3_o4.png",
+                    x: 226,
+                    y: 52,
+                ),
+                (
+                    depth: 4,
+                    offset: -5,
+                    path: "assets/tilesets/dungeon/wall_d4_o-5.png",
+                    x: 0,
+                    y: 55,
                 ),
                 (
                     depth: 4,
@@ -1459,6 +1872,13 @@
                     offset: 4,
                     path: "assets/tilesets/dungeon/wall_d4_o4.png",
                     x: 205,
+                    y: 55,
+                ),
+                (
+                    depth: 4,
+                    offset: 5,
+                    path: "assets/tilesets/dungeon/wall_d4_o5.png",
+                    x: 229,
                     y: 55,
                 ),
                 (

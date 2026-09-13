@@ -4,7 +4,9 @@ resolver = "3"
 # same change). A glob would also pick up tool directories such as crates/.sentrux.
 members = [
     "crates/omnis-core",
+    "crates/omnis-expr",
     "crates/omnis-data",
+    "crates/omnis-rules",
     "crates/omnis-sim",
     "crates/omnis-app",
     "crates/omnis-cli",

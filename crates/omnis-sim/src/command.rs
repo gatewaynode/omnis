@@ -2,14 +2,16 @@
 //! Commands carry no client state so a command stream is a replay and, later, a network
 //! protocol. Events carry keys, never text.
 
+use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Direction, Facing, HolderId, MapId, Position, Rotation};
+use omnis_rules::CreationError;
 use serde::{Deserialize, Serialize};
 
 /// One player action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Command {
     /// Move one tile relative to the facing, without turning.
     Step(Direction),
@@ -17,12 +19,15 @@ pub enum Command {
     Turn(Rotation),
     /// Use whatever is on the facing edge or tile: a door in M1.
     Interact,
+    /// Build or reorder the party.
+    Party(PartyCommand),
 }
 
 impl Command {
-    /// The script word for this command; see [`parse_script`].
+    /// The script word for this command; see [`parse_script`]. Party commands carry data and
+    /// have no script word; they log as `party`.
     #[must_use]
-    pub const fn word(self) -> &'static str {
+    pub const fn word(&self) -> &'static str {
         match self {
             Command::Step(Direction::Forward) => "forward",
             Command::Step(Direction::Back) => "back",
@@ -32,6 +37,7 @@ impl Command {
             Command::Turn(Rotation::Right) => "turn-right",
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
+            Command::Party(_) => "party",
         }
     }
 
@@ -182,19 +188,30 @@ pub enum Event {
         /// Which message.
         key: MessageKey,
     },
+    /// The party's members or their order changed.
+    PartyChanged,
 }
 
 /// A command the rules refuse. Not an error: the world is unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Rejection {
     /// The command does not apply in the current mode.
     WrongMode,
+    /// Every party slot is taken.
+    PartyFull,
+    /// The draft does not make a character.
+    Character(CreationError),
+    /// The order is not a permutation of the current members.
+    BadOrder,
 }
 
 impl core::fmt::Display for Rejection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Rejection::WrongMode => f.write_str("command does not apply in the current mode"),
+            Rejection::PartyFull => f.write_str("the party is full"),
+            Rejection::Character(e) => write!(f, "{e}"),
+            Rejection::BadOrder => f.write_str("order must list every member once"),
         }
     }
 }

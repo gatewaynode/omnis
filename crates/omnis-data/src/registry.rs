@@ -3,7 +3,10 @@
 //! for one set of packs. Saves store the string form (later milestone) so a changed pack set
 //! cannot silently renumber.
 
-use omnis_core::{FlagId, MapId, TextKey, TilesetId};
+use omnis_core::{
+    BackgroundId, ClassId, ConditionId, FlagId, ItemId, MapId, MonsterId, RaceId, SpellId, TextKey,
+    TilesetId,
+};
 use std::collections::BTreeMap;
 
 /// A string-to-id table for one id type.
@@ -65,7 +68,7 @@ impl<I: Copy + From<u32> + Into<u32>> Interner<I> {
     }
 }
 
-/// Every id table the M1 content set needs.
+/// Every id table the content set needs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Registry {
     /// Maps.
@@ -76,6 +79,20 @@ pub struct Registry {
     pub text: Interner<TextKey>,
     /// World flags.
     pub flags: Interner<FlagId>,
+    /// Races.
+    pub races: Interner<RaceId>,
+    /// Classes.
+    pub classes: Interner<ClassId>,
+    /// Backgrounds.
+    pub backgrounds: Interner<BackgroundId>,
+    /// Items.
+    pub items: Interner<ItemId>,
+    /// Conditions.
+    pub conditions: Interner<ConditionId>,
+    /// Spells.
+    pub spells: Interner<SpellId>,
+    /// Monsters.
+    pub monsters: Interner<MonsterId>,
 }
 
 #[cfg(test)]

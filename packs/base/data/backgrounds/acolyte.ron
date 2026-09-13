@@ -1,0 +1,11 @@
+// SRD 5.1 Acolyte (docs/dnd.srd.5.1/03_Characterization/Backgrounds.md), the SRD's one
+// background. More arrive as content; an Omnis "Settler" is the first candidate.
+(
+    schema: 1,
+    id: "base:background:acolyte",
+    name: "base:text:background.acolyte.name",
+    skills: [Insight, Religion],
+    equipment: [("base:item:holy_symbol", 1)],
+    gold: 15,
+    feature: (name: "base:text:background.acolyte.shelter"),
+)

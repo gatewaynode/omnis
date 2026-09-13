@@ -6,7 +6,7 @@
 use omnis_data::ron_io::read_text;
 use omnis_data::{Data, LoadReport, load_packs};
 use omnis_sim::ops::client_path;
-use omnis_sim::{NewGameError, Op, OpError, Reply, World, dispatch, ops};
+use omnis_sim::{NewGameError, Op, OpError, Reply, Settings, World, dispatch, ops};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -45,7 +45,7 @@ impl Headless {
     /// Load the packs and start a new game with `seed`.
     pub fn new(packs: Vec<PathBuf>, seed: u64) -> Result<Headless, HeadlessError> {
         let data = load(&packs).map_err(HeadlessError::Packs)?;
-        let world = World::new(&data, seed).map_err(HeadlessError::NewGame)?;
+        let world = World::new(&data, seed, Settings::default()).map_err(HeadlessError::NewGame)?;
         Ok(Headless { packs, data, world })
     }
 
@@ -53,6 +53,9 @@ impl Headless {
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
         match op {
             Op::SaveWrite { path } => {
+                if !self.world.may_save() {
+                    return Err(OpError::failed("the save rule forbids saving here"));
+                }
                 let file = PathBuf::from(client_path(path, &["ron"])?);
                 let text = self.world.to_ron().map_err(OpError::failed)?;
                 if let Some(parent) = file.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -86,6 +89,14 @@ impl Headless {
             Op::Screenshot { .. } => Err(OpError::failed(
                 "a screenshot needs the game window; this is headless",
             )),
+            Op::RulesSet { slot, source } => {
+                ops::bounded(source)?;
+                self.data
+                    .rules
+                    .set_slot(slot, source)
+                    .map_err(OpError::bad_request)?;
+                ops::slot_view(&self.data, slot).map(|rule| Reply::Rule { rule })
+            }
             other => dispatch(&mut self.world, &self.data, other),
         }
     }

@@ -40,11 +40,11 @@ impl Args {
         Ok(args)
     }
 
-    /// The packs given, or `packs/test` when none were.
+    /// The packs given, or `packs/base` then `packs/test` when none were.
     #[must_use]
     pub fn packs_or_default(&self) -> Vec<PathBuf> {
         if self.packs.is_empty() {
-            vec![PathBuf::from("packs/test")]
+            vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")]
         } else {
             self.packs.clone()
         }
@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(args.seed, Some(7));
         assert_eq!(
             Args::parse(&[]).unwrap().packs_or_default(),
-            [PathBuf::from("packs/test")]
+            [PathBuf::from("packs/base"), PathBuf::from("packs/test")]
         );
         assert!(Args::parse(&["--seed"]).is_err());
         assert!(Args::parse(&["--seed", "x"]).is_err());

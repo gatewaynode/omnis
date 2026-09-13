@@ -1,0 +1,2 @@
+// SRD 5.1 condition (docs/dnd.srd.5.1/08_Gamemastering/Conditions.md).
+(schema: 1, id: "base:condition:blinded", name: "base:text:condition.blinded.name", description: "base:text:condition.blinded.description")

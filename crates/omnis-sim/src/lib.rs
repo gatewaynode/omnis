@@ -1,8 +1,9 @@
 //! Omnis simulation: `World` + `Command` -> `Vec<Event>`. Pure Rust, no Bevy, no I/O, no wall
 //! clock, no threads. Every client (renderer, editor, MCP, CLI, tests) drives this library.
 //!
-//! M1 scope: exploration only. One party holder with its own clock, movement with walls,
-//! doors, portals, a visibility cone that fills the automap, saves as RON text, fingerprints,
+//! Exploration and the party: one party holder with its own clock, movement with walls,
+//! doors, portals, a visibility cone that fills the automap, a party of up to six characters
+//! built from pack data, difficulty settings, saves as RON text with migrations, fingerprints,
 //! and replays.
 #![no_std]
 #![forbid(unsafe_code)]
@@ -13,7 +14,9 @@ extern crate alloc;
 
 pub mod apply;
 pub mod command;
+mod migrate;
 pub mod ops;
+pub mod party;
 pub mod query;
 pub mod replay;
 pub mod visibility;
@@ -23,12 +26,16 @@ pub mod world;
 // crates below reach them through these re-exports.
 pub use omnis_core;
 pub use omnis_data;
+pub use omnis_rules;
 
 pub use apply::apply;
 pub use command::{BlockReason, Command, Event, MessageKey, Rejection, ScriptError, SeenTile};
 pub use ops::{Op, OpError, Reply, Status, dispatch};
+pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
-pub use world::{Automap, Known, LoadError, MapState, Mode, NewGameError, Settings, World};
+pub use world::{
+    Automap, Known, LoadError, MapState, Mode, NewGameError, SaveRule, Settings, World,
+};
 
 use omnis_core::{HolderId, PartyId};
 

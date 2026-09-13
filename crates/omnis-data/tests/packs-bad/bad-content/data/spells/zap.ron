@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:spell:zap", name: "badc:text:spell.zap.name", level: 10, school: Evocation, classes: [], components: [("badc:item:blade", 0)], description: "badc:text:spell.zap.description")

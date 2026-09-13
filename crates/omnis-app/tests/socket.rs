@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
 use omnis_app::AppConfig;
-use omnis_app::sim::{SimEvent, SimPlugin, SimWorld, WorldReplaced};
+use omnis_app::sim::{SimEvent, SimPlugin, SimSet, SimWorld, WorldReplaced};
 use omnis_app::socket::{DevSocketPlugin, MAX_LINE};
 use omnis_sim::Event;
 use serde_json::{Value, json};
@@ -78,10 +78,26 @@ impl Peer {
     }
 }
 
-fn messages<M: Message + Clone>(app: &App) -> Vec<M> {
-    let messages = app.world().resource::<Messages<M>>();
-    let mut cursor = messages.get_cursor();
-    cursor.read(messages).cloned().collect()
+/// What presentation saw, gathered at the end of every frame: Bevy keeps a message for two
+/// frames only, and a socket round trip takes as many frames as loopback delivery needs, so a
+/// test that read the buffers directly failed on a slow runner.
+#[derive(Resource, Default)]
+struct Seen {
+    events: Vec<Event>,
+    replaced: usize,
+}
+
+fn collect(
+    mut seen: ResMut<Seen>,
+    mut events: MessageReader<SimEvent>,
+    mut replaced: MessageReader<WorldReplaced>,
+) {
+    seen.events.extend(events.read().map(|e| e.0.clone()));
+    seen.replaced += replaced.read().count();
+}
+
+fn seen(app: &App) -> &Seen {
+    app.world().resource::<Seen>()
 }
 
 /// A headless app with the socket bound, and the address it wrote.
@@ -91,9 +107,10 @@ fn boot(dir: &Path) -> (App, SocketAddr) {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin))
         .insert_resource(AppConfig {
-            packs: vec![repo.join("packs/test")],
+            packs: vec![repo.join("packs/base"), repo.join("packs/test")],
             seed: 3,
             save_path: dir.join("quick.ron"),
+            autostart: true,
         })
         .add_plugins((
             SimPlugin,
@@ -101,7 +118,9 @@ fn boot(dir: &Path) -> (App, SocketAddr) {
                 addr: "127.0.0.1:0".into(),
                 addr_file: addr_file.clone(),
             },
-        ));
+        ))
+        .init_resource::<Seen>()
+        .add_systems(Update, collect.after(SimSet::Publish));
     app.update();
     let addr: SocketAddr = std::fs::read_to_string(&addr_file)
         .unwrap()
@@ -128,9 +147,10 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     let position = app.world().resource::<SimWorld>().0.position;
     assert_eq!((position.x, position.y), (16, 15));
     assert!(
-        messages::<SimEvent>(app)
+        seen(app)
+            .events
             .iter()
-            .any(|e| matches!(e.0, Event::Visible { .. })),
+            .any(|e| matches!(e, Event::Visible { .. })),
         "the socket's events reach presentation"
     );
 
@@ -184,17 +204,41 @@ fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
     );
     assert_eq!(reply["result"]["turn"], json!(1), "{reply}");
     assert_eq!(app.world().resource::<SimWorld>().0.turn, 1);
-    assert_eq!(
-        messages::<WorldReplaced>(app).len(),
-        1,
-        "presentation redraws"
-    );
+    assert_eq!(seen(app).replaced, 1, "presentation redraws");
     let reply = peer.send(app, r#"{"id": 11, "op": "pack.reload"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
 }
 
 /// A second caller is told to wait and dropped; an oversize line ends the first connection
 /// with a reason, and the slot frees up.
+/// The party and the rules through the same socket, after the save has been reloaded.
+fn party_and_rules(app: &mut App, peer: &mut Peer) {
+    let reply = peer.send(
+        app,
+        r#"{"id": 3, "op": "rules.set", "args": {"slot": "spell_points.pool", "source": "level * 10"}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    assert_eq!(reply["result"]["rule"]["source"], json!("level * 10"));
+    let reply = peer.send(
+        app,
+        r#"{"id": 4, "op": "party.create", "args": {"character": {"name": "Ilvara", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10], "skills": ["Arcana", "History"]}}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    let reply = peer.send(app, r#"{"id": 5, "op": "party.get"}"#);
+    assert_eq!(
+        reply["result"]["party"]["members"][0]["spell_points_max"],
+        json!(10),
+        "{reply}"
+    );
+    // Presentation may read events frames later than the reply arrives.
+    app.update();
+    app.update();
+    assert!(
+        seen(app).events.contains(&Event::PartyChanged),
+        "party changes reach presentation"
+    );
+}
+
 fn second_client_and_flood(app: &mut App, peer: &mut Peer, addr: SocketAddr) {
     let mut other = Peer::connect(addr);
     let busy = other.read(app);
@@ -237,5 +281,6 @@ fn a_client_drives_the_game_over_loopback() {
     status_commands_and_queries(&mut app, &mut peer);
     refusals(&mut app, &mut peer);
     saves_and_reload(&mut app, &mut peer, &dir);
+    party_and_rules(&mut app, &mut peer);
     second_client_and_flood(&mut app, &mut peer, addr);
 }

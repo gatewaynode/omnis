@@ -1,0 +1,2 @@
+// SRD 5.1 equipment (docs/dnd.srd.5.1/04_Equipment). Costs in copper, weight in tenths of a pound.
+(schema: 1, id: "base:item:scale_mail", name: "base:text:item.scale_mail.name", kind: Armor(kind: Medium, base_ac: 14, dex_cap: Some(2), stealth_disadvantage: true), cost_cp: 5000, weight_tenths: 450)

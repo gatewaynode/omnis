@@ -10,6 +10,7 @@ publish.workspace = true
 
 [dependencies]
 omnis-core = { workspace = true }
+omnis-expr = { workspace = true }
 serde = { workspace = true, features = ["std"] }
 ron = { workspace = true }
 thiserror = { workspace = true, features = ["std"] }

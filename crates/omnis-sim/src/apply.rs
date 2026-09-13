@@ -1,6 +1,7 @@
 //! `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>` (ARCHITECTURE.md §4.2).
 
 use crate::command::{BlockReason, Command, Event, MessageKey, Rejection};
+use crate::party;
 use crate::visibility;
 use crate::world::{Known, Mode, World, door_key, layer};
 use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
@@ -15,10 +16,11 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         Mode::Explore => {}
     }
     let mut events = Vec::new();
-    match command {
-        Command::Step(direction) => step(world, data, direction, &mut events),
-        Command::Turn(rotation) => turn(world, rotation),
+    match &command {
+        Command::Step(direction) => step(world, data, *direction, &mut events),
+        Command::Turn(rotation) => turn(world, *rotation),
         Command::Interact => interact(world, data, &mut events),
+        Command::Party(command) => party::apply(world, data, command, &mut events)?,
     }
     look(world, data, &mut events);
     world.turn += 1;

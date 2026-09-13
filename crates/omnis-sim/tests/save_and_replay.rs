@@ -6,7 +6,7 @@ mod common;
 use common::{data, interact, step, turn, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{read_ron, write_ron};
-use omnis_sim::{Command, LoadError, Replay, ReplayError, World, query};
+use omnis_sim::{Command, LoadError, Replay, ReplayError, SaveRule, Settings, World, query};
 use std::path::PathBuf;
 
 fn replay_path(name: &str) -> PathBuf {
@@ -18,8 +18,7 @@ fn replay_path(name: &str) -> PathBuf {
 /// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon,
 /// through the first door, and a bump against a pillar.
 fn walk() -> Vec<Command> {
-    let mut commands = vec![Command::Step(Direction::Forward); 11];
-    commands.extend([Command::Step(Direction::Forward); 3]);
+    let mut commands = vec![Command::Step(Direction::Forward); 14];
     commands.extend([
         Command::Turn(Rotation::Left),
         Command::Step(Direction::Forward),
@@ -68,7 +67,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 1", "schema: 7", 1);
+    let other = text.replacen("schema: 2", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -122,25 +121,65 @@ fn path_query_reads_the_world() {
     );
     assert_eq!(query::path(&world, "turn").as_deref(), Some("1"));
     assert_eq!(query::path(&world, "mode").as_deref(), Some("Explore"));
-    assert_eq!(query::path(&world, "packs.0.id").as_deref(), Some("test"));
+    assert_eq!(query::path(&world, "packs.0.id").as_deref(), Some("base"));
+    assert_eq!(query::path(&world, "packs.1.id").as_deref(), Some("test"));
     let map = world.position.map.0;
     assert_eq!(
         query::path(&world, &format!("automap.maps.{map}.16,15.layers")).as_deref(),
         Some("7")
     );
-    assert_eq!(query::path(&world, "party.members"), None);
+    assert_eq!(query::path(&world, "party.gold").as_deref(), Some("0"));
+    assert_eq!(
+        query::path(&world, "party.members.0.hp"),
+        None,
+        "no members yet"
+    );
+    assert_eq!(
+        query::path(&world, "settings.save_rule").as_deref(),
+        Some("Anywhere")
+    );
+}
+
+/// A schema-1 save (captured from the M2 build's `schema dump`) loads through the migration.
+#[test]
+fn a_schema_1_save_migrates() {
+    let data = data();
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/saves/v1.ron");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 1") && text.contains("save_anywhere: true"));
+    assert_eq!(
+        World::from_ron(&text, &data, false).unwrap_err(),
+        LoadError::PackMismatch,
+        "the fixture names an example pack"
+    );
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 2);
+    assert!(world.party.members.is_empty());
+    assert_eq!(world.settings, Settings::default());
+    assert_eq!(world.to_ron().unwrap().matches("schema: 2").count(), 1);
+    let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
+    let world = World::from_ron(&inn_only, &data, true).unwrap();
+    assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
+    assert!(!world.may_save());
 }
 
 #[test]
 fn replays_are_deterministic() {
     let data = data();
     let commands = walk();
-    let a = omnis_sim::replay::run(&data, 1, &commands).unwrap();
-    let b = omnis_sim::replay::run(&data, 1, &commands).unwrap();
-    let c = omnis_sim::replay::run(&data, 2, &commands).unwrap();
+    let settings = Settings::default();
+    let a = omnis_sim::replay::run(&data, 1, settings, &commands).unwrap();
+    let b = omnis_sim::replay::run(&data, 1, settings, &commands).unwrap();
+    let c = omnis_sim::replay::run(&data, 2, settings, &commands).unwrap();
+    let hard = Settings {
+        save_rule: SaveRule::InnOnly,
+        permadeath: true,
+    };
+    let d = omnis_sim::replay::run(&data, 1, hard, &commands).unwrap();
     assert_eq!(a, b);
     assert_ne!(a, c, "the seed is part of the world");
-    let recorded = Replay::record(&data, 1, commands).unwrap();
+    assert_ne!(a, d, "the settings are part of the world");
+    let recorded = Replay::record(&data, 1, settings, commands).unwrap();
     assert_eq!(recorded.check(&data), Ok(()));
     let mut wrong = recorded.clone();
     wrong.fingerprint ^= 1;
@@ -172,6 +211,6 @@ fn golden_walk_replay_reproduces() {
 #[ignore = "writes the golden file; run deliberately"]
 fn rebaseline_walk_replay() {
     let data = data();
-    let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, walk()).unwrap();
+    let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), walk()).unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
 }

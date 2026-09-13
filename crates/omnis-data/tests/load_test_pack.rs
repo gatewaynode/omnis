@@ -126,7 +126,11 @@ fn portals_and_tileset_slots_resolve() {
         "left walls have no right-side slots"
     );
     assert_eq!(tileset.surfaces["door"].kind, SlotKind::Door);
-    assert_eq!(tileset.slot("floor", 3, 4), None, "beyond width");
+    assert!(
+        tileset.slot("floor", 3, 4).is_some(),
+        "one tile beyond the diagonal"
+    );
+    assert_eq!(tileset.slot("floor", 5, 6), None, "beyond width");
 }
 
 #[test]

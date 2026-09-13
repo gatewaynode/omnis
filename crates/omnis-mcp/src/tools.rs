@@ -3,6 +3,7 @@
 
 use crate::schema::{Field, object};
 use omnis_cli::omnis_sim::Command;
+use omnis_cli::omnis_sim::omnis_rules::Draft;
 use serde_json::{Value, json};
 
 /// One tool.
@@ -33,6 +34,13 @@ fn tool(name: &'static str, op: &'static str, description: &'static str, fields:
 /// Every tool, in the order `tools/list` reports them.
 #[must_use]
 pub fn tools() -> Vec<Tool> {
+    let mut all = game_tools();
+    all.extend(party_tools());
+    all
+}
+
+/// The game tools: status, commands, views, saves, packs, screenshot.
+fn game_tools() -> Vec<Tool> {
     let map = || {
         Field::new::<Option<String>>(
             "map",
@@ -132,6 +140,53 @@ pub fn tools() -> Vec<Tool> {
     ]
 }
 
+/// The party and the rules.
+fn party_tools() -> Vec<Tool> {
+    vec![
+        tool(
+            "party_get",
+            "party.get",
+            "The party: members with race, class, level, hit and spell points, armor class, scores, row, and conditions, plus slots, gold, gems, and food.",
+            &[],
+        ),
+        tool(
+            "party_create",
+            "party.create",
+            "Create a character from a draft and add it to the party; returns the events. Use rules_list for the point budget and party_get to see the result.",
+            &[Field::new::<Draft>("character", true, "The draft.")],
+        ),
+        tool(
+            "rules_list",
+            "rules.list",
+            "Every rule slot with its inputs and source, plus the rule values and tables.",
+            &[],
+        ),
+        tool(
+            "rules_get",
+            "rules.get",
+            "One rule slot's inputs and source.",
+            &[Field::new::<String>(
+                "slot",
+                true,
+                "Slot name such as spell_points.pool.",
+            )],
+        ),
+        tool(
+            "rules_set",
+            "rules.set",
+            "Replace one rule slot's formula in the running game (hot swap); a bad formula is refused with its line and column. Packs on disk are untouched.",
+            &[
+                Field::new::<String>("slot", true, "Slot name such as spell_points.pool."),
+                Field::new::<String>(
+                    "source",
+                    true,
+                    "A Rhai expression over the slot's declared inputs.",
+                ),
+            ],
+        ),
+    ]
+}
+
 /// The `tools/list` result.
 #[must_use]
 pub fn list() -> Value {
@@ -172,6 +227,17 @@ mod tests {
             ("save_read", json!({"path": "a.ron", "force": true})),
             ("pack_reload", json!({})),
             ("screenshot", json!({"path": "shot.png"})),
+            ("party_get", json!({})),
+            (
+                "party_create",
+                json!({"character": {"name": "Brenna", "race": "base:race:human", "class": "base:class:fighter", "background": "base:background:acolyte", "alignment": "NeutralGood", "scores": [15, 14, 13, 12, 10, 8], "skills": ["Athletics", "Perception"]}}),
+            ),
+            ("rules_list", json!({})),
+            ("rules_get", json!({"slot": "spell_points.pool"})),
+            (
+                "rules_set",
+                json!({"slot": "spell_points.pool", "source": "level * 10"}),
+            ),
         ];
         assert_eq!(tools().len(), examples.len());
         for (name, arguments) in examples {
@@ -201,6 +267,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 12);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 17);
     }
 }

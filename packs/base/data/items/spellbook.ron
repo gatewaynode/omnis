@@ -1,0 +1,2 @@
+// SRD 5.1 equipment (docs/dnd.srd.5.1/04_Equipment). Costs in copper, weight in tenths of a pound.
+(schema: 1, id: "base:item:spellbook", name: "base:text:item.spellbook.name", kind: Gear, cost_cp: 5000, weight_tenths: 30)

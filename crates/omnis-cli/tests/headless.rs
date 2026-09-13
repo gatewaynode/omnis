@@ -3,8 +3,13 @@
 
 use omnis_cli::{Headless, schema};
 use omnis_data::ron_io::parse;
-use omnis_data::{MapDef, PackManifest, Tileset};
+use omnis_data::{Alignment, Skill};
+use omnis_data::{
+    Background, Class, Condition, Item, MapDef, Monster, PackManifest, Race, RulesFile, Spell,
+    Tileset,
+};
 use omnis_sim::omnis_core::Direction;
+use omnis_sim::omnis_rules::Draft;
 use omnis_sim::{Command, Op, OpError, Replay, Reply, World};
 use std::path::{Path, PathBuf};
 
@@ -101,9 +106,89 @@ fn schema_dump_sections_parse_with_the_real_types() {
         errors.is_empty(),
         "the example map passes its own checks: {errors:?}"
     );
-    parse::<World>(&body("# save (schema 1)\n")).unwrap();
+    parse::<Race>(&body("# data/races/<name>.ron\n")).unwrap();
+    let class = parse::<Class>(&body("# data/classes/<name>.ron\n")).unwrap();
+    assert_eq!(class.hit_die, 10);
+    parse::<Background>(&body("# data/backgrounds/<name>.ron\n")).unwrap();
+    parse::<Item>(&body("# data/items/<name>.ron\n")).unwrap();
+    parse::<Condition>(&body("# data/conditions/<name>.ron\n")).unwrap();
+    let spell = parse::<Spell>(&body("# data/spells/<name>.ron\n")).unwrap();
+    assert_eq!(spell.point_cost(), 1);
+    parse::<Monster>(&body("# data/monsters/<name>.ron\n")).unwrap();
+    let rules = parse::<RulesFile>(&body("# data/rules/<name>.ron\n")).unwrap();
+    assert!(rules.slots.contains_key("spell_points.pool"));
+    parse::<World>(&body("# save (schema 2)\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();
-    assert_eq!(ops.len(), 12);
+    assert_eq!(ops.len(), 17);
+}
+
+/// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.
+#[test]
+fn rules_set_changes_the_pool_without_a_rebuild() {
+    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/base");
+    let mut game = Headless::new(vec![base, test_pack()], 1).unwrap();
+    let wizard = Draft {
+        name: "Ilvara".into(),
+        race: "base:race:elf".into(),
+        class: "base:class:wizard".into(),
+        background: "base:background:acolyte".into(),
+        alignment: Alignment::ChaoticGood,
+        scores: [8, 14, 13, 15, 12, 10],
+        skills: vec![Skill::Arcana, Skill::History],
+    };
+    let pool = |game: &mut Headless, index: usize| match game.handle(&Op::PartyGet) {
+        Ok(Reply::Party { party }) => party.members[index].spell_points_max,
+        other => panic!("{other:?}"),
+    };
+    game.handle(&Op::PartyCreate {
+        character: wizard.clone(),
+    })
+    .unwrap();
+    assert_eq!(pool(&mut game, 0), 4);
+    let reply = game
+        .handle(&Op::RulesSet {
+            slot: "spell_points.pool".into(),
+            source: "level * 10".into(),
+        })
+        .unwrap();
+    assert!(matches!(reply, Reply::Rule { rule } if rule.source == "level * 10"));
+    game.handle(&Op::PartyCreate { character: wizard }).unwrap();
+    assert_eq!(
+        pool(&mut game, 1),
+        10,
+        "the new formula applies to the next creation"
+    );
+    assert_eq!(pool(&mut game, 0), 4, "an existing sheet keeps its pool");
+    let error = game
+        .handle(&Op::RulesSet {
+            slot: "spell_points.pool".into(),
+            source: "level * wisdom".into(),
+        })
+        .unwrap_err();
+    assert!(
+        matches!(&error, OpError::BadRequest { message } if message.contains("1:9: unknown input 'wisdom'")),
+        "{error}"
+    );
+    let error = game
+        .handle(&Op::RulesSet {
+            slot: "nope".into(),
+            source: "1".into(),
+        })
+        .unwrap_err();
+    assert!(matches!(error, OpError::BadRequest { .. }));
+    assert!(matches!(
+        game.handle(&Op::RulesGet { slot: "spell_points.pool".into() }).unwrap(),
+        Reply::Rule { rule } if rule.source == "level * 10" && rule.inputs.len() == 4
+    ));
+    assert_eq!(
+        game.handle(&Op::RulesGet {
+            slot: "nope".into()
+        })
+        .unwrap_err(),
+        OpError::UnknownSlot {
+            slot: "nope".into()
+        }
+    );
 }

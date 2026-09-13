@@ -7,21 +7,39 @@
 #![deny(clippy::float_arithmetic)]
 #![warn(missing_docs)]
 
+pub mod character;
+pub mod condition;
+mod content;
 pub mod error;
+pub mod item;
 pub mod limits;
 pub mod loader;
 pub mod manifest;
 pub mod map;
+pub mod monster;
 pub mod registry;
 pub mod ron_io;
+pub mod rules;
+pub mod spell;
+pub mod terms;
 pub mod text;
 pub mod tileset;
 
+pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
+pub use condition::Condition;
 pub use error::{DataError, LoadReport};
+pub use item::{Item, ItemKind};
 pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
+pub use monster::{Attack, Monster};
+pub use omnis_expr;
 pub use registry::Registry;
+pub use rules::{RulesFile, SlotDef};
+pub use spell::Spell;
+pub use terms::{
+    Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,
+};
 pub use text::TextFile;
 pub use tileset::{Slot, SlotKind, Surface, Tileset};
 

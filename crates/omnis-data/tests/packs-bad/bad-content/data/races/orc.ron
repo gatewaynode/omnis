@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:race:orc", name: "badc:text:race.orc.name", ability_bonuses: {Strength: 9}, size: Medium, speed: 0, starting_age: 0, features: [(name: "badc:text:race.orc.fierce")])

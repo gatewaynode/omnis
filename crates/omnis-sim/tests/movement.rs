@@ -28,7 +28,8 @@ fn a_new_game_starts_on_the_entry_map_and_sees_the_meadow() {
     );
     let view = query::viewport(&world, &data).expect("map loaded");
     assert_eq!((view.detail_depth, view.visibility_depth), (4, 12));
-    let near: usize = (0..=5).map(|d| 2 * d + 1).sum();
+    // Each row is one tile wider than the diagonal on both sides.
+    let near: usize = (0..=5).map(|d| 2 * (d + 1) + 1).sum();
     assert!(
         view.tiles[..near].iter().all(|t| t.depth <= 5),
         "nearest rows first"
@@ -161,8 +162,49 @@ fn water_blocks_movement_but_not_sight_and_the_hedge_blocks_both() {
         }]
     );
     let view = query::viewport(&world, &data).unwrap();
-    assert_eq!(view.tiles.len(), 1, "a wall at depth 0 ends the cone");
+    assert!(
+        view.tiles.iter().all(|t| t.depth == 0),
+        "a wall at depth 0 ends the cone"
+    );
+    assert_eq!(
+        view.tiles.len(),
+        3,
+        "the party's tile and the two beside it"
+    );
     assert_eq!(view.tiles[0].front, query::EdgeView::Wall);
+}
+
+#[test]
+fn the_party_sees_the_tiles_beside_it() {
+    let data = data();
+    let mut world = world(&data);
+    let view = query::viewport(&world, &data).unwrap();
+    let row0: Vec<i8> = view
+        .tiles
+        .iter()
+        .filter(|t| t.depth == 0)
+        .map(|t| t.offset)
+        .collect();
+    assert_eq!(
+        row0,
+        [0, 1, -1],
+        "open ground: both neighbours, centre first"
+    );
+
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        x: 5,
+        y: 0,
+        facing: Facing::North,
+    };
+    let view = query::viewport(&world, &data).unwrap();
+    let row0: Vec<i8> = view.tiles.iter().map(|t| t.offset).collect();
+    assert_eq!(
+        row0,
+        [0, -1],
+        "the room wall on the right hides that neighbour; the map edge ends the cone"
+    );
 }
 
 #[test]
@@ -268,7 +310,10 @@ fn doors_block_until_opened_and_pillars_always() {
     };
     let view = query::viewport(&world, &data).unwrap();
     assert_eq!(view.tiles[0].front, query::EdgeView::Door { open: false });
-    assert_eq!(view.tiles.len(), 1, "a closed door ends the cone");
+    assert!(
+        view.tiles.iter().all(|t| t.depth == 0),
+        "a closed door ends the cone"
+    );
 
     assert_eq!(
         without_visible(step(&mut world, &data)),

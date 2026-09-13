@@ -7,16 +7,20 @@
 
 use crate::apply::apply;
 use crate::command::{Command, Event, Rejection};
+use crate::party::{self, PartyCommand};
 use crate::query::{self, ViewportModel};
 use crate::world::{Known, Mode, World};
 use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
+use alloc::borrow::ToOwned;
+use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{EraId, MapId, Position};
+use omnis_core::{CharacterId, EraId, MapId, Position};
 use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
+use omnis_rules::Draft;
 use serde::{Deserialize, Serialize};
 
 /// Most commands one `sim.script` may carry.
@@ -97,6 +101,33 @@ pub enum Op {
         #[serde(default)]
         path: Option<String>,
     },
+    /// The party: members with their derived numbers, purse, and food.
+    #[serde(rename = "party.get")]
+    PartyGet,
+    /// Create a character from a draft and add it to the party (`Command::Party(Create)`).
+    #[serde(rename = "party.create")]
+    PartyCreate {
+        /// The draft.
+        character: Draft,
+    },
+    /// Every rule slot with its inputs and source, plus the values and tables.
+    #[serde(rename = "rules.list")]
+    RulesList,
+    /// One slot's inputs and source.
+    #[serde(rename = "rules.get")]
+    RulesGet {
+        /// Slot name such as `spell_points.pool`.
+        slot: String,
+    },
+    /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
+    /// untouched).
+    #[serde(rename = "rules.set")]
+    RulesSet {
+        /// Slot name.
+        slot: String,
+        /// The new expression.
+        source: String,
+    },
 }
 
 fn default_tail() -> usize {
@@ -109,7 +140,11 @@ impl Op {
     pub const fn is_host(&self) -> bool {
         matches!(
             self,
-            Op::SaveWrite { .. } | Op::SaveRead { .. } | Op::PackReload | Op::Screenshot { .. }
+            Op::SaveWrite { .. }
+                | Op::SaveRead { .. }
+                | Op::PackReload
+                | Op::Screenshot { .. }
+                | Op::RulesSet { .. }
         )
     }
 }
@@ -157,6 +192,80 @@ pub struct KnownTile {
     pub known: Known,
 }
 
+/// One party member as a client sees it: the sheet plus the derived numbers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberView {
+    /// Position in marching order.
+    pub index: u8,
+    /// Stable identity.
+    pub id: CharacterId,
+    /// Display name.
+    pub name: String,
+    /// Race id.
+    pub race: String,
+    /// Class id.
+    pub class: String,
+    /// Level.
+    pub level: u8,
+    /// Experience.
+    pub xp: u32,
+    /// Hit points.
+    pub hp: i32,
+    /// Hit point maximum.
+    pub hp_max: i32,
+    /// Spell points.
+    pub spell_points: u32,
+    /// Spell point maximum.
+    pub spell_points_max: u32,
+    /// Armor class.
+    pub ac: i64,
+    /// The six scores in SRD order.
+    pub scores: [u8; 6],
+    /// In the front row.
+    pub front: bool,
+    /// Condition ids in effect.
+    pub conditions: Vec<String>,
+}
+
+/// The party as a client sees it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PartyView {
+    /// Members in marching order.
+    pub members: Vec<MemberView>,
+    /// Slots the rules allow.
+    pub slots: usize,
+    /// Members in the front row.
+    pub front_row: usize,
+    /// Gold pieces.
+    pub gold: u32,
+    /// Gems.
+    pub gems: u32,
+    /// Food units.
+    pub food: u32,
+}
+
+/// One rule slot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlotView {
+    /// Slot name.
+    pub name: String,
+    /// Declared inputs.
+    pub inputs: Vec<String>,
+    /// The expression.
+    pub source: String,
+}
+
+/// The loaded rules.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RulesView {
+    /// Every slot.
+    pub slots: Vec<SlotView>,
+    /// Plain values.
+    pub values: BTreeMap<String, i64>,
+    /// Tables.
+    pub tables: BTreeMap<String, Vec<i64>>,
+}
+
 /// A successful result. Serialized untagged, so the wire carries the plain object.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -196,7 +305,24 @@ pub enum Reply {
         /// The file written.
         path: String,
     },
-    /// `world.query`: `None` when the path does not exist.
+    /// `party.get`.
+    Party {
+        /// The party.
+        party: PartyView,
+    },
+    /// `rules.list`.
+    Rules {
+        /// The rules.
+        rules: RulesView,
+    },
+    /// `rules.get` and `rules.set`.
+    Rule {
+        /// The slot.
+        rule: SlotView,
+    },
+    /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
+    /// variants in order and an absent `Option` field reads as `None`, so this variant and
+    /// `Done` stay last: they would swallow any object.
     Value {
         /// The value as text.
         value: Option<String>,
@@ -218,6 +344,11 @@ pub enum OpError {
     UnknownMap {
         /// The id given.
         map: String,
+    },
+    /// No rule slot has that name.
+    UnknownSlot {
+        /// The name given.
+        slot: String,
     },
     /// A string argument is longer than `limits::MAX_STRING_BYTES`.
     TooLong {
@@ -248,6 +379,7 @@ impl fmt::Display for OpError {
         match self {
             OpError::Rejected { rejection } => write!(f, "{rejection}"),
             OpError::UnknownMap { map } => write!(f, "no map '{map}' is loaded"),
+            OpError::UnknownSlot { slot } => write!(f, "no rule slot '{slot}'"),
             OpError::TooLong { limit } => write!(f, "string longer than {limit} bytes"),
             OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
@@ -292,7 +424,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
                 value: query::path(world, path),
             })
         }
-        Op::SimCommand { command } => apply(world, data, *command)
+        Op::SimCommand { command } => apply(world, data, command.clone())
             .map(|events| Reply::Events { events })
             .map_err(|rejection| OpError::Rejected { rejection }),
         Op::SimScript { commands } => script(world, data, commands),
@@ -328,10 +460,95 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
                 tiles,
             })
         }
-        Op::SaveWrite { .. } | Op::SaveRead { .. } | Op::PackReload | Op::Screenshot { .. } => {
-            Err(OpError::HostOnly)
-        }
+        Op::PartyGet => Ok(Reply::Party {
+            party: party_view(world, data),
+        }),
+        Op::PartyCreate { character } => apply(
+            world,
+            data,
+            Command::Party(PartyCommand::Create(character.clone())),
+        )
+        .map(|events| Reply::Events { events })
+        .map_err(|rejection| OpError::Rejected { rejection }),
+        Op::RulesList => Ok(Reply::Rules {
+            rules: rules_view(data),
+        }),
+        Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
+        Op::SaveWrite { .. }
+        | Op::SaveRead { .. }
+        | Op::PackReload
+        | Op::Screenshot { .. }
+        | Op::RulesSet { .. } => Err(OpError::HostOnly),
     }
+}
+
+/// `party.get`.
+#[must_use]
+pub fn party_view(world: &World, data: &Data) -> PartyView {
+    let front_row = party::front_row(data);
+    let name_of = |name: Option<&str>| name.unwrap_or("?").to_owned();
+    let members = world
+        .party
+        .members
+        .iter()
+        .enumerate()
+        .map(|(index, member)| MemberView {
+            index: u8::try_from(index).unwrap_or(u8::MAX),
+            id: member.id,
+            name: member.name.clone(),
+            race: name_of(data.registry.races.name(member.race)),
+            class: name_of(data.registry.classes.name(member.class)),
+            level: member.level,
+            xp: member.xp,
+            hp: member.hp,
+            hp_max: member.hp_max,
+            spell_points: member.spell_points,
+            spell_points_max: member.spell_points_max,
+            ac: omnis_rules::armor_class(member, data),
+            scores: member.scores,
+            front: index < front_row,
+            conditions: member
+                .conditions
+                .iter()
+                .map(|c| name_of(data.registry.conditions.name(*c)))
+                .collect(),
+        })
+        .collect();
+    PartyView {
+        members,
+        slots: party::slots(data),
+        front_row,
+        gold: world.party.gold,
+        gems: world.party.gems,
+        food: world.party.food,
+    }
+}
+
+/// `rules.list`.
+#[must_use]
+pub fn rules_view(data: &Data) -> RulesView {
+    RulesView {
+        slots: data
+            .rules
+            .slot_names()
+            .filter_map(|name| slot_view(data, name).ok())
+            .collect(),
+        values: data.rules.values().clone(),
+        tables: data.rules.tables().clone(),
+    }
+}
+
+/// `rules.get`, and what `rules.set` answers with.
+pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
+    bounded(name)?;
+    let slot = data.rules.slot(name).ok_or_else(|| OpError::UnknownSlot {
+        slot: name.to_owned(),
+    })?;
+    Ok(SlotView {
+        name: name.to_owned(),
+        inputs: slot.inputs().to_vec(),
+        source: slot.source().to_owned(),
+    })
 }
 
 /// `game.status`.
@@ -362,7 +579,7 @@ fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply,
     let mut applied = 0;
     let mut rejected = None;
     for command in commands {
-        match apply(world, data, *command) {
+        match apply(world, data, command.clone()) {
             Ok(more) => {
                 events.extend(more);
                 applied += 1;
@@ -380,7 +597,8 @@ fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply,
     })
 }
 
-fn bounded(s: &str) -> Result<(), OpError> {
+/// Refuse a string argument longer than the limit.
+pub fn bounded(s: &str) -> Result<(), OpError> {
     if string_fits(s) {
         Ok(())
     } else {

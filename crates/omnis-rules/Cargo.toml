@@ -1,0 +1,15 @@
+[package]
+name = "omnis-rules"
+description = "SRD arithmetic for Omnis: abilities, proficiency, hit points, armor class, checks, saves, spell points, leveling, and character creation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+omnis-core = { workspace = true }
+omnis-data = { workspace = true }
+omnis-expr = { workspace = true }
+serde = { workspace = true }

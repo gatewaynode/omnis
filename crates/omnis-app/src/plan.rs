@@ -120,7 +120,11 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
         }
     }
 
-    // Detail rows from tileset slots.
+    // Detail rows from tileset slots. Within a row, painter's order: floors and ceilings,
+    // then fronts (all at distance `d + 1`), then side walls (which reach nearer, so a
+    // front at an outer offset lies partly behind the side wall at the inner one), then
+    // blocks (near face at distance `d`). Outer offsets come first, so an outer block's
+    // side face lies under an inner block's near face.
     let mut depth = view.detail_depth;
     while depth > 0 {
         depth -= 1;
@@ -137,14 +141,6 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
             }
         }
         for t in &row {
-            if t.offset <= 0 && t.left != EdgeView::Open {
-                push_slot(&mut ops, tileset, &map.def.wall.left, depth, t.offset);
-            }
-            if t.offset >= 0 && t.right != EdgeView::Open {
-                push_slot(&mut ops, tileset, &map.def.wall.right, depth, t.offset);
-            }
-        }
-        for t in &row {
             match t.front {
                 EdgeView::Wall => {
                     push_slot(&mut ops, tileset, &map.def.wall.front, depth, t.offset)
@@ -158,6 +154,14 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
                     }
                 }
                 EdgeView::Open => {}
+            }
+        }
+        for t in &row {
+            if t.offset <= 0 && t.left != EdgeView::Open {
+                push_slot(&mut ops, tileset, &map.def.wall.left, depth, t.offset);
+            }
+            if t.offset >= 0 && t.right != EdgeView::Open {
+                push_slot(&mut ops, tileset, &map.def.wall.right, depth, t.offset);
             }
         }
         for t in &row {
@@ -333,6 +337,7 @@ fn dim(c: (u8, u8, u8)) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::Settings;
     use omnis_sim::omnis_core::{Direction, Facing, Position};
     use omnis_sim::omnis_data::load_packs;
     use omnis_sim::{Command, apply, query};
@@ -355,7 +360,7 @@ mod tests {
     #[test]
     fn meadow_start_draws_far_to_near_with_a_horizon_band() {
         let data = data();
-        let world = World::new(&data, 1).unwrap();
+        let world = World::new(&data, 1, Settings::default()).unwrap();
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let fills = ops
@@ -397,7 +402,7 @@ mod tests {
     #[test]
     fn dungeon_corridor_draws_each_wall_plane_once() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         world.position = Position {
             map: dungeon,
@@ -411,10 +416,20 @@ mod tests {
         assert_eq!(
             paths.last().copied(),
             Some("assets/tilesets/dungeon/door_d0_o0.png"),
-            "the closed door ahead is drawn last"
+            "the closed door ahead is drawn last: no side walls in the room"
         );
-        assert!(paths.contains(&"assets/tilesets/dungeon/floor_d0_o0.png"));
-        assert!(paths.contains(&"assets/tilesets/dungeon/ceiling_d0_o0.png"));
+        let at = |name: &str| {
+            paths
+                .iter()
+                .position(|p| *p == format!("assets/tilesets/dungeon/{name}.png"))
+                .unwrap_or_else(|| panic!("{name} drawn"))
+        };
+        assert!(at("floor_d0_o0") < at("door_d0_o0"));
+        assert!(at("ceiling_d0_o0") < at("door_d0_o0"));
+        assert!(
+            at("floor_d0_o1") < at("wall_d0_o1") && at("floor_d0_o-1") < at("wall_d0_o-1"),
+            "the tiles beside the party and their fronts"
+        );
         assert!(
             !paths
                 .iter()
@@ -438,9 +453,78 @@ mod tests {
     }
 
     #[test]
+    fn tiles_beside_the_party_fill_the_corners() {
+        let data = data();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        for name in ["grass_d0_o-1", "grass_d0_o1"] {
+            let placed = ops
+                .iter()
+                .find(
+                    |o| matches!(&o.paint, Paint::Sprite(p) if p.ends_with(&format!("{name}.png"))),
+                )
+                .unwrap_or_else(|| panic!("{name} drawn: {paths:?}"));
+            assert!(
+                placed.x == 0 || placed.x == 181,
+                "{name} at the canvas edge, not {}",
+                placed.x
+            );
+        }
+
+        let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+        place(&mut world, dungeon, 3, 6, Facing::North);
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        for name in [
+            "floor_d0_o-1",
+            "floor_d0_o1",
+            "ceiling_d0_o-1",
+            "ceiling_d0_o1",
+        ] {
+            assert!(
+                paths.contains(&format!("assets/tilesets/dungeon/{name}.png").as_str()),
+                "{name} drawn in a room: {paths:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_neighbours_front_lies_under_the_partys_side_wall() {
+        let data = data();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+        place(&mut world, dungeon, 3, 6, Facing::North);
+        let mut view = query::viewport(&world, &data).unwrap();
+        // A wall on the party's right, and a front wall on the tile beside it: both span
+        // canvas x 181..240, and the side wall is the nearer.
+        for t in &mut view.tiles {
+            if t.depth == 0 && t.offset == 0 {
+                t.right = EdgeView::Wall;
+            }
+            if t.depth == 0 && t.offset == 1 {
+                t.front = EdgeView::Wall;
+            }
+        }
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        let front = paths
+            .iter()
+            .position(|p| p.ends_with("wall_d0_o1.png"))
+            .unwrap();
+        let side = paths
+            .iter()
+            .position(|p| p.ends_with("wall.right_d0_o0.png"))
+            .unwrap();
+        assert!(front < side, "front first, side wall over it: {paths:?}");
+    }
+
+    #[test]
     fn a_pillar_is_a_block_drawn_after_its_row() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         // The pillar at (8, 8) two tiles ahead; the room's north wall is in the same row.
         place(&mut world, dungeon, 6, 8, Facing::East);
@@ -473,7 +557,7 @@ mod tests {
     #[test]
     fn an_open_door_draws_its_frame_and_a_far_corridor_has_a_ceiling_band() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         place(&mut world, dungeon, 9, 5, Facing::South);
         apply(&mut world, &data, Command::Interact).unwrap();
@@ -504,7 +588,7 @@ mod tests {
     #[test]
     fn distant_trees_are_silhouettes_at_their_near_edge() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         let meadow = world.position.map;
         place(&mut world, meadow, 5, 16, Facing::North);
         let view = query::viewport(&world, &data).unwrap();
@@ -523,7 +607,7 @@ mod tests {
     #[test]
     fn automap_marks_known_tiles_walls_and_the_party() {
         let data = data();
-        let mut world = World::new(&data, 1).unwrap();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
         world.position = Position {
             map: world.position.map,
             x: 6,
@@ -559,7 +643,7 @@ mod tests {
     #[test]
     fn automap_window_centres_small_maps_and_scrolls_large_ones() {
         let data = data();
-        let world = World::new(&data, 1).unwrap();
+        let world = World::new(&data, 1, Settings::default()).unwrap();
         let rect = (248, 8, 64, 64);
         let fitted = automap_window(&world, &data, rect, 2);
         let inside = |op: &DrawOp| match op.paint {

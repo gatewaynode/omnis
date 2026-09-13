@@ -31,11 +31,14 @@ impl Server {
     }
 
     fn headless() -> Server {
-        let pack = repo().join("packs/test");
+        let base = repo().join("packs/base");
+        let test = repo().join("packs/test");
         Server::start(&[
             "--headless",
             "--pack",
-            pack.to_str().unwrap(),
+            base.to_str().unwrap(),
+            "--pack",
+            test.to_str().unwrap(),
             "--seed",
             "1",
         ])
@@ -93,7 +96,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}));
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 17);
     assert!(
         tools
             .iter()
@@ -151,6 +154,56 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 }
 
 #[test]
+fn the_party_and_the_rules_go_through_the_same_pipe() {
+    let mut server = Server::headless();
+    server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}}));
+    let draft = json!({"name": "Ilvara", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10], "skills": ["Arcana", "History"]});
+    let reply = server.tool(10, "party_create", json!({"character": draft}));
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(11, "party_get", json!({}));
+    let member = &reply["result"]["structuredContent"]["party"]["members"][0];
+    assert_eq!(member["name"], json!("Ilvara"));
+    assert_eq!(member["spell_points_max"], json!(4), "{member}");
+    let reply = server.tool(
+        12,
+        "rules_set",
+        json!({"slot": "spell_points.pool", "source": "level * 10"}),
+    );
+    assert_eq!(
+        reply["result"]["structuredContent"]["rule"]["source"],
+        json!("level * 10"),
+        "{reply}"
+    );
+    let reply = server.tool(13, "party_create", json!({"character": draft}));
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(14, "party_get", json!({}));
+    assert_eq!(
+        reply["result"]["structuredContent"]["party"]["members"][1]["spell_points_max"],
+        json!(10),
+        "the new formula, no rebuild"
+    );
+    let reply = server.tool(
+        15,
+        "rules_set",
+        json!({"slot": "spell_points.pool", "source": "level * wisdom"}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(true));
+    assert!(
+        reply["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("unknown input 'wisdom'"),
+        "{reply}"
+    );
+    let reply = server.tool(16, "party_create", json!({"character": {"name": "", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10]}}));
+    assert_eq!(
+        reply["result"]["structuredContent"]["kind"],
+        json!("Rejected"),
+        "{reply}"
+    );
+}
+
+#[test]
 fn protocol_errors_have_the_right_codes() {
     let mut server = Server::headless();
     let reply = server.tool(1, "fly", json!({}));
@@ -203,7 +256,7 @@ fn modern_requests_are_stateless_and_versioned() {
         &json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": meta()}}),
     );
     assert_eq!(reply["result"]["resultType"], json!("complete"));
-    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 12);
+    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 17);
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "game_status", "arguments": {}, "_meta": meta()}}));
     assert_eq!(reply["result"]["resultType"], json!("complete"));
     assert_eq!(reply["result"]["structuredContent"]["turn"], json!(0));

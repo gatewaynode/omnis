@@ -1,0 +1,3 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+(schema: 1, id: "base:spell:shield", name: "base:text:spell.shield.name", level: 1, school: Abjuration, classes: ["base:class:wizard"], concentration: false, ritual: false, description: "base:text:spell.shield.description")

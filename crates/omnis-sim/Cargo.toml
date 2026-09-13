@@ -11,4 +11,5 @@ publish.workspace = true
 [dependencies]
 omnis-core = { workspace = true }
 omnis-data = { workspace = true }
+omnis-rules = { workspace = true }
 serde = { workspace = true }

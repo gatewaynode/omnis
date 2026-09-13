@@ -1,0 +1,14 @@
+// English strings for the base pack's monster content. Keys are `base:text:monster.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "base:text:monster.giant_rat.bite": "Bite",
+        "base:text:monster.giant_rat.name": "Giant Rat",
+        "base:text:monster.goblin.name": "Goblin",
+        "base:text:monster.goblin.scimitar": "Scimitar",
+        "base:text:monster.goblin.shortbow": "Shortbow",
+        "base:text:monster.skeleton.name": "Skeleton",
+        "base:text:monster.skeleton.shortbow": "Shortbow",
+        "base:text:monster.skeleton.shortsword": "Shortsword",
+    },
+)

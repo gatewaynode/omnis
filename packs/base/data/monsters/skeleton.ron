@@ -1,0 +1,17 @@
+// SRD 5.1 stat block (docs/dnd.srd.5.1/10_Monsters), reduced to what the crawler uses.
+(
+    schema: 1,
+    id: "base:monster:skeleton",
+    name: "base:text:monster.skeleton.name",
+    size: Medium,
+    ac: 13,
+    hit_points: (count: 2, sides: 8, modifier: 4),
+    speed: 30,
+    abilities: (10, 14, 15, 6, 8, 5),
+    challenge: (1, 4),
+    xp: 50,
+    attacks: [
+        (name: "base:text:monster.skeleton.shortsword", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
+        (name: "base:text:monster.skeleton.shortbow", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Piercing),
+    ],
+)

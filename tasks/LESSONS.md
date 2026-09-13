@@ -28,3 +28,8 @@
 ## 2026-09-12 — A game loop under test must keep looping
 - **What happened**: The socket test sent a request, ran one frame, and waited for the reply; loopback delivery is not synchronous, so the request sometimes arrived after the frame and the test timed out. A megabyte written in one blocking call then deadlocked: the game reads only between frames, and the test could not run frames while blocked in the write.
 - **Rule**: A test peer of a polled server sends, then alternates short reads with `app.update()` until the reply arrives; large payloads are written from another thread.
+
+## 2026-09-13 — A test never reads Bevy's message buffers after an unknown number of frames
+- **What happened**: The socket test asserted `PartyChanged` by reading `Messages<SimEvent>` after a second round trip. Bevy keeps a message for two frames; loopback delivery sometimes needs a second frame, so the message was gone on a slow CI runner while every local run passed.
+- **Rule**: A headless test that asserts on messages collects them into a resource with a reader system ordered after the writer (`after(SimSet::Publish)`); it never reads `Messages<M>` directly.
+- **Rule**: When a CI-only failure involves timing, reproduce it deterministically first (extra `app.update()` calls, a forced delay) and keep that reproduction in the test as the guard.

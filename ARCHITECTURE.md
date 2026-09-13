@@ -101,7 +101,7 @@ pub struct World {
     pub quests: QuestState,
     pub mode: Mode,                  // Explore | Combat(CombatState) | Town(ServiceState) | ...
     pub flags: BTreeMap<FlagId, i64>,
-    pub settings: Difficulty,        // save rule, permadeath (D17)
+    pub settings: Settings,          // save rule (anywhere, relief, inn only), permadeath (D17)
 }
 ```
 
@@ -219,24 +219,25 @@ A `Replay` is `(initial World fingerprint, pack fingerprints, Vec<Command>)`. Ap
 Serves the owner's direction that rules will change a lot, PRD goal 2, and D12 (formula is data). Owner decision (A4, revised 2026-09-12): rule formulas are written in Rhai rather than a hand-rolled language. `omnis-expr` keeps its name and its place in the crate graph; its job changes from implementing a language to hosting one under strict configuration. Facts about Rhai below were verified against its repository, book, and crates.io on 2026-09-12.
 
 ### 5.1 What `omnis-expr` owns
-- **Engine construction.** One `Engine::new_raw()` per profile, with only the packages we choose registered: arithmetic and logic, plus our own `min`, `max`, `clamp`, `abs`, `floor_div`, and `d(n, sides)`. `new_raw` starts with no built-in functions, so nothing enters the sandbox by default.
+- **Engine construction.** One `Engine::new_raw()` per profile, with only the packages we choose registered: arithmetic (unary minus, `abs`) and logic (`!`, `min`, `max`), plus our own `clamp`, `floor_div`, and `d(n, sides)`. Binary integer operators and comparisons are built into the evaluator. `new_raw` starts with no other functions, so nothing else enters the sandbox.
 - **Profiles.** `Formula` is the only profile in v1: a single expression per slot, no statements. `Script` is the later profile for quest logic (PRD §13, "scripting for mods") with functions, arrays, and maps enabled and higher limits; it is designed for but not built.
-- **Slots and inputs.** Every rule slot declares its input names and types in `omnis-data`. `omnis-expr` compiles each slot's source to an `AST` at pack load and checks that every variable the AST references is a declared input, by walking the AST (Rhai's `internals` feature) or, if that API proves unstable, by a dry-run evaluation with all inputs bound. Unknown identifiers are pack validation errors with file, line, and column.
+- **Slots and inputs.** Every rule slot declares its input names in `omnis-data`; values are integers or booleans. `omnis-expr` compiles each slot's source to an `AST` at pack load and checks that every variable the AST references is a declared input, by walking the AST (Rhai's `internals` feature) or, if that API proves unstable, by a dry-run evaluation with all inputs bound. Unknown identifiers are pack validation errors with file, line, and column.
 - **Evaluation.** `eval(slot, inputs, rng_stream) -> Result<i64 | bool, RuleError>` builds a `Scope` from the inputs, binds the RNG stream for `d`, and runs `eval_ast_with_scope`. A `RuleError` is a bug or bad data, never a rejection; it names the slot and the Rhai error.
 - **Hot swap.** `set_slot(slot, source)` recompiles and replaces the AST in place (dev builds, via MCP `rules.set`). ASTs are not serializable, so packs and saves carry source text and every load recompiles.
 
 ### 5.2 Build features and sandbox limits
-Rhai features enabled for the v1 formula build: `only_i64` (one integer type), `no_float` (no floating point exists in the language), `sync` (ASTs and closures are `Send + Sync`, required because compiled rules live in a Bevy resource), `no_time`, `no_custom_syntax`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object` (no user functions, closures, imports, arrays, or maps in formulas). The `unchecked` feature is never enabled: integer overflow and division by zero are runtime errors, not wraps. Enabling the `Script` profile later means removing the last five flags in one rebuild; the `Formula` profile keeps enforcing its subset through `disable_symbol` regardless.
+Rhai features enabled for the v1 formula build: `only_i64` (one integer type), `no_float` (no floating point exists in the language), `sync` (ASTs and closures are `Send + Sync`, required because compiled rules live in a Bevy resource), `no_time`, `no_custom_syntax`, `no_function`, `no_closure`, `no_module`, `no_index`, `no_object` (no user functions, closures, imports, arrays, or maps in formulas), and `internals` for the AST walk; `default-features = false` drops `ahash/runtime-rng`. The `unchecked` feature is never enabled: integer overflow and division by zero are runtime errors, not wraps. Enabling the `Script` profile later means removing the last five flags in one rebuild; the `Formula` profile keeps enforcing its subset through `disable_symbol` regardless.
 
 Engine limits per profile:
 
 | Limit | Formula | Script (later) |
 |---|---|---|
-| `disable_symbol` | `fn`, `loop`, `while`, `for`, `do`, `let`, `const`, `import`, `export`, `eval`, `throw`, `try`, string literals | `import`, `export`, `eval` |
+| `disable_symbol` | `fn`, `loop`, `while`, `for`, `do`, `let`, `const`, `import`, `export`, `eval`, `throw`, `try`, `return`, `switch` | `import`, `export`, `eval` |
+| string and character literals | refused by the AST walk at compile time (literals are not symbols, and `set_max_string_size(0)` means unlimited) | allowed, 4 KB |
 | `set_max_operations` | 10 000 | 1 000 000 |
-| `set_max_expr_depths` | (32, 16) | (64, 32) |
-| `set_max_call_levels` | 8 | 32 |
-| `set_max_string_size`, `array_size`, `map_size` | 0 (types unavailable) | 4 KB, 4 096, 1 024 |
+| `set_max_expr_depths` | 32 (one argument: `no_function` removes the function-body depth) | (64, 32) |
+| `set_max_call_levels` | compiled out by `no_function` | 32 |
+| `set_max_array_size`, `set_max_map_size` | compiled out by `no_index`, `no_object` | 4 096, 1 024 |
 
 ### 5.3 Determinism
 - Integers only, checked arithmetic, `only_i64`: results are identical on every platform. `/` truncates toward zero and `%` follows the sign of the dividend, matching Rust; rule authors are told this in the pack documentation.
@@ -249,17 +250,21 @@ Engine limits per profile:
 - Security (R8): the formula build has no I/O, no modules, no functions, no strings, no time, bounded operations and depth, and checked arithmetic. A mod pack can make a rule slow or wrong; it cannot reach the filesystem, the network, or the process. The `Script` profile, when it comes, keeps the no-I/O guarantee and adds only computation.
 - Dependency footprint: `rhai` pulls `smallvec`, `thin-vec`, `ahash`, `num-traits`, `once_cell`, `bitflags`, `smartstring`, and the `rhai_codegen` proc-macro crate. `smartstring` is MPL-2.0; it is file-scoped copyleft, compatible with linking into MIT or Apache-2.0 code, and is listed in the attribution file. Several of these crates are already in Bevy's tree and must resolve to Bevy's versions (§12).
 
-### 5.5 Example rule slot (data, not code)
+### 5.5 Example rules file (data, not code)
+Every `data/rules/*.ron` file has one shape: named formula `slots`, plain integer `values`, and integer `tables`. Files merge into one rule set in id order; a later file's slot, value, or table with the same name replaces the earlier one, so a mod can override one formula. Slots are addressed by name everywhere (`rules.get { slot: "spell_points.pool" }`).
 ```ron
 // packs/base/data/rules/casting.ron
 (
-  schema: 1,
-  spell_points: (
-    inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
-    pool: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
-    cost: "spell_level",
-  ),
-  component_threshold: 5,
+    schema: 1,
+    id: "base:rules:casting",
+    slots: {
+        "spell_points.pool": (
+            inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
+            expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
+        ),
+        "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
+    },
+    values: {"component_threshold": 5},
 )
 ```
 
@@ -337,27 +342,27 @@ pub enum RegionEvent { PopulationChanged, FactionShift, ResourceChanged, Weather
 Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources on 2026-09-11.
 
 ### 8.1 Structure
-- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys and gamepad to `Command`), `ViewportPlugin`, `HudPlugin`, `MenusPlugin`, `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
-- Bevy features: `default-features = false, features = ["2d", "ui", "png"]`, plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
-- App states (`bevy_state`): `Boot → MainMenu → {NewGame, Load} → Playing | Editor`, with `SubStates` under `Playing`: `Explore | Encounter | Combat | Service | Journal | Paused`. `OnEnter` and `OnExit` build and tear down presentation entities per state.
+- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys, the on-screen pad, and gamepad to `Command`), `CursorPlugin` (window size and pointer as a canvas pixel, from window messages), `ViewportPlugin`, `MenusPlugin` (the menu state machines and their key and click dispatch), `UiPlugin` (composes the frame: menus, location lines, pad, party band; hit-tests the pointer; uploads the frame into a canvas sprite), `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
+- Bevy features: `default-features = false, features = ["2d", "png"]` (the game UI is canvas sprites, so `ui` is off; the editor's `bevy_egui` brings its own rendering), plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
+- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Paused`, joined by `Encounter | Combat | Service | Journal` as their milestones arrive. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
 - The `World` is a Bevy `Resource` wrapped in `SimWorld` (in 0.19 resources are components on singleton entities; `Res` and `ResMut` are unchanged). Only `SimPlugin` systems mutate it, in one ordered system set in `Update`: `collect commands → apply → push events`. All other systems read events from a buffered `Message` queue (`MessageWriter`/`MessageReader`, 0.19's name for the old buffered events) and read the world through `query::*`. Bevy's ECS holds presentation entities only (sprites, UI nodes, sounds); it never holds game state.
 - Simulation events are re-published as Bevy messages one to one; observers (`On<E>`) are used only for presentation-internal triggers (a floating number finished, a menu closed).
 - Events drive animation. A `Damage` event spawns a floating number; `Moved` starts a step transition; `Visible` updates the viewport model. Presentation may lag the simulation by an animation queue, but the simulation is never blocked by it.
 
 ### 8.2 Pixel pipeline
-- Fixed internal resolution (PRD §14, to decide with art; placeholder 320×180 or 480×270) using the pattern from Bevy's `pixel_grid_snap` example: an inner `Camera2d` rendering to an `Image` target on its own render layer with MSAA off, an outer camera showing that canvas as a sprite, and a resize system that sets the outer projection scale to the reciprocal of the rounded minimum of the horizontal and vertical scale factors, which yields integer scaling. `ImagePlugin::default_nearest()` for all sampling. UI text renders on the outer camera at native resolution so it stays readable.
+- Fixed internal resolution (PRD §14, to decide with art; placeholder 320×180 or 480×270) using the pattern from Bevy's `pixel_grid_snap` example: an inner `Camera2d` rendering to an `Image` target on its own render layer with MSAA off, an outer camera showing that canvas as a sprite, and a fit system that sets the outer projection scale to the reciprocal of the floored minimum of the horizontal and vertical scale factors (the largest integer that fits; it runs from the tracked window size, so it also covers the first frame, for which winit sends no resize). `ImagePlugin::default_nearest()` for all sampling. All game UI is drawn on the canvas: text from a self-authored 5×7 bitmap font in 6×8 cells (`font.rs`, 53 × 22 cells) and one-pixel frames, painted Bevy-free into a 320×180 RGBA raster (`raster.rs`, `widget.rs`, `screen.rs`, `screens.rs`, `panels.rs`) that `UiPlugin` uploads into a sprite above the viewport. It is pixel exact at every scale, appears in canvas captures and the MCP screenshot, and its widgets are hit-tested from the pointer mapped through the letterbox (`cursor.rs`), so the whole UI is testable headless.
 - Asset loading: `omnis-data` loads packs to structs outside Bevy's asset system, because packs are validated data, not assets. A small custom `AssetLoader` (0.19 signature: async `load(reader, settings, load_context)`) handles only pack images and audio by pack-relative path into `Handle<Image>` and atlases. No RON goes through Bevy's asset system; Bevy has no generic RON loader and does not need one here. Missing assets resolve to a generated magenta placeholder (PRD §10).
 
 ### 8.3 Viewport contract (D16)
 - `query::viewport` returns a `ViewportModel`: a forward cone of tiles up to visibility depth, each with terrain, wall mask, objects, monsters, light, and a `distance`.
-- The renderer draws rows `0..detail_depth` (fixed, 4–6) from the tileset's per-depth sprite slots: for each depth `d` and lateral offset `o` in `-d..=d` (clamped to the tileset's width), slots `floor`, `ceiling`, `wall_front`, `wall_left`, `wall_right`, `door`, `object`, `monster`. A tileset declares `detail_depth` and `width`; that is the whole art contract, so art scope is bounded (R10). M1 note: each slot also carries its `x`/`y` position on the tileset's declared `viewport` canvas, so baked and hand-drawn slots place themselves; `omnis-cli tileset bake` generates slots from flat textures (`tasks/TODO.md` M1 review). M1 follow-up: two more slot kinds, `block` (solid terrain such as a pillar: its near face plus the side face toward the party; named by `Terrain.block`) and `door_open` (an open door's frame; named by `MapDef.door_open`), both optional in the data.
+- The renderer draws rows `0..detail_depth` (fixed, 4–6) from the tileset's per-depth sprite slots: for each depth `d` and lateral offset `o` in `-(d + 1)..=(d + 1)` (clamped to the tileset's width: the canvas edge at distance `z` lies at offset `0.99 z`, so each row's far end shows one tile beyond the diagonal, and row 0 the tiles beside the party), slots `floor`, `ceiling`, `wall_front`, `wall_left`, `wall_right`, `door`, `object`, `monster`. A tileset declares `detail_depth` and `width`; that is the whole art contract, so art scope is bounded (R10). M1 note: each slot also carries its `x`/`y` position on the tileset's declared `viewport` canvas, so baked and hand-drawn slots place themselves; `omnis-cli tileset bake` generates slots from flat textures (`tasks/TODO.md` M1 review). M1 follow-up: two more slot kinds, `block` (solid terrain such as a pillar: its near face plus the side face toward the party; named by `Terrain.block`) and `door_open` (an open door's frame; named by `MapDef.door_open`), both optional in the data.
 - Rows beyond detail depth up to visibility depth are drawn as a horizon band: one column per lateral position, a terrain colour swatch plus optional landmark silhouette sprite, height falling with distance. Procedural, not sprite art.
 - Visibility depth per tile comes from the simulation (environment, light, weather, abilities), not from the renderer.
 
 ### 8.4 Editor
 - Lives in the `Editor` app state in the same binary. Edits `omnis-data` structs in memory and writes RON through `omnis-data`; the loader and the writer are the same code path (PRD §10).
 - Views: tile map (paint terrain, edges, objects, triggers, lock mask), region (state and rules), quest graph, data tables, procgen panel (generate, regenerate a layer, lock), text keys, and a playtest button that builds a `World` from the in-memory pack at the cursor tile.
-- UI toolkit (A11): `bevy_egui` for the editor only, pinned at 0.41.1 for Bevy 0.19. Immediate-mode tables, property panels, docking, and node-graph widgets make the editor views cheap to build and change. Player-facing HUD and menus use first-party `bevy_ui` so the game keeps its pixel look; Feathers widgets are used there only where they fit (text and number inputs in character creation) and are treated as experimental. `bevy_egui` is confined to `EditorPlugin` so a lag at each Bevy release stalls only the editor build, and the editor can be feature-gated off if a release lags badly (R2).
+- UI toolkit (A11): `bevy_egui` for the editor only, pinned at 0.41.1 for Bevy 0.19. Immediate-mode tables, property panels, docking, and node-graph widgets make the editor views cheap to build and change. Player-facing HUD and menus are canvas sprites (§8.2), keyboard and mouse driven, so the game keeps its pixel look; `bevy_ui` and Feathers are not used (a correction of 2026-09-12: the M3 screens used `bevy_ui` text at native resolution, which could not be sized to the canvas or captured). `bevy_egui` is confined to `EditorPlugin` so a lag at each Bevy release stalls only the editor build, and the editor can be feature-gated off if a release lags badly (R2).
 
 ## 9. Dev socket and MCP (`omnis-app` feature `devtools`, `omnis-mcp`)
 
@@ -448,11 +453,11 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 
 ## 13. Dependencies (initial)
 
-Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved versions first, N-1 and 30 days for the rest, Socket audit when in doubt. Socket `depscore` audited on 2026-09-12; every crate scored 100 on license, maintenance, and vulnerability and 93 on quality, except smartstring's license score (70, MPL-2.0) and thin-vec's vulnerability score (84). Supply-chain scores: ron 100, bevy_egui 100, smallvec 100, bitflags 100, once_cell 100, thin-vec 100, rhai 1.26.1 71 (owner-reviewed, see row), serde_json 82, serde 81, ahash 82, num-traits 82, thiserror 79, bevy 74. See the rhai row for the 1.25.x anomaly.
+Verified against crates.io on 2026-09-11. Policy in §12: match Bevy's resolved versions first, N-1 and 30 days for the rest, Socket audit when in doubt. Socket `depscore` audited on 2026-09-12; every crate scored 100 on license, maintenance, and vulnerability and 93 on quality, except smartstring's license score (70, MPL-2.0) and thin-vec's vulnerability score (84). Supply-chain scores: ron 100, bevy_egui 100, smallvec 100, bitflags 100, once_cell 100, thin-vec 100, rhai 1.26.1 71 (owner-reviewed, see row), serde_json 82, serde 81, ahash 82, num-traits 82, thiserror 79, bevy 74. See the rhai row for the 1.25.x anomaly. Resolved on 2026-09-12 when `omnis-expr` first pulled rhai: rhai_codegen 3.2.0, smartstring 1.0.1, thin-vec 0.2.19, no-std-compat 0.4.1 and spin 0.5.2 (from `sync`), const-random 0.1.18 and tiny-keccak 2.0.2 (ahash's compile-time seed), and a second getrandom 0.2.17, already on the duplicate allow list; ahash, smallvec, num-traits, once_cell, and bitflags resolved to Bevy's copies.
 
 | Crate | Pin | Used by | Note |
 |---|---|---|---|
-| bevy | 0.19.1 | app | D9 exemption; `default-features = false`, features `2d`, `ui`, `png` (§8.1) |
+| bevy | 0.19.1 | app | D9 exemption; `default-features = false`, features `2d`, `png` (§8.1; `ui` dropped 2026-09-12 with the canvas UI) |
 | png | 0.18.1 | cli | Added 2026-09-12 for `tileset bake`; the version Bevy's image stack resolves, so no duplicate |
 | serde | 1.0.228 | all | derive |
 | serde_json | 1.0.150 | mcp, app devtools | protocol only |
@@ -518,7 +523,7 @@ omnis/
 | A8 | Ecosystem state changes only through typed region events | Direct mutation | NPC agency later inserts as an event source (PRD §9.2). |
 | A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). |
 | A10 | Game state lives in one serializable `World`, not in Bevy ECS | ECS for game state | Save, replay, and headless become trivial; Bevy churn (R2) cannot reach game state. |
-| A11 | `bevy_egui` for the editor, `bevy_ui` for the game | Feathers everywhere; egui everywhere | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, first-party pixel UI for players, egui isolated to one plugin. |
+| A11 | `bevy_egui` for the editor, canvas sprites for the game | Feathers everywhere; egui everywhere; egui around the canvas (+17 crates, 2 duplicate versions, antialiased text) | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, pixel UI for players, egui isolated to one plugin. The game UI moved from `bevy_ui` text to canvas sprites with a self-authored bitmap font on 2026-09-12 (§8.2). |
 | A12 | Packs bypass Bevy's asset system; only images and audio go through an `AssetLoader` | RON as Bevy assets | Packs are validated untrusted data with cross-file references; Bevy's loader is per-file and has no RON loader anyway. |
 | A13 | No global clock; subjective clocks per holder, reconciled on interaction by a data rule with bounded drift | Global calendar with a world-wide daily tick | Owner direction from `docs/background/introduction.md`; makes NPC agency, multiplayer, construction, and travel the same mechanism; lazy and deterministic. Cost: every interaction site must reconcile. |
 | A14 | One world seed; named PCG32 streams derived by FNV-1a and splitmix64; stateful streams persisted in the save, generation streams stateless | Single global RNG; per-entity RNG objects | Approved 2026-09-12. Isolation between subsystems, exact continuation after load, pure regeneration, traceable draws. |

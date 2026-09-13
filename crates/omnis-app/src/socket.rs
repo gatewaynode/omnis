@@ -13,7 +13,7 @@ use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, save
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{client_path, status};
+use omnis_sim::ops::{bounded, client_path, slot_view, status};
 use omnis_sim::{Op, OpError, Reply, dispatch};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
@@ -295,7 +295,12 @@ fn serve(
             }
         };
         let (Some(world), Some(data)) = (world.as_deref_mut(), data.as_deref_mut()) else {
-            socket.queue(&id, &Err(OpError::bad_request("the game is still booting")));
+            socket.queue(
+                &id,
+                &Err(OpError::bad_request(
+                    "no game is running; start one from the menu or launch with --autostart",
+                )),
+            );
             continue;
         };
         if let Op::Screenshot { path } = &op {
@@ -335,6 +340,9 @@ fn handle(
     {
         match op {
             Op::SaveWrite { path } => {
+                if !world.0.may_save() {
+                    return Err(OpError::failed("the save rule forbids saving here"));
+                }
                 let path = client_path(path, &["ron"])?;
                 save(&world.0, Path::new(path)).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.into() })
@@ -362,6 +370,14 @@ fn handle(
                 data.0 = fresh;
                 replaced.write(WorldReplaced);
                 Ok(Reply::Done {})
+            }
+            Op::RulesSet { slot, source } => {
+                bounded(source)?;
+                data.0
+                    .rules
+                    .set_slot(slot, source)
+                    .map_err(OpError::bad_request)?;
+                slot_view(&data.0, slot).map(|rule| Reply::Rule { rule })
             }
             other => {
                 let reply = dispatch(&mut world.0, &data.0, other)?;

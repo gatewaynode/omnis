@@ -2,11 +2,20 @@
     seed: 81985529216486895,
     packs: [
         (
+            id: "base",
+            version: "0.1.0",
+            hash: 10049577318010711650,
+        ),
+        (
             id: "test",
             version: "0.1.0",
-            hash: 2582397558667589099,
+            hash: 17258532121896991947,
         ),
     ],
+    settings: (
+        save_rule: Anywhere,
+        permadeath: false,
+    ),
     commands: [
         Step(Forward),
         Step(Forward),
@@ -38,5 +47,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 7030188437583435588,
+    fingerprint: 16460664581249301881,
 )

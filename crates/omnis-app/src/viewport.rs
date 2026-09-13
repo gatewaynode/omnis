@@ -3,7 +3,7 @@
 
 use crate::assets::PackImages;
 use crate::layout::{
-    CANVAS_HEIGHT, CANVAS_WIDTH, OVERLAY_MAP_ORIGIN, OVERLAY_MAP_SCALE, SIDEBAR_MAP,
+    CANVAS_HEIGHT, CANVAS_WIDTH, OVERLAY_MAP_CLIP, OVERLAY_MAP_SCALE, SIDEBAR_MAP,
     SIDEBAR_MAP_SCALE, VIEWPORT_ORIGIN, VIEWPORT_SIZE,
 };
 use crate::plan::{self, DrawOp, Paint};
@@ -158,14 +158,13 @@ fn redraw(
     let sidebar = plan::automap_window(&world.0, &data.0, SIDEBAR_MAP, SIDEBAR_MAP_SCALE);
     spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &sidebar, (0, 0), 10.0);
     if shown.0 {
-        let overlay = plan::automap(&world.0, &data.0, (0, 0), OVERLAY_MAP_SCALE);
-        spawn_ops::<AutomapSprite>(
-            &mut commands,
-            &server,
-            &mut images,
-            &overlay,
-            OVERLAY_MAP_ORIGIN,
-            20.0,
+        // Clipped to the viewport so a large map never covers the column or the band.
+        let overlay = plan::automap_window(
+            &world.0,
+            &data.0,
+            OVERLAY_MAP_CLIP.tuple(),
+            OVERLAY_MAP_SCALE,
         );
+        spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &overlay, (0, 0), 20.0);
     }
 }
