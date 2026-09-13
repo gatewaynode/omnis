@@ -123,7 +123,7 @@ Scope: monsters as stacks with rows, fixed and random encounters keyed to map ti
 - [x] Combat engine (2026-09-13, `5521f24`): `combat/*`, `Command::Combat`, rejections that leave the RNG untouched, monster turns auto-resolved, death saves, `finish` with xp, gold, permadeath; `combat.get` op and MCP tool; tests on a hand-built encounter
 - [x] Encounters (2026-09-13, `6bdaa4e`): `encounter.rs`, `Command::Encounter`, the trigger in `step`, the `encounter` stream, test-pack monsters and encounter data, `tests/replays/fight.ron` golden; walk replay rebaselined
 - [x] App models and text (2026-09-13): `combat_menu.rs` (the fight view with labels and reach reasons, the combat, encounter, and defeat menus), `combat_text.rs` (one line per event with the roll math, long and short forms); the sim exposes `bribe_cost`
-- [ ] App screens: widget ids, `item_state`, `modal`, `combat_screen.rs`, `screen.rs` arms, screen dump entries
+- [x] App screens (2026-09-13): `WidgetId::{Stack, Action}`, `item_state` and `modal` helpers, `combat_screen.rs` (stack rows, action row, log tail, defeat modal; the window between stays clear), `screen.rs` targets, menus, click arms, `covers_viewport`, dump entries
 - [ ] Silhouettes: `actors.rs`, viewport trigger and spawn
 - [ ] Wiring: `PlayState::{Encounter, Combat, Defeat}` from `World.mode`, `CombatPlugin`, roll log, help, message text, script words
 - [ ] `tests/common/mod.rs` and `tests/combat.rs`: a fixed encounter fought by mouse, Run, the Defeat modal, Escape pauses a fight

@@ -2,6 +2,8 @@
 //! the composition of the menus, the location lines, the pad, and the band into one frame.
 //! Bevy-free.
 
+use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
+use crate::combat_screen;
 use crate::layout::VIEWPORT;
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Band, Hud, MemberRow, Message};
@@ -19,10 +21,17 @@ pub enum Target<'a> {
     Creation(&'a mut CreationForm),
     /// The pause overlay.
     Pause(&'a mut Pause),
+    /// The choice before a fight.
+    Encounter(&'a mut EncounterMenu),
+    /// The fight.
+    Combat(&'a mut CombatMenu),
+    /// The modal after a wipe.
+    Defeat(&'a mut DefeatMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
-/// the part stands for. A text field click only takes the focus.
+/// the part stands for. A text field click only takes the focus; a stack row click only
+/// picks the target.
 #[must_use]
 pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
     let row = match hit.id {
@@ -35,6 +44,20 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
             }
             return Vec::new();
         }
+        WidgetId::Stack(index) => {
+            if let Target::Combat(menu) = target {
+                menu.target = u8::try_from(index).unwrap_or(u8::MAX);
+            }
+            return Vec::new();
+        }
+        WidgetId::Action(index) => {
+            match target {
+                Target::Combat(menu) => menu.cursor = index,
+                Target::Encounter(menu) => menu.cursor = index,
+                _ => return Vec::new(),
+            }
+            return vec![MenuKey::Enter];
+        }
         WidgetId::Pad(_) | WidgetId::Member(_) => return Vec::new(),
     };
     match target {
@@ -42,6 +65,8 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
         Target::NewGame(form) => form.cursor = row,
         Target::Creation(form) => form.cursor = row,
         Target::Pause(pause) => pause.cursor = row,
+        Target::Defeat(menu) => menu.cursor = row,
+        Target::Encounter(_) | Target::Combat(_) => return Vec::new(),
     }
     match (hit.kind, hit.part) {
         (Kind::Choice, Part::Left) => vec![MenuKey::Left],
@@ -78,6 +103,36 @@ pub enum Menu<'a> {
         /// The world seed.
         seed: u64,
     },
+    /// The choice before a fight, over the scene.
+    Encounter {
+        /// The menu.
+        menu: &'a EncounterMenu,
+        /// The view.
+        view: &'a FightView,
+    },
+    /// The fight, over the scene, with the roll log.
+    Combat {
+        /// The menu.
+        menu: &'a CombatMenu,
+        /// The view.
+        view: &'a FightView,
+        /// The roll log, oldest first.
+        log: &'a [String],
+    },
+    /// The modal after a wipe, over the scene.
+    Defeat(&'a DefeatMenu),
+}
+
+impl Menu<'_> {
+    /// Whether the menu hides the whole viewport; the fight screens and the defeat modal
+    /// leave the scene visible.
+    #[must_use]
+    pub const fn covers_viewport(&self) -> bool {
+        !matches!(
+            self,
+            Menu::None | Menu::Encounter { .. } | Menu::Combat { .. } | Menu::Defeat(_)
+        )
+    }
 }
 
 /// Everything a frame is composed from.
@@ -107,7 +162,7 @@ pub struct View<'a> {
 pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetId>) -> Frame {
     let mut frame = Frame::default();
     panels::backdrop(&mut frame);
-    if !matches!(view.menu, Menu::None) {
+    if view.menu.covers_viewport() {
         frame.raster.fill(VIEWPORT, PANEL);
     }
     match &view.menu {
@@ -124,6 +179,9 @@ pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetI
             settings,
             seed,
         } => screens::pause(&mut frame, pause, *settings, *seed),
+        Menu::Encounter { menu, view } => combat_screen::encounter(&mut frame, view, menu),
+        Menu::Combat { menu, view, log } => combat_screen::combat(&mut frame, view, menu, log),
+        Menu::Defeat(menu) => combat_screen::defeat(&mut frame, menu),
     }
     if let Some(hud) = view.hud {
         panels::hud(&mut frame, hud);
@@ -214,6 +272,120 @@ mod tests {
         assert_eq!(pause.cursor, 0);
     }
 
+    #[test]
+    fn fight_clicks_pick_targets_press_actions_and_defeat_rows() {
+        let stack = Hit {
+            id: WidgetId::Stack(2),
+            part: Part::Body,
+            kind: Kind::Choice,
+        };
+        let action = Hit {
+            id: WidgetId::Action(3),
+            part: Part::Body,
+            kind: Kind::Button,
+        };
+        let mut combat = CombatMenu::default();
+        assert_eq!(click(Target::Combat(&mut combat), stack), vec![]);
+        assert_eq!(combat.target, 2, "a stack click only picks the target");
+        assert_eq!(
+            click(Target::Combat(&mut combat), action),
+            vec![MenuKey::Enter]
+        );
+        assert_eq!(combat.cursor, 3);
+        let mut encounter = EncounterMenu::default();
+        assert_eq!(click(Target::Encounter(&mut encounter), stack), vec![]);
+        assert_eq!(
+            click(Target::Encounter(&mut encounter), action),
+            vec![MenuKey::Enter]
+        );
+        assert_eq!(encounter.cursor, 3);
+        let row = Hit {
+            id: WidgetId::Row(1),
+            part: Part::Body,
+            kind: Kind::Button,
+        };
+        assert_eq!(click(Target::Encounter(&mut encounter), row), vec![]);
+        let mut defeat = DefeatMenu::default();
+        assert_eq!(
+            click(Target::Defeat(&mut defeat), row),
+            vec![MenuKey::Enter]
+        );
+        assert_eq!(defeat.cursor, 1);
+        assert_eq!(click(Target::Defeat(&mut defeat), action), vec![]);
+        let mut pause = Pause::default();
+        assert_eq!(click(Target::Pause(&mut pause), stack), vec![]);
+        assert_eq!(click(Target::Pause(&mut pause), action), vec![]);
+        assert_eq!(pause.cursor, 0);
+    }
+
+    #[test]
+    fn the_fight_menus_leave_the_scene_visible() {
+        let view = sample_fight();
+        let members = sample_members();
+        let log = vec!["Combat!".to_owned()];
+        let combat = CombatMenu::default();
+        let menu = Menu::Combat {
+            menu: &combat,
+            view: &view,
+            log: &log,
+        };
+        assert!(!menu.covers_viewport());
+        assert!(Menu::Title(&Title::default()).covers_viewport());
+        let frame = compose(
+            &View {
+                menu,
+                hud: None,
+                members: &members,
+                front_row: 3,
+                selected: None,
+                creating: false,
+                pad: PadState::Disabled,
+                message: &Message::default(),
+                help: "",
+            },
+            None,
+            None,
+        );
+        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]), "the window");
+        assert_eq!(
+            frame.raster.get(120, 20),
+            Some([PANEL.0, PANEL.1, PANEL.2, 255])
+        );
+        assert!(frame.widget(WidgetId::Stack(0)).is_some());
+        assert!(frame.widget(WidgetId::Pad(PadButton::Use)).is_some());
+    }
+
+    /// Goblins and rats before a party of the sample members.
+    fn sample_fight() -> FightView {
+        use crate::combat_menu::StackRow;
+        FightView {
+            phase: omnis_sim::ModeKind::Combat,
+            round: 2,
+            actor: Some("Brenna".to_owned()),
+            own: Some(0),
+            disposition: omnis_sim::omnis_data::Disposition::Hostile,
+            stacks: [
+                ("Goblin", 3, 2, true),
+                ("Giant Rat", 2, 2, true),
+                ("Skeleton", 2, 0, false),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(i, (name, initial, count, alive))| StackRow {
+                index: i as u8,
+                name: name.to_owned(),
+                count,
+                initial,
+                front: alive && i < 2,
+                alive,
+                blocked: None,
+            })
+            .collect(),
+            bribe: Some(200),
+            gold: 60,
+        }
+    }
+
     fn sample_members() -> [MemberRow; 4] {
         [
             ("Brenna", "Fighter", 12, 12, 0),
@@ -244,6 +416,53 @@ mod tests {
         out
     }
 
+    fn sample_creation(catalog: &Catalog) -> CreationForm {
+        let mut form = CreationForm::new(catalog);
+        form.name = "Oswin".into();
+        form.cursor = crate::menu::ROW_ADD;
+        form.skills = vec![omnis_sim::omnis_data::Skill::Religion];
+        form.message = "This class picks 2 skills".into();
+        form
+    }
+
+    fn sample_log() -> Vec<String> {
+        [
+            "Round 2",
+            "Goblin 2 hits Brenna for 5",
+            "Wren misses Goblin 1",
+            "Ilvara hits Giant Rat 1 for 3",
+        ]
+        .map(str::to_owned)
+        .to_vec()
+    }
+
+    /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`.
+    fn dump(dir: &str, name: &str, menu: Menu<'_>, hud: Option<&Hud>, message: &Message) {
+        let members = sample_members();
+        let pad = match (&menu, hud) {
+            (Menu::None, _) => PadState::Enabled,
+            (_, None) => PadState::Hidden,
+            (_, Some(_)) => PadState::Disabled,
+        };
+        let view = View {
+            menu,
+            hud,
+            members: &members,
+            front_row: 3,
+            selected: Some(1),
+            creating: name == "creation",
+            pad,
+            message,
+            help: "Arrows or click  Enter ok  Esc back",
+        };
+        let frame = compose(
+            &view,
+            Some(WidgetId::Row(1)),
+            Some(WidgetId::Pad(PadButton::Use)),
+        );
+        std::fs::write(format!("{dir}/{name}.ppm"), ppm(&frame)).unwrap();
+    }
+
     /// `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
     /// writes every screen as a PPM for a look without a window (`sips -s format png` converts).
     #[test]
@@ -255,12 +474,7 @@ mod tests {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let data = load_packs(&[&repo.join("packs/base")]).unwrap_or_else(|r| panic!("{r}"));
         let catalog = Catalog::from_data(&data);
-        let mut form = CreationForm::new(&catalog);
-        form.name = "Oswin".into();
-        form.cursor = crate::menu::ROW_ADD;
-        form.skills = vec![omnis_sim::omnis_data::Skill::Religion];
-        form.message = "This class picks 2 skills".into();
-        let members = sample_members();
+        let form = sample_creation(&catalog);
         let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
         let event = Message {
             text: "The door opens.".into(),
@@ -281,43 +495,30 @@ mod tests {
             settings: Settings::default(),
             seed: 42,
         };
-        let screens = [
-            ("title", Menu::Title(&title), None, PadState::Hidden, &event),
-            (
-                "new_game",
-                Menu::NewGame(&new_game),
-                None,
-                PadState::Hidden,
-                &event,
-            ),
-            (
-                "creation",
-                creation,
-                Some(&hud),
-                PadState::Disabled,
-                &rejection,
-            ),
-            ("pause", paused, Some(&hud), PadState::Disabled, &event),
-            ("explore", Menu::None, Some(&hud), PadState::Enabled, &event),
-        ];
-        for (name, menu, hud, pad, message) in screens {
-            let view = View {
-                menu,
-                hud,
-                members: &members,
-                front_row: 3,
-                selected: Some(1),
-                creating: name == "creation",
-                pad,
-                message,
-                help: "Arrows or click  Enter ok  Esc back",
-            };
-            let frame = compose(
-                &view,
-                Some(WidgetId::Row(1)),
-                Some(WidgetId::Pad(PadButton::Use)),
-            );
-            std::fs::write(format!("{dir}/{name}.ppm"), ppm(&frame)).unwrap();
-        }
+        let fight = sample_fight();
+        let encounter = EncounterMenu::default();
+        let combat = CombatMenu {
+            target: 1,
+            ..CombatMenu::default()
+        };
+        let defeat = DefeatMenu::default();
+        let log = sample_log();
+        let in_fight = Menu::Combat {
+            menu: &combat,
+            view: &fight,
+            log: &log,
+        };
+        let before = Menu::Encounter {
+            menu: &encounter,
+            view: &fight,
+        };
+        dump(&dir, "title", Menu::Title(&title), None, &event);
+        dump(&dir, "new_game", Menu::NewGame(&new_game), None, &event);
+        dump(&dir, "creation", creation, Some(&hud), &rejection);
+        dump(&dir, "pause", paused, Some(&hud), &event);
+        dump(&dir, "explore", Menu::None, Some(&hud), &event);
+        dump(&dir, "encounter", before, Some(&hud), &event);
+        dump(&dir, "combat", in_fight, Some(&hud), &event);
+        dump(&dir, "defeat", Menu::Defeat(&defeat), Some(&hud), &event);
     }
 }

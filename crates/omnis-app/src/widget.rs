@@ -110,6 +110,10 @@ pub enum WidgetId {
     Pad(PadButton),
     /// A party slot in the band.
     Member(usize),
+    /// A monster stack row in a fight, by its index in the encounter.
+    Stack(usize),
+    /// A button on the combat or encounter action row, by the menu's action index.
+    Action(usize),
 }
 
 /// Which part of a widget was hit.

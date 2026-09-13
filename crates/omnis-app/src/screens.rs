@@ -1,6 +1,7 @@
-//! The menu screens painted over the viewport: title, new game, character creation, pause.
-//! Each paints its text on the 40×16 cell grid of the viewport and registers the rows the
-//! mouse can hit, keyed by the row indices the models in `menu.rs` already use.
+//! The menu screens painted over the viewport: title, new game, character creation, pause,
+//! and the modal box the defeat screen uses. Each paints its text on the 40×16 cell grid of
+//! the viewport and registers the rows the mouse can hit, keyed by the row indices the models
+//! in `menu.rs` already use. `combat_screen.rs` paints the fight with the same helpers.
 
 use crate::layout::{CELL, MENU_COLUMNS, Rect, cell};
 use crate::menu::{
@@ -8,24 +9,24 @@ use crate::menu::{
     ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, Title, rule_label, words,
 };
 use crate::raster::Rgb;
-use crate::widget::{DIM, Frame, HI, Kind, TEXT, Widget, WidgetId};
+use crate::widget::{DIM, FRAME, Frame, HI, Kind, PANEL, TEXT, Widget, WidgetId};
 use omnis_sim::Settings;
 use omnis_sim::omnis_data::{Ability, Alignment};
 
 /// A row's rectangle: `cells` wide from a grid cell.
-fn row_rect(column: i32, row: i32, cells: usize) -> Rect {
+pub(crate) fn row_rect(column: i32, row: i32, cells: usize) -> Rect {
     let (x, y) = cell(column, row);
     Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32)
 }
 
 /// Paint plain text at a grid cell.
-fn label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
+pub(crate) fn label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
     let (x, y) = cell(column, row);
     frame.raster.text(x, y, text, color);
 }
 
 /// Paint text right-aligned to the last menu column.
-fn label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
+pub(crate) fn label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
     let column = MENU_COLUMNS - text.chars().count() as i32;
     label(frame, column.max(0), row, text, color);
 }
@@ -37,8 +38,30 @@ fn arrows(text: &str, column: i32, row: i32) -> (Option<Rect>, Option<Rect>) {
     (left, right)
 }
 
+/// How a row is drawn and whether it answers the mouse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ItemState {
+    /// Plain text, live.
+    Normal,
+    /// Highlighted with the marker, live.
+    Selected,
+    /// Dim, inert.
+    Disabled,
+}
+
+impl ItemState {
+    /// Selected or not.
+    pub(crate) const fn from_selected(selected: bool) -> ItemState {
+        if selected {
+            ItemState::Selected
+        } else {
+            ItemState::Normal
+        }
+    }
+}
+
 /// Paint a row the mouse can hit: highlighted with the marker when selected.
-fn item(
+pub(crate) fn item(
     frame: &mut Frame,
     id: WidgetId,
     kind: Kind,
@@ -47,20 +70,82 @@ fn item(
     cells: usize,
     selected: bool,
 ) {
+    item_state(
+        frame,
+        id,
+        kind,
+        at,
+        text,
+        cells,
+        ItemState::from_selected(selected),
+    );
+}
+
+/// Paint a row in a state: a disabled row is dim and registers an inert widget, so the
+/// hover outline and the click both pass it by.
+pub(crate) fn item_state(
+    frame: &mut Frame,
+    id: WidgetId,
+    kind: Kind,
+    at: (i32, i32),
+    text: &str,
+    cells: usize,
+    state: ItemState,
+) {
     let (column, row) = at;
     let rect = row_rect(column, row, cells);
-    let color = if selected { HI } else { TEXT };
+    let color = match state {
+        ItemState::Normal => TEXT,
+        ItemState::Selected => HI,
+        ItemState::Disabled => DIM,
+    };
     frame.raster.text(rect.x, rect.y, text, color);
-    if selected {
+    if state == ItemState::Selected {
         frame.raster.marker(rect.x - 5, rect.y + 1, HI);
     }
     let mut widget = Widget::new(id, rect, kind);
+    widget.enabled = state != ItemState::Disabled;
     if kind == Kind::Choice {
         let (left, right) = arrows(text, column, row);
         widget.left = left;
         widget.right = right;
     }
     frame.widgets.push(widget);
+}
+
+/// A boxed message over whatever is behind it: a title, some lines, and buttons as
+/// `WidgetId::Row(i)`, one per line from the bottom of the box up.
+pub(crate) fn modal(
+    frame: &mut Frame,
+    rect: Rect,
+    title: &str,
+    lines: &[&str],
+    buttons: &[&str],
+    cursor: usize,
+) {
+    frame.raster.fill(rect, PANEL);
+    frame.raster.stroke(rect, FRAME);
+    let x = rect.x + 12;
+    frame.raster.text(x, rect.y + 6, title, HI);
+    for (i, line) in lines.iter().enumerate() {
+        frame.raster.text(x, rect.y + 18 + 8 * i as i32, line, TEXT);
+    }
+    let first = rect.bottom() - 10 * buttons.len() as i32 - 4;
+    for (i, text) in buttons.iter().enumerate() {
+        let y = first + 10 * i as i32;
+        let cells = text.chars().count();
+        let rect = Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32);
+        let selected = cursor == i;
+        frame
+            .raster
+            .text(rect.x, rect.y, text, if selected { HI } else { TEXT });
+        if selected {
+            frame.raster.marker(rect.x - 5, rect.y + 1, HI);
+        }
+        frame
+            .widgets
+            .push(Widget::new(WidgetId::Row(i), rect, Kind::Button));
+    }
 }
 
 /// The title: three items.
@@ -307,7 +392,7 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::layout::VIEWPORT;
     use crate::menu::MenuKey;
@@ -344,7 +429,8 @@ mod tests {
         form
     }
 
-    fn assert_laid_out(frame: &Frame) {
+    /// Every widget lies inside the menu area and none overlap.
+    pub(crate) fn assert_laid_out(frame: &Frame) {
         // Column 39's blank sixth pixel is x 240, one past the viewport.
         let area = Rect::new(1, 0, VIEWPORT.w, VIEWPORT.h);
         for (i, a) in frame.widgets.iter().enumerate() {
@@ -469,6 +555,59 @@ mod tests {
         let keys = click(Target::Creation(&mut by_mouse), begin);
         press(&mut by_mouse, &catalog, keys);
         assert_eq!(by_mouse.message, "Add at least one member");
+    }
+
+    #[test]
+    fn a_disabled_item_is_dim_and_inert_and_a_modal_boxes_its_buttons() {
+        let mut frame = Frame::default();
+        item_state(
+            &mut frame,
+            WidgetId::Row(0),
+            Kind::Button,
+            (1, 1),
+            "Off",
+            3,
+            ItemState::Disabled,
+        );
+        let w = frame.widget(WidgetId::Row(0)).unwrap();
+        assert!(!w.enabled);
+        assert_eq!(hit(&frame.widgets, w.rect.x, w.rect.y), None);
+        let (x, y) = cell(1, 1);
+        assert_eq!(frame.raster.get(x, y + 1), Some([DIM.0, DIM.1, DIM.2, 255]));
+        let mut frame = Frame::default();
+        let rect = Rect::new(48, 32, 144, 64);
+        modal(
+            &mut frame,
+            rect,
+            "The party has fallen",
+            &["Every member is down."],
+            &["Load last save", "Quit to title"],
+            1,
+        );
+        assert_laid_out(&frame);
+        assert_eq!(frame.widgets.len(), 2);
+        for w in &frame.widgets {
+            assert!(rect.encloses(w.rect), "{:?}", w.id);
+        }
+        assert_eq!(
+            frame.raster.get(48, 32),
+            Some([FRAME.0, FRAME.1, FRAME.2, 255])
+        );
+        assert_eq!(
+            frame.raster.get(100, 60),
+            Some([PANEL.0, PANEL.1, PANEL.2, 255])
+        );
+        assert_eq!(
+            frame.raster.get(20, 20),
+            Some([0, 0, 0, 0]),
+            "outside is untouched"
+        );
+        let quit = frame.widget(WidgetId::Row(1)).unwrap();
+        assert_eq!(
+            frame.raster.get(quit.rect.x - 5, quit.rect.y + 1),
+            Some([HI.0, HI.1, HI.2, 255]),
+            "the marker sits before the cursor's button"
+        );
     }
 
     #[test]
