@@ -4,7 +4,6 @@
 
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_STACKS};
-use crate::map::MapDef;
 use crate::registry::Interner;
 use omnis_core::{Dice, MonsterId};
 use serde::{Deserialize, Serialize};
@@ -124,19 +123,27 @@ impl ResolvedRandom {
     }
 }
 
-/// Checks that need no other file: coordinates, stack shapes, chances, weights, dice.
-pub fn validate(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) {
-    if def.encounters.len() > MAX_COLLECTION {
+/// Checks that need no other file: coordinates within `size`, stack shapes, chances, weights,
+/// dice.
+pub fn validate(
+    size: (u16, u16),
+    encounters: &[FixedEncounter],
+    random: Option<&RandomEncounters>,
+    file: &Path,
+    errors: &mut Vec<DataError>,
+) {
+    let (width, height) = size;
+    if encounters.len() > MAX_COLLECTION {
         errors.push(DataError::new(file, "too many encounters"));
     }
-    for (i, e) in def.encounters.iter().enumerate() {
-        if e.x >= def.width || e.y >= def.height {
+    for (i, e) in encounters.iter().enumerate() {
+        if e.x >= width || e.y >= height {
             errors.push(DataError::new(
                 file,
                 format!("encounter {i} at ({}, {}) is outside the map", e.x, e.y),
             ));
         }
-        if let Some(k) = def.encounters[..i]
+        if let Some(k) = encounters[..i]
             .iter()
             .position(|o| o.x == e.x && o.y == e.y)
         {
@@ -156,7 +163,7 @@ pub fn validate(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) {
             ));
         }
     }
-    let Some(random) = &def.random else {
+    let Some(random) = random else {
         return;
     };
     if random.chance_percent > 100 {
@@ -211,7 +218,8 @@ fn check_stacks(what: &str, stacks: usize, file: &Path, errors: &mut Vec<DataErr
 
 /// Every monster an encounter names must be defined by some loaded pack.
 pub(crate) fn resolve(
-    def: &MapDef,
+    encounters: &[FixedEncounter],
+    random: Option<&RandomEncounters>,
     file: &Path,
     monsters: &Interner<MonsterId>,
     errors: &mut Vec<DataError>,
@@ -229,8 +237,7 @@ pub(crate) fn resolve(
             None
         }
     };
-    let fixed = def
-        .encounters
+    let fixed = encounters
         .iter()
         .enumerate()
         .map(|(i, e)| ResolvedEncounter {
@@ -247,7 +254,7 @@ pub(crate) fn resolve(
             once: e.once,
         })
         .collect();
-    let random = def.random.as_ref().map(|random| ResolvedRandom {
+    let random = random.map(|random| ResolvedRandom {
         chance_percent: random.chance_percent,
         entries: random
             .entries
@@ -272,49 +279,11 @@ pub(crate) fn resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{MapKind, Terrain, WallSurfaces};
-    use omnis_core::Facing;
 
-    fn map(encounters: Vec<FixedEncounter>, random: Option<RandomEncounters>) -> MapDef {
-        MapDef {
-            schema: 1,
-            id: "t:map:tiny".into(),
-            name: "t:text:tiny".into(),
-            kind: MapKind::Dungeon,
-            tileset: "t:tileset:d".into(),
-            width: 2,
-            height: 2,
-            start: (0, 0, Facing::East),
-            wall: WallSurfaces {
-                front: "wall".into(),
-                left: "wall.left".into(),
-                right: "wall.right".into(),
-            },
-            door: "door".into(),
-            door_open: None,
-            terrains: vec![Terrain {
-                glyph: '.',
-                name: "floor".into(),
-                floor: "floor".into(),
-                ceiling: None,
-                block: None,
-                passable: true,
-                opaque: false,
-                color: (128, 128, 128),
-                visibility_depth: 4,
-                step_minutes: 1,
-            }],
-            layout: vec![
-                "+-+-+".into(),
-                "|. .|".into(),
-                "+ + +".into(),
-                "|. .|".into(),
-                "+-+-+".into(),
-            ],
-            portals: vec![],
-            encounters,
-            random,
-        }
+    type Parts = (Vec<FixedEncounter>, Option<RandomEncounters>);
+
+    fn parts(encounters: Vec<FixedEncounter>, random: Option<RandomEncounters>) -> Parts {
+        (encounters, random)
     }
 
     fn messages(errors: &[DataError]) -> Vec<&str> {
@@ -323,7 +292,7 @@ mod tests {
 
     #[test]
     fn every_shape_problem_is_reported() {
-        let def = map(
+        let def = parts(
             vec![
                 FixedEncounter {
                     x: 2,
@@ -364,7 +333,7 @@ mod tests {
             }),
         );
         let mut errors = vec![];
-        validate(&def, Path::new("m"), &mut errors);
+        validate((2, 2), &def.0, def.1.as_ref(), Path::new("m"), &mut errors);
         assert_eq!(
             messages(&errors),
             [
@@ -380,7 +349,7 @@ mod tests {
             ]
         );
         let mut errors = vec![];
-        validate(&map(vec![], None), Path::new("m"), &mut errors);
+        validate((2, 2), &[], None, Path::new("m"), &mut errors);
         assert!(errors.is_empty());
     }
 
@@ -388,7 +357,7 @@ mod tests {
     fn monsters_resolve_through_the_interner_or_are_reported() {
         let mut monsters = Interner::<MonsterId>::default();
         let rat = monsters.intern("t:monster:rat");
-        let def = map(
+        let def = parts(
             vec![FixedEncounter {
                 x: 0,
                 y: 1,
@@ -406,7 +375,13 @@ mod tests {
             }),
         );
         let mut errors = vec![];
-        let (fixed, random) = resolve(&def, Path::new("m"), &monsters, &mut errors);
+        let (fixed, random) = resolve(
+            &def.0,
+            def.1.as_ref(),
+            Path::new("m"),
+            &monsters,
+            &mut errors,
+        );
         assert_eq!(
             messages(&errors),
             ["encounter 0 monster 't:monster:none' is not defined by any loaded pack"]

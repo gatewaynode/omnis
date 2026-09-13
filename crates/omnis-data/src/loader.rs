@@ -572,7 +572,13 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             }
         };
         let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
-        let (encounters, random) = encounter::resolve(def, file, &data.registry.monsters, errors);
+        let (encounters, random) = encounter::resolve(
+            &def.encounters,
+            def.random.as_ref(),
+            file,
+            &data.registry.monsters,
+            errors,
+        );
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],

@@ -319,7 +319,13 @@ impl MapDef {
                 ));
             }
         }
-        encounter::validate(self, file, errors);
+        encounter::validate(
+            (self.width, self.height),
+            &self.encounters,
+            self.random.as_ref(),
+            file,
+            errors,
+        );
     }
 }
 

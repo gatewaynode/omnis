@@ -110,6 +110,12 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let goblin = &data.monsters[&data.registry.monsters.get("base:monster:goblin").unwrap()];
     assert_eq!((goblin.ac, goblin.xp, goblin.challenge), (15, 50, (1, 4)));
     assert_eq!(data.label("en", &goblin.attacks[0].name), "Scimitar");
+}
+
+#[test]
+fn monsters_and_conditions_carry_the_combat_fields() {
+    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let goblin = &data.monsters[&data.registry.monsters.get("base:monster:goblin").unwrap()];
     assert!(!goblin.attacks[0].ranged && goblin.attacks[1].ranged);
     assert_eq!(goblin.gold, Some(Dice::new(2, 4)));
     let skeleton = &data.monsters[&data.registry.monsters.get("base:monster:skeleton").unwrap()];
@@ -196,6 +202,18 @@ fn the_base_rules_evaluate() {
         ),
         Value::Int(1)
     );
+    assert_eq!(rng.draws(), 0, "no base formula rolls dice");
+}
+
+#[test]
+fn the_combat_rules_evaluate() {
+    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let rules = &data.rules;
+    let stream = StreamName::new("combat");
+    let mut rng = Pcg32::for_stream(1, &stream);
+    let eval = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| {
+        rules.eval(slot, inputs, rng, &stream).unwrap().value
+    };
     let attack = |die: i64, total: i64, ac: i64, rng: &mut Pcg32| {
         eval(
             "attack.hit",
@@ -281,7 +299,7 @@ fn the_base_rules_evaluate() {
     assert_eq!(rules.value("death_save_dc"), Some(10));
     assert_eq!(rules.value("combat_round_minutes"), Some(1));
     assert_eq!(rules.table("run_dc").unwrap(), [15, 12, 10, 0]);
-    assert_eq!(rng.draws(), 0, "no base formula rolls dice");
+    assert_eq!(rng.draws(), 0, "no combat formula rolls dice");
 }
 
 #[test]

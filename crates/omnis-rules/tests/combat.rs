@@ -118,7 +118,7 @@ fn attack_rolls_follow_the_natural_one_and_twenty() {
 }
 
 #[test]
-fn damage_doubles_dice_on_a_critical_and_applies_defenses() {
+fn damage_doubles_dice_on_a_critical() {
     let data = data();
     let mut rng = Pcg32::for_stream(9, &stream());
     let plain = damage_roll(
@@ -154,6 +154,12 @@ fn damage_doubles_dice_on_a_critical_and_applies_defenses() {
         "the modifiers are added once"
     );
     assert!(crit.rolls.iter().all(|r| r.dice.modifier == 0));
+}
+
+#[test]
+fn defenses_adjust_damage_and_unarmed_hits_land() {
+    let data = data();
+    let mut rng = Pcg32::for_stream(9, &stream());
     let resist = Defenses {
         resist: true,
         ..Defenses::default()
