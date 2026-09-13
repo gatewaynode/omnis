@@ -1,8 +1,8 @@
 //! The Omnis Bevy application as a library, so tests can build the app without a window and
 //! the binary in `main.rs` stays a few lines.
 //!
-//! Bevy-free modules (`layout`, `plan`, `menu`, `font`, `raster`, `screen`, `screens`,
-//! `panels`) hold everything that can be unit-tested; the plugins hold only ECS wiring.
+//! Bevy-free modules (`layout`, `plan`, `menu`, `font`, `raster`, `widget`, `screen`,
+//! `screens`, `panels`) hold everything that can be unit-tested; the plugins hold only ECS wiring.
 //! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CursorPlugin`, and `UiPlugin` run headless under
 //! `MinimalPlugins` (the UI frame is composed without being uploaded); `assets`, `pixel`, and
 //! `viewport` need the render stack.
@@ -30,6 +30,7 @@ pub mod sim;
 pub mod socket;
 pub mod ui;
 pub mod viewport;
+pub mod widget;
 
 use std::path::PathBuf;
 

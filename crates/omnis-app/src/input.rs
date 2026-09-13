@@ -3,9 +3,9 @@
 //! pauses; a click on a pad button sends the same command as its key.
 
 use crate::cursor::UiSet;
-use crate::screen::WidgetId;
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
 use crate::ui::UiClick;
+use crate::widget::WidgetId;
 use bevy::prelude::*;
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};

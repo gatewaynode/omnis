@@ -23,6 +23,6 @@ dev = ["bevy/dynamic_linking", "bevy/bevy_dev_tools", "bevy/file_watcher"]
 omnis-sim = { workspace = true }
 # `2d` and `ui` pull in default_app (asset, log, state) and default_platform (winit, x11, wayland).
 # The `3d` group is never enabled (ARCHITECTURE.md §8.1).
-bevy = { workspace = true, features = ["2d", "ui", "png"] }
+bevy = { workspace = true, features = ["2d", "png"] }
 # Dev socket framing only (ARCHITECTURE.md §9.1, §13).
 serde_json = { workspace = true, optional = true }

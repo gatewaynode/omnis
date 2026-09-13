@@ -8,9 +8,10 @@ use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, MemberRow, Message};
 use crate::pixel::PIXEL_LAYER;
-use crate::screen::{self, Frame, Hit, Menu, PadState, View, WidgetId};
+use crate::screen::{self, Menu, View};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
 use crate::viewport::canvas_to_world;
+use crate::widget::{self, Frame, Hit, PadState, WidgetId};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -149,7 +150,7 @@ fn upload(
 fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter<UiClick>) {
     let found = pointer
         .canvas
-        .and_then(|(x, y)| screen::hit(&ui.frame.widgets, x, y));
+        .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
         hover.filter(|id| matches!(id, WidgetId::Pad(_)))

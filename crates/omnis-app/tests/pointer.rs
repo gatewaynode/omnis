@@ -13,11 +13,11 @@ use omnis_app::cursor::{CursorPlugin, Pointer, WindowSize};
 use omnis_app::input::InputPlugin;
 use omnis_app::menu::{ROW_ADD, ROW_BEGIN, ROW_CLASS, ROW_RACE, ROW_SCORES};
 use omnis_app::menus::{MenusPlugin, Screens};
-use omnis_app::screen::{ALERT, PadButton, Part, Widget, WidgetId};
 use omnis_app::sim::{
     AppState, MenuState, PlayState, ShellCommand, SimPlugin, SimWorld, WorldReplaced,
 };
 use omnis_app::ui::{MessageLine, Selected, UiFrame, UiPlugin};
+use omnis_app::widget::{ALERT, PadButton, Part, Widget, WidgetId};
 use omnis_sim::SaveRule;
 use omnis_sim::omnis_core::Facing;
 use std::path::PathBuf;
@@ -33,7 +33,7 @@ fn ui_app(autostart: bool) -> App {
         .insert_resource(AppConfig {
             packs: vec![repo.join("packs/base"), repo.join("packs/test")],
             seed: 7,
-            save_path: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("mouse-save.ron"),
+            save_path: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("pointer-save.ron"),
             autostart,
         })
         .add_plugins((SimPlugin, InputPlugin, MenusPlugin, CursorPlugin, UiPlugin))

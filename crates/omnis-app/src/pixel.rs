@@ -11,7 +11,7 @@ use bevy::render::render_resource::TextureFormat;
 
 /// Everything drawn at internal resolution.
 pub const PIXEL_LAYER: RenderLayers = RenderLayers::layer(0);
-/// The canvas sprite and native-resolution UI.
+/// The canvas sprite.
 pub const WINDOW_LAYER: RenderLayers = RenderLayers::layer(1);
 
 /// The camera that renders the canvas.
@@ -67,13 +67,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         PIXEL_LAYER,
     ));
     commands.spawn((Sprite::from_image(handle), Canvas, WINDOW_LAYER));
-    commands.spawn((
-        Camera2d,
-        Msaa::Off,
-        OuterCamera,
-        IsDefaultUiCamera,
-        WINDOW_LAYER,
-    ));
+    commands.spawn((Camera2d, Msaa::Off, OuterCamera, WINDOW_LAYER));
 }
 
 /// Integer scale: the reciprocal of the rounded smaller window-to-canvas ratio.

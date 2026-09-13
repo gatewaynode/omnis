@@ -8,7 +8,7 @@ use crate::menu::{
     ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, Title, rule_label, words,
 };
 use crate::raster::Rgb;
-use crate::screen::{DIM, Frame, HI, Kind, TEXT, Widget, WidgetId};
+use crate::widget::{DIM, Frame, HI, Kind, TEXT, Widget, WidgetId};
 use omnis_sim::Settings;
 use omnis_sim::omnis_data::{Ability, Alignment};
 
@@ -311,7 +311,8 @@ mod tests {
     use super::*;
     use crate::layout::VIEWPORT;
     use crate::menu::MenuKey;
-    use crate::screen::{Hit, Part, Target, click, hit};
+    use crate::screen::{Target, click};
+    use crate::widget::{Hit, Part, hit};
     use omnis_sim::SaveRule;
     use omnis_sim::omnis_data::load_packs;
     use std::path::PathBuf;

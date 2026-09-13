@@ -7,9 +7,8 @@ use crate::layout::{
     BAND, BAND_BACK_X, BAND_COLUMNS, BAND_FRONT_X, BAND_HELP, BAND_MESSAGE, BAND_ROW_COLUMNS,
     BAND_ROWS, CELL, HUD_COLUMNS, HUD_LINES, RIGHT_COLUMN, Rect, SIDEBAR_MAP,
 };
-use crate::screen::{
-    ALERT, DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, SP, TEXT, View, Widget,
-    WidgetId,
+use crate::widget::{
+    ALERT, DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, SP, TEXT, Widget, WidgetId,
 };
 use omnis_sim::MINUTES_PER_DAY;
 
@@ -188,8 +187,24 @@ pub fn slot_origin(slot: usize, front_row: usize) -> Option<(i32, i32)> {
     }
 }
 
+/// What the band shows.
+pub struct Band<'a> {
+    /// The message line.
+    pub message: &'a Message,
+    /// The party, in marching order.
+    pub members: &'a [MemberRow],
+    /// How many members stand in front.
+    pub front_row: usize,
+    /// The member the mouse selected.
+    pub selected: Option<usize>,
+    /// Whether rows show classes (creation) instead of points.
+    pub creating: bool,
+    /// The help line.
+    pub help: &'a str,
+}
+
 /// Paint the band: message, party rows, help.
-pub fn band(frame: &mut Frame, view: &View<'_>) {
+pub fn band(frame: &mut Frame, view: &Band<'_>) {
     let color = if view.message.alert { ALERT } else { TEXT };
     frame.raster.text(
         BAND_MESSAGE.0,

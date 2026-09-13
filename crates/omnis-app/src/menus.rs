@@ -9,12 +9,13 @@ use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
     Title, TitleAction,
 };
-use crate::screen::{self, Hit, Target};
+use crate::screen::{self, Target};
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, SimEvent,
     SimWorld, StartIn, WorldReplaced, load,
 };
 use crate::ui::UiClick;
+use crate::widget::Hit;
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};

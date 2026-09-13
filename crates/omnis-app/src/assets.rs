@@ -73,24 +73,17 @@ fn make_placeholder(mut images: ResMut<Assets<Image>>, mut pack: ResMut<PackImag
     pack.placeholder = images.add(image);
 }
 
-/// Sprites and UI images whose file failed to load show the placeholder instead of nothing.
+/// Sprites whose file failed to load show the placeholder instead of nothing.
 fn substitute_failed(
     server: Res<AssetServer>,
     pack: Res<PackImages>,
     mut sprites: Query<&mut Sprite>,
-    mut nodes: Query<&mut ImageNode>,
 ) {
     for mut sprite in &mut sprites {
         if sprite.image != pack.placeholder && server.load_state(&sprite.image).is_failed() {
             warn!("missing pack image, using placeholder");
             sprite.image = pack.placeholder();
             sprite.custom_size = Some(Vec2::new(16.0, 16.0));
-        }
-    }
-    for mut node in &mut nodes {
-        if node.image != pack.placeholder && server.load_state(&node.image).is_failed() {
-            warn!("missing pack UI image, using placeholder");
-            node.image = pack.placeholder();
         }
     }
 }
