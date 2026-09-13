@@ -30,8 +30,9 @@ const STACK_CELLS: usize = 29;
 const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 9, 16, 26];
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
 const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 9, 22, 28];
-/// Where the defeat modal sits.
-pub const DEFEAT_RECT: Rect = Rect::new(48, 32, 144, 64);
+/// Where the defeat modal sits: a title, three log lines, and two buttons, each on its own
+/// row (title at +6, lines from +18, buttons from the bottom at ten pixels a row).
+pub const DEFEAT_RECT: Rect = Rect::new(48, 24, 144, 80);
 
 /// The fight: header, stack rows with the target marked, the four actions, the log tail.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
@@ -340,5 +341,21 @@ mod tests {
         // The log lines cross the box's middle; its margin past them stays panel.
         assert_eq!(rgb(&frame, DEFEAT_RECT.right() - 3, 60), Some(PANEL));
         assert_eq!(rgb(&frame, 120, DEFEAT_RECT.y + 16), Some(PANEL));
+        // The last line ends above the first button's row.
+        let last_line_bottom = DEFEAT_RECT.y + 18 + 8 * DEFEAT_LOG_ROWS as i32;
+        let first_button = DEFEAT_RECT.bottom() - 10 * DefeatMenu::ITEMS.len() as i32 - 4;
+        assert!(
+            last_line_bottom < first_button,
+            "{last_line_bottom} vs {first_button}"
+        );
+        let load = frame.widget(WidgetId::Row(0)).unwrap();
+        assert_eq!(load.rect.y, first_button);
+        for y in last_line_bottom..first_button {
+            assert!(
+                (DEFEAT_RECT.x + 1..DEFEAT_RECT.right() - 1)
+                    .all(|x| rgb(&frame, x, y) == Some(PANEL)),
+                "a blank row {y} between the lines and the buttons"
+            );
+        }
     }
 }
