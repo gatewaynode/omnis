@@ -6,7 +6,9 @@ mod common;
 use common::{data, interact, step, turn, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{read_ron, write_ron};
-use omnis_sim::{Command, LoadError, Replay, ReplayError, SaveRule, Settings, World, query};
+use omnis_sim::{
+    Command, LoadError, PartyCommand, Replay, ReplayError, SaveRule, Settings, World, apply, query,
+};
 use std::path::PathBuf;
 
 fn replay_path(name: &str) -> PathBuf {
@@ -213,4 +215,46 @@ fn rebaseline_walk_replay() {
     let data = data();
     let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), walk()).unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
+}
+
+fn save_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/saves")
+        .join(format!("{name}.ron"))
+}
+
+/// Captures `tests/saves/v2.ron` from a schema-2 build: one member and one open door, so the
+/// migration test exercises every field a party and a map state carry. Run once, deliberately,
+/// before the schema moves on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-2 build"]
+fn capture_schema_2_fixture() {
+    let data = data();
+    let mut world = world(&data);
+    let draft = omnis_rules::Draft {
+        name: "Brenna".to_owned(),
+        race: "base:race:human".to_owned(),
+        class: "base:class:fighter".to_owned(),
+        background: "base:background:acolyte".to_owned(),
+        alignment: omnis_data::Alignment::LawfulGood,
+        scores: [15, 14, 13, 12, 10, 8],
+        skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
+    };
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Create(draft)),
+    )
+    .unwrap();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert_eq!(world.schema, 2);
+    write_ron(&save_path("v2"), &world).unwrap();
 }

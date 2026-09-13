@@ -113,8 +113,22 @@ Owner findings from the M3 acceptance run: fonts too large (three unrelated size
 - **Done when**: the owner builds a party and walks the dungeon by mouse alone at 1280×720; every screen appears in `--screenshot-canvas` and the MCP screenshot; no `bevy_ui` remains in the app. The last two hold (the capture shows the HUD, pad, and band; `bevy_ui` is not compiled); the first is the owner's run
 - **Review (2026-09-12)**: 170 tests (141 after M3), 2 ignored by design (the screen dump, the replay rebaseline); clippy in both app configs, fmt, `lint-sim`, `check-duplicates`, `validate packs/base packs/test`, and the golden replay pass; Sentrux rules pass, signal 7039 (6970 after M3; a first cut had an import cycle between the widget types, the screens, and the panels, and Sentrux reads `bevy::input::mouse` as an import of a `tests/mouse.rs`, so the shared types moved to `widget.rs` and the test file is `tests/pointer.rs`). Nine new files, about 3 400 lines including tests; `hud.rs` and `party_panel.rs` deleted. Seen by eye through the dump and the capture: every screen reads at 4×. Not verified here: the mouse in a real window (the owner's run). Follow-ups with numbers: the viewport's own horizon-band sliver still shows at its right edge (x 230–239, the M2 note); event messages show raw `sim:message:*` keys; the `lines()` text views in `menu.rs` are now test-only (a `screen.text` dev-socket op would let the MCP read a screen); captures of the menus need a `--no-autostart` capture path (`--screenshot*` forces autostart); M1 recorded the 3840×2160 default at the owner's request, now 1280×720 per the approved plan
 
-### M4 — Combat
-- [ ] Monsters as stacks with rows, fixed and random encounters keyed to map tiles, pre-combat choice (attack, bribe, hide, run) with disposition, surprise, initiative, attack and damage with `RollTrace`, conditions, death, XP and loot, `Combat` sub-state UI with the roll math visible
+### M4 — Combat (2026-09-13, approved)
+Scope: monsters as stacks with rows, fixed and random encounters keyed to map tiles, pre-combat choice (attack, bribe, hide, run) with four-level disposition, surprise, initiative, attack and damage with `RollTrace`, conditions, death, XP and loot, `Encounter` and `Combat` sub-state UI with the roll math visible. Owner decisions: the viewport stays visible in combat with generated silhouettes (CC0 art later, no layout change); permadeath on removes a dead member at combat end (gear to the party inventory), off keeps them in their slot with a `dead` condition for the M7 temple. Every number lives in `packs/base/data/rules/combat.ron` (Rust rolls every die, Rhai adds and compares). Plan: `~/.claude/plans/nested-growing-bear.md`.
+- [ ] Schema-2 save fixture captured from the M3 build (`tests/saves/v2.ron`: one member, one open door)
+- [ ] omnis-data: condition mechanics flags, monster `ranged`/`gold`/defenses, `encounter.rs` (fixed placements and per-map random tables, validated and resolved), map and loader fields, content resolved before maps, bad-pack cases, `schema dump`
+- [ ] Base pack: `rules/combat.ron`, `conditions/dead.ron` and flags on the fifteen, monster fields; walk replay rebaselined
+- [ ] omnis-rules: `RollMode`/`Roll` with the kept face, checks and saves with a mode, passive scores, `condition.rs`, `attack.rs` (weapons, attack and damage rolls, initiative, death saves), `monster.rs`, `DeathSaves`
+- [ ] Sim schema 3: `event.rs`, `Mode::{Explore, Encounter, Combat}` and `ModeKind`, `MapState.cleared`, `v2_to_v3`, `LoadError::BadCombat`, wire views; walk replay rebaselined
+- [ ] Combat engine: `combat/*`, `Command::Combat`, rejections that leave the RNG untouched, monster turns auto-resolved, death saves, `finish` with xp, gold, permadeath; `combat.get` op and MCP tool; tests on a hand-built encounter
+- [ ] Encounters: `encounter.rs`, `Command::Encounter`, the trigger in `step`, the `encounter` stream, test-pack monsters and encounter data, `tests/replays/fight.ron` golden; walk replay rebaselined
+- [ ] App models and text: `combat_menu.rs`, `combat_text.rs`
+- [ ] App screens: widget ids, `item_state`, `modal`, `combat_screen.rs`, `screen.rs` arms, screen dump entries
+- [ ] Silhouettes: `actors.rs`, viewport trigger and spawn
+- [ ] Wiring: `PlayState::{Encounter, Combat, Defeat}` from `World.mode`, `CombatPlugin`, roll log, help, message text, script words
+- [ ] `tests/common/mod.rs` and `tests/combat.rs`: a fixed encounter fought by mouse, Run, the Defeat modal, Escape pauses a fight
+- [ ] Horizon sliver: ground strips at their near-edge width
+- [ ] Docs: ARCH §4.2, §4.5, §8.1, §9.3, §11 (approved-by-plan drift), this block's review, CONTINUITY
 - **Done when**: the owner clears a fixed encounter in the test dungeon and a replay of the fight reproduces its fingerprint
 
 ### M5 — Editor v1 (`bevy_egui`)
