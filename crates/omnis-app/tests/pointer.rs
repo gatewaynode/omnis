@@ -13,8 +13,9 @@ use common::{
     button, click, click_at, draft_fighter_by_mouse, escape, frame, move_to, play_state, point_at,
     pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
 };
+use omnis_app::canvas::Layout;
 use omnis_app::cursor::{Pointer, WindowSize};
-use omnis_app::layout::{CANVAS_WIDTH, canvas_rect_to_window};
+use omnis_app::layout::{CANVAS_WIDTH, MENU_BOX, canvas_rect_to_window};
 use omnis_app::menu::ROW_BEGIN;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
@@ -36,11 +37,27 @@ fn cursor_messages_map_through_the_letterbox_and_track_the_button() {
     app.update();
     assert_eq!(pointer(&app).canvas, Some((250, 100)));
 
-    // A 1920x1200 window letterboxes the canvas: its corner is outside.
+    // A 1920x1200 window letterboxes the 720 rows and widens the canvas to 1920: the
+    // corner is in the bar above, and the layout composed is the wide one.
     app.insert_resource(size(1920.0, 1200.0, 1.0));
     move_to(&mut app, 5.0, 5.0);
     app.update();
     assert_eq!(pointer(&app).canvas, None);
+    let layout = *app.world().resource::<Layout>();
+    assert_eq!(layout, Layout::for_width(1920));
+    assert!(layout.is_wide());
+    let composed = &frame(&app).frame;
+    assert_eq!(composed.raster.width, 1920);
+    let title = composed
+        .widget(WidgetId::Row(0))
+        .expect("the title's first row");
+    let boxed = MENU_BOX.shifted(layout.core.0, layout.core.1);
+    assert!(
+        boxed.encloses(title.rect),
+        "{:?} outside {boxed:?}",
+        title.rect
+    );
+    assert!(!MENU_BOX.encloses(title.rect), "moved with the core");
     let (x, y, _, _) = canvas_rect_to_window((100, 100, 1, 1), (1920.0, 1200.0), 1.0);
     move_to(&mut app, x, y);
     app.update();
@@ -109,13 +126,18 @@ fn a_hidpi_window_fits_in_physical_pixels() {
         size(1920.0, 1080.0, 2.0)
     );
     assert_eq!(app.world().resource::<WindowSize>().fit().scale, 3);
+    assert!(
+        !app.world().resource::<Layout>().is_wide(),
+        "3x is the narrow canvas"
+    );
     move_to(&mut app, 960.0, 540.0);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((640, 360)));
     move_to(&mut app, 319.0, 179.0);
     app.update();
     assert_eq!(pointer(&app).canvas, Some((212, 119)), "inside at 3x");
-    // Moved to a 1x monitor of the same logical size: 1x, letterboxed.
+    // Moved to a 1x monitor of the same logical size: 1x, the rows letterboxed and the
+    // canvas as wide as the window.
     app.world_mut()
         .resource_mut::<Messages<WindowScaleFactorChanged>>()
         .write(WindowScaleFactorChanged {
@@ -128,12 +150,17 @@ fn a_hidpi_window_fits_in_physical_pixels() {
         size(1920.0, 1080.0, 1.0)
     );
     assert_eq!(app.world().resource::<WindowSize>().fit().scale, 1);
+    assert_eq!(*app.world().resource::<Layout>(), Layout::for_width(1920));
     move_to(&mut app, 319.0, 179.0);
     app.update();
-    assert_eq!(pointer(&app).canvas, None, "in the letterbox at 1x");
+    assert_eq!(pointer(&app).canvas, None, "in the bar above at 1x");
     move_to(&mut app, 960.0, 540.0);
     app.update();
-    assert_eq!(pointer(&app).canvas, Some((640, 360)));
+    assert_eq!(
+        pointer(&app).canvas,
+        Some((960, 360)),
+        "the wide canvas's centre"
+    );
 }
 
 #[test]

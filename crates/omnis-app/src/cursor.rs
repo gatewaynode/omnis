@@ -2,6 +2,7 @@
 //! window messages rather than the `Window` entity, so headless tests feed the same messages a
 //! window would. The plugin also declares the UI system sets the other UI plugins slot into.
 
+use crate::canvas::Layout;
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, Fit, fit, physical_size, window_to_canvas};
 use crate::sim::SimSet;
 use bevy::input::ButtonState;
@@ -89,6 +90,7 @@ impl Plugin for CursorPlugin {
             .add_message::<CursorLeft>()
             .add_message::<MouseButtonInput>()
             .init_resource::<WindowSize>()
+            .init_resource::<Layout>()
             .init_resource::<Pointer>()
             .configure_sets(
                 Update,
@@ -109,13 +111,15 @@ impl Plugin for CursorPlugin {
 
 /// The window's size from its creation, resizes, and scale factor changes; the backend
 /// reports the scale factor on creation without a change message, so it is read from the
-/// window then.
+/// window then. The layout follows the size's fit, from the resource so a size set directly
+/// counts too.
 fn track_window(
     mut created: MessageReader<WindowCreated>,
     mut resized: MessageReader<WindowResized>,
     mut rescaled: MessageReader<WindowScaleFactorChanged>,
     windows: Query<&Window>,
     mut size: ResMut<WindowSize>,
+    mut layout: ResMut<Layout>,
 ) {
     let mut wanted = *size;
     for event in created.read() {
@@ -136,6 +140,10 @@ fn track_window(
     }
     if *size != wanted {
         *size = wanted;
+    }
+    let fitted = Layout::for_width(size.fit().width);
+    if *layout != fitted {
+        *layout = fitted;
     }
 }
 

@@ -4,7 +4,7 @@
 //! still composed as a resource and nothing is uploaded.
 
 use crate::band::MemberRow;
-use crate::canvas::NARROW;
+use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
@@ -146,6 +146,10 @@ pub fn event_text(event: &Event) -> Option<String> {
     })
 }
 
+/// The sprite the UI frame is uploaded into.
+#[derive(Component)]
+struct UiSprite;
+
 /// The transparent canvas-sized image and its sprite; skipped without a render stack.
 fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
     let Some(mut images) = images else {
@@ -166,20 +170,39 @@ fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
     commands.spawn((
         Sprite::from_image(handle.clone()),
         Anchor::TOP_LEFT,
-        Transform::from_translation(canvas_to_world(0, 0, UI_Z)),
+        Transform::from_translation(canvas_to_world(CANVAS_WIDTH, 0, 0, UI_Z)),
         PIXEL_LAYER,
+        UiSprite,
     ));
     commands.insert_resource(UiImage(handle));
 }
 
-/// Copy the frame's pixels into the sprite's image; runs only when the frame changed.
-fn upload(ui: Res<UiFrame>, target: Option<Res<UiImage>>, images: Option<ResMut<Assets<Image>>>) {
+/// Copy the frame's pixels into the sprite's image; runs only when the frame changed. A
+/// frame of a new width resizes the image first and moves the sprite to the new corner.
+fn upload(
+    ui: Res<UiFrame>,
+    target: Option<Res<UiImage>>,
+    images: Option<ResMut<Assets<Image>>>,
+    sprite: Option<Single<&mut Transform, With<UiSprite>>>,
+) {
     let (Some(target), Some(mut images)) = (target, images) else {
         return;
     };
-    if let Some(mut image) = images.get_mut(&target.0) {
-        image.data = Some(ui.frame.raster.rgba.clone());
+    let Some(mut image) = images.get_mut(&target.0) else {
+        return;
+    };
+    let (width, height) = (ui.frame.raster.width, ui.frame.raster.height);
+    if (image.width(), image.height()) != (width, height) {
+        image.resize(Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        });
+        if let Some(mut sprite) = sprite {
+            sprite.translation = canvas_to_world(width, 0, 0, UI_Z);
+        }
     }
+    image.data = Some(ui.frame.raster.rgba.clone());
 }
 
 fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter<UiClick>) {
@@ -383,6 +406,7 @@ fn build_frame(
     selected: Res<Selected>,
     line: Res<MessageLine>,
     log: Res<RollLog>,
+    layout: Res<Layout>,
     mut ui: ResMut<UiFrame>,
     mut scratch: Local<Frame>,
 ) {
@@ -427,7 +451,7 @@ fn build_frame(
     };
     // Paint into the scratch buffer; the resource changes only when the pixels or widgets do,
     // so the upload and everything gated on the frame run only then.
-    screen::compose_into(&mut scratch, &NARROW, &view, ui.hover, ui.pressed);
+    screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
     }

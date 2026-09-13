@@ -3,12 +3,12 @@
 //! it as a sprite at the largest whole multiple that fits the window's physical pixels
 //! (`cursor::WindowSize`, `layout::fit`), on a whole-pixel letterbox.
 
-use crate::cursor::WindowSize;
+use crate::cursor::{UiSet, WindowSize};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, PANEL_COLOR, SizeClass, canvas_translation};
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
-use bevy::render::render_resource::TextureFormat;
+use bevy::render::render_resource::{Extent3d, TextureFormat};
 use bevy::window::WindowCreated;
 
 /// Everything drawn at internal resolution.
@@ -45,7 +45,12 @@ impl Plugin for PixelPlugin {
             .init_resource::<RequestedWindow>()
             .add_systems(Startup, setup)
             .add_systems(Update, size_window)
-            .add_systems(Update, fit_canvas.run_if(resource_changed::<WindowSize>));
+            .add_systems(
+                Update,
+                fit_canvas
+                    .run_if(resource_changed::<WindowSize>)
+                    .after(UiSet::Cursor),
+            );
     }
 }
 
@@ -109,17 +114,33 @@ fn size_window(
 }
 
 /// Fit the canvas whenever the tracked window size changes, including the first frame, so a
-/// window that opens at the requested size (winit sends no resize for it) is scaled too.
+/// window that opens at the requested size (winit sends no resize for it) is scaled too. The
+/// canvas image takes the fit's width; the sprite follows its image.
 fn fit_canvas(
     size: Res<WindowSize>,
+    target: Option<Res<CanvasImage>>,
+    mut images: ResMut<Assets<Image>>,
     mut projection: Single<&mut Projection, With<OuterCamera>>,
     mut canvas: Single<&mut Transform, With<Canvas>>,
 ) {
     let Projection::Orthographic(projection) = &mut **projection else {
         return;
     };
+    let fit = size.fit();
+    if let Some(target) = target
+        && images
+            .get(&target.0)
+            .is_some_and(|i| i.width() != fit.width)
+        && let Some(mut image) = images.get_mut(&target.0)
+    {
+        image.resize(Extent3d {
+            width: fit.width,
+            height: CANVAS_HEIGHT,
+            depth_or_array_layers: 1,
+        });
+    }
     projection.scale = outer_scale(&size);
-    let (x, y) = canvas_translation(size.fit(), size.physical());
+    let (x, y) = canvas_translation(fit, size.physical());
     canvas.translation = Vec3::new(x, y, 0.0);
 }
 

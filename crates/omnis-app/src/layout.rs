@@ -249,7 +249,7 @@ pub enum SizeClass {
     Medium,
     /// 3840×2160, a 4K monitor: 3×, the display target (PRD D20).
     Large,
-    /// 7680×2160, an 8K ultrawide: 3× with bars at the sides.
+    /// 7680×2160, an 8K ultrawide: 3× with a 2560-wide canvas.
     Huge,
 }
 
@@ -281,31 +281,39 @@ impl SizeClass {
     }
 }
 
-/// How the canvas fits a window's physical pixels: the whole multiple it is shown at and
-/// the letterbox that centres it, in whole pixels.
+/// How the canvas fits a window's physical pixels: the whole multiple it is shown at, the
+/// canvas width at that multiple, and the letterbox that centres it, in whole pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Fit {
     /// Physical pixels per canvas pixel, at least 1.
     pub scale: u32,
+    /// The canvas width in canvas pixels: the window's width at the scale, at least
+    /// `CANVAS_WIDTH`; the height is always `CANVAS_HEIGHT`.
+    pub width: u32,
     /// The physical pixel of the canvas's top-left corner; negative when the window is
     /// smaller than the canvas.
     pub offset: (i32, i32),
 }
 
-/// The fit for a window of this physical size: the largest whole multiple that fits both
-/// ways, at least 1, centred to a whole pixel.
+/// The fit for a window of this physical size: the largest whole multiple of the narrow
+/// canvas that fits both ways, at least 1; the canvas as wide as the window at that multiple;
+/// centred to a whole pixel.
 #[must_use]
 pub const fn fit(physical: (u32, u32)) -> Fit {
     let h = physical.0 / CANVAS_WIDTH;
     let v = physical.1 / CANVAS_HEIGHT;
     let scale = if h < v { h } else { v };
     let scale = if scale < 1 { 1 } else { scale };
-    let shown = (
-        (CANVAS_WIDTH * scale) as i64,
-        (CANVAS_HEIGHT * scale) as i64,
-    );
+    let width = physical.0 / scale;
+    let width = if width < CANVAS_WIDTH {
+        CANVAS_WIDTH
+    } else {
+        width
+    };
+    let shown = ((width * scale) as i64, (CANVAS_HEIGHT * scale) as i64);
     Fit {
         scale,
+        width,
         offset: (
             ((physical.0 as i64 - shown.0) / 2) as i32,
             ((physical.1 as i64 - shown.1) / 2) as i32,
@@ -332,7 +340,7 @@ pub fn physical_to_canvas(cursor: (f32, f32), fit: Fit) -> Option<(i32, i32)> {
     let s = fit.scale as f32;
     let x = ((cursor.0 - fit.offset.0 as f32) / s).floor();
     let y = ((cursor.1 - fit.offset.1 as f32) / s).floor();
-    if x < 0.0 || y < 0.0 || x >= CANVAS_WIDTH as f32 || y >= CANVAS_HEIGHT as f32 {
+    if x < 0.0 || y < 0.0 || x >= fit.width as f32 || y >= CANVAS_HEIGHT as f32 {
         return None;
     }
     Some((x as i32, y as i32))
@@ -345,7 +353,7 @@ pub fn physical_to_canvas(cursor: (f32, f32), fit: Fit) -> Option<(i32, i32)> {
 pub fn canvas_translation(fit: Fit, physical: (u32, u32)) -> (f32, f32) {
     let s = fit.scale as f32;
     let centre = (
-        fit.offset.0 as f32 + CANVAS_WIDTH as f32 * s / 2.0,
+        fit.offset.0 as f32 + fit.width as f32 * s / 2.0,
         fit.offset.1 as f32 + CANVAS_HEIGHT as f32 * s / 2.0,
     );
     (
@@ -441,32 +449,36 @@ mod tests {
             .iter()
             .map(|(class, _, size)| (*class, fit(*size)))
             .collect();
-        let at = |scale, offset| Fit { scale, offset };
+        let at = |scale, width, offset| Fit {
+            scale,
+            width,
+            offset,
+        };
         assert_eq!(
             fits,
             [
-                (SizeClass::Small, at(1, (0, 0))),
-                (SizeClass::Medium, at(2, (0, 0))),
-                (SizeClass::Large, at(3, (0, 0))),
-                (SizeClass::Huge, at(3, (1920, 0))),
+                (SizeClass::Small, at(1, 1280, (0, 0))),
+                (SizeClass::Medium, at(2, 1280, (0, 0))),
+                (SizeClass::Large, at(3, 1280, (0, 0))),
+                (SizeClass::Huge, at(3, 2560, (0, 0))),
             ]
         );
         assert_eq!(SizeClass::parse("large"), Some(SizeClass::Large));
         assert_eq!(SizeClass::parse("Large"), None);
         assert_eq!(SizeClass::Huge.physical(), (7680, 2160));
-        // The ultrawide shows the canvas centred with bars at the sides.
+        // The 8K ultrawide fills its width with a 2560-wide canvas.
         let huge = fit(SizeClass::Huge.physical());
         assert_eq!(
-            canvas_rect_to_physical(CANVAS.tuple(), huge),
-            (1920, 0, 3840, 2160)
+            canvas_rect_to_physical((0, 0, 2560, 720), huge),
+            (0, 0, 7680, 2160)
         );
-        assert_eq!(physical_to_canvas((1919.0, 0.0), huge), None);
-        assert_eq!(physical_to_canvas((1920.0, 0.0), huge), Some((0, 0)));
+        assert_eq!(physical_to_canvas((1919.0, 0.0), huge), Some((639, 0)));
         assert_eq!(
-            physical_to_canvas((5759.9, 2159.9), huge),
-            Some((1279, 719))
+            physical_to_canvas((7679.9, 2159.9), huge),
+            Some((2559, 719))
         );
-        assert_eq!(physical_to_canvas((5760.0, 0.0), huge), None);
+        assert_eq!(physical_to_canvas((7680.0, 0.0), huge), None);
+        assert_eq!(canvas_translation(huge, (7680, 2160)), (0.0, 0.0));
     }
 
     #[test]
@@ -479,6 +491,7 @@ mod tests {
             three,
             Fit {
                 scale: 3,
+                width: 1280,
                 offset: (0, 0)
             }
         );
@@ -514,12 +527,14 @@ mod tests {
 
     #[test]
     fn odd_letterboxes_snap_to_whole_pixels() {
+        // The width follows the window at 1x, so only the rows are letterboxed.
         let even = fit((1282, 722));
         assert_eq!(
             even,
             Fit {
                 scale: 1,
-                offset: (1, 1)
+                width: 1282,
+                offset: (0, 1)
             }
         );
         assert_eq!(canvas_translation(even, (1282, 722)), (0.0, 0.0));
@@ -528,15 +543,17 @@ mod tests {
             odd,
             Fit {
                 scale: 1,
+                width: 1281,
                 offset: (0, 0)
             }
         );
-        assert_eq!(canvas_translation(odd, (1281, 721)), (-0.5, 0.5));
+        assert_eq!(canvas_translation(odd, (1281, 721)), (0.0, 0.5));
         let three = fit((3841, 2160));
         assert_eq!(
             three,
             Fit {
                 scale: 3,
+                width: 1280,
                 offset: (0, 0)
             }
         );
@@ -558,6 +575,7 @@ mod tests {
             small,
             Fit {
                 scale: 1,
+                width: 1280,
                 offset: (-320, -180)
             }
         );
@@ -571,6 +589,35 @@ mod tests {
         // Just under 2x: rounding gave 2 and a canvas larger than the window.
         assert_eq!(fit((2559, 1440)).scale, 1);
         assert_eq!(fit((2560, 1439)).scale, 1);
+    }
+
+    #[test]
+    fn the_canvas_widens_with_the_window_at_its_multiple() {
+        let at = |scale, width, offset| Fit {
+            scale,
+            width,
+            offset,
+        };
+        // The owner's ultrawide, the 8K ultrawide, a 4K, a 1080p, and a 3440-wide monitor.
+        assert_eq!(fit((5120, 1440)), at(2, 2560, (0, 0)));
+        assert_eq!(fit((7680, 2160)), at(3, 2560, (0, 0)));
+        assert_eq!(fit((3840, 2160)), at(3, 1280, (0, 0)));
+        assert_eq!(fit((1920, 1080)), at(1, 1920, (0, 180)));
+        assert_eq!(fit((3440, 1440)), at(2, 1720, (0, 0)));
+        let ultrawide = fit((5120, 1440));
+        assert_eq!(canvas_translation(ultrawide, (5120, 1440)), (0.0, 0.0));
+        assert_eq!(
+            physical_to_canvas((5119.9, 1439.9), ultrawide),
+            Some((2559, 719))
+        );
+        assert_eq!(physical_to_canvas((5120.0, 0.0), ultrawide), None);
+        let hd = fit((1920, 1080));
+        assert_eq!(physical_to_canvas((0.0, 179.9), hd), None, "the bar above");
+        assert_eq!(physical_to_canvas((1919.0, 180.0), hd), Some((1919, 0)));
+        assert_eq!(
+            canvas_rect_to_physical((0, 0, 1920, 720), hd),
+            (0, 180, 1920, 720)
+        );
     }
 
     #[test]

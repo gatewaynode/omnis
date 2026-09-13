@@ -4,11 +4,9 @@
 
 use crate::actors;
 use crate::assets::PackImages;
+use crate::canvas::Layout;
 use crate::combat_menu::{fight_view, redraws};
-use crate::layout::{
-    CANVAS_HEIGHT, CANVAS_WIDTH, OVERLAY_MAP_CLIP, OVERLAY_MAP_SCALE, SIDEBAR_MAP,
-    SIDEBAR_MAP_SCALE, VIEWPORT_ORIGIN, VIEWPORT_SIZE,
-};
+use crate::layout::{CANVAS_HEIGHT, OVERLAY_MAP_SCALE, SIDEBAR_MAP_SCALE, VIEWPORT_SIZE};
 use crate::plan::{self, DrawOp, Paint};
 use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, WorldReplaced};
 use bevy::prelude::*;
@@ -49,11 +47,12 @@ fn toggle_automap(mut shell: MessageReader<ShellCommand>, mut shown: ResMut<Auto
     }
 }
 
-/// Canvas pixel coordinates to world coordinates for a top-left anchored sprite.
+/// Canvas pixel coordinates to world coordinates for a top-left anchored sprite on a canvas
+/// of this width.
 #[must_use]
-pub fn canvas_to_world(x: i32, y: i32, z: f32) -> Vec3 {
+pub fn canvas_to_world(width: u32, x: i32, y: i32, z: f32) -> Vec3 {
     Vec3::new(
-        x as f32 - CANVAS_WIDTH as f32 / 2.0,
+        x as f32 - width as f32 / 2.0,
         CANVAS_HEIGHT as f32 / 2.0 - y as f32,
         z,
     )
@@ -64,11 +63,17 @@ fn spawn_ops<M: Component + Default>(
     server: &AssetServer,
     images: &mut PackImages,
     ops: &[DrawOp],
+    width: u32,
     origin: (i32, i32),
     z0: f32,
 ) {
     for (i, op) in ops.iter().enumerate() {
-        let translation = canvas_to_world(origin.0 + op.x, origin.1 + op.y, z0 + i as f32 * 0.001);
+        let translation = canvas_to_world(
+            width,
+            origin.0 + op.x,
+            origin.1 + op.y,
+            z0 + i as f32 * 0.001,
+        );
         let sprite = match &op.paint {
             Paint::Sprite(path) => Sprite::from_image(images.get(server, path)),
             Paint::Fill {
@@ -107,6 +112,7 @@ fn redraw(
     mut events: MessageReader<SimEvent>,
     mut replaced: MessageReader<WorldReplaced>,
     shown: Res<AutomapShown>,
+    layout: Res<Layout>,
     world: Option<Res<SimWorld>>,
     data: Option<Res<PackData>>,
     server: Res<AssetServer>,
@@ -118,7 +124,7 @@ fn redraw(
         .read()
         .any(|e| matches!(e.0, Event::Visible { .. }) || redraws(&e.0));
     let was_replaced = replaced.read().count() > 0;
-    if !(saw_visible || was_replaced || shown.is_changed()) {
+    if !(saw_visible || was_replaced || shown.is_changed() || layout.is_changed()) {
         return;
     }
     let (Some(world), Some(data)) = (world, data) else {
@@ -149,7 +155,8 @@ fn redraw(
         &server,
         &mut images,
         &[sky],
-        VIEWPORT_ORIGIN,
+        layout.width,
+        layout.core,
         0.5,
     );
     spawn_ops::<ViewportSprite>(
@@ -157,7 +164,8 @@ fn redraw(
         &server,
         &mut images,
         &plan::viewport(&view, &data.0),
-        VIEWPORT_ORIGIN,
+        layout.width,
+        layout.core,
         1.0,
     );
     // Whoever stands before the party, over the scene and under the UI frame.
@@ -168,20 +176,37 @@ fn redraw(
             &server,
             &mut images,
             &ops,
-            VIEWPORT_ORIGIN,
+            layout.width,
+            layout.core,
             2.0,
         );
     }
-    let sidebar = plan::automap_window(&world.0, &data.0, SIDEBAR_MAP, SIDEBAR_MAP_SCALE);
-    spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &sidebar, (0, 0), 10.0);
+    let sidebar = plan::automap_window(&world.0, &data.0, layout.minimap(), SIDEBAR_MAP_SCALE);
+    spawn_ops::<AutomapSprite>(
+        &mut commands,
+        &server,
+        &mut images,
+        &sidebar,
+        layout.width,
+        (0, 0),
+        10.0,
+    );
     if shown.0 {
         // Clipped to the viewport so a large map never covers the column or the band.
         let overlay = plan::automap_window(
             &world.0,
             &data.0,
-            OVERLAY_MAP_CLIP.tuple(),
+            layout.overlay_clip().tuple(),
             OVERLAY_MAP_SCALE,
         );
-        spawn_ops::<AutomapSprite>(&mut commands, &server, &mut images, &overlay, (0, 0), 20.0);
+        spawn_ops::<AutomapSprite>(
+            &mut commands,
+            &server,
+            &mut images,
+            &overlay,
+            layout.width,
+            (0, 0),
+            20.0,
+        );
     }
 }
