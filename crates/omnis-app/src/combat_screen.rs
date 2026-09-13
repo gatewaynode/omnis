@@ -6,8 +6,9 @@ use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::SHORT_CELLS;
 use crate::font::fit;
-use crate::layout::{CELL, MENU_COLUMNS, Rect, VIEWPORT, row_y, rows};
-use crate::screens::{ItemState, MODAL_TEXT_X, item_state, label, label_right, modal};
+use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, cell, row_y, rows};
+use crate::raster::Rgb;
+use crate::screens::{ItemState, MODAL_TEXT_X, item_state_at, modal};
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
 /// The first stack row.
@@ -56,16 +57,34 @@ pub const DEFEAT_RECT: Rect = Rect::new(
 );
 // The rows fit the viewport's grid, the panels and the box sit inside it, and a defeat line
 // fits its box with the modal's margins.
-const _: () = assert!((STACK_CELLS as i32) < MENU_COLUMNS);
+const _: () = assert!((STACK_CELLS as i32) < VIEWPORT_COLUMNS);
 const _: () = assert!(VIEWPORT.encloses(TOP_PANEL) && VIEWPORT.encloses(BOTTOM_PANEL));
 const _: () = assert!(!TOP_PANEL.overlaps(BOTTOM_PANEL) && VIEWPORT.encloses(DEFEAT_RECT));
 const _: () =
     assert!(CELL.0 as u32 * DEFEAT_LINE_CELLS as u32 + 2 * MODAL_TEXT_X as u32 <= DEFEAT_SIZE.0);
 
+/// A row's rectangle on the viewport grid: `cells` wide from a cell.
+fn vp_rect(column: i32, row: i32, cells: usize) -> Rect {
+    let (x, y) = cell(column, row);
+    Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32)
+}
+
+/// Paint plain text at a cell of the viewport grid.
+fn vp_label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
+    let (x, y) = cell(column, row);
+    frame.raster.text(x, y, text, color);
+}
+
+/// Paint text right-aligned to the viewport's last column.
+fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
+    let column = VIEWPORT_COLUMNS - text.chars().count() as i32;
+    vp_label(frame, column.max(0), row, text, color);
+}
+
 /// The fight: header, stack rows with the target marked, the four actions, the log tail.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
     panels(frame);
-    label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
+    vp_label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
     stacks(frame, view, Some(menu.target));
     counts(frame, view);
     for (i, (text, column)) in CombatMenu::ACTIONS
@@ -73,13 +92,12 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[Str
         .zip(COMBAT_ACTION_COLUMNS)
         .enumerate()
     {
-        item_state(
+        item_state_at(
             frame,
             WidgetId::Action(i),
             Kind::Button,
-            (column, ACTION_ROW),
+            vp_rect(column, ACTION_ROW, text.len()),
             text,
-            text.len(),
             ItemState::from_selected(menu.cursor == i),
         );
     }
@@ -89,8 +107,8 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[Str
 /// The choice before a fight: header with the disposition, the stacks, the four choices.
 pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     panels(frame);
-    label(frame, 1, 0, "ENCOUNTER", HI);
-    label_right(frame, 0, &format!("{:?}", view.disposition), TEXT);
+    vp_label(frame, 1, 0, "ENCOUNTER", HI);
+    vp_label_right(frame, 0, &format!("{:?}", view.disposition), TEXT);
     stacks(frame, view, None);
     counts(frame, view);
     let bribe = view.bribe_label();
@@ -106,13 +124,12 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
         } else {
             ItemState::from_selected(menu.cursor == i)
         };
-        item_state(
+        item_state_at(
             frame,
             WidgetId::Action(i),
             Kind::Button,
-            (column, ACTION_ROW),
+            vp_rect(column, ACTION_ROW, text.chars().count()),
             text,
-            text.chars().count(),
             state,
         );
     }
@@ -159,7 +176,7 @@ fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
             stack.state()
         );
         let Some(target) = target else {
-            label(frame, 1, row, &text, if stack.alive { TEXT } else { DIM });
+            vp_label(frame, 1, row, &text, if stack.alive { TEXT } else { DIM });
             continue;
         };
         let state = if !stack.alive {
@@ -167,13 +184,12 @@ fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
         } else {
             ItemState::from_selected(stack.index == target)
         };
-        item_state(
+        item_state_at(
             frame,
             WidgetId::Stack(i),
             Kind::Choice,
-            (1, row),
+            vp_rect(1, row, STACK_CELLS),
             &text,
-            STACK_CELLS,
             state,
         );
     }
@@ -197,7 +213,7 @@ fn roll_log(frame: &mut Frame, log: &[String]) {
     let tail = &log[log.len().saturating_sub(LOG_ROWS)..];
     for (i, line) in tail.iter().enumerate() {
         let newest = i + 1 == tail.len();
-        label(
+        vp_label(
             frame,
             1,
             FIRST_LOG_ROW + i as i32,
@@ -213,6 +229,12 @@ mod tests {
     use crate::combat_menu::StackRow;
     use crate::layout::cell;
     use crate::screens::tests::assert_laid_out;
+
+    /// Inside the viewport grid: a full last column ends a pixel past the viewport.
+    fn laid_out(frame: &Frame) {
+        let area = Rect::new(VIEWPORT.x + 1, VIEWPORT.y, VIEWPORT.w, VIEWPORT.h);
+        assert_laid_out(frame, area);
+    }
     use crate::screens::{MODAL_BOTTOM_PAD, MODAL_BUTTON_PITCH, MODAL_LINES_Y, MODAL_TEXT_X};
     use crate::widget::hit;
     use omnis_sim::ModeKind;
@@ -260,7 +282,7 @@ mod tests {
             message: String::new(),
         };
         combat(&mut frame, &view, &menu, &wide_log());
-        assert_laid_out(&frame);
+        laid_out(&frame);
         assert_eq!(frame.widgets.len(), 8, "four stacks, four actions");
         for i in 0..4 {
             let w = frame.widget(WidgetId::Stack(i)).unwrap();
@@ -323,7 +345,7 @@ mod tests {
         let mut view = widest_view(ModeKind::Encounter);
         let menu = EncounterMenu::default();
         encounter(&mut frame, &view, &menu);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         assert_eq!(frame.widgets.len(), 4, "the stacks are text before a fight");
         let bribe = frame.widget(WidgetId::Action(1)).unwrap();
         assert!(!bribe.enabled, "9999 gold is more than the purse");
@@ -346,14 +368,14 @@ mod tests {
     fn the_defeat_modal_sits_in_the_window_and_tells_how_it_ended() {
         let mut frame = Frame::default();
         defeat(&mut frame, &DefeatMenu { cursor: 1 }, &[]);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         let empty = frame.raster.fingerprint();
         let mut frame = Frame::default();
         let log: Vec<String> = (0..5)
             .map(|i| format!("Line {i} {}", "x".repeat(40)))
             .collect();
         defeat(&mut frame, &DefeatMenu { cursor: 1 }, &log);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         assert_ne!(
             frame.raster.fingerprint(),
             empty,

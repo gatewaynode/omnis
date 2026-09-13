@@ -36,6 +36,15 @@ pub const PAD_INSET: (i32, i32) = (8, 8);
 pub const BAND_X: i32 = 4;
 /// The band's padding above the message line.
 pub const BAND_PAD: i32 = 2;
+/// The menu grid's top-left cell on the canvas grid, and its size in cells: an 80×16 area
+/// centred in the viewport; the row indices the menu models use are rows of this grid.
+pub const MENU_ORIGIN: (i32, i32) = (40, 25);
+/// Text cells across the menu grid.
+pub const MENU_COLUMNS: i32 = 80;
+/// Rows of text a menu screen may use.
+pub const MENU_ROWS: i32 = 16;
+/// The frame around the menu grid stands this far outside it.
+pub const MENU_PAD: i32 = 2 * CELL.0;
 
 /// The canvas as text cells.
 pub const COLUMNS: i32 = CANVAS_WIDTH as i32 / CELL.0;
@@ -114,10 +123,17 @@ pub const VIEWPORT: Rect = Rect::new(
     VIEWPORT_SIZE.0 as u32,
     VIEWPORT_SIZE.1 as u32,
 );
-/// The menu screens fill the viewport; their text uses its columns and rows.
-pub const MENU_COLUMNS: i32 = VIEWPORT.w as i32 / CELL.0;
-/// Rows of text a menu screen may use.
-pub const MENU_ROWS: i32 = VIEWPORT.h as i32 / CELL.1;
+/// The viewport as text cells: the fight screens paint on this grid.
+pub const VIEWPORT_COLUMNS: i32 = VIEWPORT.w as i32 / CELL.0;
+/// The viewport as text rows.
+pub const VIEWPORT_ROWS: i32 = VIEWPORT.h as i32 / CELL.1;
+/// The box framed around the menu grid.
+pub const MENU_BOX: Rect = Rect::new(
+    cell(MENU_ORIGIN.0, MENU_ORIGIN.1).0 - MENU_PAD,
+    cell(MENU_ORIGIN.0, MENU_ORIGIN.1).1 - MENU_PAD,
+    (MENU_COLUMNS * CELL.0 + 2 * MENU_PAD) as u32,
+    (MENU_ROWS * CELL.1 + 2 * MENU_PAD) as u32,
+);
 /// The large automap overlay is clipped to this, inside the viewport.
 pub const OVERLAY_MAP_CLIP: Rect = Rect::new(
     VIEWPORT.x + MAP_INSET,
@@ -148,7 +164,7 @@ pub const HUD_LINES: [(i32, i32); 3] = [hud_line(0), hud_line(1), hud_line(2)];
 /// The location line `i`: under the minimap, one pixel in from the column's edge.
 const fn hud_line(i: i32) -> (i32, i32) {
     (
-        cell(MENU_COLUMNS, 0).0,
+        cell(VIEWPORT_COLUMNS, 0).0,
         SIDEBAR_MAP.1 + SIDEBAR_MAP.3 as i32 + HUD_GAP + i * CELL.1,
     )
 }
@@ -215,6 +231,12 @@ pub const BAND_HELP: (i32, i32) = (BAND_X, band_row(2) + CELL.1 + 1);
 #[must_use]
 pub const fn cell(column: i32, row: i32) -> (i32, i32) {
     (1 + column * CELL.0, row * CELL.1)
+}
+
+/// The canvas pixel of a cell of the menu grid.
+#[must_use]
+pub const fn menu_cell(column: i32, row: i32) -> (i32, i32) {
+    cell(MENU_ORIGIN.0 + column, MENU_ORIGIN.1 + row)
 }
 
 /// The canvas y of a text row.
@@ -617,11 +639,22 @@ mod tests {
         assert!(message.bottom() <= BAND_ROWS[0] && BAND_ROWS[2] + CELL.1 <= help.y);
         assert_eq!(cell(0, 0), (1, 0));
         assert_eq!(
-            cell(MENU_COLUMNS, 0).0,
+            cell(VIEWPORT_COLUMNS, 0).0,
             VIEWPORT.right() + 1,
-            "the column past the menu grid clears the viewport by a pixel"
+            "the column past the viewport grid clears it by a pixel"
         );
-        assert!(cell(MENU_COLUMNS - 1, MENU_ROWS - 1).1 + CELL.1 <= VIEWPORT.bottom());
+        assert!(VIEWPORT.encloses(MENU_BOX), "{MENU_BOX:?}");
+        let (x, y) = menu_cell(0, 0);
+        let area = Rect::new(
+            x,
+            y,
+            (MENU_COLUMNS * CELL.0) as u32,
+            (MENU_ROWS * CELL.1) as u32,
+        );
+        assert!(
+            MENU_BOX.encloses(area) && x - MENU_BOX.x >= 5,
+            "room for the marker"
+        );
         let (w, h) = (CANVAS_WIDTH as i32, CANVAS_HEIGHT as i32);
         assert!(COLUMNS * CELL.0 <= w && (COLUMNS + 1) * CELL.0 > w);
         assert!(ROWS * CELL.1 <= h && (ROWS + 1) * CELL.1 > h);

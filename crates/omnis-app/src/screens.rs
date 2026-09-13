@@ -1,9 +1,10 @@
 //! The menu screens painted over the viewport: title, new game, character creation, pause,
-//! and the modal box the defeat screen uses. Each paints its text on the 40×16 cell grid of
-//! the viewport and registers the rows the mouse can hit, keyed by the row indices the models
-//! in `menu.rs` already use. `combat_screen.rs` paints the fight with the same helpers.
+//! and the modal box the defeat screen uses. Each paints its text on the menu grid, a framed
+//! box of cells centred in the viewport (`layout::MENU_BOX`), and registers the rows the mouse
+//! can hit, keyed by the row indices the models in `menu.rs` already use. `combat_screen.rs`
+//! paints the fight on the viewport's own grid with `item_state_at`.
 
-use crate::layout::{CELL, MENU_COLUMNS, Rect, cell};
+use crate::layout::{CELL, MENU_COLUMNS, Rect, menu_cell};
 use crate::menu::{
     Catalog, CreationForm, NewGameForm, Pause, ROW_ADD, ROW_ALIGNMENT, ROW_BACKGROUND, ROW_BEGIN,
     ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, Title, rule_label, words,
@@ -13,15 +14,15 @@ use crate::widget::{DIM, FRAME, Frame, HI, Kind, PANEL, TEXT, Widget, WidgetId};
 use omnis_sim::Settings;
 use omnis_sim::omnis_data::{Ability, Alignment};
 
-/// A row's rectangle: `cells` wide from a grid cell.
+/// A row's rectangle: `cells` wide from a cell of the menu grid.
 pub(crate) fn row_rect(column: i32, row: i32, cells: usize) -> Rect {
-    let (x, y) = cell(column, row);
+    let (x, y) = menu_cell(column, row);
     Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32)
 }
 
-/// Paint plain text at a grid cell.
+/// Paint plain text at a cell of the menu grid.
 pub(crate) fn label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
-    let (x, y) = cell(column, row);
+    let (x, y) = menu_cell(column, row);
     frame.raster.text(x, y, text, color);
 }
 
@@ -31,11 +32,17 @@ pub(crate) fn label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
     label(frame, column.max(0), row, text, color);
 }
 
-/// The cells of the first `<` and the last `>` in the text, as arrow rectangles.
-fn arrows(text: &str, column: i32, row: i32) -> (Option<Rect>, Option<Rect>) {
-    let left = text.find('<').map(|i| row_rect(column + i as i32, row, 1));
-    let right = text.rfind('>').map(|i| row_rect(column + i as i32, row, 1));
-    (left, right)
+/// The cells of the first `<` and the last `>` in a row's text, as arrow rectangles.
+fn arrows(text: &str, rect: Rect) -> (Option<Rect>, Option<Rect>) {
+    let at = |i: usize| {
+        Rect::new(
+            rect.x + i as i32 * CELL.0,
+            rect.y,
+            CELL.0 as u32,
+            CELL.1 as u32,
+        )
+    };
+    (text.find('<').map(at), text.rfind('>').map(at))
 }
 
 /// How a row is drawn and whether it answers the mouse.
@@ -81,8 +88,7 @@ pub(crate) fn item(
     );
 }
 
-/// Paint a row in a state: a disabled row is dim and registers an inert widget, so the
-/// hover outline and the click both pass it by.
+/// Paint a row of the menu grid in a state.
 pub(crate) fn item_state(
     frame: &mut Frame,
     id: WidgetId,
@@ -93,7 +99,19 @@ pub(crate) fn item_state(
     state: ItemState,
 ) {
     let (column, row) = at;
-    let rect = row_rect(column, row, cells);
+    item_state_at(frame, id, kind, row_rect(column, row, cells), text, state);
+}
+
+/// Paint a row in a state at a rectangle: a disabled row is dim and registers an inert
+/// widget, so the hover outline and the click both pass it by.
+pub(crate) fn item_state_at(
+    frame: &mut Frame,
+    id: WidgetId,
+    kind: Kind,
+    rect: Rect,
+    text: &str,
+    state: ItemState,
+) {
     let color = match state {
         ItemState::Normal => TEXT,
         ItemState::Selected => HI,
@@ -106,7 +124,7 @@ pub(crate) fn item_state(
     let mut widget = Widget::new(id, rect, kind);
     widget.enabled = state != ItemState::Disabled;
     if kind == Kind::Choice {
-        let (left, right) = arrows(text, column, row);
+        let (left, right) = arrows(text, rect);
         widget.left = left;
         widget.right = right;
     }
@@ -162,14 +180,15 @@ pub(crate) fn modal(
 
 /// The title: three items.
 pub fn title(frame: &mut Frame, title: &Title) {
-    label(frame, 17, 2, "OMNIS", HI);
+    let column = (MENU_COLUMNS - "OMNIS".len() as i32) / 2;
+    label(frame, column, 2, "OMNIS", HI);
     for (i, text) in Title::ITEMS.iter().enumerate() {
         let row = 6 + 2 * i as i32;
         item(
             frame,
             WidgetId::Row(i),
             Kind::Button,
-            (13, row),
+            (column - 4, row),
             text,
             15,
             title.cursor == i,
@@ -406,7 +425,7 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::layout::VIEWPORT;
+    use crate::layout::{MENU_BOX, VIEWPORT};
     use crate::menu::MenuKey;
     use crate::screen::{Target, click};
     use crate::widget::{Hit, Part, hit};
@@ -442,9 +461,8 @@ pub(crate) mod tests {
     }
 
     /// Every widget lies inside the menu area and none overlap.
-    pub(crate) fn assert_laid_out(frame: &Frame) {
-        // Column 39's blank sixth pixel is x 240, one past the viewport.
-        let area = Rect::new(1, 0, VIEWPORT.w, VIEWPORT.h);
+    /// Every widget lies inside `area` and none overlap.
+    pub(crate) fn assert_laid_out(frame: &Frame, area: Rect) {
         for (i, a) in frame.widgets.iter().enumerate() {
             assert!(area.encloses(a.rect), "{:?} leaves the menu area", a.id);
             for b in &frame.widgets[i + 1..] {
@@ -457,7 +475,7 @@ pub(crate) mod tests {
     fn every_screen_fits_the_menu_area_at_its_widest() {
         let mut frame = Frame::default();
         title(&mut frame, &Title::default());
-        assert_laid_out(&frame);
+        assert_laid_out(&frame, MENU_BOX);
         assert_eq!(frame.widgets.len(), 3);
         let mut frame = Frame::default();
         let form = NewGameForm {
@@ -469,7 +487,7 @@ pub(crate) mod tests {
             ..NewGameForm::default()
         };
         new_game(&mut frame, &form);
-        assert_laid_out(&frame);
+        assert_laid_out(&frame, MENU_BOX);
         assert!(
             frame
                 .widget(WidgetId::Row(1))
@@ -477,12 +495,12 @@ pub(crate) mod tests {
                 .right
                 .unwrap()
                 .right()
-                <= cell(MENU_COLUMNS, 0).0
+                <= menu_cell(MENU_COLUMNS, 0).0
         );
         let mut frame = Frame::default();
         let catalog = catalog();
         creation(&mut frame, &widest_creation(&catalog), &catalog, 6);
-        assert_laid_out(&frame);
+        assert_laid_out(&frame, MENU_BOX);
         assert!(
             frame.widget(WidgetId::Skill(10)).is_some(),
             "the rogue's 11 skills"
@@ -492,7 +510,7 @@ pub(crate) mod tests {
         }
         let mut frame = Frame::default();
         pause(&mut frame, &Pause::default(), Settings::default(), u64::MAX);
-        assert_laid_out(&frame);
+        assert_laid_out(&frame, MENU_BOX);
         assert_eq!(frame.widgets.len(), 3);
     }
 
@@ -503,7 +521,11 @@ pub(crate) mod tests {
         creation(&mut frame, &CreationForm::new(&catalog), &catalog, 0);
         let race = frame.widget(WidgetId::Row(ROW_RACE)).unwrap();
         let left = race.left.unwrap();
-        assert_eq!(left.x, cell(13, 2).0, "the < sits after the 12-cell label");
+        assert_eq!(
+            left.x,
+            menu_cell(13, 2).0,
+            "the < sits after the 12-cell label"
+        );
         let h = hit(&frame.widgets, left.x + 2, left.y + 3).unwrap();
         assert_eq!((h.id, h.part), (WidgetId::Row(ROW_RACE), Part::Left));
         let right = race.right.unwrap();
@@ -513,11 +535,11 @@ pub(crate) mod tests {
         let h = hit(&frame.widgets, mid, race.rect.y).unwrap();
         assert_eq!((h.id, h.part), (WidgetId::Row(ROW_RACE), Part::Body));
         let str_row = frame.widget(WidgetId::Row(ROW_SCORES)).unwrap();
-        assert_eq!(str_row.left.unwrap().x, cell(5, 6).0);
+        assert_eq!(str_row.left.unwrap().x, menu_cell(5, 6).0);
         let dex_row = frame.widget(WidgetId::Row(ROW_SCORES + 1)).unwrap();
-        assert_eq!(dex_row.rect.x, cell(14, 6).0);
+        assert_eq!(dex_row.rect.x, menu_cell(14, 6).0);
         let skill = frame.widget(WidgetId::Skill(1)).unwrap();
-        assert_eq!(skill.rect.x, cell(21, 9).0);
+        assert_eq!(skill.rect.x, menu_cell(21, 9).0);
         assert_eq!(
             hit(&frame.widgets, skill.rect.x, skill.rect.y)
                 .unwrap()
@@ -585,7 +607,7 @@ pub(crate) mod tests {
         let w = frame.widget(WidgetId::Row(0)).unwrap();
         assert!(!w.enabled);
         assert_eq!(hit(&frame.widgets, w.rect.x, w.rect.y), None);
-        let (x, y) = cell(1, 1);
+        let (x, y) = menu_cell(1, 1);
         assert_eq!(frame.raster.get(x, y + 1), Some([DIM.0, DIM.1, DIM.2, 255]));
         let mut frame = Frame::default();
         let rect = Rect::new(48, 32, 144, 64);
@@ -599,7 +621,7 @@ pub(crate) mod tests {
             &["Load last save", "Quit to title"],
             1,
         );
-        assert_laid_out(&frame);
+        assert_laid_out(&frame, rect);
         assert_eq!(frame.widgets.len(), 2);
         for w in &frame.widgets {
             assert!(rect.encloses(w.rect), "{:?}", w.id);

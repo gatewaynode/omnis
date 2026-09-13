@@ -4,11 +4,11 @@
 
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
-use crate::layout::VIEWPORT;
+use crate::layout::{MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Band, Hud, MemberRow, Message};
 use crate::screens;
-use crate::widget::{Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
+use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
 use omnis_sim::Settings;
 
 /// The menu model a click lands on.
@@ -181,6 +181,7 @@ pub fn compose_into(
     panels::backdrop(frame);
     if view.menu.covers_viewport() {
         frame.raster.fill(VIEWPORT, PANEL);
+        frame.raster.stroke(MENU_BOX, FRAME);
     }
     match &view.menu {
         Menu::None => {}
@@ -332,6 +333,44 @@ mod tests {
         assert_eq!(click(Target::Pause(&mut pause), stack), vec![]);
         assert_eq!(click(Target::Pause(&mut pause), action), vec![]);
         assert_eq!(pause.cursor, 0);
+    }
+
+    #[test]
+    fn the_menu_box_is_framed_over_the_covered_viewport() {
+        let view = View {
+            menu: Menu::Title(&Title::default()),
+            hud: None,
+            members: &[],
+            front_row: 3,
+            selected: None,
+            creating: false,
+            pad: PadState::Hidden,
+            message: &Message::default(),
+            help: "",
+        };
+        let frame = compose(&view, None, None);
+        let rgb = |x, y| frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]));
+        assert_eq!(
+            rgb(MENU_BOX.x, MENU_BOX.y),
+            Some(FRAME),
+            "the frame's corner"
+        );
+        assert_eq!(
+            rgb(MENU_BOX.right() - 1, MENU_BOX.bottom() - 1),
+            Some(FRAME)
+        );
+        assert_eq!(
+            rgb(MENU_BOX.x - 1, MENU_BOX.y - 1),
+            Some(PANEL),
+            "panel outside"
+        );
+        assert_eq!(
+            rgb(MENU_BOX.x + 1, MENU_BOX.y + 1),
+            Some(PANEL),
+            "panel inside"
+        );
+        let title = frame.widget(WidgetId::Row(0)).unwrap();
+        assert!(MENU_BOX.encloses(title.rect), "{:?}", title.rect);
     }
 
     #[test]
