@@ -137,7 +137,7 @@ Scope: monsters as stacks with rows, fixed and random encounters keyed to map ti
 ### Display rework (D20, before M5) — plan approved 2026-09-13
 The 320×180 canvas at 12× on a 4K monitor is the first thing to fix while the build is early (PRD D20). Canvas 1280×720 (213×90 cells, the 5×7 font unchanged), viewport 960×540 by re-baking the tilesets at 4×, whole multiples only with `--window small|medium|large|huge` (1280×720, 2560×1440, 3840×2160, 7680×2160) and borderless fullscreen by default, the fit counted in physical pixels; the acting member as a roster highlight; the roll math in a band log. Plan: `~/.claude/plans/nested-growing-bear.md`.
 - [x] Text (2026-09-13): the member `Turn` line is silent (the header, log, and message line no longer say "to act"); `FightView.actor` removed
-- [ ] Silhouette rims: a one-pixel light edge under the four fills
+- [x] Silhouette rims (2026-09-13): a one-pixel light edge under the four fills
 - [ ] Layout derivation with no behaviour change: every region a `const` expression of the inputs; `FRONT_FEET_Y`; modal and pad constants
 - [ ] Tests as invariants at 320×180; `every_tileset_is_baked_for_the_layouts_viewport`; text-budget inequalities
 - [ ] `ui.rs`: compose into a scratch frame, upload on change

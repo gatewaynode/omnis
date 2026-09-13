@@ -19,6 +19,10 @@ pub const BACK_Z: f32 = 4.5;
 pub const FRONT_COLOR: (u8, u8, u8) = (20, 14, 24);
 /// The back silhouettes' colour, a shade lighter for depth.
 pub const BACK_COLOR: (u8, u8, u8) = (36, 30, 44);
+/// The one-pixel rim around a front silhouette, so a dark shape reads against a dark wall.
+pub const RIM_FRONT: (u8, u8, u8) = (128, 120, 140);
+/// The rim around a back silhouette.
+pub const RIM_BACK: (u8, u8, u8) = (88, 82, 100);
 
 /// A living stack as the silhouettes need it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,38 +88,56 @@ pub fn silhouettes(actors: &[Actor]) -> Vec<Silhouette> {
         .collect()
 }
 
-/// The draw ops: a head, a body, and two legs per silhouette, as flat fills.
+/// A silhouette's parts: head, body, left leg, right leg, as `(x, y, width, height)`.
+fn parts(s: &Silhouette) -> [(i32, i32, u32, u32); 4] {
+    let (w, h) = (s.rect.w, s.rect.h);
+    let (head_h, body_h) = (h / 4, h / 2);
+    let leg_h = h - head_h - body_h;
+    let leg_w = (w * 35 / 100).max(1);
+    let head_w = (w / 2).max(1);
+    [
+        (s.rect.x + (w - head_w) as i32 / 2, s.rect.y, head_w, head_h),
+        (s.rect.x, s.rect.y + head_h as i32, w, body_h),
+        (s.rect.x, s.rect.bottom() - leg_h as i32, leg_w, leg_h),
+        (
+            s.rect.right() - leg_w as i32,
+            s.rect.bottom() - leg_h as i32,
+            leg_w,
+            leg_h,
+        ),
+    ]
+}
+
+fn fill(color: (u8, u8, u8), (x, y, width, height): (i32, i32, u32, u32)) -> DrawOp {
+    DrawOp {
+        paint: Paint::Fill {
+            color,
+            width,
+            height,
+        },
+        x,
+        y,
+    }
+}
+
+/// The draw ops per silhouette: the four parts widened by a pixel in the rim colour, then the
+/// head, body, and two legs as dark fills over them, so a one-pixel light edge outlines the
+/// union of the parts.
 #[must_use]
 pub fn ops(silhouettes: &[Silhouette]) -> Vec<DrawOp> {
-    let mut ops = Vec::with_capacity(silhouettes.len() * 4);
+    let mut ops = Vec::with_capacity(silhouettes.len() * 8);
     for s in silhouettes {
-        let color = if s.front { FRONT_COLOR } else { BACK_COLOR };
-        let (w, h) = (s.rect.w, s.rect.h);
-        let (head_h, body_h) = (h / 4, h / 2);
-        let leg_h = h - head_h - body_h;
-        let leg_w = (w * 35 / 100).max(1);
-        let head_w = (w / 2).max(1);
-        let parts = [
-            (s.rect.x + (w - head_w) as i32 / 2, s.rect.y, head_w, head_h),
-            (s.rect.x, s.rect.y + head_h as i32, w, body_h),
-            (s.rect.x, s.rect.bottom() - leg_h as i32, leg_w, leg_h),
-            (
-                s.rect.right() - leg_w as i32,
-                s.rect.bottom() - leg_h as i32,
-                leg_w,
-                leg_h,
-            ),
-        ];
-        for (x, y, width, height) in parts {
-            ops.push(DrawOp {
-                paint: Paint::Fill {
-                    color,
-                    width,
-                    height,
-                },
-                x,
-                y,
-            });
+        let (rim, color) = if s.front {
+            (RIM_FRONT, FRONT_COLOR)
+        } else {
+            (RIM_BACK, BACK_COLOR)
+        };
+        let parts = parts(s);
+        for (x, y, w, h) in parts {
+            ops.push(fill(rim, (x - 1, y - 1, w + 2, h + 2)));
+        }
+        for part in parts {
+            ops.push(fill(color, part));
         }
     }
     ops
@@ -161,7 +183,7 @@ mod tests {
                     assert!(VIEWPORT.encloses(s.rect), "{size:?} {s:?}");
                 }
                 let fills = ops(&placed);
-                assert_eq!(fills.len(), 20, "four fills per silhouette");
+                assert_eq!(fills.len(), 40, "four rims and four fills per silhouette");
                 assert!(fills.iter().all(inside_viewport), "{size:?} {front}");
             }
         }
@@ -183,20 +205,30 @@ mod tests {
         assert!(centres[3] < centres[1] && centres[1] < centres[0]);
         assert!(centres[0] < centres[2] && centres[2] < centres[4]);
         assert_eq!(centres[0] - centres[1], centres[2] - centres[0]);
-        let fills = ops(&placed[..1]);
-        let heights: Vec<u32> = fills
-            .iter()
-            .map(|o| match o.paint {
-                Paint::Fill { height, .. } => height,
-                Paint::Sprite(_) => 0,
-            })
-            .collect();
+        let all = ops(&placed[..1]);
+        let size = |o: &DrawOp| match o.paint {
+            Paint::Fill { width, height, .. } => (width, height),
+            Paint::Sprite(_) => (0, 0),
+        };
+        let color = |o: &DrawOp| match o.paint {
+            Paint::Fill { color, .. } => color,
+            Paint::Sprite(_) => (0, 0, 0),
+        };
+        let (rims, fills) = all.split_at(4);
+        let heights: Vec<u32> = fills.iter().map(|o| size(o).1).collect();
         assert_eq!(heights[0] + heights[1] + heights[2], placed[0].rect.h);
         assert_eq!(fills[0].y, placed[0].rect.y, "the head is on top");
         assert_eq!(fills[2].y + heights[2] as i32, placed[0].rect.bottom());
         assert!(fills[3].x > fills[2].x, "the legs stand apart");
-        assert!(matches!(fills[0].paint, Paint::Fill { color, .. } if color == FRONT_COLOR));
+        assert!(fills.iter().all(|o| color(o) == FRONT_COLOR));
+        // Each rim is its part widened by one pixel on every side, painted underneath.
+        for (rim, part) in rims.iter().zip(fills) {
+            assert_eq!((rim.x, rim.y), (part.x - 1, part.y - 1));
+            assert_eq!(size(rim), (size(part).0 + 2, size(part).1 + 2));
+            assert_eq!(color(rim), RIM_FRONT);
+        }
         let back = ops(&silhouettes(&[actor(0, Size::Medium, false)]));
-        assert!(matches!(back[0].paint, Paint::Fill { color, .. } if color == BACK_COLOR));
+        assert_eq!(color(&back[0]), RIM_BACK);
+        assert_eq!(color(&back[4]), BACK_COLOR);
     }
 }
