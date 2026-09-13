@@ -143,9 +143,9 @@ pub fn encounter(
     }
 }
 
-/// From the meadow start to the goblins at (3, 8) of the dungeon: up the road through the
+/// From the meadow start to the rats at (3, 8) of the dungeon: up the road through the
 /// portal, down the first room, left to the door, through it, and three tiles in.
-pub fn walk_to_goblins() -> Vec<Command> {
+pub fn walk_to_the_rats() -> Vec<Command> {
     let mut commands = vec![Command::Step(Direction::Forward); 16];
     commands.extend([
         Command::Turn(Rotation::Left),

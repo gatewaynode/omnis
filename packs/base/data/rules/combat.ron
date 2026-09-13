@@ -26,6 +26,11 @@
         "monster_front_stacks": 2,
         "death_save_dc": 10,
         "combat_round_minutes": 1,
+        // 1 rolls the monsters' Stealth against the party's best passive Perception when a
+        // group is met; an unnoticed party skips the choice and starts the fight surprised.
+        // Off (0) until the fight systems have been played: a first placement that ends
+        // inside one step is not a first encounter.
+        "surprise": 0,
     },
     // Run and Flee difficulty by disposition; Friendly never rolls.
     tables: {"run_dc": [15, 12, 10, 0]},

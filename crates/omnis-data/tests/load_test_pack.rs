@@ -111,14 +111,17 @@ fn portals_and_tileset_slots_resolve() {
         (dungeon_id, 1, 0, Facing::South)
     );
     assert_eq!(dungeon.encounters.len(), 3);
-    let (index, goblins) = dungeon.encounter_at(3, 8).expect("the goblins");
+    let (index, rats) = dungeon.encounter_at(3, 8).expect("the rats");
     assert_eq!(index, 0);
-    assert_eq!(goblins.stacks.len(), 2);
+    assert_eq!(rats.stacks.len(), 1);
     assert_eq!(
-        data.registry.monsters.name(goblins.stacks[0].0),
-        Some("test:monster:goblin")
+        (
+            data.registry.monsters.name(rats.stacks[0].0),
+            rats.stacks[0].1
+        ),
+        (Some("test:monster:giant_rat"), 2)
     );
-    assert!(goblins.once);
+    assert!(rats.once);
     assert_eq!(dungeon.encounter_at(0, 0), None);
     assert_eq!(dungeon.random.as_ref().map(|r| r.chance_percent), Some(3));
     assert_eq!(dungeon.random.as_ref().map(|r| r.total_weight()), Some(4));

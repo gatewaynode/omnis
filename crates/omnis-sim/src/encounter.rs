@@ -253,7 +253,10 @@ fn begin(
     for member in world.party.members.iter().filter(|m| can_fight(m, data)) {
         perception = perception.max(passive(member, data, Skill::Perception)?);
     }
-    let (stealth, noticed) = if disposition == Disposition::Friendly {
+    // The surprise check is a rules value (`surprise`, off by default since 2026-09-13): with
+    // it off every group is noticed and the party always gets its choice.
+    let surprise = data.rules.value("surprise").unwrap_or(0) != 0;
+    let (stealth, noticed) = if disposition == Disposition::Friendly || !surprise {
         (None, true)
     } else {
         let dex = stacks

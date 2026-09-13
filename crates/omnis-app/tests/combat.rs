@@ -19,7 +19,7 @@ use omnis_app::widget::{Part, WidgetId};
 use omnis_sim::omnis_core::{Direction, Facing};
 use omnis_sim::{CheckKind, CombatOutcome, Command, Event, PartyCommand};
 
-/// The goblin placement of the test dungeon: (3, 8), entered from the north.
+/// The rat placement of the test dungeon: (3, 8), entered from the north.
 const DUNGEON: &str = "test:map:dungeon";
 
 fn send(app: &mut App, command: Command) {
@@ -30,8 +30,8 @@ fn send(app: &mut App, command: Command) {
     app.update();
 }
 
-/// An autostarted game with four stock recruits, standing one tile north of the goblins.
-fn before_the_goblins(save: &str) -> App {
+/// An autostarted game with four stock recruits, standing one tile north of the rats.
+fn before_the_rats(save: &str) -> App {
     let mut app = ui_app_saving_to(save, true);
     app.update();
     app.update();
@@ -47,9 +47,9 @@ fn before_the_goblins(save: &str) -> App {
     app
 }
 
-/// Step onto the goblins: the encounter screen, or the fight at once when they were not
-/// noticed.
-fn meet_the_goblins(app: &mut App) {
+/// Step onto the rats: the encounter screen (surprise is off in the base rules, so the
+/// choice always comes first).
+fn meet_the_rats(app: &mut App) {
     send(app, Command::Step(Direction::Forward));
     assert!(
         matches!(play_state(app), PlayState::Encounter | PlayState::Combat),
@@ -66,8 +66,8 @@ fn meet_the_goblins(app: &mut App) {
 
 #[test]
 fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
-    let mut app = before_the_goblins("combat-fight.ron");
-    meet_the_goblins(&mut app);
+    let mut app = before_the_rats("combat-fight.ron");
+    meet_the_rats(&mut app);
     if play_state(&app) == PlayState::Encounter {
         assert!(widget(&app, WidgetId::Action(0)).enabled, "Attack");
         click(&mut app, WidgetId::Action(0), Part::Body);
@@ -121,8 +121,8 @@ fn frame_has(app: &App, id: WidgetId) -> bool {
 
 #[test]
 fn running_resolves_as_its_check_says() {
-    let mut app = before_the_goblins("combat-run.ron");
-    meet_the_goblins(&mut app);
+    let mut app = before_the_rats("combat-run.ron");
+    meet_the_rats(&mut app);
     let (run_action, kind) = if play_state(&app) == PlayState::Encounter {
         (3, CheckKind::Run)
     } else {
@@ -154,7 +154,7 @@ fn running_resolves_as_its_check_says() {
 
 #[test]
 fn the_defeat_modal_loads_the_last_save_or_quits() {
-    let mut app = before_the_goblins("combat-defeat.ron");
+    let mut app = before_the_rats("combat-defeat.ron");
     app.world_mut()
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);
@@ -201,8 +201,8 @@ fn the_defeat_modal_loads_the_last_save_or_quits() {
 
 #[test]
 fn escape_pauses_a_fight_and_resume_returns_to_it() {
-    let mut app = before_the_goblins("combat-pause.ron");
-    meet_the_goblins(&mut app);
+    let mut app = before_the_rats("combat-pause.ron");
+    meet_the_rats(&mut app);
     let before = play_state(&app);
     key(&mut app, Key::Escape);
     assert_eq!(play_state(&app), PlayState::Paused);
@@ -226,7 +226,7 @@ fn a_party_built_by_mouse_reaches_the_encounter_screen() {
     click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     place(&mut app, DUNGEON, 15, 7, Facing::South);
-    // The friendly rats at (15, 8): a bribe is free and every choice is on the row.
+    // The friendly rat at (15, 8): a bribe is free and every choice is on the row.
     send(&mut app, Command::Step(Direction::Forward));
     assert_eq!(play_state(&app), PlayState::Encounter);
     let bribe = widget(&app, WidgetId::Action(1));

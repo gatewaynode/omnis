@@ -3,15 +3,15 @@
 
 mod common;
 
-use common::{data, interact, play, six, step, turn, walk_to_goblins, world};
+use common::{data, interact, play, six, step, turn, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::Data;
 use omnis_data::ron_io::{read_ron, write_ron};
 use omnis_sim::Event;
 use omnis_sim::omnis_rules::DeathSaves;
 use omnis_sim::{
-    Command, LoadError, Mode, PartyCommand, Replay, ReplayError, SaveRule, Settings, World, apply,
-    query,
+    Command, EncounterChoice, LoadError, Mode, PartyCommand, Replay, ReplayError, SaveRule,
+    Settings, World, apply, query,
 };
 use std::path::PathBuf;
 
@@ -23,6 +23,7 @@ fn replay_path(name: &str) -> PathBuf {
 
 /// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon,
 /// through the first door, and a bump against a pillar.
+/// A walk through the first row of rooms, for the determinism checks under any seed.
 fn walk() -> Vec<Command> {
     let mut commands = vec![Command::Step(Direction::Forward); 14];
     commands.extend([
@@ -42,6 +43,15 @@ fn walk() -> Vec<Command> {
         Command::Step(Direction::Back),
         Command::Interact,
     ]);
+    commands
+}
+
+/// The same walk under the golden seed, where the dungeon's random table fires on the
+/// thirteenth step: an empty party meets rats, fights, falls at once, and walks on (surprise
+/// is off, so the choice waits for a command).
+fn golden_walk() -> Vec<Command> {
+    let mut commands = walk();
+    commands.insert(13, Command::Encounter(EncounterChoice::Attack));
     commands
 }
 
@@ -238,13 +248,13 @@ fn golden_walk_replay_reproduces() {
         read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         replay.commands,
-        walk(),
+        golden_walk(),
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
 }
 
-/// The command script behind `tests/replays/fight.ron`: six members, the walk to the goblins
+/// The command script behind `tests/replays/fight.ron`: six members, the walk to the rats
 /// at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
 /// dice bring on the way (a random encounter, a member down) is part of the record.
 fn fight(data: &Data) -> Vec<Command> {
@@ -255,7 +265,7 @@ fn fight(data: &Data) -> Vec<Command> {
         apply(&mut world, data, command.clone()).unwrap();
         commands.push(command);
     }
-    let (taken, events) = play(&mut world, data, &walk_to_goblins());
+    let (taken, events) = play(&mut world, data, &walk_to_the_rats());
     commands.extend(taken);
     assert!(
         events.iter().any(|e| matches!(
@@ -265,7 +275,7 @@ fn fight(data: &Data) -> Vec<Command> {
                 ..
             }
         )),
-        "the goblins are cleared"
+        "the rats are cleared"
     );
     assert_eq!(world.mode, Mode::Explore);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
@@ -302,7 +312,13 @@ fn rebaseline_fight_replay() {
 #[ignore = "writes the golden file; run deliberately"]
 fn rebaseline_walk_replay() {
     let data = data();
-    let replay = Replay::record(&data, 0x0123_4567_89ab_cdef, Settings::default(), walk()).unwrap();
+    let replay = Replay::record(
+        &data,
+        0x0123_4567_89ab_cdef,
+        Settings::default(),
+        golden_walk(),
+    )
+    .unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
 }
 

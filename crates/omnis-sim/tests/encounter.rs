@@ -1,10 +1,10 @@
-//! Encounters on the test dungeon: the placed goblins wait on their tile and the walk reaches
+//! Encounters on the test dungeon: the placed rats wait on their tile and the walk reaches
 //! them, the four choices resolve by the rules, random tables draw from their own stream, and
 //! the protocol knows the choices.
 
 mod common;
 
-use common::{data, encounter, party_of, play, walk_to_goblins, world};
+use common::{data, encounter, party_of, play, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, StreamName};
 use omnis_data::{Data, Disposition};
 use omnis_sim::command::parse_script;
@@ -52,12 +52,12 @@ fn choose(world: &mut World, data: &Data, choice: EncounterChoice) -> Vec<Event>
 }
 
 #[test]
-fn the_placed_goblins_wait_on_their_tile_and_stay_cleared() {
+fn the_placed_rats_wait_on_their_tile_and_stay_cleared() {
     let data = data();
     let mut world = world(&data);
     party_of(&mut world, &data, 6);
-    let (commands, events) = play(&mut world, &data, &walk_to_goblins());
-    assert!(commands.len() >= walk_to_goblins().len());
+    let (commands, events) = play(&mut world, &data, &walk_to_the_rats());
+    assert!(commands.len() >= walk_to_the_rats().len());
     let started: Vec<&Event> = events
         .iter()
         .filter(|e| matches!(e, Event::EncounterStarted { .. }))
@@ -75,22 +75,20 @@ fn the_placed_goblins_wait_on_their_tile_and_stay_cleared() {
         panic!("no encounter: {events:?}")
     };
     assert_eq!(*source, EncounterSource::Fixed(0));
-    assert_eq!(stacks.iter().map(|(_, n)| *n).collect::<Vec<_>>(), [3, 2]);
+    assert_eq!(stacks.iter().map(|(_, n)| *n).collect::<Vec<_>>(), [2]);
     assert_eq!((*disposition, counts.len()), (Disposition::Hostile, 0));
-    let stealth = stealth.as_ref().expect("hostile groups roll stealth");
-    assert_eq!(stealth.trace.stream, StreamName::new("combat"));
-    let surprised = events.iter().any(|e| {
-        matches!(
+    assert!(
+        stealth.is_none() && *noticed,
+        "surprise is off in the base rules: no Stealth roll, the party chooses"
+    );
+    assert!(
+        !events.iter().any(|e| matches!(
             e,
             Event::CombatStarted {
                 surprised: Surprise::Party
             }
-        )
-    });
-    assert_eq!(
-        surprised,
-        !noticed || surprised,
-        "unnoticed means surprised"
+        )),
+        "never surprised with the check off"
     );
     assert!(events.iter().all(|e| match e {
         Event::EncounterCheck { roll, chance, .. } => {
@@ -121,6 +119,54 @@ fn the_placed_goblins_wait_on_their_tile_and_stay_cleared() {
         "a once encounter does not come back"
     );
     assert_eq!((world.position.x, world.position.y), (3, 8));
+}
+
+#[test]
+fn with_the_surprise_value_on_an_unnoticed_party_starts_the_fight_surprised() {
+    let mut data = data();
+    data.rules.insert_value("surprise", 1);
+    let mut seen = [false; 2];
+    for seed in 0..40u64 {
+        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        party_of(&mut world, &data, 2);
+        let placement = &data.maps[&dungeon(&data)].encounters[0];
+        world.position = Position {
+            map: dungeon(&data),
+            x: placement.x,
+            y: placement.y - 1,
+            facing: Facing::South,
+        };
+        let events = apply(&mut world, &data, Command::Step(Direction::Forward)).unwrap();
+        let Some(Event::EncounterStarted {
+            stealth: Some(roll),
+            perception,
+            noticed,
+            ..
+        }) = events
+            .iter()
+            .find(|e| matches!(e, Event::EncounterStarted { .. }))
+        else {
+            panic!("{events:?}")
+        };
+        assert_eq!(roll.trace.stream, StreamName::new("combat"));
+        assert_eq!(*noticed, roll.total < *perception);
+        let surprised = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::CombatStarted {
+                    surprised: Surprise::Party
+                }
+            )
+        });
+        assert_eq!(surprised, !*noticed, "unnoticed means surprised");
+        assert_eq!(
+            matches!(world.mode, Mode::Encounter(_)),
+            *noticed,
+            "noticed means the choice"
+        );
+        seen[usize::from(*noticed)] = true;
+    }
+    assert_eq!(seen, [true, true], "both outcomes over 40 seeds");
 }
 
 trait EncounterStream {
