@@ -29,6 +29,7 @@ pub mod tileset;
 
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
+pub use content::DEFAULT_COMPONENT_THRESHOLD;
 pub use encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, ResolvedEncounter, ResolvedEntry,
     ResolvedRandom,

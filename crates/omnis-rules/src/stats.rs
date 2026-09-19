@@ -128,7 +128,10 @@ pub struct Roll {
     pub modifier: i64,
     /// Proficiency bonus added, zero when not proficient.
     pub proficiency: i64,
-    /// Face plus both.
+    /// A buff die added (bless, guidance), when one was in force.
+    #[serde(default)]
+    pub bonus: Option<RollTrace>,
+    /// Face plus modifier, proficiency, and the bonus die.
     pub total: i64,
 }
 
@@ -160,6 +163,7 @@ fn d20(
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
+    let bonus: Option<RollTrace> = None;
     let (trace, face) = kept_d20(mode, rng, stream)?;
     let modifier = modifier(character.scores[ability.index()]);
     let proficiency = if proficient {
@@ -167,13 +171,15 @@ fn d20(
     } else {
         0
     };
-    let total = i64::from(face) + modifier + proficiency;
+    let extra = bonus.as_ref().map_or(0, |b| i64::from(b.total));
+    let total = i64::from(face) + modifier + proficiency + extra;
     Ok(Roll {
         trace,
         mode,
         face,
         modifier,
         proficiency,
+        bonus,
         total,
     })
 }

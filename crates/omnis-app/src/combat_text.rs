@@ -471,6 +471,7 @@ mod tests {
             face,
             modifier,
             proficiency,
+            bonus: None,
             total: i64::from(face) + modifier + proficiency,
         }
     }

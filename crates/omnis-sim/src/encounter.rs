@@ -272,6 +272,7 @@ fn begin(
             face,
             modifier: dex,
             proficiency: 0,
+            bonus: None,
             total: i64::from(face) + dex,
         };
         let noticed = roll.total < perception;
