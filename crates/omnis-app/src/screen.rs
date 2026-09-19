@@ -43,41 +43,49 @@ pub enum Target<'a> {
 /// picks the target.
 #[must_use]
 pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
-    let row = match hit.id {
-        WidgetId::Row(row) => row,
-        WidgetId::Skill(index) => {
-            if let Target::Creation(form) = target {
-                form.cursor = ROW_SKILLS;
-                form.skill_cursor = index;
-                return vec![MenuKey::Enter];
+    match hit.id {
+        WidgetId::Row(row) => {
+            if set_row(target, row) {
+                part_keys(hit.kind, hit.part)
+            } else {
+                Vec::new()
             }
-            return Vec::new();
         }
-        WidgetId::Stack(index) => {
-            if let Target::Combat(menu) = target {
-                menu.target = u8::try_from(index).unwrap_or(u8::MAX);
-            }
-            return Vec::new();
+        id => click_widget(target, id),
+    }
+}
+
+/// A click on a widget that is not a menu row: the fight's stacks, actions and spells, the
+/// creation form's skills. The pad and the band are handled by their plugins.
+fn click_widget(target: Target<'_>, id: WidgetId) -> Vec<MenuKey> {
+    match (id, target) {
+        (WidgetId::Skill(index), Target::Creation(form)) => {
+            form.cursor = ROW_SKILLS;
+            form.skill_cursor = index;
+            vec![MenuKey::Enter]
         }
-        WidgetId::Action(index) => {
-            match target {
-                Target::Combat(menu) => menu.cursor = index,
-                Target::Encounter(menu) => menu.cursor = index,
-                _ => return Vec::new(),
-            }
-            return vec![MenuKey::Enter];
+        (WidgetId::Stack(index), Target::Combat(menu)) => {
+            menu.target = u8::try_from(index).unwrap_or(u8::MAX);
+            Vec::new()
         }
-        WidgetId::Spell(index) => {
-            if let Target::Combat(menu) = target
-                && menu.picker.is_some()
-            {
-                menu.picker = Some(index);
-                return vec![MenuKey::Enter];
-            }
-            return Vec::new();
+        (WidgetId::Action(index), Target::Combat(menu)) => {
+            menu.cursor = index;
+            vec![MenuKey::Enter]
         }
-        WidgetId::Pad(_) | WidgetId::Member(_) => return Vec::new(),
-    };
+        (WidgetId::Action(index), Target::Encounter(menu)) => {
+            menu.cursor = index;
+            vec![MenuKey::Enter]
+        }
+        (WidgetId::Spell(index), Target::Combat(menu)) if menu.picker.is_some() => {
+            menu.picker = Some(index);
+            vec![MenuKey::Enter]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Move the model's cursor to the clicked row; false when the model has no rows to click.
+fn set_row(target: Target<'_>, row: usize) -> bool {
     match target {
         Target::Title(title) => title.cursor = row,
         Target::NewGame(form) => form.cursor = row,
@@ -91,14 +99,18 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
             }
         }
         Target::Cast(menu) => menu.cursor = row,
-        Target::Encounter(_) | Target::Combat(_) => return Vec::new(),
+        Target::Encounter(_) | Target::Combat(_) => return false,
     }
-    match (hit.kind, hit.part) {
+    true
+}
+
+/// The key a click on a row's part stands for.
+fn part_keys(kind: Kind, part: Part) -> Vec<MenuKey> {
+    match (kind, part) {
         (Kind::Choice, Part::Left) => vec![MenuKey::Left],
         (Kind::Choice, Part::Right) => vec![MenuKey::Right],
         (Kind::Button | Kind::Toggle, _) => vec![MenuKey::Enter],
-        (Kind::Choice | Kind::TextField, Part::Body) => Vec::new(),
-        (Kind::TextField, _) => Vec::new(),
+        (Kind::Choice | Kind::TextField, Part::Body) | (Kind::TextField, _) => Vec::new(),
     }
 }
 

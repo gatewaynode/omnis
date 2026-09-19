@@ -93,7 +93,15 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let rogue = &data.classes[&data.registry.classes.get("base:class:rogue").unwrap()];
     assert_eq!(rogue.skills.choose, 4);
     assert!(rogue.skills.from.contains(&Skill::Stealth));
+}
 
+fn base_data() -> omnis_data::Data {
+    load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"))
+}
+
+#[test]
+fn the_base_backgrounds_carry_their_skills_and_kits() {
+    let data = base_data();
     let acolyte = &data.backgrounds[&data
         .registry
         .backgrounds
@@ -121,7 +129,11 @@ fn the_base_pack_loads_with_the_srd_subset() {
         .get("base:background:warden")
         .unwrap()];
     assert_eq!(warden.skills, [Skill::Arcana, Skill::Investigation]);
+}
 
+#[test]
+fn the_base_spells_carry_their_effects() {
+    let data = base_data();
     let missile = &data.spells[&data
         .registry
         .spells
@@ -184,6 +196,11 @@ fn the_base_pack_loads_with_the_srd_subset() {
         data.spells.values().all(|s| s.effect.is_some()),
         "every base spell is castable"
     );
+}
+
+#[test]
+fn the_base_items_carry_their_use_effects() {
+    let data = base_data();
     let item = |name: &str| {
         &data.items[&data
             .registry
@@ -304,6 +321,18 @@ fn the_base_rules_evaluate() {
         ),
         Value::Int(1)
     );
+    assert_eq!(rng.draws(), 0, "no base formula rolls dice");
+}
+
+#[test]
+fn the_casting_and_sensing_rules_evaluate() {
+    let data = base_data();
+    let rules = &data.rules;
+    let stream = StreamName::new("party");
+    let mut rng = Pcg32::for_stream(1, &stream);
+    let eval = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| {
+        rules.eval(slot, inputs, rng, &stream).unwrap().value
+    };
     let int = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| match eval(slot, inputs, rng)
     {
         Value::Int(n) => n,

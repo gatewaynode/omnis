@@ -272,7 +272,14 @@ pub enum Rejection {
 
 impl core::fmt::Display for Rejection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+        self.fmt_play(f).unwrap_or_else(|| self.fmt_magic(f))
+    }
+}
+
+impl Rejection {
+    /// The wording of the mode, party and fight refusals; `None` for the rest.
+    fn fmt_play(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
             Rejection::WrongMode => f.write_str("command does not apply in the current mode"),
             Rejection::PartyFull => f.write_str("the party is full"),
             Rejection::Character(e) => write!(f, "{e}"),
@@ -294,6 +301,16 @@ impl core::fmt::Display for Rejection {
             Rejection::CannotAfford { cost, gold } => {
                 write!(f, "that costs {cost} gold; the party has {gold}")
             }
+            Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
+            Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
+            Rejection::Rule(e) => write!(f, "rule error: {e}"),
+            _ => return None,
+        })
+    }
+
+    /// The wording of the casting, item and dev refusals.
+    fn fmt_magic(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
             Rejection::UnknownSpell { spell } => write!(f, "no known spell at {spell}"),
             Rejection::NotCastable { spell } => write!(f, "spell {spell} cannot be cast here"),
             Rejection::NotEnoughPoints { need, have } => {
@@ -303,8 +320,6 @@ impl core::fmt::Display for Rejection {
                 write!(f, "the stores lack spell {spell}'s components")
             }
             Rejection::WrongTarget => f.write_str("the spell cannot go to that target"),
-            Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
-            Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
             Rejection::NotEnough { item, have } => {
                 write!(f, "not enough of item {item}; there are {have}")
             }
@@ -312,7 +327,7 @@ impl core::fmt::Display for Rejection {
             Rejection::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),
             Rejection::OutOfRange => f.write_str("a count, score, or index is out of range"),
             Rejection::OffMap { x, y } => write!(f, "({x}, {y}) is not on the map"),
-            Rejection::Rule(e) => write!(f, "rule error: {e}"),
+            other => write!(f, "{other:?}"),
         }
     }
 }
