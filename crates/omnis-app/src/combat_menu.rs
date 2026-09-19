@@ -10,6 +10,8 @@ use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
 
 pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
+pub use crate::use_menu::UseRow;
+use crate::use_menu::use_rows;
 use omnis_sim::{
     ActorRef, CombatCommand, EncounterChoice, Event, Mode, ModeKind, World, bribe_cost, combat_view,
 };
@@ -76,6 +78,8 @@ pub struct FightView {
     pub spells: Vec<SpellRow>,
     /// The acting member's spell points and maximum.
     pub points: (u32, u32),
+    /// The acting member's usable kit rows; empty when no member acts or none has a use.
+    pub usable: Vec<UseRow>,
 }
 
 impl FightView {
@@ -187,6 +191,7 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         gold: world.party.gold,
         spells,
         points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
+        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own)),
     })
 }
 
@@ -216,7 +221,8 @@ pub const ACTION_USE: usize = 2;
 /// The fight's action row and target: Up/Down choose the action, Left/Right the stack, Enter
 /// confirms, `a c u d e r` are hotkeys, Escape pauses. Cast opens the spell picker over the
 /// action row: Up/Down choose the spell, Enter casts it at the target (or the band's selected
-/// member for a heal or a buff), Escape closes it.
+/// member for a heal or a buff), Escape closes it. Use opens the item picker the same way:
+/// Enter uses the item on the band's selected member, or the user.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CombatMenu {
     /// The action under the cursor.
@@ -227,6 +233,8 @@ pub struct CombatMenu {
     pub message: String,
     /// The spell picker's cursor while it is open.
     pub picker: Option<usize>,
+    /// The item picker's cursor while it is open.
+    pub use_picker: Option<usize>,
 }
 
 impl CombatMenu {
@@ -249,6 +257,13 @@ impl CombatMenu {
                 self.picker = Some(cursor.min(view.spells.len() - 1));
             }
         }
+        if let Some(cursor) = self.use_picker {
+            if view.usable.is_empty() {
+                self.use_picker = None;
+            } else {
+                self.use_picker = Some(cursor.min(view.usable.len() - 1));
+            }
+        }
     }
 
     /// Handle a key. `selected` is the band row the mouse selected, the exchange partner or
@@ -261,6 +276,9 @@ impl CombatMenu {
     ) -> Option<CombatIntent> {
         if let Some(cursor) = self.picker {
             return self.picker_key(cursor, key, view, selected);
+        }
+        if let Some(cursor) = self.use_picker {
+            return self.use_key(cursor, key, view, selected);
         }
         match key {
             MenuKey::Up | MenuKey::Down => {
@@ -318,7 +336,11 @@ impl CombatMenu {
                 return None;
             }
             ACTION_USE => {
-                self.message = "Nothing to use yet".to_owned();
+                if view.usable.is_empty() {
+                    self.message = "Nothing to use".to_owned();
+                } else {
+                    self.use_picker = Some(0);
+                }
                 return None;
             }
             3 => CombatCommand::Dodge,
@@ -639,6 +661,7 @@ pub(crate) mod tests {
             gold: 0,
             spells: Vec::new(),
             points: (0, 0),
+            usable: Vec::new(),
         }
     }
 

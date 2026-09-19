@@ -6,7 +6,7 @@
 use crate::band::MemberRow;
 use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
-use crate::combat_text::{Names, batch_lines};
+use crate::combat_text::batch_lines;
 use crate::cursor::{self, Pointer, UiSet};
 use crate::debug_menu::{DebugView, debug_view};
 use crate::inventory_menu::{InventoryView, inventory_view};
@@ -18,6 +18,7 @@ use crate::screen::{self, Menu, View};
 use crate::sheet_menu::{SheetView, sheet_view};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
 use crate::spell_menu::{CastRow, cast_rows};
+use crate::text::Names;
 use crate::viewport::canvas_to_world;
 use crate::widget::{self, Frame, Hit, PadState, ToolButton, ToolStates, WidgetId};
 use bevy::asset::RenderAssetUsages;

@@ -195,6 +195,8 @@ pub enum WidgetId {
     Action(usize),
     /// A row of the spell picker in a fight, by the caster's spell index.
     Spell(usize),
+    /// A row of the item picker in a fight, by its position in the picker.
+    Item(usize),
 }
 
 /// Which part of a widget was hit.

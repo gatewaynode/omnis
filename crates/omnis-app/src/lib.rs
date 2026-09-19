@@ -51,7 +51,9 @@ pub mod sim;
 pub mod socket;
 pub mod spell_menu;
 pub mod spell_text;
+pub mod text;
 pub mod ui;
+pub mod use_menu;
 pub mod viewport;
 pub mod widget;
 

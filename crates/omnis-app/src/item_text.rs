@@ -1,7 +1,7 @@
 //! Item events as text: wearing and wielding, moves between kits and the stores, and a use.
 //! Sits beside `spell_text.rs`; this file renders what items add. Bevy-free.
 
-use crate::combat_text::{Line, Names};
+use crate::text::{Line, Names};
 use omnis_sim::omnis_data::EquipSlot;
 use omnis_sim::{Event, ItemPlace};
 

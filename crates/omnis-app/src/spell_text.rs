@@ -2,7 +2,7 @@
 //! auto-cast switch. Sits beside `combat_text.rs`, which pairs attacks with their damage and
 //! renders checks; this file renders what casting adds. Bevy-free.
 
-use crate::combat_text::{Line, Names, trace_math};
+use crate::text::{Line, Names, trace_math};
 use omnis_sim::{EffectEnd, EffectTarget, Event};
 
 /// One line for a spell event, or `None` for events this file does not render.

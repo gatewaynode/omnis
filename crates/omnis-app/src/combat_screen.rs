@@ -4,12 +4,12 @@
 //! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
-use crate::combat_menu::{ACTION_USE, CombatMenu, DefeatMenu, EncounterMenu, FightView};
-use crate::combat_text::LONG_CELLS;
+use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::font::fit;
 use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
 use crate::raster::Rgb;
 use crate::screens::{ItemState, MODAL_TEXT_X, item_state_at, modal};
+use crate::text::LONG_CELLS;
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
 /// The header's row: `COMBAT  Round n` or `ENCOUNTER` and the disposition.
@@ -128,16 +128,16 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
         picker(frame, view, cursor);
         return;
     }
+    if let Some(cursor) = menu.use_picker {
+        use_picker(frame, view, cursor);
+        return;
+    }
     for (i, (text, column)) in CombatMenu::ACTIONS
         .iter()
         .zip(COMBAT_ACTION_COLUMNS)
         .enumerate()
     {
-        let state = if i == ACTION_USE {
-            ItemState::Disabled
-        } else {
-            ItemState::from_selected(menu.cursor == i)
-        };
+        let state = ItemState::from_selected(menu.cursor == i);
         item_state_at(
             frame,
             WidgetId::Action(i),
@@ -175,6 +175,39 @@ fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
         item_state_at(
             frame,
             WidgetId::Spell(usize::from(spell.index)),
+            Kind::Button,
+            vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
+            &text,
+            state,
+        );
+    }
+}
+
+/// The item picker in the bottom panel: a header, then one row per usable item of the
+/// acting member's kit with its count and why it is grey.
+fn use_picker(frame: &mut Frame, view: &FightView, cursor: usize) {
+    vp_label(
+        frame,
+        1,
+        BOTTOM_ROW,
+        "USE   click a member for a target   Esc back",
+        HI,
+    );
+    for (i, row) in view.usable.iter().enumerate().take(SPELL_ROWS) {
+        let text = format!(
+            "{:<24} x{:>3}  {:<12}",
+            fit(&row.name, 24),
+            row.count.min(999),
+            fit(row.blocked.as_deref().unwrap_or(""), 12)
+        );
+        let state = if row.blocked.is_some() {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(cursor == i)
+        };
+        item_state_at(
+            frame,
+            WidgetId::Item(i),
             Kind::Button,
             vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
             &text,
@@ -294,7 +327,7 @@ fn counts(frame: &mut Frame, view: &FightView) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat_menu::StackRow;
+    use crate::combat_menu::{ACTION_USE, StackRow};
     use crate::layout::cell;
     use crate::screens::tests::assert_laid_out;
 
@@ -341,7 +374,39 @@ mod tests {
                 })
                 .collect(),
             points: (99, 99),
+            usable: (0..6)
+                .map(|i| crate::combat_menu::UseRow {
+                    index: i,
+                    name: format!("Potion With A Long Name {i}"),
+                    count: 999,
+                    blocked: (i == 2).then(|| "not here".to_owned()),
+                })
+                .collect(),
         }
+    }
+
+    #[test]
+    fn the_use_picker_lists_the_kit_in_the_bottom_panel() {
+        let mut frame = Frame::default();
+        let view = widest_view(ModeKind::Combat);
+        let menu = CombatMenu {
+            use_picker: Some(1),
+            target: 1,
+            ..CombatMenu::default()
+        };
+        combat(&mut frame, &view, &menu);
+        laid_out(&frame);
+        assert!(frame.widget(WidgetId::Action(0)).is_none());
+        assert_eq!(frame.widgets.len(), 4 + 6, "four stacks, six items");
+        for i in 0..6 {
+            let w = frame.widget(WidgetId::Item(i)).unwrap();
+            assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
+            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+        }
+        let chosen = frame.widget(WidgetId::Item(1)).unwrap();
+        assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));
+        let h = hit(&frame.widgets, chosen.rect.x, chosen.rect.y).unwrap();
+        assert_eq!((h.id, h.kind), (WidgetId::Item(1), Kind::Button));
     }
 
     #[test]
@@ -391,8 +456,8 @@ mod tests {
         laid_out(&frame);
         assert_eq!(frame.widgets.len(), 10, "four stacks, six actions");
         assert!(
-            !frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
-            "nothing to use yet"
+            frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
+            "use is live"
         );
         for i in 0..4 {
             let w = frame.widget(WidgetId::Stack(i)).unwrap();
@@ -436,8 +501,9 @@ mod tests {
         let action = frame.widget(WidgetId::Action(3)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
         assert_eq!((h.id, h.kind), (WidgetId::Action(3), Kind::Button));
-        let inert = frame.widget(WidgetId::Action(ACTION_USE)).unwrap();
-        assert!(hit(&frame.widgets, inert.rect.x, inert.rect.y).is_none());
+        let use_it = frame.widget(WidgetId::Action(ACTION_USE)).unwrap();
+        let h = hit(&frame.widgets, use_it.rect.x, use_it.rect.y).unwrap();
+        assert_eq!(h.id, WidgetId::Action(ACTION_USE));
         let (_, y) = cell(0, COUNT_ROW);
         let digits = (0..VIEWPORT.right())
             .filter(|x| rgb(&frame, *x, y + 1) == Some(TEXT))

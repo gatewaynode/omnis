@@ -92,6 +92,10 @@ fn click_widget(target: Target<'_>, id: WidgetId) -> Vec<MenuKey> {
             menu.picker = Some(index);
             vec![MenuKey::Enter]
         }
+        (WidgetId::Item(index), Target::Combat(menu)) if menu.use_picker.is_some() => {
+            menu.use_picker = Some(index);
+            vec![MenuKey::Enter]
+        }
         (WidgetId::Action(index), Target::Inventory(_)) => InventoryAction::ALL
             .get(index)
             .map_or_else(Vec::new, |action| vec![MenuKey::Char(action.key())]),
@@ -615,6 +619,12 @@ mod tests {
                 },
             ],
             points: (0, 4),
+            usable: vec![crate::combat_menu::UseRow {
+                index: 6,
+                name: "Potion of healing".to_owned(),
+                count: 1,
+                blocked: None,
+            }],
         }
     }
 
@@ -794,11 +804,12 @@ mod tests {
             let name = format!("sheet_{}", page.label().to_ascii_lowercase());
             dump(&dir, &name, showing, Some(&hud), &event);
         }
-        dump_inventory(&dir, &hud, &event);
+        dump_items(&dir, &hud, &event, &fight);
     }
 
-    /// The inventory overlay on the sample kit, the cursor on the potion.
-    fn dump_inventory(dir: &str, hud: &Hud, event: &Message) {
+    /// The inventory overlay on the sample kit, the cursor on the potion, and the fight's
+    /// item picker.
+    fn dump_items(dir: &str, hud: &Hud, event: &Message, fight: &FightView) {
         let view = crate::inventory_menu::tests::sample();
         let mut menu = InventoryMenu {
             cursor: 6,
@@ -810,6 +821,16 @@ mod tests {
             view: &view,
         };
         dump(dir, "inventory", showing, Some(hud), event);
+        let using = CombatMenu {
+            target: 1,
+            use_picker: Some(0),
+            ..CombatMenu::default()
+        };
+        let picking = Menu::Combat {
+            menu: &using,
+            view: fight,
+        };
+        dump(dir, "combat_use", picking, Some(hud), event);
     }
 
     /// The sample debug view: a fight, a dev world, one member.

@@ -134,6 +134,52 @@ fn frame_has(app: &App, id: WidgetId) -> bool {
 }
 
 #[test]
+fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
+    let mut app = before_the_rats("combat-use.ron");
+    meet_the_rats(&mut app);
+    if play_state(&app) == PlayState::Encounter {
+        click(&mut app, WidgetId::Action(0), Part::Body);
+    }
+    assert_eq!(play_state(&app), PlayState::Combat);
+    let (potion, own) = {
+        let data = &app.world().resource::<PackData>().0;
+        let view = omnis_app::combat_menu::fight_view(world(&app), data).unwrap();
+        (
+            omnis_sim::items::item_id(data, "potion_of_healing").unwrap(),
+            view.own.expect("a member acts"),
+        )
+    };
+    app.world_mut().resource_mut::<SimWorld>().0.party.members[own]
+        .equipment
+        .push((potion, 1));
+    app.update();
+    app.update();
+    click(&mut app, WidgetId::Action(2), Part::Body);
+    assert!(
+        frame_has(&app, WidgetId::Item(0)),
+        "the picker lists the potion"
+    );
+    let mark = seen(&app).events.len();
+    click(&mut app, WidgetId::Item(0), Part::Body);
+    let user = world(&app).party.members[own].id;
+    assert!(
+        seen(&app).events[mark..].iter().any(|e| matches!(
+            e,
+            Event::ItemUsed { member, target: Some(t), consumed: true, .. } if *member == user && *t == user
+        )),
+        "{:?}",
+        &seen(&app).events[mark..]
+    );
+    assert!(!frame_has(&app, WidgetId::Item(0)), "the picker closed");
+    let log = app.world().resource::<RollLog>();
+    assert!(
+        log.0.iter().any(|l| l.contains("uses Potion of healing")),
+        "{:?}",
+        log.0
+    );
+}
+
+#[test]
 fn running_resolves_as_its_check_says() {
     let mut app = before_the_rats("combat-run.ron");
     meet_the_rats(&mut app);

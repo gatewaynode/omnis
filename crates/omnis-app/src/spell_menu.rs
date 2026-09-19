@@ -417,7 +417,11 @@ mod tests {
             (None, "No spells known")
         );
         assert_eq!(menu.key(MenuKey::Char('u'), &view, None), None);
-        assert_eq!(menu.message, "Nothing to use yet");
+        assert_eq!(
+            (menu.use_picker, menu.message.as_str()),
+            (Some(0), ""),
+            "the acolyte's potion opens the item picker"
+        );
     }
 
     #[test]
