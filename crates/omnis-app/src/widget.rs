@@ -114,6 +114,8 @@ pub enum WidgetId {
     Stack(usize),
     /// A button on the combat or encounter action row, by the menu's action index.
     Action(usize),
+    /// A row of the spell picker in a fight, by the caster's spell index.
+    Spell(usize),
 }
 
 /// Which part of a widget was hit.

@@ -74,7 +74,7 @@ fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
     }
     assert_eq!(play_state(&app), PlayState::Combat);
     assert!(
-        frame_has(&app, WidgetId::Stack(0)) && frame_has(&app, WidgetId::Action(3)),
+        frame_has(&app, WidgetId::Stack(0)) && frame_has(&app, WidgetId::Action(5)),
         "the fight screen is up"
     );
     let line = app.world().resource::<MessageLine>();
@@ -140,7 +140,7 @@ fn running_resolves_as_its_check_says() {
     let (run_action, kind) = if play_state(&app) == PlayState::Encounter {
         (3, CheckKind::Run)
     } else {
-        (3, CheckKind::Flee)
+        (5, CheckKind::Flee)
     };
     click(&mut app, WidgetId::Action(run_action), Part::Body);
     let success = seen(&app)

@@ -92,7 +92,7 @@ pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
 pub const HELP_ENCOUNTER: &str = "Left/Right choose  Enter ok  Esc menu";
 /// Help in a fight.
-pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  Enter ok  Esc menu";
+pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok  Esc menu";
 /// Help after a wipe.
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
 
@@ -308,7 +308,13 @@ pub fn member_rows(world: &World, data: &Data) -> Vec<MemberRow> {
                 .conditions
                 .first()
                 .and_then(|c| data.conditions.get(c))
-                .map(|c| data.label("en", &c.name).to_owned()),
+                .map(|c| data.label("en", &c.name).to_owned())
+                .or_else(|| {
+                    m.effects
+                        .first()
+                        .and_then(|e| data.spells.get(&e.source))
+                        .map(|s| data.label("en", &s.name).to_owned())
+                }),
         })
         .collect()
 }

@@ -4,7 +4,7 @@
 //! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
-use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
+use crate::combat_menu::{ACTION_USE, CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_text::LONG_CELLS;
 use crate::font::fit;
 use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
@@ -43,8 +43,24 @@ const REASON_COLUMN: i32 = 32;
 const REASON_CELLS: usize = 24;
 /// Cells of a stack row: the text, a gap, the reason.
 const STACK_CELLS: usize = REASON_COLUMN as usize - 1 + REASON_CELLS;
-/// The action row columns for the fight: Attack, Dodge, Exchange, Run.
-const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 11, 20, 32];
+/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run.
+const COMBAT_ACTION_COLUMNS: [i32; 6] = [1, 9, 15, 20, 27, 37];
+/// Cells a spell picker row takes: `{name:<18} {cost:>2} pt  {note:<16}`.
+const SPELL_ROW_CELLS: usize = 44;
+/// Spell rows the picker shows: the bottom panel's rows under its header.
+pub const SPELL_ROWS: usize = (BOTTOM_ROWS - 1) as usize;
+// Each action label ends before the next column begins.
+const _: () = {
+    let mut i = 0;
+    while i + 1 < COMBAT_ACTION_COLUMNS.len() {
+        assert!(
+            COMBAT_ACTION_COLUMNS[i] + (CombatMenu::ACTIONS[i].len() as i32)
+                < COMBAT_ACTION_COLUMNS[i + 1]
+        );
+        i += 1;
+    }
+};
+const _: () = assert!((SPELL_ROW_CELLS as i32) < VIEWPORT_COLUMNS);
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
 const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 11, 26, 34];
 /// Cells a modal line may take inside the defeat box: a whole log line.
@@ -95,8 +111,8 @@ fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
     vp_label(frame, column.max(0), row, text, color);
 }
 
-/// The fight: header, stack rows with the target marked, the four actions; the band shows
-/// the log.
+/// The fight: header, stack rows with the target marked, the six actions or the spell
+/// picker in their place; the band shows the log.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     panels(frame);
     vp_label(
@@ -108,18 +124,61 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     );
     stacks(frame, view, Some(menu.target));
     counts(frame, view);
+    if let Some(cursor) = menu.picker {
+        picker(frame, view, cursor);
+        return;
+    }
     for (i, (text, column)) in CombatMenu::ACTIONS
         .iter()
         .zip(COMBAT_ACTION_COLUMNS)
         .enumerate()
     {
+        let state = if i == ACTION_USE {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(menu.cursor == i)
+        };
         item_state_at(
             frame,
             WidgetId::Action(i),
             Kind::Button,
             vp_rect(column, ACTION_ROW, text.len()),
             text,
-            ItemState::from_selected(menu.cursor == i),
+            state,
+        );
+    }
+}
+
+/// The spell picker in the bottom panel: a header with the caster's points, then one row per
+/// spell with its cost and note; blocked rows are dim, a reaction row switches its auto-cast.
+fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
+    let (points, max) = view.points;
+    vp_label(
+        frame,
+        1,
+        BOTTOM_ROW,
+        &format!("CAST   SP {points}/{max}   Esc back"),
+        HI,
+    );
+    for (i, spell) in view.spells.iter().enumerate().take(SPELL_ROWS) {
+        let text = format!(
+            "{:<18} {:>2} pt  {:<16}",
+            fit(&spell.name, 18),
+            spell.cost.min(99),
+            fit(&spell.note(), 16)
+        );
+        let state = if spell.blocked.is_some() && spell.auto.is_none() {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(cursor == i)
+        };
+        item_state_at(
+            frame,
+            WidgetId::Spell(usize::from(spell.index)),
+            Kind::Button,
+            vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
+            &text,
+            state,
         );
     }
 }
@@ -270,7 +329,49 @@ mod tests {
                 .collect(),
             bribe: Some(9999),
             gold: 0,
+            spells: (0..6)
+                .map(|i| crate::combat_menu::SpellRow {
+                    index: i,
+                    name: format!("Spell With A Long Name {i}"),
+                    cost: 9,
+                    targets_members: i == 5,
+                    auto: (i == 4).then_some(false),
+                    active: i == 1,
+                    blocked: (i == 2).then(|| "need 9 pt".to_owned()),
+                })
+                .collect(),
+            points: (99, 99),
         }
+    }
+
+    #[test]
+    fn the_picker_lists_the_spells_in_the_bottom_panel() {
+        let mut frame = Frame::default();
+        let view = widest_view(ModeKind::Combat);
+        let menu = CombatMenu {
+            picker: Some(1),
+            target: 1,
+            ..CombatMenu::default()
+        };
+        combat(&mut frame, &view, &menu);
+        laid_out(&frame);
+        assert!(
+            frame.widget(WidgetId::Action(0)).is_none(),
+            "the action row makes way"
+        );
+        assert_eq!(frame.widgets.len(), 4 + 6, "four stacks, six spells");
+        for i in 0..6 {
+            let w = frame.widget(WidgetId::Spell(i)).unwrap();
+            assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
+            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+        }
+        let chosen = frame.widget(WidgetId::Spell(1)).unwrap();
+        assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));
+        let (hx, hy) = cell(1, BOTTOM_ROW);
+        assert!(
+            (0..40).any(|dx| rgb(&frame, hx + dx, hy + 3) == Some(HI)),
+            "the header"
+        );
     }
 
     fn rgb(frame: &Frame, x: i32, y: i32) -> Option<(u8, u8, u8)> {
@@ -284,17 +385,21 @@ mod tests {
         let menu = CombatMenu {
             cursor: 2,
             target: 1,
-            message: String::new(),
+            ..CombatMenu::default()
         };
         combat(&mut frame, &view, &menu);
         laid_out(&frame);
-        assert_eq!(frame.widgets.len(), 8, "four stacks, four actions");
+        assert_eq!(frame.widgets.len(), 10, "four stacks, six actions");
+        assert!(
+            !frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
+            "nothing to use yet"
+        );
         for i in 0..4 {
             let w = frame.widget(WidgetId::Stack(i)).unwrap();
             assert_eq!(w.rect.right(), cell(1 + STACK_CELLS as i32, 0).0);
             assert_eq!(w.enabled, i != 3, "the slain row is inert");
         }
-        let run = frame.widget(WidgetId::Action(3)).unwrap();
+        let run = frame.widget(WidgetId::Action(5)).unwrap();
         assert!(run.rect.right() <= VIEWPORT.right());
         let mid = VIEWPORT.w as i32 / 2;
         let (top, bottom) = (TOP_PANEL, BOTTOM_PANEL);
@@ -328,9 +433,11 @@ mod tests {
             Some(HI),
             "the marker sits before the target"
         );
-        let action = frame.widget(WidgetId::Action(2)).unwrap();
+        let action = frame.widget(WidgetId::Action(3)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
-        assert_eq!((h.id, h.kind), (WidgetId::Action(2), Kind::Button));
+        assert_eq!((h.id, h.kind), (WidgetId::Action(3), Kind::Button));
+        let inert = frame.widget(WidgetId::Action(ACTION_USE)).unwrap();
+        assert!(hit(&frame.widgets, inert.rect.x, inert.rect.y).is_none());
         let (_, y) = cell(0, COUNT_ROW);
         let digits = (0..VIEWPORT.right())
             .filter(|x| rgb(&frame, *x, y + 1) == Some(TEXT))

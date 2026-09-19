@@ -37,6 +37,8 @@ pub mod screens;
 pub mod sim;
 #[cfg(feature = "devtools")]
 pub mod socket;
+pub mod spell_menu;
+pub mod spell_text;
 pub mod ui;
 pub mod viewport;
 pub mod widget;

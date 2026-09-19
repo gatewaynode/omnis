@@ -6,7 +6,10 @@
 use crate::actors::Actor;
 use crate::menu::{MenuKey, cycle};
 use omnis_sim::combat::weapon_for;
-use omnis_sim::omnis_data::{Data, Disposition, Size};
+use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
+
+pub use crate::spell_menu::SpellRow;
+use crate::spell_menu::blocked_note;
 use omnis_sim::{
     ActorRef, CombatCommand, EncounterChoice, Event, Mode, ModeKind, World, bribe_cost, combat_view,
 };
@@ -69,6 +72,10 @@ pub struct FightView {
     pub bribe: Option<u32>,
     /// The party's purse.
     pub gold: u32,
+    /// The acting member's spells, in cast order; empty when no member acts or none known.
+    pub spells: Vec<SpellRow>,
+    /// The acting member's spell points and maximum.
+    pub points: (u32, u32),
 }
 
 impl FightView {
@@ -141,6 +148,33 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             }),
         })
         .collect();
+    let caster = own.map(|i| &world.party.members[i]);
+    let spells = view
+        .spells
+        .iter()
+        .filter_map(|s| {
+            let caster = caster?;
+            let id = *caster.known_spells.get(usize::from(s.index))?;
+            let spell = data.spells.get(&id)?;
+            let reaction = matches!(spell.effect, Some(SpellEffect::Reaction { .. }));
+            let active = world
+                .party
+                .members
+                .iter()
+                .flat_map(|m| m.effects.iter())
+                .chain(world.party.effects.iter())
+                .any(|e| e.source == id && e.caster == caster.id);
+            Some(SpellRow {
+                index: s.index,
+                name: data.label("en", &s.name).to_owned(),
+                cost: s.cost,
+                targets_members: s.targets_members,
+                auto: reaction.then(|| caster.auto_cast.contains(&id)),
+                active,
+                blocked: s.blocked.as_ref().map(blocked_note),
+            })
+        })
+        .collect();
     Some(FightView {
         phase: view.phase,
         round: view.round,
@@ -151,6 +185,8 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             .then(|| bribe_cost(world, data).ok())
             .flatten(),
         gold: world.party.gold,
+        spells,
+        points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
     })
 }
 
@@ -161,12 +197,26 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
 pub enum CombatIntent {
     /// A command for the acting member.
     Command(CombatCommand),
+    /// Switch a reaction spell's auto-cast for the acting member.
+    AutoCast {
+        /// The spell's index in the caster's list.
+        spell: u8,
+        /// On or off.
+        on: bool,
+    },
     /// Open the pause overlay.
     Pause,
 }
 
+/// The action row's cursor position of Cast.
+pub const ACTION_CAST: usize = 1;
+/// The action row's cursor position of Use.
+pub const ACTION_USE: usize = 2;
+
 /// The fight's action row and target: Up/Down choose the action, Left/Right the stack, Enter
-/// confirms, `a d e r` are hotkeys, Escape pauses.
+/// confirms, `a c u d e r` are hotkeys, Escape pauses. Cast opens the spell picker over the
+/// action row: Up/Down choose the spell, Enter casts it at the target (or the band's selected
+/// member for a heal or a buff), Escape closes it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CombatMenu {
     /// The action under the cursor.
@@ -175,29 +225,43 @@ pub struct CombatMenu {
     pub target: u8,
     /// Why the last confirmation did nothing; empty when it did something.
     pub message: String,
+    /// The spell picker's cursor while it is open.
+    pub picker: Option<usize>,
 }
 
 impl CombatMenu {
     /// The actions, in cursor order.
-    pub const ACTIONS: [&'static str; 4] = ["Attack", "Dodge", "Exchange", "Run"];
+    pub const ACTIONS: [&'static str; 6] = ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run"];
     /// The hotkeys, in the same order.
-    pub const HOTKEYS: [char; 4] = ['a', 'd', 'e', 'r'];
+    pub const HOTKEYS: [char; 6] = ['a', 'c', 'u', 'd', 'e', 'r'];
 
-    /// Keep the target on a living stack: the first one when the current target fell.
+    /// Keep the target on a living stack: the first one when the current target fell; keep
+    /// the picker's cursor on a spell, and close it when the acting member knows none.
     pub fn sync(&mut self, view: &FightView) {
         let on_living = view.living().any(|s| s.index == self.target);
         if !on_living && let Some(first) = view.living().next() {
             self.target = first.index;
         }
+        if let Some(cursor) = self.picker {
+            if view.spells.is_empty() {
+                self.picker = None;
+            } else {
+                self.picker = Some(cursor.min(view.spells.len() - 1));
+            }
+        }
     }
 
-    /// Handle a key. `selected` is the band row the mouse selected, the exchange partner.
+    /// Handle a key. `selected` is the band row the mouse selected, the exchange partner or
+    /// the member a heal goes to.
     pub fn key(
         &mut self,
         key: MenuKey,
         view: &FightView,
         selected: Option<usize>,
     ) -> Option<CombatIntent> {
+        if let Some(cursor) = self.picker {
+            return self.picker_key(cursor, key, view, selected);
+        }
         match key {
             MenuKey::Up | MenuKey::Down => {
                 self.cursor = cycle(self.cursor, Self::ACTIONS.len(), key);
@@ -216,7 +280,7 @@ impl CombatMenu {
         None
     }
 
-    fn step_target(&mut self, view: &FightView, key: MenuKey) {
+    pub(crate) fn step_target(&mut self, view: &FightView, key: MenuKey) {
         let living: Vec<u8> = view.living().map(|s| s.index).collect();
         let at = living.iter().position(|i| *i == self.target).unwrap_or(0);
         if let Some(index) = living.get(cycle(at, living.len(), key)) {
@@ -245,8 +309,20 @@ impl CombatMenu {
                     }
                 }
             }
-            1 => CombatCommand::Dodge,
-            2 => match (selected, view.own) {
+            ACTION_CAST => {
+                if view.spells.is_empty() {
+                    self.message = "No spells known".to_owned();
+                } else {
+                    self.picker = Some(0);
+                }
+                return None;
+            }
+            ACTION_USE => {
+                self.message = "Nothing to use yet".to_owned();
+                return None;
+            }
+            3 => CombatCommand::Dodge,
+            4 => match (selected, view.own) {
                 (Some(with), Some(own)) if with != own => CombatCommand::Exchange {
                     with: u8::try_from(with).unwrap_or(u8::MAX),
                 },
@@ -395,7 +471,7 @@ pub(crate) mod tests {
     };
     use std::path::PathBuf;
 
-    fn data() -> Data {
+    pub(crate) fn data() -> Data {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")])
             .unwrap_or_else(|r| panic!("{r}"))
@@ -409,10 +485,10 @@ pub(crate) mod tests {
             background: "base:background:acolyte".to_owned(),
             alignment: Alignment::LawfulGood,
             scores,
-            skills: if class == "wizard" {
-                vec![Skill::Arcana, Skill::History]
-            } else {
-                vec![Skill::Athletics, Skill::Perception]
+            skills: match class {
+                "wizard" => vec![Skill::Arcana, Skill::History],
+                "cleric" => vec![Skill::Medicine, Skill::History],
+                _ => vec![Skill::Athletics, Skill::Perception],
             },
         }
     }
@@ -561,6 +637,8 @@ pub(crate) mod tests {
                 .collect(),
             bribe: None,
             gold: 0,
+            spells: Vec::new(),
+            points: (0, 0),
         }
     }
 
@@ -590,15 +668,18 @@ pub(crate) mod tests {
             Some(CombatIntent::Command(CombatCommand::Attack { stack: 1 }))
         );
         assert!(menu.message.is_empty());
-        menu.key(MenuKey::Down, &view, None);
-        assert_eq!(menu.cursor, 1);
+        for _ in 0..3 {
+            menu.key(MenuKey::Down, &view, None);
+        }
+        assert_eq!(menu.cursor, 3, "attack, cast, use, dodge");
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Dodge))
         );
-        menu.key(MenuKey::Up, &view, None);
-        menu.key(MenuKey::Up, &view, None);
-        assert_eq!(menu.cursor, 3, "wraps");
+        for _ in 0..4 {
+            menu.key(MenuKey::Up, &view, None);
+        }
+        assert_eq!(menu.cursor, 5, "wraps");
         assert_eq!(
             menu.key(MenuKey::Char('r'), &view, None),
             Some(CombatIntent::Command(CombatCommand::Run))

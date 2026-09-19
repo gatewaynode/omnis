@@ -3,7 +3,7 @@
 //! simulation sends keys, ids, and traces; this file is where they become English. Bevy-free.
 
 use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, ConditionId, RollTrace};
+use omnis_sim::omnis_core::{CharacterId, ConditionId, RollTrace, SpellId};
 use omnis_sim::omnis_data::{DamageType, Data};
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult, Roll, RollMode};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Mode, Surprise, World};
@@ -25,6 +25,7 @@ pub struct Names {
     /// Label and initial count per stack index.
     stacks: Vec<(String, u8)>,
     conditions: BTreeMap<ConditionId, String>,
+    spells: BTreeMap<SpellId, String>,
 }
 
 impl Names {
@@ -65,6 +66,12 @@ impl Names {
                     .insert(*id, data.label("en", &condition.name).to_owned());
             }
         }
+        if self.spells.is_empty() {
+            for (id, spell) in &data.spells {
+                self.spells
+                    .insert(*id, data.label("en", &spell.name).to_owned());
+            }
+        }
     }
 
     /// A member's name.
@@ -96,6 +103,12 @@ impl Names {
     pub fn condition(&self, id: ConditionId) -> &str {
         self.conditions.get(&id).map_or("?", String::as_str)
     }
+
+    /// A spell's name.
+    #[must_use]
+    pub fn spell(&self, id: SpellId) -> &str {
+        self.spells.get(&id).map_or("?", String::as_str)
+    }
 }
 
 /// One event as text.
@@ -108,14 +121,14 @@ pub struct Line {
 }
 
 impl Line {
-    fn new(long: String, short: String) -> Line {
+    pub(crate) fn new(long: String, short: String) -> Line {
         Line {
             long: fit(&long, LONG_CELLS),
             short: fit(&short, SHORT_CELLS),
         }
     }
 
-    fn same(text: String) -> Line {
+    pub(crate) fn same(text: String) -> Line {
         Line::new(text.clone(), text)
     }
 }
@@ -196,6 +209,7 @@ fn event_line(event: &Event, names: &Names) -> Option<Line> {
     before_fight_line(event, names)
         .or_else(|| round_line(event, names))
         .or_else(|| wound_line(event, names))
+        .or_else(|| crate::spell_text::spell_line(event, names))
 }
 
 /// The encounter phase: who stands there, the checks, the bribe.

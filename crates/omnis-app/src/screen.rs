@@ -60,6 +60,15 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
             }
             return vec![MenuKey::Enter];
         }
+        WidgetId::Spell(index) => {
+            if let Target::Combat(menu) = target
+                && menu.picker.is_some()
+            {
+                menu.picker = Some(index);
+                return vec![MenuKey::Enter];
+            }
+            return Vec::new();
+        }
         WidgetId::Pad(_) | WidgetId::Member(_) => return Vec::new(),
     };
     match target {
@@ -498,6 +507,27 @@ mod tests {
             .collect(),
             bribe: Some(200),
             gold: 60,
+            spells: vec![
+                crate::combat_menu::SpellRow {
+                    index: 0,
+                    name: "Fire Bolt".to_owned(),
+                    cost: 0,
+                    targets_members: false,
+                    auto: None,
+                    active: false,
+                    blocked: None,
+                },
+                crate::combat_menu::SpellRow {
+                    index: 1,
+                    name: "Magic Missile".to_owned(),
+                    cost: 1,
+                    targets_members: false,
+                    auto: None,
+                    active: false,
+                    blocked: Some("need 1 pt".to_owned()),
+                },
+            ],
+            points: (0, 4),
         }
     }
 
@@ -638,6 +668,16 @@ mod tests {
         dump(&dir, "explore", Menu::None, Some(&hud), &event);
         dump(&dir, "encounter", before, Some(&hud), &event);
         dump(&dir, "combat", in_fight, Some(&hud), &event);
+        let picking = CombatMenu {
+            target: 1,
+            picker: Some(0),
+            ..CombatMenu::default()
+        };
+        let casting = Menu::Combat {
+            menu: &picking,
+            view: &fight,
+        };
+        dump(&dir, "combat_cast", casting, Some(&hud), &event);
         let fallen = Menu::Defeat {
             menu: &defeat,
             log: &log,
