@@ -299,7 +299,11 @@ fn new_game_action(
     match action {
         NewGameAction::Start => {
             let Some(data) = act.data else { return };
-            match World::new(&data.0, form.seed(crate::entropy_seed()), form.settings) {
+            match World::new(
+                &data.0,
+                form.seed(crate::entropy_seed()),
+                crate::sim::game_settings(form.settings),
+            ) {
                 Ok(world) => {
                     info!("new game, seed {:#x}, {:?}", world.seed, world.settings);
                     act.start_game(world, PlayState::CreateParty);

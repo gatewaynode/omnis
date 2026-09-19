@@ -5,8 +5,8 @@ mod common;
 
 use common::{data, interact, play, six, step, turn, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
-use omnis_data::Data;
 use omnis_data::ron_io::{read_ron, write_ron};
+use omnis_data::{Data, EquipSlot};
 use omnis_sim::Event;
 use omnis_sim::omnis_rules::DeathSaves;
 use omnis_sim::{
@@ -83,7 +83,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 3", "schema: 7", 1);
+    let other = text.replacen("schema: 4", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -154,6 +154,10 @@ fn path_query_reads_the_world() {
         query::path(&world, "settings.save_rule").as_deref(),
         Some("Anywhere")
     );
+    assert_eq!(
+        query::path(&world, "settings.devtools").as_deref(),
+        Some("false")
+    );
 }
 
 /// A schema-1 save (captured from the M2 build's `schema dump`) loads through the migration.
@@ -169,10 +173,10 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 3);
+    assert_eq!(world.schema, 4);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 3").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 4").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
@@ -193,20 +197,70 @@ fn a_schema_2_save_migrates() {
         "the fixture's base pack predates the combat rules"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 3);
+    assert_eq!(world.schema, 4);
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.party.members.len(), 1);
     assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
     assert!(!world.party.members[0].is_down());
+    assert!(
+        world.party.members[0].equipped.len() >= 3,
+        "the M3 kit is worn on load: {:?}",
+        world.party.members[0].equipped
+    );
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 3").count(), 1);
+    assert_eq!(text.matches("schema: 4").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
-        "written back at schema 3, still on the fixture's pack hashes"
+        "written back at schema 4, still on the fixture's pack hashes"
+    );
+}
+
+/// A schema-3 save (captured from the M4 build, `capture_schema_3_fixture`) loads through the
+/// migration: the member wears what the everything-counts rule counted, the effects and the
+/// reaction list are empty, and the settings gain a devtools bit that is off.
+#[test]
+fn a_schema_3_save_migrates() {
+    let data = data();
+    let path = save_path("v3");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 3") && !text.contains("equipped") && !text.contains("devtools"));
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 4);
+    assert!(!world.settings.devtools);
+    let brenna = &world.party.members[0];
+    let item = |name: &str| {
+        data.registry
+            .items
+            .get(&format!("base:item:{name}"))
+            .unwrap()
+    };
+    assert_eq!(brenna.equipped[&EquipSlot::Body], item("chain_mail"));
+    assert_eq!(brenna.equipped[&EquipSlot::OffHand], item("shield"));
+    assert_eq!(brenna.equipped[&EquipSlot::MainHand], item("longsword"));
+    assert_eq!(brenna.equipped[&EquipSlot::Ranged], item("light_crossbow"));
+    assert_eq!(
+        omnis_rules::armor_class(brenna, &data),
+        18,
+        "as before the slots"
+    );
+    assert!(brenna.effects.is_empty() && brenna.auto_cast.is_empty());
+    assert!(world.party.effects.is_empty());
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    let text = world.to_ron().unwrap();
+    assert_eq!(text.matches("schema: 4").count(), 1);
+    assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
+
+    let mut torn = world.clone();
+    torn.party.members[0].equipment.clear();
+    let torn_text = torn.to_ron().unwrap();
+    assert_eq!(
+        World::from_ron(&torn_text, &data, true).unwrap_err(),
+        LoadError::BadParty("an equipped item is not carried")
     );
 }
 
@@ -221,6 +275,7 @@ fn replays_are_deterministic() {
     let hard = Settings {
         save_rule: SaveRule::InnOnly,
         permadeath: true,
+        devtools: false,
     };
     let d = omnis_sim::replay::run(&data, 1, hard, &commands).unwrap();
     assert_eq!(a, b);
@@ -362,4 +417,40 @@ fn capture_schema_2_fixture() {
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert_eq!(world.schema, 2);
     write_ron(&save_path("v2"), &world).unwrap();
+}
+
+/// Captures `tests/saves/v3.ron` from a schema-3 build: one member with the kit rule that
+/// counted everything carried as worn, and one open door. Run once, deliberately, before the
+/// schema moves on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-3 build"]
+fn capture_schema_3_fixture() {
+    let data = data();
+    let mut world = world(&data);
+    let draft = omnis_rules::Draft {
+        name: "Brenna".to_owned(),
+        race: "base:race:human".to_owned(),
+        class: "base:class:fighter".to_owned(),
+        background: "base:background:acolyte".to_owned(),
+        alignment: omnis_data::Alignment::LawfulGood,
+        scores: [15, 14, 13, 12, 10, 8],
+        skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
+    };
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Create(draft)),
+    )
+    .unwrap();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert_eq!(world.schema, 3);
+    write_ron(&save_path("v3"), &world).unwrap();
 }

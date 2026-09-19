@@ -4,7 +4,7 @@
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3};
+use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4};
 use crate::party::Party;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -17,9 +17,9 @@ use omnis_core::{
 use omnis_data::{Data, DataError, PackFingerprint};
 use serde::{Deserialize, Serialize};
 
-/// The save schema this build writes. Schema 1 (no party, a save switch) and schema 2 (no
-/// combat) migrate on load.
-pub const SAVE_SCHEMA: u32 = 3;
+/// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
+/// and schema 3 (no equipment slots, no effects, no devtools bit) migrate on load.
+pub const SAVE_SCHEMA: u32 = 4;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +159,10 @@ pub struct Settings {
     pub save_rule: SaveRule,
     /// A dead member stays dead; enforced when death arrives (M4).
     pub permadeath: bool,
+    /// `Dev` commands are accepted (ARCHITECTURE.md §12). Set by dev builds of the app when a
+    /// game starts and by the headless driver, never by a command; a save says what it was.
+    #[serde(default)]
+    pub devtools: bool,
 }
 
 impl Settings {
@@ -233,6 +237,8 @@ pub enum LoadError {
     BadPosition(Position),
     /// The saved encounter or fight is not one this build can continue.
     BadCombat(&'static str),
+    /// A member's sheet contradicts itself (an equipped item that is not carried).
+    BadParty(&'static str),
 }
 
 impl fmt::Display for LoadError {
@@ -246,6 +252,7 @@ impl fmt::Display for LoadError {
             LoadError::PackMismatch => f.write_str("save was made with different packs"),
             LoadError::BadPosition(p) => write!(f, "save position {p} is not on a loaded map"),
             LoadError::BadCombat(why) => write!(f, "save combat cannot continue: {why}"),
+            LoadError::BadParty(why) => write!(f, "save party is inconsistent: {why}"),
         }
     }
 }
@@ -336,9 +343,14 @@ impl World {
             1 => omnis_data::ron_io::parse::<WorldV1>(text)
                 .map(v1_to_v2)
                 .map(v2_to_v3)
+                .map(|w| v3_to_v4(w, data))
                 .map_err(LoadError::Parse)?,
             2 => omnis_data::ron_io::parse::<World>(text)
                 .map(v2_to_v3)
+                .map(|w| v3_to_v4(w, data))
+                .map_err(LoadError::Parse)?,
+            3 => omnis_data::ron_io::parse::<World>(text)
+                .map(|w| v3_to_v4(w, data))
                 .map_err(LoadError::Parse)?,
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
@@ -355,7 +367,23 @@ impl World {
             return Err(LoadError::BadPosition(p));
         }
         world.check_mode(data)?;
+        world.check_party()?;
         Ok(world)
+    }
+
+    /// Every equipped item must be carried: the rules read slots, so a slot naming an item
+    /// the member does not have is a hand-edited save.
+    fn check_party(&self) -> Result<(), LoadError> {
+        for member in &self.party.members {
+            if member
+                .equipped
+                .values()
+                .any(|item| !member.equipment.iter().any(|(id, n)| id == item && *n > 0))
+            {
+                return Err(LoadError::BadParty("an equipped item is not carried"));
+            }
+        }
+        Ok(())
     }
 
     /// A saved encounter or fight must name known monsters and, in a fight, wait on a living

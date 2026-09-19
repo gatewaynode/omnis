@@ -15,6 +15,7 @@
     settings: (
         save_rule: Anywhere,
         permadeath: false,
+        devtools: false,
     ),
     commands: [
         Step(Forward),
@@ -48,5 +49,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 13779902585159506674,
+    fingerprint: 238033710167572364,
 )

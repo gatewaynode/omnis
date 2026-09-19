@@ -246,6 +246,13 @@ fn weapons_come_from_the_kit_with_class_proficiency() {
     let fighter = fighter(&data);
     let carried = weapons(&fighter, &data);
     assert_eq!(carried.len(), 3, "longsword, light crossbow, unarmed");
+    let mut sheathed = fighter.clone();
+    sheathed.equipped.remove(&omnis_data::EquipSlot::MainHand);
+    assert_eq!(
+        weapons(&sheathed, &data).len(),
+        2,
+        "a sword in the pack is not swung"
+    );
     let sword = best_weapon(&fighter, &data, false).unwrap();
     assert_eq!(sword.item, Some(item(&data, "longsword")));
     assert!(sword.proficient && !sword.ranged && sword.ability == Ability::Strength);
@@ -288,7 +295,7 @@ fn weapons_come_from_the_kit_with_class_proficiency() {
     );
 
     let mut bare = fighter.clone();
-    bare.equipment.clear();
+    bare.equipped.clear();
     let fists = best_weapon(&bare, &data, false).unwrap();
     assert_eq!(fists.item, None);
     assert_eq!(fists.average_twice(), 2);

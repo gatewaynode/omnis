@@ -7,7 +7,8 @@ use crate::world::{Automap, MapState, Mode, SAVE_SCHEMA, SaveRule, Settings, Wor
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use omnis_core::{Clock, FlagId, HolderId, MapId, Pcg32, Position, StreamName};
-use omnis_data::PackFingerprint;
+use omnis_data::{Ability, Data, PackFingerprint};
+use omnis_rules::{auto_equip, modifier};
 use serde::Deserialize;
 
 /// Schema 1 settings: the save rule was a single switch.
@@ -52,6 +53,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
                 SaveRule::InnOnly
             },
             permadeath: false,
+            devtools: false,
         },
         party: Party::default(),
         turn: old.turn,
@@ -63,6 +65,21 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
 /// encounters, members carry death saves. Every new field has a default, so a schema-2 text
 /// reads as a `World` as is; only the number changes.
 pub(crate) fn v2_to_v3(mut world: World) -> World {
+    world.schema = 3;
+    world
+}
+
+/// Schema 3 to 4: members wear equipment in slots, carry spell effects and reaction
+/// preferences, the party carries effects, and the settings say whether dev commands are
+/// accepted. Every field has a default; a member whose slots are empty wears what the old
+/// everything-counts rule counted, so the numbers do not change on load.
+pub(crate) fn v3_to_v4(mut world: World, data: &Data) -> World {
+    for member in &mut world.party.members {
+        if member.equipped.is_empty() {
+            let dex = modifier(member.scores[Ability::Dexterity.index()]);
+            member.equipped = auto_equip(data, &member.equipment, dex);
+        }
+    }
     world.schema = SAVE_SCHEMA;
     world
 }

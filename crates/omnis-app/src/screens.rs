@@ -7,7 +7,7 @@
 use crate::layout::{CELL, MENU_COLUMNS, Rect, menu_cell};
 use crate::menu::{
     Catalog, CreationForm, NewGameForm, Pause, ROW_ADD, ROW_ALIGNMENT, ROW_BACKGROUND, ROW_BEGIN,
-    ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, Title, rule_label, words,
+    ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, Title, on_off, rule_label, words,
 };
 use crate::raster::Rgb;
 use crate::widget::{DIM, FRAME, Frame, HI, Kind, PANEL, TEXT, Widget, WidgetId};
@@ -399,12 +399,18 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
         &format!("{:<12}{}", "Saving", rule_label(settings.save_rule)),
         TEXT,
     );
-    let permadeath = if settings.permadeath { "on" } else { "off" };
     label(
         frame,
         1,
         5,
-        &format!("{:<12}{permadeath}", "Permadeath"),
+        &format!("{:<12}{}", "Permadeath", on_off(settings.permadeath)),
+        TEXT,
+    );
+    label(
+        frame,
+        1,
+        6,
+        &format!("{:<12}{}", "Devtools", on_off(settings.devtools)),
         TEXT,
     );
     for (i, text) in Pause::ITEMS.iter().enumerate() {
@@ -412,7 +418,7 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
             frame,
             WidgetId::Row(i),
             Kind::Button,
-            (1, 7 + 2 * i as i32),
+            (1, 8 + 2 * i as i32),
             text,
             13,
             pause.cursor == i,

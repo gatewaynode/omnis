@@ -121,6 +121,12 @@ impl Title {
     }
 }
 
+/// "on" or "off".
+#[must_use]
+pub const fn on_off(flag: bool) -> &'static str {
+    if flag { "on" } else { "off" }
+}
+
 // ---------------------------------------------------------------- new game
 
 /// What the new game screen asks for.
@@ -668,9 +674,10 @@ impl Pause {
             "PAUSED".to_owned(),
             format!("Seed {seed}"),
             format!(
-                "Saving: {:?}   Permadeath: {}",
+                "Saving: {:?}   Permadeath: {}   Devtools: {}",
                 settings.save_rule,
-                if settings.permadeath { "on" } else { "off" }
+                on_off(settings.permadeath),
+                on_off(settings.devtools)
             ),
             String::new(),
             mark(self.cursor, 0, Self::ITEMS[0].to_owned()),
@@ -890,10 +897,11 @@ mod tests {
         let settings = Settings {
             save_rule: SaveRule::InnOnly,
             permadeath: true,
+            devtools: true,
         };
         let lines = pause.lines(settings, 7);
         assert_eq!(lines[1], "Seed 7");
-        assert!(lines[2].contains("InnOnly") && lines[2].contains("on"));
+        assert_eq!(lines[2], "Saving: InnOnly   Permadeath: on   Devtools: on");
         assert_eq!(pause.key(MenuKey::Escape), Some(PauseAction::Resume));
         pause.key(MenuKey::Down);
         assert_eq!(pause.key(MenuKey::Enter), Some(PauseAction::QuitToTitle));

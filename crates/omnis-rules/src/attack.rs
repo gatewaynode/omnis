@@ -8,7 +8,7 @@ use crate::stats::{Roll, RollMode, int_result, kept_d20, modifier, proficiency_b
 use alloc::format;
 use alloc::vec::Vec;
 use omnis_core::{Dice, ItemId, Pcg32, RollTrace, StreamName};
-use omnis_data::{Ability, DamageType, Data, ItemKind};
+use omnis_data::{Ability, DamageType, Data, EquipSlot, ItemKind};
 use omnis_expr::{RuleError, Value};
 use serde::{Deserialize, Serialize};
 
@@ -53,14 +53,14 @@ impl Weapon {
     }
 }
 
-/// Every weapon carried, in carrying order, then unarmed.
+/// The weapons wielded: the main hand, then the slung ranged weapon, then unarmed.
 #[must_use]
 pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
     let class = data.classes.get(&character.class);
-    let mut out: Vec<Weapon> = character
-        .equipment
+    let mut out: Vec<Weapon> = [EquipSlot::MainHand, EquipSlot::Ranged]
         .iter()
-        .filter_map(|(id, _)| data.items.get(id).map(|item| (*id, item)))
+        .filter_map(|slot| character.equipped.get(slot))
+        .filter_map(|id| data.items.get(id).map(|item| (*id, item)))
         .filter_map(|(id, item)| match &item.kind {
             ItemKind::Weapon {
                 kind,
@@ -97,8 +97,7 @@ pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
     out
 }
 
-/// The best weapon for a reach: the ranged one with the highest average damage, or the melee
-/// one (unarmed at worst). Ties keep the one carried first.
+/// The weapon for a reach: the slung ranged weapon, or the main hand (unarmed at worst).
 #[must_use]
 pub fn best_weapon(character: &Character, data: &Data, ranged: bool) -> Option<Weapon> {
     weapons(character, data)

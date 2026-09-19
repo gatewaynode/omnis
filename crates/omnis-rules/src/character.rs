@@ -1,6 +1,8 @@
 //! A character sheet, and its creation from a draft by point buy (PRD §7.1, owner decision
 //! 2026-09-12: bought scores only).
 
+use crate::effect::ActiveEffect;
+use crate::equip::{Equipped, auto_equip};
 use crate::stats::{int_result, modifier, point_cost, spell_point_pool};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -28,8 +30,8 @@ pub struct DeathSaves {
     pub stable: bool,
 }
 
-/// A party member's sheet. Scores include racial bonuses; everything carried counts as worn
-/// until equipment slots arrive (M6).
+/// A party member's sheet. Scores include racial bonuses. `equipment` is everything carried;
+/// `equipped` says what is worn and wielded, and only that counts for the rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Character {
     /// Stable identity within the world.
@@ -73,6 +75,15 @@ pub struct Character {
     /// Death saving throws in progress, meaningful while `hp` is zero.
     #[serde(default)]
     pub death_saves: DeathSaves,
+    /// What is worn and wielded, by slot; every entry is also carried.
+    #[serde(default)]
+    pub equipped: Equipped,
+    /// Spell effects in force on this member; only live ones are kept.
+    #[serde(default)]
+    pub effects: Vec<ActiveEffect>,
+    /// Reaction spells the member casts on their own when the moment comes, sorted.
+    #[serde(default)]
+    pub auto_cast: Vec<SpellId>,
 }
 
 impl Character {
@@ -213,12 +224,12 @@ pub fn create(
         &StreamName::new("party"),
     )?;
     let hp = i32::try_from(int_result("hit_points.first_level", hp.value)?).unwrap_or(i32::MAX);
-    let mut equipment: Vec<(ItemId, u16)> = Vec::new();
-    for (item, count) in class.starting_equipment.iter().chain(&background.equipment) {
-        if let Some(id) = data.registry.items.get(item) {
-            equipment.push((id, *count));
-        }
-    }
+    let equipment = starting_kit(class, background, data);
+    let equipped = auto_equip(
+        data,
+        &equipment,
+        modifier(scores[Ability::Dexterity.index()]),
+    );
     let mut character = Character {
         id,
         name: name.to_string(),
@@ -240,11 +251,24 @@ pub fn create(
         age_years: race.starting_age,
         created_at,
         death_saves: DeathSaves::default(),
+        equipped,
+        effects: Vec::new(),
+        auto_cast: Vec::new(),
     };
     let pool = spell_point_pool(&character, data, rng)?;
     character.spell_points = pool;
     character.spell_points_max = pool;
     Ok(character)
+}
+
+/// The class's starting equipment and the background's, as interned ids.
+fn starting_kit(class: &Class, background: &Background, data: &Data) -> Vec<(ItemId, u16)> {
+    class
+        .starting_equipment
+        .iter()
+        .chain(&background.equipment)
+        .filter_map(|(item, count)| data.registry.items.get(item).map(|id| (id, *count)))
+        .collect()
 }
 
 fn lookup<'a, I: Copy + Ord + From<u32> + Into<u32>, T>(

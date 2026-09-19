@@ -7,7 +7,7 @@ use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, StreamName};
 use omnis_data::Data;
-use omnis_rules::{Character, Draft, create};
+use omnis_rules::{ActiveEffect, Character, Draft, create};
 use serde::{Deserialize, Serialize};
 
 /// Slots when the rules give no `party_slots` value.
@@ -23,7 +23,8 @@ pub struct Party {
     pub members: Vec<Character>,
     /// Gold pieces.
     pub gold: u32,
-    /// Gems, the first spell component.
+    /// Deprecated and never written: spell components are items in `inventory` (the gem item
+    /// first). Kept so saves and the protocol keep their shape.
     pub gems: u32,
     /// Food units.
     pub food: u32,
@@ -31,6 +32,9 @@ pub struct Party {
     pub inventory: Vec<(ItemId, u16)>,
     /// The next character id to hand out.
     pub next_character: u32,
+    /// Party-wide spell effects in force (light); only live ones are kept.
+    #[serde(default)]
+    pub effects: Vec<ActiveEffect>,
 }
 
 /// A change to the party.

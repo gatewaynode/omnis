@@ -50,6 +50,17 @@ pub enum PlayState {
     Defeat,
 }
 
+/// The settings a new game starts with: the player's choices, and `devtools` when this build
+/// carries the dev socket, so the debug menu and `Dev` commands work in a dev build and never
+/// in a release.
+#[must_use]
+pub fn game_settings(base: Settings) -> Settings {
+    Settings {
+        devtools: cfg!(feature = "devtools"),
+        ..base
+    }
+}
+
 impl PlayState {
     /// The play state the world's mode calls for.
     #[must_use]
@@ -179,7 +190,7 @@ fn boot(
         next.set(AppState::MainMenu);
         return;
     }
-    match World::new(&data, config.seed, Settings::default()) {
+    match World::new(&data, config.seed, game_settings(Settings::default())) {
         Ok(world) => {
             info!(
                 "new game on {} pack(s), seed {:#x}",

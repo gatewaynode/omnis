@@ -15,6 +15,7 @@
     settings: (
         save_rule: Anywhere,
         permadeath: false,
+        devtools: false,
     ),
     commands: [
         Party(Create((
@@ -160,5 +161,5 @@
             stack: 0,
         )),
     ],
-    fingerprint: 9551067536887020678,
+    fingerprint: 7317777168019603128,
 )
