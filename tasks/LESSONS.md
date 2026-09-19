@@ -67,3 +67,7 @@
 - **Rule**: Every player action gets a button on the screen (a pad button, a menu item, an action row) before it gets a key; the key is the shortcut, never the only door. Save and load are menu items on the pause overlay, not function keys.
 - **Rule**: Function keys are not bindings on macOS (the system and the hardware take F1–F12); a shortcut is a letter, and the help line names it.
 - **Rule**: A test party the owner builds by hand must survive the session: saving is the first thing to verify by mouse before a milestone is handed over.
+
+## 2026-09-19 — The Sentrux pass runs on every commit's tree, not once per milestone
+- **What happened**: After M6a's twelve commits the first Sentrux `check_rules` of the entry-points step found four violations the M6a commits had introduced (`screen::click` at cyclomatic 27, `Rejection`'s Display at 26, two base-pack tests at 198 and 123 lines). The per-task review had been skipped while the milestone was being pushed through; a refactor commit followed.
+- **Rule**: `scan` and `check_rules` run before every commit, alongside the verification script, and a violation is fixed in that commit or the next one, named as debt; the awk long-function check covers tests as well as sources.
