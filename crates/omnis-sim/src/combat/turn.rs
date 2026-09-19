@@ -9,6 +9,7 @@ use crate::checks::{self, CheckSpec};
 use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
 use crate::event::{ActorRef, CheckKind, CombatOutcome, EffectEnd, Event, Surprise};
+use crate::items;
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
 use core::cmp::Reverse;
@@ -133,6 +134,7 @@ fn act_inner(
             cast::pay(world, data, &plan, events)?;
             cast::resolve(world, data, state, &plan, roller, events)?;
         }
+        Plan::Use(plan) => items::use_item(world, data, &plan, roller, events)?,
         Plan::Dodge => {
             if let Err(at) = state.dodging.binary_search(&actor) {
                 state.dodging.insert(at, actor);

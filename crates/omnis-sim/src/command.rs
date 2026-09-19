@@ -5,11 +5,13 @@
 use crate::combat::{CombatCommand, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
+use crate::items::ItemCommand;
 use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Direction, ItemId, Rotation};
+use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +39,8 @@ pub enum Command {
         /// Whom it goes to (a member for healing and buffs; ignored by light and mage hand).
         target: Target,
     },
+    /// Wear, hand over, stow, take, or use a carried item outside a fight.
+    Item(ItemCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
 }
@@ -62,10 +66,12 @@ impl Command {
             Command::Encounter(EncounterChoice::Run) => "run",
             Command::Combat(CombatCommand::Attack { .. }) => "attack",
             Command::Combat(CombatCommand::Cast { .. }) => "cast",
+            Command::Combat(CombatCommand::Use { .. }) => "use-item",
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
             Command::Cast { .. } => "cast",
+            Command::Item(_) => "item",
             Command::Dev(_) => "dev",
         }
     }
@@ -105,6 +111,9 @@ impl Command {
                 if let Some(rest) = word.strip_prefix("cast-") {
                     return parse_cast(rest).map(Command::Combat);
                 }
+                if let Some(rest) = word.strip_prefix("use-item-") {
+                    return parse_use(rest).map(Command::Combat);
+                }
                 return None;
             }
         })
@@ -120,6 +129,18 @@ fn parse_cast(rest: &str) -> Option<CombatCommand> {
         None => Target::Stack(target.parse().ok()?),
     };
     Some(CombatCommand::Cast { spell, target })
+}
+
+/// `N` uses item `N` of the acting member's kit on themselves; `N-mM` on member `M`.
+fn parse_use(rest: &str) -> Option<CombatCommand> {
+    let (item, target) = match rest.split_once('-') {
+        Some((item, target)) => (item, Some(target.strip_prefix('m')?.parse().ok()?)),
+        None => (rest, None),
+    };
+    Some(CombatCommand::Use {
+        item: item.parse().ok()?,
+        target,
+    })
 }
 
 /// A word in a script that is not a command.
@@ -140,7 +161,9 @@ impl fmt::Display for ScriptError {
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
-/// `cast-N-mM` (at member `M`), `dodge`, `swap-N`, `flee`, separated by whitespace or commas;
+/// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
+/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, separated by
+/// whitespace or commas;
 /// `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
@@ -250,6 +273,38 @@ pub enum Rejection {
         /// How many there are.
         have: u16,
     },
+    /// The kit has no item at that row.
+    UnknownItem {
+        /// The row asked for.
+        item: u8,
+    },
+    /// The stores have no item at that row.
+    NotInStores {
+        /// The row asked for.
+        item: u8,
+    },
+    /// The member does not carry the item.
+    NotCarried,
+    /// The item has no slot: gear, a component, a focus.
+    NotEquippable,
+    /// A two-handed weapon and a shield cannot both be held.
+    HandsFull,
+    /// Nothing is in that slot.
+    SlotEmpty {
+        /// The slot asked for.
+        slot: EquipSlot,
+    },
+    /// The item does nothing when used.
+    NotUsable,
+    /// The item is not used from a fight.
+    NotUsableHere,
+    /// The member the item goes to is dead.
+    TargetDead {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// A count of zero moves nothing.
+    ZeroCount,
     /// A `Dev` command in a world whose settings do not allow them.
     DevOnly,
     /// No loaded pack defines that id.
@@ -272,7 +327,9 @@ pub enum Rejection {
 
 impl core::fmt::Display for Rejection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.fmt_play(f).unwrap_or_else(|| self.fmt_magic(f))
+        self.fmt_play(f)
+            .or_else(|| self.fmt_items(f))
+            .unwrap_or_else(|| self.fmt_magic(f))
     }
 }
 
@@ -308,7 +365,26 @@ impl Rejection {
         })
     }
 
-    /// The wording of the casting, item and dev refusals.
+    /// The wording of the item refusals; `None` for the rest.
+    fn fmt_items(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::UnknownItem { item } => write!(f, "the kit has no item at row {item}"),
+            Rejection::NotInStores { item } => {
+                write!(f, "the stores have no item at row {item}")
+            }
+            Rejection::NotCarried => f.write_str("the item is not carried"),
+            Rejection::NotEquippable => f.write_str("the item cannot be worn or wielded"),
+            Rejection::HandsFull => f.write_str("a two-handed weapon leaves no hand for a shield"),
+            Rejection::SlotEmpty { slot } => write!(f, "nothing is in the {slot:?} slot"),
+            Rejection::NotUsable => f.write_str("the item does nothing when used"),
+            Rejection::NotUsableHere => f.write_str("the item is not used from a fight"),
+            Rejection::TargetDead { index } => write!(f, "the member in slot {index} is dead"),
+            Rejection::ZeroCount => f.write_str("a count of zero moves nothing"),
+            _ => return None,
+        })
+    }
+
+    /// The wording of the casting, component and dev refusals.
     fn fmt_magic(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rejection::UnknownSpell { spell } => write!(f, "no known spell at {spell}"),

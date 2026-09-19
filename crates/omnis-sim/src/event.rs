@@ -8,7 +8,7 @@ use omnis_core::{
     CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
     SpellId,
 };
-use omnis_data::{Ability, DamageType, Disposition};
+use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
 use serde::{Deserialize, Serialize};
 
@@ -134,6 +134,15 @@ pub enum EffectEnd {
     TurnBegan,
     /// The fight ended.
     FightOver,
+}
+
+/// Where an item was or went.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ItemPlace {
+    /// A member's kit.
+    Member(CharacterId),
+    /// The party's stores.
+    Stores,
 }
 
 /// What happened.
@@ -344,6 +353,46 @@ pub enum Event {
         spell: SpellId,
         /// On or off.
         on: bool,
+    },
+    /// A member wore or wielded an item.
+    Equipped {
+        /// Who.
+        member: CharacterId,
+        /// Where.
+        slot: EquipSlot,
+        /// Which item.
+        item: ItemId,
+    },
+    /// A member took an item off, or it left the kit.
+    Unequipped {
+        /// Who.
+        member: CharacterId,
+        /// Where it was.
+        slot: EquipSlot,
+        /// Which item.
+        item: ItemId,
+    },
+    /// Items moved between kits and the stores.
+    ItemMoved {
+        /// Which item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Where from.
+        from: ItemPlace,
+        /// Where to.
+        to: ItemPlace,
+    },
+    /// A member used an item; what it did follows.
+    ItemUsed {
+        /// Who.
+        member: CharacterId,
+        /// Which item.
+        item: ItemId,
+        /// Whom it went to, when it went to someone.
+        target: Option<CharacterId>,
+        /// Whether a count was spent.
+        consumed: bool,
     },
     /// Hit points regained, by a potion or a spell.
     Healed {

@@ -16,6 +16,7 @@ pub use turn::run_dc;
 use crate::command::Rejection;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event, Surprise};
+use crate::items;
 use crate::party;
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
@@ -38,6 +39,14 @@ pub enum CombatCommand {
         spell: u8,
         /// Whom it goes to.
         target: Target,
+    },
+    /// Use a carried item as the turn's action: a potion on a member, or the user when no
+    /// target is named. A sense item is not used from a fight.
+    Use {
+        /// The row of the acting member's kit.
+        item: u8,
+        /// Whom a potion goes to; the user when `None`.
+        target: Option<u8>,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
@@ -91,6 +100,8 @@ pub(crate) enum Plan {
     },
     /// A cast that passed every check.
     Cast(cast::CastPlan),
+    /// A use of an item that passed every check.
+    Use(items::UsePlan),
     /// A dodge.
     Dodge,
     /// A swap of two slots.
@@ -228,6 +239,9 @@ fn validate(
                 stack,
                 weapon: weapon_for(state, world, data, own, stack)?,
             }
+        }
+        CombatCommand::Use { item, target } => {
+            Plan::Use(items::validate_use(world, data, own, item, target, true)?)
         }
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {

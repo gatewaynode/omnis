@@ -44,9 +44,10 @@ pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
 pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
 pub use event::{
-    ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, MessageKey,
-    SeenTile, Surprise,
+    ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
+    MessageKey, SeenTile, Surprise,
 };
+pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
