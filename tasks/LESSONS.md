@@ -53,3 +53,6 @@
 - **Rule**: Before a decision about display size, scale, or aspect, ask which display is primary and read the machine (`system_profiler SPDisplaysDataType` on macOS: physical and "looks like" sizes for every panel), then measure the design on every panel listed, windowed and fullscreen, before proposing it.
 - **Rule**: A layout is designed for the aspect range the hardware shows, not for one canvas: state what fills the screen on each panel and what stays empty, with numbers, so the owner decides on the bars before the code exists.
 
+## 2026-09-19 — A deferred milestone keeps its number
+- **What happened**: When the owner deferred the editor (M5), I removed the `### M5` block from the TODO and moved its content into the Phases 2–5 block, leaving a vacant number and a "renumber?" question. The owner's rule: leave the numbering alone and say in the description that the milestone is deferred, with a pointer to where it went.
+- **Rule**: A whole milestone that is deferred keeps its heading and number in `tasks/TODO.md`; the heading gains "(deferred)" and its one-line body names the date, the saved plan (`tasks/plans/<name>.md`) and the block where it is now tracked. Nothing after it is renumbered.

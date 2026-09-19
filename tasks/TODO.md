@@ -161,8 +161,32 @@ The owner's primary display is a 5120×1440 ultrawide (scale factor 1); the fixe
 - **Done when**: the owner runs the game fullscreen on the ultrawide and sees the viewport centred at 2× with the roster left, the map right, and the log with the dice traces under it, then walks to the rats and fights them as before — **accepted 2026-09-13** on the 5120×1440 ultrawide (creation, the meadow, the dungeon after the rat fight: "plenty of space to work with")
 - **Review (2026-09-13)**: six commits, `5668a9c` (`canvas.rs`) to the docs, each green on its own. As built: the layout constants stay the 1280-wide *core*; `canvas::Layout::for_width` places it on any width (viewport centred with a 63-cell wing for the roster when the wing fits, width ≥ 1716, else the core centred), and `NARROW` reproduces every constant cell by cell so no narrow test changed; the core's painters keep their coordinates and paint through the core's origin (`Raster.origin` in `set`, `Frame::within`, `Frame::push`), so the viewport-relative constants and their compile-time asserts hold on every width; the fit chooses the canvas width at the whole multiple, the `Layout` resource follows it, and a width change resizes the canvas target and the UI image and redraws the viewport sprites at the core. Deviations from the plan: the log starts at the band's first column (0), not column 1, to align with the message line; widths between 1280 and 1715 centre the core rather than left-align it; the viewport spawns went into a `Spawner` when `redraw` passed the cap. Numbers on the owner's ultrawide fullscreen: 2560×720 at 2×, viewport 800..1760, wing 422..800, band 422..2080 with 275 log cells. Verification at the last code change: fresh metadata, fmt, clippy workspace and no-default (library), 247 tests passed, 0 failed, 4 ignored, lint-sim and its self-test, no new duplicates, validate, both replays unchanged, Sentrux rules pass at signal 7055 (no fn over 100 lines in the touched files by awk), the sixteen screen dumps (eight `-wide`), and two `--window huge` canvas captures on the owner's machine (the window clamps to 5120×~1387, so a 5120×720 canvas at 1× with the scene centred, the minimap in the right column, the roster in the wing). Horizons: fractional scaling for windowed classes (every window on a 1440-row monitor is 1×); portraits, conditions, and inventory in the wing's empty rows; a multi-column log; quantising the width to a cell multiple if window drags churn; renumbering the PRD's second D20 row.
 
-### M6 — Spells, items, and remote sensing
-- [ ] Casting in and out of combat, spell points and components (D11 threshold from config), cantrips, item use and equipment, `Sense` with a spyglass item feeding the automap as stale knowledge (D18)
+### M5 — Editor v1 (deferred)
+- Deferred by the owner on 2026-09-19; plan, dependency numbers and object schema in `tasks/plans/editor-v1.md`; tracked as the first Phases 2–5 item.
+
+### M6 — Spells, items, and remote sensing (plan approved 2026-09-19)
+- Scope line: casting in and out of combat, spell points and components (D11 threshold from config), cantrips, item use and equipment, `Sense` with a spyglass item feeding the automap as stale knowledge (D18). Owner decisions 2026-09-19: all eleven base spells castable; three acceptance points (M6a casting, M6b items, M6c sensing); `Party.gems` kept and deprecated; a debug menu for items and values in explore and fight mode; the healing potion in the acolyte kit; Explorer (Survival, Perception as stand-ins for Cartography and Orienteering) and Warden backgrounds enter the base pack.
+- [ ] Shared data: spell `effect`/`reach`, item `use_effect`/`consumable`/`description`/`Slot`, `SenseSource`, validations, bad-pack rows
+- [ ] Base content: the eleven spell effects, casting/sensing/items rules, spyglass, potion, map-making kit, Explorer and Warden, the acolyte potion; both replays rebaselined
+- [ ] Rules: `spell.rs`, `effect.rs` (absolute-minute expiry), `equip.rs` (four slots, auto-equip keeps today's picks), `Roll.bonus`
+- [ ] Save schema 4: `equipped`, `effects`, `auto_cast`, `Party.effects`, `Settings.devtools`, data-aware migration; both replays rebaselined
+- **M6a casting**
+- [ ] Sim: item stock helpers, `party::heal`, `Command::Dev` explore set behind `Settings.devtools`
+- [ ] Sim: `CombatCommand::Cast` (attack, auto-hit, save, heal), `hurt_individual`; the done-when test (a pool empties, cantrips stay free) and the D11 threshold test
+- [ ] Sim: effects lifecycle, bless (anchor fan-out), guidance (consumed by the one check wrapper), concentration (one per caster, CON save), shield (opt-in auto-reaction via `PartyCommand::AutoCast`), light (`visibility::depth`), mage hand (door ahead), explore casting
+- [ ] Sim: fight-mode dev commands with `combat::settle`; MCP schema arms
+- [ ] Measure: 300 seeds × parties of 2 and 6 × attack-only vs cast-every-turn; numbers in this review before the owner plays
+- [ ] App: six fight actions, the spell picker, spell log lines, the debug menu on backtick/F1
+- [ ] App: explore cast menu on C; M6a docs; owner acceptance
+- **M6b items and equipment**
+- [ ] Sim: `Command::Item` (equip, unequip, give, stow, take, use), the potion, `CombatCommand::Use`
+- [ ] Ops/MCP: kit, spells, effects and inventory in `party.get`; schema arms
+- [ ] App: inventory overlay on I, item log lines
+- [ ] App: Use in the fight picker; M6b docs; owner acceptance
+- **M6c sensing**
+- [ ] Sim: `layer::REMOTE`, layer-aware automap recording, `visibility::ray`, the spyglass with one Perception check per layer against `sense.dc`, `Event::Sensed`
+- [ ] MCP compaction; app L key, sense log line, the automap outline for remotely seen tiles
+- [ ] M6c docs and the milestone review; owner acceptance
 - **Done when**: a caster empties a spell pool in combat and a spyglass reveals tiles that the automap marks as remotely seen
 
 ### M7 — Town, services, rest, and progression
@@ -175,6 +199,7 @@ The owner's primary display is a 5120×1440 ultrawide (scale factor 1); the fixe
 
 ### M9–M12 — PRD Phases 2–5 (expand when reached)
 - [ ] Editor v1 (`bevy_egui`), deferred from M5 by the owner on 2026-09-19, before the M9 procgen panel that extends it: `Editor` app state, tile paint (terrain, edges, doors, the terrain palette with visibility depth), portals, encounter placement, a validated RON editor for every data file and the text files, playtest at cursor, `editor.*` dev-socket ops mirrored as MCP tools; the writer is the loader's code path; then objects (kinds in `data/objects`, placements with stable ids, states, attributes, interaction hooks, sim blocking/opacity/Use, billboard bake). Plan, dependency numbers (`bevy_egui` 0.41.1 now, 0.42.0 clear of the 30-day rule on 2026-10-08, one `harfrust` duplicate) and the object schema: `tasks/plans/editor-v1.md`. Done when the M1 test maps are re-authored in it and every later map is built with it (D4)
+- [ ] GFDL backgrounds (Farmer, Squire, Metal Worker, Adventurer, Cook in `docs/background/opensource_backgrounds_and_skills.md`) as a separate `packs/backgrounds-gfdl` pack with its own license text and the GFDL copy; the base pack stays CC-BY-4.0 (owner decision 2026-09-19)
 - [ ] M9 procedural world (`omnis-gen`, lazy materialization, editor procgen panel, golden fingerprints)
 - [ ] M10 ecosystem (`omnis-eco`, region tick, catch-up, derived outputs, `eco.*` tools)
 - [ ] M11 story engine (`omnis-story`, quest graphs, templates, static check, `story.*` tools)
