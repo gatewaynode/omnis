@@ -139,6 +139,31 @@ pub(crate) fn apply(
     Ok(())
 }
 
+/// After a dev edit in a fight: run the loop if the fight no longer waits on a member who can
+/// act (monster turns, the round's end, or the finish), so the state a save checks holds.
+pub(crate) fn resume(
+    world: &mut World,
+    data: &Data,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let Mode::Combat(mut state) = core::mem::replace(&mut world.mode, Mode::Explore) else {
+        return Ok(());
+    };
+    let mut roller = Roller::take(world);
+    let ended = match turn::settle(world, data, &mut state, &mut roller, events) {
+        Ok(ended) => ended,
+        Err(e) => {
+            world.mode = Mode::Combat(state);
+            return Err(e);
+        }
+    };
+    roller.store(world);
+    if !ended {
+        world.mode = Mode::Combat(state);
+    }
+    Ok(())
+}
+
 /// The member whose turn it is: the fight parks only on a member who can act.
 fn acting_member(state: &CombatState, world: &World) -> Result<(CharacterId, usize), Rejection> {
     let id = match state.order.get(usize::from(state.current)).map(|e| e.actor) {

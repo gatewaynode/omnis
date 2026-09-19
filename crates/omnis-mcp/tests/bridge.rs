@@ -201,6 +201,44 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
         json!("Rejected"),
         "{reply}"
     );
+    // The headless driver is a devtools world: a Dev edit goes through the same pipe.
+    let reply = server.tool(
+        17,
+        "sim_command",
+        json!({"command": {"Dev": {"SetGold": {"gold": 77}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    assert_eq!(
+        reply["result"]["structuredContent"]["events"][0]["Dev"]["command"]["SetGold"]["gold"],
+        json!(77),
+        "{reply}"
+    );
+    let reply = server.tool(18, "party_get", json!({}));
+    assert_eq!(
+        reply["result"]["structuredContent"]["party"]["gold"],
+        json!(77)
+    );
+    let reply = server.tool(
+        19,
+        "sim_command",
+        json!({"command": {"Combat": {"Cast": {"spell": 0, "target": {"Stack": 0}}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
+    assert_eq!(
+        reply["result"]["structuredContent"]["kind"],
+        json!("Rejected"),
+        "{reply}"
+    );
+    let reply = server.tool(
+        20,
+        "sim_command",
+        json!({"command": {"Cast": {"caster": 0, "spell": 1, "target": {"Member": 0}}}}),
+    );
+    assert_eq!(
+        reply["result"]["isError"],
+        json!(false),
+        "the wizard casts light, her second cantrip: {reply}"
+    );
 }
 
 #[test]

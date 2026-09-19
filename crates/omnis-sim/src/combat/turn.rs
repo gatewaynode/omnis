@@ -227,6 +227,25 @@ fn step_current(
     Ok(())
 }
 
+/// After an edit: nothing if the fight still waits on a member who can act and is not over;
+/// otherwise the loop, exactly as after a member action.
+pub(crate) fn settle(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<bool, RuleError> {
+    let waits = matches!(
+        state.current_actor(),
+        Some(ActorRef::Member(id)) if member_acts(state, world, data, id)
+    );
+    if waits && state.outcome(&world.party, data).is_none() {
+        return Ok(false);
+    }
+    run_until_member(world, data, state, roller, events)
+}
+
 /// Monster turns until a member can act (`false`) or the fight ends (`true`). Every pass
 /// advances the order, a round with no member action ends with round processing, and a
 /// party that cannot fight at all is a defeat, so the loop terminates.

@@ -3,8 +3,10 @@
 //! `Settings.devtools` is on. Validation completes before anything changes.
 
 use crate::apply::visit;
+use crate::combat;
 use crate::command::Rejection;
-use crate::event::Event;
+use crate::encounter::Stack;
+use crate::event::{ActorRef, Event};
 use crate::items::add_to;
 use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
@@ -96,6 +98,20 @@ pub enum DevCommand {
         /// Facing.
         facing: Facing,
     },
+    /// Fights only: one living individual's hit points; zero removes it without gold.
+    SetMonsterHp {
+        /// The stack.
+        stack: u8,
+        /// The individual among the living.
+        index: u8,
+        /// The new hit points.
+        hp: i32,
+    },
+    /// Fights only: every individual of a stack dies, without gold; experience counts them.
+    KillStack {
+        /// The stack.
+        stack: u8,
+    },
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -109,14 +125,15 @@ pub(crate) fn apply(
     if !world.settings.devtools {
         return Err(Rejection::DevOnly);
     }
-    if matches!(world.mode, Mode::Combat(_)) {
-        return Err(Rejection::WrongMode);
-    }
     let echo = Event::Dev {
         command: command.clone(),
     };
     let mut caused = Vec::new();
     match command {
+        DevCommand::SetMonsterHp { stack, index, hp } => {
+            set_monster_hp(world, *stack, *index, *hp, &mut caused)?;
+        }
+        DevCommand::KillStack { stack } => kill_stack(world, *stack, &mut caused)?,
         DevCommand::GiveItem {
             member,
             item,
@@ -168,6 +185,60 @@ pub(crate) fn apply(
     }
     events.push(echo);
     events.append(&mut caused);
+    if matches!(world.mode, Mode::Combat(_)) {
+        combat::resume(world, data, events).map_err(Rejection::Rule)?;
+    }
+    Ok(())
+}
+
+/// The fight's stacks, or `WrongMode` while exploring.
+fn stacks_mut(world: &mut World) -> Result<&mut Vec<Stack>, Rejection> {
+    match &mut world.mode {
+        Mode::Combat(state) => Ok(&mut state.encounter.stacks),
+        _ => Err(Rejection::WrongMode),
+    }
+}
+
+fn set_monster_hp(
+    world: &mut World,
+    stack: u8,
+    index: u8,
+    hp: i32,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let stacks = stacks_mut(world)?;
+    let s = stacks
+        .get_mut(usize::from(stack))
+        .ok_or(Rejection::NoSuchStack { stack })?;
+    let slot =
+        s.hp.get_mut(usize::from(index))
+            .ok_or(Rejection::OutOfRange)?;
+    *slot = hp.max(0);
+    if hp <= 0 {
+        s.hp.remove(usize::from(index));
+        events.push(Event::Death {
+            target: ActorRef::Monster { stack, index },
+            gold: None,
+        });
+    }
+    Ok(())
+}
+
+fn kill_stack(world: &mut World, stack: u8, events: &mut Vec<Event>) -> Result<(), Rejection> {
+    let stacks = stacks_mut(world)?;
+    let s = stacks
+        .get_mut(usize::from(stack))
+        .ok_or(Rejection::NoSuchStack { stack })?;
+    for index in (0..s.hp.len()).rev() {
+        events.push(Event::Death {
+            target: ActorRef::Monster {
+                stack,
+                index: u8::try_from(index).unwrap_or(u8::MAX),
+            },
+            gold: None,
+        });
+    }
+    s.hp.clear();
     Ok(())
 }
 

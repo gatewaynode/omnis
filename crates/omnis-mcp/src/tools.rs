@@ -65,7 +65,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "sim_command",
             "sim.command",
-            "Apply one command to the game and return its events.",
+            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
             &[Field::new::<Command>("command", true, "The command.")],
         ),
         tool(

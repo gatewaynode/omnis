@@ -431,15 +431,197 @@ fn teleport_moves_the_party_without_a_trigger_and_only_while_exploring() {
     )
     .unwrap();
     assert!(matches!(world.mode, Mode::Combat(_)));
+    apply(
+        &mut world,
+        &data,
+        Command::Dev(DevCommand::SetGold { gold: 1 }),
+    )
+    .unwrap();
+    assert_eq!(world.party.gold, 1, "party edits work in a fight too");
+    assert_eq!(
+        go(&mut world, "test:map:dungeon", 1, 1),
+        Err(Rejection::WrongMode)
+    );
+}
+
+/// Stage a fight against `stacks` with `count` members and wait on the first member turn.
+fn fight(data: &omnis_data::Data, count: usize, stacks: &[(&str, u8)]) -> World {
+    let mut world = dev_world(data);
+    party_of(&mut world, data, count);
+    let here = world.position;
+    let encounter = common::encounter(data, stacks, omnis_data::Disposition::Hostile, here);
+    let mut events = Vec::new();
+    omnis_sim::combat::start(
+        &mut world,
+        data,
+        encounter,
+        omnis_sim::Surprise::None,
+        &mut events,
+    )
+    .unwrap();
+    assert!(matches!(world.mode, Mode::Combat(_)));
+    world
+}
+
+fn acting(world: &World) -> Option<omnis_sim::ActorRef> {
+    match &world.mode {
+        Mode::Combat(state) => state.current_actor(),
+        _ => None,
+    }
+}
+
+#[test]
+fn stack_edits_need_a_fight_and_a_kill_of_the_last_stack_is_a_victory() {
+    let data = data();
+    let mut world = dev_world(&data);
+    party_of(&mut world, &data, 2);
+    let before = world.clone();
     assert_eq!(
         apply(
             &mut world,
             &data,
-            Command::Dev(DevCommand::SetGold { gold: 1 })
+            Command::Dev(DevCommand::KillStack { stack: 0 })
         ),
-        Err(Rejection::WrongMode),
-        "fight-mode edits arrive with the fight loop's settle"
+        Err(Rejection::WrongMode)
     );
+    assert_eq!(world, before);
+
+    let mut world = fight(&data, 2, &[("giant_rat", 2), ("goblin", 1)]);
+    let events = apply(
+        &mut world,
+        &data,
+        Command::Dev(DevCommand::SetMonsterHp {
+            stack: 0,
+            index: 1,
+            hp: 0,
+        }),
+    )
+    .unwrap();
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::Death {
+            target: omnis_sim::ActorRef::Monster { stack: 0, index: 1 },
+            gold: None
+        }
+    )));
+    let Mode::Combat(state) = &world.mode else {
+        panic!("still fighting")
+    };
+    assert_eq!(state.encounter.stacks[0].hp.len(), 1);
+    assert_eq!(
+        apply(
+            &mut world,
+            &data,
+            Command::Dev(DevCommand::SetMonsterHp {
+                stack: 0,
+                index: 5,
+                hp: 1
+            })
+        ),
+        Err(Rejection::OutOfRange)
+    );
+    assert_eq!(
+        apply(
+            &mut world,
+            &data,
+            Command::Dev(DevCommand::KillStack { stack: 9 })
+        ),
+        Err(Rejection::NoSuchStack { stack: 9 })
+    );
+    apply(
+        &mut world,
+        &data,
+        Command::Dev(DevCommand::KillStack { stack: 0 }),
+    )
+    .unwrap();
+    assert!(
+        matches!(world.mode, Mode::Combat(_)),
+        "a goblin still stands"
+    );
+    let events = apply(
+        &mut world,
+        &data,
+        Command::Dev(DevCommand::KillStack { stack: 1 }),
+    )
+    .unwrap();
+    let Some(Event::CombatEnded {
+        outcome, xp, gold, ..
+    }) = events
+        .iter()
+        .find(|e| matches!(e, Event::CombatEnded { .. }))
+    else {
+        panic!("{events:?}")
+    };
+    assert_eq!(*outcome, omnis_sim::CombatOutcome::Victory);
+    assert_eq!(
+        (*xp, *gold),
+        (50, 0),
+        "two rats at 25 and a goblin at 50 split two ways, no gold rolled"
+    );
+    assert_eq!(world.mode, Mode::Explore);
+}
+
+#[test]
+fn downing_the_acting_member_moves_the_fight_on_and_the_save_still_loads() {
+    let data = data();
+    let mut world = fight(&data, 3, &[("giant_rat", 1)]);
+    let Some(omnis_sim::ActorRef::Member(actor)) = acting(&world) else {
+        panic!("the fight parks on a member")
+    };
+    let slot = world
+        .party
+        .members
+        .iter()
+        .position(|m| m.id == actor)
+        .unwrap();
+    let events = apply(
+        &mut world,
+        &data,
+        Command::Dev(DevCommand::SetHp {
+            member: u8::try_from(slot).unwrap(),
+            hp: 0,
+        }),
+    )
+    .unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::Down { target } if *target == actor))
+    );
+    assert!(
+        events.iter().any(|e| matches!(e, Event::Turn { .. })),
+        "the loop ran on: {events:?}"
+    );
+    match acting(&world) {
+        Some(omnis_sim::ActorRef::Member(id)) => assert_ne!(id, actor, "a living member acts"),
+        None => assert_eq!(world.mode, Mode::Explore, "or the fight ended"),
+        other => panic!("{other:?}"),
+    }
+    let text = world.to_ron().unwrap();
+    World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
+    if let Some(omnis_sim::ActorRef::Member(id)) = acting(&world) {
+        let slot = world.party.members.iter().position(|m| m.id == id).unwrap();
+        let events = apply(
+            &mut world,
+            &data,
+            Command::Dev(DevCommand::SetCondition {
+                member: u8::try_from(slot).unwrap(),
+                condition: "base:condition:paralyzed".into(),
+                applied: true,
+            }),
+        )
+        .unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::Turn { .. } | Event::CombatEnded { .. }))
+        );
+        assert_ne!(
+            acting(&world),
+            Some(omnis_sim::ActorRef::Member(id)),
+            "an incapacitated member is skipped"
+        );
+    }
 }
 
 #[test]
