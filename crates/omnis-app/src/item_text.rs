@@ -51,6 +51,8 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
                 (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
             })
         }
+        // A look has no target; `Sensed` follows and is the line.
+        Event::ItemUsed { target: None, .. } => return None,
         Event::ItemUsed {
             member,
             item,
@@ -156,5 +158,15 @@ mod tests {
             "Brenna uses Potion of healing"
         );
         assert!(item_line(&Event::PartyChanged, &names).is_none());
+        let looked = Event::ItemUsed {
+            member: brenna,
+            item: item_id(&data, "spyglass").unwrap(),
+            target: None,
+            consumed: false,
+        };
+        assert!(
+            item_line(&looked, &names).is_none(),
+            "the look's own line follows"
+        );
     }
 }

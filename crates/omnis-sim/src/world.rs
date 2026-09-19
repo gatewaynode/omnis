@@ -57,6 +57,9 @@ pub mod layer {
     pub const STRUCTURE: u8 = 2;
     /// The party has stood here.
     pub const VISITED: u8 = 4;
+    /// The latest knowledge came from afar (a spyglass), not from the party's own eyes; a
+    /// direct sighting clears it.
+    pub const REMOTE: u8 = 8;
 }
 
 /// What the party knows about one tile.
@@ -82,18 +85,33 @@ pub struct Automap {
 }
 
 impl Automap {
-    /// Record a tile, merging layers and keeping the newest time.
+    /// Record a tile: the terrain when `TERRAIN` is carried, the walls and doors when
+    /// `STRUCTURE` is, layers merged (`VISITED` sticks), the time the newest. `REMOTE` is set
+    /// by a remote recording and cleared by a direct one.
     pub fn record(&mut self, map: MapId, x: u16, y: u16, known: Known) {
         let entry = self
             .maps
             .entry(map)
             .or_default()
             .entry((x, y))
-            .or_insert(known);
-        entry.terrain = known.terrain;
-        entry.walls = known.walls;
-        entry.doors = known.doors;
-        entry.layers |= known.layers;
+            .or_insert(Known {
+                terrain: known.terrain,
+                walls: Edges::default(),
+                doors: Edges::default(),
+                layers: 0,
+                seen_at: known.seen_at,
+            });
+        if known.layers & layer::TERRAIN != 0 {
+            entry.terrain = known.terrain;
+        }
+        if known.layers & layer::STRUCTURE != 0 {
+            entry.walls = known.walls;
+            entry.doors = known.doors;
+        }
+        entry.layers = (entry.layers | known.layers) & !layer::REMOTE;
+        if known.layers & layer::REMOTE != 0 {
+            entry.layers |= layer::REMOTE;
+        }
         entry.seen_at = known.seen_at;
     }
 

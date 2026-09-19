@@ -1,7 +1,7 @@
-//! `DebugPlugin` (feature `devtools`): the debug menu over the world, opened with the
-//! backtick while exploring or fighting (no function key: macOS takes them). Keys and clicks drive the state machine in
-//! `debug_menu.rs`; its intents are `Dev` commands for the simulation, which a release world
-//! refuses. Headless-capable.
+//! `DebugPlugin` (feature `devtools`): the debug menu over the world, opened from the pause
+//! overlay's item or with the backtick while exploring or fighting (no function key: macOS
+//! takes them). Keys and clicks drive the state machine in `debug_menu.rs`; its intents are
+//! `Dev` commands for the simulation, which a release world refuses. Headless-capable.
 
 use crate::cursor::UiSet;
 use crate::debug_menu::{DebugIntent, debug_view};
@@ -23,8 +23,21 @@ impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<KeyboardInput>()
             .add_message::<UiClick>()
+            .add_systems(OnEnter(PlayState::Debug), open_debug)
             .add_systems(Update, debug_keys.in_set(UiSet::Dispatch))
             .add_systems(Update, debug_model.in_set(UiSet::Model));
+    }
+}
+
+/// The menu opens on the world as it is, whichever door was used.
+fn open_debug(
+    mut screens: ResMut<Screens>,
+    world: Option<Res<SimWorld>>,
+    data: Option<Res<PackData>>,
+) {
+    if let Some((world, data)) = world.as_ref().zip(data.as_ref()) {
+        let view = debug_view(&world.0, &data.0);
+        screens.debug.open(&view);
     }
 }
 
@@ -56,7 +69,6 @@ fn debug_keys(
     match active {
         Active::None | Active::Combat if at.playing() => {
             if inputs.iter().any(toggles) {
-                screens.debug.open(&view);
                 next.set(PlayState::Debug);
             }
         }

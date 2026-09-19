@@ -71,3 +71,11 @@
 ## 2026-09-19 — The Sentrux pass runs on every commit's tree, not once per milestone
 - **What happened**: After M6a's twelve commits the first Sentrux `check_rules` of the entry-points step found four violations the M6a commits had introduced (`screen::click` at cyclomatic 27, `Rejection`'s Display at 26, two base-pack tests at 198 and 123 lines). The per-task review had been skipped while the milestone was being pushed through; a refactor commit followed.
 - **Rule**: `scan` and `check_rules` run before every commit, alongside the verification script, and a violation is fixed in that commit or the next one, named as debt; the awk long-function check covers tests as well as sources.
+
+## 2026-09-19 — A dev tool is a player action too
+- **What happened**: The entry-points step gave every player screen a button and unbound F1, but left the debug menu on the backtick alone. The owner accepted M6b and then could not find the debug menu.
+- **Rule**: The buttons-before-keys rule covers dev tools and every other screen a person can open: when a key binding is removed or a screen is added, its button or menu item lands in the same commit, and a dim item with a notice beats a hidden one.
+
+## 2026-09-19 — A commit made after the push is stranded when the PR merges
+- **What happened**: The debug-menu pause item (`4e5973a`) was committed on `m5-tasks` after the owner had pushed the branch and opened PR #6. The PR merged the pushed state; the next branch was cut from `main`, so the commit, its tests and its LESSONS entry were in no build until a `/catchup` after the compact noticed the tree had six pause items.
+- **Rule**: After the owner reports a merge, run `git log main..<old-branch>` before touching the new branch; any tail is cherry-picked first, verified, and named in CONTINUITY. A commit made after a push is noted in CONTINUITY as unpushed the moment it lands.
