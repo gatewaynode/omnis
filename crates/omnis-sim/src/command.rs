@@ -3,12 +3,13 @@
 //! protocol. What happened is `event::Event`.
 
 use crate::combat::CombatCommand;
+use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{Direction, Rotation};
+use omnis_core::{Direction, ItemId, Rotation};
 use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +28,8 @@ pub enum Command {
     Encounter(EncounterChoice),
     /// Act in a fight, on the acting member's turn.
     Combat(CombatCommand),
+    /// A debugging edit; accepted only when the world's settings say `devtools`.
+    Dev(DevCommand),
 }
 
 impl Command {
@@ -52,6 +55,7 @@ impl Command {
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
+            Command::Dev(_) => "dev",
         }
     }
 
@@ -178,6 +182,29 @@ pub enum Rejection {
         /// The purse.
         gold: u32,
     },
+    /// The stores or the kit hold fewer of an item than needed.
+    NotEnough {
+        /// The item.
+        item: ItemId,
+        /// How many there are.
+        have: u16,
+    },
+    /// A `Dev` command in a world whose settings do not allow them.
+    DevOnly,
+    /// No loaded pack defines that id.
+    UnknownId {
+        /// The id asked for.
+        id: String,
+    },
+    /// A count of zero, a score outside `1..=30`, or an index past the end.
+    OutOfRange,
+    /// The tile is not on the map.
+    OffMap {
+        /// Column.
+        x: u16,
+        /// Row.
+        y: u16,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -206,6 +233,13 @@ impl core::fmt::Display for Rejection {
             Rejection::CannotAfford { cost, gold } => {
                 write!(f, "that costs {cost} gold; the party has {gold}")
             }
+            Rejection::NotEnough { item, have } => {
+                write!(f, "not enough of item {item}; there are {have}")
+            }
+            Rejection::DevOnly => f.write_str("dev commands need a devtools world"),
+            Rejection::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),
+            Rejection::OutOfRange => f.write_str("a count, score, or index is out of range"),
+            Rejection::OffMap { x, y } => write!(f, "({x}, {y}) is not on the map"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
         }
     }

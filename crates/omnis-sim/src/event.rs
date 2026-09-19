@@ -1,6 +1,7 @@
 //! What the simulation says happened (ARCHITECTURE.md §4.2). Events carry keys, ids, numbers,
 //! and roll traces, never text: a client renders them and a test asserts on them.
 
+use crate::dev::DevCommand;
 use crate::encounter::EncounterSource;
 use alloc::vec::Vec;
 use omnis_core::{
@@ -270,6 +271,17 @@ pub enum Event {
         /// Which defense applied.
         adjust: DamageAdjust,
     },
+    /// Hit points regained, by a potion or a spell.
+    Healed {
+        /// Who.
+        target: CharacterId,
+        /// The dice.
+        rolls: Vec<RollTrace>,
+        /// Points regained before the cap.
+        amount: i64,
+        /// Hit points after.
+        hp: i32,
+    },
     /// A member fell to zero hit points.
     Down {
         /// Who.
@@ -321,5 +333,10 @@ pub enum Event {
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+    },
+    /// A debugging edit was applied; what it caused follows.
+    Dev {
+        /// The edit.
+        command: DevCommand,
     },
 }

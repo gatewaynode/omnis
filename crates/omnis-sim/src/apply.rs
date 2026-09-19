@@ -2,6 +2,7 @@
 
 use crate::combat;
 use crate::command::{Command, Rejection};
+use crate::dev;
 use crate::encounter;
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::party;
@@ -17,6 +18,7 @@ use omnis_data::Data;
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
     let mut events = Vec::new();
     match (&world.mode, &command) {
+        (_, Command::Dev(edit)) => dev::apply(world, data, edit, &mut events)?,
         (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events)?,
         (Mode::Explore, Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),

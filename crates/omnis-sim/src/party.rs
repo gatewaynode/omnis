@@ -2,12 +2,12 @@
 //! commands that build and reorder it (PRD §7.1, D10).
 
 use crate::command::Rejection;
-use crate::event::Event;
+use crate::event::{ActorRef, Event};
 use crate::world::World;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, ItemId, Pcg32, StreamName};
+use omnis_core::{CharacterId, ConditionId, ItemId, Pcg32, RollTrace, StreamName};
 use omnis_data::Data;
-use omnis_rules::{ActiveEffect, Character, Draft, create};
+use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, condition_id, create};
 use serde::{Deserialize, Serialize};
 
 /// Slots when the rules give no `party_slots` value.
@@ -134,4 +134,65 @@ fn reorder(world: &mut World, order: &[u8]) -> Result<(), Rejection> {
         .filter_map(|&i| old[usize::from(i)].take())
         .collect();
     Ok(())
+}
+
+/// Add or remove a pack condition by name, with the event, when the pack defines it.
+pub(crate) fn set_condition(
+    member: &mut Character,
+    data: &Data,
+    name: &str,
+    applied: bool,
+    events: &mut Vec<Event>,
+) {
+    if let Some(condition) = condition_id(data, name) {
+        set_condition_id(member, condition, applied, events);
+    }
+}
+
+/// Add or remove a condition by id, with the event; nothing when already so.
+pub(crate) fn set_condition_id(
+    member: &mut Character,
+    condition: ConditionId,
+    applied: bool,
+    events: &mut Vec<Event>,
+) {
+    let at = member.conditions.iter().position(|c| *c == condition);
+    match (applied, at) {
+        (true, None) => member.conditions.push(condition),
+        (false, Some(i)) => {
+            member.conditions.remove(i);
+        }
+        _ => return,
+    }
+    events.push(Event::Condition {
+        target: ActorRef::Member(member.id),
+        condition,
+        applied,
+    });
+}
+
+/// Hit points back, capped at the maximum; a downed member gets up (death saves reset, the
+/// pack's `unconscious` condition removed). Emits `Healed`. A potion and cure wounds share it.
+pub fn heal(
+    world: &mut World,
+    data: &Data,
+    index: usize,
+    rolls: Vec<RollTrace>,
+    amount: i64,
+    events: &mut Vec<Event>,
+) {
+    let member = &mut world.party.members[index];
+    let was_down = member.is_down();
+    let gain = i32::try_from(amount.max(0)).unwrap_or(i32::MAX);
+    member.hp = member.hp.saturating_add(gain).min(member.hp_max);
+    events.push(Event::Healed {
+        target: member.id,
+        rolls,
+        amount,
+        hp: member.hp,
+    });
+    if was_down && member.hp > 0 {
+        member.death_saves = DeathSaves::default();
+        set_condition(member, data, "unconscious", false, events);
+    }
 }

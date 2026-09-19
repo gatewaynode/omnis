@@ -4,15 +4,16 @@
 use super::Roller;
 use super::state::{CombatState, is_dead};
 use crate::encounter::Stack;
-use crate::party;
+use crate::items::add_to;
+use crate::party::{self, set_condition};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
 use omnis_data::{Attack, Data, Monster};
 use omnis_rules::{
     Character, DeathSaveResult, DeathSaves, RollMode, RuleError, Weapon, armor_class, attack_bonus,
-    attack_roll, choose_target, condition_id, damage_roll, death_save, flags, member_defenses,
-    monster_defenses, pick_attack, wound_at_zero,
+    attack_roll, choose_target, damage_roll, death_save, flags, member_defenses, monster_defenses,
+    pick_attack, wound_at_zero,
 };
 
 use crate::event::{ActorRef, Event};
@@ -334,32 +335,6 @@ fn die(member: &mut Character, data: &Data, events: &mut Vec<Event>) {
     });
 }
 
-/// Add or remove a pack condition by name, with the event, when the pack defines it.
-fn set_condition(
-    member: &mut Character,
-    data: &Data,
-    name: &str,
-    applied: bool,
-    events: &mut Vec<Event>,
-) {
-    let Some(condition) = condition_id(data, name) else {
-        return;
-    };
-    let at = member.conditions.iter().position(|c| *c == condition);
-    match (applied, at) {
-        (true, None) => member.conditions.push(condition),
-        (false, Some(i)) => {
-            member.conditions.remove(i);
-        }
-        _ => return,
-    }
-    events.push(Event::Condition {
-        target: ActorRef::Member(member.id),
-        condition,
-        applied,
-    });
-}
-
 /// Under permadeath the dead leave the party and their kit goes to the shared inventory;
 /// otherwise they keep their slot for the temple. Returns who left.
 pub(crate) fn bury(world: &mut World, data: &Data) -> Vec<CharacterId> {
@@ -371,10 +346,7 @@ pub(crate) fn bury(world: &mut World, data: &Data) -> Vec<CharacterId> {
     for member in members {
         if is_dead(&member, data) {
             for (item, count) in member.equipment {
-                match world.party.inventory.iter_mut().find(|(i, _)| *i == item) {
-                    Some((_, have)) => *have = have.saturating_add(count),
-                    None => world.party.inventory.push((item, count)),
-                }
+                add_to(&mut world.party.inventory, item, count);
             }
             fallen.push(member.id);
         } else {
