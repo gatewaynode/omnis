@@ -639,6 +639,8 @@ pub enum PauseAction {
     Load,
     /// Open the character sheet.
     Sheet,
+    /// Open the debug menu (a dev build with devtools on in this game).
+    Debug,
     /// Drop the game and return to the title.
     QuitToTitle,
     /// Exit.
@@ -652,25 +654,36 @@ pub struct Pause {
     pub cursor: usize,
 }
 
+/// Whether the debug menu can open: this build carries the dev tools and the game allows
+/// `Dev` commands.
+#[must_use]
+pub fn debug_available(settings: Settings) -> bool {
+    settings.devtools && cfg!(feature = "devtools")
+}
+
 impl Pause {
     /// The items, in cursor order.
-    pub const ITEMS: [&'static str; 6] = [
+    pub const ITEMS: [&'static str; 7] = [
         "Resume",
         "Save",
         "Load",
         "Character sheet",
+        "Debug menu",
         "Quit to title",
         "Quit",
     ];
     /// The action of each item, in the same order.
-    const ACTIONS: [PauseAction; 6] = [
+    const ACTIONS: [PauseAction; 7] = [
         PauseAction::Resume,
         PauseAction::Save,
         PauseAction::Load,
         PauseAction::Sheet,
+        PauseAction::Debug,
         PauseAction::QuitToTitle,
         PauseAction::Quit,
     ];
+    /// The row of the debug item, dim when `debug_available` says no.
+    pub const DEBUG: usize = 4;
 
     /// Handle a key.
     pub fn key(&mut self, key: MenuKey) -> Option<PauseAction> {
@@ -925,12 +938,13 @@ mod tests {
         assert_eq!(lines[1], "Seed 7");
         assert_eq!(lines[2], "Saving: InnOnly   Permadeath: on   Devtools: on");
         assert_eq!(
-            &lines[4..10],
+            &lines[4..11],
             [
                 "> Resume",
                 "  Save",
                 "  Load",
                 "  Character sheet",
+                "  Debug menu",
                 "  Quit to title",
                 "  Quit"
             ]
@@ -941,9 +955,17 @@ mod tests {
             PauseAction::Save,
             PauseAction::Load,
             PauseAction::Sheet,
+            PauseAction::Debug,
             PauseAction::QuitToTitle,
             PauseAction::Quit,
         ];
+        assert_eq!(Pause::ITEMS[Pause::DEBUG], "Debug menu");
+        assert_eq!(
+            debug_available(settings),
+            cfg!(feature = "devtools"),
+            "on in this game, so the build decides"
+        );
+        assert!(!debug_available(Settings::default()));
         for (i, action) in expected.iter().enumerate() {
             assert_eq!(pause.cursor, i);
             assert_eq!(pause.key(MenuKey::Enter), Some(*action), "item {i}");

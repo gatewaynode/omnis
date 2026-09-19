@@ -414,14 +414,19 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
         TEXT,
     );
     for (i, text) in Pause::ITEMS.iter().enumerate() {
-        item(
+        let state = if i == Pause::DEBUG && !crate::menu::debug_available(settings) {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(pause.cursor == i)
+        };
+        item_state(
             frame,
             WidgetId::Row(i),
             Kind::Button,
             (1, 8 + i as i32),
             text,
             13,
-            pause.cursor == i,
+            state,
         );
     }
 }
@@ -516,6 +521,20 @@ pub(crate) mod tests {
         pause(&mut frame, &Pause::default(), Settings::default(), u64::MAX);
         assert_laid_out(&frame, MENU_BOX);
         assert_eq!(frame.widgets.len(), Pause::ITEMS.len());
+        assert!(
+            !frame.widget(WidgetId::Row(Pause::DEBUG)).unwrap().enabled,
+            "no devtools in this game: the debug item is dim"
+        );
+        let dev = Settings {
+            devtools: true,
+            ..Settings::default()
+        };
+        let mut frame = Frame::default();
+        pause(&mut frame, &Pause::default(), dev, 0);
+        assert_eq!(
+            frame.widget(WidgetId::Row(Pause::DEBUG)).unwrap().enabled,
+            cfg!(feature = "devtools")
+        );
     }
 
     #[test]

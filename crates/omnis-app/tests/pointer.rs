@@ -294,7 +294,7 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     escape(&mut app);
-    click(&mut app, WidgetId::Row(4), Part::Body);
+    click(&mut app, WidgetId::Row(5), Part::Body);
     assert_eq!(
         *app.world().resource::<State<AppState>>().get(),
         AppState::MainMenu
@@ -397,7 +397,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
 
     escape(&mut app);
     assert_eq!(play_state(&app), PlayState::Paused);
-    assert!(widget(&app, WidgetId::Row(5)).enabled, "six items");
+    assert!(widget(&app, WidgetId::Row(6)).enabled, "seven items");
     click(&mut app, WidgetId::Row(1), Part::Body);
     app.update();
     assert_eq!(

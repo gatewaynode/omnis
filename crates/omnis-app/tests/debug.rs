@@ -7,10 +7,11 @@ mod common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;
-use common::{click, key, place, play_state, seen, ui_app_saving_to, widget, world};
+use common::{click, escape, key, place, play_state, seen, ui_app_saving_to, widget, world};
 use omnis_app::debug::DebugPlugin;
 use omnis_app::debug_menu::{ROW_HP, ROW_ITEM, ROW_STACK};
 use omnis_app::dev::recruit;
+use omnis_app::menu::Pause;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{PackData, PlayState, PlayerCommand};
 use omnis_app::widget::{Part, WidgetId};
@@ -154,4 +155,23 @@ fn in_a_fight_the_stack_row_kills_and_escape_returns_to_the_world() {
         PlayState::Explore,
         "the backtick closes it where the world is"
     );
+}
+
+#[test]
+fn the_pause_overlay_s_item_opens_the_menu_too() {
+    let mut app = before_the_rats("debug-pause.ron");
+    escape(&mut app);
+    assert_eq!(play_state(&app), PlayState::Paused);
+    assert!(
+        widget(&app, WidgetId::Row(Pause::DEBUG)).enabled,
+        "a dev game"
+    );
+    click(&mut app, WidgetId::Row(Pause::DEBUG), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Debug);
+    assert!(
+        widget(&app, WidgetId::Row(ROW_HP)).enabled,
+        "the menu is up"
+    );
+    key(&mut app, Key::Escape);
+    assert_eq!(play_state(&app), PlayState::Explore);
 }

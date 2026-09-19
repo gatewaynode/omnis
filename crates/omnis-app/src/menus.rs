@@ -10,7 +10,7 @@ use crate::debug_menu::DebugMenu;
 use crate::inventory_menu::InventoryMenu;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
-    Title, TitleAction,
+    Title, TitleAction, debug_available,
 };
 use crate::screen::{self, Target};
 use crate::sheet_menu::SheetMenu;
@@ -219,6 +219,8 @@ struct Actions<'a, 'c, 'cs, 'n, 'p, 's, 'e, 'r> {
     notice: &'a mut Notice,
     /// The play state the current world's mode calls for: where Resume goes.
     resume: PlayState,
+    /// Whether the debug menu can open for the current world.
+    debug: bool,
 }
 
 impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
@@ -259,6 +261,9 @@ fn menu_keys(
     let resume = world
         .as_ref()
         .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode));
+    let debug = world
+        .as_ref()
+        .is_some_and(|w| debug_available(w.0.settings));
     let active = at.screen();
     let mut pressed: Vec<MenuKey> = keys.read().filter_map(menu_key).collect();
     for UiClick(hit) in clicks.read() {
@@ -280,6 +285,7 @@ fn menu_keys(
         replaced: &mut replaced,
         notice: &mut notice,
         resume,
+        debug,
     };
     for key in pressed {
         let Screens {
@@ -420,6 +426,14 @@ fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
             act.shell.write(ShellCommand::Load);
         }
         PauseAction::Sheet => act.next.play.set(PlayState::Sheet),
+        PauseAction::Debug if act.debug => act.next.play.set(PlayState::Debug),
+        PauseAction::Debug => {
+            act.notice.0 = if cfg!(feature = "devtools") {
+                "Devtools are off in this game".to_owned()
+            } else {
+                "This build has no debug menu".to_owned()
+            };
+        }
         PauseAction::QuitToTitle => act.leave_game(),
         PauseAction::Quit => {
             act.exit.write(AppExit::Success);
