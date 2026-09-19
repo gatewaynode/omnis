@@ -117,10 +117,31 @@ fn dev_schema() -> Value {
     ]})
 }
 
+/// A member's slot, or null for the actor.
+fn member_or_null() -> Value {
+    json!({"type": ["integer", "null"], "minimum": 0})
+}
+
+/// The `Item` command's variants: every `item` is a row of the kit or the stores it names.
+fn item_schema() -> Value {
+    let member = ("member", index());
+    let item = ("item", index());
+    let count = ("count", json!({"type": "integer", "minimum": 1}));
+    let slot = json!({"type": "string", "enum": ["MainHand", "OffHand", "Ranged", "Body"]});
+    json!({"oneOf": [
+        variant("Equip", &[member.clone(), item.clone()]),
+        variant("Unequip", &[member.clone(), ("slot", slot)]),
+        variant("Give", &[("from", index()), ("to", index()), item.clone(), count.clone()]),
+        variant("Stow", &[member.clone(), item.clone(), count.clone()]),
+        variant("Take", &[member.clone(), item.clone(), count]),
+        variant("Use", &[member, item, ("target", member_or_null())])
+    ]})
+}
+
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), or a Dev edit in a devtools world.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, use a kit row on a member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), or a Dev edit in a devtools world.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -134,10 +155,12 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Combat": {"oneOf": [
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
                     variant("Cast", &[("spell", index()), ("target", target())]),
+                    variant("Use", &[("item", index()), ("target", member_or_null())]),
                     {"type": "string", "enum": ["Dodge", "Run"]},
                     {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
                 ]}}, "required": ["Combat"], "additionalProperties": false},
                 variant("Cast", &[("caster", index()), ("spell", index()), ("target", target())]),
+                {"type": "object", "properties": {"Item": item_schema()}, "required": ["Item"], "additionalProperties": false},
                 {"type": "object", "properties": {"Dev": dev_schema()}, "required": ["Dev"], "additionalProperties": false}
             ]
         })
@@ -214,16 +237,26 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .len(),
-            8,
-            "step, turn, interact, party, encounter, combat, cast, dev"
+            9,
+            "step, turn, interact, party, encounter, combat, cast, item, dev"
         );
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 12);
+        assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][5]["properties"]["Combat"]["oneOf"];
-        assert_eq!(combat.as_array().unwrap().len(), 4);
+        assert_eq!(combat.as_array().unwrap().len(), 5);
         assert_eq!(
             combat[1]["properties"]["Cast"]["required"],
             json!(["spell", "target"])
+        );
+        assert_eq!(
+            combat[2]["properties"]["Use"]["properties"]["target"]["type"],
+            json!(["integer", "null"])
+        );
+        let item = &schema["properties"]["commands"]["items"]["oneOf"][7]["properties"]["Item"];
+        assert_eq!(
+            item["oneOf"][2]["properties"]["Give"]["required"],
+            json!(["from", "to", "item", "count"])
         );
         assert_eq!(Draft::schema()["required"].as_array().unwrap().len(), 6);
         assert_eq!(

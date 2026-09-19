@@ -146,7 +146,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, armor class, scores, row, and conditions, plus slots, gold, gems, and food.",
+            "The party: members with race, class, level, hit and spell points, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold, gems, food, the stores as rows, and party-wide effects.",
             &[],
         ),
         tool(

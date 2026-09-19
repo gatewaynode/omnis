@@ -154,6 +154,59 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 }
 
 #[test]
+fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
+    let mut server = Server::headless();
+    server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}}));
+    let draft = json!({"name": "Brenna", "race": "base:race:human", "class": "base:class:fighter", "background": "base:background:acolyte", "alignment": "LawfulGood", "scores": [15, 14, 13, 12, 10, 8], "skills": ["Athletics", "Perception"]});
+    let reply = server.tool(10, "party_create", json!({"character": draft}));
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(11, "party_get", json!({}));
+    let member = &reply["result"]["structuredContent"]["party"]["members"][0];
+    let kit = member["equipment"].as_array().unwrap();
+    let potion = kit
+        .iter()
+        .find(|i| i["id"] == json!("base:item:potion_of_healing"))
+        .unwrap_or_else(|| panic!("{member}"));
+    assert_eq!(potion["usable"], json!(true));
+    assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
+    let reply = server.tool(
+        12,
+        "sim_command",
+        json!({"command": {"Item": {"Use": {"member": 0, "item": potion["index"], "target": null}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let events = reply["result"]["structuredContent"]["events"]
+        .as_array()
+        .unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|e| e["ItemUsed"]["consumed"] == json!(true)),
+        "{reply}"
+    );
+    let reply = server.tool(13, "party_get", json!({}));
+    let kit = reply["result"]["structuredContent"]["party"]["members"][0]["equipment"]
+        .as_array()
+        .unwrap();
+    assert!(
+        !kit.iter()
+            .any(|i| i["id"] == json!("base:item:potion_of_healing")),
+        "spent"
+    );
+    let reply = server.tool(
+        14,
+        "sim_command",
+        json!({"command": {"Combat": {"Use": {"item": 0, "target": null}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
+    assert_eq!(
+        reply["result"]["structuredContent"]["kind"],
+        json!("Rejected"),
+        "{reply}"
+    );
+}
+
+#[test]
 fn the_party_and_the_rules_go_through_the_same_pipe() {
     let mut server = Server::headless();
     server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}}));
