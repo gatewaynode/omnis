@@ -16,7 +16,8 @@ use omnis_app::input::InputPlugin;
 use omnis_app::menu::{ROW_ADD, ROW_CLASS, ROW_RACE, ROW_SCORES};
 use omnis_app::menus::{MenusPlugin, Screens};
 use omnis_app::sim::{
-    AppState, MenuState, PlayState, SimEvent, SimPlugin, SimSet, SimWorld, WorldReplaced,
+    AppState, MenuState, PlayState, ShellCommand, SimEvent, SimPlugin, SimSet, SimWorld,
+    WorldReplaced,
 };
 use omnis_app::ui::{UiFrame, UiPlugin};
 use omnis_app::widget::{Part, Widget, WidgetId};
@@ -33,15 +34,19 @@ pub struct Seen {
     pub events: Vec<Event>,
     /// How many times the world was replaced.
     pub replaced: usize,
+    /// Every shell command, in order.
+    pub shell: Vec<ShellCommand>,
 }
 
 fn collect(
     mut events: MessageReader<SimEvent>,
     mut replaced: MessageReader<WorldReplaced>,
+    mut shell: MessageReader<ShellCommand>,
     mut seen: ResMut<Seen>,
 ) {
     seen.events.extend(events.read().map(|e| e.0.clone()));
     seen.replaced += replaced.read().count();
+    seen.shell.extend(shell.read().copied());
 }
 
 /// The app under `MinimalPlugins` with every headless plugin, on the base and test packs.

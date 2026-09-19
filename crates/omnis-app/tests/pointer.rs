@@ -20,7 +20,7 @@ use omnis_app::menu::ROW_BEGIN;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
 use omnis_app::ui::{MessageLine, Selected};
-use omnis_app::widget::{ALERT, PadButton, Part, WidgetId};
+use omnis_app::widget::{ALERT, PadButton, Part, ToolButton, WidgetId};
 use omnis_sim::SaveRule;
 use omnis_sim::omnis_core::Facing;
 
@@ -306,6 +306,72 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
             .widget(WidgetId::Pad(PadButton::Use))
             .is_none()
     );
+}
+
+/// The tool pad by mouse: MENU pauses (and the pad goes dim under the overlay), MAP sends
+/// the automap toggle, a dim button does nothing, and SPELLS lights up with a caster and
+/// opens the cast menu.
+#[test]
+fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
+    let mut app = common::ui_app_saving_to("tool-pad.ron", true);
+    app.update();
+    app.update();
+    for button in [ToolButton::Items, ToolButton::Sheet, ToolButton::Look] {
+        assert!(!widget(&app, WidgetId::Tool(button)).enabled, "{button:?}");
+    }
+    assert!(
+        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
+        "no caster yet"
+    );
+    assert!(widget(&app, WidgetId::Tool(ToolButton::Map)).enabled);
+
+    click(&mut app, WidgetId::Tool(ToolButton::Menu), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Paused);
+    assert!(
+        !widget(&app, WidgetId::Tool(ToolButton::Menu)).enabled,
+        "dim under the overlay"
+    );
+    click(&mut app, WidgetId::Row(0), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Explore);
+
+    click(&mut app, WidgetId::Tool(ToolButton::Map), Part::Body);
+    assert_eq!(seen(&app).shell.last(), Some(&ShellCommand::ToggleAutomap));
+
+    let items = widget(&app, WidgetId::Tool(ToolButton::Items));
+    let sent = seen(&app).shell.len();
+    click_at(&mut app, spot(&items, Part::Body));
+    assert_eq!(play_state(&app), PlayState::Explore);
+    assert_eq!(seen(&app).shell.len(), sent, "a dim button sends nothing");
+    assert_eq!(frame(&app).hover, None);
+
+    let draft = omnis_sim::omnis_rules::Draft {
+        name: "Ilvara".to_owned(),
+        race: "base:race:elf".to_owned(),
+        class: "base:class:wizard".to_owned(),
+        background: "base:background:acolyte".to_owned(),
+        alignment: omnis_sim::omnis_data::Alignment::ChaoticGood,
+        scores: [8, 14, 13, 15, 12, 10],
+        skills: vec![
+            omnis_sim::omnis_data::Skill::Arcana,
+            omnis_sim::omnis_data::Skill::History,
+        ],
+    };
+    app.world_mut()
+        .resource_mut::<Messages<omnis_app::sim::PlayerCommand>>()
+        .write(omnis_app::sim::PlayerCommand(omnis_sim::Command::Party(
+            omnis_sim::PartyCommand::Create(draft),
+        )));
+    app.update();
+    app.update();
+    assert!(widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled);
+    click(&mut app, WidgetId::Tool(ToolButton::Spells), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Cast);
+    assert!(
+        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
+        "dim under the cast menu"
+    );
+    common::key(&mut app, bevy::input::keyboard::Key::Escape);
+    assert_eq!(play_state(&app), PlayState::Explore);
 }
 
 /// The pause menu's Save and Load by mouse: the quick save is written, read back, and the

@@ -182,6 +182,32 @@ pub const PAD: Rect = Rect::new(
     PAD_SIZE.0,
     PAD_SIZE.1,
 );
+/// The tool pad: two rows of three buttons above the movement pad, one gap between them,
+/// in the strip the location lines leave free.
+pub const TOOLS: Rect = Rect::new(
+    PAD.x,
+    PAD.y - PAD_GAP.1 - (2 * PAD_BUTTON.1 + PAD_GAP.1 as u32) as i32,
+    PAD_SIZE.0,
+    2 * PAD_BUTTON.1 + PAD_GAP.1 as u32,
+);
+/// The tool button at a column and row of the tool pad's grid.
+pub const fn tool_button(column: i32, row: i32) -> Rect {
+    Rect::new(
+        TOOLS.x + column * (PAD_BUTTON.0 as i32 + PAD_GAP.0),
+        TOOLS.y + row * (PAD_BUTTON.1 as i32 + PAD_GAP.1),
+        PAD_BUTTON.0,
+        PAD_BUTTON.1,
+    )
+}
+/// The tool pad's buttons in reading order: items, spells, sheet; look, map, menu.
+pub const TOOL_BUTTONS: [Rect; 6] = [
+    tool_button(0, 0),
+    tool_button(1, 0),
+    tool_button(2, 0),
+    tool_button(0, 1),
+    tool_button(1, 1),
+    tool_button(2, 1),
+];
 /// The pad button at a column and row of the pad's grid.
 pub const fn pad_button(column: i32, row: i32) -> Rect {
     Rect::new(
@@ -645,11 +671,22 @@ mod tests {
         assert!(VIEWPORT.encloses(OVERLAY_MAP_CLIP));
         let map = Rect::new(SIDEBAR_MAP.0, SIDEBAR_MAP.1, SIDEBAR_MAP.2, SIDEBAR_MAP.3);
         assert!(RIGHT_COLUMN.encloses(map) && RIGHT_COLUMN.encloses(PAD));
+        assert!(RIGHT_COLUMN.encloses(TOOLS), "{TOOLS:?}");
+        assert!(!TOOLS.overlaps(map) && !TOOLS.overlaps(PAD), "{TOOLS:?}");
+        assert_eq!(TOOLS, Rect::new(968, 300, 304, 88));
+        assert_eq!(TOOLS.bottom() + PAD_GAP.1, PAD.y, "one gap above the pad");
         let hud_width = HUD_COLUMNS as u32 * CELL.0 as u32;
         for (x, y) in HUD_LINES {
             let line = Rect::new(x, y, hud_width, CELL.1 as u32);
             assert!(RIGHT_COLUMN.encloses(line), "{line:?}");
             assert!(!line.overlaps(map) && !line.overlaps(PAD), "{line:?}");
+            assert!(!line.overlaps(TOOLS), "{line:?}");
+        }
+        for (i, a) in TOOL_BUTTONS.iter().enumerate() {
+            assert!(TOOLS.encloses(*a), "{a:?}");
+            for b in &TOOL_BUTTONS[i + 1..] {
+                assert!(!a.overlaps(*b), "{a:?} overlaps {b:?}");
+            }
         }
         for (i, a) in PAD_BUTTONS.iter().enumerate() {
             assert!(PAD.encloses(*a), "{a:?}");
@@ -679,8 +716,8 @@ mod tests {
         assert!(COLUMNS * CELL.0 <= w && (COLUMNS + 1) * CELL.0 > w);
         assert!(ROWS * CELL.1 <= h && (ROWS + 1) * CELL.1 > h);
         assert!(
-            HUD_LINES[2].1 + CELL.1 <= PAD.y,
-            "the location lines end above the pad"
+            HUD_LINES[2].1 + CELL.1 + PAD_GAP.1 <= TOOLS.y,
+            "the location lines end a gap above the tool pad"
         );
     }
 }

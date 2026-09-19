@@ -2,7 +2,7 @@
 //! screens and panels paint into. Bevy-free, and below `screens` and `panels` in the module
 //! graph so the painters share these types without a cycle.
 
-use crate::layout::{PAD_BUTTONS, Rect};
+use crate::layout::{PAD_BUTTONS, Rect, TOOL_BUTTONS};
 use crate::raster::{Raster, Rgb};
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};
@@ -88,6 +88,83 @@ impl PadButton {
     }
 }
 
+/// A tool pad button: the doors to the screens outside a fight, above the movement pad.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ToolButton {
+    /// The inventory (M6b).
+    Items,
+    /// The cast menu.
+    Spells,
+    /// The character sheet (E3).
+    Sheet,
+    /// Look through a sense item (M6c).
+    Look,
+    /// The automap.
+    Map,
+    /// The pause menu.
+    Menu,
+}
+
+impl ToolButton {
+    /// Every button, in the tool pad's reading order.
+    pub const ALL: [ToolButton; 6] = [
+        ToolButton::Items,
+        ToolButton::Spells,
+        ToolButton::Sheet,
+        ToolButton::Look,
+        ToolButton::Map,
+        ToolButton::Menu,
+    ];
+
+    /// The word on the button.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            ToolButton::Items => "ITEMS",
+            ToolButton::Spells => "SPELLS",
+            ToolButton::Sheet => "SHEET",
+            ToolButton::Look => "LOOK",
+            ToolButton::Map => "MAP",
+            ToolButton::Menu => "MENU",
+        }
+    }
+
+    /// Where the button sits.
+    #[must_use]
+    pub const fn rect(self) -> Rect {
+        TOOL_BUTTONS[self as usize]
+    }
+}
+
+/// Each tool button's state, in `ToolButton::ALL` order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolStates(pub [PadState; 6]);
+
+impl Default for ToolStates {
+    fn default() -> Self {
+        ToolStates::all(PadState::Hidden)
+    }
+}
+
+impl ToolStates {
+    /// Every button in one state.
+    #[must_use]
+    pub const fn all(state: PadState) -> ToolStates {
+        ToolStates([state; 6])
+    }
+
+    /// The state of one button.
+    #[must_use]
+    pub const fn get(self, button: ToolButton) -> PadState {
+        self.0[button as usize]
+    }
+
+    /// Set the state of one button.
+    pub const fn set(&mut self, button: ToolButton, state: PadState) {
+        self.0[button as usize] = state;
+    }
+}
+
 /// Whether the pad is drawn and live.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PadState {
@@ -108,6 +185,8 @@ pub enum WidgetId {
     Skill(usize),
     /// A pad button.
     Pad(PadButton),
+    /// A tool pad button.
+    Tool(ToolButton),
     /// A party slot in the band.
     Member(usize),
     /// A monster stack row in a fight, by its index in the encounter.
@@ -315,6 +394,27 @@ mod tests {
             assert_eq!(b.rect(), PAD_BUTTONS[i]);
             assert!(b.label().len() <= 3);
         }
+    }
+
+    #[test]
+    fn tool_buttons_sit_on_the_tool_pad_and_their_words_fit() {
+        for (i, b) in ToolButton::ALL.iter().enumerate() {
+            assert_eq!(b.rect(), TOOL_BUTTONS[i]);
+            assert!(b.label().len() <= 6, "{b:?}");
+            assert!(
+                b.label().len() as u32 * crate::layout::CELL.0 as u32 <= b.rect().w,
+                "{b:?}"
+            );
+        }
+        let mut states = ToolStates::default();
+        assert_eq!(states.get(ToolButton::Menu), PadState::Hidden);
+        states.set(ToolButton::Menu, PadState::Enabled);
+        assert_eq!(states.get(ToolButton::Menu), PadState::Enabled);
+        assert_eq!(states.get(ToolButton::Map), PadState::Hidden);
+        assert_eq!(
+            ToolStates::all(PadState::Disabled).0,
+            [PadState::Disabled; 6]
+        );
     }
 
     #[test]

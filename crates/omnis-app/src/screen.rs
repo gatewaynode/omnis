@@ -13,7 +13,7 @@ use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS
 use crate::panels::{self, Hud, Message};
 use crate::screens;
 use crate::spell_menu::{CastMenu, CastRow, cast_screen};
-use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
+use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, ToolStates, WidgetId};
 use omnis_sim::Settings;
 
 /// The menu model a click lands on.
@@ -207,6 +207,8 @@ pub struct View<'a> {
     pub log: &'a [String],
     /// The pad.
     pub pad: PadState,
+    /// The tool pad.
+    pub tools: ToolStates,
     /// The message line.
     pub message: &'a Message,
     /// The help line.
@@ -265,7 +267,7 @@ pub fn compose_into(
 }
 
 /// The core in its own coordinates: the menu box and the menus, or the fight overlay; the
-/// location lines; the pad.
+/// location lines; the tool pad; the pad.
 fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
     if view.menu.covers_viewport() {
         frame.raster.fill(VIEWPORT, PANEL);
@@ -294,6 +296,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
     }
+    panels::tools(frame, view.tools, pressed);
     panels::pad(frame, view.pad, pressed);
 }
 
@@ -422,6 +425,7 @@ mod tests {
             acting: None,
             log: &[],
             pad: PadState::Hidden,
+            tools: ToolStates::default(),
             message: &Message::default(),
             help: "",
         };
@@ -461,6 +465,7 @@ mod tests {
             acting: None,
             log: &[],
             pad: PadState::Hidden,
+            tools: ToolStates::default(),
             message: &Message::default(),
             help: "help",
         };
@@ -500,6 +505,7 @@ mod tests {
                 acting: Some(0),
                 log: &log,
                 pad: PadState::Disabled,
+                tools: ToolStates::all(PadState::Disabled),
                 message: &Message::default(),
                 help: "",
             },
@@ -644,6 +650,7 @@ mod tests {
             acting: (name == "combat").then_some(0),
             log: if hud.is_some() { &log } else { &[] },
             pad,
+            tools: ToolStates::all(pad),
             message,
             help: "Arrows or click  Enter ok  Esc back",
         };
@@ -775,6 +782,7 @@ mod tests {
             acting: None,
             log,
             pad: PadState::Enabled,
+            tools: ToolStates::all(PadState::Enabled),
             message,
             help: "help",
         }

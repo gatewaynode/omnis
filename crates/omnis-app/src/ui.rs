@@ -17,7 +17,7 @@ use crate::screen::{self, Menu, View};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::viewport::canvas_to_world;
-use crate::widget::{self, Frame, Hit, PadState, WidgetId};
+use crate::widget::{self, Frame, Hit, PadState, ToolButton, ToolStates, WidgetId};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -218,7 +218,7 @@ fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter
         .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
-        hover.filter(|id| matches!(id, WidgetId::Pad(_)))
+        hover.filter(|id| matches!(id, WidgetId::Pad(_) | WidgetId::Tool(_)))
     } else {
         None
     };
@@ -359,6 +359,35 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
+/// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
+/// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
+/// spell for the road; ITEMS, SHEET and LOOK dim until their screens arrive.
+#[must_use]
+pub fn tool_states(active: Active, has_world: bool, has_casts: bool) -> ToolStates {
+    if !has_world {
+        return ToolStates::default();
+    }
+    let live = |on: bool| {
+        if on {
+            PadState::Enabled
+        } else {
+            PadState::Disabled
+        }
+    };
+    let exploring = active == Active::None;
+    let mut tools = ToolStates::all(PadState::Disabled);
+    tools.set(
+        ToolButton::Menu,
+        live(matches!(
+            active,
+            Active::None | Active::Encounter | Active::Combat
+        )),
+    );
+    tools.set(ToolButton::Map, live(exploring));
+    tools.set(ToolButton::Spells, live(exploring && has_casts));
+    tools
+}
+
 /// What the frame shows besides the screens' own state: the fight, the debug view, the
 /// road spells, and the log.
 struct Overlays<'a> {
@@ -467,6 +496,9 @@ fn build_frame(
     } else {
         Vec::new()
     };
+    let has_casts =
+        at.exploring() && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
+    let tools = tool_states(active, world.is_some() && at.playing(), has_casts);
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
@@ -503,6 +535,7 @@ fn build_frame(
             .filter(|s| *s < members.len()),
         log: &log.0,
         pad,
+        tools,
         message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
@@ -511,5 +544,39 @@ fn build_frame(
     screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_tool_pad_follows_the_screen() {
+        assert_eq!(
+            tool_states(Active::None, false, true),
+            ToolStates::default()
+        );
+        let map = tool_states(Active::None, true, true);
+        for button in [ToolButton::Menu, ToolButton::Map, ToolButton::Spells] {
+            assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
+        }
+        for button in [ToolButton::Items, ToolButton::Sheet, ToolButton::Look] {
+            assert_eq!(map.get(button), PadState::Disabled, "{button:?}");
+        }
+        let no_caster = tool_states(Active::None, true, false);
+        assert_eq!(no_caster.get(ToolButton::Spells), PadState::Disabled);
+        assert_eq!(no_caster.get(ToolButton::Map), PadState::Enabled);
+        let fight = tool_states(Active::Combat, true, true);
+        assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
+        assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
+        for active in [Active::Paused, Active::Cast, Active::Debug, Active::Defeat] {
+            assert_eq!(
+                tool_states(active, true, true),
+                ToolStates::all(PadState::Disabled),
+                "{active:?}"
+            );
+        }
     }
 }
