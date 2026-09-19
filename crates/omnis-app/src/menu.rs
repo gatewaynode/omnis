@@ -637,6 +637,8 @@ pub enum PauseAction {
     Save,
     /// Read the quick save.
     Load,
+    /// Open the character sheet.
+    Sheet,
     /// Drop the game and return to the title.
     QuitToTitle,
     /// Exit.
@@ -652,12 +654,20 @@ pub struct Pause {
 
 impl Pause {
     /// The items, in cursor order.
-    pub const ITEMS: [&'static str; 5] = ["Resume", "Save", "Load", "Quit to title", "Quit"];
+    pub const ITEMS: [&'static str; 6] = [
+        "Resume",
+        "Save",
+        "Load",
+        "Character sheet",
+        "Quit to title",
+        "Quit",
+    ];
     /// The action of each item, in the same order.
-    const ACTIONS: [PauseAction; 5] = [
+    const ACTIONS: [PauseAction; 6] = [
         PauseAction::Resume,
         PauseAction::Save,
         PauseAction::Load,
+        PauseAction::Sheet,
         PauseAction::QuitToTitle,
         PauseAction::Quit,
     ];
@@ -915,14 +925,22 @@ mod tests {
         assert_eq!(lines[1], "Seed 7");
         assert_eq!(lines[2], "Saving: InnOnly   Permadeath: on   Devtools: on");
         assert_eq!(
-            &lines[4..9],
-            ["> Resume", "  Save", "  Load", "  Quit to title", "  Quit"]
+            &lines[4..10],
+            [
+                "> Resume",
+                "  Save",
+                "  Load",
+                "  Character sheet",
+                "  Quit to title",
+                "  Quit"
+            ]
         );
         assert_eq!(pause.key(MenuKey::Escape), Some(PauseAction::Resume));
         let expected = [
             PauseAction::Resume,
             PauseAction::Save,
             PauseAction::Load,
+            PauseAction::Sheet,
             PauseAction::QuitToTitle,
             PauseAction::Quit,
         ];

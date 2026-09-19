@@ -1,6 +1,6 @@
 //! `InputPlugin`: keys, the movement pad and the tool pad to commands. Arrows or WASD move
 //! and turn, Q and E sidestep, Space or Enter interact, M toggles the automap, C opens the
-//! cast menu, Escape pauses; a click on a pad button sends the same command as its key, and a
+//! cast menu, P the character sheet, Escape pauses; a click on a pad button sends the same command as its key, and a
 //! click on a tool button the same shell command (the buttons' states say when they are
 //! live, so the keys are the shortcuts). No function key is bound: macOS takes them (saving
 //! and loading live on the pause menu).
@@ -57,6 +57,7 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
     Some(match key {
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
         KeyCode::KeyC => ShellCommand::Cast,
+        KeyCode::KeyP => ShellCommand::Sheet,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })
@@ -68,9 +69,10 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
 pub fn tool_for(button: ToolButton) -> Option<ShellCommand> {
     Some(match button {
         ToolButton::Spells => ShellCommand::Cast,
+        ToolButton::Sheet => ShellCommand::Sheet,
         ToolButton::Map => ShellCommand::ToggleAutomap,
         ToolButton::Menu => ShellCommand::Pause,
-        ToolButton::Items | ToolButton::Sheet | ToolButton::Look => return None,
+        ToolButton::Items | ToolButton::Look => return None,
     })
 }
 
@@ -115,6 +117,7 @@ mod tests {
     fn tool_buttons_send_what_their_keys_send() {
         assert_eq!(tool_for(ToolButton::Spells), shell_for(KeyCode::KeyC));
         assert_eq!(tool_for(ToolButton::Map), shell_for(KeyCode::KeyM));
+        assert_eq!(tool_for(ToolButton::Sheet), shell_for(KeyCode::KeyP));
         assert_eq!(tool_for(ToolButton::Menu), shell_for(KeyCode::Escape));
         assert_eq!(tool_for(ToolButton::Items), None);
     }

@@ -12,6 +12,8 @@ use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Hud, Message};
 use crate::screens;
+use crate::sheet_menu::{SheetMenu, SheetView};
+use crate::sheet_screen;
 use crate::spell_menu::{CastMenu, CastRow, cast_screen};
 use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, ToolStates, WidgetId};
 use omnis_sim::Settings;
@@ -36,6 +38,8 @@ pub enum Target<'a> {
     Debug(&'a mut DebugMenu),
     /// The cast menu while exploring.
     Cast(&'a mut CastMenu),
+    /// The character sheet.
+    Sheet(&'a mut SheetMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
@@ -99,6 +103,7 @@ fn set_row(target: Target<'_>, row: usize) -> bool {
             }
         }
         Target::Cast(menu) => menu.cursor = row,
+        Target::Sheet(menu) => menu.click_row(row),
         Target::Encounter(_) | Target::Combat(_) => return false,
     }
     true
@@ -174,6 +179,15 @@ pub enum Menu<'a> {
         menu: &'a CastMenu,
         /// The spells it lists.
         rows: &'a [CastRow],
+    },
+    /// The character sheet.
+    Sheet {
+        /// The menu.
+        menu: &'a SheetMenu,
+        /// The member shown.
+        view: &'a SheetView,
+        /// How many members the party has.
+        members: usize,
     },
 }
 
@@ -292,6 +306,11 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
         Menu::Debug { menu, view } => debug_screen::debug(frame, menu, view),
         Menu::Cast { menu, rows } => cast_screen(frame, menu, rows),
+        Menu::Sheet {
+            menu,
+            view,
+            members,
+        } => sheet_screen::sheet(frame, menu, view, *members),
     }
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
@@ -727,7 +746,39 @@ mod tests {
             view: &fight,
         };
         dump(&dir, "combat_cast", casting, Some(&hud), &event);
-        let debug_view = crate::debug_menu::DebugView {
+        let debug_view = sample_debug();
+        let mut debug_menu = DebugMenu::default();
+        debug_menu.open(&debug_view);
+        let debugging = Menu::Debug {
+            menu: &debug_menu,
+            view: &debug_view,
+        };
+        dump(&dir, "debug", debugging, Some(&hud), &event);
+        let fallen = Menu::Defeat {
+            menu: &defeat,
+            log: &log,
+        };
+        dump(&dir, "defeat", fallen, Some(&hud), &event);
+        let sheet_view = crate::sheet_menu::tests::sample();
+        for page in crate::sheet_menu::SheetPage::ALL {
+            let sheet_menu = crate::sheet_menu::SheetMenu {
+                member: 0,
+                page,
+                message: String::new(),
+            };
+            let showing = Menu::Sheet {
+                menu: &sheet_menu,
+                view: &sheet_view,
+                members: 4,
+            };
+            let name = format!("sheet_{}", page.label().to_ascii_lowercase());
+            dump(&dir, &name, showing, Some(&hud), &event);
+        }
+    }
+
+    /// The sample debug view: a fight, a dev world, one member.
+    fn sample_debug() -> crate::debug_menu::DebugView {
+        crate::debug_menu::DebugView {
             fighting: true,
             devtools: true,
             members: vec![crate::debug_menu::MemberDebug {
@@ -751,19 +802,7 @@ mod tests {
                 count: (3, 3),
                 lead_hp: 7,
             }],
-        };
-        let mut debug_menu = DebugMenu::default();
-        debug_menu.open(&debug_view);
-        let debugging = Menu::Debug {
-            menu: &debug_menu,
-            view: &debug_view,
-        };
-        dump(&dir, "debug", debugging, Some(&hud), &event);
-        let fallen = Menu::Defeat {
-            menu: &defeat,
-            log: &log,
-        };
-        dump(&dir, "defeat", fallen, Some(&hud), &event);
+        }
     }
 
     /// The sample explore view: no menu, the location lines, the pad enabled.

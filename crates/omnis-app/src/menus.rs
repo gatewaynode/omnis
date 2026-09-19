@@ -12,6 +12,7 @@ use crate::menu::{
     Title, TitleAction,
 };
 use crate::screen::{self, Target};
+use crate::sheet_menu::SheetMenu;
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
     SimEvent, SimWorld, StartIn, WorldReplaced, load,
@@ -48,6 +49,8 @@ pub struct Screens {
     pub debug: DebugMenu,
     /// The cast menu while exploring.
     pub cast: CastMenu,
+    /// The character sheet.
+    pub sheet: SheetMenu,
 }
 
 /// Which screen is up, if any.
@@ -79,6 +82,8 @@ pub enum Active {
     Debug,
     /// The cast menu while exploring.
     Cast,
+    /// The character sheet.
+    Sheet,
     /// No screen: booting or exploring.
     None,
 }
@@ -101,6 +106,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Defeat)) => Active::Defeat,
             (AppState::Playing, _, Some(PlayState::Debug)) => Active::Debug,
             (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
+            (AppState::Playing, _, Some(PlayState::Sheet)) => Active::Sheet,
             _ => Active::None,
         }
     }
@@ -172,8 +178,13 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
         Active::Cast => Target::Cast(&mut screens.cast),
-        // The combat and debug plugins handle their screens' clicks.
-        Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {
+        // The combat, debug and sheet plugins handle their screens' clicks.
+        Active::Encounter
+        | Active::Combat
+        | Active::Defeat
+        | Active::Debug
+        | Active::Sheet
+        | Active::None => {
             return Vec::new();
         }
     };
@@ -301,8 +312,13 @@ fn menu_keys(
                 world.as_deref(),
                 selected.as_ref().and_then(|s| s.0),
             ),
-            // The combat and debug plugins handle their screens' keys.
-            Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {}
+            // The combat, debug and sheet plugins handle their screens' keys.
+            Active::Encounter
+            | Active::Combat
+            | Active::Defeat
+            | Active::Debug
+            | Active::Sheet
+            | Active::None => {}
         }
     }
 }
@@ -395,6 +411,7 @@ fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
         PauseAction::Load => {
             act.shell.write(ShellCommand::Load);
         }
+        PauseAction::Sheet => act.next.play.set(PlayState::Sheet),
         PauseAction::QuitToTitle => act.leave_game(),
         PauseAction::Quit => {
             act.exit.write(AppExit::Success);

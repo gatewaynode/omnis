@@ -2,10 +2,11 @@
 //! the binary in `main.rs` stays a few lines.
 //!
 //! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `combat_menu`, `combat_text`, `combat_screen`,
-//! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`) hold everything that can be unit-tested; the plugins
+//! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`, `spell_menu`, `debug_menu`,
+//! `debug_screen`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
 //! hold only ECS wiring.
-//! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CombatPlugin`, `CursorPlugin`, and `UiPlugin` run
-//! headless under
+//! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CombatPlugin`, `SheetPlugin`, `CursorPlugin`, and
+//! `UiPlugin` run headless under
 //! `MinimalPlugins` (the UI frame is composed without being uploaded); `assets`, `pixel`, and
 //! `viewport` need the render stack.
 
@@ -38,6 +39,9 @@ pub mod plan;
 pub mod raster;
 pub mod screen;
 pub mod screens;
+pub mod sheet;
+pub mod sheet_menu;
+pub mod sheet_screen;
 pub mod sim;
 #[cfg(feature = "devtools")]
 pub mod socket;

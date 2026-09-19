@@ -9,7 +9,7 @@
 use bevy::prelude::*;
 use bevy::window::{MonitorSelection, WindowMode, WindowResolution};
 use omnis_app::layout::SizeClass;
-use omnis_app::{AppConfig, assets, combat, cursor, input, menus, pixel, sim, ui, viewport};
+use omnis_app::{AppConfig, assets, combat, cursor, input, menus, pixel, sheet, sim, ui, viewport};
 use std::path::PathBuf;
 
 #[cfg(feature = "devtools")]
@@ -183,6 +183,7 @@ fn main() -> AppExit {
         viewport::ViewportPlugin,
         menus::MenusPlugin,
         combat::CombatPlugin,
+        sheet::SheetPlugin,
         ui::UiPlugin,
     ));
     #[cfg(feature = "devtools")]

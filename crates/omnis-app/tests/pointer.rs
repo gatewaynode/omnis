@@ -294,7 +294,7 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     escape(&mut app);
-    click(&mut app, WidgetId::Row(3), Part::Body);
+    click(&mut app, WidgetId::Row(4), Part::Body);
     assert_eq!(
         *app.world().resource::<State<AppState>>().get(),
         AppState::MainMenu
@@ -316,9 +316,13 @@ fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
     let mut app = common::ui_app_saving_to("tool-pad.ron", true);
     app.update();
     app.update();
-    for button in [ToolButton::Items, ToolButton::Sheet, ToolButton::Look] {
+    for button in [ToolButton::Items, ToolButton::Look] {
         assert!(!widget(&app, WidgetId::Tool(button)).enabled, "{button:?}");
     }
+    assert!(
+        !widget(&app, WidgetId::Tool(ToolButton::Sheet)).enabled,
+        "no member yet"
+    );
     assert!(
         !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
         "no caster yet"
@@ -393,7 +397,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
 
     escape(&mut app);
     assert_eq!(play_state(&app), PlayState::Paused);
-    assert!(widget(&app, WidgetId::Row(4)).enabled, "five items");
+    assert!(widget(&app, WidgetId::Row(5)).enabled, "six items");
     click(&mut app, WidgetId::Row(1), Part::Body);
     app.update();
     assert_eq!(

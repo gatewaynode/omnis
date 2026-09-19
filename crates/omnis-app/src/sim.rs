@@ -52,6 +52,8 @@ pub enum PlayState {
     Debug,
     /// The cast menu while exploring.
     Cast,
+    /// The character sheet over the world.
+    Sheet,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -112,6 +114,8 @@ pub enum ShellCommand {
     Pause,
     /// Open the cast menu while exploring.
     Cast,
+    /// Open the character sheet.
+    Sheet,
     /// Exit the application.
     Quit,
 }
@@ -286,6 +290,7 @@ fn shell(
             },
             ShellCommand::Pause => out.next_play.set(PlayState::Paused),
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
+            ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }
