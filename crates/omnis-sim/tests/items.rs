@@ -468,15 +468,12 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
         use_on(0, sword, None),
         Rejection::NotUsable,
     );
-    // A spyglass waits for sensing (M6c).
+    // A spyglass is a use on the road: it looks (tests/sense.rs) and is not spent.
     world.party.members[0].equipment.push((glass, 1));
-    let glass = kit_row(&world, 0, glass);
-    refused(
-        &mut world,
-        &data,
-        use_on(0, glass, None),
-        Rejection::NotUsable,
-    );
+    let glass_row = kit_row(&world, 0, glass);
+    let events = apply(&mut world, &data, use_on(0, glass_row, None)).unwrap();
+    assert!(events.iter().any(|e| matches!(e, Event::Sensed { .. })));
+    assert_eq!(count_of(&world.party.members[0].equipment, glass), 1);
     refused(
         &mut world,
         &data,

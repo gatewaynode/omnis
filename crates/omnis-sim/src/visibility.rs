@@ -138,6 +138,32 @@ fn walk(
     true
 }
 
+/// The tiles straight ahead of `pos`, nearest first, up to `range` of them: the walk stops
+/// before a wall or a closed door and after an opaque tile (seen, not seen through), and at
+/// the map's edge. What a spyglass looks along.
+#[must_use]
+pub fn ray(map: &MapData, state: Option<&MapState>, pos: Position, range: u8) -> Vec<(u16, u16)> {
+    let mut tiles = Vec::new();
+    let (mut x, mut y) = (pos.x, pos.y);
+    for _ in 0..range {
+        if !edge_open(map, state, x, y, pos.facing) {
+            break;
+        }
+        let Some((nx, ny)) = (Position { x, y, ..pos }).neighbour(pos.facing) else {
+            break;
+        };
+        let Some(cell) = map.cell(nx, ny) else {
+            break;
+        };
+        tiles.push((nx, ny));
+        if map.terrain(cell).opaque {
+            break;
+        }
+        (x, y) = (nx, ny);
+    }
+    tiles
+}
+
 /// Every visible tile, nearest row first, centre outward within a row.
 #[must_use]
 pub fn cone(world: &World, data: &Data) -> Vec<SeenTile> {

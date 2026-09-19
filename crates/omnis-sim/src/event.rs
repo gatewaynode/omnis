@@ -136,6 +136,28 @@ pub enum EffectEnd {
     FightOver,
 }
 
+/// One knowledge layer's check when sensing from afar.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LayerCheck {
+    /// The layer: 1 terrain, 2 structure.
+    pub layer: u8,
+    /// The skill check, none when the source needs no die.
+    pub roll: Option<Roll>,
+    /// How many tiles along the ray the layer reached.
+    pub reach: u8,
+}
+
+/// A tile revealed from afar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SensedTile {
+    /// Column.
+    pub x: u16,
+    /// Row.
+    pub y: u16,
+    /// The `layer::*` bits that reached it.
+    pub layers: u8,
+}
+
 /// Where an item was or went.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ItemPlace {
@@ -393,6 +415,18 @@ pub enum Event {
         target: Option<CharacterId>,
         /// Whether a count was spent.
         consumed: bool,
+    },
+    /// A member looked from afar: one check per knowledge layer, and what the automap now
+    /// carries as remotely seen.
+    Sensed {
+        /// Whose eyes.
+        actor: CharacterId,
+        /// What they looked through.
+        item: ItemId,
+        /// The checks, terrain first.
+        checks: Vec<LayerCheck>,
+        /// The tiles revealed, nearest first.
+        tiles: Vec<SensedTile>,
     },
     /// Hit points regained, by a potion or a spell.
     Healed {

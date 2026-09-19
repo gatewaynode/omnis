@@ -10,11 +10,12 @@ use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::{Event, ItemPlace};
 use crate::party::{self, Party};
+use crate::sense;
 use crate::world::World;
 use alloc::vec;
 use alloc::vec::Vec;
 use omnis_core::{Dice, ItemId};
-use omnis_data::{Data, EquipSlot, UseEffect};
+use omnis_data::{Data, EquipSlot, SenseSource, UseEffect};
 use omnis_rules::{Character, EquipRefusal, RuleError};
 use serde::{Deserialize, Serialize};
 
@@ -84,6 +85,15 @@ pub enum ItemCommand {
     },
 }
 
+/// What a use does, from the item's `use_effect`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UseKind {
+    /// Heal the target with these dice.
+    Heal(Dice),
+    /// Look from afar.
+    Sense(SenseSource),
+}
+
 /// A use that passed every check.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct UsePlan {
@@ -91,10 +101,10 @@ pub(crate) struct UsePlan {
     pub own: usize,
     /// The item.
     pub item: ItemId,
-    /// The member it goes to.
+    /// The member a heal goes to.
     pub target: usize,
-    /// The healing dice.
-    pub dice: Dice,
+    /// What it does.
+    pub kind: UseKind,
     /// Whether one count is spent.
     pub consumable: bool,
 }
@@ -153,14 +163,17 @@ pub(crate) fn apply(
         } => {
             let own = actor(world, data, member)?;
             let plan = validate_use(world, data, own, item, target, false)?;
-            let mut roller = Roller::take_stream(world, "items");
+            let (stream, minutes) = match &plan.kind {
+                UseKind::Heal(_) => (
+                    "items",
+                    minutes(data, "use_item_minutes", DEFAULT_USE_MINUTES),
+                ),
+                UseKind::Sense(source) => ("sense", source.minutes),
+            };
+            let mut roller = Roller::take_stream(world, stream);
             use_item(world, data, &plan, &mut roller, events).map_err(Rejection::Rule)?;
             roller.store(world);
-            advance(
-                world,
-                minutes(data, "use_item_minutes", DEFAULT_USE_MINUTES),
-                events,
-            );
+            advance(world, minutes, events);
             Ok(())
         }
     }
@@ -344,8 +357,8 @@ fn transfer(
 }
 
 /// The checks a use passes before any die: a carried item with a use, usable here (`fight`
-/// says whether a fight is on; a sense item is not used from one), and a living target.
-/// `own` is the user, already known to be able to act.
+/// says whether a fight is on; a sense item is not used from one), and for a heal a living
+/// target. `own` is the user, already known to be able to act.
 pub(crate) fn validate_use(
     world: &World,
     data: &Data,
@@ -357,27 +370,34 @@ pub(crate) fn validate_use(
     let id =
         row(&world.party.members[own].equipment, item).ok_or(Rejection::UnknownItem { item })?;
     let def = data.items.get(&id).ok_or(Rejection::UnknownItem { item })?;
-    let dice = match &def.use_effect {
-        Some(UseEffect::Heal { dice }) => *dice,
-        // A sense item is not used from a fight; exploring, its use arrives with sensing.
+    let kind = match &def.use_effect {
+        Some(UseEffect::Heal { dice }) => UseKind::Heal(*dice),
         Some(UseEffect::Sense(_)) if fight => return Err(Rejection::NotUsableHere),
-        Some(UseEffect::Sense(_)) | None => return Err(Rejection::NotUsable),
+        Some(UseEffect::Sense(source)) => UseKind::Sense(source.clone()),
+        None => return Err(Rejection::NotUsable),
     };
-    let index = target.unwrap_or(u8::try_from(own).unwrap_or(u8::MAX));
-    let slot = member_index(world, index)?;
-    if state::is_dead(&world.party.members[slot], data) {
-        return Err(Rejection::TargetDead { index });
-    }
+    let slot = match kind {
+        UseKind::Heal(_) => {
+            let index = target.unwrap_or(u8::try_from(own).unwrap_or(u8::MAX));
+            let slot = member_index(world, index)?;
+            if state::is_dead(&world.party.members[slot], data) {
+                return Err(Rejection::TargetDead { index });
+            }
+            slot
+        }
+        UseKind::Sense(_) => own,
+    };
     Ok(UsePlan {
         own,
         item: id,
         target: slot,
-        dice,
+        kind,
         consumable: def.consumable,
     })
 }
 
-/// Resolve a validated use: the count, the event, and the healing on the target.
+/// Resolve a validated use: the count, the event, then the healing on the target or the
+/// look from afar.
 pub(crate) fn use_item(
     world: &mut World,
     data: &Data,
@@ -385,24 +405,29 @@ pub(crate) fn use_item(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let trace = plan
-        .dice
-        .roll(&mut roller.rng, &roller.stream)
-        .map_err(|e| RuleError::new("use", alloc::format!("{e}")))?;
     let target = world.party.members[plan.target].id;
     let user = &mut world.party.members[plan.own];
     if plan.consumable {
         take_from(&mut user.equipment, plan.item, 1)
             .map_err(|_| RuleError::new("use", "the item left the kit mid-use"))?;
     }
+    let heals = matches!(plan.kind, UseKind::Heal(_));
     events.push(Event::ItemUsed {
         member: user.id,
         item: plan.item,
-        target: Some(target),
+        target: heals.then_some(target),
         consumed: plan.consumable,
     });
-    let amount = i64::from(trace.total);
-    party::heal(world, data, plan.target, vec![trace], amount, events);
+    match &plan.kind {
+        UseKind::Heal(dice) => {
+            let trace = dice
+                .roll(&mut roller.rng, &roller.stream)
+                .map_err(|e| RuleError::new("use", alloc::format!("{e}")))?;
+            let amount = i64::from(trace.total);
+            party::heal(world, data, plan.target, vec![trace], amount, events);
+        }
+        UseKind::Sense(source) => sense::resolve(world, data, plan.item, source, roller, events)?,
+    }
     Ok(())
 }
 

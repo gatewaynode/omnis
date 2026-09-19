@@ -27,6 +27,7 @@ pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
+mod sense;
 mod utility;
 pub mod view;
 pub mod visibility;
@@ -45,7 +46,7 @@ pub use dev::DevCommand;
 pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
-    MessageKey, SeenTile, Surprise,
+    LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
