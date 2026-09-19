@@ -294,7 +294,7 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     escape(&mut app);
-    click(&mut app, WidgetId::Row(1), Part::Body);
+    click(&mut app, WidgetId::Row(3), Part::Body);
     assert_eq!(
         *app.world().resource::<State<AppState>>().get(),
         AppState::MainMenu
@@ -306,6 +306,66 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
             .widget(WidgetId::Pad(PadButton::Use))
             .is_none()
     );
+}
+
+/// The pause menu's Save and Load by mouse: the quick save is written, read back, and the
+/// overlay stays up with the notice on the band; Resume then goes where the loaded world is.
+#[test]
+fn the_pause_menu_saves_and_loads_by_mouse() {
+    let mut app = common::ui_app_saving_to("pause-menu-save.ron", true);
+    app.update();
+    app.update();
+    let save_path = app
+        .world()
+        .resource::<omnis_app::AppConfig>()
+        .save_path
+        .clone();
+    let _ = std::fs::remove_file(&save_path);
+    click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
+    let saved_at = world(&app).position;
+    assert_eq!(saved_at.y, 15);
+
+    escape(&mut app);
+    assert_eq!(play_state(&app), PlayState::Paused);
+    assert!(widget(&app, WidgetId::Row(4)).enabled, "five items");
+    click(&mut app, WidgetId::Row(1), Part::Body);
+    app.update();
+    assert_eq!(
+        play_state(&app),
+        PlayState::Paused,
+        "Save stays on the overlay"
+    );
+    assert!(save_path.is_file(), "Save wrote {}", save_path.display());
+    let line = app.world().resource::<MessageLine>();
+    assert!(line.0.text.starts_with("Saved to "), "{}", line.0.text);
+    assert!(!line.0.alert);
+
+    // Walk on, then Load: the party is back where it was saved, still paused.
+    click(&mut app, WidgetId::Row(0), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Explore);
+    click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
+    assert_eq!(world(&app).position.y, 14);
+    let replaced_before = seen(&app).replaced;
+    escape(&mut app);
+    click(&mut app, WidgetId::Row(2), Part::Body);
+    app.update();
+    assert_eq!(
+        play_state(&app),
+        PlayState::Paused,
+        "Load stays on the overlay"
+    );
+    assert_eq!(
+        seen(&app).replaced,
+        replaced_before + 1,
+        "the world was replaced"
+    );
+    assert_eq!(world(&app).position, saved_at);
+    let line = app.world().resource::<MessageLine>();
+    assert!(line.0.text.starts_with("Loaded "), "{}", line.0.text);
+    click(&mut app, WidgetId::Row(0), Part::Body);
+    assert_eq!(play_state(&app), PlayState::Explore);
+    assert_eq!(world(&app).position, saved_at);
+    let _ = std::fs::remove_file(&save_path);
 }
 
 #[test]

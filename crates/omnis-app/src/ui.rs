@@ -82,7 +82,7 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  M map  F5 save  F9 load  Esc menu";
+pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.

@@ -56,7 +56,7 @@ pub struct AppConfig {
     pub packs: Vec<PathBuf>,
     /// World seed for a new game.
     pub seed: u64,
-    /// Where F5 writes and F9 reads.
+    /// Where the pause menu's Save writes and Load reads (the quick save).
     pub save_path: PathBuf,
     /// Skip the menus: create a world from `seed` with default settings and start exploring
     /// (scripts, captures, tests).

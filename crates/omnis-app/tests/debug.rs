@@ -148,10 +148,10 @@ fn in_a_fight_the_stack_row_kills_and_escape_returns_to_the_world() {
     });
     assert_eq!(ended, Some(CombatOutcome::Victory), "the only stack fell");
     assert_eq!(play_state(&app), PlayState::Debug, "the menu stays up");
-    key(&mut app, Key::F1);
+    key(&mut app, Key::Character("`".into()));
     assert_eq!(
         play_state(&app),
         PlayState::Explore,
-        "F1 closes it where the world is"
+        "the backtick closes it where the world is"
     );
 }

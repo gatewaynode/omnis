@@ -388,7 +388,7 @@ fn creation_skills(frame: &mut Frame, form: &CreationForm, catalog: &Catalog) {
     }
 }
 
-/// The pause overlay: the settings, read-only, and three items.
+/// The pause overlay: the settings, read-only, and the items one row apart.
 pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
     label(frame, 1, 1, "PAUSED", HI);
     label(frame, 1, 3, &format!("Seed {seed}"), TEXT);
@@ -418,7 +418,7 @@ pub fn pause(frame: &mut Frame, pause: &Pause, settings: Settings, seed: u64) {
             frame,
             WidgetId::Row(i),
             Kind::Button,
-            (1, 8 + 2 * i as i32),
+            (1, 8 + i as i32),
             text,
             13,
             pause.cursor == i,
@@ -480,7 +480,7 @@ pub(crate) mod tests {
         let mut frame = Frame::default();
         title(&mut frame, &Title::default());
         assert_laid_out(&frame, MENU_BOX);
-        assert_eq!(frame.widgets.len(), 3);
+        assert_eq!(frame.widgets.len(), Title::ITEMS.len());
         let mut frame = Frame::default();
         let form = NewGameForm {
             seed_text: "a".repeat(32),
@@ -515,7 +515,7 @@ pub(crate) mod tests {
         let mut frame = Frame::default();
         pause(&mut frame, &Pause::default(), Settings::default(), u64::MAX);
         assert_laid_out(&frame, MENU_BOX);
-        assert_eq!(frame.widgets.len(), 3);
+        assert_eq!(frame.widgets.len(), Pause::ITEMS.len());
     }
 
     #[test]

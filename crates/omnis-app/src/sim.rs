@@ -102,9 +102,9 @@ pub struct PlayerCommand(pub Command);
 /// Something outside the simulation: saving, loading, overlays, pausing, quitting.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellCommand {
-    /// Write the quick save.
+    /// Write the quick save (the pause menu's Save).
     Save,
-    /// Read the quick save.
+    /// Read the quick save (the pause menu's Load).
     Load,
     /// Show or hide the automap.
     ToggleAutomap,
@@ -165,11 +165,13 @@ impl Plugin for SimPlugin {
             .add_systems(OnEnter(AppState::Playing), start_in)
             .add_systems(
                 Update,
-                (apply_commands, shell)
+                // The pause stops simulation commands; the shell keeps working, since the pause
+                // menu's Save and Load are shell commands. The world may leave mid-frame (quit
+                // to title): both skip until the state follows.
+                (apply_commands.run_if(unpaused), shell)
                     .chain()
                     .in_set(SimSet::Apply)
-                    // The world may leave mid-frame (quit to title): skip until the state follows.
-                    .run_if(unpaused.and_then(resource_exists::<SimWorld>)),
+                    .run_if(resource_exists::<SimWorld>),
             );
     }
 }

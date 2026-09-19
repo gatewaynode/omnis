@@ -1,5 +1,5 @@
 //! `DebugPlugin` (feature `devtools`): the debug menu over the world, opened with the
-//! backtick or F1 while exploring or fighting. Keys and clicks drive the state machine in
+//! backtick while exploring or fighting (no function key: macOS takes them). Keys and clicks drive the state machine in
 //! `debug_menu.rs`; its intents are `Dev` commands for the simulation, which a release world
 //! refuses. Headless-capable.
 
@@ -28,14 +28,10 @@ impl Plugin for DebugPlugin {
     }
 }
 
-/// Whether a key press opens (or closes) the menu: the backtick or F1.
+/// Whether a key press opens (or closes) the menu: the backtick.
 fn toggles(input: &KeyboardInput) -> bool {
     input.state == ButtonState::Pressed
-        && match &input.logical_key {
-            Key::F1 => true,
-            Key::Character(text) => text.as_str() == "`",
-            _ => false,
-        }
+        && matches!(&input.logical_key, Key::Character(text) if text.as_str() == "`")
 }
 
 /// Keys and clicks: the toggle while exploring or fighting, the menu's keys while it is up.

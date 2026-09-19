@@ -1,6 +1,7 @@
 //! `InputPlugin`: keys and the movement pad to commands. Arrows or WASD move and turn, Q and
-//! E sidestep, Space or Enter interact, M toggles the automap, C opens the cast menu, F5
-//! saves, F9 loads, Escape pauses; a click on a pad button sends the same command as its key.
+//! E sidestep, Space or Enter interact, M toggles the automap, C opens the cast menu, Escape
+//! pauses; a click on a pad button sends the same command as its key. No function key is
+//! bound: macOS takes them (saving and loading live on the pause menu).
 
 use crate::cursor::UiSet;
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
@@ -51,8 +52,6 @@ pub fn command_for(key: KeyCode) -> Option<Command> {
 #[must_use]
 pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
     Some(match key {
-        KeyCode::F5 => ShellCommand::Save,
-        KeyCode::F9 => ShellCommand::Load,
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
         KeyCode::KeyC => ShellCommand::Cast,
         KeyCode::Escape => ShellCommand::Pause,
@@ -79,5 +78,20 @@ fn map_pad(mut clicks: MessageReader<UiClick>, mut commands: MessageWriter<Playe
         if let WidgetId::Pad(button) = hit.id {
             commands.write(PlayerCommand(button.command()));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_function_key_is_bound() {
+        for key in [KeyCode::F1, KeyCode::F5, KeyCode::F9, KeyCode::F12] {
+            assert_eq!(command_for(key), None, "{key:?}");
+            assert_eq!(shell_for(key), None, "{key:?}");
+        }
+        assert_eq!(shell_for(KeyCode::Escape), Some(ShellCommand::Pause));
+        assert_eq!(shell_for(KeyCode::KeyC), Some(ShellCommand::Cast));
     }
 }

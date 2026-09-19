@@ -13,8 +13,8 @@ use crate::menu::{
 };
 use crate::screen::{self, Target};
 use crate::sim::{
-    AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, SimEvent,
-    SimWorld, StartIn, WorldReplaced, load,
+    AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
+    SimEvent, SimWorld, StartIn, WorldReplaced, load,
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
@@ -189,12 +189,13 @@ struct Next<'w> {
 }
 
 /// What a menu action may touch.
-struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
+struct Actions<'a, 'c, 'cs, 'n, 'p, 's, 'e, 'r> {
     commands: &'a mut Commands<'c, 'cs>,
     next: &'a mut Next<'n>,
     data: Option<&'a PackData>,
     config: &'a AppConfig,
     player: &'a mut MessageWriter<'p, PlayerCommand>,
+    shell: &'a mut MessageWriter<'s, ShellCommand>,
     exit: &'a mut MessageWriter<'e, AppExit>,
     replaced: &'a mut MessageWriter<'r, WorldReplaced>,
     notice: &'a mut Notice,
@@ -202,7 +203,7 @@ struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
     resume: PlayState,
 }
 
-impl Actions<'_, '_, '_, '_, '_, '_, '_> {
+impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
     fn start_game(&mut self, world: World, start: PlayState) {
         self.commands.insert_resource(SimWorld(world));
         self.commands.insert_resource(StartIn(start));
@@ -229,6 +230,7 @@ fn menu_keys(
     data: Option<Res<PackData>>,
     world: Option<Res<SimWorld>>,
     mut player: MessageWriter<PlayerCommand>,
+    mut shell: MessageWriter<ShellCommand>,
     mut exit: MessageWriter<AppExit>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut notice: ResMut<Notice>,
@@ -255,6 +257,7 @@ fn menu_keys(
         data: data.as_deref(),
         config: &config,
         player: &mut player,
+        shell: &mut shell,
         exit: &mut exit,
         replaced: &mut replaced,
         notice: &mut notice,
@@ -304,7 +307,7 @@ fn menu_keys(
     }
 }
 
-fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         TitleAction::NewGame => act.next.menu.set(MenuState::NewGame),
         TitleAction::Load => {
@@ -326,7 +329,7 @@ fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
 fn new_game_action(
     action: NewGameAction,
     form: &NewGameForm,
-    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>,
 ) {
     match action {
         NewGameAction::Start => {
@@ -347,7 +350,7 @@ fn new_game_action(
     }
 }
 
-fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         CreationAction::Add(draft) => {
             act.player
@@ -362,7 +365,7 @@ fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_,
 fn cast_key(
     key: MenuKey,
     menu: &mut CastMenu,
-    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>,
     world: Option<&SimWorld>,
     selected: Option<usize>,
 ) {
@@ -381,9 +384,17 @@ fn cast_key(
     }
 }
 
-fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+/// A pause item. Save and Load stay on the overlay so their notice shows on the band; Resume
+/// after a load goes where the loaded world's mode says, since `resume` is read at key time.
+fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         PauseAction::Resume => act.next.play.set(act.resume),
+        PauseAction::Save => {
+            act.shell.write(ShellCommand::Save);
+        }
+        PauseAction::Load => {
+            act.shell.write(ShellCommand::Load);
+        }
         PauseAction::QuitToTitle => act.leave_game(),
         PauseAction::Quit => {
             act.exit.write(AppExit::Success);
