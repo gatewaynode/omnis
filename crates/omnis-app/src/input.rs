@@ -1,6 +1,6 @@
 //! `InputPlugin`: keys and the movement pad to commands. Arrows or WASD move and turn, Q and
-//! E sidestep, Space or Enter interact, M toggles the automap, F5 saves, F9 loads, Escape
-//! pauses; a click on a pad button sends the same command as its key.
+//! E sidestep, Space or Enter interact, M toggles the automap, C opens the cast menu, F5
+//! saves, F9 loads, Escape pauses; a click on a pad button sends the same command as its key.
 
 use crate::cursor::UiSet;
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
@@ -54,6 +54,7 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::F5 => ShellCommand::Save,
         KeyCode::F9 => ShellCommand::Load,
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
+        KeyCode::KeyC => ShellCommand::Cast,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })

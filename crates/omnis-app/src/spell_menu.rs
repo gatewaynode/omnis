@@ -2,8 +2,15 @@
 //! and the keys while it is open (the `CombatMenu` opens it from Cast). Bevy-free.
 
 use crate::combat_menu::{CombatIntent, CombatMenu, FightView};
+use crate::font::fit;
+use crate::layout::MENU_COLUMNS;
 use crate::menu::{MenuKey, cycle};
-use omnis_sim::{CombatCommand, Rejection, Target};
+use crate::screens::{ItemState, item_state, label};
+use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
+use omnis_sim::combat::cast;
+use omnis_sim::omnis_core::{Pcg32, StreamName};
+use omnis_sim::omnis_data::Data;
+use omnis_sim::{CombatCommand, Command, Rejection, Target, World};
 
 /// One spell the acting member knows, as the picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +114,169 @@ impl CombatMenu {
             spell: row.index,
             target,
         }))
+    }
+}
+
+// ---------------------------------------------------------------- outside a fight
+
+/// One spell a member can cast while exploring, as the cast menu lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CastRow {
+    /// The caster's slot.
+    pub caster: u8,
+    /// The caster's name.
+    pub caster_name: String,
+    /// The spell's index in the caster's list.
+    pub spell: u8,
+    /// The spell's name.
+    pub name: String,
+    /// Points it costs.
+    pub cost: u32,
+    /// Aimed at a member (the band's selected one), else at the caster.
+    pub targets_members: bool,
+    /// Why it cannot be cast now, in a few words.
+    pub blocked: Option<String>,
+}
+
+/// Every member's spells that can be cast outside a fight, in marching order.
+#[must_use]
+pub fn cast_rows(world: &World, data: &Data) -> Vec<CastRow> {
+    let stream = StreamName::new("cast");
+    let mut rng = world
+        .rngs
+        .get(&stream)
+        .copied()
+        .unwrap_or_else(|| Pcg32::for_stream(world.seed, &stream));
+    let mut rows = Vec::new();
+    for (own, member) in world.party.members.iter().enumerate() {
+        for (i, id) in member.known_spells.iter().enumerate() {
+            let Some(spell) = data.spells.get(id) else {
+                continue;
+            };
+            let explore = spell.effect.as_ref().is_some_and(|e| e.explore_castable());
+            if !explore {
+                continue;
+            }
+            let (caster, index) = (
+                u8::try_from(own).unwrap_or(u8::MAX),
+                u8::try_from(i).unwrap_or(u8::MAX),
+            );
+            rows.push(CastRow {
+                caster,
+                caster_name: member.name.clone(),
+                spell: index,
+                name: data.label("en", &spell.name).to_owned(),
+                cost: spell.point_cost(),
+                targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
+                blocked: cast::check(world, data, own, index, false, &mut rng)
+                    .err()
+                    .map(|r| blocked_note(&r)),
+            });
+        }
+    }
+    rows
+}
+
+/// What the cast menu asks for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CastIntent {
+    /// A cast.
+    Command(Command),
+    /// Close the menu.
+    Close,
+}
+
+/// The cast menu outside a fight: Up/Down choose a row, Enter casts it at the band's
+/// selected member (or the caster), Escape closes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CastMenu {
+    /// The row under the cursor.
+    pub cursor: usize,
+    /// Why the last confirmation did nothing; empty when it did something.
+    pub message: String,
+}
+
+impl CastMenu {
+    /// Keep the cursor on a row.
+    pub fn sync(&mut self, rows: &[CastRow]) {
+        self.cursor = self.cursor.min(rows.len().saturating_sub(1));
+    }
+
+    /// Handle a key.
+    pub fn key(
+        &mut self,
+        key: MenuKey,
+        rows: &[CastRow],
+        selected: Option<usize>,
+    ) -> Option<CastIntent> {
+        match key {
+            MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, rows.len(), key),
+            MenuKey::Enter => return self.confirm(rows, selected),
+            MenuKey::Escape | MenuKey::Char('c') => return Some(CastIntent::Close),
+            _ => {}
+        }
+        None
+    }
+
+    fn confirm(&mut self, rows: &[CastRow], selected: Option<usize>) -> Option<CastIntent> {
+        self.message.clear();
+        let Some(row) = rows.get(self.cursor) else {
+            self.message = "Nobody can cast anything here".to_owned();
+            return None;
+        };
+        if let Some(why) = &row.blocked {
+            self.message = format!("{}: {why}", row.name);
+            return None;
+        }
+        let target = if row.targets_members {
+            match selected {
+                Some(member) => Target::Member(u8::try_from(member).unwrap_or(u8::MAX)),
+                None => {
+                    self.message = format!("Select a member to cast {} on", row.name);
+                    return None;
+                }
+            }
+        } else {
+            Target::Member(row.caster)
+        };
+        Some(CastIntent::Command(Command::Cast {
+            caster: row.caster,
+            spell: row.spell,
+            target,
+        }))
+    }
+}
+
+/// The cast menu painted in the menu box: a header, one row per castable spell, a help line.
+pub fn cast_screen(frame: &mut Frame, menu: &CastMenu, rows: &[CastRow]) {
+    label(frame, 1, 1, "CAST", HI);
+    if rows.is_empty() {
+        label(frame, 1, 3, "Nobody knows a spell for the road.", DIM);
+    }
+    let cells = MENU_COLUMNS as usize - 2;
+    for (i, row) in rows.iter().enumerate().take(12) {
+        let note = row.blocked.as_deref().unwrap_or("");
+        let text = format!(
+            "{:<12} {:<18} {:>2} pt  {}",
+            fit(&row.caster_name, 12),
+            fit(&row.name, 18),
+            row.cost.min(99),
+            fit(note, 16)
+        );
+        let state = if row.blocked.is_some() {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(menu.cursor == i)
+        };
+        item_state(
+            frame,
+            WidgetId::Row(i),
+            Kind::Button,
+            (1, 3 + i as i32),
+            &text,
+            cells,
+            state,
+        );
     }
 }
 
@@ -248,5 +418,65 @@ mod tests {
         );
         assert_eq!(menu.key(MenuKey::Char('u'), &view, None), None);
         assert_eq!(menu.message, "Nothing to use yet");
+    }
+
+    #[test]
+    fn the_cast_menu_lists_the_road_spells_and_casts_them() {
+        let data = data();
+        let mut world = facing(&data, &["fighter", "cleric", "wizard"], &[("giant_rat", 1)]);
+        world.mode = Mode::Explore;
+        let rows = cast_rows(&world, &data);
+        let names: Vec<(&str, &str)> = rows
+            .iter()
+            .map(|r| (r.caster_name.as_str(), r.name.as_str()))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                ("Gorm", "Guidance"),
+                ("Gorm", "Light"),
+                ("Gorm", "Bless"),
+                ("Gorm", "Cure Wounds"),
+                ("Wren", "Light"),
+                ("Wren", "Mage Hand"),
+            ],
+            "the cleric's and the wizard's road spells, in marching order"
+        );
+        let mut menu = CastMenu::default();
+        for _ in 0..3 {
+            menu.key(MenuKey::Down, &rows, None);
+        }
+        assert_eq!(menu.key(MenuKey::Enter, &rows, None), None);
+        assert_eq!(menu.message, "Select a member to cast Cure Wounds on");
+        assert_eq!(
+            menu.key(MenuKey::Enter, &rows, Some(0)),
+            Some(CastIntent::Command(Command::Cast {
+                caster: 1,
+                spell: rows[3].spell,
+                target: Target::Member(0)
+            }))
+        );
+        menu.key(MenuKey::Down, &rows, None);
+        assert_eq!(
+            menu.key(MenuKey::Enter, &rows, None),
+            Some(CastIntent::Command(Command::Cast {
+                caster: 2,
+                spell: rows[4].spell,
+                target: Target::Member(2)
+            })),
+            "light needs no target"
+        );
+        world.party.members[1].spell_points = 0;
+        let rows = cast_rows(&world, &data);
+        assert_eq!(rows[3].blocked.as_deref(), Some("need 1 pt"));
+        assert_eq!(rows[0].blocked, None, "guidance is free");
+        assert_eq!(
+            menu.key(MenuKey::Escape, &rows, None),
+            Some(CastIntent::Close)
+        );
+        let mut frame = crate::widget::Frame::default();
+        cast_screen(&mut frame, &menu, &rows);
+        assert_eq!(frame.widgets.len(), 6);
+        assert!(!frame.widget(WidgetId::Row(3)).unwrap().enabled);
     }
 }

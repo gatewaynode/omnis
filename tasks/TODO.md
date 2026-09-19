@@ -166,18 +166,19 @@ The owner's primary display is a 5120×1440 ultrawide (scale factor 1); the fixe
 
 ### M6 — Spells, items, and remote sensing (plan approved 2026-09-19)
 - Scope line: casting in and out of combat, spell points and components (D11 threshold from config), cantrips, item use and equipment, `Sense` with a spyglass item feeding the automap as stale knowledge (D18). Owner decisions 2026-09-19: all eleven base spells castable; three acceptance points (M6a casting, M6b items, M6c sensing); `Party.gems` kept and deprecated; a debug menu for items and values in explore and fight mode; the healing potion in the acolyte kit; Explorer (Survival, Perception as stand-ins for Cartography and Orienteering) and Warden backgrounds enter the base pack.
-- [ ] Shared data: spell `effect`/`reach`, item `use_effect`/`consumable`/`description`/`Slot`, `SenseSource`, validations, bad-pack rows
-- [ ] Base content: the eleven spell effects, casting/sensing/items rules, spyglass, potion, map-making kit, Explorer and Warden, the acolyte potion; both replays rebaselined
-- [ ] Rules: `spell.rs`, `effect.rs` (absolute-minute expiry), `equip.rs` (four slots, auto-equip keeps today's picks), `Roll.bonus`
-- [ ] Save schema 4: `equipped`, `effects`, `auto_cast`, `Party.effects`, `Settings.devtools`, data-aware migration; both replays rebaselined
+- [x] Shared data: spell `effect`/`reach`, item `use_effect`/`consumable`/`description`/`Slot`, `SenseSource`, validations, bad-pack rows
+- [x] Base content: the eleven spell effects, casting/sensing/items rules, spyglass, potion, map-making kit, Explorer and Warden, the acolyte potion; both replays rebaselined
+- [x] Rules: `spell.rs`, `effect.rs` (absolute-minute expiry), `equip.rs` (four slots, auto-equip keeps today's picks), `Roll.bonus`
+- [x] Save schema 4: `equipped`, `effects`, `auto_cast`, `Party.effects`, `Settings.devtools`, data-aware migration; both replays rebaselined
 - **M6a casting**
-- [ ] Sim: item stock helpers, `party::heal`, `Command::Dev` explore set behind `Settings.devtools`
-- [ ] Sim: `CombatCommand::Cast` (attack, auto-hit, save, heal), `hurt_individual`; the done-when test (a pool empties, cantrips stay free) and the D11 threshold test
-- [ ] Sim: effects lifecycle, bless (anchor fan-out), guidance (consumed by the one check wrapper), concentration (one per caster, CON save), shield (opt-in auto-reaction via `PartyCommand::AutoCast`), light (`visibility::depth`), mage hand (door ahead), explore casting
-- [ ] Sim: fight-mode dev commands with `combat::settle`; MCP schema arms
-- [ ] Measure: 300 seeds × parties of 2 and 6 × attack-only vs cast-every-turn; numbers in this review before the owner plays
-- [ ] App: six fight actions, the spell picker, spell log lines, the debug menu on backtick/F1
-- [ ] App: explore cast menu on C; M6a docs; owner acceptance
+- [x] Sim: item stock helpers, `party::heal`, `Command::Dev` explore set behind `Settings.devtools`
+- [x] Sim: `CombatCommand::Cast` (attack, auto-hit, save, heal), `hurt_individual`; the done-when test (a pool empties, cantrips stay free) and the D11 threshold test
+- [x] Sim: effects lifecycle, bless (anchor fan-out), guidance (consumed by the one check wrapper), concentration (one per caster, CON save), shield (opt-in auto-reaction via `PartyCommand::AutoCast`), light (`visibility::depth`), mage hand (door ahead), explore casting
+- [x] Sim: fight-mode dev commands with `combat::settle`; MCP schema arms
+- [x] Measure: 300 seeds × parties of 2 and 6 × attack-only vs cast-every-turn; numbers in this review before the owner plays
+- [x] App: six fight actions, the spell picker, spell log lines, the debug menu on backtick/F1
+- [x] App: explore cast menu on C; M6a docs (2026-09-19); **owner acceptance pending**
+- **M6a review (2026-09-19)**: eleven commits from `b39f332` (docs) to the explore cast menu, each green on `scripts/verify.sh` (the gate now fails on any failed test or lint; LESSONS 2026-09-19) and Sentrux. As built: every base spell casts; `SpellEffect` in the RON is the shape, five new `casting.ron` slots the numbers; effects expire on the party clock (a round is a minute; "1 minute" is ten); shield is an opt-in reaction switched from the picker; light lifts the dungeon's six to eight and leaves daylight at twelve; mage hand opens the first door ahead; the debug menu (backtick or F1) edits the world through `Dev` commands in a devtools world and settles a fight it changed; the headless driver is a devtools world, so its fingerprints differ from a default replay of the same commands by design. Measured before the owner plays (`cargo test -p omnis-sim --test measure -- --ignored --nocapture`, 300 seeds): the rat placement wipes a two-member party 2.3% attacking and 1.3% casting; three goblins wipe it 46.3% attacking and 32.0% casting, and a pool empties in 38.3% of those fights; six members never wipe, and casting cuts the goblin fight from 2.7 rounds to 1.6. Deviations named in ARCH §4.5. Save schema 4 (equipment slots, effects, auto-cast, the devtools bit) migrates schema 3 with a data-aware auto-equip so old saves keep their numbers; two rebaselines (content, schema). Sentrux pressure: `debug_menu::adjust` 93 lines, `debug_screen::row_text` 91, `cast::resolve` under 100 after two splits; `combat_menu.rs` split into `spell_menu.rs`. Follow-ups: the picker's Use row is inert until M6b; no rest until M7 (the debug menu refills pools); `--no-devtools` for a clean save from a dev build; one reaction per round is enforced by the effect, not a counter; the measurement policy is a fixed heuristic.
 - **M6b items and equipment**
 - [ ] Sim: `Command::Item` (equip, unequip, give, stow, take, use), the potion, `CombatCommand::Use`
 - [ ] Ops/MCP: kit, spells, effects and inventory in `party.get`; schema arms

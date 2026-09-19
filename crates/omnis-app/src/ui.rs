@@ -15,6 +15,7 @@ use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
+use crate::spell_menu::{CastRow, cast_rows};
 use crate::viewport::canvas_to_world;
 use crate::widget::{self, Frame, Hit, PadState, WidgetId};
 use bevy::asset::RenderAssetUsages;
@@ -81,7 +82,7 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  M map  F5 save  F9 load  Esc menu";
+pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  M map  F5 save  F9 load  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -98,6 +99,8 @@ pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok 
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
 /// Help on the debug menu.
 pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
+/// Help on the cast menu.
+pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter cast  Esc back";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -347,6 +350,7 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::Encounter => &screens.encounter.message,
         Active::Combat => &screens.combat.message,
         Active::Debug => &screens.debug.message,
+        Active::Cast => &screens.cast.message,
         _ => return None,
     };
     (!text.is_empty()).then(|| Message {
@@ -355,16 +359,33 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
+/// What the frame shows besides the screens' own state: the fight, the debug view, the
+/// road spells, and the log.
+struct Overlays<'a> {
+    fight: Option<&'a FightView>,
+    debug: Option<&'a DebugView>,
+    casts: &'a [CastRow],
+    log: &'a [String],
+}
+
 /// The menu and help line for the active screen.
 fn menu_for<'a>(
     active: Active,
     screens: &'a Screens,
     world: Option<&World>,
-    fight: Option<&'a FightView>,
-    debug: Option<&'a DebugView>,
+    over: &Overlays<'a>,
     members: usize,
-    log: &'a [String],
 ) -> (Menu<'a>, &'static str) {
+    let (fight, debug, casts, log) = (over.fight, over.debug, over.casts, over.log);
+    if active == Active::Cast {
+        return (
+            Menu::Cast {
+                menu: &screens.cast,
+                rows: casts,
+            },
+            HELP_CAST,
+        );
+    }
     if let (Active::Debug, Some(view)) = (active, debug) {
         return (
             Menu::Debug {
@@ -414,7 +435,7 @@ fn menu_for<'a>(
             },
             HELP_DEFEAT,
         ),
-        (Active::None | Active::Encounter | Active::Combat | Active::Debug, _) => {
+        (Active::None | Active::Encounter | Active::Combat | Active::Debug | Active::Cast, _) => {
             (Menu::None, HELP_EXPLORE)
         }
     }
@@ -441,18 +462,27 @@ fn build_frame(
     let debug = (active == Active::Debug)
         .then(|| loaded.map(|(w, d)| debug_view(&w.0, &d.0)))
         .flatten();
+    let casts = if active == Active::Cast {
+        loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
+    } else {
+        Vec::new()
+    };
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
     let model_message = model_message(active, &screens);
+    let over = Overlays {
+        fight: fight.as_ref(),
+        debug: debug.as_ref(),
+        casts: &casts,
+        log: &log.0,
+    };
     let (menu, help) = menu_for(
         active,
         &screens,
         world.as_ref().map(|w| &w.0),
-        fight.as_ref(),
-        debug.as_ref(),
+        &over,
         members.len(),
-        &log.0,
     );
     let pad = if world.is_none() {
         PadState::Hidden

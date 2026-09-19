@@ -50,6 +50,8 @@ pub enum PlayState {
     Defeat,
     /// The debug menu over the world; commands still apply (feature `devtools`).
     Debug,
+    /// The cast menu while exploring.
+    Cast,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -108,6 +110,8 @@ pub enum ShellCommand {
     ToggleAutomap,
     /// Open the pause overlay.
     Pause,
+    /// Open the cast menu while exploring.
+    Cast,
     /// Exit the application.
     Quit,
 }
@@ -279,6 +283,7 @@ fn shell(
                 Err(e) => out.notice.0 = format!("Load failed: {e}"),
             },
             ShellCommand::Pause => out.next_play.set(PlayState::Paused),
+            ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }

@@ -118,15 +118,14 @@ pub enum Command {
     Turn(Rotation),
     Interact,                   // door, sign, NPC, trigger on the facing tile
     Rest,
-    Party(PartyCommand),        // create, reorder, exchange, dismiss hireling
+    Party(PartyCommand),        // create, reorder, auto_cast { member, spell, on } (M6: a reaction spell's switch)
     Service(ServiceCommand),    // inn, temple, trainer, smith, tavern, bank, guild
-    Combat(CombatCommand),      // per actor: attack { stack }, dodge, exchange { with }, run (M4); cast, use (M6)
+    Combat(CombatCommand),      // per actor: attack { stack }, cast { spell, target: Stack | Member }, dodge, exchange { with }, run (M4, M6); use (M6b)
     Encounter(EncounterChoice), // attack, bribe, hide, run (M4)
-    Cast(SpellCast),            // out of combat
-    UseItem(ItemUse),
-    Sense(SenseSource),         // spyglass, scouting, divination (PRD §7.2)
+    Cast { caster, spell, target }, // out of combat (M6): healing, buffs, light, mage hand
+    Item(ItemCommand),          // M6b: equip, unequip, give, stow, take, use (a spyglass's use is the sense of PRD §7.2, M6c)
     Journal(JournalCommand),
-    Dev(DevCommand),            // feature "devtools" only: teleport, set flag, tick eco, set rule
+    Dev(DevCommand),            // M6: give item, set hp/points/gold/food/xp/score/condition/flag, teleport, monster hp, kill stack; accepted only when `Settings.devtools` (§12)
 }
 
 pub enum Event {
@@ -151,7 +150,9 @@ pub enum Event {
     Condition { target, condition, applied: bool },
     Death { target: ActorRef, gold: Option<RollTrace> },
     CombatEnded { outcome: Victory | Fled | Defeat, xp: u32, gold: u32, fallen: Vec<CharacterId> },
-    SpellCast { caster, spell, points, components_consumed },   // M6
+    SpellCast { caster, spell, points, components_consumed },   // M6 as built; then Healed { target, rolls, amount, hp },
+    EffectApplied { target: Member | Party, spell, caster }, EffectEnded { target, spell, why }, Concentration { caster, spell, ended },
+    AutoCast { member, spell, on }, Check { kind: Save(ability) } for a monster's or a concentrating member's save, Dev { command }
     LevelUp { member, level, gains },
     Region(RegionEvent),                     // from omnis-eco
     Quest(QuestEvent),                       // from omnis-story
@@ -218,6 +219,8 @@ Holders that are not part of the interaction do not move. A region the party has
 ### 4.5 Combat state machine
 
 As built in M4. `Mode::Encounter(EncounterState)` holds the stacks (monster, initial count, the living's hit points), their disposition, the source (a placement by index, or the map's random table), and the retreat tile; `Mode::Combat(CombatState)` adds the initiative order, the current actor, the round, who was surprised, who dodges this round, and the gold looted so far. Emptied stacks stay in the list so indices are stable; "front" is the first `monster_front_stacks` living stacks. Transitions: `Explore → (a step onto a placement, or the random table fires) → Encounter → (attack, or a failed hide or run) → Combat → (every stack dead | the party fled | every member down) → Explore`; a bribe or a successful hide or run returns to `Explore` from the encounter, and monsters the party fails to notice (their Stealth against its best passive Perception) skip the choice, the party surprised. Each `CombatCommand` is validated in full against whose turn it is and what the acting member can reach (front-row melee against the front stacks; a ranged weapon anywhere) before the first die is rolled, on a copy of the `combat` stream written back only on success, so a rejection never perturbs the stream. Monster turns resolve inside the same command until a member can act or the fight ends, so one player command may produce many actors' worth of events; death saves and the round's minutes are resolved at the round's end. Permadeath (a setting) removes a dead member at the fight's end with their kit into the party inventory; otherwise the member keeps their slot with the `dead` condition for the temple (M7). A wipe ends the fight with `Defeat` and the app offers the last save (D14). Every number is a rule slot or value in `packs/base/data/rules/combat.ron`; Rust rolls every die, Rhai adds and compares.
+
+**Casting as built in M6a.** A spell's `effect` in data (`SpellEffect`: attack, auto-hit, save, heal, buff, reaction, light, utility) is the shape of what it does and `reach` (one, stack, all stacks) how far; the numbers are the `casting.ron` slots (`spell.save_dc`, `spell.save_damage`, `heal.total`, `cantrip.dice`, `concentration.dc`). `CombatCommand::Cast { spell, target }` names a known spell by its index in the caster's list; validation runs on the roller's copy (a pack's point-cost formula may roll) and refuses before any die (unknown, not castable here, not enough points, missing components at the D11 threshold or in the stores, wrong target, dead or downed member, dead stack). Paying takes points and components (from the party's stores, PRD §8.2) and emits `SpellCast`; cantrips scale their dice by level and cost nothing. Attacks roll the casting modifier plus proficiency against armor class; auto-hits and attacks land on the lead individual; a save spell rolls its damage once and every individual of the stack saves from the last index down. Effects (`ActiveEffect`) live on members and on the party with an absolute party-clock expiry (a round is one minute, so the SRD's "1 minute" is ten) or until the bearer's next turn; the clock prunes them. Bless fans out from the target round the marching order; guidance is spent by the next ability check (Hide, Run, Flee, and later Sense roll through one wrapper); a caster holds one concentration spell and damage asks a Constitution save; shield is a reaction the simulation casts for a member who opted in (`PartyCommand::AutoCast`) when a non-critical hit would land that its bonus turns into a miss (a deviation: the SRD casts it on any hit); light lifts the party's visibility depth to at least its own; mage hand toggles the first door straight ahead. `Command::Cast` casts healing, buffs, light and mage hand outside a fight for `cast_minutes` on the `cast` stream; there is no rest yet (M7), so pools only empty, and the debug menu refills them. Deviations named here and in the spell files: healing word is an action (the one-action turn, PRD §8.3), magic missile's darts all hit the lead, spells ignore rows, guidance takes the next check, bless anchors on a member.
 
 ### 4.6 Replay and co-op readiness
 
@@ -454,7 +457,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 
 - Packs, saves, socket input: §6.2 limits and normalization; never panic, always report.
 - Scripts from data run only in the Rhai formula profile (§5.2): no I/O, no modules, no functions, no strings, bounded operations and depth, checked arithmetic.
-- Dev socket: loopback only, compiled out of release, single client, request size cap (1 MB), op allowlist. `Dev` commands are rejected by `apply` unless the world was created with `devtools` enabled.
+- Dev socket: loopback only, compiled out of release, single client, request size cap (1 MB), op allowlist. `Dev` commands are rejected by `apply` (`Rejection::DevOnly`) unless `Settings.devtools` is set, which dev builds of the app do when a game starts and the headless driver always does; a save records it, and a release build never sets it (M6 as built).
 - Saves record pack fingerprints; loading with different packs warns and refuses unless forced.
 - Dependencies: pinned exact versions in `[workspace.dependencies]`; `Cargo.lock` committed. Policy, in priority order (owner direction 2026-09-12):
   1. **Match Bevy's requirements.** Any crate Bevy already pulls (ron, serde, and so on) is pinned to the version Bevy 0.19 resolves, so the tree stays single-copy. `cargo tree --duplicates` must be empty for those crates; CI checks it.

@@ -16,6 +16,7 @@ use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, SimEvent,
     SimWorld, StartIn, WorldReplaced, load,
 };
+use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
 use crate::widget::Hit;
 use bevy::ecs::system::SystemParam;
@@ -45,6 +46,8 @@ pub struct Screens {
     pub defeat: DefeatMenu,
     /// The debug menu.
     pub debug: DebugMenu,
+    /// The cast menu while exploring.
+    pub cast: CastMenu,
 }
 
 /// Which screen is up, if any.
@@ -74,6 +77,8 @@ pub enum Active {
     Defeat,
     /// The debug menu.
     Debug,
+    /// The cast menu while exploring.
+    Cast,
     /// No screen: booting or exploring.
     None,
 }
@@ -95,6 +100,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Combat)) => Active::Combat,
             (AppState::Playing, _, Some(PlayState::Defeat)) => Active::Defeat,
             (AppState::Playing, _, Some(PlayState::Debug)) => Active::Debug,
+            (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
             _ => Active::None,
         }
     }
@@ -165,6 +171,7 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::NewGame => Target::NewGame(&mut screens.new_game),
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
+        Active::Cast => Target::Cast(&mut screens.cast),
         // The combat and debug plugins handle their screens' clicks.
         Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {
             return Vec::new();
@@ -225,6 +232,8 @@ fn menu_keys(
     mut exit: MessageWriter<AppExit>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut notice: ResMut<Notice>,
+    // The UI plugin's selection; absent in an app without it (the menus alone are testable).
+    selected: Option<Res<crate::ui::Selected>>,
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
     let resume = world
@@ -258,6 +267,7 @@ fn menu_keys(
             creation,
             catalog,
             pause,
+            cast,
             ..
         } = &mut *screens;
         match active {
@@ -281,6 +291,13 @@ fn menu_keys(
                     pause_action(action, &mut act);
                 }
             }
+            Active::Cast => cast_key(
+                key,
+                cast,
+                &mut act,
+                world.as_deref(),
+                selected.as_ref().and_then(|s| s.0),
+            ),
             // The combat and debug plugins handle their screens' keys.
             Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {}
         }
@@ -338,6 +355,29 @@ fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_,
         }
         CreationAction::Begin => act.next.play.set(PlayState::Explore),
         CreationAction::Back => act.leave_game(),
+    }
+}
+
+/// A key on the cast menu: a cast for the simulation, or back to exploring.
+fn cast_key(
+    key: MenuKey,
+    menu: &mut CastMenu,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>,
+    world: Option<&SimWorld>,
+    selected: Option<usize>,
+) {
+    let Some((world, data)) = world.zip(act.data) else {
+        return;
+    };
+    let rows = cast_rows(&world.0, &data.0);
+    menu.sync(&rows);
+    match menu.key(key, &rows, selected) {
+        Some(CastIntent::Command(command)) => {
+            act.player.write(PlayerCommand(command));
+            act.next.play.set(PlayState::Explore);
+        }
+        Some(CastIntent::Close) => act.next.play.set(PlayState::Explore),
+        None => {}
     }
 }
 

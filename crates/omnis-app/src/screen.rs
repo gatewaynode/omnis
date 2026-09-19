@@ -12,6 +12,7 @@ use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Hud, Message};
 use crate::screens;
+use crate::spell_menu::{CastMenu, CastRow, cast_screen};
 use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
 use omnis_sim::Settings;
 
@@ -33,6 +34,8 @@ pub enum Target<'a> {
     Defeat(&'a mut DefeatMenu),
     /// The debug menu.
     Debug(&'a mut DebugMenu),
+    /// The cast menu while exploring.
+    Cast(&'a mut CastMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
@@ -87,6 +90,7 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
                 menu.field = 0;
             }
         }
+        Target::Cast(menu) => menu.cursor = row,
         Target::Encounter(_) | Target::Combat(_) => return Vec::new(),
     }
     match (hit.kind, hit.part) {
@@ -151,6 +155,13 @@ pub enum Menu<'a> {
         menu: &'a DebugMenu,
         /// What it edits.
         view: &'a DebugView,
+    },
+    /// The cast menu while exploring.
+    Cast {
+        /// The menu.
+        menu: &'a CastMenu,
+        /// The spells it lists.
+        rows: &'a [CastRow],
     },
 }
 
@@ -266,6 +277,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         Menu::Combat { menu, view } => combat_screen::combat(frame, view, menu),
         Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
         Menu::Debug { menu, view } => debug_screen::debug(frame, menu, view),
+        Menu::Cast { menu, rows } => cast_screen(frame, menu, rows),
     }
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
