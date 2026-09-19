@@ -1,0 +1,3 @@
+// Omnis content (docs/background/backgrounds_and_skills.md): the Explorer's bonus equipment.
+// Cartography as a proficiency arrives with the systems that use it; the kit is gear until then.
+(schema: 1, id: "base:item:map_making_kit", name: "base:text:item.map_making_kit.name", kind: Gear, cost_cp: 2500, weight_tenths: 30, description: Some("base:text:item.map_making_kit.description"))

@@ -1,3 +1,6 @@
 // SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
 // Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
-(schema: 1, id: "base:spell:healing_word", name: "base:text:spell.healing_word.name", level: 1, school: Evocation, classes: ["base:class:cleric"], concentration: false, ritual: false, description: "base:text:spell.healing_word.description")
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// An action in Omnis's one-action turn (the SRD's bonus action is not modelled; PRD §8.3).
+(schema: 1, id: "base:spell:healing_word", name: "base:text:spell.healing_word.name", level: 1, school: Evocation, classes: ["base:class:cleric"], concentration: false, ritual: false, description: "base:text:spell.healing_word.description", effect: Some(Heal(dice: (count: 1, sides: 4, modifier: 0), add_mod: true)), reach: One)

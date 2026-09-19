@@ -1,0 +1,10 @@
+// Omnis Warden (docs/background/backgrounds_and_skills.md): investigators and enforcers against
+// monsters and magic anomalies near settlements.
+(
+    schema: 1,
+    id: "base:background:warden",
+    name: "base:text:background.warden.name",
+    skills: [Arcana, Investigation],
+    gold: 10,
+    feature: (name: "base:text:background.warden.warrant"),
+)

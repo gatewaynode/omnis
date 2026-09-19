@@ -1,0 +1,12 @@
+// Omnis Explorer (docs/background/backgrounds_and_skills.md): survival and scouting of the wilds,
+// with a spyglass and a map-making kit. Survival and Perception stand in for Cartography and
+// Orienteering until those proficiencies arrive with the systems that use them (PRD §8.1).
+(
+    schema: 1,
+    id: "base:background:explorer",
+    name: "base:text:background.explorer.name",
+    skills: [Perception, Survival],
+    equipment: [("base:item:spyglass", 1), ("base:item:map_making_kit", 1)],
+    gold: 10,
+    feature: (name: "base:text:background.explorer.guild"),
+)

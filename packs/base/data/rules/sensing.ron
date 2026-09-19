@@ -1,0 +1,13 @@
+// Remote sensing (PRD §7.2, D18). Rust rolls one skill check per fidelity layer; this slot sets
+// the difficulty of each tile: `distance` in tiles from the party, `visibility` the visibility
+// depth of the party's tile (the environment's light), `layer` 1 terrain, 2 structure, 3 objects,
+// 4 creatures. Tiles the eye already reaches are DC 10; each tile past the visibility depth adds
+// one; each layer above terrain adds two. Cover and concealment become inputs with objects and
+// monsters.
+(
+    schema: 1,
+    id: "base:rules:sensing",
+    slots: {
+        "sense.dc": (inputs: ["distance", "visibility", "layer"], expr: "10 + max(0, distance - visibility) + (layer - 1) * 2"),
+    },
+)

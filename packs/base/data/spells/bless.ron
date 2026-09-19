@@ -1,3 +1,6 @@
 // SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
 // Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
-(schema: 1, id: "base:spell:bless", name: "base:text:spell.bless.name", level: 1, school: Enchantment, classes: ["base:class:cleric"], concentration: true, ritual: false, description: "base:text:spell.bless.description")
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// Up to three members, fanning out from the target in marching order.
+(schema: 1, id: "base:spell:bless", name: "base:text:spell.bless.name", level: 1, school: Enchantment, classes: ["base:class:cleric"], concentration: true, ritual: false, description: "base:text:spell.bless.description", effect: Some(Buff(bonus: (count: 1, sides: 4, modifier: 0), on: [AttackRolls, SavingThrows], targets: 3, consumed: false, minutes: 10)), reach: One)

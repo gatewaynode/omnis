@@ -1,6 +1,8 @@
 // Spell points (PRD D12, §8.3 F3): pool = caster level × casting modifier + the other two
 // mental modifiers, half casters at half level, floor of the character level. Cost = spell level.
 // Components are required from `component_threshold` up (D11). Change through `rules.set`.
+// The casting slots add and compare what Rust rolls: the save DC, damage after a save, healing,
+// cantrip dice by level (SRD: 1, 2 at 5, 3 at 11, 4 at 17) and the concentration DC on damage.
 (
     schema: 1,
     id: "base:rules:casting",
@@ -10,6 +12,17 @@
             expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
         ),
         "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
+        "spell.save_dc": (inputs: ["cast_mod", "proficiency"], expr: "8 + proficiency + cast_mod"),
+        "spell.save_damage": (
+            inputs: ["amount", "saved", "half_on_save"],
+            expr: "if saved { if half_on_save { amount / 2 } else { 0 } } else { amount }",
+        ),
+        "heal.total": (inputs: ["dice", "cast_mod", "add_mod"], expr: "dice + (if add_mod { cast_mod } else { 0 })"),
+        "cantrip.dice": (
+            inputs: ["level"],
+            expr: "if level >= 17 { 4 } else if level >= 11 { 3 } else if level >= 5 { 2 } else { 1 }",
+        ),
+        "concentration.dc": (inputs: ["damage"], expr: "max(10, damage / 2)"),
     },
-    values: {"component_threshold": 5},
+    values: {"component_threshold": 5, "cast_minutes": 1},
 )

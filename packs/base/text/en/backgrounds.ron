@@ -4,5 +4,9 @@
     entries: {
         "base:text:background.acolyte.name": "Acolyte",
         "base:text:background.acolyte.shelter": "Shelter of the Faithful",
+        "base:text:background.explorer.guild": "Guild training",
+        "base:text:background.explorer.name": "Explorer",
+        "base:text:background.warden.name": "Warden",
+        "base:text:background.warden.warrant": "Patron's warrant",
     },
 )
