@@ -120,6 +120,8 @@ pub enum ShellCommand {
     Sheet,
     /// Open the inventory overlay while exploring.
     Inventory,
+    /// Look through the first sense item a member carries; a notice when there is none.
+    Look,
     /// Exit the application.
     Quit,
 }
@@ -263,6 +265,7 @@ fn apply_commands(
 #[derive(SystemParam)]
 struct ShellOut<'w> {
     notice: ResMut<'w, Notice>,
+    player: MessageWriter<'w, PlayerCommand>,
     replaced: MessageWriter<'w, WorldReplaced>,
     exit: MessageWriter<'w, AppExit>,
     next_play: ResMut<'w, NextState<PlayState>>,
@@ -296,6 +299,12 @@ fn shell(
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
             ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
+            ShellCommand::Look => match crate::look::look_command(&world.0, &data.0) {
+                Some(command) => {
+                    out.player.write(PlayerCommand(command));
+                }
+                None => out.notice.0 = "Nothing to look through".to_owned(),
+            },
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }

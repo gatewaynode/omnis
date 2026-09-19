@@ -87,6 +87,7 @@ fn event_line(event: &Event, names: &Names) -> Option<Line> {
         .or_else(|| wound_line(event, names))
         .or_else(|| crate::spell_text::spell_line(event, names))
         .or_else(|| crate::item_text::item_line(event, names))
+        .or_else(|| crate::sense_text::sense_line(event, names))
 }
 
 /// The encounter phase: who stands there, the checks, the bribe.

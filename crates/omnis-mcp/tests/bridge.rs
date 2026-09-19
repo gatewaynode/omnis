@@ -204,6 +204,36 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         json!("Rejected"),
         "{reply}"
     );
+    // A spyglass from the dev command, then a look: the tiles compact to a count.
+    let reply = server.tool(
+        15,
+        "sim_command",
+        json!({"command": {"Dev": {"GiveItem": {"member": 0, "item": "base:item:spyglass", "count": 1}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(16, "party_get", json!({}));
+    let kit = reply["result"]["structuredContent"]["party"]["members"][0]["equipment"]
+        .as_array()
+        .unwrap();
+    let glass = kit
+        .iter()
+        .find(|i| i["id"] == json!("base:item:spyglass"))
+        .unwrap();
+    let reply = server.tool(
+        17,
+        "sim_command",
+        json!({"command": {"Item": {"Use": {"member": 0, "item": glass["index"], "target": null}}}}),
+    );
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let events = reply["result"]["structuredContent"]["events"]
+        .as_array()
+        .unwrap();
+    let sensed = events
+        .iter()
+        .find(|e| e.get("Sensed").is_some())
+        .unwrap_or_else(|| panic!("{reply}"));
+    assert!(sensed["Sensed"]["tiles"]["count"].is_u64(), "{sensed}");
+    assert!(sensed["Sensed"]["checks"].is_array(), "{sensed}");
 }
 
 #[test]

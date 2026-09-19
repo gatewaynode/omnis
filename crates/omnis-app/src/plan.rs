@@ -213,9 +213,13 @@ fn shade(color: (u8, u8, u8), depth: u8, detail: u8, visibility: u8) -> (u8, u8,
     (scale(color.0), scale(color.1), scale(color.2))
 }
 
+/// The outline of a tile the party knows only from afar.
+pub const REMOTE_OUTLINE: (u8, u8, u8) = (150, 150, 210);
+
 /// The automap for the party's current map at `scale` pixels per tile, top-left at `origin`:
-/// known tiles as terrain colour, dimmed unless visited, walls and doors as one-pixel edges,
-/// the party as a white mark with a red pixel on its facing edge.
+/// known tiles as terrain colour, dimmed unless visited, a one-pixel inset outline on tiles
+/// seen only from afar, walls and doors as one-pixel edges, the party as a white mark with a
+/// red pixel on its facing edge.
 #[must_use]
 pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Vec<DrawOp> {
     let mut ops = Vec::new();
@@ -241,6 +245,17 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Ve
             };
             let (px, py) = (origin.0 + i32::from(x) * s, origin.1 + i32::from(y) * s);
             ops.push(DrawOp::fill(color, px, py, s as u32, s as u32));
+            if tile.layers & layer::REMOTE != 0 && s >= 3 {
+                let inset = (s - 2) as u32;
+                for (x0, y0, w, h) in [
+                    (px + 1, py + 1, inset, 1),
+                    (px + 1, py + s - 2, inset, 1),
+                    (px + 1, py + 1, 1, inset),
+                    (px + s - 2, py + 1, 1, inset),
+                ] {
+                    ops.push(DrawOp::fill(REMOTE_OUTLINE, x0, y0, w, h));
+                }
+            }
             for (facing, x0, y0, w, h) in [
                 (Facing::North, px, py, s as u32, 1),
                 (Facing::South, px, py + s - 1, s as u32, 1),
@@ -714,6 +729,48 @@ mod tests {
             })
             .count();
         assert!(wall_edges > 0, "the hedge is in view to the west");
+    }
+
+    #[test]
+    fn automap_outlines_tiles_seen_only_from_afar() {
+        let data = data();
+        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let map = world.position.map;
+        world.automap.record(
+            map,
+            2,
+            2,
+            omnis_sim::Known {
+                terrain: 0,
+                walls: omnis_sim::omnis_core::Edges(0),
+                doors: omnis_sim::omnis_core::Edges(0),
+                layers: layer::TERRAIN | layer::REMOTE,
+                seen_at: 0,
+            },
+        );
+        let ops = automap(&world, &data, (0, 0), 4);
+        let outline: Vec<(i32, i32, u32, u32)> = ops
+            .iter()
+            .filter_map(|o| match o.paint {
+                Paint::Fill {
+                    color,
+                    width,
+                    height,
+                } if color == REMOTE_OUTLINE => Some((o.x, o.y, width, height)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            outline,
+            [(9, 9, 2, 1), (9, 10, 2, 1), (9, 9, 1, 2), (10, 9, 1, 2)],
+            "one inset ring on the remote tile alone"
+        );
+        let ops = automap(&world, &data, (0, 0), 2);
+        assert!(
+            !ops.iter()
+                .any(|o| matches!(o.paint, Paint::Fill { color, .. } if color == REMOTE_OUTLINE)),
+            "too small for a ring"
+        );
     }
 
     #[test]

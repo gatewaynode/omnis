@@ -11,6 +11,7 @@ use crate::cursor::{self, Pointer, UiSet};
 use crate::debug_menu::{DebugView, debug_view};
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
+use crate::look::look_command;
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
@@ -85,7 +86,7 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  P sheet  M map  Esc menu";
+pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  L look  P sheet  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -371,13 +372,14 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
 /// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
 /// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
 /// spell for the road; SHEET on the map and in a fight once the party has a member; ITEMS
-/// on the map with a member; LOOK dim until sensing arrives.
+/// on the map with a member; LOOK on the map when a member who can act carries a sense item.
 #[must_use]
 pub fn tool_states(
     active: Active,
     has_world: bool,
     has_casts: bool,
     has_members: bool,
+    has_look: bool,
 ) -> ToolStates {
     if !has_world {
         return ToolStates::default();
@@ -400,6 +402,7 @@ pub fn tool_states(
     );
     tools.set(ToolButton::Map, live(exploring));
     tools.set(ToolButton::Items, live(exploring && has_members));
+    tools.set(ToolButton::Look, live(exploring && has_look));
     tools.set(ToolButton::Spells, live(exploring && has_casts));
     tools.set(
         ToolButton::Sheet,
@@ -559,11 +562,14 @@ fn build_frame(
     let inventory = (active == Active::Inventory)
         .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
         .flatten();
+    let has_look =
+        at.exploring() && loaded.is_some_and(|(w, d)| look_command(&w.0, &d.0).is_some());
     let tools = tool_states(
         active,
         world.is_some() && at.playing(),
         has_casts,
         !members.is_empty(),
+        has_look,
     );
     let front_row = data
         .as_ref()
@@ -622,31 +628,31 @@ mod tests {
     #[test]
     fn the_tool_pad_follows_the_screen() {
         assert_eq!(
-            tool_states(Active::None, false, true, true),
+            tool_states(Active::None, false, true, true, true),
             ToolStates::default()
         );
-        let map = tool_states(Active::None, true, true, true);
-        for button in [
-            ToolButton::Menu,
-            ToolButton::Map,
-            ToolButton::Spells,
-            ToolButton::Sheet,
-            ToolButton::Items,
-        ] {
+        let map = tool_states(Active::None, true, true, true, true);
+        for button in ToolButton::ALL {
             assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
         }
-        assert_eq!(map.get(ToolButton::Look), PadState::Disabled);
-        let nobody = tool_states(Active::None, true, false, false);
+        assert_eq!(
+            tool_states(Active::None, true, true, true, false).get(ToolButton::Look),
+            PadState::Disabled,
+            "no spyglass"
+        );
+        let nobody = tool_states(Active::None, true, false, false, false);
         assert_eq!(nobody.get(ToolButton::Spells), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
+        assert_eq!(nobody.get(ToolButton::Look), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
-        let fight = tool_states(Active::Combat, true, true, true);
+        let fight = tool_states(Active::Combat, true, true, true, true);
         assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
         assert_eq!(fight.get(ToolButton::Sheet), PadState::Enabled);
         assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Look), PadState::Disabled);
         for active in [
             Active::Paused,
             Active::Cast,
@@ -656,7 +662,7 @@ mod tests {
             Active::Inventory,
         ] {
             assert_eq!(
-                tool_states(active, true, true, true),
+                tool_states(active, true, true, true, true),
                 ToolStates::all(PadState::Disabled),
                 "{active:?}"
             );
