@@ -61,3 +61,9 @@
 - **What happened**: I ran the verification script through a pipe (`scripts/verify.sh | tail`) and chained the commit on the pipe's status, which is `tail`'s. The sim lint had failed on `f64` in a new test file; the commit went in anyway and was amended once noticed. Earlier the same day a test summary piped through `awk` had hidden a failed test until the script grew an exit code.
 - **Rule**: The command that gates a commit is the verification script itself, never a pipeline over it: `scripts/verify.sh > log 2>&1 && git commit …`, with the log read on failure. Any summary or filter runs on a saved log after the status is known.
 - **Rule**: A new file in a simulation crate, test or not, is written with integers; percentages and means print as tenths and hundredths.
+
+## 2026-09-19 — Every action needs a mouse entry point, and no function keys on macOS
+- **What happened**: M6a shipped casting on the road behind the C key, the debug menu behind the backtick or F1, and save and load behind F5 and F9. The owner's first play: F5 is taken by macOS, the testing party could not be saved between runs, and remote sensing, items, spells and character sheets had no way in outside a fight but a key.
+- **Rule**: Every player action gets a button on the screen (a pad button, a menu item, an action row) before it gets a key; the key is the shortcut, never the only door. Save and load are menu items on the pause overlay, not function keys.
+- **Rule**: Function keys are not bindings on macOS (the system and the hardware take F1–F12); a shortcut is a letter, and the help line names it.
+- **Rule**: A test party the owner builds by hand must survive the session: saving is the first thing to verify by mouse before a milestone is handed over.
