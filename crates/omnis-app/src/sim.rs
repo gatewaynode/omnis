@@ -48,6 +48,8 @@ pub enum PlayState {
     Paused,
     /// Every member is down: load or quit.
     Defeat,
+    /// The debug menu over the world; commands still apply (feature `devtools`).
+    Debug,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build

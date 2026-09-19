@@ -6,6 +6,8 @@ use crate::band::{self, Band, MemberRow};
 use crate::canvas::{Layout, NARROW};
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
+use crate::debug_menu::{DebugMenu, DebugView};
+use crate::debug_screen;
 use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Hud, Message};
@@ -29,6 +31,8 @@ pub enum Target<'a> {
     Combat(&'a mut CombatMenu),
     /// The modal after a wipe.
     Defeat(&'a mut DefeatMenu),
+    /// The debug menu.
+    Debug(&'a mut DebugMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
@@ -77,6 +81,12 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
         Target::Creation(form) => form.cursor = row,
         Target::Pause(pause) => pause.cursor = row,
         Target::Defeat(menu) => menu.cursor = row,
+        Target::Debug(menu) => {
+            if menu.row != row {
+                menu.row = row;
+                menu.field = 0;
+            }
+        }
         Target::Encounter(_) | Target::Combat(_) => return Vec::new(),
     }
     match (hit.kind, hit.part) {
@@ -134,6 +144,13 @@ pub enum Menu<'a> {
         menu: &'a DefeatMenu,
         /// The roll log, oldest first.
         log: &'a [String],
+    },
+    /// The debug menu.
+    Debug {
+        /// The menu.
+        menu: &'a DebugMenu,
+        /// What it edits.
+        view: &'a DebugView,
     },
 }
 
@@ -248,6 +265,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         Menu::Encounter { menu, view } => combat_screen::encounter(frame, view, menu),
         Menu::Combat { menu, view } => combat_screen::combat(frame, view, menu),
         Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
+        Menu::Debug { menu, view } => debug_screen::debug(frame, menu, view),
     }
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
@@ -678,6 +696,38 @@ mod tests {
             view: &fight,
         };
         dump(&dir, "combat_cast", casting, Some(&hud), &event);
+        let debug_view = crate::debug_menu::DebugView {
+            fighting: true,
+            devtools: true,
+            members: vec![crate::debug_menu::MemberDebug {
+                name: "Brenna".to_owned(),
+                hp: (12, 12),
+                sp: (0, 0),
+                xp: 25,
+                scores: [15, 14, 13, 12, 10, 8],
+                conditions: vec![],
+            }],
+            gold: 90,
+            food: 60,
+            items: vec![("base:item:spyglass".to_owned(), "Spyglass".to_owned())],
+            conditions: vec![("base:condition:poisoned".to_owned(), "Poisoned".to_owned())],
+            flags: vec![],
+            maps: vec![("test:map:dungeon".to_owned(), 24, 24)],
+            position: (0, 3, 8, omnis_sim::omnis_core::Facing::South),
+            stacks: vec![crate::debug_menu::StackDebug {
+                index: 0,
+                name: "Goblin".to_owned(),
+                count: (3, 3),
+                lead_hp: 7,
+            }],
+        };
+        let mut debug_menu = DebugMenu::default();
+        debug_menu.open(&debug_view);
+        let debugging = Menu::Debug {
+            menu: &debug_menu,
+            view: &debug_view,
+        };
+        dump(&dir, "debug", debugging, Some(&hud), &event);
         let fallen = Menu::Defeat {
             menu: &defeat,
             log: &log,

@@ -8,6 +8,7 @@ use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
+use crate::debug_menu::{DebugView, debug_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, Message};
@@ -95,6 +96,8 @@ pub const HELP_ENCOUNTER: &str = "Left/Right choose  Enter ok  Esc menu";
 pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok  Esc menu";
 /// Help after a wipe.
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
+/// Help on the debug menu.
+pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -142,6 +145,7 @@ pub fn event_text(event: &Event) -> Option<String> {
         Event::TimeAdvanced {
             day_rolled: true, ..
         } => "A new day.".into(),
+        Event::Dev { command } => crate::debug_menu::describe(command),
         _ => return None,
     })
 }
@@ -342,6 +346,7 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::CreateParty => &screens.creation.message,
         Active::Encounter => &screens.encounter.message,
         Active::Combat => &screens.combat.message,
+        Active::Debug => &screens.debug.message,
         _ => return None,
     };
     (!text.is_empty()).then(|| Message {
@@ -356,9 +361,19 @@ fn menu_for<'a>(
     screens: &'a Screens,
     world: Option<&World>,
     fight: Option<&'a FightView>,
+    debug: Option<&'a DebugView>,
     members: usize,
     log: &'a [String],
 ) -> (Menu<'a>, &'static str) {
+    if let (Active::Debug, Some(view)) = (active, debug) {
+        return (
+            Menu::Debug {
+                menu: &screens.debug,
+                view,
+            },
+            HELP_DEBUG,
+        );
+    }
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
@@ -399,7 +414,9 @@ fn menu_for<'a>(
             },
             HELP_DEFEAT,
         ),
-        (Active::None | Active::Encounter | Active::Combat, _) => (Menu::None, HELP_EXPLORE),
+        (Active::None | Active::Encounter | Active::Combat | Active::Debug, _) => {
+            (Menu::None, HELP_EXPLORE)
+        }
     }
 }
 
@@ -421,6 +438,9 @@ fn build_frame(
     let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
     let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
     let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
+    let debug = (active == Active::Debug)
+        .then(|| loaded.map(|(w, d)| debug_view(&w.0, &d.0)))
+        .flatten();
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
@@ -430,6 +450,7 @@ fn build_frame(
         &screens,
         world.as_ref().map(|w| &w.0),
         fight.as_ref(),
+        debug.as_ref(),
         members.len(),
         &log.0,
     );

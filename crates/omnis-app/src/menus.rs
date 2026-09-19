@@ -6,6 +6,7 @@
 use crate::AppConfig;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu};
 use crate::cursor::UiSet;
+use crate::debug_menu::DebugMenu;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
     Title, TitleAction,
@@ -42,6 +43,8 @@ pub struct Screens {
     pub combat: CombatMenu,
     /// The modal after a wipe.
     pub defeat: DefeatMenu,
+    /// The debug menu.
+    pub debug: DebugMenu,
 }
 
 /// Which screen is up, if any.
@@ -69,6 +72,8 @@ pub enum Active {
     Combat,
     /// The modal after a wipe.
     Defeat,
+    /// The debug menu.
+    Debug,
     /// No screen: booting or exploring.
     None,
 }
@@ -89,8 +94,15 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Encounter)) => Active::Encounter,
             (AppState::Playing, _, Some(PlayState::Combat)) => Active::Combat,
             (AppState::Playing, _, Some(PlayState::Defeat)) => Active::Defeat,
+            (AppState::Playing, _, Some(PlayState::Debug)) => Active::Debug,
             _ => Active::None,
         }
+    }
+
+    /// Whether a game is running.
+    #[must_use]
+    pub fn playing(&self) -> bool {
+        *self.app.get() == AppState::Playing
     }
 
     /// Whether the party is walking the map.
@@ -134,6 +146,7 @@ pub(crate) fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
         Key::Escape => MenuKey::Escape,
         Key::Backspace => MenuKey::Backspace,
         Key::Space => MenuKey::Char(' '),
+        Key::Tab => MenuKey::Char('\t'),
         Key::Character(text) => {
             let c = text.chars().next()?;
             if c.is_control() {
@@ -152,8 +165,10 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::NewGame => Target::NewGame(&mut screens.new_game),
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
-        // The combat plugin handles its screens' clicks.
-        Active::Encounter | Active::Combat | Active::Defeat | Active::None => return Vec::new(),
+        // The combat and debug plugins handle their screens' clicks.
+        Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {
+            return Vec::new();
+        }
     };
     screen::click(target, hit)
 }
@@ -266,8 +281,8 @@ fn menu_keys(
                     pause_action(action, &mut act);
                 }
             }
-            // The combat plugin handles its screens' keys.
-            Active::Encounter | Active::Combat | Active::Defeat | Active::None => {}
+            // The combat and debug plugins handle their screens' keys.
+            Active::Encounter | Active::Combat | Active::Defeat | Active::Debug | Active::None => {}
         }
     }
 }

@@ -188,7 +188,7 @@ fn main() -> AppExit {
     #[cfg(feature = "devtools")]
     {
         app.insert_resource(script)
-            .add_plugins(omnis_app::dev::DevPlugin);
+            .add_plugins((omnis_app::dev::DevPlugin, omnis_app::debug::DebugPlugin));
         if let Some(socket) = socket {
             app.add_plugins(socket);
         }

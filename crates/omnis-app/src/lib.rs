@@ -22,6 +22,10 @@ pub mod combat_screen;
 pub mod combat_text;
 pub mod cursor;
 #[cfg(feature = "devtools")]
+pub mod debug;
+pub mod debug_menu;
+pub mod debug_screen;
+#[cfg(feature = "devtools")]
 pub mod dev;
 pub mod font;
 pub mod input;
