@@ -21,6 +21,7 @@ pub mod monster;
 pub mod registry;
 pub mod ron_io;
 pub mod rules;
+pub mod sense;
 pub mod spell;
 pub mod terms;
 pub mod text;
@@ -33,7 +34,7 @@ pub use encounter::{
     ResolvedRandom,
 };
 pub use error::{DataError, LoadReport};
-pub use item::{Item, ItemKind};
+pub use item::{EquipSlot, Item, ItemKind, UseEffect};
 pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
@@ -41,7 +42,8 @@ pub use monster::{Attack, Monster};
 pub use omnis_expr;
 pub use registry::Registry;
 pub use rules::{RulesFile, SlotDef};
-pub use spell::Spell;
+pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
+pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
 pub use terms::{
     Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,
 };

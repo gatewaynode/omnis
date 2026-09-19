@@ -109,6 +109,33 @@ const ITEM: &str = r#"(
     kind: Weapon(kind: Martial, damage: (count: 1, sides: 8, modifier: 0), damage_type: Slashing, ranged: false, two_handed: false),
     cost_cp: 1500,
     weight_tenths: 30,
+    use_effect: None,
+    consumable: false,
+    description: None,
+)"#;
+
+const POTION: &str = r#"(
+    schema: 1,
+    id: "example:item:potion_of_healing",
+    name: "example:text:item.potion_of_healing.name",
+    kind: Gear,
+    cost_cp: 5000,
+    weight_tenths: 5,
+    use_effect: Some(Heal(dice: (count: 2, sides: 4, modifier: 2))),
+    consumable: true,
+    description: Some("example:text:item.potion_of_healing.description"),
+)"#;
+
+const SPYGLASS: &str = r#"(
+    schema: 1,
+    id: "example:item:spyglass",
+    name: "example:text:item.spyglass.name",
+    kind: Gear,
+    cost_cp: 100000,
+    weight_tenths: 10,
+    use_effect: Some(Sense((geometry: Ray(range: 16), fidelity: Structure, check: Some(Perception), persistence: Permanent, minutes: 1))),
+    consumable: false,
+    description: None,
 )"#;
 
 const CONDITION: &str = r#"(
@@ -136,6 +163,24 @@ const SPELL: &str = r#"(
     points: None,
     components: [("example:item:gem", 1)],
     description: "example:text:spell.magic_missile.description",
+    effect: Some(AutoHit(dice: (count: 3, sides: 4, modifier: 3), damage_type: Force)),
+    reach: One,
+)"#;
+
+const BLESS: &str = r#"(
+    schema: 1,
+    id: "example:spell:bless",
+    name: "example:text:spell.bless.name",
+    level: 1,
+    school: Enchantment,
+    classes: ["example:class:cleric"],
+    concentration: true,
+    ritual: false,
+    points: None,
+    components: [],
+    description: "example:text:spell.bless.description",
+    effect: Some(Buff(bonus: (count: 1, sides: 4, modifier: 0), on: [AttackRolls, SavingThrows], targets: 3, consumed: false, minutes: 10)),
+    reach: One,
 )"#;
 
 const MONSTER: &str = r#"(
@@ -201,10 +246,25 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     section(out, "data/items/<name>.ron", &parse::<Item>(ITEM)?)?;
     section(
         out,
+        "data/items/<name>.ron (a potion)",
+        &parse::<Item>(POTION)?,
+    )?;
+    section(
+        out,
+        "data/items/<name>.ron (a spyglass)",
+        &parse::<Item>(SPYGLASS)?,
+    )?;
+    section(
+        out,
         "data/conditions/<name>.ron",
         &parse::<Condition>(CONDITION)?,
     )?;
     section(out, "data/spells/<name>.ron", &parse::<Spell>(SPELL)?)?;
+    section(
+        out,
+        "data/spells/<name>.ron (a buff)",
+        &parse::<Spell>(BLESS)?,
+    )?;
     section(out, "data/monsters/<name>.ron", &parse::<Monster>(MONSTER)?)?;
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
     Ok(())

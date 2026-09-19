@@ -21,6 +21,8 @@ pub const MAX_DETAIL_DEPTH: u8 = 8;
 pub const MAX_VISIBILITY_DEPTH: u8 = 32;
 /// Stacks an encounter may hold: the combat screen lists four.
 pub const MAX_STACKS: usize = 4;
+/// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).
+pub const MAX_SENSE_RANGE: u8 = 64;
 /// Image extensions a pack may reference.
 pub const IMAGE_EXTENSIONS: [&str; 1] = ["png"];
 

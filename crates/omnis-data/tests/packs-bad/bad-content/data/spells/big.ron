@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:spell:big", name: "badc:text:spell.big.name", level: 5, school: Evocation, classes: ["badc:class:warlord"], description: "badc:text:spell.big.description", effect: Some(Attack(dice: (count: 0, sides: 10, modifier: 0), damage_type: Fire)), reach: Stack)

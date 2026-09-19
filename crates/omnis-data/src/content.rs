@@ -66,6 +66,7 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     check_references(&raw, errors);
     check_text_keys(&raw, data, errors);
     data.rules = build_rules(&raw.rules, errors);
+    check_component_threshold(&raw.spells, &data.rules, errors);
     data.races = intern(raw.races, &mut data.registry.races);
     data.classes = intern(raw.classes, &mut data.registry.classes);
     data.backgrounds = intern(raw.backgrounds, &mut data.registry.backgrounds);
@@ -149,6 +150,9 @@ fn check_text_keys(raw: &RawContent, data: &Data, errors: &mut Vec<DataError>) {
     }
     for (file, item) in raw.items.values() {
         keys.push((file, &item.name));
+        if let Some(description) = &item.description {
+            keys.push((file, description));
+        }
     }
     for (file, condition) in raw.conditions.values() {
         keys.push((file, &condition.name));
@@ -172,6 +176,28 @@ fn check_text_keys(raw: &RawContent, data: &Data, errors: &mut Vec<DataError>) {
             errors.push(DataError::new(
                 file,
                 format!("text key '{key}' is not defined in any language"),
+            ));
+        }
+    }
+}
+
+/// Default for the `component_threshold` rules value (PRD D11).
+pub const DEFAULT_COMPONENT_THRESHOLD: i64 = 5;
+
+/// A spell at or above the component threshold must list what it consumes (PRD D11, §8.2:
+/// "the list is data, never a single gem count").
+fn check_component_threshold(spells: &Files<Spell>, rules: &Rules, errors: &mut Vec<DataError>) {
+    let threshold = rules
+        .value("component_threshold")
+        .unwrap_or(DEFAULT_COMPONENT_THRESHOLD);
+    for (file, spell) in spells.values() {
+        if i64::from(spell.level) >= threshold && spell.components.is_empty() {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "level {} spells need a component list (component_threshold {threshold})",
+                    spell.level
+                ),
             ));
         }
     }
