@@ -6,7 +6,12 @@
 use crate::actors::Actor;
 use crate::menu::{MenuKey, cycle};
 use omnis_sim::combat::weapon_for;
-use omnis_sim::omnis_data::{Data, Disposition, Size};
+use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
+
+pub use crate::spell_menu::SpellRow;
+use crate::spell_menu::blocked_note;
+pub use crate::use_menu::UseRow;
+use crate::use_menu::use_rows;
 use omnis_sim::{
     ActorRef, CombatCommand, EncounterChoice, Event, Mode, ModeKind, World, bribe_cost, combat_view,
 };
@@ -59,8 +64,6 @@ pub struct FightView {
     pub phase: ModeKind,
     /// The round, zero before the fight.
     pub round: u32,
-    /// The acting member's name, when the fight waits on one.
-    pub actor: Option<String>,
     /// The acting member's slot.
     pub own: Option<usize>,
     /// How the monsters feel about the party.
@@ -71,6 +74,12 @@ pub struct FightView {
     pub bribe: Option<u32>,
     /// The party's purse.
     pub gold: u32,
+    /// The acting member's spells, in cast order; empty when no member acts or none known.
+    pub spells: Vec<SpellRow>,
+    /// The acting member's spell points and maximum.
+    pub points: (u32, u32),
+    /// The acting member's usable kit rows; empty when no member acts or none has a use.
+    pub usable: Vec<UseRow>,
 }
 
 impl FightView {
@@ -143,10 +152,36 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             }),
         })
         .collect();
+    let caster = own.map(|i| &world.party.members[i]);
+    let spells = view
+        .spells
+        .iter()
+        .filter_map(|s| {
+            let caster = caster?;
+            let id = *caster.known_spells.get(usize::from(s.index))?;
+            let spell = data.spells.get(&id)?;
+            let reaction = matches!(spell.effect, Some(SpellEffect::Reaction { .. }));
+            let active = world
+                .party
+                .members
+                .iter()
+                .flat_map(|m| m.effects.iter())
+                .chain(world.party.effects.iter())
+                .any(|e| e.source == id && e.caster == caster.id);
+            Some(SpellRow {
+                index: s.index,
+                name: data.label("en", &s.name).to_owned(),
+                cost: s.cost,
+                targets_members: s.targets_members,
+                auto: reaction.then(|| caster.auto_cast.contains(&id)),
+                active,
+                blocked: s.blocked.as_ref().map(blocked_note),
+            })
+        })
+        .collect();
     Some(FightView {
         phase: view.phase,
         round: view.round,
-        actor: own.map(|i| world.party.members[i].name.clone()),
         own,
         disposition: view.disposition,
         stacks,
@@ -154,6 +189,9 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             .then(|| bribe_cost(world, data).ok())
             .flatten(),
         gold: world.party.gold,
+        spells,
+        points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
+        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own)),
     })
 }
 
@@ -164,12 +202,27 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
 pub enum CombatIntent {
     /// A command for the acting member.
     Command(CombatCommand),
+    /// Switch a reaction spell's auto-cast for the acting member.
+    AutoCast {
+        /// The spell's index in the caster's list.
+        spell: u8,
+        /// On or off.
+        on: bool,
+    },
     /// Open the pause overlay.
     Pause,
 }
 
+/// The action row's cursor position of Cast.
+pub const ACTION_CAST: usize = 1;
+/// The action row's cursor position of Use.
+pub const ACTION_USE: usize = 2;
+
 /// The fight's action row and target: Up/Down choose the action, Left/Right the stack, Enter
-/// confirms, `a d e r` are hotkeys, Escape pauses.
+/// confirms, `a c u d e r` are hotkeys, Escape pauses. Cast opens the spell picker over the
+/// action row: Up/Down choose the spell, Enter casts it at the target (or the band's selected
+/// member for a heal or a buff), Escape closes it. Use opens the item picker the same way:
+/// Enter uses the item on the band's selected member, or the user.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CombatMenu {
     /// The action under the cursor.
@@ -178,29 +231,55 @@ pub struct CombatMenu {
     pub target: u8,
     /// Why the last confirmation did nothing; empty when it did something.
     pub message: String,
+    /// The spell picker's cursor while it is open.
+    pub picker: Option<usize>,
+    /// The item picker's cursor while it is open.
+    pub use_picker: Option<usize>,
 }
 
 impl CombatMenu {
     /// The actions, in cursor order.
-    pub const ACTIONS: [&'static str; 4] = ["Attack", "Dodge", "Exchange", "Run"];
+    pub const ACTIONS: [&'static str; 6] = ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run"];
     /// The hotkeys, in the same order.
-    pub const HOTKEYS: [char; 4] = ['a', 'd', 'e', 'r'];
+    pub const HOTKEYS: [char; 6] = ['a', 'c', 'u', 'd', 'e', 'r'];
 
-    /// Keep the target on a living stack: the first one when the current target fell.
+    /// Keep the target on a living stack: the first one when the current target fell; keep
+    /// the picker's cursor on a spell, and close it when the acting member knows none.
     pub fn sync(&mut self, view: &FightView) {
         let on_living = view.living().any(|s| s.index == self.target);
         if !on_living && let Some(first) = view.living().next() {
             self.target = first.index;
         }
+        if let Some(cursor) = self.picker {
+            if view.spells.is_empty() {
+                self.picker = None;
+            } else {
+                self.picker = Some(cursor.min(view.spells.len() - 1));
+            }
+        }
+        if let Some(cursor) = self.use_picker {
+            if view.usable.is_empty() {
+                self.use_picker = None;
+            } else {
+                self.use_picker = Some(cursor.min(view.usable.len() - 1));
+            }
+        }
     }
 
-    /// Handle a key. `selected` is the band row the mouse selected, the exchange partner.
+    /// Handle a key. `selected` is the band row the mouse selected, the exchange partner or
+    /// the member a heal goes to.
     pub fn key(
         &mut self,
         key: MenuKey,
         view: &FightView,
         selected: Option<usize>,
     ) -> Option<CombatIntent> {
+        if let Some(cursor) = self.picker {
+            return self.picker_key(cursor, key, view, selected);
+        }
+        if let Some(cursor) = self.use_picker {
+            return self.use_key(cursor, key, view, selected);
+        }
         match key {
             MenuKey::Up | MenuKey::Down => {
                 self.cursor = cycle(self.cursor, Self::ACTIONS.len(), key);
@@ -219,7 +298,7 @@ impl CombatMenu {
         None
     }
 
-    fn step_target(&mut self, view: &FightView, key: MenuKey) {
+    pub(crate) fn step_target(&mut self, view: &FightView, key: MenuKey) {
         let living: Vec<u8> = view.living().map(|s| s.index).collect();
         let at = living.iter().position(|i| *i == self.target).unwrap_or(0);
         if let Some(index) = living.get(cycle(at, living.len(), key)) {
@@ -248,8 +327,24 @@ impl CombatMenu {
                     }
                 }
             }
-            1 => CombatCommand::Dodge,
-            2 => match (selected, view.own) {
+            ACTION_CAST => {
+                if view.spells.is_empty() {
+                    self.message = "No spells known".to_owned();
+                } else {
+                    self.picker = Some(0);
+                }
+                return None;
+            }
+            ACTION_USE => {
+                if view.usable.is_empty() {
+                    self.message = "Nothing to use".to_owned();
+                } else {
+                    self.use_picker = Some(0);
+                }
+                return None;
+            }
+            3 => CombatCommand::Dodge,
+            4 => match (selected, view.own) {
                 (Some(with), Some(own)) if with != own => CombatCommand::Exchange {
                     with: u8::try_from(with).unwrap_or(u8::MAX),
                 },
@@ -398,7 +493,7 @@ pub(crate) mod tests {
     };
     use std::path::PathBuf;
 
-    fn data() -> Data {
+    pub(crate) fn data() -> Data {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")])
             .unwrap_or_else(|r| panic!("{r}"))
@@ -412,10 +507,10 @@ pub(crate) mod tests {
             background: "base:background:acolyte".to_owned(),
             alignment: Alignment::LawfulGood,
             scores,
-            skills: if class == "wizard" {
-                vec![Skill::Arcana, Skill::History]
-            } else {
-                vec![Skill::Athletics, Skill::Perception]
+            skills: match class {
+                "wizard" => vec![Skill::Arcana, Skill::History],
+                "cleric" => vec![Skill::Medicine, Skill::History],
+                _ => vec![Skill::Athletics, Skill::Perception],
             },
         }
     }
@@ -480,7 +575,7 @@ pub(crate) mod tests {
             [Size::Small, Size::Small]
         );
         assert_eq!(view.actors().len(), 2);
-        assert_eq!(view.actor, None);
+        assert_eq!(view.own, None);
         // Goblins 50 xp × 3 + rats 25 xp × 2 = 200; hostile pays it all.
         assert_eq!(view.bribe, Some(200));
         assert_eq!(view.bribe_label(), "Bribe 200g");
@@ -499,7 +594,7 @@ pub(crate) mod tests {
         let view = fight_view(&world, &data).unwrap();
         assert_eq!(view.phase, ModeKind::Combat);
         assert_eq!(view.round, 1);
-        assert!(view.actor.is_some(), "a member is to act");
+        assert!(view.own.is_some(), "a member is to act");
         assert_eq!(view.bribe, None);
         assert!(
             view.stacks.iter().all(StackRow::reachable),
@@ -524,7 +619,7 @@ pub(crate) mod tests {
         )
         .unwrap();
         let view = fight_view(&world, &data).unwrap();
-        assert_eq!(view.actor.as_deref(), Some("Brenna"), "{view:#?}");
+        assert_eq!(view.own, Some(0), "Brenna acts: {view:#?}");
         let back = &view.stacks[2];
         assert!(back.alive && !back.front && !back.reachable(), "{view:#?}");
         assert_eq!(
@@ -547,7 +642,6 @@ pub(crate) mod tests {
         FightView {
             phase: ModeKind::Combat,
             round: 1,
-            actor: own.map(|_| "Brenna".to_owned()),
             own,
             disposition: Disposition::Hostile,
             stacks: stacks
@@ -565,6 +659,9 @@ pub(crate) mod tests {
                 .collect(),
             bribe: None,
             gold: 0,
+            spells: Vec::new(),
+            points: (0, 0),
+            usable: Vec::new(),
         }
     }
 
@@ -594,15 +691,18 @@ pub(crate) mod tests {
             Some(CombatIntent::Command(CombatCommand::Attack { stack: 1 }))
         );
         assert!(menu.message.is_empty());
-        menu.key(MenuKey::Down, &view, None);
-        assert_eq!(menu.cursor, 1);
+        for _ in 0..3 {
+            menu.key(MenuKey::Down, &view, None);
+        }
+        assert_eq!(menu.cursor, 3, "attack, cast, use, dodge");
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Dodge))
         );
-        menu.key(MenuKey::Up, &view, None);
-        menu.key(MenuKey::Up, &view, None);
-        assert_eq!(menu.cursor, 3, "wraps");
+        for _ in 0..4 {
+            menu.key(MenuKey::Up, &view, None);
+        }
+        assert_eq!(menu.cursor, 5, "wraps");
         assert_eq!(
             menu.key(MenuKey::Char('r'), &view, None),
             Some(CombatIntent::Command(CombatCommand::Run))

@@ -1,71 +1,226 @@
 //! The fight painted over the viewport (ARCHITECTURE.md §8.1): the stack rows above the 3D
-//! view, the action row and the roll log below it, and the modal that follows a wipe. The
-//! middle rows stay clear so the scene and the silhouettes show through. Bevy-free.
+//! view, the counts under the silhouettes' feet, the action row below the scene, and the
+//! modal that follows a wipe. The rows between stay clear so the scene and the silhouettes
+//! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
-use crate::combat_text::SHORT_CELLS;
 use crate::font::fit;
-use crate::layout::Rect;
-use crate::screens::{ItemState, item_state, label, label_right, modal};
+use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
+use crate::raster::Rgb;
+use crate::screens::{ItemState, MODAL_TEXT_X, item_state_at, modal};
+use crate::text::LONG_CELLS;
 use crate::widget::{DIM, Frame, HI, Kind, PANEL, TEXT, WidgetId};
 
-/// The panel above the clear window: rows 0 to 4.
-pub const TOP_PANEL: Rect = Rect::new(0, 0, 240, 40);
-/// The panel below it: rows 11 to 15.
-pub const BOTTOM_PANEL: Rect = Rect::new(0, 88, 240, 47);
-/// The first stack row.
-const FIRST_STACK_ROW: i32 = 1;
-/// The action row.
-const ACTION_ROW: i32 = 11;
-/// The first roll-log row; the log runs to the last row of the viewport.
-const FIRST_LOG_ROW: i32 = 12;
-/// The row of the count digits under the silhouettes.
-const COUNT_ROW: i32 = 10;
-/// Rows of the roll log tail.
-pub const LOG_ROWS: usize = 4;
-/// Cells of a stack row: `99 {name:<20} front`.
-const STACK_CELLS: usize = 29;
-/// The action row columns for the fight: Attack, Dodge, Exchange, Run.
-const COMBAT_ACTION_COLUMNS: [i32; 4] = [1, 9, 16, 26];
-/// The action row columns before it: Attack, Bribe …, Hide, Run.
-const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 9, 22, 28];
-/// Where the defeat modal sits: a title, three log lines, and two buttons, each on its own
-/// row (title at +6, lines from +18, buttons from the bottom at ten pixels a row).
-pub const DEFEAT_RECT: Rect = Rect::new(48, 24, 144, 80);
-
-/// The fight: header, stack rows with the target marked, the four actions, the log tail.
-pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu, log: &[String]) {
-    panels(frame);
-    label(frame, 1, 0, &format!("COMBAT  Round {}", view.round), HI);
-    if let Some(actor) = &view.actor {
-        label_right(frame, 0, &format!("{actor:.10} to act"), TEXT);
+/// The header's row: `COMBAT  Round n` or `ENCOUNTER` and the disposition.
+const HEADER_ROW: i32 = 1;
+/// The first stack row, a blank row under the header.
+const FIRST_STACK_ROW: i32 = 3;
+/// Stack rows on the screen.
+const STACK_ROWS: i32 = 5;
+/// The panel above the clear window: the header, the stack rows, a blank row.
+pub const TOP_PANEL: Rect = rows(0, FIRST_STACK_ROW + STACK_ROWS + 1);
+/// The row of the count digits: the first row at or under the front silhouettes' feet.
+const COUNT_ROW: i32 = (actors::FRONT_FEET_Y + CELL.1 - 1) / CELL.1;
+/// Rows of the panel below the clear window.
+const BOTTOM_ROWS: i32 = 7;
+/// The bottom panel's first row.
+const BOTTOM_ROW: i32 = VIEWPORT_ROWS - BOTTOM_ROWS;
+/// The panel below the clear window, to the viewport's bottom edge.
+pub const BOTTOM_PANEL: Rect = Rect::new(
+    VIEWPORT.x,
+    VIEWPORT.y + row_y(BOTTOM_ROW),
+    VIEWPORT.w,
+    VIEWPORT.h - row_y(BOTTOM_ROW) as u32,
+);
+/// The action row, in the middle of the bottom panel.
+const ACTION_ROW: i32 = BOTTOM_ROW + 3;
+/// Cells of a stack row's text: `99 {name:<20} front`.
+const STACK_TEXT_CELLS: usize = 29;
+/// The column a stack's reason for being out of reach starts at, in a fight.
+const REASON_COLUMN: i32 = 32;
+/// Cells the reason may take.
+const REASON_CELLS: usize = 24;
+/// Cells of a stack row: the text, a gap, the reason.
+const STACK_CELLS: usize = REASON_COLUMN as usize - 1 + REASON_CELLS;
+/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run.
+const COMBAT_ACTION_COLUMNS: [i32; 6] = [1, 9, 15, 20, 27, 37];
+/// Cells a spell picker row takes: `{name:<18} {cost:>2} pt  {note:<16}`.
+const SPELL_ROW_CELLS: usize = 44;
+/// Spell rows the picker shows: the bottom panel's rows under its header.
+pub const SPELL_ROWS: usize = (BOTTOM_ROWS - 1) as usize;
+// Each action label ends before the next column begins.
+const _: () = {
+    let mut i = 0;
+    while i + 1 < COMBAT_ACTION_COLUMNS.len() {
+        assert!(
+            COMBAT_ACTION_COLUMNS[i] + (CombatMenu::ACTIONS[i].len() as i32)
+                < COMBAT_ACTION_COLUMNS[i + 1]
+        );
+        i += 1;
     }
+};
+const _: () = assert!((SPELL_ROW_CELLS as i32) < VIEWPORT_COLUMNS);
+/// The action row columns before it: Attack, Bribe …, Hide, Run.
+const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 11, 26, 34];
+/// Cells a modal line may take inside the defeat box: a whole log line.
+const DEFEAT_LINE_CELLS: usize = LONG_CELLS;
+/// The defeat box's height in rows: the title, the log lines, two buttons, and the gaps
+/// (`screens::modal` places them).
+const DEFEAT_ROWS: i32 = 12;
+/// The defeat box's size: the lines plus two cells of margin each side.
+const DEFEAT_SIZE: (u32, u32) = (
+    (DEFEAT_LINE_CELLS as i32 + 4) as u32 * CELL.0 as u32,
+    (DEFEAT_ROWS * CELL.1) as u32,
+);
+/// Where the defeat modal sits: centred in the viewport, its top on a text row.
+pub const DEFEAT_RECT: Rect = Rect::new(
+    VIEWPORT.x + (VIEWPORT.w - DEFEAT_SIZE.0) as i32 / 2,
+    VIEWPORT.y + row_y((VIEWPORT.h - DEFEAT_SIZE.1) as i32 / 2 / CELL.1),
+    DEFEAT_SIZE.0,
+    DEFEAT_SIZE.1,
+);
+// The rows fit the viewport's grid, the panels and the box sit inside it, the counts sit
+// between the feet and the bottom panel, and a defeat line fits its box with the modal's
+// margins.
+const _: () = assert!((STACK_CELLS as i32) < VIEWPORT_COLUMNS);
+const _: () = assert!((1 + STACK_TEXT_CELLS as i32) < REASON_COLUMN);
+const _: () = assert!(row_y(COUNT_ROW) >= actors::FRONT_FEET_Y);
+const _: () = assert!(row_y(COUNT_ROW) + CELL.1 <= BOTTOM_PANEL.y);
+const _: () = assert!(TOP_PANEL.bottom() <= row_y(COUNT_ROW));
+const _: () = assert!(VIEWPORT.encloses(TOP_PANEL) && VIEWPORT.encloses(BOTTOM_PANEL));
+const _: () = assert!(!TOP_PANEL.overlaps(BOTTOM_PANEL) && VIEWPORT.encloses(DEFEAT_RECT));
+const _: () =
+    assert!(CELL.0 as u32 * DEFEAT_LINE_CELLS as u32 + 2 * MODAL_TEXT_X as u32 <= DEFEAT_SIZE.0);
+
+/// A row's rectangle on the viewport grid: `cells` wide from a cell.
+fn vp_rect(column: i32, row: i32, cells: usize) -> Rect {
+    let (x, y) = cell(column, row);
+    Rect::new(x, y, cells as u32 * CELL.0 as u32, CELL.1 as u32)
+}
+
+/// Paint plain text at a cell of the viewport grid.
+fn vp_label(frame: &mut Frame, column: i32, row: i32, text: &str, color: Rgb) {
+    let (x, y) = cell(column, row);
+    frame.raster.text(x, y, text, color);
+}
+
+/// Paint text right-aligned a column in from the viewport's edge.
+fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
+    let column = VIEWPORT_COLUMNS - 1 - text.chars().count() as i32;
+    vp_label(frame, column.max(0), row, text, color);
+}
+
+/// The fight: header, stack rows with the target marked, the six actions or the spell
+/// picker in their place; the band shows the log.
+pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
+    panels(frame);
+    vp_label(
+        frame,
+        1,
+        HEADER_ROW,
+        &format!("COMBAT  Round {}", view.round),
+        HI,
+    );
     stacks(frame, view, Some(menu.target));
     counts(frame, view);
+    if let Some(cursor) = menu.picker {
+        picker(frame, view, cursor);
+        return;
+    }
+    if let Some(cursor) = menu.use_picker {
+        use_picker(frame, view, cursor);
+        return;
+    }
     for (i, (text, column)) in CombatMenu::ACTIONS
         .iter()
         .zip(COMBAT_ACTION_COLUMNS)
         .enumerate()
     {
-        item_state(
+        let state = ItemState::from_selected(menu.cursor == i);
+        item_state_at(
             frame,
             WidgetId::Action(i),
             Kind::Button,
-            (column, ACTION_ROW),
+            vp_rect(column, ACTION_ROW, text.len()),
             text,
-            text.len(),
-            ItemState::from_selected(menu.cursor == i),
+            state,
         );
     }
-    roll_log(frame, log);
+}
+
+/// The spell picker in the bottom panel: a header with the caster's points, then one row per
+/// spell with its cost and note; blocked rows are dim, a reaction row switches its auto-cast.
+fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
+    let (points, max) = view.points;
+    vp_label(
+        frame,
+        1,
+        BOTTOM_ROW,
+        &format!("CAST   SP {points}/{max}   Esc back"),
+        HI,
+    );
+    for (i, spell) in view.spells.iter().enumerate().take(SPELL_ROWS) {
+        let text = format!(
+            "{:<18} {:>2} pt  {:<16}",
+            fit(&spell.name, 18),
+            spell.cost.min(99),
+            fit(&spell.note(), 16)
+        );
+        let state = if spell.blocked.is_some() && spell.auto.is_none() {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(cursor == i)
+        };
+        item_state_at(
+            frame,
+            WidgetId::Spell(usize::from(spell.index)),
+            Kind::Button,
+            vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
+            &text,
+            state,
+        );
+    }
+}
+
+/// The item picker in the bottom panel: a header, then one row per usable item of the
+/// acting member's kit with its count and why it is grey.
+fn use_picker(frame: &mut Frame, view: &FightView, cursor: usize) {
+    vp_label(
+        frame,
+        1,
+        BOTTOM_ROW,
+        "USE   click a member for a target   Esc back",
+        HI,
+    );
+    for (i, row) in view.usable.iter().enumerate().take(SPELL_ROWS) {
+        let text = format!(
+            "{:<24} x{:>3}  {:<12}",
+            fit(&row.name, 24),
+            row.count.min(999),
+            fit(row.blocked.as_deref().unwrap_or(""), 12)
+        );
+        let state = if row.blocked.is_some() {
+            ItemState::Disabled
+        } else {
+            ItemState::from_selected(cursor == i)
+        };
+        item_state_at(
+            frame,
+            WidgetId::Item(i),
+            Kind::Button,
+            vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
+            &text,
+            state,
+        );
+    }
 }
 
 /// The choice before a fight: header with the disposition, the stacks, the four choices.
 pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
     panels(frame);
-    label(frame, 1, 0, "ENCOUNTER", HI);
-    label_right(frame, 0, &format!("{:?}", view.disposition), TEXT);
+    vp_label(frame, 1, HEADER_ROW, "ENCOUNTER", HI);
+    vp_label_right(frame, HEADER_ROW, &format!("{:?}", view.disposition), TEXT);
     stacks(frame, view, None);
     counts(frame, view);
     let bribe = view.bribe_label();
@@ -81,23 +236,19 @@ pub fn encounter(frame: &mut Frame, view: &FightView, menu: &EncounterMenu) {
         } else {
             ItemState::from_selected(menu.cursor == i)
         };
-        item_state(
+        item_state_at(
             frame,
             WidgetId::Action(i),
             Kind::Button,
-            (column, ACTION_ROW),
+            vp_rect(column, ACTION_ROW, text.chars().count()),
             text,
-            text.chars().count(),
             state,
         );
     }
 }
 
-/// Lines of the roll log the defeat modal shows: how the end came.
-pub const DEFEAT_LOG_ROWS: usize = 3;
-/// Cells a modal line may take inside the defeat box.
-const DEFEAT_LINE_CELLS: usize = 20;
-
+/// Lines of the log the defeat modal shows: how the end came.
+pub const DEFEAT_LOG_ROWS: usize = 4;
 /// "The party has fallen", boxed over the world, with the last of the roll log so a fight
 /// that ended inside one command still reads, and the two ways out.
 pub fn defeat(frame: &mut Frame, menu: &DefeatMenu, log: &[String]) {
@@ -125,10 +276,11 @@ fn panels(frame: &mut Frame) {
 }
 
 /// One row per stack: the living count, the name, and front, back, or slain. In a fight the
-/// rows are targets the mouse can pick and the current target is marked; slain rows are
-/// inert. Before the fight they are plain text.
+/// rows are targets the mouse can pick, the current target is marked, a stack the acting
+/// member cannot reach says why, and slain rows are inert. Before the fight they are plain
+/// text.
 fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
-    for (i, stack) in view.stacks.iter().enumerate() {
+    for (i, stack) in view.stacks.iter().enumerate().take(STACK_ROWS as usize) {
         let row = FIRST_STACK_ROW + i as i32;
         let text = format!(
             "{:>2} {:<20} {}",
@@ -137,21 +289,23 @@ fn stacks(frame: &mut Frame, view: &FightView, target: Option<u8>) {
             stack.state()
         );
         let Some(target) = target else {
-            label(frame, 1, row, &text, if stack.alive { TEXT } else { DIM });
+            vp_label(frame, 1, row, &text, if stack.alive { TEXT } else { DIM });
             continue;
         };
+        if let Some(reason) = stack.blocked.as_deref().filter(|_| stack.alive) {
+            vp_label(frame, REASON_COLUMN, row, &fit(reason, REASON_CELLS), DIM);
+        }
         let state = if !stack.alive {
             ItemState::Disabled
         } else {
             ItemState::from_selected(stack.index == target)
         };
-        item_state(
+        item_state_at(
             frame,
             WidgetId::Stack(i),
             Kind::Choice,
-            (1, row),
+            vp_rect(1, row, STACK_CELLS),
             &text,
-            STACK_CELLS,
             state,
         );
     }
@@ -165,42 +319,33 @@ fn counts(frame: &mut Frame, view: &FightView) {
             continue;
         };
         let text = stack.count.to_string();
-        let x = s.rect.x + s.rect.w as i32 / 2 - 3 * text.len() as i32;
+        let x = s.rect.x + s.rect.w as i32 / 2 - CELL.0 / 2 * text.len() as i32;
         frame.raster.text(x, y, &text, TEXT);
-    }
-}
-
-/// The last lines of the log, newest at the bottom in full colour, the older ones dim.
-fn roll_log(frame: &mut Frame, log: &[String]) {
-    let tail = &log[log.len().saturating_sub(LOG_ROWS)..];
-    for (i, line) in tail.iter().enumerate() {
-        let newest = i + 1 == tail.len();
-        label(
-            frame,
-            1,
-            FIRST_LOG_ROW + i as i32,
-            &fit(line, SHORT_CELLS),
-            if newest { TEXT } else { DIM },
-        );
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat_menu::StackRow;
+    use crate::combat_menu::{ACTION_USE, StackRow};
     use crate::layout::cell;
     use crate::screens::tests::assert_laid_out;
+
+    /// Inside the viewport grid: a full last column ends a pixel past the viewport.
+    fn laid_out(frame: &Frame) {
+        let area = Rect::new(VIEWPORT.x + 1, VIEWPORT.y, VIEWPORT.w, VIEWPORT.h);
+        assert_laid_out(frame, area);
+    }
+    use crate::screens::{MODAL_BOTTOM_PAD, MODAL_BUTTON_PITCH, MODAL_LINES_Y, MODAL_TEXT_X};
     use crate::widget::hit;
     use omnis_sim::ModeKind;
     use omnis_sim::omnis_data::{Disposition, Size};
 
-    /// Four stacks of the widest names and counts, the widest round and actor.
+    /// Four stacks of the widest names and counts, the widest round.
     fn widest_view(phase: ModeKind) -> FightView {
         FightView {
             phase,
             round: 999,
-            actor: Some("Bartholomew Longname".to_owned()),
             own: Some(0),
             disposition: Disposition::Friendly,
             stacks: (0..4)
@@ -217,11 +362,81 @@ mod tests {
                 .collect(),
             bribe: Some(9999),
             gold: 0,
+            spells: (0..6)
+                .map(|i| crate::combat_menu::SpellRow {
+                    index: i,
+                    name: format!("Spell With A Long Name {i}"),
+                    cost: 9,
+                    targets_members: i == 5,
+                    auto: (i == 4).then_some(false),
+                    active: i == 1,
+                    blocked: (i == 2).then(|| "need 9 pt".to_owned()),
+                })
+                .collect(),
+            points: (99, 99),
+            usable: (0..6)
+                .map(|i| crate::combat_menu::UseRow {
+                    index: i,
+                    name: format!("Potion With A Long Name {i}"),
+                    count: 999,
+                    blocked: (i == 2).then(|| "not here".to_owned()),
+                })
+                .collect(),
         }
     }
 
-    fn wide_log() -> Vec<String> {
-        (0..6).map(|i| format!("{i}{}", "x".repeat(60))).collect()
+    #[test]
+    fn the_use_picker_lists_the_kit_in_the_bottom_panel() {
+        let mut frame = Frame::default();
+        let view = widest_view(ModeKind::Combat);
+        let menu = CombatMenu {
+            use_picker: Some(1),
+            target: 1,
+            ..CombatMenu::default()
+        };
+        combat(&mut frame, &view, &menu);
+        laid_out(&frame);
+        assert!(frame.widget(WidgetId::Action(0)).is_none());
+        assert_eq!(frame.widgets.len(), 4 + 6, "four stacks, six items");
+        for i in 0..6 {
+            let w = frame.widget(WidgetId::Item(i)).unwrap();
+            assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
+            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+        }
+        let chosen = frame.widget(WidgetId::Item(1)).unwrap();
+        assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));
+        let h = hit(&frame.widgets, chosen.rect.x, chosen.rect.y).unwrap();
+        assert_eq!((h.id, h.kind), (WidgetId::Item(1), Kind::Button));
+    }
+
+    #[test]
+    fn the_picker_lists_the_spells_in_the_bottom_panel() {
+        let mut frame = Frame::default();
+        let view = widest_view(ModeKind::Combat);
+        let menu = CombatMenu {
+            picker: Some(1),
+            target: 1,
+            ..CombatMenu::default()
+        };
+        combat(&mut frame, &view, &menu);
+        laid_out(&frame);
+        assert!(
+            frame.widget(WidgetId::Action(0)).is_none(),
+            "the action row makes way"
+        );
+        assert_eq!(frame.widgets.len(), 4 + 6, "four stacks, six spells");
+        for i in 0..6 {
+            let w = frame.widget(WidgetId::Spell(i)).unwrap();
+            assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
+            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+        }
+        let chosen = frame.widget(WidgetId::Spell(1)).unwrap();
+        assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));
+        let (hx, hy) = cell(1, BOTTOM_ROW);
+        assert!(
+            (0..40).any(|dx| rgb(&frame, hx + dx, hy + 3) == Some(HI)),
+            "the header"
+        );
     }
 
     fn rgb(frame: &Frame, x: i32, y: i32) -> Option<(u8, u8, u8)> {
@@ -235,50 +450,73 @@ mod tests {
         let menu = CombatMenu {
             cursor: 2,
             target: 1,
-            message: String::new(),
+            ..CombatMenu::default()
         };
-        combat(&mut frame, &view, &menu, &wide_log());
-        assert_laid_out(&frame);
-        assert_eq!(frame.widgets.len(), 8, "four stacks, four actions");
+        combat(&mut frame, &view, &menu);
+        laid_out(&frame);
+        assert_eq!(frame.widgets.len(), 10, "four stacks, six actions");
+        assert!(
+            frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
+            "use is live"
+        );
         for i in 0..4 {
             let w = frame.widget(WidgetId::Stack(i)).unwrap();
             assert_eq!(w.rect.right(), cell(1 + STACK_CELLS as i32, 0).0);
             assert_eq!(w.enabled, i != 3, "the slain row is inert");
         }
-        assert!(frame.widget(WidgetId::Action(3)).unwrap().rect.right() <= 240);
-        assert_eq!(rgb(&frame, 120, 20), Some(PANEL), "the top band");
-        assert_eq!(rgb(&frame, 120, 100), Some(PANEL), "the bottom band");
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]), "the window");
-        assert_eq!(frame.raster.get(120, 87), Some([0, 0, 0, 0]));
-        assert_eq!(rgb(&frame, 120, 88), Some(PANEL));
+        let run = frame.widget(WidgetId::Action(5)).unwrap();
+        assert!(run.rect.right() <= VIEWPORT.right());
+        let mid = VIEWPORT.w as i32 / 2;
+        let (top, bottom) = (TOP_PANEL, BOTTOM_PANEL);
+        // The reason a stack is out of reach stands after its row's text, dim.
+        let (rx, ry) = cell(REASON_COLUMN, FIRST_STACK_ROW + 2);
+        assert!(
+            (0..30).any(|dx| rgb(&frame, rx + dx, ry + 3) == Some(DIM)),
+            "behind"
+        );
+        let (rx, ry) = cell(REASON_COLUMN, FIRST_STACK_ROW);
+        assert!((0..30).all(|dx| rgb(&frame, rx + dx, ry + 3) == Some(PANEL)));
+        // The panels clear the tallest front silhouette's head and stand off its feet.
+        let giant = actors::Actor {
+            index: 0,
+            size: Size::Gargantuan,
+            front: true,
+        };
+        let head = actors::silhouettes(&[giant])[0].rect.y;
+        assert!(top.bottom() <= head, "{} vs head {head}", top.bottom());
+        assert!(cell(0, COUNT_ROW).1 >= actors::FRONT_FEET_Y);
+        assert_eq!(rgb(&frame, top.right() - 2, top.y + 4), Some(PANEL), "top");
+        assert_eq!(rgb(&frame, bottom.right() - 2, bottom.y + 4), Some(PANEL));
+        let clear = Some([0, 0, 0, 0]);
+        assert_eq!(frame.raster.get(mid, top.bottom() + 8), clear, "the window");
+        assert_eq!(frame.raster.get(mid, top.bottom()), clear);
+        assert_eq!(frame.raster.get(mid, bottom.y - 1), clear);
+        assert_eq!(rgb(&frame, mid, bottom.y), Some(PANEL));
         let target = frame.widget(WidgetId::Stack(1)).unwrap();
         assert_eq!(
             rgb(&frame, target.rect.x - 5, target.rect.y + 1),
             Some(HI),
             "the marker sits before the target"
         );
-        let (x, y) = cell(1, 15);
-        assert_eq!(
-            rgb(&frame, x, y + 1),
-            Some(TEXT),
-            "the newest line is bright"
-        );
-        let (x, y) = cell(1, 12);
-        assert_eq!(rgb(&frame, x, y + 1), Some(DIM), "older lines are dim");
-        let (x, y) = cell(1 + SHORT_CELLS as i32, 12);
-        assert_eq!(frame.raster.get(x, y + 1), Some([0, 0, 0, 0]), "clipped");
-        let action = frame.widget(WidgetId::Action(2)).unwrap();
+        let action = frame.widget(WidgetId::Action(3)).unwrap();
         let h = hit(&frame.widgets, action.rect.x, action.rect.y).unwrap();
-        assert_eq!((h.id, h.kind), (WidgetId::Action(2), Kind::Button));
+        assert_eq!((h.id, h.kind), (WidgetId::Action(3), Kind::Button));
+        let use_it = frame.widget(WidgetId::Action(ACTION_USE)).unwrap();
+        let h = hit(&frame.widgets, use_it.rect.x, use_it.rect.y).unwrap();
+        assert_eq!(h.id, WidgetId::Action(ACTION_USE));
         let (_, y) = cell(0, COUNT_ROW);
-        let digits = (0..240)
+        let digits = (0..VIEWPORT.right())
             .filter(|x| rgb(&frame, *x, y + 1) == Some(TEXT))
             .count();
         assert!(digits > 0, "the counts sit under the silhouettes");
         assert_eq!(
-            frame.raster.get(120, y - 1),
-            Some([0, 0, 0, 0]),
-            "row 9 is clear"
+            frame.raster.get(mid, y - 1),
+            clear,
+            "the row above is clear"
+        );
+        assert!(
+            y + CELL.1 <= bottom.y,
+            "the counts end above the bottom panel"
         );
     }
 
@@ -288,44 +526,48 @@ mod tests {
         let mut view = widest_view(ModeKind::Encounter);
         let menu = EncounterMenu::default();
         encounter(&mut frame, &view, &menu);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         assert_eq!(frame.widgets.len(), 4, "the stacks are text before a fight");
         let bribe = frame.widget(WidgetId::Action(1)).unwrap();
         assert!(!bribe.enabled, "9999 gold is more than the purse");
-        assert_eq!(bribe.rect.w, 6 * "Bribe 9999g".len() as u32);
+        assert_eq!(bribe.rect.w, CELL.0 as u32 * "Bribe 9999g".len() as u32);
         assert!(frame.widget(WidgetId::Action(0)).unwrap().enabled);
         view.bribe = Some(0);
         let mut frame = Frame::default();
         encounter(&mut frame, &view, &menu);
         let bribe = frame.widget(WidgetId::Action(1)).unwrap();
         assert!(bribe.enabled);
-        assert_eq!(bribe.rect.w, 6 * "Bribe free".len() as u32);
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]));
+        assert_eq!(bribe.rect.w, CELL.0 as u32 * "Bribe free".len() as u32);
+        let mid = VIEWPORT.w as i32 / 2;
+        assert_eq!(
+            frame.raster.get(mid, TOP_PANEL.bottom() + 8),
+            Some([0, 0, 0, 0])
+        );
     }
 
     #[test]
     fn the_defeat_modal_sits_in_the_window_and_tells_how_it_ended() {
         let mut frame = Frame::default();
         defeat(&mut frame, &DefeatMenu { cursor: 1 }, &[]);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         let empty = frame.raster.fingerprint();
         let mut frame = Frame::default();
         let log: Vec<String> = (0..5)
-            .map(|i| format!("Line {i} {}", "x".repeat(40)))
+            .map(|i| format!("Line {i} {}", "x".repeat(120)))
             .collect();
         defeat(&mut frame, &DefeatMenu { cursor: 1 }, &log);
-        assert_laid_out(&frame);
+        laid_out(&frame);
         assert_ne!(
             frame.raster.fingerprint(),
             empty,
             "the log's tail is painted"
         );
-        // Three lines of at most 20 cells fit between the title and the buttons: the
-        // longest line ends inside the box.
-        let right = DEFEAT_RECT.x + 12 + 6 * DEFEAT_LINE_CELLS as i32;
+        // The lines fit between the title and the buttons: the longest ends inside the box.
+        let right = DEFEAT_RECT.x + MODAL_TEXT_X + CELL.0 * DEFEAT_LINE_CELLS as i32;
         assert!(right < DEFEAT_RECT.right(), "{right}");
+        let first_line = DEFEAT_RECT.y + MODAL_LINES_Y;
         assert_eq!(
-            frame.raster.get(right + 2, DEFEAT_RECT.y + 19),
+            frame.raster.get(right + 2, first_line + 1),
             Some([PANEL.0, PANEL.1, PANEL.2, 255]),
             "nothing past the clipped line"
         );
@@ -334,16 +576,22 @@ mod tests {
             assert!(DEFEAT_RECT.encloses(w.rect));
         }
         assert_eq!(
-            frame.raster.get(10, 10),
+            frame.raster.get(DEFEAT_RECT.x - 10, DEFEAT_RECT.y - 10),
             Some([0, 0, 0, 0]),
             "the world shows"
         );
         // The log lines cross the box's middle; its margin past them stays panel.
-        assert_eq!(rgb(&frame, DEFEAT_RECT.right() - 3, 60), Some(PANEL));
-        assert_eq!(rgb(&frame, 120, DEFEAT_RECT.y + 16), Some(PANEL));
+        assert_eq!(
+            rgb(&frame, DEFEAT_RECT.right() - 3, first_line + 4),
+            Some(PANEL)
+        );
+        let mid = DEFEAT_RECT.x + DEFEAT_RECT.w as i32 / 2;
+        assert_eq!(rgb(&frame, mid, first_line - 2), Some(PANEL));
         // The last line ends above the first button's row.
-        let last_line_bottom = DEFEAT_RECT.y + 18 + 8 * DEFEAT_LOG_ROWS as i32;
-        let first_button = DEFEAT_RECT.bottom() - 10 * DefeatMenu::ITEMS.len() as i32 - 4;
+        let last_line_bottom = first_line + CELL.1 * DEFEAT_LOG_ROWS as i32;
+        let first_button = DEFEAT_RECT.bottom()
+            - MODAL_BUTTON_PITCH * DefeatMenu::ITEMS.len() as i32
+            - MODAL_BOTTOM_PAD;
         assert!(
             last_line_bottom < first_button,
             "{last_line_bottom} vs {first_button}"

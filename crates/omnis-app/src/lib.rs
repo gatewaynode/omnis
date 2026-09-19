@@ -1,11 +1,12 @@
 //! The Omnis Bevy application as a library, so tests can build the app without a window and
 //! the binary in `main.rs` stays a few lines.
 //!
-//! Bevy-free modules (`layout`, `plan`, `menu`, `combat_menu`, `combat_text`, `combat_screen`,
-//! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`) hold everything that can be unit-tested; the plugins
+//! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `combat_menu`, `combat_text`, `combat_screen`,
+//! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`, `spell_menu`, `debug_menu`,
+//! `debug_screen`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
 //! hold only ECS wiring.
-//! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CombatPlugin`, `CursorPlugin`, and `UiPlugin` run
-//! headless under
+//! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CombatPlugin`, `SheetPlugin`, `CursorPlugin`, and
+//! `UiPlugin` run headless under
 //! `MinimalPlugins` (the UI frame is composed without being uploaded); `assets`, `pixel`, and
 //! `viewport` need the render stack.
 
@@ -14,15 +15,25 @@
 
 pub mod actors;
 pub mod assets;
+pub mod band;
+pub mod canvas;
 pub mod combat;
 pub mod combat_menu;
 pub mod combat_screen;
 pub mod combat_text;
 pub mod cursor;
 #[cfg(feature = "devtools")]
+pub mod debug;
+pub mod debug_menu;
+pub mod debug_screen;
+#[cfg(feature = "devtools")]
 pub mod dev;
 pub mod font;
 pub mod input;
+pub mod inventory;
+pub mod inventory_menu;
+pub mod inventory_screen;
+pub mod item_text;
 pub mod layout;
 pub mod menu;
 pub mod menus;
@@ -32,10 +43,17 @@ pub mod plan;
 pub mod raster;
 pub mod screen;
 pub mod screens;
+pub mod sheet;
+pub mod sheet_menu;
+pub mod sheet_screen;
 pub mod sim;
 #[cfg(feature = "devtools")]
 pub mod socket;
+pub mod spell_menu;
+pub mod spell_text;
+pub mod text;
 pub mod ui;
+pub mod use_menu;
 pub mod viewport;
 pub mod widget;
 
@@ -48,7 +66,7 @@ pub struct AppConfig {
     pub packs: Vec<PathBuf>,
     /// World seed for a new game.
     pub seed: u64,
-    /// Where F5 writes and F9 reads.
+    /// Where the pause menu's Save writes and Load reads (the quick save).
     pub save_path: PathBuf,
     /// Skip the menus: create a world from `seed` with default settings and start exploring
     /// (scripts, captures, tests).

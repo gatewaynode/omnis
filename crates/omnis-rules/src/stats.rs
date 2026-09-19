@@ -1,9 +1,11 @@
 //! Derived numbers and rolls over a character and the loaded data.
 
 use crate::character::{Character, CreationError};
+use crate::effect::{armor_bonus, roll_bonus};
+use crate::equip::equipped_item;
 use alloc::format;
 use omnis_core::{Dice, Pcg32, RollTrace, StreamName};
-use omnis_data::{Ability, ArmorKind, Data, ItemKind, Skill, Spell};
+use omnis_data::{Ability, BuffOn, Data, EquipSlot, ItemKind, Skill, Spell};
 use omnis_expr::{RuleError, Value};
 use serde::{Deserialize, Serialize};
 
@@ -59,33 +61,23 @@ pub fn point_cost(scores: [u8; 6], data: &Data) -> Result<i64, CreationError> {
     Ok(spent)
 }
 
-/// Armor class: 10 plus Dexterity unarmored, else the best armor carried with its Dexterity cap,
-/// plus a shield. Everything carried counts as worn until equipment slots arrive (M6).
+/// Armor class: 10 plus Dexterity unarmored, else the armor worn with its Dexterity cap, plus
+/// the shield in the off hand, plus any armor bonus in effect (shield spell).
 #[must_use]
 pub fn armor_class(character: &Character, data: &Data) -> i64 {
     let dex = modifier(character.scores[Ability::Dexterity.index()]);
-    let mut best = 10 + dex;
-    let mut shield = 0;
-    for (item, _) in &character.equipment {
-        let Some(item) = data.items.get(item) else {
-            continue;
-        };
-        if let ItemKind::Armor {
-            kind,
-            base_ac,
-            dex_cap,
-            ..
-        } = &item.kind
-        {
-            if *kind == ArmorKind::Shield {
-                shield = shield.max(i64::from(*base_ac));
-            } else {
-                let capped = dex_cap.map_or(dex, |cap| dex.min(i64::from(cap)));
-                best = best.max(i64::from(*base_ac) + capped);
-            }
-        }
-    }
-    best + shield
+    let body = match equipped_item(data, &character.equipped, EquipSlot::Body).map(|i| &i.kind) {
+        Some(ItemKind::Armor {
+            base_ac, dex_cap, ..
+        }) => i64::from(*base_ac) + dex_cap.map_or(dex, |cap| dex.min(i64::from(cap))),
+        _ => 10 + dex,
+    };
+    let shield = match equipped_item(data, &character.equipped, EquipSlot::OffHand).map(|i| &i.kind)
+    {
+        Some(ItemKind::Armor { base_ac, .. }) => i64::from(*base_ac),
+        _ => 0,
+    };
+    body + shield + armor_bonus(&character.effects)
 }
 
 /// Whether a d20 is rolled once, or twice keeping the better or the worse die.
@@ -128,7 +120,10 @@ pub struct Roll {
     pub modifier: i64,
     /// Proficiency bonus added, zero when not proficient.
     pub proficiency: i64,
-    /// Face plus both.
+    /// A buff die added (bless, guidance), when one was in force.
+    #[serde(default)]
+    pub bonus: Option<RollTrace>,
+    /// Face plus modifier, proficiency, and the bonus die.
     pub total: i64,
 }
 
@@ -151,34 +146,44 @@ pub fn kept_d20(
     Ok((trace, face))
 }
 
+/// What a d20 is rolled for.
+struct D20 {
+    ability: Ability,
+    proficient: bool,
+    on: BuffOn,
+}
+
 fn d20(
     character: &Character,
     data: &Data,
-    ability: Ability,
-    proficient: bool,
+    parts: D20,
     mode: RollMode,
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
+    let bonus = roll_bonus(&character.effects, parts.on, rng, stream)?;
     let (trace, face) = kept_d20(mode, rng, stream)?;
-    let modifier = modifier(character.scores[ability.index()]);
-    let proficiency = if proficient {
+    let modifier = modifier(character.scores[parts.ability.index()]);
+    let proficiency = if parts.proficient {
         proficiency_bonus(character.level, data)?
     } else {
         0
     };
-    let total = i64::from(face) + modifier + proficiency;
+    let extra = bonus.as_ref().map_or(0, |b| i64::from(b.total));
+    let total = i64::from(face) + modifier + proficiency + extra;
     Ok(Roll {
         trace,
         mode,
         face,
         modifier,
         proficiency,
+        bonus,
         total,
     })
 }
 
-/// An ability check, with a skill's proficiency when one applies.
+/// An ability check, with a skill's proficiency when one applies, and a guidance die when one
+/// is in force (the caller consumes it).
 pub fn check(
     character: &Character,
     data: &Data,
@@ -189,10 +194,15 @@ pub fn check(
     stream: &StreamName,
 ) -> Result<Roll, RuleError> {
     let proficient = skill.is_some_and(|s| character.skills.contains(&s));
-    d20(character, data, ability, proficient, mode, rng, stream)
+    let parts = D20 {
+        ability,
+        proficient,
+        on: BuffOn::AbilityChecks,
+    };
+    d20(character, data, parts, mode, rng, stream)
 }
 
-/// A saving throw; the class's two saving throws are proficient.
+/// A saving throw; the class's two saving throws are proficient, and a bless die joins in.
 pub fn save(
     character: &Character,
     data: &Data,
@@ -205,7 +215,12 @@ pub fn save(
         .classes
         .get(&character.class)
         .is_some_and(|c| c.saving_throws.contains(&ability));
-    d20(character, data, ability, proficient, mode, rng, stream)
+    let parts = D20 {
+        ability,
+        proficient,
+        on: BuffOn::SavingThrows,
+    };
+    d20(character, data, parts, mode, rng, stream)
 }
 
 /// A skill's bonus without a die: the ability modifier plus proficiency when proficient.

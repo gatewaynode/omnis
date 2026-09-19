@@ -1,13 +1,15 @@
 //! `PixelPlugin`: the fixed internal resolution pipeline (ARCHITECTURE.md §8.2, Bevy's
 //! `pixel_grid_snap` example). An inner camera renders the canvas image; an outer camera shows
-//! it as a sprite at the largest integer scale that fits the window (`cursor::WindowSize`).
+//! it as a sprite at the largest whole multiple that fits the window's physical pixels
+//! (`cursor::WindowSize`, `layout::fit`), on a whole-pixel letterbox.
 
-use crate::cursor::WindowSize;
-use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, PANEL_COLOR};
+use crate::cursor::{UiSet, WindowSize};
+use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, PANEL_COLOR, SizeClass, canvas_translation};
 use bevy::camera::RenderTarget;
 use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
-use bevy::render::render_resource::TextureFormat;
+use bevy::render::render_resource::{Extent3d, TextureFormat};
+use bevy::window::WindowCreated;
 
 /// Everything drawn at internal resolution.
 pub const PIXEL_LAYER: RenderLayers = RenderLayers::layer(0);
@@ -30,14 +32,25 @@ pub struct Canvas;
 #[derive(Resource, Debug, Clone)]
 pub struct CanvasImage(pub Handle<Image>);
 
+/// The window size class asked for on the command line; `None` for fullscreen.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RequestedWindow(pub Option<SizeClass>);
+
 /// The pixel pipeline plugin.
 pub struct PixelPlugin;
 
 impl Plugin for PixelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WindowSize>()
+            .init_resource::<RequestedWindow>()
             .add_systems(Startup, setup)
-            .add_systems(Update, fit_canvas.run_if(resource_changed::<WindowSize>));
+            .add_systems(Update, size_window)
+            .add_systems(
+                Update,
+                fit_canvas
+                    .run_if(resource_changed::<WindowSize>)
+                    .after(UiSet::Cursor),
+            );
     }
 }
 
@@ -70,19 +83,65 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((Camera2d, Msaa::Off, OuterCamera, WINDOW_LAYER));
 }
 
-/// Integer scale: the reciprocal of the rounded smaller window-to-canvas ratio.
+/// The outer camera's projection scale: logical pixels per world unit is the physical
+/// multiple over the scale factor, so a canvas pixel is exactly `fit.scale` physical pixels.
 #[must_use]
-pub fn integer_scale(window_width: f32, window_height: f32) -> f32 {
-    1.0 / crate::layout::window_scale(window_width, window_height)
+pub fn outer_scale(size: &WindowSize) -> f32 {
+    size.scale_factor / size.fit().scale as f32
+}
+
+/// A window opened for a size class is given that physical size once it exists: the request
+/// was in logical pixels, which a HiDPI backend scales up. A window with a scale factor
+/// override is left as requested.
+fn size_window(
+    mut created: MessageReader<WindowCreated>,
+    mut windows: Query<&mut Window>,
+    requested: Res<RequestedWindow>,
+) {
+    let Some(class) = requested.0 else {
+        created.clear();
+        return;
+    };
+    for event in created.read() {
+        if let Ok(mut window) = windows.get_mut(event.window)
+            && window.resolution.scale_factor_override().is_none()
+            && window.resolution.scale_factor() != 1.0
+        {
+            let (width, height) = class.physical();
+            window.resolution.set_physical_resolution(width, height);
+        }
+    }
 }
 
 /// Fit the canvas whenever the tracked window size changes, including the first frame, so a
-/// window that opens at the requested size (winit sends no resize for it) is scaled too.
-fn fit_canvas(size: Res<WindowSize>, mut projection: Single<&mut Projection, With<OuterCamera>>) {
+/// window that opens at the requested size (winit sends no resize for it) is scaled too. The
+/// canvas image takes the fit's width; the sprite follows its image.
+fn fit_canvas(
+    size: Res<WindowSize>,
+    target: Option<Res<CanvasImage>>,
+    mut images: ResMut<Assets<Image>>,
+    mut projection: Single<&mut Projection, With<OuterCamera>>,
+    mut canvas: Single<&mut Transform, With<Canvas>>,
+) {
     let Projection::Orthographic(projection) = &mut **projection else {
         return;
     };
-    projection.scale = integer_scale(size.0, size.1);
+    let fit = size.fit();
+    if let Some(target) = target
+        && images
+            .get(&target.0)
+            .is_some_and(|i| i.width() != fit.width)
+        && let Some(mut image) = images.get_mut(&target.0)
+    {
+        image.resize(Extent3d {
+            width: fit.width,
+            height: CANVAS_HEIGHT,
+            depth_or_array_layers: 1,
+        });
+    }
+    projection.scale = outer_scale(&size);
+    let (x, y) = canvas_translation(fit, size.physical());
+    canvas.translation = Vec3::new(x, y, 0.0);
 }
 
 #[cfg(test)]
@@ -90,11 +149,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn scale_is_an_integer_fit() {
-        assert_eq!(integer_scale(1280.0, 720.0), 0.25);
-        assert_eq!(integer_scale(1920.0, 1080.0), 1.0 / 6.0);
-        assert_eq!(integer_scale(2560.0, 1440.0), 0.125);
-        assert_eq!(integer_scale(3840.0, 2160.0), 1.0 / 12.0);
-        assert_eq!(integer_scale(200.0, 100.0), 1.0, "never below one");
+    fn the_outer_camera_scales_to_whole_physical_pixels() {
+        let size = |width, height, scale_factor| WindowSize {
+            width,
+            height,
+            scale_factor,
+        };
+        let (w, h) = (CANVAS_WIDTH as f32, CANVAS_HEIGHT as f32);
+        assert_eq!(outer_scale(&size(w, h, 1.0)), 1.0);
+        assert_eq!(outer_scale(&size(3.0 * w, 3.0 * h, 1.0)), 1.0 / 3.0);
+        assert_eq!(outer_scale(&size(2.0 * w + 100.0, 2.0 * h, 1.0)), 0.5);
+        // A 4K panel at 2x logical: three physical pixels a canvas pixel, 1.5 logical.
+        assert_eq!(outer_scale(&size(1.5 * w, 1.5 * h, 2.0)), 2.0 / 3.0);
+        assert_eq!(
+            outer_scale(&size(w / 2.0, h / 2.0, 1.0)),
+            1.0,
+            "never below one"
+        );
+        assert_eq!(
+            RequestedWindow::default(),
+            RequestedWindow(None),
+            "fullscreen"
+        );
     }
 }

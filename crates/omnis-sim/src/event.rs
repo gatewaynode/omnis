@@ -1,12 +1,14 @@
 //! What the simulation says happened (ARCHITECTURE.md §4.2). Events carry keys, ids, numbers,
 //! and roll traces, never text: a client renders them and a test asserts on them.
 
+use crate::dev::DevCommand;
 use crate::encounter::EncounterSource;
 use alloc::vec::Vec;
 use omnis_core::{
-    CharacterId, ConditionId, Facing, HolderId, MapId, MonsterId, Position, RollTrace,
+    CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
+    SpellId,
 };
-use omnis_data::{DamageType, Disposition};
+use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
 use serde::{Deserialize, Serialize};
 
@@ -106,6 +108,41 @@ pub enum CheckKind {
     Run,
     /// The same, from inside a fight.
     Flee,
+    /// A saving throw against a spell.
+    Save(Ability),
+}
+
+/// Whom an effect is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum EffectTarget {
+    /// A member.
+    Member(CharacterId),
+    /// The whole party (light).
+    Party,
+}
+
+/// Why an effect ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum EffectEnd {
+    /// Its minutes ran out.
+    Expired,
+    /// The roll it was for used it up.
+    Consumed,
+    /// The caster stopped concentrating.
+    Concentration,
+    /// The bearer's next turn began.
+    TurnBegan,
+    /// The fight ended.
+    FightOver,
+}
+
+/// Where an item was or went.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ItemPlace {
+    /// A member's kit.
+    Member(CharacterId),
+    /// The party's stores.
+    Stores,
 }
 
 /// What happened.
@@ -270,6 +307,104 @@ pub enum Event {
         /// Which defense applied.
         adjust: DamageAdjust,
     },
+    /// A spell was cast: the points and components it took. What it did follows.
+    SpellCast {
+        /// Who cast it.
+        caster: CharacterId,
+        /// Which spell.
+        spell: SpellId,
+        /// Points paid.
+        points: u32,
+        /// Components taken from the stores.
+        components_consumed: Vec<(ItemId, u16)>,
+    },
+    /// A spell's effect settled on a member or the party.
+    EffectApplied {
+        /// On whom.
+        target: EffectTarget,
+        /// Which spell.
+        spell: SpellId,
+        /// Who cast it.
+        caster: CharacterId,
+    },
+    /// An effect ended.
+    EffectEnded {
+        /// On whom it was.
+        target: EffectTarget,
+        /// Which spell.
+        spell: SpellId,
+        /// Why.
+        why: EffectEnd,
+    },
+    /// A caster's concentration ended (a new concentration spell, or damage).
+    Concentration {
+        /// Who.
+        caster: CharacterId,
+        /// The spell let go.
+        spell: SpellId,
+        /// Always true; the field is for readers.
+        ended: bool,
+    },
+    /// A member's reaction preference changed.
+    AutoCast {
+        /// Who.
+        member: CharacterId,
+        /// Which reaction spell.
+        spell: SpellId,
+        /// On or off.
+        on: bool,
+    },
+    /// A member wore or wielded an item.
+    Equipped {
+        /// Who.
+        member: CharacterId,
+        /// Where.
+        slot: EquipSlot,
+        /// Which item.
+        item: ItemId,
+    },
+    /// A member took an item off, or it left the kit.
+    Unequipped {
+        /// Who.
+        member: CharacterId,
+        /// Where it was.
+        slot: EquipSlot,
+        /// Which item.
+        item: ItemId,
+    },
+    /// Items moved between kits and the stores.
+    ItemMoved {
+        /// Which item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Where from.
+        from: ItemPlace,
+        /// Where to.
+        to: ItemPlace,
+    },
+    /// A member used an item; what it did follows.
+    ItemUsed {
+        /// Who.
+        member: CharacterId,
+        /// Which item.
+        item: ItemId,
+        /// Whom it went to, when it went to someone.
+        target: Option<CharacterId>,
+        /// Whether a count was spent.
+        consumed: bool,
+    },
+    /// Hit points regained, by a potion or a spell.
+    Healed {
+        /// Who.
+        target: CharacterId,
+        /// The dice.
+        rolls: Vec<RollTrace>,
+        /// Points regained before the cap.
+        amount: i64,
+        /// Hit points after.
+        hp: i32,
+    },
     /// A member fell to zero hit points.
     Down {
         /// Who.
@@ -321,5 +456,10 @@ pub enum Event {
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+    },
+    /// A debugging edit was applied; what it caused follows.
+    Dev {
+        /// The edit.
+        command: DevCommand,
     },
 }

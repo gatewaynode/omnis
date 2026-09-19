@@ -1,18 +1,21 @@
 //! The turn loop: initiative, one member action, monster turns until the next member, the
 //! end of a round, and the end of the fight.
 
-use super::resolve;
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
+use super::{cast, resolve};
 use crate::apply::{advance, retreat};
+use crate::checks::{self, CheckSpec};
+use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
-use crate::event::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
+use crate::event::{ActorRef, CheckKind, CombatOutcome, EffectEnd, Event, Surprise};
+use crate::items;
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
 use core::cmp::Reverse;
 use omnis_core::{CharacterId, RollTrace};
 use omnis_data::{Ability, Data, Disposition};
-use omnis_rules::{RollMode, RuleError, check, initiative, modifier, modifier_of};
+use omnis_rules::{RollMode, RuleError, initiative, modifier, modifier_of};
 
 /// Minutes a round costs when the rules do not say.
 const DEFAULT_ROUND_MINUTES: u32 = 1;
@@ -127,6 +130,11 @@ fn act_inner(
         Plan::Attack { stack, weapon } => {
             resolve::member_attacks(world, data, state, actor, stack, &weapon, roller, events)?;
         }
+        Plan::Cast(plan) => {
+            cast::pay(world, data, &plan, events)?;
+            cast::resolve(world, data, state, &plan, roller, events)?;
+        }
+        Plan::Use(plan) => items::use_item(world, data, &plan, roller, events)?,
         Plan::Dodge => {
             if let Err(at) = state.dodging.binary_search(&actor) {
                 state.dodging.insert(at, actor);
@@ -156,7 +164,7 @@ fn act_inner(
 
 /// The party's best Dexterity against the run difficulty; a friendly group lets them go.
 fn flee(
-    world: &World,
+    world: &mut World,
     data: &Data,
     state: &CombatState,
     roller: &mut Roller,
@@ -167,28 +175,27 @@ fn flee(
         .party
         .members
         .iter()
-        .filter(|m| can_fight(m, data))
-        .min_by_key(|m| Reverse(modifier(m.scores[Ability::Dexterity.index()])))
+        .enumerate()
+        .filter(|(_, m)| can_fight(m, data))
+        .min_by_key(|(_, m)| Reverse(modifier(m.scores[Ability::Dexterity.index()])))
+        .map(|(i, _)| i)
     else {
         return Ok(false);
     };
     let (roll, success) = if state.encounter.disposition == Disposition::Friendly {
         (None, true)
     } else {
-        let roll = check(
-            runner,
-            data,
-            None,
-            Ability::Dexterity,
-            RollMode::Normal,
-            &mut roller.rng,
-            &roller.stream,
-        )?;
+        let spec = CheckSpec {
+            skill: None,
+            ability: Ability::Dexterity,
+            mode: RollMode::Normal,
+        };
+        let roll = checks::roll(world, data, runner, spec, roller, events)?;
         let success = roll.total >= dc;
         (Some(roll), success)
     };
     events.push(Event::Check {
-        actor: ActorRef::Member(runner.id),
+        actor: ActorRef::Member(world.party.members[runner].id),
         kind: CheckKind::Flee,
         roll,
         dc,
@@ -222,6 +229,25 @@ fn step_current(
     Ok(())
 }
 
+/// After an edit: nothing if the fight still waits on a member who can act and is not over;
+/// otherwise the loop, exactly as after a member action.
+pub(crate) fn settle(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<bool, RuleError> {
+    let waits = matches!(
+        state.current_actor(),
+        Some(ActorRef::Member(id)) if member_acts(state, world, data, id)
+    );
+    if waits && state.outcome(&world.party, data).is_none() {
+        return Ok(false);
+    }
+    run_until_member(world, data, state, roller, events)
+}
+
 /// Monster turns until a member can act (`false`) or the fight ends (`true`). Every pass
 /// advances the order, a round with no member action ends with round processing, and a
 /// party that cannot fight at all is a defeat, so the loop terminates.
@@ -244,6 +270,7 @@ pub(crate) fn run_until_member(
         match actor {
             ActorRef::Member(id) => {
                 if member_acts(state, world, data, id) {
+                    effects::clear_next_turn(world, Some(id), EffectEnd::TurnBegan, events);
                     events.push(Event::Turn { actor });
                     return Ok(false);
                 }
@@ -325,6 +352,7 @@ fn finish(
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}
     }
+    effects::clear_next_turn(world, None, EffectEnd::FightOver, events);
     let fallen = resolve::bury(world, data);
     events.push(Event::CombatEnded {
         outcome,

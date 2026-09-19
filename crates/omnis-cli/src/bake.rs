@@ -37,12 +37,20 @@ pub struct BakeSpec {
     pub name: String,
     /// Canvas size the slots are laid out on.
     pub viewport: (u16, u16),
+    /// How many canvas pixels a texture pixel covers at depth 0 on this viewport; a viewport
+    /// baked at four times the size keeps its look with 4. Default 1.
+    #[serde(default = "one")]
+    pub texel_scale: u32,
     /// Rows drawn with sprites.
     pub detail_depth: u8,
     /// Lateral half-width of slots.
     pub width: u8,
     /// Surfaces to bake: name to kind and sheet tile.
     pub surfaces: BTreeMap<String, SurfaceSpec>,
+}
+
+const fn one() -> u32 {
+    1
 }
 
 /// One surface in a bake spec.
@@ -131,7 +139,7 @@ pub fn bake_to(spec_path: &Path, pack_root: &Path) -> Result<BakeReport, BakeErr
             "detail_depth, tile_size, and viewport must be non-zero".into(),
         ));
     }
-    let geometry = Geometry::new(spec.viewport, spec.tile_size);
+    let geometry = Geometry::new(spec.viewport, spec.tile_size, spec.texel_scale);
     let sprite_dir = pack_root.join("assets/tilesets").join(&spec.name);
     clear_pngs(&sprite_dir)?;
     std::fs::create_dir_all(&sprite_dir).map_err(|e| BakeError::Io(sprite_dir.clone(), e))?;
@@ -319,12 +327,13 @@ pub struct Geometry {
 }
 
 impl Geometry {
-    /// For a canvas and texture size.
+    /// For a canvas, a texture size, and how many canvas pixels a texel covers at depth 0.
     #[must_use]
-    pub fn new(viewport: (u16, u16), tile_size: u32) -> Geometry {
+    pub fn new(viewport: (u16, u16), tile_size: u32, texel_scale: u32) -> Geometry {
         let (w, h) = (f64::from(viewport.0), f64::from(viewport.1));
         let focal = 0.9 * h;
-        let repeats = (focal / f64::from(tile_size)).round().max(1.0);
+        let texel = f64::from(tile_size) * f64::from(texel_scale.max(1));
+        let repeats = (focal / texel).round().max(1.0);
         Geometry {
             width: u32::from(viewport.0),
             height: u32::from(viewport.1),
@@ -618,8 +627,37 @@ mod tests {
     }
 
     #[test]
+    fn a_texel_scale_keeps_the_look_of_a_smaller_viewport() {
+        let old = Geometry::new((240, 135), 16, 1);
+        let four = Geometry::new((960, 540), 16, 4);
+        assert_eq!(
+            four.texels_per_unit, old.texels_per_unit,
+            "eight repeats a face"
+        );
+        let fine = Geometry::new((960, 540), 16, 1);
+        assert!(
+            fine.texels_per_unit > 3.0 * old.texels_per_unit,
+            "finer bricks"
+        );
+        let tex = checker();
+        let (small, sx, sy) = render(&old, SlotKind::WallFront, 0, 0, &tex).unwrap();
+        let (big, bx, by) = render(&four, SlotKind::WallFront, 0, 0, &tex).unwrap();
+        // The face sits four times as far from the corner and is four times as large, to
+        // the rounding of a pixel at each size.
+        let near = |a: i32, b: i32| (a - 4 * b).abs() <= 4;
+        assert!(near(i32::from(bx), i32::from(sx)) && near(i32::from(by), i32::from(sy)));
+        assert!(
+            near(big.width as i32, small.width as i32),
+            "{} vs {}",
+            big.width,
+            small.width
+        );
+        assert!(near(big.height as i32, small.height as i32));
+    }
+
+    #[test]
     fn the_tiles_beside_the_party_reach_the_canvas_edges() {
-        let geo = Geometry::new((240, 135), 16);
+        let geo = Geometry::new((240, 135), 16, 1);
         let tex = checker();
         let (floor, x, _) = render(&geo, SlotKind::Floor, 0, 1, &tex).unwrap();
         assert_eq!(x + i16::try_from(floor.width).unwrap(), 240);
@@ -644,7 +682,7 @@ mod tests {
 
     #[test]
     fn blocks_show_the_near_face_and_the_side_toward_the_party() {
-        let geo = Geometry::new((240, 135), 16);
+        let geo = Geometry::new((240, 135), 16, 1);
         let tex = checker();
         assert!(render(&geo, SlotKind::Block, 0, 0, &tex).is_none());
         assert_eq!(
@@ -678,7 +716,7 @@ mod tests {
 
     #[test]
     fn door_frames_are_front_faces_with_the_opening_cut_out() {
-        let geo = Geometry::new((240, 135), 16);
+        let geo = Geometry::new((240, 135), 16, 1);
         let tex = checker();
         let (frame, x, y) = render(&geo, SlotKind::DoorFrame, 0, 0, &tex).unwrap();
         let (wall, wx, wy) = render(&geo, SlotKind::WallFront, 0, 0, &tex).unwrap();
@@ -708,7 +746,7 @@ mod tests {
 
     #[test]
     fn front_walls_are_centred_and_shrink_with_depth() {
-        let geo = Geometry::new((240, 135), 16);
+        let geo = Geometry::new((240, 135), 16, 1);
         let tex = checker();
         let (d0, x0, y0) = render(&geo, SlotKind::WallFront, 0, 0, &tex).unwrap();
         let (d1, x1, y1) = render(&geo, SlotKind::WallFront, 1, 0, &tex).unwrap();
@@ -738,7 +776,7 @@ mod tests {
 
     #[test]
     fn side_walls_lean_toward_the_centre_and_bands_sit_at_the_edges() {
-        let geo = Geometry::new((240, 135), 16);
+        let geo = Geometry::new((240, 135), 16, 1);
         let tex = checker();
         let (left, x, _) = render(&geo, SlotKind::WallLeft, 0, 0, &tex).unwrap();
         assert_eq!(x, 0, "the party's own left wall starts at the canvas edge");

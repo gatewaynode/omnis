@@ -121,6 +121,12 @@ impl Title {
     }
 }
 
+/// "on" or "off".
+#[must_use]
+pub const fn on_off(flag: bool) -> &'static str {
+    if flag { "on" } else { "off" }
+}
+
 // ---------------------------------------------------------------- new game
 
 /// What the new game screen asks for.
@@ -625,15 +631,21 @@ impl CreationForm {
 /// What the pause overlay asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PauseAction {
-    /// Back to exploring.
+    /// Back to the world.
     Resume,
+    /// Write the quick save.
+    Save,
+    /// Read the quick save.
+    Load,
+    /// Open the character sheet.
+    Sheet,
     /// Drop the game and return to the title.
     QuitToTitle,
     /// Exit.
     Quit,
 }
 
-/// The pause overlay: the settings, read-only, and three choices.
+/// The pause overlay: the settings, read-only, and the items.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Pause {
     /// Selected item.
@@ -642,20 +654,32 @@ pub struct Pause {
 
 impl Pause {
     /// The items, in cursor order.
-    pub const ITEMS: [&'static str; 3] = ["Resume", "Quit to title", "Quit"];
+    pub const ITEMS: [&'static str; 6] = [
+        "Resume",
+        "Save",
+        "Load",
+        "Character sheet",
+        "Quit to title",
+        "Quit",
+    ];
+    /// The action of each item, in the same order.
+    const ACTIONS: [PauseAction; 6] = [
+        PauseAction::Resume,
+        PauseAction::Save,
+        PauseAction::Load,
+        PauseAction::Sheet,
+        PauseAction::QuitToTitle,
+        PauseAction::Quit,
+    ];
 
     /// Handle a key.
     pub fn key(&mut self, key: MenuKey) -> Option<PauseAction> {
         match key {
-            MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, 3, key),
-            MenuKey::Escape => return Some(PauseAction::Resume),
-            MenuKey::Enter => {
-                return Some(match self.cursor {
-                    0 => PauseAction::Resume,
-                    1 => PauseAction::QuitToTitle,
-                    _ => PauseAction::Quit,
-                });
+            MenuKey::Up | MenuKey::Down => {
+                self.cursor = cycle(self.cursor, Self::ITEMS.len(), key);
             }
+            MenuKey::Escape => return Some(PauseAction::Resume),
+            MenuKey::Enter => return Self::ACTIONS.get(self.cursor).copied(),
             _ => {}
         }
         None
@@ -664,21 +688,26 @@ impl Pause {
     /// The overlay as lines.
     #[must_use]
     pub fn lines(&self, settings: Settings, seed: u64) -> Vec<String> {
-        vec![
+        let mut lines = vec![
             "PAUSED".to_owned(),
             format!("Seed {seed}"),
             format!(
-                "Saving: {:?}   Permadeath: {}",
+                "Saving: {:?}   Permadeath: {}   Devtools: {}",
                 settings.save_rule,
-                if settings.permadeath { "on" } else { "off" }
+                on_off(settings.permadeath),
+                on_off(settings.devtools)
             ),
             String::new(),
-            mark(self.cursor, 0, Self::ITEMS[0].to_owned()),
-            mark(self.cursor, 1, Self::ITEMS[1].to_owned()),
-            mark(self.cursor, 2, Self::ITEMS[2].to_owned()),
-            String::new(),
-            "Up/Down select   Enter confirm   Esc resume".to_owned(),
-        ]
+        ];
+        lines.extend(
+            Self::ITEMS
+                .iter()
+                .enumerate()
+                .map(|(i, item)| mark(self.cursor, i, (*item).to_owned())),
+        );
+        lines.push(String::new());
+        lines.push("Up/Down select   Enter confirm   Esc resume".to_owned());
+        lines
     }
 }
 
@@ -885,20 +914,43 @@ mod tests {
     }
 
     #[test]
-    fn the_pause_overlay_shows_the_settings() {
+    fn the_pause_overlay_shows_the_settings_and_every_item_answers() {
         let mut pause = Pause::default();
         let settings = Settings {
             save_rule: SaveRule::InnOnly,
             permadeath: true,
+            devtools: true,
         };
         let lines = pause.lines(settings, 7);
         assert_eq!(lines[1], "Seed 7");
-        assert!(lines[2].contains("InnOnly") && lines[2].contains("on"));
+        assert_eq!(lines[2], "Saving: InnOnly   Permadeath: on   Devtools: on");
+        assert_eq!(
+            &lines[4..10],
+            [
+                "> Resume",
+                "  Save",
+                "  Load",
+                "  Character sheet",
+                "  Quit to title",
+                "  Quit"
+            ]
+        );
         assert_eq!(pause.key(MenuKey::Escape), Some(PauseAction::Resume));
-        pause.key(MenuKey::Down);
-        assert_eq!(pause.key(MenuKey::Enter), Some(PauseAction::QuitToTitle));
-        pause.key(MenuKey::Down);
-        assert_eq!(pause.key(MenuKey::Enter), Some(PauseAction::Quit));
+        let expected = [
+            PauseAction::Resume,
+            PauseAction::Save,
+            PauseAction::Load,
+            PauseAction::Sheet,
+            PauseAction::QuitToTitle,
+            PauseAction::Quit,
+        ];
+        for (i, action) in expected.iter().enumerate() {
+            assert_eq!(pause.cursor, i);
+            assert_eq!(pause.key(MenuKey::Enter), Some(*action), "item {i}");
+            assert!(pause.lines(settings, 7)[4 + i].starts_with("> "));
+            pause.key(MenuKey::Down);
+        }
+        assert_eq!(pause.cursor, 0, "wraps after the last item");
         assert_eq!(words("LawfulGood"), "Lawful Good");
         assert_eq!(words("SleightOfHand"), "Sleight Of Hand");
     }

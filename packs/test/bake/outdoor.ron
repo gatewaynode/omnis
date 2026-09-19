@@ -5,7 +5,8 @@
     tile_size: 16,
     tileset_id: "test:tileset:outdoor",
     name: "outdoor",
-    viewport: (240, 135),
+    viewport: (960, 540),
+    texel_scale: 4,
     detail_depth: 4,
     width: 3,
     surfaces: {

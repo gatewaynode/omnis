@@ -2,13 +2,22 @@
 //! the composition of the menus, the location lines, the pad, and the band into one frame.
 //! Bevy-free.
 
+use crate::band::{self, Band, MemberRow};
+use crate::canvas::{Layout, NARROW};
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
-use crate::layout::VIEWPORT;
+use crate::debug_menu::{DebugMenu, DebugView};
+use crate::debug_screen;
+use crate::inventory_menu::{InventoryAction, InventoryMenu, InventoryView};
+use crate::inventory_screen;
+use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
-use crate::panels::{self, Band, Hud, MemberRow, Message};
+use crate::panels::{self, Hud, Message};
 use crate::screens;
-use crate::widget::{Frame, Hit, Kind, PANEL, PadState, Part, WidgetId};
+use crate::sheet_menu::{SheetMenu, SheetView};
+use crate::sheet_screen;
+use crate::spell_menu::{CastMenu, CastRow, cast_screen};
+use crate::widget::{FRAME, Frame, Hit, Kind, PANEL, PadState, Part, ToolStates, WidgetId};
 use omnis_sim::Settings;
 
 /// The menu model a click lands on.
@@ -27,53 +36,102 @@ pub enum Target<'a> {
     Combat(&'a mut CombatMenu),
     /// The modal after a wipe.
     Defeat(&'a mut DefeatMenu),
+    /// The debug menu.
+    Debug(&'a mut DebugMenu),
+    /// The cast menu while exploring.
+    Cast(&'a mut CastMenu),
+    /// The character sheet.
+    Sheet(&'a mut SheetMenu),
+    /// The inventory overlay.
+    Inventory(&'a mut InventoryMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
 /// the part stands for. A text field click only takes the focus; a stack row click only
-/// picks the target.
+/// picks the target; an inventory tab or row click only picks it (its action buttons act).
 #[must_use]
 pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
-    let row = match hit.id {
-        WidgetId::Row(row) => row,
-        WidgetId::Skill(index) => {
-            if let Target::Creation(form) = target {
-                form.cursor = ROW_SKILLS;
-                form.skill_cursor = index;
-                return vec![MenuKey::Enter];
-            }
-            return Vec::new();
+    match (hit.id, target) {
+        (WidgetId::Row(row), Target::Inventory(menu)) => {
+            menu.click_row(row);
+            Vec::new()
         }
-        WidgetId::Stack(index) => {
-            if let Target::Combat(menu) = target {
-                menu.target = u8::try_from(index).unwrap_or(u8::MAX);
+        (WidgetId::Row(row), target) => {
+            if set_row(target, row) {
+                part_keys(hit.kind, hit.part)
+            } else {
+                Vec::new()
             }
-            return Vec::new();
         }
-        WidgetId::Action(index) => {
-            match target {
-                Target::Combat(menu) => menu.cursor = index,
-                Target::Encounter(menu) => menu.cursor = index,
-                _ => return Vec::new(),
-            }
-            return vec![MenuKey::Enter];
+        (id, target) => click_widget(target, id),
+    }
+}
+
+/// A click on a widget that is not a menu row: the fight's stacks, actions and spells, the
+/// creation form's skills. The pad and the band are handled by their plugins.
+fn click_widget(target: Target<'_>, id: WidgetId) -> Vec<MenuKey> {
+    match (id, target) {
+        (WidgetId::Skill(index), Target::Creation(form)) => {
+            form.cursor = ROW_SKILLS;
+            form.skill_cursor = index;
+            vec![MenuKey::Enter]
         }
-        WidgetId::Pad(_) | WidgetId::Member(_) => return Vec::new(),
-    };
+        (WidgetId::Stack(index), Target::Combat(menu)) => {
+            menu.target = u8::try_from(index).unwrap_or(u8::MAX);
+            Vec::new()
+        }
+        (WidgetId::Action(index), Target::Combat(menu)) => {
+            menu.cursor = index;
+            vec![MenuKey::Enter]
+        }
+        (WidgetId::Action(index), Target::Encounter(menu)) => {
+            menu.cursor = index;
+            vec![MenuKey::Enter]
+        }
+        (WidgetId::Spell(index), Target::Combat(menu)) if menu.picker.is_some() => {
+            menu.picker = Some(index);
+            vec![MenuKey::Enter]
+        }
+        (WidgetId::Item(index), Target::Combat(menu)) if menu.use_picker.is_some() => {
+            menu.use_picker = Some(index);
+            vec![MenuKey::Enter]
+        }
+        (WidgetId::Action(index), Target::Inventory(_)) => InventoryAction::ALL
+            .get(index)
+            .map_or_else(Vec::new, |action| vec![MenuKey::Char(action.key())]),
+        _ => Vec::new(),
+    }
+}
+
+/// Move the model's cursor to the clicked row; false when the model has no rows to click.
+fn set_row(target: Target<'_>, row: usize) -> bool {
     match target {
         Target::Title(title) => title.cursor = row,
         Target::NewGame(form) => form.cursor = row,
         Target::Creation(form) => form.cursor = row,
         Target::Pause(pause) => pause.cursor = row,
         Target::Defeat(menu) => menu.cursor = row,
-        Target::Encounter(_) | Target::Combat(_) => return Vec::new(),
+        Target::Debug(menu) => {
+            if menu.row != row {
+                menu.row = row;
+                menu.field = 0;
+            }
+        }
+        Target::Cast(menu) => menu.cursor = row,
+        Target::Sheet(menu) => menu.click_row(row),
+        // The inventory's rows are picked in `click`; the fight's rows are not menu rows.
+        Target::Inventory(_) | Target::Encounter(_) | Target::Combat(_) => return false,
     }
-    match (hit.kind, hit.part) {
+    true
+}
+
+/// The key a click on a row's part stands for.
+fn part_keys(kind: Kind, part: Part) -> Vec<MenuKey> {
+    match (kind, part) {
         (Kind::Choice, Part::Left) => vec![MenuKey::Left],
         (Kind::Choice, Part::Right) => vec![MenuKey::Right],
         (Kind::Button | Kind::Toggle, _) => vec![MenuKey::Enter],
-        (Kind::Choice | Kind::TextField, Part::Body) => Vec::new(),
-        (Kind::TextField, _) => Vec::new(),
+        (Kind::Choice | Kind::TextField, Part::Body) | (Kind::TextField, _) => Vec::new(),
     }
 }
 
@@ -110,14 +168,12 @@ pub enum Menu<'a> {
         /// The view.
         view: &'a FightView,
     },
-    /// The fight, over the scene, with the roll log.
+    /// The fight, over the scene.
     Combat {
         /// The menu.
         menu: &'a CombatMenu,
         /// The view.
         view: &'a FightView,
-        /// The roll log, oldest first.
-        log: &'a [String],
     },
     /// The modal after a wipe, over the scene, with the roll log's tail.
     Defeat {
@@ -125,6 +181,36 @@ pub enum Menu<'a> {
         menu: &'a DefeatMenu,
         /// The roll log, oldest first.
         log: &'a [String],
+    },
+    /// The debug menu.
+    Debug {
+        /// The menu.
+        menu: &'a DebugMenu,
+        /// What it edits.
+        view: &'a DebugView,
+    },
+    /// The cast menu while exploring.
+    Cast {
+        /// The menu.
+        menu: &'a CastMenu,
+        /// The spells it lists.
+        rows: &'a [CastRow],
+    },
+    /// The character sheet.
+    Sheet {
+        /// The menu.
+        menu: &'a SheetMenu,
+        /// The member shown.
+        view: &'a SheetView,
+        /// How many members the party has.
+        members: usize,
+    },
+    /// The inventory overlay.
+    Inventory {
+        /// The menu.
+        menu: &'a InventoryMenu,
+        /// The panes it shows.
+        view: &'a InventoryView,
     },
 }
 
@@ -152,67 +238,115 @@ pub struct View<'a> {
     pub front_row: usize,
     /// The member the mouse selected.
     pub selected: Option<usize>,
-    /// Whether the band shows classes (creation) instead of points.
-    pub creating: bool,
+    /// The member whose turn it is.
+    pub acting: Option<usize>,
+    /// The event log, oldest first.
+    pub log: &'a [String],
     /// The pad.
     pub pad: PadState,
+    /// The tool pad.
+    pub tools: ToolStates,
     /// The message line.
     pub message: &'a Message,
     /// The help line.
     pub help: &'a str,
 }
 
-/// Compose a frame; `hover` outlines a widget and `pressed` shows a pad button held down.
+/// Compose a frame on the narrow canvas; `hover` outlines a widget and `pressed` shows a pad
+/// button held down.
 #[must_use]
 pub fn compose(view: &View<'_>, hover: Option<WidgetId>, pressed: Option<WidgetId>) -> Frame {
+    compose_in(&NARROW, view, hover, pressed)
+}
+
+/// Compose a frame on a canvas of the layout's width.
+#[must_use]
+pub fn compose_in(
+    layout: &Layout,
+    view: &View<'_>,
+    hover: Option<WidgetId>,
+    pressed: Option<WidgetId>,
+) -> Frame {
     let mut frame = Frame::default();
-    panels::backdrop(&mut frame);
-    if view.menu.covers_viewport() {
-        frame.raster.fill(VIEWPORT, PANEL);
-    }
-    match &view.menu {
-        Menu::None => {}
-        Menu::Title(title) => screens::title(&mut frame, title),
-        Menu::NewGame(form) => screens::new_game(&mut frame, form),
-        Menu::Creation {
-            form,
-            catalog,
-            members,
-        } => screens::creation(&mut frame, form, catalog, *members),
-        Menu::Pause {
-            pause,
-            settings,
-            seed,
-        } => screens::pause(&mut frame, pause, *settings, *seed),
-        Menu::Encounter { menu, view } => combat_screen::encounter(&mut frame, view, menu),
-        Menu::Combat { menu, view, log } => combat_screen::combat(&mut frame, view, menu, log),
-        Menu::Defeat { menu, log } => combat_screen::defeat(&mut frame, menu, log),
-    }
-    if let Some(hud) = view.hud {
-        panels::hud(&mut frame, hud);
-    }
-    panels::pad(&mut frame, view.pad, pressed);
-    panels::band(
-        &mut frame,
+    compose_into(&mut frame, layout, view, hover, pressed);
+    frame
+}
+
+/// Compose into an existing frame, reusing its buffer when the size is unchanged: the
+/// backdrop, then the core (the menus or the fight overlay, the location lines, the pad)
+/// through its origin, then the band, then the hover outline.
+pub fn compose_into(
+    frame: &mut Frame,
+    layout: &Layout,
+    view: &View<'_>,
+    hover: Option<WidgetId>,
+    pressed: Option<WidgetId>,
+) {
+    frame.reset(layout.width, CANVAS_HEIGHT);
+    panels::backdrop(frame, layout);
+    frame.within(layout.core, |frame| core(frame, view, pressed));
+    band::band(
+        frame,
+        layout,
         &Band {
             message: view.message,
             members: view.members,
             front_row: view.front_row,
             selected: view.selected,
-            creating: view.creating,
+            acting: view.acting,
+            log: view.log,
             help: view.help,
         },
     );
     if let Some(id) = hover {
         frame.outline(id);
     }
-    frame
+}
+
+/// The core in its own coordinates: the menu box and the menus, or the fight overlay; the
+/// location lines; the tool pad; the pad.
+fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
+    if view.menu.covers_viewport() {
+        frame.raster.fill(VIEWPORT, PANEL);
+        frame.raster.stroke(MENU_BOX, FRAME);
+    }
+    match &view.menu {
+        Menu::None => {}
+        Menu::Title(title) => screens::title(frame, title),
+        Menu::NewGame(form) => screens::new_game(frame, form),
+        Menu::Creation {
+            form,
+            catalog,
+            members,
+        } => screens::creation(frame, form, catalog, *members),
+        Menu::Pause {
+            pause,
+            settings,
+            seed,
+        } => screens::pause(frame, pause, *settings, *seed),
+        Menu::Encounter { menu, view } => combat_screen::encounter(frame, view, menu),
+        Menu::Combat { menu, view } => combat_screen::combat(frame, view, menu),
+        Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
+        Menu::Debug { menu, view } => debug_screen::debug(frame, menu, view),
+        Menu::Cast { menu, rows } => cast_screen(frame, menu, rows),
+        Menu::Sheet {
+            menu,
+            view,
+            members,
+        } => sheet_screen::sheet(frame, menu, view, *members),
+        Menu::Inventory { menu, view } => inventory_screen::inventory(frame, menu, view),
+    }
+    if let Some(hud) = view.hud {
+        panels::hud(frame, hud);
+    }
+    panels::tools(frame, view.tools, pressed);
+    panels::pad(frame, view.pad, pressed);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widget::PadButton;
+    use crate::widget::{HI, PadButton, hit};
     use omnis_sim::omnis_data::load_packs;
     use std::path::PathBuf;
 
@@ -324,6 +458,75 @@ mod tests {
     }
 
     #[test]
+    fn the_menu_box_is_framed_over_the_covered_viewport() {
+        let view = View {
+            menu: Menu::Title(&Title::default()),
+            hud: None,
+            members: &[],
+            front_row: 3,
+            selected: None,
+            acting: None,
+            log: &[],
+            pad: PadState::Hidden,
+            tools: ToolStates::default(),
+            message: &Message::default(),
+            help: "",
+        };
+        let frame = compose(&view, None, None);
+        let rgb = |x, y| frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]));
+        assert_eq!(
+            rgb(MENU_BOX.x, MENU_BOX.y),
+            Some(FRAME),
+            "the frame's corner"
+        );
+        assert_eq!(
+            rgb(MENU_BOX.right() - 1, MENU_BOX.bottom() - 1),
+            Some(FRAME)
+        );
+        assert_eq!(
+            rgb(MENU_BOX.x - 1, MENU_BOX.y - 1),
+            Some(PANEL),
+            "panel outside"
+        );
+        assert_eq!(
+            rgb(MENU_BOX.x + 1, MENU_BOX.y + 1),
+            Some(PANEL),
+            "panel inside"
+        );
+        let title = frame.widget(WidgetId::Row(0)).unwrap();
+        assert!(MENU_BOX.encloses(title.rect), "{:?}", title.rect);
+    }
+
+    #[test]
+    fn composing_into_a_used_frame_matches_a_fresh_one() {
+        let view = View {
+            menu: Menu::Title(&Title::default()),
+            hud: None,
+            members: &[],
+            front_row: 3,
+            selected: None,
+            acting: None,
+            log: &[],
+            pad: PadState::Hidden,
+            tools: ToolStates::default(),
+            message: &Message::default(),
+            help: "help",
+        };
+        let fresh = compose(&view, Some(WidgetId::Row(0)), None);
+        let mut reused = compose(&view, Some(WidgetId::Row(1)), None);
+        assert_ne!(reused, fresh, "a different hover outlines a different row");
+        compose_into(&mut reused, &NARROW, &view, Some(WidgetId::Row(0)), None);
+        assert_eq!(reused, fresh, "nothing of the earlier paint survives");
+        reused.clear();
+        assert!(reused.widgets.is_empty());
+        assert!(reused.raster.rgba.iter().all(|b| *b == 0));
+        assert_eq!(
+            reused.raster.width, fresh.raster.width,
+            "the buffer is kept"
+        );
+    }
+
+    #[test]
     fn the_fight_menus_leave_the_scene_visible() {
         let view = sample_fight();
         let members = sample_members();
@@ -332,7 +535,6 @@ mod tests {
         let menu = Menu::Combat {
             menu: &combat,
             view: &view,
-            log: &log,
         };
         assert!(!menu.covers_viewport());
         assert!(Menu::Title(&Title::default()).covers_viewport());
@@ -343,17 +545,25 @@ mod tests {
                 members: &members,
                 front_row: 3,
                 selected: None,
-                creating: false,
+                acting: Some(0),
+                log: &log,
                 pad: PadState::Disabled,
+                tools: ToolStates::all(PadState::Disabled),
                 message: &Message::default(),
                 help: "",
             },
             None,
             None,
         );
-        assert_eq!(frame.raster.get(120, 60), Some([0, 0, 0, 0]), "the window");
+        let mid = VIEWPORT.w as i32 / 2;
+        let top = crate::combat_screen::TOP_PANEL;
         assert_eq!(
-            frame.raster.get(120, 20),
+            frame.raster.get(mid, top.bottom() + 8),
+            Some([0, 0, 0, 0]),
+            "the window"
+        );
+        assert_eq!(
+            frame.raster.get(top.right() - 2, top.y + 4),
             Some([PANEL.0, PANEL.1, PANEL.2, 255])
         );
         assert!(frame.widget(WidgetId::Stack(0)).is_some());
@@ -366,7 +576,6 @@ mod tests {
         FightView {
             phase: omnis_sim::ModeKind::Combat,
             round: 2,
-            actor: Some("Brenna".to_owned()),
             own: Some(0),
             disposition: omnis_sim::omnis_data::Disposition::Hostile,
             stacks: [
@@ -389,6 +598,33 @@ mod tests {
             .collect(),
             bribe: Some(200),
             gold: 60,
+            spells: vec![
+                crate::combat_menu::SpellRow {
+                    index: 0,
+                    name: "Fire Bolt".to_owned(),
+                    cost: 0,
+                    targets_members: false,
+                    auto: None,
+                    active: false,
+                    blocked: None,
+                },
+                crate::combat_menu::SpellRow {
+                    index: 1,
+                    name: "Magic Missile".to_owned(),
+                    cost: 1,
+                    targets_members: false,
+                    auto: None,
+                    active: false,
+                    blocked: Some("need 1 pt".to_owned()),
+                },
+            ],
+            points: (0, 4),
+            usable: vec![crate::combat_menu::UseRow {
+                index: 6,
+                name: "Potion of healing".to_owned(),
+                count: 1,
+                blocked: None,
+            }],
         }
     }
 
@@ -402,10 +638,12 @@ mod tests {
         .map(|(name, class, hp, hp_max, sp)| MemberRow {
             name: name.into(),
             class: class.into(),
+            level: 1,
             hp,
             hp_max,
             sp,
-            condition: None,
+            ac: 14,
+            condition: (hp < hp_max).then(|| "Wounded".to_owned()),
         })
     }
 
@@ -442,8 +680,10 @@ mod tests {
         .to_vec()
     }
 
-    /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`.
+    /// Compose one screen with the sample party and write it as `<dir>/<name>.ppm`, and the
+    /// same on a 2560-wide canvas as `<dir>/<name>-wide.ppm`.
     fn dump(dir: &str, name: &str, menu: Menu<'_>, hud: Option<&Hud>, message: &Message) {
+        let log = sample_log();
         let members = sample_members();
         let pad = match (&menu, hud) {
             (Menu::None, _) => PadState::Enabled,
@@ -456,17 +696,19 @@ mod tests {
             members: &members,
             front_row: 3,
             selected: Some(1),
-            creating: name == "creation",
+            acting: (name == "combat").then_some(0),
+            log: if hud.is_some() { &log } else { &[] },
             pad,
+            tools: ToolStates::all(pad),
             message,
             help: "Arrows or click  Enter ok  Esc back",
         };
-        let frame = compose(
-            &view,
-            Some(WidgetId::Row(1)),
-            Some(WidgetId::Pad(PadButton::Use)),
-        );
+        let hover = Some(WidgetId::Row(1));
+        let pressed = Some(WidgetId::Pad(PadButton::Use));
+        let frame = compose(&view, hover, pressed);
         std::fs::write(format!("{dir}/{name}.ppm"), ppm(&frame)).unwrap();
+        let wide = compose_in(&Layout::for_width(2560), &view, hover, pressed);
+        std::fs::write(format!("{dir}/{name}-wide.ppm"), ppm(&wide)).unwrap();
     }
 
     /// `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
@@ -512,7 +754,6 @@ mod tests {
         let in_fight = Menu::Combat {
             menu: &combat,
             view: &fight,
-            log: &log,
         };
         let before = Menu::Encounter {
             menu: &encounter,
@@ -525,10 +766,220 @@ mod tests {
         dump(&dir, "explore", Menu::None, Some(&hud), &event);
         dump(&dir, "encounter", before, Some(&hud), &event);
         dump(&dir, "combat", in_fight, Some(&hud), &event);
+        let picking = CombatMenu {
+            target: 1,
+            picker: Some(0),
+            ..CombatMenu::default()
+        };
+        let casting = Menu::Combat {
+            menu: &picking,
+            view: &fight,
+        };
+        dump(&dir, "combat_cast", casting, Some(&hud), &event);
+        let debug_view = sample_debug();
+        let mut debug_menu = DebugMenu::default();
+        debug_menu.open(&debug_view);
+        let debugging = Menu::Debug {
+            menu: &debug_menu,
+            view: &debug_view,
+        };
+        dump(&dir, "debug", debugging, Some(&hud), &event);
         let fallen = Menu::Defeat {
             menu: &defeat,
             log: &log,
         };
         dump(&dir, "defeat", fallen, Some(&hud), &event);
+        let sheet_view = crate::sheet_menu::tests::sample();
+        for page in crate::sheet_menu::SheetPage::ALL {
+            let sheet_menu = crate::sheet_menu::SheetMenu {
+                member: 0,
+                page,
+                message: String::new(),
+            };
+            let showing = Menu::Sheet {
+                menu: &sheet_menu,
+                view: &sheet_view,
+                members: 4,
+            };
+            let name = format!("sheet_{}", page.label().to_ascii_lowercase());
+            dump(&dir, &name, showing, Some(&hud), &event);
+        }
+        dump_items(&dir, &hud, &event, &fight);
+    }
+
+    /// The inventory overlay on the sample kit, the cursor on the potion, and the fight's
+    /// item picker.
+    fn dump_items(dir: &str, hud: &Hud, event: &Message, fight: &FightView) {
+        let view = crate::inventory_menu::tests::sample();
+        let mut menu = InventoryMenu {
+            cursor: 6,
+            ..InventoryMenu::default()
+        };
+        menu.sync(&view);
+        let showing = Menu::Inventory {
+            menu: &menu,
+            view: &view,
+        };
+        dump(dir, "inventory", showing, Some(hud), event);
+        let using = CombatMenu {
+            target: 1,
+            use_picker: Some(0),
+            ..CombatMenu::default()
+        };
+        let picking = Menu::Combat {
+            menu: &using,
+            view: fight,
+        };
+        dump(dir, "combat_use", picking, Some(hud), event);
+    }
+
+    /// The sample debug view: a fight, a dev world, one member.
+    fn sample_debug() -> crate::debug_menu::DebugView {
+        crate::debug_menu::DebugView {
+            fighting: true,
+            devtools: true,
+            members: vec![crate::debug_menu::MemberDebug {
+                name: "Brenna".to_owned(),
+                hp: (12, 12),
+                sp: (0, 0),
+                xp: 25,
+                scores: [15, 14, 13, 12, 10, 8],
+                conditions: vec![],
+            }],
+            gold: 90,
+            food: 60,
+            items: vec![("base:item:spyglass".to_owned(), "Spyglass".to_owned())],
+            conditions: vec![("base:condition:poisoned".to_owned(), "Poisoned".to_owned())],
+            flags: vec![],
+            maps: vec![("test:map:dungeon".to_owned(), 24, 24)],
+            position: (0, 3, 8, omnis_sim::omnis_core::Facing::South),
+            stacks: vec![crate::debug_menu::StackDebug {
+                index: 0,
+                name: "Goblin".to_owned(),
+                count: (3, 3),
+                lead_hp: 7,
+            }],
+        }
+    }
+
+    /// The sample explore view: no menu, the location lines, the pad enabled.
+    fn explore<'a>(
+        members: &'a [MemberRow],
+        hud: &'a Hud,
+        log: &'a [String],
+        message: &'a Message,
+    ) -> View<'a> {
+        View {
+            menu: Menu::None,
+            hud: Some(hud),
+            members,
+            front_row: 3,
+            selected: Some(1),
+            acting: None,
+            log,
+            pad: PadState::Enabled,
+            tools: ToolStates::all(PadState::Enabled),
+            message,
+            help: "help",
+        }
+    }
+
+    #[test]
+    fn a_wide_canvas_shifts_the_core_widgets_by_its_origin_and_seats_the_roster_in_the_wing() {
+        let wide = Layout::for_width(2560);
+        let wing = wide.wing.expect("wide");
+        let members = sample_members();
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let log = sample_log();
+        let message = Message::default();
+        let fight = sample_fight();
+        let combat = CombatMenu::default();
+        let views = [
+            explore(&members, &hud, &log, &message),
+            View {
+                menu: Menu::Title(&Title::default()),
+                ..explore(&members, &hud, &log, &message)
+            },
+            View {
+                menu: Menu::Combat {
+                    menu: &combat,
+                    view: &fight,
+                },
+                acting: Some(0),
+                ..explore(&members, &hud, &log, &message)
+            },
+        ];
+        for view in &views {
+            let narrow = compose(view, None, None);
+            let frame = compose_in(&wide, view, None, None);
+            assert_eq!(frame.raster.width, 2560);
+            assert_eq!(frame.widgets.len(), narrow.widgets.len());
+            for (a, b) in narrow.widgets.iter().zip(&frame.widgets) {
+                assert_eq!(a.id, b.id);
+                if let WidgetId::Member(_) = a.id {
+                    assert!(wing.encloses(b.rect), "{:?} leaves the wing", b.rect);
+                    continue;
+                }
+                let (dx, dy) = wide.core;
+                assert_eq!(b.rect, a.rect.shifted(dx, dy), "{:?}", a.id);
+                assert_eq!(b.left, a.left.map(|r| r.shifted(dx, dy)), "{:?}", a.id);
+                assert_eq!(b.right, a.right.map(|r| r.shifted(dx, dy)), "{:?}", a.id);
+            }
+        }
+    }
+
+    #[test]
+    fn a_wide_canvas_keeps_the_scene_and_the_minimap_clear_and_frames_the_menu_where_it_sits() {
+        let wide = Layout::for_width(2560);
+        let members = sample_members();
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let log = sample_log();
+        let message = Message::default();
+        let view = explore(&members, &hud, &log, &message);
+        let frame = compose_in(&wide, &view, Some(WidgetId::Member(0)), None);
+        let rgba = |x, y| frame.raster.get(x, y);
+        let panel = Some([PANEL.0, PANEL.1, PANEL.2, 255]);
+        let clear = Some([0, 0, 0, 0]);
+        let viewport = wide.viewport();
+        assert_eq!(rgba(viewport.x + 480, viewport.y + 270), clear, "the scene");
+        assert_eq!(rgba(viewport.x - 1, 270), panel, "the wing beside it");
+        assert_eq!(rgba(viewport.right(), 270), panel, "the column beside it");
+        let (mx, my, mw, mh) = wide.minimap();
+        assert_eq!(
+            rgba(mx + mw as i32 / 2, my + mh as i32 / 2),
+            clear,
+            "the minimap"
+        );
+        assert_eq!(rgba(mx - 1, my), panel);
+        assert_eq!(rgba(10, 300), panel, "the margin");
+        assert_eq!(rgba(2559, 719), panel, "the far corner");
+        assert_eq!(
+            rgba(480, 270),
+            panel,
+            "the narrow scene's centre is panel now"
+        );
+        let member = frame.widget(WidgetId::Member(0)).unwrap();
+        let hi = Some([HI.0, HI.1, HI.2, 255]);
+        assert_eq!(
+            rgba(member.rect.x - 1, member.rect.y - 1),
+            hi,
+            "the outline"
+        );
+        assert_eq!(hit(&frame.widgets, 7, 568).map(|h| h.id), None);
+        let title = View {
+            menu: Menu::Title(&Title::default()),
+            ..explore(&members, &hud, &log, &message)
+        };
+        let frame = compose_in(&wide, &title, None, None);
+        let boxed = MENU_BOX.shifted(wide.core.0, wide.core.1);
+        let rgb = |x, y| frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]));
+        assert_eq!(rgb(boxed.x, boxed.y), Some(FRAME));
+        assert_eq!(rgb(boxed.right() - 1, boxed.bottom() - 1), Some(FRAME));
+        assert_eq!(
+            rgb(MENU_BOX.x, MENU_BOX.y),
+            Some(PANEL),
+            "not at the narrow corner"
+        );
+        assert!(boxed.encloses(frame.widget(WidgetId::Row(0)).unwrap().rect));
     }
 }

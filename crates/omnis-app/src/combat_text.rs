@@ -1,121 +1,13 @@
 //! Combat events as text, with the roll math the simulation traced (PRD §7.3): a long form
 //! for the band's message line and a short form for the roll log under the viewport. The
-//! simulation sends keys, ids, and traces; this file is where they become English. Bevy-free.
+//! simulation sends keys, ids, and traces; this file is where they become English, with the
+//! names and the line shape from `text.rs` and the spell and item lines from their own
+//! files. Bevy-free.
 
-use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, ConditionId, RollTrace};
-use omnis_sim::omnis_data::{DamageType, Data};
+use crate::text::{Line, Names, faces, trace_math};
+use omnis_sim::omnis_data::DamageType;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult, Roll, RollMode};
-use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Mode, Surprise, World};
-use std::collections::BTreeMap;
-
-/// Cells a long line may take: the band's message line.
-pub const LONG_CELLS: usize = 52;
-/// Cells a short line may take: a roll-log row under the viewport.
-pub const SHORT_CELLS: usize = 39;
-
-/// The names events refer to by id. Members are remembered by id after they leave the party
-/// and stacks after a fight ends, so the batch that ends a fight still reads.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Names {
-    members: BTreeMap<CharacterId, String>,
-    /// Label and initial count per stack index.
-    stacks: Vec<(String, u8)>,
-    conditions: BTreeMap<ConditionId, String>,
-}
-
-impl Names {
-    /// Names for the world as it is.
-    #[must_use]
-    pub fn new(world: &World, data: &Data) -> Names {
-        let mut names = Names::default();
-        names.refresh(world, data);
-        names
-    }
-
-    /// Learn the current members and, while monsters stand there, the current stacks.
-    pub fn refresh(&mut self, world: &World, data: &Data) {
-        for member in &world.party.members {
-            self.members.insert(member.id, member.name.clone());
-        }
-        let encounter = match &world.mode {
-            Mode::Explore => None,
-            Mode::Encounter(e) => Some(e),
-            Mode::Combat(c) => Some(&c.encounter),
-        };
-        if let Some(encounter) = encounter {
-            self.stacks = encounter
-                .stacks
-                .iter()
-                .map(|s| {
-                    let label = data
-                        .monsters
-                        .get(&s.monster)
-                        .map_or("?", |m| data.label("en", &m.name));
-                    (label.to_owned(), s.initial)
-                })
-                .collect();
-        }
-        if self.conditions.is_empty() {
-            for (id, condition) in &data.conditions {
-                self.conditions
-                    .insert(*id, data.label("en", &condition.name).to_owned());
-            }
-        }
-    }
-
-    /// A member's name.
-    #[must_use]
-    pub fn member(&self, id: CharacterId) -> &str {
-        self.members.get(&id).map_or("?", String::as_str)
-    }
-
-    /// Who an actor is: `Brenna`, `Goblins` for a stack, `Goblin 2` for one of several.
-    #[must_use]
-    pub fn actor(&self, actor: &ActorRef) -> String {
-        match actor {
-            ActorRef::Member(id) => self.member(*id).to_owned(),
-            ActorRef::Stack(stack) => match self.stacks.get(usize::from(*stack)) {
-                Some((label, 1)) => label.clone(),
-                Some((label, _)) => format!("{label}s"),
-                None => format!("Stack {stack}"),
-            },
-            ActorRef::Monster { stack, index } => match self.stacks.get(usize::from(*stack)) {
-                Some((label, 1)) => label.clone(),
-                Some((label, _)) => format!("{label} {}", index + 1),
-                None => format!("Stack {stack} #{}", index + 1),
-            },
-        }
-    }
-
-    /// A condition's name.
-    #[must_use]
-    pub fn condition(&self, id: ConditionId) -> &str {
-        self.conditions.get(&id).map_or("?", String::as_str)
-    }
-}
-
-/// One event as text.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Line {
-    /// With the math, at most `LONG_CELLS`.
-    pub long: String,
-    /// The outcome alone, at most `SHORT_CELLS`.
-    pub short: String,
-}
-
-impl Line {
-    fn new(long: String, short: String) -> Line {
-        Line {
-            long: fit(&long, LONG_CELLS),
-            short: fit(&short, SHORT_CELLS),
-        }
-    }
-
-    fn same(text: String) -> Line {
-        Line::new(text.clone(), text)
-    }
-}
+use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
 
 /// The lines for one command's events, in order. An attack and the damage that follows it
 /// make one line; encounter checks, monster turns, and exploration events make none.
@@ -193,6 +85,8 @@ fn event_line(event: &Event, names: &Names) -> Option<Line> {
     before_fight_line(event, names)
         .or_else(|| round_line(event, names))
         .or_else(|| wound_line(event, names))
+        .or_else(|| crate::spell_text::spell_line(event, names))
+        .or_else(|| crate::item_text::item_line(event, names))
 }
 
 /// The encounter phase: who stands there, the checks, the bribe.
@@ -246,6 +140,7 @@ fn before_fight_line(event: &Event, names: &Names) -> Option<Line> {
                 CheckKind::Hide => "hides",
                 CheckKind::Run => "runs",
                 CheckKind::Flee => "flees",
+                CheckKind::Save(_) => "saves",
             };
             let result = if *success { "success" } else { "failure" };
             let math = roll.as_ref().map_or_else(
@@ -282,9 +177,6 @@ fn round_line(event: &Event, names: &Names) -> Option<Line> {
             Line::same(format!("Initiative: {list}"))
         }
         Event::RoundStarted { round } => Line::same(format!("Round {round}")),
-        Event::Turn {
-            actor: actor @ ActorRef::Member(_),
-        } => Line::same(format!("{} to act", names.actor(actor))),
         Event::Waited { actor } => Line::same(format!("{} wait", names.actor(actor))),
         Event::Dodging { actor } => Line::same(format!("{} dodges", names.actor(actor))),
         Event::Exchanged { a, b } => Line::same(format!("Slots {} and {} exchange", a + 1, b + 1)),
@@ -400,22 +292,6 @@ pub fn roll_math(roll: &Roll) -> String {
     format!("{dice}{bonus} {}={}", faces(&roll.trace), roll.total)
 }
 
-/// `1d8+2 [5]=7`: the trace without its stream name.
-#[must_use]
-pub fn trace_math(trace: &RollTrace) -> String {
-    format!("{} {}={}", trace.dice, faces(trace), trace.total)
-}
-
-fn faces(trace: &RollTrace) -> String {
-    let faces = trace
-        .rolls
-        .iter()
-        .map(|r| r.value.to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("[{faces}]")
-}
-
 const fn adjust_word(adjust: DamageAdjust) -> &'static str {
     match adjust {
         DamageAdjust::None => "",
@@ -433,8 +309,11 @@ fn kind_word(kind: DamageType) -> String {
 mod tests {
     use super::*;
     use crate::combat_menu::tests::facing_goblins;
-    use omnis_sim::omnis_core::{Dice, DieRoll, MonsterId, StreamName};
-    use omnis_sim::omnis_data::{Disposition, load_packs};
+    use crate::text::{LONG_CELLS, SHORT_CELLS};
+    use omnis_sim::omnis_core::{
+        CharacterId, ConditionId, Dice, DieRoll, MonsterId, RollTrace, StreamName,
+    };
+    use omnis_sim::omnis_data::{Data, Disposition, load_packs};
     use omnis_sim::{
         CombatCommand, Command, EncounterChoice, EncounterSource, ModeKind, apply, combat_view,
     };
@@ -471,6 +350,7 @@ mod tests {
             face,
             modifier,
             proficiency,
+            bonus: None,
             total: i64::from(face) + modifier + proficiency,
         }
     }
@@ -490,10 +370,45 @@ mod tests {
         names
     }
 
-    /// A line clipped at its cell limit fills it and still starts with what matters.
+    /// A line fits its cell limit and starts with what matters.
     fn clipped(text: &str, cells: usize, prefix: &str) {
-        assert_eq!(text.chars().count(), cells, "{text}");
+        assert!(text.chars().count() <= cells, "{text}");
         assert!(text.starts_with(prefix), "{text}");
+    }
+
+    #[test]
+    fn a_line_past_the_budget_is_cut_at_it() {
+        let names = wide_names();
+        let me = CharacterId(0);
+        let order: Vec<(ActorRef, i64)> = (0..6)
+            .map(|i| {
+                let actor = if i % 2 == 0 {
+                    ActorRef::Member(me)
+                } else {
+                    ActorRef::Stack(0)
+                };
+                (actor, 20 - i)
+            })
+            .collect();
+        let lines = batch_lines(
+            &[Event::Initiative {
+                order,
+                rolls: vec![],
+            }],
+            &names,
+        );
+        assert_eq!(
+            lines[0].long.chars().count(),
+            LONG_CELLS,
+            "{}",
+            lines[0].long
+        );
+        assert_eq!(lines[0].short.chars().count(), SHORT_CELLS);
+        assert!(
+            lines[0]
+                .long
+                .starts_with("Initiative: Brennagh-of-the-Long-Hall")
+        );
     }
 
     #[test]
@@ -756,13 +671,14 @@ mod tests {
         let lines = batch_lines(&events, &wide_names());
         assert_eq!(
             lines.len(),
-            events.len() - 3,
-            "the monster turn, the encounter check, and PartyChanged are silent"
+            events.len() - 4,
+            "the turns, the encounter check, and PartyChanged are silent"
         );
         for line in &lines {
             assert!(line.long.chars().count() <= LONG_CELLS, "{}", line.long);
             assert!(line.short.chars().count() <= SHORT_CELLS, "{}", line.short);
             assert!(!line.short.is_empty());
+            assert!(!line.long.ends_with(" to act"), "the header shows the turn");
         }
         clipped(
             &lines[0].short,
@@ -792,44 +708,43 @@ mod tests {
             "Initiative: Brennagh-of-the-Long-Hall",
         );
         assert_eq!(lines[6].long, "Round 999");
-        assert_eq!(lines[7].long, "Brennagh-of-the-Long-Hall to act");
-        assert_eq!(lines[8].long, "Ancient Red Dragon Wys wait");
-        assert_eq!(lines[9].long, "Brennagh-of-the-Long-Hall dodges");
-        assert_eq!(lines[10].long, "Slots 1 and 4 exchange");
-        assert_eq!(lines[11].long, "Brennagh-of-the-Long-Hall falls");
+        assert_eq!(lines[7].long, "Ancient Red Dragon Wys wait");
+        assert_eq!(lines[8].long, "Brennagh-of-the-Long-Hall dodges");
+        assert_eq!(lines[9].long, "Slots 1 and 4 exchange");
+        assert_eq!(lines[10].long, "Brennagh-of-the-Long-Hall falls");
         clipped(
-            &lines[12].long,
+            &lines[11].long,
             LONG_CELLS,
             "Brennagh-of-the-Long-Hall is wounded: 2 of 3 fail",
         );
         clipped(
-            &lines[13].long,
+            &lines[12].long,
             LONG_CELLS,
             "Brennagh-of-the-Long-Hall death save: failure 2/3",
         );
         clipped(
-            &lines[14].short,
+            &lines[13].short,
             SHORT_CELLS,
             "Brennagh-of-the-Long-Hall comes to at",
         );
-        assert_eq!(lines[15].long, "Brennagh-of-the-Long-Hall is ?");
+        assert_eq!(lines[14].long, "Brennagh-of-the-Long-Hall is ?");
         clipped(
-            &lines[16].long,
+            &lines[15].long,
             LONG_CELLS,
             "Ancient Red Dragon Wy 3 dies, dropping 8 gold (2d4 [",
         );
         clipped(
-            &lines[16].short,
+            &lines[15].short,
             SHORT_CELLS,
             "Ancient Red Dragon Wy 3 dies, dropping",
         );
-        assert_eq!(lines[17].long, "Brennagh-of-the-Long-Hall dies");
+        assert_eq!(lines[16].long, "Brennagh-of-the-Long-Hall dies");
         clipped(
-            &lines[18].long,
+            &lines[17].long,
             LONG_CELLS,
             "Victory! 99999 XP each, 99999 gold; lost: Brennagh",
         );
-        assert_eq!(lines[19].long, "The party has fallen");
+        assert_eq!(lines[18].long, "The party has fallen");
     }
 
     #[test]

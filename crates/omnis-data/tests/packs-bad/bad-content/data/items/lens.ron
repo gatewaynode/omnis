@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:item:lens", name: "badc:text:item.lens.name", kind: Gear, use_effect: Some(Sense((geometry: Ray(range: 0), fidelity: Terrain))))

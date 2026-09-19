@@ -3,17 +3,24 @@
 //! canvas sprite above the viewport. Headless-capable: without a render stack the frame is
 //! still composed as a resource and nothing is uploaded.
 
+use crate::band::MemberRow;
+use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
-use crate::combat_text::{Names, batch_lines};
+use crate::combat_text::batch_lines;
 use crate::cursor::{self, Pointer, UiSet};
+use crate::debug_menu::{DebugView, debug_view};
+use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
-use crate::panels::{Hud, MemberRow, Message};
+use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
+use crate::sheet_menu::{SheetView, sheet_view};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
+use crate::spell_menu::{CastRow, cast_rows};
+use crate::text::Names;
 use crate::viewport::canvas_to_world;
-use crate::widget::{self, Frame, Hit, PadState, WidgetId};
+use crate::widget::{self, Frame, Hit, PadState, ToolButton, ToolStates, WidgetId};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -55,7 +62,7 @@ pub struct MessageLine(pub Message);
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
 pub struct EventNames(pub Names);
 
-/// The roll log, oldest first; the fight screen shows its tail.
+/// The event log, oldest first, with the roll math; the band shows its tail.
 #[derive(Resource, Debug, Clone, Default, PartialEq, Eq)]
 pub struct RollLog(pub Vec<String>);
 
@@ -78,7 +85,7 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  M map  F5 save  F9 load  Esc menu";
+pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  P sheet  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -90,9 +97,17 @@ pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
 pub const HELP_ENCOUNTER: &str = "Left/Right choose  Enter ok  Esc menu";
 /// Help in a fight.
-pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  Enter ok  Esc menu";
+pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok  Esc menu";
 /// Help after a wipe.
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
+/// Help on the debug menu.
+pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
+/// Help on the cast menu.
+pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter cast  Esc back";
+/// Help on the character sheet.
+pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a member  Esc close";
+/// The help line on the inventory overlay.
+pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -111,7 +126,12 @@ impl Plugin for UiPlugin {
             )
             .add_systems(Update, select_member.in_set(UiSet::Dispatch))
             .add_systems(Update, message_line.in_set(UiSet::Model))
-            .add_systems(Update, (build_frame, upload).chain().in_set(UiSet::Draw))
+            .add_systems(
+                Update,
+                (build_frame, upload.run_if(resource_changed::<UiFrame>))
+                    .chain()
+                    .in_set(UiSet::Draw),
+            )
             .add_systems(Startup, make_sprite)
             .add_systems(
                 OnExit(AppState::Playing),
@@ -135,9 +155,14 @@ pub fn event_text(event: &Event) -> Option<String> {
         Event::TimeAdvanced {
             day_rolled: true, ..
         } => "A new day.".into(),
+        Event::Dev { command } => crate::debug_menu::describe(command),
         _ => return None,
     })
 }
+
+/// The sprite the UI frame is uploaded into.
+#[derive(Component)]
+struct UiSprite;
 
 /// The transparent canvas-sized image and its sprite; skipped without a render stack.
 fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
@@ -159,29 +184,39 @@ fn make_sprite(mut commands: Commands, images: Option<ResMut<Assets<Image>>>) {
     commands.spawn((
         Sprite::from_image(handle.clone()),
         Anchor::TOP_LEFT,
-        Transform::from_translation(canvas_to_world(0, 0, UI_Z)),
+        Transform::from_translation(canvas_to_world(CANVAS_WIDTH, 0, 0, UI_Z)),
         PIXEL_LAYER,
+        UiSprite,
     ));
     commands.insert_resource(UiImage(handle));
 }
 
-/// Copy the frame's pixels into the sprite's image when they changed.
+/// Copy the frame's pixels into the sprite's image; runs only when the frame changed. A
+/// frame of a new width resizes the image first and moves the sprite to the new corner.
 fn upload(
     ui: Res<UiFrame>,
     target: Option<Res<UiImage>>,
     images: Option<ResMut<Assets<Image>>>,
-    mut last: Local<Vec<u8>>,
+    sprite: Option<Single<&mut Transform, With<UiSprite>>>,
 ) {
     let (Some(target), Some(mut images)) = (target, images) else {
         return;
     };
-    if *last == ui.frame.raster.rgba {
+    let Some(mut image) = images.get_mut(&target.0) else {
         return;
+    };
+    let (width, height) = (ui.frame.raster.width, ui.frame.raster.height);
+    if (image.width(), image.height()) != (width, height) {
+        image.resize(Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        });
+        if let Some(mut sprite) = sprite {
+            sprite.translation = canvas_to_world(width, 0, 0, UI_Z);
+        }
     }
-    if let Some(mut image) = images.get_mut(&target.0) {
-        image.data = Some(ui.frame.raster.rgba.clone());
-        last.clone_from(&ui.frame.raster.rgba);
-    }
+    image.data = Some(ui.frame.raster.rgba.clone());
 }
 
 fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter<UiClick>) {
@@ -190,7 +225,7 @@ fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter
         .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
-        hover.filter(|id| matches!(id, WidgetId::Pad(_)))
+        hover.filter(|id| matches!(id, WidgetId::Pad(_) | WidgetId::Tool(_)))
     } else {
         None
     };
@@ -278,14 +313,22 @@ pub fn member_rows(world: &World, data: &Data) -> Vec<MemberRow> {
                 .get(&m.class)
                 .map_or("?", |c| data.label("en", &c.name))
                 .to_owned(),
+            level: m.level,
             hp: m.hp,
             hp_max: m.hp_max,
             sp: m.spell_points,
+            ac: omnis_sim::omnis_rules::armor_class(m, data),
             condition: m
                 .conditions
                 .first()
                 .and_then(|c| data.conditions.get(c))
-                .and_then(|c| data.label("en", &c.name).chars().next()),
+                .map(|c| data.label("en", &c.name).to_owned())
+                .or_else(|| {
+                    m.effects
+                        .first()
+                        .and_then(|e| data.spells.get(&e.source))
+                        .map(|s| data.label("en", &s.name).to_owned())
+                }),
         })
         .collect()
 }
@@ -313,6 +356,10 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::CreateParty => &screens.creation.message,
         Active::Encounter => &screens.encounter.message,
         Active::Combat => &screens.combat.message,
+        Active::Debug => &screens.debug.message,
+        Active::Cast => &screens.cast.message,
+        Active::Sheet => &screens.sheet.message,
+        Active::Inventory => &screens.inventory.message,
         _ => return None,
     };
     (!text.is_empty()).then(|| Message {
@@ -321,15 +368,110 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
+/// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
+/// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
+/// spell for the road; SHEET on the map and in a fight once the party has a member; ITEMS
+/// on the map with a member; LOOK dim until sensing arrives.
+#[must_use]
+pub fn tool_states(
+    active: Active,
+    has_world: bool,
+    has_casts: bool,
+    has_members: bool,
+) -> ToolStates {
+    if !has_world {
+        return ToolStates::default();
+    }
+    let live = |on: bool| {
+        if on {
+            PadState::Enabled
+        } else {
+            PadState::Disabled
+        }
+    };
+    let exploring = active == Active::None;
+    let mut tools = ToolStates::all(PadState::Disabled);
+    tools.set(
+        ToolButton::Menu,
+        live(matches!(
+            active,
+            Active::None | Active::Encounter | Active::Combat
+        )),
+    );
+    tools.set(ToolButton::Map, live(exploring));
+    tools.set(ToolButton::Items, live(exploring && has_members));
+    tools.set(ToolButton::Spells, live(exploring && has_casts));
+    tools.set(
+        ToolButton::Sheet,
+        live(has_members && matches!(active, Active::None | Active::Combat)),
+    );
+    tools
+}
+
+/// What the frame shows besides the screens' own state: the fight, the debug view, the
+/// road spells, and the log.
+struct Overlays<'a> {
+    fight: Option<&'a FightView>,
+    debug: Option<&'a DebugView>,
+    casts: &'a [CastRow],
+    sheet: Option<&'a SheetView>,
+    inventory: Option<&'a InventoryView>,
+    log: &'a [String],
+}
+
+/// The menu and help line of a screen over the world, when its view is built.
+fn overlay_for<'a>(
+    active: Active,
+    screens: &'a Screens,
+    over: &Overlays<'a>,
+    members: usize,
+) -> Option<(Menu<'a>, &'static str)> {
+    Some(match active {
+        Active::Cast => (
+            Menu::Cast {
+                menu: &screens.cast,
+                rows: over.casts,
+            },
+            HELP_CAST,
+        ),
+        Active::Debug => (
+            Menu::Debug {
+                menu: &screens.debug,
+                view: over.debug?,
+            },
+            HELP_DEBUG,
+        ),
+        Active::Sheet => (
+            Menu::Sheet {
+                menu: &screens.sheet,
+                view: over.sheet?,
+                members,
+            },
+            HELP_SHEET,
+        ),
+        Active::Inventory => (
+            Menu::Inventory {
+                menu: &screens.inventory,
+                view: over.inventory?,
+            },
+            HELP_INVENTORY,
+        ),
+        _ => return None,
+    })
+}
+
 /// The menu and help line for the active screen.
 fn menu_for<'a>(
     active: Active,
     screens: &'a Screens,
     world: Option<&World>,
-    fight: Option<&'a FightView>,
+    over: &Overlays<'a>,
     members: usize,
-    log: &'a [String],
 ) -> (Menu<'a>, &'static str) {
+    if let Some(found) = overlay_for(active, screens, over, members) {
+        return found;
+    }
+    let (fight, log) = (over.fight, over.log);
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
@@ -360,7 +502,6 @@ fn menu_for<'a>(
             Menu::Combat {
                 menu: &screens.combat,
                 view,
-                log,
             },
             HELP_COMBAT,
         ),
@@ -371,7 +512,16 @@ fn menu_for<'a>(
             },
             HELP_DEFEAT,
         ),
-        (Active::None | Active::Encounter | Active::Combat, _) => (Menu::None, HELP_EXPLORE),
+        (
+            Active::None
+            | Active::Encounter
+            | Active::Combat
+            | Active::Debug
+            | Active::Cast
+            | Active::Sheet
+            | Active::Inventory,
+            _,
+        ) => (Menu::None, HELP_EXPLORE),
     }
 }
 
@@ -384,24 +534,55 @@ fn build_frame(
     selected: Res<Selected>,
     line: Res<MessageLine>,
     log: Res<RollLog>,
+    layout: Res<Layout>,
     mut ui: ResMut<UiFrame>,
+    mut scratch: Local<Frame>,
 ) {
     let active = at.screen();
     let loaded = world.as_ref().zip(data.as_ref());
     let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
     let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
     let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
+    let debug = (active == Active::Debug)
+        .then(|| loaded.map(|(w, d)| debug_view(&w.0, &d.0)))
+        .flatten();
+    let casts = if active == Active::Cast {
+        loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
+    } else {
+        Vec::new()
+    };
+    let has_casts =
+        at.exploring() && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
+    let sheet = (active == Active::Sheet)
+        .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
+        .flatten();
+    let inventory = (active == Active::Inventory)
+        .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
+        .flatten();
+    let tools = tool_states(
+        active,
+        world.is_some() && at.playing(),
+        has_casts,
+        !members.is_empty(),
+    );
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
     let model_message = model_message(active, &screens);
+    let over = Overlays {
+        fight: fight.as_ref(),
+        debug: debug.as_ref(),
+        casts: &casts,
+        sheet: sheet.as_ref(),
+        inventory: inventory.as_ref(),
+        log: &log.0,
+    };
     let (menu, help) = menu_for(
         active,
         &screens,
         world.as_ref().map(|w| &w.0),
-        fight.as_ref(),
+        &over,
         members.len(),
-        &log.0,
     );
     let pad = if world.is_none() {
         PadState::Hidden
@@ -416,10 +597,69 @@ fn build_frame(
         members: &members,
         front_row,
         selected: selected.0.filter(|s| *s < members.len()),
-        creating: active == Active::CreateParty,
+        acting: fight
+            .as_ref()
+            .and_then(|f| f.own)
+            .filter(|s| *s < members.len()),
+        log: &log.0,
         pad,
+        tools,
         message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
-    ui.frame = screen::compose(&view, ui.hover, ui.pressed);
+    // Paint into the scratch buffer; the resource changes only when the pixels or widgets do,
+    // so the upload and everything gated on the frame run only then.
+    screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
+    if ui.frame != *scratch {
+        ui.frame.clone_from(&scratch);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_tool_pad_follows_the_screen() {
+        assert_eq!(
+            tool_states(Active::None, false, true, true),
+            ToolStates::default()
+        );
+        let map = tool_states(Active::None, true, true, true);
+        for button in [
+            ToolButton::Menu,
+            ToolButton::Map,
+            ToolButton::Spells,
+            ToolButton::Sheet,
+            ToolButton::Items,
+        ] {
+            assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
+        }
+        assert_eq!(map.get(ToolButton::Look), PadState::Disabled);
+        let nobody = tool_states(Active::None, true, false, false);
+        assert_eq!(nobody.get(ToolButton::Spells), PadState::Disabled);
+        assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
+        assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
+        assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
+        let fight = tool_states(Active::Combat, true, true, true);
+        assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
+        assert_eq!(fight.get(ToolButton::Sheet), PadState::Enabled);
+        assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
+        for active in [
+            Active::Paused,
+            Active::Cast,
+            Active::Debug,
+            Active::Defeat,
+            Active::Sheet,
+            Active::Inventory,
+        ] {
+            assert_eq!(
+                tool_states(active, true, true, true),
+                ToolStates::all(PadState::Disabled),
+                "{active:?}"
+            );
+        }
+    }
 }

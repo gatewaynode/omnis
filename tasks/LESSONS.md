@@ -43,3 +43,31 @@
 - **Rule**: Before an encounter reaches the owner, measure it: wipe rate over a few hundred seeds for a two-member level-one party, fighting every turn. The first placements stay trivial (a rat or two) until the systems have been played, whatever the golden fight needs.
 - **Rule**: A mechanic that can end a fight before the player's first turn (surprise at the trigger, monster turns resolved inside the trigger command) ships off by default as a rules value, and the screen that follows a fast end shows what happened.
 
+## 2026-09-13 — A commit is gated on its checks, and an edit is proven by the diff
+- **What happened**: I chained the checks and the commit with `;`, so a commit went in with a parse error the checks had just printed (amended before anything was pushed). Earlier, an edit script with relative paths ran from the wrong directory, edited nothing, and the tests "passed" on the untouched tree.
+- **Rule**: The commit follows its checks with `&&`, or runs in a separate call after the check output has been read; never `;`. A commit made in the same command as its checks is proven by building HEAD.
+- **Rule**: Edit scripts anchor on the repository root (`cd` first or absolute paths), and a green run after an edit counts only when `git status` shows the files changed.
+
+## 2026-09-13 — A display target is measured on the owner's primary display
+- **What happened**: The display rework sized the canvas for a 16:9 4K monitor because the PRD named one. The owner's primary display is a 5120×1440 ultrawide; the fixed 16:9 canvas left half of it empty and every windowed class fell to 1× under the menu bar. A second rework followed the same day.
+- **Rule**: Before a decision about display size, scale, or aspect, ask which display is primary and read the machine (`system_profiler SPDisplaysDataType` on macOS: physical and "looks like" sizes for every panel), then measure the design on every panel listed, windowed and fullscreen, before proposing it.
+- **Rule**: A layout is designed for the aspect range the hardware shows, not for one canvas: state what fills the screen on each panel and what stays empty, with numbers, so the owner decides on the bars before the code exists.
+
+## 2026-09-19 — A deferred milestone keeps its number
+- **What happened**: When the owner deferred the editor (M5), I removed the `### M5` block from the TODO and moved its content into the Phases 2–5 block, leaving a vacant number and a "renumber?" question. The owner's rule: leave the numbering alone and say in the description that the milestone is deferred, with a pointer to where it went.
+- **Rule**: A whole milestone that is deferred keeps its heading and number in `tasks/TODO.md`; the heading gains "(deferred)" and its one-line body names the date, the saved plan (`tasks/plans/<name>.md`) and the block where it is now tracked. Nothing after it is renumbered.
+
+## 2026-09-19 — The gate's exit status must reach the commit
+- **What happened**: I ran the verification script through a pipe (`scripts/verify.sh | tail`) and chained the commit on the pipe's status, which is `tail`'s. The sim lint had failed on `f64` in a new test file; the commit went in anyway and was amended once noticed. Earlier the same day a test summary piped through `awk` had hidden a failed test until the script grew an exit code.
+- **Rule**: The command that gates a commit is the verification script itself, never a pipeline over it: `scripts/verify.sh > log 2>&1 && git commit …`, with the log read on failure. Any summary or filter runs on a saved log after the status is known.
+- **Rule**: A new file in a simulation crate, test or not, is written with integers; percentages and means print as tenths and hundredths.
+
+## 2026-09-19 — Every action needs a mouse entry point, and no function keys on macOS
+- **What happened**: M6a shipped casting on the road behind the C key, the debug menu behind the backtick or F1, and save and load behind F5 and F9. The owner's first play: F5 is taken by macOS, the testing party could not be saved between runs, and remote sensing, items, spells and character sheets had no way in outside a fight but a key.
+- **Rule**: Every player action gets a button on the screen (a pad button, a menu item, an action row) before it gets a key; the key is the shortcut, never the only door. Save and load are menu items on the pause overlay, not function keys.
+- **Rule**: Function keys are not bindings on macOS (the system and the hardware take F1–F12); a shortcut is a letter, and the help line names it.
+- **Rule**: A test party the owner builds by hand must survive the session: saving is the first thing to verify by mouse before a milestone is handed over.
+
+## 2026-09-19 — The Sentrux pass runs on every commit's tree, not once per milestone
+- **What happened**: After M6a's twelve commits the first Sentrux `check_rules` of the entry-points step found four violations the M6a commits had introduced (`screen::click` at cyclomatic 27, `Rejection`'s Display at 26, two base-pack tests at 198 and 123 lines). The per-task review had been skipped while the milestone was being pushed through; a refactor commit followed.
+- **Rule**: `scan` and `check_rules` run before every commit, alongside the verification script, and a violation is fixed in that commit or the next one, named as debt; the awk long-function check covers tests as well as sources.

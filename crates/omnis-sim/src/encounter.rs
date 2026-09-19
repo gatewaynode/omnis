@@ -3,6 +3,7 @@
 //! run) before a fight.
 
 use crate::apply::retreat as retreat_to;
+use crate::checks::{self, CheckSpec};
 use crate::combat::state::can_fight;
 use crate::combat::{self, Roller, run_dc};
 use crate::command::Rejection;
@@ -15,8 +16,8 @@ use omnis_core::{Dice, Facing, MonsterId, Position, RollTrace, StreamName};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Ability, Data, Disposition, ResolvedRandom, Skill};
 use omnis_rules::{
-    Character, Roll, RollMode, RuleError, check, kept_d20, modifier_of, monster_hit_points,
-    passive, passive_perception, skill_bonus,
+    Character, Roll, RollMode, RuleError, kept_d20, modifier_of, monster_hit_points, passive,
+    passive_perception, skill_bonus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -272,6 +273,7 @@ fn begin(
             face,
             modifier: dex,
             proficiency: 0,
+            bonus: None,
             total: i64::from(face) + dex,
         };
         let noticed = roll.total < perception;
@@ -414,17 +416,19 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
 
 /// The member who rolls for the group: the best at `bonus`, the first in marching order on
 /// ties.
-fn best_member<'a>(
-    world: &'a World,
+fn best_member(
+    world: &World,
     data: &Data,
     bonus: impl Fn(&Character) -> i64,
-) -> Result<&'a Character, RuleError> {
+) -> Result<usize, RuleError> {
     world
         .party
         .members
         .iter()
-        .filter(|m| can_fight(m, data))
-        .min_by_key(|m| Reverse(bonus(m)))
+        .enumerate()
+        .filter(|(_, m)| can_fight(m, data))
+        .min_by_key(|(_, m)| Reverse(bonus(m)))
+        .map(|(i, _)| i)
         .ok_or_else(|| RuleError::new("encounter", "no member can act"))
 }
 
@@ -444,30 +448,21 @@ fn hide(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), R
     let member = best_member(world, data, |m| {
         skill_bonus(m, data, Skill::Stealth).unwrap_or(0)
     })?;
-    let mut roller = Roller::take(world);
-    let (roll, success) = if friendly {
-        (None, true)
-    } else {
-        let roll = check(
-            member,
-            data,
-            Some(Skill::Stealth),
-            Ability::Dexterity,
-            RollMode::Normal,
-            &mut roller.rng,
-            &roller.stream,
-        )?;
-        let success = roll.total >= dc;
-        (Some(roll), success)
+    let spec = CheckSpec {
+        skill: Some(Skill::Stealth),
+        ability: Ability::Dexterity,
+        mode: RollMode::Normal,
     };
-    events.push(Event::Check {
-        actor: ActorRef::Member(member.id),
-        kind: CheckKind::Hide,
-        roll,
+    let success = checked(
+        world,
+        data,
+        member,
+        spec,
+        CheckKind::Hide,
         dc,
-        success,
-    });
-    roller.store(world);
+        friendly,
+        events,
+    )?;
     let Some(state) = take(world) else {
         return Ok(());
     };
@@ -476,6 +471,38 @@ fn hide(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), R
     } else {
         combat::start(world, data, state, Surprise::Party, events)
     }
+}
+
+/// One member's check before a fight: no die when the group is friendly; the roll on the
+/// `combat` stream, stored only when it went through.
+#[allow(clippy::too_many_arguments)]
+fn checked(
+    world: &mut World,
+    data: &Data,
+    member: usize,
+    spec: CheckSpec,
+    kind: CheckKind,
+    dc: i64,
+    friendly: bool,
+    events: &mut Vec<Event>,
+) -> Result<bool, RuleError> {
+    let mut roller = Roller::take(world);
+    let (roll, success) = if friendly {
+        (None, true)
+    } else {
+        let roll = checks::roll(world, data, member, spec, &mut roller, events)?;
+        let success = roll.total >= dc;
+        (Some(roll), success)
+    };
+    events.push(Event::Check {
+        actor: ActorRef::Member(world.party.members[member].id),
+        kind,
+        roll,
+        dc,
+        success,
+    });
+    roller.store(world);
+    Ok(success)
 }
 
 /// Run: Dexterity against the run difficulty; the party steps back on success.
@@ -488,30 +515,21 @@ fn run(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Ru
     let member = best_member(world, data, |m| {
         omnis_rules::modifier(m.scores[Ability::Dexterity.index()])
     })?;
-    let mut roller = Roller::take(world);
-    let (roll, success) = if friendly {
-        (None, true)
-    } else {
-        let roll = check(
-            member,
-            data,
-            None,
-            Ability::Dexterity,
-            RollMode::Normal,
-            &mut roller.rng,
-            &roller.stream,
-        )?;
-        let success = roll.total >= dc;
-        (Some(roll), success)
+    let spec = CheckSpec {
+        skill: None,
+        ability: Ability::Dexterity,
+        mode: RollMode::Normal,
     };
-    events.push(Event::Check {
-        actor: ActorRef::Member(member.id),
-        kind: CheckKind::Run,
-        roll,
+    let success = checked(
+        world,
+        data,
+        member,
+        spec,
+        CheckKind::Run,
         dc,
-        success,
-    });
-    roller.store(world);
+        friendly,
+        events,
+    )?;
     let Some(state) = take(world) else {
         return Ok(());
     };

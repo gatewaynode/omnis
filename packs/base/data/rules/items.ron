@@ -1,0 +1,7 @@
+// Items: the party-clock minutes an action costs. Donning armor takes a while (SRD: 1 to 10
+// minutes); using an item is a moment.
+(
+    schema: 1,
+    id: "base:rules:items",
+    values: {"don_armor_minutes": 5, "use_item_minutes": 1},
+)

@@ -153,6 +153,10 @@ fn rejections_leave_the_world_untouched() {
             let name = data.registry.items.name(*item).unwrap();
             !name.ends_with("crossbow") && !name.ends_with("shortbow")
         });
+        let kit = member.equipment.clone();
+        member
+            .equipped
+            .retain(|_, item| kit.iter().any(|(id, _)| id == item));
     }
     start(
         &mut world,

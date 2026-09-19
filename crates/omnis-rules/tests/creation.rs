@@ -2,7 +2,7 @@
 
 use omnis_core::{CharacterId, Pcg32, StreamName};
 use omnis_data::ron_io::{parse, to_string};
-use omnis_data::{Ability, Alignment, Data, Skill, load_packs};
+use omnis_data::{Ability, Alignment, Data, EquipSlot, Skill, load_packs};
 use omnis_rules::{
     Character, CreationError, Draft, RollMode, armor_class, check, create, level_for_xp, modifier,
     point_cost, proficiency_bonus, save, spell_cost, spell_point_pool,
@@ -80,9 +80,19 @@ fn a_human_fighter_by_point_buy() {
         18,
         "chain mail 16, no Dex, shield 2"
     );
+    let shield = data.registry.items.get("base:item:shield").unwrap();
+    assert_eq!(c.equipped[&EquipSlot::Body], chain, "worn at creation");
+    assert_eq!(c.equipped[&EquipSlot::OffHand], shield);
+    assert_eq!(c.equipped.len(), 4, "body, shield, sword, crossbow");
     let mut bare = c.clone();
+    bare.equipped.clear();
+    assert_eq!(
+        armor_class(&bare, &data),
+        12,
+        "10 + Dex 15, everything stowed"
+    );
     bare.equipment.clear();
-    assert_eq!(armor_class(&bare, &data), 12, "10 + Dex 15");
+    assert_eq!(armor_class(&bare, &data), 12);
     assert_eq!(proficiency_bonus(c.level, &data).unwrap(), 2);
 }
 

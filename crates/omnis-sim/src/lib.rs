@@ -13,15 +13,21 @@
 extern crate alloc;
 
 pub mod apply;
+mod casting;
+mod checks;
 pub mod combat;
 pub mod command;
+pub mod dev;
+pub mod effects;
 pub mod encounter;
 pub mod event;
+pub mod items;
 mod migrate;
 pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
+mod utility;
 pub mod view;
 pub mod visibility;
 pub mod world;
@@ -33,16 +39,19 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use combat::{CombatCommand, CombatState, Initiative};
+pub use combat::{CombatCommand, CombatState, Initiative, Target};
 pub use command::{Command, Rejection, ScriptError};
+pub use dev::DevCommand;
 pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
 pub use event::{
-    ActorRef, BlockReason, CheckKind, CombatOutcome, Event, MessageKey, SeenTile, Surprise,
+    ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
+    MessageKey, SeenTile, Surprise,
 };
+pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
-pub use view::{CombatView, StackView, combat_view};
+pub use view::{CombatView, SpellView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };

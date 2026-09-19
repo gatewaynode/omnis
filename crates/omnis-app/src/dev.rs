@@ -20,7 +20,7 @@ pub struct DevScript {
     pub screenshot: Option<PathBuf>,
     /// Frames to wait after the last command before the screenshot.
     pub settle_frames: u32,
-    /// Capture the 320×180 canvas instead of the window.
+    /// Capture the canvas at its internal resolution instead of the window.
     pub canvas: bool,
 }
 

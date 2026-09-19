@@ -2,7 +2,7 @@
 //! screens and panels paint into. Bevy-free, and below `screens` and `panels` in the module
 //! graph so the painters share these types without a cycle.
 
-use crate::layout::{PAD_BUTTONS, Rect};
+use crate::layout::{PAD_BUTTONS, Rect, TOOL_BUTTONS};
 use crate::raster::{Raster, Rgb};
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};
@@ -88,6 +88,83 @@ impl PadButton {
     }
 }
 
+/// A tool pad button: the doors to the screens outside a fight, above the movement pad.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ToolButton {
+    /// The inventory (M6b).
+    Items,
+    /// The cast menu.
+    Spells,
+    /// The character sheet (E3).
+    Sheet,
+    /// Look through a sense item (M6c).
+    Look,
+    /// The automap.
+    Map,
+    /// The pause menu.
+    Menu,
+}
+
+impl ToolButton {
+    /// Every button, in the tool pad's reading order.
+    pub const ALL: [ToolButton; 6] = [
+        ToolButton::Items,
+        ToolButton::Spells,
+        ToolButton::Sheet,
+        ToolButton::Look,
+        ToolButton::Map,
+        ToolButton::Menu,
+    ];
+
+    /// The word on the button.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            ToolButton::Items => "ITEMS",
+            ToolButton::Spells => "SPELLS",
+            ToolButton::Sheet => "SHEET",
+            ToolButton::Look => "LOOK",
+            ToolButton::Map => "MAP",
+            ToolButton::Menu => "MENU",
+        }
+    }
+
+    /// Where the button sits.
+    #[must_use]
+    pub const fn rect(self) -> Rect {
+        TOOL_BUTTONS[self as usize]
+    }
+}
+
+/// Each tool button's state, in `ToolButton::ALL` order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToolStates(pub [PadState; 6]);
+
+impl Default for ToolStates {
+    fn default() -> Self {
+        ToolStates::all(PadState::Hidden)
+    }
+}
+
+impl ToolStates {
+    /// Every button in one state.
+    #[must_use]
+    pub const fn all(state: PadState) -> ToolStates {
+        ToolStates([state; 6])
+    }
+
+    /// The state of one button.
+    #[must_use]
+    pub const fn get(self, button: ToolButton) -> PadState {
+        self.0[button as usize]
+    }
+
+    /// Set the state of one button.
+    pub const fn set(&mut self, button: ToolButton, state: PadState) {
+        self.0[button as usize] = state;
+    }
+}
+
 /// Whether the pad is drawn and live.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PadState {
@@ -108,12 +185,18 @@ pub enum WidgetId {
     Skill(usize),
     /// A pad button.
     Pad(PadButton),
+    /// A tool pad button.
+    Tool(ToolButton),
     /// A party slot in the band.
     Member(usize),
     /// A monster stack row in a fight, by its index in the encounter.
     Stack(usize),
     /// A button on the combat or encounter action row, by the menu's action index.
     Action(usize),
+    /// A row of the spell picker in a fight, by the caster's spell index.
+    Spell(usize),
+    /// A row of the item picker in a fight, by its position in the picker.
+    Item(usize),
 }
 
 /// Which part of a widget was hit.
@@ -217,14 +300,44 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// Blank the pixels and forget the widgets, keeping the buffer.
+    pub fn clear(&mut self) {
+        self.raster.clear();
+        self.widgets.clear();
+    }
+
+    /// A blank frame of this size, keeping the buffer when the size is unchanged.
+    pub fn reset(&mut self, width: u32, height: u32) {
+        self.raster.reset(width, height);
+        self.widgets.clear();
+    }
+
+    /// Paint a region through its origin: the closure's coordinates are relative to it, in
+    /// pixels and in the widgets it pushes; the origin is `(0, 0)` again afterwards.
+    pub fn within(&mut self, origin: (i32, i32), paint: impl FnOnce(&mut Frame)) {
+        self.raster.origin = origin;
+        paint(self);
+        self.raster.origin = (0, 0);
+    }
+
+    /// Register a widget painted at the current origin: its rectangles land in canvas space.
+    pub fn push(&mut self, mut widget: Widget) {
+        let (dx, dy) = self.raster.origin;
+        widget.rect = widget.rect.shifted(dx, dy);
+        widget.left = widget.left.map(|r| r.shifted(dx, dy));
+        widget.right = widget.right.map(|r| r.shifted(dx, dy));
+        self.widgets.push(widget);
+    }
+
     /// The widget with this id, if painted.
     #[must_use]
     pub fn widget(&self, id: WidgetId) -> Option<&Widget> {
         self.widgets.iter().find(|w| w.id == id)
     }
 
-    /// Outline the hovered widget.
+    /// Outline the hovered widget; widgets are in canvas space, so the origin must be off.
     pub fn outline(&mut self, id: WidgetId) {
+        debug_assert_eq!(self.raster.origin, (0, 0), "outline inside `within`");
         let Some(w) = self.widget(id).copied() else {
             return;
         };
@@ -286,6 +399,27 @@ mod tests {
     }
 
     #[test]
+    fn tool_buttons_sit_on_the_tool_pad_and_their_words_fit() {
+        for (i, b) in ToolButton::ALL.iter().enumerate() {
+            assert_eq!(b.rect(), TOOL_BUTTONS[i]);
+            assert!(b.label().len() <= 6, "{b:?}");
+            assert!(
+                b.label().len() as u32 * crate::layout::CELL.0 as u32 <= b.rect().w,
+                "{b:?}"
+            );
+        }
+        let mut states = ToolStates::default();
+        assert_eq!(states.get(ToolButton::Menu), PadState::Hidden);
+        states.set(ToolButton::Menu, PadState::Enabled);
+        assert_eq!(states.get(ToolButton::Menu), PadState::Enabled);
+        assert_eq!(states.get(ToolButton::Map), PadState::Hidden);
+        assert_eq!(
+            ToolStates::all(PadState::Disabled).0,
+            [PadState::Disabled; 6]
+        );
+    }
+
+    #[test]
     fn hover_outlines_wrap_text_rows_and_replace_button_frames() {
         let mut frame = Frame::default();
         frame.widgets.push(Widget::new(
@@ -307,5 +441,39 @@ mod tests {
         assert_eq!(frame.raster.get(100, 100), Some([HI.0, HI.1, HI.2, 255]));
         assert_eq!(frame.raster.get(99, 99), Some([0, 0, 0, 0]));
         frame.outline(WidgetId::Row(5));
+    }
+
+    #[test]
+    fn widgets_pushed_within_an_origin_land_in_canvas_space() {
+        let mut frame = Frame::default();
+        frame.within((100, 50), |f| {
+            f.raster.set(0, 0, HI);
+            let mut w = choice(0, 7);
+            w.left = Some(Rect::new(7, 16, 6, 8));
+            w.right = Some(Rect::new(101, 16, 6, 8));
+            f.push(w);
+            assert_eq!(f.raster.origin, (100, 50));
+        });
+        assert_eq!(frame.raster.origin, (0, 0), "the origin is restored");
+        assert_eq!(frame.raster.get(100, 50), Some([HI.0, HI.1, HI.2, 255]));
+        let w = frame.widget(WidgetId::Row(0)).copied().expect("pushed");
+        assert_eq!(w.rect, Rect::new(107, 66, 100, 8));
+        assert_eq!(w.left, Some(Rect::new(107, 66, 6, 8)));
+        assert_eq!(w.right, Some(Rect::new(201, 66, 6, 8)));
+        assert_eq!(
+            hit(&frame.widgets, 202, 70).map(|h| h.part),
+            Some(Part::Right)
+        );
+        assert_eq!(
+            hit(&frame.widgets, 7, 16),
+            None,
+            "nothing at the untranslated spot"
+        );
+        frame.outline(WidgetId::Row(0));
+        assert_eq!(frame.raster.get(106, 65), Some([HI.0, HI.1, HI.2, 255]));
+        frame.reset(64, 32);
+        assert!(frame.widgets.is_empty());
+        assert_eq!((frame.raster.width, frame.raster.height), (64, 32));
+        assert_eq!(frame.raster.get(0, 0), Some([0, 0, 0, 0]));
     }
 }

@@ -48,6 +48,25 @@ pub enum PlayState {
     Paused,
     /// Every member is down: load or quit.
     Defeat,
+    /// The debug menu over the world; commands still apply (feature `devtools`).
+    Debug,
+    /// The cast menu while exploring.
+    Cast,
+    /// The character sheet over the world.
+    Sheet,
+    /// The inventory overlay over the world; item commands apply from it.
+    Inventory,
+}
+
+/// The settings a new game starts with: the player's choices, and `devtools` when this build
+/// carries the dev socket, so the debug menu and `Dev` commands work in a dev build and never
+/// in a release.
+#[must_use]
+pub fn game_settings(base: Settings) -> Settings {
+    Settings {
+        devtools: cfg!(feature = "devtools"),
+        ..base
+    }
 }
 
 impl PlayState {
@@ -87,14 +106,20 @@ pub struct PlayerCommand(pub Command);
 /// Something outside the simulation: saving, loading, overlays, pausing, quitting.
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellCommand {
-    /// Write the quick save.
+    /// Write the quick save (the pause menu's Save).
     Save,
-    /// Read the quick save.
+    /// Read the quick save (the pause menu's Load).
     Load,
     /// Show or hide the automap.
     ToggleAutomap,
     /// Open the pause overlay.
     Pause,
+    /// Open the cast menu while exploring.
+    Cast,
+    /// Open the character sheet.
+    Sheet,
+    /// Open the inventory overlay while exploring.
+    Inventory,
     /// Exit the application.
     Quit,
 }
@@ -148,11 +173,13 @@ impl Plugin for SimPlugin {
             .add_systems(OnEnter(AppState::Playing), start_in)
             .add_systems(
                 Update,
-                (apply_commands, shell)
+                // The pause stops simulation commands; the shell keeps working, since the pause
+                // menu's Save and Load are shell commands. The world may leave mid-frame (quit
+                // to title): both skip until the state follows.
+                (apply_commands.run_if(unpaused), shell)
                     .chain()
                     .in_set(SimSet::Apply)
-                    // The world may leave mid-frame (quit to title): skip until the state follows.
-                    .run_if(unpaused.and_then(resource_exists::<SimWorld>)),
+                    .run_if(resource_exists::<SimWorld>),
             );
     }
 }
@@ -179,7 +206,7 @@ fn boot(
         next.set(AppState::MainMenu);
         return;
     }
-    match World::new(&data, config.seed, Settings::default()) {
+    match World::new(&data, config.seed, game_settings(Settings::default())) {
         Ok(world) => {
             info!(
                 "new game on {} pack(s), seed {:#x}",
@@ -266,6 +293,9 @@ fn shell(
                 Err(e) => out.notice.0 = format!("Load failed: {e}"),
             },
             ShellCommand::Pause => out.next_play.set(PlayState::Paused),
+            ShellCommand::Cast => out.next_play.set(PlayState::Cast),
+            ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
+            ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }

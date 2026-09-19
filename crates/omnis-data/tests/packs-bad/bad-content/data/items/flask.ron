@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:item:flask", name: "badc:text:item.flask.name", kind: Gear, consumable: true, description: Some("badc:text:item.flask.description"))

@@ -1,0 +1,4 @@
+// SRD 5.1 spyglass (docs/dnd.srd.5.1/04_Equipment): 1,000 gp, 1 lb. In Omnis it reveals the
+// tiles along the facing line of sight to sixteen tiles, one Perception check per layer against
+// `sense.dc` (PRD §7.2, D18); the automap marks them remotely seen.
+(schema: 1, id: "base:item:spyglass", name: "base:text:item.spyglass.name", kind: Gear, cost_cp: 100000, weight_tenths: 10, use_effect: Some(Sense((geometry: Ray(range: 16), fidelity: Structure, check: Some(Perception), minutes: 1))), description: Some("base:text:item.spyglass.description"))

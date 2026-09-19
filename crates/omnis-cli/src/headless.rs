@@ -45,7 +45,11 @@ impl Headless {
     /// Load the packs and start a new game with `seed`.
     pub fn new(packs: Vec<PathBuf>, seed: u64) -> Result<Headless, HeadlessError> {
         let data = load(&packs).map_err(HeadlessError::Packs)?;
-        let world = World::new(&data, seed, Settings::default()).map_err(HeadlessError::NewGame)?;
+        let settings = Settings {
+            devtools: true,
+            ..Settings::default()
+        };
+        let world = World::new(&data, seed, settings).map_err(HeadlessError::NewGame)?;
         Ok(Headless { packs, data, world })
     }
 

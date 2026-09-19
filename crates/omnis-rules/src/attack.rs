@@ -8,7 +8,7 @@ use crate::stats::{Roll, RollMode, int_result, kept_d20, modifier, proficiency_b
 use alloc::format;
 use alloc::vec::Vec;
 use omnis_core::{Dice, ItemId, Pcg32, RollTrace, StreamName};
-use omnis_data::{Ability, DamageType, Data, ItemKind};
+use omnis_data::{Ability, DamageType, Data, EquipSlot, ItemKind};
 use omnis_expr::{RuleError, Value};
 use serde::{Deserialize, Serialize};
 
@@ -53,14 +53,14 @@ impl Weapon {
     }
 }
 
-/// Every weapon carried, in carrying order, then unarmed.
+/// The weapons wielded: the main hand, then the slung ranged weapon, then unarmed.
 #[must_use]
 pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
     let class = data.classes.get(&character.class);
-    let mut out: Vec<Weapon> = character
-        .equipment
+    let mut out: Vec<Weapon> = [EquipSlot::MainHand, EquipSlot::Ranged]
         .iter()
-        .filter_map(|(id, _)| data.items.get(id).map(|item| (*id, item)))
+        .filter_map(|slot| character.equipped.get(slot))
+        .filter_map(|id| data.items.get(id).map(|item| (*id, item)))
         .filter_map(|(id, item)| match &item.kind {
             ItemKind::Weapon {
                 kind,
@@ -97,8 +97,7 @@ pub fn weapons(character: &Character, data: &Data) -> Vec<Weapon> {
     out
 }
 
-/// The best weapon for a reach: the ranged one with the highest average damage, or the melee
-/// one (unarmed at worst). Ties keep the one carried first.
+/// The weapon for a reach: the slung ranged weapon, or the main hand (unarmed at worst).
 #[must_use]
 pub fn best_weapon(character: &Character, data: &Data, ranged: bool) -> Option<Weapon> {
     weapons(character, data)
@@ -138,6 +137,17 @@ pub struct AttackRoll {
     pub crit: bool,
 }
 
+/// What an attacker adds to the die.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AttackBonus {
+    /// The ability modifier, or a monster's attack bonus.
+    pub modifier: i64,
+    /// Proficiency, zero when not proficient (and for monsters, whose stat block folds it in).
+    pub proficiency: i64,
+    /// A buff die already rolled (bless).
+    pub extra: Option<RollTrace>,
+}
+
 /// Roll to hit: `bonus` is the ability modifier or a monster's attack bonus, `proficiency` the
 /// bonus for a proficient weapon (zero for monsters, whose stat block folds it in).
 pub fn attack_roll(
@@ -149,29 +159,38 @@ pub fn attack_roll(
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<AttackRoll, RuleError> {
+    let bonus = AttackBonus {
+        modifier: bonus,
+        proficiency,
+        extra: None,
+    };
+    attack_roll_with(data, bonus, ac, mode, rng, stream)
+}
+
+/// Roll to hit with a buff die: the die's total joins the `bonus` input of `attack.total`.
+pub fn attack_roll_with(
+    data: &Data,
+    bonus: AttackBonus,
+    ac: i64,
+    mode: RollMode,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<AttackRoll, RuleError> {
     let (trace, face) = kept_d20(mode, rng, stream)?;
     let die = Value::Int(i64::from(face));
+    let extra = bonus.extra.as_ref().map_or(0, |b| i64::from(b.total));
     let total = data.rules.eval(
         "attack.total",
         &[
             ("die", die),
-            ("bonus", Value::Int(bonus)),
-            ("proficiency", Value::Int(proficiency)),
+            ("bonus", Value::Int(bonus.modifier + extra)),
+            ("proficiency", Value::Int(bonus.proficiency)),
         ],
         rng,
         stream,
     )?;
     let total = int_result("attack.total", total.value)?;
-    let hit = data.rules.eval(
-        "attack.hit",
-        &[
-            ("die", die),
-            ("total", Value::Int(total)),
-            ("ac", Value::Int(ac)),
-        ],
-        rng,
-        stream,
-    )?;
+    let hit = judge(data, face, total, ac, rng, stream)?;
     let crit = data
         .rules
         .eval("attack.crit", &[("die", die)], rng, stream)?;
@@ -180,14 +199,50 @@ pub fn attack_roll(
             trace,
             mode,
             face,
-            modifier: bonus,
-            proficiency,
+            modifier: bonus.modifier,
+            proficiency: bonus.proficiency,
+            bonus: bonus.extra,
             total,
         },
         ac,
-        hit: bool_result("attack.hit", hit.value)?,
+        hit,
         crit: bool_result("attack.crit", crit.value)?,
     })
+}
+
+fn judge(
+    data: &Data,
+    face: u32,
+    total: i64,
+    ac: i64,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<bool, RuleError> {
+    let hit = data.rules.eval(
+        "attack.hit",
+        &[
+            ("die", Value::Int(i64::from(face))),
+            ("total", Value::Int(total)),
+            ("ac", Value::Int(ac)),
+        ],
+        rng,
+        stream,
+    )?;
+    bool_result("attack.hit", hit.value)
+}
+
+/// Judge a resolved attack again against a new armor class (a shield cast in reaction); the
+/// die is not rerolled and a critical stays one.
+pub fn rejudge(
+    data: &Data,
+    roll: &mut AttackRoll,
+    ac: i64,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<(), RuleError> {
+    roll.ac = ac;
+    roll.hit = judge(data, roll.roll.face, roll.roll.total, ac, rng, stream)?;
+    Ok(())
 }
 
 fn bool_result(slot: &str, value: Value) -> Result<bool, RuleError> {

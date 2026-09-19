@@ -17,7 +17,7 @@ use crate::ui::{EventNames, RollLog, Selected, UiClick, message_line};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use omnis_sim::{CombatOutcome, Command, Event};
+use omnis_sim::{CombatOutcome, Command, Event, PartyCommand};
 
 /// The combat plugin.
 pub struct CombatPlugin;
@@ -94,8 +94,11 @@ fn combat_model(
         log.clear();
     }
     names.0.refresh(&world.0, &data.0);
+    for text in batch.iter().filter_map(crate::ui::event_text) {
+        log.push(text);
+    }
     for line in batch_lines(&batch, &names.0) {
-        log.push(line.short);
+        log.push(line.long);
     }
     if let Some(view) = fight_view(&world.0, &data.0) {
         screens.combat.sync(&view);
@@ -156,6 +159,15 @@ fn combat_keys(
                 match screens.combat.key(key, view, selected.0) {
                     Some(CombatIntent::Command(command)) => {
                         player.write(PlayerCommand(Command::Combat(command)));
+                    }
+                    Some(CombatIntent::AutoCast { spell, on }) => {
+                        if let Some(own) = view.own {
+                            player.write(PlayerCommand(Command::Party(PartyCommand::AutoCast {
+                                member: u8::try_from(own).unwrap_or(u8::MAX),
+                                spell,
+                                on,
+                            })));
+                        }
                     }
                     Some(CombatIntent::Pause) => {
                         shell.write(ShellCommand::Pause);

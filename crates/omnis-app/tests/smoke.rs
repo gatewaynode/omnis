@@ -274,7 +274,7 @@ fn the_menus_build_a_party_without_a_window() {
     key(&mut app, Key::Enter);
     assert_eq!(play_state(&app), PlayState::Explore);
 
-    // F5 is refused under the Relief rule: no inns yet.
+    // Save is refused under the Relief rule: no inns yet.
     app.world_mut()
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);

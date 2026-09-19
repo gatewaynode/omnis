@@ -74,7 +74,12 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     );
     let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
     let commands = parse_script(text).unwrap();
-    let expected = omnis_sim::replay::run(&data, 9, Settings::default(), &commands).unwrap();
+    // The headless driver is a dev world (`Settings.devtools`), and a save says so.
+    let settings = Settings {
+        devtools: true,
+        ..Settings::default()
+    };
+    let expected = omnis_sim::replay::run(&data, 9, settings, &commands).unwrap();
     assert_eq!(
         lines.last().copied(),
         Some(format!("fingerprint: {expected:016x}").as_str())
@@ -126,7 +131,7 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         "# pack.ron (schema 1)",
         "# data/tiles/<name>.ron (schema 1)",
         "# data/maps/<name>.ron (schema 1)",
-        "# save (schema 3)",
+        "# save (schema 4)",
         "# replay",
         "# protocol ops",
     ] {

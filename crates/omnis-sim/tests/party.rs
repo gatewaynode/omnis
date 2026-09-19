@@ -5,7 +5,7 @@ mod common;
 
 use common::{data, step, world};
 use omnis_core::Direction;
-use omnis_data::{Alignment, Skill};
+use omnis_data::{Alignment, EquipSlot, Skill};
 use omnis_rules::{CreationError, Draft};
 use omnis_sim::{
     Command, Event, Op, OpError, PartyCommand, Rejection, Replay, Reply, Settings, World, apply,
@@ -203,6 +203,93 @@ fn a_party_survives_a_save_and_a_replay() {
     let mut again = world.clone();
     step(&mut again, &data);
     assert_ne!(again.fingerprint().unwrap(), replay.fingerprint);
+}
+
+#[test]
+fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
+    let data = data();
+    let mut world = world(&data);
+    dispatch(
+        &mut world,
+        &data,
+        &Op::PartyCreate {
+            character: six().remove(0),
+        },
+    )
+    .unwrap();
+    let potion = omnis_sim::items::item_id(&data, "potion_of_healing").unwrap();
+    world.party.inventory.push((potion, 2));
+    let Reply::Party { party } = dispatch(&mut world, &data, &Op::PartyGet).unwrap() else {
+        panic!("party.get answers with the party");
+    };
+    let brenna = &party.members[0];
+    let ids: Vec<&str> = brenna.equipment.iter().map(|i| i.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "base:item:chain_mail",
+            "base:item:longsword",
+            "base:item:shield",
+            "base:item:light_crossbow",
+            "base:item:crossbow_bolts",
+            "base:item:holy_symbol",
+            "base:item:potion_of_healing"
+        ]
+    );
+    let rows: Vec<u8> = brenna.equipment.iter().map(|i| i.index).collect();
+    assert_eq!(rows, [0, 1, 2, 3, 4, 5, 6]);
+    let bolts = &brenna.equipment[4];
+    assert_eq!(
+        (bolts.count, bolts.slot, bolts.usable, bolts.equipped),
+        (20, None, false, false)
+    );
+    let sword = &brenna.equipment[1];
+    assert_eq!(
+        (sword.slot, sword.equipped, sword.name.as_str()),
+        (
+            Some(EquipSlot::MainHand),
+            true,
+            "base:text:item.longsword.name"
+        )
+    );
+    let flask = &brenna.equipment[6];
+    assert!(flask.usable && flask.consumable && !flask.equipped);
+    assert_eq!(
+        brenna.equipped,
+        [
+            (EquipSlot::MainHand, "base:item:longsword".to_owned()),
+            (EquipSlot::OffHand, "base:item:shield".to_owned()),
+            (EquipSlot::Ranged, "base:item:light_crossbow".to_owned()),
+            (EquipSlot::Body, "base:item:chain_mail".to_owned()),
+        ]
+    );
+    assert!(brenna.effects.is_empty() && party.effects.is_empty());
+    assert_eq!(party.inventory.len(), 1);
+    assert_eq!((party.inventory[0].index, party.inventory[0].count), (0, 2));
+    let Reply::Events { events } = dispatch(
+        &mut world,
+        &data,
+        &Op::SimCommand {
+            command: Command::Item(omnis_sim::ItemCommand::Take {
+                member: 0,
+                item: 0,
+                count: 2,
+            }),
+        },
+    )
+    .unwrap() else {
+        panic!("sim.command answers with events");
+    };
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::ItemMoved { count: 2, .. }))
+    );
+    let Reply::Party { party } = dispatch(&mut world, &data, &Op::PartyGet).unwrap() else {
+        panic!("party.get answers with the party");
+    };
+    assert!(party.inventory.is_empty());
+    assert_eq!(party.members[0].equipment[6].count, 3);
 }
 
 #[test]

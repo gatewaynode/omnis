@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:item:vial", name: "badc:text:item.vial.name", kind: Gear, use_effect: Some(Heal(dice: (count: 0, sides: 4, modifier: 0))), consumable: true)

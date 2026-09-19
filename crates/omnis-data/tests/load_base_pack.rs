@@ -4,7 +4,10 @@ mod common;
 
 use omnis_core::{Dice, Pcg32, StreamName};
 use omnis_data::omnis_expr::Value;
-use omnis_data::{Ability, ArmorKind, DamageType, Effect, ItemKind, Skill, load_packs};
+use omnis_data::{
+    Ability, ArmorKind, BuffOn, DamageType, Effect, Fidelity, Geometry, ItemKind, Reach, Skill,
+    SpellEffect, UseEffect, load_packs,
+};
 use std::path::PathBuf;
 
 fn base_pack() -> PathBuf {
@@ -36,7 +39,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.monsters.len(),
             data.rules.slot_names().count(),
         ),
-        (4, 4, 1, 21, 16, 11, 3, 13)
+        (4, 4, 3, 24, 16, 11, 3, 19)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -90,7 +93,15 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let rogue = &data.classes[&data.registry.classes.get("base:class:rogue").unwrap()];
     assert_eq!(rogue.skills.choose, 4);
     assert!(rogue.skills.from.contains(&Skill::Stealth));
+}
 
+fn base_data() -> omnis_data::Data {
+    load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"))
+}
+
+#[test]
+fn the_base_backgrounds_carry_their_skills_and_kits() {
+    let data = base_data();
     let acolyte = &data.backgrounds[&data
         .registry
         .backgrounds
@@ -98,7 +109,31 @@ fn the_base_pack_loads_with_the_srd_subset() {
         .unwrap()];
     assert_eq!(acolyte.skills, [Skill::Insight, Skill::Religion]);
     assert_eq!(acolyte.gold, 15);
+    assert!(
+        acolyte
+            .equipment
+            .iter()
+            .any(|(id, n)| id == "base:item:potion_of_healing" && *n == 1),
+        "the acolyte carries a potion until shops exist"
+    );
+    let explorer = &data.backgrounds[&data
+        .registry
+        .backgrounds
+        .get("base:background:explorer")
+        .unwrap()];
+    assert_eq!(explorer.skills, [Skill::Perception, Skill::Survival]);
+    assert_eq!(explorer.equipment[0].0, "base:item:spyglass");
+    let warden = &data.backgrounds[&data
+        .registry
+        .backgrounds
+        .get("base:background:warden")
+        .unwrap()];
+    assert_eq!(warden.skills, [Skill::Arcana, Skill::Investigation]);
+}
 
+#[test]
+fn the_base_spells_carry_their_effects() {
+    let data = base_data();
     let missile = &data.spells[&data
         .registry
         .spells
@@ -107,6 +142,90 @@ fn the_base_pack_loads_with_the_srd_subset() {
     assert_eq!((missile.level, missile.point_cost()), (1, 1));
     let bolt = &data.spells[&data.registry.spells.get("base:spell:fire_bolt").unwrap()];
     assert_eq!(bolt.point_cost(), 0, "cantrips are free");
+    assert_eq!(
+        bolt.effect,
+        Some(SpellEffect::Attack {
+            dice: Dice::new(1, 10),
+            damage_type: DamageType::Fire
+        })
+    );
+    assert_eq!(
+        missile.effect,
+        Some(SpellEffect::AutoHit {
+            dice: Dice {
+                count: 3,
+                sides: 4,
+                modifier: 3
+            },
+            damage_type: DamageType::Force
+        })
+    );
+    let spell = |name: &str| {
+        &data.spells[&data
+            .registry
+            .spells
+            .get(&format!("base:spell:{name}"))
+            .unwrap()]
+    };
+    assert_eq!(spell("burning_hands").reach, Reach::Stack);
+    assert!(matches!(
+        spell("bless").effect,
+        Some(SpellEffect::Buff {
+            targets: 3,
+            consumed: false,
+            minutes: 10,
+            ..
+        })
+    ));
+    assert!(matches!(
+        &spell("guidance").effect,
+        Some(SpellEffect::Buff { on, consumed: true, .. }) if on == &[BuffOn::AbilityChecks]
+    ));
+    assert!(matches!(
+        spell("shield").effect,
+        Some(SpellEffect::Reaction { armor_bonus: 5 })
+    ));
+    assert!(matches!(
+        spell("light").effect,
+        Some(SpellEffect::Light {
+            depth: 8,
+            minutes: 60
+        })
+    ));
+    assert!(
+        data.spells.values().all(|s| s.effect.is_some()),
+        "every base spell is castable"
+    );
+}
+
+#[test]
+fn the_base_items_carry_their_use_effects() {
+    let data = base_data();
+    let item = |name: &str| {
+        &data.items[&data
+            .registry
+            .items
+            .get(&format!("base:item:{name}"))
+            .unwrap()]
+    };
+    let glass = item("spyglass").sense().unwrap();
+    assert_eq!(glass.geometry, Geometry::Ray { range: 16 });
+    assert_eq!(glass.fidelity, Fidelity::Structure);
+    assert_eq!(glass.check, Some(Skill::Perception));
+    assert!(!item("spyglass").consumable);
+    let potion = item("potion_of_healing");
+    assert_eq!(
+        potion.use_effect,
+        Some(UseEffect::Heal {
+            dice: Dice {
+                count: 2,
+                sides: 4,
+                modifier: 2
+            }
+        })
+    );
+    assert!(potion.consumable);
+    assert_eq!(data.label("en", &potion.name), "Potion of healing");
     let goblin = &data.monsters[&data.registry.monsters.get("base:monster:goblin").unwrap()];
     assert_eq!((goblin.ac, goblin.xp, goblin.challenge), (15, 50, (1, 4)));
     assert_eq!(data.label("en", &goblin.attacks[0].name), "Scimitar");
@@ -202,6 +321,85 @@ fn the_base_rules_evaluate() {
         ),
         Value::Int(1)
     );
+    assert_eq!(rng.draws(), 0, "no base formula rolls dice");
+}
+
+#[test]
+fn the_casting_and_sensing_rules_evaluate() {
+    let data = base_data();
+    let rules = &data.rules;
+    let stream = StreamName::new("party");
+    let mut rng = Pcg32::for_stream(1, &stream);
+    let eval = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| {
+        rules.eval(slot, inputs, rng, &stream).unwrap().value
+    };
+    let int = |slot: &str, inputs: &[(&str, Value)], rng: &mut Pcg32| match eval(slot, inputs, rng)
+    {
+        Value::Int(n) => n,
+        other => panic!("{slot}: {other:?}"),
+    };
+    let i = Value::Int;
+    let b = Value::Bool;
+    assert_eq!(
+        int(
+            "spell.save_dc",
+            &[("cast_mod", i(3)), ("proficiency", i(2))],
+            &mut rng
+        ),
+        13
+    );
+    let saved = |amount: i64, saved: bool, half: bool, rng: &mut Pcg32| {
+        int(
+            "spell.save_damage",
+            &[
+                ("amount", i(amount)),
+                ("saved", b(saved)),
+                ("half_on_save", b(half)),
+            ],
+            rng,
+        )
+    };
+    assert_eq!(saved(10, false, true, &mut rng), 10);
+    assert_eq!(saved(10, true, true, &mut rng), 5);
+    assert_eq!(saved(10, true, false, &mut rng), 0);
+    assert_eq!(
+        int(
+            "heal.total",
+            &[("dice", i(4)), ("cast_mod", i(3)), ("add_mod", b(true))],
+            &mut rng
+        ),
+        7
+    );
+    assert_eq!(
+        int(
+            "heal.total",
+            &[("dice", i(4)), ("cast_mod", i(3)), ("add_mod", b(false))],
+            &mut rng
+        ),
+        4
+    );
+    for (level, dice) in [(1, 1), (4, 1), (5, 2), (11, 3), (17, 4)] {
+        assert_eq!(int("cantrip.dice", &[("level", i(level))], &mut rng), dice);
+    }
+    assert_eq!(int("concentration.dc", &[("damage", i(4))], &mut rng), 10);
+    assert_eq!(int("concentration.dc", &[("damage", i(30))], &mut rng), 15);
+    let dc = |distance: i64, visibility: i64, layer: i64, rng: &mut Pcg32| {
+        int(
+            "sense.dc",
+            &[
+                ("distance", i(distance)),
+                ("visibility", i(visibility)),
+                ("layer", i(layer)),
+            ],
+            rng,
+        )
+    };
+    assert_eq!(dc(1, 12, 1, &mut rng), 10);
+    assert_eq!(dc(16, 12, 1, &mut rng), 14);
+    assert_eq!(dc(16, 6, 2, &mut rng), 22);
+    assert_eq!(rules.value("cast_minutes"), Some(1));
+    assert_eq!(rules.value("don_armor_minutes"), Some(5));
+    assert_eq!(rules.value("use_item_minutes"), Some(1));
     assert_eq!(rng.draws(), 0, "no base formula rolls dice");
 }
 

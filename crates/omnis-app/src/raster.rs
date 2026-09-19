@@ -1,6 +1,8 @@
 //! A canvas-sized RGBA buffer the UI paints into: fills, one-pixel frames, glyphs, text, and
-//! the selection marker, all clipped to the canvas. Bevy-free so a whole screen can be checked
-//! pixel by pixel in tests; the plugin uploads the bytes into a sprite.
+//! the selection marker, all clipped to the canvas. Painting goes through an origin so a
+//! region's painters can work in their own coordinates (`Frame::within`); reading is always
+//! canvas space. Bevy-free so a whole screen can be checked pixel by pixel in tests; the
+//! plugin uploads the bytes into a sprite.
 
 use crate::font::{self, GLYPH_HEIGHT, GLYPH_WIDTH};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH, CELL, Rect};
@@ -17,6 +19,8 @@ pub struct Raster {
     pub height: u32,
     /// RGBA bytes, row-major from the top-left.
     pub rgba: Vec<u8>,
+    /// Added to every painted coordinate; `(0, 0)` outside `Frame::within`.
+    pub origin: (i32, i32),
 }
 
 impl Default for Raster {
@@ -33,12 +37,31 @@ impl Raster {
             width,
             height,
             rgba: vec![0; (width * height * 4) as usize],
+            origin: (0, 0),
         }
     }
 
     /// Everything transparent again.
     pub fn clear(&mut self) {
         self.rgba.fill(0);
+    }
+
+    /// A transparent buffer of this size: the same one cleared when the size is unchanged.
+    pub fn reset(&mut self, width: u32, height: u32) {
+        if (width, height) == (self.width, self.height) {
+            self.clear();
+        } else {
+            *self = Raster::new(width, height);
+        }
+    }
+
+    /// The byte index of a painted pixel, through the origin, or `None` outside the buffer.
+    fn index(&self, x: i32, y: i32) -> Option<usize> {
+        let (x, y) = (x + self.origin.0, y + self.origin.1);
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return None;
+        }
+        Some(((y as u32 * self.width + x as u32) * 4) as usize)
     }
 
     /// The pixel's RGBA, or `None` outside the buffer.
@@ -58,11 +81,20 @@ impl Raster {
 
     /// Paint one opaque pixel; outside the buffer is ignored.
     pub fn set(&mut self, x: i32, y: i32, color: Rgb) {
-        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
-            return;
+        if let Some(i) = self.index(x, y) {
+            self.rgba[i..i + 4].copy_from_slice(&[color.0, color.1, color.2, 255]);
         }
-        let i = ((y as u32 * self.width + x as u32) * 4) as usize;
-        self.rgba[i..i + 4].copy_from_slice(&[color.0, color.1, color.2, 255]);
+    }
+
+    /// Make a rectangle transparent again.
+    pub fn erase(&mut self, rect: Rect) {
+        for y in rect.y..rect.bottom() {
+            for x in rect.x..rect.right() {
+                if let Some(i) = self.index(x, y) {
+                    self.rgba[i..i + 4].fill(0);
+                }
+            }
+        }
     }
 
     /// Fill a rectangle.
@@ -215,8 +247,51 @@ mod tests {
         let mut a = Raster::default();
         let b = a.clone();
         assert_eq!(a.fingerprint(), b.fingerprint());
-        a.set(319, 179, INK);
+        a.set(CANVAS_WIDTH as i32 - 1, CANVAS_HEIGHT as i32 - 1, INK);
         assert_ne!(a.fingerprint(), b.fingerprint());
-        assert_eq!(a.get(320, 0), None);
+        assert_eq!(a.get(CANVAS_WIDTH as i32, 0), None);
+    }
+
+    #[test]
+    fn painting_goes_through_the_origin_and_reading_does_not() {
+        let mut r = Raster::new(40, 20);
+        r.origin = (10, 5);
+        r.set(0, 0, INK);
+        r.fill(Rect::new(2, 2, 3, 2), INK);
+        assert_eq!(r.get(10, 5), Some([INK.0, INK.1, INK.2, 255]));
+        assert_eq!(r.get(0, 0), Some([0, 0, 0, 0]), "reads are canvas space");
+        assert_eq!(r.get(12, 7), Some([INK.0, INK.1, INK.2, 255]));
+        assert_eq!(r.get(14, 8), Some([INK.0, INK.1, INK.2, 255]));
+        assert_eq!(r.get(15, 8), Some([0, 0, 0, 0]));
+        r.set(-10, -5, INK);
+        assert_eq!(
+            r.get(0, 0),
+            Some([INK.0, INK.1, INK.2, 255]),
+            "clipped after the shift"
+        );
+        r.set(30, 15, INK);
+        assert_eq!(
+            r.get(39, 19),
+            Some([0, 0, 0, 0]),
+            "past the edge after the shift"
+        );
+        r.erase(Rect::new(0, 0, 3, 3));
+        assert_eq!(r.get(10, 5), Some([0, 0, 0, 0]));
+        assert_eq!(r.get(12, 7), Some([0, 0, 0, 0]));
+        assert_eq!(r.get(13, 7), Some([INK.0, INK.1, INK.2, 255]));
+    }
+
+    #[test]
+    fn a_reset_keeps_the_buffer_at_the_same_size_and_replaces_it_otherwise() {
+        let mut r = Raster::new(8, 4);
+        r.set(1, 1, INK);
+        let before = r.rgba.as_ptr();
+        r.reset(8, 4);
+        assert_eq!(r.rgba.as_ptr(), before);
+        assert_eq!(r.get(1, 1), Some([0, 0, 0, 0]));
+        r.reset(16, 4);
+        assert_eq!((r.width, r.height, r.rgba.len()), (16, 4, 16 * 4 * 4));
+        assert_eq!(r.origin, (0, 0));
+        assert_eq!(r.get(15, 3), Some([0, 0, 0, 0]));
     }
 }

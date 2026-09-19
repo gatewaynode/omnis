@@ -1,15 +1,13 @@
 //! `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>` (ARCHITECTURE.md §4.2).
 
-use crate::combat;
 use crate::command::{Command, Rejection};
-use crate::encounter;
 use crate::event::{BlockReason, Event, MessageKey};
-use crate::party;
-use crate::visibility;
+use crate::party::{self, PartyCommand};
 use crate::world::{Known, Mode, World, door_key, layer};
 use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
+use crate::{casting, combat, dev, effects, encounter, items, visibility};
 use alloc::vec::Vec;
-use omnis_core::{Direction, Position, Rotation};
+use omnis_core::{Direction, Facing, MapId, Position, Rotation};
 use omnis_data::Data;
 
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
@@ -17,11 +15,24 @@ use omnis_data::Data;
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
     let mut events = Vec::new();
     match (&world.mode, &command) {
+        (_, Command::Dev(edit)) => dev::apply(world, data, edit, &mut events)?,
         (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events)?,
         (Mode::Explore, Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
-        (Mode::Explore, Command::Party(command)) => {
+        (Mode::Explore, Command::Party(command))
+        | (Mode::Combat(_), Command::Party(command @ PartyCommand::AutoCast { .. })) => {
             party::apply(world, data, command, &mut events)?;
+        }
+        (
+            Mode::Explore,
+            Command::Cast {
+                caster,
+                spell,
+                target,
+            },
+        ) => casting::apply(world, data, *caster, *spell, *target, &mut events)?,
+        (Mode::Explore, Command::Item(command)) => {
+            items::apply(world, data, *command, &mut events)?;
         }
         (Mode::Encounter(_), Command::Encounter(choice)) => {
             encounter::apply_choice(world, data, *choice, &mut events)?;
@@ -45,6 +56,7 @@ pub(crate) fn advance(world: &mut World, minutes: u32, events: &mut Vec<Event>) 
         minutes,
         day_rolled,
     });
+    effects::prune(world, events);
 }
 
 fn world_clock_origin() -> omnis_core::Clock {
@@ -172,8 +184,21 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         });
         return;
     }
-    let key = door_key(pos.x, pos.y, pos.facing);
-    let state = world.map_state(pos.map);
+    toggle_door(world, pos.map, pos.x, pos.y, pos.facing, events);
+    advance(world, INTERACT_MINUTES, events);
+}
+
+/// Open a closed door or close an open one on the facing edge of a tile, with the event.
+pub(crate) fn toggle_door(
+    world: &mut World,
+    map: MapId,
+    x: u16,
+    y: u16,
+    facing: Facing,
+    events: &mut Vec<Event>,
+) {
+    let key = door_key(x, y, facing);
+    let state = world.map_state(map);
     let open = if state.open_doors.remove(&key) {
         false
     } else {
@@ -181,13 +206,12 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         true
     };
     events.push(Event::Door {
-        map: pos.map,
-        x: pos.x,
-        y: pos.y,
-        facing: pos.facing,
+        map,
+        x,
+        y,
+        facing,
         open,
     });
-    advance(world, INTERACT_MINUTES, events);
 }
 
 /// Record the party's own tile as visited.

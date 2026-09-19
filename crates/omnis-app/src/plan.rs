@@ -350,6 +350,36 @@ mod tests {
             .unwrap_or_else(|r| panic!("{r}"))
     }
 
+    /// The tileset a view draws with.
+    fn tileset<'a>(data: &'a Data, view: &ViewportModel) -> &'a Tileset {
+        &data.tilesets[&view.tileset]
+    }
+
+    /// Where the tileset places the slot whose image path ends with `suffix`.
+    fn slot_at(tileset: &Tileset, suffix: &str) -> (i32, i32) {
+        let slot = tileset
+            .surfaces
+            .values()
+            .flat_map(|s| &s.slots)
+            .find(|s| s.path.ends_with(suffix))
+            .unwrap_or_else(|| panic!("{suffix} in the tileset"));
+        (i32::from(slot.x), i32::from(slot.y))
+    }
+
+    #[test]
+    fn every_tileset_is_baked_for_the_layouts_viewport() {
+        let data = data();
+        assert!(!data.tilesets.is_empty());
+        for tileset in data.tilesets.values() {
+            assert_eq!(
+                tileset.viewport,
+                crate::layout::VIEWPORT_SIZE,
+                "{}",
+                tileset.id
+            );
+        }
+    }
+
     fn sprites(ops: &[DrawOp]) -> Vec<&str> {
         ops.iter()
             .filter_map(|o| match &o.paint {
@@ -445,7 +475,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             (placed.x, placed.y),
-            (59, 7),
+            slot_at(tileset(&data, &view), "door_d0_o0.png"),
             "slot position comes from the tileset"
         );
     }
@@ -468,10 +498,12 @@ mod tests {
                     |o| matches!(&o.paint, Paint::Sprite(p) if p.ends_with(&format!("{name}.png"))),
                 )
                 .unwrap_or_else(|| panic!("{name} drawn: {paths:?}"));
+            let (x, _) = slot_at(tileset(&data, &view), &format!("{name}.png"));
+            let width = i32::from(tileset(&data, &view).viewport.0);
+            assert_eq!(placed.x, x, "{name} where the tileset puts it");
             assert!(
-                placed.x == 0 || placed.x == 181,
-                "{name} at the canvas edge, not {}",
-                placed.x
+                x == 0 || x > width / 2,
+                "{name} at the canvas edge, not {x}"
             );
         }
 
@@ -582,7 +614,7 @@ mod tests {
             .iter()
             .take_while(|o| matches!(o.paint, Paint::Fill { .. }))
             .collect();
-        let horizon = 135 / 2;
+        let horizon = i32::from(tileset(&data, &view).viewport.1) / 2;
         assert!(band.iter().any(|o| o.y > horizon), "a ground band");
         assert!(band.iter().any(|o| o.y < horizon), "and a ceiling band");
     }
@@ -602,8 +634,10 @@ mod tests {
             })
             .max()
             .unwrap();
-        // The clump's near edge at (5, 8) is eight tiles off: a tile is 121.5 / 8 px tall.
-        assert_eq!(tallest, 15);
+        // The clump's near edge at (5, 8) is eight tiles off: a tile is focal / 8 px tall.
+        let camera = Camera::new(tileset(&data, &view).viewport);
+        let tile = camera.sy(0.0, 8.0).round() - camera.sy(1.0, 8.0).round();
+        assert_eq!(tallest, tile as u32);
     }
 
     #[test]
@@ -624,7 +658,8 @@ mod tests {
         // at its far edge's width stops short of the viewport's edge or of the next nearer
         // row: a wedge of sky at the strip's near end (depth 5: x 233 to 240 at y 79 on
         // the old width).
-        let camera = Camera::new((240, 135));
+        let camera = Camera::new(tileset(&data, &view).viewport);
+        let edge = camera.width as i32 - 1;
         let mut checked = 0;
         for depth in view.detail_depth..=8 {
             let Some(outer) = view
@@ -638,7 +673,7 @@ mod tests {
             };
             let z = f32::from(depth);
             let y = camera.sy(0.0, z).round() as i32 - 1;
-            let x = (camera.sx(f32::from(outer) + 0.5, z).round() as i32 - 1).min(239);
+            let x = (camera.sx(f32::from(outer) + 0.5, z).round() as i32 - 1).min(edge);
             assert!(covered(x, y), "depth {depth}: ({x}, {y}) is sky");
             checked += 1;
         }

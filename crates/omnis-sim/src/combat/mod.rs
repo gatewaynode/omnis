@@ -3,16 +3,20 @@
 //! the first die, and the dice come from a copy of the `combat` stream written back only when
 //! the command went through, so a rejection leaves the world exactly as it was.
 
+pub mod cast;
+mod reaction;
 mod resolve;
 pub mod state;
 mod turn;
 
+pub use cast::Target;
 pub use state::{CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
 
 use crate::command::Rejection;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event, Surprise};
+use crate::items;
 use crate::party;
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
@@ -28,6 +32,21 @@ pub enum CombatCommand {
     Attack {
         /// The stack, by its index in the encounter.
         stack: u8,
+    },
+    /// Cast a known spell (by its index in the caster's list) at a stack or a member.
+    Cast {
+        /// Index into the caster's known spells.
+        spell: u8,
+        /// Whom it goes to.
+        target: Target,
+    },
+    /// Use a carried item as the turn's action: a potion on a member, or the user when no
+    /// target is named. A sense item is not used from a fight.
+    Use {
+        /// The row of the acting member's kit.
+        item: u8,
+        /// Whom a potion goes to; the user when `None`.
+        target: Option<u8>,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
@@ -51,7 +70,12 @@ pub(crate) struct Roller {
 
 impl Roller {
     pub(crate) fn take(world: &World) -> Roller {
-        let stream = StreamName::new("combat");
+        Roller::take_stream(world, "combat")
+    }
+
+    /// A copy of any named stream; one stream per consumer (A14), created on first use.
+    pub(crate) fn take_stream(world: &World, name: &str) -> Roller {
+        let stream = StreamName::new(name);
         let rng = world
             .rngs
             .get(&stream)
@@ -74,6 +98,10 @@ pub(crate) enum Plan {
         /// The weapon.
         weapon: Weapon,
     },
+    /// A cast that passed every check.
+    Cast(cast::CastPlan),
+    /// A use of an item that passed every check.
+    Use(items::UsePlan),
     /// A dodge.
     Dodge,
     /// A swap of two slots.
@@ -113,10 +141,37 @@ pub(crate) fn apply(
     let Mode::Combat(state) = &world.mode else {
         return Err(Rejection::WrongMode);
     };
-    let (actor, plan) = validate(state, world, data, command)?;
+    // Validation may draw (a pack's point-cost formula could roll): it draws from the copy,
+    // which is stored only when the command went through.
     let mut roller = Roller::take(world);
+    let (actor, plan) = validate(state, world, data, command, &mut roller.rng)?;
     turn::act(world, data, actor, plan, &mut roller, events).map_err(Rejection::Rule)?;
     roller.store(world);
+    Ok(())
+}
+
+/// After a dev edit in a fight: run the loop if the fight no longer waits on a member who can
+/// act (monster turns, the round's end, or the finish), so the state a save checks holds.
+pub(crate) fn resume(
+    world: &mut World,
+    data: &Data,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let Mode::Combat(mut state) = core::mem::replace(&mut world.mode, Mode::Explore) else {
+        return Ok(());
+    };
+    let mut roller = Roller::take(world);
+    let ended = match turn::settle(world, data, &mut state, &mut roller, events) {
+        Ok(ended) => ended,
+        Err(e) => {
+            world.mode = Mode::Combat(state);
+            return Err(e);
+        }
+    };
+    roller.store(world);
+    if !ended {
+        world.mode = Mode::Combat(state);
+    }
     Ok(())
 }
 
@@ -164,9 +219,13 @@ fn validate(
     world: &World,
     data: &Data,
     command: CombatCommand,
+    rng: &mut Pcg32,
 ) -> Result<(CharacterId, Plan), Rejection> {
     let (id, own) = acting_member(state, world)?;
     let plan = match command {
+        CombatCommand::Cast { spell, target } => {
+            Plan::Cast(cast::validate(state, world, data, own, spell, target, rng)?)
+        }
         CombatCommand::Attack { stack } => {
             let target = state
                 .encounter
@@ -180,6 +239,9 @@ fn validate(
                 stack,
                 weapon: weapon_for(state, world, data, own, stack)?,
             }
+        }
+        CombatCommand::Use { item, target } => {
+            Plan::Use(items::validate_use(world, data, own, item, target, true)?)
         }
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {

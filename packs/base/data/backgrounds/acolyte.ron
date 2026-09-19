@@ -1,11 +1,12 @@
 // SRD 5.1 Acolyte (docs/dnd.srd.5.1/03_Characterization/Backgrounds.md), the SRD's one
-// background. More arrive as content; an Omnis "Settler" is the first candidate.
+// background. The potion is an Omnis deviation from the SRD kit so a new party can use an item
+// before shops (M7) and loot (M9) exist; remove it when they do.
 (
     schema: 1,
     id: "base:background:acolyte",
     name: "base:text:background.acolyte.name",
     skills: [Insight, Religion],
-    equipment: [("base:item:holy_symbol", 1)],
+    equipment: [("base:item:holy_symbol", 1), ("base:item:potion_of_healing", 1)],
     gold: 15,
     feature: (name: "base:text:background.acolyte.shelter"),
 )

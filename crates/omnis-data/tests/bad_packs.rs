@@ -131,9 +131,13 @@ fn every_error_in_bad_content_is_reported() {
         "skills are listed twice",
         "equipment counts must be at least 1",
         "equipment 'badc:item:none' is not defined by any loaded pack",
-        // data/items
+        // data/items (blade, plate, flask, lens, vial)
         "weapon damage needs dice",
         "armor base_ac must be 1..=30",
+        "a consumable item needs a use effect",
+        "text key 'badc:text:item.flask.description' is not defined in any language",
+        "sense ray range must be 1..=64",
+        "heal dice need dice",
         // data/conditions/dizzy.ron
         "text key 'badc:text:condition.dizzy.description' is not defined in any language",
         // data/spells/zap.ron, hex.ron
@@ -142,6 +146,10 @@ fn every_error_in_bad_content_is_reported() {
         "component counts must be at least 1",
         "class 'badc:class:none' is not defined by any loaded pack",
         "component 'badc:item:none' is not defined by any loaded pack",
+        // data/spells/big.ron
+        "spell effect dice need dice",
+        "attack, heal, buff, reaction, light and utility spells reach one target",
+        "level 5 spells need a component list (component_threshold 5)",
         // data/monsters/blob.ron
         "ac must be 1..=30",
         "hit_points needs dice",

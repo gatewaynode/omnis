@@ -1,3 +1,6 @@
 // SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
 // Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
-(schema: 1, id: "base:spell:burning_hands", name: "base:text:spell.burning_hands.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, description: "base:text:spell.burning_hands.description")
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// The cone is the whole stack: one damage roll, one save per individual.
+(schema: 1, id: "base:spell:burning_hands", name: "base:text:spell.burning_hands.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, description: "base:text:spell.burning_hands.description", effect: Some(Save(ability: Dexterity, dice: (count: 3, sides: 6, modifier: 0), damage_type: Fire, half_on_save: true)), reach: Stack)

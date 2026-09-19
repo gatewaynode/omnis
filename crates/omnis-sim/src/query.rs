@@ -107,7 +107,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
             .tilesets
             .get(&map.tileset)
             .map_or(0, |t| t.detail_depth),
-        visibility_depth: visibility::depth_from(map, pos),
+        visibility_depth: visibility::depth(world, map),
         tiles,
     })
 }

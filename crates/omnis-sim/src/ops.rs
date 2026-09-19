@@ -19,10 +19,10 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{CharacterId, EraId, MapId, Position};
+use omnis_core::{CharacterId, EraId, ItemId, MapId, Position};
 use omnis_data::limits::{check_asset_path, string_fits};
-use omnis_data::{Data, PackFingerprint};
-use omnis_rules::{DeathSaves, Draft, condition_id};
+use omnis_data::{Data, EquipSlot, PackFingerprint};
+use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, Equipped, condition_id};
 use serde::{Deserialize, Serialize};
 
 /// Most commands one `sim.script` may carry.
@@ -236,6 +236,39 @@ pub struct MemberView {
     pub dead: bool,
     /// Death saving throws in progress.
     pub death_saves: DeathSaves,
+    /// Spell ids known, in the order `cast` indexes them.
+    #[serde(default)]
+    pub spells: Vec<String>,
+    /// The kit, in the order the item commands index it.
+    #[serde(default)]
+    pub equipment: Vec<ItemView>,
+    /// What is worn and wielded, by slot.
+    #[serde(default)]
+    pub equipped: Vec<(EquipSlot, String)>,
+    /// Spell ids of the effects on the member.
+    #[serde(default)]
+    pub effects: Vec<String>,
+}
+
+/// One row of a kit or the stores.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ItemView {
+    /// Its row, the number the item commands take.
+    pub index: u8,
+    /// Item id.
+    pub id: String,
+    /// Text key of the item's name.
+    pub name: String,
+    /// How many.
+    pub count: u16,
+    /// The slot it equips into, if any.
+    pub slot: Option<EquipSlot>,
+    /// Whether Use does something with it.
+    pub usable: bool,
+    /// Whether a use spends one.
+    pub consumable: bool,
+    /// Worn or wielded by the kit's owner.
+    pub equipped: bool,
 }
 
 /// The party as a client sees it.
@@ -253,6 +286,12 @@ pub struct PartyView {
     pub gems: u32,
     /// Food units.
     pub food: u32,
+    /// The stores, in the order `Take` indexes them.
+    #[serde(default)]
+    pub inventory: Vec<ItemView>,
+    /// Spell ids of the effects on the whole party.
+    #[serde(default)]
+    pub effects: Vec<String>,
 }
 
 /// One rule slot.
@@ -508,37 +547,12 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
 #[must_use]
 pub fn party_view(world: &World, data: &Data) -> PartyView {
     let front_row = party::front_row(data);
-    let dead = condition_id(data, "dead");
-    let name_of = |name: Option<&str>| name.unwrap_or("?").to_owned();
     let members = world
         .party
         .members
         .iter()
         .enumerate()
-        .map(|(index, member)| MemberView {
-            index: u8::try_from(index).unwrap_or(u8::MAX),
-            id: member.id,
-            name: member.name.clone(),
-            race: name_of(data.registry.races.name(member.race)),
-            class: name_of(data.registry.classes.name(member.class)),
-            level: member.level,
-            xp: member.xp,
-            hp: member.hp,
-            hp_max: member.hp_max,
-            spell_points: member.spell_points,
-            spell_points_max: member.spell_points_max,
-            ac: omnis_rules::armor_class(member, data),
-            scores: member.scores,
-            front: index < front_row,
-            conditions: member
-                .conditions
-                .iter()
-                .map(|c| name_of(data.registry.conditions.name(*c)))
-                .collect(),
-            down: member.is_down(),
-            dead: dead.is_some_and(|d| member.conditions.contains(&d)),
-            death_saves: member.death_saves,
-        })
+        .map(|(index, member)| member_view(data, index, member, index < front_row))
         .collect();
     PartyView {
         members,
@@ -547,7 +561,81 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
         gold: world.party.gold,
         gems: world.party.gems,
         food: world.party.food,
+        inventory: item_views(data, &world.party.inventory, None),
+        effects: effect_names(data, &world.party.effects),
     }
+}
+
+/// A registry name, or `?` for an id no pack defines.
+fn name_of(name: Option<&str>) -> String {
+    name.unwrap_or("?").to_owned()
+}
+
+fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> MemberView {
+    let dead = condition_id(data, "dead");
+    MemberView {
+        index: u8::try_from(index).unwrap_or(u8::MAX),
+        id: member.id,
+        name: member.name.clone(),
+        race: name_of(data.registry.races.name(member.race)),
+        class: name_of(data.registry.classes.name(member.class)),
+        level: member.level,
+        xp: member.xp,
+        hp: member.hp,
+        hp_max: member.hp_max,
+        spell_points: member.spell_points,
+        spell_points_max: member.spell_points_max,
+        ac: omnis_rules::armor_class(member, data),
+        scores: member.scores,
+        front,
+        conditions: member
+            .conditions
+            .iter()
+            .map(|c| name_of(data.registry.conditions.name(*c)))
+            .collect(),
+        down: member.is_down(),
+        dead: dead.is_some_and(|d| member.conditions.contains(&d)),
+        death_saves: member.death_saves,
+        spells: member
+            .known_spells
+            .iter()
+            .map(|s| name_of(data.registry.spells.name(*s)))
+            .collect(),
+        equipment: item_views(data, &member.equipment, Some(&member.equipped)),
+        equipped: member
+            .equipped
+            .iter()
+            .map(|(slot, id)| (*slot, name_of(data.registry.items.name(*id))))
+            .collect(),
+        effects: effect_names(data, &member.effects),
+    }
+}
+
+/// A counted list as rows; `equipped` marks the rows a kit's owner wears.
+fn item_views(data: &Data, list: &[(ItemId, u16)], equipped: Option<&Equipped>) -> Vec<ItemView> {
+    list.iter()
+        .enumerate()
+        .map(|(index, (id, count))| {
+            let def = data.items.get(id);
+            ItemView {
+                index: u8::try_from(index).unwrap_or(u8::MAX),
+                id: name_of(data.registry.items.name(*id)),
+                name: def.map_or_else(|| "?".to_owned(), |d| d.name.clone()),
+                count: *count,
+                slot: def.and_then(|d| d.slot()),
+                usable: def.is_some_and(|d| d.use_effect.is_some()),
+                consumable: def.is_some_and(|d| d.consumable),
+                equipped: equipped.is_some_and(|e| e.values().any(|worn| worn == id)),
+            }
+        })
+        .collect()
+}
+
+fn effect_names(data: &Data, effects: &[ActiveEffect]) -> Vec<String> {
+    effects
+        .iter()
+        .map(|e| name_of(data.registry.spells.name(e.source)))
+        .collect()
 }
 
 /// `rules.list`.

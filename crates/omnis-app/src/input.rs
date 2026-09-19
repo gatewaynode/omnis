@@ -1,11 +1,14 @@
-//! `InputPlugin`: keys and the movement pad to commands. Arrows or WASD move and turn, Q and
-//! E sidestep, Space or Enter interact, M toggles the automap, F5 saves, F9 loads, Escape
-//! pauses; a click on a pad button sends the same command as its key.
+//! `InputPlugin`: keys, the movement pad and the tool pad to commands. Arrows or WASD move
+//! and turn, Q and E sidestep, Space or Enter interact, M toggles the automap, C opens the
+//! cast menu, P the character sheet, Escape pauses; a click on a pad button sends the same command as its key, and a
+//! click on a tool button the same shell command (the buttons' states say when they are
+//! live, so the keys are the shortcuts). No function key is bound: macOS takes them (saving
+//! and loading live on the pause menu).
 
 use crate::cursor::UiSet;
 use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
 use crate::ui::UiClick;
-use crate::widget::WidgetId;
+use crate::widget::{ToolButton, WidgetId};
 use bevy::prelude::*;
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};
@@ -28,7 +31,8 @@ impl Plugin for InputPlugin {
                 map_pad
                     .in_set(UiSet::Dispatch)
                     .run_if(in_state(PlayState::Explore)),
-            );
+            )
+            .add_systems(Update, map_tools.in_set(UiSet::Dispatch));
     }
 }
 
@@ -51,11 +55,26 @@ pub fn command_for(key: KeyCode) -> Option<Command> {
 #[must_use]
 pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
     Some(match key {
-        KeyCode::F5 => ShellCommand::Save,
-        KeyCode::F9 => ShellCommand::Load,
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
+        KeyCode::KeyC => ShellCommand::Cast,
+        KeyCode::KeyP => ShellCommand::Sheet,
+        KeyCode::KeyI => ShellCommand::Inventory,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
+    })
+}
+
+/// The shell action a tool button stands for; `None` for the button whose screen is still
+/// to come (it is painted dim and never clicked).
+#[must_use]
+pub fn tool_for(button: ToolButton) -> Option<ShellCommand> {
+    Some(match button {
+        ToolButton::Items => ShellCommand::Inventory,
+        ToolButton::Spells => ShellCommand::Cast,
+        ToolButton::Sheet => ShellCommand::Sheet,
+        ToolButton::Map => ShellCommand::ToggleAutomap,
+        ToolButton::Menu => ShellCommand::Pause,
+        ToolButton::Look => return None,
     })
 }
 
@@ -78,5 +97,40 @@ fn map_pad(mut clicks: MessageReader<UiClick>, mut commands: MessageWriter<Playe
         if let WidgetId::Pad(button) = hit.id {
             commands.write(PlayerCommand(button.command()));
         }
+    }
+}
+
+/// A click on a live tool button, whatever the screen: the states gate it.
+fn map_tools(mut clicks: MessageReader<UiClick>, mut shell: MessageWriter<ShellCommand>) {
+    for UiClick(hit) in clicks.read() {
+        if let WidgetId::Tool(button) = hit.id
+            && let Some(command) = tool_for(button)
+        {
+            shell.write(command);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_buttons_send_what_their_keys_send() {
+        assert_eq!(tool_for(ToolButton::Spells), shell_for(KeyCode::KeyC));
+        assert_eq!(tool_for(ToolButton::Map), shell_for(KeyCode::KeyM));
+        assert_eq!(tool_for(ToolButton::Sheet), shell_for(KeyCode::KeyP));
+        assert_eq!(tool_for(ToolButton::Menu), shell_for(KeyCode::Escape));
+        assert_eq!(tool_for(ToolButton::Items), Some(ShellCommand::Inventory));
+    }
+
+    #[test]
+    fn no_function_key_is_bound() {
+        for key in [KeyCode::F1, KeyCode::F5, KeyCode::F9, KeyCode::F12] {
+            assert_eq!(command_for(key), None, "{key:?}");
+            assert_eq!(shell_for(key), None, "{key:?}");
+        }
+        assert_eq!(shell_for(KeyCode::Escape), Some(ShellCommand::Pause));
+        assert_eq!(shell_for(KeyCode::KeyC), Some(ShellCommand::Cast));
     }
 }

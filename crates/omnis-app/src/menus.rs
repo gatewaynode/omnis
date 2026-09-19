@@ -6,15 +6,19 @@
 use crate::AppConfig;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu};
 use crate::cursor::UiSet;
+use crate::debug_menu::DebugMenu;
+use crate::inventory_menu::InventoryMenu;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
     Title, TitleAction,
 };
 use crate::screen::{self, Target};
+use crate::sheet_menu::SheetMenu;
 use crate::sim::{
-    AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, SimEvent,
-    SimWorld, StartIn, WorldReplaced, load,
+    AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
+    SimEvent, SimWorld, StartIn, WorldReplaced, load,
 };
+use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
 use crate::widget::Hit;
 use bevy::ecs::system::SystemParam;
@@ -42,6 +46,14 @@ pub struct Screens {
     pub combat: CombatMenu,
     /// The modal after a wipe.
     pub defeat: DefeatMenu,
+    /// The debug menu.
+    pub debug: DebugMenu,
+    /// The cast menu while exploring.
+    pub cast: CastMenu,
+    /// The character sheet.
+    pub sheet: SheetMenu,
+    /// The inventory overlay.
+    pub inventory: InventoryMenu,
 }
 
 /// Which screen is up, if any.
@@ -69,6 +81,14 @@ pub enum Active {
     Combat,
     /// The modal after a wipe.
     Defeat,
+    /// The debug menu.
+    Debug,
+    /// The cast menu while exploring.
+    Cast,
+    /// The character sheet.
+    Sheet,
+    /// The inventory overlay.
+    Inventory,
     /// No screen: booting or exploring.
     None,
 }
@@ -89,8 +109,18 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Encounter)) => Active::Encounter,
             (AppState::Playing, _, Some(PlayState::Combat)) => Active::Combat,
             (AppState::Playing, _, Some(PlayState::Defeat)) => Active::Defeat,
+            (AppState::Playing, _, Some(PlayState::Debug)) => Active::Debug,
+            (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
+            (AppState::Playing, _, Some(PlayState::Sheet)) => Active::Sheet,
+            (AppState::Playing, _, Some(PlayState::Inventory)) => Active::Inventory,
             _ => Active::None,
         }
+    }
+
+    /// Whether a game is running.
+    #[must_use]
+    pub fn playing(&self) -> bool {
+        *self.app.get() == AppState::Playing
     }
 
     /// Whether the party is walking the map.
@@ -134,6 +164,7 @@ pub(crate) fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
         Key::Escape => MenuKey::Escape,
         Key::Backspace => MenuKey::Backspace,
         Key::Space => MenuKey::Char(' '),
+        Key::Tab => MenuKey::Char('\t'),
         Key::Character(text) => {
             let c = text.chars().next()?;
             if c.is_control() {
@@ -152,8 +183,17 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::NewGame => Target::NewGame(&mut screens.new_game),
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
-        // The combat plugin handles its screens' clicks.
-        Active::Encounter | Active::Combat | Active::Defeat | Active::None => return Vec::new(),
+        Active::Cast => Target::Cast(&mut screens.cast),
+        // The combat, debug, sheet and inventory plugins handle their screens' clicks.
+        Active::Encounter
+        | Active::Combat
+        | Active::Defeat
+        | Active::Debug
+        | Active::Sheet
+        | Active::Inventory
+        | Active::None => {
+            return Vec::new();
+        }
     };
     screen::click(target, hit)
 }
@@ -167,12 +207,13 @@ struct Next<'w> {
 }
 
 /// What a menu action may touch.
-struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
+struct Actions<'a, 'c, 'cs, 'n, 'p, 's, 'e, 'r> {
     commands: &'a mut Commands<'c, 'cs>,
     next: &'a mut Next<'n>,
     data: Option<&'a PackData>,
     config: &'a AppConfig,
     player: &'a mut MessageWriter<'p, PlayerCommand>,
+    shell: &'a mut MessageWriter<'s, ShellCommand>,
     exit: &'a mut MessageWriter<'e, AppExit>,
     replaced: &'a mut MessageWriter<'r, WorldReplaced>,
     notice: &'a mut Notice,
@@ -180,7 +221,7 @@ struct Actions<'a, 'c, 'cs, 'n, 'p, 'e, 'r> {
     resume: PlayState,
 }
 
-impl Actions<'_, '_, '_, '_, '_, '_, '_> {
+impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
     fn start_game(&mut self, world: World, start: PlayState) {
         self.commands.insert_resource(SimWorld(world));
         self.commands.insert_resource(StartIn(start));
@@ -207,9 +248,12 @@ fn menu_keys(
     data: Option<Res<PackData>>,
     world: Option<Res<SimWorld>>,
     mut player: MessageWriter<PlayerCommand>,
+    mut shell: MessageWriter<ShellCommand>,
     mut exit: MessageWriter<AppExit>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut notice: ResMut<Notice>,
+    // The UI plugin's selection; absent in an app without it (the menus alone are testable).
+    selected: Option<Res<crate::ui::Selected>>,
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
     let resume = world
@@ -231,6 +275,7 @@ fn menu_keys(
         data: data.as_deref(),
         config: &config,
         player: &mut player,
+        shell: &mut shell,
         exit: &mut exit,
         replaced: &mut replaced,
         notice: &mut notice,
@@ -243,6 +288,7 @@ fn menu_keys(
             creation,
             catalog,
             pause,
+            cast,
             ..
         } = &mut *screens;
         match active {
@@ -266,13 +312,26 @@ fn menu_keys(
                     pause_action(action, &mut act);
                 }
             }
-            // The combat plugin handles its screens' keys.
-            Active::Encounter | Active::Combat | Active::Defeat | Active::None => {}
+            Active::Cast => cast_key(
+                key,
+                cast,
+                &mut act,
+                world.as_deref(),
+                selected.as_ref().and_then(|s| s.0),
+            ),
+            // The combat, debug, sheet and inventory plugins handle their screens' keys.
+            Active::Encounter
+            | Active::Combat
+            | Active::Defeat
+            | Active::Debug
+            | Active::Sheet
+            | Active::Inventory
+            | Active::None => {}
         }
     }
 }
 
-fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         TitleAction::NewGame => act.next.menu.set(MenuState::NewGame),
         TitleAction::Load => {
@@ -294,12 +353,16 @@ fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
 fn new_game_action(
     action: NewGameAction,
     form: &NewGameForm,
-    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>,
 ) {
     match action {
         NewGameAction::Start => {
             let Some(data) = act.data else { return };
-            match World::new(&data.0, form.seed(crate::entropy_seed()), form.settings) {
+            match World::new(
+                &data.0,
+                form.seed(crate::entropy_seed()),
+                crate::sim::game_settings(form.settings),
+            ) {
                 Ok(world) => {
                     info!("new game, seed {:#x}, {:?}", world.seed, world.settings);
                     act.start_game(world, PlayState::CreateParty);
@@ -311,7 +374,7 @@ fn new_game_action(
     }
 }
 
-fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         CreationAction::Add(draft) => {
             act.player
@@ -322,9 +385,41 @@ fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_,
     }
 }
 
-fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_>) {
+/// A key on the cast menu: a cast for the simulation, or back to exploring.
+fn cast_key(
+    key: MenuKey,
+    menu: &mut CastMenu,
+    act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>,
+    world: Option<&SimWorld>,
+    selected: Option<usize>,
+) {
+    let Some((world, data)) = world.zip(act.data) else {
+        return;
+    };
+    let rows = cast_rows(&world.0, &data.0);
+    menu.sync(&rows);
+    match menu.key(key, &rows, selected) {
+        Some(CastIntent::Command(command)) => {
+            act.player.write(PlayerCommand(command));
+            act.next.play.set(PlayState::Explore);
+        }
+        Some(CastIntent::Close) => act.next.play.set(PlayState::Explore),
+        None => {}
+    }
+}
+
+/// A pause item. Save and Load stay on the overlay so their notice shows on the band; Resume
+/// after a load goes where the loaded world's mode says, since `resume` is read at key time.
+fn pause_action(action: PauseAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
     match action {
         PauseAction::Resume => act.next.play.set(act.resume),
+        PauseAction::Save => {
+            act.shell.write(ShellCommand::Save);
+        }
+        PauseAction::Load => {
+            act.shell.write(ShellCommand::Load);
+        }
+        PauseAction::Sheet => act.next.play.set(PlayState::Sheet),
         PauseAction::QuitToTitle => act.leave_game(),
         PauseAction::Quit => {
             act.exit.write(AppExit::Success);
