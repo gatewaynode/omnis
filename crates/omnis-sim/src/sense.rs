@@ -3,7 +3,7 @@
 //! per knowledge layer for the party's best eyes; the `sense.dc` slot sets each tile's
 //! difficulty from its distance, the visibility depth, and the layer. A tile is reached by a
 //! layer when the check's total meets that tile's difficulty; the reach is the farthest such
-//! tile, since the difficulty never falls with distance.
+//! tile, since the difficulty never falls with distance, and never past the layer below.
 
 use crate::checks::{self, CheckSpec};
 use crate::combat::Roller;
@@ -99,8 +99,11 @@ pub(crate) fn resolve(
     let ray = visibility::ray(map, world.maps.get(&pos.map), pos, range);
     let visibility = visibility::depth(world, map);
     let mut checks = Vec::new();
+    // A layer reaches no farther than the one below it: failing a layer stops the ladder
+    // there (PRD §7.2, D18), so a wall's shape is never known where its ground is not.
+    let mut floor = u8::try_from(ray.len()).unwrap_or(u8::MAX);
     for (layer, _) in LAYERS.iter().take(usize::from(source.fidelity.rank())) {
-        if ray.is_empty() {
+        if floor == 0 {
             break;
         }
         let (roll, total) = match source.check {
@@ -116,7 +119,8 @@ pub(crate) fn resolve(
             }
             None => (None, i64::MAX),
         };
-        let reach = reach_for_layer(data, total, ray.len(), visibility, *layer, roller)?;
+        let reach = reach_for_layer(data, total, ray.len(), visibility, *layer, roller)?.min(floor);
+        floor = reach;
         checks.push(LayerCheck {
             layer: *layer,
             roll,

@@ -1,7 +1,7 @@
 //! Remote sensing on the test dungeon: the ray along the facing line and what stops it, a
-//! spyglass recording what its checks reach as remotely seen, the best eyes doing the
-//! looking, a look without a die, and the automap's layer rules (a direct sighting clears
-//! the remote mark, the visited bit sticks).
+//! spyglass recording what its checks reach as remotely seen (a layer no farther than the
+//! one below it), the best eyes doing the looking, a look without a die, and the automap's
+//! layer rules (a direct sighting clears the remote mark, the visited bit sticks).
 
 mod common;
 
@@ -141,15 +141,21 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
         "the spyglass's minute"
     );
     let (checks, tiles) = sensed(&events);
-    assert_eq!(checks.len(), 2, "terrain, then structure");
+    assert!(
+        checks.len() == 2 || (checks.len() == 1 && checks[0].reach == 0),
+        "terrain, then structure unless terrain reached nothing: {checks:?}"
+    );
     let along: Vec<(u16, u16)> = (5..=11).map(|y| (3, y)).collect();
     let mut expected = Vec::new();
+    let mut floor = 7u8;
     for (check, bit) in checks.iter().zip([layer::TERRAIN, layer::STRUCTURE]) {
         let roll = check.roll.as_ref().expect("Perception is rolled");
         let reach = (1..=7u8)
             .take_while(|d| roll.total >= dc(*d, check.layer))
             .last()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            .min(floor);
+        floor = reach;
         assert_eq!(check.reach, reach, "layer {}: {:?}", check.layer, roll);
         for d in 1..=reach {
             let (x, y) = along[usize::from(d) - 1];
