@@ -155,7 +155,7 @@ fn spell_views(world: &World, data: &Data, own: usize) -> Vec<SpellView> {
         .filter_map(|(i, id)| {
             let index = u8::try_from(i).ok()?;
             let spell = data.spells.get(id)?;
-            let blocked = cast::check(world, data, own, index, &mut rng).err();
+            let blocked = cast::check(world, data, own, index, true, &mut rng).err();
             Some(SpellView {
                 index,
                 id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),

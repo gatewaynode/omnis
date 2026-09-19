@@ -16,7 +16,9 @@ use crate::event::SeenTile;
 use crate::world::{MapState, World};
 use alloc::vec::Vec;
 use omnis_core::{Facing, Position};
+use omnis_data::limits::MAX_VISIBILITY_DEPTH;
 use omnis_data::{Data, MapData};
+use omnis_rules::light_depth;
 
 /// Whether the edge on `facing` of `(x, y)` lets sight and movement through.
 #[must_use]
@@ -39,11 +41,21 @@ pub fn project(pos: Position, depth: u8, offset: i8) -> Option<(u16, u16)> {
     Some((u16::try_from(x).ok()?, u16::try_from(y).ok()?))
 }
 
-/// The visibility depth from the party's tile.
+/// The visibility depth from the party's tile: the terrain's.
 #[must_use]
 pub fn depth_from(map: &MapData, pos: Position) -> u8 {
     map.cell(pos.x, pos.y)
         .map_or(0, |c| map.terrain(c).visibility_depth)
+}
+
+/// How far the party sees: the terrain's depth, or a light in effect when it reaches farther
+/// (daylight is not extended by a torch), capped at the map limit.
+#[must_use]
+pub fn depth(world: &World, map: &MapData) -> u8 {
+    let terrain = depth_from(map, world.position);
+    light_depth(&world.party.effects)
+        .map_or(terrain, |light| terrain.max(light))
+        .min(MAX_VISIBILITY_DEPTH)
 }
 
 /// Whether `to` can be seen from `from`: a ray from the centre of `from` reaches the centre
@@ -134,7 +146,7 @@ pub fn cone(world: &World, data: &Data) -> Vec<SeenTile> {
         return Vec::new();
     };
     let state = world.maps.get(&pos.map);
-    let max_depth = depth_from(map, pos);
+    let max_depth = depth(world, map);
     let mut seen = Vec::new();
     for depth in 0..=max_depth {
         // One tile wider than the diagonal: the far end of each row shows the tile beyond

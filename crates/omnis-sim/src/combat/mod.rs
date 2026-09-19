@@ -4,6 +4,7 @@
 //! the command went through, so a rejection leaves the world exactly as it was.
 
 pub mod cast;
+mod reaction;
 mod resolve;
 pub mod state;
 mod turn;
@@ -60,7 +61,12 @@ pub(crate) struct Roller {
 
 impl Roller {
     pub(crate) fn take(world: &World) -> Roller {
-        let stream = StreamName::new("combat");
+        Roller::take_stream(world, "combat")
+    }
+
+    /// A copy of any named stream; one stream per consumer (A14), created on first use.
+    pub(crate) fn take_stream(world: &World, name: &str) -> Roller {
+        let stream = StreamName::new(name);
         let rng = world
             .rngs
             .get(&stream)

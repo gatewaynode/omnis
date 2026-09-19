@@ -13,9 +13,12 @@
 extern crate alloc;
 
 pub mod apply;
+mod casting;
+mod checks;
 pub mod combat;
 pub mod command;
 pub mod dev;
+pub mod effects;
 pub mod encounter;
 pub mod event;
 pub mod items;
@@ -24,6 +27,7 @@ pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
+mod utility;
 pub mod view;
 pub mod visibility;
 pub mod world;
@@ -40,7 +44,8 @@ pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
 pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
 pub use event::{
-    ActorRef, BlockReason, CheckKind, CombatOutcome, Event, MessageKey, SeenTile, Surprise,
+    ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, MessageKey,
+    SeenTile, Surprise,
 };
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};

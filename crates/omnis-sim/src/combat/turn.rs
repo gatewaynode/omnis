@@ -5,14 +5,16 @@ use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
 use super::{cast, resolve};
 use crate::apply::{advance, retreat};
+use crate::checks::{self, CheckSpec};
+use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
-use crate::event::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
+use crate::event::{ActorRef, CheckKind, CombatOutcome, EffectEnd, Event, Surprise};
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
 use core::cmp::Reverse;
 use omnis_core::{CharacterId, RollTrace};
 use omnis_data::{Ability, Data, Disposition};
-use omnis_rules::{RollMode, RuleError, check, initiative, modifier, modifier_of};
+use omnis_rules::{RollMode, RuleError, initiative, modifier, modifier_of};
 
 /// Minutes a round costs when the rules do not say.
 const DEFAULT_ROUND_MINUTES: u32 = 1;
@@ -160,7 +162,7 @@ fn act_inner(
 
 /// The party's best Dexterity against the run difficulty; a friendly group lets them go.
 fn flee(
-    world: &World,
+    world: &mut World,
     data: &Data,
     state: &CombatState,
     roller: &mut Roller,
@@ -171,28 +173,27 @@ fn flee(
         .party
         .members
         .iter()
-        .filter(|m| can_fight(m, data))
-        .min_by_key(|m| Reverse(modifier(m.scores[Ability::Dexterity.index()])))
+        .enumerate()
+        .filter(|(_, m)| can_fight(m, data))
+        .min_by_key(|(_, m)| Reverse(modifier(m.scores[Ability::Dexterity.index()])))
+        .map(|(i, _)| i)
     else {
         return Ok(false);
     };
     let (roll, success) = if state.encounter.disposition == Disposition::Friendly {
         (None, true)
     } else {
-        let roll = check(
-            runner,
-            data,
-            None,
-            Ability::Dexterity,
-            RollMode::Normal,
-            &mut roller.rng,
-            &roller.stream,
-        )?;
+        let spec = CheckSpec {
+            skill: None,
+            ability: Ability::Dexterity,
+            mode: RollMode::Normal,
+        };
+        let roll = checks::roll(world, data, runner, spec, roller, events)?;
         let success = roll.total >= dc;
         (Some(roll), success)
     };
     events.push(Event::Check {
-        actor: ActorRef::Member(runner.id),
+        actor: ActorRef::Member(world.party.members[runner].id),
         kind: CheckKind::Flee,
         roll,
         dc,
@@ -248,6 +249,7 @@ pub(crate) fn run_until_member(
         match actor {
             ActorRef::Member(id) => {
                 if member_acts(state, world, data, id) {
+                    effects::clear_next_turn(world, Some(id), EffectEnd::TurnBegan, events);
                     events.push(Event::Turn { actor });
                     return Ok(false);
                 }
@@ -329,6 +331,7 @@ fn finish(
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}
     }
+    effects::clear_next_turn(world, None, EffectEnd::FightOver, events);
     let fallen = resolve::bury(world, data);
     events.push(Event::CombatEnded {
         outcome,

@@ -6,7 +6,7 @@ use crate::event::{ActorRef, Event};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ConditionId, ItemId, Pcg32, RollTrace, StreamName};
-use omnis_data::Data;
+use omnis_data::{Data, SpellEffect};
 use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, condition_id, create};
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +47,15 @@ pub enum PartyCommand {
         /// New order, old indices.
         order: Vec<u8>,
     },
+    /// Whether a member casts a reaction spell (shield) on their own when the moment comes.
+    AutoCast {
+        /// The member's slot.
+        member: u8,
+        /// Index into the member's known spells; it must be a reaction.
+        spell: u8,
+        /// On or off.
+        on: bool,
+    },
 }
 
 /// How many members the rules allow.
@@ -78,8 +87,50 @@ pub(crate) fn apply(
     match command {
         PartyCommand::Create(draft) => create_member(world, data, draft)?,
         PartyCommand::Reorder { order } => reorder(world, order)?,
+        PartyCommand::AutoCast { member, spell, on } => {
+            return auto_cast(world, data, *member, *spell, *on, events);
+        }
     }
     events.push(Event::PartyChanged);
+    Ok(())
+}
+
+fn auto_cast(
+    world: &mut World,
+    data: &Data,
+    index: u8,
+    spell: u8,
+    on: bool,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let member = world
+        .party
+        .members
+        .get_mut(usize::from(index))
+        .ok_or(Rejection::NoSuchMember { index })?;
+    let id = *member
+        .known_spells
+        .get(usize::from(spell))
+        .ok_or(Rejection::UnknownSpell { spell })?;
+    let reaction = data
+        .spells
+        .get(&id)
+        .is_some_and(|s| matches!(s.effect, Some(SpellEffect::Reaction { .. })));
+    if !reaction {
+        return Err(Rejection::NotCastable { spell });
+    }
+    match (on, member.auto_cast.binary_search(&id)) {
+        (true, Err(at)) => member.auto_cast.insert(at, id),
+        (false, Ok(at)) => {
+            member.auto_cast.remove(at);
+        }
+        _ => {}
+    }
+    events.push(Event::AutoCast {
+        member: member.id,
+        spell: id,
+        on,
+    });
     Ok(())
 }
 

@@ -6,16 +6,18 @@ use super::Roller;
 use super::resolve::{hurt_individual, monster};
 use super::state::CombatState;
 use crate::command::Rejection;
+use crate::effects;
 use crate::event::{ActorRef, CheckKind, Event};
 use crate::items::{consume, has_all};
 use crate::party;
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, SpellId};
-use omnis_data::{Data, Reach, Spell, SpellEffect};
+use omnis_data::{BuffOn, Data, Reach, Spell, SpellEffect};
 use omnis_rules::{
-    RollMode, RuleError, cantrip_dice, damage_roll, flags, heal_roll, monster_defenses,
-    monster_save, needs_components, save_dc, saved_damage, spell_attack, spell_cost,
+    ActiveEffect, EffectKind, Expiry, RollMode, RuleError, cantrip_dice, damage_roll, flags,
+    heal_roll, monster_defenses, monster_save, needs_components, roll_bonus, save_dc, saved_damage,
+    spell_attack, spell_cost,
 };
 use serde::{Deserialize, Serialize};
 
@@ -41,13 +43,15 @@ pub(crate) struct CastPlan {
     pub target: Target,
 }
 
-/// The target-free half of validation: the spell a member knows at `index`, castable and
-/// affordable, its components in the stores. What a picker shows as the reason a row is grey.
+/// The target-free half of validation: the spell a member knows at `index`, castable here
+/// (`fight` says whether a fight is on), affordable, its components in the stores. What a
+/// picker shows as the reason a row is grey.
 pub fn check<'a>(
     world: &World,
     data: &'a Data,
     own: usize,
     index: u8,
+    fight: bool,
     rng: &mut Pcg32,
 ) -> Result<(SpellId, &'a Spell, u32), Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
@@ -59,10 +63,14 @@ pub fn check<'a>(
         .spells
         .get(&id)
         .ok_or(Rejection::UnknownSpell { spell: index })?;
-    match &spell.effect {
-        Some(SpellEffect::Attack { .. } | SpellEffect::AutoHit { .. })
-        | Some(SpellEffect::Save { .. } | SpellEffect::Heal { .. }) => {}
-        _ => return Err(Rejection::NotCastable { spell: index }),
+    let castable = match &spell.effect {
+        // Reactions are cast by the simulation when the moment comes.
+        None | Some(SpellEffect::Reaction { .. }) => false,
+        Some(SpellEffect::Utility(_)) => !fight,
+        Some(effect) => fight || effect.explore_castable(),
+    };
+    if !castable {
+        return Err(Rejection::NotCastable { spell: index });
     }
     let cost = spell_cost(spell, data, rng).map_err(Rejection::Rule)?;
     if member.spell_points < cost {
@@ -103,11 +111,19 @@ pub(crate) fn validate(
     target: Target,
     rng: &mut Pcg32,
 ) -> Result<CastPlan, Rejection> {
-    let (spell, def, cost) = check(world, data, own, index, rng)?;
+    let (spell, def, cost) = check(world, data, own, index, true, rng)?;
     let effect = def
         .effect
         .as_ref()
         .ok_or(Rejection::NotCastable { spell: index })?;
+    if matches!(effect, SpellEffect::Light { .. }) {
+        return Ok(CastPlan {
+            own,
+            spell,
+            cost,
+            target,
+        });
+    }
     match (effect.targets_members(), target) {
         (true, Target::Member(slot)) => {
             let member = world
@@ -237,7 +253,96 @@ pub(crate) fn resolve(
             );
             Ok(())
         }
+        (SpellEffect::Buff { .. }, Target::Member(slot)) => {
+            cast_buff(world, data, plan, usize::from(slot), events);
+            Ok(())
+        }
+        (SpellEffect::Light { depth, minutes }, _) => {
+            cast_light(world, plan, spell, *depth, *minutes, events);
+            Ok(())
+        }
         _ => Ok(()),
+    }
+}
+
+/// A light on the whole party, ending the caster's previous concentration first.
+pub(crate) fn cast_light(
+    world: &mut World,
+    plan: &CastPlan,
+    spell: &Spell,
+    depth: u8,
+    minutes: u32,
+    events: &mut Vec<Event>,
+) {
+    let caster = world.party.members[plan.own].id;
+    effects::end_concentration(world, caster, events);
+    let until = Expiry::Minute(world.party_clock().elapsed + i64::from(minutes));
+    effects::apply_to_party(
+        world,
+        ActiveEffect {
+            source: plan.spell,
+            caster,
+            concentration: spell.concentration,
+            kind: EffectKind::Light { depth },
+            until,
+        },
+        events,
+    );
+}
+
+/// A buff on up to `targets` members, fanning out from the anchor in marching order and
+/// skipping the down and the dead; a concentration spell ends the caster's previous one.
+pub(crate) fn cast_buff(
+    world: &mut World,
+    data: &Data,
+    plan: &CastPlan,
+    anchor: usize,
+    events: &mut Vec<Event>,
+) {
+    let Some(spell) = data.spells.get(&plan.spell) else {
+        return;
+    };
+    let Some(SpellEffect::Buff {
+        bonus,
+        on,
+        targets,
+        consumed,
+        minutes,
+    }) = &spell.effect
+    else {
+        return;
+    };
+    let caster = world.party.members[plan.own].id;
+    if spell.concentration {
+        effects::end_concentration(world, caster, events);
+    }
+    let until = Expiry::Minute(world.party_clock().elapsed + i64::from(*minutes));
+    let count = world.party.members.len();
+    let chosen: Vec<usize> = (0..count)
+        .map(|k| (anchor + k) % count)
+        .filter(|i| {
+            let m = &world.party.members[*i];
+            !m.is_down() && !super::state::is_dead(m, data)
+        })
+        .take(usize::from(*targets))
+        .collect();
+    for index in chosen {
+        effects::apply_to_member(
+            world,
+            index,
+            ActiveEffect {
+                source: plan.spell,
+                caster,
+                concentration: spell.concentration,
+                kind: EffectKind::Buff {
+                    bonus: *bonus,
+                    on: on.clone(),
+                    consumed: *consumed,
+                },
+                until,
+            },
+            events,
+        );
     }
 }
 
@@ -316,12 +421,18 @@ fn cast_attack(
         flags(&caster.conditions, data).own_attacks_disadvantage,
     );
     let ac = i64::from(monster.ac);
+    let extra = roll_bonus(
+        &caster.effects,
+        BuffOn::AttackRolls,
+        &mut roller.rng,
+        &roller.stream,
+    )?;
     let roll = spell_attack(
         caster,
         data,
         ac,
         mode,
-        None,
+        extra,
         &mut roller.rng,
         &roller.stream,
     )?;

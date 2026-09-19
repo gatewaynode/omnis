@@ -112,6 +112,30 @@ pub enum CheckKind {
     Save(Ability),
 }
 
+/// Whom an effect is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum EffectTarget {
+    /// A member.
+    Member(CharacterId),
+    /// The whole party (light).
+    Party,
+}
+
+/// Why an effect ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum EffectEnd {
+    /// Its minutes ran out.
+    Expired,
+    /// The roll it was for used it up.
+    Consumed,
+    /// The caster stopped concentrating.
+    Concentration,
+    /// The bearer's next turn began.
+    TurnBegan,
+    /// The fight ended.
+    FightOver,
+}
+
 /// What happened.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Event {
@@ -284,6 +308,42 @@ pub enum Event {
         points: u32,
         /// Components taken from the stores.
         components_consumed: Vec<(ItemId, u16)>,
+    },
+    /// A spell's effect settled on a member or the party.
+    EffectApplied {
+        /// On whom.
+        target: EffectTarget,
+        /// Which spell.
+        spell: SpellId,
+        /// Who cast it.
+        caster: CharacterId,
+    },
+    /// An effect ended.
+    EffectEnded {
+        /// On whom it was.
+        target: EffectTarget,
+        /// Which spell.
+        spell: SpellId,
+        /// Why.
+        why: EffectEnd,
+    },
+    /// A caster's concentration ended (a new concentration spell, or damage).
+    Concentration {
+        /// Who.
+        caster: CharacterId,
+        /// The spell let go.
+        spell: SpellId,
+        /// Always true; the field is for readers.
+        ended: bool,
+    },
+    /// A member's reaction preference changed.
+    AutoCast {
+        /// Who.
+        member: CharacterId,
+        /// Which reaction spell.
+        spell: SpellId,
+        /// On or off.
+        on: bool,
     },
     /// Hit points regained, by a potion or a spell.
     Healed {

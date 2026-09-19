@@ -28,6 +28,15 @@ pub enum Command {
     Encounter(EncounterChoice),
     /// Act in a fight, on the acting member's turn.
     Combat(CombatCommand),
+    /// Cast outside a fight: healing, a buff, light, or mage hand.
+    Cast {
+        /// The caster's slot.
+        caster: u8,
+        /// Index into the caster's known spells.
+        spell: u8,
+        /// Whom it goes to (a member for healing and buffs; ignored by light and mage hand).
+        target: Target,
+    },
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
 }
@@ -56,6 +65,7 @@ impl Command {
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
+            Command::Cast { .. } => "cast",
             Command::Dev(_) => "dev",
         }
     }
