@@ -249,6 +249,7 @@ fn before_fight_line(event: &Event, names: &Names) -> Option<Line> {
                 CheckKind::Hide => "hides",
                 CheckKind::Run => "runs",
                 CheckKind::Flee => "flees",
+                CheckKind::Save(_) => "saves",
             };
             let result = if *success { "success" } else { "failure" };
             let math = roll.as_ref().map_or_else(

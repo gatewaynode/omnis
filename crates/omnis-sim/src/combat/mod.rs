@@ -3,10 +3,12 @@
 //! the first die, and the dice come from a copy of the `combat` stream written back only when
 //! the command went through, so a rejection leaves the world exactly as it was.
 
+pub mod cast;
 mod resolve;
 pub mod state;
 mod turn;
 
+pub use cast::Target;
 pub use state::{CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
 
@@ -28,6 +30,13 @@ pub enum CombatCommand {
     Attack {
         /// The stack, by its index in the encounter.
         stack: u8,
+    },
+    /// Cast a known spell (by its index in the caster's list) at a stack or a member.
+    Cast {
+        /// Index into the caster's known spells.
+        spell: u8,
+        /// Whom it goes to.
+        target: Target,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
@@ -74,6 +83,8 @@ pub(crate) enum Plan {
         /// The weapon.
         weapon: Weapon,
     },
+    /// A cast that passed every check.
+    Cast(cast::CastPlan),
     /// A dodge.
     Dodge,
     /// A swap of two slots.
@@ -113,8 +124,10 @@ pub(crate) fn apply(
     let Mode::Combat(state) = &world.mode else {
         return Err(Rejection::WrongMode);
     };
-    let (actor, plan) = validate(state, world, data, command)?;
+    // Validation may draw (a pack's point-cost formula could roll): it draws from the copy,
+    // which is stored only when the command went through.
     let mut roller = Roller::take(world);
+    let (actor, plan) = validate(state, world, data, command, &mut roller.rng)?;
     turn::act(world, data, actor, plan, &mut roller, events).map_err(Rejection::Rule)?;
     roller.store(world);
     Ok(())
@@ -164,9 +177,13 @@ fn validate(
     world: &World,
     data: &Data,
     command: CombatCommand,
+    rng: &mut Pcg32,
 ) -> Result<(CharacterId, Plan), Rejection> {
     let (id, own) = acting_member(state, world)?;
     let plan = match command {
+        CombatCommand::Cast { spell, target } => {
+            Plan::Cast(cast::validate(state, world, data, own, spell, target, rng)?)
+        }
         CombatCommand::Attack { stack } => {
             let target = state
                 .encounter

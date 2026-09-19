@@ -35,7 +35,7 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use combat::{CombatCommand, CombatState, Initiative};
+pub use combat::{CombatCommand, CombatState, Initiative, Target};
 pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
 pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
@@ -45,7 +45,7 @@ pub use event::{
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
-pub use view::{CombatView, StackView, combat_view};
+pub use view::{CombatView, SpellView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };

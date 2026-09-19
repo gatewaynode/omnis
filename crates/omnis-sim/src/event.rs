@@ -5,9 +5,10 @@ use crate::dev::DevCommand;
 use crate::encounter::EncounterSource;
 use alloc::vec::Vec;
 use omnis_core::{
-    CharacterId, ConditionId, Facing, HolderId, MapId, MonsterId, Position, RollTrace,
+    CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
+    SpellId,
 };
-use omnis_data::{DamageType, Disposition};
+use omnis_data::{Ability, DamageType, Disposition};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +108,8 @@ pub enum CheckKind {
     Run,
     /// The same, from inside a fight.
     Flee,
+    /// A saving throw against a spell.
+    Save(Ability),
 }
 
 /// What happened.
@@ -270,6 +273,17 @@ pub enum Event {
         amount: i64,
         /// Which defense applied.
         adjust: DamageAdjust,
+    },
+    /// A spell was cast: the points and components it took. What it did follows.
+    SpellCast {
+        /// Who cast it.
+        caster: CharacterId,
+        /// Which spell.
+        spell: SpellId,
+        /// Points paid.
+        points: u32,
+        /// Components taken from the stores.
+        components_consumed: Vec<(ItemId, u16)>,
     },
     /// Hit points regained, by a potion or a spell.
     Healed {

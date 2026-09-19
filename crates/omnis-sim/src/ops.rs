@@ -236,6 +236,9 @@ pub struct MemberView {
     pub dead: bool,
     /// Death saving throws in progress.
     pub death_saves: DeathSaves,
+    /// Spell ids known, in the order `cast` indexes them.
+    #[serde(default)]
+    pub spells: Vec<String>,
 }
 
 /// The party as a client sees it.
@@ -538,6 +541,11 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
             down: member.is_down(),
             dead: dead.is_some_and(|d| member.conditions.contains(&d)),
             death_saves: member.death_saves,
+            spells: member
+                .known_spells
+                .iter()
+                .map(|s| name_of(data.registry.spells.name(*s)))
+                .collect(),
         })
         .collect();
     PartyView {

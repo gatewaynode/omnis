@@ -1,6 +1,7 @@
 //! The encounter or fight as a client sees it (`combat.get`).
 
-use crate::combat::{CombatState, monster_front_stacks, weapon_for};
+use crate::combat::{CombatState, Roller, cast, monster_front_stacks, weapon_for};
+use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack};
 use crate::event::{ActorRef, Surprise};
 use crate::party;
@@ -9,7 +10,7 @@ use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Position};
-use omnis_data::{Data, Disposition};
+use omnis_data::{Data, Disposition, Reach};
 use serde::{Deserialize, Serialize};
 
 /// One stack as a client sees it.
@@ -33,6 +34,27 @@ pub struct StackView {
     pub alive: bool,
     /// Whether the member whose turn it is can reach it.
     pub reachable: bool,
+}
+
+/// One spell the acting member knows, as a picker shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellView {
+    /// Its index in the caster's list, the number `cast` takes.
+    pub index: u8,
+    /// Spell id.
+    pub id: String,
+    /// Text key of the spell's name.
+    pub name: String,
+    /// Spell level; 0 is a cantrip.
+    pub level: u8,
+    /// Points it costs.
+    pub cost: u32,
+    /// How far it reaches.
+    pub reach: Reach,
+    /// Aimed at members rather than monsters.
+    pub targets_members: bool,
+    /// Why it cannot be cast now, if it cannot.
+    pub blocked: Option<Rejection>,
 }
 
 /// The encounter or fight in progress.
@@ -64,6 +86,8 @@ pub struct CombatView {
     pub front_row: usize,
     /// Stacks in front.
     pub monster_front_stacks: usize,
+    /// The acting member's spells; empty when no member acts.
+    pub spells: Vec<SpellView>,
 }
 
 /// The view, or `None` while exploring.
@@ -113,7 +137,37 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         gold: fight.map_or(0, |c| c.gold),
         front_row: party::front_row(data),
         monster_front_stacks: front_count,
+        spells: acting.map_or_else(Vec::new, |own| spell_views(world, data, own)),
     })
+}
+
+/// The spells a member knows with what each costs and why it is blocked, read off a copy of
+/// the combat stream so the view draws nothing.
+fn spell_views(world: &World, data: &Data, own: usize) -> Vec<SpellView> {
+    let Some(member) = world.party.members.get(own) else {
+        return Vec::new();
+    };
+    let mut rng = Roller::take(world).rng;
+    member
+        .known_spells
+        .iter()
+        .enumerate()
+        .filter_map(|(i, id)| {
+            let index = u8::try_from(i).ok()?;
+            let spell = data.spells.get(id)?;
+            let blocked = cast::check(world, data, own, index, &mut rng).err();
+            Some(SpellView {
+                index,
+                id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
+                name: spell.name.clone(),
+                level: spell.level,
+                cost: spell.point_cost(),
+                reach: spell.reach,
+                targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
+                blocked,
+            })
+        })
+        .collect()
 }
 
 fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: bool) -> StackView {

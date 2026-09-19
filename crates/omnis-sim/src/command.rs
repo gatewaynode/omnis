@@ -2,7 +2,7 @@
 //! Commands carry no client state so a command stream is a replay and, later, a network
 //! protocol. What happened is `event::Event`.
 
-use crate::combat::CombatCommand;
+use crate::combat::{CombatCommand, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::party::PartyCommand;
@@ -52,6 +52,7 @@ impl Command {
             Command::Encounter(EncounterChoice::Hide) => "hide",
             Command::Encounter(EncounterChoice::Run) => "run",
             Command::Combat(CombatCommand::Attack { .. }) => "attack",
+            Command::Combat(CombatCommand::Cast { .. }) => "cast",
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
@@ -91,10 +92,24 @@ impl Command {
                         .ok()
                         .map(|with| Command::Combat(CombatCommand::Exchange { with }));
                 }
+                if let Some(rest) = word.strip_prefix("cast-") {
+                    return parse_cast(rest).map(Command::Combat);
+                }
                 return None;
             }
         })
     }
+}
+
+/// `N-M` casts spell `N` at stack `M`; `N-mM` at member `M`.
+fn parse_cast(rest: &str) -> Option<CombatCommand> {
+    let (spell, target) = rest.split_once('-')?;
+    let spell = spell.parse().ok()?;
+    let target = match target.strip_prefix('m') {
+        Some(member) => Target::Member(member.parse().ok()?),
+        None => Target::Stack(target.parse().ok()?),
+    };
+    Some(CombatCommand::Cast { spell, target })
 }
 
 /// A word in a script that is not a command.
@@ -114,8 +129,9 @@ impl fmt::Display for ScriptError {
 
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
-/// and in one `attack` (the first stack), `attack-N`, `dodge`, `swap-N`, `flee`, separated by
-/// whitespace or commas; `#` starts a comment that runs to the end of the line.
+/// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
+/// `cast-N-mM` (at member `M`), `dodge`, `swap-N`, `flee`, separated by whitespace or commas;
+/// `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
     for (index, line) in text.lines().enumerate() {
@@ -182,6 +198,41 @@ pub enum Rejection {
         /// The purse.
         gold: u32,
     },
+    /// The caster knows no spell at that index.
+    UnknownSpell {
+        /// The index asked for.
+        spell: u8,
+    },
+    /// The spell has no effect the simulation can cast here yet.
+    NotCastable {
+        /// The index asked for.
+        spell: u8,
+    },
+    /// The caster's pool is short.
+    NotEnoughPoints {
+        /// The cost.
+        need: u32,
+        /// The pool.
+        have: u32,
+    },
+    /// The spell's components are not in the party's stores, or a spell at the component
+    /// threshold lists none.
+    MissingComponents {
+        /// The index asked for.
+        spell: u8,
+    },
+    /// A stack for a spell that helps members, or a member for one that hurts monsters.
+    WrongTarget,
+    /// The member is dead; no spell here raises the dead.
+    MemberDead {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// The member is at zero hit points and cannot act.
+    MemberDown {
+        /// The slot asked for.
+        index: u8,
+    },
     /// The stores or the kit hold fewer of an item than needed.
     NotEnough {
         /// The item.
@@ -233,6 +284,17 @@ impl core::fmt::Display for Rejection {
             Rejection::CannotAfford { cost, gold } => {
                 write!(f, "that costs {cost} gold; the party has {gold}")
             }
+            Rejection::UnknownSpell { spell } => write!(f, "no known spell at {spell}"),
+            Rejection::NotCastable { spell } => write!(f, "spell {spell} cannot be cast here"),
+            Rejection::NotEnoughPoints { need, have } => {
+                write!(f, "that needs {need} spell points; the caster has {have}")
+            }
+            Rejection::MissingComponents { spell } => {
+                write!(f, "the stores lack spell {spell}'s components")
+            }
+            Rejection::WrongTarget => f.write_str("the spell cannot go to that target"),
+            Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
+            Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
             Rejection::NotEnough { item, have } => {
                 write!(f, "not enough of item {item}; there are {have}")
             }

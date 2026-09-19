@@ -1,9 +1,9 @@
 //! The turn loop: initiative, one member action, monster turns until the next member, the
 //! end of a round, and the end of the fight.
 
-use super::resolve;
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
+use super::{cast, resolve};
 use crate::apply::{advance, retreat};
 use crate::encounter::{EncounterState, clear_once};
 use crate::event::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
@@ -126,6 +126,10 @@ fn act_inner(
     match plan {
         Plan::Attack { stack, weapon } => {
             resolve::member_attacks(world, data, state, actor, stack, &weapon, roller, events)?;
+        }
+        Plan::Cast(plan) => {
+            cast::pay(world, data, &plan, events)?;
+            cast::resolve(world, data, state, &plan, roller, events)?;
         }
         Plan::Dodge => {
             if let Err(at) = state.dodging.binary_search(&actor) {

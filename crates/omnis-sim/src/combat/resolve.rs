@@ -97,15 +97,28 @@ fn hurt_stack(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
+    hurt_individual(state, data, stack, 0, amount, roller, events)
+}
+
+/// Damage to one individual of a stack; at zero it dies, leaves the stack, and drops its gold.
+pub(crate) fn hurt_individual(
+    state: &mut CombatState,
+    data: &Data,
+    stack: u8,
+    index: usize,
+    amount: i64,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
     let s = &mut state.encounter.stacks[usize::from(stack)];
-    let Some(lead) = s.hp.first_mut() else {
+    let Some(hp) = s.hp.get_mut(index) else {
         return Ok(());
     };
-    *lead = lead.saturating_sub(i32::try_from(amount).unwrap_or(i32::MAX));
-    if *lead > 0 {
+    *hp = hp.saturating_sub(i32::try_from(amount).unwrap_or(i32::MAX));
+    if *hp > 0 {
         return Ok(());
     }
-    s.hp.remove(0);
+    s.hp.remove(index);
     let gold = match monster(data, s)?.gold {
         Some(dice) => {
             let trace = dice
@@ -119,7 +132,10 @@ fn hurt_stack(
         None => None,
     };
     events.push(Event::Death {
-        target: ActorRef::Monster { stack, index: 0 },
+        target: ActorRef::Monster {
+            stack,
+            index: u8::try_from(index).unwrap_or(u8::MAX),
+        },
         gold,
     });
     Ok(())
