@@ -54,6 +54,8 @@ pub enum PlayState {
     Cast,
     /// The character sheet over the world.
     Sheet,
+    /// The inventory overlay over the world; item commands apply from it.
+    Inventory,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -116,6 +118,8 @@ pub enum ShellCommand {
     Cast,
     /// Open the character sheet.
     Sheet,
+    /// Open the inventory overlay while exploring.
+    Inventory,
     /// Exit the application.
     Quit,
 }
@@ -291,6 +295,7 @@ fn shell(
             ShellCommand::Pause => out.next_play.set(PlayState::Paused),
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
+            ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }

@@ -187,7 +187,7 @@ The owner's primary display is a 5120×1440 ultrawide (scale factor 1); the fixe
 - **M6b items and equipment**
 - [x] Sim: `Command::Item` (equip, unequip, give, stow, take, use), the potion on the road and in a fight, `CombatCommand::Use`; a spyglass's use waits for M6c (2026-09-19)
 - [x] Ops/MCP: `ItemView` rows, worn slots, effects and the stores in `party.get`; `Item` and `Combat::Use` schema arms (2026-09-19)
-- [ ] App: inventory overlay on I, item log lines
+- [x] App: the inventory overlay on ITEMS and I (panes per member and the stores, E/U/S/T/G and buttons, the band's selection as the target), item log lines (2026-09-19)
 - [ ] App: Use in the fight picker; M6b docs; owner acceptance
 - **M6c sensing**
 - [ ] Sim: `layer::REMOTE`, layer-aware automap recording, `visibility::ray`, the spyglass with one Perception check per layer against `sense.dc`, `Event::Sensed`

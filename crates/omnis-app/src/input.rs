@@ -58,21 +58,23 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::KeyM => ShellCommand::ToggleAutomap,
         KeyCode::KeyC => ShellCommand::Cast,
         KeyCode::KeyP => ShellCommand::Sheet,
+        KeyCode::KeyI => ShellCommand::Inventory,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })
 }
 
-/// The shell action a tool button stands for; `None` for the buttons whose screens are
-/// still to come (they are painted dim and never clicked).
+/// The shell action a tool button stands for; `None` for the button whose screen is still
+/// to come (it is painted dim and never clicked).
 #[must_use]
 pub fn tool_for(button: ToolButton) -> Option<ShellCommand> {
     Some(match button {
+        ToolButton::Items => ShellCommand::Inventory,
         ToolButton::Spells => ShellCommand::Cast,
         ToolButton::Sheet => ShellCommand::Sheet,
         ToolButton::Map => ShellCommand::ToggleAutomap,
         ToolButton::Menu => ShellCommand::Pause,
-        ToolButton::Items | ToolButton::Look => return None,
+        ToolButton::Look => return None,
     })
 }
 
@@ -119,7 +121,7 @@ mod tests {
         assert_eq!(tool_for(ToolButton::Map), shell_for(KeyCode::KeyM));
         assert_eq!(tool_for(ToolButton::Sheet), shell_for(KeyCode::KeyP));
         assert_eq!(tool_for(ToolButton::Menu), shell_for(KeyCode::Escape));
-        assert_eq!(tool_for(ToolButton::Items), None);
+        assert_eq!(tool_for(ToolButton::Items), Some(ShellCommand::Inventory));
     }
 
     #[test]

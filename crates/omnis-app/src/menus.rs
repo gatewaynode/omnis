@@ -7,6 +7,7 @@ use crate::AppConfig;
 use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu};
 use crate::cursor::UiSet;
 use crate::debug_menu::DebugMenu;
+use crate::inventory_menu::InventoryMenu;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
     Title, TitleAction,
@@ -51,6 +52,8 @@ pub struct Screens {
     pub cast: CastMenu,
     /// The character sheet.
     pub sheet: SheetMenu,
+    /// The inventory overlay.
+    pub inventory: InventoryMenu,
 }
 
 /// Which screen is up, if any.
@@ -84,6 +87,8 @@ pub enum Active {
     Cast,
     /// The character sheet.
     Sheet,
+    /// The inventory overlay.
+    Inventory,
     /// No screen: booting or exploring.
     None,
 }
@@ -107,6 +112,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Debug)) => Active::Debug,
             (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
             (AppState::Playing, _, Some(PlayState::Sheet)) => Active::Sheet,
+            (AppState::Playing, _, Some(PlayState::Inventory)) => Active::Inventory,
             _ => Active::None,
         }
     }
@@ -178,12 +184,13 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
         Active::Cast => Target::Cast(&mut screens.cast),
-        // The combat, debug and sheet plugins handle their screens' clicks.
+        // The combat, debug, sheet and inventory plugins handle their screens' clicks.
         Active::Encounter
         | Active::Combat
         | Active::Defeat
         | Active::Debug
         | Active::Sheet
+        | Active::Inventory
         | Active::None => {
             return Vec::new();
         }
@@ -312,12 +319,13 @@ fn menu_keys(
                 world.as_deref(),
                 selected.as_ref().and_then(|s| s.0),
             ),
-            // The combat, debug and sheet plugins handle their screens' keys.
+            // The combat, debug, sheet and inventory plugins handle their screens' keys.
             Active::Encounter
             | Active::Combat
             | Active::Defeat
             | Active::Debug
             | Active::Sheet
+            | Active::Inventory
             | Active::None => {}
         }
     }

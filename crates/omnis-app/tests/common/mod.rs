@@ -13,6 +13,7 @@ use omnis_app::AppConfig;
 use omnis_app::combat::CombatPlugin;
 use omnis_app::cursor::{CursorPlugin, Pointer};
 use omnis_app::input::InputPlugin;
+use omnis_app::inventory::InventoryPlugin;
 use omnis_app::menu::{ROW_ADD, ROW_CLASS, ROW_RACE, ROW_SCORES};
 use omnis_app::menus::{MenusPlugin, Screens};
 use omnis_app::sheet::SheetPlugin;
@@ -72,6 +73,7 @@ pub fn ui_app_saving_to(save: &str, autostart: bool) -> App {
             MenusPlugin,
             CombatPlugin,
             SheetPlugin,
+            InventoryPlugin,
             CursorPlugin,
             UiPlugin,
         ))

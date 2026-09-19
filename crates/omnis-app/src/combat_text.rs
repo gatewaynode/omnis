@@ -3,7 +3,7 @@
 //! simulation sends keys, ids, and traces; this file is where they become English. Bevy-free.
 
 use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, ConditionId, RollTrace, SpellId};
+use omnis_sim::omnis_core::{CharacterId, ConditionId, ItemId, RollTrace, SpellId};
 use omnis_sim::omnis_data::{DamageType, Data};
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult, Roll, RollMode};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Mode, Surprise, World};
@@ -26,6 +26,7 @@ pub struct Names {
     stacks: Vec<(String, u8)>,
     conditions: BTreeMap<ConditionId, String>,
     spells: BTreeMap<SpellId, String>,
+    items: BTreeMap<ItemId, String>,
 }
 
 impl Names {
@@ -72,6 +73,12 @@ impl Names {
                     .insert(*id, data.label("en", &spell.name).to_owned());
             }
         }
+        if self.items.is_empty() {
+            for (id, item) in &data.items {
+                self.items
+                    .insert(*id, data.label("en", &item.name).to_owned());
+            }
+        }
     }
 
     /// A member's name.
@@ -108,6 +115,12 @@ impl Names {
     #[must_use]
     pub fn spell(&self, id: SpellId) -> &str {
         self.spells.get(&id).map_or("?", String::as_str)
+    }
+
+    /// An item's name.
+    #[must_use]
+    pub fn item(&self, id: ItemId) -> &str {
+        self.items.get(&id).map_or("?", String::as_str)
     }
 }
 
@@ -210,6 +223,7 @@ fn event_line(event: &Event, names: &Names) -> Option<Line> {
         .or_else(|| round_line(event, names))
         .or_else(|| wound_line(event, names))
         .or_else(|| crate::spell_text::spell_line(event, names))
+        .or_else(|| crate::item_text::item_line(event, names))
 }
 
 /// The encounter phase: who stands there, the checks, the bribe.

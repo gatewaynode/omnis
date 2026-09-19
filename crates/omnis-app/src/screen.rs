@@ -8,6 +8,8 @@ use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
 use crate::combat_screen;
 use crate::debug_menu::{DebugMenu, DebugView};
 use crate::debug_screen;
+use crate::inventory_menu::{InventoryAction, InventoryMenu, InventoryView};
+use crate::inventory_screen;
 use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
 use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
 use crate::panels::{self, Hud, Message};
@@ -40,22 +42,28 @@ pub enum Target<'a> {
     Cast(&'a mut CastMenu),
     /// The character sheet.
     Sheet(&'a mut SheetMenu),
+    /// The inventory overlay.
+    Inventory(&'a mut InventoryMenu),
 }
 
 /// Turn a click into keys for the model: move its cursor to the clicked row, then the key
 /// the part stands for. A text field click only takes the focus; a stack row click only
-/// picks the target.
+/// picks the target; an inventory tab or row click only picks it (its action buttons act).
 #[must_use]
 pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
-    match hit.id {
-        WidgetId::Row(row) => {
+    match (hit.id, target) {
+        (WidgetId::Row(row), Target::Inventory(menu)) => {
+            menu.click_row(row);
+            Vec::new()
+        }
+        (WidgetId::Row(row), target) => {
             if set_row(target, row) {
                 part_keys(hit.kind, hit.part)
             } else {
                 Vec::new()
             }
         }
-        id => click_widget(target, id),
+        (id, target) => click_widget(target, id),
     }
 }
 
@@ -84,6 +92,9 @@ fn click_widget(target: Target<'_>, id: WidgetId) -> Vec<MenuKey> {
             menu.picker = Some(index);
             vec![MenuKey::Enter]
         }
+        (WidgetId::Action(index), Target::Inventory(_)) => InventoryAction::ALL
+            .get(index)
+            .map_or_else(Vec::new, |action| vec![MenuKey::Char(action.key())]),
         _ => Vec::new(),
     }
 }
@@ -104,7 +115,8 @@ fn set_row(target: Target<'_>, row: usize) -> bool {
         }
         Target::Cast(menu) => menu.cursor = row,
         Target::Sheet(menu) => menu.click_row(row),
-        Target::Encounter(_) | Target::Combat(_) => return false,
+        // The inventory's rows are picked in `click`; the fight's rows are not menu rows.
+        Target::Inventory(_) | Target::Encounter(_) | Target::Combat(_) => return false,
     }
     true
 }
@@ -188,6 +200,13 @@ pub enum Menu<'a> {
         view: &'a SheetView,
         /// How many members the party has.
         members: usize,
+    },
+    /// The inventory overlay.
+    Inventory {
+        /// The menu.
+        menu: &'a InventoryMenu,
+        /// The panes it shows.
+        view: &'a InventoryView,
     },
 }
 
@@ -311,6 +330,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
             view,
             members,
         } => sheet_screen::sheet(frame, menu, view, *members),
+        Menu::Inventory { menu, view } => inventory_screen::inventory(frame, menu, view),
     }
     if let Some(hud) = view.hud {
         panels::hud(frame, hud);
@@ -774,6 +794,22 @@ mod tests {
             let name = format!("sheet_{}", page.label().to_ascii_lowercase());
             dump(&dir, &name, showing, Some(&hud), &event);
         }
+        dump_inventory(&dir, &hud, &event);
+    }
+
+    /// The inventory overlay on the sample kit, the cursor on the potion.
+    fn dump_inventory(dir: &str, hud: &Hud, event: &Message) {
+        let view = crate::inventory_menu::tests::sample();
+        let mut menu = InventoryMenu {
+            cursor: 6,
+            ..InventoryMenu::default()
+        };
+        menu.sync(&view);
+        let showing = Menu::Inventory {
+            menu: &menu,
+            view: &view,
+        };
+        dump(dir, "inventory", showing, Some(hud), event);
     }
 
     /// The sample debug view: a fight, a dev world, one member.

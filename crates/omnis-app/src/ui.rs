@@ -9,6 +9,7 @@ use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::{Names, batch_lines};
 use crate::cursor::{self, Pointer, UiSet};
 use crate::debug_menu::{DebugView, debug_view};
+use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, Message};
@@ -83,7 +84,7 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  P sheet  M map  Esc menu";
+pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  P sheet  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -104,6 +105,8 @@ pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
 pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter cast  Esc back";
 /// Help on the character sheet.
 pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a member  Esc close";
+/// The help line on the inventory overlay.
+pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -355,6 +358,7 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::Debug => &screens.debug.message,
         Active::Cast => &screens.cast.message,
         Active::Sheet => &screens.sheet.message,
+        Active::Inventory => &screens.inventory.message,
         _ => return None,
     };
     (!text.is_empty()).then(|| Message {
@@ -366,7 +370,7 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
 /// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
 /// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
 /// spell for the road; SHEET on the map and in a fight once the party has a member; ITEMS
-/// and LOOK dim until their screens arrive.
+/// on the map with a member; LOOK dim until sensing arrives.
 #[must_use]
 pub fn tool_states(
     active: Active,
@@ -394,6 +398,7 @@ pub fn tool_states(
         )),
     );
     tools.set(ToolButton::Map, live(exploring));
+    tools.set(ToolButton::Items, live(exploring && has_members));
     tools.set(ToolButton::Spells, live(exploring && has_casts));
     tools.set(
         ToolButton::Sheet,
@@ -409,7 +414,49 @@ struct Overlays<'a> {
     debug: Option<&'a DebugView>,
     casts: &'a [CastRow],
     sheet: Option<&'a SheetView>,
+    inventory: Option<&'a InventoryView>,
     log: &'a [String],
+}
+
+/// The menu and help line of a screen over the world, when its view is built.
+fn overlay_for<'a>(
+    active: Active,
+    screens: &'a Screens,
+    over: &Overlays<'a>,
+    members: usize,
+) -> Option<(Menu<'a>, &'static str)> {
+    Some(match active {
+        Active::Cast => (
+            Menu::Cast {
+                menu: &screens.cast,
+                rows: over.casts,
+            },
+            HELP_CAST,
+        ),
+        Active::Debug => (
+            Menu::Debug {
+                menu: &screens.debug,
+                view: over.debug?,
+            },
+            HELP_DEBUG,
+        ),
+        Active::Sheet => (
+            Menu::Sheet {
+                menu: &screens.sheet,
+                view: over.sheet?,
+                members,
+            },
+            HELP_SHEET,
+        ),
+        Active::Inventory => (
+            Menu::Inventory {
+                menu: &screens.inventory,
+                view: over.inventory?,
+            },
+            HELP_INVENTORY,
+        ),
+        _ => return None,
+    })
 }
 
 /// The menu and help line for the active screen.
@@ -420,35 +467,10 @@ fn menu_for<'a>(
     over: &Overlays<'a>,
     members: usize,
 ) -> (Menu<'a>, &'static str) {
-    let (fight, debug, casts, log) = (over.fight, over.debug, over.casts, over.log);
-    if active == Active::Cast {
-        return (
-            Menu::Cast {
-                menu: &screens.cast,
-                rows: casts,
-            },
-            HELP_CAST,
-        );
+    if let Some(found) = overlay_for(active, screens, over, members) {
+        return found;
     }
-    if let (Active::Debug, Some(view)) = (active, debug) {
-        return (
-            Menu::Debug {
-                menu: &screens.debug,
-                view,
-            },
-            HELP_DEBUG,
-        );
-    }
-    if let (Active::Sheet, Some(view)) = (active, over.sheet) {
-        return (
-            Menu::Sheet {
-                menu: &screens.sheet,
-                view,
-                members,
-            },
-            HELP_SHEET,
-        );
-    }
+    let (fight, log) = (over.fight, over.log);
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
@@ -495,7 +517,8 @@ fn menu_for<'a>(
             | Active::Combat
             | Active::Debug
             | Active::Cast
-            | Active::Sheet,
+            | Active::Sheet
+            | Active::Inventory,
             _,
         ) => (Menu::None, HELP_EXPLORE),
     }
@@ -532,6 +555,9 @@ fn build_frame(
     let sheet = (active == Active::Sheet)
         .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
         .flatten();
+    let inventory = (active == Active::Inventory)
+        .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
+        .flatten();
     let tools = tool_states(
         active,
         world.is_some() && at.playing(),
@@ -547,6 +573,7 @@ fn build_frame(
         debug: debug.as_ref(),
         casts: &casts,
         sheet: sheet.as_ref(),
+        inventory: inventory.as_ref(),
         log: &log.0,
     };
     let (menu, help) = menu_for(
@@ -603,27 +630,29 @@ mod tests {
             ToolButton::Map,
             ToolButton::Spells,
             ToolButton::Sheet,
+            ToolButton::Items,
         ] {
             assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
         }
-        for button in [ToolButton::Items, ToolButton::Look] {
-            assert_eq!(map.get(button), PadState::Disabled, "{button:?}");
-        }
+        assert_eq!(map.get(ToolButton::Look), PadState::Disabled);
         let nobody = tool_states(Active::None, true, false, false);
         assert_eq!(nobody.get(ToolButton::Spells), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
+        assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
         let fight = tool_states(Active::Combat, true, true, true);
         assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
         assert_eq!(fight.get(ToolButton::Sheet), PadState::Enabled);
         assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
         for active in [
             Active::Paused,
             Active::Cast,
             Active::Debug,
             Active::Defeat,
             Active::Sheet,
+            Active::Inventory,
         ] {
             assert_eq!(
                 tool_states(active, true, true, true),
