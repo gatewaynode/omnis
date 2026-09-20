@@ -185,6 +185,22 @@ fn refusals(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 7, "op": "screenshot"}"#);
     let message = reply["error"]["message"].as_str().unwrap();
     assert!(message.contains("no canvas"), "headless: {reply}");
+    // The window target is refused as plainly, and an unknown one is a bad request.
+    let reply = peer.send(
+        app,
+        r#"{"id": 71, "op": "screenshot", "args": {"target": "window"}}"#,
+    );
+    assert_eq!(reply["error"]["kind"], json!("Failed"), "{reply}");
+    let message = reply["error"]["message"].as_str().unwrap();
+    #[cfg(feature = "feathers")]
+    assert!(message.contains("no window"), "headless: {reply}");
+    #[cfg(not(feature = "feathers"))]
+    assert!(message.contains("outside the canvas"), "{reply}");
+    let reply = peer.send(
+        app,
+        r#"{"id": 72, "op": "screenshot", "args": {"target": "desktop"}}"#,
+    );
+    assert_eq!(reply["error"]["kind"], json!("BadRequest"), "{reply}");
 }
 
 fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {

@@ -75,7 +75,10 @@ fn headless_writes_reads_and_reloads() {
     assert_eq!(game.handle(&Op::PackReload).unwrap(), Reply::Done {});
     assert_eq!(game.world, before, "a reload keeps the world");
     assert!(matches!(
-        game.handle(&Op::Screenshot { path: None }),
+        game.handle(&Op::Screenshot {
+            path: None,
+            target: omnis_sim::ops::ShotTarget::Canvas,
+        }),
         Err(OpError::Failed { message }) if message.contains("headless")
     ));
     assert!(
