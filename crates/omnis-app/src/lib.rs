@@ -1,7 +1,8 @@
 //! The Omnis Bevy application as a library, so tests can build the app without a window and
 //! the binary in `main.rs` stays a few lines.
 //!
-//! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `combat_menu`, `combat_text`, `combat_screen`,
+//! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `creation_menu`, `creation_panel`,
+//! `combat_menu`, `combat_text`, `combat_screen`,
 //! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`, `spell_menu`, `debug_menu`,
 //! `debug_screen`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
 //! hold only ECS wiring.
@@ -21,6 +22,8 @@ pub mod combat;
 pub mod combat_menu;
 pub mod combat_screen;
 pub mod combat_text;
+pub mod creation_menu;
+pub mod creation_panel;
 pub mod cursor;
 #[cfg(feature = "devtools")]
 pub mod debug;
