@@ -7,17 +7,19 @@ fails the script), `scripts/lint-sim.sh --self-test` and the lint, `scripts/chec
 and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exits zero only when
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
 same steps without the release clippy, plus both golden replays through the CLI with
-`--pack packs/base --pack packs/test`.
+`--pack packs/base --pack packs/test`. It runs on a push to `main` and on a pull request only: a
+push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 353 passed, 6 ignored (2026-09-20).
+Test count at the gate: 376 passed, 6 ignored (2026-09-20, after the Feathers experiment). The gate's
+log says it on one line: `tests passed 376 failed 0 ignored 6`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
 `plan::viewport` 100, `debug_menu::adjust` 93, `debug_screen::row_text` 91, `combat_text::wound_line`
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
-screen-dump test is the piece to move out next); `game_tools` 99 (new MCP tools go in
-`party_tools`); `loader::load_one` 92; `character::create` 84.
+screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
+`party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84.
 
 ## Pinned numbers
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
@@ -37,6 +39,15 @@ screen-dump test is the piece to move out next); `game_tools` 99 (new MCP tools 
   same commands by design.
 
 ## Tools and commands
+- `bevy_ui` screens (feature `feathers`): the headless harness is `tests/common/mod.rs::feathers_app`
+  (`DefaultPlugins` without winit and logging, no render backend: real layout, picking, focus, no
+  GPU); helpers in `tests/common/feathers.rs` (`layout_faults`, `text_tree`, `click_node`,
+  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`). A PPM dump cannot show them; the text tree
+  (`creation_feathers.txt` under `OMNIS_DUMP_SCREENS`) stands in. A picture needs the running
+  game: `--script "party,create" --settle 60 --screenshot-composed <file.png>`, or the
+  `screenshot` op with `target: "window"`. An agent-launched window is on no screen: plain window
+  captures are black, frame times mean nothing, and `--window medium` is clamped to 2560×1378
+  (canvas 1×), so such a capture never shows the ultrawide's 2× layout.
 - Screen dumps as PNGs: `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
   (entries include `explore`, `pause`, `inventory`, `combat_use`, the sheet pages).
 - Encounter measurement over seeds: `cargo test -p omnis-sim --test measure -- --ignored --nocapture`
@@ -45,5 +56,6 @@ screen-dump test is the piece to move out next); `game_tools` 99 (new MCP tools 
   server after a new build. `omnis-mcp --headless --pack … --seed n` hosts its own world.
 - Game flags: `--pack`, `--seed`, `--save` (default `.omnis/quick.ron`), `--autostart`, `--window
   small|medium|large|huge`; with devtools `--script`, `--screenshot`, `--settle`, `--dev-socket`,
-  `--no-dev-socket`.
+  `--no-dev-socket`, `--screenshot-canvas`, `--screenshot-composed`; with Feathers `--font 0|1|2`,
+  `--ui-scale <hundredths>`, `--frame-stats` (vertical sync off).
 - CLI: `validate`, `schema dump`, `map text`, `play --script`, `replay`, `tileset bake`.

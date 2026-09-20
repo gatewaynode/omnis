@@ -64,9 +64,21 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
   downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
   sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
-- Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`).
+- `bevy_ui` screens (feature `feathers`, default on, absent from the shipped build): party
+  creation. `creation_menu.rs` (`CreationForm`, `Catalog`, the named methods both skins call),
+  `creation_panel.rs` (Bevy-free: `PanelId`, `Payload`, `apply`, `PanelAction`, `shape`, `FONTS`,
+  `fitted_scale`, `SCALE_FLOOR`), `feathers_creation.rs` (scenes per row, `Control(PanelId)`,
+  `Shown(LabelId)`, `PanelRoot`, `reconcile`, `place`, `scale`, `sync`, the `Reports` observers,
+  `FontChoice`, `ScaleChoice`), `feathers_fonts.rs` (`PanelFonts`, `Face`, `wear`),
+  `feathers_ui.rs` (`FeathersUiPlugin`, Escape; it writes `ui.rs`'s `UiPointerCapture`), `capture.rs`
+  (`ComposeCapture`, `ComposedSaved`), `Screens.skin.feathers`, `Menu::Covered`. Fonts under
+  `assets/fonts/{inter,alegreya-sans}`. The pattern for the next screen is in
+  `tasks/plans/feathers-experiment.md`.
+- Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
+  takes `ops::ShotTarget::{Canvas, Window}`).
 - Tests: `tests/common/mod.rs` (`ui_app_saving_to`, `click`, `press`, `seen`, `world`), one file
-  per screen; messages are collected by a reader system, never read from `Messages<M>` directly.
+  per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
+  `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel.
 
 ## omnis-mcp and omnis-cli
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: eighteen tools, the hand-written `Command`

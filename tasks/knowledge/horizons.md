@@ -55,7 +55,15 @@ geometries other than a ray, skills and divination as sources, cover and conceal
 inputs, the reach drawn on the automap, a look from a fight, `RevealMap` as a dev command.
 
 ## Modern presentation (PRD D26, owner 2026-09-20)
-Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) comes
+**The Feathers experiment is done and a success by the owner's word (2026-09-20): "committing to
+moving the rest of the play UI over bit by bit."** Inter; interface scale 1.1 at canvas 1×, 1.5
+on the ultrawide. The report, the pattern for the next screen, the debts (name limit in bytes
+against characters, the scale slider uncapped, frame time unmeasured on a visible window, the
+canvas creation screen alive until the shipped build carries `bevy_ui`, a `screen.text` op over
+the text tree, vendoring decided at Bevy 0.20) and the recommendations (M7's new screens born in
+`bevy_ui`; the editor on Feathers, which would lapse the `bevy_egui` re-audit) are in
+`tasks/plans/feathers-experiment.md`. What follows is the record from before it.
+Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) came
 first; then, by its result: modern fonts everywhere, Bevy UI widgets for the screens the canvas
 toolkit cannot build (the tactics screen's dropdowns, number inputs, lists, scrolling), the
 editor's toolkit reconsidered against `bevy_egui`, smooth instead of integer scaling, and the
