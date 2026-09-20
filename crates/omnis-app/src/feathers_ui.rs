@@ -42,7 +42,7 @@ impl Plugin for FeathersUiPlugin {
             .add_observer(creation::on_number)
             .add_observer(creation::on_flag)
             .add_observer(creation::on_text)
-            .add_systems(Startup, (smooth_icons, offer_skin))
+            .add_systems(Startup, (smooth_icons, wear_panel))
             .add_systems(PreUpdate, capture_pointer.after(PickingSystems::Hover))
             .add_systems(Update, claim_camera)
             .add_systems(Update, escape_abandons.in_set(UiSet::Dispatch))
@@ -68,9 +68,8 @@ fn capture_pointer(
     }
 }
 
-/// The panel exists in this app: the canvas screen offers it, and a new game opens in it.
-fn offer_skin(mut screens: ResMut<Screens>) {
-    screens.skin.offered = true;
+/// With this plugin party creation is the Feathers panel.
+fn wear_panel(mut screens: ResMut<Screens>) {
     screens.skin.feathers = true;
 }
 

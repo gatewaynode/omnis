@@ -252,13 +252,7 @@ pub fn new_game(frame: &mut Frame, form: &NewGameForm) {
 }
 
 /// The creation form.
-pub fn creation(
-    frame: &mut Frame,
-    form: &CreationForm,
-    catalog: &Catalog,
-    members: usize,
-    skin_button: bool,
-) {
+pub fn creation(frame: &mut Frame, form: &CreationForm, catalog: &Catalog, members: usize) {
     label(frame, 1, 0, "CREATE YOUR PARTY", HI);
     label_right(
         frame,
@@ -287,17 +281,6 @@ pub fn creation(
         5,
         form.cursor == ROW_BEGIN,
     );
-    if skin_button {
-        item(
-            frame,
-            crate::widget::SKIN_BUTTON,
-            Kind::Button,
-            (64, 15),
-            "Feathers view",
-            13,
-            false,
-        );
-    }
 }
 
 fn creation_identity(frame: &mut Frame, form: &CreationForm, catalog: &Catalog) {
@@ -525,7 +508,7 @@ pub(crate) mod tests {
         );
         let mut frame = Frame::default();
         let catalog = catalog();
-        creation(&mut frame, &widest_creation(&catalog), &catalog, 6, true);
+        creation(&mut frame, &widest_creation(&catalog), &catalog, 6);
         assert_laid_out(&frame, MENU_BOX);
         assert!(
             frame.widget(WidgetId::Skill(10)).is_some(),
@@ -558,7 +541,7 @@ pub(crate) mod tests {
     fn hits_land_on_rows_arrows_and_skills() {
         let catalog = catalog();
         let mut frame = Frame::default();
-        creation(&mut frame, &CreationForm::new(&catalog), &catalog, 0, false);
+        creation(&mut frame, &CreationForm::new(&catalog), &catalog, 0);
         let race = frame.widget(WidgetId::Row(ROW_RACE)).unwrap();
         let left = race.left.unwrap();
         assert_eq!(

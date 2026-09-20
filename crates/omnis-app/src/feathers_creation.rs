@@ -327,7 +327,6 @@ fn footer() -> impl Scene {
                 SliderPrecision(1)
                 Node { width: px(140), flex_grow: 0.0 }
             ),
-            button(PanelId::Classic, "Classic view", ButtonVariant::Normal),
         ]
     }
 }
@@ -557,16 +556,12 @@ impl Reports<'_, '_> {
         };
         let members = self.world.as_ref().map_or(0, |w| w.0.party.members.len());
         let Screens {
-            creation,
-            catalog,
-            skin,
-            ..
+            creation, catalog, ..
         } = &mut *self.screens;
         match panel::apply(control.0, payload, creation, catalog, members) {
             Some(PanelAction::Creation(action)) => {
                 self.asks.write(CreationAsk(action));
             }
-            Some(PanelAction::Classic) => skin.feathers = false,
             Some(PanelAction::UiScale(tenths)) => self.scale.0 = f32::from(tenths) / 10.0,
             // The font menu arrives with the fonts.
             Some(PanelAction::Font(_)) | None => {}

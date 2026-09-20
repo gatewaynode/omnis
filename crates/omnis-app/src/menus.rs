@@ -20,7 +20,7 @@ use crate::sim::{
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
-use crate::widget::{Hit, SKIN_BUTTON};
+use crate::widget::Hit;
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -28,12 +28,10 @@ use bevy::prelude::*;
 use omnis_sim::{Command, Event, PartyCommand, World};
 
 /// Which skin party creation wears (the Feathers experiment, PRD D26). Both skins edit the
-/// same `CreationForm`; the canvas is the default and the only one without the `feathers`
-/// feature.
+/// same `CreationForm`. An app with the Feathers plugin wears the panel; the canvas screen is
+/// what every other build shows (release, the `MinimalPlugins` tests).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CreationSkin {
-    /// The Feathers panel exists in this app, so the canvas screen offers a button to it.
-    pub offered: bool,
     /// The Feathers panel is showing; the canvas paints only the backdrop and takes no keys.
     pub feathers: bool,
 }
@@ -196,10 +194,6 @@ pub(crate) fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
 
 /// The keys a click on the active screen stands for.
 fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
-    if active == Active::CreateParty && hit.id == SKIN_BUTTON && screens.skin.offered {
-        screens.skin.feathers = true;
-        return Vec::new();
-    }
     let target = match active {
         Active::Title => Target::Title(&mut screens.title),
         Active::NewGame => Target::NewGame(&mut screens.new_game),

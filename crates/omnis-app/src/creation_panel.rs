@@ -90,8 +90,6 @@ pub enum PanelId {
     Begin,
     /// Abandon the new game.
     Back,
-    /// Switch to the canvas screen.
-    Classic,
     /// The font menu's button.
     FontMenu,
     /// One font in the font menu.
@@ -120,8 +118,6 @@ pub enum Payload {
 pub enum PanelAction {
     /// What the canvas screen would ask.
     Creation(CreationAction),
-    /// Show the canvas screen instead.
-    Classic,
     /// Use this font, by index into the app's list.
     Font(usize),
     /// Scale the interface, in tenths (10 is Bevy's 1.0).
@@ -189,7 +185,6 @@ pub fn apply(
         (PanelId::Back, Payload::Activate) => {
             return Some(PanelAction::Creation(CreationAction::Back));
         }
-        (PanelId::Classic, Payload::Activate) => return Some(PanelAction::Classic),
         (PanelId::FontPick(index), Payload::Activate) => return Some(PanelAction::Font(index)),
         (PanelId::UiScale, Payload::Slide(value)) => {
             let tenths = whole(*value * 10.0)?.clamp(i64::from(SCALE_MIN), i64::from(SCALE_MAX));
@@ -435,10 +430,6 @@ mod tests {
         let mut form = CreationForm::new(&catalog);
         let before = form.clone();
         let mut ask = |id, payload| apply(id, &payload, &mut form, &catalog, 1);
-        assert_eq!(
-            ask(PanelId::Classic, Payload::Activate),
-            Some(PanelAction::Classic)
-        );
         assert_eq!(
             ask(PanelId::FontPick(2), Payload::Activate),
             Some(PanelAction::Font(2))

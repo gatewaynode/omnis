@@ -94,7 +94,7 @@ pub const HELP_NEW_GAME: &str = "Arrows or click  Enter ok  Esc back";
 /// Help while creating.
 pub const HELP_CREATION: &str = "Arrows or click  Enter ok  Esc abandon";
 /// The creation screen's help line under the Feathers panel.
-pub const HELP_FEATHERS: &str = "Click or Tab  Enter ok  Esc abandon  Classic view returns";
+pub const HELP_FEATHERS: &str = "Click or Tab  Enter ok  Esc abandon";
 /// Help while paused.
 pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
@@ -497,7 +497,6 @@ fn menu_for<'a>(
                 form: &screens.creation,
                 catalog: &screens.catalog,
                 members,
-                skin_button: screens.skin.offered,
             },
             HELP_CREATION,
         ),

@@ -151,8 +151,6 @@ pub enum Menu<'a> {
         catalog: &'a Catalog,
         /// Members so far.
         members: usize,
-        /// Whether the button to the Feathers panel is offered.
-        skin_button: bool,
     },
     /// Only the backdrop: a window-space interface (the Feathers panel) covers the viewport.
     Covered,
@@ -322,8 +320,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
             form,
             catalog,
             members,
-            skin_button,
-        } => screens::creation(frame, form, catalog, *members, *skin_button),
+        } => screens::creation(frame, form, catalog, *members),
         Menu::Pause {
             pause,
             settings,
@@ -742,7 +739,6 @@ mod tests {
             form: &form,
             catalog: &catalog,
             members: 4,
-            skin_button: false,
         };
         let paused = Menu::Pause {
             pause: &pause,
