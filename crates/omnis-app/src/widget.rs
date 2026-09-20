@@ -181,8 +181,6 @@ pub enum PadState {
 pub enum WidgetId {
     /// A row of the active menu, by the model's row index.
     Row(usize),
-    /// A skill pick on the creation screen.
-    Skill(usize),
     /// A pad button.
     Pad(PadButton),
     /// A tool pad button.
@@ -219,8 +217,6 @@ pub enum Kind {
     Choice,
     /// Takes the keyboard focus only.
     TextField,
-    /// Toggles: Enter.
-    Toggle,
 }
 
 /// A hit region on the canvas.

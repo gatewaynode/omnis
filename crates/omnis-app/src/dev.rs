@@ -137,7 +137,7 @@ fn drive(
     mut exit: MessageWriter<AppExit>,
     mut next: ResMut<NextState<PlayState>>,
     canvas: Option<Res<crate::pixel::CanvasImage>>,
-    #[cfg(feature = "feathers")] mut compose: MessageWriter<crate::capture::ComposeCapture>,
+    mut compose: MessageWriter<crate::capture::ComposeCapture>,
 ) {
     if let Some(step) = script.commands.get(progress.next) {
         match step {
@@ -163,7 +163,6 @@ fn drive(
     if progress.settled == script.settle_frames && !progress.shot {
         progress.shot = true;
         info!("saving screenshot to {}", path.display());
-        #[cfg(feature = "feathers")]
         if script.composed {
             compose.write(crate::capture::ComposeCapture(path.clone()));
             return;

@@ -240,10 +240,7 @@ impl NewGameForm {
 
 // ---------------------------------------------------------------- creation
 
-pub use crate::creation_menu::{
-    Catalog, CreationAction, CreationForm, ROW_ADD, ROW_ALIGNMENT, ROW_BACKGROUND, ROW_BEGIN,
-    ROW_CLASS, ROW_NAME, ROW_RACE, ROW_SCORES, ROW_SKILLS, ROWS,
-};
+pub use crate::creation_menu::{Catalog, CreationAction, CreationForm};
 
 // ---------------------------------------------------------------- pause
 

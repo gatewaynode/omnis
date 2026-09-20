@@ -1,11 +1,9 @@
 //! Party creation's model, Bevy-free: what the loaded packs offer (`Catalog`) and one member
 //! being drafted (`CreationForm`). The rules live in the named methods (`set_score`,
-//! `toggle_skill`, `add`, ...), which both skins of the screen call: the canvas screen through
-//! `key`, the Feathers panel through `creation_panel::apply`.
+//! `toggle_skill`, `add`, ...), which the Feathers panel calls through `creation_panel::apply`.
 
-use crate::menu::{HELP, MenuKey, cycle, mark, words};
-use omnis_sim::omnis_data::{Ability, Alignment, Data, Skill};
-use omnis_sim::omnis_rules::Draft;
+use omnis_sim::omnis_data::{Alignment, Data, Skill};
+use omnis_sim::omnis_rules::{Draft, NAME_MAX_BYTES};
 use std::collections::BTreeMap;
 
 /// What creation can choose from, lifted out of the loaded data once.
@@ -103,7 +101,7 @@ pub enum CreationAction {
     Back,
 }
 
-/// One member being drafted, and the cursor over the form.
+/// One member being drafted.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CreationForm {
     /// Typed name.
@@ -120,36 +118,13 @@ pub struct CreationForm {
     pub scores: [u8; 6],
     /// Picked skills.
     pub skills: Vec<Skill>,
-    /// Which skill of the class list Left/Right stands on.
-    pub skill_cursor: usize,
-    /// Selected row.
-    pub cursor: usize,
     /// Feedback from the last attempt.
     pub message: String,
 }
 
-/// The longest name, in bytes.
+/// The longest name, in characters: what the panel's input lets a player type. The rules
+/// count bytes (`NAME_MAX_BYTES`), so `set_name` holds a name inside both.
 pub const NAME_LIMIT: usize = 24;
-/// Row index of the name field.
-pub const ROW_NAME: usize = 0;
-/// Row index of the race choice.
-pub const ROW_RACE: usize = 1;
-/// Row index of the class choice.
-pub const ROW_CLASS: usize = 2;
-/// Row index of the background choice.
-pub const ROW_BACKGROUND: usize = 3;
-/// Row index of the alignment choice.
-pub const ROW_ALIGNMENT: usize = 4;
-/// Row index of the first score; the six scores follow.
-pub const ROW_SCORES: usize = 5;
-/// Row index of the skill picks.
-pub const ROW_SKILLS: usize = 11;
-/// Row index of the Add member button.
-pub const ROW_ADD: usize = 12;
-/// Row index of the Begin button.
-pub const ROW_BEGIN: usize = 13;
-/// Rows the cursor cycles through.
-pub const ROWS: usize = 14;
 
 impl CreationForm {
     /// A blank form at the catalog's minimum scores.
@@ -204,36 +179,12 @@ impl CreationForm {
         }
     }
 
-    /// Handle a key; `members` is how many the party already has.
-    pub fn key(
-        &mut self,
-        key: MenuKey,
-        catalog: &Catalog,
-        members: usize,
-    ) -> Option<CreationAction> {
-        match key {
-            MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, ROWS, key),
-            MenuKey::Escape => return Some(CreationAction::Back),
-            MenuKey::Char(c) if self.cursor == ROW_NAME => {
-                let mut name = self.name.clone();
-                name.push(c);
-                self.set_name(&name);
-            }
-            MenuKey::Backspace if self.cursor == ROW_NAME => {
-                self.name.pop();
-            }
-            MenuKey::Left | MenuKey::Right => self.adjust(key, catalog),
-            MenuKey::Enter => return self.confirm(catalog, members),
-            _ => {}
-        }
-        None
-    }
-
-    /// The name as typed, cut at `NAME_LIMIT` bytes on a character boundary.
+    /// The name as typed, cut to whole characters: at most `NAME_LIMIT` of them, as the panel's
+    /// input counts, and at most `NAME_MAX_BYTES` bytes, which is all the rules accept.
     pub fn set_name(&mut self, name: &str) {
         let mut end = 0;
-        for (at, c) in name.char_indices() {
-            if at + c.len_utf8() > NAME_LIMIT {
+        for (at, c) in name.char_indices().take(NAME_LIMIT) {
+            if at + c.len_utf8() > NAME_MAX_BYTES {
                 break;
             }
             end = at + c.len_utf8();
@@ -253,7 +204,6 @@ impl CreationForm {
         if index < catalog.classes.len() && index != self.class {
             self.class = index;
             self.skills.clear();
-            self.skill_cursor = 0;
         }
     }
 
@@ -272,7 +222,7 @@ impl CreationForm {
     }
 
     /// Buy a score, held inside what point buy sells. The budget is checked on `add`, so a
-    /// player can overspend on the way to a build, as on the canvas screen.
+    /// player can overspend on the way to a build.
     pub fn set_score(&mut self, ability: usize, value: i64, catalog: &Catalog) {
         if let Some(score) = self.scores.get_mut(ability) {
             let held = value.clamp(i64::from(catalog.min), i64::from(catalog.max));
@@ -325,137 +275,9 @@ impl CreationForm {
         }
     }
 
-    fn adjust(&mut self, key: MenuKey, catalog: &Catalog) {
-        match self.cursor {
-            ROW_RACE => self.set_race(cycle(self.race, catalog.races.len(), key), catalog),
-            ROW_CLASS => self.set_class(cycle(self.class, catalog.classes.len(), key), catalog),
-            ROW_BACKGROUND => self.set_background(
-                cycle(self.background, catalog.backgrounds.len(), key),
-                catalog,
-            ),
-            ROW_ALIGNMENT => {
-                self.set_alignment(cycle(self.alignment, Alignment::ALL.len(), key));
-            }
-            row if (ROW_SCORES..ROW_SKILLS).contains(&row) => {
-                let ability = row - ROW_SCORES;
-                let step = if key == MenuKey::Right { 1 } else { -1 };
-                self.set_score(ability, i64::from(self.scores[ability]) + step, catalog);
-            }
-            ROW_SKILLS => {
-                let (_, list) = self.skill_list(catalog);
-                self.skill_cursor = cycle(self.skill_cursor, list.len(), key);
-            }
-            _ => {}
-        }
-    }
-
-    fn confirm(&mut self, catalog: &Catalog, members: usize) -> Option<CreationAction> {
-        match self.cursor {
-            ROW_SKILLS => {
-                let (_, list) = self.skill_list(catalog);
-                if let Some(skill) = list.get(self.skill_cursor).copied() {
-                    self.toggle_skill(skill, catalog);
-                }
-                None
-            }
-            ROW_ADD => self.add(catalog, members),
-            ROW_BEGIN => self.begin(members),
-            _ => None,
-        }
-    }
-
-    /// Reset the draft after a member was added, keeping the cursor.
+    /// Reset the draft after a member was added.
     pub fn next_member(&mut self, catalog: &Catalog) {
-        let cursor = self.cursor;
         *self = CreationForm::new(catalog);
-        self.cursor = cursor;
-    }
-
-    /// The screen as lines. `members` are the party's current names.
-    #[must_use]
-    pub fn lines(&self, catalog: &Catalog, members: &[String]) -> Vec<String> {
-        let mut lines = vec![
-            format!(
-                "CREATE YOUR PARTY   {} of {} members",
-                members.len(),
-                catalog.slots
-            ),
-            if members.is_empty() {
-                "(no members yet)".to_owned()
-            } else {
-                members.join(", ")
-            },
-            String::new(),
-            mark(self.cursor, ROW_NAME, format!("Name: {}_", self.name)),
-        ];
-        let choice = |row: usize, label: &str, list: &[String], i: usize| {
-            let id = list.get(i).map_or("?", String::as_str);
-            mark(
-                self.cursor,
-                row,
-                format!("{label}: < {} >", catalog.label(id)),
-            )
-        };
-        lines.push(choice(ROW_RACE, "Race", &catalog.races, self.race));
-        lines.push(choice(ROW_CLASS, "Class", &catalog.classes, self.class));
-        lines.push(choice(
-            ROW_BACKGROUND,
-            "Background",
-            &catalog.backgrounds,
-            self.background,
-        ));
-        let alignment = Alignment::ALL[self.alignment % Alignment::ALL.len()];
-        lines.push(mark(
-            self.cursor,
-            ROW_ALIGNMENT,
-            format!("Alignment: < {} >", words(&format!("{alignment:?}"))),
-        ));
-        for (i, ability) in Ability::ALL.iter().enumerate() {
-            let score = self.scores[i];
-            let cost = catalog
-                .costs
-                .get(usize::from(score.saturating_sub(catalog.min)))
-                .copied()
-                .unwrap_or(0);
-            lines.push(mark(
-                self.cursor,
-                ROW_SCORES + i,
-                format!("{}: < {score:>2} >   cost {cost}", ability.short()),
-            ));
-        }
-        lines.push(format!(
-            "    Points left: {} of {}",
-            catalog.budget - self.spent(catalog),
-            catalog.budget
-        ));
-        let (choose, list) = self.skill_list(catalog);
-        let skills: Vec<String> = list
-            .iter()
-            .enumerate()
-            .map(|(i, skill)| {
-                let picked = if self.skills.contains(skill) {
-                    "x"
-                } else {
-                    " "
-                };
-                let name = words(&format!("{skill:?}"));
-                if i == self.skill_cursor && self.cursor == ROW_SKILLS {
-                    format!("[{picked}] <{name}>")
-                } else {
-                    format!("[{picked}] {name}")
-                }
-            })
-            .collect();
-        lines.push(mark(
-            self.cursor,
-            ROW_SKILLS,
-            format!("Skills (pick {choose}): {}", skills.join("  ")),
-        ));
-        lines.push(mark(self.cursor, ROW_ADD, "Add member".to_owned()));
-        lines.push(mark(self.cursor, ROW_BEGIN, "Begin".to_owned()));
-        lines.push(self.message.clone());
-        lines.push(HELP.to_owned());
-        lines
     }
 }
 
@@ -469,24 +291,6 @@ mod tests {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let data = load_packs(&[&repo.join("packs/base")]).unwrap_or_else(|r| panic!("{r}"));
         Catalog::from_data(&data)
-    }
-
-    fn press(
-        form: &mut CreationForm,
-        catalog: &Catalog,
-        keys: &[MenuKey],
-    ) -> Option<CreationAction> {
-        let mut action = None;
-        for key in keys {
-            action = form.key(*key, catalog, 0);
-        }
-        action
-    }
-
-    fn type_text(form: &mut CreationForm, catalog: &Catalog, text: &str) {
-        for c in text.chars() {
-            form.key(MenuKey::Char(c), catalog, 0);
-        }
     }
 
     #[test]
@@ -515,50 +319,33 @@ mod tests {
         let catalog = catalog();
         let mut form = CreationForm::new(&catalog);
         assert_eq!(form.spent(&catalog), 0);
-        type_text(&mut form, &catalog, "Brenna");
-        // Race row: dwarf, elf, halfling, human; Left from dwarf wraps to human.
-        press(&mut form, &catalog, &[MenuKey::Down, MenuKey::Left]);
-        assert_eq!(form.race, 3);
-        // Class row: cleric, fighter, rogue, wizard.
-        press(&mut form, &catalog, &[MenuKey::Down, MenuKey::Right]);
+        form.set_name("Brenna");
+        // Races: dwarf, elf, halfling, human. Classes: cleric, fighter, rogue, wizard.
+        form.set_race(3, &catalog);
+        form.set_race(4, &catalog);
+        assert_eq!(form.race, 3, "an index past the list is ignored");
+        form.set_class(1, &catalog);
         assert_eq!(catalog.classes[form.class], "base:class:fighter");
-        // Scores: STR 15, DEX 14, CON 13, INT 12, WIS 10, CHA 8.
-        press(
-            &mut form,
-            &catalog,
-            &[MenuKey::Down, MenuKey::Down, MenuKey::Down],
-        );
-        assert_eq!(form.cursor, ROW_SCORES);
-        for (i, target) in [15u8, 14, 13, 12, 10, 8].iter().enumerate() {
-            for _ in catalog.min..*target {
-                form.key(MenuKey::Right, &catalog, 0);
-            }
-            assert_eq!(form.scores[i], *target);
-            form.key(MenuKey::Down, &catalog, 0);
+        for (i, target) in [15i64, 14, 13, 12, 10, 8].iter().enumerate() {
+            form.set_score(i, *target, &catalog);
         }
         assert_eq!(form.spent(&catalog), 27);
-        assert_eq!(form.cursor, ROW_SKILLS);
-        // Fighter list: Acrobatics, AnimalHandling, Athletics, ...; pick Athletics and Perception.
-        press(
-            &mut form,
-            &catalog,
-            &[MenuKey::Right, MenuKey::Right, MenuKey::Enter],
-        );
+        form.toggle_skill(Skill::Athletics, &catalog);
         assert_eq!(form.skills, [Skill::Athletics]);
-        for _ in 0..4 {
-            form.key(MenuKey::Right, &catalog, 0);
-        }
-        form.key(MenuKey::Enter, &catalog, 0);
+        form.toggle_skill(Skill::Arcana, &catalog);
+        assert_eq!(form.skills, [Skill::Athletics], "not on the fighter's list");
+        form.toggle_skill(Skill::Perception, &catalog);
         assert_eq!(form.skills, [Skill::Athletics, Skill::Perception]);
-        form.key(MenuKey::Left, &catalog, 0);
-        form.key(MenuKey::Enter, &catalog, 0);
+        form.toggle_skill(Skill::Survival, &catalog);
         assert!(
             form.message.contains("picks 2"),
             "a third pick is refused: {}",
             form.message
         );
-        form.key(MenuKey::Down, &catalog, 0);
-        let Some(CreationAction::Add(draft)) = form.key(MenuKey::Enter, &catalog, 0) else {
+        form.toggle_skill(Skill::Perception, &catalog);
+        assert_eq!(form.skills, [Skill::Athletics], "a second press lets it go");
+        form.toggle_skill(Skill::Perception, &catalog);
+        let Some(CreationAction::Add(draft)) = form.add(&catalog, 0) else {
             panic!("Add answers with the draft: {}", form.message);
         };
         assert_eq!(draft.name, "Brenna");
@@ -566,52 +353,59 @@ mod tests {
         assert_eq!(draft.scores, [15, 14, 13, 12, 10, 8]);
         assert_eq!(draft.skills, [Skill::Athletics, Skill::Perception]);
         form.next_member(&catalog);
-        assert_eq!(form.cursor, ROW_ADD);
-        assert!(form.name.is_empty() && form.skills.is_empty());
+        assert_eq!(form, CreationForm::new(&catalog));
     }
 
     #[test]
     fn the_form_refuses_what_the_rules_would() {
         let catalog = catalog();
         let mut form = CreationForm::new(&catalog);
-        form.cursor = ROW_ADD;
-        assert_eq!(form.key(MenuKey::Enter, &catalog, 0), None);
+        assert_eq!(form.add(&catalog, 0), None);
         assert!(form.message.contains("name"));
-        form.name = "x".to_owned();
+        form.set_name("x");
         form.scores = [15; 6];
-        assert_eq!(form.key(MenuKey::Enter, &catalog, 0), None);
+        assert_eq!(form.add(&catalog, 0), None);
         assert!(form.message.contains("54 points"), "{}", form.message);
         form.scores = [8; 6];
-        assert_eq!(form.key(MenuKey::Enter, &catalog, 0), None);
+        assert_eq!(form.add(&catalog, 0), None);
         assert!(form.message.contains("Pick 2"), "{}", form.message);
-        assert_eq!(form.key(MenuKey::Enter, &catalog, 6), None);
+        assert_eq!(form.add(&catalog, 6), None);
         assert!(form.message.contains("full"));
-        form.cursor = ROW_SCORES;
-        form.key(MenuKey::Left, &catalog, 0);
+        form.set_score(0, 7, &catalog);
         assert_eq!(form.scores[0], 8, "never below the minimum");
-        form.scores[0] = 15;
-        form.key(MenuKey::Right, &catalog, 0);
+        form.set_score(0, 16, &catalog);
         assert_eq!(form.scores[0], 15, "never above the maximum");
-        form.cursor = ROW_BEGIN;
-        assert_eq!(form.key(MenuKey::Enter, &catalog, 0), None);
-        assert_eq!(
-            form.key(MenuKey::Enter, &catalog, 1),
-            Some(CreationAction::Begin)
-        );
-        assert_eq!(
-            form.key(MenuKey::Escape, &catalog, 1),
-            Some(CreationAction::Back)
-        );
-        form.cursor = ROW_CLASS;
+        assert_eq!(form.begin(0), None);
+        assert_eq!(form.message, "Add at least one member");
+        assert_eq!(form.begin(1), Some(CreationAction::Begin));
         form.skills = vec![Skill::Athletics];
-        form.key(MenuKey::Right, &catalog, 0);
+        form.set_class(form.class, &catalog);
+        assert_eq!(form.skills.len(), 1, "the same class keeps the picks");
+        form.set_class(form.class + 1, &catalog);
         assert!(form.skills.is_empty(), "a class change drops the picks");
-        let lines = form.lines(&catalog, &["Brenna".to_owned()]);
-        assert!(lines[0].contains("1 of 6"));
-        assert_eq!(lines[1], "Brenna");
-        assert!(
-            lines.iter().any(|l| l.contains("Points left: 18 of 27")),
-            "{lines:?}"
+    }
+
+    /// The panel's input stops at 24 characters, so the form counts characters too (it counted
+    /// bytes, and kept 12 of 24 two-byte letters the input showed); the rules take 32 bytes,
+    /// so a name of wider letters is cut there, on a whole character, and still drafts.
+    #[test]
+    fn a_name_is_held_to_24_characters_and_to_the_bytes_the_rules_accept() {
+        let catalog = catalog();
+        let mut form = CreationForm::new(&catalog);
+        form.set_name(&"x".repeat(40));
+        assert_eq!(form.name, "x".repeat(24), "the 25th character is cut");
+        form.set_name(&"é".repeat(16));
+        assert_eq!(
+            form.name.chars().count(),
+            16,
+            "16 two-byte letters are kept"
         );
+        assert_eq!(form.name.len(), NAME_MAX_BYTES);
+        form.set_name(&"é".repeat(24));
+        assert_eq!(form.name, "é".repeat(16), "cut at the rules' 32 bytes");
+        form.set_name(&format!("{}界", "x".repeat(30)));
+        assert_eq!(form.name, "x".repeat(24));
+        form.set_name(&"界".repeat(11));
+        assert_eq!(form.name, "界".repeat(10), "never inside a character");
     }
 }

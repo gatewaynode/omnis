@@ -1,7 +1,5 @@
-//! The Feathers experiment headless (feature `feathers`): Bevy's widgets build, lay out and
+//! Feathers headless: Bevy's widgets build, lay out and
 //! answer with no window and no GPU, beside the whole canvas app.
-#![cfg(feature = "feathers")]
-
 mod common;
 
 use bevy::feathers::controls::{FeathersButton, FeathersTextInput, FeathersTextInputContainer};
@@ -121,7 +119,7 @@ fn a_button_activates_and_a_text_input_reads_and_writes() {
 
 use bevy::input_focus::InputFocus;
 use common::feathers::{
-    Fault, activate, change, click_node, control, creating, draft_fighter, focus, form, keys,
+    activate, change, click_node, control, creating, draft_fighter, focus, form, keys,
     layout_faults, name_text, pick_class_by_mouse, slider, tab, ultrawide,
 };
 use common::{play_state, world};
@@ -131,10 +129,9 @@ use omnis_app::menus::Screens;
 use omnis_app::sim::PlayState;
 
 #[test]
-fn a_new_game_opens_party_creation_in_the_feathers_skin() {
+fn a_new_game_opens_the_party_creation_panel() {
     let mut app = creating("feathers-open.ron");
     assert_eq!(play_state(&app), PlayState::CreateParty);
-    assert!(app.world().resource::<Screens>().skin.feathers);
     let mut roots = app.world_mut().query::<&PanelRoot>();
     assert_eq!(roots.iter(app.world()).count(), 1);
     // The canvas paints no creation widgets under the panel.
@@ -190,6 +187,36 @@ fn the_name_input_takes_a_click_and_keys() {
     assert_eq!(form(&app).name, "Bren");
 }
 
+/// The input stops at 24 characters and the form counts the same way (it counted bytes, so
+/// the input showed letters the form had dropped); the rules take 32 bytes, and where the
+/// form cuts there the focused input is cut with it, so the two never differ.
+#[test]
+fn the_name_input_and_the_form_keep_the_same_name() {
+    let mut app = creating("feathers-name-limit.ron");
+    let name = control(&mut app, PanelId::Name);
+    click_node(&mut app, name);
+    keys(&mut app, &"é".repeat(12));
+    assert_eq!(name_text(&mut app), "é".repeat(12));
+    assert_eq!(form(&app).name, "é".repeat(12), "24 bytes, 12 characters");
+    keys(&mut app, &"é".repeat(6));
+    assert_eq!(form(&app).name, "é".repeat(16), "the rules' 32 bytes");
+    assert_eq!(
+        name_text(&mut app),
+        "é".repeat(16),
+        "the input shows what is kept"
+    );
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(name));
+    keys(&mut app, "x");
+    assert_eq!(name_text(&mut app), form(&app).name);
+    // Plain letters: the input's own limit and the form's are one number.
+    let mut app = creating("feathers-name-limit-ascii.ron");
+    let name = control(&mut app, PanelId::Name);
+    click_node(&mut app, name);
+    keys(&mut app, &"x".repeat(30));
+    assert_eq!(name_text(&mut app), "x".repeat(24));
+    assert_eq!(form(&app).name, "x".repeat(24));
+}
+
 #[test]
 fn the_name_input_survives_a_rebuilt_panel() {
     let mut app = creating("feathers-name-rebuilt.ron");
@@ -225,13 +252,18 @@ fn the_interface_scale_follows_the_window_until_the_slider_is_moved() {
     assert!((app.world().resource::<UiScale>().0 - 1.1).abs() < 1e-6);
     assert!((slider(&mut app, PanelId::UiScale) - 1.1).abs() < 1e-6);
     assert_eq!(layout_faults(&mut app), Vec::new());
-    // The check bites: the ultrawide's 1.5 does not fit this window.
+    // The ultrawide's 1.5 does not fit this window (it pushed the footer out of the panel):
+    // it is held to the 1.25 the window holds, and the slider says so.
     change(&mut app, PanelId::UiScale, 1.5_f32);
-    let faults = layout_faults(&mut app);
-    assert!(faults.contains(&Fault::Outside(PanelId::Add)), "{faults:?}");
+    assert!((app.world().resource::<UiScale>().0 - 1.25).abs() < 1e-6);
+    assert!((slider(&mut app, PanelId::UiScale) - 1.25).abs() < 1e-6);
+    assert_eq!(layout_faults(&mut app), Vec::new());
+    // The choice stands for a window that holds it.
+    ultrawide(&mut app);
+    assert!((app.world().resource::<UiScale>().0 - 1.5).abs() < 1e-6);
     app.world_mut().resource_mut::<ScaleChoice>().0 = None;
     // 5120×1440: the canvas is doubled, and the scale is the owner's 1.5.
-    ultrawide(&mut app);
+    common::feathers::settle(&mut app);
     assert!((app.world().resource::<UiScale>().0 - 1.5).abs() < 1e-6);
     assert!((slider(&mut app, PanelId::UiScale) - 1.5).abs() < 1e-6);
     assert_eq!(layout_faults(&mut app), Vec::new());

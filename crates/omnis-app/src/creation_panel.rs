@@ -1,6 +1,6 @@
-//! The Feathers skin of party creation, Bevy-free: which control is which (`PanelId`), what a
-//! control reports (`Payload`), and `apply`, which turns a report into the same `CreationForm`
-//! edits and `CreationAction`s as the canvas screen's keys. The widgets are not trusted:
+//! The party creation panel, Bevy-free: which control is which (`PanelId`), what a
+//! control reports (`Payload`), and `apply`, which turns a report into `CreationForm`
+//! edits and `CreationAction`s. The widgets are not trusted:
 //! everything is clamped and refused here, a value equal to the form's is dropped (a text or
 //! number input reports again when it loses focus), and the rules are `CreationForm`'s own.
 
@@ -116,7 +116,7 @@ pub enum Payload {
 /// What the panel asks of the app.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PanelAction {
-    /// What the canvas screen would ask.
+    /// What the creation flow is asked (`menus::CreationAsk`).
     Creation(CreationAction),
     /// Use this font, by index into the app's list.
     Font(usize),
@@ -124,7 +124,7 @@ pub enum PanelAction {
     UiScale(u16),
 }
 
-/// The experiment's typefaces, by the index `PanelAction::Font` carries; the first is the
+/// The typefaces on offer, by the index `PanelAction::Font` carries; the first is the
 /// one Feathers embeds.
 pub const FONTS: [&str; 3] = ["Fira Sans", "Inter", "Alegreya Sans"];
 
@@ -145,6 +145,20 @@ pub const SCALE_FLOOR: u16 = 110;
 pub fn fitted_scale(canvas_scale: u32) -> u16 {
     let wanted = u32::from(SCALE_PER_CANVAS_PIXEL).saturating_mul(canvas_scale);
     u16::try_from(wanted.clamp(u32::from(SCALE_FLOOR), u32::from(SCALE_MAX))).unwrap_or(SCALE_MAX)
+}
+
+/// The largest interface scale the panel fits at, per physical pixel of a canvas pixel, in
+/// hundredths. Measured 2026-09-20 with `layout_faults` over every class, all three fonts and
+/// a party of six: the footer leaves the panel at 1.26 where the canvas fits once and at 2.52
+/// where it is doubled.
+pub const SCALE_FITS_PER_CANVAS_PIXEL: u16 = 125;
+
+/// The largest interface scale this window holds, in hundredths: 1.25, 2.5, then `SCALE_MAX`.
+/// The slider ends here, and a larger choice made in a larger window is held to it.
+#[must_use]
+pub fn scale_cap(canvas_scale: u32) -> u16 {
+    let fits = u32::from(SCALE_FITS_PER_CANVAS_PIXEL).saturating_mul(canvas_scale);
+    u16::try_from(fits.clamp(u32::from(SCALE_FLOOR), u32::from(SCALE_MAX))).unwrap_or(SCALE_MAX)
 }
 
 /// A slider's value as the whole number it stands for; not-a-number is refused.
@@ -470,6 +484,12 @@ mod tests {
         );
         // The owner's 1.5 on the doubled canvas of the ultrawide, in proportion elsewhere.
         assert_eq!([1, 2, 3, 4, 9].map(fitted_scale), [110, 150, 225, 300, 300]);
+        // The cap is never under the scale that follows the window, and never over the slider.
+        assert_eq!(
+            [0, 1, 2, 3, 4, 9].map(scale_cap),
+            [110, 125, 250, 300, 300, 300]
+        );
+        assert!((0..9).all(|canvas| fitted_scale(canvas) <= scale_cap(canvas)));
         assert_eq!(ask(PanelId::UiScale, Payload::Slide(f32::NAN)), None);
         assert_eq!(
             ask(PanelId::Back, Payload::Activate),

@@ -6,12 +6,13 @@ configuration (`--no-default-features --lib`), every test with `--no-fail-fast` 
 fails the script), `scripts/lint-sim.sh --self-test` and the lint, `scripts/check-duplicates.sh`,
 and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exits zero only when
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
-same steps without the release clippy, plus both golden replays through the CLI with
-`--pack packs/base --pack packs/test`. It runs on a push to `main` and on a pull request only: a
+same steps, the release clippy included since M7 step 1, plus both golden replays through the CLI
+with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-default-features`)
+carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 376 passed, 6 ignored (2026-09-20, after the Feathers experiment). The gate's
-log says it on one line: `tests passed 376 failed 0 ignored 6`.
+Test count at the gate: 378 passed, 6 ignored (2026-09-20, after M7 step 1). The gate's log says
+it on one line: `tests passed 378 failed 0 ignored 6`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -39,10 +40,12 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
   same commands by design.
 
 ## Tools and commands
-- `bevy_ui` screens (feature `feathers`): the headless harness is `tests/common/mod.rs::feathers_app`
+- `bevy_ui` screens (every build): the headless harness is `tests/common/mod.rs::feathers_app`
   (`DefaultPlugins` without winit and logging, no render backend: real layout, picking, focus, no
   GPU); helpers in `tests/common/feathers.rs` (`layout_faults`, `text_tree`, `click_node`,
-  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`). A PPM dump cannot show them; the text tree
+  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`). An app under `MinimalPlugins` has no panel:
+  its tests get their party from `tests/common/mod.rs::party_by_command` (`CreationAsk`, what the
+  panel itself sends). A PPM dump cannot show them; the text tree
   (`creation_feathers.txt` under `OMNIS_DUMP_SCREENS`) stands in. A picture needs the running
   game: `--script "party,create" --settle 60 --screenshot-composed <file.png>`, or the
   `screenshot` op with `target: "window"`. An agent-launched window is on no screen: plain window
@@ -56,6 +59,7 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
   server after a new build. `omnis-mcp --headless --pack … --seed n` hosts its own world.
 - Game flags: `--pack`, `--seed`, `--save` (default `.omnis/quick.ron`), `--autostart`, `--window
   small|medium|large|huge`; with devtools `--script`, `--screenshot`, `--settle`, `--dev-socket`,
-  `--no-dev-socket`, `--screenshot-canvas`, `--screenshot-composed`; with Feathers `--font 0|1|2`,
-  `--ui-scale <hundredths>`, `--frame-stats` (vertical sync off).
+  `--no-dev-socket`, `--screenshot-canvas`, `--screenshot-composed`; in every build `--font 0|1|2`,
+  `--ui-scale <hundredths>` (held to what the window holds: 1.25 per canvas pixel,
+  `creation_panel::scale_cap`), `--frame-stats` (vertical sync off).
 - CLI: `validate`, `schema dump`, `map text`, `play --script`, `replay`, `tileset bake`.

@@ -52,7 +52,7 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - Screens: `screen.rs` (`View`, `Menu`, `Target`, `click`, `dump_screens`), `screens.rs`
   (overlay painters), `layout.rs` (core 1280×720; `RIGHT_COLUMN`, `TOOLS` y 300..388, `PAD`,
   `BAND`; menu grid 80×16 at `menu_cell(c, r) = (241 + 6c, 200 + 8r)`), `widget.rs`
-  (`WidgetId::{Row, Skill, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
+  (`WidgetId::{Row, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
   `panels.rs` (`framed_button`, `pad`, `tools`), `plan.rs` (viewport and automap paint,
   `REMOTE_OUTLINE`), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
 - Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
@@ -64,19 +64,22 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
   downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
   sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
-- `bevy_ui` screens (feature `feathers`, default on, absent from the shipped build): party
-  creation. `creation_menu.rs` (`CreationForm`, `Catalog`, the named methods both skins call),
+- `bevy_ui` screens (every build since M7 step 1; the canvas creation screen is gone): party
+  creation. `creation_menu.rs` (`CreationForm`, `Catalog`, the named methods that hold the rules;
+  `set_name` holds 24 characters and the rules' 32 bytes),
   `creation_panel.rs` (Bevy-free: `PanelId`, `Payload`, `apply`, `PanelAction`, `shape`, `FONTS`,
-  `fitted_scale`, `SCALE_FLOOR`), `feathers_creation.rs` (scenes per row, `Control(PanelId)`,
+  `fitted_scale`, `SCALE_FLOOR`, `scale_cap`), `feathers_creation.rs` (scenes per row, `Control(PanelId)`,
   `Shown(LabelId)`, `PanelRoot`, `reconcile`, `place`, `scale`, `sync`, the `Reports` observers,
   `FontChoice`, `ScaleChoice`), `feathers_fonts.rs` (`PanelFonts`, `Face`, `wear`),
   `feathers_ui.rs` (`FeathersUiPlugin`, Escape; it writes `ui.rs`'s `UiPointerCapture`), `capture.rs`
-  (`ComposeCapture`, `ComposedSaved`), `Screens.skin.feathers`, `Menu::Covered`. Fonts under
+  (`ComposeCapture`, `ComposedSaved`; feature `devtools`), `menus::CreationAsk` (what the panel
+  asks of the creation flow), `Menu::Covered` (the backdrop the canvas paints under a panel). Fonts under
   `assets/fonts/{inter,alegreya-sans}`. The pattern for the next screen is in
   `tasks/plans/feathers-experiment.md`.
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`).
-- Tests: `tests/common/mod.rs` (`ui_app_saving_to`, `click`, `press`, `seen`, `world`), one file
+- Tests: `tests/common/mod.rs` (`ui_app_saving_to`, `click`, `press`, `seen`, `world`,
+  `fighter_draft`, `ask_creation`, `party_by_command`), one file
   per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
   `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel.
 

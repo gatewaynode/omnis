@@ -11,7 +11,7 @@ use crate::debug_screen;
 use crate::inventory_menu::{InventoryAction, InventoryMenu, InventoryView};
 use crate::inventory_screen;
 use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};
-use crate::menu::{Catalog, CreationForm, MenuKey, NewGameForm, Pause, ROW_SKILLS, Title};
+use crate::menu::{MenuKey, NewGameForm, Pause, Title};
 use crate::panels::{self, Hud, Message};
 use crate::screens;
 use crate::sheet_menu::{SheetMenu, SheetView};
@@ -26,8 +26,6 @@ pub enum Target<'a> {
     Title(&'a mut Title),
     /// The new game form.
     NewGame(&'a mut NewGameForm),
-    /// The creation form.
-    Creation(&'a mut CreationForm),
     /// The pause overlay.
     Pause(&'a mut Pause),
     /// The choice before a fight.
@@ -67,15 +65,10 @@ pub fn click(target: Target<'_>, hit: Hit) -> Vec<MenuKey> {
     }
 }
 
-/// A click on a widget that is not a menu row: the fight's stacks, actions and spells, the
-/// creation form's skills. The pad and the band are handled by their plugins.
+/// A click on a widget that is not a menu row: the fight's stacks, actions and spells. The
+/// pad and the band are handled by their plugins.
 fn click_widget(target: Target<'_>, id: WidgetId) -> Vec<MenuKey> {
     match (id, target) {
-        (WidgetId::Skill(index), Target::Creation(form)) => {
-            form.cursor = ROW_SKILLS;
-            form.skill_cursor = index;
-            vec![MenuKey::Enter]
-        }
         (WidgetId::Stack(index), Target::Combat(menu)) => {
             menu.target = u8::try_from(index).unwrap_or(u8::MAX);
             Vec::new()
@@ -108,7 +101,6 @@ fn set_row(target: Target<'_>, row: usize) -> bool {
     match target {
         Target::Title(title) => title.cursor = row,
         Target::NewGame(form) => form.cursor = row,
-        Target::Creation(form) => form.cursor = row,
         Target::Pause(pause) => pause.cursor = row,
         Target::Defeat(menu) => menu.cursor = row,
         Target::Debug(menu) => {
@@ -130,7 +122,7 @@ fn part_keys(kind: Kind, part: Part) -> Vec<MenuKey> {
     match (kind, part) {
         (Kind::Choice, Part::Left) => vec![MenuKey::Left],
         (Kind::Choice, Part::Right) => vec![MenuKey::Right],
-        (Kind::Button | Kind::Toggle, _) => vec![MenuKey::Enter],
+        (Kind::Button, _) => vec![MenuKey::Enter],
         (Kind::Choice | Kind::TextField, Part::Body) | (Kind::TextField, _) => Vec::new(),
     }
 }
@@ -143,16 +135,7 @@ pub enum Menu<'a> {
     Title(&'a Title),
     /// The new game form.
     NewGame(&'a NewGameForm),
-    /// The creation form, with what it chooses from and how many members exist.
-    Creation {
-        /// The form.
-        form: &'a CreationForm,
-        /// The catalog.
-        catalog: &'a Catalog,
-        /// Members so far.
-        members: usize,
-    },
-    /// Only the backdrop: a window-space interface (the Feathers panel) covers the viewport.
+    /// Only the backdrop: a window-space `bevy_ui` panel (party creation) covers the viewport.
     Covered,
     /// The pause overlay with the settings it shows.
     Pause {
@@ -316,11 +299,6 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         Menu::None | Menu::Covered => {}
         Menu::Title(title) => screens::title(frame, title),
         Menu::NewGame(form) => screens::new_game(frame, form),
-        Menu::Creation {
-            form,
-            catalog,
-            members,
-        } => screens::creation(frame, form, catalog, *members),
         Menu::Pause {
             pause,
             settings,
@@ -349,8 +327,6 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
 mod tests {
     use super::*;
     use crate::widget::{HI, PadButton, hit};
-    use omnis_sim::omnis_data::load_packs;
-    use std::path::PathBuf;
 
     #[test]
     fn clicks_move_the_cursor_and_press_the_matching_key() {
@@ -386,24 +362,15 @@ mod tests {
             part: Part::Body,
             kind: Kind::TextField,
         };
-        let mut creation = CreationForm {
-            cursor: 5,
-            ..CreationForm::default()
-        };
-        assert_eq!(click(Target::Creation(&mut creation), field), vec![]);
-        assert_eq!(creation.cursor, 0);
-        let skill = Hit {
-            id: WidgetId::Skill(3),
+        assert_eq!(click(Target::NewGame(&mut form), field), vec![]);
+        assert_eq!(form.cursor, 0, "a text field click only takes the focus");
+        let stack = Hit {
+            id: WidgetId::Stack(3),
             part: Part::Body,
-            kind: Kind::Toggle,
+            kind: Kind::Choice,
         };
-        assert_eq!(
-            click(Target::Creation(&mut creation), skill),
-            vec![MenuKey::Enter]
-        );
-        assert_eq!((creation.cursor, creation.skill_cursor), (ROW_SKILLS, 3));
         let mut pause = Pause::default();
-        assert_eq!(click(Target::Pause(&mut pause), skill), vec![]);
+        assert_eq!(click(Target::Pause(&mut pause), stack), vec![]);
         let pad = Hit {
             id: WidgetId::Pad(PadButton::Use),
             part: Part::Body,
@@ -662,15 +629,6 @@ mod tests {
         out
     }
 
-    fn sample_creation(catalog: &Catalog) -> CreationForm {
-        let mut form = CreationForm::new(catalog);
-        form.name = "Oswin".into();
-        form.cursor = crate::menu::ROW_ADD;
-        form.skills = vec![omnis_sim::omnis_data::Skill::Religion];
-        form.message = "This class picks 2 skills".into();
-        form
-    }
-
     fn sample_log() -> Vec<String> {
         [
             "Round 2",
@@ -721,25 +679,16 @@ mod tests {
         let Ok(dir) = std::env::var("OMNIS_DUMP_SCREENS") else {
             return;
         };
-        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let data = load_packs(&[&repo.join("packs/base")]).unwrap_or_else(|r| panic!("{r}"));
-        let catalog = Catalog::from_data(&data);
-        let form = sample_creation(&catalog);
         let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
         let event = Message {
             text: "The door opens.".into(),
             alert: false,
         };
         let rejection = Message {
-            text: form.message.clone(),
+            text: "This class picks 2 skills".into(),
             alert: true,
         };
         let (title, new_game, pause) = (Title::default(), NewGameForm::default(), Pause::default());
-        let creation = Menu::Creation {
-            form: &form,
-            catalog: &catalog,
-            members: 4,
-        };
         let paused = Menu::Pause {
             pause: &pause,
             settings: Settings::default(),
@@ -763,7 +712,8 @@ mod tests {
         };
         dump(&dir, "title", Menu::Title(&title), None, &event);
         dump(&dir, "new_game", Menu::NewGame(&new_game), None, &event);
-        dump(&dir, "creation", creation, Some(&hud), &rejection);
+        // Party creation's canvas: the backdrop under the `bevy_ui` panel, with a refusal.
+        dump(&dir, "creation", Menu::Covered, Some(&hud), &rejection);
         dump(&dir, "pause", paused, Some(&hud), &event);
         dump(&dir, "explore", Menu::None, Some(&hud), &event);
         dump(&dir, "encounter", before, Some(&hud), &event);

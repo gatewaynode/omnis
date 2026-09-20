@@ -1,22 +1,20 @@
-//! The Feathers creation panel control by control (the Feathers experiment, step 4): every
+//! The Feathers creation panel control by control: every
 //! control by its event, the pointer and the keys through real layout and picking, the layout
-//! at both window sizes and four interface scales, the text tree that stands in for a screen
-//! dump, the panel's fighter against the canvas screen's, and the refusals.
-#![cfg(feature = "feathers")]
-
+//! at both window sizes whatever interface scale is asked, the text tree that stands in for a screen
+//! dump, the panel's fighter against the party command's, and the refusals.
 mod common;
 
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui::Checked;
-use bevy::ui_widgets::{MenuPopup, ScrollArea, Scrollbar, ScrollbarThumb};
+use bevy::ui_widgets::{MenuPopup, ScrollArea, Scrollbar, ScrollbarThumb, SliderRange};
 use common::feathers::{
     Fault, activate, change, click_at, click_node, control, controls, creating, draft_fighter,
     drag_node, form, keys, layout_faults, number_input, rect, resize, settle, shown, slider, tab,
     text_tree, type_name,
 };
 use common::{
-    draft_fighter_by_mouse, play_state, start_new_game_by_mouse, ui_app_saving_to, world,
+    add_fighter_by_command, play_state, start_new_game_by_mouse, ui_app_saving_to, world,
 };
 use omnis_app::creation_panel::{Choice, FONTS, PanelId};
 use omnis_app::feathers_creation::{FontChoice, LabelId, PanelRoot, ScaleChoice};
@@ -263,31 +261,53 @@ fn faults_at(app: &mut App, scale: Option<u16>) -> Vec<(usize, Fault)> {
     faults
 }
 
-/// Measured 2026-09-20: nothing overlaps at any size, and everything is inside the panel
-/// except where the slider forces a scale the window cannot hold. The viewport is 960 by 540
-/// physical pixels in a 1280 by 720 window, so 1.5 and 2 push the footer out of it there; on
-/// the owner's 5120 by 1440 it is 1920 by 1080 and all four fit.
+/// Measured 2026-09-20: nothing overlaps at any size, and everything is inside the panel up
+/// to 1.25 per canvas pixel (the viewport is 960 by 540 physical pixels in a 1280 by 720
+/// window and 1920 by 1080 on the owner's 5120 by 1440). Past that the footer left the panel,
+/// so the scale is held to what the window holds, whatever is asked: a party of six, every
+/// class, no fault at any asked scale.
 #[test]
-fn the_panel_is_laid_out_at_both_window_sizes() {
+fn the_panel_is_laid_out_at_both_window_sizes_whatever_scale_is_asked() {
     let mut app = creating("feathers-layout.ron");
-    for (width, height, too_big) in [
-        (1280.0, 720.0, &[150_u16, 200][..]),
-        (5120.0, 1440.0, &[][..]),
-    ] {
+    while world(&app).party.members.len() < 6 {
+        add_fighter_by_command(&mut app);
+    }
+    for (width, height, cap) in [(1280.0, 720.0, 125_u16), (5120.0, 1440.0, 250)] {
         resize(&mut app, width, height);
-        for scale in [None, Some(100), Some(150), Some(200)] {
+        for scale in [None, Some(100), Some(125), Some(150), Some(250), Some(300)] {
             let faults = faults_at(&mut app, scale);
-            if scale.is_some_and(|s| too_big.contains(&s)) {
-                let footer = (0, Fault::Outside(PanelId::Add));
-                assert!(faults.contains(&footer), "{width} at {scale:?}: {faults:?}");
-                let pushed_out =
-                    |f: &(usize, Fault)| matches!(f.1, Fault::Outside(_) | Fault::PaneOutside);
-                assert!(faults.iter().all(pushed_out), "{scale:?}: {faults:?}");
+            assert_eq!(faults, Vec::new(), "{width} by {height} at {scale:?}");
+            let held = f32::from(scale.map_or(cap, |s| s.min(cap))) / 100.0;
+            let ui = app.world().resource::<UiScale>().0;
+            if scale.is_some() {
+                assert!(
+                    (ui - held).abs() < 1e-6,
+                    "{scale:?} is held to {held}: {ui}"
+                );
+                assert!((slider(&mut app, PanelId::UiScale) - held).abs() < 1e-6);
             } else {
-                assert_eq!(faults, Vec::new(), "{width} by {height} at {scale:?}");
+                assert!(ui <= held, "the scale that follows the window fits: {ui}");
             }
+            let bar = control(&mut app, PanelId::UiScale);
+            let range = app.world().get::<SliderRange>(bar).expect("a range");
+            assert!((range.end() - f32::from(cap) / 100.0).abs() < 1e-6);
         }
     }
+    // The slider cannot be dragged past what the window holds.
+    resize(&mut app, 1280.0, 720.0);
+    let bar = control(&mut app, PanelId::UiScale);
+    drag_node(&mut app, bar, Vec2::new(400.0, 0.0));
+    assert_eq!(app.world().resource::<ScaleChoice>().0, Some(125));
+    assert_eq!(faults_at(&mut app, Some(125)), Vec::new());
+    // The inside check bites: Add pushed down leaves the panel.
+    let add = control(&mut app, PanelId::Add);
+    let mut node = app.world_mut().get_mut::<Node>(add).expect("a node");
+    node.margin.top = px(600);
+    settle(&mut app);
+    assert!(layout_faults(&mut app).contains(&Fault::Outside(PanelId::Add)));
+    let mut node = app.world_mut().get_mut::<Node>(add).expect("a node");
+    node.margin.top = px(0);
+    settle(&mut app);
     // The overlap check bites: Begin pulled left lies over Add.
     app.world_mut().resource_mut::<ScaleChoice>().0 = None;
     let begin = control(&mut app, PanelId::Begin);
@@ -395,10 +415,10 @@ fn the_text_tree_shows_the_panel() {
 // ------------------------------------------------------------------ one fighter, two paths
 
 #[test]
-fn the_panel_and_the_canvas_screen_draft_the_same_fighter() {
+fn the_panel_and_the_party_command_draft_the_same_fighter() {
     let mut canvas = ui_app_saving_to("feathers-same-canvas.ron", false);
     start_new_game_by_mouse(&mut canvas);
-    draft_fighter_by_mouse(&mut canvas);
+    add_fighter_by_command(&mut canvas);
     let mut panel = creating("feathers-same-panel.ron");
     draft_fighter(&mut panel);
     activate(&mut panel, PanelId::Add);
@@ -420,7 +440,7 @@ fn refused(app: &mut App, message: &str) {
 }
 
 #[test]
-fn the_panel_refuses_what_the_canvas_screen_refuses() {
+fn the_panel_refuses_what_the_form_refuses() {
     let mut app = creating("feathers-refusals.ron");
     activate(&mut app, PanelId::Begin);
     assert_eq!(shown(&mut app, LabelId::Message), "Add at least one member");

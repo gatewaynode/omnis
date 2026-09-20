@@ -63,7 +63,6 @@ impl Plugin for DevSocketPlugin {
         app.add_message::<ScreenshotSaved>()
             .add_systems(Update, serve.in_set(SimSet::Collect));
         // Only an app with `CapturePlugin` has composed captures to pass on.
-        #[cfg(feature = "feathers")]
         app.add_systems(
             Update,
             composed_saved
@@ -273,9 +272,7 @@ fn serve(
     mut events: MessageWriter<SimEvent>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut shots: MessageReader<ScreenshotSaved>,
-    #[cfg(feature = "feathers")] mut compose: Option<
-        ResMut<Messages<crate::capture::ComposeCapture>>,
-    >,
+    mut compose: Option<ResMut<Messages<crate::capture::ComposeCapture>>>,
 ) {
     let Some(mut socket) = socket else {
         return;
@@ -317,12 +314,7 @@ fn serve(
         if let Op::Screenshot { path, target } = &op {
             let shot = match target {
                 ShotTarget::Canvas => screenshot(&mut commands, canvas.as_deref(), path.as_deref()),
-                #[cfg(feature = "feathers")]
                 ShotTarget::Window => window_shot(compose.as_deref_mut(), path.as_deref()),
-                #[cfg(not(feature = "feathers"))]
-                ShotTarget::Window => Err(OpError::failed(
-                    "this build draws nothing outside the canvas; ask for the canvas",
-                )),
             };
             match shot {
                 Ok(path) => socket.pending.push((id, path)),
@@ -428,7 +420,6 @@ fn shot_path(path: Option<&str>) -> Result<PathBuf, OpError> {
 /// Ask `capture.rs` for what the window shows, the canvas as it is scaled with the
 /// window-space interface over it (a plain window capture is black when the window is not
 /// on a screen); the reply waits for `ScreenshotSaved`, which `composed_saved` passes on.
-#[cfg(feature = "feathers")]
 fn window_shot(
     compose: Option<&mut Messages<crate::capture::ComposeCapture>>,
     path: Option<&str>,
@@ -441,7 +432,6 @@ fn window_shot(
 }
 
 /// A composed capture finished: the socket hears it as it hears the canvas's.
-#[cfg(feature = "feathers")]
 fn composed_saved(
     mut composed: MessageReader<crate::capture::ComposedSaved>,
     mut saved: MessageWriter<ScreenshotSaved>,

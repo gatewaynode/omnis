@@ -1,9 +1,8 @@
-//! `FeathersUiPlugin`: the Feathers experiment (PRD D26, ARCHITECTURE.md A11 as amended). Bevy's
-//! own widgets and TrueType text, drawn in window space above the canvas sprite, for one screen.
-//! Everything here sits behind the `feathers` cargo feature, so a release build carries none of it.
+//! `FeathersUiPlugin`: the interface toolkit of every build (PRD D26, ARCHITECTURE.md A11). Bevy's
+//! own widgets and TrueType text, drawn in window space above the canvas sprite; party creation
+//! is the first screen, and the canvas screens move over one at a time.
 //!
-//! `DefaultPlugins` already brings `bevy_ui`, its widgets, input focus and picking once the
-//! feature is on; this plugin adds Feathers itself, its dark theme, and the two things the
+//! `DefaultPlugins` already brings `bevy_ui`, its widgets, input focus and picking; this plugin adds Feathers itself, its dark theme, and the two things the
 //! canvas pipeline would otherwise get wrong: which camera the interface belongs to, and the
 //! global nearest sampler on Feathers' icons.
 
@@ -11,7 +10,7 @@ use crate::cursor::UiSet;
 use crate::feathers_creation::{self as creation, PanelRoot, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::menu::CreationAction;
-use crate::menus::{Active, CreationAsk, Screens, Where};
+use crate::menus::{Active, CreationAsk, Where};
 use crate::pixel::OuterCamera;
 use crate::ui::UiPointerCapture;
 use bevy::feathers::FeathersPlugins;
@@ -46,7 +45,7 @@ impl Plugin for FeathersUiPlugin {
             .add_observer(creation::on_number)
             .add_observer(creation::on_flag)
             .add_observer(creation::on_text)
-            .add_systems(Startup, (smooth_icons, wear_panel, typefaces::register))
+            .add_systems(Startup, (smooth_icons, typefaces::register))
             .add_systems(PreUpdate, capture_pointer.after(PickingSystems::Hover))
             .add_systems(Update, claim_camera)
             .add_systems(Update, escape_abandons.in_set(UiSet::Dispatch))
@@ -78,20 +77,14 @@ fn capture_pointer(
     }
 }
 
-/// With this plugin party creation is the Feathers panel.
-fn wear_panel(mut screens: ResMut<Screens>) {
-    screens.skin.feathers = true;
-}
-
 /// What keeps Escape for itself while it has the focus: a text input, an open menu.
 type HoldsKeyboard = Or<(With<EditableText>, With<MenuItem>, With<MenuPopup>)>;
 
-/// Escape abandons the new game, as on the canvas screen, unless a text input or an open menu
+/// Escape abandons the new game, unless a text input or an open menu
 /// holds the keyboard (there it means "leave this field").
 fn escape_abandons(
     mut keys: MessageReader<KeyboardInput>,
     at: Where,
-    screens: Res<Screens>,
     focus: Res<InputFocus>,
     holders: Query<(), HoldsKeyboard>,
     roots: Query<(), With<PanelRoot>>,
@@ -100,7 +93,7 @@ fn escape_abandons(
     let escaped = keys
         .read()
         .any(|k| k.state == ButtonState::Pressed && k.logical_key == Key::Escape);
-    let panel_up = at.screen() == Active::CreateParty && screens.skin.feathers && !roots.is_empty();
+    let panel_up = at.screen() == Active::CreateParty && !roots.is_empty();
     let held = focus.get().is_some_and(|entity| holders.contains(entity));
     if escaped && panel_up && !held {
         asks.write(CreationAsk(CreationAction::Back));

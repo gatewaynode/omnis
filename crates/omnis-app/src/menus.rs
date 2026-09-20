@@ -27,24 +27,14 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use omnis_sim::{Command, Event, PartyCommand, World};
 
-/// Which skin party creation wears (the Feathers experiment, PRD D26). Both skins edit the
-/// same `CreationForm`. An app with the Feathers plugin wears the panel; the canvas screen is
-/// what every other build shows (release, the `MinimalPlugins` tests).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CreationSkin {
-    /// The Feathers panel is showing; the canvas paints only the backdrop and takes no keys.
-    pub feathers: bool,
-}
-
-/// What the Feathers panel asks of the creation flow: the same actions as the canvas keys.
+/// What the creation panel (`feathers_ui.rs`) asks of the creation flow. An app without the
+/// panel (the `MinimalPlugins` tests) drafts its party by writing these.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct CreationAsk(pub CreationAction);
 
 /// Every screen's state, kept so a screen reopens where it was.
 #[derive(Resource, Default, Debug)]
 pub struct Screens {
-    /// Party creation's skin.
-    pub skin: CreationSkin,
     /// The title.
     pub title: Title,
     /// The new game form.
@@ -197,11 +187,12 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
     let target = match active {
         Active::Title => Target::Title(&mut screens.title),
         Active::NewGame => Target::NewGame(&mut screens.new_game),
-        Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
         Active::Cast => Target::Cast(&mut screens.cast),
-        // The combat, debug, sheet and inventory plugins handle their screens' clicks.
-        Active::Encounter
+        // The combat, debug, sheet and inventory plugins handle their screens' clicks; party
+        // creation is a `bevy_ui` panel, which takes its own.
+        Active::CreateParty
+        | Active::Encounter
         | Active::Combat
         | Active::Defeat
         | Active::Debug
@@ -277,7 +268,6 @@ fn menu_keys(
     // The UI plugin's selection; absent in an app without it (the menus alone are testable).
     selected: Option<Res<crate::ui::Selected>>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
     let resume = world
         .as_ref()
         .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode));
@@ -311,11 +301,8 @@ fn menu_keys(
         let Screens {
             title,
             new_game,
-            creation,
-            catalog,
             pause,
             cast,
-            skin,
             ..
         } = &mut *screens;
         match active {
@@ -329,13 +316,8 @@ fn menu_keys(
                     new_game_action(action, new_game, &mut act);
                 }
             }
-            // In the Feathers skin the panel's widgets own the keyboard.
-            Active::CreateParty if skin.feathers => {}
-            Active::CreateParty => {
-                if let Some(action) = creation.key(key, catalog, members) {
-                    creation_action(action, act.player, act.commands, act.next);
-                }
-            }
+            // The creation panel's widgets own the keyboard (`feathers_ui.rs`).
+            Active::CreateParty => {}
             Active::Paused => {
                 if let Some(action) = pause.key(key) {
                     pause_action(action, &mut act);
@@ -418,7 +400,7 @@ fn creation_action(
     }
 }
 
-/// What the Feathers panel asked for, done exactly as the canvas screen's keys do it.
+/// What the creation panel asked for.
 fn creation_asks(
     mut asks: MessageReader<CreationAsk>,
     at: Where,

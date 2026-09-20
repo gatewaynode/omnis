@@ -18,7 +18,7 @@ use omnis_app::creation_panel::{Choice, PanelId};
 use omnis_app::feathers_creation::{Control, LabelId, PanelRoot, Shown};
 use omnis_app::menus::Screens;
 
-/// A new game by the canvas menus, arriving on party creation in the Feathers skin.
+/// A new game by the canvas menus, arriving on the party creation panel.
 pub fn creating(save: &str) -> App {
     let mut app = feathers_app(save, false);
     start_new_game_by_mouse(&mut app);
@@ -88,7 +88,7 @@ pub fn type_name(app: &mut App, name: &str) {
     settle(app);
 }
 
-/// The human fighter of `draft_fighter_by_mouse`, short of `Add member`: STR 15, DEX 14,
+/// The human fighter of `fighter_draft`, short of `Add member`: STR 15, DEX 14,
 /// CON 13, INT 12, WIS 10, CHA 8 (number inputs and sliders by turns), Athletics, Perception.
 pub fn draft_fighter(app: &mut App) {
     type_name(app, "Brenna");
@@ -286,7 +286,7 @@ fn inside(outer: Rect, inner: Rect) -> bool {
     outer.contains(inner.min) && outer.contains(inner.max)
 }
 
-/// The canvas screen's `assert_laid_out` for the panel: every control has a size and lies
+/// The canvas screens' `assert_laid_out` for the panel: every control has a size and lies
 /// inside the panel, and no two share more than half a pixel. A skill counts as far as its
 /// scroll pane shows it (one scrolled out of sight counts for nothing) and the pane itself
 /// must be inside; menu items are left out, their popups are laid out over the panel.

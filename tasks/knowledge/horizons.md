@@ -70,7 +70,7 @@ the text tree, vendoring decided at Bevy 0.20) and the recommendations (M7's new
 `bevy_ui`) are in
 `tasks/plans/feathers-experiment.md`. **Owner, 2026-09-20: Feathers for the editor and all user
 interface moving forward, retrofit as convenient; `bevy_egui` is dropped (its re-audit lapsed, its
-workspace pin goes in M7 step 1); `tasks/plans/editor-v1.md` is re-read against Feathers when M5
+workspace pin went in M7 step 1); `tasks/plans/editor-v1.md` is re-read against Feathers when M5
 returns.** What follows is the record from before it.
 Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) came
 first; then, by its result: modern fonts everywhere, Bevy UI widgets for the screens the canvas
@@ -98,7 +98,10 @@ A seventh tool button needs a wider right column or a menu; word labels on the p
 row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
 localized event text; the `screen.text` op; CC0 art; `--no-devtools` for a clean save from a dev
 build; `.omnis/mcp.log` rotation; `SetRule`, `TickEco`, `SpawnEncounter` as dev commands; the
-measurement policy as something other than a fixed heuristic; a rules function for age.
+measurement policy as something other than a fixed heuristic; a rules function for age; a longer
+name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 two-byte or 10
+three-byte letters of the input's 24 characters; 96 bytes would hold 24 of any script, a rules
+change for the owner to call).
 
 ## Later phases
 The editor (M5, deferred; `tasks/plans/editor-v1.md`), GFDL backgrounds as their own pack,

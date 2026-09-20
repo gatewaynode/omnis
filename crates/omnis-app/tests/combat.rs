@@ -6,11 +6,10 @@ mod common;
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;
 use common::{
-    click, draft_fighter_by_mouse, key, place, play_state, seen, start_new_game_by_mouse, ui_app,
+    click, key, party_by_command, place, play_state, seen, start_new_game_by_mouse, ui_app,
     ui_app_saving_to, widget, world,
 };
 use omnis_app::dev::recruit;
-use omnis_app::menu::ROW_BEGIN;
 use omnis_app::sim::{
     AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimWorld,
 };
@@ -282,8 +281,7 @@ fn escape_pauses_a_fight_and_resume_returns_to_it() {
 fn a_party_built_by_mouse_reaches_the_encounter_screen() {
     let mut app = ui_app(false);
     start_new_game_by_mouse(&mut app);
-    draft_fighter_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    party_by_command(&mut app);
     assert_eq!(play_state(&app), PlayState::Explore);
     place(&mut app, DUNGEON, 15, 7, Facing::South);
     // The friendly rat at (15, 8): a bribe is free and every choice is on the row.

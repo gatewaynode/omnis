@@ -42,8 +42,6 @@ ron = "=0.12.2"
 thiserror = { version = "=2.0.19", default-features = false }
 # Pinned by owner exception (re-audit 2026-10-10); used from M3 by omnis-expr only.
 rhai = { version = "=1.26.1", default-features = false }
-# Editor only (A11); used from M5 by omnis-app's EditorPlugin.
-bevy_egui = "=0.41.1"
 # PNG codec for the tileset bake tool, at the version Bevy's image stack resolves.
 png = "=0.18.1"
 

@@ -1,6 +1,7 @@
 //! `omnis`: the game. `omnis [--pack <dir>]... [--seed <n>] [--save <file>] [--autostart]
-//! [--window small|medium|large|huge]`; without `--window` it opens fullscreen on the current
-//! monitor, the canvas at the largest whole multiple that fits (PRD D20).
+//! [--window small|medium|large|huge] [--font 0|1|2] [--ui-scale <hundredths>] [--frame-stats]`;
+//! without `--window` it opens fullscreen on the current monitor, the canvas at the largest whole
+//! multiple that fits (PRD D20).
 //! With feature `devtools`: `[--script <steps>] [--screenshot <file>] [--settle <frames>]
 //! [--dev-socket <ip:port>] [--no-dev-socket]`; the dev socket listens on a free loopback port
 //! unless disabled, and writes its address to `.omnis/dev.addr`.
@@ -31,8 +32,9 @@ struct Launch {
     look: Look,
 }
 
-/// The Feathers experiment's switches, so a capture or a measurement needs no person:
-/// `--font 0|1|2` (`creation_panel::FONTS`), `--ui-scale <hundredths>` and `--frame-stats`
+/// The interface's switches, in every build, so a capture or a measurement needs no person:
+/// `--font 0|1|2` (`creation_panel::FONTS`), `--ui-scale <hundredths>` (held to what the window
+/// holds, `creation_panel::scale_cap`) and `--frame-stats`
 /// (Bevy's frame-time diagnostics in the log, once a second, with vertical sync off).
 #[derive(Default)]
 struct Look {
@@ -66,7 +68,6 @@ impl Look {
                 bevy::diagnostic::LogDiagnosticsPlugin::default(),
             ));
         }
-        #[cfg(feature = "feathers")]
         {
             use omnis_app::creation_panel::{FONTS, SCALE_MAX, SCALE_MIN};
             use omnis_app::feathers_creation::{FontChoice, ScaleChoice};
@@ -125,8 +126,7 @@ fn parse_args() -> Result<Launch, String> {
                 script.commands =
                     omnis_app::dev::parse_script(&args.next().ok_or("--script needs steps")?)?;
             }
-            // The window, the canvas at its own resolution, or both composed (`capture.rs`,
-            // which only a build with Feathers has: without it the window is captured).
+            // The window, the canvas at its own resolution, or both composed (`capture.rs`).
             #[cfg(feature = "devtools")]
             "--screenshot" | "--screenshot-canvas" | "--screenshot-composed" => {
                 let file = args.next().ok_or(format!("{arg} needs a file"))?;
@@ -255,10 +255,8 @@ fn main() -> AppExit {
     #[cfg(not(feature = "devtools"))]
     let ((), ()) = (script, socket);
     look.apply(&mut app);
-    #[cfg(feature = "feathers")]
-    app.add_plugins((
-        omnis_app::feathers_ui::FeathersUiPlugin,
-        omnis_app::capture::CapturePlugin,
-    ));
+    app.add_plugins(omnis_app::feathers_ui::FeathersUiPlugin);
+    #[cfg(feature = "devtools")]
+    app.add_plugins(omnis_app::capture::CapturePlugin);
     app.run()
 }

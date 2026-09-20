@@ -1,4 +1,4 @@
-//! `CapturePlugin` (feature `feathers`, which implies `devtools`): a capture of everything the
+//! `CapturePlugin` (feature `devtools`): a capture of everything the
 //! window shows, the canvas and any window-space interface above it, without reading the window. A window capture comes
 //! back black for a process that no desktop session is showing (agents, CI), and the canvas
 //! capture cannot see `bevy_ui`; so for a few frames a second camera draws the canvas sprite

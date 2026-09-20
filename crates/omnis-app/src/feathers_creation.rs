@@ -1,6 +1,6 @@
-//! Party creation in Feathers (the Feathers experiment, PRD D26): the scenes, and the systems
+//! Party creation in Feathers (PRD D26, ARCHITECTURE.md A11): the scenes, and the systems
 //! that keep them honest. The widgets hold no truth: every report goes through
-//! `creation_panel::apply` into the same `CreationForm` the canvas screen edits, and `sync`
+//! `creation_panel::apply` into the `CreationForm`, and `sync`
 //! writes the form back into the widgets. The entity tree is spawned again when its shape
 //! changes (another class's skills, a longer roster); values alone are synced.
 
@@ -29,7 +29,8 @@ use bevy::prelude::*;
 use bevy::text::{EditableText, FontSourceTemplate, TextEdit, TextEditChange};
 use bevy::ui::Checked;
 use bevy::ui_widgets::{
-    Activate, ControlOrientation, ScrollArea, SliderPrecision, SliderStep, SliderValue, ValueChange,
+    Activate, ControlOrientation, ScrollArea, SliderPrecision, SliderRange, SliderStep,
+    SliderValue, ValueChange,
 };
 use omnis_sim::omnis_data::Ability;
 
@@ -309,7 +310,7 @@ fn button(id: PanelId, text: &'static str, variant: ButtonVariant) -> impl Scene
     }
 }
 
-/// The experiment's typefaces, as a menu like the choices'.
+/// The typefaces, as a menu like the choices'.
 fn font_menu() -> impl Scene {
     let items: Vec<_> = panel::FONTS
         .iter()
@@ -418,8 +419,8 @@ fn roster(world: Option<&SimWorld>) -> Vec<String> {
     })
 }
 
-/// Spawn, despawn or spawn again, so a panel exists exactly while the Feathers skin of party
-/// creation is up, and always for the current shape.
+/// Spawn, despawn or spawn again, so a panel exists exactly while party creation is
+/// up, and always for the current shape.
 pub fn reconcile(
     mut commands: Commands,
     at: Where,
@@ -428,7 +429,7 @@ pub fn reconcile(
     roots: Query<(Entity, &PanelRoot)>,
     mut synced: ResMut<Synced>,
 ) {
-    let wanted = at.screen() == Active::CreateParty && screens.skin.feathers;
+    let wanted = at.screen() == Active::CreateParty;
     let names = roster(world.as_deref());
     let shape = panel::shape(&screens.creation, &screens.catalog, &names);
     let mut standing = false;
@@ -464,24 +465,36 @@ pub struct ScaleChoice(pub Option<u16>);
 
 /// The interface scale is the slider's, or follows the canvas's whole-number scale; the
 /// slider shows whichever it is (its scene cannot know, and a rebuilt panel starts over).
+/// Neither is ever more than the window holds (`scale_cap`): the slider's range ends there,
+/// so a scale that pushes the footer out of the panel cannot be chosen.
 pub fn scale(
     mut commands: Commands,
     size: Res<WindowSize>,
     choice: Res<ScaleChoice>,
     mut scale: ResMut<UiScale>,
-    sliders: Query<(Entity, &Control, &SliderValue)>,
+    sliders: Query<(Entity, &Control, &SliderValue, &SliderRange)>,
 ) {
-    let hundredths = choice
-        .0
-        .unwrap_or_else(|| panel::fitted_scale(size.fit().scale));
+    let canvas_scale = size.fit().scale;
+    let cap = panel::scale_cap(canvas_scale);
+    let hundredths = choice.0.map_or_else(
+        || panel::fitted_scale(canvas_scale),
+        |chosen| chosen.min(cap),
+    );
     // A logical pixel is already `scale_factor` physical ones.
     let wanted = f32::from(hundredths) / 100.0 / size.scale_factor.max(0.1);
     if (scale.0 - wanted).abs() > f32::EPSILON {
         scale.0 = wanted;
     }
     let shown = f32::from(hundredths) / 100.0;
-    for (entity, control, value) in &sliders {
-        if control.0 == PanelId::UiScale && (value.0 - shown).abs() > f32::EPSILON {
+    let end = f32::from(cap) / 100.0;
+    for (entity, control, value, range) in &sliders {
+        if control.0 != PanelId::UiScale {
+            continue;
+        }
+        if (range.end() - end).abs() > f32::EPSILON {
+            commands.entity(entity).insert(range.with_end(end));
+        }
+        if (value.0 - shown).abs() > f32::EPSILON {
             commands.entity(entity).insert(SliderValue(shown));
         }
     }
@@ -576,10 +589,13 @@ pub fn sync(
     }
     for (entity, control, slider, checked) in &controls {
         match control.0 {
+            // A focused input is left to the player, except where the form kept less than
+            // it shows: a name cut at the rules' limit, or the blank of the next member.
             PanelId::Name => {
                 if let Ok(mut input) = inputs.get_mut(entity)
                     && input.value().to_string() != form.name
-                    && (focus.get() != Some(entity) || form.name.is_empty())
+                    && (focus.get() != Some(entity)
+                        || input.value().to_string().starts_with(&form.name))
                 {
                     input.queue_edit(TextEdit::SelectAll);
                     input.queue_edit(TextEdit::Insert(form.name.as_str().into()));

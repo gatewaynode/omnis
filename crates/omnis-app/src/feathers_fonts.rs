@@ -1,4 +1,4 @@
-//! The Feathers experiment's typefaces (PRD D26: can a modern font replace the bitmap one).
+//! The interface's typefaces (PRD D26: a modern font in place of the bitmap one).
 //! Feathers embeds Fira Sans; Inter and Alegreya Sans are compiled in from `assets/fonts/`
 //! (SIL OFL 1.1, sources and hashes in `assets/README.md`), so a headless app has them too.
 //! Every Feathers control names its own font, so a swap rewrites every `TextFont` under the

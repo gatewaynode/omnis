@@ -91,10 +91,8 @@ pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  L look  P shee
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
 pub const HELP_NEW_GAME: &str = "Arrows or click  Enter ok  Esc back";
-/// Help while creating.
-pub const HELP_CREATION: &str = "Arrows or click  Enter ok  Esc abandon";
-/// The creation screen's help line under the Feathers panel.
-pub const HELP_FEATHERS: &str = "Click or Tab  Enter ok  Esc abandon";
+/// The help line under the creation panel.
+pub const HELP_CREATION: &str = "Click or Tab  Enter ok  Esc abandon";
 /// Help while paused.
 pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
@@ -491,15 +489,8 @@ fn menu_for<'a>(
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
-        (Active::CreateParty, _) if screens.skin.feathers => (Menu::Covered, HELP_FEATHERS),
-        (Active::CreateParty, _) => (
-            Menu::Creation {
-                form: &screens.creation,
-                catalog: &screens.catalog,
-                members,
-            },
-            HELP_CREATION,
-        ),
+        // Party creation is a `bevy_ui` panel over the backdrop (`feathers_ui.rs`).
+        (Active::CreateParty, _) => (Menu::Covered, HELP_CREATION),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,

@@ -3,7 +3,6 @@
 //! the menu flows by mouse. Real packs, no mocks.
 #![allow(dead_code)]
 
-#[cfg(feature = "feathers")]
 pub mod feathers;
 
 use bevy::input::ButtonState;
@@ -17,8 +16,8 @@ use omnis_app::combat::CombatPlugin;
 use omnis_app::cursor::{CursorPlugin, Pointer};
 use omnis_app::input::InputPlugin;
 use omnis_app::inventory::InventoryPlugin;
-use omnis_app::menu::{ROW_ADD, ROW_CLASS, ROW_RACE, ROW_SCORES};
-use omnis_app::menus::{MenusPlugin, Screens};
+use omnis_app::menu::CreationAction;
+use omnis_app::menus::{CreationAsk, MenusPlugin, Screens};
 use omnis_app::sheet::SheetPlugin;
 use omnis_app::sim::{
     AppState, MenuState, PlayState, ShellCommand, SimEvent, SimPlugin, SimSet, SimWorld,
@@ -27,6 +26,8 @@ use omnis_app::sim::{
 use omnis_app::ui::{UiFrame, UiPlugin};
 use omnis_app::widget::{Part, Widget, WidgetId};
 use omnis_sim::omnis_core::{Facing, MapId, Position};
+use omnis_sim::omnis_data::{Alignment, Skill};
+use omnis_sim::omnis_rules::Draft;
 use omnis_sim::{Event, SaveRule, World};
 use std::path::PathBuf;
 
@@ -91,7 +92,6 @@ pub fn ui_app_saving_to(save: &str, autostart: bool) -> App {
 /// cannot build under `MinimalPlugins` (its materials load shader assets only the render
 /// plugin registers). Keys go in as `KeyboardInput` messages here: Bevy's own input plugin
 /// clears `ButtonInput` every frame, so `escape` does not work on this app.
-#[cfg(feature = "feathers")]
 pub fn feathers_app(save: &str, autostart: bool) -> App {
     use bevy::log::LogPlugin;
     use bevy::render::RenderPlugin;
@@ -299,19 +299,39 @@ pub fn start_new_game_by_mouse(app: &mut App) {
     assert_eq!(play_state(app), PlayState::CreateParty);
 }
 
-/// The same human fighter the key test builds, by clicks: STR 15, DEX 14, CON 13, INT 12,
-/// WIS 10, CHA 8, Athletics and Perception.
-pub fn draft_fighter_by_mouse(app: &mut App) {
-    click(app, WidgetId::Row(0), Part::Body);
-    type_text(app, "Brenna");
-    click(app, WidgetId::Row(ROW_RACE), Part::Left);
-    click(app, WidgetId::Row(ROW_CLASS), Part::Right);
-    for (k, raise) in [7, 6, 5, 4, 2, 0].into_iter().enumerate() {
-        for _ in 0..raise {
-            click(app, WidgetId::Row(ROW_SCORES + k), Part::Right);
-        }
+/// The human fighter every test party starts with: STR 15, DEX 14, CON 13, INT 12, WIS 10,
+/// CHA 8 before the race, Athletics and Perception. The panel's tests build the same one
+/// control by control (`feathers::draft_fighter`).
+pub fn fighter_draft() -> Draft {
+    Draft {
+        name: "Brenna".into(),
+        race: "base:race:human".into(),
+        class: "base:class:fighter".into(),
+        background: "base:background:acolyte".into(),
+        alignment: Alignment::ALL[0],
+        scores: [15, 14, 13, 12, 10, 8],
+        skills: vec![Skill::Athletics, Skill::Perception],
     }
-    click(app, WidgetId::Skill(2), Part::Body);
-    click(app, WidgetId::Skill(6), Part::Body);
-    click(app, WidgetId::Row(ROW_ADD), Part::Body);
+}
+
+/// Ask the creation flow for `action`, as the creation panel does (`CreationAsk`). Party
+/// creation is a `bevy_ui` panel, which an app under `MinimalPlugins` does not have.
+pub fn ask_creation(app: &mut App, action: CreationAction) {
+    app.world_mut()
+        .resource_mut::<Messages<CreationAsk>>()
+        .write(CreationAsk(action));
+    app.update();
+    app.update();
+}
+
+/// Add the fighter to the party.
+pub fn add_fighter_by_command(app: &mut App) {
+    ask_creation(app, CreationAction::Add(fighter_draft()));
+}
+
+/// A party of the one fighter, and out of creation into the dungeon.
+pub fn party_by_command(app: &mut App) {
+    add_fighter_by_command(app);
+    ask_creation(app, CreationAction::Begin);
+    assert_eq!(play_state(app), PlayState::Explore);
 }

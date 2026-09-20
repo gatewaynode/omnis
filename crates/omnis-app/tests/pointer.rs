@@ -10,13 +10,14 @@ use bevy::window::{
     CursorLeft, WindowCreated, WindowResized, WindowResolution, WindowScaleFactorChanged,
 };
 use common::{
-    button, click, click_at, draft_fighter_by_mouse, escape, frame, move_to, play_state, point_at,
-    pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
+    add_fighter_by_command, ask_creation, button, click, click_at, escape, fighter_draft, frame,
+    move_to, party_by_command, play_state, point_at, pointer, seen, spot, start_new_game_by_mouse,
+    ui_app, widget, world,
 };
 use omnis_app::canvas::Layout;
 use omnis_app::cursor::{Pointer, WindowSize};
 use omnis_app::layout::{CANVAS_WIDTH, MENU_BOX, canvas_rect_to_window};
-use omnis_app::menu::ROW_BEGIN;
+use omnis_app::menu::CreationAction;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
 use omnis_app::ui::{MessageLine, Selected};
@@ -220,7 +221,7 @@ fn the_mouse_starts_a_game_and_builds_a_party() {
         "a new game redraws the world before its first step"
     );
 
-    draft_fighter_by_mouse(&mut app);
+    add_fighter_by_command(&mut app);
     let members = &world(&app).party.members;
     assert_eq!(members.len(), 1, "the draft became a member");
     assert_eq!(members[0].name, "Brenna");
@@ -231,8 +232,12 @@ fn the_mouse_starts_a_game_and_builds_a_party() {
         frame(&app).frame.widget(WidgetId::Member(0)).is_some(),
         "the band shows the member"
     );
+    assert!(
+        frame(&app).frame.widget(WidgetId::Row(0)).is_none(),
+        "the canvas paints only the backdrop under the creation panel"
+    );
 
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    ask_creation(&mut app, CreationAction::Begin);
     assert_eq!(play_state(&app), PlayState::Explore);
     assert!(frame(&app).frame.widget(WidgetId::Row(0)).is_none());
 }
@@ -280,8 +285,7 @@ fn pad_clicks_step_and_turn_the_party_while_exploring() {
 fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     let mut app = ui_app(false);
     start_new_game_by_mouse(&mut app);
-    draft_fighter_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    party_by_command(&mut app);
 
     click(&mut app, WidgetId::Member(0), Part::Body);
     assert_eq!(*app.world().resource::<Selected>(), Selected(Some(0)));
@@ -442,12 +446,16 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
 fn the_message_line_shows_rejections_and_notices() {
     let mut app = ui_app(false);
     start_new_game_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    // A draft the rules refuse: the refusal is the creation screen's message.
+    let nameless = omnis_sim::omnis_rules::Draft {
+        name: String::new(),
+        ..fighter_draft()
+    };
+    ask_creation(&mut app, CreationAction::Add(nameless));
     assert_eq!(play_state(&app), PlayState::CreateParty);
-    assert_eq!(
-        app.world().resource::<Screens>().creation.message,
-        "Add at least one member"
-    );
+    assert!(world(&app).party.members.is_empty());
+    let message = app.world().resource::<Screens>().creation.message.clone();
+    assert!(message.contains("name"), "{message}");
     let raster = &frame(&app).frame.raster;
     let alert = (0..CANVAS_WIDTH as i32).any(|x| {
         raster
@@ -459,8 +467,7 @@ fn the_message_line_shows_rejections_and_notices() {
     });
     assert!(alert, "the rejection is painted in the alert colour");
 
-    draft_fighter_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    party_by_command(&mut app);
     app.world_mut()
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);
