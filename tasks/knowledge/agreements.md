@@ -46,7 +46,10 @@ records the practice that grew around it. A new agreement lands here the session
   never through a pipe, the status checked. Sentrux `rescan` (or `scan` on
   `/Users/john/code/omnis/crates`) then `check_rules` before every commit; a violation is fixed
   in that commit or the next one and named as debt.
-- Stage by name; never `git add -A`; `.claude/` and `docs/background/*` are never staged.
+- Stage by name; never `git add -A`; `.claude/` is never staged.
+- World and game building documents the owner adds (`docs/background/*` and the like) are
+  committed as soon as they show up, in their own commit, unedited, however far their horizon is
+  from the current work (owner, 2026-09-20; this replaces the earlier never-stage rule).
 - Never push. The owner pushes and opens pull requests. After the owner reports a merge, run
   `git log main..<old-branch>` before cutting the next branch and carry any tail over first.
 - Trailer on every commit:

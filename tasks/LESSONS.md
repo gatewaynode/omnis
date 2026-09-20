@@ -79,3 +79,17 @@
 ## 2026-09-19 — A commit made after the push is stranded when the PR merges
 - **What happened**: The debug-menu pause item (`4e5973a`) was committed on `m5-tasks` after the owner had pushed the branch and opened PR #6. The PR merged the pushed state; the next branch was cut from `main`, so the commit, its tests and its LESSONS entry were in no build until a `/catchup` after the compact noticed the tree had six pause items.
 - **Rule**: After the owner reports a merge, run `git log main..<old-branch>` before touching the new branch; any tail is cherry-picked first, verified, and named in CONTINUITY. A commit made after a push is noted in CONTINUITY as unpushed the moment it lands.
+
+## 2026-09-20 — Drift closes toward the SRD, not away from it
+- **What happened**: On the first drift item (PRD §8.3, action economy) I offered "change the document to one action per turn" as an equal option and recommended rewriting the reactions row to describe the automatic shield as built. The owner: "We actually need to get closer to the SRD, rather than drift away." Their own departures add to the SRD (more than one bonus action, player-composed reactions); they never subtract from it.
+- **Rule**: Where the built game is simpler than the SRD, the recommendation is that the code catches up, with the milestone named; PRD §8 is not rewritten to bless a shortcut. A document change is offered only for plain facts (names, lists, versions) or for an adaptation the owner originated, and §8.2 needs a crawl-loop reason for it.
+- **Rule**: An SRD rule that depends on miniature proximity is answered with a gridless mapping (rows, stacks, the lead individual) before it is called out of scope.
+
+## 2026-09-20 — The owner's world-building documents are committed when they appear
+- **What happened**: I had carried "`docs/background/*` is never staged" as a standing rule and left the owner's new `mechanics_and_rules.md` untracked; the owner committed it by hand and corrected the rule.
+- **Rule**: A supporting world or game building document the owner adds is committed as soon as it shows up, unedited, in its own commit, even when its subject is a horizon far from the current work. `.claude/` stays unstaged.
+
+## 2026-09-20 — A style word in a first draft is a claim about the owner's intent; confirm it
+- **What happened**: The PRD's first draft (mine) said "deliberately retro: 2D pixel art" and D2 gave "most faithful" as a rationale. For nine days display, font and toolkit decisions (the raster canvas, the 5×7 bitmap font, integer scaling, canvas sprites over `bevy_ui`) leaned on that framing. The owner: pixel art was never the intent; Omnis is a modern tactics and strategy re-imagining, the art of the era is not what worked, and no compromise is made for a pixel-art feel (PRD D26).
+- **Rule**: An aesthetic or genre adjective in a vision document ("retro", "faithful", "pixel art", "minimal") is asked as a question with its alternatives before it is written as a decision, exactly like a mechanic. A placeholder source (16×16 CC0 tiles) says nothing about the goal.
+- **Rule**: When a decision is justified by preserving a look or a feel, name that justification to the owner in the recommendation, so a wrong premise surfaces at the first decision and not the tenth.
