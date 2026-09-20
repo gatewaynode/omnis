@@ -28,6 +28,8 @@ pub mod debug_menu;
 pub mod debug_screen;
 #[cfg(feature = "devtools")]
 pub mod dev;
+#[cfg(feature = "feathers")]
+pub mod feathers_ui;
 pub mod font;
 pub mod input;
 pub mod inventory;

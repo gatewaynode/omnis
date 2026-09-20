@@ -199,5 +199,7 @@ fn main() -> AppExit {
     }
     #[cfg(not(feature = "devtools"))]
     let ((), ()) = (script, socket);
+    #[cfg(feature = "feathers")]
+    app.add_plugins(omnis_app::feathers_ui::FeathersUiPlugin);
     app.run()
 }

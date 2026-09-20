@@ -13,9 +13,12 @@ name = "omnis"
 path = "src/main.rs"
 
 [features]
-default = ["devtools"]
+default = ["devtools", "feathers"]
 # Dev socket and Dev commands (ARCHITECTURE.md §9). Release builds use --no-default-features.
 devtools = ["dep:serde_json"]
+# The Feathers experiment (PRD D26, ARCHITECTURE.md A11): Bevy's interface crates and Feathers,
+# for one screen beside the canvas. Never in a release build.
+feathers = ["devtools", "bevy/ui", "bevy/bevy_feathers"]
 # Local iteration only, never shipped: dynamic linking and hot asset reload.
 dev = ["bevy/dynamic_linking", "bevy/bevy_dev_tools", "bevy/file_watcher"]
 

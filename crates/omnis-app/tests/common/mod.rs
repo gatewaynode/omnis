@@ -82,6 +82,62 @@ pub fn ui_app_saving_to(save: &str, autostart: bool) -> App {
     app
 }
 
+/// The whole app on Bevy's no-renderer route (`examples/app/no_renderer.rs`): `DefaultPlugins`
+/// without winit, logging or a graphics backend, so `bevy_ui` lays out, picks and focuses
+/// against the 1280 by 720 window entity `WindowPlugin` still spawns, with no GPU. Feathers
+/// cannot build under `MinimalPlugins` (its materials load shader assets only the render
+/// plugin registers). Keys go in as `KeyboardInput` messages here: Bevy's own input plugin
+/// clears `ButtonInput` every frame, so `escape` does not work on this app.
+#[cfg(feature = "feathers")]
+pub fn feathers_app(save: &str, autostart: bool) -> App {
+    use bevy::log::LogPlugin;
+    use bevy::render::RenderPlugin;
+    use bevy::render::settings::WgpuSettings;
+    use bevy::winit::WinitPlugin;
+    use omnis_app::feathers_ui::FeathersUiPlugin;
+
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .build()
+            .disable::<WinitPlugin>()
+            .disable::<LogPlugin>()
+            .set(ImagePlugin::default_nearest())
+            .set(RenderPlugin {
+                render_creation: WgpuSettings {
+                    backends: None,
+                    ..default()
+                }
+                .into(),
+                ..default()
+            }),
+    )
+    .insert_resource(AppConfig {
+        packs: vec![repo.join("packs/base"), repo.join("packs/test")],
+        seed: 7,
+        save_path: PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(save),
+        autostart,
+    })
+    .add_plugins((
+        SimPlugin,
+        InputPlugin,
+        MenusPlugin,
+        CombatPlugin,
+        SheetPlugin,
+        InventoryPlugin,
+        CursorPlugin,
+        UiPlugin,
+        FeathersUiPlugin,
+    ))
+    .init_resource::<Seen>()
+    .add_systems(Update, collect.after(SimSet::Publish));
+    app.finish();
+    app.cleanup();
+    app.world_mut().spawn(Camera2d);
+    app
+}
+
 /// What presentation saw so far.
 pub fn seen(app: &App) -> &Seen {
     app.world().resource::<Seen>()
