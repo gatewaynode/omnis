@@ -318,13 +318,13 @@ fn footer() -> impl Scene {
             label_dim("Interface scale"),
             (
                 @FeathersSlider {
-                    @min: {f32::from(SCALE_MIN) / 10.0},
-                    @max: {f32::from(SCALE_MAX) / 10.0},
+                    @min: {f32::from(SCALE_MIN) / 100.0},
+                    @max: {f32::from(SCALE_MAX) / 100.0},
                     @value: 1.0,
                 }
                 Control({PanelId::UiScale})
-                SliderStep(0.1)
-                SliderPrecision(1)
+                SliderStep(0.05)
+                SliderPrecision(2)
                 Node { width: px(140), flex_grow: 0.0 }
             ),
         ]
@@ -415,6 +415,35 @@ pub fn reconcile(
             .spawn_scene(creation_panel(&screens.creation, &screens.catalog, &names))
             .insert(PanelRoot(shape));
         synced.0 = None;
+    }
+}
+
+/// The interface scale the slider chose, in hundredths; none follows the window.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ScaleChoice(pub Option<u16>);
+
+/// The interface scale is the slider's, or follows the canvas's whole-number scale; the
+/// slider shows whichever it is (its scene cannot know, and a rebuilt panel starts over).
+pub fn scale(
+    mut commands: Commands,
+    size: Res<WindowSize>,
+    choice: Res<ScaleChoice>,
+    mut scale: ResMut<UiScale>,
+    sliders: Query<(Entity, &Control, &SliderValue)>,
+) {
+    let hundredths = choice
+        .0
+        .unwrap_or_else(|| panel::fitted_scale(size.fit().scale));
+    // A logical pixel is already `scale_factor` physical ones.
+    let wanted = f32::from(hundredths) / 100.0 / size.scale_factor.max(0.1);
+    if (scale.0 - wanted).abs() > f32::EPSILON {
+        scale.0 = wanted;
+    }
+    let shown = f32::from(hundredths) / 100.0;
+    for (entity, control, value) in &sliders {
+        if control.0 == PanelId::UiScale && (value.0 - shown).abs() > f32::EPSILON {
+            commands.entity(entity).insert(SliderValue(shown));
+        }
     }
 }
 
@@ -544,8 +573,7 @@ pub struct Reports<'w, 's> {
     screens: ResMut<'w, Screens>,
     world: Option<Res<'w, SimWorld>>,
     asks: MessageWriter<'w, CreationAsk>,
-    scale: ResMut<'w, UiScale>,
-    commands: Commands<'w, 's>,
+    scale: ResMut<'w, ScaleChoice>,
 }
 
 impl Reports<'_, '_> {
@@ -562,12 +590,9 @@ impl Reports<'_, '_> {
             Some(PanelAction::Creation(action)) => {
                 self.asks.write(CreationAsk(action));
             }
-            Some(PanelAction::UiScale(tenths)) => self.scale.0 = f32::from(tenths) / 10.0,
+            Some(PanelAction::UiScale(hundredths)) => self.scale.0 = Some(hundredths),
             // The font menu arrives with the fonts.
             Some(PanelAction::Font(_)) | None => {}
-        }
-        if let (PanelId::UiScale, Payload::Slide(value)) = (control.0, payload) {
-            self.commands.entity(entity).insert(SliderValue(*value));
         }
     }
 }

@@ -86,10 +86,11 @@ fn feathers_builds_and_lays_out_with_no_window_and_no_gpu() {
         );
         assert!(node.size().x <= 1280.0 && node.size().y <= 720.0);
     }
-    // Feathers' own row height, so the theme and its sizes are in force.
+    // Feathers' own row height at the interface scale, so the theme and its sizes are in force.
     let button = probe(&mut app, Probe::Button);
     let height = app.world().get::<ComputedNode>(button).unwrap().size().y;
-    assert!((height - 24.0).abs() < 0.5, "button height {height}");
+    let wanted = 24.0 * app.world().resource::<UiScale>().0;
+    assert!((height - wanted).abs() < 0.5, "button height {height}");
 }
 
 #[test]
@@ -359,7 +360,7 @@ fn tab(app: &mut App) {
     settle(app);
 }
 
-/// The owner's display and interface scale. The camera's target follows the resize message,
+/// The owner's display. The camera's target follows the resize message,
 /// and so does the app's `WindowSize`.
 fn ultrawide(app: &mut App) {
     let window = window(app);
@@ -375,7 +376,6 @@ fn ultrawide(app: &mut App) {
             width: 5120.0,
             height: 1440.0,
         });
-    app.world_mut().resource_mut::<UiScale>().0 = 1.5;
     settle(app);
 }
 
@@ -417,4 +417,67 @@ fn the_name_input_is_reached_by_tab_on_the_ultrawide_after_a_rebuild() {
     assert_eq!(focus(&app), Some(name), "the first stop is the name");
     keys(&mut app, "Kell");
     assert_eq!(app.world().resource::<Screens>().creation.name, "Kell");
+}
+
+/// The controls that lie outside the panel, with their rectangles (menu items are laid out
+/// only while their menu is open).
+fn outside_the_panel(app: &mut App) -> Vec<(PanelId, Rect)> {
+    let mut roots = app
+        .world_mut()
+        .query_filtered::<(&ComputedNode, &UiGlobalTransform), With<PanelRoot>>();
+    let (node, at) = roots.single(app.world()).expect("one panel");
+    let root = Rect::from_center_size(at.translation, node.size());
+    let mut controls = app
+        .world_mut()
+        .query::<(&Control, &ComputedNode, &UiGlobalTransform)>();
+    controls
+        .iter(app.world())
+        .filter(|(control, ..)| !matches!(control.0, PanelId::Pick(..) | PanelId::FontPick(_)))
+        .map(|(control, node, at)| {
+            (
+                control.0,
+                Rect::from_center_size(at.translation, node.size()),
+            )
+        })
+        .filter(|(_, rect)| rect.is_empty() || !root.contains(rect.min) || !root.contains(rect.max))
+        .collect()
+}
+
+fn scale_slider(app: &mut App) -> f32 {
+    let slider = control(app, PanelId::UiScale);
+    app.world()
+        .get::<bevy::ui_widgets::SliderValue>(slider)
+        .expect("a slider")
+        .0
+}
+
+#[test]
+fn the_interface_scale_follows_the_window_until_the_slider_is_moved() {
+    let mut app = creating("feathers-scale.ron");
+    // 1280×720: the canvas fits once, and the panel keeps the ultrawide's proportions.
+    assert!((app.world().resource::<UiScale>().0 - 0.75).abs() < 1e-6);
+    assert!((scale_slider(&mut app) - 0.75).abs() < 1e-6);
+    assert_eq!(outside_the_panel(&mut app), Vec::new());
+    // The check bites: the ultrawide's 1.5 does not fit this window.
+    change(&mut app, PanelId::UiScale, 1.5_f32);
+    let outside = outside_the_panel(&mut app);
+    assert!(
+        outside.iter().any(|(id, _)| *id == PanelId::Add),
+        "{outside:?}"
+    );
+    app.world_mut()
+        .resource_mut::<omnis_app::feathers_creation::ScaleChoice>()
+        .0 = None;
+    // 5120×1440: the canvas is doubled, and the scale is the owner's 1.5.
+    ultrawide(&mut app);
+    assert!((app.world().resource::<UiScale>().0 - 1.5).abs() < 1e-6);
+    assert!((scale_slider(&mut app) - 1.5).abs() < 1e-6);
+    assert_eq!(outside_the_panel(&mut app), Vec::new());
+    // The slider's word stands, across a rebuilt panel too.
+    change(&mut app, PanelId::UiScale, 1.25_f32);
+    assert!((app.world().resource::<UiScale>().0 - 1.25).abs() < 1e-6);
+    pick_class_by_mouse(&mut app, 1);
+    assert!((app.world().resource::<UiScale>().0 - 1.25).abs() < 1e-6);
+    assert!((scale_slider(&mut app) - 1.25).abs() < 1e-6);
+    assert_eq!(outside_the_panel(&mut app), Vec::new());
 }

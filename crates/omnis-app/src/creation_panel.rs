@@ -120,14 +120,25 @@ pub enum PanelAction {
     Creation(CreationAction),
     /// Use this font, by index into the app's list.
     Font(usize),
-    /// Scale the interface, in tenths (10 is Bevy's 1.0).
-    UiScale(u8),
+    /// Scale the interface, in hundredths (100 is Bevy's 1.0).
+    UiScale(u16),
 }
 
-/// The smallest interface scale, in tenths.
-pub const SCALE_MIN: u8 = 10;
-/// The largest interface scale, in tenths.
-pub const SCALE_MAX: u8 = 30;
+/// The smallest interface scale, in hundredths.
+pub const SCALE_MIN: u16 = 50;
+/// The largest interface scale, in hundredths.
+pub const SCALE_MAX: u16 = 300;
+/// The interface scale per physical pixel of a canvas pixel, in hundredths, until the slider
+/// says otherwise: the owner's choice of 1.5 where the canvas is doubled (5120×1440), and the
+/// same proportions wherever the canvas fits at another whole multiple.
+pub const SCALE_PER_CANVAS_PIXEL: u16 = 75;
+
+/// The interface scale that follows the window, in hundredths.
+#[must_use]
+pub fn fitted_scale(canvas_scale: u32) -> u16 {
+    let wanted = u32::from(SCALE_PER_CANVAS_PIXEL).saturating_mul(canvas_scale);
+    u16::try_from(wanted.clamp(u32::from(SCALE_MIN), u32::from(SCALE_MAX))).unwrap_or(SCALE_MAX)
+}
 
 /// A slider's value as the whole number it stands for; not-a-number is refused.
 fn whole(value: f32) -> Option<i64> {
@@ -187,8 +198,9 @@ pub fn apply(
         }
         (PanelId::FontPick(index), Payload::Activate) => return Some(PanelAction::Font(index)),
         (PanelId::UiScale, Payload::Slide(value)) => {
-            let tenths = whole(*value * 10.0)?.clamp(i64::from(SCALE_MIN), i64::from(SCALE_MAX));
-            return u8::try_from(tenths).ok().map(PanelAction::UiScale);
+            let hundredths =
+                whole(*value * 100.0)?.clamp(i64::from(SCALE_MIN), i64::from(SCALE_MAX));
+            return u16::try_from(hundredths).ok().map(PanelAction::UiScale);
         }
         _ => {}
     }
@@ -435,13 +447,19 @@ mod tests {
             Some(PanelAction::Font(2))
         );
         assert_eq!(
-            ask(PanelId::UiScale, Payload::Slide(1.54)),
-            Some(PanelAction::UiScale(15))
+            ask(PanelId::UiScale, Payload::Slide(1.549)),
+            Some(PanelAction::UiScale(155))
         );
         assert_eq!(
             ask(PanelId::UiScale, Payload::Slide(9.0)),
-            Some(PanelAction::UiScale(30))
+            Some(PanelAction::UiScale(300))
         );
+        assert_eq!(
+            ask(PanelId::UiScale, Payload::Slide(0.1)),
+            Some(PanelAction::UiScale(50))
+        );
+        // The owner's 1.5 on the doubled canvas of the ultrawide, in proportion elsewhere.
+        assert_eq!([1, 2, 3, 4, 9].map(fitted_scale), [75, 150, 225, 300, 300]);
         assert_eq!(ask(PanelId::UiScale, Payload::Slide(f32::NAN)), None);
         assert_eq!(
             ask(PanelId::Back, Payload::Activate),

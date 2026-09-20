@@ -36,6 +36,7 @@ impl Plugin for FeathersUiPlugin {
             .insert_resource(UiTheme(create_dark_theme()))
             .init_resource::<SmoothIcons>()
             .init_resource::<Synced>()
+            .init_resource::<creation::ScaleChoice>()
             .init_resource::<UiPointerCapture>()
             .add_observer(creation::on_activate)
             .add_observer(creation::on_slide)
@@ -48,7 +49,12 @@ impl Plugin for FeathersUiPlugin {
             .add_systems(Update, escape_abandons.in_set(UiSet::Dispatch))
             .add_systems(
                 Update,
-                (creation::reconcile, creation::place, creation::sync)
+                (
+                    creation::reconcile,
+                    creation::scale,
+                    creation::place,
+                    creation::sync,
+                )
                     .chain()
                     .in_set(UiSet::Model),
             );
