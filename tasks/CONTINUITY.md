@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-09-20 at the close of M6. Rewrite this file every time it is used; keep it to state,
+Written 2026-09-20 at the close of M6 and the start of M7. Rewrite this file every time it is used; keep it to state,
 next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
 
 ## State
@@ -20,14 +20,13 @@ next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start
   `crates/.sentrux/rules.toml`).
 
 ## Next
-1. **M7 planning, in plan mode** (town, services, rest, progression; `horizons.md` lists what
-   waits for M7, and the turn budget and declared reactions of PRD D21–D24 sit in or beside it).
-   Decisions to put to the owner in the plan: whether ARCH §4.7 resolving auto members' turns
-   inside the simulation stands (asked before, never answered); M7's new screens born in `bevy_ui`
-   (the report's recommendation), which means deciding when the shipped build carries the
-   `feathers` feature; where the turn budget lands relative to the town.
-2. The plan's first docs step carries the vision edits the report proposes (ARCH A11, §8.4, §8.1;
-   PRD §11.1, D26, §14), applied only on the owner's word.
+1. **M7 is planned and approved (2026-09-20)**: the items are the M7 block of `tasks/TODO.md`, the
+   design is `tasks/plans/m7-town.md`. Owner decisions: town first and the turn budget last (M7c,
+   planned in plan mode when reached); the shipped build carries `bevy_ui` from step 1 and the
+   canvas creation screen goes there; rules to level 20, content to level 3; ARCH §4.7's auto
+   resolution stands. Step 0 (docs: PRD v0.6, ARCH v0.4, the editor on Feathers written as
+   proposed only) is done. **Next is step 1**, after the CI result.
+2. Every commit of this session after `5bce8b7` is unpushed.
 3. Debts from the experiment, to place in the plan: the name limit (24 bytes in the form, 24
    characters in the input), a cap on the scale slider against the window, frame time on the
    owner's visible game (`--frame-stats`, `--script "party,create"` against `--script "party"`),

@@ -8,19 +8,26 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 - 2026-10-10: Socket re-audit of `rhai` 1.26.1.
 
 ## M7 (town, services, rest, progression)
+Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan, each a horizon:
+swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
+limited shop stock, bank interest (M8, the region clock), rumors from the story engine (M11; M7's
+are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
+3rd-level spells, rolled hit points as an option, copper and silver as coins. Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
 items; string item ids before many items arrive (ids are interned
 `u32`s guarded by the pack fingerprint); `doff_armor_minutes` as its own value.
 
-## Turn budget and tactics (PRD v0.5: D21–D24, §7.9; approved 2026-09-20)
+## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 Nothing is built yet; M6 has one action per turn and shield as the only (automatic) reaction.
-In or beside M7, because Second Wind and Cunning Action need bonus actions: the turn budget
+**Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
+§4.7's auto resolution inside the simulation is confirmed; its save schema is 6 (M7a takes 5).**
+Because Second Wind and Cunning Action need bonus actions: the turn budget
 (slots `turn.actions`, `turn.bonus_actions`, `turn.reactions`; several commands per turn and an
 `EndTurn`), the cost field on spells, items and features, the three spell fields
 (`bonus_action_available`, `preparation_available`, `preparation_required_for_bonus_action`),
 declared reactions with the closed trigger list and the row/stack proximity mapping (opportunity
-attacks return), `Character.tactics` replacing `auto_cast` (save schema 5), the per-member
+attacks return), `Character.tactics` replacing `auto_cast` (save schema 6), the per-member
 reactions switch, a Tactics page on the sheet (the tool pad and pause overlay are full).
 Later, timing open in PRD §14: criteria-set library and runbooks with encounter criteria, the
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
