@@ -225,6 +225,9 @@ fn a_fighter_is_drafted_through_the_panel() {
     let name = control(&mut app, PanelId::Name);
     let text = app.world().get::<EditableText>(name).unwrap();
     assert_eq!(text.value().to_string(), "");
+    click_node(&mut app, name);
+    keys(&mut app, "Kell");
+    assert_eq!(app.world().resource::<Screens>().creation.name, "Kell");
     activate(&mut app, PanelId::Begin);
     assert_eq!(play_state(&app), PlayState::Explore);
     let mut roots = app.world_mut().query::<&PanelRoot>();
@@ -233,4 +236,185 @@ fn a_fighter_is_drafted_through_the_panel() {
         0,
         "the panel leaves with the screen"
     );
+}
+
+// ------------------------------------------------------------------ pointer and keys
+
+use bevy::camera::{NormalizedRenderTarget, RenderTarget};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input_focus::InputFocus;
+use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
+use bevy::ui::UiGlobalTransform;
+use bevy::window::{PrimaryWindow, WindowRef};
+
+fn window(app: &mut App) -> Entity {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>();
+    query.single(app.world()).expect("a primary window")
+}
+
+fn target(app: &mut App) -> NormalizedRenderTarget {
+    let window = window(app);
+    RenderTarget::Window(WindowRef::Entity(window))
+        .normalize(Some(window))
+        .expect("a window target")
+}
+
+/// The centre of a node in logical window pixels.
+fn centre(app: &App, entity: Entity) -> Vec2 {
+    let transform = app
+        .world()
+        .get::<UiGlobalTransform>(entity)
+        .expect("a laid-out node");
+    transform.translation
+}
+
+/// A real click: the pointer moves there and presses in one frame, and lets go in the next.
+fn click_node(app: &mut App, entity: Entity) {
+    let location = Location {
+        target: target(app),
+        position: centre(app, entity),
+    };
+    let mut inputs = app.world_mut().resource_mut::<Messages<PointerInput>>();
+    inputs.write(PointerInput::new(
+        PointerId::Mouse,
+        location.clone(),
+        PointerAction::Move { delta: Vec2::ZERO },
+    ));
+    app.update();
+    let mut inputs = app.world_mut().resource_mut::<Messages<PointerInput>>();
+    inputs.write(PointerInput::new(
+        PointerId::Mouse,
+        location.clone(),
+        PointerAction::Press(PointerButton::Primary),
+    ));
+    app.update();
+    let mut inputs = app.world_mut().resource_mut::<Messages<PointerInput>>();
+    inputs.write(PointerInput::new(
+        PointerId::Mouse,
+        location,
+        PointerAction::Release(PointerButton::Primary),
+    ));
+    settle(app);
+}
+
+/// Keys as a keyboard sends them: a logical key with its text.
+fn keys(app: &mut App, text: &str) {
+    let window = window(app);
+    for c in text.chars() {
+        let s: bevy::platform::prelude::String = c.to_string();
+        app.world_mut()
+            .resource_mut::<Messages<KeyboardInput>>()
+            .write(KeyboardInput {
+                key_code: KeyCode::F24,
+                logical_key: Key::Character(s.as_str().into()),
+                state: ButtonState::Pressed,
+                text: Some(s.as_str().into()),
+                repeat: false,
+                window,
+            });
+        app.update();
+    }
+    settle(app);
+}
+
+fn name_text(app: &mut App) -> String {
+    let name = control(app, PanelId::Name);
+    app.world()
+        .get::<EditableText>(name)
+        .unwrap()
+        .value()
+        .to_string()
+}
+
+#[test]
+fn the_name_input_takes_a_click_and_keys() {
+    let mut app = creating("feathers-name-keys.ron");
+    let name = control(&mut app, PanelId::Name);
+    click_node(&mut app, name);
+    assert_eq!(app.world().resource::<InputFocus>().get(), Some(name));
+    keys(&mut app, "Bren");
+    assert_eq!(name_text(&mut app), "Bren");
+    assert_eq!(app.world().resource::<Screens>().creation.name, "Bren");
+}
+
+fn focus(app: &App) -> Option<Entity> {
+    app.world().resource::<InputFocus>().get()
+}
+
+fn tab(app: &mut App) {
+    let window = window(app);
+    app.world_mut()
+        .resource_mut::<Messages<KeyboardInput>>()
+        .write(KeyboardInput {
+            key_code: KeyCode::Tab,
+            logical_key: Key::Tab,
+            state: ButtonState::Pressed,
+            text: None,
+            repeat: false,
+            window,
+        });
+    settle(app);
+}
+
+/// The owner's display and interface scale. The camera's target follows the resize message,
+/// and so does the app's `WindowSize`.
+fn ultrawide(app: &mut App) {
+    let window = window(app);
+    app.world_mut()
+        .get_mut::<Window>(window)
+        .unwrap()
+        .resolution
+        .set(5120.0, 1440.0);
+    app.world_mut()
+        .resource_mut::<Messages<bevy::window::WindowResized>>()
+        .write(bevy::window::WindowResized {
+            window,
+            width: 5120.0,
+            height: 1440.0,
+        });
+    app.world_mut().resource_mut::<UiScale>().0 = 1.5;
+    settle(app);
+}
+
+/// Choose a class as a person does: open the menu, click the item. The panel is rebuilt
+/// under the pointer, with the keyboard focus left on an entity that is gone.
+fn pick_class_by_mouse(app: &mut App, index: usize) {
+    let before = control(app, PanelId::Name);
+    let menu = control(app, PanelId::Menu(Choice::Class));
+    click_node(app, menu);
+    let item = control(app, PanelId::Pick(Choice::Class, index));
+    click_node(app, item);
+    assert_eq!(app.world().resource::<Screens>().creation.class, index);
+    assert_ne!(control(app, PanelId::Name), before, "the panel was rebuilt");
+}
+
+#[test]
+fn the_name_input_survives_a_rebuilt_panel() {
+    let mut app = creating("feathers-name-rebuilt.ron");
+    let name = control(&mut app, PanelId::Name);
+    click_node(&mut app, name);
+    keys(&mut app, "Bren");
+    pick_class_by_mouse(&mut app, 1);
+    assert_eq!(name_text(&mut app), "Bren", "the new input shows the form");
+    let name = control(&mut app, PanelId::Name);
+    click_node(&mut app, name);
+    assert_eq!(focus(&app), Some(name));
+    keys(&mut app, "na");
+    assert_eq!(name_text(&mut app), "Brenna");
+    assert_eq!(app.world().resource::<Screens>().creation.name, "Brenna");
+}
+
+#[test]
+fn the_name_input_is_reached_by_tab_on_the_ultrawide_after_a_rebuild() {
+    let mut app = creating("feathers-name-tab.ron");
+    ultrawide(&mut app);
+    pick_class_by_mouse(&mut app, 2);
+    tab(&mut app);
+    let name = control(&mut app, PanelId::Name);
+    assert_eq!(focus(&app), Some(name), "the first stop is the name");
+    keys(&mut app, "Kell");
+    assert_eq!(app.world().resource::<Screens>().creation.name, "Kell");
 }
