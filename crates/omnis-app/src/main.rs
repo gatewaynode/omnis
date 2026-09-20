@@ -36,7 +36,7 @@ struct Launch {
 /// (Bevy's frame-time diagnostics in the log, once a second, with vertical sync off).
 #[derive(Default)]
 struct Look {
-    font: usize,
+    font: Option<usize>,
     scale: Option<u16>,
     frame_stats: bool,
 }
@@ -51,7 +51,7 @@ impl Look {
                 .map_err(|_| format!("bad {arg} '{value}'"))
         };
         match arg {
-            "--font" => self.font = usize::from(number("0, 1 or 2")?),
+            "--font" => self.font = Some(usize::from(number("0, 1 or 2")?)),
             "--ui-scale" => self.scale = Some(number("hundredths, 50 to 300")?),
             "--frame-stats" => self.frame_stats = true,
             _ => return Ok(false),
@@ -70,10 +70,12 @@ impl Look {
         {
             use omnis_app::creation_panel::{FONTS, SCALE_MAX, SCALE_MIN};
             use omnis_app::feathers_creation::{FontChoice, ScaleChoice};
-            app.insert_resource(FontChoice(self.font.min(FONTS.len() - 1)))
-                .insert_resource(ScaleChoice(
-                    self.scale.map(|s| s.clamp(SCALE_MIN, SCALE_MAX)),
-                ));
+            if let Some(font) = self.font {
+                app.insert_resource(FontChoice(font.min(FONTS.len() - 1)));
+            }
+            app.insert_resource(ScaleChoice(
+                self.scale.map(|s| s.clamp(SCALE_MIN, SCALE_MAX)),
+            ));
         }
     }
 }

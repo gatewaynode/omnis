@@ -335,7 +335,10 @@ fn not_wearing(app: &mut App, family: usize) -> Vec<(Option<Face>, String)> {
 #[test]
 fn the_font_menu_dresses_the_whole_panel() {
     let mut app = creating("feathers-fonts.ron");
-    assert_eq!(shown(&mut app, LabelId::Font), "Fira Sans");
+    // Inter is where it starts: the owner's pick.
+    assert_eq!(shown(&mut app, LabelId::Font), "Inter");
+    assert_eq!(not_wearing(&mut app, 1), Vec::new());
+    activate(&mut app, PanelId::FontPick(0));
     assert_eq!(not_wearing(&mut app, 0), Vec::new());
     // By mouse: the menu opens over the footer and an item takes the click.
     let menu = control(&mut app, PanelId::FontMenu);

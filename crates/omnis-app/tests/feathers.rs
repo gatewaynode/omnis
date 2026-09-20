@@ -221,9 +221,9 @@ fn the_name_input_is_reached_by_tab_on_the_ultrawide_after_a_rebuild() {
 #[test]
 fn the_interface_scale_follows_the_window_until_the_slider_is_moved() {
     let mut app = creating("feathers-scale.ron");
-    // 1280×720: the canvas fits once, and the panel keeps the ultrawide's proportions.
-    assert!((app.world().resource::<UiScale>().0 - 0.75).abs() < 1e-6);
-    assert!((slider(&mut app, PanelId::UiScale) - 0.75).abs() < 1e-6);
+    // 1280×720: the canvas fits once, and the scale is the owner's 1.1 for that.
+    assert!((app.world().resource::<UiScale>().0 - 1.1).abs() < 1e-6);
+    assert!((slider(&mut app, PanelId::UiScale) - 1.1).abs() < 1e-6);
     assert_eq!(layout_faults(&mut app), Vec::new());
     // The check bites: the ultrawide's 1.5 does not fit this window.
     change(&mut app, PanelId::UiScale, 1.5_f32);

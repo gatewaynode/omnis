@@ -133,15 +133,18 @@ pub const SCALE_MIN: u16 = 50;
 /// The largest interface scale, in hundredths.
 pub const SCALE_MAX: u16 = 300;
 /// The interface scale per physical pixel of a canvas pixel, in hundredths, until the slider
-/// says otherwise: the owner's choice of 1.5 where the canvas is doubled (5120×1440), and the
-/// same proportions wherever the canvas fits at another whole multiple.
+/// says otherwise: the owner's choice of 1.5 where the canvas is doubled (5120×1440).
 pub const SCALE_PER_CANVAS_PIXEL: u16 = 75;
+/// The smallest scale that follows the window: the owner's choice of 1.1 where the canvas
+/// fits once (the 2560×1440 window class), because 0.75 is too small to read there.
+pub const SCALE_FLOOR: u16 = 110;
 
-/// The interface scale that follows the window, in hundredths.
+/// The interface scale that follows the window, in hundredths: 1.1, 1.5, 2.25, 3.0 for a
+/// canvas at one to four times its size.
 #[must_use]
 pub fn fitted_scale(canvas_scale: u32) -> u16 {
     let wanted = u32::from(SCALE_PER_CANVAS_PIXEL).saturating_mul(canvas_scale);
-    u16::try_from(wanted.clamp(u32::from(SCALE_MIN), u32::from(SCALE_MAX))).unwrap_or(SCALE_MAX)
+    u16::try_from(wanted.clamp(u32::from(SCALE_FLOOR), u32::from(SCALE_MAX))).unwrap_or(SCALE_MAX)
 }
 
 /// A slider's value as the whole number it stands for; not-a-number is refused.
@@ -466,7 +469,7 @@ mod tests {
             Some(PanelAction::UiScale(50))
         );
         // The owner's 1.5 on the doubled canvas of the ultrawide, in proportion elsewhere.
-        assert_eq!([1, 2, 3, 4, 9].map(fitted_scale), [75, 150, 225, 300, 300]);
+        assert_eq!([1, 2, 3, 4, 9].map(fitted_scale), [110, 150, 225, 300, 300]);
         assert_eq!(ask(PanelId::UiScale, Payload::Slide(f32::NAN)), None);
         assert_eq!(
             ask(PanelId::Back, Payload::Activate),

@@ -447,9 +447,16 @@ pub fn reconcile(
     }
 }
 
-/// The typeface the font menu chose, by index into `creation_panel::FONTS`.
-#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+/// The typeface the font menu chose, by index into `creation_panel::FONTS`. It starts on
+/// Inter, the owner's pick at look 2 (2026-09-20).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FontChoice(pub usize);
+
+impl Default for FontChoice {
+    fn default() -> Self {
+        FontChoice(1)
+    }
+}
 
 /// The interface scale the slider chose, in hundredths; none follows the window.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]

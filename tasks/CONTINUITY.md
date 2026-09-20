@@ -27,13 +27,11 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
   `--window medium`).
 
 ## Next
-1. **Owner look 2**, live on the ultrawide (the TODO item says why captures cannot stand in:
-   an agent-launched window is clamped to 2560×1378, the canvas fits once, forced scales mean
-   nothing there): the owner tries the Font menu and the Interface scale slider in the running
-   game and picks; on the visible game, plain `--screenshot` against `--screenshot-composed`,
-   and `--frame-stats` with and without the panel (an agent-launched window gave 16.7 ms with
-   vertical sync and a worse 31 to 43 ms without, not to be trusted). Proportion-only captures:
-   `.omnis/look2/<font>-fitted-1280x720.png`.
+1. Owner look 2 is done (2026-09-20): Inter is the pick and the panel starts in it; the scale
+   stays 1.5 on the ultrawide and is 1.1 where the canvas fits once (`SCALE_FLOOR`), measured
+   to fit. The M6c play-test "went well". Two numbers still need the owner's visible game, for
+   the report: plain `--screenshot` against `--screenshot-composed`, and `--frame-stats` with
+   and without the panel (agent-launched: 16.7 ms with vertical sync, 31 to 43 ms without).
 2. Step 7: the report `tasks/plans/feathers-experiment.md`; vision edits only on the owner's word.
 3. For the report's friction log, beyond TODO items 1–5: the scale slider allows a scale the
    window cannot hold (1.5 and 2 at 1280×720); the name's limit is 24 bytes in the form and 24
@@ -42,5 +40,5 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
    full height when nothing overflows; the composed capture's letterbox takes the camera's default
    clear colour; an image target's scale factor is one, so a HiDPI window's capture lays the
    interface out at half size.
-4. Still unanswered by the owner: how the M6c play-test went; whether ARCH §4.7 resolving auto
+4. Still unanswered by the owner: whether ARCH §4.7 resolving auto
    members' turns inside the simulation stands. Then M7 planning (turn budget, declared reactions).
