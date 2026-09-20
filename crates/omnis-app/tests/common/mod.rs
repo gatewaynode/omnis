@@ -3,6 +3,9 @@
 //! the menu flows by mouse. Real packs, no mocks.
 #![allow(dead_code)]
 
+#[cfg(feature = "feathers")]
+pub mod feathers;
+
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::mouse::{MouseButton, MouseButtonInput};

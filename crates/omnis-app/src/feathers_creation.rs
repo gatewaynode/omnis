@@ -574,6 +574,7 @@ pub struct Reports<'w, 's> {
     world: Option<Res<'w, SimWorld>>,
     asks: MessageWriter<'w, CreationAsk>,
     scale: ResMut<'w, ScaleChoice>,
+    synced: ResMut<'w, Synced>,
 }
 
 impl Reports<'_, '_> {
@@ -586,7 +587,11 @@ impl Reports<'_, '_> {
         let Screens {
             creation, catalog, ..
         } = &mut *self.screens;
-        match panel::apply(control.0, payload, creation, catalog, members) {
+        let action = panel::apply(control.0, payload, creation, catalog, members);
+        // What was reported may have been held or refused (a typed 99 is a 15), and then
+        // the form did not change: the widgets are written again whatever happened.
+        self.synced.0 = None;
+        match action {
             Some(PanelAction::Creation(action)) => {
                 self.asks.write(CreationAsk(action));
             }
