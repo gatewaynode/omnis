@@ -1,5 +1,6 @@
 //! Canvas geometry shared by the renderer, the draw planner, and the UI. The internal
-//! resolution is 1280×720 for the 4K target (PRD D20): a canvas with the viewport in its top-left, a right
+//! resolution is 720 rows (PRD D20: the 5120×1440 ultrawide is the target, 16:9 monitors are
+//! supported): a canvas with the viewport in its top-left, a right
 //! column for the minimap, the location lines, and the movement pad, and a bottom band for the
 //! message line, the party, and the help line. Text is laid out on a grid of 6×8 cells
 //! (`font`). Every region is an expression of the inputs at the top of the file.
@@ -273,7 +274,7 @@ pub enum SizeClass {
     Small,
     /// 2560×1440: 2×.
     Medium,
-    /// 3840×2160, a 4K monitor: 3×, the display target (PRD D20).
+    /// 3840×2160, a 4K monitor: 3×.
     Large,
     /// 7680×2160, an 8K ultrawide: 3× with a 2560-wide canvas.
     Huge,

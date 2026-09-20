@@ -164,7 +164,7 @@ pub enum SaveRule {
     /// Anywhere, any time.
     #[default]
     Anywhere,
-    /// At inns, and wherever an item or spell grants a save (M6).
+    /// At inns, and wherever an item or spell grants a save (M7).
     Relief,
     /// At inns only.
     InnOnly,
