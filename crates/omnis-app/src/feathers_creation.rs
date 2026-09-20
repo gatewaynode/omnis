@@ -57,6 +57,8 @@ pub enum LabelId {
     Skills,
     /// The last refusal.
     Message,
+    /// The chosen typeface, on the font menu's button.
+    Font,
 }
 
 /// Which rewritten text an entity is.
@@ -307,6 +309,31 @@ fn button(id: PanelId, text: &'static str, variant: ButtonVariant) -> impl Scene
     }
 }
 
+/// The experiment's typefaces, as a menu like the choices'.
+fn font_menu() -> impl Scene {
+    let items: Vec<_> = panel::FONTS
+        .iter()
+        .enumerate()
+        .map(|(index, name)| menu_item(PanelId::FontPick(index), (*name).to_owned()))
+        .collect();
+    bsn! {
+        @FeathersMenu
+        Children [
+            (
+                @FeathersMenuButton {
+                    @caption: bsn! { Text("") ThemedText Shown({LabelId::Font}) }
+                }
+                Control({PanelId::FontMenu})
+                Node { width: px(130) }
+            ),
+            (
+                @FeathersMenuPopup
+                Children [ {items} ]
+            )
+        ]
+    }
+}
+
 fn footer() -> impl Scene {
     bsn! {
         row()
@@ -315,6 +342,8 @@ fn footer() -> impl Scene {
             button(PanelId::Begin, "Begin", ButtonVariant::Normal),
             button(PanelId::Back, "Back", ButtonVariant::Normal),
             flex_spacer(),
+            label_dim("Font"),
+            font_menu(),
             label_dim("Interface scale"),
             (
                 @FeathersSlider {
@@ -418,6 +447,10 @@ pub fn reconcile(
     }
 }
 
+/// The typeface the font menu chose, by index into `creation_panel::FONTS`.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct FontChoice(pub usize);
+
 /// The interface scale the slider chose, in hundredths; none follows the window.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ScaleChoice(pub Option<u16>);
@@ -482,8 +515,14 @@ fn label_text(
     form: &crate::menu::CreationForm,
     catalog: &crate::menu::Catalog,
     shown: &panel::PanelText,
+    font: usize,
 ) -> String {
     match id {
+        LabelId::Font => panel::FONTS
+            .get(font)
+            .copied()
+            .unwrap_or_default()
+            .to_owned(),
         LabelId::Heading => shown.heading.clone(),
         LabelId::Caption(choice) => choice
             .options(catalog)
@@ -510,6 +549,7 @@ pub fn sync(
     world: Option<Res<SimWorld>>,
     focus: Res<InputFocus>,
     mut synced: ResMut<Synced>,
+    font: Res<FontChoice>,
     controls: Query<(Entity, &Control, Option<&SliderValue>, Has<Checked>)>,
     mut inputs: Query<&mut EditableText>,
     mut labels: Query<(&Shown, &mut Text)>,
@@ -525,7 +565,7 @@ pub fn sync(
     }
     let shown = panel::text(form, catalog, members);
     for (id, mut text) in &mut labels {
-        set_text(&mut text, &label_text(id.0, form, catalog, &shown));
+        set_text(&mut text, &label_text(id.0, form, catalog, &shown, font.0));
     }
     for (entity, control, slider, checked) in &controls {
         match control.0 {
@@ -574,6 +614,7 @@ pub struct Reports<'w, 's> {
     world: Option<Res<'w, SimWorld>>,
     asks: MessageWriter<'w, CreationAsk>,
     scale: ResMut<'w, ScaleChoice>,
+    font: ResMut<'w, FontChoice>,
     synced: ResMut<'w, Synced>,
 }
 
@@ -596,8 +637,8 @@ impl Reports<'_, '_> {
                 self.asks.write(CreationAsk(action));
             }
             Some(PanelAction::UiScale(hundredths)) => self.scale.0 = Some(hundredths),
-            // The font menu arrives with the fonts.
-            Some(PanelAction::Font(_)) | None => {}
+            Some(PanelAction::Font(index)) => self.font.0 = index,
+            None => {}
         }
     }
 }

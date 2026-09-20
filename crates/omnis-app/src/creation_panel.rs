@@ -124,6 +124,10 @@ pub enum PanelAction {
     UiScale(u16),
 }
 
+/// The experiment's typefaces, by the index `PanelAction::Font` carries; the first is the
+/// one Feathers embeds.
+pub const FONTS: [&str; 3] = ["Fira Sans", "Inter", "Alegreya Sans"];
+
 /// The smallest interface scale, in hundredths.
 pub const SCALE_MIN: u16 = 50;
 /// The largest interface scale, in hundredths.
@@ -196,7 +200,9 @@ pub fn apply(
         (PanelId::Back, Payload::Activate) => {
             return Some(PanelAction::Creation(CreationAction::Back));
         }
-        (PanelId::FontPick(index), Payload::Activate) => return Some(PanelAction::Font(index)),
+        (PanelId::FontPick(index), Payload::Activate) if index < FONTS.len() => {
+            return Some(PanelAction::Font(index));
+        }
         (PanelId::UiScale, Payload::Slide(value)) => {
             let hundredths =
                 whole(*value * 100.0)?.clamp(i64::from(SCALE_MIN), i64::from(SCALE_MAX));
@@ -446,6 +452,7 @@ mod tests {
             ask(PanelId::FontPick(2), Payload::Activate),
             Some(PanelAction::Font(2))
         );
+        assert_eq!(ask(PanelId::FontPick(FONTS.len()), Payload::Activate), None);
         assert_eq!(
             ask(PanelId::UiScale, Payload::Slide(1.549)),
             Some(PanelAction::UiScale(155))

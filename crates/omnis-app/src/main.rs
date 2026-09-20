@@ -28,6 +28,54 @@ struct Launch {
     script: Script,
     socket: Socket,
     window: Option<SizeClass>,
+    look: Look,
+}
+
+/// The Feathers experiment's switches, so a capture or a measurement needs no person:
+/// `--font 0|1|2` (`creation_panel::FONTS`), `--ui-scale <hundredths>` and `--frame-stats`
+/// (Bevy's frame-time diagnostics in the log, once a second, with vertical sync off).
+#[derive(Default)]
+struct Look {
+    font: usize,
+    scale: Option<u16>,
+    frame_stats: bool,
+}
+
+impl Look {
+    /// Take `arg` if it is one of the switches.
+    fn take(&mut self, arg: &str, args: &mut impl Iterator<Item = String>) -> Result<bool, String> {
+        let mut number = |what: &str| {
+            let value = args.next().ok_or(format!("{arg} needs {what}"))?;
+            value
+                .parse::<u16>()
+                .map_err(|_| format!("bad {arg} '{value}'"))
+        };
+        match arg {
+            "--font" => self.font = usize::from(number("0, 1 or 2")?),
+            "--ui-scale" => self.scale = Some(number("hundredths, 50 to 300")?),
+            "--frame-stats" => self.frame_stats = true,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
+    fn apply(&self, app: &mut App) {
+        if self.frame_stats {
+            app.add_plugins((
+                bevy::diagnostic::FrameTimeDiagnosticsPlugin::default(),
+                bevy::diagnostic::LogDiagnosticsPlugin::default(),
+            ));
+        }
+        #[cfg(feature = "feathers")]
+        {
+            use omnis_app::creation_panel::{FONTS, SCALE_MAX, SCALE_MIN};
+            use omnis_app::feathers_creation::{FontChoice, ScaleChoice};
+            app.insert_resource(FontChoice(self.font.min(FONTS.len() - 1)))
+                .insert_resource(ScaleChoice(
+                    self.scale.map(|s| s.clamp(SCALE_MIN, SCALE_MAX)),
+                ));
+        }
+    }
 }
 
 #[cfg(feature = "devtools")]
@@ -48,6 +96,7 @@ fn parse_args() -> Result<Launch, String> {
     let mut socket = default_socket();
     let mut seeded = false;
     let mut window = None;
+    let mut look = Look::default();
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -74,28 +123,15 @@ fn parse_args() -> Result<Launch, String> {
                 script.commands =
                     omnis_app::dev::parse_script(&args.next().ok_or("--script needs steps")?)?;
             }
+            // The window, the canvas at its own resolution, or both composed (`capture.rs`,
+            // which only a build with Feathers has: without it the window is captured).
             #[cfg(feature = "devtools")]
-            "--screenshot" => {
-                script.screenshot = Some(PathBuf::from(
-                    args.next().ok_or("--screenshot needs a file")?,
-                ));
+            "--screenshot" | "--screenshot-canvas" | "--screenshot-composed" => {
+                let file = args.next().ok_or(format!("{arg} needs a file"))?;
+                script.screenshot = Some(PathBuf::from(file));
                 script.settle_frames = script.settle_frames.max(30);
-            }
-            #[cfg(feature = "devtools")]
-            "--screenshot-canvas" => {
-                script.screenshot = Some(PathBuf::from(
-                    args.next().ok_or("--screenshot-canvas needs a file")?,
-                ));
-                script.settle_frames = script.settle_frames.max(30);
-                script.canvas = true;
-            }
-            #[cfg(feature = "feathers")]
-            "--screenshot-composed" => {
-                script.screenshot = Some(PathBuf::from(
-                    args.next().ok_or("--screenshot-composed needs a file")?,
-                ));
-                script.settle_frames = script.settle_frames.max(30);
-                script.composed = true;
+                script.canvas = arg == "--screenshot-canvas";
+                script.composed = arg == "--screenshot-composed";
             }
             #[cfg(feature = "devtools")]
             "--dev-socket" => {
@@ -113,6 +149,7 @@ fn parse_args() -> Result<Launch, String> {
                     .parse()
                     .map_err(|_| format!("bad frame count '{value}'"))?;
             }
+            other if look.take(other, &mut args)? => {}
             other => return Err(format!("unknown argument '{other}'")),
         }
     }
@@ -134,6 +171,7 @@ fn parse_args() -> Result<Launch, String> {
         script,
         socket,
         window,
+        look,
     })
 }
 
@@ -152,6 +190,7 @@ fn main() -> AppExit {
         script,
         socket,
         window,
+        look,
     } = match parse_args() {
         Ok(launch) => launch,
         Err(e) => {
@@ -169,6 +208,12 @@ fn main() -> AppExit {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Omnis".into(),
+                    // A frame time capped by the display says nothing.
+                    present_mode: if look.frame_stats {
+                        bevy::window::PresentMode::AutoNoVsync
+                    } else {
+                        bevy::window::PresentMode::default()
+                    },
                     mode: match window {
                         Some(_) => WindowMode::Windowed,
                         None => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
@@ -207,6 +252,7 @@ fn main() -> AppExit {
     }
     #[cfg(not(feature = "devtools"))]
     let ((), ()) = (script, socket);
+    look.apply(&mut app);
     #[cfg(feature = "feathers")]
     app.add_plugins((
         omnis_app::feathers_ui::FeathersUiPlugin,

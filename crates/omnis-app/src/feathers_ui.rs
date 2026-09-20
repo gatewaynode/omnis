@@ -9,6 +9,7 @@
 
 use crate::cursor::UiSet;
 use crate::feathers_creation::{self as creation, PanelRoot, Synced};
+use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::menu::CreationAction;
 use crate::menus::{Active, CreationAsk, Screens, Where};
 use crate::pixel::OuterCamera;
@@ -37,13 +38,15 @@ impl Plugin for FeathersUiPlugin {
             .init_resource::<SmoothIcons>()
             .init_resource::<Synced>()
             .init_resource::<creation::ScaleChoice>()
+            .init_resource::<creation::FontChoice>()
+            .init_resource::<PanelFonts>()
             .init_resource::<UiPointerCapture>()
             .add_observer(creation::on_activate)
             .add_observer(creation::on_slide)
             .add_observer(creation::on_number)
             .add_observer(creation::on_flag)
             .add_observer(creation::on_text)
-            .add_systems(Startup, (smooth_icons, wear_panel))
+            .add_systems(Startup, (smooth_icons, wear_panel, typefaces::register))
             .add_systems(PreUpdate, capture_pointer.after(PickingSystems::Hover))
             .add_systems(Update, claim_camera)
             .add_systems(Update, escape_abandons.in_set(UiSet::Dispatch))
@@ -54,6 +57,7 @@ impl Plugin for FeathersUiPlugin {
                     creation::scale,
                     creation::place,
                     creation::sync,
+                    typefaces::wear,
                 )
                     .chain()
                     .in_set(UiSet::Model),

@@ -36,6 +36,8 @@ pub mod dev;
 #[cfg(feature = "feathers")]
 pub mod feathers_creation;
 #[cfg(feature = "feathers")]
+pub mod feathers_fonts;
+#[cfg(feature = "feathers")]
 pub mod feathers_ui;
 pub mod font;
 pub mod input;

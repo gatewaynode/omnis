@@ -18,8 +18,9 @@ use common::feathers::{
 use common::{
     draft_fighter_by_mouse, play_state, start_new_game_by_mouse, ui_app_saving_to, world,
 };
-use omnis_app::creation_panel::{Choice, PanelId};
-use omnis_app::feathers_creation::{LabelId, ScaleChoice};
+use omnis_app::creation_panel::{Choice, FONTS, PanelId};
+use omnis_app::feathers_creation::{FontChoice, LabelId, PanelRoot, ScaleChoice};
+use omnis_app::feathers_fonts::{Face, PanelFonts};
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState};
 
@@ -34,8 +35,10 @@ fn expected_controls(app: &App) -> Vec<PanelId> {
         PanelId::Add,
         PanelId::Begin,
         PanelId::Back,
+        PanelId::FontMenu,
         PanelId::UiScale,
     ];
+    ids.extend((0..FONTS.len()).map(PanelId::FontPick));
     for choice in Choice::ALL {
         ids.push(PanelId::Menu(choice));
         ids.extend((0..choice.options(catalog).len()).map(|i| PanelId::Pick(choice, i)));
@@ -293,6 +296,68 @@ fn the_panel_is_laid_out_at_both_window_sizes() {
     settle(&mut app);
     let faults = layout_faults(&mut app);
     assert_eq!(faults, vec![Fault::Overlap(PanelId::Add, PanelId::Begin)]);
+}
+
+// ------------------------------------------------------------------ the typefaces
+
+/// The texts under the panel that do not wear `family`, with the face they were given.
+fn not_wearing(app: &mut App, family: usize) -> Vec<(Option<Face>, String)> {
+    let faces = app.world().resource::<PanelFonts>().0[family].clone();
+    let mut roots = app.world_mut().query_filtered::<Entity, With<PanelRoot>>();
+    let root = roots.single(app.world()).expect("one panel");
+    let mut texts = app
+        .world_mut()
+        .query::<(Entity, &TextFont, Option<&Face>, Option<&Text>)>();
+    let world = app.world();
+    let under = |entity: Entity| {
+        let mut at = entity;
+        while let Some(parent) = world.get::<ChildOf>(at) {
+            at = parent.parent();
+        }
+        at == root
+    };
+    let mut seen = 0;
+    let odd = texts
+        .iter(world)
+        .filter(|(entity, ..)| under(*entity))
+        .inspect(|_| seen += 1)
+        .filter(|(_, font, face, _)| {
+            face.is_none_or(|face| {
+                font.font != bevy::text::FontSource::Handle(faces[*face as usize].clone())
+            })
+        })
+        .map(|(_, _, face, text)| (face.copied(), text.map(|t| t.0.clone()).unwrap_or_default()))
+        .collect();
+    assert!(seen > 40, "only {seen} texts under the panel");
+    odd
+}
+
+#[test]
+fn the_font_menu_dresses_the_whole_panel() {
+    let mut app = creating("feathers-fonts.ron");
+    assert_eq!(shown(&mut app, LabelId::Font), "Fira Sans");
+    assert_eq!(not_wearing(&mut app, 0), Vec::new());
+    // By mouse: the menu opens over the footer and an item takes the click.
+    let menu = control(&mut app, PanelId::FontMenu);
+    click_node(&mut app, menu);
+    let inter = control(&mut app, PanelId::FontPick(1));
+    click_node(&mut app, inter);
+    assert_eq!(app.world().resource::<FontChoice>().0, 1);
+    assert_eq!(shown(&mut app, LabelId::Font), "Inter");
+    assert_eq!(not_wearing(&mut app, 1), Vec::new());
+    // The choice outlives a rebuilt panel, and every family keeps the layout whole.
+    for family in [2, 1, 0] {
+        activate(&mut app, PanelId::FontPick(family));
+        assert_eq!(shown(&mut app, LabelId::Font), FONTS[family]);
+        for (width, height) in [(1280.0, 720.0), (5120.0, 1440.0)] {
+            resize(&mut app, width, height);
+            assert_eq!(faults_at(&mut app, None), Vec::new(), "{}", FONTS[family]);
+            assert_eq!(not_wearing(&mut app, family), Vec::new());
+        }
+    }
+    // The three are three: the title's bold face differs from family to family.
+    let fonts = &app.world().resource::<PanelFonts>().0;
+    assert!(fonts[0][1] != fonts[1][1] && fonts[1][1] != fonts[2][1]);
 }
 
 // ------------------------------------------------------------------ the text tree
