@@ -4,7 +4,6 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 (`agreements.md`): it stays here until it is built or the owner rejects it outright.
 
 ## Dated re-audits
-- 2026-10-08: `bevy_egui` 0.42.0 clears the 30-day rule (the unused `=0.41.1` pin stays for the editor).
 - 2026-10-10: Socket re-audit of `rhai` 1.26.1.
 
 ## M7 (town, services, rest, progression)
@@ -68,8 +67,11 @@ on the ultrawide. The report, the pattern for the next screen, the debts (name l
 against characters, the scale slider uncapped, frame time unmeasured on a visible window, the
 canvas creation screen alive until the shipped build carries `bevy_ui`, a `screen.text` op over
 the text tree, vendoring decided at Bevy 0.20) and the recommendations (M7's new screens born in
-`bevy_ui`; the editor on Feathers, which would lapse the `bevy_egui` re-audit) are in
-`tasks/plans/feathers-experiment.md`. What follows is the record from before it.
+`bevy_ui`) are in
+`tasks/plans/feathers-experiment.md`. **Owner, 2026-09-20: Feathers for the editor and all user
+interface moving forward, retrofit as convenient; `bevy_egui` is dropped (its re-audit lapsed, its
+workspace pin goes in M7 step 1); `tasks/plans/editor-v1.md` is re-read against Feathers when M5
+returns.** What follows is the record from before it.
 Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) came
 first; then, by its result: modern fonts everywhere, Bevy UI widgets for the screens the canvas
 toolkit cannot build (the tactics screen's dropdowns, number inputs, lists, scrolling), the
