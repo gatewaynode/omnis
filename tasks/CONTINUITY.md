@@ -6,10 +6,12 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
 ## State
 - Branch `m7-tasks`, fast-forwarded to `main` at `8e111d5`. **Nothing on it is pushed and
   `origin/m7-tasks` does not exist**: `509187a` … `fdb1e85` (steps 0–3, 3a–3c, docs), `a560c32`
-  step 4, `b4046e3` step 5, and this commit.
+  step 4, `b4046e3` step 5, `07c6a01` docs, `ea35873` step 6, and this commit.
 - The approved plan is `~/.claude/plans/nested-growing-bear.md`; its checkable items and every
   measured number are in `tasks/TODO.md` under "The Feathers experiment" (M6 closeout block).
-- Done: steps 0–5, owner look 1, 3a–3c. The gate is green at 376 passed, 6 ignored; Sentrux
+- Done: steps 0–6, owner look 1, 3a–3c (step 6: `screenshot` takes `target: "canvas" | "window"`,
+  the window is `capture.rs`'s composed capture, proven over the dev socket on the running game;
+  `omnis-mcp::tools::screenshot_tool` was split out for Sentrux). The gate is green at 376 passed, 6 ignored; Sentrux
   passes (scan `crates/`, the rules file is `crates/.sentrux/rules.toml`; `main.rs::parse_args`
   sits at the 100-line limit: a new flag goes into `Look::take` or a helper).
 - Step 4 left: `tests/common/feathers.rs` (the helpers: `control`, `controls`, `shown`, `activate`,
@@ -25,13 +27,13 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
   `--window medium`).
 
 ## Next
-1. Step 6: the socket and MCP `screenshot` gain `target: "canvas" | "window"` (default canvas,
-   tool count stays 18, the schema proof updated); "window" can ride on `capture.rs`'s
-   `ComposeCapture`, which works for a hidden window. Then **owner look 2** on the ultrawide:
-   captures per font (3) and scale (fitted, 1, 1.5, 2), the owner picks a font and a scale, and
-   on the owner's visible game: `Screenshot::primary_window()` (black for an agent-launched
-   process) and `--frame-stats` (an agent-launched window gave 16.7 ms with vertical sync and
-   a worse 31 to 43 ms without, which is not to be trusted).
+1. **Owner look 2**, live on the ultrawide (the TODO item says why captures cannot stand in:
+   an agent-launched window is clamped to 2560×1378, the canvas fits once, forced scales mean
+   nothing there): the owner tries the Font menu and the Interface scale slider in the running
+   game and picks; on the visible game, plain `--screenshot` against `--screenshot-composed`,
+   and `--frame-stats` with and without the panel (an agent-launched window gave 16.7 ms with
+   vertical sync and a worse 31 to 43 ms without, not to be trusted). Proportion-only captures:
+   `.omnis/look2/<font>-fitted-1280x720.png`.
 2. Step 7: the report `tasks/plans/feathers-experiment.md`; vision edits only on the owner's word.
 3. For the report's friction log, beyond TODO items 1–5: the scale slider allows a scale the
    window cannot hold (1.5 and 2 at 1280×720); the name's limit is 24 bytes in the form and 24
