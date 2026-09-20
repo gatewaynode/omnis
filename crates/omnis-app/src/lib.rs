@@ -18,6 +18,8 @@ pub mod actors;
 pub mod assets;
 pub mod band;
 pub mod canvas;
+#[cfg(feature = "feathers")]
+pub mod capture;
 pub mod combat;
 pub mod combat_menu;
 pub mod combat_screen;
@@ -31,6 +33,8 @@ pub mod debug_menu;
 pub mod debug_screen;
 #[cfg(feature = "devtools")]
 pub mod dev;
+#[cfg(feature = "feathers")]
+pub mod feathers_creation;
 #[cfg(feature = "feathers")]
 pub mod feathers_ui;
 pub mod font;

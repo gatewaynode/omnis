@@ -151,7 +151,11 @@ pub enum Menu<'a> {
         catalog: &'a Catalog,
         /// Members so far.
         members: usize,
+        /// Whether the button to the Feathers panel is offered.
+        skin_button: bool,
     },
+    /// Only the backdrop: a window-space interface (the Feathers panel) covers the viewport.
+    Covered,
     /// The pause overlay with the settings it shows.
     Pause {
         /// The overlay.
@@ -311,14 +315,15 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         frame.raster.stroke(MENU_BOX, FRAME);
     }
     match &view.menu {
-        Menu::None => {}
+        Menu::None | Menu::Covered => {}
         Menu::Title(title) => screens::title(frame, title),
         Menu::NewGame(form) => screens::new_game(frame, form),
         Menu::Creation {
             form,
             catalog,
             members,
-        } => screens::creation(frame, form, catalog, *members),
+            skin_button,
+        } => screens::creation(frame, form, catalog, *members, *skin_button),
         Menu::Pause {
             pause,
             settings,
@@ -737,6 +742,7 @@ mod tests {
             form: &form,
             catalog: &catalog,
             members: 4,
+            skin_button: false,
         };
         let paused = Menu::Pause {
             pause: &pause,

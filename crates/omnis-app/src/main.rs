@@ -89,6 +89,14 @@ fn parse_args() -> Result<Launch, String> {
                 script.settle_frames = script.settle_frames.max(30);
                 script.canvas = true;
             }
+            #[cfg(feature = "feathers")]
+            "--screenshot-composed" => {
+                script.screenshot = Some(PathBuf::from(
+                    args.next().ok_or("--screenshot-composed needs a file")?,
+                ));
+                script.settle_frames = script.settle_frames.max(30);
+                script.composed = true;
+            }
             #[cfg(feature = "devtools")]
             "--dev-socket" => {
                 socket = Some(omnis_app::socket::DevSocketPlugin {
@@ -200,6 +208,9 @@ fn main() -> AppExit {
     #[cfg(not(feature = "devtools"))]
     let ((), ()) = (script, socket);
     #[cfg(feature = "feathers")]
-    app.add_plugins(omnis_app::feathers_ui::FeathersUiPlugin);
+    app.add_plugins((
+        omnis_app::feathers_ui::FeathersUiPlugin,
+        omnis_app::capture::CapturePlugin,
+    ));
     app.run()
 }

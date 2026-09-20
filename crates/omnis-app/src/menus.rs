@@ -20,16 +20,33 @@ use crate::sim::{
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
-use crate::widget::Hit;
+use crate::widget::{Hit, SKIN_BUTTON};
 use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use omnis_sim::{Command, Event, PartyCommand, World};
 
+/// Which skin party creation wears (the Feathers experiment, PRD D26). Both skins edit the
+/// same `CreationForm`; the canvas is the default and the only one without the `feathers`
+/// feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CreationSkin {
+    /// The Feathers panel exists in this app, so the canvas screen offers a button to it.
+    pub offered: bool,
+    /// The Feathers panel is showing; the canvas paints only the backdrop and takes no keys.
+    pub feathers: bool,
+}
+
+/// What the Feathers panel asks of the creation flow: the same actions as the canvas keys.
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub struct CreationAsk(pub CreationAction);
+
 /// Every screen's state, kept so a screen reopens where it was.
 #[derive(Resource, Default, Debug)]
 pub struct Screens {
+    /// Party creation's skin.
+    pub skin: CreationSkin,
     /// The title.
     pub title: Title,
     /// The new game form.
@@ -138,9 +155,10 @@ impl Plugin for MenusPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<KeyboardInput>()
             .add_message::<UiClick>()
+            .add_message::<CreationAsk>()
             .init_resource::<Screens>()
             .add_systems(OnEnter(PlayState::CreateParty), open_creation)
-            .add_systems(Update, menu_keys.in_set(UiSet::Dispatch))
+            .add_systems(Update, (menu_keys, creation_asks).in_set(UiSet::Dispatch))
             .add_systems(Update, refresh.in_set(UiSet::Model));
     }
 }
@@ -178,6 +196,10 @@ pub(crate) fn menu_key(input: &KeyboardInput) -> Option<MenuKey> {
 
 /// The keys a click on the active screen stands for.
 fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
+    if active == Active::CreateParty && hit.id == SKIN_BUTTON && screens.skin.offered {
+        screens.skin.feathers = true;
+        return Vec::new();
+    }
     let target = match active {
         Active::Title => Target::Title(&mut screens.title),
         Active::NewGame => Target::NewGame(&mut screens.new_game),
@@ -233,9 +255,13 @@ impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
     }
 
     fn leave_game(&mut self) {
-        self.commands.remove_resource::<SimWorld>();
-        self.next.app.set(AppState::MainMenu);
+        leave_game(self.commands, self.next);
     }
+}
+
+fn leave_game(commands: &mut Commands, next: &mut Next) {
+    commands.remove_resource::<SimWorld>();
+    next.app.set(AppState::MainMenu);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -295,6 +321,7 @@ fn menu_keys(
             catalog,
             pause,
             cast,
+            skin,
             ..
         } = &mut *screens;
         match active {
@@ -308,9 +335,11 @@ fn menu_keys(
                     new_game_action(action, new_game, &mut act);
                 }
             }
+            // In the Feathers skin the panel's widgets own the keyboard.
+            Active::CreateParty if skin.feathers => {}
             Active::CreateParty => {
                 if let Some(action) = creation.key(key, catalog, members) {
-                    creation_action(action, &mut act);
+                    creation_action(action, act.player, act.commands, act.next);
                 }
             }
             Active::Paused => {
@@ -380,14 +409,33 @@ fn new_game_action(
     }
 }
 
-fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
+fn creation_action(
+    action: CreationAction,
+    player: &mut MessageWriter<PlayerCommand>,
+    commands: &mut Commands,
+    next: &mut Next,
+) {
     match action {
         CreationAction::Add(draft) => {
-            act.player
-                .write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
+            player.write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
         }
-        CreationAction::Begin => act.next.play.set(PlayState::Explore),
-        CreationAction::Back => act.leave_game(),
+        CreationAction::Begin => next.play.set(PlayState::Explore),
+        CreationAction::Back => leave_game(commands, next),
+    }
+}
+
+/// What the Feathers panel asked for, done exactly as the canvas screen's keys do it.
+fn creation_asks(
+    mut asks: MessageReader<CreationAsk>,
+    at: Where,
+    mut player: MessageWriter<PlayerCommand>,
+    mut commands: Commands,
+    mut next: Next,
+) {
+    for CreationAsk(action) in asks.read() {
+        if at.screen() == Active::CreateParty {
+            creation_action(action.clone(), &mut player, &mut commands, &mut next);
+        }
     }
 }
 

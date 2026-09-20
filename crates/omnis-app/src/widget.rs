@@ -199,6 +199,9 @@ pub enum WidgetId {
     Item(usize),
 }
 
+/// The canvas creation screen's button to the Feathers panel (the Feathers experiment).
+pub const SKIN_BUTTON: WidgetId = WidgetId::Action(0);
+
 /// Which part of a widget was hit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Part {

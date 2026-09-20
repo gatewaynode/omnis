@@ -22,6 +22,8 @@ pub struct DevScript {
     pub settle_frames: u32,
     /// Capture the canvas at its internal resolution instead of the window.
     pub canvas: bool,
+    /// Capture the canvas and the window-space interface through `capture.rs` instead.
+    pub composed: bool,
 }
 
 /// One scripted action.
@@ -33,12 +35,15 @@ pub enum ScriptStep {
     Shell(ShellCommand),
     /// Add a stock member to the party, so a scripted run has someone to fight with.
     Party,
+    /// Open party creation, so a capture can show that screen.
+    Create,
 }
 
 /// Parse a comma-separated script: the simulation's command words (`Command::from_word`:
 /// `forward`, `back`, `left`, `right`, `turn-left`, `turn-right`, `around`, `use`, and the
 /// fight words `fight`, `bribe`, `hide`, `run`, `attack`, `attack-N`, `dodge`, `swap-N`,
-/// `flee`) plus the shell words `map`, `save`, `load`, and `party` for a stock member.
+/// `flee`) plus the shell words `map`, `save`, `load`, `party` for a stock member, and `create`
+/// for the party creation screen.
 pub fn parse_script(text: &str) -> Result<Vec<ScriptStep>, String> {
     text.split(',')
         .map(str::trim)
@@ -52,6 +57,7 @@ pub fn parse_script(text: &str) -> Result<Vec<ScriptStep>, String> {
                 "save" => ScriptStep::Shell(ShellCommand::Save),
                 "load" => ScriptStep::Shell(ShellCommand::Load),
                 "party" => ScriptStep::Party,
+                "create" => ScriptStep::Create,
                 other => return Err(format!("unknown script step '{other}'")),
             })
         })
@@ -77,7 +83,8 @@ impl Plugin for DevPlugin {
                 drive.in_set(SimSet::Collect).run_if(
                     in_state(PlayState::Explore)
                         .or_else(in_state(PlayState::Encounter))
-                        .or_else(in_state(PlayState::Combat)),
+                        .or_else(in_state(PlayState::Combat))
+                        .or_else(in_state(PlayState::CreateParty)),
                 ),
             );
     }
@@ -128,7 +135,9 @@ fn drive(
     mut play: MessageWriter<PlayerCommand>,
     mut shell: MessageWriter<ShellCommand>,
     mut exit: MessageWriter<AppExit>,
+    mut next: ResMut<NextState<PlayState>>,
     canvas: Option<Res<crate::pixel::CanvasImage>>,
+    #[cfg(feature = "feathers")] mut compose: MessageWriter<crate::capture::ComposeCapture>,
 ) {
     if let Some(step) = script.commands.get(progress.next) {
         match step {
@@ -142,6 +151,7 @@ fn drive(
                 let draft = recruit(&data.0, world.0.party.members.len());
                 play.write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
             }
+            ScriptStep::Create => next.set(PlayState::CreateParty),
         }
         progress.next += 1;
         return;
@@ -153,6 +163,11 @@ fn drive(
     if progress.settled == script.settle_frames && !progress.shot {
         progress.shot = true;
         info!("saving screenshot to {}", path.display());
+        #[cfg(feature = "feathers")]
+        if script.composed {
+            compose.write(crate::capture::ComposeCapture(path.clone()));
+            return;
+        }
         let target = match (&canvas, script.canvas) {
             (Some(canvas), true) => Screenshot::image(canvas.0.clone()),
             _ => Screenshot::primary_window(),
@@ -177,6 +192,7 @@ mod tests {
         assert_eq!(steps[3], ScriptStep::Shell(ShellCommand::ToggleAutomap));
         assert_eq!(steps[4], ScriptStep::Party);
         assert!(matches!(steps[6], ScriptStep::Play(Command::Combat(_))));
+        assert_eq!(parse_script("create").unwrap(), [ScriptStep::Create]);
         assert!(parse_script("fly").is_err());
         assert!(parse_script("").unwrap().is_empty());
     }
