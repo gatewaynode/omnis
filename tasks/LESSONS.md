@@ -93,3 +93,12 @@
 - **What happened**: The PRD's first draft (mine) said "deliberately retro: 2D pixel art" and D2 gave "most faithful" as a rationale. For nine days display, font and toolkit decisions (the raster canvas, the 5×7 bitmap font, integer scaling, canvas sprites over `bevy_ui`) leaned on that framing. The owner: pixel art was never the intent; Omnis is a modern tactics and strategy re-imagining, the art of the era is not what worked, and no compromise is made for a pixel-art feel (PRD D26).
 - **Rule**: An aesthetic or genre adjective in a vision document ("retro", "faithful", "pixel art", "minimal") is asked as a question with its alternatives before it is written as a decision, exactly like a mechanic. A placeholder source (16×16 CC0 tiles) says nothing about the goal.
 - **Rule**: When a decision is justified by preserving a look or a feel, name that justification to the owner in the recommendation, so a wrong premise surfaces at the first decision and not the tenth.
+
+## 2026-09-20 — After a merge, look at the checkout before exploring it
+- **What happened**: The owner merged PR #9 and checked out an old local `m7-tasks` (at the PR #6 merge). I launched three explorations without looking; two of them read a tree from before M6b, M6c and PRD v0.5, and reported "D26 does not exist" and a six-item pause overlay. The contradiction with my own commit is what gave it away.
+- **Rule**: When the owner reports CI or a merge, run `git branch --show-current`, `git log --oneline -1` and `git log HEAD..main` before any exploration or planning; a checkout behind `main` is reported and fixed first. An exploration's claim that contradicts a commit made in the same session is checked against `git show main:<path>` before it is believed.
+
+## 2026-09-20 — A fact in an option's description is a claim: verify it
+- **What happened**: Offering party creation as the experiment's screen, I wrote that it "sits before a world exists". It does not (`PlayState::CreateParty`; the new-game form makes the world). The owner chose that option; the error made it sound harder than it was, and I corrected it in the plan.
+- **Rule**: Every factual clause in an `AskUserQuestion` option is checked against the code before it is sent, exactly like a claim in a report; what is not checked is worded as unknown.
+

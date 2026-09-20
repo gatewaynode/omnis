@@ -1,36 +1,40 @@
 # Continuity notes
 
-Written 2026-09-20 before a compact. Rewrite this file every time it is used; keep it to state,
-next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
+Written 2026-09-20 during the Feathers experiment. Rewrite this file every time it is used; keep it
+to state, next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
 
 ## State
-- Branch `m6-closeout-tasks`, cut from `main` at `4d963d3`. On it: the owner's `09e478a`
-  (justfile, a background document), `53cab2b` (two code comments), `0c0a11a` "Docs: PRD and
-  ARCH match M6 as built", `6897144` the MCP schema proof, and this continuity commit. The owner
-  said they would push around the time this commit was made: **check
-  `git log origin/m6-closeout-tasks..m6-closeout-tasks` first**; anything listed is unpushed and
-  must not be stranded by a merge (LESSONS 2026-09-19).
-- The gate is green at 353 passed, 6 ignored; Sentrux rules pass; both replays hold.
-- The drift pass is done and became a direction change, all in PRD v0.5 and ARCH v0.3: closer to
-  the SRD and extend it (D21 turn budget, D22 declared reactions, D23 runbooks and the
-  per-member auto flag, D24 three spell fields; design in ARCH §4.7, A15, nothing built); tool
-  proficiencies as pack data (§8.1); the editor held for the end of Phase 1 (D4); the time model
-  is D25; **D26: a modern look and feel, pixel art is placeholder only**; A11 amended: Feathers
-  in game as a bounded experiment.
-- Not yet answered by the owner: how the M6c play-test went; whether ARCH §4.7 resolving auto
-  members' turns inside the simulation (not in the front end) stands.
+- Branch `m7-tasks`, fast-forwarded to `main` at `8e111d5` (PR #9 merged the M6 closeout;
+  `git log main..m6-closeout-tasks` was empty). On it, unpushed: `509187a` docs (the plan, PRD §14
+  viewport = a 2D/3D hybrid), `cb2e985` step 1, `3da680b` step 2, `ce63db1` step 3, and this commit.
+  **Check `git log origin/m7-tasks..m7-tasks` first** (the remote branch may not exist).
+- The approved plan is `~/.claude/plans/nested-growing-bear.md`; its checkable items and every
+  measured number are in `tasks/TODO.md` under "The Feathers experiment" (M6 closeout block).
+- Done: steps 0–3. The gate is green at 363 passed, 6 ignored; Sentrux passes (scan `crates/`, the
+  rules file is `crates/.sentrux/rules.toml`); the 30 PPM dumps are byte-identical to `main`.
+- What exists: cargo feature `feathers` (default on, release unchanged); `feathers_ui.rs` (plugin),
+  `feathers_creation.rs` (scenes, `reconcile`/`place`/`sync`, observers), `creation_panel.rs`
+  (Bevy-free `PanelId`/`Payload`/`apply`), `creation_menu.rs` (the model moved out of `menu.rs`,
+  named rule methods), `capture.rs` (`--screenshot-composed`, because the window capture is black
+  from an agent-launched process), script word `create`, `feathers_app()` in `tests/common/mod.rs`
+  (Bevy's no-renderer route), `tests/feathers.rs` (4 tests).
+- To see it without a person: `cargo run -p omnis-app -- --seed 7 --no-dev-socket --script
+  "party,create" --settle 60 --screenshot-composed <file.png>` (add `--window medium`).
 
 ## Next
-1. The owner confirms CI on the push.
-2. **Plan the Feathers experiment and the move away from pixel-art styling, in plan mode**
-   (owner, 2026-09-20). Read first: the TODO's "M6 closeout" item, ARCH A11 and the §8.2 status
-   note, PRD D26 and §11.1, and "Modern presentation" in `tasks/knowledge/horizons.md` (the
-   Bevy source facts are already there). Report with numbers: crates added by the `ui` and
-   `bevy_feathers` features, rendering and scaling on the 5120×1440 ultrawide, whether the MCP
-   screenshot and the screen dumps still show the interface, whether headless tests still drive
-   every widget, and whether a modern font can replace the bitmap font. PRD §14 still asks what
-   modern means for the viewport (higher-resolution 2D, smooth scaling, or reopening 3D): ask.
-3. Then plan M7 (town, services, rest, progression) with the turn budget and declared reactions
-   in or beside it. PRD §14 questions needing the owner: what preparation costs, the budget
-   curves, runbook timing.
-4. Owner documents that appear under `docs/background/` are committed at once, unedited.
+1. **Owner look 1** (asked 2026-09-20): `just run`, New game, party creation opens in the Feathers
+   skin: default style and Fira Sans, a party by mouse and by Tab/keys, `Classic view` and
+   `Feathers view`, the interface-scale slider. Their findings come before step 4 if they change it.
+2. Step 4: `tests/feathers.rs` grows: every control by event, a button, checkbox, menu item, slider
+   and scrollbar by `PointerInput` through real layout and picking, the layout check at 1280×720 and
+   5120×1440 at UI scale 1, 1.5, 2, the text tree dump, both skins drafting the same fighter
+   compared, refusals, the skin switch. Then 5 (Inter, Alegreya Sans: OFL files from the upstream
+   GitHub releases, hashes in `assets/README.md`; the font menu; `--frame-stats`), 6 (socket
+   `screenshot` gains `target`; measure the window capture against the owner's visible game; owner
+   look 2 on the ultrawide), 7 (the report `tasks/plans/feathers-experiment.md`, vision edits only
+   on the owner's word).
+3. Known rough edges to fix or log: scrollbar thumbs show at full height when nothing overflows;
+   the composed capture's letterbox takes the camera's default clear colour; an image target's
+   scale factor is one, so a HiDPI window's capture lays the interface out at half size.
+4. Still unanswered by the owner: how the M6c play-test went; whether ARCH §4.7 resolving auto
+   members' turns inside the simulation stands. Then M7 planning (turn budget, declared reactions).
