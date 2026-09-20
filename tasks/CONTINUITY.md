@@ -22,14 +22,18 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
   "party,create" --settle 60 --screenshot-composed <file.png>` (add `--window medium`).
 
 ## Next
-1. **Owner look 1** (asked 2026-09-20): `just run`, New game, party creation opens in the Feathers
-   skin: default style and Fira Sans, a party by mouse and by Tab/keys, `Classic view` and
-   `Feathers view`, the interface-scale slider. Their findings come before step 4 if they change it.
+1. **Owner look 1 is done** (2026-09-20, ultrawide): "Looks good so far." Three updates, recorded as
+   3a–3c in the TODO and done before step 4: **drop the classic view** (remove the skin switcher;
+   the canvas creation screen remains only for builds without the `feathers` feature until the
+   report), **interface scale 1.5 by default** (the owner's preference on 5120×1440), and a **bug:
+   after switching Classic → Feathers the Name field is inaccessible**. Root-cause the bug first
+   (reproduce headless by respawning the panel, since a class change and an added member respawn it
+   too), fix it with a failing-first test, then remove the switcher.
 2. Step 4: `tests/feathers.rs` grows: every control by event, a button, checkbox, menu item, slider
    and scrollbar by `PointerInput` through real layout and picking, the layout check at 1280×720 and
-   5120×1440 at UI scale 1, 1.5, 2, the text tree dump, both skins drafting the same fighter
-   compared, refusals, the skin switch. Then 5 (Inter, Alegreya Sans: OFL files from the upstream
-   GitHub releases, hashes in `assets/README.md`; the font menu; `--frame-stats`), 6 (socket
+   5120×1440 at UI scale 1, 1.5, 2 (1.5 is the reference), the text tree dump, the panel's fighter
+   compared with the canvas path's, refusals. Then 5 (Inter, Alegreya Sans: OFL files from the
+   upstream GitHub releases, hashes in `assets/README.md`; the font menu; `--frame-stats`), 6 (socket
    `screenshot` gains `target`; measure the window capture against the owner's visible game; owner
    look 2 on the ultrawide), 7 (the report `tasks/plans/feathers-experiment.md`, vision edits only
    on the owner's word).
