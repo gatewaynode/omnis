@@ -93,6 +93,8 @@ pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 pub const HELP_NEW_GAME: &str = "Arrows or click  Enter ok  Esc back";
 /// Help while creating.
 pub const HELP_CREATION: &str = "Arrows or click  Enter ok  Esc abandon";
+/// The creation screen's help line under the Feathers panel.
+pub const HELP_FEATHERS: &str = "Click or Tab  Enter ok  Esc abandon";
 /// Help while paused.
 pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
@@ -220,9 +222,20 @@ fn upload(
     image.data = Some(ui.frame.raster.rgba.clone());
 }
 
-fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter<UiClick>) {
+/// Whether the pointer is over a window-space interface drawn above the canvas (the Feathers
+/// panel): the canvas's own hit-test stands down while it is. Absent in an app without one.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UiPointerCapture(pub bool);
+
+fn hit(
+    pointer: Res<Pointer>,
+    capture: Option<Res<UiPointerCapture>>,
+    mut ui: ResMut<UiFrame>,
+    mut clicks: MessageWriter<UiClick>,
+) {
     let found = pointer
         .canvas
+        .filter(|_| !capture.is_some_and(|c| c.0))
         .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
@@ -478,6 +491,7 @@ fn menu_for<'a>(
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
+        (Active::CreateParty, _) if screens.skin.feathers => (Menu::Covered, HELP_FEATHERS),
         (Active::CreateParty, _) => (
             Menu::Creation {
                 form: &screens.creation,

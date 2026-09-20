@@ -13,7 +13,7 @@ use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, save
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{bounded, client_path, slot_view, status};
+use omnis_sim::ops::{ShotTarget, bounded, client_path, slot_view, status};
 use omnis_sim::{Op, OpError, Reply, dispatch};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
@@ -62,6 +62,14 @@ impl Plugin for DevSocketPlugin {
         }
         app.add_message::<ScreenshotSaved>()
             .add_systems(Update, serve.in_set(SimSet::Collect));
+        // Only an app with `CapturePlugin` has composed captures to pass on.
+        #[cfg(feature = "feathers")]
+        app.add_systems(
+            Update,
+            composed_saved
+                .before(serve)
+                .run_if(resource_exists::<Messages<crate::capture::ComposedSaved>>),
+        );
     }
 }
 
@@ -265,6 +273,9 @@ fn serve(
     mut events: MessageWriter<SimEvent>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut shots: MessageReader<ScreenshotSaved>,
+    #[cfg(feature = "feathers")] mut compose: Option<
+        ResMut<Messages<crate::capture::ComposeCapture>>,
+    >,
 ) {
     let Some(mut socket) = socket else {
         return;
@@ -303,8 +314,17 @@ fn serve(
             );
             continue;
         };
-        if let Op::Screenshot { path } = &op {
-            match screenshot(&mut commands, canvas.as_deref(), path.as_deref()) {
+        if let Op::Screenshot { path, target } = &op {
+            let shot = match target {
+                ShotTarget::Canvas => screenshot(&mut commands, canvas.as_deref(), path.as_deref()),
+                #[cfg(feature = "feathers")]
+                ShotTarget::Window => window_shot(compose.as_deref_mut(), path.as_deref()),
+                #[cfg(not(feature = "feathers"))]
+                ShotTarget::Window => Err(OpError::failed(
+                    "this build draws nothing outside the canvas; ask for the canvas",
+                )),
+            };
+            match shot {
                 Ok(path) => socket.pending.push((id, path)),
                 Err(e) => socket.queue(&id, &Err(e)),
             }
@@ -397,6 +417,43 @@ fn handle(
     }
 }
 
+fn shot_path(path: Option<&str>) -> Result<PathBuf, OpError> {
+    let path = PathBuf::from(client_path(path.unwrap_or(DEFAULT_SCREENSHOT), &["png"])?);
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(OpError::failed)?;
+    }
+    Ok(path)
+}
+
+/// Ask `capture.rs` for what the window shows, the canvas as it is scaled with the
+/// window-space interface over it (a plain window capture is black when the window is not
+/// on a screen); the reply waits for `ScreenshotSaved`, which `composed_saved` passes on.
+#[cfg(feature = "feathers")]
+fn window_shot(
+    compose: Option<&mut Messages<crate::capture::ComposeCapture>>,
+    path: Option<&str>,
+) -> Result<PathBuf, OpError> {
+    let compose =
+        compose.ok_or_else(|| OpError::failed("no window to capture; is the renderer running?"))?;
+    let path = shot_path(path)?;
+    compose.write(crate::capture::ComposeCapture(path.clone()));
+    Ok(path)
+}
+
+/// A composed capture finished: the socket hears it as it hears the canvas's.
+#[cfg(feature = "feathers")]
+fn composed_saved(
+    mut composed: MessageReader<crate::capture::ComposedSaved>,
+    mut saved: MessageWriter<ScreenshotSaved>,
+) {
+    for shot in composed.read() {
+        saved.write(ScreenshotSaved {
+            path: shot.path.clone(),
+            error: shot.error.clone(),
+        });
+    }
+}
+
 /// Ask the renderer for the canvas; the reply waits for `ScreenshotSaved`.
 fn screenshot(
     commands: &mut Commands,
@@ -405,10 +462,7 @@ fn screenshot(
 ) -> Result<PathBuf, OpError> {
     let canvas =
         canvas.ok_or_else(|| OpError::failed("no canvas to capture; is the renderer running?"))?;
-    let path = PathBuf::from(client_path(path.unwrap_or(DEFAULT_SCREENSHOT), &["png"])?);
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(OpError::failed)?;
-    }
+    let path = shot_path(path)?;
     let target = path.clone();
     commands.spawn(Screenshot::image(canvas.0.clone())).observe(
         move |captured: On<ScreenshotCaptured>,
@@ -457,7 +511,10 @@ mod tests {
         );
         assert_eq!(
             parse_request(br#"{"op": "screenshot"}"#).unwrap().1,
-            Op::Screenshot { path: None }
+            Op::Screenshot {
+                path: None,
+                target: ShotTarget::Canvas
+            }
         );
         assert_eq!(
             parse_request(br#"{"op": "game.status", "args": {}}"#)

@@ -152,6 +152,8 @@ pub enum Menu<'a> {
         /// Members so far.
         members: usize,
     },
+    /// Only the backdrop: a window-space interface (the Feathers panel) covers the viewport.
+    Covered,
     /// The pause overlay with the settings it shows.
     Pause {
         /// The overlay.
@@ -311,7 +313,7 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         frame.raster.stroke(MENU_BOX, FRAME);
     }
     match &view.menu {
-        Menu::None => {}
+        Menu::None | Menu::Covered => {}
         Menu::Title(title) => screens::title(frame, title),
         Menu::NewGame(form) => screens::new_game(frame, form),
         Menu::Creation {

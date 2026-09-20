@@ -32,6 +32,12 @@ impl Schema for usize {
     }
 }
 
+impl Schema for omnis_cli::omnis_sim::ops::ShotTarget {
+    fn schema() -> Value {
+        json!({"type": "string", "enum": ["canvas", "window"]})
+    }
+}
+
 impl<T: Schema> Schema for Option<T> {
     fn schema() -> Value {
         T::schema()

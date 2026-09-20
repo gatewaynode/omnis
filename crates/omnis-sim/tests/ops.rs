@@ -6,7 +6,7 @@ use common::{data, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_sim::command::parse_script;
-use omnis_sim::ops::MAX_SCRIPT;
+use omnis_sim::ops::{MAX_SCRIPT, ShotTarget};
 use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch};
 
 fn events(reply: Reply) -> Vec<Event> {
@@ -202,7 +202,10 @@ fn limits_and_host_ops_are_refused() {
             force: false,
         },
         Op::PackReload,
-        Op::Screenshot { path: None },
+        Op::Screenshot {
+            path: None,
+            target: ShotTarget::Canvas,
+        },
     ] {
         assert!(op.is_host());
         assert_eq!(
@@ -243,6 +246,7 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         Op::PackReload,
         Op::Screenshot {
             path: Some("p.png".into()),
+            target: ShotTarget::Window,
         },
         Op::PartyGet,
         Op::PartyCreate {

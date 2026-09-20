@@ -4,6 +4,7 @@
 use crate::schema::{Field, object};
 use omnis_cli::omnis_sim::Command;
 use omnis_cli::omnis_sim::omnis_rules::Draft;
+use omnis_cli::omnis_sim::ops::ShotTarget;
 use serde_json::{Value, json};
 
 /// One tool.
@@ -37,6 +38,23 @@ pub fn tools() -> Vec<Tool> {
     let mut all = game_tools();
     all.extend(party_tools());
     all
+}
+
+/// The screenshot tool: the canvas, or everything the window shows.
+fn screenshot_tool() -> Tool {
+    tool(
+        "screenshot",
+        "screenshot",
+        "Save a PNG of the game and return it as an image (game mode only): the canvas at its internal resolution, or the window, which is the canvas as it is scaled with the window-space interface (the Feathers panels) over it.",
+        &[
+            Field::new::<Option<String>>(
+                "path",
+                false,
+                "A relative .png path; default .omnis/screenshot.png.",
+            ),
+            Field::new::<Option<ShotTarget>>("target", false, "canvas (the default) or window."),
+        ],
+    )
 }
 
 /// The game tools: status, commands, views, saves, packs, screenshot.
@@ -127,16 +145,7 @@ fn game_tools() -> Vec<Tool> {
             "Reload the packs from disk, keeping the world where it is.",
             &[],
         ),
-        tool(
-            "screenshot",
-            "screenshot",
-            "Save a PNG of the game canvas and return it as an image (game mode only).",
-            &[Field::new::<Option<String>>(
-                "path",
-                false,
-                "A relative .png path; default .omnis/screenshot.png.",
-            )],
-        ),
+        screenshot_tool(),
     ]
 }
 
@@ -232,7 +241,10 @@ mod tests {
             ("save_write", json!({"path": "a.ron"})),
             ("save_read", json!({"path": "a.ron", "force": true})),
             ("pack_reload", json!({})),
-            ("screenshot", json!({"path": "shot.png"})),
+            (
+                "screenshot",
+                json!({"path": "shot.png", "target": "window"}),
+            ),
             ("party_get", json!({})),
             (
                 "party_create",

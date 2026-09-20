@@ -28,6 +28,17 @@ use serde::{Deserialize, Serialize};
 /// Most commands one `sim.script` may carry.
 pub const MAX_SCRIPT: usize = 10_000;
 
+/// What a screenshot shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShotTarget {
+    /// The game canvas at its internal resolution.
+    #[default]
+    Canvas,
+    /// The canvas as the window scales it, with the window-space interface over it.
+    Window,
+}
+
 /// A request. On the wire it is `{"op": "<name>", "args": {...}}`, `args` omitted for ops
 /// that take none.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,12 +107,15 @@ pub enum Op {
     /// Host: reload the packs from disk, keeping the world.
     #[serde(rename = "pack.reload")]
     PackReload,
-    /// Host, game only: save a PNG of the canvas.
+    /// Host, game only: save a PNG of the canvas, or of everything the window shows.
     #[serde(rename = "screenshot")]
     Screenshot {
         /// Where, or a default under `.omnis/`.
         #[serde(default)]
         path: Option<String>,
+        /// What to capture; the canvas when absent.
+        #[serde(default)]
+        target: ShotTarget,
     },
     /// The party: members with their derived numbers, purse, and food.
     #[serde(rename = "party.get")]

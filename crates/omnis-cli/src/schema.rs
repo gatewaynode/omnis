@@ -327,7 +327,10 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             force: false,
         },
         Op::PackReload,
-        Op::Screenshot { path: None },
+        Op::Screenshot {
+            path: None,
+            target: omnis_sim::ops::ShotTarget::Canvas,
+        },
         Op::PartyGet,
         Op::PartyCreate {
             character: omnis_sim::omnis_rules::Draft {
