@@ -9,7 +9,7 @@ every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci
 same steps without the release clippy, plus both golden replays through the CLI with
 `--pack packs/base --pack packs/test`.
 
-Test count at the gate: 349 passed, 6 ignored (2026-09-20).
+Test count at the gate: 353 passed, 6 ignored (2026-09-20).
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -30,6 +30,9 @@ screen-dump test is the piece to move out next); `game_tools` 99 (new MCP tools 
   `tests/saves/v3.ron`.
 - MCP: 18 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`); the hand-written
   `Command` schema has `oneOf` 9, combat arms 5, `item_schema` 6, `dev_schema` 12.
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 64 instances from the `next` chain of
+  exhaustive matches, 94 offered `oneOf` branches and `enum` values, all used. A new `Command`
+  variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the
   same commands by design.
 

@@ -1,4 +1,6 @@
-//! A small JSON Schema builder driven by the Rust argument types, so the tool schemas cannot
+//! A small JSON Schema builder. The tool arguments are built from their Rust types; the
+//! `Command` schema is written by hand and held against the Rust types by `tests/schema_proof.rs`
+//! (every variant validates and reads back, every branch and enum value is used), so it cannot
 //! drift from what the protocol deserializes. No `schemars`.
 
 use omnis_cli::omnis_sim::Command;

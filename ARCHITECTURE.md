@@ -472,7 +472,7 @@ sequenceDiagram
 | `screenshot` | PNG of the window as image content (game mode only) |
 | `editor.*` | later: open map, paint, place, lock |
 
-Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; until that test lands, tracked in `tasks/TODO.md`, the guard is arm counts and spot checks).
+Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; `omnis-mcp/tests/schema_proof.rs`). The proof runs both ways: every instance must validate and read back, and every `oneOf` branch and `enum` value the schema offers must be used by some instance, so a schema arm with no Rust variant behind it fails too. Its validator reads only the keywords the schema uses and refuses any other.
 
 ## 10. CLI (`omnis-cli`)
 

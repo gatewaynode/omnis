@@ -5,8 +5,8 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
 
 ## State
 - Branch `m6-closeout-tasks`, cut from `main` at `4d963d3` (PR #8 merged M6c; CI green). On it:
-  the owner's `09e478a` (justfile, a background document), `53cab2b` (two code comments), and the
-  docs commit "Docs: PRD and ARCH match M6 as built". Nothing pushed. The owner was play-testing
+  the owner's `09e478a` (justfile, a background document), `53cab2b` (two code comments), the
+  docs commit `0c0a11a` "Docs: PRD and ARCH match M6 as built", and the MCP schema proof. Nothing pushed. The owner was play-testing
   M6c by hand; ask how it went.
 - The drift pass is done, every item decided by the owner. It became a direction change, all in
   PRD v0.5 and ARCH v0.3: closer to the SRD and extend it (D21 turn budget, D22 declared
@@ -18,8 +18,9 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
   simulation (like monsters), not in the front end as I first suggested in chat.
 
 ## Next
-1. Open items in the TODO's "M6 closeout" block: the MCP schema proof test (ARCH §9.3) and the
-   Feathers experiment (plan mode first; criteria in the TODO item and ARCH A11).
+1. The one open item in the TODO's "M6 closeout" block: the Feathers experiment (plan mode
+   first; criteria in the TODO item and ARCH A11). The schema proof is done
+   (`omnis-mcp/tests/schema_proof.rs`).
 2. Plan M7 in plan mode (town, services, rest, progression). The turn budget and declared
    reactions belong in or beside it; see `tasks/knowledge/horizons.md` for everything queued
    (tactics, tools, modern presentation). Open PRD §14 questions need the owner: what
