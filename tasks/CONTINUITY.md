@@ -7,7 +7,7 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
 - Branch `m7-tasks`, fast-forwarded to `main` at `8e111d5`. **Nothing on it is pushed and
   `origin/m7-tasks` does not exist**: `509187a` docs, `cb2e985` step 1, `3da680b` step 2, `ce63db1`
   step 3, `130d1ee` and `6ce8b6c` docs, `1108454` the Name input tests, `400f0c7` 3a, `57c3463` 3b,
-  and this commit.
+  `f97cbd2` docs, and this commit.
 - The approved plan is `~/.claude/plans/nested-growing-bear.md`; its checkable items and every
   measured number are in `tasks/TODO.md` under "The Feathers experiment" (M6 closeout block).
 - Done: steps 0–3, owner look 1, 3a (the classic view is gone; the canvas creation screen is what
@@ -15,15 +15,11 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
   canvas pixel until the slider is moved, so 1.5 on the owner's ultrawide; `ScaleChoice`, the
   `scale` system, `creation_panel::fitted_scale`). The gate is green at 367 passed, 6 ignored;
   Sentrux passes (scan `crates/`, the rules file is `crates/.sentrux/rules.toml`).
-- **3c is open**: the owner's bug (Name inaccessible after Classic → Feathers) is **not
-  reproduced**. Headless through real layout, picking and focus it works in six flows (after the
-  switch, with a name typed before or on the canvas, on the ultrawide at 1.5 by click and by Tab,
-  no nodes left behind); in the real app text renders after a skin flip (byte-identical capture).
-  Not exercised by either: the operating system's own mouse and key events, and the macOS IME
-  switch `bevy_ui_widgets` flips when a text input gains or loses the focus. The owner is asked:
-  does the Name field still fail after a class change or an added member (the rebuilds that
-  remain), and what is "inaccessible" exactly (no caret on click, a caret but no letters, the
-  first letter lost).
+- **Owner, 2026-09-20, after 3a and 3b: "Manually tested, looks good."** 3c is closed on that
+  test: the Name bug was never reproduced (six headless flows through real layout, picking and
+  focus; a byte-identical real-app capture after a skin flip) and its root cause is unknown; the
+  switch that showed it is gone. If it returns, start from the operating system's input and the
+  macOS IME switch `bevy_ui_widgets` flips on text-input focus, which no test exercises.
 - Test helpers now in `tests/feathers.rs` (step 4 builds on them): `click_node` (`PointerInput`
   move, press, release at a node's centre), `keys` (`KeyboardInput` with text, the real window
   entity), `tab`, `focus`, `ultrawide` (window resolution plus a `WindowResized` message: the
@@ -41,7 +37,7 @@ to state, next step and pointers. The durable knowledge lives in `tasks/knowledg
 2. Then 5 (Inter, Alegreya Sans: OFL files from the upstream GitHub releases older than 30 days,
    hashes in `assets/README.md`; the font menu; `--frame-stats`), 6 (socket `screenshot` gains
    `target`; measure the window capture against the owner's visible game; owner look 2 on the
-   ultrawide, which is also where 3c gets its answer), 7 (the report
+   ultrawide), 7 (the report
    `tasks/plans/feathers-experiment.md`, vision edits only on the owner's word).
 3. Known rough edges to fix or log: scrollbar thumbs show at full height when nothing overflows;
    the composed capture's letterbox takes the camera's default clear colour; an image target's
