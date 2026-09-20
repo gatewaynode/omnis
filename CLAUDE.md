@@ -105,6 +105,15 @@ The lint job is part of Phase 0's definition of done. No simulation crate is cre
 
 **tilth** Smarter code reading for agents
 **sentrux** Real time architectural sensor for agents
+**evaluate** A fast, typed, generic classifier and confidence tool.  Uses the new System One JEV model.
+**graphify** Organize the project as a knowledge graph, search and index locally.
+
+### graphify
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+### evaluate
+- **evaluate** (`~/.local/bin/evaluate`) - Classify in a determinant, types manner.  Clarfiy yes/no from free text, make a routing decision, or severity decision, classify text with confidence levels.. Use, "choice", "score", "noul" to measure and analyze text (payload "state").
 
 ## Context Management
 
