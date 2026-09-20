@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.2, reviewed by owner; derived from `PRD.md` v0.3 |
+| Status | Draft v0.3 (2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.5 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -89,19 +89,22 @@ Serves PRD goal 7 (determinism), D5 (co-op later), and the MCP requirement.
 ```rust
 pub struct World {
     pub schema: u32,                 // save schema version
+    pub seed: u64,                   // the world seed every RNG stream derives from (A14)
     pub packs: Vec<PackFingerprint>, // id, version, content hash
-    pub rng: Pcg32,                  // state and stream counter, serialized
+    pub rngs: BTreeMap<StreamName, Pcg32>, // every named stream used so far, state and draw count, serialized
     pub clocks: BTreeMap<HolderId, Clock>,       // subjective time per holder (§4.4); no global clock
-    pub contacts: BTreeMap<(HolderId, HolderId), Contact>,
+    pub contacts: BTreeMap<(HolderId, HolderId), Contact>, // arrives with M8 (subjective time)
     pub party: Party,                // up to 6 members (D10), gold, gems, food, inventory
     pub position: Position,          // map, tile, facing
     pub maps: BTreeMap<MapId, MapState>,   // mutable per-map state; static tiles come from data
-    pub regions: BTreeMap<RegionId, RegionState>,
+    pub regions: BTreeMap<RegionId, RegionState>,          // arrives with the ecosystem (M10)
     pub automap: Automap,            // per-map known tiles with layer bits and seen-at time
-    pub quests: QuestState,
+    pub quests: QuestState,          // arrives with the story engine (M11)
     pub mode: Mode,                  // Explore | Combat(CombatState) | Town(ServiceState) | ...
     pub flags: BTreeMap<FlagId, i64>,
-    pub settings: Settings,          // save rule (anywhere, relief, inn only), permadeath (D17)
+    pub settings: Settings,          // save rule (anywhere, relief, inn only), permadeath (D17), devtools
+    pub turn: u64,                   // commands applied so far
+    pub log: Vec<Event>,             // recent events for polling clients; not saved, not fingerprinted
 }
 ```
 
@@ -118,7 +121,7 @@ pub enum Command {
     Turn(Rotation),
     Interact,                   // door, sign, NPC, trigger on the facing tile
     Rest,
-    Party(PartyCommand),        // create, reorder, auto_cast { member, spell, on } (M6: a reaction spell's switch)
+    Party(PartyCommand),        // create, reorder, auto_cast { member, spell, on } (M6: a reaction spell's switch; replaced by Tactics, §4.7)
     Service(ServiceCommand),    // inn, temple, trainer, smith, tavern, bank, guild
     Combat(CombatCommand),      // per actor: attack { stack }, cast { spell, target: Stack | Member }, dodge, exchange { with }, run (M4, M6); use (M6b)
     Encounter(EncounterChoice), // attack, bribe, hide, run (M4)
@@ -229,6 +232,45 @@ As built in M4. `Mode::Encounter(EncounterState)` holds the stacks (monster, ini
 ### 4.6 Replay and co-op readiness
 
 A `Replay` is `(initial World fingerprint, pack fingerprints, Vec<Command>)`. Applying the commands to the same initial world must reproduce the final fingerprint; this is a CI test. Networked co-op later is "share the command stream", which is why commands carry no client-side state.
+
+### 4.7 Turn budget and tactics (designed 2026-09-20, not built)
+
+Serves PRD D21–D24, §7.3, §7.9, §8.3. Through M6 a turn is one `CombatCommand` and shield is the only reaction, cast by the simulation for a member who opted in (`auto_cast`). This section is the design that replaces both; nothing in it exists in code yet.
+
+- **Budget.** At the start of a combatant's turn three rule slots are evaluated, `turn.actions`, `turn.bonus_actions`, `turn.reactions`, over class, level, equipped items and active effects; the base pack returns the SRD's one of each. The result is stored on the combat state as `Budget { actions, bonus_actions, reactions }`. Reactions refresh at the start of the combatant's own turn, as in the SRD.
+- **Costs.** Every combat action has a `Cost { Action, BonusAction, Reaction }` from data. A spell carries the three fields of D24 (`bonus_action_available`, `preparation_available`, `preparation_required_for_bonus_action`); when a spell may be paid either way the command says which: `CombatCommand::Cast { spell, target, pay }`. Items and class features carry a cost the same way. What preparing a spell costs and how long it holds is open (PRD §14), so `Prepare` is named here and not specified.
+- **A turn is several commands.** A member's turn takes commands until `CombatCommand::EndTurn` or until no action and no bonus action is left; monster turns still resolve inside the command that ends the member's turn (`run_until_member`). Validation refuses a command whose cost the budget cannot pay, before the first die (`Rejection::NoActionLeft` and the like). Every command still rolls on the roller's copy of its stream, written back only on success.
+- **Triggers are a closed list** the simulation raises at fixed points of resolution: `SpellCast`, `Attacked`, `MemberAttacked`, `MemberWounded`, `MemberDying`, `EnemyFlees`, `EnemyCasts`, `OwnTurn`. Proximity follows PRD §8.3: the same row for allies, the engaged lead stack for enemies, a stack fleeing or a front-row member running or exchanging out for "leaves your reach" (the opportunity attack), any combatant in the fight for ranged triggers.
+- **Data on every combatant** (members now; monsters and hirelings hold the same shape, filled later):
+  ```rust
+  pub struct Tactics {
+      pub reactions_on: bool,            // the in-fight switch; flipping it costs nothing
+      pub auto: bool,                    // the runbook takes this member's turns
+      pub library: Vec<CriteriaSet>,     // every set built so far, offered again in every runbook
+      pub runbooks: Vec<Runbook>,
+      pub default_runbook: u8,           // exactly one default
+  }
+  pub struct CriteriaSet { pub name: String, pub action: ActionRef, pub trigger: Trigger, pub when: Criteria }
+  pub enum Criteria { Always, All(Vec<Criteria>), Any(Vec<Criteria>), Is(Predicate) }
+  pub enum Predicate {                   // integers only; the system offers these, the player composes them
+      MonsterCount { monster: MonsterId, cmp: Cmp, n: u16 },
+      MonsterShare { monster: MonsterId, cmp: Cmp, percent: u8 },
+      Hp { who: Who, cmp: Cmp, percent: u8 }, SpellPoints { who: Who, cmp: Cmp, percent: u8 },
+      HasCondition { who: Who, condition: ConditionId }, Row { who: Who, row: Row }, Round { cmp: Cmp, n: u16 },
+      WouldChangeOutcome,                // the M6 shield rule, now the player's choice instead of a built-in
+  }
+  pub struct Runbook {
+      pub name: String,
+      pub when: Option<Criteria>,        // encounter criteria; the first matching runbook is used, else the default
+      pub entries: Vec<(ActionRef, u16)>, // in order of consideration: an action and the one criteria set evaluated for it
+  }
+  ```
+  Names are player text and are validated as input (length, characters); counts and nesting depth are capped in `limits.rs`. There is no script: a criteria tree is data the simulation walks, so tactics add no attack surface (PRD R8).
+- **Resolution.** On a trigger the simulation walks combatants in marching order and, for each with `reactions_on` and a reaction left, the active runbook's entries in order; the first entry whose trigger matches, whose criteria hold and whose cost can be paid is validated and resolved like a command, spends the reaction, and emits `Event::Reaction { actor, trigger, action }` ahead of its own events. One trigger fires at most one reaction per combatant. A member with `auto` set is resolved inside `run_until_member` exactly as a monster is: `tactics::choose(world, data, combatant) -> Option<CombatCommand>` walks the runbook on `OwnTurn` entries until the budget is spent, and falls back to the built-in policy (attack the lead stack) when nothing matches. The monsters' present policy becomes their default runbook through the same function.
+- **Commands.** `PartyCommand::Tactics(TacticsCommand)` replaces `AutoCast`: `SetReactions { member, on }` and `SetAuto { member, on }` are accepted at any time in a fight and cost nothing; `PutCriteria`, `RemoveCriteria`, `PutRunbook`, `RemoveRunbook`, `SetDefault` are accepted while exploring. Tactics live in the `World`, so a replay reproduces an automated fight from the command log alone, and the MCP and the CLI drive tactics with no code of their own.
+- **Save schema 5.** `Character.tactics` replaces `auto_cast`; the migration turns each auto-cast spell into a criteria set (`Attacked`, `WouldChangeOutcome`) in a default runbook, so an M6 save fights as it did. Both golden replays are rebaselined in that commit.
+- **App.** A `TacticsPlugin` and a tactics screen beside the character sheet (reached by a button first), the two switches on the fight's action row, and `Event::Reaction` lines in the roll log. The screen needs dropdowns, number inputs, lists and scrolling; its toolkit is decided by the Feathers experiment (A11 as amended).
+- **Measured before content.** `tests/measure.rs` gains budget curves and automated parties, so every change to a `turn.*` slot and every bonus-action spell is compared with the SRD baseline over seeds (PRD R12).
 
 ## 5. Rule scripting host (`omnis-expr`, Rhai)
 
@@ -358,14 +400,15 @@ pub enum RegionEvent { PopulationChanged, FactionShift, ResourceChanged, Weather
 Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources on 2026-09-11.
 
 ### 8.1 Structure
-- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys, the on-screen pad, and gamepad to `Command`), `CursorPlugin` (window size and pointer as a canvas pixel, from window messages), `ViewportPlugin`, `MenusPlugin` (the menu state machines and their key and click dispatch), `CombatPlugin` (the encounter, fight, and defeat screens, the play state following the world's mode, the roll log), `UiPlugin` (composes the frame: menus, location lines, pad, party band; hit-tests the pointer; uploads the frame into a canvas sprite), `AudioPlugin`, `EditorPlugin`, `DevSocketPlugin` (feature `devtools`), `PackAssetPlugin`.
+- One Bevy `App` with plugins per concern: `SimPlugin` (owns the `World`, applies commands, publishes events), `InputPlugin` (maps keys, the on-screen pad, and gamepad to `Command`), `CursorPlugin` (window size and pointer as a canvas pixel, from window messages), `ViewportPlugin`, `MenusPlugin` (the menu state machines and their key and click dispatch), `CombatPlugin` (the encounter, fight, and defeat screens, the play state following the world's mode, the roll log), `UiPlugin` (composes the frame: menus, location lines, tool pad, pad, party band; hit-tests the pointer; uploads the frame into a canvas sprite), `PixelPlugin` (the fixed internal resolution pipeline, §8.2), `SheetPlugin` (the character sheet's three pages), `InventoryPlugin` (the inventory overlay; item commands apply from it), `PackAssetPlugin`, and under feature `devtools` `DebugPlugin` (the debug menu, opened from the pause overlay or the backtick), `DevPlugin` (scripted commands and a screenshot from the command line) and `DevSocketPlugin`. Planned, not built: `AudioPlugin`, `EditorPlugin` (M5, deferred), `TacticsPlugin` (PRD §7.9, D22–D23).
 - Bevy features: `default-features = false, features = ["2d", "png"]` (the game UI is canvas sprites, so `ui` is off; the editor's `bevy_egui` brings its own rendering), plus `audio` when sound arrives. The `3d` group (pbr, gltf) is never enabled. A `dev` feature enables `bevy/dynamic_linking`, `bevy_dev_tools`, and `file_watcher`; it is never shipped.
-- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Encounter | Combat | Paused | Defeat` (M4), joined by `Service | Journal` as their milestones arrive. The play state follows the world's mode after every event batch (`PlayState::for_mode`), so a loaded or resumed game lands in the state its mode calls for; `Defeat` is entered on a wipe and left by a load or by quitting to the title. Commands apply in every play state but `Paused`. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
+- App states (`bevy_state`): `Boot → MainMenu → Playing | Editor`, with `SubStates` under `MainMenu`: `Title | NewGame` (Load is an action on the title) and under `Playing`: `CreateParty | Explore | Encounter | Combat | Paused | Defeat` (M4) and the overlays `Debug | Cast | Sheet | Inventory` (M6), joined by `Service | Journal | Tactics` as their milestones arrive. The play state follows the world's mode after every event batch (`PlayState::for_mode`), so a loaded or resumed game lands in the state its mode calls for; `Defeat` is entered on a wipe and left by a load or by quitting to the title. Commands apply in every play state but `Paused`. `OnEnter` builds each screen and `DespawnOnExit` tears it down. Menus are text lists driven by Bevy-free state machines (`menu.rs`), so every transition is unit-tested; a screen only spawns lines and feeds logical key presses.
 - The `World` is a Bevy `Resource` wrapped in `SimWorld` (in 0.19 resources are components on singleton entities; `Res` and `ResMut` are unchanged). Only `SimPlugin` systems mutate it, in one ordered system set in `Update`: `collect commands → apply → push events`. All other systems read events from a buffered `Message` queue (`MessageWriter`/`MessageReader`, 0.19's name for the old buffered events) and read the world through `query::*`. Bevy's ECS holds presentation entities only (sprites, UI nodes, sounds); it never holds game state.
 - Simulation events are re-published as Bevy messages one to one; observers (`On<E>`) are used only for presentation-internal triggers (a floating number finished, a menu closed).
 - Events drive animation. A `Damage` event spawns a floating number; `Moved` starts a step transition; `Visible` updates the viewport model. Presentation may lag the simulation by an animation queue, but the simulation is never blocked by it.
 
 ### 8.2 Pixel pipeline
+> **Status (2026-09-20, PRD D26):** this section describes the placeholder presentation as built. A pixel-art look is not a goal and nothing here is kept for its sake; the end state is a modern, resolution-independent presentation. What replaces the raster canvas and the bitmap font is decided by the Feathers experiment (A11 as amended) and the open question in PRD §14. Whatever replaces it must keep what the canvas gives today: a screenshot and screen dumps that show the interface, headless tests that drive every widget, and a button before a key for every action.
 - A 720-row canvas as wide as the window (PRD D20): the *core* is the 1280-wide layout the constants in `layout.rs` describe, a 960×540 viewport with a 320-px right column beside it (minimap at 8 px a tile, location lines, a 96×40-button pad), every region an expression of the inputs; `canvas.rs` places it on a canvas of any width (`Layout::for_width`): when a 63-cell *wing* fits left of a centred viewport (width ≥ 1716) the viewport is centred, the wing holds the roster, and the 180-px band under both holds the message line, the event log at the band's first column, and the help line; narrower canvases centre the core with the roster in the band beside the log, which at 1280 is the narrow layout exactly. Text is a self-authored 5×7 bitmap font in 6×8 cells (`font.rs`): the menus paint on an 80×16-cell framed box centred in the viewport (`menu_cell`, so the models' row indices are unchanged), the fight screens on the viewport's 160×67 grid, the band on its 22 rows (`band.rs`: a roster row per member with group, name, class, level, HP, SP, AC, and condition, the acting member's row barred and marked while the mouse's selection keeps its highlighted name, an eighteen-row event log with the roll math). The core's painters keep their narrow coordinates and are painted through the core's origin (`Frame::within`; widgets pushed inside land in canvas space), so the viewport-relative constants and their compile-time asserts hold on every width. The pipeline is Bevy's `pixel_grid_snap` pattern: an inner `Camera2d` rendering to an `Image` target on its own render layer with MSAA off, and an outer camera showing that canvas as a sprite at the largest whole multiple of 720 rows that fits the window's *physical* pixels (`layout::fit` also chooses the canvas width at that multiple; `cursor::WindowSize` carries the logical size and the scale factor, so a 4K panel driven at 2× logical still shows three physical pixels a canvas pixel; the rows are letterboxed to whole pixels, the sprite nudged half a pixel for odd bars); the `Layout` resource follows the fit, and a width change resizes the canvas target and the UI image (`Image::resize`, a new GPU texture) and redraws the viewport sprites at the core's origin. `--window small|medium|large|huge` opens a window of 1280×720, 2560×1440, 3840×2160, or 7680×2160 physical pixels; without it the game is borderless fullscreen on the current monitor (a window loses the menu bar and title bar, so on a 1440-row monitor every window falls to 1×; whole multiples are the rule and fractional scaling a horizon). `ImagePlugin::default_nearest()` for all sampling. All game UI is painted Bevy-free into an RGBA raster of the canvas's size (`raster.rs`, `widget.rs`, `screen.rs`, `screens.rs`, `panels.rs`, `band.rs`, `combat_screen.rs`) that `UiPlugin` composes into a scratch frame and uploads into a sprite above the viewport only when it changed. It is pixel exact at every scale, appears in canvas captures and the MCP screenshot, and its widgets are hit-tested from the pointer mapped through the letterbox (`cursor.rs`), so the whole UI is testable headless. The tilesets are baked for the viewport's size (`omnis-cli tileset bake`; `texel_scale: 4` keeps the 16-pixel tiles' look at four canvas pixels a texel) and a test holds every loaded tileset to `layout::VIEWPORT_SIZE`.
 - Asset loading: `omnis-data` loads packs to structs outside Bevy's asset system, because packs are validated data, not assets. A small custom `AssetLoader` (0.19 signature: async `load(reader, settings, load_context)`) handles only pack images and audio by pack-relative path into `Handle<Image>` and atlases. No RON goes through Bevy's asset system; Bevy has no generic RON loader and does not need one here. Missing assets resolve to a generated magenta placeholder (PRD §10).
 
@@ -378,7 +421,7 @@ Serves D2, D16, PRD §7.2, R2, R10. Bevy facts verified against 0.19.1 sources o
 ### 8.4 Editor
 - Lives in the `Editor` app state in the same binary. Edits `omnis-data` structs in memory and writes RON through `omnis-data`; the loader and the writer are the same code path (PRD §10).
 - Views: tile map (paint terrain, edges, objects, triggers, lock mask), region (state and rules), quest graph, data tables, procgen panel (generate, regenerate a layer, lock), text keys, and a playtest button that builds a `World` from the in-memory pack at the cursor tile.
-- UI toolkit (A11): `bevy_egui` for the editor only, pinned at 0.41.1 for Bevy 0.19. Immediate-mode tables, property panels, docking, and node-graph widgets make the editor views cheap to build and change. Player-facing HUD and menus are canvas sprites (§8.2), keyboard and mouse driven, so the game keeps its pixel look; `bevy_ui` and Feathers are not used (a correction of 2026-09-12: the M3 screens used `bevy_ui` text at native resolution, which could not be sized to the canvas or captured). `bevy_egui` is confined to `EditorPlugin` so a lag at each Bevy release stalls only the editor build, and the editor can be feature-gated off if a release lags badly (R2).
+- UI toolkit (A11, amended 2026-09-20: `bevy_egui` stays the editor's standing choice until the in-game Feathers experiment reports; if that goes well the editor's toolkit is reconsidered before the editor starts at the end of Phase 1): `bevy_egui` for the editor only, pinned at 0.41.1 for Bevy 0.19. Immediate-mode tables, property panels, docking, and node-graph widgets make the editor views cheap to build and change. Player-facing HUD and menus are canvas sprites (§8.2), keyboard and mouse driven, so the game keeps its pixel look; `bevy_ui` and Feathers are not used (a correction of 2026-09-12: the M3 screens used `bevy_ui` text at native resolution, which could not be sized to the canvas or captured). `bevy_egui` is confined to `EditorPlugin` so a lag at each Bevy release stalls only the editor build, and the editor can be feature-gated off if a release lags badly (R2).
 
 ## 9. Dev socket and MCP (`omnis-app` feature `devtools`, `omnis-mcp`)
 
@@ -429,7 +472,7 @@ sequenceDiagram
 | `screenshot` | PNG of the window as image content (game mode only) |
 | `editor.*` | later: open map, paint, place, lock |
 
-Every tool has a JSON Schema `inputSchema` generated from the Rust argument types so the bridge, the socket, and the docs cannot drift.
+Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; `omnis-mcp/tests/schema_proof.rs`). The proof runs both ways: every instance must validate and read back, and every `oneOf` branch and `enum` value the schema offers must be used by some instance, so a schema arm with no Rust variant behind it fails too. Its validator reads only the keywords the schema uses and refuses any other.
 
 ## 10. CLI (`omnis-cli`)
 
@@ -520,7 +563,7 @@ omnis/
 | PRD phase | Crates built | Exit test |
 |---|---|---|
 | 0 Foundation | core, expr, data, sim skeleton, cli, mcp (headless mode) | `packs/test` loads and round-trips; expression tests; MCP `game.status` headless |
-| 1 Crawler loop plus editor | rules, sim complete, app (viewport, HUD, menus, editor v1), devtools socket | Phase 1 done criteria (PRD §13); MCP drives a full dungeon run |
+| 1 Crawler loop plus editor | rules, sim complete, app (viewport, HUD, menus), devtools socket; editor v1 last (deferred M5, after M8 and before M9), re-authoring the phase's hand-written content | Phase 1 done criteria (PRD §13); MCP drives a full dungeon run |
 | 2 Procedural world | gen, lazy materialization, editor procgen panel | 100-region seed traversable; golden fingerprints |
 | 3 Ecosystem | eco, region events, derived outputs | lair clearance changes neighbours within a week |
 | 4 Story | story, graph editor, templates | static check on the main quest; generated quests in every town |
@@ -540,7 +583,8 @@ omnis/
 | A8 | Ecosystem state changes only through typed region events | Direct mutation | NPC agency later inserts as an event source (PRD §9.2). |
 | A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). |
 | A10 | Game state lives in one serializable `World`, not in Bevy ECS | ECS for game state | Save, replay, and headless become trivial; Bevy churn (R2) cannot reach game state. |
-| A11 | `bevy_egui` for the editor, canvas sprites for the game | Feathers everywhere; egui everywhere; egui around the canvas (+17 crates, 2 duplicate versions, antialiased text) | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, pixel UI for players, egui isolated to one plugin. The game UI moved from `bevy_ui` text to canvas sprites with a self-authored bitmap font on 2026-09-12 (§8.2). |
+| A11 | `bevy_egui` for the editor, canvas sprites for the game | Feathers everywhere; egui everywhere; egui around the canvas (+17 crates, 2 duplicate versions, antialiased text) | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, pixel UI for players, egui isolated to one plugin. The game UI moved from `bevy_ui` text to canvas sprites with a self-authored bitmap font on 2026-09-12 (§8.2). **Amended by the owner on 2026-09-20 (PRD D26, §11.1): Feathers in game.** The canvas direction seemed safe, but the game needs better interface widgets and a modern look. Start experimenting with Feathers in the game, see how the default styles work, and see if modern fonts can replace the pixel-art based fonts. The experiment is bounded: one in-game screen first (the tactics screen needs dropdowns, number inputs, lists and scrolling, which the canvas toolkit lacks), measured on the `ui` feature's crate count, rendering and scaling on the owner's ultrawide, the MCP screenshot and screen dumps still showing the interface, and headless tests still driving every widget. Facts read from the 0.19.1 sources: `bevy_feathers` and `bevy_ui_widgets` are part of Bevy (no third-party crates, where `bevy_egui` adds 17 and two duplicates), both call themselves experimental, and Feathers' documentation aims it at editors and suggests copying and restyling its widgets for a game. If the in-game integration goes well, the editor's toolkit is reconsidered. |
 | A12 | Packs bypass Bevy's asset system; only images and audio go through an `AssetLoader` | RON as Bevy assets | Packs are validated untrusted data with cross-file references; Bevy's loader is per-file and has no RON loader anyway. |
 | A13 | No global clock; subjective clocks per holder, reconciled on interaction by a data rule with bounded drift | Global calendar with a world-wide daily tick | Owner direction from `docs/background/introduction.md`; makes NPC agency, multiplayer, construction, and travel the same mechanism; lazy and deterministic. Cost: every interaction site must reconcile. |
 | A14 | One world seed; named PCG32 streams derived by FNV-1a and splitmix64; stateful streams persisted in the save, generation streams stateless | Single global RNG; per-entity RNG objects | Approved 2026-09-12. Isolation between subsystems, exact continuation after load, pure regeneration, traceable draws. |
+| A15 | Tactics are data in the `World`, walked by the simulation: a closed trigger list, criteria trees of integer predicates, runbooks per combatant, reactions and auto turns resolved inside the command that causes them (§4.7) | Interrupt prompts to the front end; tactics evaluated in the app with the log recording only the chosen commands; player-written Rhai | PRD D21–D23. Reactions happen in the middle of another combatant's command, so they must be resolved in the simulation; keeping auto turns there too means one chooser serves members, hirelings and monsters, replays need nothing but the command log, and every front end gets tactics for free. No script from players (PRD R8). |

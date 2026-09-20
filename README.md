@@ -56,6 +56,7 @@ The toolchain is pinned by `rust-toolchain.toml`. Dev builds carry the `devtools
 dev socket, `Dev` commands, the debug menu); a release build turns it off.
 
 ```sh
+just run                                     # the same as the next line; flags pass through (`just run --window medium`)
 cargo run -p omnis-app                       # fullscreen on the current monitor
 cargo run -p omnis-app -- --window medium    # windowed: small, medium, large, huge
 cargo run -p omnis-app -- --pack packs/base --seed 7 --save .omnis/quick.ron

@@ -8,6 +8,12 @@ records the practice that grew around it. A new agreement lands here the session
 - Present both directions of any hybrid as separate options, each with what it keeps and gives up.
 - A v1 choice is a horizon, not an exclusion: record the unchosen option in `horizons.md` with the
   milestone it waits for. Only owner-stated rejections become non-goals.
+- Drift closes toward the SRD: where the build is simpler than the SRD the code catches up, with
+  the milestone named; PRD §8 is never relaxed to bless a shortcut. The owner's departures
+  extend the SRD (PRD D21–D24). A proximity rule gets a gridless mapping before it is dropped.
+- A style or genre word ("retro", "faithful", "minimal") is asked as a question with its
+  alternatives before it is written as a decision. Omnis's look is modern (PRD D26); pixel art is
+  placeholder only and never a reason for or against anything.
 - Ask before changing `PRD.md` or `ARCHITECTURE.md` on drift. The "as built" paragraphs in
   ARCHITECTURE §4.5 are approved by the milestone plan and are flagged in the commit that adds them.
 - A deferred milestone keeps its number and heading in `tasks/TODO.md`, marked deferred, with a
@@ -46,7 +52,10 @@ records the practice that grew around it. A new agreement lands here the session
   never through a pipe, the status checked. Sentrux `rescan` (or `scan` on
   `/Users/john/code/omnis/crates`) then `check_rules` before every commit; a violation is fixed
   in that commit or the next one and named as debt.
-- Stage by name; never `git add -A`; `.claude/` and `docs/background/*` are never staged.
+- Stage by name; never `git add -A`; `.claude/` is never staged.
+- World and game building documents the owner adds (`docs/background/*` and the like) are
+  committed as soon as they show up, in their own commit, unedited, however far their horizon is
+  from the current work (owner, 2026-09-20; this replaces the earlier never-stage rule).
 - Never push. The owner pushes and opens pull requests. After the owner reports a merge, run
   `git log main..<old-branch>` before cutting the next branch and carry any tail over first.
 - Trailer on every commit:

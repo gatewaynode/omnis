@@ -70,5 +70,5 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 
 ## omnis-mcp and omnis-cli
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: eighteen tools, the hand-written `Command`
-schema, `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
+schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
