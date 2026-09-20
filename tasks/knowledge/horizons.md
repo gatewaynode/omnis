@@ -61,6 +61,20 @@ toolkit cannot build (the tactics screen's dropdowns, number inputs, lists, scro
 editor's toolkit reconsidered against `bevy_egui`, smooth instead of integer scaling, and the
 open PRD §14 question of what modern means for the viewport (higher-resolution 2D, or reopening
 3D) and who makes the art.
+Facts already read from the Bevy 0.19.1 sources (2026-09-20), so the plan need not re-derive
+them: the Bevy feature is `bevy_feathers` and it pulls in `bevy_ui_widgets`; both are part of
+Bevy (no third-party crates; `bevy_egui` adds 17 and two duplicates) and both call themselves
+experimental; Feathers' own docs aim it at editors and inspectors ("deliberately not intended"
+for game UI; "consider copying this code into your own project") while `bevy_ui_widgets` is the
+unstyled layer meant for a game's own look; Feathers controls: button, checkbox, radio, slider,
+toggle switch, text input, number input, list view, menu, scrollbar, colour plane/slider/swatch,
+disclosure toggle, virtual keyboard, with a dark theme, tokens and font styles. The app's `ui`
+feature is off since M3b (the tree went 328 to 323 crates). What the canvas gives today and any
+replacement must keep: the MCP `screenshot` and `dump_screens` show the interface (the M3 note:
+window-space `bevy_ui` did not appear in canvas captures), headless tests drive every widget
+through `WidgetId` hit-tests with no GPU, every action has a button before a key. The owner's
+wording for the experiment: "Feathers in game. Start experimenting with feathers in the game.
+See how the default styles work, and see if modern fonts can replace our pixel art based fonts."
 
 ## App and tooling
 A seventh tool button needs a wider right column or a menu; word labels on the pad; a fourth pad
