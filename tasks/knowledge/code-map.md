@@ -64,6 +64,50 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
   downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
   sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
+- `bevy_ui` screens (every build since M7 step 1; the canvas creation screen is gone). The kit:
+  `ui_model.rs` (Bevy-free: `Payload`, `FONTS`, `fitted_scale`, `scale_cap`, `SCALE_*`, `whole`)
+  and `ui_kit.rs` (`UiId`, `UiLabel`, `UiScreen`, one variant per screen, with `name()` for the
+  text tree; `Control(UiId)`, `Shown(UiLabel)`, `PanelRoot { screen, shape }`; the scenes `panel`,
+  `title`, `row`, `row_label`, `column`, `button`, `message_line`, `dropdown` with `Width`;
+  `FontChoice`, `ScaleChoice`, `scale_for`, the systems `scale` and `place`, `set_text`; the five
+  observers, which publish `UiReport { id, payload }` and know no screen). A screen is a Bevy-free
+  model plus a scenes file: party creation is `creation_menu.rs` (`CreationForm`, `Catalog`, the
+  named methods that hold the rules; `set_name` holds 24 characters and the rules' 32 bytes),
+  `creation_panel.rs` (`PanelId`, `LabelId`, `apply`, `PanelAction`, `text`, `shape`) and
+  `feathers_creation.rs` (scenes per row, `reports` in `UiSet::Dispatch` before
+  `menus::CreationFlow`, `reconcile`, `show_scale`, `sync`, `Synced`). `feathers_fonts.rs`
+  (`PanelFonts`, `Face`, `wear`: every text under any `PanelRoot`), `feathers_ui.rs`
+  (`FeathersUiPlugin`, Escape; it writes `ui.rs`'s `UiPointerCapture`), `capture.rs`
+  (`ComposeCapture`, `ComposedSaved`; feature `devtools`), `menus::CreationAsk` (what the panel
+  asks of the creation flow), `Menu::Covered` (the backdrop the canvas paints under a panel).
+  Fonts under `assets/fonts/{inter,alegreya-sans}`. **A new screen**: a variant in `UiId`,
+  `UiLabel` and `UiScreen`, its ids in its Bevy-free model, a `reports` system that reads
+  `UiReport`s carrying its ids, a `reconcile` that touches only its own roots; the pattern is in
+  `tasks/plans/feathers-experiment.md`.
+- Dev: `dev.rs` (`DevCommand`, twelve variants, gated by `Settings.devtools`).
+- Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
+  `party_of`), `measure.rs` ignored.
+
+## omnis-app
+- Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
+  `ShellCommand::{Save, Load, ToggleAutomap, Pause, Cast, Sheet, Inventory, Look, Quit}`, the
+  `shell` system runs whenever a world exists), `input.rs` (keys, `tool_for`, `map_tools`),
+  `ui.rs` (`HELP_*` lines, `build_frame`, `tool_states`, `overlay_for`, `RollLog`, `Selected`).
+- Screens: `screen.rs` (`View`, `Menu`, `Target`, `click`, `dump_screens`), `screens.rs`
+  (overlay painters), `layout.rs` (core 1280×720; `RIGHT_COLUMN`, `TOOLS` y 300..388, `PAD`,
+  `BAND`; menu grid 80×16 at `menu_cell(c, r) = (241 + 6c, 200 + 8r)`), `widget.rs`
+  (`WidgetId::{Row, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
+  `panels.rs` (`framed_button`, `pad`, `tools`), `plan.rs` (viewport and automap paint,
+  `REMOTE_OUTLINE`), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
+- Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
+  `Pause::DEBUG = 4`, `debug_available`) and `menus.rs` (`pause_action`, `Actions`); fight
+  `combat_menu.rs`/`combat_screen.rs`/`combat.rs` with `spell_menu.rs` and `use_menu.rs`
+  (pickers); sheet `sheet_menu.rs`/`sheet_screen.rs`/`sheet.rs`; inventory
+  `inventory_menu.rs`/`inventory_screen.rs`/`inventory.rs`; debug `debug_menu.rs`/
+  `debug_screen.rs`/`debug.rs` (`DebugPlugin`, feature `devtools`, opens on `OnEnter(PlayState::Debug)`).
+- Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
+  downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
+  sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
 - `bevy_ui` screens (every build since M7 step 1; the canvas creation screen is gone): party
   creation. `creation_menu.rs` (`CreationForm`, `Catalog`, the named methods that hold the rules;
   `set_name` holds 24 characters and the rules' 32 bytes),

@@ -5,8 +5,8 @@
 //! panel; what a text was at first (regular, bold, the sliders' monospace) is remembered,
 //! because Fira alone has a monospace face and the others answer with their regular one.
 
-use crate::creation_panel::FONTS;
-use crate::feathers_creation::{FontChoice, PanelRoot};
+use crate::ui_kit::{FontChoice, PanelRoot};
+use crate::ui_model::FONTS;
 use bevy::feathers::constants::fonts;
 use bevy::prelude::*;
 use bevy::text::FontSource;
@@ -22,7 +22,7 @@ pub enum Face {
     Mono,
 }
 
-/// The families' faces, in `creation_panel::FONTS`' order: regular, bold, monospace.
+/// The families' faces, in `ui_model::FONTS`' order: regular, bold, monospace.
 #[derive(Resource, Debug, Default)]
 pub struct PanelFonts(pub Vec<[Handle<Font>; 3]>);
 
@@ -72,7 +72,7 @@ pub fn register(
     debug_assert_eq!(held.0.len(), FONTS.len());
 }
 
-/// Dress every text under the panel in the chosen family: when the choice changes, and when
+/// Dress every text under a panel in the chosen family: when the choice changes, and when
 /// a text's font is written (a rebuilt panel; Feathers hands most texts their font by
 /// inheritance a frame after they are spawned).
 pub fn wear(

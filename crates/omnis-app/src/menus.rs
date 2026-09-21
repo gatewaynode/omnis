@@ -32,6 +32,11 @@ use omnis_sim::{Command, Event, PartyCommand, World};
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
 pub struct CreationAsk(pub CreationAction);
 
+/// Where `CreationAsk`s are answered, so whoever writes them can run before it and be
+/// answered in the same frame.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CreationFlow;
+
 /// Every screen's state, kept so a screen reopens where it was.
 #[derive(Resource, Default, Debug)]
 pub struct Screens {
@@ -146,7 +151,10 @@ impl Plugin for MenusPlugin {
             .add_message::<CreationAsk>()
             .init_resource::<Screens>()
             .add_systems(OnEnter(PlayState::CreateParty), open_creation)
-            .add_systems(Update, (menu_keys, creation_asks).in_set(UiSet::Dispatch))
+            .add_systems(
+                Update,
+                (menu_keys, creation_asks.in_set(CreationFlow)).in_set(UiSet::Dispatch),
+            )
             .add_systems(Update, refresh.in_set(UiSet::Model));
     }
 }

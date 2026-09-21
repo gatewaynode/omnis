@@ -33,8 +33,8 @@ struct Launch {
 }
 
 /// The interface's switches, in every build, so a capture or a measurement needs no person:
-/// `--font 0|1|2` (`creation_panel::FONTS`), `--ui-scale <hundredths>` (held to what the window
-/// holds, `creation_panel::scale_cap`) and `--frame-stats`
+/// `--font 0|1|2` (`ui_model::FONTS`), `--ui-scale <hundredths>` (held to what the window
+/// holds, `ui_model::scale_cap`) and `--frame-stats`
 /// (Bevy's frame-time diagnostics in the log, once a second, with vertical sync off).
 #[derive(Default)]
 struct Look {
@@ -69,8 +69,8 @@ impl Look {
             ));
         }
         {
-            use omnis_app::creation_panel::{FONTS, SCALE_MAX, SCALE_MIN};
-            use omnis_app::feathers_creation::{FontChoice, ScaleChoice};
+            use omnis_app::ui_kit::{FontChoice, ScaleChoice};
+            use omnis_app::ui_model::{FONTS, SCALE_MAX, SCALE_MIN};
             if let Some(font) = self.font {
                 app.insert_resource(FontChoice(font.min(FONTS.len() - 1)));
             }

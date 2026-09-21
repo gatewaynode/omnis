@@ -1,4 +1,4 @@
-//! Driving the Feathers creation panel headless: controls found by `PanelId`, reports sent as
+//! Driving a `bevy_ui` panel headless: controls found by their id (a screen's own, or `UiId`), reports sent as
 //! the widgets' own events, and the pointer and keys as a window would send them, through real
 //! layout, picking and focus. The window's scale factor is one here, so a node's physical
 //! position is also its logical one.
@@ -12,11 +12,11 @@ use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, 
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextEdit};
 use bevy::ui::{CalculatedClip, UiGlobalTransform};
-use bevy::ui_widgets::{Activate, ScrollArea, SliderValue, ValueChange};
+use bevy::ui_widgets::{Activate, MenuPopup, ScrollArea, SliderValue, ValueChange};
 use bevy::window::{PrimaryWindow, WindowRef, WindowResized};
 use omnis_app::creation_panel::{Choice, PanelId};
-use omnis_app::feathers_creation::{Control, LabelId, PanelRoot, Shown};
 use omnis_app::menus::Screens;
+use omnis_app::ui_kit::{Control, PanelRoot, Shown, UiId, UiLabel};
 
 /// A new game by the canvas menus, arriving on the party creation panel.
 pub fn creating(save: &str) -> App {
@@ -32,7 +32,8 @@ pub fn settle(app: &mut App) {
     }
 }
 
-pub fn control(app: &mut App, id: PanelId) -> Entity {
+pub fn control(app: &mut App, id: impl Into<UiId>) -> Entity {
+    let id = id.into();
     let mut query = app.world_mut().query::<(Entity, &Control)>();
     query
         .iter(app.world())
@@ -40,8 +41,8 @@ pub fn control(app: &mut App, id: PanelId) -> Entity {
         .unwrap_or_else(|| panic!("{id:?} is not on the panel"))
 }
 
-/// Every control on the panel, in `PanelId`'s order.
-pub fn controls(app: &mut App) -> Vec<PanelId> {
+/// Every control on the panel, in `UiId`'s order.
+pub fn controls(app: &mut App) -> Vec<UiId> {
     let mut query = app.world_mut().query::<&Control>();
     let mut ids: Vec<_> = query.iter(app.world()).map(|control| control.0).collect();
     ids.sort();
@@ -53,7 +54,8 @@ pub fn form(app: &App) -> &omnis_app::menu::CreationForm {
 }
 
 /// A text the panel writes from the form.
-pub fn shown(app: &mut App, id: LabelId) -> String {
+pub fn shown(app: &mut App, id: impl Into<UiLabel>) -> String {
+    let id = id.into();
     let mut query = app.world_mut().query::<(&Shown, &Text)>();
     query
         .iter(app.world())
@@ -63,13 +65,13 @@ pub fn shown(app: &mut App, id: LabelId) -> String {
 
 // ------------------------------------------------------------------ reports as events
 
-pub fn activate(app: &mut App, id: PanelId) {
+pub fn activate(app: &mut App, id: impl Into<UiId>) {
     let entity = control(app, id);
     app.world_mut().trigger(Activate { entity });
     settle(app);
 }
 
-pub fn change<T: Send + Sync + 'static + Clone>(app: &mut App, id: PanelId, value: T) {
+pub fn change<T: Send + Sync + 'static + Clone>(app: &mut App, id: impl Into<UiId>, value: T) {
     let source = control(app, id);
     app.world_mut().trigger(ValueChange {
         source,
@@ -228,7 +230,7 @@ pub fn number_input(app: &mut App, ability: usize) -> Entity {
         .expect("a text input in the number input")
 }
 
-pub fn slider(app: &mut App, id: PanelId) -> f32 {
+pub fn slider(app: &mut App, id: impl Into<UiId>) -> f32 {
     let slider = control(app, id);
     app.world().get::<SliderValue>(slider).expect("a slider").0
 }
@@ -273,12 +275,12 @@ pub fn pick_class_by_mouse(app: &mut App, index: usize) {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Fault {
     /// It has no size.
-    Empty(PanelId),
+    Empty(UiId),
     /// It is not wholly inside the panel.
-    Outside(PanelId),
+    Outside(UiId),
     /// Two controls share pixels.
-    Overlap(PanelId, PanelId),
-    /// The skills' scroll pane is not wholly inside the panel.
+    Overlap(UiId, UiId),
+    /// A scroll pane is not wholly inside the panel.
     PaneOutside,
 }
 
@@ -303,14 +305,25 @@ pub fn layout_faults(app: &mut App) -> Vec<Fault> {
     let mut query = app
         .world_mut()
         .query::<(Entity, &Control, Option<&CalculatedClip>)>();
-    let mut seen: Vec<(PanelId, Rect)> = Vec::new();
+    let mut seen: Vec<(UiId, Rect)> = Vec::new();
     for (entity, control, clip) in query.iter(app.world()) {
         let id = control.0;
         let full = rect(app, entity);
+        let under = |app: &App, wanted: fn(&World, Entity) -> bool| {
+            let world = app.world();
+            let mut at = entity;
+            while let Some(parent) = world.get::<ChildOf>(at) {
+                at = parent.parent();
+                if wanted(world, at) {
+                    return true;
+                }
+            }
+            false
+        };
         match id {
-            PanelId::Pick(..) | PanelId::FontPick(_) => {}
+            _ if under(app, |w, e| w.get::<MenuPopup>(e).is_some()) => {}
             _ if full.is_empty() => faults.push(Fault::Empty(id)),
-            PanelId::Skill(_) => {
+            _ if under(app, |w, e| w.get::<ScrollArea>(e).is_some()) => {
                 let visible = clip.map_or(full, |c| full.intersect(c.clip));
                 if !visible.is_empty() {
                     seen.push((id, visible));
@@ -335,8 +348,8 @@ pub fn layout_faults(app: &mut App) -> Vec<Fault> {
 // ------------------------------------------------------------------ the text tree
 
 fn tree_line(world: &World, entity: Entity, depth: usize) -> Option<String> {
-    let control = world.get::<Control>(entity).map(|c| format!("{:?}", c.0));
-    let label = world.get::<Shown>(entity).map(|s| format!("{:?}", s.0));
+    let control = world.get::<Control>(entity).map(|c| c.0.name());
+    let label = world.get::<Shown>(entity).map(|s| s.0.name());
     let text = world.get::<Text>(entity).map(|t| t.0.clone());
     let typed = world
         .get::<EditableText>(entity)

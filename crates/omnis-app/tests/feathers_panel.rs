@@ -16,16 +16,17 @@ use common::feathers::{
 use common::{
     add_fighter_by_command, play_state, start_new_game_by_mouse, ui_app_saving_to, world,
 };
-use omnis_app::creation_panel::{Choice, FONTS, PanelId};
-use omnis_app::feathers_creation::{FontChoice, LabelId, PanelRoot, ScaleChoice};
+use omnis_app::creation_panel::{Choice, LabelId, PanelId};
 use omnis_app::feathers_fonts::{Face, PanelFonts};
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState};
+use omnis_app::ui_kit::{FontChoice, PanelRoot, ScaleChoice, UiId};
+use omnis_app::ui_model::FONTS;
 
 // ------------------------------------------------------------------ every control by event
 
 /// What the panel must hold for the form and the catalog as they are.
-fn expected_controls(app: &App) -> Vec<PanelId> {
+fn expected_controls(app: &App) -> Vec<UiId> {
     let screens = app.world().resource::<Screens>();
     let (form, catalog) = (&screens.creation, &screens.catalog);
     let mut ids = vec![
@@ -44,7 +45,7 @@ fn expected_controls(app: &App) -> Vec<PanelId> {
     ids.extend((0..6).flat_map(|i| [PanelId::Score(i), PanelId::ScoreSlider(i)]));
     ids.extend((0..form.skill_list(catalog).1.len()).map(PanelId::Skill));
     ids.sort();
-    ids
+    ids.into_iter().map(UiId::from).collect()
 }
 
 fn options(app: &App, choice: Choice) -> Vec<String> {
@@ -304,7 +305,7 @@ fn the_panel_is_laid_out_at_both_window_sizes_whatever_scale_is_asked() {
     let mut node = app.world_mut().get_mut::<Node>(add).expect("a node");
     node.margin.top = px(600);
     settle(&mut app);
-    assert!(layout_faults(&mut app).contains(&Fault::Outside(PanelId::Add)));
+    assert!(layout_faults(&mut app).contains(&Fault::Outside(PanelId::Add.into())));
     let mut node = app.world_mut().get_mut::<Node>(add).expect("a node");
     node.margin.top = px(0);
     settle(&mut app);
@@ -315,7 +316,10 @@ fn the_panel_is_laid_out_at_both_window_sizes_whatever_scale_is_asked() {
     node.margin.left = px(-40);
     settle(&mut app);
     let faults = layout_faults(&mut app);
-    assert_eq!(faults, vec![Fault::Overlap(PanelId::Add, PanelId::Begin)]);
+    assert_eq!(
+        faults,
+        vec![Fault::Overlap(PanelId::Add.into(), PanelId::Begin.into())]
+    );
 }
 
 // ------------------------------------------------------------------ the typefaces
@@ -404,7 +408,10 @@ fn the_text_tree_shows_the_panel() {
     assert!(tree.contains("\"CREATE YOUR PARTY\""));
     // Every control is a line.
     for id in controls(&mut app) {
-        assert!(tree.contains(&format!("[{id:?}]")), "no {id:?} in\n{tree}");
+        assert!(
+            tree.contains(&format!("[{}]", id.name())),
+            "no {id:?} in\n{tree}"
+        );
     }
     if let Ok(dir) = std::env::var("OMNIS_DUMP_SCREENS") {
         let path = std::path::Path::new(&dir).join("creation_feathers.txt");

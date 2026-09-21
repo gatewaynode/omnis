@@ -7,12 +7,13 @@
 //! global nearest sampler on Feathers' icons.
 
 use crate::cursor::UiSet;
-use crate::feathers_creation::{self as creation, PanelRoot, Synced};
+use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::menu::CreationAction;
-use crate::menus::{Active, CreationAsk, Where};
+use crate::menus::{Active, CreationAsk, CreationFlow, Where};
 use crate::pixel::OuterCamera;
 use crate::ui::UiPointerCapture;
+use crate::ui_kit::{self as kit, PanelRoot};
 use bevy::feathers::FeathersPlugins;
 use bevy::feathers::constants::icons;
 use bevy::feathers::dark_theme::create_dark_theme;
@@ -36,25 +37,35 @@ impl Plugin for FeathersUiPlugin {
             .insert_resource(UiTheme(create_dark_theme()))
             .init_resource::<SmoothIcons>()
             .init_resource::<Synced>()
-            .init_resource::<creation::ScaleChoice>()
-            .init_resource::<creation::FontChoice>()
+            .init_resource::<kit::ScaleChoice>()
+            .init_resource::<kit::FontChoice>()
+            .add_message::<kit::UiReport>()
             .init_resource::<PanelFonts>()
             .init_resource::<UiPointerCapture>()
-            .add_observer(creation::on_activate)
-            .add_observer(creation::on_slide)
-            .add_observer(creation::on_number)
-            .add_observer(creation::on_flag)
-            .add_observer(creation::on_text)
+            .add_observer(kit::on_activate)
+            .add_observer(kit::on_slide)
+            .add_observer(kit::on_number)
+            .add_observer(kit::on_flag)
+            .add_observer(kit::on_text)
             .add_systems(Startup, (smooth_icons, typefaces::register))
             .add_systems(PreUpdate, capture_pointer.after(PickingSystems::Hover))
             .add_systems(Update, claim_camera)
             .add_systems(Update, escape_abandons.in_set(UiSet::Dispatch))
+            // A report is a click or a key: it is answered where those are, ahead of the
+            // creation flow, so what a button asks is done in the frame it was pressed.
+            .add_systems(
+                Update,
+                creation::reports
+                    .in_set(UiSet::Dispatch)
+                    .before(CreationFlow),
+            )
             .add_systems(
                 Update,
                 (
                     creation::reconcile,
-                    creation::scale,
-                    creation::place,
+                    kit::scale,
+                    kit::place,
+                    creation::show_scale,
                     creation::sync,
                     typefaces::wear,
                 )

@@ -4,105 +4,36 @@
 //! writes the form back into the widgets. The entity tree is spawned again when its shape
 //! changes (another class's skills, a longer roster); values alone are synced.
 
-use crate::canvas::Layout;
-use crate::creation_panel::{
-    self as panel, Choice, PanelAction, PanelId, Payload, SCALE_MAX, SCALE_MIN,
-};
+use crate::creation_panel::{self as panel, Choice, LabelId, PanelAction, PanelId};
 use crate::cursor::WindowSize;
-use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
 use crate::menus::{Active, CreationAsk, Screens, Where};
 use crate::sim::SimWorld;
-use bevy::feathers::constants::{fonts, size};
+use crate::ui_kit::{
+    Control, FontChoice, PanelRoot, ScaleChoice, Shown, UiId, UiLabel, UiReport, UiScreen, Width,
+    button, column, dropdown, message_line, panel as panel_root, row, row_label, scale_for,
+    set_text, title,
+};
+use crate::ui_model::{FONTS, SCALE_MAX, SCALE_MIN, scale_cap};
 use bevy::feathers::containers::flex_spacer;
 use bevy::feathers::controls::{
-    ButtonVariant, FeathersButton, FeathersCheckbox, FeathersListRow, FeathersListView,
-    FeathersMenu, FeathersMenuButton, FeathersMenuItem, FeathersMenuPopup, FeathersNumberInput,
+    ButtonVariant, FeathersCheckbox, FeathersListRow, FeathersListView, FeathersNumberInput,
     FeathersScrollbar, FeathersSlider, FeathersTextInput, FeathersTextInputContainer, NumberFormat,
     NumberInputValue, UpdateNumberInput,
 };
 use bevy::feathers::display::{label, label_dim};
-use bevy::feathers::theme::{ThemeBackgroundColor, ThemedText};
-use bevy::feathers::tokens;
+use bevy::feathers::theme::ThemedText;
 use bevy::input_focus::InputFocus;
-use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::prelude::*;
-use bevy::text::{EditableText, FontSourceTemplate, TextEdit, TextEditChange};
+use bevy::text::{EditableText, TextEdit};
 use bevy::ui::Checked;
 use bevy::ui_widgets::{
-    Activate, ControlOrientation, ScrollArea, SliderPrecision, SliderRange, SliderStep,
-    SliderValue, ValueChange,
+    ControlOrientation, ScrollArea, SliderPrecision, SliderRange, SliderStep, SliderValue,
 };
 use omnis_sim::omnis_data::Ability;
-
-/// The panel's root, with the shape it was spawned for.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PanelRoot(pub u64);
-
-/// Which control an entity is.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Control(pub PanelId);
-
-/// A text the panel rewrites from the form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum LabelId {
-    /// "2 of 6 members".
-    #[default]
-    Heading,
-    /// A choice's current option, on its menu button.
-    Caption(Choice),
-    /// An ability's point cost.
-    Cost(usize),
-    /// Points left.
-    Points,
-    /// "Skills (pick 2)".
-    Skills,
-    /// The last refusal.
-    Message,
-    /// The chosen typeface, on the font menu's button.
-    Font,
-}
-
-/// Which rewritten text an entity is.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Shown(pub LabelId);
 
 /// The form as the widgets last saw it; `None` makes the next `sync` write everything.
 #[derive(Resource, Debug, Default)]
 pub struct Synced(Option<(crate::menu::CreationForm, usize)>);
-
-/// The refusal line's colour.
-const ALERT: Color = Color::srgb(1.0, 0.47, 0.42);
-
-fn title(text: &'static str) -> impl Scene {
-    bsn! {
-        Text(text)
-        TextFont {
-            font: FontSourceTemplate::Handle(fonts::BOLD),
-            font_size: size::MEDIUM_FONT,
-        }
-        bevy::feathers::theme::ThemeTextColor(tokens::TEXT_MAIN)
-    }
-}
-
-/// A row: a fixed-width label, then the control.
-fn row() -> impl Scene {
-    bsn! {
-        Node {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: px(8),
-            min_height: size::ROW_HEIGHT,
-        }
-    }
-}
-
-fn row_label(text: &'static str) -> impl Scene {
-    bsn! {
-        Node { width: px(96) }
-        Children [ label(text) ]
-    }
-}
 
 fn name_row() -> impl Scene {
     bsn! {
@@ -114,7 +45,7 @@ fn name_row() -> impl Scene {
                 Children [
                     (
                         @FeathersTextInput { @max_characters: {crate::creation_menu::NAME_LIMIT} }
-                        Control({PanelId::Name})
+                        Control({UiId::Creation(PanelId::Name)})
                     )
                 ]
             ),
@@ -122,40 +53,22 @@ fn name_row() -> impl Scene {
     }
 }
 
-fn menu_item(id: PanelId, text: String) -> impl Scene {
-    bsn! {
-        @FeathersMenuItem { @caption: bsn! { Text({text.clone()}) ThemedText } }
-        Control({id})
-    }
-}
-
-/// A choice as a menu: Feathers has no dropdown, so the button's caption is ours to keep.
+/// A choice as a dropdown.
 fn choice_row(choice: Choice, options: Vec<String>) -> impl Scene {
-    let items: Vec<_> = options
+    let options = options
         .into_iter()
         .enumerate()
-        .map(|(index, text)| menu_item(PanelId::Pick(choice, index), text))
+        .map(|(index, text)| (PanelId::Pick(choice, index).into(), text))
         .collect();
     bsn! {
         row()
         Children [
             row_label(choice.label()),
-            (
-                @FeathersMenu
-                Node { flex_grow: 1.0 }
-                Children [
-                    (
-                        @FeathersMenuButton {
-                            @caption: bsn! { Text("") ThemedText Shown({LabelId::Caption(choice)}) }
-                        }
-                        Control({PanelId::Menu(choice)})
-                        Node { flex_grow: 1.0 }
-                    ),
-                    (
-                        @FeathersMenuPopup
-                        Children [ {items} ]
-                    )
-                ]
+            dropdown(
+                PanelId::Menu(choice).into(),
+                LabelId::Caption(choice).into(),
+                options,
+                Width::Grow,
             ),
         ]
     }
@@ -169,19 +82,19 @@ fn score_row(index: usize, name: &'static str, min: f32, max: f32) -> impl Scene
             (Node { width: px(40) } Children [ label(name) ]),
             (
                 @FeathersSlider { @min: {min}, @max: {max}, @value: {min} }
-                Control({PanelId::ScoreSlider(index)})
+                Control({UiId::Creation(PanelId::ScoreSlider(index))})
                 SliderStep(1.)
                 SliderPrecision(0)
                 Node { flex_grow: 1.0 }
             ),
             (
                 @FeathersNumberInput { @number_format: {NumberFormat::I32} }
-                Control({PanelId::Score(index)})
+                Control({UiId::Creation(PanelId::Score(index))})
                 Node { width: px(64), flex_grow: 0.0 }
             ),
             (
                 Node { width: px(56) }
-                Children [ (label_dim("") Shown({LabelId::Cost(index)})) ]
+                Children [ (label_dim("") Shown({UiLabel::Creation(LabelId::Cost(index))})) ]
             ),
         ]
     }
@@ -190,7 +103,7 @@ fn score_row(index: usize, name: &'static str, min: f32, max: f32) -> impl Scene
 fn skill_box(index: usize, text: String) -> impl Scene {
     bsn! {
         @FeathersCheckbox { @caption: bsn! { Text({text.clone()}) ThemedText } }
-        Control({PanelId::Skill(index)})
+        Control({UiId::Creation(PanelId::Skill(index))})
     }
 }
 
@@ -242,18 +155,6 @@ fn roster_row(name: String) -> impl Scene {
     bsn! { @FeathersListRow Children [ (Text({name.clone()}) ThemedText) ] }
 }
 
-fn column() -> impl Scene {
-    bsn! {
-        Node {
-            display: Display::Flex,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(6),
-            flex_grow: 1.0,
-            flex_basis: px(0),
-        }
-    }
-}
-
 /// Who the member is: name, the four choices, the skills.
 fn identity(form: &crate::menu::CreationForm, catalog: &crate::menu::Catalog) -> impl Scene {
     let [race, class, background, alignment] = Choice::ALL.map(|c| c.options(catalog));
@@ -271,7 +172,7 @@ fn identity(form: &crate::menu::CreationForm, catalog: &crate::menu::Catalog) ->
             choice_row(Choice::Class, class),
             choice_row(Choice::Background, background),
             choice_row(Choice::Alignment, alignment),
-            (label("") Shown({LabelId::Skills})),
+            (label("") Shown({UiLabel::Creation(LabelId::Skills)})),
             skills_pane(skills),
         ]
     }
@@ -290,7 +191,7 @@ fn abilities(catalog: &crate::menu::Catalog, roster: &[String]) -> impl Scene {
         column()
         Children [
             {scores},
-            (label("") Shown({LabelId::Points})),
+            (label("") Shown({UiLabel::Creation(LabelId::Points)})),
             title("Party"),
             (
                 @FeathersListView { @rows: {Box::new(members) as Box<dyn SceneList>} }
@@ -300,48 +201,28 @@ fn abilities(catalog: &crate::menu::Catalog, roster: &[String]) -> impl Scene {
     }
 }
 
-fn button(id: PanelId, text: &'static str, variant: ButtonVariant) -> impl Scene {
-    bsn! {
-        @FeathersButton {
-            @caption: bsn! { Text(text) ThemedText },
-            @variant: {variant},
-        }
-        Control({id})
-    }
-}
-
-/// The typefaces, as a menu like the choices'.
+/// The typefaces, as a dropdown like the choices'.
 fn font_menu() -> impl Scene {
-    let items: Vec<_> = panel::FONTS
+    let options = FONTS
         .iter()
         .enumerate()
-        .map(|(index, name)| menu_item(PanelId::FontPick(index), (*name).to_owned()))
+        .map(|(index, name)| (PanelId::FontPick(index).into(), (*name).to_owned()))
         .collect();
-    bsn! {
-        @FeathersMenu
-        Children [
-            (
-                @FeathersMenuButton {
-                    @caption: bsn! { Text("") ThemedText Shown({LabelId::Font}) }
-                }
-                Control({PanelId::FontMenu})
-                Node { width: px(130) }
-            ),
-            (
-                @FeathersMenuPopup
-                Children [ {items} ]
-            )
-        ]
-    }
+    dropdown(
+        PanelId::FontMenu.into(),
+        LabelId::Font.into(),
+        options,
+        Width::Px(130.0),
+    )
 }
 
 fn footer() -> impl Scene {
     bsn! {
         row()
         Children [
-            button(PanelId::Add, "Add member", ButtonVariant::Primary),
-            button(PanelId::Begin, "Begin", ButtonVariant::Normal),
-            button(PanelId::Back, "Back", ButtonVariant::Normal),
+            button(PanelId::Add.into(), "Add member", ButtonVariant::Primary),
+            button(PanelId::Begin.into(), "Begin", ButtonVariant::Normal),
+            button(PanelId::Back.into(), "Back", ButtonVariant::Normal),
             flex_spacer(),
             label_dim("Font"),
             font_menu(),
@@ -352,7 +233,7 @@ fn footer() -> impl Scene {
                     @max: {f32::from(SCALE_MAX) / 100.0},
                     @value: 1.0,
                 }
-                Control({PanelId::UiScale})
+                Control({UiId::Creation(PanelId::UiScale)})
                 SliderStep(0.05)
                 SliderPrecision(2)
                 Node { width: px(140), flex_grow: 0.0 }
@@ -368,23 +249,14 @@ fn creation_panel(
     roster: &[String],
 ) -> impl Scene {
     bsn! {
-        Node {
-            position_type: PositionType::Absolute,
-            display: Display::Flex,
-            flex_direction: FlexDirection::Column,
-            row_gap: px(10),
-            padding: {UiRect::all(px(16))},
-            overflow: {Overflow::clip()},
-        }
-        TabGroup
-        ThemeBackgroundColor(tokens::WINDOW_BG)
+        panel_root()
         Children [
             (
                 row()
                 Children [
                     title("CREATE YOUR PARTY"),
                     flex_spacer(),
-                    (label("") Shown({LabelId::Heading})),
+                    (label("") Shown({UiLabel::Creation(LabelId::Heading)})),
                 ]
             ),
             (
@@ -399,15 +271,7 @@ fn creation_panel(
                     abilities(catalog, roster),
                 ]
             ),
-            (
-                Text("")
-                TextFont {
-                    font: FontSourceTemplate::Handle(fonts::REGULAR),
-                    font_size: size::MEDIUM_FONT,
-                }
-                TextColor({ALERT})
-                Shown({LabelId::Message})
-            ),
+            message_line(LabelId::Message.into()),
             footer(),
         ]
     }
@@ -434,7 +298,10 @@ pub fn reconcile(
     let shape = panel::shape(&screens.creation, &screens.catalog, &names);
     let mut standing = false;
     for (entity, root) in &roots {
-        if wanted && root.0 == shape && !standing {
+        if root.screen != UiScreen::Creation {
+            continue;
+        }
+        if wanted && root.shape == shape && !standing {
             standing = true;
         } else {
             commands.entity(entity).despawn();
@@ -443,52 +310,28 @@ pub fn reconcile(
     if wanted && !standing {
         commands
             .spawn_scene(creation_panel(&screens.creation, &screens.catalog, &names))
-            .insert(PanelRoot(shape));
+            .insert(PanelRoot {
+                screen: UiScreen::Creation,
+                shape,
+            });
         synced.0 = None;
     }
 }
 
-/// The typeface the font menu chose, by index into `creation_panel::FONTS`. It starts on
-/// Inter, the owner's pick at look 2 (2026-09-20).
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FontChoice(pub usize);
-
-impl Default for FontChoice {
-    fn default() -> Self {
-        FontChoice(1)
-    }
-}
-
-/// The interface scale the slider chose, in hundredths; none follows the window.
-#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct ScaleChoice(pub Option<u16>);
-
-/// The interface scale is the slider's, or follows the canvas's whole-number scale; the
-/// slider shows whichever it is (its scene cannot know, and a rebuilt panel starts over).
-/// Neither is ever more than the window holds (`scale_cap`): the slider's range ends there,
-/// so a scale that pushes the footer out of the panel cannot be chosen.
-pub fn scale(
+/// The scale slider shows the interface scale, whichever it is (its scene cannot know, and a
+/// rebuilt panel starts over), and ends at what the window holds (`scale_cap`), so a scale
+/// that pushes the footer out of the panel cannot be chosen.
+pub fn show_scale(
     mut commands: Commands,
     size: Res<WindowSize>,
     choice: Res<ScaleChoice>,
-    mut scale: ResMut<UiScale>,
     sliders: Query<(Entity, &Control, &SliderValue, &SliderRange)>,
 ) {
     let canvas_scale = size.fit().scale;
-    let cap = panel::scale_cap(canvas_scale);
-    let hundredths = choice.0.map_or_else(
-        || panel::fitted_scale(canvas_scale),
-        |chosen| chosen.min(cap),
-    );
-    // A logical pixel is already `scale_factor` physical ones.
-    let wanted = f32::from(hundredths) / 100.0 / size.scale_factor.max(0.1);
-    if (scale.0 - wanted).abs() > f32::EPSILON {
-        scale.0 = wanted;
-    }
-    let shown = f32::from(hundredths) / 100.0;
-    let end = f32::from(cap) / 100.0;
+    let shown = f32::from(scale_for(*choice, canvas_scale)) / 100.0;
+    let end = f32::from(scale_cap(canvas_scale)) / 100.0;
     for (entity, control, value, range) in &sliders {
-        if control.0 != PanelId::UiScale {
+        if control.0 != UiId::Creation(PanelId::UiScale) {
             continue;
         }
         if (range.end() - end).abs() > f32::EPSILON {
@@ -500,36 +343,6 @@ pub fn scale(
     }
 }
 
-/// Keep the panel over the canvas's viewport, whatever the window and the interface scale.
-pub fn place(
-    size: Res<WindowSize>,
-    layout: Res<Layout>,
-    scale: Res<UiScale>,
-    mut roots: Query<&mut Node, With<PanelRoot>>,
-) {
-    let rect = (
-        layout.core.0,
-        layout.core.1,
-        u32::from(VIEWPORT_SIZE.0),
-        u32::from(VIEWPORT_SIZE.1),
-    );
-    let (x, y, w, h) = canvas_rect_to_window(rect, (size.width, size.height), size.scale_factor);
-    let s = scale.0.max(0.1);
-    let wanted = [x / s, y / s, w / s, h / s].map(px);
-    for mut node in &mut roots {
-        let now = [node.left, node.top, node.width, node.height];
-        if now != wanted {
-            [node.left, node.top, node.width, node.height] = wanted;
-        }
-    }
-}
-
-fn set_text(text: &mut Text, wanted: &str) {
-    if text.0 != wanted {
-        wanted.clone_into(&mut text.0);
-    }
-}
-
 fn label_text(
     id: LabelId,
     form: &crate::menu::CreationForm,
@@ -538,11 +351,7 @@ fn label_text(
     font: usize,
 ) -> String {
     match id {
-        LabelId::Font => panel::FONTS
-            .get(font)
-            .copied()
-            .unwrap_or_default()
-            .to_owned(),
+        LabelId::Font => FONTS.get(font).copied().unwrap_or_default().to_owned(),
         LabelId::Heading => shown.heading.clone(),
         LabelId::Caption(choice) => choice
             .options(catalog)
@@ -584,11 +393,13 @@ pub fn sync(
         return;
     }
     let shown = panel::text(form, catalog, members);
-    for (id, mut text) in &mut labels {
-        set_text(&mut text, &label_text(id.0, form, catalog, &shown, font.0));
+    for (shown_id, mut text) in &mut labels {
+        let UiLabel::Creation(id) = shown_id.0;
+        set_text(&mut text, &label_text(id, form, catalog, &shown, font.0));
     }
     for (entity, control, slider, checked) in &controls {
-        match control.0 {
+        let UiId::Creation(id) = control.0;
+        match id {
             // A focused input is left to the player, except where the form kept less than
             // it shows: a name cut at the rules' limit, or the blank of the next member.
             PanelId::Name => {
@@ -629,66 +440,34 @@ pub fn sync(
     synced.0 = Some((form.clone(), members));
 }
 
-/// What the app does with a control's report.
-#[derive(bevy::ecs::system::SystemParam)]
-pub struct Reports<'w, 's> {
-    controls: Query<'w, 's, &'static Control>,
-    screens: ResMut<'w, Screens>,
-    world: Option<Res<'w, SimWorld>>,
-    asks: MessageWriter<'w, CreationAsk>,
-    scale: ResMut<'w, ScaleChoice>,
-    font: ResMut<'w, FontChoice>,
-    synced: ResMut<'w, Synced>,
-}
-
-impl Reports<'_, '_> {
-    /// Apply a report from `entity`, if it is one of the panel's controls.
-    pub fn report(&mut self, entity: Entity, payload: &Payload) {
-        let Ok(control) = self.controls.get(entity) else {
-            return;
-        };
-        let members = self.world.as_ref().map_or(0, |w| w.0.party.members.len());
+/// Answer the panel's reports (`ui_kit::UiReport`): each goes through `creation_panel::apply`
+/// into the form, and what comes back is asked of the creation flow or kept as a choice.
+pub fn reports(
+    mut reports: MessageReader<UiReport>,
+    mut screens: ResMut<Screens>,
+    world: Option<Res<SimWorld>>,
+    mut asks: MessageWriter<CreationAsk>,
+    mut scale: ResMut<ScaleChoice>,
+    mut font: ResMut<FontChoice>,
+    mut synced: ResMut<Synced>,
+) {
+    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    for report in reports.read() {
+        let UiId::Creation(id) = report.id;
         let Screens {
             creation, catalog, ..
-        } = &mut *self.screens;
-        let action = panel::apply(control.0, payload, creation, catalog, members);
+        } = &mut *screens;
+        let action = panel::apply(id, &report.payload, creation, catalog, members);
         // What was reported may have been held or refused (a typed 99 is a 15), and then
         // the form did not change: the widgets are written again whatever happened.
-        self.synced.0 = None;
+        synced.0 = None;
         match action {
             Some(PanelAction::Creation(action)) => {
-                self.asks.write(CreationAsk(action));
+                asks.write(CreationAsk(action));
             }
-            Some(PanelAction::UiScale(hundredths)) => self.scale.0 = Some(hundredths),
-            Some(PanelAction::Font(index)) => self.font.0 = index,
+            Some(PanelAction::UiScale(hundredths)) => scale.0 = Some(hundredths),
+            Some(PanelAction::Font(index)) => font.0 = index,
             None => {}
         }
-    }
-}
-
-pub(crate) fn on_activate(event: On<Activate>, mut reports: Reports) {
-    reports.report(event.entity, &Payload::Activate);
-}
-
-pub(crate) fn on_slide(event: On<ValueChange<f32>>, mut reports: Reports) {
-    reports.report(event.source, &Payload::Slide(event.value));
-}
-
-pub(crate) fn on_number(event: On<ValueChange<i32>>, mut reports: Reports) {
-    reports.report(event.source, &Payload::Number(i64::from(event.value)));
-}
-
-pub(crate) fn on_flag(event: On<ValueChange<bool>>, mut reports: Reports) {
-    reports.report(event.source, &Payload::Flag(event.value));
-}
-
-pub(crate) fn on_text(
-    event: On<TextEditChange>,
-    inputs: Query<&EditableText>,
-    mut reports: Reports,
-) {
-    let entity = event.event_target();
-    if let Ok(input) = inputs.get(entity) {
-        reports.report(entity, &Payload::Text(input.value().to_string()));
     }
 }

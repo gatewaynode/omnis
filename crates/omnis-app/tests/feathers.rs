@@ -124,9 +124,9 @@ use common::feathers::{
 };
 use common::{play_state, world};
 use omnis_app::creation_panel::PanelId;
-use omnis_app::feathers_creation::{PanelRoot, ScaleChoice};
 use omnis_app::menus::Screens;
 use omnis_app::sim::PlayState;
+use omnis_app::ui_kit::{PanelRoot, ScaleChoice};
 
 #[test]
 fn a_new_game_opens_the_party_creation_panel() {

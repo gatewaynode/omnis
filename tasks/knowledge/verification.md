@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 378 passed, 6 ignored (2026-09-20, after M7 step 1). The gate's log says
-it on one line: `tests passed 378 failed 0 ignored 6`.
+Test count at the gate: 379 passed, 6 ignored (2026-09-20, after M7 step 2). The gate's log says
+it on one line: `tests passed 379 failed 0 ignored 6`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -43,7 +43,9 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 - `bevy_ui` screens (every build): the headless harness is `tests/common/mod.rs::feathers_app`
   (`DefaultPlugins` without winit and logging, no render backend: real layout, picking, focus, no
   GPU); helpers in `tests/common/feathers.rs` (`layout_faults`, `text_tree`, `click_node`,
-  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`). An app under `MinimalPlugins` has no panel:
+  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`; ids are `impl Into<UiId>`, and the layout check
+  is structural: menu items under a `MenuPopup` are left out, what sits under a `ScrollArea` counts
+  as far as its clip shows it). An app under `MinimalPlugins` has no panel:
   its tests get their party from `tests/common/mod.rs::party_by_command` (`CreationAsk`, what the
   panel itself sends). A PPM dump cannot show them; the text tree
   (`creation_feathers.txt` under `OMNIS_DUMP_SCREENS`) stands in. A picture needs the running
