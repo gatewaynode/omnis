@@ -1,7 +1,16 @@
 # Continuity notes
 
-Written 2026-09-20 after M7 step 2. Rewrite this file every time it is used; keep it to state,
-next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
+Written 2026-09-22 after M7 step 2, for an app restart (a Claude Code update and new models).
+Rewrite this file every time it is used; keep it to state, next step and pointers. The durable
+knowledge lives in `tasks/knowledge/` (start at its README).
+
+## On resuming after the restart
+- Run `/catchup`, then read `tasks/knowledge/README.md` and `agreements.md` before any commit.
+- The session changed: the `Claude-Session:` trailer on commits takes the URL from the new
+  session's attribution reminder, not the one `agreements.md` quotes (update that line on the
+  first commit). The `Co-Authored-By:` line names whichever model is running.
+- Nothing was in flight: the tree is clean, the last commit is `65c9102`, and step 3 has not
+  been started.
 
 ## State
 - Branch `m7-tasks`. The owner pushed up to `5bce8b7` on 2026-09-20 and its CI is green (owner;
