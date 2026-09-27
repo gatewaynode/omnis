@@ -87,8 +87,8 @@
         "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
     ],
     portals: [
-        (x: 16, y: 5, to_map: "test:map:dungeon", to_x: 1, to_y: 0, to_facing: South),
-        (x: 16, y: 31, to_map: "test:map:town", to_x: 10, to_y: 2, to_facing: West),
+        (x: 16, y: 5, to_map: "test:map:dungeon", to_x: 1, to_y: 0, to_facing: South, marker: Some("stairs.down")),
+        (x: 16, y: 31, to_map: "test:map:town", to_x: 10, to_y: 2, to_facing: West, marker: Some("signpost")),
     ],
     // A random table that never fires: every step still rolls its check on the encounter stream,
     // which the stream-isolation tests count.

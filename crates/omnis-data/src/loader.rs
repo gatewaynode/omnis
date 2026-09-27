@@ -113,6 +113,16 @@ impl MapData {
             .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
     }
 
+    /// The `Object` surface marking the portal on a tile, if any.
+    #[must_use]
+    pub fn marker_at(&self, x: u16, y: u16) -> Option<&str> {
+        self.def
+            .portals
+            .iter()
+            .find(|p| p.x == x && p.y == y)
+            .and_then(|p| p.marker.as_deref())
+    }
+
     /// The service placed on a tile, if any.
     #[must_use]
     pub fn site_at(&self, x: u16, y: u16) -> Option<ServiceId> {
@@ -667,6 +677,9 @@ fn check_surfaces(def: &MapDef, tileset: &Tileset, file: &Path, errors: &mut Vec
         if let Some(block) = &terrain.block {
             surface(block, SlotKind::Block, "terrain block");
         }
+    }
+    for marker in def.portals.iter().filter_map(|p| p.marker.as_deref()) {
+        surface(marker, SlotKind::Object, "portal marker");
     }
 }
 

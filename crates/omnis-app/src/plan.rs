@@ -2,16 +2,17 @@
 //! fills in canvas pixels. Pure functions, no Bevy, so the composition rules are unit-tested
 //! against the test pack; the renderer only spawns what the plan says.
 //!
-//! Order within the viewport: rows far to near; within a row floors and ceilings, then side
-//! walls from the outer offsets inward, then front walls and doors, then blocks (a block's
-//! near face stands a whole tile nearer than the row's walls). Each shared wall plane is
-//! drawn once: a tile's left edge at offsets `<= 0`, its right edge at offsets `>= 0`.
+//! Order within the viewport: rows far to near; within a row floors and ceilings, then front
+//! walls and doors, then side walls, then blocks from the outer offsets inward (a block's near
+//! face stands a whole tile nearer than the row's walls), each followed by its tile's portal
+//! marker. Each shared wall plane is drawn once: a tile's left edge at offsets `<= 0`, its right
+//! edge at offsets `>= 0`.
 
 use crate::layout::Camera;
 use omnis_sim::World;
 use omnis_sim::omnis_core::{Facing, MapId};
-use omnis_sim::omnis_data::{Data, MapKind, Tileset};
-use omnis_sim::query::{EdgeView, ViewportModel};
+use omnis_sim::omnis_data::{Data, MapData, MapKind, Tileset};
+use omnis_sim::query::{EdgeView, ViewTile, ViewportModel};
 use omnis_sim::world::layer;
 
 /// What to paint.
@@ -130,49 +131,63 @@ pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
     let mut depth = view.detail_depth;
     while depth > 0 {
         depth -= 1;
-        let row: Vec<_> = tiles.iter().filter(|t| t.depth == depth).collect();
-        for t in &row {
-            let terrain = &map.def.terrains[usize::from(t.terrain)];
-            if let Some(path) = tileset.slot(&terrain.floor, depth, t.offset) {
-                ops.push(slot_op(tileset, &terrain.floor, depth, t.offset, path));
-            }
-            if let Some(ceiling) = &terrain.ceiling
-                && let Some(path) = tileset.slot(ceiling, depth, t.offset)
-            {
-                ops.push(slot_op(tileset, ceiling, depth, t.offset, path));
-            }
-        }
-        for t in &row {
-            match t.front {
-                EdgeView::Wall => {
-                    push_slot(&mut ops, tileset, &map.def.wall.front, depth, t.offset)
-                }
-                EdgeView::Door { open: false } => {
-                    push_slot(&mut ops, tileset, &map.def.door, depth, t.offset)
-                }
-                EdgeView::Door { open: true } => {
-                    if let Some(frame) = &map.def.door_open {
-                        push_slot(&mut ops, tileset, frame, depth, t.offset);
-                    }
-                }
-                EdgeView::Open => {}
-            }
-        }
-        for t in &row {
-            if t.offset <= 0 && t.left != EdgeView::Open {
-                push_slot(&mut ops, tileset, &map.def.wall.left, depth, t.offset);
-            }
-            if t.offset >= 0 && t.right != EdgeView::Open {
-                push_slot(&mut ops, tileset, &map.def.wall.right, depth, t.offset);
-            }
-        }
-        for t in &row {
-            if let Some(block) = &map.def.terrains[usize::from(t.terrain)].block {
-                push_slot(&mut ops, tileset, block, depth, t.offset);
-            }
-        }
+        let row: Vec<&ViewTile> = tiles.iter().copied().filter(|t| t.depth == depth).collect();
+        paint_row(&mut ops, map, tileset, &row, depth);
     }
     ops
+}
+
+/// One detail row, in the painter's order the module comment gives.
+fn paint_row(
+    ops: &mut Vec<DrawOp>,
+    map: &MapData,
+    tileset: &Tileset,
+    row: &[&ViewTile],
+    depth: u8,
+) {
+    for t in row {
+        let terrain = &map.def.terrains[usize::from(t.terrain)];
+        if let Some(path) = tileset.slot(&terrain.floor, depth, t.offset) {
+            ops.push(slot_op(tileset, &terrain.floor, depth, t.offset, path));
+        }
+        if let Some(ceiling) = &terrain.ceiling
+            && let Some(path) = tileset.slot(ceiling, depth, t.offset)
+        {
+            ops.push(slot_op(tileset, ceiling, depth, t.offset, path));
+        }
+    }
+    for t in row {
+        match t.front {
+            EdgeView::Wall => push_slot(ops, tileset, &map.def.wall.front, depth, t.offset),
+            EdgeView::Door { open: false } => {
+                push_slot(ops, tileset, &map.def.door, depth, t.offset)
+            }
+            EdgeView::Door { open: true } => {
+                if let Some(frame) = &map.def.door_open {
+                    push_slot(ops, tileset, frame, depth, t.offset);
+                }
+            }
+            EdgeView::Open => {}
+        }
+    }
+    for t in row {
+        if t.offset <= 0 && t.left != EdgeView::Open {
+            push_slot(ops, tileset, &map.def.wall.left, depth, t.offset);
+        }
+        if t.offset >= 0 && t.right != EdgeView::Open {
+            push_slot(ops, tileset, &map.def.wall.right, depth, t.offset);
+        }
+    }
+    // A portal's marker stands at its tile's centre: over its own tile's walls and the outer
+    // tiles' blocks, under the nearer blocks of the inner tiles that follow.
+    for t in row {
+        if let Some(block) = &map.def.terrains[usize::from(t.terrain)].block {
+            push_slot(ops, tileset, block, depth, t.offset);
+        }
+        if let Some(marker) = map.marker_at(t.x, t.y) {
+            push_slot(ops, tileset, marker, depth, t.offset);
+        }
+    }
 }
 
 fn slot_op(tileset: &Tileset, surface: &str, depth: u8, offset: i8, path: &str) -> DrawOp {
@@ -216,10 +231,13 @@ fn shade(color: (u8, u8, u8), depth: u8, detail: u8, visibility: u8) -> (u8, u8,
 /// The outline of a tile the party knows only from afar.
 pub const REMOTE_OUTLINE: (u8, u8, u8) = (150, 150, 210);
 
+/// The centre mark of a known portal tile.
+pub const PORTAL_MARK: (u8, u8, u8) = (90, 220, 240);
+
 /// The automap for the party's current map at `scale` pixels per tile, top-left at `origin`:
 /// known tiles as terrain colour, dimmed unless visited, a one-pixel inset outline on tiles
-/// seen only from afar, walls and doors as one-pixel edges, the party as a white mark with a
-/// red pixel on its facing edge.
+/// seen only from afar, walls and doors as one-pixel edges, a centred square in `PORTAL_MARK` on
+/// known portal tiles, the party as a white mark with a red pixel on its facing edge.
 #[must_use]
 pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Vec<DrawOp> {
     let mut ops = Vec::new();
@@ -267,6 +285,18 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Ve
                 } else if tile.doors.has(facing) {
                     ops.push(DrawOp::fill((200, 140, 40), x0, y0, w, h));
                 }
+            }
+            if map.portal_at(x, y).is_some() {
+                let side = (s / 2).max(1);
+                let inset = (s - side) / 2;
+                let side = side as u32;
+                ops.push(DrawOp::fill(
+                    PORTAL_MARK,
+                    px + inset,
+                    py + inset,
+                    side,
+                    side,
+                ));
             }
         }
     }
@@ -355,7 +385,7 @@ fn dim(c: (u8, u8, u8)) -> (u8, u8, u8) {
 mod tests {
     use super::*;
     use omnis_sim::Settings;
-    use omnis_sim::omnis_core::{Direction, Facing, Position};
+    use omnis_sim::omnis_core::{Direction, Facing, Position, Rotation};
     use omnis_sim::omnis_data::load_packs;
     use omnis_sim::{Command, apply, query};
     use std::path::PathBuf;
@@ -614,6 +644,45 @@ mod tests {
     }
 
     #[test]
+    fn a_portal_marker_stands_in_its_row_under_the_nearer_rows() {
+        let data = data();
+        let mut world = new_world(&data);
+        let town = data.registry.maps.get("test:map:town").unwrap();
+        // The gate at (11, 2) two tiles ahead along the street, hedges on both sides.
+        place(&mut world, town, 9, 2, Facing::East);
+        let view = query::viewport(&world, &data).unwrap();
+        let ops = viewport(&view, &data);
+        let paths = sprites(&ops);
+        let marker = paths
+            .iter()
+            .position(|p| p.ends_with("signpost_d2_o0.png"))
+            .expect("the gate's signpost");
+        assert_eq!(
+            paths.iter().filter(|p| p.contains("signpost")).count(),
+            1,
+            "one portal, one marker"
+        );
+        let floor_d2 = paths
+            .iter()
+            .position(|p| p.ends_with("road_d2_o0.png"))
+            .unwrap();
+        let last_wall_d2 = paths
+            .iter()
+            .rposition(|p| p.contains("hedge") && p.contains("_d2_"))
+            .expect("the street's hedges");
+        let first_d1 = paths.iter().position(|p| p.contains("_d1_")).unwrap();
+        assert!(floor_d2 < marker && last_wall_d2 < marker && marker < first_d1);
+        let op = ops
+            .iter()
+            .find(|o| o.paint == Paint::Sprite(paths[marker].to_owned()))
+            .unwrap();
+        assert_eq!(
+            (op.x, op.y),
+            slot_at(tileset(&data, &view), "signpost_d2_o0.png")
+        );
+    }
+
+    #[test]
     fn an_open_door_draws_its_frame_and_a_far_corridor_has_a_ceiling_band() {
         let data = data();
         let mut world = new_world(&data);
@@ -739,6 +808,55 @@ mod tests {
             })
             .count();
         assert!(wall_edges > 0, "the hedge is in view to the west");
+    }
+
+    #[test]
+    fn automap_marks_a_known_portal_tile_under_the_party() {
+        let data = data();
+        let mut world = new_world(&data);
+        let town = data.registry.maps.get("test:map:town").unwrap();
+        // The party stands beside the gate at (11, 2) and has seen it.
+        place(&mut world, town, 10, 2, Facing::East);
+        apply(&mut world, &data, Command::Turn(Rotation::Left)).unwrap();
+        apply(&mut world, &data, Command::Turn(Rotation::Right)).unwrap();
+        let ops = automap(&world, &data, (0, 0), 8);
+        let marks: Vec<_> = ops
+            .iter()
+            .filter(|o| {
+                matches!(
+                    o.paint,
+                    Paint::Fill {
+                        color: PORTAL_MARK,
+                        ..
+                    }
+                )
+            })
+            .collect();
+        assert_eq!(marks.len(), 1, "one known portal");
+        assert_eq!((marks[0].x, marks[0].y), (11 * 8 + 2, 2 * 8 + 2), "centred");
+        assert_eq!(
+            marks[0].paint,
+            Paint::Fill {
+                color: PORTAL_MARK,
+                width: 4,
+                height: 4
+            }
+        );
+        let at = |o: &DrawOp| ops.iter().position(|p| p == o).unwrap();
+        assert!(at(marks[0]) < ops.len() - 2, "the party's ops stay last");
+        assert_eq!((ops[ops.len() - 2].x, ops[ops.len() - 2].y), (81, 17));
+
+        // A portal the party has never seen is not shown.
+        let mut fresh = new_world(&data);
+        place(&mut fresh, town, 1, 2, Facing::West);
+        let ops = automap(&fresh, &data, (0, 0), 8);
+        assert!(!ops.iter().any(|o| matches!(
+            o.paint,
+            Paint::Fill {
+                color: PORTAL_MARK,
+                ..
+            }
+        )));
     }
 
     #[test]

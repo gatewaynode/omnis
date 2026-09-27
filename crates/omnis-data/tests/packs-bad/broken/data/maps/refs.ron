@@ -19,8 +19,8 @@
         "+-+",
     ],
     portals: [
-        (x: 0, y: 0, to_map: "broken:map:nowhere", to_x: 0, to_y: 0, to_facing: North),
-        (x: 0, y: 0, to_map: "broken:map:glyph", to_x: 9, to_y: 0, to_facing: North),
+        (x: 0, y: 0, to_map: "broken:map:nowhere", to_x: 0, to_y: 0, to_facing: North, marker: Some("floor")),
+        (x: 0, y: 0, to_map: "broken:map:glyph", to_x: 9, to_y: 0, to_facing: North, marker: Some("nowhere")),
     ],
     encounters: [
         (x: 9, y: 9, stacks: [("broken:monster:none", 0)]),

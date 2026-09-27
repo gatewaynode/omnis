@@ -18,5 +18,9 @@
         "door": (kind: Door, tile: (240, 32)),
         "door.open": (kind: DoorFrame, tile: (192, 0)),
         "rock": (kind: Block, tile: (240, 0)),
+        // Portal marker: the stone stairway in the pink object area, 2x2 tiles at (384, 224).
+        "stairs.up": (kind: Object, tile: (384, 224), size: (2, 2)),
     },
+    // The object area's background, palette pink; the sheet has no alpha.
+    key: Some((0xff, 0x67, 0x8b)),
 )

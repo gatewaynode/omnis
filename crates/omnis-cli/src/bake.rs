@@ -4,6 +4,8 @@
 //! walls are tiled and scaled per depth, side walls are sheared into trapezoids, and floors
 //! and ceilings are perspective-mapped bands. A block (pillar, tree clump) is its near face
 //! plus the side face toward the party; a door frame is a front face with the opening cut out.
+//! An object (a portal's marker) is an upright picture standing on the floor at the tile's
+//! centre, its sheet background made transparent by the spec's colour key.
 //! Hand-drawn art replaces any slot later by pointing its path elsewhere; the game never
 //! bakes at runtime.
 //!
@@ -47,6 +49,10 @@ pub struct BakeSpec {
     pub width: u8,
     /// Surfaces to bake: name to kind and sheet tile.
     pub surfaces: BTreeMap<String, SurfaceSpec>,
+    /// The sheet's background colour, made transparent in `Object` crops (sheets without an
+    /// alpha channel). Default none.
+    #[serde(default)]
+    pub key: Option<(u8, u8, u8)>,
 }
 
 const fn one() -> u32 {
@@ -60,6 +66,13 @@ pub struct SurfaceSpec {
     pub kind: SlotKind,
     /// Top-left pixel of the texture tile in the sheet.
     pub tile: (u32, u32),
+    /// Width and height of the crop in sheet tiles. Default one tile.
+    #[serde(default = "one_tile")]
+    pub size: (u32, u32),
+}
+
+const fn one_tile() -> (u32, u32) {
+    (1, 1)
 }
 
 /// What a bake produced.
@@ -147,19 +160,13 @@ pub fn bake_to(spec_path: &Path, pack_root: &Path) -> Result<BakeReport, BakeErr
     let mut surfaces = BTreeMap::new();
     let mut count = 0;
     for (name, surface) in &spec.surfaces {
-        let texture = sheet
-            .crop(
-                surface.tile.0,
-                surface.tile.1,
-                spec.tile_size,
-                spec.tile_size,
-            )
-            .ok_or_else(|| {
-                BakeError::Spec(format!(
-                    "surface '{name}' tile {:?} is outside the {}x{} sheet",
-                    surface.tile, sheet.width, sheet.height
-                ))
-            })?;
+        let texture = surface_texture(&sheet, &spec, surface).ok_or_else(|| {
+            BakeError::Spec(format!(
+                "surface '{name}' tile {:?} size {:?} is outside the {}x{} sheet or has no \
+                 opaque pixel",
+                surface.tile, surface.size, sheet.width, sheet.height
+            ))
+        })?;
         let mut slots = Vec::new();
         for (depth, offset) in slot_positions(spec.detail_depth, spec.width, surface.kind) {
             let Some((sprite, x, y)) = render(&geometry, surface.kind, depth, offset, &texture)
@@ -204,6 +211,25 @@ pub fn bake_to(spec_path: &Path, pack_root: &Path) -> Result<BakeReport, BakeErr
     })
 }
 
+/// A surface's picture from the sheet: `size` tiles from `tile`. An object loses the sheet's
+/// background (the key) and is trimmed to what is left, so its lowest pixel stands on the floor.
+fn surface_texture(sheet: &Image, spec: &BakeSpec, surface: &SurfaceSpec) -> Option<Image> {
+    let (w, h) = (
+        spec.tile_size.checked_mul(surface.size.0)?,
+        spec.tile_size.checked_mul(surface.size.1)?,
+    );
+    let crop = sheet.crop(surface.tile.0, surface.tile.1, w, h)?;
+    if surface.kind != SlotKind::Object {
+        return Some(crop);
+    }
+    let keyed = match spec.key {
+        Some(key) => crop.keyed(key),
+        None => crop,
+    };
+    let (x, y, w, h) = keyed.bounds()?;
+    keyed.crop(x, y, w, h)
+}
+
 fn clear_pngs(dir: &Path) -> Result<(), BakeError> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(());
@@ -219,7 +245,7 @@ fn clear_pngs(dir: &Path) -> Result<(), BakeError> {
 
 /// The `(depth, offset)` pairs a surface kind needs: every cone position for floors,
 /// ceilings, front walls, and doors; only the party's side for side walls; never the
-/// party's own tile for blocks. Like the cone, row `d` spans offsets `-(d + 1)..=(d + 1)`,
+/// party's own tile for blocks and objects. Like the cone, row `d` spans offsets `-(d + 1)..=(d + 1)`,
 /// clamped to the width; slots that fall off-screen are dropped by `render`.
 #[must_use]
 pub fn slot_positions(detail_depth: u8, width: u8, kind: SlotKind) -> Vec<(u8, i8)> {
@@ -230,8 +256,8 @@ pub fn slot_positions(detail_depth: u8, width: u8, kind: SlotKind) -> Vec<(u8, i
             let keep = match kind {
                 SlotKind::WallLeft => offset <= 0,
                 SlotKind::WallRight => offset >= 0,
-                SlotKind::Block => depth > 0 || offset != 0,
-                SlotKind::Object | SlotKind::Monster => false,
+                SlotKind::Block | SlotKind::Object => depth > 0 || offset != 0,
+                SlotKind::Monster => false,
                 _ => true,
             };
             if keep {
@@ -288,6 +314,16 @@ impl Image {
             }
         }
         Some(out)
+    }
+
+    /// A copy with every pixel of colour `key` made transparent.
+    fn keyed(mut self, key: (u8, u8, u8)) -> Image {
+        for px in self.rgba.as_chunks_mut::<4>().0 {
+            if (px[0], px[1], px[2]) == key {
+                *px = [0; 4];
+            }
+        }
+        self
     }
 
     /// The smallest box holding every non-transparent pixel.
@@ -406,7 +442,9 @@ pub fn render(
                 front(geo, &mut canvas, d - 1.0, o, texture, geo.texels_per_unit);
             }
         }
-        SlotKind::Object | SlotKind::Monster => return None,
+        SlotKind::Object if depth == 0 && offset == 0 => return None,
+        SlotKind::Object => standee(geo, &mut canvas, d, o, texture),
+        SlotKind::Monster => return None,
     }
     let (x, y, w, h) = canvas.bounds()?;
     let sprite = canvas.crop(x, y, w, h)?;
@@ -426,6 +464,31 @@ fn front(geo: &Geometry, canvas: &mut Image, d: f64, o: f64, tex: &Image, texels
             let u = (f64::from(x) + 0.5 - x0) / scale * texels;
             let v = (f64::from(y) + 0.5 - y0) / scale * texels;
             canvas.put(x, y, tex.wrap_sample(u, v));
+        }
+    }
+}
+
+/// An upright picture at the centre of tile `(d, o)`, standing on the floor: stretched once
+/// (not tiled) to fit a box one unit wide and one tall with its aspect kept. Transparent
+/// texels are skipped.
+fn standee(geo: &Geometry, canvas: &mut Image, d: f64, o: f64, tex: &Image) {
+    let z = d + 0.5;
+    let (tw, th) = (f64::from(tex.width), f64::from(tex.height));
+    let unit = 1.0 / tw.max(th);
+    let (half, top) = (tw * unit / 2.0, th * unit);
+    let (x0, x1) = (geo.sx(o - half, z), geo.sx(o + half, z));
+    let (y0, y1) = (geo.sy(top, z), geo.sy(0.0, z));
+    for y in geo.rows(y0, y1) {
+        for x in geo.columns(x0, x1) {
+            let u = (f64::from(x) + 0.5 - x0) / (x1 - x0) * tw;
+            let v = (f64::from(y) + 0.5 - y0) / (y1 - y0) * th;
+            let px = tex.get(
+                (u as u32).min(tex.width - 1),
+                (v as u32).min(tex.height - 1),
+            );
+            if px[3] != 0 {
+                canvas.put(x, y, px);
+            }
         }
     }
 }
@@ -711,6 +774,74 @@ mod tests {
         assert!(
             (lx + i16::try_from(left.width).unwrap()).abs_diff(240 - rx) <= 1,
             "mirror image on the left, up to pixel phase"
+        );
+    }
+
+    #[test]
+    fn an_object_has_slots_where_a_block_has_them() {
+        assert_eq!(
+            slot_positions(4, 3, SlotKind::Object),
+            slot_positions(4, 3, SlotKind::Block)
+        );
+        let geo = Geometry::new((240, 135), 16, 1);
+        assert!(render(&geo, SlotKind::Object, 0, 0, &checker()).is_none());
+    }
+
+    #[test]
+    fn a_keyed_object_stands_on_the_floor_with_its_background_gone() {
+        const PINK: [u8; 4] = [0xff, 0x67, 0x8b, 255];
+        // A diamond on the sheet's pink, off-centre in a 2×2-tile crop.
+        let mut sheet = Image::new(32, 32);
+        for y in 0..32u32 {
+            for x in 0..32u32 {
+                let diamond = x.abs_diff(12) + y.abs_diff(20) <= 8;
+                sheet.put(x, y, if diamond { [90, 60, 30, 255] } else { PINK });
+            }
+        }
+        let spec = BakeSpec {
+            sheet: String::new(),
+            tile_size: 16,
+            tileset_id: String::new(),
+            name: String::new(),
+            viewport: (240, 135),
+            texel_scale: 1,
+            detail_depth: 3,
+            width: 2,
+            surfaces: BTreeMap::new(),
+            key: Some((0xff, 0x67, 0x8b)),
+        };
+        let surface = SurfaceSpec {
+            kind: SlotKind::Object,
+            tile: (0, 0),
+            size: (2, 2),
+        };
+        let tex = surface_texture(&sheet, &spec, &surface).unwrap();
+        assert_eq!((tex.width, tex.height), (17, 17), "trimmed to the diamond");
+        let geo = Geometry::new((240, 135), 16, 1);
+        let (sprite, x, y) = render(&geo, SlotKind::Object, 1, 0, &tex).unwrap();
+        assert_eq!(sprite.get(0, 0)[3], 0, "transparent corners");
+        assert_eq!(sprite.get(sprite.width - 1, sprite.height - 1)[3], 0);
+        assert_eq!(
+            sprite.get(sprite.width / 2, sprite.height / 2),
+            [90, 60, 30, 255],
+            "opaque inside"
+        );
+        assert!(
+            sprite.rgba.as_chunks::<4>().0.iter().all(|p| *p != PINK),
+            "no pink left"
+        );
+        let floor = geo.sy(0.0, 1.5);
+        assert!(
+            (f64::from(y) + f64::from(sprite.height) - floor).abs() <= 1.0,
+            "stands on the floor at the tile's centre"
+        );
+        assert!(
+            (f64::from(x) + f64::from(sprite.width) / 2.0 - 120.0).abs() <= 1.0,
+            "centred on its tile"
+        );
+        assert!(
+            f64::from(sprite.height) <= geo.focal / 1.5 + 1.0,
+            "no taller than a tile"
         );
     }
 

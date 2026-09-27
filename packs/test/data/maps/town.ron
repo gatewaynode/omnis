@@ -39,7 +39,7 @@
         "+-+-+-+-+-+-+-+-+-+-+-+-+",
     ],
     portals: [
-        (x: 11, y: 2, to_map: "test:map:meadow", to_x: 16, to_y: 16, to_facing: North),
+        (x: 11, y: 2, to_map: "test:map:meadow", to_x: 16, to_y: 16, to_facing: North, marker: Some("signpost")),
     ],
     sites: [
         (x: 1, y: 1, service: "base:service:inn"),

@@ -205,6 +205,21 @@ fn portals_and_tileset_slots_resolve() {
         (meadow_id, 16, 16, Facing::North),
         "leaving town lands on the meadow's start"
     );
+    // Every portal stands visible under an Object surface of its map's tileset.
+    let town = &data.maps[&town_id];
+    let markers = [
+        (meadow, 16, 5, "stairs.down"),
+        (meadow, 16, 31, "signpost"),
+        (dungeon, 0, 0, "stairs.up"),
+        (town, 11, 2, "signpost"),
+    ];
+    for (map, x, y, marker) in markers {
+        assert_eq!(map.marker_at(x, y), Some(marker));
+        let surface = &data.tilesets[&map.tileset].surfaces[marker];
+        assert_eq!(surface.kind, SlotKind::Object);
+        assert!(!surface.slots.is_empty(), "{marker} was baked");
+    }
+    assert_eq!(meadow.marker_at(16, 6), None, "no portal, no marker");
 
     // Tileset slots resolve to the baked sprite paths.
     let tileset = &data.tilesets[&dungeon.tileset];

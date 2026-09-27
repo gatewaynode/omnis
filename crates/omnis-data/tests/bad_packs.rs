@@ -55,10 +55,11 @@ fn every_error_in_a_broken_pack_is_reported() {
         "surface 'floor' slot path 'assets/floor.exe': file type is not allowed",
         // data/maps/glyph.ron
         "terrain glyph '.' is used twice",
-        "terrain glyph '-' is reserved for edges",
+        "terrain glyph '-' is reserved for edges and portals",
         "terrain 'floor' visibility_depth must be 1..=32",
         "start (2, 0) is outside the map",
         "portal at (5, 5) is outside the map",
+        "portal at (5, 5) has no marker; every portal must be visible",
         "tile (1, 0) has unknown glyph '?'",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
@@ -84,11 +85,14 @@ fn every_error_in_a_broken_pack_is_reported() {
         "name text key 'broken:text:map.refs.name' is not defined in any language",
         "portal at (0, 0) leads to unknown map 'broken:map:nowhere'",
         "portal at (0, 0) lands outside map 'broken:map:glyph'",
+        "portal marker surface 'floor' is a Floor surface, not Object",
+        "portal marker surface 'nowhere' is not in tileset 'broken:tileset:bad'",
         "encounter 0 monster 'broken:monster:none' is not defined by any loaded pack",
         "encounter 2 monster 'broken:monster:none' is not defined by any loaded pack",
         "random entry 1 monster 'broken:monster:none' is not defined by any loaded pack",
         "tileset 'broken:tileset:missing' is not defined by any loaded pack",
         // data/maps/sites.ron: shapes on load, then the tile and the service at resolution
+        "portal at (0, 0) has no marker; every portal must be visible",
         "site at (0, 0) shares its tile with a portal",
         "site at (1, 0) shares its tile with an encounter",
         "site at (2, 0) shares its tile with another site",

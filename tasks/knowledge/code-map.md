@@ -17,7 +17,8 @@ persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `co
 (cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `registry.rs`,
 `service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kind;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
-`resolve_sites`; `MapData::site_at`).
+`resolve_sites`; `MapData::site_at`), `map.rs` (`Portal.marker`, required, an `Object` surface
+checked in `loader::check_surfaces`; `MapData::marker_at`).
 Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,rest,sensing,services}.ron`;
 services under `packs/base/data/services/` (seven, one per kind). The test pack depends on the base
 pack and starts in `test:map:town` (the gate at (11, 2) leads to the meadow's start; the meadow's
@@ -61,7 +62,7 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `BAND`; menu grid 80×16 at `menu_cell(c, r) = (241 + 6c, 200 + 8r)`), `widget.rs`
   (`WidgetId::{Row, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
   `panels.rs` (`framed_button`, `pad`, `tools`), `plan.rs` (viewport and automap paint,
-  `REMOTE_OUTLINE`), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
+  `REMOTE_OUTLINE`, `PORTAL_MARK`; `paint_row` draws one detail row, portal markers in the block pass), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
 - Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
   `Pause::DEBUG = 4`, `debug_available`) and `menus.rs` (`pause_action`, `Actions`); fight
   `combat_menu.rs`/`combat_screen.rs`/`combat.rs` with `spell_menu.rs` and `use_menu.rs`
@@ -102,3 +103,5 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: eighteen tools, the hand-written `Command`
 schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
+`bake.rs`: `BakeSpec.key` (colour key for `Object` crops), `SurfaceSpec.size` in tiles,
+`surface_texture`, `standee` (an `Object` upright at the tile's centre).

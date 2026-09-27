@@ -37,6 +37,7 @@ const TILESET: &str = r#"(
         "door": (kind: Door, slots: []),
         "door.open": (kind: DoorFrame, slots: []),
         "rock": (kind: Block, slots: []),
+        "stairs": (kind: Object, slots: []),
     },
 )"#;
 
@@ -61,7 +62,7 @@ const MAP: &str = r#"(
         "|.:#|",
         "+-+-+",
     ],
-    portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East)],
+    portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East, marker: Some("stairs"))],
     encounters: [(x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
     random: Some((chance_percent: 4, entries: [(weight: 1, stacks: [("example:monster:goblin", (count: 1, sides: 4, modifier: 1))], disposition: Hostile)])),
 )"#;

@@ -11,13 +11,13 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 381 passed, 6 ignored (2026-09-27, after M7 step 3). The gate's log says
-it on one line: `tests passed 381 failed 0 ignored 6`.
+Test count at the gate: 385 passed, 6 ignored (2026-09-27, after M7 step 3b). The gate's log says
+it on one line: `tests passed 385 failed 0 ignored 6`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
-`plan::viewport` 100, `debug_menu::adjust` 93, `debug_screen::row_text` 91, `combat_text::wound_line`
+`debug_menu::adjust` 93, `debug_screen::row_text` 91, `combat_text::wound_line`
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
 screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
 `party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84.
@@ -26,8 +26,8 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 11, monsters 3, rule slots 29, services 7)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `17768808726456611042`,
-  fight `14183048486799478772` (M7 step 3: both leave town through the gate first). Rebaseline
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `2567641413976331380`,
+  fight `16662894784943291610` (M7 step 3b; both leave town through the gate first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
 - `SAVE_SCHEMA 4`; `migrate.rs` holds `v2_to_v3` and the data-aware `v3_to_v4`; fixture

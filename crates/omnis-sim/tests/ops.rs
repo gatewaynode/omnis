@@ -96,12 +96,17 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
     let data = data();
     let mut world = world(&data);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    let layout = data.maps[&dungeon].def.layout.join("\n") + "\n";
+    let mut layout = data.maps[&dungeon].def.layout.clone();
+    // The way up at (0, 0) is a portal: row 1, column 1 of the layout.
+    layout[1].replace_range(1..2, "*");
     assert_eq!(
         text(&mut world, &data, Some("test:map:dungeon")),
-        layout,
-        "no party there and no door touched: the file's own layout"
+        layout.join("\n") + "\n",
+        "no party there and no door touched: the file's own layout and its portal"
     );
+    let town = text(&mut world, &data, Some("test:map:town"));
+    let street: Vec<char> = town.lines().nth(2 * 2 + 1).unwrap().chars().collect();
+    assert_eq!(street[2 * 11 + 1], '*', "the town gate: {town}");
     let meadow = text(&mut world, &data, None);
     let lines: Vec<&str> = meadow.lines().collect();
     assert_eq!(lines.len(), 65);

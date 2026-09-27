@@ -19,5 +19,11 @@
         "hedge.right": (kind: WallRight, tile: (208, 16)),
         "gate": (kind: Door, tile: (208, 96)),
         "gate.open": (kind: DoorFrame, tile: (208, 16)),
+        // Portal markers from the pink object area: the stairway down (2x2 tiles at
+        // (448, 128)) and the wooden signpost for roads between maps (one tile at (320, 224)).
+        "stairs.down": (kind: Object, tile: (448, 128), size: (2, 2)),
+        "signpost": (kind: Object, tile: (320, 224)),
     },
+    // The object area's background, palette pink; the sheet has no alpha.
+    key: Some((0xff, 0x67, 0x8b)),
 )
