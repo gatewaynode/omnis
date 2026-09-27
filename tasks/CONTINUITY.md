@@ -22,16 +22,17 @@ every time it is used; keep it to state, next step and pointers. The durable kno
 - Gate at `2e28972`: `tests passed 381 failed 0 ignored 6`; pins: tuple
   `(4, 4, 3, 24, 16, 11, 3, 29, 7)`, walk `17768808726456611042`, fight `14183048486799478772`.
 
-## Work in progress (uncommitted, in the working tree; the gate fails until the packs catch up)
-Plan section 1 (data) is written and builds (`cargo build -p omnis-data`):
-- `map.rs`: `Portal.marker: Option<String>` (serde default); `MapDef::validate` refuses `None`
-  ("portal at (x, y) has no marker; every portal must be visible"); `*` joins the reserved
-  terrain glyphs (message now "... is reserved for edges and portals").
-- `loader.rs`: `MapData::marker_at`; `check_surfaces` requires the marker to be an `Object`
-  surface ("portal marker surface ...").
-Not yet done from section 1: the `bad_packs.rs` expectations (the reserved-glyph wording at
-line 58, the missing-marker rows for the broken pack's portals, one marker naming a `Floor`
-surface) and a `marker_at` check in `load_test_pack.rs`.
+## Work in progress (stashed, 2026-09-27)
+Plan section 1 (data) is in `git stash` as "M7 3b WIP: section 1 data (marker field, loader
+checks)"; restore with `git stash pop`. It refuses every portal without a marker, so the test
+pack does not load (the app crashes at start, two `bad_packs` tests fail) until step 3 below
+gives the packs markers. The tree at HEAD passes the gate (381/0/6) and is what the owner plays.
+- `map.rs`: `Portal.marker: Option<String>` (serde default); `MapDef::validate` refuses `None`;
+  `*` joins the reserved terrain glyphs ("... is reserved for edges and portals").
+- `loader.rs`: `MapData::marker_at`; `check_surfaces` requires an `Object` surface.
+Still owed from section 1: the `bad_packs.rs` expectations and a `marker_at` check in
+`load_test_pack.rs`. Land the whole of 3b as one commit; never leave the rule in the tree
+without the markers (LESSONS 2026-09-27).
 
 ## Next, in the plan's order
 2. Baker (`omnis-cli/src/bake.rs`, read: `BakeSpec` :28, `SurfaceSpec` :56, the crop loop in

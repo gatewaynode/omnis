@@ -107,3 +107,8 @@
 - **What happened**: M7 step 3 moved the game's start into a town of seven services, all data. The owner played it and found nothing to interact with and no visible way in or out; the report had given the tests and pins but not that services open only in step 4, nor that no portal on any map is drawn.
 - **Rule**: When a commit changes what a new game shows, the report says what the owner will see and what does not work yet, with the step that makes it work.
 - **Rule**: Before building on a mechanic in a new place, check that the player can perceive it (portals were invisible on every map since M1; the town made it obvious).
+
+## 2026-09-27 — A restart must not leave a tree that cannot run
+- **What happened**: Continuity for a client restart was written with step 3b's data rule (every portal needs a marker) uncommitted in the tree, before any pack had markers. The app built but refused the test pack at start; two `bad_packs` tests failed. The owner launched it, saw a crash, and could not tell whether the tests had been run.
+- **Rule**: Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is stashed (`git stash push -m "<step> WIP: ..."`), and the continuity note says which, with the stash name.
+- **Rule**: A validation rule that the shipped packs cannot yet meet lands in the same change as the data that meets it, never ahead of it.
