@@ -5,10 +5,36 @@ mod common;
 use common::{data, interact, step, turn, without_visible, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_sim::world::layer;
-use omnis_sim::{BlockReason, Command, Event, MessageKey, PARTY, apply, query};
+use omnis_sim::{BlockReason, Command, Event, MessageKey, PARTY, Settings, World, apply, query};
 
 #[test]
-fn a_new_game_starts_on_the_entry_map_and_sees_the_meadow() {
+fn a_new_game_starts_in_town_and_the_gate_and_the_road_link_it_to_the_meadow() {
+    let data = data();
+    let mut world = World::new(&data, 1, Settings::default()).unwrap();
+    let town = data.registry.maps.get("test:map:town").unwrap();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let at = |map, x, y, facing| Position { map, x, y, facing };
+    assert_eq!(world.position, at(town, 10, 2, Facing::West));
+    assert_eq!(world.party_clock().elapsed, 0);
+    apply(&mut world, &data, Command::Step(Direction::Back)).unwrap();
+    assert_eq!(
+        world.position,
+        at(meadow, 16, 16, Facing::North),
+        "a step back through the gate lands on the meadow's start"
+    );
+    turn(&mut world, &data, Rotation::Around);
+    for _ in 0..15 {
+        step(&mut world, &data);
+    }
+    assert_eq!(
+        world.position,
+        at(town, 10, 2, Facing::West),
+        "the road's south end leads home"
+    );
+}
+
+#[test]
+fn the_meadow_start_sees_six_clear_rows() {
     let data = data();
     let world = world(&data);
     let meadow = data.registry.maps.get("test:map:meadow").unwrap();

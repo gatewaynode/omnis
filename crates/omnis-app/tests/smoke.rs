@@ -36,7 +36,7 @@ fn boots_steps_and_saves_without_a_window() {
         AppState::Playing
     );
     let start = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((start.x, start.y, start.facing), (16, 16, Facing::North));
+    assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
 
     // A command message moves the party and publishes events.
     app.world_mut()
@@ -44,7 +44,7 @@ fn boots_steps_and_saves_without_a_window() {
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
     let after = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((after.x, after.y), (16, 15));
+    assert_eq!((after.x, after.y), (9, 2));
     let events = app.world().resource::<Messages<SimEvent>>();
     let mut cursor = events.get_cursor();
     let published: Vec<&Event> = cursor.read(events).map(|e| &e.0).collect();
@@ -61,7 +61,7 @@ fn boots_steps_and_saves_without_a_window() {
         .clear();
     assert_eq!(
         app.world().resource::<SimWorld>().0.position.facing,
-        Facing::West
+        Facing::South
     );
 
     // Save, move on, load: back where the save was taken.

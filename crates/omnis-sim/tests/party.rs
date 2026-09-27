@@ -180,7 +180,7 @@ fn the_marching_order_is_a_permutation() {
 #[test]
 fn a_party_survives_a_save_and_a_replay() {
     let data = data();
-    let mut world = world(&data);
+    let mut world = World::new(&data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
     let mut commands = Vec::new();
     for d in six().into_iter().take(2) {
         commands.push(Command::Party(PartyCommand::Create(d)));

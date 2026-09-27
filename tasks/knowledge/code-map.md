@@ -14,8 +14,14 @@ ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name befor
 `spell.rs` (`SpellEffect`, `Reach`), `item.rs` (`ItemKind`, `Slot`, `UseEffect::{Heal, Sense}`,
 `consumable`, `description`), `sense.rs` (`SenseSource { geometry: Geometry::Ray, fidelity, check,
 persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `content.rs`
-(cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `registry.rs`.
-Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,sensing}.ron`.
+(cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `registry.rs`,
+`service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kind;
+`MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
+`resolve_sites`; `MapData::site_at`).
+Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,rest,sensing,services}.ron`;
+services under `packs/base/data/services/` (seven, one per kind). The test pack depends on the base
+pack and starts in `test:map:town` (the gate at (11, 2) leads to the meadow's start; the meadow's
+road south at (16, 31) leads back).
 
 ## omnis-rules
 `character.rs` (`create`, `starting_kit`), `stats.rs` (checks, saves, pools), `attack.rs`
@@ -42,7 +48,8 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - Sensing: `sense.rs` (`LAYERS`, `best_eyes`, `dc`, `reach_for_layer`, `resolve`).
 - Dev: `dev.rs` (`DevCommand`, twelve variants, gated by `Settings.devtools`).
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
-  `party_of`), `measure.rs` ignored.
+  `new_world`: a new game placed on the meadow's start, where tests from before the town begin;
+  `party_of`), `measure.rs` ignored. The replays leave town by a real `Step(Back)`.
 
 ## omnis-app
 - Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
@@ -83,42 +90,6 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   Fonts under `assets/fonts/{inter,alegreya-sans}`. **A new screen**: a variant in `UiId`,
   `UiLabel` and `UiScreen`, its ids in its Bevy-free model, a `reports` system that reads
   `UiReport`s carrying its ids, a `reconcile` that touches only its own roots; the pattern is in
-  `tasks/plans/feathers-experiment.md`.
-- Dev: `dev.rs` (`DevCommand`, twelve variants, gated by `Settings.devtools`).
-- Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
-  `party_of`), `measure.rs` ignored.
-
-## omnis-app
-- Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
-  `ShellCommand::{Save, Load, ToggleAutomap, Pause, Cast, Sheet, Inventory, Look, Quit}`, the
-  `shell` system runs whenever a world exists), `input.rs` (keys, `tool_for`, `map_tools`),
-  `ui.rs` (`HELP_*` lines, `build_frame`, `tool_states`, `overlay_for`, `RollLog`, `Selected`).
-- Screens: `screen.rs` (`View`, `Menu`, `Target`, `click`, `dump_screens`), `screens.rs`
-  (overlay painters), `layout.rs` (core 1280×720; `RIGHT_COLUMN`, `TOOLS` y 300..388, `PAD`,
-  `BAND`; menu grid 80×16 at `menu_cell(c, r) = (241 + 6c, 200 + 8r)`), `widget.rs`
-  (`WidgetId::{Row, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
-  `panels.rs` (`framed_button`, `pad`, `tools`), `plan.rs` (viewport and automap paint,
-  `REMOTE_OUTLINE`), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
-- Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
-  `Pause::DEBUG = 4`, `debug_available`) and `menus.rs` (`pause_action`, `Actions`); fight
-  `combat_menu.rs`/`combat_screen.rs`/`combat.rs` with `spell_menu.rs` and `use_menu.rs`
-  (pickers); sheet `sheet_menu.rs`/`sheet_screen.rs`/`sheet.rs`; inventory
-  `inventory_menu.rs`/`inventory_screen.rs`/`inventory.rs`; debug `debug_menu.rs`/
-  `debug_screen.rs`/`debug.rs` (`DebugPlugin`, feature `devtools`, opens on `OnEnter(PlayState::Debug)`).
-- Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
-  downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
-  sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
-- `bevy_ui` screens (every build since M7 step 1; the canvas creation screen is gone): party
-  creation. `creation_menu.rs` (`CreationForm`, `Catalog`, the named methods that hold the rules;
-  `set_name` holds 24 characters and the rules' 32 bytes),
-  `creation_panel.rs` (Bevy-free: `PanelId`, `Payload`, `apply`, `PanelAction`, `shape`, `FONTS`,
-  `fitted_scale`, `SCALE_FLOOR`, `scale_cap`), `feathers_creation.rs` (scenes per row, `Control(PanelId)`,
-  `Shown(LabelId)`, `PanelRoot`, `reconcile`, `place`, `scale`, `sync`, the `Reports` observers,
-  `FontChoice`, `ScaleChoice`), `feathers_fonts.rs` (`PanelFonts`, `Face`, `wear`),
-  `feathers_ui.rs` (`FeathersUiPlugin`, Escape; it writes `ui.rs`'s `UiPointerCapture`), `capture.rs`
-  (`ComposeCapture`, `ComposedSaved`; feature `devtools`), `menus::CreationAsk` (what the panel
-  asks of the creation flow), `Menu::Covered` (the backdrop the canvas paints under a panel). Fonts under
-  `assets/fonts/{inter,alegreya-sans}`. The pattern for the next screen is in
   `tasks/plans/feathers-experiment.md`.
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`).

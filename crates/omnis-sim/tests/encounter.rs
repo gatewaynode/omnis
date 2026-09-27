@@ -26,7 +26,7 @@ fn facing_encounter(
     stacks: &[(&str, u8)],
     disposition: Disposition,
 ) -> World {
-    let mut world = World::new(data, seed, Settings::default()).unwrap();
+    let mut world = common::new_world(data, seed, Settings::default());
     party_of(&mut world, data, 6);
     let placement = &data.maps[&dungeon(data)].encounters[usize::from(index)];
     world.position = Position {
@@ -127,7 +127,7 @@ fn with_the_surprise_value_on_an_unnoticed_party_starts_the_fight_surprised() {
     data.rules.insert_value("surprise", 1);
     let mut seen = [false; 2];
     for seed in 0..40u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 2);
         let placement = &data.maps[&dungeon(&data)].encounters[0];
         world.position = Position {

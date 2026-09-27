@@ -20,5 +20,6 @@
         "badc:text:spell.hex.description": "Hexes.",
         "badc:text:monster.blob.name": "Blob",
         "badc:text:monster.blob.slam": "Slam",
+        "badc:text:service.shop.name": "Shop",
     },
 )

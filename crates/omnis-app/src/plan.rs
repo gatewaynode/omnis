@@ -361,8 +361,18 @@ mod tests {
     use std::path::PathBuf;
 
     fn data() -> Data {
-        load_packs(&[&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")])
-            .unwrap_or_else(|r| panic!("{r}"))
+        let packs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
+        load_packs(&[&packs.join("base"), &packs.join("test")]).unwrap_or_else(|r| panic!("{r}"))
+    }
+
+    /// A new game placed on the meadow's start, where these views were drawn before new games
+    /// began in town.
+    fn new_world(data: &Data) -> World {
+        let mut world = World::new(data, 1, Settings::default()).unwrap();
+        let map = data.registry.maps.get("test:map:meadow").unwrap();
+        let (x, y, facing) = data.maps[&map].def.start;
+        world.position = Position { map, x, y, facing };
+        world
     }
 
     /// The tileset a view draws with.
@@ -407,7 +417,7 @@ mod tests {
     #[test]
     fn meadow_start_draws_far_to_near_with_a_horizon_band() {
         let data = data();
-        let world = World::new(&data, 1, Settings::default()).unwrap();
+        let world = new_world(&data);
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let fills = ops
@@ -449,7 +459,7 @@ mod tests {
     #[test]
     fn dungeon_corridor_draws_each_wall_plane_once() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         world.position = Position {
             map: dungeon,
@@ -502,7 +512,7 @@ mod tests {
     #[test]
     fn tiles_beside_the_party_fill_the_corners() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let paths = sprites(&ops);
@@ -543,7 +553,7 @@ mod tests {
     #[test]
     fn a_neighbours_front_lies_under_the_partys_side_wall() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         place(&mut world, dungeon, 3, 6, Facing::North);
         let mut view = query::viewport(&world, &data).unwrap();
@@ -573,7 +583,7 @@ mod tests {
     #[test]
     fn a_pillar_is_a_block_drawn_after_its_row() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         // The pillar at (8, 8) two tiles ahead; the room's north wall is in the same row.
         place(&mut world, dungeon, 6, 8, Facing::East);
@@ -606,7 +616,7 @@ mod tests {
     #[test]
     fn an_open_door_draws_its_frame_and_a_far_corridor_has_a_ceiling_band() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
         place(&mut world, dungeon, 9, 5, Facing::South);
         apply(&mut world, &data, Command::Interact).unwrap();
@@ -637,7 +647,7 @@ mod tests {
     #[test]
     fn distant_trees_are_silhouettes_at_their_near_edge() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let meadow = world.position.map;
         place(&mut world, meadow, 5, 16, Facing::North);
         let view = query::viewport(&world, &data).unwrap();
@@ -658,7 +668,7 @@ mod tests {
     #[test]
     fn horizon_strips_reach_their_near_edge_width() {
         let data = data();
-        let world = World::new(&data, 1, Settings::default()).unwrap();
+        let world = new_world(&data);
         let view = query::viewport(&world, &data).unwrap();
         let ops = viewport(&view, &data);
         let covered = |x: i32, y: i32| {
@@ -698,7 +708,7 @@ mod tests {
     #[test]
     fn automap_marks_known_tiles_walls_and_the_party() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         world.position = Position {
             map: world.position.map,
             x: 6,
@@ -734,7 +744,7 @@ mod tests {
     #[test]
     fn automap_outlines_tiles_seen_only_from_afar() {
         let data = data();
-        let mut world = World::new(&data, 1, Settings::default()).unwrap();
+        let mut world = new_world(&data);
         let map = world.position.map;
         world.automap.record(
             map,
@@ -776,7 +786,7 @@ mod tests {
     #[test]
     fn automap_window_centres_small_maps_and_scrolls_large_ones() {
         let data = data();
-        let world = World::new(&data, 1, Settings::default()).unwrap();
+        let world = new_world(&data);
         let rect = (248, 8, 64, 64);
         let fitted = automap_window(&world, &data, rect, 2);
         let inside = |op: &DrawOp| match op.paint {

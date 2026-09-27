@@ -328,15 +328,14 @@ fn the_dead_are_buried_under_permadeath_and_kept_otherwise() {
     let data = data();
     let dead = condition_id(&data, "dead").unwrap();
     for permadeath in [true, false] {
-        let mut world = World::new(
+        let mut world = common::new_world(
             &data,
             5,
             Settings {
                 permadeath,
                 ..Settings::default()
             },
-        )
-        .unwrap();
+        );
         party_of(&mut world, &data, 2);
         let fallen = world.party.members[0].id;
         let kit = world.party.members[0].equipment.clone();
@@ -401,7 +400,7 @@ fn members_go_down_save_and_die_by_the_srd() {
     let dead = condition_id(&data, "dead").unwrap();
     let mut seen = (false, false, false, false);
     for seed in 0..120u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 2);
         world.party.members[0].hp = 2;
         world.party.members[0].hp_max = 5;
@@ -533,7 +532,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
 
     let mut outcomes = (false, false);
     for seed in 0..40u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 3);
         start(&mut world, &data, &[("giant_rat", 1)], Surprise::None);
         let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();

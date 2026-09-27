@@ -4,5 +4,6 @@
     entries: {
         "test:text:map.dungeon.name": "Test Dungeon",
         "test:text:map.meadow.name": "Test Meadow",
+        "test:text:map.town.name": "Test Town",
     },
 )

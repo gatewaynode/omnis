@@ -24,7 +24,18 @@ pub fn data() -> Data {
 }
 
 pub fn world(data: &Data) -> World {
-    World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).expect("entry map")
+    new_world(data, 0x0123_4567_89ab_cdef, Settings::default())
+}
+
+/// A new game placed on the meadow's start. New games begin in town (M7); the tests written
+/// before the town existed start where new games used to, with nothing else changed. The
+/// town's own tests and the replays use `World::new` and walk out through the gate.
+pub fn new_world(data: &Data, seed: u64, settings: Settings) -> World {
+    let mut world = World::new(data, seed, settings).expect("entry map");
+    let map = data.registry.maps.get("test:map:meadow").expect("meadow");
+    let (x, y, facing) = data.maps[&map].def.start;
+    world.position = Position { map, x, y, facing };
+    world
 }
 
 pub fn step(world: &mut World, data: &Data) -> Vec<Event> {

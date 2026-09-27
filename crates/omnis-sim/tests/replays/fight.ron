@@ -4,12 +4,12 @@
         (
             id: "base",
             version: "0.1.0",
-            hash: 11289764640100724756,
+            hash: 2729949215536661706,
         ),
         (
             id: "test",
             version: "0.1.0",
-            hash: 564450942546854219,
+            hash: 13534466520715806726,
         ),
     ],
     settings: (
@@ -92,7 +92,7 @@
                 Persuasion,
             ],
         ))),
-        Step(Forward),
+        Step(Back),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -121,6 +121,7 @@
         Combat(Attack(
             stack: 0,
         )),
+        Step(Forward),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -161,5 +162,5 @@
             stack: 0,
         )),
     ],
-    fingerprint: 7317777168019603128,
+    fingerprint: 14183048486799478772,
 )

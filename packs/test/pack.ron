@@ -1,4 +1,5 @@
-// Test fixture pack: the smallest content set the simulation and app tests run against.
+// Test fixture pack: the smallest content set the simulation and app tests run against. It
+// loads after the base pack: the town's services and their stock are the base pack's.
 // Schema: ARCHITECTURE.md §6.1. Every data file starts with `schema`.
 (
     schema: 1,
@@ -9,6 +10,6 @@
     attribution: [
         ("OpenRTP tiles by finalbossblues", "CC0-1.0", "assets/openrtp-tiles/LICENSE.txt"),
     ],
-    depends: [],
-    entry: Some("test:map:meadow"),
+    depends: ["base"],
+    entry: Some("test:map:town"),
 )

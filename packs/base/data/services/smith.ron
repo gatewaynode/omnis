@@ -1,0 +1,16 @@
+// The smith keeps the town's whole mundane stock: weapons, armor, ammunition, gear, potions.
+(
+    schema: 1,
+    id: "base:service:smith",
+    name: "base:text:service.smith.name",
+    kind: Smith,
+    items: [
+        "base:item:dagger", "base:item:handaxe", "base:item:mace", "base:item:quarterstaff",
+        "base:item:light_crossbow", "base:item:shortbow", "base:item:longsword", "base:item:rapier",
+        "base:item:scimitar", "base:item:shortsword",
+        "base:item:leather", "base:item:scale_mail", "base:item:chain_mail", "base:item:shield",
+        "base:item:arrows", "base:item:crossbow_bolts",
+        "base:item:component_pouch", "base:item:holy_symbol", "base:item:spellbook",
+        "base:item:thieves_tools", "base:item:map_making_kit", "base:item:potion_of_healing",
+    ],
+)

@@ -286,7 +286,7 @@ fn burning_hands_rolls_once_and_every_goblin_saves_from_the_back() {
     let hands_at = |world: &World| spell_index(world, &data, WIZARD, "burning_hands");
     let (mut passes, mut fails, mut deaths) = (0, 0, 0);
     for seed in 0..40u64 {
-        let mut world = World::new(&data, seed, omnis_sim::Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, omnis_sim::Settings::default());
         party_of(&mut world, &data, 6);
         start(&mut world, &data, &[("goblin", 3)]);
         if !until_turn_of(&mut world, &data, WIZARD) {
@@ -378,7 +378,7 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
     let unconscious = condition_id(&data, "unconscious").unwrap();
     let mut seen_pass = false;
     for seed in 0..40u64 {
-        let mut world = World::new(&data, seed, omnis_sim::Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, omnis_sim::Settings::default());
         party_of(&mut world, &data, 6);
         start(&mut world, &data, &[("giant_rat", 2)]);
         if !until_turn_of(&mut world, &data, CLERIC) {

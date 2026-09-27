@@ -16,12 +16,13 @@ use crate::monster::Monster;
 use crate::registry::Registry;
 use crate::ron_io::{from_str, read_text};
 use crate::rules::RulesFile;
+use crate::service::{self, ResolvedSite, ServiceDef};
 use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId, SpellId, TextKey,
-    TilesetId, fnv1a64,
+    BackgroundId, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId, ServiceId,
+    SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -74,6 +75,8 @@ pub struct MapData {
     pub encounters: Vec<ResolvedEncounter>,
     /// The random table with interned monsters, if the map has one.
     pub random: Option<ResolvedRandom>,
+    /// Services placed on tiles, in file order.
+    pub sites: Vec<ResolvedSite>,
 }
 
 impl MapData {
@@ -109,6 +112,15 @@ impl MapData {
             .find(|(_, e)| e.x == x && e.y == y)
             .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
     }
+
+    /// The service placed on a tile, if any.
+    #[must_use]
+    pub fn site_at(&self, x: u16, y: u16) -> Option<ServiceId> {
+        self.sites
+            .iter()
+            .find(|s| s.x == x && s.y == y)
+            .map(|s| s.service)
+    }
 }
 
 /// Everything loaded from a set of packs.
@@ -142,6 +154,8 @@ pub struct Data {
     pub spells: BTreeMap<SpellId, Spell>,
     /// Monsters by id.
     pub monsters: BTreeMap<MonsterId, Monster>,
+    /// Services by id.
+    pub services: BTreeMap<ServiceId, ServiceDef>,
     /// The compiled rule set from every `data/rules` file.
     pub rules: Rules,
 }
@@ -442,6 +456,14 @@ fn gather_content(
         errors,
         &mut content.rules,
     );
+    gather(
+        root,
+        "data/services",
+        "service",
+        hasher,
+        errors,
+        &mut content.services,
+    );
 }
 
 trait HasSchema {
@@ -469,6 +491,7 @@ has_schema!(
     Spell,
     Monster,
     RulesFile,
+    ServiceDef,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
@@ -579,6 +602,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             &data.registry.monsters,
             errors,
         );
+        let sites = service::resolve_sites(def, cells, &data.registry.services, file, errors);
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],
@@ -590,6 +614,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     portals,
                     encounters,
                     random,
+                    sites,
                 },
             );
         }

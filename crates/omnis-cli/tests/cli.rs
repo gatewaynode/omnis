@@ -33,9 +33,16 @@ fn cli(args: &[&str]) -> (bool, String, String) {
 
 #[test]
 fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
-    let (ok, out, _) = cli(&["validate", "packs/test"]);
+    let (ok, out, _) = cli(&["validate", "packs/base", "packs/test"]);
     assert!(ok);
-    assert!(out.starts_with("ok: 1 packs, 2 maps, 2 tilesets"), "{out}");
+    assert!(out.starts_with("ok: 2 packs, 3 maps, 2 tilesets"), "{out}");
+    assert!(out.ends_with("29 rule slots, 7 services\n"), "{out}");
+    let (ok, _, err) = cli(&["validate", "packs/test"]);
+    assert!(!ok);
+    assert!(
+        err.contains("depends on 'base', which is not loaded before this pack"),
+        "{err}"
+    );
     let broken = "crates/omnis-data/tests/packs-bad/broken";
     let (ok, _, err) = cli(&["validate", broken]);
     assert!(!ok);
@@ -48,11 +55,15 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
 
 #[test]
 fn map_text_marks_the_start_and_names_unknown_maps() {
-    let (ok, out, _) = cli(&["map", "text", "test:map:meadow", "--pack", "packs/test"]);
+    let (ok, out, _) = cli(&["map", "text", "test:map:town"]);
     assert!(ok);
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines.len(), 65);
-    assert_eq!(lines[2 * 16 + 1].chars().nth(2 * 16 + 1), Some('^'));
+    assert_eq!(lines.len(), 11);
+    assert_eq!(
+        lines[2 * 2 + 1].chars().nth(2 * 10 + 1),
+        Some('<'),
+        "a new game faces west on the town's street"
+    );
     let (ok, _, err) = cli(&["map", "text", "nope:map:x"]);
     assert!(!ok);
     assert!(err.contains("no map 'nope:map:x' is loaded"), "{err}");

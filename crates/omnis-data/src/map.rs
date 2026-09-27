@@ -20,6 +20,7 @@
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::service::{self, Site};
 use omnis_core::{Edges, Facing};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -138,6 +139,9 @@ pub struct MapDef {
     /// The random encounter table, if the map has one.
     #[serde(default)]
     pub random: Option<RandomEncounters>,
+    /// Services placed on tiles.
+    #[serde(default)]
+    pub sites: Vec<Site>,
 }
 
 /// One tile after the layout is parsed.
@@ -247,7 +251,8 @@ impl MapDef {
         (errors.len() == before).then_some(cells)
     }
 
-    /// Checks that need no other file: sizes, glyphs, start tile, portal and encounter shapes.
+    /// Checks that need no other file: sizes, glyphs, start tile, portal, encounter, and site
+    /// shapes.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
         if self.width == 0
             || self.height == 0
@@ -326,6 +331,7 @@ impl MapDef {
             file,
             errors,
         );
+        service::validate_sites(self, file, errors);
     }
 }
 
@@ -366,6 +372,7 @@ mod tests {
             portals: vec![],
             encounters: vec![],
             random: None,
+            sites: vec![],
         }
     }
 

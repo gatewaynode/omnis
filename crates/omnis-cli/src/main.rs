@@ -47,7 +47,7 @@ fn validate(roots: &[&str]) -> Result<(), String> {
     let roots: Vec<&Path> = roots.iter().map(Path::new).collect();
     let data = load_packs(&roots).map_err(|report| report.to_string())?;
     println!(
-        "ok: {} packs, {} maps, {} tilesets, {} languages, {} races, {} classes, {} backgrounds, {} items, {} conditions, {} spells, {} monsters, {} rule slots",
+        "ok: {} packs, {} maps, {} tilesets, {} languages, {} races, {} classes, {} backgrounds, {} items, {} conditions, {} spells, {} monsters, {} rule slots, {} services",
         data.packs.len(),
         data.maps.len(),
         data.tilesets.len(),
@@ -60,6 +60,7 @@ fn validate(roots: &[&str]) -> Result<(), String> {
         data.spells.len(),
         data.monsters.len(),
         data.rules.slot_names().count(),
+        data.services.len(),
     );
     Ok(())
 }

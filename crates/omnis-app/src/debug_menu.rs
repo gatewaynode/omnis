@@ -545,8 +545,12 @@ mod tests {
         assert_eq!(view.items.len(), 24);
         assert_eq!(view.items[0].0, "base:item:arrows");
         assert_eq!(view.conditions.len(), 16);
-        assert_eq!(view.maps.len(), 2);
-        assert_eq!(view.position.1, 16, "the meadow start");
+        assert_eq!(view.maps.len(), 3);
+        assert_eq!(
+            (view.position.1, view.position.2),
+            (10, 2),
+            "the town start"
+        );
         assert!(view.stacks.is_empty());
     }
 
@@ -637,8 +641,9 @@ mod tests {
                 map: view.maps[view.position.0].0.clone(),
                 x: view.position.1 - 1,
                 y: view.position.2,
-                facing: Facing::East
-            }))
+                facing: Facing::North
+            })),
+            "one turn clockwise from the town start's west"
         );
         menu.row = ROW_STACK;
         assert_eq!(menu.key(MenuKey::Char('k'), &view), None);

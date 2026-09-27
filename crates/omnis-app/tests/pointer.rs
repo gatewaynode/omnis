@@ -248,18 +248,18 @@ fn pad_clicks_step_and_turn_the_party_while_exploring() {
     app.update();
     app.update();
     let start = world(&app).position;
-    assert_eq!((start.x, start.y, start.facing), (16, 16, Facing::North));
+    assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
-    assert_eq!(world(&app).position.y, 15);
+    assert_eq!(world(&app).position.x, 9);
     click(&mut app, WidgetId::Pad(PadButton::TurnLeft), Part::Body);
-    assert_eq!(world(&app).position.facing, Facing::West);
+    assert_eq!(world(&app).position.facing, Facing::South);
 
     // The gap between buttons hits nothing.
     let forward = widget(&app, WidgetId::Pad(PadButton::Forward));
     click_at(&mut app, (forward.rect.x - 1, forward.rect.y));
     assert_eq!(
-        (world(&app).position.y, world(&app).position.facing),
-        (15, Facing::West)
+        (world(&app).position.x, world(&app).position.facing),
+        (9, Facing::South)
     );
 
     // Held shows pressed; released clears it.
@@ -397,7 +397,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
     let _ = std::fs::remove_file(&save_path);
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
     let saved_at = world(&app).position;
-    assert_eq!(saved_at.y, 15);
+    assert_eq!(saved_at.x, 9);
 
     escape(&mut app);
     assert_eq!(play_state(&app), PlayState::Paused);
@@ -418,7 +418,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
-    assert_eq!(world(&app).position.y, 14);
+    assert_eq!(world(&app).position.x, 8);
     let replaced_before = seen(&app).replaced;
     escape(&mut app);
     click(&mut app, WidgetId::Row(2), Part::Body);

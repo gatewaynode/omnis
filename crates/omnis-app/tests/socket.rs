@@ -135,7 +135,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 1, "op": "game.status"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert_eq!(reply["id"], json!(1));
-    assert_eq!(reply["result"]["map"], json!("test:map:meadow"));
+    assert_eq!(reply["result"]["map"], json!("test:map:town"));
     assert_eq!(reply["result"]["turn"], json!(0));
 
     let reply = peer.send(
@@ -145,7 +145,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert!(reply["result"]["events"][0]["Moved"].is_object(), "{reply}");
     let position = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((position.x, position.y), (16, 15));
+    assert_eq!((position.x, position.y), (9, 2));
     assert!(
         seen(app)
             .events

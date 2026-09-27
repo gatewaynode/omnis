@@ -130,7 +130,7 @@ fn run_fight(
     policy: Policy,
     tally: &mut Tally,
 ) {
-    let mut world = World::new(data, seed, Settings::default()).unwrap();
+    let mut world = common::new_world(data, seed, Settings::default());
     party_of(&mut world, data, members);
     let here = world.position;
     let encounter = encounter(data, stacks, Disposition::Hostile, here);

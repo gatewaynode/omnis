@@ -17,6 +17,10 @@ fn test_pack() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
 }
 
+fn base_pack() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/base")
+}
+
 fn step(game: &mut Headless) {
     game.handle(&Op::SimCommand {
         command: Command::Step(Direction::Forward),
@@ -30,7 +34,7 @@ fn headless_writes_reads_and_reloads() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::env::set_current_dir(&dir).unwrap();
-    let mut game = Headless::new(vec![test_pack()], 1).unwrap();
+    let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     step(&mut game);
     let mut saved = game.world.clone();
     saved.log.clear();
@@ -130,8 +134,7 @@ fn schema_dump_sections_parse_with_the_real_types() {
 /// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.
 #[test]
 fn rules_set_changes_the_pool_without_a_rebuild() {
-    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/base");
-    let mut game = Headless::new(vec![base, test_pack()], 1).unwrap();
+    let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     let wizard = Draft {
         name: "Ilvara".into(),
         race: "base:race:elf".into(),

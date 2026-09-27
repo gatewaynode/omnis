@@ -107,7 +107,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
     let reply = server.tool(4, "game_status", json!({}));
     assert_eq!(
         reply["result"]["structuredContent"]["map"],
-        json!("test:map:meadow")
+        json!("test:map:town")
     );
     assert_eq!(reply["result"]["content"][0]["type"], json!("text"));
     assert_eq!(reply["result"]["isError"], json!(false));
@@ -127,8 +127,8 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
     );
     let text = reply["result"]["content"][0]["text"].as_str().unwrap();
     assert!(!text.contains("\"depth\""), "no tiles in the text either");
-    let reply = server.tool(6, "world_query", json!({"path": "position.y"}));
-    assert_eq!(reply["result"]["structuredContent"]["value"], json!("15"));
+    let reply = server.tool(6, "world_query", json!({"path": "position.x"}));
+    assert_eq!(reply["result"]["structuredContent"]["value"], json!("9"));
     let reply = server.tool(7, "map_text", json!({"map": "test:map:dungeon"}));
     assert!(
         reply["result"]["content"][0]["text"]

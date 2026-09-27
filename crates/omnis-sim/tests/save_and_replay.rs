@@ -46,12 +46,18 @@ fn walk() -> Vec<Command> {
     commands
 }
 
-/// The same walk under the golden seed, where the dungeon's random table fires on the
-/// thirteenth step: an empty party meets rats, fights, falls at once, and walks on (surprise
-/// is off, so the choice waits for a command).
-fn golden_walk() -> Vec<Command> {
-    let mut commands = walk();
-    commands.insert(13, Command::Encounter(EncounterChoice::Attack));
+/// The same walk under the golden seed from a new game, out of town through the gate first.
+/// Built by running it: where the dungeon's random table fires, an empty party meets rats,
+/// fights, falls at once, and walks on (surprise is off, so the choice waits for a command).
+fn golden_walk(data: &Data) -> Vec<Command> {
+    let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
+    let mut script = vec![Command::Step(Direction::Back)];
+    script.extend(walk());
+    let (commands, _) = play(&mut world, data, &script);
+    assert!(
+        commands.contains(&Command::Encounter(EncounterChoice::Attack)),
+        "the random table fires on the way"
+    );
     commands
 }
 
@@ -303,14 +309,14 @@ fn golden_walk_replay_reproduces() {
         read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         replay.commands,
-        golden_walk(),
+        golden_walk(&data),
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
 }
 
-/// The command script behind `tests/replays/fight.ron`: six members, the walk to the rats
-/// at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
+/// The command script behind `tests/replays/fight.ron`: six members, out of town through the
+/// gate, the walk to the rats at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
 /// dice bring on the way (a random encounter, a member down) is part of the record.
 fn fight(data: &Data) -> Vec<Command> {
     let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
@@ -320,7 +326,9 @@ fn fight(data: &Data) -> Vec<Command> {
         apply(&mut world, data, command.clone()).unwrap();
         commands.push(command);
     }
-    let (taken, events) = play(&mut world, data, &walk_to_the_rats());
+    let mut walk = vec![Command::Step(Direction::Back)];
+    walk.extend(walk_to_the_rats());
+    let (taken, events) = play(&mut world, data, &walk);
     commands.extend(taken);
     assert!(
         events.iter().any(|e| matches!(
@@ -371,7 +379,7 @@ fn rebaseline_walk_replay() {
         &data,
         0x0123_4567_89ab_cdef,
         Settings::default(),
-        golden_walk(),
+        golden_walk(&data),
     )
     .unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();

@@ -1,0 +1,11 @@
+// The guild sells first-level spells; cantrips come with the class.
+(
+    schema: 1,
+    id: "base:service:guild",
+    name: "base:text:service.guild.name",
+    kind: Guild,
+    spells: [
+        "base:spell:bless", "base:spell:burning_hands", "base:spell:cure_wounds",
+        "base:spell:healing_word", "base:spell:magic_missile", "base:spell:shield",
+    ],
+)

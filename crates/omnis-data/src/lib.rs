@@ -22,6 +22,7 @@ pub mod registry;
 pub mod ron_io;
 pub mod rules;
 pub mod sense;
+pub mod service;
 pub mod spell;
 pub mod terms;
 pub mod text;
@@ -44,6 +45,7 @@ pub use omnis_expr;
 pub use registry::Registry;
 pub use rules::{RulesFile, SlotDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
+pub use service::{ResolvedSite, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
 pub use terms::{
     Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,

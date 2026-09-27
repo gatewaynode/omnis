@@ -1,18 +1,19 @@
-//! The fixture pack loads, and what it contains is what the M1 maps need.
+//! The fixture pack loads after the base pack, and what it contains is what the maps need.
 
 mod common;
 
 use omnis_core::{Edges, Facing};
-use omnis_data::{MapKind, SlotKind, load_packs};
+use omnis_data::{MapKind, ServiceKind, SlotKind, load_packs};
 
 #[test]
-fn test_pack_loads_with_both_maps() {
-    let data = load_packs(&[&common::test_pack()]).unwrap_or_else(|report| panic!("{report}"));
-    assert_eq!(data.packs.len(), 1);
-    assert_eq!(data.packs[0].id, "test");
-    assert_eq!(data.fingerprints[0].id, "test");
-    assert_eq!(data.entry, data.registry.maps.get("test:map:meadow"));
-    assert_ne!(data.fingerprints[0].hash, 0);
+fn test_pack_loads_with_its_maps() {
+    let data = common::load_test_packs();
+    assert_eq!(data.packs.len(), 2);
+    assert_eq!(data.packs[1].id, "test");
+    assert_eq!(data.packs[1].depends, ["base"]);
+    assert_eq!(data.fingerprints[1].id, "test");
+    assert_eq!(data.maps.len(), 3);
+    assert_ne!(data.fingerprints[1].hash, 0);
 
     let dungeon_id = data
         .registry
@@ -89,8 +90,72 @@ fn test_pack_loads_with_both_maps() {
 }
 
 #[test]
+fn the_game_starts_in_a_town_of_seven_services_behind_doors() {
+    let data = common::load_test_packs();
+    let town_id = data.registry.maps.get("test:map:town").expect("town");
+    assert_eq!(data.entry, Some(town_id));
+    let town = &data.maps[&town_id];
+    assert_eq!(
+        (
+            town.def.width,
+            town.def.height,
+            town.def.kind,
+            town.def.start
+        ),
+        (12, 5, MapKind::Town, (10, 2, Facing::West))
+    );
+    assert_eq!(data.text("en", town.name), "Test Town");
+    let kinds: Vec<ServiceKind> = town
+        .sites
+        .iter()
+        .map(|s| data.services[&s.service].kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            ServiceKind::Inn,
+            ServiceKind::Temple,
+            ServiceKind::Trainer,
+            ServiceKind::Guild,
+            ServiceKind::Smith,
+            ServiceKind::Tavern,
+            ServiceKind::Bank,
+        ]
+    );
+    for site in &town.sites {
+        let (x, y) = (site.x, site.y);
+        let door = if y == 1 { Facing::South } else { Facing::North };
+        let cell = town.cell(x, y).unwrap();
+        assert!(
+            cell.doors.has(door),
+            "the site at ({x}, {y}) is behind a door"
+        );
+        let name = &town.terrain(cell).name;
+        let def = &data.services[&site.service];
+        assert_eq!(
+            data.registry.services.name(site.service),
+            Some(format!("base:service:{name}").as_str()),
+            "each service has its own terrain"
+        );
+        assert!(!data.label("en", &def.name).is_empty());
+    }
+    assert_eq!(
+        town.site_at(1, 1),
+        data.registry.services.get("base:service:inn")
+    );
+    assert_eq!(town.site_at(1, 2), None, "the street is no service");
+    let colours: std::collections::BTreeSet<_> =
+        town.def.terrains.iter().map(|t| t.color).collect();
+    assert_eq!(
+        colours.len(),
+        town.def.terrains.len(),
+        "the automap tells them apart"
+    );
+}
+
+#[test]
 fn portals_and_tileset_slots_resolve() {
-    let data = load_packs(&[&common::test_pack()]).unwrap_or_else(|report| panic!("{report}"));
+    let data = common::load_test_packs();
     let dungeon_id = data
         .registry
         .maps
@@ -128,6 +193,18 @@ fn portals_and_tileset_slots_resolve() {
     assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
+    let town_id = data.registry.maps.get("test:map:town").unwrap();
+    let home = meadow.portal_at(16, 31).expect("the road south");
+    assert_eq!(
+        (home.to_map, home.to_x, home.to_y, home.to_facing),
+        (town_id, 10, 2, Facing::West)
+    );
+    let out = data.maps[&town_id].portal_at(11, 2).expect("the town gate");
+    assert_eq!(
+        (out.to_map, out.to_x, out.to_y, out.to_facing),
+        (meadow_id, 16, 16, Facing::North),
+        "leaving town lands on the meadow's start"
+    );
 
     // Tileset slots resolve to the baked sprite paths.
     let tileset = &data.tilesets[&dungeon.tileset];
@@ -151,8 +228,9 @@ fn portals_and_tileset_slots_resolve() {
 
 #[test]
 fn fingerprint_depends_on_content_only() {
-    let a = load_packs(&[&common::test_pack()]).unwrap();
-    let b = load_packs(&[&common::test_pack()]).unwrap();
+    let [base, test] = common::test_packs();
+    let a = load_packs(&[&base, &test]).unwrap();
+    let b = load_packs(&[&base, &test]).unwrap();
     assert_eq!(a.fingerprints, b.fingerprints);
     assert_eq!(a, b, "loading is a pure function of the files");
 }

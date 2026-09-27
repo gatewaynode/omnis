@@ -1,0 +1,35 @@
+(
+    schema: 1,
+    id: "broken:map:sites",
+    name: "broken:text:map.glyph.name",
+    kind: Town,
+    tileset: "broken:tileset:bad",
+    width: 4,
+    height: 1,
+    start: (0, 0, North),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+        (glyph: '#', name: "rock", floor: "floor", ceiling: None, passable: false, visibility_depth: 4, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+-+-+",
+        "|. . . #|",
+        "+-+-+-+-+",
+    ],
+    portals: [
+        (x: 0, y: 0, to_map: "broken:map:sites", to_x: 1, to_y: 0, to_facing: East),
+    ],
+    encounters: [
+        (x: 1, y: 0, stacks: [("broken:monster:gone", 1)]),
+    ],
+    sites: [
+        (x: 0, y: 0, service: "broken:service:none"),
+        (x: 1, y: 0, service: "broken:service:none"),
+        (x: 2, y: 0, service: "broken:service:none"),
+        (x: 2, y: 0, service: "broken:service:also"),
+        (x: 3, y: 0, service: "broken:service:none"),
+        (x: 9, y: 9, service: "broken:service:none"),
+    ],
+)

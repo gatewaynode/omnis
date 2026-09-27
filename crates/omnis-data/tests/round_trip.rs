@@ -9,7 +9,7 @@ use std::path::Path;
 
 #[test]
 fn structs_survive_text_and_back() {
-    let data = load_packs(&[&common::test_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = common::load_test_packs();
     for map in data.maps.values() {
         let text = to_string(&map.def).unwrap();
         let back: MapDef = from_str(&text, Path::new("memory")).unwrap();
@@ -24,9 +24,9 @@ fn structs_survive_text_and_back() {
 
 #[test]
 fn a_rewritten_pack_loads_identically() {
-    let data = load_packs(&[&common::test_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = common::load_test_packs();
     let dir = common::scratch("rewritten-pack");
-    write_ron(&dir.join("pack.ron"), &data.packs[0]).unwrap();
+    write_ron(&dir.join("pack.ron"), &data.packs[1]).unwrap();
     for (i, map) in data.maps.values().enumerate() {
         write_ron(&dir.join(format!("data/maps/m{i}.ron")), &map.def).unwrap();
     }
@@ -47,7 +47,7 @@ fn a_rewritten_pack_loads_identically() {
         )
         .unwrap();
     }
-    let again = load_packs(&[&dir]).unwrap_or_else(|r| panic!("{r}"));
+    let again = load_packs(&[&common::base_pack(), &dir]).unwrap_or_else(|r| panic!("{r}"));
     assert_eq!(again.maps, data.maps);
     assert_eq!(again.tilesets, data.tilesets);
     assert_eq!(again.monsters, data.monsters);
