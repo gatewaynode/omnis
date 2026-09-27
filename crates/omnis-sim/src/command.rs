@@ -7,6 +7,7 @@ use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
 use crate::party::PartyCommand;
+use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -44,6 +45,8 @@ pub enum Command {
     Item(ItemCommand),
     /// Buy, rest, heal, bank or leave inside a service (M7).
     Service(ServiceCommand),
+    /// Rest outside a service: an hour spending hit dice, or the night (M7 step 5).
+    Rest(RestCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
 }
@@ -79,6 +82,8 @@ impl Command {
             Command::Service(ServiceCommand::Room) => "room",
             Command::Service(ServiceCommand::Rumor) => "rumor",
             Command::Service(_) => "service",
+            Command::Rest(RestCommand::Long) => "rest",
+            Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
         }
     }
@@ -105,6 +110,8 @@ impl Command {
             "leave" => Command::Service(ServiceCommand::Leave),
             "room" => Command::Service(ServiceCommand::Room),
             "rumor" => Command::Service(ServiceCommand::Rumor),
+            "rest" => Command::Rest(RestCommand::Long),
+            "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
             _ => {
                 if let Some(n) = word.strip_prefix("attack-") {
                     return n
@@ -355,6 +362,20 @@ pub enum Rejection {
         /// Party-clock minutes until one is allowed.
         minutes: u32,
     },
+    /// The stores hold less food than a long rest eats.
+    NoFood {
+        /// Food the rest eats.
+        need: u32,
+        /// Food in the stores.
+        have: u32,
+    },
+    /// A member has fewer hit dice left than asked to spend.
+    NoHitDice {
+        /// The slot asked for.
+        index: u8,
+        /// Hit dice the member has left.
+        left: u8,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -438,6 +459,12 @@ impl Rejection {
             ),
             Rejection::RestTooSoon { minutes } => {
                 write!(f, "the party rested too recently; {minutes} minutes to go")
+            }
+            Rejection::NoFood { need, have } => {
+                write!(f, "the rest eats {need} food; the stores hold {have}")
+            }
+            Rejection::NoHitDice { index, left } => {
+                write!(f, "the member in slot {index} has {left} hit dice left")
             }
             _ => return None,
         })

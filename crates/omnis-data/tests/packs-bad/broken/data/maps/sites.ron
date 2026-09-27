@@ -32,4 +32,9 @@
         (x: 3, y: 0, service: "broken:service:none"),
         (x: 9, y: 9, service: "broken:service:none"),
     ],
+    rest_events: [
+        (terrain: "moss", rest: Any, chance: 0, text: "broken:text:map.glyph.name"),
+        (terrain: "floor", rest: Long, chance: 1001, text: "broken:text:map.glyph.name"),
+        (terrain: "floor", rest: Long, chance: 0, text: "broken:text:rest.none"),
+    ],
 )

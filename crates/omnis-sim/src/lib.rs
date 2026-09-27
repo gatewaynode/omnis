@@ -28,7 +28,7 @@ pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
-mod rest;
+pub mod rest;
 mod sense;
 pub mod service;
 mod utility;
@@ -55,6 +55,7 @@ pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
+pub use rest::RestCommand;
 pub use service::{ServiceCommand, ServiceState};
 pub use view::{CombatView, SpellView, StackView, combat_view};
 pub use world::{

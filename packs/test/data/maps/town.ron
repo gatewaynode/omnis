@@ -50,4 +50,10 @@
         (x: 4, y: 3, service: "base:service:tavern"),
         (x: 7, y: 3, service: "base:service:bank"),
     ],
+    // What may happen while the party rests here: placeholders at chance 0 (per mille) until
+    // the owner's ideas fill them.
+    rest_events: [
+        (terrain: "street", rest: Any, chance: 0, text: "test:text:rest.town.street"),
+        (terrain: "green", rest: Any, chance: 0, text: "test:text:rest.town.green"),
+    ],
 )

@@ -559,6 +559,36 @@ pub enum Event {
         /// Into the bank, or out of it.
         deposit: bool,
     },
+    /// A rest ran its course; the restoration follows (`Healed`, `Condition`).
+    Rested {
+        /// The night's rest, or the hour's.
+        long: bool,
+        /// Party-clock minutes it took.
+        minutes: u32,
+        /// Food eaten.
+        food: u32,
+    },
+    /// A member spent hit dice on a short rest; the `Healed` that follows carries the dice.
+    HitDiceSpent {
+        /// Who.
+        member: CharacterId,
+        /// How many.
+        dice: u8,
+    },
+    /// Monsters came upon the resting party; the encounter follows. Nothing was restored and
+    /// no food eaten.
+    RestInterrupted {
+        /// Party-clock minutes that passed first.
+        minutes: u32,
+    },
+    /// Something happened while the party rested: entry `index` of the map's rest events. It
+    /// changes nothing yet (owner, 2026-09-27: stubs for later ideas).
+    RestEvent {
+        /// The map.
+        map: MapId,
+        /// The entry, in file order.
+        index: u16,
+    },
     /// A debugging edit was applied; what it caused follows.
     Dev {
         /// The edit.

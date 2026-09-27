@@ -3,15 +3,18 @@
 //! `cargo test -p omnis-sim --test measure -- --ignored --nocapture`. It prints, for parties of
 //! two and six and for an attack-only policy against a cast-every-turn one, over 300 seeds of
 //! two fights (the dungeon's rat pair and three goblins): the wipe rate, the mean rounds, the
-//! mean spell points spent, and how often a pool emptied.
+//! mean spell points spent, and how often a pool emptied. `ambush_over_seeds` measures resting
+//! in the dungeon (M7 step 5): how often a spent party is wiped when its rest is ambushed, what
+//! that costs per 100 rests at a few chances, and the ambush rate the slots give.
 
 mod common;
 
 use common::{data, encounter, party_of, reachable_stack};
+use omnis_core::{Facing, Position};
 use omnis_data::{Data, Disposition, SpellEffect};
 use omnis_sim::{
-    ActorRef, CombatCommand, CombatOutcome, Command, Event, Mode, Settings, Surprise, Target,
-    World, apply, combat, combat_view,
+    ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, Event, Mode, RestCommand,
+    Settings, Surprise, Target, World, apply, combat, combat_view,
 };
 
 const SEEDS: u64 = 300;
@@ -209,6 +212,116 @@ fn casting_over_seeds() {
                 );
             }
         }
+    }
+}
+
+/// A new game of `members` at level 1 lying at the dungeon's entrance, spent: each at a
+/// quarter of their hit points (at least 1) with no spell points, food for a night.
+fn spent_in_the_dungeon(data: &Data, seed: u64, members: usize) -> World {
+    let mut world = World::new(data, seed, Settings::default()).unwrap();
+    party_of(&mut world, data, members);
+    world.position = Position {
+        map: data.registry.maps.get("test:map:dungeon").unwrap(),
+        x: 1,
+        y: 0,
+        facing: Facing::South,
+    };
+    world.party.food = 10;
+    for member in &mut world.party.members {
+        member.hp = (member.hp_max / 4).max(1);
+        member.spell_points = 0;
+    }
+    world
+}
+
+/// Rest, and when the rest is ambushed, fight whatever came under `policy`; whether the
+/// party was ambushed and whether it was wiped.
+fn rest_and_fight(
+    data: &Data,
+    world: &mut World,
+    command: RestCommand,
+    policy: Policy,
+) -> (bool, bool) {
+    apply(world, data, Command::Rest(command)).unwrap_or_else(|r| panic!("{r}"));
+    if !matches!(world.mode, Mode::Encounter(_)) {
+        return (false, false);
+    }
+    apply(world, data, Command::Encounter(EncounterChoice::Attack)).unwrap();
+    let mut outcome = None;
+    for _ in 0..600 {
+        if !matches!(world.mode, Mode::Combat(_)) {
+            break;
+        }
+        let command = policy(world, data);
+        for event in apply(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
+            if let Event::CombatEnded { outcome: o, .. } = event {
+                outcome = Some(o);
+            }
+        }
+    }
+    (true, outcome != Some(CombatOutcome::Victory))
+}
+
+#[test]
+#[ignore = "the measurement harness; run with --nocapture to read the table"]
+fn ambush_over_seeds() {
+    let data = data();
+    // Every rest ambushed: the dungeon's table at 100% makes both slots return 1000 per mille
+    // or more.
+    let mut sure = data.clone();
+    let dungeon = sure.registry.maps.get("test:map:dungeon").unwrap();
+    if let Some(random) = sure.maps.get_mut(&dungeon).unwrap().random.as_mut() {
+        random.chance_percent = 100;
+    }
+    let policies: [(&str, Policy); 2] = [
+        ("attack only", attack_only),
+        ("cast every turn", cast_or_attack),
+    ];
+    println!("A spent level-1 party ambushed at rest in the dungeon, fighting every ambush.");
+    println!(
+        "{:>7} {:<16} {:>6} {:>13} {:>13} {:>13}",
+        "members", "policy", "wipe%", "wipes/100@10", "wipes/100@30", "wipes/100@50"
+    );
+    for members in [2usize, 6] {
+        for (name, policy) in policies {
+            let mut wipes = 0u64;
+            for seed in 0..SEEDS {
+                let mut world = spent_in_the_dungeon(&sure, seed, members);
+                let (ambushed, wiped) =
+                    rest_and_fight(&sure, &mut world, RestCommand::Long, policy);
+                assert!(ambushed, "a sure ambush");
+                wipes += u64::from(wiped);
+            }
+            // Per mille of ambushes that wipe; wipes per 100 rests at c per mille, in
+            // hundredths: c * wipe‰ / 100.
+            let wipe = wipes * 1000 / SEEDS;
+            let at = |chance: u64| hundredths(chance * wipe / 100);
+            println!(
+                "{:>7} {:<16} {:>6} {:>13} {:>13} {:>13}",
+                members,
+                name,
+                tenths(wipe),
+                at(10),
+                at(30),
+                at(50)
+            );
+        }
+    }
+    let rests = 3000u64;
+    for (label, command) in [
+        ("long", RestCommand::Long),
+        ("short", RestCommand::Short { dice: Vec::new() }),
+    ] {
+        let mut ambushes = 0u64;
+        for seed in 0..rests {
+            let mut world = spent_in_the_dungeon(&data, seed, 2);
+            apply(&mut world, &data, Command::Rest(command.clone())).unwrap();
+            ambushes += u64::from(matches!(world.mode, Mode::Encounter(_)));
+        }
+        println!(
+            "{label} rests ambushed at the slots' chance: {ambushes} of {rests} ({} per mille)",
+            tenths(ambushes * 10_000 / rests)
+        );
     }
 }
 

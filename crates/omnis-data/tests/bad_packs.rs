@@ -105,6 +105,11 @@ fn every_error_in_a_broken_pack_is_reported() {
         "site at (2, 0) names service 'broken:service:also', which is not defined by any loaded pack",
         "site at (3, 0) names service 'broken:service:none', which is not defined by any loaded pack",
         "site at (9, 9) names service 'broken:service:none', which is not defined by any loaded pack",
+        // data/maps/sites.ron's rest events, at resolution
+        "rest event 0 names terrain 'moss', which this map does not have",
+        "rest event 1 has chance 1001 per mille; at most 1000",
+        "rest event 2 repeats terrain 'floor' for the same rest",
+        "rest event 2 text key 'broken:text:rest.none' is not defined in any language",
     ];
     assert_reports("broken", &expected);
 }

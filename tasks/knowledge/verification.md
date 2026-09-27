@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 414 passed, 7 ignored (2026-09-27, after M7 step 3c). The gate's log says
-it on one line: `tests passed 414 failed 0 ignored 7`.
+Test count at the gate: 426 passed, 8 ignored (2026-09-27, after M7 step 5). The gate's log says
+it on one line: `tests passed 426 failed 0 ignored 8`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -24,11 +24,11 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 
 ## Pinned numbers
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
-  items 24, conditions 16, spells 11, monsters 3, rule slots 29, services 7)`; `chain_mail`'s
+  items 24, conditions 16, spells 11, monsters 3, rule slots 31, services 7)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `4376920784145620456`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `9901411989274517557`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `15493707637151882905` under the golden seed (M7 step 3c; both leave town through the
+  fight `15728260309841309156` under the golden seed (M7 step 5; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
@@ -36,11 +36,11 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
   (gold ×100, a saved fight's loot too); fixtures `tests/saves/v1..v4.ron`, each captured by an
   ignored `capture_schema_N_fixture` before the schema moved on.
 - MCP: 18 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`); the hand-written
-  `Command` schema has `oneOf` 10, combat arms 5, `item_schema` 6, `service_schema` 9,
-  `dev_schema` 12.
-- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 75 instances from the `next` chain of
-  exhaustive matches, 107 offered `oneOf` branches and `enum` values, all used; the drift test's
-  padded branch is `/oneOf/10`. A new `Command`
+  `Command` schema has `oneOf` 11, combat arms 5, `item_schema` 6, `service_schema` 9,
+  `rest_schema` 2, `dev_schema` 12.
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 77 instances from the `next` chain of
+  exhaustive matches, 111 offered `oneOf` branches and `enum` values, all used; the drift test's
+  padded branch is `/oneOf/11`. A new `Command`
   variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the
   same commands by design.
@@ -63,6 +63,8 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
   (entries include `explore`, `pause`, `inventory`, `combat_use`, the sheet pages).
 - Encounter measurement over seeds: `cargo test -p omnis-sim --test measure -- --ignored --nocapture`
   (300 seeds, parties of 2 and 6, attack-only vs cast-every-turn; integers, tenths and hundredths).
+  `ambush_over_seeds` measures resting in the dungeon: wipes of a spent party per ambush, per
+  100 rests at a few chances, and the ambush rate the slots give over 3000 rests.
 - MCP: `.mcp.json` runs `target/debug/omnis-mcp` against the game's `.omnis/dev.addr`; restart the
   server after a new build. `omnis-mcp --headless --pack … --seed n` hosts its own world.
 - Game flags: `--pack`, `--seed`, `--save` (default `.omnis/quick.ron`), `--autostart`, `--window

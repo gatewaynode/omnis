@@ -1,6 +1,7 @@
-//! Town events as text: going in and out of a service, and what the party did inside. Sits
-//! beside `item_text.rs`; the restoration a room or a temple brings reads through the healing
-//! and condition lines that follow. Prices show every coin (`text::coins`). Bevy-free.
+//! Town and rest events as text: going in and out of a service, what the party did inside, and
+//! resting outside. Sits beside `item_text.rs`; the restoration a room, a temple or a rest
+//! brings reads through the healing and condition lines that follow. Prices show every coin
+//! (`text::coins`). Bevy-free.
 
 use crate::text::{Line, Names, coins};
 use omnis_sim::Event;
@@ -53,8 +54,36 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
             amount,
             deposit: false,
         } => Line::same(format!("Withdrew {}", coins(*amount))),
+        Event::Rested {
+            long: true, food, ..
+        } => Line::new(
+            format!("The party rests for the night and eats {food} food"),
+            "The party rests the night".to_owned(),
+        ),
+        Event::Rested { minutes, .. } => {
+            Line::same(format!("The party rests for {}", span(*minutes)))
+        }
+        Event::HitDiceSpent { member, dice } => Line::same(format!(
+            "{} spends {dice} hit {}",
+            names.member(*member),
+            if *dice == 1 { "die" } else { "dice" }
+        )),
+        Event::RestInterrupted { minutes } => Line::new(
+            format!("Ambushed after {}!", span(*minutes)),
+            "Ambushed!".to_owned(),
+        ),
+        Event::RestEvent { map, index } => Line::same(names.rest_event(*map, *index).to_owned()),
         _ => return None,
     })
+}
+
+/// Party-clock minutes as words: "an hour", "3 hours", "40 minutes".
+fn span(minutes: u32) -> String {
+    match (minutes / 60, minutes % 60) {
+        (1, 0) => "an hour".to_owned(),
+        (hours, 0) => format!("{hours} hours"),
+        _ => format!("{minutes} minutes"),
+    }
 }
 
 #[cfg(test)]
@@ -151,5 +180,52 @@ mod tests {
             "Bought 65535 Map-making kit for 42949672 gp 9 sp 5 cp"
         );
         assert!(service_line(&Event::PartyChanged, &names).is_none());
+    }
+
+    #[test]
+    fn rest_lines_read_and_fit() {
+        let data = packs();
+        let world = World::new(&data, 3, Settings::default()).unwrap();
+        let names = Names::new(&world, &data);
+        let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+        let lines = [
+            (
+                Event::Rested {
+                    long: true,
+                    minutes: 480,
+                    food: 4,
+                },
+                "The party rests for the night and eats 4 food",
+            ),
+            (
+                Event::Rested {
+                    long: false,
+                    minutes: 60,
+                    food: 0,
+                },
+                "The party rests for an hour",
+            ),
+            (
+                Event::RestInterrupted { minutes: 180 },
+                "Ambushed after 3 hours!",
+            ),
+            (
+                Event::RestInterrupted { minutes: 40 },
+                "Ambushed after 40 minutes!",
+            ),
+            (
+                Event::RestEvent {
+                    map: meadow,
+                    index: 0,
+                },
+                "A cart rattles past on the road",
+            ),
+        ];
+        for (event, long) in &lines {
+            let line = service_line(event, &names).expect("a rest line");
+            assert_eq!(line.long, *long);
+            assert!(line.long.chars().count() <= LONG_CELLS);
+            assert!(line.short.chars().count() <= SHORT_CELLS, "{}", line.short);
+        }
     }
 }

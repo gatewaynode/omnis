@@ -6,7 +6,7 @@ use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
 use crate::world::{Known, Mode, World, door_key, layer};
 use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
-use crate::{casting, combat, dev, effects, encounter, items, visibility};
+use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, MapId, Position, Rotation};
 use omnis_data::Data;
@@ -40,6 +40,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         ) => casting::apply(world, data, *caster, *spell, *target, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Item(command)) => {
             items::apply(world, data, *command, &mut events)?;
+        }
+        (Mode::Explore, Command::Rest(command)) => {
+            rest::apply(world, data, command, &mut events)?;
         }
         (Mode::Encounter(_), Command::Encounter(choice)) => {
             encounter::apply_choice(world, data, *choice, &mut events)?;

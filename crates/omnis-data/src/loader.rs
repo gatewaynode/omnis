@@ -14,6 +14,7 @@ use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::{Cell, MapDef, Terrain};
 use crate::monster::Monster;
 use crate::registry::Registry;
+use crate::rest_event::{self, ResolvedRestEvent};
 use crate::ron_io::{from_str, read_text};
 use crate::rules::RulesFile;
 use crate::service::{self, ResolvedSite, ServiceDef};
@@ -77,6 +78,8 @@ pub struct MapData {
     pub random: Option<ResolvedRandom>,
     /// Services placed on tiles, in file order.
     pub sites: Vec<ResolvedSite>,
+    /// What may happen while resting here, in file order.
+    pub rest_events: Vec<ResolvedRestEvent>,
 }
 
 impl MapData {
@@ -613,6 +616,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             errors,
         );
         let sites = service::resolve_sites(def, cells, &data.registry.services, file, errors);
+        let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],
@@ -625,6 +629,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     encounters,
                     random,
                     sites,
+                    rest_events,
                 },
             );
         }

@@ -47,8 +47,13 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   debug menu, every town line and every refusal that names a price.
 - Town (M7 step 4b): `service.rs` (`ServiceState { service, kind }` in `Mode::Town`,
   `ServiceCommand` with `kind()`, `enter_here`, `apply`: `validate` builds a `Deal`, `settle`
-  carries it out; prices by `price(slot)`, rumors on the `town` stream), `rest.rs`
-  (`long_rest_restore`, `hit_dice_back`; step 5 reuses them). `apply.rs`: `landing()` is the
+  carries it out; prices by `price(slot)`, rumors on the `town` stream).
+- Rest (M7 step 5): `rest.rs` (`RestCommand`, `apply`: `check_dice` or `too_soon` and
+  `food_needed`, then `ambush_after`, `rest_events` and `roll_hit_dice` on copies of the
+  `encounter` and `rest` streams, then the changes; `long_rest_restore` and `too_soon` are the
+  inn room's too). `encounter::ambush` opens an `EncounterSource::Ambush` from the map's table.
+  A map's rest events: `omnis-data/src/rest_event.rs` (`RestEventDef`, `RestKind`, resolved to
+  `MapData.rest_events`); log lines for rests in `omnis-app/src/service_text.rs`. `apply.rs`: `landing()` is the
   pure half of a step, shared by `r#move` and `query::{step_lands, site_ahead}`; `arrive` enters
   a site (no encounter roll) or triggers the tile's encounter; `step_out` leaves only when the
   step goes somewhere. `World::may_save` counts an inn; a saved `Town` must match the tile

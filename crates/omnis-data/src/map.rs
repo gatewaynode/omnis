@@ -20,6 +20,7 @@
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::rest_event::RestEventDef;
 use crate::service::{self, Site};
 use omnis_core::{Edges, Facing};
 use serde::{Deserialize, Serialize};
@@ -146,6 +147,9 @@ pub struct MapDef {
     /// Services placed on tiles.
     #[serde(default)]
     pub sites: Vec<Site>,
+    /// What may happen while the party rests here, by terrain.
+    #[serde(default)]
+    pub rest_events: Vec<RestEventDef>,
 }
 
 /// One tile after the layout is parsed.
@@ -389,6 +393,7 @@ mod tests {
             encounters: vec![],
             random: None,
             sites: vec![],
+            rest_events: vec![],
         }
     }
 

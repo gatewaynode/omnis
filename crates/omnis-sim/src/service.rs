@@ -22,10 +22,6 @@ use serde::{Deserialize, Serialize};
 
 /// Party-clock minutes a transaction takes when the rules do not say.
 const DEFAULT_SERVICE_MINUTES: u32 = 10;
-/// A long rest's minutes when the rules do not say (SRD: eight hours).
-const DEFAULT_LONG_REST_MINUTES: u32 = 480;
-/// Minutes between the ends of two long rests when the rules do not say (SRD: a day).
-const DEFAULT_LONG_REST_EVERY: u32 = 1440;
 
 /// The service the party is inside. The kind is kept so the save rule needs no pack data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,17 +289,8 @@ fn bank(world: &World, command: ServiceCommand, amount: u32) -> Result<Deal, Rej
 /// A room, unless the last long rest ended less than `long_rest_every_minutes` before this
 /// one would end (SRD: one long rest in 24 hours).
 fn room(world: &World, data: &Data, roller: &mut Roller) -> Result<Deal, Rejection> {
-    let minutes = rule_minutes(data, "long_rest_minutes", DEFAULT_LONG_REST_MINUTES);
-    let every = rule_minutes(data, "long_rest_every_minutes", DEFAULT_LONG_REST_EVERY);
-    if let Some(last) = world.party.last_long_rest {
-        let ends = world.party_clock().elapsed + i64::from(minutes);
-        let wait = last + i64::from(every) - ends;
-        if wait > 0 {
-            return Err(Rejection::RestTooSoon {
-                minutes: u32::try_from(wait).unwrap_or(u32::MAX),
-            });
-        }
-    }
+    let minutes = rest::long_rest_minutes(data);
+    rest::too_soon(world, data, minutes)?;
     let members = i64::try_from(world.party.members.len()).unwrap_or(i64::MAX);
     let cost = price(data, "inn.room_cost", &[("members", members)], roller)?;
     Ok(Deal::Room { cost, minutes })
@@ -504,7 +491,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             });
         }
     }
-    let minutes = rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
+    let minutes = rest::rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
     advance(world, minutes, events);
 }
 
@@ -553,12 +540,4 @@ const fn nonzero(n: u32) -> Result<(), Rejection> {
     } else {
         Ok(())
     }
-}
-
-/// A rules value in minutes, or the default.
-fn rule_minutes(data: &Data, key: &str, default: u32) -> u32 {
-    data.rules
-        .value(key)
-        .and_then(|v| u32::try_from(v).ok())
-        .unwrap_or(default)
 }

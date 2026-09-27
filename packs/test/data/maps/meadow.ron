@@ -93,4 +93,10 @@
     // A random table that never fires: every step still rolls its check on the encounter stream,
     // which the stream-isolation tests count.
     random: Some((chance_percent: 0, entries: [(weight: 1, stacks: [("test:monster:giant_rat", (count: 1, sides: 2, modifier: 0))])])),
+    // What may happen while the party rests here: placeholders at chance 0 (per mille) until
+    // the owner's ideas fill them.
+    rest_events: [
+        (terrain: "road", rest: Any, chance: 0, text: "test:text:rest.meadow.road"),
+        (terrain: "grass", rest: Any, chance: 0, text: "test:text:rest.meadow.grass"),
+    ],
 )

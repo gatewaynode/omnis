@@ -10,8 +10,8 @@ use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::Draft;
 use omnis_cli::omnis_sim::{
-    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, ServiceCommand,
-    Target,
+    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, RestCommand,
+    ServiceCommand, Target,
 };
 use omnis_mcp::schema::Schema;
 use serde_json::{Value, json};
@@ -420,9 +420,14 @@ fn next(command: &Command) -> Option<Command> {
         Command::Item(item) => {
             next_item(item).map_or(Command::Service(ServiceCommand::Leave), Command::Item)
         }
-        Command::Service(service) => {
-            next_service(*service).map_or(Command::Dev(give(Some(0))), Command::Service)
-        }
+        Command::Service(service) => next_service(*service).map_or(
+            Command::Rest(RestCommand::Short {
+                dice: vec![1, 0, 2],
+            }),
+            Command::Service,
+        ),
+        Command::Rest(RestCommand::Short { .. }) => Command::Rest(RestCommand::Long),
+        Command::Rest(RestCommand::Long) => Command::Dev(give(Some(0))),
         Command::Dev(dev) => return next_dev(dev).map(Command::Dev),
     })
 }
@@ -441,9 +446,9 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        75,
+        77,
         "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, \
-         11 service, 21 dev"
+         11 service, 2 rest, 21 dev"
     );
     let mut used = Used::new();
     for command in &all {
@@ -458,7 +463,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 107, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 111, "oneOf branches and enum values offered");
 }
 
 #[test]
@@ -506,7 +511,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     padded["oneOf"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"type": "string", "enum": ["Rest"]}));
+        .push(json!({"type": "string", "enum": ["Nap"]}));
     let (mut used, mut every) = (Used::new(), Used::new());
     for command in instances() {
         let wire = serde_json::to_value(&command).unwrap();
@@ -514,7 +519,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     }
     offered(&padded, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
-    assert_eq!(unused, ["/oneOf/10", "/oneOf/10/enum/\"Rest\""]);
+    assert_eq!(unused, ["/oneOf/11", "/oneOf/11/enum/\"Nap\""]);
 }
 
 #[test]

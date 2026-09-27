@@ -4,7 +4,7 @@
 
 use crate::font::fit;
 use omnis_sim::omnis_core::{
-    CharacterId, Coins, ConditionId, ItemId, RollTrace, ServiceId, SpellId,
+    CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
 };
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{ActorRef, Mode, World};
@@ -30,6 +30,8 @@ pub struct Names {
     items: BTreeMap<ItemId, String>,
     /// A service's name and its rumors, in its pack's order.
     services: BTreeMap<ServiceId, (String, Vec<String>)>,
+    /// A map's rest-event lines, in its file's order.
+    rest_events: BTreeMap<MapId, Vec<String>>,
 }
 
 impl Names {
@@ -93,6 +95,17 @@ impl Names {
                 self.services.insert(*id, (name, rumors));
             }
         }
+        if self.rest_events.is_empty() {
+            for (id, map) in &data.maps {
+                let lines = map
+                    .def
+                    .rest_events
+                    .iter()
+                    .map(|e| data.label("en", &e.text).to_owned())
+                    .collect();
+                self.rest_events.insert(*id, lines);
+            }
+        }
     }
 
     /// A member's name.
@@ -151,6 +164,15 @@ impl Names {
         self.services
             .get(&id)
             .and_then(|(_, rumors)| rumors.get(usize::from(index)))
+            .map_or("?", String::as_str)
+    }
+
+    /// The line of a map's rest event.
+    #[must_use]
+    pub fn rest_event(&self, map: MapId, index: u16) -> &str {
+        self.rest_events
+            .get(&map)
+            .and_then(|lines| lines.get(usize::from(index)))
             .map_or("?", String::as_str)
     }
 }
