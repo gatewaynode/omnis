@@ -11,13 +11,13 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 389 passed, 7 ignored (2026-09-27, after M7 step 4a). The gate's log says
-it on one line: `tests passed 389 failed 0 ignored 7`.
+Test count at the gate: 413 passed, 7 ignored (2026-09-27, after M7 step 4b). The gate's log says
+it on one line: `tests passed 413 failed 0 ignored 7`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
-`debug_menu::adjust` 93, `debug_screen::row_text` 91, `combat_text::wound_line`
+`debug_menu::adjust` 93, `service::settle` 81 (a new deal arm goes in a helper), `debug_screen::row_text` 91, `combat_text::wound_line`
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
 screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
 `party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84.
@@ -34,9 +34,11 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
   (gold ×100, a saved fight's loot too); fixtures `tests/saves/v1..v4.ron`, each captured by an
   ignored `capture_schema_N_fixture` before the schema moved on.
 - MCP: 18 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`); the hand-written
-  `Command` schema has `oneOf` 9, combat arms 5, `item_schema` 6, `dev_schema` 12.
-- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 64 instances from the `next` chain of
-  exhaustive matches, 94 offered `oneOf` branches and `enum` values, all used. A new `Command`
+  `Command` schema has `oneOf` 10, combat arms 5, `item_schema` 6, `service_schema` 9,
+  `dev_schema` 12.
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 75 instances from the `next` chain of
+  exhaustive matches, 107 offered `oneOf` branches and `enum` values, all used; the drift test's
+  padded branch is `/oneOf/10`. A new `Command`
   variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the
   same commands by design.

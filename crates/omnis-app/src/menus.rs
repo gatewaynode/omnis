@@ -99,6 +99,8 @@ pub enum Active {
     Sheet,
     /// The inventory overlay.
     Inventory,
+    /// The question before a step into or out of a service (a `bevy_ui` panel).
+    Confirm,
     /// No screen: booting or exploring.
     None,
 }
@@ -123,6 +125,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
             (AppState::Playing, _, Some(PlayState::Sheet)) => Active::Sheet,
             (AppState::Playing, _, Some(PlayState::Inventory)) => Active::Inventory,
+            (AppState::Playing, _, Some(PlayState::Confirm)) => Active::Confirm,
             _ => Active::None,
         }
     }
@@ -198,8 +201,9 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::Paused => Target::Pause(&mut screens.pause),
         Active::Cast => Target::Cast(&mut screens.cast),
         // The combat, debug, sheet and inventory plugins handle their screens' clicks; party
-        // creation is a `bevy_ui` panel, which takes its own.
+        // creation and the confirmation are `bevy_ui` panels, which take their own.
         Active::CreateParty
+        | Active::Confirm
         | Active::Encounter
         | Active::Combat
         | Active::Defeat
@@ -338,8 +342,10 @@ fn menu_keys(
                 world.as_deref(),
                 selected.as_ref().and_then(|s| s.0),
             ),
-            // The combat, debug, sheet and inventory plugins handle their screens' keys.
+            // The combat, debug, sheet and inventory plugins handle their screens' keys; the
+            // input plugin answers the confirmation's.
             Active::Encounter
+            | Active::Confirm
             | Active::Combat
             | Active::Defeat
             | Active::Debug

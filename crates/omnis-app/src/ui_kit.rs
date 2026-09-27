@@ -6,6 +6,7 @@
 //! with its own Bevy-free `apply`.
 
 use crate::canvas::Layout;
+use crate::confirm_panel::ConfirmId;
 use crate::creation_panel::{LabelId, PanelId};
 use crate::cursor::WindowSize;
 use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
@@ -28,6 +29,8 @@ use bevy::ui_widgets::{Activate, ValueChange};
 pub enum UiScreen {
     /// Party creation (`feathers_creation.rs`).
     Creation,
+    /// The question before a step into or out of a service (`feathers_confirm.rs`).
+    Confirm,
 }
 
 /// One control, on whichever screen. Tests and the sync systems find entities by it.
@@ -35,6 +38,8 @@ pub enum UiScreen {
 pub enum UiId {
     /// A control of the party creation panel.
     Creation(PanelId),
+    /// A button of the confirmation.
+    Confirm(ConfirmId),
 }
 
 impl Default for UiId {
@@ -49,6 +54,7 @@ impl UiId {
     pub fn name(self) -> String {
         match self {
             UiId::Creation(id) => format!("{id:?}"),
+            UiId::Confirm(id) => format!("{id:?}"),
         }
     }
 }
@@ -56,6 +62,12 @@ impl UiId {
 impl From<PanelId> for UiId {
     fn from(id: PanelId) -> Self {
         UiId::Creation(id)
+    }
+}
+
+impl From<ConfirmId> for UiId {
+    fn from(id: ConfirmId) -> Self {
+        UiId::Confirm(id)
     }
 }
 

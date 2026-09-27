@@ -4,9 +4,14 @@
 //! click on a tool button the same shell command (the buttons' states say when they are
 //! live, so the keys are the shortcuts). No function key is bound: macOS takes them (saving
 //! and loading live on the pause menu).
+//!
+//! A step into or out of a town service asks first (`confirm_panel.rs`): the step is held in
+//! `AskFirst`, the play state is `Confirm`, and Go (Enter) sends it or Stay (Escape) drops it;
+//! the panel's buttons answer the same way (`feathers_confirm.rs`).
 
+use crate::confirm_panel::{self, Confirm, ConfirmId};
 use crate::cursor::UiSet;
-use crate::sim::{PlayState, PlayerCommand, ShellCommand, SimSet};
+use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, SimWorld};
 use crate::ui::UiClick;
 use crate::widget::{ToolButton, WidgetId};
 use bevy::prelude::*;
@@ -19,7 +24,22 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<AskFirst>()
             .add_message::<UiClick>()
+            .add_message::<ConfirmAnswer>()
+            .add_systems(
+                Update,
+                answer_keys
+                    .in_set(UiSet::Dispatch)
+                    .run_if(in_state(PlayState::Confirm)),
+            )
+            .add_systems(
+                Update,
+                settle_answers
+                    .in_set(SimSet::Collect)
+                    .after(UiSet::Dispatch)
+                    .run_if(in_state(PlayState::Confirm)),
+            )
             .add_systems(
                 Update,
                 map_keys
@@ -78,25 +98,100 @@ pub const fn tool_for(button: ToolButton) -> ShellCommand {
     }
 }
 
+/// The step held for the confirmation, while `PlayState::Confirm` is up.
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
+pub struct AskFirst(pub Option<Confirm>);
+
+/// An answer to the confirmation, from a key or a panel button.
+#[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfirmAnswer(pub ConfirmId);
+
+/// Where a player command from the map goes: to the simulation, or held behind a question.
+#[derive(bevy::ecs::system::SystemParam)]
+struct Gate<'w> {
+    world: Option<Res<'w, SimWorld>>,
+    data: Option<Res<'w, PackData>>,
+    held: ResMut<'w, AskFirst>,
+    next: ResMut<'w, NextState<PlayState>>,
+    out: MessageWriter<'w, PlayerCommand>,
+}
+
+impl Gate<'_> {
+    fn send(&mut self, command: Command) {
+        if self.held.0.is_some() {
+            // A second key in the frame that raised the question waits for the answer.
+            return;
+        }
+        let asked = self
+            .world
+            .as_ref()
+            .zip(self.data.as_ref())
+            .and_then(|(world, data)| confirm_panel::ask(&world.0, &data.0, &command));
+        match asked {
+            Some(confirm) => {
+                self.held.0 = Some(confirm);
+                self.next.set(PlayState::Confirm);
+            }
+            None => {
+                self.out.write(PlayerCommand(command));
+            }
+        }
+    }
+}
+
 fn map_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    mut commands: MessageWriter<PlayerCommand>,
+    mut gate: Gate,
     mut shell: MessageWriter<ShellCommand>,
 ) {
     for key in keys.get_just_pressed() {
         if let Some(command) = command_for(*key) {
-            commands.write(PlayerCommand(command));
+            gate.send(command);
         } else if let Some(action) = shell_for(*key) {
             shell.write(action);
         }
     }
 }
 
-fn map_pad(mut clicks: MessageReader<UiClick>, mut commands: MessageWriter<PlayerCommand>) {
+fn map_pad(mut clicks: MessageReader<UiClick>, mut gate: Gate) {
     for UiClick(hit) in clicks.read() {
         if let WidgetId::Pad(button) = hit.id {
-            commands.write(PlayerCommand(button.command()));
+            gate.send(button.command());
         }
+    }
+}
+
+/// Enter goes, Escape stays.
+fn answer_keys(keys: Res<ButtonInput<KeyCode>>, mut answers: MessageWriter<ConfirmAnswer>) {
+    for key in keys.get_just_pressed() {
+        match key {
+            KeyCode::Enter | KeyCode::NumpadEnter => {
+                answers.write(ConfirmAnswer(ConfirmId::Go));
+            }
+            KeyCode::Escape => {
+                answers.write(ConfirmAnswer(ConfirmId::Stay));
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The first answer sends the held step or drops it, and the map comes back; any later one in
+/// the frame finds nothing held.
+fn settle_answers(
+    mut answers: MessageReader<ConfirmAnswer>,
+    mut held: ResMut<AskFirst>,
+    mut next: ResMut<NextState<PlayState>>,
+    mut out: MessageWriter<PlayerCommand>,
+) {
+    for ConfirmAnswer(id) in answers.read() {
+        let Some(confirm) = held.0.take() else {
+            continue;
+        };
+        if let Some(command) = confirm_panel::answer(confirm, *id) {
+            out.write(PlayerCommand(command));
+        }
+        next.set(PlayState::Explore);
     }
 }
 

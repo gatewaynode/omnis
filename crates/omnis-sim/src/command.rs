@@ -7,10 +7,11 @@ use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
 use crate::party::PartyCommand;
+use crate::service::ServiceCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{Direction, ItemId, Rotation, money};
+use omnis_core::{Coins, Direction, ItemId, Rotation};
 use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,8 @@ pub enum Command {
     },
     /// Wear, hand over, stow, take, or use a carried item outside a fight.
     Item(ItemCommand),
+    /// Buy, rest, heal, bank or leave inside a service (M7).
+    Service(ServiceCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
 }
@@ -72,6 +75,10 @@ impl Command {
             Command::Combat(CombatCommand::Run) => "flee",
             Command::Cast { .. } => "cast",
             Command::Item(_) => "item",
+            Command::Service(ServiceCommand::Leave) => "leave",
+            Command::Service(ServiceCommand::Room) => "room",
+            Command::Service(ServiceCommand::Rumor) => "rumor",
+            Command::Service(_) => "service",
             Command::Dev(_) => "dev",
         }
     }
@@ -95,6 +102,9 @@ impl Command {
             "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
             "dodge" => Command::Combat(CombatCommand::Dodge),
             "flee" => Command::Combat(CombatCommand::Run),
+            "leave" => Command::Service(ServiceCommand::Leave),
+            "room" => Command::Service(ServiceCommand::Room),
+            "rumor" => Command::Service(ServiceCommand::Rumor),
             _ => {
                 if let Some(n) = word.strip_prefix("attack-") {
                     return n
@@ -162,8 +172,8 @@ impl fmt::Display for ScriptError {
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
 /// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
-/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, separated by
-/// whitespace or commas;
+/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, inside a service
+/// `leave`, `room`, `rumor`, separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
@@ -321,6 +331,30 @@ pub enum Rejection {
         /// Row.
         y: u16,
     },
+    /// This service does not do that, or does not stock that row.
+    NotOffered,
+    /// The member has nothing a temple could treat: full hit points, or no condition to cure.
+    NothingToTreat {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// Only the dead are raised.
+    NotDead {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// The bank holds less than the withdrawal.
+    BankShort {
+        /// The withdrawal in copper.
+        amount: u32,
+        /// The balance in copper.
+        bank: u32,
+    },
+    /// The last long rest ended too recently for another (SRD: one in 24 hours).
+    RestTooSoon {
+        /// Party-clock minutes until one is allowed.
+        minutes: u32,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -329,6 +363,7 @@ impl core::fmt::Display for Rejection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.fmt_play(f)
             .or_else(|| self.fmt_items(f))
+            .or_else(|| self.fmt_town(f))
             .unwrap_or_else(|| self.fmt_magic(f))
     }
 }
@@ -355,10 +390,12 @@ impl Rejection {
             }
             Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
             Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
-            Rejection::CannotAfford { cost, gold } => {
-                let (cost, gold) = (money::gp_floor(*cost), money::gp_floor(*gold));
-                write!(f, "that costs {cost} gold; the party has {gold}")
-            }
+            Rejection::CannotAfford { cost, gold } => write!(
+                f,
+                "that costs {}; the party has {}",
+                Coins::of(*cost),
+                Coins::of(*gold)
+            ),
             Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
             Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
@@ -381,6 +418,27 @@ impl Rejection {
             Rejection::NotUsableHere => f.write_str("the item is not used from a fight"),
             Rejection::TargetDead { index } => write!(f, "the member in slot {index} is dead"),
             Rejection::ZeroCount => f.write_str("a count of zero moves nothing"),
+            _ => return None,
+        })
+    }
+
+    /// The wording of the service refusals; `None` for the rest.
+    fn fmt_town(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NotOffered => f.write_str("this service does not offer that"),
+            Rejection::NothingToTreat { index } => {
+                write!(f, "the member in slot {index} needs no treatment")
+            }
+            Rejection::NotDead { index } => write!(f, "the member in slot {index} is not dead"),
+            Rejection::BankShort { amount, bank } => write!(
+                f,
+                "that withdraws {}; the bank holds {}",
+                Coins::of(*amount),
+                Coins::of(*bank)
+            ),
+            Rejection::RestTooSoon { minutes } => {
+                write!(f, "the party rested too recently; {minutes} minutes to go")
+            }
             _ => return None,
         })
     }

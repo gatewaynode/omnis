@@ -3,7 +3,9 @@
 //! `item_text.rs` build on it. Bevy-free.
 
 use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, Coins, ConditionId, ItemId, RollTrace, SpellId};
+use omnis_sim::omnis_core::{
+    CharacterId, Coins, ConditionId, ItemId, RollTrace, ServiceId, SpellId,
+};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{ActorRef, Mode, World};
 use std::collections::BTreeMap;
@@ -26,6 +28,8 @@ pub struct Names {
     conditions: BTreeMap<ConditionId, String>,
     spells: BTreeMap<SpellId, String>,
     items: BTreeMap<ItemId, String>,
+    /// A service's name and its rumors, in its pack's order.
+    services: BTreeMap<ServiceId, (String, Vec<String>)>,
 }
 
 impl Names {
@@ -43,7 +47,7 @@ impl Names {
             self.members.insert(member.id, member.name.clone());
         }
         let encounter = match &world.mode {
-            Mode::Explore => None,
+            Mode::Explore | Mode::Town(_) => None,
             Mode::Encounter(e) => Some(e),
             Mode::Combat(c) => Some(&c.encounter),
         };
@@ -76,6 +80,17 @@ impl Names {
             for (id, item) in &data.items {
                 self.items
                     .insert(*id, data.label("en", &item.name).to_owned());
+            }
+        }
+        if self.services.is_empty() {
+            for (id, service) in &data.services {
+                let rumors = service
+                    .rumors
+                    .iter()
+                    .map(|key| data.label("en", key).to_owned())
+                    .collect();
+                let name = data.label("en", &service.name).to_owned();
+                self.services.insert(*id, (name, rumors));
             }
         }
     }
@@ -121,6 +136,23 @@ impl Names {
     pub fn item(&self, id: ItemId) -> &str {
         self.items.get(&id).map_or("?", String::as_str)
     }
+
+    /// A service's name.
+    #[must_use]
+    pub fn service(&self, id: ServiceId) -> &str {
+        self.services
+            .get(&id)
+            .map_or("?", |(name, _)| name.as_str())
+    }
+
+    /// One of a service's rumors, by its row.
+    #[must_use]
+    pub fn rumor(&self, id: ServiceId, index: u16) -> &str {
+        self.services
+            .get(&id)
+            .and_then(|(_, rumors)| rumors.get(usize::from(index)))
+            .map_or("?", String::as_str)
+    }
 }
 
 /// One event as text.
@@ -145,13 +177,13 @@ impl Line {
     }
 }
 
-/// A purse or price in copper broken out by coin, largest first: `15 gp 3 sp 7 cp`. Everywhere
-/// else money shows as whole gold rounded down (`money::gp_floor`); the inventory and the debug
-/// menu show every coin (owner, 2026-09-27).
+/// A purse or price in copper broken out by coin, largest first: `15 gp 3 sp 7 cp`. The
+/// inventory, the debug menu and every town price show every coin (owner, 2026-09-27; a town
+/// price can end in silver); elsewhere money shows as whole gold rounded down
+/// (`money::gp_floor`).
 #[must_use]
 pub fn coins(cp: u32) -> String {
-    let c = Coins::of(cp);
-    format!("{} gp {} sp {} cp", c.gp, c.sp, c.cp)
+    Coins::of(cp).to_string()
 }
 
 /// `1d8+2 [5]=7`: the trace without its stream name.

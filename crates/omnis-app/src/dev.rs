@@ -42,7 +42,7 @@ pub enum ScriptStep {
 /// Parse a comma-separated script: the simulation's command words (`Command::from_word`:
 /// `forward`, `back`, `left`, `right`, `turn-left`, `turn-right`, `around`, `use`, and the
 /// fight words `fight`, `bribe`, `hide`, `run`, `attack`, `attack-N`, `dodge`, `swap-N`,
-/// `flee`) plus the shell words `map`, `save`, `load`, `party` for a stock member, and `create`
+/// `flee`, and inside a service `leave`, `room`, `rumor`) plus the shell words `map`, `save`, `load`, `party` for a stock member, and `create`
 /// for the party creation screen.
 pub fn parse_script(text: &str) -> Result<Vec<ScriptStep>, String> {
     text.split(',')

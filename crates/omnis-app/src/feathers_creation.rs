@@ -398,7 +398,9 @@ pub fn sync(
         set_text(&mut text, &label_text(id, form, catalog, &shown, font.0));
     }
     for (entity, control, slider, checked) in &controls {
-        let UiId::Creation(id) = control.0;
+        let UiId::Creation(id) = control.0 else {
+            continue;
+        };
         match id {
             // A focused input is left to the player, except where the form kept less than
             // it shows: a name cut at the rules' limit, or the blank of the next member.
@@ -453,7 +455,9 @@ pub fn reports(
 ) {
     let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
     for report in reports.read() {
-        let UiId::Creation(id) = report.id;
+        let UiId::Creation(id) = report.id else {
+            continue;
+        };
         let Screens {
             creation, catalog, ..
         } = &mut *screens;

@@ -94,7 +94,7 @@ pub struct CombatView {
 #[must_use]
 pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
     let (encounter, fight) = match &world.mode {
-        Mode::Explore => return None,
+        Mode::Explore | Mode::Town(_) => return None,
         Mode::Encounter(e) => (e, None),
         Mode::Combat(c) => (&c.encounter, Some(c)),
     };

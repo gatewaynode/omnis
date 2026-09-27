@@ -109,6 +109,8 @@ pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter 
 pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a member  Esc close";
 /// The help line on the inventory overlay.
 pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
+/// The help line under the question before a step into or out of a service.
+pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -491,6 +493,8 @@ fn menu_for<'a>(
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
         // Party creation is a `bevy_ui` panel over the backdrop (`feathers_ui.rs`).
         (Active::CreateParty, _) => (Menu::Covered, HELP_CREATION),
+        // The question is a small `bevy_ui` panel over the map (`feathers_confirm.rs`).
+        (Active::Confirm, _) => (Menu::None, HELP_CONFIRM),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,

@@ -32,6 +32,13 @@ pub struct Coins {
     pub cp: u32,
 }
 
+/// `15 gp 3 sp 7 cp`: every coin, so a price that ends in silver or copper reads exactly.
+impl core::fmt::Display for Coins {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} gp {} sp {} cp", self.gp, self.sp, self.cp)
+    }
+}
+
 impl Coins {
     /// The breakdown of `cp` copper pieces.
     #[must_use]
@@ -90,6 +97,13 @@ mod tests {
                 cp: 5
             }
         );
+    }
+
+    #[test]
+    fn coins_print_every_coin() {
+        use alloc::format;
+        assert_eq!(format!("{}", Coins::of(1537)), "15 gp 3 sp 7 cp");
+        assert_eq!(format!("{}", Coins::of(50)), "0 gp 5 sp 0 cp");
     }
 
     #[test]

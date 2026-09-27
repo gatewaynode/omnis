@@ -6,7 +6,7 @@ use crate::encounter::EncounterSource;
 use alloc::vec::Vec;
 use omnis_core::{
     CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
-    SpellId,
+    ServiceId, SpellId,
 };
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
@@ -490,6 +490,74 @@ pub enum Event {
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+    },
+    /// The party went into the service on its tile.
+    ServiceEntered {
+        /// Which.
+        service: ServiceId,
+    },
+    /// The party came out of a service, onto its tile or on the way off it.
+    ServiceLeft {
+        /// Which.
+        service: ServiceId,
+    },
+    /// A night at the inn: a long rest; the restoration follows as `Healed` events.
+    RoomTaken {
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Food bought at a tavern into the party's larder.
+    FoodBought {
+        /// Units.
+        count: u16,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// A rumor heard at a tavern.
+    Rumor {
+        /// The tavern.
+        service: ServiceId,
+        /// The row of its rumors.
+        index: u16,
+    },
+    /// A temple healed a member or cured their conditions; `Healed` and `Condition` follow.
+    Treated {
+        /// Who.
+        member: CharacterId,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// A temple raised a dead member at one hit point.
+    Raised {
+        /// Who.
+        member: CharacterId,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Items bought into the party's stores.
+    Bought {
+        /// The item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Items sold out of the party's stores.
+    Sold {
+        /// The item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Copper received.
+        price: u32,
+    },
+    /// Copper moved between the purse and the bank.
+    Banked {
+        /// How much.
+        amount: u32,
+        /// Into the bank, or out of it.
+        deposit: bool,
     },
     /// A debugging edit was applied; what it caused follows.
     Dev {

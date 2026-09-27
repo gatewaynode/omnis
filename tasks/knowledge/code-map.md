@@ -42,8 +42,17 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   (`PartyView`, `MemberView`, `ItemView`, `party_view`).
 - Money (schema 5): `Party.gold` and `Party.bank` count copper; `omnis_core::money::{from_gp,
   gp_floor, Coins}`; pack data stays in gold (backgrounds, monster drops) and converts where it is
-  read; every rule price is copper (`bribe.cost`). The app shows `gp_floor` everywhere and
-  `text::coins` ("15 gp 3 sp 7 cp") in the inventory's stores and the debug menu.
+  read; every rule price is copper (`bribe.cost`, `services.ron`). The app shows `gp_floor` in
+  fights and `text::coins` ("15 gp 3 sp 7 cp", `Coins`' `Display`) in the inventory's stores, the
+  debug menu, every town line and every refusal that names a price.
+- Town (M7 step 4b): `service.rs` (`ServiceState { service, kind }` in `Mode::Town`,
+  `ServiceCommand` with `kind()`, `enter_here`, `apply`: `validate` builds a `Deal`, `settle`
+  carries it out; prices by `price(slot)`, rumors on the `town` stream), `rest.rs`
+  (`long_rest_restore`, `hit_dice_back`; step 5 reuses them). `apply.rs`: `landing()` is the
+  pure half of a step, shared by `r#move` and `query::{step_lands, site_ahead}`; `arrive` enters
+  a site (no encounter roll) or triggers the tile's encounter; `step_out` leaves only when the
+  step goes somewhere. `World::may_save` counts an inn; a saved `Town` must match the tile
+  (`LoadError::BadTown`).
 - Fights: `encounter.rs`, `combat/{mod,state,turn,resolve,cast,reaction}.rs` (`CombatCommand::
   {Attack, Cast, Use, Dodge, Exchange, Run}`, `Plan`, `Roller::take`/`take_stream`, `run_until_member`,
   `end_of_round`, `settle`, `try_shield`).
@@ -96,13 +105,19 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   Fonts under `assets/fonts/{inter,alegreya-sans}`. **A new screen**: a variant in `UiId`,
   `UiLabel` and `UiScreen`, its ids in its Bevy-free model, a `reports` system that reads
   `UiReport`s carrying its ids, a `reconcile` that touches only its own roots; the pattern is in
-  `tasks/plans/feathers-experiment.md`.
+  `tasks/plans/feathers-experiment.md`. The second screen on the kit is the confirmation before a
+  step into or out of a service: `confirm_panel.rs` (`Confirm`, `ConfirmId`, `ask`, `answer`),
+  `feathers_confirm.rs` (`reconcile`, `reports`), and in `input.rs` the `Gate` every map key and
+  pad click passes (`AskFirst`, `ConfirmAnswer`, `answer_keys`, `settle_answers`,
+  `PlayState::Confirm`, `Active::Confirm`). Town events read through `service_text.rs`.
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`).
 - Tests: `tests/common/mod.rs` (`ui_app_saving_to`, `click`, `press`, `seen`, `world`,
   `fighter_draft`, `ask_creation`, `party_by_command`), one file
   per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
-  `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel.
+  `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel,
+  `tests/confirm.rs` for the confirmation (a key there is pressed and released, so it can be
+  pressed again).
 
 ## omnis-mcp and omnis-cli
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: eighteen tools, the hand-written `Command`

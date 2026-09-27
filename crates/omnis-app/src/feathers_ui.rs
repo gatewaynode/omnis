@@ -7,6 +7,7 @@
 //! global nearest sampler on Feathers' icons.
 
 use crate::cursor::UiSet;
+use crate::feathers_confirm as confirm;
 use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::menu::CreationAction;
@@ -59,10 +60,12 @@ impl Plugin for FeathersUiPlugin {
                     .in_set(UiSet::Dispatch)
                     .before(CreationFlow),
             )
+            .add_systems(Update, confirm::reports.in_set(UiSet::Dispatch))
             .add_systems(
                 Update,
                 (
                     creation::reconcile,
+                    confirm::reconcile,
                     kit::scale,
                     kit::place,
                     creation::show_scale,

@@ -187,7 +187,7 @@ pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Ve
     let mut events = Vec::new();
     for _ in 0..1000 {
         let command = match &world.mode {
-            Mode::Explore => return events,
+            Mode::Explore | Mode::Town(_) => return events,
             Mode::Encounter(_) => Command::Encounter(EncounterChoice::Attack),
             Mode::Combat(_) => {
                 let stack = reachable_stack(world, data).expect("something to hit");
