@@ -102,3 +102,8 @@
 - **What happened**: Offering party creation as the experiment's screen, I wrote that it "sits before a world exists". It does not (`PlayState::CreateParty`; the new-game form makes the world). The owner chose that option; the error made it sound harder than it was, and I corrected it in the plan.
 - **Rule**: Every factual clause in an `AskUserQuestion` option is checked against the code before it is sent, exactly like a claim in a report; what is not checked is worded as unknown.
 
+
+## 2026-09-27 — A step the owner can play needs a "what you will see" line
+- **What happened**: M7 step 3 moved the game's start into a town of seven services, all data. The owner played it and found nothing to interact with and no visible way in or out; the report had given the tests and pins but not that services open only in step 4, nor that no portal on any map is drawn.
+- **Rule**: When a commit changes what a new game shows, the report says what the owner will see and what does not work yet, with the step that makes it work.
+- **Rule**: Before building on a mechanic in a new place, check that the player can perceive it (portals were invisible on every map since M1; the town made it obvious).
