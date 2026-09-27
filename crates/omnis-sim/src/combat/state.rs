@@ -47,7 +47,7 @@ pub struct CombatState {
     pub surprised: Surprise,
     /// Members dodging until the round ends, sorted.
     pub dodging: Vec<CharacterId>,
-    /// Gold looted so far, paid out on victory.
+    /// Copper looted so far, paid out on victory.
     pub gold: u32,
 }
 

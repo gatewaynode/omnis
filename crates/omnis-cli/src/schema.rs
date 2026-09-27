@@ -99,6 +99,7 @@ const BACKGROUND: &str = r#"(
     name: "example:text:background.acolyte.name",
     skills: [Insight, Religion],
     equipment: [("example:item:holy_symbol", 1)],
+    // Whole gold pieces; the party's purse counts copper (100 to the gold piece).
     gold: 15,
     feature: (name: "example:text:background.acolyte.shelter"),
 )"#;
@@ -196,6 +197,7 @@ const MONSTER: &str = r#"(
     challenge: (1, 4),
     xp: 50,
     attacks: [(name: "example:text:monster.goblin.scimitar", to_hit: 4, damage: (count: 1, sides: 6, modifier: 2), damage_type: Slashing, ranged: false)],
+    // The drop in whole gold pieces, rolled when it dies and looted as copper.
     gold: Some((count: 1, sides: 6, modifier: 0)),
     resistances: [],
     immunities: [Poison],

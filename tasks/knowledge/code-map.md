@@ -4,7 +4,7 @@ Where each system lives, by crate and file, as of M6 (2026-09-20). Behaviour is 
 ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name before leaning on it.
 
 ## Crates
-`omnis-core` (ids, `Fixed`, dice, `Pcg32` streams, geometry, time) → `omnis-expr` (Rhai, `no_float`,
+`omnis-core` (ids, `Fixed`, dice, `Pcg32` streams, geometry, time, `money`) → `omnis-expr` (Rhai, `no_float`,
 `only_i64`, checked) → `omnis-data` (the pack loader; the only file I/O) → `omnis-rules`
 (characters, attacks, conditions, spells, effects, equipment) → `omnis-sim` (the world) →
 `omnis-app` (Bevy), `omnis-cli` (headless), `omnis-mcp` (the bridge). The app reaches data through
@@ -38,7 +38,12 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - World: `world.rs` (`World`, `Settings { save_rule, permadeath, devtools }`, `Automap`,
   `Known`, `layer::{TERRAIN 1, STRUCTURE 2, VISITED 4, REMOTE 8}`, layer-aware `record`),
   `party.rs` (`heal`, `bury`), `visibility.rs` (`depth`, `cone`, `ray`), `query.rs`, `view.rs`,
-  `migrate.rs`, `replay.rs`, `ops.rs` (`PartyView`, `MemberView`, `ItemView`, `party_view`).
+  `migrate.rs` (one function per schema step, `v4_to_v5` the copper purse), `replay.rs`, `ops.rs`
+  (`PartyView`, `MemberView`, `ItemView`, `party_view`).
+- Money (schema 5): `Party.gold` and `Party.bank` count copper; `omnis_core::money::{from_gp,
+  gp_floor, Coins}`; pack data stays in gold (backgrounds, monster drops) and converts where it is
+  read; every rule price is copper (`bribe.cost`). The app shows `gp_floor` everywhere and
+  `text::coins` ("15 gp 3 sp 7 cp") in the inventory's stores and the debug menu.
 - Fights: `encounter.rs`, `combat/{mod,state,turn,resolve,cast,reaction}.rs` (`CombatCommand::
   {Attack, Cast, Use, Dodge, Exchange, Run}`, `Plan`, `Roller::take`/`take_stream`, `run_until_member`,
   `end_of_round`, `settle`, `try_shield`).

@@ -10,7 +10,7 @@ use crate::party::PartyCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{Direction, ItemId, Rotation};
+use omnis_core::{Direction, ItemId, Rotation, money};
 use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
@@ -226,9 +226,9 @@ pub enum Rejection {
     SameMember,
     /// The party cannot pay.
     CannotAfford {
-        /// The price.
+        /// The price in copper.
         cost: u32,
-        /// The purse.
+        /// The purse in copper.
         gold: u32,
     },
     /// The caster knows no spell at that index.
@@ -356,6 +356,7 @@ impl Rejection {
             Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
             Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
             Rejection::CannotAfford { cost, gold } => {
+                let (cost, gold) = (money::gp_floor(*cost), money::gp_floor(*gold));
                 write!(f, "that costs {cost} gold; the party has {gold}")
             }
             Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),

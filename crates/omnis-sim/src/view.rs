@@ -80,7 +80,7 @@ pub struct CombatView {
     pub surprised: Surprise,
     /// Members dodging this round.
     pub dodging: Vec<CharacterId>,
-    /// Gold looted so far.
+    /// Copper looted so far.
     pub gold: u32,
     /// Members in the front row.
     pub front_row: usize,

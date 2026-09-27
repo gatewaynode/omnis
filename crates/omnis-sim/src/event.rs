@@ -257,7 +257,7 @@ pub enum Event {
     },
     /// The monsters took the party's gold and left.
     Bribed {
-        /// Gold paid.
+        /// Copper paid.
         cost: u32,
     },
     /// The fight is on.
@@ -477,7 +477,7 @@ pub enum Event {
     Death {
         /// Who.
         target: ActorRef,
-        /// The gold a monster dropped.
+        /// The whole gold pieces a monster dropped, as rolled; looted as copper.
         gold: Option<RollTrace>,
     },
     /// The fight is over.
@@ -486,7 +486,7 @@ pub enum Event {
         outcome: CombatOutcome,
         /// Experience each surviving member gained.
         xp: u32,
-        /// Gold the party gained.
+        /// Copper the party gained.
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,

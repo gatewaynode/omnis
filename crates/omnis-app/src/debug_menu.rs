@@ -48,7 +48,7 @@ pub struct DebugView {
     pub devtools: bool,
     /// The members in marching order.
     pub members: Vec<MemberDebug>,
-    /// The party's gold.
+    /// The party's purse in copper.
     pub gold: u32,
     /// The party's food.
     pub food: u32,
@@ -355,7 +355,7 @@ impl DebugMenu {
                 return None;
             }
             (ROW_GOLD, _) => DevCommand::SetGold {
-                gold: bump(i64::from(view.gold), by, i64::from(u32::MAX)),
+                gold: bump(i64::from(view.gold), by * 100, i64::from(u32::MAX)),
             },
             (ROW_FOOD, _) => DevCommand::SetFood {
                 food: bump(i64::from(view.food), by, i64::from(u32::MAX)),
@@ -581,8 +581,9 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Char('+'), &view),
             Some(DebugIntent::Command(DevCommand::SetGold {
-                gold: view.gold + 10
-            }))
+                gold: view.gold + 1000
+            })),
+            "the gold row steps in whole gold pieces"
         );
         menu.row = ROW_ITEM;
         menu.key(MenuKey::Right, &view);

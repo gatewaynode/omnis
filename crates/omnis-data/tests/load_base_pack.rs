@@ -473,12 +473,13 @@ fn the_combat_rules_evaluate() {
             rng,
         )
     };
-    assert_eq!(bribe(200, 0, &mut rng), Value::Int(200));
-    assert_eq!(bribe(200, 2, &mut rng), Value::Int(66));
+    // Whole gold returned as copper: 200 xp hostile is 200 gp, neutral a third of it, 66 gp.
+    assert_eq!(bribe(200, 0, &mut rng), Value::Int(20_000));
+    assert_eq!(bribe(200, 2, &mut rng), Value::Int(6600));
     assert_eq!(bribe(200, 3, &mut rng), Value::Int(0));
     assert_eq!(
         bribe(1, 2, &mut rng),
-        Value::Int(1),
+        Value::Int(100),
         "never free unless friendly"
     );
     assert_eq!(

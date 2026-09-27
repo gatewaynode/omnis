@@ -44,9 +44,9 @@ pub enum DevCommand {
         /// The new points.
         points: u32,
     },
-    /// The party's gold.
+    /// The party's purse.
     SetGold {
-        /// Gold pieces.
+        /// Copper pieces.
         gold: u32,
     },
     /// The party's food.

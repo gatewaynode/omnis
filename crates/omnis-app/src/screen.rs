@@ -565,8 +565,8 @@ mod tests {
                 blocked: None,
             })
             .collect(),
-            bribe: Some(200),
-            gold: 60,
+            bribe: Some(20_000),
+            gold: 6000,
             spells: vec![
                 crate::combat_menu::SpellRow {
                     index: 0,
@@ -798,7 +798,7 @@ mod tests {
                 scores: [15, 14, 13, 12, 10, 8],
                 conditions: vec![],
             }],
-            gold: 90,
+            gold: 9000,
             food: 60,
             items: vec![("base:item:spyglass".to_owned(), "Spyglass".to_owned())],
             conditions: vec![("base:condition:poisoned".to_owned(), "Poisoned".to_owned())],

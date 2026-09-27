@@ -83,7 +83,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "sim_command",
             "sim.command",
-            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
+            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
             &[Field::new::<Command>("command", true, "The command.")],
         ),
         tool(
@@ -155,7 +155,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold, gems, food, the stores as rows, and party-wide effects.",
+            "The party: members with race, class, level, hit and spell points, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, and party-wide effects.",
             &[],
         ),
         tool(

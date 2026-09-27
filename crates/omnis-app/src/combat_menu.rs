@@ -6,6 +6,7 @@
 use crate::actors::Actor;
 use crate::menu::{MenuKey, cycle};
 use omnis_sim::combat::weapon_for;
+use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
 
 pub use crate::spell_menu::SpellRow;
@@ -70,9 +71,9 @@ pub struct FightView {
     pub disposition: Disposition,
     /// The stacks, in encounter order.
     pub stacks: Vec<StackRow>,
-    /// What a bribe costs; `None` when the rule cannot say.
+    /// What a bribe costs in copper; `None` when the rule cannot say.
     pub bribe: Option<u32>,
-    /// The party's purse.
+    /// The party's purse in copper.
     pub gold: u32,
     /// The acting member's spells, in cast order; empty when no member acts or none known.
     pub spells: Vec<SpellRow>,
@@ -89,12 +90,12 @@ impl FightView {
         self.bribe.is_some_and(|cost| cost <= self.gold)
     }
 
-    /// The bribe button's text: `Bribe 12g`, or `Bribe free`.
+    /// The bribe button's text in whole gold rounded down: `Bribe 12g`, or `Bribe free`.
     #[must_use]
     pub fn bribe_label(&self) -> String {
         match self.bribe {
             Some(0) => "Bribe free".to_owned(),
-            Some(cost) => format!("Bribe {cost}g"),
+            Some(cost) => format!("Bribe {}g", gp_floor(cost)),
             None => "Bribe".to_owned(),
         }
     }
@@ -421,7 +422,11 @@ impl EncounterMenu {
         let choice = Self::CHOICES[self.cursor.min(3)];
         if choice == EncounterChoice::Bribe && !view.bribe_allowed() {
             self.message = match view.bribe {
-                Some(cost) => format!("Not enough gold: {cost} needed, {} carried", view.gold),
+                Some(cost) => format!(
+                    "Not enough gold: {} needed, {} carried",
+                    gp_floor(cost),
+                    gp_floor(view.gold)
+                ),
                 None => "They cannot be bribed".to_owned(),
             };
             return None;
@@ -577,7 +582,7 @@ pub(crate) mod tests {
         assert_eq!(view.actors().len(), 2);
         assert_eq!(view.own, None);
         // Goblins 50 xp × 3 + rats 25 xp × 2 = 200; hostile pays it all.
-        assert_eq!(view.bribe, Some(200));
+        assert_eq!(view.bribe, Some(20_000), "in copper");
         assert_eq!(view.bribe_label(), "Bribe 200g");
         assert!(
             !view.bribe_allowed(),
@@ -736,15 +741,18 @@ pub(crate) mod tests {
     fn encounter_keys_cycle_and_gate_the_bribe() {
         let mut view = view_with(&[(0, true, None)], None);
         view.phase = ModeKind::Encounter;
-        view.bribe = Some(12);
-        view.gold = 5;
+        view.bribe = Some(1200);
+        view.gold = 1199;
         let mut menu = EncounterMenu::default();
         assert_eq!(menu.key(MenuKey::Right, &view), None);
         assert_eq!(menu.cursor, 1);
         assert_eq!(menu.key(MenuKey::Enter, &view), None);
-        assert_eq!(menu.message, "Not enough gold: 12 needed, 5 carried");
+        assert_eq!(
+            menu.message, "Not enough gold: 12 needed, 11 carried",
+            "a copper short shows the purse rounded down"
+        );
         assert_eq!(view.bribe_label(), "Bribe 12g");
-        view.gold = 12;
+        view.gold = 1200;
         assert_eq!(
             menu.key(MenuKey::Enter, &view),
             Some(EncounterIntent::Choice(EncounterChoice::Bribe))

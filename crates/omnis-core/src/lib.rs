@@ -14,6 +14,7 @@ pub mod error;
 pub mod fixed;
 pub mod geom;
 pub mod id;
+pub mod money;
 pub mod rng;
 pub mod time;
 
@@ -26,5 +27,6 @@ pub use id::{
     MapId, MonsterId, PartyId, ProjectId, QuestId, RaceId, RegionId, ServiceId, SpellId,
     StreamName, TextKey, TilesetId,
 };
+pub use money::{CP_PER_GP, CP_PER_SP, Coins};
 pub use rng::{Dice, DieRoll, Pcg32, RollTrace, fnv1a64, splitmix64};
 pub use time::{Clock, Contact};

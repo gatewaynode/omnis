@@ -1,6 +1,6 @@
 // Combat resolution (SRD 5.1 with the PRD §8.2 rows): Rust rolls every die and passes the faces
 // in, these formulas add and compare. `die` is the kept d20 face; `disposition` is 0 Hostile,
-// 1 Wary, 2 Neutral, 3 Friendly.
+// 1 Wary, 2 Neutral, 3 Friendly. Every price a rule returns is copper (100 to the gold piece).
 (
     schema: 1,
     id: "base:rules:combat",
@@ -17,8 +17,9 @@
         "initiative": (inputs: ["die", "dex_mod"], expr: "die + dex_mod"),
         // Hit points of one monster: the SRD average. A pack may write "d(count, sides) + modifier".
         "monster.hit_points": (inputs: ["count", "sides", "modifier"], expr: "count * (sides + 1) / 2 + modifier"),
-        // Bribe: a share of the group's experience value, cheaper the friendlier the group.
-        "bribe.cost": (inputs: ["xp", "disposition"], expr: "if disposition >= 3 { 0 } else { max(1, xp * (3 - disposition) / 3) }"),
+        // Bribe: a share of the group's experience value in whole gold, cheaper the friendlier
+        // the group, returned as copper.
+        "bribe.cost": (inputs: ["xp", "disposition"], expr: "if disposition >= 3 { 0 } else { max(1, xp * (3 - disposition) / 3) * 100 }"),
         // Random encounter: `roll` is 1d100 from the encounter stream.
         "encounter.random": (inputs: ["roll", "chance_percent"], expr: "roll <= chance_percent"),
     },

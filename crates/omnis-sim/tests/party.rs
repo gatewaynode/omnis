@@ -89,7 +89,11 @@ fn six_members_join_and_the_seventh_is_refused() {
     }
     assert_eq!(world.turn, 6, "creation takes a turn but no time");
     assert_eq!(world.party_clock().elapsed, 0);
-    assert_eq!(world.party.gold, 6 * 15, "the acolyte's purse, six times");
+    assert_eq!(
+        world.party.gold,
+        6 * 1500,
+        "the acolyte's 15 gp in copper, six times"
+    );
     assert_eq!(world.party.food, 60);
     assert_eq!(world.party.members[0].hp_max, 12);
     assert_eq!(world.party.members[2].spell_points_max, 4);
@@ -108,7 +112,7 @@ fn six_members_join_and_the_seventh_is_refused() {
         query::path(&world, "party.members.1.name").as_deref(),
         Some("Durin")
     );
-    assert_eq!(query::path(&world, "party.gold").as_deref(), Some("90"));
+    assert_eq!(query::path(&world, "party.gold").as_deref(), Some("9000"));
 }
 
 #[test]
@@ -310,7 +314,7 @@ fn the_ops_expose_the_party_and_the_rules() {
     };
     assert_eq!(
         (party.slots, party.front_row, party.gold, party.food),
-        (6, 3, 15, 10)
+        (6, 3, 1500, 10)
     );
     let member = &party.members[0];
     assert_eq!(

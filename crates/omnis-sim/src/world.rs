@@ -4,7 +4,7 @@
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4};
+use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5};
 use crate::party::Party;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -18,8 +18,9 @@ use omnis_data::{Data, DataError, PackFingerprint};
 use serde::{Deserialize, Serialize};
 
 /// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
-/// and schema 3 (no equipment slots, no effects, no devtools bit) migrate on load.
-pub const SAVE_SCHEMA: u32 = 4;
+/// schema 3 (no equipment slots, no effects, no devtools bit) and schema 4 (gold in whole pieces)
+/// migrate on load.
+pub const SAVE_SCHEMA: u32 = 5;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -362,13 +363,19 @@ impl World {
                 .map(v1_to_v2)
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             2 => omnis_data::ron_io::parse::<World>(text)
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             3 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
+                .map_err(LoadError::Parse)?,
+            4 => omnis_data::ron_io::parse::<World>(text)
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),

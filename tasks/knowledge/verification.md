@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 385 passed, 6 ignored (2026-09-27, after M7 step 3b). The gate's log says
-it on one line: `tests passed 385 failed 0 ignored 6`.
+Test count at the gate: 389 passed, 7 ignored (2026-09-27, after M7 step 4a). The gate's log says
+it on one line: `tests passed 389 failed 0 ignored 7`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -26,12 +26,13 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 11, monsters 3, rule slots 29, services 7)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `2567641413976331380`,
-  fight `16662894784943291610` (M7 step 3b; both leave town through the gate first). Rebaseline
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `4150529802456538600`,
+  fight `13558397520870512998` (M7 step 4a; both leave town through the gate first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
-- `SAVE_SCHEMA 4`; `migrate.rs` holds `v2_to_v3` and the data-aware `v3_to_v4`; fixture
-  `tests/saves/v3.ron`.
+- `SAVE_SCHEMA 5`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4` and `v4_to_v5`
+  (gold ×100, a saved fight's loot too); fixtures `tests/saves/v1..v4.ron`, each captured by an
+  ignored `capture_schema_N_fixture` before the schema moved on.
 - MCP: 18 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`); the hand-written
   `Command` schema has `oneOf` 9, combat arms 5, `item_schema` 6, `dev_schema` 12.
 - The schema proof (`omnis-mcp/tests/schema_proof.rs`): 64 instances from the `next` chain of

@@ -3,7 +3,7 @@
 //! `item_text.rs` build on it. Bevy-free.
 
 use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, ConditionId, ItemId, RollTrace, SpellId};
+use omnis_sim::omnis_core::{CharacterId, Coins, ConditionId, ItemId, RollTrace, SpellId};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{ActorRef, Mode, World};
 use std::collections::BTreeMap;
@@ -143,6 +143,15 @@ impl Line {
     pub(crate) fn same(text: String) -> Line {
         Line::new(text.clone(), text)
     }
+}
+
+/// A purse or price in copper broken out by coin, largest first: `15 gp 3 sp 7 cp`. Everywhere
+/// else money shows as whole gold rounded down (`money::gp_floor`); the inventory and the debug
+/// menu show every coin (owner, 2026-09-27).
+#[must_use]
+pub fn coins(cp: u32) -> String {
+    let c = Coins::of(cp);
+    format!("{} gp {} sp {} cp", c.gp, c.sp, c.cp)
 }
 
 /// `1d8+2 [5]=7`: the trace without its stream name.

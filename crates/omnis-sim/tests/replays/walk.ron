@@ -4,7 +4,7 @@
         (
             id: "base",
             version: "0.1.0",
-            hash: 2729949215536661706,
+            hash: 7928880042662405992,
         ),
         (
             id: "test",
@@ -50,5 +50,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 2567641413976331380,
+    fingerprint: 4150529802456538600,
 )

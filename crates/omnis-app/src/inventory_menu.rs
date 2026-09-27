@@ -4,6 +4,7 @@
 //! the events say what happened. Bevy-free.
 
 use crate::menu::{MenuKey, cycle};
+use crate::text::coins;
 use omnis_sim::omnis_data::{Data, EquipSlot};
 use omnis_sim::{Command, ItemCommand, World};
 
@@ -90,7 +91,7 @@ pub fn inventory_view(world: &World, data: &Data) -> InventoryView {
         .collect();
     panes.push(Pane {
         title: "STORES".to_owned(),
-        summary: format!("gold {}  food {}", world.party.gold, world.party.food),
+        summary: format!("{}  food {}", coins(world.party.gold), world.party.food),
         rows: world
             .party
             .inventory
@@ -439,7 +440,7 @@ pub(crate) mod tests {
         assert!(brenna.rows[6].usable && !brenna.rows[6].equipped);
         let stores = &view.panes[2];
         assert_eq!(stores.title, "STORES");
-        assert_eq!(stores.summary, "gold 30  food 20");
+        assert_eq!(stores.summary, "30 gp 0 sp 0 cp  food 20");
         assert_eq!(
             (stores.rows[0].name.as_str(), stores.rows[0].count),
             ("Potion of healing", 2)

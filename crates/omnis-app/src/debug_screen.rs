@@ -8,6 +8,7 @@ use crate::debug_menu::{
 use crate::font::fit;
 use crate::layout::MENU_COLUMNS;
 use crate::screens::{ItemState, item_state, label, label_right};
+use crate::text::coins;
 use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
 use omnis_sim::omnis_data::Ability;
 
@@ -89,7 +90,7 @@ fn row_text(menu: &DebugMenu, view: &DebugView, row: usize) -> String {
                 field(&menu.count.to_string(), on(1))
             )
         }
-        ROW_GOLD => format!("Gold     {}", field(&view.gold.to_string(), on(0))),
+        ROW_GOLD => format!("Gold     {}", field(&coins(view.gold), on(0))),
         ROW_FOOD => format!("Food     {}", field(&view.food.to_string(), on(0))),
         ROW_FLAG => {
             let name = view
@@ -230,7 +231,7 @@ mod tests {
                 "the count is the chosen field"
             );
             assert!(
-                row_text(&menu, &v, ROW_GOLD).contains("<999999>"),
+                row_text(&menu, &v, ROW_GOLD).contains("<9999 gp 9 sp 9 cp>"),
                 "another row brackets its first field for the mouse"
             );
             assert!(row_text(&menu, &v, ROW_CONDITION).ends_with("on   Enter toggles"));

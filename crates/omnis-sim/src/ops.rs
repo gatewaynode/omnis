@@ -294,7 +294,7 @@ pub struct PartyView {
     pub slots: usize,
     /// Members in the front row.
     pub front_row: usize,
-    /// Gold pieces.
+    /// The purse in copper pieces (100 to the gold piece).
     pub gold: u32,
     /// Gems.
     pub gems: u32,

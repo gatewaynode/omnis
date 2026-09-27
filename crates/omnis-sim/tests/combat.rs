@@ -112,11 +112,17 @@ fn a_fight_runs_to_victory_and_pays_out() {
     let dropped: u32 = events
         .iter()
         .filter_map(|e| match e {
-            Event::Death { gold: Some(g), .. } => Some(u32::try_from(g.total.max(0)).unwrap()),
+            Event::Death { gold: Some(g), .. } => {
+                Some(u32::try_from(g.total.max(0)).unwrap() * 100)
+            }
             _ => None,
         })
         .sum();
-    assert_eq!((gold, world.party.gold), (dropped, 15 * 6 + dropped));
+    assert_eq!(
+        (gold, world.party.gold),
+        (dropped, 1500 * 6 + dropped),
+        "the drops are rolled in gold and paid in copper"
+    );
     assert!(
         events.iter().all(|e| match e {
             Event::AttackResolved { roll, .. } => roll.trace.stream.0 == "combat",

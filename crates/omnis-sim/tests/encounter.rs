@@ -199,16 +199,16 @@ fn a_bribe_costs_by_the_rules_and_clears_a_once_group() {
             Command::Encounter(EncounterChoice::Bribe)
         ),
         Err(Rejection::CannotAfford {
-            cost: 200,
-            gold: 90
+            cost: 20_000,
+            gold: 9000
         }),
         "3 goblins and 2 rats are worth 200 xp; a hostile bribe is all of it"
     );
     assert_eq!(world, before, "a refused bribe changes nothing");
-    world.party.gold = 500;
+    world.party.gold = 50_000;
     let events = choose(&mut world, &data, EncounterChoice::Bribe);
-    assert_eq!(events[0], Event::Bribed { cost: 200 });
-    assert_eq!((world.party.gold, &world.mode), (300, &Mode::Explore));
+    assert_eq!(events[0], Event::Bribed { cost: 20_000 });
+    assert_eq!((world.party.gold, &world.mode), (30_000, &Mode::Explore));
     assert!(world.maps[&dungeon(&data)].cleared.contains(&0));
     assert!(
         world.party.members.iter().all(|m| m.xp == 0),
@@ -218,7 +218,7 @@ fn a_bribe_costs_by_the_rules_and_clears_a_once_group() {
     let mut friendly = facing_encounter(&data, 2, 2, &[("giant_rat", 3)], Disposition::Friendly);
     let events = choose(&mut friendly, &data, EncounterChoice::Bribe);
     assert_eq!(events[0], Event::Bribed { cost: 0 });
-    assert_eq!(friendly.party.gold, 90);
+    assert_eq!(friendly.party.gold, 9000);
 }
 
 #[test]
