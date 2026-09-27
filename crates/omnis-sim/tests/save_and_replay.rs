@@ -46,12 +46,25 @@ fn walk() -> Vec<Command> {
     commands
 }
 
-/// The same walk under the golden seed from a new game, out of town through the gate first.
+/// Out of town through the gate, which lands beside the road home at (16, 30), then up the road
+/// to the meadow's start at (16, 16), where the older scripts begin.
+fn out_of_town() -> Vec<Command> {
+    let mut commands = vec![Command::Step(Direction::Back)];
+    commands.extend((0..14).map(|_| Command::Step(Direction::Forward)));
+    commands
+}
+
+/// The golden walk's seed: the smallest under which the walk meets the dungeon's random table
+/// (the golden seed's stream stopped firing on the way once the gate landed beside the road
+/// home, 14 road steps further; 37 of seeds 1 to 199 fire, TODO 3c).
+const WALK_SEED: u64 = 2;
+
+/// The same walk under `WALK_SEED` from a new game, out of town through the gate first.
 /// Built by running it: where the dungeon's random table fires, an empty party meets rats,
 /// fights, falls at once, and walks on (surprise is off, so the choice waits for a command).
 fn golden_walk(data: &Data) -> Vec<Command> {
-    let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
-    let mut script = vec![Command::Step(Direction::Back)];
+    let mut world = World::new(data, WALK_SEED, Settings::default()).unwrap();
+    let mut script = out_of_town();
     script.extend(walk());
     let (commands, _) = play(&mut world, data, &script);
     assert!(
@@ -401,7 +414,7 @@ fn fight(data: &Data) -> Vec<Command> {
         apply(&mut world, data, command.clone()).unwrap();
         commands.push(command);
     }
-    let mut walk = vec![Command::Step(Direction::Back)];
+    let mut walk = out_of_town();
     walk.extend(walk_to_the_rats());
     let (taken, events) = play(&mut world, data, &walk);
     commands.extend(taken);
@@ -450,13 +463,7 @@ fn rebaseline_fight_replay() {
 #[ignore = "writes the golden file; run deliberately"]
 fn rebaseline_walk_replay() {
     let data = data();
-    let replay = Replay::record(
-        &data,
-        0x0123_4567_89ab_cdef,
-        Settings::default(),
-        golden_walk(&data),
-    )
-    .unwrap();
+    let replay = Replay::record(&data, WALK_SEED, Settings::default(), golden_walk(&data)).unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
 }
 

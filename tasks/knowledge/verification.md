@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 413 passed, 7 ignored (2026-09-27, after M7 step 4b). The gate's log says
-it on one line: `tests passed 413 failed 0 ignored 7`.
+Test count at the gate: 414 passed, 7 ignored (2026-09-27, after M7 step 3c). The gate's log says
+it on one line: `tests passed 414 failed 0 ignored 7`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
@@ -26,8 +26,10 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 11, monsters 3, rule slots 29, services 7)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `4150529802456538600`,
-  fight `13558397520870512998` (M7 step 4a; both leave town through the gate first). Rebaseline
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `4376920784145620456`
+  under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
+  fight `15493707637151882905` under the golden seed (M7 step 3c; both leave town through the
+  gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
 - `SAVE_SCHEMA 5`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4` and `v4_to_v5`

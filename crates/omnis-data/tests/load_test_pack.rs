@@ -202,8 +202,8 @@ fn portals_and_tileset_slots_resolve() {
     let out = data.maps[&town_id].portal_at(11, 2).expect("the town gate");
     assert_eq!(
         (out.to_map, out.to_x, out.to_y, out.to_facing),
-        (meadow_id, 16, 16, Facing::North),
-        "leaving town lands on the meadow's start"
+        (meadow_id, 16, 30, Facing::North),
+        "leaving town lands beside the road home, facing up the road"
     );
     // Every portal stands visible under an Object surface of its map's tileset.
     let town = &data.maps[&town_id];

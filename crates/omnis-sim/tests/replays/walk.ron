@@ -1,5 +1,5 @@
 (
-    seed: 81985529216486895,
+    seed: 2,
     packs: [
         (
             id: "base",
@@ -9,7 +9,7 @@
         (
             id: "test",
             version: "0.1.0",
-            hash: 1865522332987774842,
+            hash: 16839892344227022475,
         ),
     ],
     settings: (
@@ -31,7 +31,20 @@
         Step(Forward),
         Step(Forward),
         Step(Forward),
-        Encounter(Attack),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
         Step(Forward),
         Step(Forward),
         Turn(Left),
@@ -42,6 +55,7 @@
         Turn(Around),
         Interact,
         Step(Forward),
+        Encounter(Attack),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -50,5 +64,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 4150529802456538600,
+    fingerprint: 4376920784145620456,
 )

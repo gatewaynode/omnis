@@ -262,7 +262,7 @@ fn the_queries_say_where_a_step_lands_and_which_service_it_goes_into() {
         Some(Position {
             map: meadow,
             x: 16,
-            y: 16,
+            y: 30,
             facing: Facing::North
         }),
         "through the gate, at the portal's far end"

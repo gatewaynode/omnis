@@ -218,6 +218,7 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
             to: dest,
         });
         visit(world, data);
+        know_portals_beside(world, data);
     }
     true
 }
@@ -307,6 +308,37 @@ pub(crate) fn visit(world: &mut World, data: &Data) {
             seen_at,
         },
     );
+}
+
+/// Record the portals beside the party's tile, north, east, south and west, as seen: a party
+/// that has just come through a portal knows the way back, even with its back to it (owner,
+/// 2026-09-27, TODO 3c).
+fn know_portals_beside(world: &mut World, data: &Data) {
+    let pos = world.position;
+    let Some(map) = data.maps.get(&pos.map) else {
+        return;
+    };
+    let seen_at = world.party_clock().elapsed;
+    for facing in Facing::ALL {
+        let Some((x, y)) = pos.neighbour(facing) else {
+            continue;
+        };
+        let Some(cell) = map.cell(x, y).filter(|_| map.portal_at(x, y).is_some()) else {
+            continue;
+        };
+        world.automap.record(
+            pos.map,
+            x,
+            y,
+            Known {
+                terrain: cell.terrain,
+                walls: cell.walls,
+                doors: cell.doors,
+                layers: layer::TERRAIN | layer::STRUCTURE,
+                seen_at,
+            },
+        );
+    }
 }
 
 /// Perceive the cone, record it, and emit `Visible`.
