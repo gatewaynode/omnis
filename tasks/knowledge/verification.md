@@ -15,7 +15,9 @@ Test count at the gate: 426 passed, 8 ignored (2026-09-27, after M7 step 5). The
 it on one line: `tests passed 426 failed 0 ignored 8`.
 
 ## Sentrux
-`rescan` then `check_rules` before every commit. Rules: `max_fn_lines 100` including tests,
+`rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen
+2026-09-27: two new files showed only after the commit), so a commit that adds files gets a
+`rescan` and `check_rules` again right after it. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
 `debug_menu::adjust` 93, `service::settle` 81 (a new deal arm goes in a helper), `debug_screen::row_text` 91, `combat_text::wound_line`
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
