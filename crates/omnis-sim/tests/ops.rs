@@ -253,6 +253,7 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
             path: Some("p.png".into()),
             target: ShotTarget::Window,
         },
+        Op::ScreenText,
         Op::PartyGet,
         Op::PartyCreate {
             character: omnis_sim::omnis_rules::Draft {
@@ -265,6 +266,8 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
                 skills: vec![],
             },
         },
+        Op::CombatGet,
+        Op::ServiceGet,
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),
@@ -284,6 +287,13 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
     for op in [Op::GameStatus, Op::EventsTail { count: 1 }, Op::ViewportGet] {
         let reply = dispatch(&mut world, &data, &op).unwrap();
         assert_eq!(parse::<Reply>(&to_string(&reply).unwrap()).unwrap(), reply);
+    }
+    for service in ["smith", "temple"] {
+        let mut town = common::inside(&data, service);
+        for op in [Op::ServiceGet, Op::PartyGet, Op::GameStatus] {
+            let reply = dispatch(&mut town, &data, &op).unwrap();
+            assert_eq!(parse::<Reply>(&to_string(&reply).unwrap()).unwrap(), reply);
+        }
     }
 
     let script = parse_script("forward, turn-left  # to the west\n\nuse back\n").unwrap();

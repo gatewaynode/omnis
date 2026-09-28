@@ -407,4 +407,20 @@ fn the_rest_words_parse_and_print() {
         assert_eq!(Command::Rest(command).word(), word);
     }
     assert_eq!(Command::Rest(short(&[1, 2])).word(), "short-rest");
+    assert_eq!(
+        Command::from_word("short-rest-1-0-2"),
+        Some(Command::Rest(short(&[1, 0, 2])))
+    );
+    assert_eq!(
+        Command::from_word("short-rest-3"),
+        Some(Command::Rest(short(&[3])))
+    );
+    for bad in [
+        "short-rest-",
+        "short-rest-1-",
+        "short-rest-x",
+        "short-rest-1-256",
+    ] {
+        assert_eq!(Command::from_word(bad), None, "{bad}");
+    }
 }

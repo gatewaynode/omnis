@@ -279,7 +279,54 @@ fn the_service_words_parse_and_print() {
         assert_eq!(Command::from_word(word), Some(Command::Service(command)));
         assert_eq!(Command::Service(command).word(), word);
     }
-    let heal = Command::Service(ServiceCommand::Heal { member: 0 });
-    assert_eq!(heal.word(), "service", "commands with data log their kind");
-    assert_eq!(Command::from_word("service"), None);
+    let numbered = [
+        ("food-3", "food", ServiceCommand::BuyFood { count: 3 }),
+        ("heal-1", "heal", ServiceCommand::Heal { member: 1 }),
+        ("cure-0", "cure", ServiceCommand::Cure { member: 0 }),
+        ("raise-5", "raise", ServiceCommand::Raise { member: 5 }),
+        ("buy-2", "buy", ServiceCommand::Buy { item: 2, count: 1 }),
+        ("buy-2-4", "buy", ServiceCommand::Buy { item: 2, count: 4 }),
+        ("sell-0", "sell", ServiceCommand::Sell { item: 0, count: 1 }),
+        (
+            "sell-1-2",
+            "sell",
+            ServiceCommand::Sell { item: 1, count: 2 },
+        ),
+        (
+            "deposit-250",
+            "deposit",
+            ServiceCommand::Deposit { amount: 250 },
+        ),
+        (
+            "withdraw-9",
+            "withdraw",
+            ServiceCommand::Withdraw { amount: 9 },
+        ),
+    ];
+    for (word, verb, command) in numbered {
+        assert_eq!(
+            Command::from_word(word),
+            Some(Command::Service(command)),
+            "{word}"
+        );
+        assert_eq!(
+            Command::Service(command).word(),
+            verb,
+            "commands with data log their verb"
+        );
+    }
+    for bad in [
+        "service",
+        "buy",
+        "buy-",
+        "buy-x",
+        "buy-1-",
+        "buy-1-2-3",
+        "heal-m1",
+        "food--1",
+        "sell-300",
+        "bribe-1",
+    ] {
+        assert_eq!(Command::from_word(bad), None, "{bad}");
+    }
 }

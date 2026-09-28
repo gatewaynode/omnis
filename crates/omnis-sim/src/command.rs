@@ -81,7 +81,14 @@ impl Command {
             Command::Service(ServiceCommand::Leave) => "leave",
             Command::Service(ServiceCommand::Room) => "room",
             Command::Service(ServiceCommand::Rumor) => "rumor",
-            Command::Service(_) => "service",
+            Command::Service(ServiceCommand::BuyFood { .. }) => "food",
+            Command::Service(ServiceCommand::Heal { .. }) => "heal",
+            Command::Service(ServiceCommand::Cure { .. }) => "cure",
+            Command::Service(ServiceCommand::Raise { .. }) => "raise",
+            Command::Service(ServiceCommand::Buy { .. }) => "buy",
+            Command::Service(ServiceCommand::Sell { .. }) => "sell",
+            Command::Service(ServiceCommand::Deposit { .. }) => "deposit",
+            Command::Service(ServiceCommand::Withdraw { .. }) => "withdraw",
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
@@ -131,7 +138,7 @@ impl Command {
                 if let Some(rest) = word.strip_prefix("use-item-") {
                     return parse_use(rest).map(Command::Combat);
                 }
-                return None;
+                return parse_town(word);
             }
         })
     }
@@ -160,6 +167,53 @@ fn parse_use(rest: &str) -> Option<CombatCommand> {
     })
 }
 
+/// Town and rest words that carry numbers: `food-N`, `heal-M`, `cure-M`, `raise-M`, `buy-R`
+/// and `buy-R-N` (row `R` of the stock), `sell-R` and `sell-R-N` (row `R` of the stores),
+/// `deposit-N` and `withdraw-N` (copper), `short-rest-A-B-…` (hit dice per member in order).
+fn parse_town(word: &str) -> Option<Command> {
+    if let Some(dice) = word.strip_prefix("short-rest-") {
+        let dice = dice
+            .split('-')
+            .map(|d| d.parse().ok())
+            .collect::<Option<Vec<u8>>>()?;
+        return Some(Command::Rest(RestCommand::Short { dice }));
+    }
+    let (verb, args) = word.split_once('-')?;
+    let service = match verb {
+        "food" => ServiceCommand::BuyFood {
+            count: args.parse().ok()?,
+        },
+        "heal" => ServiceCommand::Heal {
+            member: args.parse().ok()?,
+        },
+        "cure" => ServiceCommand::Cure {
+            member: args.parse().ok()?,
+        },
+        "raise" => ServiceCommand::Raise {
+            member: args.parse().ok()?,
+        },
+        "buy" | "sell" => {
+            let (item, count) = match args.split_once('-') {
+                Some((item, count)) => (item.parse().ok()?, count.parse().ok()?),
+                None => (args.parse().ok()?, 1),
+            };
+            if verb == "buy" {
+                ServiceCommand::Buy { item, count }
+            } else {
+                ServiceCommand::Sell { item, count }
+            }
+        }
+        "deposit" => ServiceCommand::Deposit {
+            amount: args.parse().ok()?,
+        },
+        "withdraw" => ServiceCommand::Withdraw {
+            amount: args.parse().ok()?,
+        },
+        _ => return None,
+    };
+    Some(Command::Service(service))
+}
+
 /// A word in a script that is not a command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptError {
@@ -180,7 +234,8 @@ impl fmt::Display for ScriptError {
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
 /// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
 /// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, inside a service
-/// `leave`, `room`, `rumor`, separated by whitespace or commas;
+/// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
+/// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();

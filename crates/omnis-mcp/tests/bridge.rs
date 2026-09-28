@@ -96,7 +96,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}));
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 18);
+    assert_eq!(tools.len(), 20);
     assert!(
         tools
             .iter()
@@ -325,6 +325,38 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
 }
 
 #[test]
+fn service_get_reads_a_shop_and_screen_text_needs_the_window() {
+    let mut server = Server::headless();
+    server.call(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}}));
+    let reply = server.tool(2, "service_get", json!({}));
+    assert_eq!(reply["result"]["isError"], json!(true), "{reply}");
+    assert_eq!(
+        reply["result"]["structuredContent"]["kind"],
+        json!("NoService")
+    );
+    let teleport = json!({"command": {"Dev": {"Teleport": {"map": "test:map:town", "x": 1, "y": 3, "facing": "North"}}}});
+    let reply = server.tool(3, "sim_command", teleport);
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(4, "sim_command", json!({"command": "Interact"}));
+    assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
+    let reply = server.tool(5, "service_get", json!({}));
+    let view = &reply["result"]["structuredContent"]["service"];
+    assert_eq!(view["service"], json!("base:service:smith"), "{reply}");
+    let buy = &view["offers"][0];
+    assert_eq!(buy["command"], json!({"Buy": {"item": 0, "count": 1}}));
+    assert_eq!(buy["refusal"]["CannotAfford"]["gold"], json!(0), "{reply}");
+    let reply = server.tool(6, "game_status", json!({}));
+    assert_eq!(
+        reply["result"]["structuredContent"]["service"],
+        json!("base:service:smith")
+    );
+    let reply = server.tool(7, "screen_text", json!({}));
+    assert_eq!(reply["result"]["isError"], json!(true), "{reply}");
+    let text = reply["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains("needs the game window"), "{text}");
+}
+
+#[test]
 fn protocol_errors_have_the_right_codes() {
     let mut server = Server::headless();
     let reply = server.tool(1, "fly", json!({}));
@@ -377,7 +409,7 @@ fn modern_requests_are_stateless_and_versioned() {
         &json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": meta()}}),
     );
     assert_eq!(reply["result"]["resultType"], json!("complete"));
-    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 18);
+    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 20);
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "game_status", "arguments": {}, "_meta": meta()}}));
     assert_eq!(reply["result"]["resultType"], json!("complete"));
     assert_eq!(reply["result"]["structuredContent"]["turn"], json!(0));

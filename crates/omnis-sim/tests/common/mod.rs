@@ -1,12 +1,12 @@
 //! Shared setup for the simulation's integration tests: real pack data, no mocks.
 #![allow(dead_code)]
 
-use omnis_core::{Direction, Pcg32, Position, Rotation, StreamName};
+use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
     CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event, Mode,
-    PartyCommand, Settings, Stack, World, apply, combat_view,
+    ModeKind, PartyCommand, Settings, Stack, World, apply, combat_view,
 };
 use std::path::PathBuf;
 
@@ -211,4 +211,36 @@ pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>
         events.extend(settle(world, data, &mut commands));
     }
     (commands, events)
+}
+
+/// Where each service stands in the test town.
+pub fn site(name: &str) -> (u16, u16) {
+    match name {
+        "inn" => (1, 1),
+        "temple" => (4, 1),
+        "trainer" => (7, 1),
+        "guild" => (10, 1),
+        "smith" => (1, 3),
+        "tavern" => (4, 3),
+        "bank" => (7, 3),
+        _ => panic!("no {name}"),
+    }
+}
+
+/// A new game with two members and 50 gold, inside the named service.
+pub fn inside(data: &Data, name: &str) -> World {
+    let mut world = World::new(data, 11, Settings::default()).unwrap();
+    party_of(&mut world, data, 2);
+    world.party.gold = 5000;
+    let map = data.registry.maps.get("test:map:town").unwrap();
+    let (x, y) = site(name);
+    world.position = Position {
+        map,
+        x,
+        y,
+        facing: Facing::North,
+    };
+    apply(&mut world, data, Command::Interact).unwrap();
+    assert_eq!(world.mode.kind(), ModeKind::Town, "inside the {name}");
+    world
 }

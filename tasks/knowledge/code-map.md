@@ -46,8 +46,13 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   fights and `text::coins` ("15 gp 3 sp 7 cp", `Coins`' `Display`) in the inventory's stores, the
   debug menu, every town line and every refusal that names a price.
 - Town (M7 step 4b): `service.rs` (`ServiceState { service, kind }` in `Mode::Town`,
-  `ServiceCommand` with `kind()`, `enter_here`, `apply`: `validate` builds a `Deal`, `settle`
-  carries it out; prices by `price(slot)`, rumors on the `town` stream).
+  `ServiceCommand` with `kind()`, `enter_here`, `apply`: `quote` builds a `Deal` (every check
+  but money), `afford` is the last check, `settle` carries it out; prices by `price(slot)`,
+  rumors on the `town` stream). `service_view.rs` (M7 step 6, `service.get`): `ServiceView` and
+  `OfferView`, each offer quoted on its own unstored copy of the stream; the one model the
+  service panel and agents read. `ops.rs`: `PartyView` has `bank`, `last_long_rest`,
+  `long_rest_wait`; `MemberView` `hit_dice`, `hit_dice_left`; `Status.service`. Script words
+  with numbers: `command.rs::parse_town` (`buy-R-N`, `heal-M`, `short-rest-A-B`, …).
 - Rest (M7 step 5): `rest.rs` (`RestCommand`, `apply`: `check_dice` or `too_soon` and
   `food_needed`, then `ambush_after`, `rest_events` and `roll_hit_dice` on copies of the
   `encounter` and `rest` streams, then the changes; `long_rest_restore` and `too_soon` are the
@@ -116,7 +121,9 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   pad click passes (`AskFirst`, `ConfirmAnswer`, `answer_keys`, `settle_answers`,
   `PlayState::Confirm`, `Active::Confirm`). Town events read through `service_text.rs`.
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
-  takes `ops::ShotTarget::{Canvas, Window}`).
+  takes `ops::ShotTarget::{Canvas, Window}`; `screen.text` is queued by `serve` and answered by
+  the exclusive `answer_screen_text`). `ui_text.rs` (every build): `screen_text` (every panel
+  under its screen's name) and `panel_text`, the one text-tree walker the tests use too.
 - Tests: `tests/common/mod.rs` (`ui_app_saving_to`, `click`, `press`, `seen`, `world`,
   `fighter_draft`, `ask_creation`, `party_by_command`), one file
   per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
@@ -125,7 +132,7 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   pressed again).
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: eighteen tools, the hand-written `Command`
+`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: twenty tools, the hand-written `Command`
 schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
 `bake.rs`: `BakeSpec.key` (colour key for `Object` crops), `SurfaceSpec.size` in tiles,

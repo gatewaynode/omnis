@@ -68,6 +68,7 @@ pub mod text;
 pub mod ui;
 pub mod ui_kit;
 pub mod ui_model;
+pub mod ui_text;
 pub mod use_menu;
 pub mod viewport;
 pub mod widget;

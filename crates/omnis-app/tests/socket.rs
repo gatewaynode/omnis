@@ -250,6 +250,14 @@ fn party_and_rules(app: &mut App, peer: &mut Peer) {
         seen(app).events.contains(&Event::PartyChanged),
         "party changes reach presentation"
     );
+    // No panel is open in this app; the op is answered a frame later, by its own system.
+    let reply = peer.send(app, r#"{"id": 6, "op": "screen.text"}"#);
+    assert_eq!(reply["id"], json!(6), "{reply}");
+    assert_eq!(
+        reply["result"]["text"],
+        json!(omnis_app::ui_text::NO_PANEL),
+        "{reply}"
+    );
 }
 
 fn second_client_and_flood(app: &mut App, peer: &mut Peer, addr: SocketAddr) {

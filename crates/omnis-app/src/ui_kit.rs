@@ -25,7 +25,7 @@ use bevy::text::{EditableText, FontSourceTemplate, TextEditChange};
 use bevy::ui_widgets::{Activate, ValueChange};
 
 /// A screen built on the kit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UiScreen {
     /// Party creation (`feathers_creation.rs`).
     Creation,

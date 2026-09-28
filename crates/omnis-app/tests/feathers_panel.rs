@@ -406,6 +406,11 @@ fn the_text_tree_shows_the_panel() {
         assert!(tree.contains(wanted), "no {wanted} in\n{tree}");
     }
     assert!(tree.contains("\"CREATE YOUR PARTY\""));
+    assert_eq!(
+        omnis_app::ui_text::screen_text(app.world()),
+        format!("Creation panel\n{tree}"),
+        "screen.text is the tree under the screen's name"
+    );
     // Every control is a line.
     for id in controls(&mut app) {
         assert!(

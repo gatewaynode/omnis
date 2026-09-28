@@ -61,7 +61,13 @@ impl Plugin for DevSocketPlugin {
             Err(e) => error!("dev socket: {e}"),
         }
         app.add_message::<ScreenshotSaved>()
-            .add_systems(Update, serve.in_set(SimSet::Collect));
+            .add_systems(Update, serve.in_set(SimSet::Collect))
+            .add_systems(
+                Update,
+                answer_screen_text
+                    .after(serve)
+                    .run_if(resource_exists::<DevSocket>),
+            );
         // Only an app with `CapturePlugin` has composed captures to pass on.
         app.add_systems(
             Update,
@@ -90,6 +96,8 @@ pub struct DevSocket {
     client: Option<Client>,
     /// Screenshots awaiting the renderer, by request id.
     pending: Vec<(Value, PathBuf)>,
+    /// `screen.text` requests, answered by `answer_screen_text` with the whole world in hand.
+    wants_text: Vec<Value>,
 }
 
 struct Client {
@@ -120,6 +128,7 @@ fn bind(addr: &str, addr_file: &Path) -> std::io::Result<DevSocket> {
         local_addr,
         client: None,
         pending: Vec::new(),
+        wants_text: Vec::new(),
     })
 }
 
@@ -322,6 +331,10 @@ fn serve(
             }
             continue;
         }
+        if op == Op::ScreenText {
+            socket.wants_text.push(id);
+            continue;
+        }
         let result = handle(world, data, &config, &mut events, &mut replaced, &op);
         socket.queue(&id, &result);
     }
@@ -338,6 +351,20 @@ fn serve(
             socket.client = None;
         }
     }
+}
+
+/// Answer `screen.text` requests: `serve` holds no `&World`, so they wait for this system, and
+/// the reply goes out with the next frame's flush.
+fn answer_screen_text(world: &mut World) {
+    world.resource_scope(|world, mut socket: Mut<DevSocket>| {
+        if socket.wants_text.is_empty() {
+            return;
+        }
+        let text = crate::ui_text::screen_text(world);
+        for id in std::mem::take(&mut socket.wants_text) {
+            socket.queue(&id, &Ok(Reply::Text { text: text.clone() }));
+        }
+    });
 }
 
 /// Answer one op with the world in hand: host ops here, the rest through `dispatch`.

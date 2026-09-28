@@ -4,42 +4,10 @@
 
 mod common;
 
-use common::{data, party_of};
-use omnis_core::{Facing, Position, StreamName};
+use common::{data, inside};
+use omnis_core::StreamName;
 use omnis_data::Data;
-use omnis_sim::{Command, Event, ModeKind, Rejection, ServiceCommand, Settings, World, apply};
-
-/// Where each service stands in the test town.
-fn site(name: &str) -> (u16, u16) {
-    match name {
-        "inn" => (1, 1),
-        "temple" => (4, 1),
-        "trainer" => (7, 1),
-        "guild" => (10, 1),
-        "smith" => (1, 3),
-        "tavern" => (4, 3),
-        "bank" => (7, 3),
-        _ => panic!("no {name}"),
-    }
-}
-
-/// A new game with two members and 50 gold, inside the named service.
-fn inside(data: &Data, name: &str) -> World {
-    let mut world = World::new(data, 11, Settings::default()).unwrap();
-    party_of(&mut world, data, 2);
-    world.party.gold = 5000;
-    let map = data.registry.maps.get("test:map:town").unwrap();
-    let (x, y) = site(name);
-    world.position = Position {
-        map,
-        x,
-        y,
-        facing: Facing::North,
-    };
-    apply(&mut world, data, Command::Interact).unwrap();
-    assert_eq!(world.mode.kind(), ModeKind::Town, "inside the {name}");
-    world
-}
+use omnis_sim::{Command, Event, ModeKind, Rejection, ServiceCommand, World, apply};
 
 fn ask(world: &mut World, data: &Data, command: ServiceCommand) -> Vec<Event> {
     apply(world, data, Command::Service(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"))

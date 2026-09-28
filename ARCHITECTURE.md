@@ -454,10 +454,11 @@ sequenceDiagram
 ### 9.3 Tool set (v1)
 | Tool | Purpose |
 |---|---|
-| `game.status` | mode, party clock and calendar, position, packs, fingerprint |
+| `game.status` | mode, party clock and calendar, position, packs, fingerprint, the service the party is inside |
 | `time.clocks`, `time.reconcile` | list holder clocks and contacts; force a reconciliation between two holders (dev) |
 | `world.query` | read any path (`party.members[0].hp`) |
-| `party.get`, `party.create` | inspect and build a party from data |
+| `party.get`, `party.create` | inspect and build a party from data; the view carries bank, hit dice and when a long rest may begin (M7) |
+| `service.get` | the service the party is inside (M7): every offer as the command that asks for it, its price, and the refusal the rules would give; looking changes nothing |
 | `sim.command` | apply one `Command`, return events with roll traces |
 | `combat.get` | the encounter or fight (M4): stacks with hit points, front or back, and reach for the acting member; the order, the round, whose turn |
 | `sim.script` | apply a list of commands |
@@ -470,6 +471,7 @@ sequenceDiagram
 | `story.state`, `story.check` | quest state; run the static check |
 | `save.write`, `save.read` | snapshot to and from a path |
 | `screenshot` | PNG of the window as image content (game mode only) |
+| `screen.text` | the open `bevy_ui` panels as text, a line per control, label or text with its rectangle (game mode only; M7) |
 | `editor.*` | later: open map, paint, place, lock |
 
 Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; `omnis-mcp/tests/schema_proof.rs`). The proof runs both ways: every instance must validate and read back, and every `oneOf` branch and `enum` value the schema offers must be used by some instance, so a schema arm with no Rust variant behind it fails too. Its validator reads only the keywords the schema uses and refuses any other.

@@ -57,6 +57,16 @@ fn screenshot_tool() -> Tool {
     )
 }
 
+/// The screen text tool: every open panel as text.
+fn screen_text_tool() -> Tool {
+    tool(
+        "screen_text",
+        "screen.text",
+        "The text of every open interface panel (game mode only), one line per control, label or text with its rectangle in window pixels: read a panel such as party creation or the enter/leave confirmation without a picture. The canvas screens (the view, the map, the sheet) are not panels; use screenshot for those.",
+        &[],
+    )
+}
+
 /// The game tools: status, commands, views, saves, packs, screenshot.
 fn game_tools() -> Vec<Tool> {
     let map = || {
@@ -146,6 +156,7 @@ fn game_tools() -> Vec<Tool> {
             &[],
         ),
         screenshot_tool(),
+        screen_text_tool(),
     ]
 }
 
@@ -155,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, and party-wide effects.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
             &[],
         ),
         tool(
@@ -168,6 +179,12 @@ fn party_tools() -> Vec<Tool> {
             "combat_get",
             "combat.get",
             "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far. Fails while exploring.",
+            &[],
+        ),
+        tool(
+            "service_get",
+            "service.get",
+            "The service the party is inside (an inn, tavern, temple, smith or bank in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
             &[],
         ),
         tool(
@@ -251,6 +268,8 @@ mod tests {
                 json!({"character": {"name": "Brenna", "race": "base:race:human", "class": "base:class:fighter", "background": "base:background:acolyte", "alignment": "NeutralGood", "scores": [15, 14, 13, 12, 10, 8], "skills": ["Athletics", "Perception"]}}),
             ),
             ("combat_get", json!({})),
+            ("service_get", json!({})),
+            ("screen_text", json!({})),
             ("rules_list", json!({})),
             ("rules_get", json!({"slot": "spell_points.pool"})),
             (
@@ -286,6 +305,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 18);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 20);
     }
 }

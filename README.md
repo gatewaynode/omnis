@@ -87,10 +87,10 @@ cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes eighteen tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes twenty tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
-`pack_reload`, `screenshot`, `party_get`, `party_create`, `combat_get`, `rules_list`, `rules_get`
-and `rules_set`.
+`pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
+`service_get`, `rules_list`, `rules_get` and `rules_set`.
 
 ```sh
 cargo build -p omnis-mcp

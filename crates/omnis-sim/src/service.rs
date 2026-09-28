@@ -107,7 +107,7 @@ impl ServiceCommand {
 }
 
 /// A command that passed every check, with its price.
-enum Deal {
+pub(crate) enum Deal {
     Room {
         cost: u32,
         minutes: u32,
@@ -150,6 +150,30 @@ enum Deal {
     },
 }
 
+impl Deal {
+    /// Copper the party pays: the price, or the amount put in the bank.
+    pub(crate) const fn cost(&self) -> u32 {
+        match *self {
+            Deal::Room { cost, .. }
+            | Deal::Food { cost, .. }
+            | Deal::Heal { cost, .. }
+            | Deal::Cure { cost, .. }
+            | Deal::Raise { cost, .. }
+            | Deal::Buy { cost, .. } => cost,
+            Deal::Deposit { amount } => amount,
+            Deal::Rumor { .. } | Deal::Sell { .. } | Deal::Withdraw { .. } => 0,
+        }
+    }
+
+    /// Copper the party is paid for a sale.
+    pub(crate) const fn paid(&self) -> Option<u32> {
+        match *self {
+            Deal::Sell { price, .. } => Some(price),
+            _ => None,
+        }
+    }
+}
+
 /// Go into the service on the party's tile, if there is one. Whether the party went in.
 pub(crate) fn enter_here(world: &mut World, data: &Data, events: &mut Vec<Event>) -> bool {
     let p = world.position;
@@ -188,14 +212,16 @@ pub(crate) fn apply(
         .filter(|_| kind == state.kind)
         .ok_or(Rejection::NotOffered)?;
     let mut roller = Roller::take_stream(world, "town");
-    let deal = validate(world, data, def, command, &mut roller)?;
+    let deal = quote(world, data, def, command, &mut roller)?;
+    afford(world, &deal)?;
     roller.store(world);
     settle(world, data, state.service, deal, events);
     Ok(())
 }
 
-/// Every check for `command`, and its price; nothing changes.
-fn validate(
+/// Every check for `command` but the money, and its price; nothing changes. [`afford`] is the
+/// last check; the service view shows a price the party cannot pay with that refusal.
+pub(crate) fn quote(
     world: &World,
     data: &Data,
     def: &ServiceDef,
@@ -242,23 +268,19 @@ fn validate(
             bank(world, command, amount)?
         }
     };
-    let cost = match deal {
-        Deal::Room { cost, .. }
-        | Deal::Food { cost, .. }
-        | Deal::Heal { cost, .. }
-        | Deal::Cure { cost, .. }
-        | Deal::Raise { cost, .. }
-        | Deal::Buy { cost, .. } => cost,
-        Deal::Deposit { amount } => amount,
-        Deal::Rumor { .. } | Deal::Sell { .. } | Deal::Withdraw { .. } => 0,
-    };
+    Ok(deal)
+}
+
+/// Refused when the party cannot pay what `deal` costs.
+pub(crate) fn afford(world: &World, deal: &Deal) -> Result<(), Rejection> {
+    let cost = deal.cost();
     if cost > world.party.gold {
         return Err(Rejection::CannotAfford {
             cost,
             gold: world.party.gold,
         });
     }
-    Ok(deal)
+    Ok(())
 }
 
 /// Copper into or out of the bank: the purse pays a deposit (checked with every other price),

@@ -334,6 +334,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             path: None,
             target: omnis_sim::ops::ShotTarget::Canvas,
         },
+        Op::ScreenText,
         Op::PartyGet,
         Op::PartyCreate {
             character: omnis_sim::omnis_rules::Draft {
@@ -347,6 +348,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             },
         },
         Op::CombatGet,
+        Op::ServiceGet,
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),

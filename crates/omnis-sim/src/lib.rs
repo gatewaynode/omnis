@@ -31,6 +31,7 @@ pub mod replay;
 pub mod rest;
 mod sense;
 pub mod service;
+pub mod service_view;
 mod utility;
 pub mod view;
 pub mod visibility;
@@ -57,6 +58,7 @@ pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
 pub use service::{ServiceCommand, ServiceState};
+pub use service_view::{OfferView, ServiceView, service_view};
 pub use view::{CombatView, SpellView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,

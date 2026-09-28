@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 426 passed, 8 ignored (2026-09-27, after M7 step 5). The gate's log says
-it on one line: `tests passed 426 failed 0 ignored 8`.
+Test count at the gate: 434 passed, 8 ignored (2026-09-27, after M7 step 6). The gate's log says
+it on one line: `tests passed 434 failed 0 ignored 8`.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen
@@ -22,7 +22,8 @@ it on one line: `tests passed 426 failed 0 ignored 8`.
 `debug_menu::adjust` 93, `service::settle` 81 (a new deal arm goes in a helper), `debug_screen::row_text` 91, `combat_text::wound_line`
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
 screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
-`party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84.
+`party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84;
+`omnis-sim/src/ops.rs` 817 lines (a new view goes in its own file, as `service_view.rs`).
 
 ## Pinned numbers
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
@@ -37,7 +38,8 @@ screen-dump test is the piece to move out next); `game_tools` near the cap (`scr
 - `SAVE_SCHEMA 5`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4` and `v4_to_v5`
   (gold ×100, a saved fight's loot too); fixtures `tests/saves/v1..v4.ron`, each captured by an
   ignored `capture_schema_N_fixture` before the schema moved on.
-- MCP: 18 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`); the hand-written
+- MCP: 20 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`; the op list in
+  `omnis-cli`'s schema dump, 20, in `omnis-cli/tests/headless.rs`); the hand-written
   `Command` schema has `oneOf` 11, combat arms 5, `item_schema` 6, `service_schema` 9,
   `rest_schema` 2, `dev_schema` 12.
 - The schema proof (`omnis-mcp/tests/schema_proof.rs`): 77 instances from the `next` chain of
