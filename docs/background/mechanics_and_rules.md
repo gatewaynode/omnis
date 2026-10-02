@@ -159,3 +159,29 @@ Questions that change the write-up
 3 --> Bonus-action spells also extends from the SRD to potentially more than one spell per round, but in a way that is limited by the spell itself.  The spell itself defines if it can be used as bonus action, this largely depends on the speed at which a spell can be cast or if it can be prepared in advance.  But it is always explicitly set in the spell definition if it can be used as a bonus action, so three system fields for spells: <boolean: bonus_action_available>, <boolean: preparation_available>, <boolean: preparation_required_for_bonus_action>.
 4 --> This should be a per-member auto flag.  There is a place for fully automated combat in the game, to remove tedium, and then only switch to player driven combat when needed or desired.
 5 --> Yes.  Monsters and hirelings get their own collections of runbooks.  The details of how to distribute and progress this is a system, environment, game master set of features for later development.
+
+#: 8
+The document says: PRD §11.1 (Engine): bevy_ui widgets and Feathers gained inputs, dropdowns, list views and scrollbars, "which the
+editor can use".
+What is built or decided: ARCH A11, which you confirmed on 2026-09-12, chose bevy_egui for the editor and canvas sprites for the
+game. It rejected Feathers as "new and not mature". The ui feature is off.
+Proposed fix: Rewrite the clause: those widgets exist in 0.19, but Omnis uses neither (A11). Feathers is a horizon to revisit when it
+matures.
+────────────────────────────────────────
+#: 9
+The document says: §6 has two rows numbered D20: the time model (2026-09-12) and the display target (2026-09-13).
+What is built or decided: The display D20 is cited in PRD §11.1, PRD §14, ARCH §8.2, layout.rs (twice), main.rs, and about eight
+times in the TODO's history. The time D20 is cited once, in D7's row.
+Proposed fix: Renumber the time model to D25 and fix its one citation. The more widely cited row keeps its number, and the TODO
+history stays accurate.
+────────────────────────────────────────
+#: 10
+The document says: PRD §14: "Detail depth stays at 4 with the 16×16 placeholder tiles".
+What is built or decided: Detail depth is per-tileset data. The placeholder dungeon set has detail_depth: 6 and the outdoor set has
+4. Both are inside D16's 4–6 range.
+Proposed fix: Reword: "Detail depth is tileset data within D16's range: 6 in the placeholder dungeon set, 4 outdoors, until the final
+art direction."
+
+8 -> The original direction seemed safe, but it's becoming apparent we need some better UI widgets.  I think we can amend the original direction to carefully experiment with "Feathers" to see if we can create a better in game UI.  If the game interface integration goes well then I think we can start re-considering our editor approach.
+9 -> Fix the citation
+10 -> Do the reword fix.

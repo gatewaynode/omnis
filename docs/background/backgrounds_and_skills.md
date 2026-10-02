@@ -31,6 +31,7 @@ A common vocation in a world rich with mineral wealth (an oddity given the numbe
 * Assaying
 * Refining
 
+
 ## Warden
 One of the new backgrounds for settlers and populations is the need for a type of protector against monsters and magic anomalies.  Typically rangers and paladins take this background, but it is not restricted to any character.  Wardens range freely as investigators and enforcers for their patrons or sometimes work as mercenaries.  They search for and find magic and monster related problems near settlements and in the vicinity of nation states.  Sometimes they organize responses, other times they deal with the problems themselves.
 
