@@ -11,8 +11,12 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 434 passed, 8 ignored (2026-09-27, after M7 step 6). The gate's log says
-it on one line: `tests passed 434 failed 0 ignored 8`.
+Test count at the gate: 444 passed, 8 ignored (2026-10-02, after M7 step 7). The gate's log says
+it on one line: `tests passed 444 failed 0 ignored 8`.
+
+Linker (2026-10-02): an Xcode update whose license is not yet accepted makes `cc` fail with
+"xcodebuild -find clang ... exit code 17664". Until the owner runs `sudo xcodebuild -license`,
+prefix cargo and the gate with `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (process-local).
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen
@@ -23,7 +27,10 @@ it on one line: `tests passed 434 failed 0 ignored 8`.
 89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
 screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
 `party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84;
-`omnis-sim/src/ops.rs` 817 lines (a new view goes in its own file, as `service_view.rs`).
+`omnis-sim/src/ops.rs` 817 lines (a new view goes in its own file, as `service_view.rs`);
+`tests/service.rs::the_panels_lie_inside_the_map_at_both_window_sizes` 89; `ui.rs` 702 lines.
+Sentrux's rules are `crates/.sentrux/rules.toml`: scan `/Users/john/code/omnis/crates`, not the
+repository root (the root has no rules file).
 
 ## Pinned numbers
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,

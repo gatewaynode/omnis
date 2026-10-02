@@ -112,3 +112,8 @@
 - **What happened**: Continuity for a client restart was written with step 3b's data rule (every portal needs a marker) uncommitted in the tree, before any pack had markers. The app built but refused the test pack at start; two `bad_packs` tests failed. The owner launched it, saw a crash, and could not tell whether the tests had been run.
 - **Rule**: Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is stashed (`git stash push -m "<step> WIP: ..."`), and the continuity note says which, with the stash name.
 - **Rule**: A validation rule that the shipped packs cannot yet meet lands in the same change as the data that meets it, never ahead of it.
+
+## 2026-10-02 — A rule break counts only when a named test fails
+- **What happened**: The first run of M7 step 7's fourteen rule breaks reported every one "caught" from a non-zero exit. Every build had in fact failed to link (an Xcode update left its license unaccepted), and then zsh passed `--test service` as one word; no test had run at all.
+- **Rule**: A broken rule is recorded as caught only with the name of the test that failed; an exit code alone proves nothing. Run one break by hand and read its output before trusting a loop.
+- **Rule**: In zsh a variable holding several arguments is split with `${=var}`.

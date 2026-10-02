@@ -5,9 +5,11 @@
 //! live, so the keys are the shortcuts). No function key is bound: macOS takes them (saving
 //! and loading live on the pause menu).
 //!
-//! A step into or out of a town service asks first (`confirm_panel.rs`): the step is held in
-//! `AskFirst`, the play state is `Confirm`, and Go (Enter) sends it or Stay (Escape) drops it;
-//! the panel's buttons answer the same way (`feathers_confirm.rs`).
+//! A step into or out of a town service asks first (`confirm_panel.rs`), as does the service
+//! panel's Leave: the command is held in `AskFirst`, the play state is `Confirm`, and Go
+//! (Enter) sends it or Stay (Escape) drops it, back to the map or the panel; the question's
+//! buttons answer the same way (`feathers_confirm.rs`). Inside a service the map's keys and
+//! pad are off: the panel takes the keyboard (`feathers_service.rs`).
 
 use crate::confirm_panel::{self, Confirm, ConfirmId};
 use crate::cursor::UiSet;
@@ -106,9 +108,10 @@ pub struct AskFirst(pub Option<Confirm>);
 #[derive(Message, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConfirmAnswer(pub ConfirmId);
 
-/// Where a player command from the map goes: to the simulation, or held behind a question.
+/// Where a player command from the map or a panel goes: to the simulation, or held behind a
+/// question.
 #[derive(bevy::ecs::system::SystemParam)]
-struct Gate<'w> {
+pub(crate) struct Gate<'w> {
     world: Option<Res<'w, SimWorld>>,
     data: Option<Res<'w, PackData>>,
     held: ResMut<'w, AskFirst>,
@@ -117,7 +120,8 @@ struct Gate<'w> {
 }
 
 impl Gate<'_> {
-    fn send(&mut self, command: Command) {
+    /// Send the command, or hold it and ask first.
+    pub(crate) fn send(&mut self, command: Command) {
         if self.held.0.is_some() {
             // A second key in the frame that raised the question waits for the answer.
             return;
@@ -176,11 +180,13 @@ fn answer_keys(keys: Res<ButtonInput<KeyCode>>, mut answers: MessageWriter<Confi
     }
 }
 
-/// The first answer sends the held step or drops it, and the map comes back; any later one in
-/// the frame finds nothing held.
+/// The first answer sends the held command or drops it, and the screen the party was on comes
+/// back (the map, or a service's panel; the mode moves it on if the command changed that); any
+/// later one in the frame finds nothing held.
 fn settle_answers(
     mut answers: MessageReader<ConfirmAnswer>,
     mut held: ResMut<AskFirst>,
+    world: Option<Res<SimWorld>>,
     mut next: ResMut<NextState<PlayState>>,
     mut out: MessageWriter<PlayerCommand>,
 ) {
@@ -191,7 +197,11 @@ fn settle_answers(
         if let Some(command) = confirm_panel::answer(confirm, *id) {
             out.write(PlayerCommand(command));
         }
-        next.set(PlayState::Explore);
+        next.set(
+            world
+                .as_ref()
+                .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode)),
+        );
     }
 }
 

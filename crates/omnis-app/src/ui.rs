@@ -111,6 +111,9 @@ pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a memb
 pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
 /// The help line under the question before a step into or out of a service.
 pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
+/// The help line under a service's panel.
+pub const HELP_SERVICE: &str =
+    "Click what you want  Tab to move  Esc leave  ITEMS SPELLS SHEET MENU on the pad";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -383,9 +386,10 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
 }
 
 /// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
-/// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
-/// spell for the road; SHEET on the map and in a fight once the party has a member; ITEMS
-/// on the map with a member; LOOK on the map when a member who can act carries a sense item.
+/// an encounter, a fight) and inside a service; MAP live on the map; SPELLS on the map and
+/// inside a service when someone has a spell for the road; SHEET on the map, inside a service
+/// and in a fight once the party has a member; ITEMS on the map and inside a service with a
+/// member; LOOK on the map when a member who can act carries a sense item.
 #[must_use]
 pub fn tool_states(
     active: Active,
@@ -410,16 +414,17 @@ pub fn tool_states(
         ToolButton::Menu,
         live(matches!(
             active,
-            Active::None | Active::Encounter | Active::Combat
+            Active::None | Active::Service | Active::Encounter | Active::Combat
         )),
     );
     tools.set(ToolButton::Map, live(exploring));
-    tools.set(ToolButton::Items, live(exploring && has_members));
+    let indoors = exploring || active == Active::Service;
+    tools.set(ToolButton::Items, live(indoors && has_members));
     tools.set(ToolButton::Look, live(exploring && has_look));
-    tools.set(ToolButton::Spells, live(exploring && has_casts));
+    tools.set(ToolButton::Spells, live(indoors && has_casts));
     tools.set(
         ToolButton::Sheet,
-        live(has_members && matches!(active, Active::None | Active::Combat)),
+        live(has_members && matches!(active, Active::None | Active::Service | Active::Combat)),
     );
     tools
 }
@@ -495,6 +500,8 @@ fn menu_for<'a>(
         (Active::CreateParty, _) => (Menu::Covered, HELP_CREATION),
         // The question is a small `bevy_ui` panel over the map (`feathers_confirm.rs`).
         (Active::Confirm, _) => (Menu::None, HELP_CONFIRM),
+        // A service is a `bevy_ui` panel over the map (`feathers_service.rs`).
+        (Active::Service, _) => (Menu::None, HELP_SERVICE),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,
@@ -563,8 +570,8 @@ fn build_frame(
     } else {
         Vec::new()
     };
-    let has_casts =
-        at.exploring() && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
+    let has_casts = (at.exploring() || active == Active::Service)
+        && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
     let sheet = (active == Active::Sheet)
         .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
         .flatten();
@@ -662,6 +669,21 @@ mod tests {
         assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Look), PadState::Disabled);
+        let shop = tool_states(Active::Service, true, true, true, true);
+        for button in [
+            ToolButton::Items,
+            ToolButton::Spells,
+            ToolButton::Sheet,
+            ToolButton::Menu,
+        ] {
+            assert_eq!(
+                shop.get(button),
+                PadState::Enabled,
+                "{button:?} in a service"
+            );
+        }
+        assert_eq!(shop.get(ToolButton::Map), PadState::Disabled);
+        assert_eq!(shop.get(ToolButton::Look), PadState::Disabled);
         for active in [
             Active::Paused,
             Active::Cast,

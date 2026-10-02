@@ -10,6 +10,7 @@ use crate::confirm_panel::ConfirmId;
 use crate::creation_panel::{LabelId, PanelId};
 use crate::cursor::WindowSize;
 use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
+use crate::service_panel::{ServiceLabelId, ServicePanelId};
 use crate::ui_model::{self as model, Payload};
 use bevy::feathers::constants::{fonts, size};
 use bevy::feathers::controls::{
@@ -31,6 +32,8 @@ pub enum UiScreen {
     Creation,
     /// The question before a step into or out of a service (`feathers_confirm.rs`).
     Confirm,
+    /// Inside a town service (`feathers_service.rs`).
+    Service,
 }
 
 /// One control, on whichever screen. Tests and the sync systems find entities by it.
@@ -40,6 +43,8 @@ pub enum UiId {
     Creation(PanelId),
     /// A button of the confirmation.
     Confirm(ConfirmId),
+    /// A control of the service panel.
+    Service(ServicePanelId),
 }
 
 impl Default for UiId {
@@ -55,6 +60,7 @@ impl UiId {
         match self {
             UiId::Creation(id) => format!("{id:?}"),
             UiId::Confirm(id) => format!("{id:?}"),
+            UiId::Service(id) => format!("{id:?}"),
         }
     }
 }
@@ -71,11 +77,19 @@ impl From<ConfirmId> for UiId {
     }
 }
 
+impl From<ServicePanelId> for UiId {
+    fn from(id: ServicePanelId) -> Self {
+        UiId::Service(id)
+    }
+}
+
 /// One text a screen rewrites from its model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiLabel {
     /// A text of the party creation panel.
     Creation(LabelId),
+    /// A text of the service panel.
+    Service(ServiceLabelId),
 }
 
 impl Default for UiLabel {
@@ -90,6 +104,7 @@ impl UiLabel {
     pub fn name(self) -> String {
         match self {
             UiLabel::Creation(id) => format!("{id:?}"),
+            UiLabel::Service(id) => format!("{id:?}"),
         }
     }
 }
@@ -97,6 +112,12 @@ impl UiLabel {
 impl From<LabelId> for UiLabel {
     fn from(id: LabelId) -> Self {
         UiLabel::Creation(id)
+    }
+}
+
+impl From<ServiceLabelId> for UiLabel {
+    fn from(id: ServiceLabelId) -> Self {
+        UiLabel::Service(id)
     }
 }
 

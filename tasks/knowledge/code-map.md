@@ -120,6 +120,15 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `feathers_confirm.rs` (`reconcile`, `reports`), and in `input.rs` the `Gate` every map key and
   pad click passes (`AskFirst`, `ConfirmAnswer`, `answer_keys`, `settle_answers`,
   `PlayState::Confirm`, `Active::Confirm`). Town events read through `service_text.rs`.
+  The third is the service panel (M7 step 7): `PlayState::Service` is what `for_mode` gives
+  `Mode::Town` (`Active::Service`; `follow_mode` follows it). `service_panel.rs` (Bevy-free:
+  `ServicePanelId`, `ServiceLabelId`, `ServiceForm`, `ServiceAsk`, `apply`, `offer_rows`,
+  `note`, `reason`, `money_line`, `shape`) reads `omnis_sim::service_view`;
+  `feathers_service.rs` (`ServiceShown`; `look`, `refusals`, `reconcile`, `sync` in
+  `UiSet::Model`; `reports` and `escape_leaves` in `UiSet::Dispatch`) sends every offer through
+  `input::Gate`, and `confirm_panel::ask` asks before `Service(Leave)`. Refused offers carry
+  `InteractionDisabled`; the smith's two lists scroll. Inside, the map's keys and pad are off;
+  ITEMS, SPELLS, SHEET and MENU stay live (`ui::tool_states`).
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`; `screen.text` is queued by `serve` and answered by
   the exclusive `answer_screen_text`). `ui_text.rs` (every build): `screen_text` (every panel
@@ -128,8 +137,8 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `fighter_draft`, `ask_creation`, `party_by_command`), one file
   per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
   `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel,
-  `tests/confirm.rs` for the confirmation (a key there is pressed and released, so it can be
-  pressed again).
+  `tests/confirm.rs` for the confirmation, `tests/service.rs` for the service panel
+  (`feathers::press` sends a key pressed and released, so it can be pressed again).
 
 ## omnis-mcp and omnis-cli
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: twenty tools, the hand-written `Command`

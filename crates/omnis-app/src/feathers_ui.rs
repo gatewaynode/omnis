@@ -10,6 +10,7 @@ use crate::cursor::UiSet;
 use crate::feathers_confirm as confirm;
 use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
+use crate::feathers_service::{self as service, ServiceShown};
 use crate::menu::CreationAction;
 use crate::menus::{Active, CreationAsk, CreationFlow, Where};
 use crate::pixel::OuterCamera;
@@ -38,6 +39,7 @@ impl Plugin for FeathersUiPlugin {
             .insert_resource(UiTheme(create_dark_theme()))
             .init_resource::<SmoothIcons>()
             .init_resource::<Synced>()
+            .init_resource::<ServiceShown>()
             .init_resource::<kit::ScaleChoice>()
             .init_resource::<kit::FontChoice>()
             .add_message::<kit::UiReport>()
@@ -63,13 +65,21 @@ impl Plugin for FeathersUiPlugin {
             .add_systems(Update, confirm::reports.in_set(UiSet::Dispatch))
             .add_systems(
                 Update,
+                (service::reports, service::escape_leaves).in_set(UiSet::Dispatch),
+            )
+            .add_systems(
+                Update,
                 (
                     creation::reconcile,
                     confirm::reconcile,
+                    service::look,
+                    service::refusals,
+                    service::reconcile,
                     kit::scale,
                     kit::place,
                     creation::show_scale,
                     creation::sync,
+                    service::sync,
                     typefaces::wear,
                 )
                     .chain()
@@ -92,7 +102,7 @@ fn capture_pointer(
 }
 
 /// What keeps Escape for itself while it has the focus: a text input, an open menu.
-type HoldsKeyboard = Or<(With<EditableText>, With<MenuItem>, With<MenuPopup>)>;
+pub(crate) type HoldsKeyboard = Or<(With<EditableText>, With<MenuItem>, With<MenuPopup>)>;
 
 /// Escape abandons the new game, unless a text input or an open menu
 /// holds the keyboard (there it means "leave this field").

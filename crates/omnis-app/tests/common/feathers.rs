@@ -205,6 +205,26 @@ pub fn keys(app: &mut App, text: &str) {
     settle(app);
 }
 
+/// A key pressed and let go, a frame each, as a keyboard sends it: the same key can be
+/// pressed again.
+pub fn press(app: &mut App, key_code: KeyCode, logical_key: Key) {
+    let window = window(app);
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut()
+            .resource_mut::<Messages<KeyboardInput>>()
+            .write(KeyboardInput {
+                key_code,
+                logical_key: logical_key.clone(),
+                state,
+                text: None,
+                repeat: false,
+                window,
+            });
+        app.update();
+    }
+    settle(app);
+}
+
 pub fn tab(app: &mut App) {
     key(app, KeyCode::Tab, Key::Tab, None);
     settle(app);

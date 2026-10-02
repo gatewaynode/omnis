@@ -58,6 +58,8 @@ pub enum PlayState {
     Inventory,
     /// A step into or out of a town service waits for Go or Stay (`input::AskFirst`).
     Confirm,
+    /// Inside a town service: its panel (`feathers_service.rs`).
+    Service,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -76,9 +78,8 @@ impl PlayState {
     #[must_use]
     pub const fn for_mode(mode: &Mode) -> PlayState {
         match mode {
-            // Inside a service the party walks, turns and leaves as on the street; the
-            // service's own panel is M7 step 7.
-            Mode::Explore | Mode::Town(_) => PlayState::Explore,
+            Mode::Explore => PlayState::Explore,
+            Mode::Town(_) => PlayState::Service,
             Mode::Encounter(_) => PlayState::Encounter,
             Mode::Combat(_) => PlayState::Combat,
         }

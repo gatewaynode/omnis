@@ -394,7 +394,9 @@ pub fn sync(
     }
     let shown = panel::text(form, catalog, members);
     for (shown_id, mut text) in &mut labels {
-        let UiLabel::Creation(id) = shown_id.0;
+        let UiLabel::Creation(id) = shown_id.0 else {
+            continue;
+        };
         set_text(&mut text, &label_text(id, form, catalog, &shown, font.0));
     }
     for (entity, control, slider, checked) in &controls {

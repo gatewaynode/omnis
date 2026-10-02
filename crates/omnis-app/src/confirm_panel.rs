@@ -1,12 +1,13 @@
-//! The question before a step into or out of a town service (owner, 2026-09-27: always ask,
-//! always log). `ask` says whether a step needs one and what it says; `answer` says what each
-//! button sends. The step is held until the answer: Go sends it, Stay sends nothing.
+//! The question before a step into or out of a town service, or the service panel's Leave
+//! (owner, 2026-09-27: always ask, always log). `ask` says whether a command needs one and what
+//! it says; `answer` says what each button sends. The command is held until the answer: Go
+//! sends it, Stay sends nothing.
 //! `input.rs` asks, `feathers_confirm.rs` draws the panel. Bevy-free. "Remember my choice"
 //! is a horizon.
 
-use omnis_sim::omnis_core::Direction;
+use omnis_sim::omnis_core::{Direction, ServiceId};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Mode, World, query};
+use omnis_sim::{Command, Mode, ServiceCommand, World, query};
 
 /// A held step and its question.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,26 +28,35 @@ pub enum ConfirmId {
     Stay,
 }
 
-/// The question a command needs first, if any: a step that would go into a service, or a step
-/// out of one that would go somewhere (a wall keeps the party inside, so it asks nothing).
+/// The question a command needs first, if any: a step that would go into a service, a step
+/// out of one that would go somewhere (a wall keeps the party inside, so it asks nothing), or
+/// leaving from inside one.
 #[must_use]
 pub fn ask(world: &World, data: &Data, command: &Command) -> Option<Confirm> {
-    let Command::Step(direction) = command else {
-        return None;
+    let question = match command {
+        Command::Step(direction) => question(world, data, *direction)?,
+        Command::Service(ServiceCommand::Leave) => {
+            let Mode::Town(state) = &world.mode else {
+                return None;
+            };
+            format!("Leave the {}?", service_name(data, state.service))
+        }
+        _ => return None,
     };
-    let question = question(world, data, *direction)?;
     Some(Confirm {
         command: command.clone(),
         question,
     })
 }
 
+fn service_name(data: &Data, id: ServiceId) -> &str {
+    data.services
+        .get(&id)
+        .map_or("?", |s| data.label("en", &s.name))
+}
+
 fn question(world: &World, data: &Data, direction: Direction) -> Option<String> {
-    let name = |id| {
-        data.services
-            .get(&id)
-            .map_or("?", |s| data.label("en", &s.name))
-    };
+    let name = |id| service_name(data, id);
     match &world.mode {
         Mode::Town(state) => {
             query::step_lands(world, data, direction)?;
@@ -105,6 +115,12 @@ mod tests {
             None,
             "use goes in unasked"
         );
+        let leave = Command::Service(ServiceCommand::Leave);
+        assert_eq!(
+            ask(&world, &data, &leave),
+            None,
+            "outside, nothing to leave"
+        );
 
         apply(&mut world, &data, forward.clone()).unwrap();
         let back = Command::Step(Direction::Back);
@@ -116,6 +132,16 @@ mod tests {
             ask(&world, &data, &Command::Step(Direction::Right)).map(|c| c.question),
             Some("Leave the Inn?".to_owned()),
             "any step off the site leaves"
+        );
+        let held = ask(&world, &data, &leave).expect("the panel's Leave asks");
+        assert_eq!(
+            (held.question.as_str(), &held.command),
+            ("Leave the Inn?", &leave)
+        );
+        assert_eq!(
+            ask(&world, &data, &Command::Service(ServiceCommand::Room)),
+            None,
+            "only leaving asks"
         );
         let map = world.position.map;
         world.map_state(map).open_doors.clear();

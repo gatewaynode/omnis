@@ -1,55 +1,35 @@
 # Continuity notes
 
-Written 2026-10-02 before a compact, after M7 step 6. Rewrite this file every time it is used;
-keep it to state, next step and pointers. The durable knowledge lives in `tasks/knowledge/`
-(start at its README).
+Written 2026-10-02 after M7 step 7. Rewrite this file every time it is used; keep it to state,
+next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
 
 ## On resuming
 - Run `/catchup`, then read `tasks/knowledge/README.md`, `agreements.md`, `verification.md` and
-  `code-map.md` (the Town, Rest and `ui_text` entries) before touching code.
-- **The owner's instruction: start step 7 right after the catchup, in plan mode.** Read
-  `tasks/plans/m7-town.md` step 7, the kit (`ui_kit.rs`), the confirm panel as the smallest
-  screen on it (`confirm_panel.rs`, `feathers_confirm.rs`), `omnis-sim/src/service_view.rs`, and
-  `service_text.rs` for the log lines.
-- The commit trailer names whichever model is running (`Co-Authored-By: Claude <model> ...`);
-  a `Claude-Session:` line only if the session's attribution reminder gives one.
+  `code-map.md` (the service panel entry) before touching code.
+- **Linker**: Xcode was updated on 2026-10-02 and its license is unaccepted; until the owner runs
+  `sudo xcodebuild -license`, prefix cargo and `scripts/verify.sh` with
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+- Sentrux: scan `/Users/john/code/omnis/crates` (the rules file is `crates/.sentrux/rules.toml`).
 
 ## State
-- Branch `m7-tasks`. Pushed up to `5bce8b7` (CI green); every later commit is unpushed
-  (4a `1e73501`, 4b `14d4d84`, 3c `3261be1`, 5 `d27f89d`, 6 `fd26574`, and the docs commits).
-- M7 steps 0–6 and follow-up 3c are done; the owner's manual tests of 4a, 4b, 3c and 5 passed;
-  step 6 is agent-facing only (MCP `service_get`, `screen_text`, script words), nothing new on
-  screen; the owner confirmed that the GUI wiring comes in steps 7 (services) and 8 (camp).
-  Inside a shop the game window today can only leave.
-- Gate: `tests passed 434 failed 0 ignored 8`; pins: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`,
-  walk `9901411989274517557` under `WALK_SEED = 2`, fight `15728260309841309156` under the
-  golden seed; `SAVE_SCHEMA 5`, fixtures v1–v4; MCP 20 tools, `oneOf` 11, proof 77 instances
-  and 111 branches.
-- Agent-launched game windows draw no frames on this machine: no captures; the owner does visual
-  checks from a "what you will see / what does not work yet" line.
+- Branch `m7-tasks`. Pushed up to `5bce8b7`; every later commit is unpushed (4a, 4b, 3c, 5, 6,
+  7 and the docs commits).
+- M7 steps 0–7 done. Step 7 (the service panel) awaits the owner's manual test. What they will
+  see: walking into any of the seven services (after the Enter question) shows a panel over the
+  map; buy, sell, eat, hear a rumor, be treated or raised, bank, take a room; Leave or Escape
+  asks "Leave the …?"; the trainer and guild say M7b. Not yet: training and spells (M7b), counts
+  above one per press, camp (step 8).
+- Gate `tests passed 444 failed 0 ignored 8`; pins unmoved: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`,
+  walk `9901411989274517557` (`WALK_SEED = 2`), fight `15728260309841309156`; `SAVE_SCHEMA 5`;
+  MCP 20 tools, `oneOf` 11, proof 77/111.
+- Agent-launched windows draw no frames: no captures; the text trees (`screen_text`) stand in.
 
-## Decisions this session (all recorded in `tasks/TODO.md`)
-- 3c: the town gate lands beside the signpost at meadow (16, 30); arriving through a portal
-  puts the portals beside the landing on the automap (`apply::know_portals_beside`).
-- Step 5 (plan `tasks/plans/m7-step5.md`): both rests ambushable at the map's walking chance
-  (per mille, `map_chance × 10`); a stable member at 0 may spend hit dice; ambush after 1d8 hours
-  or 1d6 × 10 minutes; rest only outside services; **rest events are a per-map table by terrain**
-  (`MapDef.rest_events`), placeholders at chance 0 in the town and meadow. The owner has ideas
-  for them later; `Event::RestEvent` changes nothing yet.
-- The four 4b departures (Party/Cast/Item inside a service; Buy/Sell by row; a room wakes the
-  downed at 1 HP; town lines English in code) were confirmed by the owner on 2026-09-27.
-
-## Next: M7 step 7 (the service panel), per `tasks/plans/m7-town.md`
-- `PlayState::Service` following `Mode::Town`; `service_panel.rs` (Bevy-free ids, `apply` from a
-  report to a `ServiceCommand`) and `service_scenes.rs` on the kit, built from
-  `omnis_sim::service_view` (each `OfferView` is the command to send, its price or `pays`, and
-  its refusal). Bank amounts by number input; Leave and Escape; the last refusal as a message.
-  Tests as the creation panel's; `screen_text` (MCP tool 20) reads it without a picture. Plan it
-  in plan mode first.
-- Then 8 (camp panel: `PartyView.long_rest_wait` and `hit_dice_left` are ready for it), 9 (docs,
-  acceptance a).
+## Next: M7 step 8 (camp panel), per `tasks/plans/m7-town.md`
+- Plan mode first. Its door is measured first from three captured candidates the owner picks
+  from (captures need the owner's machine); `PartyView.long_rest_wait` and `hit_dice_left` are
+  ready; R as the key; hit dice on the sheet. Then 9 (docs, acceptance a).
 
 ## Carry-over
 - Owed by the owner at acceptance a: `--frame-stats` with a panel open.
-- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10 (eight days from this note).
+- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10.
 - Merged local branches `m5-tasks`, `m6c-tasks`, `m6-closeout-tasks` can be deleted by the owner.
