@@ -14,8 +14,8 @@ next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start
 ## State
 - Branch `m7-tasks`. Pushed up to `5bce8b7`; every later commit is unpushed (4a, 4b, 3c, 5, 6,
   7 and the docs commits).
-- M7 steps 0–7 done. Step 7 (the service panel) awaits the owner's manual test. What they will
-  see: walking into any of the seven services (after the Enter question) shows a panel over the
+- M7 steps 0–7 done; the owner's manual test of step 7 passed (2026-10-02). What they
+  saw: walking into any of the seven services (after the Enter question) shows a panel over the
   map; buy, sell, eat, hear a rumor, be treated or raised, bank, take a room; Leave or Escape
   asks "Leave the …?"; the trainer and guild say M7b. Not yet: training and spells (M7b), counts
   above one per press, camp (step 8).
