@@ -1,14 +1,23 @@
 # Continuity notes
 
-Written 2026-10-02 after M7 step 7. Rewrite this file every time it is used; keep it to state,
+Written 2026-10-02 after M7 step 7, before a client restart. The tree is clean, and HEAD passed
+the gate (444/8). Rewrite this file every time it is used; keep it to state,
 next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
 
 ## On resuming
 - Run `/catchup`, then read `tasks/knowledge/README.md`, `agreements.md`, `verification.md` and
   `code-map.md` (the service panel entry) before touching code.
-- **Linker**: Xcode was updated on 2026-10-02 and its license is unaccepted; until the owner runs
-  `sudo xcodebuild -license`, prefix cargo and `scripts/verify.sh` with
-  `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+- **First, the toolchain** (written before a client restart for new sandbox rules):
+  - On 2026-10-02 Xcode 26.5's license was still unaccepted. Unsandboxed, `xcodebuild -find clang`
+    said so, `/Library/Preferences/com.apple.dt.Xcode.plist` did not exist, and
+    `xcodebuild -checkFirstLaunchStatus` exited 69.
+  - The owner was asked to run `sudo xcodebuild -license accept` and
+    `sudo xcodebuild -runFirstLaunch` in their own Terminal (`sudo` is blocked in the session).
+  - Check with `xcrun --find clang` and `xcodebuild -checkFirstLaunchStatus` (0 is ready).
+  - Until both pass, prefix cargo and `scripts/verify.sh` with
+    `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (process-local; it links fine).
+  - The owner also changed the sandbox to fix access in some directories: re-check that the
+    plist is readable from inside the sandbox.
 - Sentrux: scan `/Users/john/code/omnis/crates` (the rules file is `crates/.sentrux/rules.toml`).
 
 ## State
