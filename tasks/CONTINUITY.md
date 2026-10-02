@@ -1,20 +1,26 @@
 # Continuity notes
 
-Written 2026-09-27 after M7 step 6. Rewrite this file every time it is used;
+Written 2026-10-02 before a compact, after M7 step 6. Rewrite this file every time it is used;
 keep it to state, next step and pointers. The durable knowledge lives in `tasks/knowledge/`
 (start at its README).
 
 ## On resuming
 - Run `/catchup`, then read `tasks/knowledge/README.md`, `agreements.md`, `verification.md` and
-  `code-map.md` (the new Rest entry) before touching code.
+  `code-map.md` (the Town, Rest and `ui_text` entries) before touching code.
+- **The owner's instruction: start step 7 right after the catchup, in plan mode.** Read
+  `tasks/plans/m7-town.md` step 7, the kit (`ui_kit.rs`), the confirm panel as the smallest
+  screen on it (`confirm_panel.rs`, `feathers_confirm.rs`), `omnis-sim/src/service_view.rs`, and
+  `service_text.rs` for the log lines.
 - The commit trailer names whichever model is running (`Co-Authored-By: Claude <model> ...`);
   a `Claude-Session:` line only if the session's attribution reminder gives one.
 
 ## State
 - Branch `m7-tasks`. Pushed up to `5bce8b7` (CI green); every later commit is unpushed
-  (4a `1e73501`, 4b `14d4d84`, 3c `3261be1`, 5 `d27f89d`, 6, and the docs commits).
+  (4a `1e73501`, 4b `14d4d84`, 3c `3261be1`, 5 `d27f89d`, 6 `fd26574`, and the docs commits).
 - M7 steps 0–6 and follow-up 3c are done; the owner's manual tests of 4a, 4b, 3c and 5 passed;
-  step 6 is agent-facing only (MCP `service_get`, `screen_text`, script words), nothing new on screen.
+  step 6 is agent-facing only (MCP `service_get`, `screen_text`, script words), nothing new on
+  screen; the owner confirmed that the GUI wiring comes in steps 7 (services) and 8 (camp).
+  Inside a shop the game window today can only leave.
 - Gate: `tests passed 434 failed 0 ignored 8`; pins: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`,
   walk `9901411989274517557` under `WALK_SEED = 2`, fight `15728260309841309156` under the
   golden seed; `SAVE_SCHEMA 5`, fixtures v1–v4; MCP 20 tools, `oneOf` 11, proof 77 instances
@@ -45,5 +51,5 @@ keep it to state, next step and pointers. The durable knowledge lives in `tasks/
 
 ## Carry-over
 - Owed by the owner at acceptance a: `--frame-stats` with a panel open.
-- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10.
+- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10 (eight days from this note).
 - Merged local branches `m5-tasks`, `m6c-tasks`, `m6-closeout-tasks` can be deleted by the owner.
