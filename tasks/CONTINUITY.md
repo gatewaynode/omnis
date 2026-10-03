@@ -23,14 +23,12 @@ keep it to state, next step and pointers. The durable knowledge lives in `tasks/
 - ARCH v0.5 matches M7a; the gamepad is gone (owner: keyboard and mouse first, other controls
   stretch goals; LESSONS 2026-10-03).
 
-## Next: owner acceptance a (step 9's second half)
-- The owner plays `tasks/acceptance/m7a.md` (twelve steps; the inn's room and the camp's long
-  rest share a once-a-day clock, so Part 3 is a second new game) and reports pass or fail by
-  step, plus the two `--frame-stats` numbers (map alone, a service panel open).
-- On pass: check step 9 in TODO with the result and the frame numbers (they close the Feathers
-  experiment's open measurement, `tasks/plans/feathers-experiment.md`), and the owner pushes,
-  opens the PR and merges. M7b does not start on a red CI.
-- On a failure: a bug in `tasks/BUGS.md` with a failing test first, then the fix.
+## Next: the frame-time numbers, then the push
+- **Acceptance a passed (owner, 2026-10-03).** Only step 12's two `--frame-stats` numbers are
+  outstanding; when they arrive, check step 9 in TODO with them.
+- With them: the numbers close the Feathers experiment's open measurement
+  (`tasks/plans/feathers-experiment.md`); then the owner pushes, opens the PR and merges. M7b
+  does not start on a red CI.
 - Then M7b (steps 10–13) in plan mode. Size it from the review's numbers: `crates/*/src` grew
   net +4,940 lines in M7a alone, already the plan's "about 5,000 before M7c".
 
