@@ -33,7 +33,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - Now a left click in the view toggles mouse look, and turning it off leaves the view where it looks.
   - Space, a right click and Esc release it too, the HUD says how while it is on, and a right click is a second action key (with Shift: the default action).
   - The decision is the pure `movement::look`, unit-tested. The right click is tested headless.
-- [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
+- [x] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
   - 2026-10-03, the owner's first reading (windowed, display not stated): 140–160 fps moving, 50–60 standing still. The HUD read one frame's rate, which is noisy. Standing still does less work (no steps, no minimap repaint, no panel rebuild), so pacing (vsync, variable refresh) is the first suspect, not cost.
   - Owner's second reading (2026-10-03, windowed 1600×900, 60 Hz monitor): **vsync off 280–310 fps, the same moving and still (about 3.3 ms a frame)**. So the drop when still was vsync's 60 Hz ceiling, not cost. Odd: with vsync on, moving read 140–160 fps, above the 60 Hz refresh, probably extra updates while keys are held. Harmless, since motion uses dt; note it in the A8 report. Still needed: fullscreen on the 5120×1440 panel.
   - Added: the HUD reads Bevy's smoothed fps and frame time, and `--no-vsync` presents without waiting for the refresh. Next reading, run fullscreen on the ultrawide, with and without `--no-vsync`, moving and still.
@@ -69,7 +69,10 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
    - 5120×1440, fullscreen on the primary Samsung LS49AG95 at 144 Hz, vsync off: **280–310 fps, about 3.3 ms a frame**, the same moving and still.
    - Windowed 1600×900: the same range.
    - With vsync on: about 144 fps while moving (the primary's refresh), but 50–60 when standing still. That matches the secondary display's 60 Hz. The likely cause is pacing by the 60 Hz screen when no input arrives; it is not confirmed and is not a cost (vsync off shows no drop).
-   - 1920×1080: pending (does the secondary display have that resolution?).
+   - 1920×1080: **not measured; the owner waived it** ("my setup is pretty unusual").
+     - The second display, an LS27A800U, is a 4K panel scaled to look like 1920×1080 (3840×2160 physical), and it is macOS's *main display*, at 60 Hz.
+     - `--monitor 1` (added for this) still opened on the ultrawide. Display indices on this three-display setup (LS27A800U, the ultrawide, and a MacBook Air) were not worked out. The flag stays, unverified.
+   - The vsync drop when still now has a likely cause: macOS's main display is the 60 Hz LS27A800U, and pacing without input follows it. It is not a cost.
 6. **Crates added:** 7. `cargo tree` gives 327 crates for `omnis-vector` against 323 for `omnis-app`.
    - Added: `bevy_pbr`, `bevy_mikktspace`, `bevy_ui`, `bevy_ui_render`, `bevy_ui_widgets`, `taffy`, `grid`.
    - All were already in `Cargo.lock`: no new versions, no new duplicates.

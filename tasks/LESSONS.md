@@ -51,6 +51,7 @@
 ## 2026-09-13 — A display target is measured on the owner's primary display
 - **What happened**: The display rework sized the canvas for a 16:9 4K monitor because the PRD named one. The owner's primary display is a 5120×1440 ultrawide; the fixed 16:9 canvas left half of it empty and every windowed class fell to 1× under the menu bar. A second rework followed the same day.
 - **Rule**: Before a decision about display size, scale, or aspect, ask which display is primary and read the machine (`system_profiler SPDisplaysDataType` on macOS: physical and "looks like" sizes for every panel), then measure the design on every panel listed, windowed and fullscreen, before proposing it.
+- **Rule** (2026-10-03): "Primary" is two things on macOS. One is the display the owner works on. The other is the *main display* (the menu bar), which can pace frames. Ask for both, with each display's refresh rate and its scaling (a 4K panel can show "1920×1080"). System Settings screenshots work when `system_profiler` lists no displays from the agent's shell.
 - **Rule**: A layout is designed for the aspect range the hardware shows, not for one canvas: state what fills the screen on each panel and what stays empty, with numbers, so the owner decides on the bars before the code exists.
 
 ## 2026-09-19 — A deferred milestone keeps its number
