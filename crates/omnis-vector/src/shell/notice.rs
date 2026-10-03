@@ -2,9 +2,10 @@
 //! (alt-ARCHITECTURE.md §8, §9). Shared by the fight notice and the action menu.
 
 use crate::cinema::Scene;
+use crate::trial::refusal;
 use bevy::prelude::Component;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, World, apply};
+use omnis_sim::{Command, World};
 
 /// What a notice button does.
 #[derive(Component, Debug, Clone, PartialEq)]
@@ -39,13 +40,6 @@ pub struct Notice {
     pub choices: Vec<Choice>,
     /// The picture window's scene, above everything else, in a fight.
     pub scene: Option<Scene>,
-}
-
-/// Why the simulation would refuse a command now, found on a copy of the world.
-pub fn refusal(world: &World, data: &Data, command: &Command) -> Option<String> {
-    apply(&mut world.clone(), data, command.clone())
-        .err()
-        .map(|r| r.to_string())
 }
 
 /// A choice for `command`, blocked with the simulation's reason if it would be refused.
