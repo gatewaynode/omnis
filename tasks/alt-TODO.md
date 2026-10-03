@@ -126,6 +126,9 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - `Notice.scene` and the panel's picture child are gone. `Screen` moved to `shell/cinema.rs`, beside the system that paints it; `combat.rs` and `tests/combat.rs` import it from there, and `cinema.rs` no longer imports the panel.
   - Docs: `alt-ARCHITECTURE.md` v0.3 (§5 the Phase B core modules; §6 `CombatPlugin`, `CombatViewPlugin` and the panel and cinema rows; §9 the action model, arena and fight screen as built; §14), `alt-PRD.md` §10.3 decided (written fresh).
   - Gate 436 passed, 6 ignored (no test removed: the old notice's tests had already moved in B4); Sentrux rules pass, signal 8902.
-- [ ] B6 The owner plays a fight; fixes
+- [x] B6 The owner plays a fight; fixes (2026-10-03)
+  - The owner played fights by hand on the ultrawide. Nothing stood out but the fight screen's scale at 5120×1440. No fix in B6: the owner chose to do the scale with the art update, which touches the same layout and figures.
+  - No code change, so the gate and Sentrux stand as after B5.
 - [ ] B7 **Before the merge:** rebase onto the mechanics branch's work; rerun the gate and the agreement test
 - Out of scope for B: animation (the figures are built to move later), reactions and auto-cast, tactics and auto mode, art, any change to omnis-sim or omnis-app
+- Deferred to the art update (owner, 2026-10-03): the fight screen's scale on large windows (figures, text, bands; likely a factor from the window height across `arena.rs` and `shell/combat.rs`)

@@ -1,6 +1,6 @@
 # Alt continuity notes (the 3D experiment)
 
-Written 2026-10-03, before a compact in the middle of Phase B (B5 done, B6 next: the owner plays). Rewrite this
+Written 2026-10-03, before a compact in the middle of Phase B (B6 done, B7 next: the rebase). Rewrite this
 file every time it is used; keep it to state, next step, pointers and gotchas. It is kept apart
 from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 `m6-closeout-tasks`).
@@ -8,12 +8,12 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## State
 - **Branch:** `gui-3d-experiment`, cut from `main` at `8e111d5`.
   - **The owner pushes:** the agent's sandbox has no GitHub access (memory `owner-pushes`).
-  - The owner pushed through `a171185` (B4). Local and unpushed: `305f801` (notes), `b143c70` (B5) and this file's commit. Check with `git status -sb`; remind the owner to `git push`.
+  - The owner pushed through `a171185` (B4). Local and unpushed: `305f801` (notes), `b143c70` (B5), `b71d4a0` (notes) and the B6 commit. Check with `git status -sb`; remind the owner to `git push`.
 - **Clone:** `/Users/john/code/omnis-alt/omnis`. The main checkout is `/Users/john/code/omnis`.
 - **Gate:** green at 436 passed, 6 ignored after B5. Sentrux rules pass at signal 8902.
 - **Phase A is complete** (A0–A8; the report is in `tasks/alt-TODO.md`).
 - **Phase B, the 2D combat screen.** The plan, `~/.claude/plans/snug-munching-gray.md`, was approved 2026-10-03. **Read it first.**
-  - **B0, B1, B1a, B2, B3, B4, B5 done** (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
+  - **B0, B1, B1a, B2, B3, B4, B5, B6 done** (B6: the owner played; only the fight screen's scale stood out, deferred to the art update) (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
   - **B1, the roll log:** `src/rolllog.rs`.
     - `describe(&Event, &Names, &Data)`.
     - `Names` numbers each monster as it was met (`follow` on `EncounterStarted` and `Death`), and keeps members a fight buries (`observe`).
@@ -69,17 +69,9 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - macOS's main display is an LS27A800U, 60 Hz, 4K scaled to 1920×1080.
 - **Don't repeat it:** a message in the first session looked like a password. It was not used or stored.
 
-## Next: B6, then B7
-- **B6, the owner plays a fight on the ultrawide (5120×1440) and reports; fix what they find.** Each fix is its own commit with the gate and Sentrux; a correction from the owner goes in `tasks/LESSONS.md`.
-  - Ask them to walk into the placed group (dungeon (3, 6), facing South) and play at least one fight to its end, ideally a long one, and to send screenshots (they copy files into `.omnis/`; `~/Desktop` is blocked for the agent).
-  - Open items to watch:
-    - whether the stick figures look small next to the rats at 5120×1440, and whether 15 px text (log, labels) and 18/22 px (prompt, title) are too small;
-    - the roll log on a long fight: the oldest lines should clip off the top (`JustifyContent::FlexEnd`; never seen in a capture);
-    - crowded stacks drawing small;
-    - the switch back to 3D after Victory, Run and a fallen party (Start again in the centre panel).
-  - Likely knobs: `PAD`, `font(size)` calls and `colour(Tone)` in `shell/combat.rs`; the bands, `MOST` and `person()` in `src/arena.rs`; `STATUS`/`BUTTONS` in `src/arena.rs`. A scale factor from the window height is the obvious fix if everything reads small.
-  - To check a fix without the owner, use the fight capture recipe below at `--size 5120x1440`.
-- **B7:** rebase onto the mechanics work before merging; rerun the gate and the agreement test.
+## Next: B7
+- **B7:** before merging, rebase onto the mechanics branch's work; rerun the gate and the agreement test. Wait for the owner to say the mechanics work is ready.
+- **Deferred to the art update:** the fight screen's scale at 5120×1440. Knobs: `PAD`, `font(size)` in `shell/combat.rs`; bands, `MOST`, `person()`, `STATUS`/`BUTTONS` in `src/arena.rs`. Check with the fight capture recipe at `--size 5120x1440`.
 
 ## Gotchas
 - **Builds need `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.** The Xcode licence is unaccepted.
