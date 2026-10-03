@@ -60,5 +60,27 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - the minimap in the dungeon, matching the 3D view (the west wall, the door in the south wall)
 - Not yet tried by a person: the button feel, the cursor handover when a notice opens, and the minimap's size on the 5120×1440 panel (192 logical pixels).
 
+### A8 report (2026-10-03, alt-PRD §7)
+1. **Every test map renders and walks without passing a wall.** Yes. The agreement test covers 6,400 cell edges plus the doors, and the owner walked the meadow.
+2. **At rest, the camera's cell equals the simulation's position.** Yes: the binding tests (straight, strafe, diagonal, jitter, hedge, water, portal), 0 disagreements.
+3. **A placed encounter starts on entry, and the table rolls once per cell, never per frame.** Yes (binding tests).
+4. **The log replays to the live fingerprint.** Yes (binding test; saving by button is tested too).
+5. **Frame rate, on the owner's machine (Mac Studio, M3 Ultra):**
+   - 5120×1440, fullscreen on the primary Samsung LS49AG95 at 144 Hz, vsync off: **280–310 fps, about 3.3 ms a frame**, the same moving and still.
+   - Windowed 1600×900: the same range.
+   - With vsync on: about 144 fps while moving (the primary's refresh), but 50–60 when standing still. That matches the secondary display's 60 Hz. The likely cause is pacing by the 60 Hz screen when no input arrives; it is not confirmed and is not a cost (vsync off shows no drop).
+   - 1920×1080: pending (does the secondary display have that resolution?).
+6. **Crates added:** 7. `cargo tree` gives 327 crates for `omnis-vector` against 323 for `omnis-app`.
+   - Added: `bevy_pbr`, `bevy_mikktspace`, `bevy_ui`, `bevy_ui_render`, `bevy_ui_widgets`, `taffy`, `grid`.
+   - All were already in `Cargo.lock`: no new versions, no new duplicates.
+   - `omnis-app`'s own tree is unchanged (309 names on `main` and on the branch).
+7. **Gate time, warm:** `main` 10 s (353 tests), branch 11 s (407 tests), both green.
+   - With one shared target directory, the first run after switching between them rebuilt for 66 s each way. That is the cost of feature unification (§8) when alternating checkouts.
+   - Not in §7 but asked in A8: **encounters per minute.**
+     - Per cell entered and per game minute, the rate equals the 2D game's, by construction and tested.
+     - In real time, holding W on the dungeon floor (1 minute a step, 3 cells a second, a 3% table) gives about 5.4 encounters a minute of walking. The 2D game, one step per key press, gives about 3.6 a minute at two presses a second.
+     - The meadow's table is 0% (a stream test fixture), so it never fires there.
+     - These are worked out from the numbers, not measured in play.
+
 ## Phase B — the 2D combat screen (after A reports)
 - [ ] B0 Plan in plan mode; decide alt-PRD §10.3 (reuse `omnis-app`'s combat menu model or write fresh)
