@@ -1,6 +1,7 @@
 //! The HUD: a status block and the recent event lines (alt-ARCHITECTURE.md §8).
 
 use super::VectorSet;
+use super::controls::GREEN;
 use super::session::Session;
 use bevy::prelude::*;
 use omnis_sim::Mode;
@@ -27,7 +28,7 @@ fn spawn(mut commands: Commands) {
             font_size: FontSize::Px(18.0),
             ..default()
         },
-        TextColor(Color::srgb(0.55, 1.0, 0.65)),
+        TextColor(GREEN),
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(16.0),

@@ -16,7 +16,10 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 - [x] A4 The binder and the command log (`bind.rs`; the log is `Binder.log`), with headless binding tests: rest equals the simulation's position, jitter, corners, walls, portal, a placed encounter, one random check per cell entered, and the replay fingerprint
 - [x] A5 Geometry extraction (`geometry.rs`) with tests: shared walls once, doors, blocks, the floor grid
 - [x] A6 The Bevy shell: the simulation, input, motion and binding, a `Camera3d` with HDR and bloom, gizmo lines with distance fade. **First walkable build.** Shell smoke test
-- [ ] A7 HUD (text and every action as a button) and the minimap; the fight notice with the encounter choices; saving the log by button
+- [ ] A7 HUD (text and every action as a button) and the minimap; the fight notice with the encounter choices; saving the log by button (owner go-ahead 2026-10-02; one commit each)
+  - [x] A7a The button pad (`shell/controls.rs`): forward, back, sidesteps (held), quarter turns, use, save log, quit; keys stay as shortcuts. Headless tests press the buttons
+  - [ ] A7b The fight notice: Fight, Bribe, Hide, Run in an encounter; a placeholder Attack, Dodge, Flee in a fight until Phase B; a restart when the party falls; the pose follows a retreat
+  - [ ] A7c The minimap from `world.automap`, with the pose marker
 - [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
 
 ### A1–A6 review (2026-10-02)

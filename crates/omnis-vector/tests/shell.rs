@@ -1,11 +1,12 @@
-//! The shell's headless half (alt-ARCHITECTURE.md §10.4): held keys move the world through the
-//! movement plugin with no window or GPU.
+//! The shell's headless half (alt-ARCHITECTURE.md §10.4): held keys and pressed buttons move
+//! the world through the movement plugin with no window or GPU.
 
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use omnis_vector::shell::ShellPlugin;
+use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::session::{Config, Session};
 use std::path::PathBuf;
@@ -24,17 +25,28 @@ fn key(app: &mut App, key_code: KeyCode, state: ButtonState) {
 }
 
 fn app() -> App {
+    app_logging_to(PathBuf::from(".omnis/vector-session.ron"))
+}
+
+fn app_logging_to(log: PathBuf) -> App {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
     let config = Config {
         packs: vec![root.join("base"), root.join("test")],
+        log,
         ..Config::default()
     };
     let mut app = App::new();
-    app.add_plugins((MinimalPlugins, InputPlugin, ShellPlugin, MovementPlugin))
-        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
-            16,
-        )))
-        .insert_resource(Session::start(&config).expect("the shipped packs start a session"));
+    app.add_plugins((
+        MinimalPlugins,
+        InputPlugin,
+        ShellPlugin,
+        MovementPlugin,
+        ControlsPlugin,
+    ))
+    .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        16,
+    )))
+    .insert_resource(Session::start(&config).expect("the shipped packs start a session"));
     app
 }
 
@@ -70,4 +82,75 @@ fn q_turns_the_party_left_by_a_quarter() {
     }
     let facing = app.world().resource::<Session>().world.position.facing;
     assert_eq!(facing, omnis_sim::omnis_core::Facing::West);
+}
+
+/// Set a button's interaction, as the UI's picking would.
+fn set(app: &mut App, action: Action, interaction: Interaction) {
+    let world = app.world_mut();
+    let mut query = world.query::<(&Action, &mut Interaction)>();
+    let mut found = false;
+    for (a, mut i) in query.iter_mut(world) {
+        if *a == action {
+            *i = interaction;
+            found = true;
+        }
+    }
+    assert!(found, "a {action:?} button exists");
+}
+
+#[test]
+fn holding_the_forward_button_walks_north() {
+    let mut app = app();
+    app.update();
+    let start = app.world().resource::<Session>().world.position;
+    set(&mut app, Action::Forward, Interaction::Pressed);
+    for _ in 0..60 {
+        app.update();
+    }
+    let moved = app.world().resource::<Session>().world.position;
+    assert!(moved.y < start.y, "the party moved north");
+    // Released, the party stops.
+    set(&mut app, Action::Forward, Interaction::None);
+    for _ in 0..60 {
+        app.update();
+    }
+    let rest = app.world().resource::<Session>().world.position;
+    assert!(start.y - rest.y <= start.y - moved.y + 1, "it stopped");
+}
+
+#[test]
+fn a_turn_button_held_down_turns_once() {
+    let mut app = app();
+    app.update();
+    set(&mut app, Action::TurnLeft, Interaction::Pressed);
+    for _ in 0..90 {
+        app.update();
+    }
+    let facing = app.world().resource::<Session>().world.position.facing;
+    assert_eq!(facing, omnis_sim::omnis_core::Facing::West);
+}
+
+#[test]
+fn the_save_button_writes_a_log_that_replays() {
+    let dir = std::env::temp_dir().join(format!("omnis-vector-save-{}", std::process::id()));
+    let path = dir.join("session.ron");
+    let mut app = app_logging_to(path.clone());
+    app.update();
+    set(&mut app, Action::Forward, Interaction::Pressed);
+    for _ in 0..30 {
+        app.update();
+    }
+    set(&mut app, Action::Forward, Interaction::None);
+    set(&mut app, Action::SaveLog, Interaction::Pressed);
+    app.update();
+    let session = app.world().resource::<Session>();
+    let saved: omnis_sim::Replay =
+        omnis_sim::omnis_data::ron_io::read_ron(&path, &path).expect("the log was written");
+    assert_eq!(saved.commands, session.binder.log);
+    assert_eq!(
+        saved.fingerprint,
+        session.world.fingerprint().expect("a fingerprint")
+    );
+    assert!(session.lines.iter().any(|l| l.starts_with("Log saved")));
+    let _ = std::fs::remove_dir_all(dir);
 }

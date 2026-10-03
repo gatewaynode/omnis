@@ -2,6 +2,7 @@
 //! `HudPlugin` need a window.
 
 pub mod capture;
+pub mod controls;
 pub mod hud;
 pub mod movement;
 pub mod render;
