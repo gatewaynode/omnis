@@ -81,6 +81,7 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::KeyP => ShellCommand::Sheet,
         KeyCode::KeyI => ShellCommand::Inventory,
         KeyCode::KeyL => ShellCommand::Look,
+        KeyCode::KeyR => ShellCommand::Camp,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })

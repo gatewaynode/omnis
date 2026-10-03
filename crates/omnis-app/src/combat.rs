@@ -62,10 +62,12 @@ fn follow_mode(
     };
     let current = *state.get();
     let wanted = PlayState::for_mode(&world.0.mode);
-    let follows = matches!(
+    // The camp stands over the map; an ambush (a fight) takes the game out of it.
+    let follows = (matches!(
         current,
         PlayState::Explore | PlayState::Service | PlayState::Encounter | PlayState::Combat
-    ) && current != wanted;
+    ) && current != wanted)
+        || (current == PlayState::Camp && wanted != PlayState::Explore);
     let leaves_defeat = current == PlayState::Defeat && was_replaced;
     if wiped {
         next.set(PlayState::Defeat);

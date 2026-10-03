@@ -88,7 +88,7 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 - The tool bar (M7 step 8a; `bevy_ui` over the canvas's `TOOLS` strip since 2026-10-02):
   `tool_bar.rs` (`ToolButton` with `Camp`, seven in a 4+3 grid; `ToolStates` is a resource kept
   every frame by `track` in `UiSet::Model`, so `MinimalPlugins` apps have it; `tool_states`,
-  `tool_for` (CAMP gives none until 8b), `ToolPressed`, and `answer`, the one gate: a press on a
+  `tool_for` (CAMP is `ShellCommand::Camp`), `ToolPressed`, and `answer`, the one gate: a press on a
   button its state does not make live sends nothing, whatever the widget did), and
   `feathers_tools.rs` (`reconcile`, `sync` puts `InteractionDisabled` on dim buttons, `reports`
   turns `UiId::Tool` reports into `ToolPressed`). Its root is `ui_kit::ToolBar`, not a
@@ -142,6 +142,16 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `input::Gate`, and `confirm_panel::ask` asks before `Service(Leave)`. Refused offers carry
   `InteractionDisabled`; the smith's two lists scroll. Inside, the map's keys and pad are off;
   ITEMS, SPELLS, SHEET and MENU stay live (`tool_bar::tool_states`).
+  The fourth is the camp (M7 step 8b): `PlayState::Camp` / `Active::Camp`, a shell overlay over
+  the map opened by `ShellCommand::Camp` (CAMP on the bar, live on the map with a member; R) and
+  only in `Mode::Explore`; `combat::follow_mode` takes the game out of it when an ambush starts
+  a fight. `camp_panel.rs` (Bevy-free: `CampPanelId`, `CampLabelId`, `CampForm` with `fit`,
+  `CampAsk`, `apply`, `member_line`, `dice_note`, `food_line`, `long_note`, `shape`) reads
+  `omnis_sim::rest_view`; `feathers_camp.rs` (`CampShown`; `look`, `refusals`, `reconcile`,
+  `sync` in `UiSet::Model`; `reports` and `escape_closes` in `UiSet::Dispatch`): a slider per
+  member who may spend dice, Short rest (dim with nothing chosen), Long rest (dim with its
+  reason), Close. The sheet's stats page shows "Hit dice 1/1 d10" on row 4
+  (`SheetView.hit_dice`).
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`; `screen.text` is queued by `serve` and answered by
   the exclusive `answer_screen_text`). `ui_text.rs` (every build): `screen_text` (every panel

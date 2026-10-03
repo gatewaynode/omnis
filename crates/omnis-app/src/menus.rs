@@ -103,6 +103,8 @@ pub enum Active {
     Confirm,
     /// Inside a town service (a `bevy_ui` panel).
     Service,
+    /// The camp (a `bevy_ui` panel).
+    Camp,
     /// No screen: booting or exploring.
     None,
 }
@@ -129,6 +131,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Inventory)) => Active::Inventory,
             (AppState::Playing, _, Some(PlayState::Confirm)) => Active::Confirm,
             (AppState::Playing, _, Some(PlayState::Service)) => Active::Service,
+            (AppState::Playing, _, Some(PlayState::Camp)) => Active::Camp,
             _ => Active::None,
         }
     }
@@ -208,6 +211,7 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         Active::CreateParty
         | Active::Confirm
         | Active::Service
+        | Active::Camp
         | Active::Encounter
         | Active::Combat
         | Active::Defeat
@@ -351,6 +355,7 @@ fn menu_keys(
             Active::Encounter
             | Active::Confirm
             | Active::Service
+            | Active::Camp
             | Active::Combat
             | Active::Defeat
             | Active::Debug

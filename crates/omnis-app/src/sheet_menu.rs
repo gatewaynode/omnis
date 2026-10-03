@@ -95,6 +95,8 @@ pub struct SheetView {
     pub hp: (i32, i32),
     /// Spell points, current and maximum.
     pub sp: (u32, u32),
+    /// Hit dice as `(left, total, sides)`: one per level, spent on short rests.
+    pub hit_dice: (u8, u8, u8),
     /// Armour class.
     pub ac: i64,
     /// Proficiency bonus.
@@ -164,6 +166,11 @@ pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView
         age_years: i64::from(m.age_years) + lived,
         hp: (m.hp, m.hp_max),
         sp: (m.spell_points, m.spell_points_max),
+        hit_dice: (
+            m.level.saturating_sub(m.hit_dice_spent),
+            m.level,
+            class.map_or(8, |c| c.hit_die),
+        ),
         ac: armor_class(m, data),
         proficiency,
         xp: m.xp,
@@ -350,6 +357,7 @@ pub(crate) mod tests {
             age_years: 24,
             hp: (12, 12),
             sp: (0, 0),
+            hit_dice: (1, 1, 10),
             ac: 18,
             proficiency: 2,
             xp: 25,
@@ -467,6 +475,18 @@ pub(crate) mod tests {
             ("Magic Missile".to_owned(), "1 pt".to_owned())
         );
         assert_eq!(wren.saves, [("INT", 3), ("WIS", 2)]);
+        assert_eq!(
+            brenna.hit_dice,
+            (1, 1, 10),
+            "a fighter's d10, one per level"
+        );
+        assert_eq!(wren.hit_dice, (1, 1, 6), "a wizard's d6");
+        world.party.members[0].hit_dice_spent = 1;
+        assert_eq!(
+            sheet_view(&world, &data, 0).expect("the fighter").hit_dice,
+            (0, 1, 10),
+            "spent on a short rest"
+        );
         assert_eq!(sheet_view(&world, &data, 2), None, "no third member");
     }
 

@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 447 passed, 8 ignored (2026-10-02, after M7 step 8a). The gate's log says
-it on one line: `tests passed 447 failed 0 ignored 8`.
+Test count at the gate: 458 passed, 8 ignored (2026-10-03, after M7 step 8b). The gate's log says
+it on one line: `tests passed 458 failed 0 ignored 8`.
 
 Linker (2026-10-02): `cc` finds clang through `xcodebuild -find clang`, which reads
 `/Library/Preferences/com.apple.dt.Xcode.plist`. The session's sandbox cannot read that file, so

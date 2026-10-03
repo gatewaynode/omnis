@@ -17,6 +17,7 @@
 pub mod actors;
 pub mod assets;
 pub mod band;
+pub mod camp_panel;
 pub mod canvas;
 #[cfg(feature = "devtools")]
 pub mod capture;
@@ -34,6 +35,7 @@ pub mod debug_menu;
 pub mod debug_screen;
 #[cfg(feature = "devtools")]
 pub mod dev;
+pub mod feathers_camp;
 pub mod feathers_confirm;
 pub mod feathers_creation;
 pub mod feathers_fonts;

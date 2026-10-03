@@ -7,6 +7,7 @@
 //! global nearest sampler on Feathers' icons.
 
 use crate::cursor::UiSet;
+use crate::feathers_camp::{self as camp, CampShown};
 use crate::feathers_confirm as confirm;
 use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
@@ -42,6 +43,7 @@ impl Plugin for FeathersUiPlugin {
             .init_resource::<SmoothIcons>()
             .init_resource::<Synced>()
             .init_resource::<ServiceShown>()
+            .init_resource::<CampShown>()
             .init_resource::<kit::ScaleChoice>()
             .init_resource::<kit::FontChoice>()
             .add_message::<kit::UiReport>()
@@ -77,18 +79,26 @@ impl Plugin for FeathersUiPlugin {
             )
             .add_systems(
                 Update,
+                (camp::reports, camp::escape_closes).in_set(UiSet::Dispatch),
+            )
+            .add_systems(
+                Update,
                 (
                     creation::reconcile,
                     confirm::reconcile,
                     service::look,
                     service::refusals,
                     service::reconcile,
+                    camp::look,
+                    camp::refusals,
+                    camp::reconcile,
                     tools::reconcile,
                     kit::scale,
                     kit::place,
                     creation::show_scale,
                     creation::sync,
                     service::sync,
+                    camp::sync,
                     tools::sync,
                     typefaces::wear,
                 )

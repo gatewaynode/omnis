@@ -5,6 +5,7 @@
 //! publish a `UiReport`, and each screen reads the ones that carry its ids and answers them
 //! with its own Bevy-free `apply`.
 
+use crate::camp_panel::{CampLabelId, CampPanelId};
 use crate::canvas::Layout;
 use crate::confirm_panel::ConfirmId;
 use crate::creation_panel::{LabelId, PanelId};
@@ -36,6 +37,8 @@ pub enum UiScreen {
     Confirm,
     /// Inside a town service (`feathers_service.rs`).
     Service,
+    /// The camp: resting outside a service (`feathers_camp.rs`).
+    Camp,
 }
 
 /// One control, on whichever screen. Tests and the sync systems find entities by it.
@@ -49,6 +52,8 @@ pub enum UiId {
     Service(ServicePanelId),
     /// A button of the tool bar.
     Tool(ToolButton),
+    /// A control of the camp panel.
+    Camp(CampPanelId),
 }
 
 impl Default for UiId {
@@ -66,6 +71,7 @@ impl UiId {
             UiId::Confirm(id) => format!("{id:?}"),
             UiId::Service(id) => format!("{id:?}"),
             UiId::Tool(id) => format!("{id:?}"),
+            UiId::Camp(id) => format!("{id:?}"),
         }
     }
 }
@@ -88,6 +94,12 @@ impl From<ServicePanelId> for UiId {
     }
 }
 
+impl From<CampPanelId> for UiId {
+    fn from(id: CampPanelId) -> Self {
+        UiId::Camp(id)
+    }
+}
+
 impl From<ToolButton> for UiId {
     fn from(id: ToolButton) -> Self {
         UiId::Tool(id)
@@ -101,6 +113,8 @@ pub enum UiLabel {
     Creation(LabelId),
     /// A text of the service panel.
     Service(ServiceLabelId),
+    /// A text of the camp panel.
+    Camp(CampLabelId),
 }
 
 impl Default for UiLabel {
@@ -116,6 +130,7 @@ impl UiLabel {
         match self {
             UiLabel::Creation(id) => format!("{id:?}"),
             UiLabel::Service(id) => format!("{id:?}"),
+            UiLabel::Camp(id) => format!("{id:?}"),
         }
     }
 }
@@ -123,6 +138,12 @@ impl UiLabel {
 impl From<LabelId> for UiLabel {
     fn from(id: LabelId) -> Self {
         UiLabel::Creation(id)
+    }
+}
+
+impl From<CampLabelId> for UiLabel {
+    fn from(id: CampLabelId) -> Self {
+        UiLabel::Camp(id)
     }
 }
 

@@ -86,7 +86,8 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  L look  P sheet  M map  Esc menu";
+pub const HELP_EXPLORE: &str =
+    "Arrows/pad move  C cast  I items  L look  P sheet  R camp  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -111,6 +112,8 @@ pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a memb
 pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
 /// The help line under the question before a step into or out of a service.
 pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
+/// The help line under the camp's panel.
+pub const HELP_CAMP: &str = "Slide the hit dice  click a rest  Esc close";
 /// The help line under a service's panel.
 pub const HELP_SERVICE: &str =
     "Click what you want  Tab to move  Esc leave  Items Spells Sheet Menu on the bar";
@@ -464,6 +467,8 @@ fn menu_for<'a>(
         (Active::Confirm, _) => (Menu::None, HELP_CONFIRM),
         // A service is a `bevy_ui` panel over the map (`feathers_service.rs`).
         (Active::Service, _) => (Menu::None, HELP_SERVICE),
+        // The camp is a `bevy_ui` panel over the map (`feathers_camp.rs`).
+        (Active::Camp, _) => (Menu::None, HELP_CAMP),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,

@@ -60,6 +60,8 @@ pub enum PlayState {
     Confirm,
     /// Inside a town service: its panel (`feathers_service.rs`).
     Service,
+    /// The camp over the map: rests outside a service (`feathers_camp.rs`).
+    Camp,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -127,6 +129,8 @@ pub enum ShellCommand {
     Inventory,
     /// Look through the first sense item a member carries; a notice when there is none.
     Look,
+    /// Open the camp while exploring.
+    Camp,
     /// Exit the application.
     Quit,
 }
@@ -304,6 +308,10 @@ fn shell(
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
             ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
+            ShellCommand::Camp if world.0.mode == omnis_sim::Mode::Explore => {
+                out.next_play.set(PlayState::Camp);
+            }
+            ShellCommand::Camp => out.notice.0 = "No camp here".to_owned(),
             ShellCommand::Look => match crate::look::look_command(&world.0, &data.0) {
                 Some(command) => {
                     out.player.write(PlayerCommand(command));

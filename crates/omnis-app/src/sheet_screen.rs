@@ -101,6 +101,14 @@ fn stats(frame: &mut Frame, view: &SheetView) {
         ),
         TEXT,
     );
+    let (left, total, sides) = view.hit_dice;
+    label(
+        frame,
+        1,
+        4,
+        &format!("Hit dice {}/{} d{sides}", left.min(99), total.min(99)),
+        TEXT,
+    );
     let scores: Vec<String> = view
         .scores
         .iter()
@@ -227,6 +235,7 @@ mod tests {
             age_years: 99_999,
             hp: (-999, 9999),
             sp: (999, 999),
+            hit_dice: (255, 255, 12),
             ac: 999,
             proficiency: 10,
             xp: 9_999_999,
