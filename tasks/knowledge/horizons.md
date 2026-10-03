@@ -36,6 +36,15 @@ Because Second Wind and Cunning Action need bonus actions: the turn budget
 declared reactions with the closed trigger list and the row/stack proximity mapping (opportunity
 attacks return), `Character.tactics` replacing `auto_cast` (save schema 6), the per-member
 reactions switch, a Tactics page on the sheet (the tool bar has one free cell after CAMP; the pause overlay one row).
+**Planned for M7c (2026-10-03, `tasks/plans/m7c-turn-budget.md`)**: the budget, the D24 fields,
+declared reactions on ARCH §4.7's whole data shape (reactions only), Second Wind, Action Surge,
+Cunning Action (a bonus-action exchange without opportunity attacks, and Hide), and monsters'
+opportunity attacks by a built-in rule. Left for later by the owner's choices that day: the fight
+screen on `bevy_ui` (stays on the canvas; the UI branch); the runbook editor, encounter criteria
+and auto play (`auto` is stored, inert); opportunity attacks as monster tactics instead of the
+built-in rule; Sneak Attack's damage; `Prepare` (the two preparation fields are stored and a spell
+needing preparation for its bonus action cannot take one); members' "enemy flees" and "enemy
+casts" triggers firing, which waits for monsters that flee and cast.
 Later, timing open in PRD §14: criteria-set library and runbooks with encounter criteria, the
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
