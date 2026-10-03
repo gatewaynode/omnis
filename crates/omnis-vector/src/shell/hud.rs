@@ -3,6 +3,7 @@
 use super::VectorSet;
 use super::controls::GREEN;
 use super::session::Session;
+use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use omnis_sim::Mode;
 
@@ -54,7 +55,29 @@ fn mode_name(mode: &Mode) -> &'static str {
     }
 }
 
-fn status(session: Res<Session>, time: Res<Time>, mut text: Query<&mut Text, With<StatusText>>) {
+/// The frame rate and frame time, smoothed over recent frames by Bevy's diagnostics, so the
+/// reading is steady enough to report; one frame's rate when the diagnostics are absent.
+fn rate(diagnostics: Option<&DiagnosticsStore>, time: &Time) -> String {
+    let smoothed = |path| {
+        diagnostics
+            .and_then(|d| d.get(path))
+            .and_then(Diagnostic::smoothed)
+    };
+    match (
+        smoothed(&FrameTimeDiagnosticsPlugin::FPS),
+        smoothed(&FrameTimeDiagnosticsPlugin::FRAME_TIME),
+    ) {
+        (Some(fps), Some(ms)) => format!("{fps:.0} fps  {ms:.1} ms"),
+        _ => format!("{:.0} fps", 1.0 / time.delta_secs().max(1e-4)),
+    }
+}
+
+fn status(
+    session: Res<Session>,
+    time: Res<Time>,
+    diagnostics: Option<Res<DiagnosticsStore>>,
+    mut text: Query<&mut Text, With<StatusText>>,
+) {
     let Ok(mut text) = text.single_mut() else {
         return;
     };
@@ -64,9 +87,9 @@ fn status(session: Res<Session>, time: Res<Time>, mut text: Query<&mut Text, Wit
         .maps
         .get(&w.position.map)
         .map_or("?", |m| m.def.id.as_str());
-    let fps = 1.0 / time.delta_secs().max(1e-4);
+    let rate = rate(diagnostics.as_deref(), &time);
     let mut out = format!(
-        "{map}  cell ({}, {}) facing {:?}\n{}  {}\ncommands {}  refusals {}  disagreements {}  {fps:.0} fps\n",
+        "{map}  cell ({}, {}) facing {:?}\n{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}\n",
         w.position.x,
         w.position.y,
         w.position.facing,

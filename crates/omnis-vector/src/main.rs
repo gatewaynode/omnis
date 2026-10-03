@@ -1,8 +1,10 @@
-//! The `omnis-vector` binary: `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--log PATH]`.
+//! The `omnis-vector` binary:
+//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--log PATH]`.
 
 use bevy::app::ScheduleRunnerPlugin;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
-use bevy::window::{ExitCondition, MonitorSelection, WindowMode, WindowResolution};
+use bevy::window::{ExitCondition, MonitorSelection, PresentMode, WindowMode, WindowResolution};
 use bevy::winit::WinitPlugin;
 use omnis_vector::shell::capture::{Capture, CapturePlugin, CaptureSize};
 use omnis_vector::shell::session::{Session, parse};
@@ -54,12 +56,18 @@ fn main() -> AppExit {
                     WindowMode::BorderlessFullscreen(MonitorSelection::Current)
                 },
                 resolution: WindowResolution::new(1600, 900),
+                present_mode: if config.vsync {
+                    PresentMode::AutoVsync
+                } else {
+                    PresentMode::AutoNoVsync
+                },
                 ..default()
             }),
             ..default()
         }));
     }
     app.insert_resource(session).add_plugins((
+        FrameTimeDiagnosticsPlugin::default(),
         ShellPlugin,
         MovementPlugin,
         RenderPlugin,

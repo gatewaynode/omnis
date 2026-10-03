@@ -130,3 +130,19 @@ fn quit_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
         assert!((colour.0.alpha() - 1.0).abs() < f32::EPSILON, "opaque");
     }
 }
+
+#[test]
+fn the_hud_reports_a_smoothed_frame_rate_and_frame_time() {
+    use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+    use omnis_vector::shell::hud::{HudPlugin, StatusText};
+    let mut app = app();
+    app.add_plugins((FrameTimeDiagnosticsPlugin::default(), HudPlugin));
+    for _ in 0..60 {
+        app.update();
+    }
+    let world = app.world_mut();
+    let mut query = world.query_filtered::<&Text, With<StatusText>>();
+    let status = query.single(world).expect("the status text").0.clone();
+    // Frames are 16 ms apart: about 62 frames a second.
+    assert!(status.contains("62 fps  16.0 ms"), "{status}");
+}

@@ -30,6 +30,8 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - The panel moved out of `fight.rs` into `panel.rs` (shared types in `notice.rs`), so the fight notice and the menu share it. Five headless tests in `tests/actions.rs`.
   - Found: the simulation answers `Interact` with nothing there as accepted, with a `NothingHere` message, not a refusal, so availability tests for that message.
 - [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
+  - 2026-10-03, the owner's first reading (windowed, display not stated): 140–160 fps moving, 50–60 standing still. The HUD read one frame's rate, which is noisy. Standing still does less work (no steps, no minimap repaint, no panel rebuild), so pacing (vsync, variable refresh) is the first suspect, not cost.
+  - Added: the HUD reads Bevy's smoothed fps and frame time, and `--no-vsync` presents without waiting for the refresh. Next reading, run fullscreen on the ultrawide, with and without `--no-vsync`, moving and still.
 
 ### A1–A6 review (2026-10-02)
 - Landed as one crate commit, not one commit per item: the items were built together to reach a walkable build fast; the owner asked for "something working soon".
