@@ -588,3 +588,45 @@ fn capture_schema_4_fixture() {
     assert_eq!((world.schema, world.party.gold), (4, 15));
     write_ron(&save_path("v4"), &world).unwrap();
 }
+
+/// Captures `tests/saves/v5.ron` from a schema-5 build: Brenna, Durin and Ilvara, Ilvara with
+/// shield in `auto_cast`, in round one of a fight with two goblins, so the schema-6 migration has
+/// an auto-cast spell to turn into a declared reaction and a fight state to carry. Run once,
+/// deliberately, before the schema moves on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-5 build"]
+fn capture_schema_5_fixture() {
+    use omnis_sim::{Surprise, combat};
+    let data = data();
+    let mut world = world(&data);
+    common::party_of(&mut world, &data, 3);
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    let spell = world.party.members[2]
+        .known_spells
+        .iter()
+        .position(|s| *s == shield)
+        .unwrap();
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::AutoCast {
+            member: 2,
+            spell: u8::try_from(spell).unwrap(),
+            on: true,
+        }),
+    )
+    .unwrap();
+    let here = world.position;
+    let goblins = common::encounter(
+        &data,
+        &[("goblin", 2)],
+        omnis_data::Disposition::Hostile,
+        here,
+    );
+    let mut events = Vec::new();
+    combat::start(&mut world, &data, goblins, Surprise::None, &mut events).unwrap();
+    assert!(matches!(world.mode, Mode::Combat(_)));
+    assert_eq!(world.party.members[2].auto_cast, [shield]);
+    assert_eq!(world.schema, 5);
+    write_ron(&save_path("v5"), &world).unwrap();
+}
