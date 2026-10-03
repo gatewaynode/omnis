@@ -23,8 +23,9 @@ use omnis_app::sim::{
     AppState, MenuState, PlayState, ShellCommand, SimEvent, SimPlugin, SimSet, SimWorld,
     WorldReplaced,
 };
+use omnis_app::tool_bar::{ToolButton, ToolPressed, ToolStates};
 use omnis_app::ui::{UiFrame, UiPlugin};
-use omnis_app::widget::{Part, Widget, WidgetId};
+use omnis_app::widget::{PadState, Part, Widget, WidgetId};
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Alignment, Skill};
 use omnis_sim::omnis_rules::Draft;
@@ -179,6 +180,23 @@ pub fn widget(app: &App, id: WidgetId) -> Widget {
         .frame
         .widget(id)
         .unwrap_or_else(|| panic!("{id:?} is not on the screen"))
+}
+
+/// Whether a tool bar button is live (the bar is `bevy_ui`; an app without it keeps the
+/// states all the same).
+pub fn tool_live(app: &App, button: ToolButton) -> bool {
+    app.world().resource::<ToolStates>().get(button) == PadState::Enabled
+}
+
+/// Press a tool bar button as the bar reports it: the states gate it, a frame to dispatch, a
+/// frame to apply, one more as a click takes.
+pub fn tool(app: &mut App, button: ToolButton) {
+    app.world_mut()
+        .resource_mut::<Messages<ToolPressed>>()
+        .write(ToolPressed(button));
+    app.update();
+    app.update();
+    app.update();
 }
 
 /// Put the pointer on a canvas pixel directly, as a window's `CursorMoved` would.

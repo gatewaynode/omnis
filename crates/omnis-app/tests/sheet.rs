@@ -7,12 +7,14 @@ mod common;
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;
 use common::{click, key, play_state, ui_app_saving_to, widget, world};
+use common::{tool, tool_live};
 use omnis_app::menus::Screens;
 use omnis_app::sheet_menu::SheetPage;
 use omnis_app::sheet_screen::ROW_MEMBER;
 use omnis_app::sim::{PlayState, PlayerCommand};
+use omnis_app::tool_bar::ToolButton;
 use omnis_app::ui::Selected;
-use omnis_app::widget::{Part, ToolButton, WidgetId};
+use omnis_app::widget::{Part, WidgetId};
 use omnis_sim::omnis_data::{Alignment, Skill};
 use omnis_sim::omnis_rules::Draft;
 use omnis_sim::{Command, PartyCommand};
@@ -58,10 +60,7 @@ fn the_sheet_opens_pages_and_follows_the_band() {
     let mut app = ui_app_saving_to("sheet.ron", true);
     app.update();
     app.update();
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Sheet)).enabled,
-        "no member yet"
-    );
+    assert!(!tool_live(&app, ToolButton::Sheet), "no member yet");
     send(
         &mut app,
         Command::Party(PartyCommand::Create(draft(
@@ -79,7 +78,7 @@ fn the_sheet_opens_pages_and_follows_the_band() {
         ))),
     );
     assert_eq!(world(&app).party.members.len(), 2);
-    assert!(widget(&app, WidgetId::Tool(ToolButton::Sheet)).enabled);
+    assert!(tool_live(&app, ToolButton::Sheet));
 
     press(&mut app, KeyCode::KeyP);
     assert_eq!(play_state(&app), PlayState::Sheet, "P opens the sheet");
@@ -115,7 +114,7 @@ fn the_sheet_opens_pages_and_follows_the_band() {
         "the selection stays"
     );
 
-    click(&mut app, WidgetId::Tool(ToolButton::Sheet), Part::Body);
+    tool(&mut app, ToolButton::Sheet);
     assert_eq!(
         play_state(&app),
         PlayState::Sheet,

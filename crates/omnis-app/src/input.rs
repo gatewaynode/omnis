@@ -1,9 +1,9 @@
-//! `InputPlugin`: keys, the movement pad and the tool pad to commands. Arrows or WASD move
-//! and turn, Q and E sidestep, Space or Enter interact, M toggles the automap, C opens the
-//! cast menu, P the character sheet, Escape pauses; a click on a pad button sends the same command as its key, and a
-//! click on a tool button the same shell command (the buttons' states say when they are
-//! live, so the keys are the shortcuts). No function key is bound: macOS takes them (saving
-//! and loading live on the pause menu).
+//! `InputPlugin`: keys and the movement pad to commands. Arrows or WASD move and turn, Q and E
+//! sidestep, Space or Enter interact, M toggles the automap, C opens the cast menu, P the
+//! character sheet, Escape pauses; a click on a pad button sends the same command as its key.
+//! The tool bar's buttons send the same shell commands as these keys (`tool_bar.rs`), so the
+//! keys are the shortcuts. No function key is bound: macOS takes them (saving and loading live
+//! on the pause menu).
 //!
 //! A step into or out of a town service asks first (`confirm_panel.rs`), as does the service
 //! panel's Leave: the command is held in `AskFirst`, the play state is `Confirm`, and Go
@@ -15,7 +15,7 @@ use crate::confirm_panel::{self, Confirm, ConfirmId};
 use crate::cursor::UiSet;
 use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, SimWorld};
 use crate::ui::UiClick;
-use crate::widget::{ToolButton, WidgetId};
+use crate::widget::WidgetId;
 use bevy::prelude::*;
 use omnis_sim::Command;
 use omnis_sim::omnis_core::{Direction, Rotation};
@@ -53,8 +53,7 @@ impl Plugin for InputPlugin {
                 map_pad
                     .in_set(UiSet::Dispatch)
                     .run_if(in_state(PlayState::Explore)),
-            )
-            .add_systems(Update, map_tools.in_set(UiSet::Dispatch));
+            );
     }
 }
 
@@ -85,19 +84,6 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })
-}
-
-/// The shell action a tool button stands for.
-#[must_use]
-pub const fn tool_for(button: ToolButton) -> ShellCommand {
-    match button {
-        ToolButton::Items => ShellCommand::Inventory,
-        ToolButton::Spells => ShellCommand::Cast,
-        ToolButton::Sheet => ShellCommand::Sheet,
-        ToolButton::Look => ShellCommand::Look,
-        ToolButton::Map => ShellCommand::ToggleAutomap,
-        ToolButton::Menu => ShellCommand::Pause,
-    }
 }
 
 /// The step held for the confirmation, while `PlayState::Confirm` is up.
@@ -205,28 +191,9 @@ fn settle_answers(
     }
 }
 
-/// A click on a live tool button, whatever the screen: the states gate it.
-fn map_tools(mut clicks: MessageReader<UiClick>, mut shell: MessageWriter<ShellCommand>) {
-    for UiClick(hit) in clicks.read() {
-        if let WidgetId::Tool(button) = hit.id {
-            shell.write(tool_for(button));
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn tool_buttons_send_what_their_keys_send() {
-        assert_eq!(Some(tool_for(ToolButton::Spells)), shell_for(KeyCode::KeyC));
-        assert_eq!(Some(tool_for(ToolButton::Map)), shell_for(KeyCode::KeyM));
-        assert_eq!(Some(tool_for(ToolButton::Sheet)), shell_for(KeyCode::KeyP));
-        assert_eq!(Some(tool_for(ToolButton::Menu)), shell_for(KeyCode::Escape));
-        assert_eq!(Some(tool_for(ToolButton::Items)), shell_for(KeyCode::KeyI));
-        assert_eq!(Some(tool_for(ToolButton::Look)), shell_for(KeyCode::KeyL));
-    }
 
     #[test]
     fn no_function_key_is_bound() {

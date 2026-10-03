@@ -117,3 +117,8 @@
 - **What happened**: The first run of M7 step 7's fourteen rule breaks reported every one "caught" from a non-zero exit. Every build had in fact failed to link (an Xcode update left its license unaccepted), and then zsh passed `--test service` as one word; no test had run at all.
 - **Rule**: A broken rule is recorded as caught only with the name of the test that failed; an exit code alone proves nothing. Run one break by hand and read its output before trusting a loop.
 - **Rule**: In zsh a variable holding several arguments is split with `${=var}`.
+
+## 2026-10-02 — A gate with nothing to link proves nothing about the linker
+- **What happened**: After the owner accepted the Xcode license, the gate ran green without the `DEVELOPER_DIR` override and was reported as "green on Xcode's toolchain". Every artifact was already built, so nothing was linked. The first fresh build (a scratch worktree) failed to link: inside the sandbox `xcodebuild -find clang` cannot read Xcode's license plist, accepted or not. The claim had to be withdrawn.
+- **Rule**: A toolchain fix is verified with a fresh link (a new target directory, a scratch worktree, or a touched crate that links a binary), never with a cached gate.
+- **Rule**: When a sandbox blocks a file a tool reads, assume the tool behaves as if the file were missing, and test it from inside the sandbox before claiming it works there.

@@ -5,7 +5,7 @@
 //! panel; what a text was at first (regular, bold, the sliders' monospace) is remembered,
 //! because Fira alone has a monospace face and the others answer with their regular one.
 
-use crate::ui_kit::{FontChoice, PanelRoot};
+use crate::ui_kit::{FontChoice, PanelRoot, ToolBar};
 use crate::ui_model::FONTS;
 use bevy::feathers::constants::fonts;
 use bevy::prelude::*;
@@ -72,14 +72,17 @@ pub fn register(
     debug_assert_eq!(held.0.len(), FONTS.len());
 }
 
-/// Dress every text under a panel in the chosen family: when the choice changes, and when
+/// The roots whose texts wear the chosen family: the panels and the tool bar.
+type Dressed = Or<(With<PanelRoot>, With<ToolBar>)>;
+
+/// Dress every text under a panel or the tool bar in the chosen family: when the choice changes, and when
 /// a text's font is written (a rebuilt panel; Feathers hands most texts their font by
 /// inheritance a frame after they are spawned).
 pub fn wear(
     mut commands: Commands,
     choice: Res<FontChoice>,
     held: Res<PanelFonts>,
-    roots: Query<(), With<PanelRoot>>,
+    roots: Query<(), Dressed>,
     parents: Query<&ChildOf>,
     mut texts: Query<(Entity, &mut TextFont, Option<&Face>)>,
 ) {

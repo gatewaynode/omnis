@@ -11,9 +11,11 @@ use crate::feathers_confirm as confirm;
 use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::feathers_service::{self as service, ServiceShown};
+use crate::feathers_tools as tools;
 use crate::menu::CreationAction;
 use crate::menus::{Active, CreationAsk, CreationFlow, Where};
 use crate::pixel::OuterCamera;
+use crate::tool_bar;
 use crate::ui::UiPointerCapture;
 use crate::ui_kit::{self as kit, PanelRoot};
 use bevy::feathers::FeathersPlugins;
@@ -65,6 +67,12 @@ impl Plugin for FeathersUiPlugin {
             .add_systems(Update, confirm::reports.in_set(UiSet::Dispatch))
             .add_systems(
                 Update,
+                tools::reports
+                    .in_set(UiSet::Dispatch)
+                    .before(tool_bar::answer),
+            )
+            .add_systems(
+                Update,
                 (service::reports, service::escape_leaves).in_set(UiSet::Dispatch),
             )
             .add_systems(
@@ -75,15 +83,18 @@ impl Plugin for FeathersUiPlugin {
                     service::look,
                     service::refusals,
                     service::reconcile,
+                    tools::reconcile,
                     kit::scale,
                     kit::place,
                     creation::show_scale,
                     creation::sync,
                     service::sync,
+                    tools::sync,
                     typefaces::wear,
                 )
                     .chain()
-                    .in_set(UiSet::Model),
+                    .in_set(UiSet::Model)
+                    .after(tool_bar::track),
             );
     }
 }

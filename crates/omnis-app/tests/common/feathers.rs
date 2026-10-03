@@ -16,7 +16,7 @@ use bevy::ui_widgets::{Activate, MenuPopup, ScrollArea, SliderValue, ValueChange
 use bevy::window::{PrimaryWindow, WindowRef, WindowResized};
 use omnis_app::creation_panel::{Choice, PanelId};
 use omnis_app::menus::Screens;
-use omnis_app::ui_kit::{Control, PanelRoot, Shown, UiId, UiLabel};
+use omnis_app::ui_kit::{Control, PanelRoot, Shown, ToolBar, UiId, UiLabel};
 
 /// A new game by the canvas menus, arriving on the party creation panel.
 pub fn creating(save: &str) -> App {
@@ -41,12 +41,29 @@ pub fn control(app: &mut App, id: impl Into<UiId>) -> Entity {
         .unwrap_or_else(|| panic!("{id:?} is not on the panel"))
 }
 
-/// Every control on the panel, in `UiId`'s order.
+/// Every control on the panels (the tool bar's left out), in `UiId`'s order.
 pub fn controls(app: &mut App) -> Vec<UiId> {
-    let mut query = app.world_mut().query::<&Control>();
-    let mut ids: Vec<_> = query.iter(app.world()).map(|control| control.0).collect();
+    let mut query = app.world_mut().query::<(Entity, &Control)>();
+    let found: Vec<_> = query.iter(app.world()).map(|(e, c)| (e, c.0)).collect();
+    let mut ids: Vec<_> = found
+        .into_iter()
+        .filter(|(entity, _)| under_root::<PanelRoot>(app.world(), *entity))
+        .map(|(_, id)| id)
+        .collect();
     ids.sort();
     ids
+}
+
+/// Whether an entity lies under a root with the marker.
+fn under_root<T: Component>(world: &World, entity: Entity) -> bool {
+    let mut at = entity;
+    while let Some(parent) = world.get::<ChildOf>(at) {
+        at = parent.parent();
+        if world.get::<T>(at).is_some() {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn form(app: &App) -> &omnis_app::menu::CreationForm {
@@ -313,8 +330,18 @@ fn inside(outer: Rect, inner: Rect) -> bool {
 /// scroll pane shows it (one scrolled out of sight counts for nothing) and the pane itself
 /// must be inside; menu items are left out, their popups are laid out over the panel.
 pub fn layout_faults(app: &mut App) -> Vec<Fault> {
-    let mut roots = app.world_mut().query_filtered::<Entity, With<PanelRoot>>();
-    let root = roots.single(app.world()).expect("one panel");
+    faults_under::<PanelRoot>(app)
+}
+
+/// The same check for the tool bar: its buttons inside its strip, none overlapping.
+pub fn bar_faults(app: &mut App) -> Vec<Fault> {
+    faults_under::<ToolBar>(app)
+}
+
+/// The check over the one root with the marker and the controls under it.
+fn faults_under<T: Component>(app: &mut App) -> Vec<Fault> {
+    let mut roots = app.world_mut().query_filtered::<Entity, With<T>>();
+    let root = roots.single(app.world()).expect("one root");
     let root = rect(app, root);
     let mut faults = Vec::new();
     let mut panes = app.world_mut().query_filtered::<Entity, With<ScrollArea>>();
@@ -327,6 +354,9 @@ pub fn layout_faults(app: &mut App) -> Vec<Fault> {
         .query::<(Entity, &Control, Option<&CalculatedClip>)>();
     let mut seen: Vec<(UiId, Rect)> = Vec::new();
     for (entity, control, clip) in query.iter(app.world()) {
+        if !under_root::<T>(app.world(), entity) {
+            continue;
+        }
         let id = control.0;
         let full = rect(app, entity);
         let under = |app: &App, wanted: fn(&World, Entity) -> bool| {

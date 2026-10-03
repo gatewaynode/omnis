@@ -17,10 +17,10 @@ use common::{feathers_app, fighter_draft, place, play_state, world};
 use omnis_app::confirm_panel::ConfirmId;
 use omnis_app::service_panel::{ServiceLabelId, ServicePanelId, money_line};
 use omnis_app::sim::{PackData, PlayState, PlayerCommand, SimWorld};
+use omnis_app::tool_bar::ToolButton;
 use omnis_app::ui::RollLog;
 use omnis_app::ui_kit::{Control, UiId};
 use omnis_app::ui_text::screen_text;
-use omnis_app::widget::{Part, ToolButton, WidgetId};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::party::PartyCommand;
 use omnis_sim::{Command, ModeKind, Rejection, ServiceCommand, ServiceView, service_view};
@@ -355,10 +355,11 @@ fn leaving_asks_first_by_button_and_by_escape() {
 }
 
 #[test]
-fn the_tool_pad_opens_over_the_panel_and_comes_back_to_it() {
+fn the_tool_bar_opens_over_the_panel_and_comes_back_to_it() {
     let mut app = town("service-tools.ron");
     enter(&mut app, "smith");
-    common::click(&mut app, WidgetId::Tool(ToolButton::Items), Part::Body);
+    let button = control(&mut app, ToolButton::Items);
+    click_node(&mut app, button);
     assert_eq!(play_state(&app), PlayState::Inventory);
     press(&mut app, KeyCode::Escape, Key::Escape);
     assert_eq!(
@@ -367,7 +368,8 @@ fn the_tool_pad_opens_over_the_panel_and_comes_back_to_it() {
         "the inventory closes back"
     );
 
-    common::click(&mut app, WidgetId::Tool(ToolButton::Menu), Part::Body);
+    let button = control(&mut app, ToolButton::Menu);
+    click_node(&mut app, button);
     assert_eq!(play_state(&app), PlayState::Paused);
     press(&mut app, KeyCode::Escape, Key::Escape);
     assert_eq!(

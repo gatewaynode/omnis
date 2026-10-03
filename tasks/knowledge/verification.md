@@ -11,12 +11,16 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 444 passed, 8 ignored (2026-10-02, after M7 step 7). The gate's log says
-it on one line: `tests passed 444 failed 0 ignored 8`.
+Test count at the gate: 447 passed, 8 ignored (2026-10-02, after M7 step 8a). The gate's log says
+it on one line: `tests passed 447 failed 0 ignored 8`.
 
-Linker (2026-10-02): an Xcode update whose license is not yet accepted makes `cc` fail with
-"xcodebuild -find clang ... exit code 17664". Until the owner runs `sudo xcodebuild -license`,
-prefix cargo and the gate with `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (process-local).
+Linker (2026-10-02): `cc` finds clang through `xcodebuild -find clang`, which reads
+`/Library/Preferences/com.apple.dt.Xcode.plist`. The session's sandbox cannot read that file, so
+inside it every fresh link fails ("xcodebuild -find clang ... exit code 17664", `xcodebuild
+-checkFirstLaunchStatus` exits 69) even with the license accepted (it was, for Xcode 26.5, on
+2026-10-02). Prefix cargo and the gate with `DEVELOPER_DIR=/Library/Developer/CommandLineTools`
+(process-local) inside the sandbox. A gate with nothing new to link proves nothing about the
+linker: test it with a fresh target directory or a scratch worktree.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen
@@ -59,19 +63,26 @@ repository root (the root has no rules file).
 ## Tools and commands
 - `bevy_ui` screens (every build): the headless harness is `tests/common/mod.rs::feathers_app`
   (`DefaultPlugins` without winit and logging, no render backend: real layout, picking, focus, no
-  GPU); helpers in `tests/common/feathers.rs` (`layout_faults`, `text_tree`, `click_node`,
+  GPU); helpers in `tests/common/feathers.rs` (`layout_faults` over the one `PanelRoot`,
+  `bar_faults` over the tool bar, `controls` (the panels' only), `text_tree`, `click_node`,
   `drag_node`, `keys`, `tab`, `resize`, `ultrawide`; ids are `impl Into<UiId>`, and the layout check
   is structural: menu items under a `MenuPopup` are left out, what sits under a `ScrollArea` counts
   as far as its clip shows it). An app under `MinimalPlugins` has no panel:
   its tests get their party from `tests/common/mod.rs::party_by_command` (`CreationAsk`, what the
-  panel itself sends). A PPM dump cannot show them; the text tree
+  panel itself sends), and press the tool bar with `common::tool` (a `ToolPressed`, gated as the
+  bar's own) and read it with `tool_live` (the `ToolStates` resource); real pointer clicks on the
+  bar are `tests/tool_bar.rs`'s, as is the bar's fit: every word on one line inside its button
+  at both window sizes, at the fitted scale and the cap, in all three fonts (2026-10-02: the
+  widest, "Spells", 50 of 70 px at 1x and the cap, 100 of 141 at 2x and the cap). A PPM dump cannot show them; the text tree
   (`creation_feathers.txt` under `OMNIS_DUMP_SCREENS`) stands in. A picture needs the running
   game: `--script "party,create" --settle 60 --screenshot-composed <file.png>`, or the
   `screenshot` op with `target: "window"`. An agent-launched window is on no screen: plain window
   captures are black, frame times mean nothing, and `--window medium` is clamped to 2560×1378
   (canvas 1×), so such a capture never shows the ultrawide's 2× layout.
 - Screen dumps as PNGs: `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
-  (entries include `explore`, `pause`, `inventory`, `combat_use`, the sheet pages).
+  (entries include `explore`, `pause`, `inventory`, `combat_use`, the sheet pages). Since M7 step
+  8a the tool bar is `bevy_ui`, so the dumps show its strip empty; `tool_bar.txt` (the bar's text
+  tree) is written by `tests/tool_bar.rs` under `OMNIS_DUMP_SCREENS`.
 - Encounter measurement over seeds: `cargo test -p omnis-sim --test measure -- --ignored --nocapture`
   (300 seeds, parties of 2 and 6, attack-only vs cast-every-turn; integers, tenths and hundredths).
   `ambush_over_seeds` measures resting in the dungeon: wipes of a spent party per ambush, per

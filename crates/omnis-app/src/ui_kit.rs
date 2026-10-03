@@ -9,8 +9,10 @@ use crate::canvas::Layout;
 use crate::confirm_panel::ConfirmId;
 use crate::creation_panel::{LabelId, PanelId};
 use crate::cursor::WindowSize;
+use crate::layout::TOOLS;
 use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
 use crate::service_panel::{ServiceLabelId, ServicePanelId};
+use crate::tool_bar::ToolButton;
 use crate::ui_model::{self as model, Payload};
 use bevy::feathers::constants::{fonts, size};
 use bevy::feathers::controls::{
@@ -45,6 +47,8 @@ pub enum UiId {
     Confirm(ConfirmId),
     /// A control of the service panel.
     Service(ServicePanelId),
+    /// A button of the tool bar.
+    Tool(ToolButton),
 }
 
 impl Default for UiId {
@@ -61,6 +65,7 @@ impl UiId {
             UiId::Creation(id) => format!("{id:?}"),
             UiId::Confirm(id) => format!("{id:?}"),
             UiId::Service(id) => format!("{id:?}"),
+            UiId::Tool(id) => format!("{id:?}"),
         }
     }
 }
@@ -80,6 +85,12 @@ impl From<ConfirmId> for UiId {
 impl From<ServicePanelId> for UiId {
     fn from(id: ServicePanelId) -> Self {
         UiId::Service(id)
+    }
+}
+
+impl From<ToolButton> for UiId {
+    fn from(id: ToolButton) -> Self {
+        UiId::Tool(id)
     }
 }
 
@@ -137,6 +148,12 @@ pub struct PanelRoot {
     /// The shape hash the entity tree was built for.
     pub shape: u64,
 }
+
+/// The tool bar's root (`feathers_tools.rs`): not a panel, so the modal screens' code
+/// (Escape, the text tree, one panel at a time) never sees it; `place` keeps it over the
+/// canvas's tool strip.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ToolBar;
 
 /// What a control reported. Widgets are not trusted: a screen's `apply` clamps and refuses.
 #[derive(Message, Debug, Clone, PartialEq)]
@@ -328,26 +345,38 @@ pub fn scale(size: Res<WindowSize>, choice: Res<ScaleChoice>, mut scale: ResMut<
     }
 }
 
-/// Keep every panel over the canvas's viewport, whatever the window and the interface scale.
+/// Keep every panel over the canvas's viewport and the tool bar over the canvas's tool strip,
+/// whatever the window and the interface scale.
 pub fn place(
     size: Res<WindowSize>,
     layout: Res<Layout>,
     scale: Res<UiScale>,
-    mut roots: Query<&mut Node, With<PanelRoot>>,
+    mut panels: Query<&mut Node, (With<PanelRoot>, Without<ToolBar>)>,
+    mut bars: Query<&mut Node, (With<ToolBar>, Without<PanelRoot>)>,
 ) {
-    let rect = (
-        layout.core.0,
-        layout.core.1,
+    let (cx, cy) = layout.core;
+    let viewport = (
+        cx,
+        cy,
         u32::from(VIEWPORT_SIZE.0),
         u32::from(VIEWPORT_SIZE.1),
     );
-    let (x, y, w, h) = canvas_rect_to_window(rect, (size.width, size.height), size.scale_factor);
+    let tools = (cx + TOOLS.x, cy + TOOLS.y, TOOLS.w, TOOLS.h);
     let s = scale.0.max(0.1);
-    let wanted = [x / s, y / s, w / s, h / s].map(px);
-    for mut node in &mut roots {
-        let now = [node.left, node.top, node.width, node.height];
-        if now != wanted {
-            [node.left, node.top, node.width, node.height] = wanted;
+    let window = |rect| {
+        let (x, y, w, h) =
+            canvas_rect_to_window(rect, (size.width, size.height), size.scale_factor);
+        [x / s, y / s, w / s, h / s].map(px)
+    };
+    for (nodes, wanted) in [
+        (panels.iter_mut().collect::<Vec<_>>(), window(viewport)),
+        (bars.iter_mut().collect::<Vec<_>>(), window(tools)),
+    ] {
+        for mut node in nodes {
+            let now = [node.left, node.top, node.width, node.height];
+            if now != wanted {
+                [node.left, node.top, node.width, node.height] = wanted;
+            }
         }
     }
 }

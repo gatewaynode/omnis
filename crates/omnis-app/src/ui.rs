@@ -11,7 +11,6 @@ use crate::cursor::{self, Pointer, UiSet};
 use crate::debug_menu::{DebugView, debug_view};
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use crate::look::look_command;
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
@@ -20,8 +19,9 @@ use crate::sheet_menu::{SheetView, sheet_view};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::text::Names;
+use crate::tool_bar::{self, ToolPressed, ToolStates};
 use crate::viewport::canvas_to_world;
-use crate::widget::{self, Frame, Hit, PadState, ToolButton, ToolStates, WidgetId};
+use crate::widget::{self, Frame, Hit, PadState, WidgetId};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -113,7 +113,7 @@ pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G 
 pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
 /// The help line under a service's panel.
 pub const HELP_SERVICE: &str =
-    "Click what you want  Tab to move  Esc leave  ITEMS SPELLS SHEET MENU on the pad";
+    "Click what you want  Tab to move  Esc leave  Items Spells Sheet Menu on the bar";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -121,6 +121,8 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<UiClick>()
+            .add_message::<ToolPressed>()
+            .init_resource::<ToolStates>()
             .init_resource::<UiFrame>()
             .init_resource::<Selected>()
             .init_resource::<MessageLine>()
@@ -130,7 +132,11 @@ impl Plugin for UiPlugin {
                 Update,
                 hit.in_set(UiSet::Cursor).after(cursor::track_pointer),
             )
-            .add_systems(Update, select_member.in_set(UiSet::Dispatch))
+            .add_systems(
+                Update,
+                (select_member, tool_bar::answer).in_set(UiSet::Dispatch),
+            )
+            .add_systems(Update, tool_bar::track.in_set(UiSet::Model))
             .add_systems(Update, message_line.in_set(UiSet::Model))
             .add_systems(
                 Update,
@@ -242,7 +248,7 @@ fn hit(
         .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
-        hover.filter(|id| matches!(id, WidgetId::Pad(_) | WidgetId::Tool(_)))
+        hover.filter(|id| matches!(id, WidgetId::Pad(_)))
     } else {
         None
     };
@@ -383,50 +389,6 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         text: text.clone(),
         alert: true,
     })
-}
-
-/// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
-/// an encounter, a fight) and inside a service; MAP live on the map; SPELLS on the map and
-/// inside a service when someone has a spell for the road; SHEET on the map, inside a service
-/// and in a fight once the party has a member; ITEMS on the map and inside a service with a
-/// member; LOOK on the map when a member who can act carries a sense item.
-#[must_use]
-pub fn tool_states(
-    active: Active,
-    has_world: bool,
-    has_casts: bool,
-    has_members: bool,
-    has_look: bool,
-) -> ToolStates {
-    if !has_world {
-        return ToolStates::default();
-    }
-    let live = |on: bool| {
-        if on {
-            PadState::Enabled
-        } else {
-            PadState::Disabled
-        }
-    };
-    let exploring = active == Active::None;
-    let mut tools = ToolStates::all(PadState::Disabled);
-    tools.set(
-        ToolButton::Menu,
-        live(matches!(
-            active,
-            Active::None | Active::Service | Active::Encounter | Active::Combat
-        )),
-    );
-    tools.set(ToolButton::Map, live(exploring));
-    let indoors = exploring || active == Active::Service;
-    tools.set(ToolButton::Items, live(indoors && has_members));
-    tools.set(ToolButton::Look, live(exploring && has_look));
-    tools.set(ToolButton::Spells, live(indoors && has_casts));
-    tools.set(
-        ToolButton::Sheet,
-        live(has_members && matches!(active, Active::None | Active::Service | Active::Combat)),
-    );
-    tools
 }
 
 /// What the frame shows besides the screens' own state: the fight, the debug view, the
@@ -570,23 +532,12 @@ fn build_frame(
     } else {
         Vec::new()
     };
-    let has_casts = (at.exploring() || active == Active::Service)
-        && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
     let sheet = (active == Active::Sheet)
         .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
         .flatten();
     let inventory = (active == Active::Inventory)
         .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
         .flatten();
-    let has_look =
-        at.exploring() && loaded.is_some_and(|(w, d)| look_command(&w.0, &d.0).is_some());
-    let tools = tool_states(
-        active,
-        world.is_some() && at.playing(),
-        has_casts,
-        !members.is_empty(),
-        has_look,
-    );
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
@@ -625,7 +576,6 @@ fn build_frame(
             .filter(|s| *s < members.len()),
         log: &log.0,
         pad,
-        tools,
         message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
@@ -634,69 +584,5 @@ fn build_frame(
     screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_tool_pad_follows_the_screen() {
-        assert_eq!(
-            tool_states(Active::None, false, true, true, true),
-            ToolStates::default()
-        );
-        let map = tool_states(Active::None, true, true, true, true);
-        for button in ToolButton::ALL {
-            assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
-        }
-        assert_eq!(
-            tool_states(Active::None, true, true, true, false).get(ToolButton::Look),
-            PadState::Disabled,
-            "no spyglass"
-        );
-        let nobody = tool_states(Active::None, true, false, false, false);
-        assert_eq!(nobody.get(ToolButton::Spells), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Look), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
-        let fight = tool_states(Active::Combat, true, true, true, true);
-        assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
-        assert_eq!(fight.get(ToolButton::Sheet), PadState::Enabled);
-        assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Look), PadState::Disabled);
-        let shop = tool_states(Active::Service, true, true, true, true);
-        for button in [
-            ToolButton::Items,
-            ToolButton::Spells,
-            ToolButton::Sheet,
-            ToolButton::Menu,
-        ] {
-            assert_eq!(
-                shop.get(button),
-                PadState::Enabled,
-                "{button:?} in a service"
-            );
-        }
-        assert_eq!(shop.get(ToolButton::Map), PadState::Disabled);
-        assert_eq!(shop.get(ToolButton::Look), PadState::Disabled);
-        for active in [
-            Active::Paused,
-            Active::Cast,
-            Active::Debug,
-            Active::Defeat,
-            Active::Sheet,
-            Active::Inventory,
-        ] {
-            assert_eq!(
-                tool_states(active, true, true, true, true),
-                ToolStates::all(PadState::Disabled),
-                "{active:?}"
-            );
-        }
     }
 }

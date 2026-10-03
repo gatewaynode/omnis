@@ -6,8 +6,7 @@ use crate::canvas::Layout;
 use crate::font::{GLYPH_HEIGHT, fit};
 use crate::layout::{CELL, HUD_COLUMNS, HUD_LINES, Rect};
 use crate::widget::{
-    DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, TEXT, ToolButton, ToolStates, Widget,
-    WidgetId,
+    DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, TEXT, Widget, WidgetId,
 };
 use omnis_sim::MINUTES_PER_DAY;
 
@@ -100,20 +99,6 @@ pub fn pad(frame: &mut Frame, state: PadState, pressed: Option<WidgetId>) {
     }
 }
 
-/// Paint the tool pad and register its buttons, each in its own state.
-pub fn tools(frame: &mut Frame, states: ToolStates, pressed: Option<WidgetId>) {
-    for button in ToolButton::ALL {
-        framed_button(
-            frame,
-            WidgetId::Tool(button),
-            button.rect(),
-            button.label(),
-            states.get(button),
-            pressed,
-        );
-    }
-}
-
 /// One framed button with a centred label: bright when held, dim when disabled, nothing
 /// when hidden; registered as a framed widget, enabled only when its state is.
 fn framed_button(
@@ -170,43 +155,6 @@ mod tests {
         assert_eq!(clock_text_in(1440 * 999 + 208, 13), "D1000 03:28");
         assert!(clock_text(i64::MAX).len() <= HUD_COLUMNS);
         assert_eq!(Hud::new("", 0, 0, "", 0).position, "0,0 ?");
-    }
-
-    #[test]
-    fn the_tool_pad_paints_each_button_in_its_own_state() {
-        let mut frame = Frame::default();
-        tools(&mut frame, ToolStates::default(), None);
-        assert!(frame.widgets.is_empty(), "hidden paints nothing");
-        let mut states = ToolStates::all(PadState::Disabled);
-        states.set(ToolButton::Menu, PadState::Enabled);
-        states.set(ToolButton::Map, PadState::Enabled);
-        tools(&mut frame, states, Some(WidgetId::Tool(ToolButton::Menu)));
-        assert_eq!(frame.widgets.len(), 6);
-        let rgb = |x, y| frame.raster.get(x, y).map(|p| (p[0], p[1], p[2]));
-        for button in ToolButton::ALL {
-            let w = frame.widget(WidgetId::Tool(button)).expect("painted");
-            assert!(w.framed && w.rect == button.rect(), "{button:?}");
-            assert_eq!(w.enabled, states.get(button) == PadState::Enabled);
-            let corner = rgb(w.rect.x, w.rect.y);
-            let expected = match button {
-                ToolButton::Menu => HI,
-                ToolButton::Map => FRAME,
-                _ => DIM,
-            };
-            assert_eq!(corner, Some(expected), "{button:?}");
-        }
-        let menu = ToolButton::Menu.rect();
-        assert_eq!(
-            rgb(menu.x + 2, menu.y + 2),
-            Some(HI),
-            "the held button is filled"
-        );
-        let map = ToolButton::Map.rect();
-        assert_eq!(
-            rgb(map.x + 2, map.y + 2),
-            Some((0, 0, 0)),
-            "the rest are not"
-        );
     }
 
     #[test]

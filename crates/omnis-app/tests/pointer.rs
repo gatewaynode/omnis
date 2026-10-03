@@ -14,14 +14,16 @@ use common::{
     move_to, party_by_command, play_state, point_at, pointer, seen, spot, start_new_game_by_mouse,
     ui_app, widget, world,
 };
+use common::{tool, tool_live};
 use omnis_app::canvas::Layout;
 use omnis_app::cursor::{Pointer, WindowSize};
 use omnis_app::layout::{CANVAS_WIDTH, MENU_BOX, canvas_rect_to_window};
 use omnis_app::menu::CreationAction;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
+use omnis_app::tool_bar::ToolButton;
 use omnis_app::ui::{MessageLine, Selected};
-use omnis_app::widget::{ALERT, PadButton, Part, ToolButton, WidgetId};
+use omnis_app::widget::{ALERT, PadButton, Part, WidgetId};
 use omnis_sim::SaveRule;
 use omnis_sim::omnis_core::Facing;
 
@@ -312,45 +314,34 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     );
 }
 
-/// The tool pad by mouse: MENU pauses (and the pad goes dim under the overlay), MAP sends
+/// The tool bar's presses: MENU pauses (and the bar goes dim under the overlay), MAP sends
 /// the automap toggle, a dim button does nothing, and SPELLS lights up with a caster and
-/// opens the cast menu.
+/// opens the cast menu. Real pointer clicks on the bar are `tool_bar.rs`'s.
 #[test]
 fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
     let mut app = common::ui_app_saving_to("tool-pad.ron", true);
     app.update();
     app.update();
     for button in [ToolButton::Items, ToolButton::Look] {
-        assert!(!widget(&app, WidgetId::Tool(button)).enabled, "{button:?}");
+        assert!(!tool_live(&app, button), "{button:?}");
     }
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Sheet)).enabled,
-        "no member yet"
-    );
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
-        "no caster yet"
-    );
-    assert!(widget(&app, WidgetId::Tool(ToolButton::Map)).enabled);
+    assert!(!tool_live(&app, ToolButton::Sheet), "no member yet");
+    assert!(!tool_live(&app, ToolButton::Spells), "no caster yet");
+    assert!(tool_live(&app, ToolButton::Map));
 
-    click(&mut app, WidgetId::Tool(ToolButton::Menu), Part::Body);
+    tool(&mut app, ToolButton::Menu);
     assert_eq!(play_state(&app), PlayState::Paused);
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Menu)).enabled,
-        "dim under the overlay"
-    );
+    assert!(!tool_live(&app, ToolButton::Menu), "dim under the overlay");
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
 
-    click(&mut app, WidgetId::Tool(ToolButton::Map), Part::Body);
+    tool(&mut app, ToolButton::Map);
     assert_eq!(seen(&app).shell.last(), Some(&ShellCommand::ToggleAutomap));
 
-    let items = widget(&app, WidgetId::Tool(ToolButton::Items));
     let sent = seen(&app).shell.len();
-    click_at(&mut app, spot(&items, Part::Body));
+    tool(&mut app, ToolButton::Items);
     assert_eq!(play_state(&app), PlayState::Explore);
     assert_eq!(seen(&app).shell.len(), sent, "a dim button sends nothing");
-    assert_eq!(frame(&app).hover, None);
 
     let draft = omnis_sim::omnis_rules::Draft {
         name: "Ilvara".to_owned(),
@@ -371,11 +362,11 @@ fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
         )));
     app.update();
     app.update();
-    assert!(widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled);
-    click(&mut app, WidgetId::Tool(ToolButton::Spells), Part::Body);
+    assert!(tool_live(&app, ToolButton::Spells));
+    tool(&mut app, ToolButton::Spells);
     assert_eq!(play_state(&app), PlayState::Cast);
     assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
+        !tool_live(&app, ToolButton::Spells),
         "dim under the cast menu"
     );
     common::key(&mut app, bevy::input::keyboard::Key::Escape);

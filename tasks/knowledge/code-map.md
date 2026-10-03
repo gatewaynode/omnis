@@ -79,13 +79,22 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 ## omnis-app
 - Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
   `ShellCommand::{Save, Load, ToggleAutomap, Pause, Cast, Sheet, Inventory, Look, Quit}`, the
-  `shell` system runs whenever a world exists), `input.rs` (keys, `tool_for`, `map_tools`),
-  `ui.rs` (`HELP_*` lines, `build_frame`, `tool_states`, `overlay_for`, `RollLog`, `Selected`).
+  `shell` system runs whenever a world exists), `input.rs` (keys and the movement pad),
+  `ui.rs` (`HELP_*` lines, `build_frame`, `overlay_for`, `RollLog`, `Selected`).
+- The tool bar (M7 step 8a; `bevy_ui` over the canvas's `TOOLS` strip since 2026-10-02):
+  `tool_bar.rs` (`ToolButton` with `Camp`, seven in a 4+3 grid; `ToolStates` is a resource kept
+  every frame by `track` in `UiSet::Model`, so `MinimalPlugins` apps have it; `tool_states`,
+  `tool_for` (CAMP gives none until 8b), `ToolPressed`, and `answer`, the one gate: a press on a
+  button its state does not make live sends nothing, whatever the widget did), and
+  `feathers_tools.rs` (`reconcile`, `sync` puts `InteractionDisabled` on dim buttons, `reports`
+  turns `UiId::Tool` reports into `ToolPressed`). Its root is `ui_kit::ToolBar`, not a
+  `PanelRoot`: `ui_kit::place` puts it on `TOOLS` shifted by `layout.core`, and the modal
+  screens' code (Escape, `screen_text`, one panel at a time) never sees it.
 - Screens: `screen.rs` (`View`, `Menu`, `Target`, `click`, `dump_screens`), `screens.rs`
-  (overlay painters), `layout.rs` (core 1280×720; `RIGHT_COLUMN`, `TOOLS` y 300..388, `PAD`,
+  (overlay painters), `layout.rs` (core 1280×720; `RIGHT_COLUMN`, `TOOLS` y 300..388 (the bar's strip; the canvas paints nothing there), `PAD`,
   `BAND`; menu grid 80×16 at `menu_cell(c, r) = (241 + 6c, 200 + 8r)`), `widget.rs`
-  (`WidgetId::{Row, Pad, Tool, Member, Stack, Action, Spell, Item}`, `ToolButton`),
-  `panels.rs` (`framed_button`, `pad`, `tools`), `plan.rs` (viewport and automap paint,
+  (`WidgetId::{Row, Pad, Member, Stack, Action, Spell, Item}`, `PadState`),
+  `panels.rs` (`framed_button`, `pad`), `plan.rs` (viewport and automap paint,
   `REMOTE_OUTLINE`, `PORTAL_MARK`; `paint_row` draws one detail row, portal markers in the block pass), `viewport.rs`, `raster.rs`, `pixel.rs`, `canvas.rs`, `font.rs`, `assets.rs`.
 - Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
   `Pause::DEBUG = 4`, `debug_available`) and `menus.rs` (`pause_action`, `Actions`); fight
@@ -128,7 +137,7 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `UiSet::Model`; `reports` and `escape_leaves` in `UiSet::Dispatch`) sends every offer through
   `input::Gate`, and `confirm_panel::ask` asks before `Service(Leave)`. Refused offers carry
   `InteractionDisabled`; the smith's two lists scroll. Inside, the map's keys and pad are off;
-  ITEMS, SPELLS, SHEET and MENU stay live (`ui::tool_states`).
+  ITEMS, SPELLS, SHEET and MENU stay live (`tool_bar::tool_states`).
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`; `screen.text` is queued by `serve` and answered by
   the exclusive `answer_screen_text`). `ui_text.rs` (every build): `screen_text` (every panel

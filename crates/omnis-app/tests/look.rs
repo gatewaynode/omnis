@@ -4,10 +4,11 @@
 mod common;
 
 use bevy::prelude::*;
-use common::{click, play_state, seen, ui_app_saving_to, widget, world};
+use common::{play_state, seen, ui_app_saving_to, world};
+use common::{tool, tool_live};
 use omnis_app::sim::{Notice, PlayState, PlayerCommand};
+use omnis_app::tool_bar::ToolButton;
 use omnis_app::ui::RollLog;
-use omnis_app::widget::{Part, ToolButton, WidgetId};
 use omnis_sim::omnis_data::{Alignment, Skill};
 use omnis_sim::omnis_rules::Draft;
 use omnis_sim::world::layer;
@@ -58,10 +59,7 @@ fn look_and_l_use_the_first_spyglass_carried_or_say_there_is_none() {
         })),
     );
     assert_eq!(play_state(&app), PlayState::Explore);
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Look)).enabled,
-        "no spyglass yet"
-    );
+    assert!(!tool_live(&app, ToolButton::Look), "no spyglass yet");
     let mark = seen(&app).events.len();
     press(&mut app, KeyCode::KeyL);
     assert_eq!(sensed_since(&app, mark), 0);
@@ -78,12 +76,9 @@ fn look_and_l_use_the_first_spyglass_carried_or_say_there_is_none() {
             count: 1,
         }),
     );
-    assert!(
-        widget(&app, WidgetId::Tool(ToolButton::Look)).enabled,
-        "LOOK lights up"
-    );
+    assert!(tool_live(&app, ToolButton::Look), "LOOK lights up");
     let mark = seen(&app).events.len();
-    click(&mut app, WidgetId::Tool(ToolButton::Look), Part::Body);
+    tool(&mut app, ToolButton::Look);
     assert_eq!(
         sensed_since(&app, mark),
         1,

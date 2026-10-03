@@ -31,7 +31,7 @@ Because Second Wind and Cunning Action need bonus actions: the turn budget
 (`bonus_action_available`, `preparation_available`, `preparation_required_for_bonus_action`),
 declared reactions with the closed trigger list and the row/stack proximity mapping (opportunity
 attacks return), `Character.tactics` replacing `auto_cast` (save schema 6), the per-member
-reactions switch, a Tactics page on the sheet (the tool pad and pause overlay are full).
+reactions switch, a Tactics page on the sheet (the tool bar has one free cell after CAMP; the pause overlay one row).
 Later, timing open in PRD §14: criteria-set library and runbooks with encounter criteria, the
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
@@ -98,8 +98,8 @@ wording for the experiment: "Feathers in game. Start experimenting with feathers
 See how the default styles work, and see if modern fonts can replace our pixel art based fonts."
 
 ## App and tooling
-A seventh tool button needs a wider right column or a menu; word labels on the pad; a fourth pad
-row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
+The movement pad (arrows and USE) on Feathers like the tool bar (M7 step 8a moved the tools
+only; the canvas pad is the right column's last canvas widget); a fourth pad row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
 localized event text; the `screen.text` op; CC0 art; `--no-devtools` for a clean save from a dev
 build; `.omnis/mcp.log` rotation; `SetRule`, `TickEco`, `SpawnEncounter` as dev commands; the
 measurement policy as something other than a fixed heuristic; a rules function for age; a longer

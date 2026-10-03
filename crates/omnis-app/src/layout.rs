@@ -183,32 +183,15 @@ pub const PAD: Rect = Rect::new(
     PAD_SIZE.0,
     PAD_SIZE.1,
 );
-/// The tool pad: two rows of three buttons above the movement pad, one gap between them,
-/// in the strip the location lines leave free.
+/// The tool bar's strip above the movement pad, one gap between them, in the strip the
+/// location lines leave free. The canvas paints nothing here: the bar is a `bevy_ui` scene
+/// placed over it (`feathers_tools.rs`, `ui_kit::place`).
 pub const TOOLS: Rect = Rect::new(
     PAD.x,
     PAD.y - PAD_GAP.1 - (2 * PAD_BUTTON.1 + PAD_GAP.1 as u32) as i32,
     PAD_SIZE.0,
     2 * PAD_BUTTON.1 + PAD_GAP.1 as u32,
 );
-/// The tool button at a column and row of the tool pad's grid.
-pub const fn tool_button(column: i32, row: i32) -> Rect {
-    Rect::new(
-        TOOLS.x + column * (PAD_BUTTON.0 as i32 + PAD_GAP.0),
-        TOOLS.y + row * (PAD_BUTTON.1 as i32 + PAD_GAP.1),
-        PAD_BUTTON.0,
-        PAD_BUTTON.1,
-    )
-}
-/// The tool pad's buttons in reading order: items, spells, sheet; look, map, menu.
-pub const TOOL_BUTTONS: [Rect; 6] = [
-    tool_button(0, 0),
-    tool_button(1, 0),
-    tool_button(2, 0),
-    tool_button(0, 1),
-    tool_button(1, 1),
-    tool_button(2, 1),
-];
 /// The pad button at a column and row of the pad's grid.
 pub const fn pad_button(column: i32, row: i32) -> Rect {
     Rect::new(
@@ -683,12 +666,6 @@ mod tests {
             assert!(!line.overlaps(map) && !line.overlaps(PAD), "{line:?}");
             assert!(!line.overlaps(TOOLS), "{line:?}");
         }
-        for (i, a) in TOOL_BUTTONS.iter().enumerate() {
-            assert!(TOOLS.encloses(*a), "{a:?}");
-            for b in &TOOL_BUTTONS[i + 1..] {
-                assert!(!a.overlaps(*b), "{a:?} overlaps {b:?}");
-            }
-        }
         for (i, a) in PAD_BUTTONS.iter().enumerate() {
             assert!(PAD.encloses(*a), "{a:?}");
             for b in &PAD_BUTTONS[i + 1..] {
@@ -718,7 +695,7 @@ mod tests {
         assert!(ROWS * CELL.1 <= h && (ROWS + 1) * CELL.1 > h);
         assert!(
             HUD_LINES[2].1 + CELL.1 + PAD_GAP.1 <= TOOLS.y,
-            "the location lines end a gap above the tool pad"
+            "the location lines end a gap above the tool bar"
         );
     }
 }

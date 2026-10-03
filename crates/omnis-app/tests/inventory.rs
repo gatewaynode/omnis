@@ -6,10 +6,12 @@ mod common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;
+use common::tool;
 use common::{click, key, play_state, seen, ui_app_saving_to, world};
 use omnis_app::menus::Screens;
 use omnis_app::sim::{PlayState, PlayerCommand};
-use omnis_app::widget::{Part, ToolButton, WidgetId};
+use omnis_app::tool_bar::ToolButton;
+use omnis_app::widget::{Part, WidgetId};
 use omnis_sim::omnis_data::{Alignment, EquipSlot, Skill};
 use omnis_sim::omnis_rules::Draft;
 use omnis_sim::{Command, Event, ItemPlace, PartyCommand};
@@ -156,7 +158,7 @@ fn the_items_button_opens_it_a_tab_and_a_row_click_pick_and_an_action_button_act
     app.update();
     app.update();
     send(&mut app, Command::Party(PartyCommand::Create(brenna())));
-    click(&mut app, WidgetId::Tool(ToolButton::Items), Part::Body);
+    tool(&mut app, ToolButton::Items);
     assert_eq!(play_state(&app), PlayState::Inventory, "ITEMS opens it");
     click(&mut app, WidgetId::Row(1), Part::Body);
     assert_eq!(pane_and_cursor(&app), (1, 0), "the stores tab");
