@@ -160,10 +160,61 @@ fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) 
             || ("?".to_owned(), "?".to_owned()),
             |m| (m.name.clone(), member_label(offer, m, data)),
         ),
+        ServiceCommand::Train { member: slot } => member(slot).map_or_else(
+            || ("?".to_owned(), "?".to_owned()),
+            |m| {
+                let label = format!("{}, level {} to {}", m.name, m.level, m.level + 1);
+                (m.name.clone(), label)
+            },
+        ),
+        ServiceCommand::Choose {
+            member: slot,
+            spell,
+        }
+        | ServiceCommand::Learn {
+            member: slot,
+            spell,
+        } => member(slot).map_or_else(
+            || ("?".to_owned(), "?".to_owned()),
+            |m| {
+                let name = spell_name(world, data, offer.command, m, spell);
+                (format!("{}: {name}", m.name), format!("{}: {name}", m.name))
+            },
+        ),
         ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => (String::new(), String::new()),
     }
+}
+
+/// The spell a pick or a purchase names: a row of the member's class list (a pick) or of the
+/// service's spells (a purchase).
+fn spell_name(
+    world: &World,
+    data: &Data,
+    command: ServiceCommand,
+    member: &Character,
+    row: u8,
+) -> String {
+    let row = usize::from(row);
+    let key = match command {
+        ServiceCommand::Choose { .. } => data
+            .classes
+            .get(&member.class)
+            .and_then(|c| c.casting.as_ref())
+            .and_then(|c| c.list.get(row)),
+        _ => match world.mode {
+            omnis_sim::Mode::Town(state) => data
+                .services
+                .get(&state.service)
+                .and_then(|def| def.spells.get(row)),
+            _ => None,
+        },
+    };
+    key.and_then(|k| data.registry.spells.get(k))
+        .and_then(|id| data.spells.get(&id))
+        .map_or("?", |s| data.label("en", &s.name))
+        .to_owned()
 }
 
 /// A temple row names what it treats: hit points, conditions, or death.
@@ -221,6 +272,9 @@ pub const fn caption(command: ServiceCommand) -> &'static str {
         ServiceCommand::Raise { .. } => "Raise",
         ServiceCommand::Deposit { .. } => "Deposit",
         ServiceCommand::Withdraw { .. } => "Withdraw",
+        ServiceCommand::Train { .. } => "Train",
+        ServiceCommand::Choose { .. } => "Choose",
+        ServiceCommand::Learn { .. } => "Learn",
         ServiceCommand::Leave => "Leave",
     }
 }

@@ -12,12 +12,14 @@ use crate::event::Event;
 use crate::items::{add_to, count_of, take_from};
 use crate::party;
 use crate::rest;
+use crate::service_level;
 use crate::world::{Mode, World};
+use alloc::boxed::Box;
 use alloc::vec::Vec;
-use omnis_core::{ItemId, ServiceId};
+use omnis_core::{ItemId, ServiceId, SpellId};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Data, ServiceDef, ServiceKind};
-use omnis_rules::RuleError;
+use omnis_rules::{Character, Gains, RuleError};
 use serde::{Deserialize, Serialize};
 
 /// Party-clock minutes a transaction takes when the rules do not say.
@@ -87,22 +89,53 @@ pub enum ServiceCommand {
         /// Copper.
         amount: u32,
     },
+    /// The member's next level, for a fee; a trainer.
+    Train {
+        /// The member's slot.
+        member: u8,
+    },
+    /// A spell owed by a level onto the member's list, free; a trainer.
+    Choose {
+        /// The member's slot.
+        member: u8,
+        /// The row of the member's class list.
+        spell: u8,
+    },
+    /// A spell bought onto the member's list; a guild or a temple.
+    Learn {
+        /// The member's slot.
+        member: u8,
+        /// The row of the service's spells.
+        spell: u8,
+    },
 }
 
 impl ServiceCommand {
-    /// The kind of service that does this; `None` for leaving, which any does.
+    /// Whether a service of `kind` does this; leaving, any does.
     #[must_use]
-    pub const fn kind(self) -> Option<ServiceKind> {
-        Some(match self {
-            ServiceCommand::Leave => return None,
-            ServiceCommand::Room => ServiceKind::Inn,
-            ServiceCommand::Rumor | ServiceCommand::BuyFood { .. } => ServiceKind::Tavern,
+    pub const fn offered_in(self, kind: ServiceKind) -> bool {
+        match self {
+            ServiceCommand::Leave => true,
+            ServiceCommand::Room => matches!(kind, ServiceKind::Inn),
+            ServiceCommand::Rumor | ServiceCommand::BuyFood { .. } => {
+                matches!(kind, ServiceKind::Tavern)
+            }
             ServiceCommand::Heal { .. }
             | ServiceCommand::Cure { .. }
-            | ServiceCommand::Raise { .. } => ServiceKind::Temple,
-            ServiceCommand::Buy { .. } | ServiceCommand::Sell { .. } => ServiceKind::Smith,
-            ServiceCommand::Deposit { .. } | ServiceCommand::Withdraw { .. } => ServiceKind::Bank,
-        })
+            | ServiceCommand::Raise { .. } => matches!(kind, ServiceKind::Temple),
+            ServiceCommand::Buy { .. } | ServiceCommand::Sell { .. } => {
+                matches!(kind, ServiceKind::Smith)
+            }
+            ServiceCommand::Deposit { .. } | ServiceCommand::Withdraw { .. } => {
+                matches!(kind, ServiceKind::Bank)
+            }
+            ServiceCommand::Train { .. } | ServiceCommand::Choose { .. } => {
+                matches!(kind, ServiceKind::Trainer)
+            }
+            ServiceCommand::Learn { .. } => {
+                matches!(kind, ServiceKind::Guild | ServiceKind::Temple)
+            }
+        }
     }
 }
 
@@ -148,6 +181,20 @@ pub(crate) enum Deal {
     Withdraw {
         amount: u32,
     },
+    Train {
+        index: usize,
+        cost: u32,
+        /// The member as the level leaves them, worked out on a copy.
+        after: Box<Character>,
+        gains: Gains,
+    },
+    Spell {
+        index: usize,
+        spell: SpellId,
+        cost: u32,
+        /// A pick owed by a level (a trainer's, free) rather than a purchase.
+        pick: bool,
+    },
 }
 
 impl Deal {
@@ -159,7 +206,9 @@ impl Deal {
             | Deal::Heal { cost, .. }
             | Deal::Cure { cost, .. }
             | Deal::Raise { cost, .. }
-            | Deal::Buy { cost, .. } => cost,
+            | Deal::Buy { cost, .. }
+            | Deal::Train { cost, .. }
+            | Deal::Spell { cost, .. } => cost,
             Deal::Deposit { amount } => amount,
             Deal::Rumor { .. } | Deal::Sell { .. } | Deal::Withdraw { .. } => 0,
         }
@@ -199,17 +248,17 @@ pub(crate) fn apply(
     command: ServiceCommand,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let Some(kind) = command.kind() else {
+    if command == ServiceCommand::Leave {
         world.mode = Mode::Explore;
         events.push(Event::ServiceLeft {
             service: state.service,
         });
         return Ok(());
-    };
+    }
     let def = data
         .services
         .get(&state.service)
-        .filter(|_| kind == state.kind)
+        .filter(|_| command.offered_in(state.kind))
         .ok_or(Rejection::NotOffered)?;
     let mut roller = Roller::take_stream(world, "town");
     let deal = quote(world, data, def, command, &mut roller)?;
@@ -266,6 +315,18 @@ pub(crate) fn quote(
         ServiceCommand::Sell { item, count } => sell(world, data, item, count, roller)?,
         ServiceCommand::Deposit { amount } | ServiceCommand::Withdraw { amount } => {
             bank(world, command, amount)?
+        }
+        ServiceCommand::Train { member } => {
+            let index = alive(world, data, member)?;
+            service_level::train(world, data, index, roller)?
+        }
+        ServiceCommand::Choose { member, spell } => {
+            let index = alive(world, data, member)?;
+            service_level::choose(world, data, index, spell)?
+        }
+        ServiceCommand::Learn { member, spell } => {
+            let index = alive(world, data, member)?;
+            service_level::learn(world, data, def, index, spell, roller)?
         }
     };
     Ok(deal)
@@ -326,11 +387,8 @@ fn temple(
     member: u8,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let index = living_or_dead(world, member)?;
+    let index = alive(world, data, member)?;
     let who = &world.party.members[index];
-    if is_dead(who, data) {
-        return Err(Rejection::MemberDead { index: member });
-    }
     if let ServiceCommand::Heal { .. } = command {
         let missing = who.hp_max - who.hp;
         if missing <= 0 {
@@ -512,13 +570,49 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
                 deposit: false,
             });
         }
+        Deal::Train {
+            index,
+            cost,
+            after,
+            gains,
+        } => {
+            party.gold -= cost;
+            party.members[index] = *after;
+            let member = &party.members[index];
+            events.push(Event::LevelUp {
+                member: member.id,
+                level: member.level,
+                cost,
+                gains,
+            });
+        }
+        Deal::Spell {
+            index,
+            spell,
+            cost,
+            pick,
+        } => {
+            party.gold -= cost;
+            let member = &mut party.members[index];
+            member.known_spells.push(spell);
+            events.push(Event::SpellLearned {
+                member: member.id,
+                spell,
+                cost,
+            });
+            if pick {
+                // Validated: at least one pick is left. A pick takes no time.
+                member.spell_picks -= 1;
+                return;
+            }
+        }
     }
     let minutes = rest::rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
     advance(world, minutes, events);
 }
 
 /// A price from its rule slot, in copper.
-fn price(
+pub(crate) fn price(
     data: &Data,
     slot: &str,
     inputs: &[(&str, i64)],
@@ -543,6 +637,15 @@ fn price(
 /// An item's list price in copper, as the slot's `cost_cp` input.
 fn list_price(data: &Data, item: ItemId) -> i64 {
     data.items.get(&item).map_or(0, |i| i64::from(i.cost_cp))
+}
+
+/// A member's index by slot, refused when they are dead.
+fn alive(world: &World, data: &Data, member: u8) -> Result<usize, Rejection> {
+    let index = living_or_dead(world, member)?;
+    if is_dead(&world.party.members[index], data) {
+        return Err(Rejection::MemberDead { index: member });
+    }
+    Ok(index)
 }
 
 /// A member's index by slot, alive or dead.

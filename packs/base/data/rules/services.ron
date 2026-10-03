@@ -1,7 +1,7 @@
 // Town services: every price is a slot, in copper pieces (the unit item costs are written in).
 // Buying and selling follow the SRD (list price; half back when selling), as do the inn (a
-// modest stay, 5 sp a night), food (rations, 5 sp a day) and the guild (50 gp per spell level
-// to copy a spell). The SRD prices no temple and no trainer: those figures are placeholders
+// modest stay, 5 sp a night), food (rations, 5 sp a day) and a spell learned at the guild or the
+// temple (50 gp per spell level, the SRD's cost to copy a spell). The SRD prices no temple and no trainer: those figures are placeholders
 // until M7's income table (step 11) sets them.
 (
     schema: 1,
@@ -15,7 +15,7 @@
         "temple.cure_cost": (inputs: [], expr: "1000"),
         "temple.raise_cost": (inputs: ["level"], expr: "level * 2500"),
         "trainer.cost": (inputs: ["level"], expr: "level * 1000"),
-        "guild.spell_cost": (inputs: ["spell_level"], expr: "spell_level * 5000"),
+        "spell.learn_cost": (inputs: ["spell_level"], expr: "spell_level * 5000"),
     },
     // Party-clock minutes one service transaction takes.
     values: {"service_minutes": 10},

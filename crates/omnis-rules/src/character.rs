@@ -87,6 +87,9 @@ pub struct Character {
     /// Hit dice spent on short rests and not yet regained; the member has `level` in all.
     #[serde(default)]
     pub hit_dice_spent: u8,
+    /// Spells owed by levels gained and not yet chosen at a trainer (`crate::level`).
+    #[serde(default)]
+    pub spell_picks: u8,
 }
 
 impl Character {
@@ -205,14 +208,7 @@ pub fn create(
     }
     let skills = chosen_skills(draft, class, background, race)?;
     let scores = with_bonuses(draft.scores, race);
-    let per_level: i64 = race
-        .features
-        .iter()
-        .map(|f| match f.effect {
-            Effect::HitPointsPerLevel(n) => i64::from(n),
-            _ => 0,
-        })
-        .sum();
+    let per_level = hp_bonus_per_level(race);
     let hp = data.rules.eval(
         "hit_points.first_level",
         &[
@@ -258,11 +254,23 @@ pub fn create(
         effects: Vec::new(),
         auto_cast: Vec::new(),
         hit_dice_spent: 0,
+        spell_picks: 0,
     };
     let pool = spell_point_pool(&character, data, rng)?;
     character.spell_points = pool;
     character.spell_points_max = pool;
     Ok(character)
+}
+
+/// Extra hit points a race grants at every level (the dwarf's toughness).
+pub(crate) fn hp_bonus_per_level(race: &Race) -> i64 {
+    race.features
+        .iter()
+        .map(|f| match f.effect {
+            Effect::HitPointsPerLevel(n) => i64::from(n),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// The class's starting equipment and the background's, as interned ids.

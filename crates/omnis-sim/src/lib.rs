@@ -32,6 +32,7 @@ pub mod rest;
 pub mod rest_view;
 mod sense;
 pub mod service;
+mod service_level;
 pub mod service_view;
 mod utility;
 pub mod view;

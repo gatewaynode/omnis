@@ -89,6 +89,9 @@ impl Command {
             Command::Service(ServiceCommand::Sell { .. }) => "sell",
             Command::Service(ServiceCommand::Deposit { .. }) => "deposit",
             Command::Service(ServiceCommand::Withdraw { .. }) => "withdraw",
+            Command::Service(ServiceCommand::Train { .. }) => "train",
+            Command::Service(ServiceCommand::Choose { .. }) => "choose",
+            Command::Service(ServiceCommand::Learn { .. }) => "learn",
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
@@ -169,7 +172,9 @@ fn parse_use(rest: &str) -> Option<CombatCommand> {
 
 /// Town and rest words that carry numbers: `food-N`, `heal-M`, `cure-M`, `raise-M`, `buy-R`
 /// and `buy-R-N` (row `R` of the stock), `sell-R` and `sell-R-N` (row `R` of the stores),
-/// `deposit-N` and `withdraw-N` (copper), `short-rest-A-B-…` (hit dice per member in order).
+/// `deposit-N` and `withdraw-N` (copper), `train-M`, `choose-M-R` (row `R` of the member's
+/// class list), `learn-M-R` (row `R` of the service's spells), `short-rest-A-B-…` (hit dice per
+/// member in order).
 fn parse_town(word: &str) -> Option<Command> {
     if let Some(dice) = word.strip_prefix("short-rest-") {
         let dice = dice
@@ -209,6 +214,18 @@ fn parse_town(word: &str) -> Option<Command> {
         "withdraw" => ServiceCommand::Withdraw {
             amount: args.parse().ok()?,
         },
+        "train" => ServiceCommand::Train {
+            member: args.parse().ok()?,
+        },
+        "choose" | "learn" => {
+            let (member, spell) = args.split_once('-')?;
+            let (member, spell) = (member.parse().ok()?, spell.parse().ok()?);
+            if verb == "choose" {
+                ServiceCommand::Choose { member, spell }
+            } else {
+                ServiceCommand::Learn { member, spell }
+            }
+        }
         _ => return None,
     };
     Some(Command::Service(service))
@@ -431,6 +448,49 @@ pub enum Rejection {
         /// Hit dice the member has left.
         left: u8,
     },
+    /// The member's experience has not reached their next level.
+    NotReady {
+        /// The slot asked for.
+        index: u8,
+        /// Experience held.
+        xp: u32,
+        /// Experience the next level needs.
+        needed: u32,
+    },
+    /// The member is at the highest level.
+    MaxLevel {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// The member has no spell picks left to choose.
+    NoPicks {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// No such row on the list the command names (the class's spells, the service's stock).
+    NoSuchSpell {
+        /// The row asked for.
+        row: u8,
+    },
+    /// The spell is not on the member's class list.
+    NotOnList {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// Cantrips come with the class; none is picked or bought.
+    CantripNotLearned,
+    /// The spell is above the highest level the member may learn.
+    SpellTooHigh {
+        /// The spell's level.
+        level: u8,
+        /// The highest the member may learn.
+        max: u8,
+    },
+    /// The spell is already on the member's list.
+    AlreadyKnown {
+        /// The slot asked for.
+        index: u8,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -520,6 +580,38 @@ impl Rejection {
             }
             Rejection::NoHitDice { index, left } => {
                 write!(f, "the member in slot {index} has {left} hit dice left")
+            }
+            _ => return self.fmt_level(f),
+        })
+    }
+
+    /// The wording of the trainer's and the spell sellers' refusals; `None` for the rest.
+    fn fmt_level(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NotReady { index, xp, needed } => write!(
+                f,
+                "the member in slot {index} has {xp} experience; the next level needs {needed}"
+            ),
+            Rejection::MaxLevel { index } => {
+                write!(f, "the member in slot {index} is at the highest level")
+            }
+            Rejection::NoPicks { index } => {
+                write!(f, "the member in slot {index} has no spell picks left")
+            }
+            Rejection::NoSuchSpell { row } => write!(f, "there is no spell in row {row}"),
+            Rejection::NotOnList { index } => {
+                write!(
+                    f,
+                    "that spell is not on the list of the member in slot {index}"
+                )
+            }
+            Rejection::CantripNotLearned => f.write_str("cantrips come with the class"),
+            Rejection::SpellTooHigh { level, max } => write!(
+                f,
+                "that is a level {level} spell; the member may learn up to level {max}"
+            ),
+            Rejection::AlreadyKnown { index } => {
+                write!(f, "the member in slot {index} already knows that spell")
             }
             _ => return None,
         })

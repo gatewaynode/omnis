@@ -148,8 +148,11 @@ fn item_schema() -> Value {
 
 /// The `Service` command's variants, inside a service only: `member` is a party slot, `Buy`'s
 /// `item` a row of the service's stock, `Sell`'s a row of the stores; amounts are copper.
+/// `Choose`'s `spell` is a row of the member's class list, `Learn`'s a row of the service's
+/// spells.
 fn service_schema() -> Value {
     let member = ("member", index());
+    let spell = ("spell", index());
     let item = ("item", index());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
     let amount = ("amount", json!({"type": "integer", "minimum": 1}));
@@ -158,11 +161,14 @@ fn service_schema() -> Value {
         variant("BuyFood", std::slice::from_ref(&count)),
         variant("Heal", std::slice::from_ref(&member)),
         variant("Cure", std::slice::from_ref(&member)),
-        variant("Raise", &[member]),
+        variant("Raise", std::slice::from_ref(&member)),
         variant("Buy", &[item.clone(), count.clone()]),
         variant("Sell", &[item, count]),
         variant("Deposit", std::slice::from_ref(&amount)),
-        variant("Withdraw", &[amount])
+        variant("Withdraw", &[amount]),
+        variant("Train", std::slice::from_ref(&member)),
+        variant("Choose", &[member.clone(), spell.clone()]),
+        variant("Learn", &[member, spell])
     ]})
 }
 
@@ -179,7 +185,7 @@ fn rest_schema() -> Value {
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, use a kit row on a member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, use a kit row on a member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -282,7 +288,7 @@ mod tests {
         );
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
-        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 9);
+        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][5]["properties"]["Combat"]["oneOf"];

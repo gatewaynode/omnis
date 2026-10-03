@@ -89,7 +89,7 @@ const CLASS: &str = r#"(
     weapon_ids: [],
     skills: (choose: 2, from: [Acrobatics, Athletics, Perception]),
     starting_equipment: [("example:item:longsword", 1)],
-    casting: Some((ability: Intelligence, half: false, cantrips_at_1: 3, spells_at_1: 6, list: ["example:spell:magic_missile"])),
+    casting: Some((ability: Intelligence, half: false, cantrips_at_1: 3, spells_at_1: 6, spells_per_level: 2, list: ["example:spell:magic_missile"])),
     features: [(level: 1, name: "example:text:class.fighter.second_wind")],
 )"#;
 

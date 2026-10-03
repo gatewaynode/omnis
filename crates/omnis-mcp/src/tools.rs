@@ -184,7 +184,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "service_get",
             "service.get",
-            "The service the party is inside (an inn, tavern, temple, smith or bank in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
+            "The service the party is inside (an inn, tavern, temple, smith, bank, trainer or guild in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
             &[],
         ),
         tool(

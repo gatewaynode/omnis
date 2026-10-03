@@ -287,7 +287,7 @@ fn a_schema_3_save_migrates() {
 
 /// A schema-4 save (captured from the M7 step 3b build, `capture_schema_4_fixture`) loads
 /// through the migration: the purse counted whole gold and now counts copper; spent hit dice,
-/// the bank and the last long rest start empty.
+/// the bank, the last long rest and the spell picks start empty.
 #[test]
 fn a_schema_4_save_migrates() {
     let data = data();
@@ -305,6 +305,9 @@ fn a_schema_4_save_migrates() {
         (1500, 0, None)
     );
     assert_eq!(world.party.members[0].hit_dice_spent, 0);
+    // M7b's spell picks default to none, so the schema stayed 5 for them.
+    assert!(!text.contains("spell_picks"));
+    assert!(world.party.members.iter().all(|m| m.spell_picks == 0));
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();

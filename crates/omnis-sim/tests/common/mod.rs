@@ -229,8 +229,13 @@ pub fn site(name: &str) -> (u16, u16) {
 
 /// A new game with two members and 50 gold, inside the named service.
 pub fn inside(data: &Data, name: &str) -> World {
+    inside_with(data, name, 2)
+}
+
+/// A new game with the first `members` of the six and 50 gold, inside the named service.
+pub fn inside_with(data: &Data, name: &str, members: usize) -> World {
     let mut world = World::new(data, 11, Settings::default()).unwrap();
-    party_of(&mut world, data, 2);
+    party_of(&mut world, data, members);
     world.party.gold = 5000;
     let map = data.registry.maps.get("test:map:town").unwrap();
     let (x, y) = site(name);

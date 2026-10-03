@@ -15,7 +15,8 @@ ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name befor
 `consumable`, `description`), `sense.rs` (`SenseSource { geometry: Geometry::Ray, fidelity, check,
 persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `content.rs`
 (cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `registry.rs`,
-`service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kind;
+`service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kinds,
+spells on a guild or a temple;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
 `resolve_sites`; `MapData::site_at`), `map.rs` (`Portal.marker`, required, an `Object` surface
 checked in `loader::check_surfaces`; `MapData::marker_at`).
@@ -28,7 +29,9 @@ road south at (16, 31) leads back).
 `character.rs` (`create`, `starting_kit`), `stats.rs` (checks, saves, pools), `attack.rs`
 (`attack_roll`, `rejudge`), `spell.rs` (casting ability, save DC, monster saves, heal rolls,
 cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `equip.rs`
-(`can_equip`, `equip`, `unequip`, `auto_equip`, `armor_class`, `weapons`), `condition.rs`.
+(`can_equip`, `equip`, `unequip`, `auto_equip`, `armor_class`, `weapons`), `condition.rs`,
+`level.rs` (M7b: `ready`, `next_threshold`, `level_up` → `Gains { hp, spell_points, picks,
+proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `eligible`).
 
 ## omnis-sim
 - Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Dev}`,
@@ -46,9 +49,11 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   fights and `text::coins` ("15 gp 3 sp 7 cp", `Coins`' `Display`) in the inventory's stores, the
   debug menu, every town line and every refusal that names a price.
 - Town (M7 step 4b): `service.rs` (`ServiceState { service, kind }` in `Mode::Town`,
-  `ServiceCommand` with `kind()`, `enter_here`, `apply`: `quote` builds a `Deal` (every check
+  `ServiceCommand` with `offered_in(kind)`, `enter_here`, `apply`: `quote` builds a `Deal` (every check
   but money), `afford` is the last check, `settle` carries it out; prices by `price(slot)`,
-  rumors on the `town` stream). `service_view.rs` (M7 step 6, `service.get`): `ServiceView` and
+  rumors on the `town` stream). `service_level.rs` (M7b step 10): `Train`, `Choose` and `Learn`
+  as deals; a level is worked out on a copy of the member (`Deal::Train { after }`), a pick is
+  free and takes no time (`Deal::Spell { pick }`). `service_view.rs` (M7 step 6, `service.get`): `ServiceView` and
   `OfferView`, each offer quoted on its own unstored copy of the stream; the one model the
   service panel and agents read. `ops.rs`: `PartyView` has `bank`, `last_long_rest`,
   `long_rest_wait`; `MemberView` `hit_dice`, `hit_dice_left`; `Status.service`. Script words

@@ -1,6 +1,7 @@
 // SRD 5.1 Cleric (docs/dnd.srd.5.1/02_Classes). Starting equipment is the first option of
 // each SRD line; packs of gear are not itemised yet. Prepared casters get a fixed number of
-// spells per level (PRD §8.3), so `spells_at_1` stands in for "Wisdom modifier + level".
+// spells per level (PRD §8.3), so `spells_at_1` stands in for "Wisdom modifier + level" and
+// `spells_per_level` is its level term: one more for each level gained.
 (
     schema: 1,
     id: "base:class:cleric",
@@ -12,7 +13,7 @@
     weapon_ids: [],
     skills: (choose: 2, from: [History, Insight, Medicine, Persuasion, Religion]),
     starting_equipment: [("base:item:mace", 1), ("base:item:scale_mail", 1), ("base:item:light_crossbow", 1), ("base:item:crossbow_bolts", 20), ("base:item:shield", 1), ("base:item:holy_symbol", 1)],
-    casting: Some((ability: Wisdom, cantrips_at_1: 3, spells_at_1: 2, list: ["base:spell:guidance", "base:spell:light", "base:spell:sacred_flame", "base:spell:bless", "base:spell:cure_wounds", "base:spell:healing_word"])),
+    casting: Some((ability: Wisdom, cantrips_at_1: 3, spells_at_1: 2, spells_per_level: 1, list: ["base:spell:guidance", "base:spell:light", "base:spell:sacred_flame", "base:spell:bless", "base:spell:cure_wounds", "base:spell:healing_word"])),
     features: [
         (level: 1, name: "base:text:class.cleric.spellcasting"),
         (level: 1, name: "base:text:class.cleric.divine_domain"),

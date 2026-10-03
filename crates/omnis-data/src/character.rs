@@ -103,6 +103,10 @@ pub struct Casting {
     pub cantrips_at_1: u8,
     /// Levelled spells known at level 1.
     pub spells_at_1: u8,
+    /// Levelled spells a member may choose at the trainer for each level gained (PRD §8.3:
+    /// prepared-list classes gain a fixed number per level and buy or find the rest).
+    #[serde(default)]
+    pub spells_per_level: u8,
     /// Spell ids on the class list.
     #[serde(default)]
     pub list: Vec<String>,

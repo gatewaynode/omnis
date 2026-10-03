@@ -343,12 +343,18 @@ fn each_service_does_only_its_own_work() {
         ServiceCommand::Heal { member: 0 },
         ServiceCommand::Buy { item: 0, count: 1 },
         ServiceCommand::Deposit { amount: 1 },
+        ServiceCommand::Train { member: 0 },
+        ServiceCommand::Learn {
+            member: 1,
+            spell: 2,
+        },
     ];
     for name in [
         "inn", "temple", "trainer", "guild", "smith", "tavern", "bank",
     ] {
         let mut world = inside(&data, name);
         world.party.members[0].hp -= 1;
+        world.party.members[0].xp = 300;
         for command in asks {
             let before = world.clone();
             let result = apply(&mut world, &data, Command::Service(command));
@@ -356,11 +362,20 @@ fn each_service_does_only_its_own_work() {
                 (name, command),
                 ("inn", ServiceCommand::Room)
                     | ("tavern", ServiceCommand::Rumor)
-                    | ("temple", ServiceCommand::Heal { .. })
+                    | (
+                        "temple",
+                        ServiceCommand::Heal { .. } | ServiceCommand::Learn { .. }
+                    )
                     | ("smith", ServiceCommand::Buy { .. })
                     | ("bank", ServiceCommand::Deposit { .. })
+                    | ("trainer", ServiceCommand::Train { .. })
+                    | ("guild", ServiceCommand::Learn { .. })
             );
-            if offered {
+            if matches!((name, command), ("guild", ServiceCommand::Learn { .. })) {
+                // The guild's shield is off the cleric's list: offered, and refused for that.
+                assert_eq!(result, Err(Rejection::NotOnList { index: 1 }));
+                world = before;
+            } else if offered {
                 assert!(result.is_ok(), "{name} {command:?}: {result:?}");
                 world = before;
             } else {

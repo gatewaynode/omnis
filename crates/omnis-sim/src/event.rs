@@ -9,7 +9,7 @@ use omnis_core::{
     ServiceId, SpellId,
 };
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
-use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
+use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
 use serde::{Deserialize, Serialize};
 
 /// Why a step did not happen. Not an error and not a rejection: the turn was taken.
@@ -558,6 +558,27 @@ pub enum Event {
         amount: u32,
         /// Into the bank, or out of it.
         deposit: bool,
+    },
+    /// A trainer granted a member their next level.
+    LevelUp {
+        /// Who.
+        member: CharacterId,
+        /// The new level.
+        level: u8,
+        /// Copper paid.
+        cost: u32,
+        /// What the level brought.
+        gains: Gains,
+    },
+    /// A spell went onto a member's list: a pick at a trainer (`cost` 0) or bought at a guild
+    /// or temple.
+    SpellLearned {
+        /// Who.
+        member: CharacterId,
+        /// The spell.
+        spell: SpellId,
+        /// Copper paid.
+        cost: u32,
     },
     /// A rest ran its course; the restoration follows (`Healed`, `Condition`).
     Rested {

@@ -390,7 +390,16 @@ fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
         ServiceCommand::Buy { .. } => ServiceCommand::Sell { item, count },
         ServiceCommand::Sell { .. } => ServiceCommand::Deposit { amount },
         ServiceCommand::Deposit { .. } => ServiceCommand::Withdraw { amount },
-        ServiceCommand::Withdraw { .. } => return None,
+        ServiceCommand::Withdraw { .. } => ServiceCommand::Train { member },
+        ServiceCommand::Train { .. } => ServiceCommand::Choose {
+            member,
+            spell: item,
+        },
+        ServiceCommand::Choose { .. } => ServiceCommand::Learn {
+            member,
+            spell: item,
+        },
+        ServiceCommand::Learn { .. } => return None,
     })
 }
 
@@ -446,9 +455,9 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        77,
+        80,
         "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, \
-         11 service, 2 rest, 21 dev"
+         14 service, 2 rest, 21 dev"
     );
     let mut used = Used::new();
     for command in &all {
@@ -463,7 +472,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 111, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 114, "oneOf branches and enum values offered");
 }
 
 #[test]

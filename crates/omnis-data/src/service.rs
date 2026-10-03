@@ -44,7 +44,7 @@ pub struct ServiceDef {
     /// Item ids for sale; a smith's only.
     #[serde(default)]
     pub items: Vec<String>,
-    /// Spell ids for sale; a guild's only.
+    /// Spell ids for sale; a guild's or a temple's only (PRD §8.2).
     #[serde(default)]
     pub spells: Vec<String>,
     /// Text keys of the rumors told; a tavern's only.
@@ -55,17 +55,23 @@ pub struct ServiceDef {
 impl ServiceDef {
     /// Self-contained checks; every problem is pushed. References are checked at resolution.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
-        let lists = [
-            (&self.items, "item", "items", ServiceKind::Smith),
-            (&self.spells, "spell", "spells", ServiceKind::Guild),
-            (&self.rumors, "rumor", "rumors", ServiceKind::Tavern),
+        let lists: [(&Vec<String>, &str, &str, &[ServiceKind]); 3] = [
+            (&self.items, "item", "items", &[ServiceKind::Smith]),
+            (
+                &self.spells,
+                "spell",
+                "spells",
+                &[ServiceKind::Guild, ServiceKind::Temple],
+            ),
+            (&self.rumors, "rumor", "rumors", &[ServiceKind::Tavern]),
         ];
-        for (list, one, many, owner) in lists {
-            if !list.is_empty() && self.kind != owner {
+        for (list, one, many, owners) in lists {
+            if !list.is_empty() && !owners.contains(&self.kind) {
                 errors.push(DataError::new(
                     file,
                     format!(
-                        "{many} are stocked only by kind {owner:?}; this service is kind {:?}",
+                        "{many} are stocked only by kind {}; this service is kind {:?}",
+                        kinds(owners),
                         self.kind
                     ),
                 ));
@@ -90,6 +96,15 @@ impl ServiceDef {
             }
         }
     }
+}
+
+/// The kinds that may stock a list, as an error names them: `Guild or Temple`.
+fn kinds(owners: &[ServiceKind]) -> String {
+    owners
+        .iter()
+        .map(|k| format!("{k:?}"))
+        .collect::<Vec<_>>()
+        .join(" or ")
 }
 
 /// A service placed on a map tile: stepping onto the tile enters it.

@@ -187,7 +187,7 @@ fn every_error_in_bad_content_is_reported() {
         "slot 'c': 1:1: strings are not allowed in formulas",
         // data/services/shop.ron: stock the kind does not keep, a repeat, three unknown names
         "items are stocked only by kind Smith; this service is kind Inn",
-        "spells are stocked only by kind Guild; this service is kind Inn",
+        "spells are stocked only by kind Guild or Temple; this service is kind Inn",
         "rumors are stocked only by kind Tavern; this service is kind Inn",
         "item 'badc:item:blade' is listed twice",
         "item 'badc:item:gone' is not defined by any loaded pack",
