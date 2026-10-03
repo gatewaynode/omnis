@@ -1,6 +1,6 @@
 # Alt continuity notes (the 3D experiment)
 
-Written 2026-10-03, before a compact in the middle of Phase B (B3 done, B4 next). Rewrite this
+Written 2026-10-03, before a compact in the middle of Phase B (B4 done and played by the owner, B5 next). Rewrite this
 file every time it is used; keep it to state, next step, pointers and gotchas. It is kept apart
 from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 `m6-closeout-tasks`).
@@ -8,12 +8,12 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## State
 - **Branch:** `gui-3d-experiment`, cut from `main` at `8e111d5`.
   - **The owner pushes:** the agent's sandbox has no GitHub access (memory `owner-pushes`).
-  - The owner pushed through `088b5ad` (B3). Only this file's commit is local. Check with `git status -sb`.
+  - The owner pushed through `a171185` (B4). Only this file's commit is local. Check with `git status -sb`.
 - **Clone:** `/Users/john/code/omnis-alt/omnis`. The main checkout is `/Users/john/code/omnis`.
-- **Gate:** green at 435 passed, 6 ignored. Sentrux rules pass at signal 8911.
+- **Gate:** green at 436 passed, 6 ignored. Sentrux rules pass at signal 8902.
 - **Phase A is complete** (A0–A8; the report is in `tasks/alt-TODO.md`).
 - **Phase B, the 2D combat screen.** The plan, `~/.claude/plans/snug-munching-gray.md`, was approved 2026-10-03. **Read it first.**
-  - **B0, B1, B1a, B2, B3 done** (details in `tasks/alt-TODO.md`).
+  - **B0, B1, B1a, B2, B3, B4 done** (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
   - **B1, the roll log:** `src/rolllog.rs`.
     - `describe(&Event, &Names, &Data)`.
     - `Names` numbers each monster as it was met (`follow` on `EncounterStarted` and `Death`), and keeps members a fight buries (`observe`).
@@ -41,6 +41,20 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
     - `pick(&Arena, point)` hits a figure's rect or bar.
     - The rat is ~2.5:1, so crowded stacks draw small (a 12-stack sharing the front band ≈ 35×14 px at 1600×900). Judge it in the B4 captures.
     - Test helpers `met`, `fighting`, `acting`, `turn_of` moved to `tests/common/fight.rs`.
+    - B4 added `Layout.status` (48 px under the action column, for the HUD status) and `Layout.buttons` (34 px under the log, for Save log and Quit).
+  - **B4, the screen:**
+    - `shell/mod.rs::ViewState{Explore, Fight}`, set by `combat::track` from `combat_view(..).is_some()`; the switch lands one frame later.
+    - `shell/combat.rs`, `CombatPlugin` (headless-safe):
+      - `FightScreen{menu, hover, targets, arena, shown}`; `refresh` redoes the layout and rebuilds the `FightRoot` children (`DespawnOnExit(Fight)`) when the accepted-command count, `menu.step` or the size changes. `hover` only sets `arena.marks.hover`.
+      - Buttons carry `Choose(Act)`; digits index `menu.entries`; Esc = `back`; a left click → `arena::pick` → `menu.pick`.
+      - `give_way::<FIGHT>` hides `Corner::Left`, `Action::Actions` and `Minimap` (now pub).
+      - The size comes from the primary window, else `CaptureSize`, else 1600×900.
+    - `CombatViewPlugin` (window or capture): an inactive `Camera2d` + `FightCamera` at Startup; `cameras::<FIGHT>` swaps `is_active` and `IsDefaultUiCamera`; `CombatGizmos` on layer 1; `colour(Tone)`.
+    - Elsewhere:
+      - `hud::status` in a fight: 2 lines at 14 px, bottom left.
+      - `render::grab_cursor`: mouse look is off in a fight.
+      - `panel::current` returns `None` in a fight.
+    - Tests: `tests/combat.rs` (5). `tests/fight.rs` keeps only the fallen party. `tests/common/app.rs` adds `StatesPlugin`, `CombatPlugin` and `click(app, point)`, which spawns a 1600×900 `PrimaryWindow` and sets its cursor.
 - **Owner decisions:**
   - Phase B (alt-PRD §10.3): **write fresh**. Glowing vector-line figures. Every fight action, with targets picked by clicking. A short roll log.
   - **2026-10-03:** they like the modal, but **the full 2D screen stays the plan** (B3/B4 as written). The picture window carries into B4, **above the action column**.
@@ -55,32 +69,31 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - macOS's main display is an LS27A800U, 60 Hz, 4K scaled to 1920×1080.
 - **Don't repeat it:** a message in the first session looked like a password. It was not used or stored.
 
-## Next: B4, the screen (`src/shell/combat.rs`, `CombatPlugin`), then B5–B7
-- Read `arena.rs` and `combat_menu.rs` first; the shell only wires them.
-- Convert arena coordinates (top-left, y down) to `Camera2d` world space (centre origin, y up): `(x - w/2, h/2 - y)`.
-- Draw `segments` with gizmos in a `CombatGizmos` config group; map each `Tone` to a colour (bright green figures, dim for down, red for dead, amber acting, cyan target, white hover).
-- UI nodes at the layout's rects: the picture `Screen` node at `layout.picture`, the `CombatMenu` buttons in `layout.actions` (prompt on top, blocked entries dim with their reason), the roll log (`Session.fight_log`) in `layout.log`, the title, and `Text` labels at each `Group.label.rect`. Opaque backgrounds (LESSONS 2026-10-02).
-- Hover: `arena::pick` at the cursor, kept only if it is in `CombatMenu::clickable`.
-- **B4, the rest (from the plan):**
-  - `ViewState` (needs `StatesPlugin` in headless tests).
-  - The `Camera3d` is deactivated; a `Camera2d` gets `Hdr`, `Bloom`, `Tonemapping::None`, `RenderLayers::layer(1)` and `IsDefaultUiCamera` (moved from the 3D camera).
-  - Copy the offscreen `RenderTarget` for captures.
-  - `CombatGizmos` on layer 1.
-  - Hide the movement pad and minimap in Fight.
-  - `follow()` and `reshape` on exit.
-  - Wire `CombatMenu` buttons, digits, Esc = back, and clicks via `arena::pick`.
-- **B5:** retire the A7b notice's fight content (`shell/fight.rs`, `panel::current`), adapt `tests/fight.rs`, docs as built.
-- **B6:** the owner plays. **B7:** rebase before merging.
+## Next: B5, then B6 and B7
+- **B5, retire the A7b notice and write the docs:**
+  - Dead code now: in `shell/fight.rs`, `notice`'s encounter and combat parts (`encounter_choices`, `combat_choices`). Keep `fallen` and the fallen-party notice ("Start again").
+  - In `shell/panel.rs`: the `Screen` child and `Notice.scene`, if nothing else uses them. `shell/cinema.rs` reads `panel::Screen`; consider moving `Screen` to `shell/combat.rs` or `shell/cinema.rs`.
+  - Check `tests/rolllog.rs` and `tests/actions.rs` still pass. The gate catches unused code (clippy `-D warnings`).
+  - Docs as built:
+    - `alt-ARCHITECTURE.md` §6 (the plugin table: `CombatPlugin`, `CombatViewPlugin`) and §9 (the fight screen);
+    - `alt-PRD.md` §10.3 marked decided (write fresh);
+    - the B items in `tasks/alt-TODO.md`.
+- **B6:** the owner plays on the ultrawide. Open items to watch:
+  - whether the stick figures look small next to the rats at 5120×1440, and whether 15 px text is too small;
+  - the roll log on a long fight: the oldest lines should clip off the top (`JustifyContent::FlexEnd`; never seen in a capture);
+  - crowded stacks drawing small.
+- **B7:** rebase onto the mechanics work before merging.
 
 ## Gotchas
 - **Builds need `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.** The Xcode licence is unaccepted.
 - **The gate:** run `scripts/verify.sh > <scratchpad>/verify.log 2>&1` unpiped, then grep `tests passed` and `VERIFY-GREEN`. Clippy is `-D warnings`: no `#[must_use]` on a fn returning `impl Fn` (already must-use); run `cargo fmt -p omnis-vector` before the gate; use `as_chunks::<4>()` rather than `chunks_exact(4)`, and `next_back()` rather than `last()` on double-ended iterators.
 - **Sentrux: scan `/Users/john/code/omnis-alt/omnis/crates`, not the repo root.** The rules file is `crates/.sentrux/rules.toml` (ignored by git). From the root, `check_rules` finds no rules. `import_edges` is 0, so check `use super` cycles in `src/shell` by hand.
 - **Windows get no frames from the agent's shell.** Use the offscreen capture: `./target/debug/omnis-vector --screenshot .omnis/shot.png --walk N [--size WxH]`, then Read the PNG.
-- **To capture an encounter:**
+- **To capture an encounter or a fight:**
   - Back up `src/shell/session.rs` to the scratchpad.
   - In `Session::start`, before `let pose = Pose::at(world.position);`, set `world.position` to the dungeon's (3, 6) facing South.
-  - Run with `--walk 90`, then restore the backup and check that `git diff` is empty. Never commit the placement.
+  - For the fight (not just the encounter), also back up `src/shell/capture.rs` and in `drive`, at `frame == capture.walk + 2`, `session.order(Command::Encounter(EncounterChoice::Attack))` (add `mut session: ResMut<Session>`).
+  - Run with `--walk 90`, then restore the backups and check that `git diff` is empty and `grep -rn TEMPORARY src` is empty. Never commit the placement.
 - **`~/Desktop` is blocked for the agent.** The owner copies files into `.omnis/`.
 - **Headless input:**
   - Keys and mouse buttons go in as `KeyboardInput` and `MouseButtonInput` messages.
@@ -90,6 +103,8 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 - **The seed-1 fight:** two giant rats, one stack (`Pick::Stack(0)`); the stack's name key is `test:text:monster.giant_rat.name` ("Giant Rat" through `data.label`). Initiative: Pip 19, rats 18, Durin 9, Brenna 8, Ilvara 4.
   - The party: Brenna (fighter, slot 0), Durin (cleric, slot 1), Ilvara (wizard, slot 2), Pip (rogue, slot 3).
   - Everyone carries a "Potion of healing" (lower-case h; labels are as the pack writes them).
+- **Bevy clippy:** `type_complexity` fires on query filters with three or more parts. Use a type alias (`GivesWay`, `ViewOnly`) or a single `Or<..>` query with `Option<&C>`.
+- **Headless state:** `track` sets `NextState` in Update; the state changes in the next frame's `StateTransition`, so a test needs one extra `app.update()` after an order that ends a fight.
 - **The binder logs only `Ok` commands.** Choices are tried on a clone first.
 - **`Interact` with nothing there returns `Ok`** with `NothingHere`.
 - **A test that places the party directly cannot replay its log.**
@@ -102,10 +117,9 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 - **Plan and reviews:** `tasks/alt-TODO.md` (B items). The Phase B plan file is listed above.
 - **Core:** `crates/omnis-vector/src/{geom,grid,pose,collide,bind,geometry,minimap,party,raster,rolllog,cinema,trial,combat_menu,arena}.rs`.
 - **Shell:**
-  - `src/shell/{mod,session,movement,controls,actions,notice,fight,panel,render,hud,minimap,cinema,text,capture}.rs`
-  - `fight.rs` holds the A7b notice that Phase B replaces.
-  - `panel.rs::current` shows it.
-- **Tests:** `tests/{agreement,binding,shell,fight,actions,minimap,rolllog,combat_menu,arena}.rs` and `tests/common/{mod,app,fight}.rs`.
+  - `src/shell/{mod,session,movement,controls,actions,notice,fight,panel,render,hud,minimap,cinema,combat,text,capture}.rs`
+  - `combat.rs` is the fight screen. `fight.rs` still holds the A7b notice, now shown only for a fallen party (B5 trims it).
+- **Tests:** `tests/{agreement,binding,shell,fight,actions,minimap,rolllog,combat_menu,arena,combat}.rs` and `tests/common/{mod,app,fight}.rs`.
 - **Simulation reads:**
   - `omnis_sim::{combat_view, CombatView, StackView, SpellView, bribe_cost, CombatCommand, Target, EncounterChoice, apply}`
   - `omnis_sim::ops::party_view`
