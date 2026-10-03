@@ -23,8 +23,8 @@ pub struct SpellRow {
     pub cost: u32,
     /// Aimed at a member rather than a stack.
     pub targets_members: bool,
-    /// For a reaction spell, whether the caster casts it on their own.
-    pub auto: Option<bool>,
+    /// A reaction spell: cast only by a declared reaction (the tactics panel), never picked.
+    pub reaction: bool,
     /// Whether an effect of this spell by this caster is in force.
     pub active: bool,
     /// Why it cannot be cast now, in a few words.
@@ -32,15 +32,15 @@ pub struct SpellRow {
 }
 
 impl SpellRow {
-    /// The note after the cost: the reason it is grey, the auto-cast switch, or that it is
+    /// The note after the cost: that it is a reaction, the reason it is grey, or that it is
     /// in force.
     #[must_use]
     pub fn note(&self) -> String {
-        match (&self.blocked, self.auto, self.active) {
-            (_, Some(on), _) => format!("auto: {}", if on { "on" } else { "off" }),
-            (Some(why), _, _) => why.clone(),
-            (None, None, true) => "in force".to_owned(),
-            (None, None, false) => String::new(),
+        match (&self.blocked, self.reaction, self.active) {
+            (_, true, _) => "reaction".to_owned(),
+            (Some(why), false, _) => why.clone(),
+            (None, false, true) => "in force".to_owned(),
+            (None, false, false) => String::new(),
         }
     }
 }
@@ -88,11 +88,9 @@ impl CombatMenu {
             self.picker = None;
             return None;
         };
-        if let Some(on) = row.auto {
-            return Some(CombatIntent::AutoCast {
-                spell: row.index,
-                on: !on,
-            });
+        if row.reaction {
+            self.message = format!("{} is a reaction: declare it in tactics", row.name);
+            return None;
         }
         if let Some(why) = &row.blocked {
             self.message = format!("{}: {why}", row.name);
@@ -323,7 +321,7 @@ mod tests {
             ]
         );
         assert_eq!(view.spells[2].note(), "not here", "mage hand is for doors");
-        assert_eq!(view.spells[4].note(), "auto: off");
+        assert_eq!(view.spells[4].note(), "reaction");
         let mut menu = CombatMenu::default();
         menu.sync(&view);
         assert_eq!(menu.key(MenuKey::Char('c'), &view, None), None);
@@ -346,9 +344,11 @@ mod tests {
         }
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
-            Some(CombatIntent::AutoCast { spell: 4, on: true }),
-            "a reaction row is a switch"
+            None,
+            "a reaction is declared in tactics, never picked"
         );
+        assert_eq!(menu.message, "Shield is a reaction: declare it in tactics");
+        assert_eq!(view.spells[4].note(), "reaction");
         menu.key(MenuKey::Escape, &view, None);
         assert_eq!(menu.picker, None, "escape closes the picker, not the fight");
         world.party.members[0].spell_points = 0;

@@ -34,6 +34,7 @@ mod sense;
 pub mod service;
 mod service_level;
 pub mod service_view;
+pub mod tactics;
 mod utility;
 pub mod view;
 pub mod visibility;

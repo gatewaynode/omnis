@@ -18,6 +18,7 @@ use crate::ui::{EventNames, RollLog, Selected, UiClick, message_line};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{CombatOutcome, Command, Event, PartyCommand};
 
 /// The combat plugin.
@@ -163,13 +164,13 @@ fn combat_keys(
                     Some(CombatIntent::Command(command)) => {
                         player.write(PlayerCommand(Command::Combat(command)));
                     }
-                    Some(CombatIntent::AutoCast { spell, on }) => {
+                    Some(CombatIntent::Reactions { on }) => {
                         if let Some(own) = view.own {
-                            player.write(PlayerCommand(Command::Party(PartyCommand::AutoCast {
-                                member: u8::try_from(own).unwrap_or(u8::MAX),
-                                spell,
-                                on,
-                            })));
+                            let member = u8::try_from(own).unwrap_or(u8::MAX);
+                            let switch = TacticsCommand::SetReactions { member, on };
+                            player.write(PlayerCommand(Command::Party(PartyCommand::Tactics(
+                                switch,
+                            ))));
                         }
                     }
                     Some(CombatIntent::Pause) => {

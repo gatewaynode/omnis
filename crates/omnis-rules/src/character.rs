@@ -4,6 +4,7 @@
 use crate::effect::ActiveEffect;
 use crate::equip::{Equipped, auto_equip};
 use crate::stats::{int_result, modifier, point_cost, spell_point_pool};
+use crate::tactics::Tactics;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use alloc::{format, vec};
@@ -81,9 +82,13 @@ pub struct Character {
     /// Spell effects in force on this member; only live ones are kept.
     #[serde(default)]
     pub effects: Vec<ActiveEffect>,
-    /// Reaction spells the member casts on their own when the moment comes, sorted.
+    /// How the member fights when the player is not choosing: declared reactions (M7c).
     #[serde(default)]
-    pub auto_cast: Vec<SpellId>,
+    pub tactics: Tactics,
+    /// Schema 5's auto-cast reaction spells, read from an old save and turned into declared
+    /// reactions by its migration; never written.
+    #[serde(default, rename = "auto_cast", skip_serializing)]
+    pub legacy_auto_cast: Vec<SpellId>,
     /// Hit dice spent on short rests and not yet regained; the member has `level` in all.
     #[serde(default)]
     pub hit_dice_spent: u8,
@@ -256,7 +261,8 @@ pub fn create(
         death_saves: DeathSaves::default(),
         equipped,
         effects: Vec::new(),
-        auto_cast: Vec::new(),
+        tactics: Tactics::default(),
+        legacy_auto_cast: Vec::new(),
         hit_dice_spent: 0,
         spell_picks: 0,
         feature_spent: Vec::new(),

@@ -227,6 +227,31 @@ pub(crate) fn resume(
     Ok(())
 }
 
+/// A fight loaded from a save written before the turn budget (schema 5): every combatant gets
+/// its reactions and the member the fight waits on a fresh budget, as if the turn had just
+/// begun. The streams are read from copies and not moved; a rule that fails leaves the SRD's
+/// one of each.
+pub(crate) fn begin_after_load(world: &mut World, data: &Data) {
+    let Mode::Combat(mut state) = core::mem::replace(&mut world.mode, Mode::Explore) else {
+        return;
+    };
+    let mut roller = Roller::take(world);
+    for entry in state.order.clone() {
+        if budget::refresh_reactions(world, data, &mut state, entry.actor, &mut roller).is_err() {
+            state.set_reactions(entry.actor, 1);
+        }
+    }
+    if let Some(ActorRef::Member(id)) = state.current_actor()
+        && budget::begin_member_turn(world, data, &mut state, id, &mut roller).is_err()
+    {
+        state.budget = Budget {
+            actions: 1,
+            bonus_actions: 1,
+        };
+    }
+    world.mode = Mode::Combat(state);
+}
+
 /// The member whose turn it is: the fight parks only on a member who can act.
 fn acting_member(state: &CombatState, world: &World) -> Result<(CharacterId, usize), Rejection> {
     let id = match state.order.get(usize::from(state.current)).map(|e| e.actor) {

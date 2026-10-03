@@ -10,6 +10,7 @@ use omnis_core::{
     ServiceId, SpellId,
 };
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
+use omnis_rules::{ActionRef, Trigger};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
 use serde::{Deserialize, Serialize};
 
@@ -383,14 +384,26 @@ pub enum Event {
         /// Always true; the field is for readers.
         ended: bool,
     },
-    /// A member's reaction preference changed.
-    AutoCast {
+    /// A member's reactions were switched on or off.
+    ReactionsSwitched {
         /// Who.
         member: CharacterId,
-        /// Which reaction spell.
-        spell: SpellId,
         /// On or off.
         on: bool,
+    },
+    /// A member's declared reactions changed.
+    TacticsChanged {
+        /// Who.
+        member: CharacterId,
+    },
+    /// A declared reaction fired; its own events follow.
+    Reaction {
+        /// Who reacted.
+        actor: CharacterId,
+        /// The moment.
+        trigger: Trigger,
+        /// What they did.
+        action: ActionRef,
     },
     /// A member wore or wielded an item.
     Equipped {

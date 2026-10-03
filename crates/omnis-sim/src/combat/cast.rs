@@ -88,6 +88,24 @@ pub fn check<'a>(
     Ok((id, spell, cost))
 }
 
+/// What a declared reaction's spell costs the member in slot `own`, when the points and the
+/// components are there; the cast-time checks a reaction skips are the turn's.
+pub(crate) fn reaction_cost(
+    world: &World,
+    data: &Data,
+    own: usize,
+    spell: SpellId,
+    rng: &mut Pcg32,
+) -> Result<Option<u32>, RuleError> {
+    let (Some(member), Some(def)) = (world.party.members.get(own), data.spells.get(&spell)) else {
+        return Ok(None);
+    };
+    let cost = spell_cost(def, data, rng)?;
+    let components = (!needs_components(def, data) || !def.components.is_empty())
+        && has_all(&world.party, &component_ids(data, def));
+    Ok((member.spell_points >= cost && components).then_some(cost))
+}
+
 /// The spell's component list as interned ids; an id no pack defines never matches the stores.
 fn component_ids(data: &Data, spell: &Spell) -> Vec<(ItemId, u16)> {
     spell

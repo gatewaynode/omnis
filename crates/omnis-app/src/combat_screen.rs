@@ -168,7 +168,7 @@ fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
             spell.cost.min(99),
             fit(&spell.note(), 16)
         );
-        let state = if spell.blocked.is_some() && spell.auto.is_none() {
+        let state = if spell.blocked.is_some() || spell.reaction {
             ItemState::Disabled
         } else {
             ItemState::from_selected(cursor == i)
@@ -369,7 +369,7 @@ mod tests {
                     name: format!("Spell With A Long Name {i}"),
                     cost: 9,
                     targets_members: i == 5,
-                    auto: (i == 4).then_some(false),
+                    reaction: i == 4,
                     active: i == 1,
                     blocked: (i == 2).then(|| "need 9 pt".to_owned()),
                 })
@@ -429,7 +429,11 @@ mod tests {
         for i in 0..6 {
             let w = frame.widget(WidgetId::Spell(i)).unwrap();
             assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
-            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+            assert_eq!(
+                w.enabled,
+                i != 2 && i != 4,
+                "the blocked row and the reaction are inert"
+            );
         }
         let chosen = frame.widget(WidgetId::Spell(1)).unwrap();
         assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));

@@ -3,7 +3,7 @@
 
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
-use super::{budget, cast, feature, opportunity, resolve};
+use super::{budget, cast, feature, opportunity, reaction, resolve};
 use crate::apply::{advance, retreat};
 use crate::checks::{self, CheckSpec};
 use crate::effects;
@@ -149,6 +149,7 @@ fn act_inner(
         Plan::Cast(plan) => {
             cast::pay(world, data, &plan, events)?;
             cast::resolve(world, data, state, &plan, roller, events)?;
+            reaction::on_cast(world, data, state, plan.own, roller, events)?;
         }
         Plan::Use(plan) => items::use_item(world, data, &plan, roller, events)?,
         Plan::Dodge => {

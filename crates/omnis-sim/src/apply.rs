@@ -27,7 +27,10 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
         (Mode::Explore | Mode::Town(_), Command::Party(command))
-        | (Mode::Combat(_), Command::Party(command @ PartyCommand::AutoCast { .. })) => {
+        | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))
+            if !matches!(world.mode, Mode::Combat(_))
+                || matches!(command, PartyCommand::Tactics(c) if c.in_fight()) =>
+        {
             party::apply(world, data, command, &mut events)?;
         }
         (

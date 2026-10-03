@@ -8,7 +8,11 @@ mod common;
 use common::{act, data, encounter, party_of, six, world};
 use omnis_core::{Direction, Facing, StreamName};
 use omnis_data::{Ability, BuffOn, Data, Disposition};
-use omnis_sim::omnis_rules::{ActiveEffect, EffectKind, Expiry, armor_class};
+use omnis_sim::omnis_rules::{
+    ActionRef, ActiveEffect, Criteria, CriteriaSet, EffectKind, Expiry, Predicate, Trigger,
+    armor_class,
+};
+use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, Command, DevCommand, EffectEnd, EffectTarget,
     EncounterChoice, Event, Mode, PartyCommand, Pay, Rejection, Settings, Surprise, Target, World,
@@ -377,28 +381,29 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
         world.party.members[0].hp_max = 100;
         world.party.members[0].hp = 100;
         let shield = spell_index(&world, &data, 0, "shield");
-        let bolt = spell_index(&world, &data, 0, "fire_bolt");
-        let toggle = |spell, on| {
-            Command::Party(PartyCommand::AutoCast {
+        let declare = |name: &str| {
+            Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
                 member: 0,
-                spell,
-                on,
-            })
+                at: None,
+                set: CriteriaSet {
+                    name: "Ward off".to_owned(),
+                    action: ActionRef::Spell(spell_id(&data, name)),
+                    trigger: Trigger::Attacked,
+                    when: Criteria::Is(Predicate::WouldChangeOutcome),
+                },
+            }))
         };
         assert_eq!(
-            apply(&mut world, &data, toggle(bolt, true)),
-            Err(Rejection::NotCastable { spell: bolt })
+            apply(&mut world, &data, declare("fire_bolt")),
+            Err(Rejection::CannotReact)
         );
-        let events = apply(&mut world, &data, toggle(shield, true)).unwrap();
+        let events = apply(&mut world, &data, declare("shield")).unwrap();
         assert!(
             events
                 .iter()
-                .any(|e| matches!(e, Event::AutoCast { on: true, .. }))
+                .any(|e| matches!(e, Event::TacticsChanged { .. }))
         );
-        assert_eq!(
-            world.party.members[0].auto_cast,
-            [spell_id(&data, "shield")]
-        );
+        assert_eq!(world.party.members[0].tactics.reactions().len(), 1);
         start_fight(&mut world, &data, &[("goblin", 3)]);
         if !until_turn_of(&mut world, &data, 0) {
             continue;

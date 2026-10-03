@@ -2,7 +2,7 @@
 //! fall to zero, death saves, instant death, and the burial at the end.
 
 use super::Roller;
-use super::reaction::try_shield;
+use super::reaction;
 use super::state::{CombatState, is_dead};
 use crate::effects;
 use crate::encounter::Stack;
@@ -237,7 +237,7 @@ pub(crate) fn monster_attacks_member(
         &mut roller.rng,
         &roller.stream,
     )?;
-    try_shield(world, data, state, member_index, &mut roll, roller, events)?;
+    reaction::on_attack(world, data, state, member_index, &mut roll, roller, events)?;
     let crit = roll.crit || (roll.hit && condition_flags.melee_hits_crit && !attack.ranged);
     events.push(Event::AttackResolved {
         attacker,
@@ -267,7 +267,12 @@ pub(crate) fn monster_attacks_member(
         amount: damage.amount,
         adjust: damage.adjust,
     });
+    let was_up = !world.party.members[member_index].is_down();
     hurt_member(world, data, member_index, damage.amount, crit, events);
+    if damage.amount > 0 {
+        let dying = was_up && world.party.members[member_index].is_down();
+        reaction::on_wound(world, data, state, member_index, dying, roller, events)?;
+    }
     keep_concentration(world, data, member_index, damage.amount, roller, events)
 }
 

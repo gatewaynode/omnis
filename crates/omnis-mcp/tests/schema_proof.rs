@@ -7,8 +7,12 @@
 //! any other, so a new keyword cannot pass unread.
 
 use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
+use omnis_cli::omnis_sim::omnis_core::{ItemId, SpellId};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
-use omnis_cli::omnis_sim::omnis_rules::Draft;
+use omnis_cli::omnis_sim::omnis_rules::{
+    ActionRef, Cmp, Criteria, CriteriaSet, Draft, Predicate, Trigger, Who,
+};
+use omnis_cli::omnis_sim::tactics::TacticsCommand;
 use omnis_cli::omnis_sim::{
     CombatCommand, Command, DevCommand, EncounterChoice, FeatureChoice, ItemCommand, PartyCommand,
     Pay, RestCommand, ServiceCommand, Target,
@@ -192,12 +196,55 @@ fn next_party(command: &PartyCommand) -> Option<PartyCommand> {
             Some(alignment) => PartyCommand::Create(draft(alignment)),
             None => PartyCommand::Reorder { order: vec![1, 0] },
         },
-        PartyCommand::Reorder { .. } => PartyCommand::AutoCast {
+        PartyCommand::Reorder { .. } => PartyCommand::Tactics(TacticsCommand::SetReactions {
             member: 0,
-            spell: 1,
-            on: true,
-        },
-        PartyCommand::AutoCast { .. } => return None,
+            on: false,
+        }),
+        PartyCommand::Tactics(command) => PartyCommand::Tactics(next_tactics(command)?),
+    })
+}
+
+/// The switch, then a declared reaction for every trigger, cycling the four actions and the
+/// two shapes of `when`, then a removal.
+fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
+    let put = |i: usize| {
+        let action = match i % 4 {
+            0 => ActionRef::Spell(SpellId(3)),
+            1 => ActionRef::Attack,
+            2 => ActionRef::Item(ItemId(4)),
+            _ => ActionRef::Feature("base:text:class.fighter.second_wind".into()),
+        };
+        let when = if i.is_multiple_of(2) {
+            Criteria::Always
+        } else {
+            Criteria::All(vec![Criteria::Is(Predicate::Hp {
+                who: Who::Subject,
+                cmp: Cmp::Lt,
+                percent: 50,
+            })])
+        };
+        TacticsCommand::PutReaction {
+            member: 1,
+            at: (i > 0).then(|| u8::try_from(i - 1).unwrap()),
+            set: CriteriaSet {
+                name: format!("Set {i}"),
+                action,
+                trigger: Trigger::ALL[i],
+                when,
+            },
+        }
+    };
+    Some(match command {
+        TacticsCommand::SetReactions { .. } => put(0),
+        TacticsCommand::PutReaction { set, .. } => {
+            let i = Trigger::ALL.iter().position(|t| *t == set.trigger)? + 1;
+            if i < Trigger::ALL.len() {
+                put(i)
+            } else {
+                TacticsCommand::RemoveReaction { member: 1, at: 0 }
+            }
+        }
+        TacticsCommand::RemoveReaction { .. } => return None,
     })
 }
 
@@ -472,8 +519,8 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        84,
-        "4 steps, 3 turns, interact, 11 party, 4 encounter, 12 combat, 2 casts, 10 item, \
+        93,
+        "4 steps, 3 turns, interact, 20 party, 4 encounter, 12 combat, 2 casts, 10 item, \
          14 service, 2 rest, 21 dev"
     );
     let mut used = Used::new();
@@ -489,7 +536,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 122, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 141, "oneOf branches and enum values offered");
 }
 
 #[test]

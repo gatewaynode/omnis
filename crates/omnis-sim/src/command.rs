@@ -14,7 +14,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Coins, Direction, ItemId, Rotation};
 use omnis_data::EquipSlot;
-use omnis_rules::{CreationError, RuleError};
+use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
 
 /// One player action.
@@ -551,6 +551,15 @@ pub enum Rejection {
         /// The row asked for.
         feature: u8,
     },
+    /// The tactics' shape is refused (a name, a tree, a cap).
+    Tactics(TacticsFault),
+    /// The member has no such reaction, or it cannot answer that trigger.
+    CannotReact,
+    /// The default runbook has no entry there.
+    NoSuchEntry {
+        /// The entry asked for.
+        at: u8,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -698,6 +707,11 @@ impl Rejection {
             Rejection::WrongChoice { feature } => {
                 write!(f, "feature {feature} does not do that")
             }
+            Rejection::Tactics(fault) => write!(f, "tactics refused: {fault:?}"),
+            Rejection::CannotReact => {
+                f.write_str("the member has no such reaction, or it cannot answer that")
+            }
+            Rejection::NoSuchEntry { at } => write!(f, "the runbook has no entry {at}"),
             _ => return None,
         })
     }

@@ -107,7 +107,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 5", "schema: 7", 1);
+    let other = text.replacen("schema: 6", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -197,10 +197,10 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 5);
+    assert_eq!(world.schema, 6);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 5").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 6").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
@@ -221,7 +221,7 @@ fn a_schema_2_save_migrates() {
         "the fixture's base pack predates the combat rules"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 5);
+    assert_eq!(world.schema, 6);
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.party.members.len(), 1);
     assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
@@ -236,7 +236,7 @@ fn a_schema_2_save_migrates() {
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 5").count(), 1);
+    assert_eq!(text.matches("schema: 6").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
@@ -254,7 +254,7 @@ fn a_schema_3_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 3") && !text.contains("equipped") && !text.contains("devtools"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 5);
+    assert_eq!(world.schema, 6);
     assert!(!world.settings.devtools);
     let brenna = &world.party.members[0];
     let item = |name: &str| {
@@ -272,13 +272,13 @@ fn a_schema_3_save_migrates() {
         18,
         "as before the slots"
     );
-    assert!(brenna.effects.is_empty() && brenna.auto_cast.is_empty());
+    assert!(brenna.effects.is_empty() && brenna.tactics.reactions().is_empty());
     assert!(world.party.effects.is_empty());
     assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
     let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 5").count(), 1);
+    assert_eq!(text.matches("schema: 6").count(), 1);
     assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
 
     let mut torn = world.clone();
@@ -300,7 +300,7 @@ fn a_schema_4_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 4") && text.contains("gold: 15,") && !text.contains("bank"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 5);
+    assert_eq!(world.schema, 6);
     assert_eq!(
         (
             world.party.gold,
@@ -316,12 +316,73 @@ fn a_schema_4_save_migrates() {
     let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 5").count(), 1);
+    assert_eq!(text.matches("schema: 6").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
-        "a schema-5 save is read as written: no second multiplication"
+        "a schema-6 save is read as written: no second multiplication"
     );
+}
+
+/// A schema-5 save (captured on the M7b build, `capture_schema_5_fixture`) loads through the
+/// migration: Ilvara's auto-cast shield becomes a declared reaction, `Attacked` when it would
+/// turn the hit into a miss, in her default runbook; the fight in round one gets the budget and
+/// the reactions the turn slots give, and goes on.
+#[test]
+fn a_schema_5_save_migrates() {
+    let data = data();
+    let path = save_path("v5");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 5") && text.contains("auto_cast: ["));
+    assert!(!text.contains("tactics") && !text.contains("budget"));
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 6);
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    let ilvara = &world.party.members[2];
+    assert!(ilvara.legacy_auto_cast.is_empty());
+    assert_eq!(
+        ilvara.tactics.reactions(),
+        [&omnis_sim::omnis_rules::CriteriaSet {
+            name: "Shield".to_owned(),
+            action: omnis_sim::omnis_rules::ActionRef::Spell(shield),
+            trigger: omnis_sim::omnis_rules::Trigger::Attacked,
+            when: omnis_sim::omnis_rules::Criteria::Is(
+                omnis_sim::omnis_rules::Predicate::WouldChangeOutcome
+            ),
+        }]
+    );
+    assert!(ilvara.tactics.reactions_on);
+    for member in &world.party.members[..2] {
+        assert!(member.tactics.reactions().is_empty(), "{}", member.name);
+    }
+    let Mode::Combat(fight) = &world.mode else {
+        panic!("still fighting");
+    };
+    for entry in &fight.order {
+        assert_eq!(fight.reactions_left(entry.actor), 1, "{:?}", entry.actor);
+    }
+    if let Some(omnis_sim::ActorRef::Member(_)) = fight.current_actor() {
+        assert_eq!(
+            fight.budget,
+            omnis_sim::Budget {
+                actions: 1,
+                bonus_actions: 1
+            },
+            "the member the fight waits on can act"
+        );
+    }
+    let written = world.to_ron().unwrap();
+    assert_eq!(written.matches("schema: 6").count(), 1);
+    assert!(!written.contains("auto_cast"), "never written");
+    assert_eq!(World::from_ron(&written, &data, true).unwrap(), world);
+    let mut world = world;
+    let events = apply(
+        &mut world,
+        &data,
+        Command::Combat(omnis_sim::CombatCommand::Dodge),
+    )
+    .unwrap();
+    assert!(!events.is_empty(), "the migrated fight goes on");
 }
 
 /// Loot not yet paid out is money too: a schema-4 save made mid-fight converts it with the
@@ -358,7 +419,7 @@ fn a_schema_4_fight_converts_its_loot() {
     let old = world
         .to_ron()
         .unwrap()
-        .replacen("schema: 5", "schema: 4", 1);
+        .replacen("schema: 6", "schema: 4", 1);
     let loaded = World::from_ron(&old, &data, false).unwrap_or_else(|e| panic!("{e}"));
     let Mode::Combat(fight) = &loaded.mode else {
         panic!("still fighting");
@@ -409,6 +470,55 @@ fn golden_walk_replay_reproduces() {
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
+}
+
+/// A declared reaction is part of the command log: the golden fight's walk with Ilvara's shield
+/// declared for every hit replays to the fingerprint the play ended on.
+#[test]
+fn a_replay_reproduces_declared_reactions() {
+    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Trigger};
+    use omnis_sim::tactics::TacticsCommand;
+    let data = data();
+    let seed = 0x0123_4567_89ab_cdef;
+    let mut world = World::new(&data, seed, Settings::default()).unwrap();
+    let mut commands: Vec<Command> = six()
+        .into_iter()
+        .map(|d| Command::Party(PartyCommand::Create(d)))
+        .collect();
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    commands.push(Command::Party(PartyCommand::Tactics(
+        TacticsCommand::PutReaction {
+            member: 2,
+            at: None,
+            set: CriteriaSet {
+                name: "Shield".to_owned(),
+                action: ActionRef::Spell(shield),
+                trigger: Trigger::Attacked,
+                when: Criteria::Always,
+            },
+        },
+    )));
+    for command in &commands {
+        apply(&mut world, &data, command.clone()).unwrap();
+    }
+    let mut walk = out_of_town();
+    walk.extend(walk_to_the_rats());
+    let (taken, events) = play(&mut world, &data, &walk);
+    commands.extend(taken);
+    let fired = events.iter().any(|e| matches!(e, Event::Reaction { .. }));
+    let recorded = Replay::record(&data, seed, Settings::default(), commands.clone()).unwrap();
+    assert_eq!(recorded.check(&data), Ok(()));
+    assert_eq!(
+        Replay::record(&data, seed, Settings::default(), commands)
+            .unwrap()
+            .fingerprint,
+        recorded.fingerprint
+    );
+    assert_eq!(
+        recorded.fingerprint,
+        world.fingerprint().unwrap(),
+        "the replay ends where the play did (shield fired: {fired})"
+    );
 }
 
 /// The command script behind `tests/replays/fight.ron`: six members, out of town through the
@@ -601,21 +711,9 @@ fn capture_schema_5_fixture() {
     let mut world = world(&data);
     common::party_of(&mut world, &data, 3);
     let shield = data.registry.spells.get("base:spell:shield").unwrap();
-    let spell = world.party.members[2]
-        .known_spells
-        .iter()
-        .position(|s| *s == shield)
-        .unwrap();
-    apply(
-        &mut world,
-        &data,
-        Command::Party(PartyCommand::AutoCast {
-            member: 2,
-            spell: u8::try_from(spell).unwrap(),
-            on: true,
-        }),
-    )
-    .unwrap();
+    // On the schema-5 build this was `PartyCommand::AutoCast { member: 2, spell, on: true }`;
+    // the command is gone since schema 6, and the field it set is read only from old saves.
+    world.party.members[2].legacy_auto_cast = vec![shield];
     let here = world.position;
     let goblins = common::encounter(
         &data,
@@ -626,7 +724,6 @@ fn capture_schema_5_fixture() {
     let mut events = Vec::new();
     combat::start(&mut world, &data, goblins, Surprise::None, &mut events).unwrap();
     assert!(matches!(world.mode, Mode::Combat(_)));
-    assert_eq!(world.party.members[2].auto_cast, [shield]);
     assert_eq!(world.schema, 5);
     write_ron(&save_path("v5"), &world).unwrap();
 }

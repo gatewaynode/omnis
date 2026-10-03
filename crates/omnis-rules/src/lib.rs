@@ -22,6 +22,7 @@ mod level;
 mod monster;
 mod spell;
 mod stats;
+pub mod tactics;
 
 pub use attack::{
     AttackBonus, AttackRoll, DamageAdjust, DamageRoll, DeathSaveResult, Weapon, attack_bonus,
@@ -52,4 +53,8 @@ pub use spell::{
 pub use stats::{
     Roll, RollMode, armor_class, check, kept_d20, level_for_xp, modifier, passive, point_cost,
     proficiency_bonus, save, skill_bonus, spell_cost, spell_point_pool,
+};
+pub use tactics::{
+    ActionRef, Cmp, Criteria, CriteriaSet, Facts, MemberFacts, Predicate, Row, Runbook, Tactics,
+    TacticsFault, Trigger, Who,
 };

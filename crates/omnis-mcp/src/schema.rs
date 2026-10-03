@@ -172,6 +172,39 @@ fn service_schema() -> Value {
     ]})
 }
 
+/// A newtype variant `{name: value}`.
+fn newtype(name: &str, value: Value) -> Value {
+    json!({"type": "object", "properties": {name: value}, "required": [name], "additionalProperties": false})
+}
+
+/// The tactics commands (M7c): the reactions switch, any time; a declared reaction put in the
+/// default runbook (`at` replaces that entry, `null` appends) or removed, outside a fight. Ids
+/// in an action or a predicate are the numbers `party_get` and `world_query` show. `when` is
+/// `"Always"` or one object node, `{"All": [..]}`, `{"Any": [..]}` or `{"Is": predicate}`, the
+/// simulation checking the whole tree (depth 4, 16 nodes, percentages 0..=100, known ids).
+fn tactics_schema() -> Value {
+    let member = ("member", index());
+    let set = json!({"type": "object", "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 32},
+        "action": {"oneOf": [
+            {"type": "string", "enum": ["Attack"]},
+            newtype("Spell", index()),
+            newtype("Item", index()),
+            newtype("Feature", json!({"type": "string"}))
+        ]},
+        "trigger": {"type": "string", "enum": ["SpellCast", "Attacked", "MemberAttacked", "MemberWounded", "MemberDying", "EnemyFlees", "EnemyCasts", "OwnTurn"]},
+        "when": {"oneOf": [
+            {"type": "string", "enum": ["Always"]},
+            {"type": "object", "description": "One node: All or Any with a list of trees, or Is with a predicate: MonsterCount {monster, cmp, n}, MonsterShare {monster, cmp, percent}, Hp or SpellPoints {who: Me|Subject, cmp, percent}, HasCondition {who, condition}, Row {who, row: Front|Back}, Round {cmp, n}, or \"WouldChangeOutcome\"; cmp is Lt, Le, Eq, Ge or Gt"}
+        ]}
+    }, "required": ["name", "action", "trigger", "when"], "additionalProperties": false});
+    json!({"oneOf": [
+        variant("SetReactions", &[member.clone(), ("on", bool::schema())]),
+        variant("PutReaction", &[member.clone(), ("at", member_or_null()), ("set", set)]),
+        variant("RemoveReaction", &[member, ("at", index())])
+    ]})
+}
+
 /// The `Rest` command's variants, outside a service only: `Long` is the night (food, once a
 /// day); `Short` is an hour, `dice[i]` the hit dice member `i` spends (missing members none).
 fn rest_schema() -> Value {
@@ -185,7 +218,7 @@ fn rest_schema() -> Value {
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by index at a stack or member with the action or the bonus action, use a kit row on a member, dodge, exchange, run, a class feature by its row with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by index at a stack or member with the action or the bonus action, use a kit row on a member, dodge, exchange, run, a class feature by its row with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -193,7 +226,7 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Party": {"oneOf": [
                     {"type": "object", "properties": {"Create": Draft::schema()}, "required": ["Create"], "additionalProperties": false},
                     {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": {"type": "integer", "minimum": 0}}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false},
-                    variant("AutoCast", &[("member", index()), ("spell", index()), ("on", bool::schema())])
+                    newtype("Tactics", tactics_schema())
                 ]}}, "required": ["Party"], "additionalProperties": false},
                 {"type": "object", "properties": {"Encounter": {"type": "string", "enum": ["Attack", "Bribe", "Hide", "Run"]}}, "required": ["Encounter"], "additionalProperties": false},
                 {"type": "object", "properties": {"Combat": {"oneOf": [

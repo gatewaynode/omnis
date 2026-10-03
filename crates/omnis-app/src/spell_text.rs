@@ -3,6 +3,7 @@
 //! renders checks; this file renders what casting adds. Bevy-free.
 
 use crate::text::{Line, Names, trace_math};
+use omnis_sim::omnis_rules::ActionRef;
 use omnis_sim::{EffectEnd, EffectTarget, Event};
 
 /// One line for a spell event, or `None` for events this file does not render.
@@ -70,11 +71,23 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
             names.member(*caster),
             names.spell(*spell)
         )),
-        Event::AutoCast { member, spell, on } => Line::same(format!(
-            "{} will {}cast {} on their own",
+        Event::ReactionsSwitched { member, on } => Line::same(format!(
+            "{}'s reactions are {}",
             names.member(*member),
-            if *on { "" } else { "no longer " },
-            names.spell(*spell)
+            if *on { "on" } else { "off" }
+        )),
+        Event::TacticsChanged { member } => {
+            Line::same(format!("{}'s tactics are set", names.member(*member)))
+        }
+        Event::Reaction { actor, action, .. } => Line::same(format!(
+            "{} reacts: {}",
+            names.member(*actor),
+            match action {
+                ActionRef::Spell(spell) => names.spell(*spell).to_owned(),
+                ActionRef::Attack => "an opportunity attack".to_owned(),
+                ActionRef::Item(item) => names.item(*item).to_owned(),
+                ActionRef::Feature(feature) => names.feature(feature).to_owned(),
+            }
         )),
         _ => return None,
     })
@@ -156,14 +169,27 @@ mod tests {
             spell_line(&let_go, &names).unwrap().long,
             "Durin lets Bless go"
         );
-        let auto = Event::AutoCast {
+        let off = Event::ReactionsSwitched {
             member: durin,
-            spell: bless,
             on: false,
         };
         assert_eq!(
-            spell_line(&auto, &names).unwrap().long,
-            "Durin will no longer cast Bless on their own"
+            spell_line(&off, &names).unwrap().long,
+            "Durin's reactions are off"
+        );
+        let set = Event::TacticsChanged { member: durin };
+        assert_eq!(
+            spell_line(&set, &names).unwrap().long,
+            "Durin's tactics are set"
+        );
+        let reacted = Event::Reaction {
+            actor: durin,
+            trigger: omnis_sim::omnis_rules::Trigger::Attacked,
+            action: ActionRef::Spell(bless),
+        };
+        assert_eq!(
+            spell_line(&reacted, &names).unwrap().long,
+            "Durin reacts: Bless"
         );
         let healed = Event::Healed {
             target: durin,

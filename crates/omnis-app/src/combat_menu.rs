@@ -7,7 +7,7 @@ use crate::actors::Actor;
 use crate::menu::{MenuKey, cycle};
 use omnis_sim::combat::weapon_for;
 use omnis_sim::omnis_core::money::gp_floor;
-use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
+use omnis_sim::omnis_data::{Cost, Data, Disposition, Size};
 
 pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
@@ -159,7 +159,7 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             let caster = caster?;
             let id = *caster.known_spells.get(usize::from(s.index))?;
             let spell = data.spells.get(&id)?;
-            let reaction = matches!(spell.effect, Some(SpellEffect::Reaction { .. }));
+            let reaction = spell.cost == Cost::Reaction;
             let active = world
                 .party
                 .members
@@ -172,7 +172,7 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
                 name: data.label("en", &s.name).to_owned(),
                 cost: s.cost,
                 targets_members: s.targets_members,
-                auto: reaction.then(|| caster.auto_cast.contains(&id)),
+                reaction,
                 active,
                 blocked: s.blocked.as_ref().map(blocked_note),
             })
@@ -201,10 +201,8 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
 pub enum CombatIntent {
     /// A command for the acting member.
     Command(CombatCommand),
-    /// Switch a reaction spell's auto-cast for the acting member.
-    AutoCast {
-        /// The spell's index in the caster's list.
-        spell: u8,
+    /// Switch the acting member's reactions on or off (costs nothing).
+    Reactions {
         /// On or off.
         on: bool,
     },
