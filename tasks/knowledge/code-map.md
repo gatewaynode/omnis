@@ -23,7 +23,9 @@ checked in `loader::check_surfaces`; `MapData::marker_at`).
 Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,rest,sensing,services}.ron`;
 services under `packs/base/data/services/` (seven, one per kind). The test pack depends on the base
 pack and starts in `test:map:town` (the gate at (11, 2) leads to the meadow's start; the meadow's
-road south at (16, 31) leads back).
+road south at (16, 31) leads back); the dungeon's stairs at (23, 23) lead down to `test:map:depths`
+and its stairs at (0, 0) back up). Content ids are interned in file order: a new file renumbers
+the ones after it, and saves are refused on the pack fingerprint.
 
 ## omnis-rules
 `character.rs` (`create`, `starting_kit`), `stats.rs` (checks, saves, pools), `attack.rs`

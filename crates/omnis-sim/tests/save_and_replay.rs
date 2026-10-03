@@ -15,6 +15,11 @@ use omnis_sim::{
 };
 use std::path::PathBuf;
 
+/// The dungeon as the old fixtures number it. Map ids are interned in file order, so a map
+/// added since (M7b's depths) renumbers it; a save names the id it was written with, and the
+/// fixtures are loaded with `force`, past the pack fingerprint that refuses them in play.
+const FIXTURE_DUNGEON: omnis_core::MapId = omnis_core::MapId(0);
+
 fn replay_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/replays")
@@ -227,7 +232,7 @@ fn a_schema_2_save_migrates() {
         "the M3 kit is worn on load: {:?}",
         world.party.members[0].equipped
     );
-    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
@@ -270,7 +275,7 @@ fn a_schema_3_save_migrates() {
     assert!(brenna.effects.is_empty() && brenna.auto_cast.is_empty());
     assert!(world.party.effects.is_empty());
     assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
-    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();
     assert_eq!(text.matches("schema: 5").count(), 1);
@@ -308,7 +313,7 @@ fn a_schema_4_save_migrates() {
     // M7b's spell picks default to none, so the schema stayed 5 for them.
     assert!(!text.contains("spell_picks"));
     assert!(world.party.members.iter().all(|m| m.spell_picks == 0));
-    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();
     assert_eq!(text.matches("schema: 5").count(), 1);

@@ -545,7 +545,7 @@ mod tests {
         assert_eq!(view.items.len(), 24);
         assert_eq!(view.items[0].0, "base:item:arrows");
         assert_eq!(view.conditions.len(), 16);
-        assert_eq!(view.maps.len(), 3);
+        assert_eq!(view.maps.len(), 4, "town, meadow, dungeon, depths");
         assert_eq!(
             (view.position.1, view.position.2),
             (10, 2),

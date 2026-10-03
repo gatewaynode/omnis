@@ -317,7 +317,8 @@ mod tests {
                 "Mage Hand",
                 "Magic Missile",
                 "Shield",
-                "Burning Hands"
+                "Burning Hands",
+                "Thunderwave"
             ]
         );
         assert_eq!(view.spells[2].note(), "not here", "mage hand is for doors");

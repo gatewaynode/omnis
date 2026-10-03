@@ -1,0 +1,62 @@
+// The depths below the test dungeon (M7b): four 6x6 rooms of goblins and skeletons, the stairs
+// back up in the first. Layout format: crates/omnis-data/src/map.rs module docs. Measured by
+// `clear_over_seeds` before the owner plays.
+(
+    schema: 1,
+    id: "test:map:depths",
+    name: "test:text:map.depths.name",
+    kind: Dungeon,
+    tileset: "test:tileset:dungeon",
+    width: 12,
+    height: 12,
+    start: (1, 0, South),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    door_open: Some("door.open"),
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: Some("ceiling"), passable: true, color: (110, 90, 70), visibility_depth: 6, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+-+-+-+-+-+-+-+-+-+-+",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .:. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+-+-+=+-+-+-+-+-+-+=+-+-+",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .:. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+ + + + + + + + + + + + +",
+        "|. . . . . .|. . . . . .|",
+        "+-+-+-+-+-+-+-+-+-+-+-+-+",
+    ],
+    portals: [
+        (x: 0, y: 0, to_map: "test:map:dungeon", to_x: 22, to_y: 23, to_facing: West, marker: Some("stairs.up")),
+    ],
+    encounters: [
+        (x: 3, y: 3, stacks: [("test:monster:skeleton", 3)], disposition: Hostile, once: true),
+        (x: 9, y: 3, stacks: [("test:monster:goblin", 4)], disposition: Hostile, once: true),
+        (x: 3, y: 9, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (x: 9, y: 9, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 2)], disposition: Hostile, once: true),
+    ],
+    random: Some((
+        chance_percent: 3,
+        entries: [
+            (weight: 2, stacks: [("test:monster:goblin", (count: 1, sides: 3, modifier: 0))]),
+            (weight: 1, stacks: [("test:monster:skeleton", (count: 1, sides: 2, modifier: 0))]),
+        ],
+    )),
+)

@@ -239,7 +239,7 @@ fn dependencies_must_load_first() {
     );
     assert_eq!(
         data.maps.len(),
-        3,
+        4,
         "the mod adds nothing and removes nothing"
     );
     assert_eq!(

@@ -97,8 +97,10 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
     let mut world = world(&data);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     let mut layout = data.maps[&dungeon].def.layout.clone();
-    // The way up at (0, 0) is a portal: row 1, column 1 of the layout.
+    // The way up at (0, 0) and the way down at (23, 23) are portals: rows and columns 1 and 47
+    // of the layout.
     layout[1].replace_range(1..2, "*");
+    layout[47].replace_range(47..48, "*");
     assert_eq!(
         text(&mut world, &data, Some("test:map:dungeon")),
         layout.join("\n") + "\n",

@@ -341,11 +341,13 @@ fn chosen_skills(
     Ok(skills)
 }
 
-/// The first cantrips and levelled spells of the class list, as many as level 1 allows.
+/// The first cantrips and levelled spells of the class list, as many as level 1 allows and no
+/// higher than a level-1 member may learn (`max_spell_level`).
 fn known_spells(class: &Class, data: &Data) -> Vec<SpellId> {
     let Some(casting) = &class.casting else {
         return vec![];
     };
+    let highest = crate::level::max_spell_level(1, data).unwrap_or(1);
     let (mut cantrips, mut spells) = (0, 0);
     let mut known = Vec::new();
     for id in &casting.list {
@@ -360,7 +362,7 @@ fn known_spells(class: &Class, data: &Data) -> Vec<SpellId> {
                 known.push(spell_id);
                 cantrips += 1;
             }
-        } else if spells < casting.spells_at_1 {
+        } else if spells < casting.spells_at_1 && spell.level <= highest {
             known.push(spell_id);
             spells += 1;
         }

@@ -5,5 +5,9 @@
     id: "base:service:temple",
     name: "base:text:service.temple.name",
     kind: Temple,
-    spells: ["base:spell:bless", "base:spell:cure_wounds", "base:spell:healing_word"],
+    spells: [
+        "base:spell:bless", "base:spell:cure_wounds", "base:spell:healing_word",
+        "base:spell:guiding_bolt", "base:spell:inflict_wounds", "base:spell:spiritual_weapon",
+        "base:spell:prayer_of_healing",
+    ],
 )

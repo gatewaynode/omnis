@@ -141,7 +141,8 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
     assert_eq!(picks, [0, 1, 2], "fighter none, cleric one, wizard two");
     assert_eq!(world.party.members[1].spell_points_max, 5);
 
-    // The cleric's list: guidance, light, sacred flame, bless, cure wounds, healing word.
+    // The cleric's list: guidance, light, sacred flame, bless, cure wounds, healing word, guiding
+    // bolt, inflict wounds, spiritual weapon (2nd), prayer of healing (2nd).
     let choose = |spell| ServiceCommand::Choose { member: 1, spell };
     refused(&mut world, &data, choose(0), Rejection::CantripNotLearned);
     refused(
@@ -153,8 +154,14 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
     refused(
         &mut world,
         &data,
-        choose(6),
-        Rejection::NoSuchSpell { row: 6 },
+        choose(10),
+        Rejection::NoSuchSpell { row: 10 },
+    );
+    refused(
+        &mut world,
+        &data,
+        choose(8),
+        Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     let clock = minutes(&world);
     let gold = world.party.gold;
@@ -182,15 +189,20 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
         Rejection::NoPicks { index: 1 },
     );
 
-    // The wizard knows every levelled spell on its list: the picks wait for a later level.
+    // The wizard knows every first-level spell on its list and the second-level ones open at
+    // level 3: the picks wait.
+    let wizard = |spell| ServiceCommand::Choose { member: 2, spell };
     refused(
         &mut world,
         &data,
-        ServiceCommand::Choose {
-            member: 2,
-            spell: 3,
-        },
+        wizard(3),
         Rejection::AlreadyKnown { index: 2 },
+    );
+    refused(
+        &mut world,
+        &data,
+        wizard(7),
+        Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     assert_eq!(world.party.members[2].spell_picks, 2);
 }
@@ -199,7 +211,8 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
 fn spells_are_bought_at_the_temple_and_the_guild() {
     let data = data();
     let mut world = inside_with(&data, "temple", 3);
-    // The temple's spells: bless, cure wounds, healing word.
+    // The temple's spells: bless, cure wounds, healing word, guiding bolt, inflict wounds,
+    // spiritual weapon (2nd), prayer of healing (2nd).
     let learn = |member, spell| ServiceCommand::Learn { member, spell };
     world.party.members[1].spell_picks = 1;
     world.party.gold = 4999;
@@ -228,8 +241,14 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(1, 3),
-        Rejection::NoSuchSpell { row: 3 },
+        learn(1, 7),
+        Rejection::NoSuchSpell { row: 7 },
+    );
+    refused(
+        &mut world,
+        &data,
+        learn(1, 5),
+        Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     let clock = minutes(&world);
     let events = ask(&mut world, &data, learn(1, 2));
@@ -245,7 +264,7 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
         "a purchase spends no pick"
     );
 
-    // The guild's spells: burning hands, magic missile, shield.
+    // The guild's spells: burning hands, magic missile, shield, thunderwave, shatter, acid arrow.
     let mut world = inside_with(&data, "guild", 3);
     refused(
         &mut world,

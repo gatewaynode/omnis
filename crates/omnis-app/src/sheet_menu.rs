@@ -465,7 +465,11 @@ pub(crate) mod tests {
         let wren = sheet_view(&world, &data, 1).expect("the wizard");
         assert_eq!(wren.magic.casting.as_deref(), Some("Intelligence"));
         assert_eq!(wren.magic.points, (1, 1), "Int 13: one point");
-        assert_eq!(wren.magic.spells.len(), 6);
+        assert_eq!(
+            wren.magic.spells.len(),
+            7,
+            "three cantrips, four first-level spells"
+        );
         assert_eq!(
             wren.magic.spells[0],
             ("Fire Bolt".to_owned(), "cantrip".to_owned())

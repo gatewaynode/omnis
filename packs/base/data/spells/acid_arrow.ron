@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// Deviation: the 2d4 acid at the end of the target's next turn and the half damage on a miss
+// are dropped (no damage over time yet); the 4d4 on a hit is kept.
+(schema: 1, id: "base:spell:acid_arrow", name: "base:text:spell.acid_arrow.name", level: 2, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, description: "base:text:spell.acid_arrow.description", effect: Some(Attack(dice: (count: 4, sides: 4, modifier: 0), damage_type: Acid)), reach: One)

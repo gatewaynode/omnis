@@ -12,7 +12,7 @@ fn test_pack_loads_with_its_maps() {
     assert_eq!(data.packs[1].id, "test");
     assert_eq!(data.packs[1].depends, ["base"]);
     assert_eq!(data.fingerprints[1].id, "test");
-    assert_eq!(data.maps.len(), 3);
+    assert_eq!(data.maps.len(), 4, "town, meadow, dungeon, depths");
     assert_ne!(data.fingerprints[1].hash, 0);
 
     let dungeon_id = data
@@ -175,7 +175,11 @@ fn portals_and_tileset_slots_resolve() {
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
     );
-    assert_eq!(dungeon.encounters.len(), 3);
+    assert_eq!(
+        dungeon.encounters.len(),
+        11,
+        "three rat groups, eight of goblins and skeletons"
+    );
     let (index, rats) = dungeon.encounter_at(3, 8).expect("the rats");
     assert_eq!(index, 0);
     assert_eq!(rats.stacks.len(), 1);
@@ -193,6 +197,21 @@ fn portals_and_tileset_slots_resolve() {
     assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
+    // The depths below, and back (M7b).
+    let depths_id = data.registry.maps.get("test:map:depths").unwrap();
+    let deeper = dungeon.portal_at(23, 23).expect("the way down");
+    assert_eq!(
+        (deeper.to_map, deeper.to_x, deeper.to_y, deeper.to_facing),
+        (depths_id, 1, 0, Facing::South)
+    );
+    let depths = &data.maps[&depths_id];
+    let back = depths.portal_at(0, 0).expect("the way up");
+    assert_eq!(
+        (back.to_map, back.to_x, back.to_y, back.to_facing),
+        (dungeon_id, 22, 23, Facing::West)
+    );
+    assert_eq!(depths.encounters.len(), 4);
+    assert!(depths.encounters.iter().all(|e| e.once));
     let town_id = data.registry.maps.get("test:map:town").unwrap();
     let home = meadow.portal_at(16, 31).expect("the road south");
     assert_eq!(

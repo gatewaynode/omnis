@@ -122,8 +122,15 @@ fn casters_get_their_spell_points_and_spells() {
     );
     assert_eq!(
         wizard.known_spells.len(),
-        6,
-        "three cantrips and three first-level spells"
+        7,
+        "three cantrips and four first-level spells"
+    );
+    assert!(
+        wizard
+            .known_spells
+            .iter()
+            .all(|id| data.spells[id].level <= 1),
+        "no second-level spell at level 1, though the list has them"
     );
     assert!(wizard.skills.contains(&Skill::Perception), "keen senses");
     assert_eq!(armor_class(&wizard, &data), 13, "unarmored, Dex 16");

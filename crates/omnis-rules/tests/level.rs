@@ -194,7 +194,20 @@ fn a_spell_may_be_learned_from_the_class_list_up_to_the_level_s_maximum() {
         Some(SpellRefusal::NotOnList)
     );
     assert_eq!(check(&durin, &data, healing_word), None);
-    assert_eq!(eligible(&durin, &data).unwrap(), [healing_word]);
+    let (guiding_bolt, inflict_wounds, spiritual_weapon) = (
+        spell(&data, "guiding_bolt"),
+        spell(&data, "inflict_wounds"),
+        spell(&data, "spiritual_weapon"),
+    );
+    assert_eq!(
+        check(&durin, &data, spiritual_weapon),
+        Some(SpellRefusal::TooHigh { level: 2, max: 1 })
+    );
+    assert_eq!(
+        eligible(&durin, &data).unwrap(),
+        [healing_word, guiding_bolt, inflict_wounds],
+        "the list's first-level spells not yet known, in list order"
+    );
 
     // A second-level healing word: too high at level 2, allowed from level 3.
     data.spells.get_mut(&healing_word).unwrap().level = 2;
@@ -203,9 +216,13 @@ fn a_spell_may_be_learned_from_the_class_list_up_to_the_level_s_maximum() {
         check(&durin, &data, healing_word),
         Some(SpellRefusal::TooHigh { level: 2, max: 1 })
     );
-    assert!(eligible(&durin, &data).unwrap().is_empty());
+    assert_eq!(
+        eligible(&durin, &data).unwrap(),
+        [guiding_bolt, inflict_wounds]
+    );
     durin.level = 3;
     assert_eq!(check(&durin, &data, healing_word), None);
+    assert_eq!(check(&durin, &data, spiritual_weapon), None);
 
     let brenna = fighter(&data);
     assert_eq!(check(&brenna, &data, bless), Some(SpellRefusal::NotOnList));
