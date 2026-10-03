@@ -1,6 +1,6 @@
 # Code map
 
-Where each system lives, by crate and file, as of M6 (2026-09-20). Behaviour is described in
+Where each system lives, by crate and file, as of M7a (2026-10-03). Behaviour is described in
 ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name before leaning on it.
 
 ## Crates

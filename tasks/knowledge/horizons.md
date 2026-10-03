@@ -22,7 +22,7 @@ items; string item ids before many items arrive (ids are interned
 `u32`s guarded by the pack fingerprint); `doff_armor_minutes` as its own value.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
-Nothing is built yet; M6 has one action per turn and shield as the only (automatic) reaction.
+Nothing is built yet (as of M7a): one action per turn and shield as the only (automatic) reaction.
 **Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
 §4.7's auto resolution inside the simulation is confirmed; its save schema is 6 (M7a takes 5).**
 Because Second Wind and Cunning Action need bonus actions: the turn budget
@@ -100,7 +100,7 @@ See how the default styles work, and see if modern fonts can replace our pixel a
 ## App and tooling
 The movement pad (arrows and USE) on Feathers like the tool bar (M7 step 8a moved the tools
 only; the canvas pad is the right column's last canvas widget); a fourth pad row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
-localized event text; the `screen.text` op; CC0 art; `--no-devtools` for a clean save from a dev
+localized event text; CC0 art; `--no-devtools` for a clean save from a dev
 build; `.omnis/mcp.log` rotation; `SetRule`, `TickEco`, `SpawnEncounter` as dev commands; the
 measurement policy as something other than a fixed heuristic; a rules function for age; a longer
 name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 two-byte or 10

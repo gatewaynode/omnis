@@ -28,11 +28,11 @@ linker: test it with a fresh target directory or a scratch worktree.
 `rescan` and `check_rules` again right after it. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
 `debug_menu::adjust` 93, `service::settle` 81 (a new deal arm goes in a helper), `debug_screen::row_text` 91, `combat_text::wound_line`
-89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 985 lines (the
+89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 929 lines (the
 screen-dump test is the piece to move out next); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
 `party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84;
 `omnis-sim/src/ops.rs` 817 lines (a new view goes in its own file, as `service_view.rs`);
-`tests/service.rs::the_panels_lie_inside_the_map_at_both_window_sizes` 89; `ui.rs` 702 lines.
+`tests/service.rs::the_panels_lie_inside_the_map_at_both_window_sizes` 89; `ui.rs` 593 lines (after 8a moved the tools out).
 Sentrux's rules are `crates/.sentrux/rules.toml`: scan `/Users/john/code/omnis/crates`, not the
 repository root (the root has no rules file).
 
