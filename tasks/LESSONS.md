@@ -122,3 +122,7 @@
 - **What happened**: After the owner accepted the Xcode license, the gate ran green without the `DEVELOPER_DIR` override and was reported as "green on Xcode's toolchain". Every artifact was already built, so nothing was linked. The first fresh build (a scratch worktree) failed to link: inside the sandbox `xcodebuild -find clang` cannot read Xcode's license plist, accepted or not. The claim had to be withdrawn.
 - **Rule**: A toolchain fix is verified with a fresh link (a new target directory, a scratch worktree, or a touched crate that links a binary), never with a cached gate.
 - **Rule**: When a sandbox blocks a file a tool reads, assume the tool behaves as if the file were missing, and test it from inside the sandbox before claiming it works there.
+
+## 2026-10-03 — A capability in a vision document needs the owner's ask behind it
+- **What happened**: ARCHITECTURE §8.1 said since its first draft (mine) that `InputPlugin` maps the gamepad to commands. No gamepad code was ever written and the PRD never names one; the M7a sync found it, and the owner: "I never mentioned any gamepad. This will definitely be a keyboard and mouse game first. Other control methods are stretch goals."
+- **Rule**: A platform, device or capability (gamepad, touch, controller, network play) goes into a vision document only when the owner asked for it; a sync pass checks every such word against the code and the PRD and asks about any that neither supports.
