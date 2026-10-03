@@ -104,16 +104,31 @@ fn rat() -> Drawing {
 /// Pixels kept clear around the drawing.
 pub const MARGIN: f32 = 12.0;
 
-/// Where a drawing's points land in a `w × h` picture: its bounds scaled evenly to fill the
-/// picture inside the margin, and centred.
-fn fit(lines: &Drawing, w: f32, h: f32) -> impl Fn((f32, f32)) -> (f32, f32) + use<> {
+/// A drawing's bounds as `(x, y, width, height)`, never zero-sized.
+#[must_use]
+pub fn bounds(lines: &Drawing) -> (f32, f32, f32, f32) {
     let points = || lines.iter().flatten();
     let (x0, x1) = points().fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
     let (y0, y1) = points().fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
-    let (bw, bh) = ((x1 - x0).max(f32::EPSILON), (y1 - y0).max(f32::EPSILON));
-    let scale = ((w - 2.0 * MARGIN) / bw).min((h - 2.0 * MARGIN) / bh);
-    let origin = ((w - bw * scale) / 2.0, (h - bh * scale) / 2.0);
-    move |(x, y)| (origin.0 + (x - x0) * scale, origin.1 + (y - y0) * scale)
+    (
+        x0,
+        y0,
+        (x1 - x0).max(f32::EPSILON),
+        (y1 - y0).max(f32::EPSILON),
+    )
+}
+
+/// Where a drawing's points land in the rectangle `(x, y, w, h)`: its bounds scaled evenly to
+/// fill the rectangle inside `margin`, and centred.
+pub fn place(
+    lines: &Drawing,
+    (x, y, w, h): (f32, f32, f32, f32),
+    margin: f32,
+) -> impl Fn((f32, f32)) -> (f32, f32) + use<> {
+    let (x0, y0, bw, bh) = bounds(lines);
+    let scale = ((w - 2.0 * margin) / bw).min((h - 2.0 * margin) / bh);
+    let origin = (x + (w - bw * scale) / 2.0, y + (h - bh * scale) / 2.0);
+    move |(px, py)| (origin.0 + (px - x0) * scale, origin.1 + (py - y0) * scale)
 }
 
 /// The scene drawn at `width × height` pixels, fitted and centred, each line a glow under a
@@ -123,7 +138,7 @@ pub fn paint(scene: Scene, width: u32, height: u32) -> Raster {
     let mut out = Raster::filled(width, height, 1, BACKGROUND);
     let lines = drawing(scene);
     #[allow(clippy::cast_precision_loss)]
-    let at = fit(&lines, width as f32, height as f32);
+    let at = place(&lines, (0.0, 0.0, width as f32, height as f32), MARGIN);
     for (radius, colour) in [(3.0, GLOW), (1.0, LINE)] {
         for line in &lines {
             for pair in line.windows(2) {
@@ -183,7 +198,7 @@ mod tests {
         let (w, h) = SIZE;
         let raster = paint(Scene::Enemy(MonsterId(0)), w, h);
         #[allow(clippy::cast_precision_loss)]
-        let at = fit(&rat(), w as f32, h as f32);
+        let at = place(&rat(), (0.0, 0.0, w as f32, h as f32), MARGIN);
         // The middle whisker's tip, and the point mirrored across the drawing's middle.
         let (tip, mirrored) = (at((0.03, 0.645)), at((0.97, 0.645)));
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

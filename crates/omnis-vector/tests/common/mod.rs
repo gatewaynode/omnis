@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod app;
+pub mod fight;
 
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, load_packs};

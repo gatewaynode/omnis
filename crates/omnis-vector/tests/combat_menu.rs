@@ -5,50 +5,10 @@
 
 mod common;
 
-use common::app::met_with;
+use common::fight::{met, turn_of};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{
-    ActorRef, CombatCommand, Command, EncounterChoice, Event, Mode, Target, World, apply,
-    combat_view,
-};
+use omnis_sim::{CombatCommand, Command, Event, Mode, Target, World, apply, combat_view};
 use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step};
-use omnis_vector::shell::session::Session;
-
-/// The session at the placed group's encounter, seed 1.
-fn met() -> Session {
-    let mut app = met_with(1);
-    app.world_mut()
-        .remove_resource::<Session>()
-        .expect("a session")
-}
-
-fn fighting(session: &Session) -> bool {
-    matches!(session.world.mode, Mode::Combat(_))
-}
-
-/// The name of the member whose turn it is.
-fn acting(session: &Session) -> Option<String> {
-    let view = combat_view(&session.world, &session.data)?;
-    let Some(ActorRef::Member(id)) = view.current else {
-        return None;
-    };
-    let member = session.world.party.members.iter().find(|m| m.id == id)?;
-    Some(member.name.clone())
-}
-
-/// Fight, then dodge every turn until `name` acts.
-fn turn_of(name: &str) -> Session {
-    let mut session = met();
-    session.order(Command::Encounter(EncounterChoice::Attack));
-    for _ in 0..40 {
-        assert!(fighting(&session), "the fight lasted until {name} acted");
-        if acting(&session).as_deref() == Some(name) {
-            return session;
-        }
-        session.order(Command::Combat(CombatCommand::Dodge));
-    }
-    panic!("{name} never acted");
-}
 
 fn labels(entries: &[Entry]) -> Vec<&str> {
     entries.iter().map(|e| e.label.as_str()).collect()
