@@ -98,3 +98,8 @@
 - **What happened**: The 3D viewer's first button pad had translucent backgrounds and put Save log and Quit in the movement pad, one row under Back. My checks were offscreen captures where no line happened to cross a label. The owner's first play: "buttons need some work". In their screenshot a floor line ran through Save log and Quit, and a slip off Back could quit.
 - **Rule**: UI drawn over a moving 3D or line-art view gets opaque backgrounds unless translucency is asked for. The visual check uses a frame where scene lines pass behind the overlay.
 - **Rule**: A destructive or session-ending action (quit, restart, delete) never shares a group with frequent actions. It goes in its own group, away from where the hand rests.
+
+## 2026-10-03 — A mode that takes the pointer shows its way out, and the click that entered it leaves it
+- **What happened**: The 3D viewer locked and hid the pointer on any left click in the view. Only Esc released it, and nothing on screen said so. The owner was trapped in the window and got out with Space, they think by accident. Headless tests could not see this, because the grab needs a window.
+- **Rule**: Any mode that captures input (pointer lock, a modal, full-screen capture) is left the way it was entered: a second click leaves a click-entered mode. It also shows how to leave while it is on.
+- **Rule**: The decision behind a window-only behaviour is a pure function with unit tests (`movement::look`), so the part the headless suite cannot reach is as small as possible.

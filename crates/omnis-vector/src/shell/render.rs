@@ -3,7 +3,7 @@
 
 use super::VectorSet;
 use super::capture::Offscreen;
-use super::movement::Intent;
+use super::movement::{Intent, LookInput, look};
 use super::panel::Showing;
 use super::session::Session;
 use crate::geom::EYE_HEIGHT;
@@ -92,7 +92,9 @@ fn line_style(mut store: ResMut<GizmoConfigStore>) {
     config.line.width = LINE_WIDTH;
 }
 
-/// Click in the window to look with the mouse; Esc, or the panel opening, gives the cursor back.
+/// A left click in the view turns mouse look on and another turns it off, leaving the view
+/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so does
+/// the panel opening (`movement::look`).
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -104,26 +106,24 @@ fn grab_cursor(
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
     };
-    let over_button = interactions.iter().any(|i| *i != Interaction::None);
-    // A panel needs the pointer: give it back when one opens, and keep it free while it is up.
-    let notice = showing.0;
-    if notice {
-        if intent.looking {
-            cursor.grab_mode = CursorGrabMode::None;
-            cursor.visible = true;
-            intent.looking = false;
-        }
-        return;
-    }
-    if mouse.just_pressed(MouseButton::Left) && !intent.looking && !over_button {
-        cursor.grab_mode = CursorGrabMode::Locked;
-        cursor.visible = false;
-        intent.looking = true;
-    }
-    if keys.just_pressed(KeyCode::Escape) && intent.looking {
-        cursor.grab_mode = CursorGrabMode::None;
-        cursor.visible = true;
-        intent.looking = false;
+    let next = look(
+        intent.looking,
+        LookInput {
+            left_click: mouse.just_pressed(MouseButton::Left),
+            over_button: interactions.iter().any(|i| *i != Interaction::None),
+            release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
+                || mouse.just_pressed(MouseButton::Right),
+            panel: showing.0,
+        },
+    );
+    if next != intent.looking {
+        intent.looking = next;
+        cursor.grab_mode = if next {
+            CursorGrabMode::Locked
+        } else {
+            CursorGrabMode::None
+        };
+        cursor.visible = !next;
     }
 }
 

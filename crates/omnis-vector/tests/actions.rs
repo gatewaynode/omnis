@@ -151,3 +151,33 @@ fn the_actions_button_toggles_the_menu_and_moving_or_esc_closes_it() {
     assert_ne!(app.world().resource::<Session>().world.position.y, 5);
     assert!(!open(&app), "moving closes it");
 }
+
+/// A right click as the window would send it.
+fn right_click(app: &mut App) {
+    use bevy::input::mouse::MouseButtonInput;
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut().write_message(MouseButtonInput {
+            button: MouseButton::Right,
+            state,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+    }
+}
+
+#[test]
+fn a_right_click_is_the_action_key() {
+    let mut app = at_the_door();
+    right_click(&mut app);
+    assert!(open(&app), "a right click opens the menu");
+    assert_eq!(labels(&app), ["Open the door", "Close"]);
+    right_click(&mut app);
+    assert!(!open(&app), "and closes it");
+    // With Shift it runs the default action.
+    key(&mut app, KeyCode::ShiftLeft, ButtonState::Pressed);
+    right_click(&mut app);
+    key(&mut app, KeyCode::ShiftLeft, ButtonState::Released);
+    app.update();
+    assert!(door_open(&app), "Shift and a right click opened the door");
+    assert!(!open(&app));
+}

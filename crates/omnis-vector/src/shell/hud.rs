@@ -2,6 +2,7 @@
 
 use super::VectorSet;
 use super::controls::GREEN;
+use super::movement::Intent;
 use super::session::Session;
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -76,6 +77,7 @@ fn status(
     session: Res<Session>,
     time: Res<Time>,
     diagnostics: Option<Res<DiagnosticsStore>>,
+    intent: Res<Intent>,
     mut text: Query<&mut Text, With<StatusText>>,
 ) {
     let Ok(mut text) = text.single_mut() else {
@@ -99,6 +101,9 @@ fn status(
         session.binder.refusals,
         session.binder.disagreements,
     );
+    if intent.looking {
+        out.push_str("Mouse look on: click, Space or Esc gives the pointer back\n");
+    }
     for line in &session.lines {
         out.push('\n');
         out.push_str(line);

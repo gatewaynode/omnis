@@ -29,8 +29,13 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - Owner scope: UI only; any mechanics change is the mechanics branch's.
   - The panel moved out of `fight.rs` into `panel.rs` (shared types in `notice.rs`), so the fight notice and the menu share it. Five headless tests in `tests/actions.rs`.
   - Found: the simulation answers `Interact` with nothing there as accepted, with a `NothingHere` message, not a refusal, so availability tests for that message.
+- [x] A7f Mouse look after the owner's play (2026-10-03). A left click locked the pointer with no visible way out; only Space freed it, and the owner thinks by accident.
+  - Now a left click in the view toggles mouse look, and turning it off leaves the view where it looks.
+  - Space, a right click and Esc release it too, the HUD says how while it is on, and a right click is a second action key (with Shift: the default action).
+  - The decision is the pure `movement::look`, unit-tested. The right click is tested headless.
 - [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
   - 2026-10-03, the owner's first reading (windowed, display not stated): 140–160 fps moving, 50–60 standing still. The HUD read one frame's rate, which is noisy. Standing still does less work (no steps, no minimap repaint, no panel rebuild), so pacing (vsync, variable refresh) is the first suspect, not cost.
+  - Owner's second reading (2026-10-03, windowed 1600×900, 60 Hz monitor): **vsync off 280–310 fps, the same moving and still (about 3.3 ms a frame)**. So the drop when still was vsync's 60 Hz ceiling, not cost. Odd: with vsync on, moving read 140–160 fps, above the 60 Hz refresh, probably extra updates while keys are held. Harmless, since motion uses dt; note it in the A8 report. Still needed: fullscreen on the 5120×1440 panel.
   - Added: the HUD reads Bevy's smoothed fps and frame time, and `--no-vsync` presents without waiting for the refresh. Next reading, run fullscreen on the ultrawide, with and without `--no-vsync`, moving and still.
 
 ### A1–A6 review (2026-10-02)

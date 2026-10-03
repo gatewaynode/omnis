@@ -1,6 +1,7 @@
 //! The panel in the middle of the screen (alt-ARCHITECTURE.md §8, §9): the fight notice while
 //! monsters are met or the party has fallen, otherwise the action menu when it is open. Its
-//! buttons and the number keys carry out the choices. Headless-safe.
+//! buttons and the number keys carry out the choices. The action key is Space or a right click.
+//! Headless-safe.
 
 use super::VectorSet;
 use super::actions::{Menu, default_action, menu};
@@ -66,10 +67,12 @@ fn spawn(mut commands: Commands) {
     ));
 }
 
-/// Space toggles the action menu; Shift+Space runs the default action, or opens the menu when
-/// there is none; Esc closes it. The menu also closes when the party moves or stops exploring.
+/// The action key, Space or a right click, toggles the action menu; with Shift it runs the
+/// default action, or opens the menu when there is none; Esc closes it. The menu also closes
+/// when the party moves or stops exploring.
 fn keys(
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     mut session: ResMut<Session>,
     mut menu: ResMut<Menu>,
     mut last: Local<Option<Position>>,
@@ -84,7 +87,8 @@ fn keys(
     if keys.just_pressed(KeyCode::Escape) {
         menu.open = false;
     }
-    if !exploring || !keys.just_pressed(KeyCode::Space) {
+    let action = keys.just_pressed(KeyCode::Space) || mouse.just_pressed(MouseButton::Right);
+    if !exploring || !action {
         return;
     }
     if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {

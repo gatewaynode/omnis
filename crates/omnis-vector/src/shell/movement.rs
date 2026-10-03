@@ -35,6 +35,34 @@ pub struct Intent {
     pub looking: bool,
 }
 
+/// What the mouse-look decision sees in a frame.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LookInput {
+    /// The left button went down.
+    pub left_click: bool,
+    /// The pointer is over a button (a click there is the button's, not the view's).
+    pub over_button: bool,
+    /// Space, a right click or Esc.
+    pub release: bool,
+    /// The centre panel is up and needs the pointer.
+    pub panel: bool,
+}
+
+/// Whether the mouse looks after this frame. A left click in the view toggles it; the release
+/// keys and the panel turn it off. Turning it off leaves the yaw where it is.
+#[must_use]
+pub fn look(looking: bool, input: LookInput) -> bool {
+    if input.panel || input.release {
+        return false;
+    }
+    if input.left_click {
+        // While looking the pointer is hidden, so a click turns looking off wherever it is; a
+        // click on a button never turns it on.
+        return !looking && !input.over_button;
+    }
+    looking
+}
+
 /// Input and movement, headless-safe: needs only `Time`, the input resources and a `Session`.
 pub struct MovementPlugin;
 
@@ -146,5 +174,55 @@ fn ease(pose: Pose, target: Pose, dt: f32) -> Pose {
         x: pose.x + dx / len * step,
         z: pose.z + dz / len * step,
         yaw: pose.yaw,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LookInput, look};
+
+    fn click(over_button: bool) -> LookInput {
+        LookInput {
+            left_click: true,
+            over_button,
+            ..LookInput::default()
+        }
+    }
+
+    #[test]
+    fn a_left_click_in_the_view_toggles_mouse_look() {
+        assert!(look(false, click(false)), "on");
+        assert!(!look(true, click(false)), "and off again");
+        assert!(
+            !look(false, click(true)),
+            "a click on a button is the button's"
+        );
+        assert!(
+            !look(true, click(true)),
+            "off wherever the hidden pointer is"
+        );
+        assert!(look(true, LookInput::default()), "no click: unchanged");
+    }
+
+    #[test]
+    fn the_action_keys_esc_and_the_panel_give_the_pointer_back() {
+        let release = LookInput {
+            release: true,
+            ..LookInput::default()
+        };
+        let panel = LookInput {
+            panel: true,
+            ..LookInput::default()
+        };
+        assert!(!look(true, release));
+        assert!(!look(true, panel));
+        // A click with the panel up does not turn looking on.
+        assert!(!look(
+            false,
+            LookInput {
+                panel: true,
+                ..click(false)
+            }
+        ));
     }
 }
