@@ -21,9 +21,14 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - [x] A7b The fight notice: Fight, Bribe, Hide, Run in an encounter; a placeholder Attack, Dodge, Flee in a fight until Phase B; a restart when the party falls; the pose follows a retreat
   - [x] A7c The minimap from `world.automap`, with the pose marker
   - [x] A7d After the owner's first play ("buttons need some work"): opaque button and notice backgrounds, so the floor lines no longer cross the labels; use, save log and quit moved to their own group bottom right, away from the movement pad
-- [ ] A7e **Next (owner direction 2026-10-02, evening):** the standard extended WASD layout for 3D. W/S forward and back, A/D sidestep, **Q turn left, E turn right** (now Q/R), **Space use**, now E. The pad's labels and `movement.rs`'s bindings follow, and the arrow keys stay.
-  - Open: the owner said "space = use/action menu". Ask whether Space should open an action menu (use, and later items, spells, sense) or just use the faced edge for now.
-  - The owner also called the pad "buttons need some work". A7d fixed the two items they picked. The WASD-shaped pad and scaling with the window were offered and not picked.
+- [x] A7e The extended WASD layout for 3D (owner direction 2026-10-02 and 2026-10-03):
+  - W/S forward and back, A/D sidestep, Q/E turn 90° (R freed), arrow keys unchanged.
+  - **Space** opens the action menu for the square: the actions the simulation would carry out there, plus Close.
+  - **Shift+Space** runs the default action (the first available), or opens the menu when there is none.
+  - The bottom-right Use button became Actions; Esc, choosing, or moving closes the menu.
+  - Owner scope: UI only; any mechanics change is the mechanics branch's.
+  - The panel moved out of `fight.rs` into `panel.rs` (shared types in `notice.rs`), so the fight notice and the menu share it. Five headless tests in `tests/actions.rs`.
+  - Found: the simulation answers `Interact` with nothing there as accepted, with a `NothingHere` message, not a refusal, so availability tests for that message.
 - [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
 
 ### A1–A6 review (2026-10-02)

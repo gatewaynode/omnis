@@ -12,7 +12,8 @@ use omnis_sim::{Command, EncounterChoice, Mode};
 use omnis_vector::grid::cell_of;
 use omnis_vector::pose::Pose;
 use omnis_vector::shell::controls::Action;
-use omnis_vector::shell::fight::{Order, fallen, notice};
+use omnis_vector::shell::fight::{fallen, notice};
+use omnis_vector::shell::notice::Order;
 use omnis_vector::shell::session::Session;
 use std::path::PathBuf;
 

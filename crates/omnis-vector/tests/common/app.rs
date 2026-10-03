@@ -7,8 +7,8 @@ use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
 use omnis_vector::shell::ShellPlugin;
 use omnis_vector::shell::controls::ControlsPlugin;
-use omnis_vector::shell::fight::FightPlugin;
 use omnis_vector::shell::movement::MovementPlugin;
+use omnis_vector::shell::panel::PanelPlugin;
 use omnis_vector::shell::session::{Config, Session};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -48,7 +48,7 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
         ShellPlugin,
         MovementPlugin,
         ControlsPlugin,
-        FightPlugin,
+        PanelPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,

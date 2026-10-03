@@ -121,7 +121,7 @@ fn quit_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
     for action in [Action::Forward, Action::Back, Action::TurnLeft] {
         assert_eq!(corner_of(&mut app, action), Corner::Left, "{action:?}");
     }
-    for action in [Action::Quit, Action::SaveLog, Action::Interact] {
+    for action in [Action::Quit, Action::SaveLog, Action::Actions] {
         assert_eq!(corner_of(&mut app, action), Corner::Right, "{action:?}");
     }
     let world = app.world_mut();

@@ -1,12 +1,15 @@
 //! The Bevy shell: wiring only. `MovementPlugin` runs headless; `RenderPlugin` and
 //! `HudPlugin` need a window.
 
+pub mod actions;
 pub mod capture;
 pub mod controls;
 pub mod fight;
 pub mod hud;
 pub mod minimap;
 pub mod movement;
+pub mod notice;
+pub mod panel;
 pub mod render;
 pub mod session;
 pub mod text;

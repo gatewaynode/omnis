@@ -3,6 +3,7 @@
 //! a test can set.
 
 use super::VectorSet;
+use super::actions::Menu;
 use super::movement::Intent;
 use super::session::Session;
 use bevy::prelude::*;
@@ -23,8 +24,8 @@ pub enum Action {
     TurnLeft,
     /// Turn a quarter to the right.
     TurnRight,
-    /// Use the faced edge.
-    Interact,
+    /// Open or close the action menu for the square.
+    Actions,
     /// Write the command log as a replay.
     SaveLog,
     /// Leave.
@@ -41,8 +42,8 @@ impl Action {
             Action::StrafeLeft => "Left  A",
             Action::StrafeRight => "Right  D",
             Action::TurnLeft => "Turn left  Q",
-            Action::TurnRight => "Turn right  R",
-            Action::Interact => "Use  E",
+            Action::TurnRight => "Turn right  E",
+            Action::Actions => "Actions  Space",
             Action::SaveLog => "Save log",
             Action::Quit => "Quit",
         }
@@ -65,7 +66,7 @@ const PAD: [&[Action]; 2] = [
 ];
 
 /// The other actions, bottom right, away from the pad so a slip off Back cannot quit.
-const SIDE: [&[Action]; 1] = [&[Action::Interact, Action::SaveLog, Action::Quit]];
+const SIDE: [&[Action]; 1] = [&[Action::Actions, Action::SaveLog, Action::Quit]];
 
 /// The HUD's green.
 pub const GREEN: Color = Color::srgb(0.55, 1.0, 0.65);
@@ -127,7 +128,7 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
 pub enum Corner {
     /// Bottom left: the movement pad.
     Left,
-    /// Bottom right: use, save log, quit.
+    /// Bottom right: actions, save log, quit.
     Right,
 }
 
@@ -176,6 +177,7 @@ fn press(
     buttons: Query<(Ref<Interaction>, &Action)>,
     mut intent: ResMut<Intent>,
     mut session: ResMut<Session>,
+    mut menu: ResMut<Menu>,
     mut exit: MessageWriter<AppExit>,
 ) {
     for (interaction, &action) in &buttons {
@@ -198,7 +200,7 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
-            Action::Interact => intent.interact = true,
+            Action::Actions => menu.open = !menu.open,
             Action::SaveLog => {
                 let line = match session.save_log() {
                     Ok(path) => format!("Log saved to {}", path.display()),

@@ -31,8 +31,6 @@ pub struct Intent {
     pub mouse_yaw: f32,
     /// Yaw still to turn for a 90° button turn, radians.
     pub pending_turn: f32,
-    /// Use the faced edge this frame.
-    pub interact: bool,
     /// Whether the mouse looks (the cursor is grabbed).
     pub looking: bool,
 }
@@ -75,11 +73,8 @@ fn read_input(
     if keys.just_pressed(KeyCode::KeyQ) {
         intent.pending_turn += FRAC_PI_2;
     }
-    if keys.just_pressed(KeyCode::KeyR) {
-        intent.pending_turn -= FRAC_PI_2;
-    }
     if keys.just_pressed(KeyCode::KeyE) {
-        intent.interact = true;
+        intent.pending_turn -= FRAC_PI_2;
     }
     if intent.looking
         && let Some(mouse) = mouse
@@ -131,11 +126,7 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
         pose = ease(pose, session.binder.settle(&session.world, pose), dt);
     }
     session.pose = pose;
-    let mut events = out.events;
-    if intent.interact && matches!(session.world.mode, Mode::Explore) {
-        events.extend(session.binder.interact(&mut session.world, &session.data));
-    }
-    session.note(&events);
+    session.note(&out.events);
     *intent = Intent {
         pending_turn: intent.pending_turn,
         looking: intent.looking,
