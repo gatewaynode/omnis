@@ -20,8 +20,10 @@ full spell effects where M7b's spells simplify them (named in each spell file). 
 owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
-items; string item ids before many items arrive (ids are interned
-`u32`s guarded by the pack fingerprint); `doff_armor_minutes` as its own value.
+items; string ids in saves before much more content arrives (ids are interned `u32`s in file
+order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files renumbered
+the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
+own value.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 Nothing is built yet (as of M7a): one action per turn and shield as the only (automatic) reaction.
