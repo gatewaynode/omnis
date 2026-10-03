@@ -57,6 +57,10 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
   `food_needed`, then `ambush_after`, `rest_events` and `roll_hit_dice` on copies of the
   `encounter` and `rest` streams, then the changes; `long_rest_restore` and `too_soon` are the
   inn room's too). `encounter::ambush` opens an `EncounterSource::Ambush` from the map's table.
+  `rest_view.rs` (M7 step 8b): `rest_view` → `RestView { refusal, members: Vec<CampMember>,
+  long_food, food, long }`, read-only, from the checks `rest::apply` makes (`too_soon`,
+  `food_needed`, `food_need`, `hit_die`); `CampMember.spendable` is 0 when dead or at full hit
+  points. What the camp panel reads; `tests/rest_view.rs` holds it to the command's answers.
   A map's rest events: `omnis-data/src/rest_event.rs` (`RestEventDef`, `RestKind`, resolved to
   `MapData.rest_events`); log lines for rests in `omnis-app/src/service_text.rs`. `apply.rs`: `landing()` is the
   pure half of a step, shared by `r#move` and `query::{step_lands, site_ahead}`; `arrive` enters

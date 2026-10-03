@@ -19,7 +19,7 @@ use omnis_core::{Dice, RollTrace};
 use omnis_data::omnis_expr::Value;
 use omnis_data::rest_event::PER_MILLE;
 use omnis_data::{Ability, Data};
-use omnis_rules::{RuleError, modifier};
+use omnis_rules::{Character, RuleError, modifier};
 use serde::{Deserialize, Serialize};
 
 /// An hour's rest when the rules leave it out.
@@ -208,7 +208,7 @@ fn check_dice(world: &World, data: &Data, dice: &[u8]) -> Result<Vec<(usize, u8)
 }
 
 /// Food the night eats: `rest_food_per_member` for every member not dead.
-fn food_needed(world: &World, data: &Data) -> Result<u32, Rejection> {
+pub(crate) fn food_need(world: &World, data: &Data) -> u32 {
     let each = data
         .rules
         .value("rest_food_per_member")
@@ -220,7 +220,12 @@ fn food_needed(world: &World, data: &Data) -> Result<u32, Rejection> {
         .iter()
         .filter(|m| !is_dead(m, data))
         .count();
-    let need = each.saturating_mul(u32::try_from(eaters).unwrap_or(u32::MAX));
+    each.saturating_mul(u32::try_from(eaters).unwrap_or(u32::MAX))
+}
+
+/// The night's food, or `NoFood` when the stores hold less.
+pub(crate) fn food_needed(world: &World, data: &Data) -> Result<u32, Rejection> {
+    let need = food_need(world, data);
     if need > world.party.food {
         return Err(Rejection::NoFood {
             need,
@@ -296,6 +301,11 @@ fn rest_events(
     Ok(hits)
 }
 
+/// The sides of a member's hit die, from the class (a d8 if the class is unknown).
+pub(crate) fn hit_die(data: &Data, member: &Character) -> u8 {
+    data.classes.get(&member.class).map_or(8, |c| c.hit_die)
+}
+
 /// `count` of a member's hit dice, each through `rest.hit_die_heal` with the Constitution
 /// modifier.
 fn roll_hit_dice(
@@ -306,10 +316,7 @@ fn roll_hit_dice(
     roller: &mut Roller,
 ) -> Result<Spend, Rejection> {
     let member = &world.party.members[index];
-    let sides = data
-        .classes
-        .get(&member.class)
-        .map_or(8, |c| u16::from(c.hit_die));
+    let sides = u16::from(hit_die(data, member));
     let con = modifier(member.scores[Ability::Constitution.index()]);
     let mut rolls = Vec::with_capacity(usize::from(count));
     let mut amount = 0;
