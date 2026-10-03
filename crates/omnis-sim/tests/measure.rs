@@ -6,6 +6,9 @@
 //! mean spell points spent, and how often a pool emptied. `ambush_over_seeds` measures resting
 //! in the dungeon (M7 step 5): how often a spent party is wiped when its rest is ambushed, what
 //! that costs per 100 rests at a few chances, and the ambush rate the slots give.
+//! `clear_over_seeds` measures one clear of the dungeon (M7b step 11) by parties of two, four
+//! and six: the wipe rate, the experience and gold a clear brings, how many clears reach levels
+//! 2 and 3, and the trainer's price against that income.
 
 mod common;
 
@@ -13,8 +16,9 @@ use common::{data, encounter, party_of, reachable_stack};
 use omnis_core::{Facing, Position};
 use omnis_data::{Data, Disposition, SpellEffect};
 use omnis_sim::{
-    ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, Event, Mode, RestCommand,
-    Settings, Surprise, Target, World, apply, combat, combat_view,
+    ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, EncounterSource,
+    EncounterState, Event, Mode, RestCommand, Settings, Stack, Surprise, Target, World, apply,
+    combat, combat_view,
 };
 
 const SEEDS: u64 = 300;
@@ -321,6 +325,216 @@ fn ambush_over_seeds() {
         println!(
             "{label} rests ambushed at the slots' chance: {ambushes} of {rests} ({} per mille)",
             tenths(ambushes * 10_000 / rests)
+        );
+    }
+}
+
+/// The dungeon's maps, in the order a clear goes down them; a map the packs lack is skipped.
+const DUNGEON: [&str; 2] = ["test:map:dungeon", "test:map:depths"];
+
+/// What one clear of the dungeon came to.
+#[derive(Default)]
+struct Clear {
+    wiped: bool,
+    fights: u32,
+    xp: u64,
+    gold: u64,
+}
+
+/// Fight to the end under `policy`, adding the fight's experience (per member) and copper.
+fn fight_out(world: &mut World, data: &Data, policy: Policy, clear: &mut Clear) {
+    clear.fights += 1;
+    for _ in 0..600 {
+        if !matches!(world.mode, Mode::Combat(_)) {
+            break;
+        }
+        let command = policy(world, data);
+        for event in apply(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
+            if let Event::CombatEnded {
+                outcome, xp, gold, ..
+            } = event
+            {
+                clear.wiped |= outcome != CombatOutcome::Victory;
+                clear.xp += u64::from(xp);
+                clear.gold += u64::from(gold);
+            }
+        }
+    }
+    clear.wiped |= matches!(world.mode, Mode::Combat(_));
+}
+
+/// The placed group `index` of `map` as the game starts it on its tile: its own monsters and
+/// counts, each individual at the rules' hit points, cleared by a victory if it is `once`.
+fn placed(data: &Data, world: &mut World, map: omnis_core::MapId, index: usize) -> EncounterState {
+    let def = &data.maps[&map].encounters[index];
+    world.position = Position {
+        map,
+        x: def.x,
+        y: def.y,
+        facing: Facing::North,
+    };
+    let stream = omnis_core::StreamName::new("combat");
+    let mut rng = omnis_core::Pcg32::for_stream(world.seed, &stream);
+    let stacks = def
+        .stacks
+        .iter()
+        .map(|(monster, count)| {
+            let hp = omnis_sim::omnis_rules::monster_hit_points(
+                &data.monsters[monster],
+                data,
+                &mut rng,
+                &stream,
+            )
+            .unwrap();
+            Stack {
+                monster: *monster,
+                initial: *count,
+                hp: vec![hp; usize::from(*count)],
+            }
+        })
+        .collect();
+    EncounterState {
+        source: EncounterSource::Fixed(u16::try_from(index).unwrap()),
+        stacks,
+        disposition: def.disposition,
+        retreat: world.position,
+    }
+}
+
+/// After a fight: an hour's rest spending every die of each member under half, and any
+/// ambush it brings fought out.
+fn short_rest(world: &mut World, data: &Data, policy: Policy, clear: &mut Clear) {
+    let dice: Vec<u8> = world
+        .party
+        .members
+        .iter()
+        .map(|m| {
+            if m.hp > 0 && m.hp * 2 < m.hp_max {
+                m.level.saturating_sub(m.hit_dice_spent)
+            } else {
+                0
+            }
+        })
+        .collect();
+    if dice.iter().all(|d| *d == 0) {
+        return;
+    }
+    rest(world, data, RestCommand::Short { dice }, policy, clear);
+}
+
+fn rest(world: &mut World, data: &Data, command: RestCommand, policy: Policy, clear: &mut Clear) {
+    if apply(world, data, Command::Rest(command)).is_err() {
+        return;
+    }
+    if matches!(world.mode, Mode::Encounter(_)) {
+        apply(world, data, Command::Encounter(EncounterChoice::Attack)).unwrap();
+        fight_out(world, data, policy, clear);
+    }
+}
+
+/// One clear by a new level-1 party: every `once` group on each dungeon map in file order, the
+/// party carried from fight to fight, a short rest after each, a night before the next map.
+fn clear_dungeon(data: &Data, seed: u64, members: usize, policy: Policy) -> Clear {
+    let mut world = World::new(data, seed, Settings::default()).unwrap();
+    party_of(&mut world, data, members);
+    world.party.food = 20;
+    let mut clear = Clear::default();
+    for (n, name) in DUNGEON.iter().enumerate() {
+        let Some(map) = data.registry.maps.get(name) else {
+            continue;
+        };
+        if n > 0 {
+            rest(&mut world, data, RestCommand::Long, policy, &mut clear);
+        }
+        for index in 0..data.maps[&map].encounters.len() {
+            if clear.wiped {
+                return clear;
+            }
+            if !data.maps[&map].encounters[index].once {
+                continue;
+            }
+            let encounter = placed(data, &mut world, map, index);
+            let mut events = Vec::new();
+            combat::start(&mut world, data, encounter, Surprise::None, &mut events).unwrap();
+            fight_out(&mut world, data, policy, &mut clear);
+            if !clear.wiped {
+                short_rest(&mut world, data, policy, &mut clear);
+            }
+        }
+    }
+    clear
+}
+
+#[test]
+#[ignore = "the measurement harness; run with --nocapture to read the table"]
+fn clear_over_seeds() {
+    let data = data();
+    let services = |slot: &str, input: (&str, i64)| -> u64 {
+        let mut rng = omnis_core::Pcg32::for_stream(0, &omnis_core::StreamName::new("town"));
+        let value = data
+            .rules
+            .eval(
+                slot,
+                &[(input.0, omnis_data::omnis_expr::Value::Int(input.1))],
+                &mut rng,
+                &omnis_core::StreamName::new("town"),
+            )
+            .unwrap()
+            .value;
+        u64::try_from(value.as_int().unwrap()).unwrap()
+    };
+    let (train2, train3) = (
+        services("trainer.cost", ("level", 2)),
+        services("trainer.cost", ("level", 3)),
+    );
+    let raise = services("temple.raise_cost", ("level", 1));
+    let maps: Vec<&str> = DUNGEON
+        .iter()
+        .copied()
+        .filter(|m| data.registry.maps.get(m).is_some())
+        .collect();
+    println!("One clear of {maps:?} by a new level-1 party, cast-or-attack, over {SEEDS} seeds.");
+    println!(
+        "Prices: train to 2 {} gp a member, to 3 {} gp; raise at level 1 {} gp.",
+        hundredths(train2),
+        hundredths(train3),
+        hundredths(raise)
+    );
+    println!(
+        "{:>7} {:>6} {:>7} {:>8} {:>9} {:>8} {:>8} {:>11}",
+        "members", "wipe%", "fights", "xp/mem", "gp/clear", "to L2", "to L3", "L2 cost gp"
+    );
+    for members in [2usize, 4, 6] {
+        let (mut wipes, mut done) = (0u64, 0u64);
+        let (mut fights, mut xp, mut gold) = (0u64, 0u64, 0u64);
+        for seed in 0..SEEDS {
+            let clear = clear_dungeon(&data, seed, members, cast_or_attack);
+            if clear.wiped {
+                wipes += 1;
+                continue;
+            }
+            done += 1;
+            fights += u64::from(clear.fights);
+            xp += clear.xp;
+            gold += clear.gold;
+        }
+        let d = done.max(1);
+        // Clears to a level, in tenths: the threshold over the mean experience a member gets.
+        let clears = |need: u64| {
+            (need * 10 * d)
+                .checked_div(xp)
+                .map_or_else(|| "-".to_owned(), tenths)
+        };
+        println!(
+            "{:>7} {:>6} {:>7} {:>8} {:>9} {:>8} {:>8} {:>11}",
+            members,
+            tenths(wipes * 1000 / SEEDS),
+            hundredths(fights * 100 / d),
+            xp / d,
+            hundredths(gold / d),
+            clears(300),
+            clears(900),
+            hundredths(train2 * u64::try_from(members).unwrap())
         );
     }
 }
