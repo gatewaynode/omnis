@@ -1,6 +1,6 @@
 # Alt continuity notes (the 3D experiment)
 
-Written 2026-10-03, before a compact in the middle of Phase B (B2 done, B3 next). Rewrite this
+Written 2026-10-03, before a compact in the middle of Phase B (B3 done, B4 next). Rewrite this
 file every time it is used; keep it to state, next step, pointers and gotchas. It is kept apart
 from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 `m6-closeout-tasks`).
@@ -8,12 +8,12 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## State
 - **Branch:** `gui-3d-experiment`, cut from `main` at `8e111d5`.
   - **The owner pushes:** the agent's sandbox has no GitHub access (memory `owner-pushes`).
-  - The owner pushed through `5083a2c`. These are local until they push again: `bcee3b9` (Phase B plan), `6e856e5` (B1), `17c5552` (B1a), `6a68900` (B2), and this file's commit. Check with `git status -sb`.
+  - The owner pushed through `088b5ad` (B3). Only this file's commit is local. Check with `git status -sb`.
 - **Clone:** `/Users/john/code/omnis-alt/omnis`. The main checkout is `/Users/john/code/omnis`.
-- **Gate:** green at 425 passed, 6 ignored. Sentrux rules pass at signal 8911.
+- **Gate:** green at 435 passed, 6 ignored. Sentrux rules pass at signal 8911.
 - **Phase A is complete** (A0–A8; the report is in `tasks/alt-TODO.md`).
 - **Phase B, the 2D combat screen.** The plan, `~/.claude/plans/snug-munching-gray.md`, was approved 2026-10-03. **Read it first.**
-  - **B0, B1, B1a, B2 done** (details in `tasks/alt-TODO.md`).
+  - **B0, B1, B1a, B2, B3 done** (details in `tasks/alt-TODO.md`).
   - **B1, the roll log:** `src/rolllog.rs`.
     - `describe(&Event, &Names, &Data)`.
     - `Names` numbers each monster as it was met (`follow` on `EncounterStarted` and `Death`), and keeps members a fight buries (`observe`).
@@ -31,6 +31,16 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
     - `Pick::{Stack(u8), Member(slot)}`.
     - Free functions: `command(action, pick)` and `targets(world, data, action)`, found by trial.
     - `src/trial.rs`: `refusal` and `accepted` on a world clone. `shell/notice.rs` uses it.
+  - **B3, the arena:** `src/arena.rs` (Bevy-free; logical px, origin top left, y down).
+    - `layout(w, h) -> Layout{window, picture, actions, log, title, field}`: picture (`cinema::SIZE`) at (16, 16), actions under it, log at the right (24% of width, 300–640), title (40 px) and field between.
+    - `arena(world, data, (w, h), targets: &[Pick], hover) -> Option<Arena{layout, stacks, members, marks}>`; `None` outside a fight. Acting is read from `combat_view().current` (`Member`, `Stack` or `Monster`).
+    - Field split: monsters top 55% (back band 45% of that, front band below), party bottom 45% (back row, then front row). Front comes from `StackView.front` (pack: 2 front stacks, dynamic: the first living ones) and `MemberView.front` (pack: front row of **3**; Pip alone behind).
+    - `Group{pick, figures, label, slot}`, `Figure{rect, bar, health, state: State::{Standing, Down, Dead}, lines}`. Monster figures are `cinema::drawing` placed with `cinema::place` (new; `bounds` too). Members are a stick `person()`.
+    - Names via `data.label("en", ..)`. Over `MOST` (8) living: "Giant Rat x12" (plain x: the menu uses it, and Bevy's font may lack ×).
+    - `segments(&Arena) -> Vec<Seg2{a, b, tone}>`, `Tone::{Figure, Down, Dead, Bar, Health, Acting, Target, Hover}`. Acting = corner brackets 10 px out; target/hover = outline 5 px out; both clipped to the slot.
+    - `pick(&Arena, point)` hits a figure's rect or bar.
+    - The rat is ~2.5:1, so crowded stacks draw small (a 12-stack sharing the front band ≈ 35×14 px at 1600×900). Judge it in the B4 captures.
+    - Test helpers `met`, `fighting`, `acting`, `turn_of` moved to `tests/common/fight.rs`.
 - **Owner decisions:**
   - Phase B (alt-PRD §10.3): **write fresh**. Glowing vector-line figures. Every fight action, with targets picked by clicking. A short roll log.
   - **2026-10-03:** they like the modal, but **the full 2D screen stays the plan** (B3/B4 as written). The picture window carries into B4, **above the action column**.
@@ -45,24 +55,13 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - macOS's main display is an LS27A800U, 60 Hz, 4K scaled to 1920×1080.
 - **Don't repeat it:** a message in the first session looked like a password. It was not used or stored.
 
-## Next: B3, the arena (`src/arena.rs`, Bevy-free), then B4–B6
-- **Layout** in logical pixels for a given window size, as plain data a test can check:
-  - **Monster stacks** across the top half; front stacks larger and lower.
-    - One figure per living individual, up to 8, then "×N".
-    - Each figure is scaled by the monster's `Size` (`data.monsters[&id].size`) and has an hp bar.
-    - Read from `combat_view` (`StackView`: index, name, initial, hp per living, front, alive, reachable).
-  - **The party** in two rows across the bottom, the front row nearer. Each member has a figure, a name slot, an hp bar, and a mark for down or dead.
-    - Read from `omnis_sim::ops::party_view(world, data).members` (`MemberView`: index, name, hp, hp_max, front, conditions, plus down and dead).
-  - **Highlights:** the acting member (`combat_view().current`), the valid targets (`CombatMenu::clickable`), and the hovered pick.
-  - **Space** for the picture window (`cinema::SIZE`) above the action column, and for the roll log on the right.
-- `segments(&Arena) -> Vec<Seg2>` for drawing, and `pick(&Arena, point) -> Option<Pick>` (reuse `combat_menu::Pick`).
-- **Tests:**
-  - figures and counts per stack;
-  - two party rows;
-  - a pick hitting the right stack or member, and missing between figures;
-  - scaling at 1600×900 and 5120×1440;
-  - nothing off-screen or overlapping the picture window or log.
-- **B4:**
+## Next: B4, the screen (`src/shell/combat.rs`, `CombatPlugin`), then B5–B7
+- Read `arena.rs` and `combat_menu.rs` first; the shell only wires them.
+- Convert arena coordinates (top-left, y down) to `Camera2d` world space (centre origin, y up): `(x - w/2, h/2 - y)`.
+- Draw `segments` with gizmos in a `CombatGizmos` config group; map each `Tone` to a colour (bright green figures, dim for down, red for dead, amber acting, cyan target, white hover).
+- UI nodes at the layout's rects: the picture `Screen` node at `layout.picture`, the `CombatMenu` buttons in `layout.actions` (prompt on top, blocked entries dim with their reason), the roll log (`Session.fight_log`) in `layout.log`, the title, and `Text` labels at each `Group.label.rect`. Opaque backgrounds (LESSONS 2026-10-02).
+- Hover: `arena::pick` at the cursor, kept only if it is in `CombatMenu::clickable`.
+- **B4, the rest (from the plan):**
   - `ViewState` (needs `StatesPlugin` in headless tests).
   - The `Camera3d` is deactivated; a `Camera2d` gets `Hdr`, `Bloom`, `Tonemapping::None`, `RenderLayers::layer(1)` and `IsDefaultUiCamera` (moved from the 3D camera).
   - Copy the offscreen `RenderTarget` for captures.
@@ -75,7 +74,7 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 
 ## Gotchas
 - **Builds need `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.** The Xcode licence is unaccepted.
-- **The gate:** run `scripts/verify.sh > <scratchpad>/verify.log 2>&1` unpiped, then grep `tests passed` and `VERIFY-GREEN`. Clippy is `-D warnings`: use `as_chunks::<4>()` rather than `chunks_exact(4)`, and `next_back()` rather than `last()` on double-ended iterators.
+- **The gate:** run `scripts/verify.sh > <scratchpad>/verify.log 2>&1` unpiped, then grep `tests passed` and `VERIFY-GREEN`. Clippy is `-D warnings`: no `#[must_use]` on a fn returning `impl Fn` (already must-use); run `cargo fmt -p omnis-vector` before the gate; use `as_chunks::<4>()` rather than `chunks_exact(4)`, and `next_back()` rather than `last()` on double-ended iterators.
 - **Sentrux: scan `/Users/john/code/omnis-alt/omnis/crates`, not the repo root.** The rules file is `crates/.sentrux/rules.toml` (ignored by git). From the root, `check_rules` finds no rules. `import_edges` is 0, so check `use super` cycles in `src/shell` by hand.
 - **Windows get no frames from the agent's shell.** Use the offscreen capture: `./target/debug/omnis-vector --screenshot .omnis/shot.png --walk N [--size WxH]`, then Read the PNG.
 - **To capture an encounter:**
@@ -88,7 +87,7 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - Buttons get their `Interaction` set directly (`tests/common/app.rs::set`).
   - The builders are `tests/common/app.rs::{app, app_logging_to, app_with(log, seed), met_with(seed)}`. `met_with` walks into the placed group: seed 1 fights, seed 2's run succeeds.
   - For a Bevy-free test, take the `Session` out with `app.world_mut().remove_resource::<Session>()`.
-- **The seed-1 fight:** two giant rats. Initiative: Pip 19, rats 18, Durin 9, Brenna 8, Ilvara 4.
+- **The seed-1 fight:** two giant rats, one stack (`Pick::Stack(0)`); the stack's name key is `test:text:monster.giant_rat.name` ("Giant Rat" through `data.label`). Initiative: Pip 19, rats 18, Durin 9, Brenna 8, Ilvara 4.
   - The party: Brenna (fighter, slot 0), Durin (cleric, slot 1), Ilvara (wizard, slot 2), Pip (rogue, slot 3).
   - Everyone carries a "Potion of healing" (lower-case h; labels are as the pack writes them).
 - **The binder logs only `Ok` commands.** Choices are tried on a clone first.
@@ -101,12 +100,12 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## Pointers
 - **Vision:** `alt-PRD.md` (Phase B in §6, X7, §10.3) and `alt-ARCHITECTURE.md` (§6 plugin table, with `CinemaPlugin` added; §8; §9, with the picture window and roll log as built).
 - **Plan and reviews:** `tasks/alt-TODO.md` (B items). The Phase B plan file is listed above.
-- **Core:** `crates/omnis-vector/src/{geom,grid,pose,collide,bind,geometry,minimap,party,raster,rolllog,cinema,trial,combat_menu}.rs`.
+- **Core:** `crates/omnis-vector/src/{geom,grid,pose,collide,bind,geometry,minimap,party,raster,rolllog,cinema,trial,combat_menu,arena}.rs`.
 - **Shell:**
   - `src/shell/{mod,session,movement,controls,actions,notice,fight,panel,render,hud,minimap,cinema,text,capture}.rs`
   - `fight.rs` holds the A7b notice that Phase B replaces.
   - `panel.rs::current` shows it.
-- **Tests:** `tests/{agreement,binding,shell,fight,actions,minimap,rolllog,combat_menu}.rs` and `tests/common/{mod,app}.rs`.
+- **Tests:** `tests/{agreement,binding,shell,fight,actions,minimap,rolllog,combat_menu,arena}.rs` and `tests/common/{mod,app,fight}.rs`.
 - **Simulation reads:**
   - `omnis_sim::{combat_view, CombatView, StackView, SpellView, bribe_cost, CombatCommand, Target, EncounterChoice, apply}`
   - `omnis_sim::ops::party_view`
