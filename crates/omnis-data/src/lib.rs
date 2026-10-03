@@ -7,6 +7,7 @@
 #![deny(clippy::float_arithmetic)]
 #![warn(missing_docs)]
 
+pub mod action;
 pub mod character;
 pub mod condition;
 mod content;
@@ -29,6 +30,7 @@ pub mod terms;
 pub mod text;
 pub mod tileset;
 
+pub use action::{Cost, FeatureEffect, Recharge, Uses};
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;

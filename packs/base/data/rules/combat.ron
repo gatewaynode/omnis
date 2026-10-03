@@ -22,6 +22,12 @@
         "bribe.cost": (inputs: ["xp", "disposition"], expr: "if disposition >= 3 { 0 } else { max(1, xp * (3 - disposition) / 3) * 100 }"),
         // Random encounter: `roll` is 1d100 from the encounter stream.
         "encounter.random": (inputs: ["roll", "chance_percent"], expr: "roll <= chance_percent"),
+        // The turn budget (PRD D21, ARCHITECTURE.md §4.7), evaluated at the start of each
+        // combatant's turn: `level` is a member's level (0 for a stack), `is_member` whether it is
+        // one. The SRD's one of each; a curve above one is decided with numbers first (R12).
+        "turn.actions": (inputs: ["level", "is_member"], expr: "1"),
+        "turn.bonus_actions": (inputs: ["level", "is_member"], expr: "1"),
+        "turn.reactions": (inputs: ["level", "is_member"], expr: "1"),
     },
     values: {
         "monster_front_stacks": 2,

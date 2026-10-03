@@ -13,11 +13,13 @@
     skills: (choose: 4, from: [Acrobatics, Athletics, Deception, Insight, Intimidation, Investigation, Perception, Performance, Persuasion, SleightOfHand, Stealth]),
     starting_equipment: [("base:item:rapier", 1), ("base:item:shortbow", 1), ("base:item:arrows", 20), ("base:item:leather", 1), ("base:item:dagger", 2), ("base:item:thieves_tools", 1)],
     casting: None,
+    // Cunning Action acts in a fight (M7c): an exchange that provokes no opportunity attack (Dash
+    // and Disengage on rows) or Hide. Sneak Attack is a label until its damage is built.
     features: [
         (level: 1, name: "base:text:class.rogue.expertise"),
         (level: 1, name: "base:text:class.rogue.sneak_attack"),
         (level: 1, name: "base:text:class.rogue.thieves_cant"),
-        (level: 2, name: "base:text:class.rogue.cunning_action"),
+        (level: 2, name: "base:text:class.rogue.cunning_action", effect: Some(Cunning), cost: BonusAction),
         (level: 3, name: "base:text:class.rogue.roguish_archetype"),
         (level: 4, name: "base:text:class.rogue.ability_score_improvement"),
         (level: 5, name: "base:text:class.rogue.uncanny_dodge"),

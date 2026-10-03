@@ -2,6 +2,7 @@
 //! feature names are text keys; the loader checks that every key exists in some language and
 //! that every item and spell a class names is defined.
 
+use crate::action::{Cost, FeatureEffect, Uses};
 use crate::error::DataError;
 use crate::terms::{Ability, ArmorKind, DamageType, SaveAgainst, Size, Skill, WeaponKind};
 use serde::{Deserialize, Serialize};
@@ -112,13 +113,45 @@ pub struct Casting {
     pub list: Vec<String>,
 }
 
-/// A class feature gained at a level (display only in v1).
+/// A class feature gained at a level: a label, or with an `effect` an action in a fight that
+/// spends `cost` from the turn's budget and, with `uses`, a use restored by a rest (M7c).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClassFeature {
     /// Level gained.
     pub level: u8,
     /// Text key of the feature's name.
     pub name: String,
+    /// What it does in a fight; `None` is a label.
+    #[serde(default)]
+    pub effect: Option<FeatureEffect>,
+    /// What it spends from the turn's budget.
+    #[serde(default)]
+    pub cost: Cost,
+    /// Uses between rests; `None` is at will.
+    #[serde(default)]
+    pub uses: Option<Uses>,
+}
+
+impl ClassFeature {
+    /// Self-contained checks; every problem is pushed.
+    pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        match &self.effect {
+            Some(effect) => effect.validate(file, self.cost, errors),
+            None if self.cost != Cost::Action || self.uses.is_some() => {
+                errors.push(DataError::new(
+                    file,
+                    format!("{}: a cost or uses need an effect", self.name),
+                ));
+            }
+            None => {}
+        }
+        if self.uses.is_some_and(|u| u.count == 0) {
+            errors.push(DataError::new(
+                file,
+                format!("{}: uses must be at least 1", self.name),
+            ));
+        }
+    }
 }
 
 /// A character class.
@@ -183,6 +216,9 @@ impl Class {
                 file,
                 "starting_equipment counts must be at least 1",
             ));
+        }
+        for feature in &self.features {
+            feature.validate(file, errors);
         }
         if let Some(casting) = &self.casting
             && casting.spells_at_1 > 0

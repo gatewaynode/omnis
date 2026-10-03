@@ -36,6 +36,9 @@ fn a_rewritten_pack_loads_identically() {
     for (i, monster) in data.monsters.values().enumerate() {
         write_ron(&dir.join(format!("data/monsters/m{i}.ron")), monster).unwrap();
     }
+    for (i, spell) in data.spells.values().enumerate() {
+        write_ron(&dir.join(format!("data/spells/s{i}.ron")), spell).unwrap();
+    }
     for (lang, table) in &data.text {
         let entries = table
             .iter()
@@ -51,6 +54,7 @@ fn a_rewritten_pack_loads_identically() {
     assert_eq!(again.maps, data.maps);
     assert_eq!(again.tilesets, data.tilesets);
     assert_eq!(again.monsters, data.monsters);
+    assert_eq!(again.spells, data.spells);
     assert_eq!(again.text, data.text);
     assert_eq!(again.registry, data.registry);
     assert_ne!(

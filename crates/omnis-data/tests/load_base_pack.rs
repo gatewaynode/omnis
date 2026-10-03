@@ -5,8 +5,8 @@ mod common;
 use omnis_core::{Dice, Pcg32, StreamName};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{
-    Ability, ArmorKind, BuffOn, DamageType, Effect, Fidelity, Geometry, ItemKind, Reach, Skill,
-    SpellEffect, UseEffect, load_packs,
+    Ability, ArmorKind, BuffOn, Cost, DamageType, Effect, FeatureEffect, Fidelity, Geometry,
+    ItemKind, Reach, Recharge, Skill, SpellEffect, UseEffect, Uses, load_packs,
 };
 
 #[test]
@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 24, 16, 18, 3, 31, 7)
+        (4, 4, 3, 24, 16, 18, 3, 34, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -508,4 +508,107 @@ fn base_and_test_packs_load_together() {
     assert_eq!(data.maps.len(), 4);
     assert_eq!(data.races.len(), 4);
     assert_eq!(data.entry, data.registry.maps.get("test:map:town"));
+}
+
+#[test]
+fn costs_features_and_the_turn_budget_come_from_data() {
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let spell = |name: &str| {
+        &data.spells[&data
+            .registry
+            .spells
+            .get(&format!("base:spell:{name}"))
+            .unwrap()]
+    };
+    // D24 on every spell: the SRD's bonus-action spells may take the bonus action; shield is
+    // the one reaction; nothing is readied yet.
+    for (id, s) in &data.spells {
+        let name = data.registry.spells.name(*id).unwrap();
+        let bonus = ["base:spell:healing_word", "base:spell:spiritual_weapon"].contains(&name);
+        let cost = if name == "base:spell:shield" {
+            Cost::Reaction
+        } else {
+            Cost::Action
+        };
+        assert_eq!(
+            (
+                s.cost,
+                s.bonus_action_available,
+                s.preparation_available,
+                s.preparation_required_for_bonus_action
+            ),
+            (cost, bonus, false, false),
+            "{name}"
+        );
+    }
+    assert_eq!(spell("shield").cost, Cost::Reaction);
+
+    let features = |class: &str| {
+        data.classes[&data
+            .registry
+            .classes
+            .get(&format!("base:class:{class}"))
+            .unwrap()]
+            .features
+            .iter()
+            .filter(|f| f.effect.is_some())
+            .map(|f| (f.level, f.name.clone(), f.effect.unwrap(), f.cost, f.uses))
+            .collect::<Vec<_>>()
+    };
+    let short = Some(Uses {
+        count: 1,
+        per: Recharge::ShortRest,
+    });
+    assert_eq!(
+        features("fighter"),
+        [
+            (
+                1,
+                "base:text:class.fighter.second_wind".to_owned(),
+                FeatureEffect::Heal {
+                    dice: Dice::new(1, 10),
+                    per_level: true
+                },
+                Cost::BonusAction,
+                short
+            ),
+            (
+                2,
+                "base:text:class.fighter.action_surge".to_owned(),
+                FeatureEffect::ExtraAction,
+                Cost::Free,
+                short
+            ),
+        ]
+    );
+    assert_eq!(
+        features("rogue"),
+        [(
+            2,
+            "base:text:class.rogue.cunning_action".to_owned(),
+            FeatureEffect::Cunning,
+            Cost::BonusAction,
+            None
+        )]
+    );
+    assert!(features("cleric").is_empty() && features("wizard").is_empty());
+
+    let stream = StreamName::new("combat");
+    let mut rng = Pcg32::for_stream(1, &stream);
+    for slot in ["turn.actions", "turn.bonus_actions", "turn.reactions"] {
+        for (level, member) in [(1, true), (20, true), (0, false)] {
+            let inputs = [
+                ("level", Value::Int(level)),
+                ("is_member", Value::Bool(member)),
+            ];
+            assert_eq!(
+                data.rules
+                    .eval(slot, &inputs, &mut rng, &stream)
+                    .unwrap()
+                    .value,
+                Value::Int(1),
+                "{slot}: the SRD's one of each"
+            );
+        }
+    }
 }

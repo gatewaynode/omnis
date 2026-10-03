@@ -1,6 +1,7 @@
 //! `data/spells`: spells with a point cost, a component list, and a typed effect (PRD §8.2,
 //! D11, D12). The effect is the shape of what a spell does; the arithmetic lives in rule slots.
 
+use crate::action::Cost;
 use crate::error::DataError;
 use crate::limits::MAX_VISIBILITY_DEPTH;
 use crate::terms::{Ability, DamageType, School};
@@ -232,6 +233,16 @@ pub struct Spell {
     /// How far it reaches in a fight.
     #[serde(default)]
     pub reach: Reach,
+    /// What casting it spends from the turn's budget; a `Reaction` spell is cast only by a
+    /// declared reaction (D22).
+    #[serde(default)]
+    pub cost: Cost,
+    /// D24: an `Action` spell may be paid with the bonus action instead.
+    pub bonus_action_available: bool,
+    /// D24: the spell can be readied in advance (`Prepare` is open, PRD §14).
+    pub preparation_available: bool,
+    /// D24: only a readied spell may be paid with the bonus action.
+    pub preparation_required_for_bonus_action: bool,
 }
 
 impl Spell {
@@ -258,6 +269,29 @@ impl Spell {
         if let Some(effect) = &self.effect {
             effect.validate(file, self.reach, errors);
         }
+        self.validate_cost(file, errors);
+    }
+
+    /// The cost against D24's fields and the effect.
+    fn validate_cost(&self, file: &Path, errors: &mut Vec<DataError>) {
+        let reaction_effect = matches!(self.effect, Some(SpellEffect::Reaction { .. }));
+        let mut fault = |message: &str| errors.push(DataError::new(file, message));
+        if reaction_effect && self.cost != Cost::Reaction {
+            fault("a Reaction effect costs a reaction");
+        }
+        if self.cost == Cost::Free {
+            fault("a spell costs an action, a bonus action or a reaction");
+        }
+        if self.bonus_action_available && self.cost != Cost::Action {
+            fault("bonus_action_available is for a spell that costs an action");
+        }
+        if self.preparation_required_for_bonus_action
+            && !(self.bonus_action_available && self.preparation_available)
+        {
+            fault(
+                "preparation_required_for_bonus_action needs bonus_action_available and preparation_available",
+            );
+        }
     }
 }
 
@@ -281,6 +315,10 @@ mod tests {
             description: "t:text:spell.x.description".into(),
             effect,
             reach,
+            cost: Cost::Action,
+            bonus_action_available: false,
+            preparation_available: false,
+            preparation_required_for_bonus_action: false,
         }
     }
 
@@ -332,7 +370,11 @@ mod tests {
             } else {
                 Reach::Stack
             };
-            let s = spell(Some(effect), reach);
+            let reaction = matches!(effect, SpellEffect::Reaction { .. });
+            let mut s = spell(Some(effect), reach);
+            if reaction {
+                s.cost = Cost::Reaction;
+            }
             let back: Spell = from_str(&to_string(&s).unwrap(), Path::new("memory")).unwrap();
             assert_eq!(back, s);
             assert!(problems(&s).is_empty(), "{:?}", problems(&s));
@@ -340,6 +382,53 @@ mod tests {
         let plain = spell(None, Reach::One);
         let back: Spell = from_str(&to_string(&plain).unwrap(), Path::new("memory")).unwrap();
         assert_eq!(back.effect, None);
+    }
+
+    #[test]
+    fn costs_follow_d24() {
+        let heal = SpellEffect::Heal {
+            dice: Dice::new(1, 4),
+            add_mod: true,
+        };
+        let mut word = spell(Some(heal.clone()), Reach::One);
+        word.bonus_action_available = true;
+        assert!(
+            problems(&word).is_empty(),
+            "an action spell may take the bonus action"
+        );
+        word.preparation_available = true;
+        word.preparation_required_for_bonus_action = true;
+        assert!(
+            problems(&word).is_empty(),
+            "readied first, then a bonus action"
+        );
+        word.preparation_available = false;
+        assert_eq!(
+            problems(&word),
+            [
+                "preparation_required_for_bonus_action needs bonus_action_available and preparation_available"
+            ]
+        );
+        let mut ward = spell(Some(heal), Reach::One);
+        ward.cost = Cost::Reaction;
+        assert!(problems(&ward).is_empty(), "any effect may cost a reaction");
+        ward.bonus_action_available = true;
+        assert_eq!(
+            problems(&ward),
+            ["bonus_action_available is for a spell that costs an action"]
+        );
+        let mut shield = spell(Some(SpellEffect::Reaction { armor_bonus: 5 }), Reach::One);
+        assert_eq!(problems(&shield), ["a Reaction effect costs a reaction"]);
+        shield.cost = Cost::BonusAction;
+        assert_eq!(problems(&shield), ["a Reaction effect costs a reaction"]);
+        shield.cost = Cost::Free;
+        assert_eq!(
+            problems(&shield),
+            [
+                "a Reaction effect costs a reaction",
+                "a spell costs an action, a bonus action or a reaction"
+            ]
+        );
     }
 
     #[test]

@@ -13,10 +13,12 @@
     skills: (choose: 2, from: [Acrobatics, AnimalHandling, Athletics, History, Insight, Intimidation, Perception, Survival]),
     starting_equipment: [("base:item:chain_mail", 1), ("base:item:longsword", 1), ("base:item:shield", 1), ("base:item:light_crossbow", 1), ("base:item:crossbow_bolts", 20)],
     casting: None,
+    // Second Wind and Action Surge act in a fight (M7c); the SRD's second surge at level 17 is a
+    // horizon. The other features are labels.
     features: [
         (level: 1, name: "base:text:class.fighter.fighting_style"),
-        (level: 1, name: "base:text:class.fighter.second_wind"),
-        (level: 2, name: "base:text:class.fighter.action_surge"),
+        (level: 1, name: "base:text:class.fighter.second_wind", effect: Some(Heal(dice: (count: 1, sides: 10, modifier: 0), per_level: true)), cost: BonusAction, uses: Some((count: 1, per: ShortRest))),
+        (level: 2, name: "base:text:class.fighter.action_surge", effect: Some(ExtraAction), cost: Free, uses: Some((count: 1, per: ShortRest))),
         (level: 3, name: "base:text:class.fighter.martial_archetype"),
         (level: 4, name: "base:text:class.fighter.ability_score_improvement"),
         (level: 5, name: "base:text:class.fighter.extra_attack"),

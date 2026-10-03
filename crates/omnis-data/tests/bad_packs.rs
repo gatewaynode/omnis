@@ -149,6 +149,11 @@ fn every_error_in_bad_content_is_reported() {
         "weapon 'badc:item:none' is not defined by any loaded pack",
         "spell 'badc:spell:none' is not defined by any loaded pack",
         "casting: spells_at_1 > 0 needs a spell list",
+        // warlord.ron's features: a cost without an effect; bad heal dice, a reaction, no uses
+        "badc:text:class.warlord.name: a cost or uses need an effect",
+        "feature heal dice must roll something",
+        "no class feature reacts yet: a feature costs an action, a bonus action or nothing",
+        "badc:text:class.warlord.name: uses must be at least 1",
         // data/backgrounds/twice.ron
         "skills are listed twice",
         "equipment counts must be at least 1",
@@ -172,6 +177,11 @@ fn every_error_in_bad_content_is_reported() {
         "spell effect dice need dice",
         "attack, heal, buff, reaction, light and utility spells reach one target",
         "level 5 spells need a component list (component_threshold 5)",
+        // data/spells/rush.ron, free.ron: costs against D24's fields
+        "a Reaction effect costs a reaction",
+        "preparation_required_for_bonus_action needs bonus_action_available and preparation_available",
+        "a spell costs an action, a bonus action or a reaction",
+        "bonus_action_available is for a spell that costs an action",
         // data/monsters/blob.ron
         "ac must be 1..=30",
         "hit_points needs dice",
