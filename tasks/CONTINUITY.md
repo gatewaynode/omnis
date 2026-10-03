@@ -13,13 +13,13 @@ next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start
 
 ## State
 - Branch `m7a-b-tasks`, cut from `main` at `b002b09` (PR #10 merged M7 through step 8a; CI green).
-  Unpushed: `de1c1ca` (8b sim: the rest view) and the 8b app commit.
+  Unpushed: `de1c1ca` (8b sim), `f49a812` (8b app) and this docs commit.
 - M7 steps 0–8b done (plan `tasks/plans/m7-step8.md`). Gate `tests passed 458 failed 0 ignored 8`;
   pins unmoved: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`, walk `9901411989274517557`
   (`WALK_SEED = 2`), fight `15728260309841309156`; `SAVE_SCHEMA 5`; MCP 20 tools, `oneOf` 11,
   proof 77/111.
-- Owed by the owner: manual tests of 8a (the bar, on the ultrawide too) and 8b (the camp);
-  agent-launched windows draw no frames.
+- The owner's manual test of 8a and 8b passed (2026-10-03). Agent-launched windows draw no
+  frames.
 
 ## Next: M7 step 9 (M7a docs and review, owner acceptance a), per `tasks/plans/m7-town.md`
 - ARCHITECTURE.md §4.5 "as built" for M7a (ask before editing ARCH): the `UiPlugin` line still
