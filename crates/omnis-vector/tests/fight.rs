@@ -5,48 +5,16 @@
 mod common;
 
 use bevy::prelude::*;
-use common::app::{app, app_with, set};
-use common::map;
-use omnis_sim::omnis_core::{Facing, Position};
+use common::app::{app, met_with, set};
 use omnis_sim::{Command, EncounterChoice, Mode};
 use omnis_vector::grid::cell_of;
-use omnis_vector::pose::Pose;
 use omnis_vector::shell::controls::Action;
 use omnis_vector::shell::fight::{fallen, notice};
 use omnis_vector::shell::notice::Order;
 use omnis_vector::shell::session::Session;
-use std::path::PathBuf;
 
-/// An app with the party three cells north of the dungeon's placed group, walked into it.
 fn met() -> App {
     met_with(1)
-}
-
-fn met_with(seed: u64) -> App {
-    let mut app = app_with(PathBuf::from(".omnis/vector-session.ron"), seed);
-    app.update();
-    {
-        let mut session = app.world_mut().resource_mut::<Session>();
-        let dungeon = map(&session.data, "test:map:dungeon");
-        session.world.position = Position {
-            map: dungeon,
-            x: 3,
-            y: 6,
-            facing: Facing::South,
-        };
-        session.pose = Pose::at(session.world.position);
-    }
-    set(&mut app, &Action::Forward, Interaction::Pressed);
-    for _ in 0..80 {
-        app.update();
-    }
-    set(&mut app, &Action::Forward, Interaction::None);
-    app.update();
-    assert!(matches!(
-        app.world().resource::<Session>().world.mode,
-        Mode::Encounter(_)
-    ));
-    app
 }
 
 /// The orders of the notice's buttons that can be pressed, in screen order.

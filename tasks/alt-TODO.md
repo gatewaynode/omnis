@@ -87,7 +87,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 
 ## Phase B — the 2D combat screen (after A reports)
 - [x] B0 Plan in plan mode (approved 2026-10-03; `~/.claude/plans/snug-munching-gray.md`). alt-PRD §10.3 decided: **write fresh**. Owner choices: glowing vector-line figures, every fight action with targets picked by clicking, a short roll log written fresh
-- [ ] B1 The roll log: `rolllog.rs` describes fight events; `Session` keeps a `fight_log`, cleared when an encounter starts
+- [x] B1 The roll log: `rolllog.rs` describes fight events; `Session` keeps a `fight_log`, cleared when an encounter starts. `Names` numbers each monster as it was met (the simulation renumbers the living after a death) and keeps members a fight buries; both mutation-checked
 - [ ] B2 The action model: `combat_menu.rs` covers the encounter choices, then Attack, Cast, Use, Dodge, Swap and Flee, with targets and cancel. Every offered choice is accepted (tried on a clone)
 - [ ] B3 The arena: `arena.rs` lays out stacks and party rows in pixels, with line segments to draw and a pick for clicks
 - [ ] B4 The screen: `ViewState`; the `Camera3d` is swapped for a `Camera2d` with bloom; the figures, the action column, the roll log; the pose follows on exit

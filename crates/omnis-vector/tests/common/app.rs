@@ -5,8 +5,11 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
 use bevy::time::TimeUpdateStrategy;
+use omnis_sim::Mode;
+use omnis_sim::omnis_core::{Facing, Position};
+use omnis_vector::pose::Pose;
 use omnis_vector::shell::ShellPlugin;
-use omnis_vector::shell::controls::ControlsPlugin;
+use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::panel::PanelPlugin;
 use omnis_vector::shell::session::{Config, Session};
@@ -73,4 +76,33 @@ pub fn set<C: Component + PartialEq + core::fmt::Debug>(
         }
     }
     assert!(found, "a {marker:?} button exists");
+}
+
+/// An app with the party three cells north of the dungeon's placed group, walked into it with
+/// the Forward button, so the encounter is the simulation's own.
+pub fn met_with(seed: u64) -> App {
+    let mut app = app_with(PathBuf::from(".omnis/vector-session.ron"), seed);
+    app.update();
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let dungeon = super::map(&session.data, "test:map:dungeon");
+        session.world.position = Position {
+            map: dungeon,
+            x: 3,
+            y: 6,
+            facing: Facing::South,
+        };
+        session.pose = Pose::at(session.world.position);
+    }
+    set(&mut app, &Action::Forward, Interaction::Pressed);
+    for _ in 0..80 {
+        app.update();
+    }
+    set(&mut app, &Action::Forward, Interaction::None);
+    app.update();
+    assert!(matches!(
+        app.world().resource::<Session>().world.mode,
+        Mode::Encounter(_)
+    ));
+    app
 }

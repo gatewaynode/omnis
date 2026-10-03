@@ -5,6 +5,7 @@ use crate::bind::Binder;
 use crate::grid::cell_of;
 use crate::party;
 use crate::pose::Pose;
+use crate::rolllog::{self, Names};
 use bevy::prelude::Resource;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, PartyCommand, Settings, World};
@@ -148,6 +149,10 @@ pub struct Session {
     pub log_path: PathBuf,
     /// Recent event lines for the HUD, newest last.
     pub lines: Vec<String>,
+    /// The current or last fight's roll log, newest last.
+    pub fight_log: Vec<String>,
+    /// Who is in the fight, for the roll log.
+    pub names: Names,
     /// A door moved: the 3D lines must be rebuilt.
     pub reshape: bool,
     /// What the session started from, for a restart.
@@ -175,6 +180,8 @@ impl Session {
                 .map_err(|e| format!("party: {e:?}"))?;
         }
         let pose = Pose::at(world.position);
+        let mut names = Names::default();
+        names.observe(&world);
         Ok(Session {
             data,
             world,
@@ -184,6 +191,8 @@ impl Session {
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
+            fight_log: Vec::new(),
+            names,
             reshape: false,
             config: config.clone(),
         })
@@ -238,9 +247,22 @@ impl Session {
         Ok(())
     }
 
-    /// Take in a frame's events: HUD lines for the ones worth showing, and the reshape flag.
+    /// Take in a frame's events: HUD lines for the ones worth showing, the roll log (cleared
+    /// when monsters are met, the last 40 lines kept), and the reshape flag.
     pub fn note(&mut self, events: &[Event]) {
         self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
+        self.names.observe(&self.world);
+        for event in events {
+            if matches!(event, Event::EncounterStarted { .. }) {
+                self.fight_log.clear();
+            }
+            if let Some(line) = rolllog::describe(event, &self.names, &self.data) {
+                self.fight_log.push(line);
+            }
+            self.names.follow(event, &self.data);
+        }
+        let excess = self.fight_log.len().saturating_sub(40);
+        self.fight_log.drain(..excess);
         for line in events.iter().filter_map(describe) {
             self.say(line);
         }
