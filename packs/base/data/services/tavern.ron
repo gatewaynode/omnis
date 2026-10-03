@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "base:service:tavern",
+    name: "base:text:service.tavern.name",
+    kind: Tavern,
+    rumors: [
+        "base:text:rumor.rats",
+        "base:text:rumor.bones",
+        "base:text:rumor.goblins",
+    ],
+)

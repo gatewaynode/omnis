@@ -1,0 +1,1 @@
+(schema: 1, id: "base:service:trainer", name: "base:text:service.trainer.name", kind: Trainer)

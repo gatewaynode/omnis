@@ -1,0 +1,17 @@
+// English strings for the base pack's services. Keys are `base:text:service.<name>.name` and
+// `base:text:rumor.<name>`.
+(
+    schema: 1,
+    entries: {
+        "base:text:service.inn.name": "Inn",
+        "base:text:service.temple.name": "Temple",
+        "base:text:service.trainer.name": "Training hall",
+        "base:text:service.smith.name": "Smithy",
+        "base:text:service.tavern.name": "Tavern",
+        "base:text:service.bank.name": "Bank",
+        "base:text:service.guild.name": "Mages' guild",
+        "base:text:rumor.rats": "They say the rats below grow bolder every week.",
+        "base:text:rumor.bones": "Old bones walk where the lamps have gone out.",
+        "base:text:rumor.goblins": "Goblins carry their coin with them. Take it back.",
+    },
+)

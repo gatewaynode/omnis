@@ -28,6 +28,8 @@ pub enum EncounterSource {
     Fixed(u16),
     /// The map's random table.
     Random,
+    /// The map's random table, come upon the party at rest (M7 step 5).
+    Ambush,
 }
 
 /// What the party does about the monsters ahead.
@@ -180,8 +182,23 @@ fn random_roll(
         chance,
         fired,
     });
+    if !fired {
+        return Ok(None);
+    }
+    pick(world, random, EncounterSource::Random)
+}
+
+/// An entry of a random table picked by weight, its counts rolled, all on the encounter
+/// stream; `None` for a table with no weight.
+fn pick(
+    world: &mut World,
+    random: &ResolvedRandom,
+    source: EncounterSource,
+) -> Result<Option<Picked>, RuleError> {
+    let stream = encounter_stream();
+    let rng = world.stream(&stream);
     let total = random.total_weight();
-    if !fired || total == 0 {
+    if total == 0 {
         return Ok(None);
     }
     let mut pick = rng.below(total);
@@ -207,12 +224,39 @@ fn random_roll(
         ));
         counts.push(trace);
     }
-    Ok(Some((
-        EncounterSource::Random,
+    Ok(Some((source, stacks, entry.disposition, counts)))
+}
+
+/// A rest ambushed: a group from the map's random table comes to the party's own tile, the
+/// party facing it (so Run turns it away), surprise as `rest_ambush_surprise` says. Nothing
+/// happens on a map with no table or no weight.
+pub(crate) fn ambush(
+    world: &mut World,
+    data: &Data,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let pos = world.position;
+    let Some(random) = data.maps.get(&pos.map).and_then(|m| m.random.as_ref()) else {
+        return Ok(());
+    };
+    let Some((source, stacks, disposition, counts)) = pick(world, random, EncounterSource::Ambush)?
+    else {
+        return Ok(());
+    };
+    let retreat = Position {
+        facing: pos.facing.opposite(),
+        ..pos
+    };
+    begin(
+        world,
+        data,
+        source,
         stacks,
-        entry.disposition,
+        disposition,
         counts,
-    )))
+        retreat,
+        events,
+    )
 }
 
 /// Build the stacks, settle surprise, and either offer the choice or start the fight with the
@@ -256,7 +300,13 @@ fn begin(
     }
     // The surprise check is a rules value (`surprise`, off by default since 2026-09-13): with
     // it off every group is noticed and the party always gets its choice.
-    let surprise = data.rules.value("surprise").unwrap_or(0) != 0;
+    // An ambush at rest reads its own value, `rest_ambush_surprise`.
+    let key = if source == EncounterSource::Ambush {
+        "rest_ambush_surprise"
+    } else {
+        "surprise"
+    };
+    let surprise = data.rules.value(key).unwrap_or(0) != 0;
     let (stealth, noticed) = if disposition == Disposition::Friendly || !surprise {
         (None, true)
     } else {

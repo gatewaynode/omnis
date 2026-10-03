@@ -17,6 +17,10 @@ fn test_pack() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
 }
 
+fn base_pack() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/base")
+}
+
 fn step(game: &mut Headless) {
     game.handle(&Op::SimCommand {
         command: Command::Step(Direction::Forward),
@@ -30,7 +34,7 @@ fn headless_writes_reads_and_reloads() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::env::set_current_dir(&dir).unwrap();
-    let mut game = Headless::new(vec![test_pack()], 1).unwrap();
+    let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     step(&mut game);
     let mut saved = game.world.clone();
     saved.log.clear();
@@ -75,7 +79,10 @@ fn headless_writes_reads_and_reloads() {
     assert_eq!(game.handle(&Op::PackReload).unwrap(), Reply::Done {});
     assert_eq!(game.world, before, "a reload keeps the world");
     assert!(matches!(
-        game.handle(&Op::Screenshot { path: None }),
+        game.handle(&Op::Screenshot {
+            path: None,
+            target: omnis_sim::ops::ShotTarget::Canvas,
+        }),
         Err(OpError::Failed { message }) if message.contains("headless")
     ));
     assert!(
@@ -117,18 +124,17 @@ fn schema_dump_sections_parse_with_the_real_types() {
     parse::<Monster>(&body("# data/monsters/<name>.ron\n")).unwrap();
     let rules = parse::<RulesFile>(&body("# data/rules/<name>.ron\n")).unwrap();
     assert!(rules.slots.contains_key("spell_points.pool"));
-    parse::<World>(&body("# save (schema 4)\n")).unwrap();
+    parse::<World>(&body("# save (schema 5)\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();
-    assert_eq!(ops.len(), 18);
+    assert_eq!(ops.len(), 20);
 }
 
 /// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.
 #[test]
 fn rules_set_changes_the_pool_without_a_rebuild() {
-    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/base");
-    let mut game = Headless::new(vec![base, test_pack()], 1).unwrap();
+    let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     let wizard = Draft {
         name: "Ilvara".into(),
         race: "base:race:elf".into(),

@@ -4,6 +4,7 @@
 use crate::schema::{Field, object};
 use omnis_cli::omnis_sim::Command;
 use omnis_cli::omnis_sim::omnis_rules::Draft;
+use omnis_cli::omnis_sim::ops::ShotTarget;
 use serde_json::{Value, json};
 
 /// One tool.
@@ -39,6 +40,33 @@ pub fn tools() -> Vec<Tool> {
     all
 }
 
+/// The screenshot tool: the canvas, or everything the window shows.
+fn screenshot_tool() -> Tool {
+    tool(
+        "screenshot",
+        "screenshot",
+        "Save a PNG of the game and return it as an image (game mode only): the canvas at its internal resolution, or the window, which is the canvas as it is scaled with the window-space interface (the Feathers panels) over it.",
+        &[
+            Field::new::<Option<String>>(
+                "path",
+                false,
+                "A relative .png path; default .omnis/screenshot.png.",
+            ),
+            Field::new::<Option<ShotTarget>>("target", false, "canvas (the default) or window."),
+        ],
+    )
+}
+
+/// The screen text tool: every open panel as text.
+fn screen_text_tool() -> Tool {
+    tool(
+        "screen_text",
+        "screen.text",
+        "The text of every open interface panel (game mode only), one line per control, label or text with its rectangle in window pixels: read a panel such as party creation or the enter/leave confirmation without a picture. The canvas screens (the view, the map, the sheet) are not panels; use screenshot for those.",
+        &[],
+    )
+}
+
 /// The game tools: status, commands, views, saves, packs, screenshot.
 fn game_tools() -> Vec<Tool> {
     let map = || {
@@ -65,7 +93,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "sim_command",
             "sim.command",
-            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
+            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
             &[Field::new::<Command>("command", true, "The command.")],
         ),
         tool(
@@ -127,16 +155,8 @@ fn game_tools() -> Vec<Tool> {
             "Reload the packs from disk, keeping the world where it is.",
             &[],
         ),
-        tool(
-            "screenshot",
-            "screenshot",
-            "Save a PNG of the game canvas and return it as an image (game mode only).",
-            &[Field::new::<Option<String>>(
-                "path",
-                false,
-                "A relative .png path; default .omnis/screenshot.png.",
-            )],
-        ),
+        screenshot_tool(),
+        screen_text_tool(),
     ]
 }
 
@@ -146,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold, gems, food, the stores as rows, and party-wide effects.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
             &[],
         ),
         tool(
@@ -159,6 +179,12 @@ fn party_tools() -> Vec<Tool> {
             "combat_get",
             "combat.get",
             "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far. Fails while exploring.",
+            &[],
+        ),
+        tool(
+            "service_get",
+            "service.get",
+            "The service the party is inside (an inn, tavern, temple, smith or bank in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
             &[],
         ),
         tool(
@@ -232,13 +258,18 @@ mod tests {
             ("save_write", json!({"path": "a.ron"})),
             ("save_read", json!({"path": "a.ron", "force": true})),
             ("pack_reload", json!({})),
-            ("screenshot", json!({"path": "shot.png"})),
+            (
+                "screenshot",
+                json!({"path": "shot.png", "target": "window"}),
+            ),
             ("party_get", json!({})),
             (
                 "party_create",
                 json!({"character": {"name": "Brenna", "race": "base:race:human", "class": "base:class:fighter", "background": "base:background:acolyte", "alignment": "NeutralGood", "scores": [15, 14, 13, 12, 10, 8], "skills": ["Athletics", "Perception"]}}),
             ),
             ("combat_get", json!({})),
+            ("service_get", json!({})),
+            ("screen_text", json!({})),
             ("rules_list", json!({})),
             ("rules_get", json!({"slot": "spell_points.pool"})),
             (
@@ -274,6 +305,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 18);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 20);
     }
 }

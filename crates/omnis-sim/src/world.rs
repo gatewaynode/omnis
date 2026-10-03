@@ -4,8 +4,9 @@
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4};
+use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5};
 use crate::party::Party;
+use crate::service::ServiceState;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
@@ -14,12 +15,13 @@ use core::fmt;
 use omnis_core::{
     Clock, Edges, EraId, Facing, FlagId, HolderId, MapId, Pcg32, Position, StreamName, fnv1a64,
 };
-use omnis_data::{Data, DataError, PackFingerprint};
+use omnis_data::{Data, DataError, PackFingerprint, ServiceKind};
 use serde::{Deserialize, Serialize};
 
 /// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
-/// and schema 3 (no equipment slots, no effects, no devtools bit) migrate on load.
-pub const SAVE_SCHEMA: u32 = 4;
+/// schema 3 (no equipment slots, no effects, no devtools bit) and schema 4 (gold in whole pieces)
+/// migrate on load.
+pub const SAVE_SCHEMA: u32 = 5;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,7 +124,7 @@ impl Automap {
     }
 }
 
-/// What the party is doing. Town and journal modes arrive with their milestones.
+/// What the party is doing. The journal mode arrives with its milestone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     /// Walking the map.
@@ -131,6 +133,8 @@ pub enum Mode {
     Encounter(EncounterState),
     /// Fighting.
     Combat(CombatState),
+    /// Inside a service on the party's tile: an inn, a temple, a shop (M7).
+    Town(ServiceState),
 }
 
 impl Mode {
@@ -141,6 +145,7 @@ impl Mode {
             Mode::Explore => ModeKind::Explore,
             Mode::Encounter(_) => ModeKind::Encounter,
             Mode::Combat(_) => ModeKind::Combat,
+            Mode::Town(_) => ModeKind::Town,
         }
     }
 }
@@ -154,6 +159,8 @@ pub enum ModeKind {
     Encounter,
     /// Fighting.
     Combat,
+    /// Inside a service.
+    Town,
 }
 
 /// Where the player may save (PRD D17), easiest first.
@@ -184,7 +191,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Whether a save is allowed here. There are no inns yet, so only `Anywhere` says yes.
+    /// Whether a save is allowed here: anywhere under `Anywhere`, else only at an inn.
     #[must_use]
     pub const fn may_save(&self, at_inn: bool) -> bool {
         match self.save_rule {
@@ -257,6 +264,8 @@ pub enum LoadError {
     BadCombat(&'static str),
     /// A member's sheet contradicts itself (an equipped item that is not carried).
     BadParty(&'static str),
+    /// The saved service is not the one on the party's tile.
+    BadTown,
 }
 
 impl fmt::Display for LoadError {
@@ -271,6 +280,7 @@ impl fmt::Display for LoadError {
             LoadError::BadPosition(p) => write!(f, "save position {p} is not on a loaded map"),
             LoadError::BadCombat(why) => write!(f, "save combat cannot continue: {why}"),
             LoadError::BadParty(why) => write!(f, "save party is inconsistent: {why}"),
+            LoadError::BadTown => f.write_str("save service is not the one where the party stands"),
         }
     }
 }
@@ -300,10 +310,17 @@ impl World {
         })
     }
 
-    /// Whether the settings allow a save where the party stands.
+    /// Whether the settings allow a save where the party stands: inside an inn counts as one.
     #[must_use]
     pub const fn may_save(&self) -> bool {
-        self.settings.may_save(false)
+        let at_inn = matches!(
+            &self.mode,
+            Mode::Town(ServiceState {
+                kind: ServiceKind::Inn,
+                ..
+            })
+        );
+        self.settings.may_save(at_inn)
     }
 
     /// The RNG stream `name`, created from the seed on first use.
@@ -362,13 +379,19 @@ impl World {
                 .map(v1_to_v2)
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             2 => omnis_data::ron_io::parse::<World>(text)
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             3 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v3_to_v4(w, data))
+                .map(v4_to_v5)
+                .map_err(LoadError::Parse)?,
+            4 => omnis_data::ron_io::parse::<World>(text)
+                .map(v4_to_v5)
                 .map_err(LoadError::Parse)?,
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
@@ -406,10 +429,20 @@ impl World {
 
     /// A saved encounter or fight must name known monsters and, in a fight, wait on a living
     /// member: the turn loop parks there between commands, so anything else is a hand-edited
-    /// save.
+    /// save. A saved service must be the one on the party's tile, of the kind it says.
     fn check_mode(&self, data: &Data) -> Result<(), LoadError> {
         let stacks = match &self.mode {
             Mode::Explore => return Ok(()),
+            Mode::Town(state) => {
+                let p = self.position;
+                let here = data.maps.get(&p.map).and_then(|m| m.site_at(p.x, p.y));
+                let kind = data.services.get(&state.service).map(|s| s.kind);
+                return if here == Some(state.service) && kind == Some(state.kind) {
+                    Ok(())
+                } else {
+                    Err(LoadError::BadTown)
+                };
+            }
             Mode::Encounter(e) => &e.stacks,
             Mode::Combat(c) => &c.encounter.stacks,
         };

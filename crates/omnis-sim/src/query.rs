@@ -5,7 +5,7 @@ use crate::world::{Known, World};
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Facing, MapId, TilesetId};
+use omnis_core::{Direction, Facing, MapId, Position, ServiceId, TilesetId};
 use omnis_data::Data;
 use serde::{Deserialize, Serialize};
 
@@ -120,7 +120,8 @@ pub fn automap(world: &World, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>
 
 /// A map as text in the layout format of `omnis_data::map` (`2h+1` rows of `2w+1`
 /// characters), with the world's door state and the party: walls `-` and `|`, closed doors
-/// `=` and `:`, open doors `_` and `'`, and the party as `^`, `>`, `v`, or `<` on its tile.
+/// `=` and `:`, open doors `_` and `'`, a portal as `*` on its tile (a glyph no terrain may
+/// use), and the party as `^`, `>`, `v`, or `<` on its tile, over a portal.
 /// `None` when the map is not loaded.
 #[must_use]
 pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
@@ -162,6 +163,8 @@ pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
                     Facing::South => 'v',
                     Facing::West => '<',
                 }
+            } else if map.portal_at(x, y).is_some() {
+                '*'
             } else {
                 map.cell(x, y).map_or('?', |c| map.terrain(c).glyph)
             };
@@ -185,4 +188,21 @@ pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
 #[must_use]
 pub fn path(world: &World, path: &str) -> Option<String> {
     path::find(world, path)
+}
+
+/// Where a step in `direction` would leave the party (through a portal, at its far end), or
+/// `None` when a wall, a closed door, the terrain or the map's edge stops it. Clients ask
+/// before a step that needs a confirmation.
+#[must_use]
+pub fn step_lands(world: &World, data: &Data, direction: Direction) -> Option<Position> {
+    crate::apply::landing(world, data, direction)
+        .ok()
+        .map(crate::apply::Landing::end)
+}
+
+/// The service a step in `direction` would go into, if it lands on a site.
+#[must_use]
+pub fn site_ahead(world: &World, data: &Data, direction: Direction) -> Option<ServiceId> {
+    let at = step_lands(world, data, direction)?;
+    data.maps.get(&at.map)?.site_at(at.x, at.y)
 }

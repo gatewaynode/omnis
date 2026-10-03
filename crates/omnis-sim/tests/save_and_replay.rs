@@ -46,12 +46,31 @@ fn walk() -> Vec<Command> {
     commands
 }
 
-/// The same walk under the golden seed, where the dungeon's random table fires on the
-/// thirteenth step: an empty party meets rats, fights, falls at once, and walks on (surprise
-/// is off, so the choice waits for a command).
-fn golden_walk() -> Vec<Command> {
-    let mut commands = walk();
-    commands.insert(13, Command::Encounter(EncounterChoice::Attack));
+/// Out of town through the gate, which lands beside the road home at (16, 30), then up the road
+/// to the meadow's start at (16, 16), where the older scripts begin.
+fn out_of_town() -> Vec<Command> {
+    let mut commands = vec![Command::Step(Direction::Back)];
+    commands.extend((0..14).map(|_| Command::Step(Direction::Forward)));
+    commands
+}
+
+/// The golden walk's seed: the smallest under which the walk meets the dungeon's random table
+/// (the golden seed's stream stopped firing on the way once the gate landed beside the road
+/// home, 14 road steps further; 37 of seeds 1 to 199 fire, TODO 3c).
+const WALK_SEED: u64 = 2;
+
+/// The same walk under `WALK_SEED` from a new game, out of town through the gate first.
+/// Built by running it: where the dungeon's random table fires, an empty party meets rats,
+/// fights, falls at once, and walks on (surprise is off, so the choice waits for a command).
+fn golden_walk(data: &Data) -> Vec<Command> {
+    let mut world = World::new(data, WALK_SEED, Settings::default()).unwrap();
+    let mut script = out_of_town();
+    script.extend(walk());
+    let (commands, _) = play(&mut world, data, &script);
+    assert!(
+        commands.contains(&Command::Encounter(EncounterChoice::Attack)),
+        "the random table fires on the way"
+    );
     commands
 }
 
@@ -83,7 +102,7 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 4", "schema: 7", 1);
+    let other = text.replacen("schema: 5", "schema: 7", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
         LoadError::Schema(7)
@@ -173,10 +192,10 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 4);
+    assert_eq!(world.schema, 5);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 4").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 5").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
@@ -197,10 +216,11 @@ fn a_schema_2_save_migrates() {
         "the fixture's base pack predates the combat rules"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 4);
+    assert_eq!(world.schema, 5);
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.party.members.len(), 1);
     assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
+    assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
     assert!(!world.party.members[0].is_down());
     assert!(
         world.party.members[0].equipped.len() >= 3,
@@ -211,11 +231,11 @@ fn a_schema_2_save_migrates() {
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 4").count(), 1);
+    assert_eq!(text.matches("schema: 5").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
-        "written back at schema 4, still on the fixture's pack hashes"
+        "written back at schema 5, still on the fixture's pack hashes"
     );
 }
 
@@ -229,7 +249,7 @@ fn a_schema_3_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 3") && !text.contains("equipped") && !text.contains("devtools"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 4);
+    assert_eq!(world.schema, 5);
     assert!(!world.settings.devtools);
     let brenna = &world.party.members[0];
     let item = |name: &str| {
@@ -249,10 +269,11 @@ fn a_schema_3_save_migrates() {
     );
     assert!(brenna.effects.is_empty() && brenna.auto_cast.is_empty());
     assert!(world.party.effects.is_empty());
+    assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 4").count(), 1);
+    assert_eq!(text.matches("schema: 5").count(), 1);
     assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
 
     let mut torn = world.clone();
@@ -262,6 +283,79 @@ fn a_schema_3_save_migrates() {
         World::from_ron(&torn_text, &data, true).unwrap_err(),
         LoadError::BadParty("an equipped item is not carried")
     );
+}
+
+/// A schema-4 save (captured from the M7 step 3b build, `capture_schema_4_fixture`) loads
+/// through the migration: the purse counted whole gold and now counts copper; spent hit dice,
+/// the bank and the last long rest start empty.
+#[test]
+fn a_schema_4_save_migrates() {
+    let data = data();
+    let path = save_path("v4");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 4") && text.contains("gold: 15,") && !text.contains("bank"));
+    let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 5);
+    assert_eq!(
+        (
+            world.party.gold,
+            world.party.bank,
+            world.party.last_long_rest
+        ),
+        (1500, 0, None)
+    );
+    assert_eq!(world.party.members[0].hit_dice_spent, 0);
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    let text = world.to_ron().unwrap();
+    assert_eq!(text.matches("schema: 5").count(), 1);
+    assert_eq!(
+        World::from_ron(&text, &data, true).unwrap(),
+        world,
+        "a schema-5 save is read as written: no second multiplication"
+    );
+}
+
+/// Loot not yet paid out is money too: a schema-4 save made mid-fight converts it with the
+/// purse, so the victory pays copper.
+#[test]
+fn a_schema_4_fight_converts_its_loot() {
+    let data = data();
+    let mut world = world(&data);
+    for draft in six() {
+        apply(
+            &mut world,
+            &data,
+            Command::Party(PartyCommand::Create(draft)),
+        )
+        .unwrap();
+    }
+    for command in walk_to_the_rats() {
+        if world.mode != Mode::Explore {
+            break;
+        }
+        apply(&mut world, &data, command).unwrap();
+    }
+    apply(
+        &mut world,
+        &data,
+        Command::Encounter(EncounterChoice::Attack),
+    )
+    .unwrap();
+    let Mode::Combat(fight) = &mut world.mode else {
+        panic!("the rats fight: {:?}", world.mode);
+    };
+    fight.gold = 7;
+    world.party.gold = 90;
+    let old = world
+        .to_ron()
+        .unwrap()
+        .replacen("schema: 5", "schema: 4", 1);
+    let loaded = World::from_ron(&old, &data, false).unwrap_or_else(|e| panic!("{e}"));
+    let Mode::Combat(fight) = &loaded.mode else {
+        panic!("still fighting");
+    };
+    assert_eq!((fight.gold, loaded.party.gold), (700, 9000));
 }
 
 #[test]
@@ -303,14 +397,14 @@ fn golden_walk_replay_reproduces() {
         read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         replay.commands,
-        golden_walk(),
+        golden_walk(&data),
         "the script in this file is the recorded one"
     );
     replay.check(&data).unwrap_or_else(|e| panic!("{e}"));
 }
 
-/// The command script behind `tests/replays/fight.ron`: six members, the walk to the rats
-/// at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
+/// The command script behind `tests/replays/fight.ron`: six members, out of town through the
+/// gate, the walk to the rats at (3, 8) of the dungeon, and the fight to victory. Built by running it, so whatever the
 /// dice bring on the way (a random encounter, a member down) is part of the record.
 fn fight(data: &Data) -> Vec<Command> {
     let mut world = World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).unwrap();
@@ -320,7 +414,9 @@ fn fight(data: &Data) -> Vec<Command> {
         apply(&mut world, data, command.clone()).unwrap();
         commands.push(command);
     }
-    let (taken, events) = play(&mut world, data, &walk_to_the_rats());
+    let mut walk = out_of_town();
+    walk.extend(walk_to_the_rats());
+    let (taken, events) = play(&mut world, data, &walk);
     commands.extend(taken);
     assert!(
         events.iter().any(|e| matches!(
@@ -367,13 +463,7 @@ fn rebaseline_fight_replay() {
 #[ignore = "writes the golden file; run deliberately"]
 fn rebaseline_walk_replay() {
     let data = data();
-    let replay = Replay::record(
-        &data,
-        0x0123_4567_89ab_cdef,
-        Settings::default(),
-        golden_walk(),
-    )
-    .unwrap();
+    let replay = Replay::record(&data, WALK_SEED, Settings::default(), golden_walk(&data)).unwrap();
     write_ron(&replay_path("walk"), &replay).unwrap();
 }
 
@@ -453,4 +543,40 @@ fn capture_schema_3_fixture() {
     assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
     assert_eq!(world.schema, 3);
     write_ron(&save_path("v3"), &world).unwrap();
+}
+
+/// Captures `tests/saves/v4.ron` from a schema-4 build: one acolyte fighter carrying 15 whole
+/// gold pieces, in the dungeon behind an open door, so the copper migration has a purse to
+/// convert. Run once, deliberately, before the schema moves on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-4 build"]
+fn capture_schema_4_fixture() {
+    let data = data();
+    let mut world = world(&data);
+    let draft = omnis_rules::Draft {
+        name: "Brenna".to_owned(),
+        race: "base:race:human".to_owned(),
+        class: "base:class:fighter".to_owned(),
+        background: "base:background:acolyte".to_owned(),
+        alignment: omnis_data::Alignment::LawfulGood,
+        scores: [15, 14, 13, 12, 10, 8],
+        skills: vec![omnis_data::Skill::Athletics, omnis_data::Skill::Perception],
+    };
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Create(draft)),
+    )
+    .unwrap();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert_eq!((world.schema, world.party.gold), (4, 15));
+    write_ron(&save_path("v4"), &world).unwrap();
 }

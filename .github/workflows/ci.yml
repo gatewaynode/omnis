@@ -29,6 +29,8 @@ jobs:
       - name: Dependency duplicates
         run: scripts/check-duplicates.sh
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Clippy on the shipped configuration (no devtools)
+        run: cargo clippy -p omnis-app --no-default-features --lib --locked -- -D warnings
       - run: cargo test --workspace --locked
       - name: Golden replays through the CLI
         run: |

@@ -8,15 +8,10 @@ use omnis_data::{
     Ability, ArmorKind, BuffOn, DamageType, Effect, Fidelity, Geometry, ItemKind, Reach, Skill,
     SpellEffect, UseEffect, load_packs,
 };
-use std::path::PathBuf;
-
-fn base_pack() -> PathBuf {
-    common::test_pack().parent().unwrap().join("base")
-}
 
 #[test]
 fn the_base_pack_loads_with_the_srd_subset() {
-    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
     assert_eq!(data.packs[0].id, "base");
     assert_eq!(data.packs[0].license, "CC-BY-4.0");
     assert!(
@@ -38,8 +33,9 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.spells.len(),
             data.monsters.len(),
             data.rules.slot_names().count(),
+            data.services.len(),
         ),
-        (4, 4, 3, 24, 16, 11, 3, 19)
+        (4, 4, 3, 24, 16, 11, 3, 31, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -96,7 +92,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
 }
 
 fn base_data() -> omnis_data::Data {
-    load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"))
+    load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"))
 }
 
 #[test]
@@ -233,7 +229,7 @@ fn the_base_items_carry_their_use_effects() {
 
 #[test]
 fn monsters_and_conditions_carry_the_combat_fields() {
-    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
     let goblin = &data.monsters[&data.registry.monsters.get("base:monster:goblin").unwrap()];
     assert!(!goblin.attacks[0].ranged && goblin.attacks[1].ranged);
     assert_eq!(goblin.gold, Some(Dice::new(2, 4)));
@@ -268,7 +264,7 @@ fn monsters_and_conditions_carry_the_combat_fields() {
 
 #[test]
 fn the_base_rules_evaluate() {
-    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
     let rules = &data.rules;
     assert_eq!(rules.value("point_budget"), Some(27));
     assert_eq!(rules.value("component_threshold"), Some(5));
@@ -405,7 +401,7 @@ fn the_casting_and_sensing_rules_evaluate() {
 
 #[test]
 fn the_combat_rules_evaluate() {
-    let data = load_packs(&[&base_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[&common::base_pack()]).unwrap_or_else(|r| panic!("{r}"));
     let rules = &data.rules;
     let stream = StreamName::new("combat");
     let mut rng = Pcg32::for_stream(1, &stream);
@@ -477,12 +473,13 @@ fn the_combat_rules_evaluate() {
             rng,
         )
     };
-    assert_eq!(bribe(200, 0, &mut rng), Value::Int(200));
-    assert_eq!(bribe(200, 2, &mut rng), Value::Int(66));
+    // Whole gold returned as copper: 200 xp hostile is 200 gp, neutral a third of it, 66 gp.
+    assert_eq!(bribe(200, 0, &mut rng), Value::Int(20_000));
+    assert_eq!(bribe(200, 2, &mut rng), Value::Int(6600));
     assert_eq!(bribe(200, 3, &mut rng), Value::Int(0));
     assert_eq!(
         bribe(1, 2, &mut rng),
-        Value::Int(1),
+        Value::Int(100),
         "never free unless friendly"
     );
     assert_eq!(
@@ -502,12 +499,13 @@ fn the_combat_rules_evaluate() {
 
 #[test]
 fn base_and_test_packs_load_together() {
-    let data = load_packs(&[&base_pack(), &common::test_pack()]).unwrap_or_else(|r| panic!("{r}"));
+    let data =
+        load_packs(&[&common::base_pack(), &common::test_pack()]).unwrap_or_else(|r| panic!("{r}"));
     assert_eq!(
         data.packs.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
         ["base", "test"]
     );
-    assert_eq!(data.maps.len(), 2);
+    assert_eq!(data.maps.len(), 3);
     assert_eq!(data.races.len(), 4);
-    assert_eq!(data.entry, data.registry.maps.get("test:map:meadow"));
+    assert_eq!(data.entry, data.registry.maps.get("test:map:town"));
 }

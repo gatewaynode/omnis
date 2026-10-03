@@ -64,7 +64,7 @@ fn follow_mode(
     let wanted = PlayState::for_mode(&world.0.mode);
     let follows = matches!(
         current,
-        PlayState::Explore | PlayState::Encounter | PlayState::Combat
+        PlayState::Explore | PlayState::Service | PlayState::Encounter | PlayState::Combat
     ) && current != wanted;
     let leaves_defeat = current == PlayState::Defeat && was_replaced;
     if wiped {

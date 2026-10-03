@@ -58,8 +58,8 @@ records the practice that grew around it. A new agreement lands here the session
   from the current work (owner, 2026-09-20; this replaces the earlier never-stage rule).
 - Never push. The owner pushes and opens pull requests. After the owner reports a merge, run
   `git log main..<old-branch>` before cutting the next branch and carry any tail over first.
-- Trailer on every commit:
-  `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` and
-  `Claude-Session: https://claude.ai/code/session_01KZPdEyj5qTbbxEBX75vBuJ`.
+- Trailer on every commit: the lines the session's attribution reminder gives, naming the model
+  that is running (`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` since 2026-09-27);
+  a `Claude-Session:` line only when the reminder gives one, never an old session's URL.
 - `tasks/LESSONS.md` gains an entry after any correction; `tasks/CONTINUITY.md` is rewritten
   every time it is used and stays short: state, next step, pointers.

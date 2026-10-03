@@ -11,7 +11,6 @@ use crate::cursor::{self, Pointer, UiSet};
 use crate::debug_menu::{DebugView, debug_view};
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
-use crate::look::look_command;
 use crate::menus::{Active, Screens, Where};
 use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
@@ -20,8 +19,9 @@ use crate::sheet_menu::{SheetView, sheet_view};
 use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::text::Names;
+use crate::tool_bar::{self, ToolPressed, ToolStates};
 use crate::viewport::canvas_to_world;
-use crate::widget::{self, Frame, Hit, PadState, ToolButton, ToolStates, WidgetId};
+use crate::widget::{self, Frame, Hit, PadState, WidgetId};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -91,8 +91,8 @@ pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  L look  P shee
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
 pub const HELP_NEW_GAME: &str = "Arrows or click  Enter ok  Esc back";
-/// Help while creating.
-pub const HELP_CREATION: &str = "Arrows or click  Enter ok  Esc abandon";
+/// The help line under the creation panel.
+pub const HELP_CREATION: &str = "Click or Tab  Enter ok  Esc abandon";
 /// Help while paused.
 pub const HELP_PAUSE: &str = "Arrows or click  Enter ok  Esc resume";
 /// Help before a fight.
@@ -109,6 +109,11 @@ pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter 
 pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a member  Esc close";
 /// The help line on the inventory overlay.
 pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
+/// The help line under the question before a step into or out of a service.
+pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
+/// The help line under a service's panel.
+pub const HELP_SERVICE: &str =
+    "Click what you want  Tab to move  Esc leave  Items Spells Sheet Menu on the bar";
 
 /// The UI plugin.
 pub struct UiPlugin;
@@ -116,6 +121,8 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<UiClick>()
+            .add_message::<ToolPressed>()
+            .init_resource::<ToolStates>()
             .init_resource::<UiFrame>()
             .init_resource::<Selected>()
             .init_resource::<MessageLine>()
@@ -125,7 +132,11 @@ impl Plugin for UiPlugin {
                 Update,
                 hit.in_set(UiSet::Cursor).after(cursor::track_pointer),
             )
-            .add_systems(Update, select_member.in_set(UiSet::Dispatch))
+            .add_systems(
+                Update,
+                (select_member, tool_bar::answer).in_set(UiSet::Dispatch),
+            )
+            .add_systems(Update, tool_bar::track.in_set(UiSet::Model))
             .add_systems(Update, message_line.in_set(UiSet::Model))
             .add_systems(
                 Update,
@@ -220,13 +231,24 @@ fn upload(
     image.data = Some(ui.frame.raster.rgba.clone());
 }
 
-fn hit(pointer: Res<Pointer>, mut ui: ResMut<UiFrame>, mut clicks: MessageWriter<UiClick>) {
+/// Whether the pointer is over a window-space interface drawn above the canvas (the Feathers
+/// panel): the canvas's own hit-test stands down while it is. Absent in an app without one.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UiPointerCapture(pub bool);
+
+fn hit(
+    pointer: Res<Pointer>,
+    capture: Option<Res<UiPointerCapture>>,
+    mut ui: ResMut<UiFrame>,
+    mut clicks: MessageWriter<UiClick>,
+) {
     let found = pointer
         .canvas
+        .filter(|_| !capture.is_some_and(|c| c.0))
         .and_then(|(x, y)| widget::hit(&ui.frame.widgets, x, y));
     let hover = found.map(|h| h.id);
     let pressed = if pointer.held {
-        hover.filter(|id| matches!(id, WidgetId::Pad(_) | WidgetId::Tool(_)))
+        hover.filter(|id| matches!(id, WidgetId::Pad(_)))
     } else {
         None
     };
@@ -369,48 +391,6 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
-/// The tool pad's states: hidden without a world; MENU live wherever Escape pauses (the map,
-/// an encounter, a fight); MAP and SPELLS live on the map, SPELLS only when someone has a
-/// spell for the road; SHEET on the map and in a fight once the party has a member; ITEMS
-/// on the map with a member; LOOK on the map when a member who can act carries a sense item.
-#[must_use]
-pub fn tool_states(
-    active: Active,
-    has_world: bool,
-    has_casts: bool,
-    has_members: bool,
-    has_look: bool,
-) -> ToolStates {
-    if !has_world {
-        return ToolStates::default();
-    }
-    let live = |on: bool| {
-        if on {
-            PadState::Enabled
-        } else {
-            PadState::Disabled
-        }
-    };
-    let exploring = active == Active::None;
-    let mut tools = ToolStates::all(PadState::Disabled);
-    tools.set(
-        ToolButton::Menu,
-        live(matches!(
-            active,
-            Active::None | Active::Encounter | Active::Combat
-        )),
-    );
-    tools.set(ToolButton::Map, live(exploring));
-    tools.set(ToolButton::Items, live(exploring && has_members));
-    tools.set(ToolButton::Look, live(exploring && has_look));
-    tools.set(ToolButton::Spells, live(exploring && has_casts));
-    tools.set(
-        ToolButton::Sheet,
-        live(has_members && matches!(active, Active::None | Active::Combat)),
-    );
-    tools
-}
-
 /// What the frame shows besides the screens' own state: the fight, the debug view, the
 /// road spells, and the log.
 struct Overlays<'a> {
@@ -478,14 +458,12 @@ fn menu_for<'a>(
     match (active, fight) {
         (Active::Title, _) => (Menu::Title(&screens.title), HELP_TITLE),
         (Active::NewGame, _) => (Menu::NewGame(&screens.new_game), HELP_NEW_GAME),
-        (Active::CreateParty, _) => (
-            Menu::Creation {
-                form: &screens.creation,
-                catalog: &screens.catalog,
-                members,
-            },
-            HELP_CREATION,
-        ),
+        // Party creation is a `bevy_ui` panel over the backdrop (`feathers_ui.rs`).
+        (Active::CreateParty, _) => (Menu::Covered, HELP_CREATION),
+        // The question is a small `bevy_ui` panel over the map (`feathers_confirm.rs`).
+        (Active::Confirm, _) => (Menu::None, HELP_CONFIRM),
+        // A service is a `bevy_ui` panel over the map (`feathers_service.rs`).
+        (Active::Service, _) => (Menu::None, HELP_SERVICE),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,
@@ -554,23 +532,12 @@ fn build_frame(
     } else {
         Vec::new()
     };
-    let has_casts =
-        at.exploring() && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
     let sheet = (active == Active::Sheet)
         .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
         .flatten();
     let inventory = (active == Active::Inventory)
         .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
         .flatten();
-    let has_look =
-        at.exploring() && loaded.is_some_and(|(w, d)| look_command(&w.0, &d.0).is_some());
-    let tools = tool_states(
-        active,
-        world.is_some() && at.playing(),
-        has_casts,
-        !members.is_empty(),
-        has_look,
-    );
     let front_row = data
         .as_ref()
         .map_or(3, |d| omnis_sim::party::front_row(&d.0));
@@ -609,7 +576,6 @@ fn build_frame(
             .filter(|s| *s < members.len()),
         log: &log.0,
         pad,
-        tools,
         message: model_message.as_ref().unwrap_or(&line.0),
         help,
     };
@@ -618,54 +584,5 @@ fn build_frame(
     screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_tool_pad_follows_the_screen() {
-        assert_eq!(
-            tool_states(Active::None, false, true, true, true),
-            ToolStates::default()
-        );
-        let map = tool_states(Active::None, true, true, true, true);
-        for button in ToolButton::ALL {
-            assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
-        }
-        assert_eq!(
-            tool_states(Active::None, true, true, true, false).get(ToolButton::Look),
-            PadState::Disabled,
-            "no spyglass"
-        );
-        let nobody = tool_states(Active::None, true, false, false, false);
-        assert_eq!(nobody.get(ToolButton::Spells), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Look), PadState::Disabled);
-        assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
-        let fight = tool_states(Active::Combat, true, true, true, true);
-        assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
-        assert_eq!(fight.get(ToolButton::Sheet), PadState::Enabled);
-        assert_eq!(fight.get(ToolButton::Map), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
-        assert_eq!(fight.get(ToolButton::Look), PadState::Disabled);
-        for active in [
-            Active::Paused,
-            Active::Cast,
-            Active::Debug,
-            Active::Defeat,
-            Active::Sheet,
-            Active::Inventory,
-        ] {
-            assert_eq!(
-                tool_states(active, true, true, true, true),
-                ToolStates::all(PadState::Disabled),
-                "{active:?}"
-            );
-        }
     }
 }

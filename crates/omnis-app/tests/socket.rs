@@ -135,7 +135,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 1, "op": "game.status"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert_eq!(reply["id"], json!(1));
-    assert_eq!(reply["result"]["map"], json!("test:map:meadow"));
+    assert_eq!(reply["result"]["map"], json!("test:map:town"));
     assert_eq!(reply["result"]["turn"], json!(0));
 
     let reply = peer.send(
@@ -145,7 +145,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert!(reply["result"]["events"][0]["Moved"].is_object(), "{reply}");
     let position = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((position.x, position.y), (16, 15));
+    assert_eq!((position.x, position.y), (9, 2));
     assert!(
         seen(app)
             .events
@@ -185,6 +185,19 @@ fn refusals(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 7, "op": "screenshot"}"#);
     let message = reply["error"]["message"].as_str().unwrap();
     assert!(message.contains("no canvas"), "headless: {reply}");
+    // The window target is refused as plainly, and an unknown one is a bad request.
+    let reply = peer.send(
+        app,
+        r#"{"id": 71, "op": "screenshot", "args": {"target": "window"}}"#,
+    );
+    assert_eq!(reply["error"]["kind"], json!("Failed"), "{reply}");
+    let message = reply["error"]["message"].as_str().unwrap();
+    assert!(message.contains("no window"), "headless: {reply}");
+    let reply = peer.send(
+        app,
+        r#"{"id": 72, "op": "screenshot", "args": {"target": "desktop"}}"#,
+    );
+    assert_eq!(reply["error"]["kind"], json!("BadRequest"), "{reply}");
 }
 
 fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
@@ -236,6 +249,14 @@ fn party_and_rules(app: &mut App, peer: &mut Peer) {
     assert!(
         seen(app).events.contains(&Event::PartyChanged),
         "party changes reach presentation"
+    );
+    // No panel is open in this app; the op is answered a frame later, by its own system.
+    let reply = peer.send(app, r#"{"id": 6, "op": "screen.text"}"#);
+    assert_eq!(reply["id"], json!(6), "{reply}");
+    assert_eq!(
+        reply["result"]["text"],
+        json!(omnis_app::ui_text::NO_PANEL),
+        "{reply}"
     );
 }
 

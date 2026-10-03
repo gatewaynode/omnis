@@ -19,7 +19,7 @@ fn dev_world(data: &omnis_data::Data) -> World {
         devtools: true,
         ..Settings::default()
     };
-    World::new(data, 0x0123_4567_89ab_cdef, settings).unwrap()
+    common::new_world(data, 0x0123_4567_89ab_cdef, settings)
 }
 
 fn every_edit() -> Vec<DevCommand> {

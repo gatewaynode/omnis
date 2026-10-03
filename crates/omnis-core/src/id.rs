@@ -78,6 +78,8 @@ define_id! {
     BackgroundId,
     /// A condition a creature can be under.
     ConditionId,
+    /// A town service: an inn, temple, trainer, smith, tavern, bank, or guild.
+    ServiceId,
 }
 
 /// Anything that experiences subjective time (ARCHITECTURE.md §4.4).

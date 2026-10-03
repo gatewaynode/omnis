@@ -1,4 +1,5 @@
-// A 32x32 meadow: a road north to the dungeon entrance, a pond, tree clumps, a hedge all round.
+// A 32x32 meadow: a road north to the dungeon entrance and south to the town, a pond, tree
+// clumps, a hedge all round.
 // Layout format: crates/omnis-data/src/map.rs module docs.
 (
     schema: 1,
@@ -86,9 +87,16 @@
         "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
     ],
     portals: [
-        (x: 16, y: 5, to_map: "test:map:dungeon", to_x: 1, to_y: 0, to_facing: South),
+        (x: 16, y: 5, to_map: "test:map:dungeon", to_x: 1, to_y: 0, to_facing: South, marker: Some("stairs.down")),
+        (x: 16, y: 31, to_map: "test:map:town", to_x: 10, to_y: 2, to_facing: West, marker: Some("signpost")),
     ],
     // A random table that never fires: every step still rolls its check on the encounter stream,
     // which the stream-isolation tests count.
     random: Some((chance_percent: 0, entries: [(weight: 1, stacks: [("test:monster:giant_rat", (count: 1, sides: 2, modifier: 0))])])),
+    // What may happen while the party rests here: placeholders at chance 0 (per mille) until
+    // the owner's ideas fill them.
+    rest_events: [
+        (terrain: "road", rest: Any, chance: 0, text: "test:text:rest.meadow.road"),
+        (terrain: "grass", rest: Any, chance: 0, text: "test:text:rest.meadow.grass"),
+    ],
 )

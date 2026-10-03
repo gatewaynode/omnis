@@ -1,7 +1,8 @@
 //! The Omnis Bevy application as a library, so tests can build the app without a window and
 //! the binary in `main.rs` stays a few lines.
 //!
-//! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `combat_menu`, `combat_text`, `combat_screen`,
+//! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `creation_menu`, `creation_panel`, `ui_model`,
+//! `combat_menu`, `combat_text`, `combat_screen`,
 //! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`, `spell_menu`, `debug_menu`,
 //! `debug_screen`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
 //! hold only ECS wiring.
@@ -17,10 +18,15 @@ pub mod actors;
 pub mod assets;
 pub mod band;
 pub mod canvas;
+#[cfg(feature = "devtools")]
+pub mod capture;
 pub mod combat;
 pub mod combat_menu;
 pub mod combat_screen;
 pub mod combat_text;
+pub mod confirm_panel;
+pub mod creation_menu;
+pub mod creation_panel;
 pub mod cursor;
 #[cfg(feature = "devtools")]
 pub mod debug;
@@ -28,6 +34,12 @@ pub mod debug_menu;
 pub mod debug_screen;
 #[cfg(feature = "devtools")]
 pub mod dev;
+pub mod feathers_confirm;
+pub mod feathers_creation;
+pub mod feathers_fonts;
+pub mod feathers_service;
+pub mod feathers_tools;
+pub mod feathers_ui;
 pub mod font;
 pub mod input;
 pub mod inventory;
@@ -45,6 +57,8 @@ pub mod raster;
 pub mod screen;
 pub mod screens;
 pub mod sense_text;
+pub mod service_panel;
+pub mod service_text;
 pub mod sheet;
 pub mod sheet_menu;
 pub mod sheet_screen;
@@ -54,7 +68,11 @@ pub mod socket;
 pub mod spell_menu;
 pub mod spell_text;
 pub mod text;
+pub mod tool_bar;
 pub mod ui;
+pub mod ui_kit;
+pub mod ui_model;
+pub mod ui_text;
 pub mod use_menu;
 pub mod viewport;
 pub mod widget;

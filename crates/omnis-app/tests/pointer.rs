@@ -10,17 +10,20 @@ use bevy::window::{
     CursorLeft, WindowCreated, WindowResized, WindowResolution, WindowScaleFactorChanged,
 };
 use common::{
-    button, click, click_at, draft_fighter_by_mouse, escape, frame, move_to, play_state, point_at,
-    pointer, seen, spot, start_new_game_by_mouse, ui_app, widget, world,
+    add_fighter_by_command, ask_creation, button, click, click_at, escape, fighter_draft, frame,
+    move_to, party_by_command, play_state, point_at, pointer, seen, spot, start_new_game_by_mouse,
+    ui_app, widget, world,
 };
+use common::{tool, tool_live};
 use omnis_app::canvas::Layout;
 use omnis_app::cursor::{Pointer, WindowSize};
 use omnis_app::layout::{CANVAS_WIDTH, MENU_BOX, canvas_rect_to_window};
-use omnis_app::menu::ROW_BEGIN;
+use omnis_app::menu::CreationAction;
 use omnis_app::menus::Screens;
 use omnis_app::sim::{AppState, PlayState, ShellCommand, SimWorld};
+use omnis_app::tool_bar::ToolButton;
 use omnis_app::ui::{MessageLine, Selected};
-use omnis_app::widget::{ALERT, PadButton, Part, ToolButton, WidgetId};
+use omnis_app::widget::{ALERT, PadButton, Part, WidgetId};
 use omnis_sim::SaveRule;
 use omnis_sim::omnis_core::Facing;
 
@@ -220,7 +223,7 @@ fn the_mouse_starts_a_game_and_builds_a_party() {
         "a new game redraws the world before its first step"
     );
 
-    draft_fighter_by_mouse(&mut app);
+    add_fighter_by_command(&mut app);
     let members = &world(&app).party.members;
     assert_eq!(members.len(), 1, "the draft became a member");
     assert_eq!(members[0].name, "Brenna");
@@ -231,8 +234,12 @@ fn the_mouse_starts_a_game_and_builds_a_party() {
         frame(&app).frame.widget(WidgetId::Member(0)).is_some(),
         "the band shows the member"
     );
+    assert!(
+        frame(&app).frame.widget(WidgetId::Row(0)).is_none(),
+        "the canvas paints only the backdrop under the creation panel"
+    );
 
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    ask_creation(&mut app, CreationAction::Begin);
     assert_eq!(play_state(&app), PlayState::Explore);
     assert!(frame(&app).frame.widget(WidgetId::Row(0)).is_none());
 }
@@ -243,18 +250,18 @@ fn pad_clicks_step_and_turn_the_party_while_exploring() {
     app.update();
     app.update();
     let start = world(&app).position;
-    assert_eq!((start.x, start.y, start.facing), (16, 16, Facing::North));
+    assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
-    assert_eq!(world(&app).position.y, 15);
+    assert_eq!(world(&app).position.x, 9);
     click(&mut app, WidgetId::Pad(PadButton::TurnLeft), Part::Body);
-    assert_eq!(world(&app).position.facing, Facing::West);
+    assert_eq!(world(&app).position.facing, Facing::South);
 
     // The gap between buttons hits nothing.
     let forward = widget(&app, WidgetId::Pad(PadButton::Forward));
     click_at(&mut app, (forward.rect.x - 1, forward.rect.y));
     assert_eq!(
-        (world(&app).position.y, world(&app).position.facing),
-        (15, Facing::West)
+        (world(&app).position.x, world(&app).position.facing),
+        (9, Facing::South)
     );
 
     // Held shows pressed; released clears it.
@@ -280,8 +287,7 @@ fn pad_clicks_step_and_turn_the_party_while_exploring() {
 fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     let mut app = ui_app(false);
     start_new_game_by_mouse(&mut app);
-    draft_fighter_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    party_by_command(&mut app);
 
     click(&mut app, WidgetId::Member(0), Part::Body);
     assert_eq!(*app.world().resource::<Selected>(), Selected(Some(0)));
@@ -308,45 +314,34 @@ fn party_rows_select_and_the_pause_menu_works_by_mouse() {
     );
 }
 
-/// The tool pad by mouse: MENU pauses (and the pad goes dim under the overlay), MAP sends
+/// The tool bar's presses: MENU pauses (and the bar goes dim under the overlay), MAP sends
 /// the automap toggle, a dim button does nothing, and SPELLS lights up with a caster and
-/// opens the cast menu.
+/// opens the cast menu. Real pointer clicks on the bar are `tool_bar.rs`'s.
 #[test]
 fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
     let mut app = common::ui_app_saving_to("tool-pad.ron", true);
     app.update();
     app.update();
     for button in [ToolButton::Items, ToolButton::Look] {
-        assert!(!widget(&app, WidgetId::Tool(button)).enabled, "{button:?}");
+        assert!(!tool_live(&app, button), "{button:?}");
     }
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Sheet)).enabled,
-        "no member yet"
-    );
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
-        "no caster yet"
-    );
-    assert!(widget(&app, WidgetId::Tool(ToolButton::Map)).enabled);
+    assert!(!tool_live(&app, ToolButton::Sheet), "no member yet");
+    assert!(!tool_live(&app, ToolButton::Spells), "no caster yet");
+    assert!(tool_live(&app, ToolButton::Map));
 
-    click(&mut app, WidgetId::Tool(ToolButton::Menu), Part::Body);
+    tool(&mut app, ToolButton::Menu);
     assert_eq!(play_state(&app), PlayState::Paused);
-    assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Menu)).enabled,
-        "dim under the overlay"
-    );
+    assert!(!tool_live(&app, ToolButton::Menu), "dim under the overlay");
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
 
-    click(&mut app, WidgetId::Tool(ToolButton::Map), Part::Body);
+    tool(&mut app, ToolButton::Map);
     assert_eq!(seen(&app).shell.last(), Some(&ShellCommand::ToggleAutomap));
 
-    let items = widget(&app, WidgetId::Tool(ToolButton::Items));
     let sent = seen(&app).shell.len();
-    click_at(&mut app, spot(&items, Part::Body));
+    tool(&mut app, ToolButton::Items);
     assert_eq!(play_state(&app), PlayState::Explore);
     assert_eq!(seen(&app).shell.len(), sent, "a dim button sends nothing");
-    assert_eq!(frame(&app).hover, None);
 
     let draft = omnis_sim::omnis_rules::Draft {
         name: "Ilvara".to_owned(),
@@ -367,11 +362,11 @@ fn the_tool_pad_opens_the_menu_the_map_and_the_spells_by_mouse() {
         )));
     app.update();
     app.update();
-    assert!(widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled);
-    click(&mut app, WidgetId::Tool(ToolButton::Spells), Part::Body);
+    assert!(tool_live(&app, ToolButton::Spells));
+    tool(&mut app, ToolButton::Spells);
     assert_eq!(play_state(&app), PlayState::Cast);
     assert!(
-        !widget(&app, WidgetId::Tool(ToolButton::Spells)).enabled,
+        !tool_live(&app, ToolButton::Spells),
         "dim under the cast menu"
     );
     common::key(&mut app, bevy::input::keyboard::Key::Escape);
@@ -393,7 +388,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
     let _ = std::fs::remove_file(&save_path);
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
     let saved_at = world(&app).position;
-    assert_eq!(saved_at.y, 15);
+    assert_eq!(saved_at.x, 9);
 
     escape(&mut app);
     assert_eq!(play_state(&app), PlayState::Paused);
@@ -414,7 +409,7 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
     click(&mut app, WidgetId::Row(0), Part::Body);
     assert_eq!(play_state(&app), PlayState::Explore);
     click(&mut app, WidgetId::Pad(PadButton::Forward), Part::Body);
-    assert_eq!(world(&app).position.y, 14);
+    assert_eq!(world(&app).position.x, 8);
     let replaced_before = seen(&app).replaced;
     escape(&mut app);
     click(&mut app, WidgetId::Row(2), Part::Body);
@@ -442,12 +437,16 @@ fn the_pause_menu_saves_and_loads_by_mouse() {
 fn the_message_line_shows_rejections_and_notices() {
     let mut app = ui_app(false);
     start_new_game_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    // A draft the rules refuse: the refusal is the creation screen's message.
+    let nameless = omnis_sim::omnis_rules::Draft {
+        name: String::new(),
+        ..fighter_draft()
+    };
+    ask_creation(&mut app, CreationAction::Add(nameless));
     assert_eq!(play_state(&app), PlayState::CreateParty);
-    assert_eq!(
-        app.world().resource::<Screens>().creation.message,
-        "Add at least one member"
-    );
+    assert!(world(&app).party.members.is_empty());
+    let message = app.world().resource::<Screens>().creation.message.clone();
+    assert!(message.contains("name"), "{message}");
     let raster = &frame(&app).frame.raster;
     let alert = (0..CANVAS_WIDTH as i32).any(|x| {
         raster
@@ -459,8 +458,7 @@ fn the_message_line_shows_rejections_and_notices() {
     });
     assert!(alert, "the rejection is painted in the alert colour");
 
-    draft_fighter_by_mouse(&mut app);
-    click(&mut app, WidgetId::Row(ROW_BEGIN), Part::Body);
+    party_by_command(&mut app);
     app.world_mut()
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);

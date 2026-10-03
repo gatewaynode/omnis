@@ -6,7 +6,7 @@ use common::{data, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_sim::command::parse_script;
-use omnis_sim::ops::MAX_SCRIPT;
+use omnis_sim::ops::{MAX_SCRIPT, ShotTarget};
 use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch};
 
 fn events(reply: Reply) -> Vec<Event> {
@@ -96,12 +96,17 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
     let data = data();
     let mut world = world(&data);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    let layout = data.maps[&dungeon].def.layout.join("\n") + "\n";
+    let mut layout = data.maps[&dungeon].def.layout.clone();
+    // The way up at (0, 0) is a portal: row 1, column 1 of the layout.
+    layout[1].replace_range(1..2, "*");
     assert_eq!(
         text(&mut world, &data, Some("test:map:dungeon")),
-        layout,
-        "no party there and no door touched: the file's own layout"
+        layout.join("\n") + "\n",
+        "no party there and no door touched: the file's own layout and its portal"
     );
+    let town = text(&mut world, &data, Some("test:map:town"));
+    let street: Vec<char> = town.lines().nth(2 * 2 + 1).unwrap().chars().collect();
+    assert_eq!(street[2 * 11 + 1], '*', "the town gate: {town}");
     let meadow = text(&mut world, &data, None);
     let lines: Vec<&str> = meadow.lines().collect();
     assert_eq!(lines.len(), 65);
@@ -202,7 +207,10 @@ fn limits_and_host_ops_are_refused() {
             force: false,
         },
         Op::PackReload,
-        Op::Screenshot { path: None },
+        Op::Screenshot {
+            path: None,
+            target: ShotTarget::Canvas,
+        },
     ] {
         assert!(op.is_host());
         assert_eq!(
@@ -243,7 +251,9 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         Op::PackReload,
         Op::Screenshot {
             path: Some("p.png".into()),
+            target: ShotTarget::Window,
         },
+        Op::ScreenText,
         Op::PartyGet,
         Op::PartyCreate {
             character: omnis_sim::omnis_rules::Draft {
@@ -256,6 +266,8 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
                 skills: vec![],
             },
         },
+        Op::CombatGet,
+        Op::ServiceGet,
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),
@@ -275,6 +287,13 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
     for op in [Op::GameStatus, Op::EventsTail { count: 1 }, Op::ViewportGet] {
         let reply = dispatch(&mut world, &data, &op).unwrap();
         assert_eq!(parse::<Reply>(&to_string(&reply).unwrap()).unwrap(), reply);
+    }
+    for service in ["smith", "temple"] {
+        let mut town = common::inside(&data, service);
+        for op in [Op::ServiceGet, Op::PartyGet, Op::GameStatus] {
+            let reply = dispatch(&mut town, &data, &op).unwrap();
+            assert_eq!(parse::<Reply>(&to_string(&reply).unwrap()).unwrap(), reply);
+        }
     }
 
     let script = parse_script("forward, turn-left  # to the west\n\nuse back\n").unwrap();

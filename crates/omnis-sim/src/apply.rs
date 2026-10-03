@@ -3,9 +3,10 @@
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::party::{self, PartyCommand};
+use crate::service::{self, ServiceState};
 use crate::world::{Known, Mode, World, door_key, layer};
 use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
-use crate::{casting, combat, dev, effects, encounter, items, visibility};
+use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, MapId, Position, Rotation};
 use omnis_data::Data;
@@ -17,22 +18,31 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     match (&world.mode, &command) {
         (_, Command::Dev(edit)) => dev::apply(world, data, edit, &mut events)?,
         (Mode::Explore, Command::Step(direction)) => step(world, data, *direction, &mut events)?,
-        (Mode::Explore, Command::Turn(rotation)) => turn(world, *rotation),
+        (&Mode::Town(state), Command::Step(direction)) => {
+            step_out(world, data, state, *direction, &mut events)?;
+        }
+        (&Mode::Town(state), Command::Service(command)) => {
+            service::apply(world, data, state, *command, &mut events)?;
+        }
+        (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
-        (Mode::Explore, Command::Party(command))
+        (Mode::Explore | Mode::Town(_), Command::Party(command))
         | (Mode::Combat(_), Command::Party(command @ PartyCommand::AutoCast { .. })) => {
             party::apply(world, data, command, &mut events)?;
         }
         (
-            Mode::Explore,
+            Mode::Explore | Mode::Town(_),
             Command::Cast {
                 caster,
                 spell,
                 target,
             },
         ) => casting::apply(world, data, *caster, *spell, *target, &mut events)?,
-        (Mode::Explore, Command::Item(command)) => {
+        (Mode::Explore | Mode::Town(_), Command::Item(command)) => {
             items::apply(world, data, *command, &mut events)?;
+        }
+        (Mode::Explore, Command::Rest(command)) => {
+            rest::apply(world, data, command, &mut events)?;
         }
         (Mode::Encounter(_), Command::Encounter(choice)) => {
             encounter::apply_choice(world, data, *choice, &mut events)?;
@@ -63,7 +73,7 @@ fn world_clock_origin() -> omnis_core::Clock {
     omnis_core::Clock::new(omnis_core::EraId(0))
 }
 
-/// A step; when it lands somewhere, the tile's encounter may follow.
+/// A step; when it lands somewhere, the tile's service or encounter may follow.
 fn step(
     world: &mut World,
     data: &Data,
@@ -75,30 +85,80 @@ fn step(
     if !r#move(world, data, direction, events) {
         return Ok(());
     }
+    arrive(world, data, from, facing, events)
+}
+
+/// A step out of a service: the party leaves only when the step goes somewhere, so a wall
+/// keeps it inside. Then the step lands as any other.
+fn step_out(
+    world: &mut World,
+    data: &Data,
+    state: ServiceState,
+    direction: Direction,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let from = world.position;
+    let facing = from.facing.toward(direction);
+    let at = events.len();
+    if !r#move(world, data, direction, events) {
+        return Ok(());
+    }
+    events.insert(
+        at,
+        Event::ServiceLeft {
+            service: state.service,
+        },
+    );
+    world.mode = Mode::Explore;
+    arrive(world, data, from, facing, events)
+}
+
+/// Where a step lands: a site takes the party inside with no encounter roll; anywhere else the
+/// tile's encounter may follow.
+fn arrive(
+    world: &mut World,
+    data: &Data,
+    from: Position,
+    facing: Facing,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    if service::enter_here(world, data, events) {
+        return Ok(());
+    }
     encounter::trigger(world, data, from, facing, events).map_err(Rejection::Rule)
 }
 
-/// The move itself: walls, doors, terrain, portals. Whether the party ended up somewhere.
-fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<Event>) -> bool {
+/// Where a step lands: the tile, its minutes, and a portal's far end when the tile has one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Landing {
+    /// The tile stepped onto.
+    pub to: Position,
+    /// Its terrain's minutes.
+    pub minutes: u32,
+    /// Where a portal on it leads, when the far end is on a loaded map.
+    pub through: Option<Position>,
+}
+
+impl Landing {
+    /// Where the party ends up.
+    pub(crate) fn end(self) -> Position {
+        self.through.unwrap_or(self.to)
+    }
+}
+
+/// Where a step in `direction` would land, or why it would not: walls, doors, terrain, the
+/// map's edge. Nothing changes; `r#move` and the queries share it.
+pub(crate) fn landing(
+    world: &World,
+    data: &Data,
+    direction: Direction,
+) -> Result<Landing, BlockReason> {
     let pos = world.position;
     let facing = pos.facing.toward(direction);
-    let Some(map) = data.maps.get(&pos.map) else {
-        events.push(Event::Blocked {
-            reason: BlockReason::MapEdge,
-        });
-        return false;
-    };
-    let Some(cell) = map.cell(pos.x, pos.y) else {
-        events.push(Event::Blocked {
-            reason: BlockReason::MapEdge,
-        });
-        return false;
-    };
+    let map = data.maps.get(&pos.map).ok_or(BlockReason::MapEdge)?;
+    let cell = map.cell(pos.x, pos.y).ok_or(BlockReason::MapEdge)?;
     if cell.walls.has(facing) {
-        events.push(Event::Blocked {
-            reason: BlockReason::Wall,
-        });
-        return false;
+        return Err(BlockReason::Wall);
     }
     if cell.doors.has(facing)
         && !world
@@ -106,48 +166,62 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
             .get(&pos.map)
             .is_some_and(|s| s.door_open(pos.x, pos.y, facing))
     {
-        events.push(Event::Blocked {
-            reason: BlockReason::ClosedDoor,
-        });
-        return false;
+        return Err(BlockReason::ClosedDoor);
     }
-    let target = pos
+    let (x, y, target_cell) = pos
         .neighbour(facing)
-        .and_then(|(x, y)| map.cell(x, y).map(|c| (x, y, c)));
-    let Some((x, y, target_cell)) = target else {
-        events.push(Event::Blocked {
-            reason: BlockReason::MapEdge,
-        });
-        return false;
-    };
+        .and_then(|(x, y)| map.cell(x, y).map(|c| (x, y, c)))
+        .ok_or(BlockReason::MapEdge)?;
     let terrain = map.terrain(target_cell);
     if !terrain.passable {
-        events.push(Event::Blocked {
-            reason: BlockReason::Impassable,
-        });
-        return false;
+        return Err(BlockReason::Impassable);
     }
-    let to = pos.at(x, y);
-    world.position = to;
-    events.push(Event::Moved { from: pos, to });
-    advance(world, terrain.step_minutes, events);
-    visit(world, data);
-    if let Some(portal) = map.portal_at(x, y) {
-        let dest = Position {
+    let through = map
+        .portal_at(x, y)
+        .map(|portal| Position {
             map: portal.to_map,
             x: portal.to_x,
             y: portal.to_y,
             facing: portal.to_facing,
-        };
-        if data
-            .maps
-            .get(&dest.map)
-            .is_some_and(|m| m.cell(dest.x, dest.y).is_some())
-        {
-            world.position = dest;
-            events.push(Event::Moved { from: to, to: dest });
-            visit(world, data);
+        })
+        .filter(|dest| {
+            data.maps
+                .get(&dest.map)
+                .is_some_and(|m| m.cell(dest.x, dest.y).is_some())
+        });
+    Ok(Landing {
+        to: pos.at(x, y),
+        minutes: terrain.step_minutes,
+        through,
+    })
+}
+
+/// The move itself: the landing, its minutes, the visits, a portal. Whether the party ended up
+/// somewhere.
+fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec<Event>) -> bool {
+    let from = world.position;
+    let landing = match landing(world, data, direction) {
+        Ok(landing) => landing,
+        Err(reason) => {
+            events.push(Event::Blocked { reason });
+            return false;
         }
+    };
+    world.position = landing.to;
+    events.push(Event::Moved {
+        from,
+        to: landing.to,
+    });
+    advance(world, landing.minutes, events);
+    visit(world, data);
+    if let Some(dest) = landing.through {
+        world.position = dest;
+        events.push(Event::Moved {
+            from: landing.to,
+            to: dest,
+        });
+        visit(world, data);
+        know_portals_beside(world, data);
     }
     true
 }
@@ -171,7 +245,11 @@ fn turn(world: &mut World, rotation: Rotation) {
     world.position = world.position.turned(rotation);
 }
 
+/// Go into the service on the party's tile, or else open or close the door ahead.
 fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
+    if service::enter_here(world, data, events) {
+        return;
+    }
     let pos = world.position;
     let has_door = data
         .maps
@@ -233,6 +311,37 @@ pub(crate) fn visit(world: &mut World, data: &Data) {
             seen_at,
         },
     );
+}
+
+/// Record the portals beside the party's tile, north, east, south and west, as seen: a party
+/// that has just come through a portal knows the way back, even with its back to it (owner,
+/// 2026-09-27, TODO 3c).
+fn know_portals_beside(world: &mut World, data: &Data) {
+    let pos = world.position;
+    let Some(map) = data.maps.get(&pos.map) else {
+        return;
+    };
+    let seen_at = world.party_clock().elapsed;
+    for facing in Facing::ALL {
+        let Some((x, y)) = pos.neighbour(facing) else {
+            continue;
+        };
+        let Some(cell) = map.cell(x, y).filter(|_| map.portal_at(x, y).is_some()) else {
+            continue;
+        };
+        world.automap.record(
+            pos.map,
+            x,
+            y,
+            Known {
+                terrain: cell.terrain,
+                walls: cell.walls,
+                doors: cell.doors,
+                layers: layer::TERRAIN | layer::STRUCTURE,
+                seen_at,
+            },
+        );
+    }
 }
 
 /// Perceive the cone, record it, and emit `Visible`.

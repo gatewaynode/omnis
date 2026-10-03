@@ -5,10 +5,34 @@ mod common;
 use common::{data, interact, step, turn, without_visible, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_sim::world::layer;
-use omnis_sim::{BlockReason, Command, Event, MessageKey, PARTY, apply, query};
+use omnis_sim::{BlockReason, Command, Event, MessageKey, PARTY, Settings, World, apply, query};
 
 #[test]
-fn a_new_game_starts_on_the_entry_map_and_sees_the_meadow() {
+fn a_new_game_starts_in_town_and_the_gate_and_the_road_link_it_to_the_meadow() {
+    let data = data();
+    let mut world = World::new(&data, 1, Settings::default()).unwrap();
+    let town = data.registry.maps.get("test:map:town").unwrap();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let at = |map, x, y, facing| Position { map, x, y, facing };
+    assert_eq!(world.position, at(town, 10, 2, Facing::West));
+    assert_eq!(world.party_clock().elapsed, 0);
+    apply(&mut world, &data, Command::Step(Direction::Back)).unwrap();
+    assert_eq!(
+        world.position,
+        at(meadow, 16, 30, Facing::North),
+        "a step back through the gate lands beside the road home"
+    );
+    turn(&mut world, &data, Rotation::Around);
+    step(&mut world, &data);
+    assert_eq!(
+        world.position,
+        at(town, 10, 2, Facing::West),
+        "the road's south end leads home"
+    );
+}
+
+#[test]
+fn the_meadow_start_sees_six_clear_rows() {
     let data = data();
     let world = world(&data);
     let meadow = data.registry.maps.get("test:map:meadow").unwrap();
@@ -294,6 +318,59 @@ fn portals_link_the_maps_both_ways() {
             y: 6,
             facing: Facing::South
         }
+    );
+}
+
+/// Owner, 2026-09-27 (TODO 3c): the road home was nowhere on the meadow's automap. A party that
+/// comes through a portal knows the portal beside where it lands, though its back is to it; no
+/// other tile out of sight is known.
+#[test]
+fn coming_through_a_portal_the_party_knows_the_way_back() {
+    let data = data();
+    let mut world = World::new(&data, 1, Settings::default()).unwrap();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    let events = apply(&mut world, &data, Command::Step(Direction::Back)).unwrap();
+    assert_eq!((world.position.map, world.position.y), (meadow, 30));
+    let in_sight = |events: &[Event], x, y| {
+        events.iter().any(
+            |e| matches!(e, Event::Visible { tiles } if tiles.iter().any(|t| (t.x, t.y) == (x, y))),
+        )
+    };
+    assert!(
+        !in_sight(&events, 16, 31),
+        "the signpost is behind the party"
+    );
+    let known = query::automap(&world, meadow).unwrap();
+    let home = known
+        .get(&(16, 31))
+        .expect("the road home is on the automap");
+    assert_eq!(
+        home.layers,
+        layer::TERRAIN | layer::STRUCTURE,
+        "known, not visited"
+    );
+    for tile in [(15, 31), (17, 31)] {
+        assert!(
+            !known.contains_key(&tile),
+            "{tile:?} is out of sight and no portal"
+        );
+    }
+
+    // The same from the dungeon's stairs up to the meadow's stairs down, on a fresh automap.
+    world.automap.maps.clear();
+    world.position = Position {
+        map: dungeon,
+        x: 1,
+        y: 0,
+        facing: Facing::West,
+    };
+    let events = step(&mut world, &data);
+    assert_eq!((world.position.x, world.position.y), (16, 6));
+    assert!(!in_sight(&events, 16, 5));
+    assert_eq!(
+        query::automap(&world, meadow).unwrap()[&(16, 5)].layers,
+        layer::TERRAIN | layer::STRUCTURE
     );
 }
 

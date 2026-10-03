@@ -1,36 +1,35 @@
 # Continuity notes
 
-Written 2026-09-20 before a compact. Rewrite this file every time it is used; keep it to state,
+Written 2026-10-02 after M7 step 8a. Rewrite this file every time it is used; keep it to state,
 next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
 
-## State
-- Branch `m6-closeout-tasks`, cut from `main` at `4d963d3`. On it: the owner's `09e478a`
-  (justfile, a background document), `53cab2b` (two code comments), `0c0a11a` "Docs: PRD and
-  ARCH match M6 as built", `6897144` the MCP schema proof, and this continuity commit. The owner
-  said they would push around the time this commit was made: **check
-  `git log origin/m6-closeout-tasks..m6-closeout-tasks` first**; anything listed is unpushed and
-  must not be stranded by a merge (LESSONS 2026-09-19).
-- The gate is green at 353 passed, 6 ignored; Sentrux rules pass; both replays hold.
-- The drift pass is done and became a direction change, all in PRD v0.5 and ARCH v0.3: closer to
-  the SRD and extend it (D21 turn budget, D22 declared reactions, D23 runbooks and the
-  per-member auto flag, D24 three spell fields; design in ARCH §4.7, A15, nothing built); tool
-  proficiencies as pack data (§8.1); the editor held for the end of Phase 1 (D4); the time model
-  is D25; **D26: a modern look and feel, pixel art is placeholder only**; A11 amended: Feathers
-  in game as a bounded experiment.
-- Not yet answered by the owner: how the M6c play-test went; whether ARCH §4.7 resolving auto
-  members' turns inside the simulation (not in the front end) stands.
+## On resuming
+- Run `/catchup`, then read `tasks/knowledge/README.md`, `agreements.md`, `verification.md` and
+  `code-map.md` (the tool bar and service panel entries) before touching code.
+- **Toolchain**: inside the sandbox every cargo and gate run needs
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (the sandbox cannot read Xcode's license
+  plist, so `xcodebuild -find clang` fails; the license itself is accepted). See `verification.md`.
+- Sentrux: scan `/Users/john/code/omnis/crates` (the rules file is `crates/.sentrux/rules.toml`).
 
-## Next
-1. The owner confirms CI on the push.
-2. **Plan the Feathers experiment and the move away from pixel-art styling, in plan mode**
-   (owner, 2026-09-20). Read first: the TODO's "M6 closeout" item, ARCH A11 and the §8.2 status
-   note, PRD D26 and §11.1, and "Modern presentation" in `tasks/knowledge/horizons.md` (the
-   Bevy source facts are already there). Report with numbers: crates added by the `ui` and
-   `bevy_feathers` features, rendering and scaling on the 5120×1440 ultrawide, whether the MCP
-   screenshot and the screen dumps still show the interface, whether headless tests still drive
-   every widget, and whether a modern font can replace the bitmap font. PRD §14 still asks what
-   modern means for the viewport (higher-resolution 2D, smooth scaling, or reopening 3D): ask.
-3. Then plan M7 (town, services, rest, progression) with the turn budget and declared reactions
-   in or beside it. PRD §14 questions needing the owner: what preparation costs, the budget
-   curves, runbook timing.
-4. Owner documents that appear under `docs/background/` are committed at once, unedited.
+## State
+- Branch `m7-tasks`. Pushed up to `5bce8b7`; every later commit is unpushed.
+- M7 steps 0–7 and 8a done. Step 8 was split by the owner (plan `tasks/plans/m7-step8.md`):
+  8a moved the canvas tool pad to a Feathers bar (seven buttons, CAMP dim); 8b is the camp panel.
+- Gate `tests passed 447 failed 0 ignored 8`; pins unmoved: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`,
+  walk `9901411989274517557` (`WALK_SEED = 2`), fight `15728260309841309156`; `SAVE_SCHEMA 5`;
+  MCP 20 tools, `oneOf` 11, proof 77/111.
+- Owed by the owner: a manual look at the 8a bar (on the ultrawide too); agent-launched windows
+  draw no frames.
+- ARCHITECTURE.md §8 line on `UiPlugin` still says it composes the "tool pad"; it is drift for
+  step 9's "as built" pass (ask the owner before editing ARCH).
+
+## Next: M7 step 8b (the camp panel), per `tasks/plans/m7-step8.md` part "8b"
+- Commit 2: `omnis-sim` `rest_view.rs` (read-only; `food_need` split out of `rest.rs`).
+- Commit 3: the app: `PlayState::Camp`, `camp_panel.rs` + `feathers_camp.rs`, CAMP live on the map
+  (`tool_bar::tool_states`, `tool_for`), R in `input::shell_for`, `follow_mode` gains `Camp`,
+  hit dice on the sheet's stats page row 4. Then step 9 (docs, acceptance a).
+
+## Carry-over
+- Owed by the owner at acceptance a: `--frame-stats` with a panel open.
+- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10.
+- Merged local branches `m5-tasks`, `m6c-tasks`, `m6-closeout-tasks` can be deleted by the owner.

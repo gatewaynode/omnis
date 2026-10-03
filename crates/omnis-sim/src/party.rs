@@ -5,7 +5,7 @@ use crate::command::Rejection;
 use crate::event::{ActorRef, Event};
 use crate::world::World;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, ConditionId, ItemId, Pcg32, RollTrace, StreamName};
+use omnis_core::{CharacterId, ConditionId, ItemId, Pcg32, RollTrace, StreamName, money};
 use omnis_data::{Data, SpellEffect};
 use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, condition_id, create};
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,8 @@ pub const DEFAULT_FRONT_ROW: usize = 3;
 pub struct Party {
     /// Members in marching order.
     pub members: Vec<Character>,
-    /// Gold pieces.
+    /// The purse in copper pieces, the smallest coin (`omnis_core::money`; save schema 5).
+    /// The name is kept from when it counted whole gold.
     pub gold: u32,
     /// Deprecated and never written: spell components are items in `inventory` (the gem item
     /// first). Kept so saves and the protocol keep their shape.
@@ -35,6 +36,12 @@ pub struct Party {
     /// Party-wide spell effects in force (light); only live ones are kept.
     #[serde(default)]
     pub effects: Vec<ActiveEffect>,
+    /// Copper held for the party at the bank.
+    #[serde(default)]
+    pub bank: u32,
+    /// The party clock's `elapsed` at the end of the last long rest, if any.
+    #[serde(default)]
+    pub last_long_rest: Option<i64>,
 }
 
 /// A change to the party.
@@ -152,7 +159,7 @@ fn create_member(world: &mut World, data: &Data, draft: &Draft) -> Result<(), Re
     let gold = data
         .backgrounds
         .get(&character.background)
-        .map_or(0, |b| u32::from(b.gold));
+        .map_or(0, |b| money::from_gp(u32::from(b.gold)));
     let food = data
         .rules
         .value("starting_food")

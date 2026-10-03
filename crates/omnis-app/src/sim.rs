@@ -56,6 +56,10 @@ pub enum PlayState {
     Sheet,
     /// The inventory overlay over the world; item commands apply from it.
     Inventory,
+    /// A step into or out of a town service waits for Go or Stay (`input::AskFirst`).
+    Confirm,
+    /// Inside a town service: its panel (`feathers_service.rs`).
+    Service,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -75,6 +79,7 @@ impl PlayState {
     pub const fn for_mode(mode: &Mode) -> PlayState {
         match mode {
             Mode::Explore => PlayState::Explore,
+            Mode::Town(_) => PlayState::Service,
             Mode::Encounter(_) => PlayState::Encounter,
             Mode::Combat(_) => PlayState::Combat,
         }

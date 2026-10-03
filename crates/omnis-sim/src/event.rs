@@ -6,7 +6,7 @@ use crate::encounter::EncounterSource;
 use alloc::vec::Vec;
 use omnis_core::{
     CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
-    SpellId,
+    ServiceId, SpellId,
 };
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
@@ -257,7 +257,7 @@ pub enum Event {
     },
     /// The monsters took the party's gold and left.
     Bribed {
-        /// Gold paid.
+        /// Copper paid.
         cost: u32,
     },
     /// The fight is on.
@@ -477,7 +477,7 @@ pub enum Event {
     Death {
         /// Who.
         target: ActorRef,
-        /// The gold a monster dropped.
+        /// The whole gold pieces a monster dropped, as rolled; looted as copper.
         gold: Option<RollTrace>,
     },
     /// The fight is over.
@@ -486,10 +486,108 @@ pub enum Event {
         outcome: CombatOutcome,
         /// Experience each surviving member gained.
         xp: u32,
-        /// Gold the party gained.
+        /// Copper the party gained.
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+    },
+    /// The party went into the service on its tile.
+    ServiceEntered {
+        /// Which.
+        service: ServiceId,
+    },
+    /// The party came out of a service, onto its tile or on the way off it.
+    ServiceLeft {
+        /// Which.
+        service: ServiceId,
+    },
+    /// A night at the inn: a long rest; the restoration follows as `Healed` events.
+    RoomTaken {
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Food bought at a tavern into the party's larder.
+    FoodBought {
+        /// Units.
+        count: u16,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// A rumor heard at a tavern.
+    Rumor {
+        /// The tavern.
+        service: ServiceId,
+        /// The row of its rumors.
+        index: u16,
+    },
+    /// A temple healed a member or cured their conditions; `Healed` and `Condition` follow.
+    Treated {
+        /// Who.
+        member: CharacterId,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// A temple raised a dead member at one hit point.
+    Raised {
+        /// Who.
+        member: CharacterId,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Items bought into the party's stores.
+    Bought {
+        /// The item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Copper paid.
+        cost: u32,
+    },
+    /// Items sold out of the party's stores.
+    Sold {
+        /// The item.
+        item: ItemId,
+        /// How many.
+        count: u16,
+        /// Copper received.
+        price: u32,
+    },
+    /// Copper moved between the purse and the bank.
+    Banked {
+        /// How much.
+        amount: u32,
+        /// Into the bank, or out of it.
+        deposit: bool,
+    },
+    /// A rest ran its course; the restoration follows (`Healed`, `Condition`).
+    Rested {
+        /// The night's rest, or the hour's.
+        long: bool,
+        /// Party-clock minutes it took.
+        minutes: u32,
+        /// Food eaten.
+        food: u32,
+    },
+    /// A member spent hit dice on a short rest; the `Healed` that follows carries the dice.
+    HitDiceSpent {
+        /// Who.
+        member: CharacterId,
+        /// How many.
+        dice: u8,
+    },
+    /// Monsters came upon the resting party; the encounter follows. Nothing was restored and
+    /// no food eaten.
+    RestInterrupted {
+        /// Party-clock minutes that passed first.
+        minutes: u32,
+    },
+    /// Something happened while the party rested: entry `index` of the map's rest events. It
+    /// changes nothing yet (owner, 2026-09-27: stubs for later ideas).
+    RestEvent {
+        /// The map.
+        map: MapId,
+        /// The entry, in file order.
+        index: u16,
     },
     /// A debugging edit was applied; what it caused follows.
     Dev {

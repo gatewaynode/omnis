@@ -10,7 +10,8 @@ use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::Draft;
 use omnis_cli::omnis_sim::{
-    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, Target,
+    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, RestCommand,
+    ServiceCommand, Target,
 };
 use omnis_mcp::schema::Schema;
 use serde_json::{Value, json};
@@ -376,6 +377,23 @@ fn next_encounter(choice: EncounterChoice) -> Command {
     }
 }
 
+fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
+    let (member, item, count, amount) = (1, 2, 3, 250);
+    Some(match command {
+        ServiceCommand::Leave => ServiceCommand::Room,
+        ServiceCommand::Room => ServiceCommand::Rumor,
+        ServiceCommand::Rumor => ServiceCommand::BuyFood { count },
+        ServiceCommand::BuyFood { .. } => ServiceCommand::Heal { member },
+        ServiceCommand::Heal { .. } => ServiceCommand::Cure { member },
+        ServiceCommand::Cure { .. } => ServiceCommand::Raise { member },
+        ServiceCommand::Raise { .. } => ServiceCommand::Buy { item, count },
+        ServiceCommand::Buy { .. } => ServiceCommand::Sell { item, count },
+        ServiceCommand::Sell { .. } => ServiceCommand::Deposit { amount },
+        ServiceCommand::Deposit { .. } => ServiceCommand::Withdraw { amount },
+        ServiceCommand::Withdraw { .. } => return None,
+    })
+}
+
 /// The instance after `command`, from `Step(Forward)` to the last `Dev` edit. Every match here
 /// and in the helpers is exhaustive: a new variant gets an arm, and a link from its neighbour.
 fn next(command: &Command) -> Option<Command> {
@@ -399,7 +417,17 @@ fn next(command: &Command) -> Option<Command> {
             Target::Stack(_) => cast(Target::Member(3)),
             Target::Member(_) => Command::Item(ItemCommand::Equip { member: 0, item: 1 }),
         },
-        Command::Item(item) => next_item(item).map_or(Command::Dev(give(Some(0))), Command::Item),
+        Command::Item(item) => {
+            next_item(item).map_or(Command::Service(ServiceCommand::Leave), Command::Item)
+        }
+        Command::Service(service) => next_service(*service).map_or(
+            Command::Rest(RestCommand::Short {
+                dice: vec![1, 0, 2],
+            }),
+            Command::Service,
+        ),
+        Command::Rest(RestCommand::Short { .. }) => Command::Rest(RestCommand::Long),
+        Command::Rest(RestCommand::Long) => Command::Dev(give(Some(0))),
         Command::Dev(dev) => return next_dev(dev).map(Command::Dev),
     })
 }
@@ -418,8 +446,9 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        64,
-        "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, 21 dev"
+        77,
+        "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, \
+         11 service, 2 rest, 21 dev"
     );
     let mut used = Used::new();
     for command in &all {
@@ -434,7 +463,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 94, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 111, "oneOf branches and enum values offered");
 }
 
 #[test]
@@ -482,7 +511,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     padded["oneOf"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"type": "string", "enum": ["Rest"]}));
+        .push(json!({"type": "string", "enum": ["Nap"]}));
     let (mut used, mut every) = (Used::new(), Used::new());
     for command in instances() {
         let wire = serde_json::to_value(&command).unwrap();
@@ -490,7 +519,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     }
     offered(&padded, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
-    assert_eq!(unused, ["/oneOf/9", "/oneOf/9/enum/\"Rest\""]);
+    assert_eq!(unused, ["/oneOf/11", "/oneOf/11/enum/\"Nap\""]);
 }
 
 #[test]

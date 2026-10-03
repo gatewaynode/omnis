@@ -3,7 +3,9 @@
 //! `item_text.rs` build on it. Bevy-free.
 
 use crate::font::fit;
-use omnis_sim::omnis_core::{CharacterId, ConditionId, ItemId, RollTrace, SpellId};
+use omnis_sim::omnis_core::{
+    CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
+};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{ActorRef, Mode, World};
 use std::collections::BTreeMap;
@@ -26,6 +28,10 @@ pub struct Names {
     conditions: BTreeMap<ConditionId, String>,
     spells: BTreeMap<SpellId, String>,
     items: BTreeMap<ItemId, String>,
+    /// A service's name and its rumors, in its pack's order.
+    services: BTreeMap<ServiceId, (String, Vec<String>)>,
+    /// A map's rest-event lines, in its file's order.
+    rest_events: BTreeMap<MapId, Vec<String>>,
 }
 
 impl Names {
@@ -43,7 +49,7 @@ impl Names {
             self.members.insert(member.id, member.name.clone());
         }
         let encounter = match &world.mode {
-            Mode::Explore => None,
+            Mode::Explore | Mode::Town(_) => None,
             Mode::Encounter(e) => Some(e),
             Mode::Combat(c) => Some(&c.encounter),
         };
@@ -76,6 +82,28 @@ impl Names {
             for (id, item) in &data.items {
                 self.items
                     .insert(*id, data.label("en", &item.name).to_owned());
+            }
+        }
+        if self.services.is_empty() {
+            for (id, service) in &data.services {
+                let rumors = service
+                    .rumors
+                    .iter()
+                    .map(|key| data.label("en", key).to_owned())
+                    .collect();
+                let name = data.label("en", &service.name).to_owned();
+                self.services.insert(*id, (name, rumors));
+            }
+        }
+        if self.rest_events.is_empty() {
+            for (id, map) in &data.maps {
+                let lines = map
+                    .def
+                    .rest_events
+                    .iter()
+                    .map(|e| data.label("en", &e.text).to_owned())
+                    .collect();
+                self.rest_events.insert(*id, lines);
             }
         }
     }
@@ -121,6 +149,32 @@ impl Names {
     pub fn item(&self, id: ItemId) -> &str {
         self.items.get(&id).map_or("?", String::as_str)
     }
+
+    /// A service's name.
+    #[must_use]
+    pub fn service(&self, id: ServiceId) -> &str {
+        self.services
+            .get(&id)
+            .map_or("?", |(name, _)| name.as_str())
+    }
+
+    /// One of a service's rumors, by its row.
+    #[must_use]
+    pub fn rumor(&self, id: ServiceId, index: u16) -> &str {
+        self.services
+            .get(&id)
+            .and_then(|(_, rumors)| rumors.get(usize::from(index)))
+            .map_or("?", String::as_str)
+    }
+
+    /// The line of a map's rest event.
+    #[must_use]
+    pub fn rest_event(&self, map: MapId, index: u16) -> &str {
+        self.rest_events
+            .get(&map)
+            .and_then(|lines| lines.get(usize::from(index)))
+            .map_or("?", String::as_str)
+    }
 }
 
 /// One event as text.
@@ -143,6 +197,15 @@ impl Line {
     pub(crate) fn same(text: String) -> Line {
         Line::new(text.clone(), text)
     }
+}
+
+/// A purse or price in copper broken out by coin, largest first: `15 gp 3 sp 7 cp`. The
+/// inventory, the debug menu and every town price show every coin (owner, 2026-09-27; a town
+/// price can end in silver); elsewhere money shows as whole gold rounded down
+/// (`money::gp_floor`).
+#[must_use]
+pub fn coins(cp: u32) -> String {
+    Coins::of(cp).to_string()
 }
 
 /// `1d8+2 [5]=7`: the trace without its stream name.

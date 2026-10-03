@@ -83,7 +83,8 @@ fn committed_tilesets_match_a_fresh_bake() {
 
 #[test]
 fn the_baked_pack_loads() {
-    let data = load_packs(&[&repo().join("packs/test")]).unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")])
+        .unwrap_or_else(|r| panic!("{r}"));
     let dungeon = &data.tilesets[&data.registry.tilesets.get("test:tileset:dungeon").unwrap()];
     let spec: BakeSpec = read_ron(
         &repo().join("packs/test/bake/dungeon.ron"),

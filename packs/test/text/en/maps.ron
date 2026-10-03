@@ -4,5 +4,11 @@
     entries: {
         "test:text:map.dungeon.name": "Test Dungeon",
         "test:text:map.meadow.name": "Test Meadow",
+        "test:text:map.town.name": "Test Town",
+        // Rest events: placeholders at chance 0 until the owner's ideas fill them.
+        "test:text:rest.town.street": "The night watch passes by",
+        "test:text:rest.town.green": "Dogs bark somewhere in town",
+        "test:text:rest.meadow.road": "A cart rattles past on the road",
+        "test:text:rest.meadow.grass": "Crickets sing in the long grass",
     },
 )

@@ -22,6 +22,18 @@ The full document is kept under `docs/dnd.srd.5.1/`.
 Art under `assets/private/` is licensed for use in the game but not for redistribution, is never
 committed, and never ships inside a pack (`assets/README.md`).
 
+## Fonts
+
+- Inter (`assets/fonts/inter/`): Copyright (c) 2016 The Inter Project Authors
+  (https://github.com/rsms/inter), SIL Open Font License 1.1, text in `LICENSE.txt` beside the files.
+- Alegreya Sans (`assets/fonts/alegreya-sans/`): Copyright 2013 The Alegreya Sans Project Authors
+  (https://github.com/huertatipografica/Alegreya-Sans), SIL Open Font License 1.1, text in `OFL.txt`
+  beside the files.
+- Fira Sans and Fira Mono are embedded by `bevy_feathers` (SIL Open Font License 1.1).
+
+All three are candidates of the Feathers experiment and are compiled only into builds with the
+`feathers` feature; the shipped build carries none of them until the owner picks one.
+
 ## Might and Magic
 
 Might and Magic is a trademark of its current rights holder. Omnis reproduces none of its text,

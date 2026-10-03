@@ -1,0 +1,1 @@
+(schema: 1, id: "base:service:bank", name: "base:text:service.bank.name", kind: Bank)

@@ -4,12 +4,12 @@
         (
             id: "base",
             version: "0.1.0",
-            hash: 11289764640100724756,
+            hash: 13470560136568681001,
         ),
         (
             id: "test",
             version: "0.1.0",
-            hash: 564450942546854219,
+            hash: 9842672778757415347,
         ),
     ],
     settings: (
@@ -92,6 +92,7 @@
                 Persuasion,
             ],
         ))),
+        Step(Back),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -105,22 +106,20 @@
         Step(Forward),
         Step(Forward),
         Step(Forward),
-        Encounter(Attack),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
+        Step(Forward),
         Step(Forward),
         Step(Forward),
         Step(Forward),
@@ -148,18 +147,6 @@
         Combat(Attack(
             stack: 0,
         )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
-        Combat(Attack(
-            stack: 0,
-        )),
     ],
-    fingerprint: 7317777168019603128,
+    fingerprint: 15728260309841309156,
 )

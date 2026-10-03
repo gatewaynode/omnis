@@ -7,10 +7,12 @@ use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
 use crate::party::PartyCommand;
+use crate::rest::RestCommand;
+use crate::service::ServiceCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{Direction, ItemId, Rotation};
+use omnis_core::{Coins, Direction, ItemId, Rotation};
 use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError};
 use serde::{Deserialize, Serialize};
@@ -41,6 +43,10 @@ pub enum Command {
     },
     /// Wear, hand over, stow, take, or use a carried item outside a fight.
     Item(ItemCommand),
+    /// Buy, rest, heal, bank or leave inside a service (M7).
+    Service(ServiceCommand),
+    /// Rest outside a service: an hour spending hit dice, or the night (M7 step 5).
+    Rest(RestCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
 }
@@ -72,6 +78,19 @@ impl Command {
             Command::Combat(CombatCommand::Run) => "flee",
             Command::Cast { .. } => "cast",
             Command::Item(_) => "item",
+            Command::Service(ServiceCommand::Leave) => "leave",
+            Command::Service(ServiceCommand::Room) => "room",
+            Command::Service(ServiceCommand::Rumor) => "rumor",
+            Command::Service(ServiceCommand::BuyFood { .. }) => "food",
+            Command::Service(ServiceCommand::Heal { .. }) => "heal",
+            Command::Service(ServiceCommand::Cure { .. }) => "cure",
+            Command::Service(ServiceCommand::Raise { .. }) => "raise",
+            Command::Service(ServiceCommand::Buy { .. }) => "buy",
+            Command::Service(ServiceCommand::Sell { .. }) => "sell",
+            Command::Service(ServiceCommand::Deposit { .. }) => "deposit",
+            Command::Service(ServiceCommand::Withdraw { .. }) => "withdraw",
+            Command::Rest(RestCommand::Long) => "rest",
+            Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
         }
     }
@@ -95,6 +114,11 @@ impl Command {
             "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
             "dodge" => Command::Combat(CombatCommand::Dodge),
             "flee" => Command::Combat(CombatCommand::Run),
+            "leave" => Command::Service(ServiceCommand::Leave),
+            "room" => Command::Service(ServiceCommand::Room),
+            "rumor" => Command::Service(ServiceCommand::Rumor),
+            "rest" => Command::Rest(RestCommand::Long),
+            "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
             _ => {
                 if let Some(n) = word.strip_prefix("attack-") {
                     return n
@@ -114,7 +138,7 @@ impl Command {
                 if let Some(rest) = word.strip_prefix("use-item-") {
                     return parse_use(rest).map(Command::Combat);
                 }
-                return None;
+                return parse_town(word);
             }
         })
     }
@@ -143,6 +167,53 @@ fn parse_use(rest: &str) -> Option<CombatCommand> {
     })
 }
 
+/// Town and rest words that carry numbers: `food-N`, `heal-M`, `cure-M`, `raise-M`, `buy-R`
+/// and `buy-R-N` (row `R` of the stock), `sell-R` and `sell-R-N` (row `R` of the stores),
+/// `deposit-N` and `withdraw-N` (copper), `short-rest-A-B-…` (hit dice per member in order).
+fn parse_town(word: &str) -> Option<Command> {
+    if let Some(dice) = word.strip_prefix("short-rest-") {
+        let dice = dice
+            .split('-')
+            .map(|d| d.parse().ok())
+            .collect::<Option<Vec<u8>>>()?;
+        return Some(Command::Rest(RestCommand::Short { dice }));
+    }
+    let (verb, args) = word.split_once('-')?;
+    let service = match verb {
+        "food" => ServiceCommand::BuyFood {
+            count: args.parse().ok()?,
+        },
+        "heal" => ServiceCommand::Heal {
+            member: args.parse().ok()?,
+        },
+        "cure" => ServiceCommand::Cure {
+            member: args.parse().ok()?,
+        },
+        "raise" => ServiceCommand::Raise {
+            member: args.parse().ok()?,
+        },
+        "buy" | "sell" => {
+            let (item, count) = match args.split_once('-') {
+                Some((item, count)) => (item.parse().ok()?, count.parse().ok()?),
+                None => (args.parse().ok()?, 1),
+            };
+            if verb == "buy" {
+                ServiceCommand::Buy { item, count }
+            } else {
+                ServiceCommand::Sell { item, count }
+            }
+        }
+        "deposit" => ServiceCommand::Deposit {
+            amount: args.parse().ok()?,
+        },
+        "withdraw" => ServiceCommand::Withdraw {
+            amount: args.parse().ok()?,
+        },
+        _ => return None,
+    };
+    Some(Command::Service(service))
+}
+
 /// A word in a script that is not a command.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptError {
@@ -162,8 +233,9 @@ impl fmt::Display for ScriptError {
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
 /// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
-/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, separated by
-/// whitespace or commas;
+/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, inside a service
+/// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
+/// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line.
 pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
     let mut commands = Vec::new();
@@ -226,9 +298,9 @@ pub enum Rejection {
     SameMember,
     /// The party cannot pay.
     CannotAfford {
-        /// The price.
+        /// The price in copper.
         cost: u32,
-        /// The purse.
+        /// The purse in copper.
         gold: u32,
     },
     /// The caster knows no spell at that index.
@@ -321,6 +393,44 @@ pub enum Rejection {
         /// Row.
         y: u16,
     },
+    /// This service does not do that, or does not stock that row.
+    NotOffered,
+    /// The member has nothing a temple could treat: full hit points, or no condition to cure.
+    NothingToTreat {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// Only the dead are raised.
+    NotDead {
+        /// The slot asked for.
+        index: u8,
+    },
+    /// The bank holds less than the withdrawal.
+    BankShort {
+        /// The withdrawal in copper.
+        amount: u32,
+        /// The balance in copper.
+        bank: u32,
+    },
+    /// The last long rest ended too recently for another (SRD: one in 24 hours).
+    RestTooSoon {
+        /// Party-clock minutes until one is allowed.
+        minutes: u32,
+    },
+    /// The stores hold less food than a long rest eats.
+    NoFood {
+        /// Food the rest eats.
+        need: u32,
+        /// Food in the stores.
+        have: u32,
+    },
+    /// A member has fewer hit dice left than asked to spend.
+    NoHitDice {
+        /// The slot asked for.
+        index: u8,
+        /// Hit dice the member has left.
+        left: u8,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -329,6 +439,7 @@ impl core::fmt::Display for Rejection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.fmt_play(f)
             .or_else(|| self.fmt_items(f))
+            .or_else(|| self.fmt_town(f))
             .unwrap_or_else(|| self.fmt_magic(f))
     }
 }
@@ -355,9 +466,12 @@ impl Rejection {
             }
             Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
             Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
-            Rejection::CannotAfford { cost, gold } => {
-                write!(f, "that costs {cost} gold; the party has {gold}")
-            }
+            Rejection::CannotAfford { cost, gold } => write!(
+                f,
+                "that costs {}; the party has {}",
+                Coins::of(*cost),
+                Coins::of(*gold)
+            ),
             Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
             Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
@@ -380,6 +494,33 @@ impl Rejection {
             Rejection::NotUsableHere => f.write_str("the item is not used from a fight"),
             Rejection::TargetDead { index } => write!(f, "the member in slot {index} is dead"),
             Rejection::ZeroCount => f.write_str("a count of zero moves nothing"),
+            _ => return None,
+        })
+    }
+
+    /// The wording of the service refusals; `None` for the rest.
+    fn fmt_town(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NotOffered => f.write_str("this service does not offer that"),
+            Rejection::NothingToTreat { index } => {
+                write!(f, "the member in slot {index} needs no treatment")
+            }
+            Rejection::NotDead { index } => write!(f, "the member in slot {index} is not dead"),
+            Rejection::BankShort { amount, bank } => write!(
+                f,
+                "that withdraws {}; the bank holds {}",
+                Coins::of(*amount),
+                Coins::of(*bank)
+            ),
+            Rejection::RestTooSoon { minutes } => {
+                write!(f, "the party rested too recently; {minutes} minutes to go")
+            }
+            Rejection::NoFood { need, have } => {
+                write!(f, "the rest eats {need} food; the stores hold {have}")
+            }
+            Rejection::NoHitDice { index, left } => {
+                write!(f, "the member in slot {index} has {left} hit dice left")
+            }
             _ => return None,
         })
     }

@@ -93,6 +93,9 @@ impl Headless {
             Op::Screenshot { .. } => Err(OpError::failed(
                 "a screenshot needs the game window; this is headless",
             )),
+            Op::ScreenText => Err(OpError::failed(
+                "screen text needs the game window; this is headless",
+            )),
             Op::RulesSet { slot, source } => {
                 ops::bounded(source)?;
                 self.data

@@ -6,7 +6,7 @@ use crate::party::Party;
 use crate::world::{Automap, MapState, Mode, SAVE_SCHEMA, SaveRule, Settings, World};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
-use omnis_core::{Clock, FlagId, HolderId, MapId, Pcg32, Position, StreamName};
+use omnis_core::{Clock, FlagId, HolderId, MapId, Pcg32, Position, StreamName, money};
 use omnis_data::{Ability, Data, PackFingerprint};
 use omnis_rules::{auto_equip, modifier};
 use serde::Deserialize;
@@ -36,7 +36,7 @@ pub(crate) struct WorldV1 {
 /// Schema 1 to 2: an empty party, and the save switch becomes the three-level rule.
 pub(crate) fn v1_to_v2(old: WorldV1) -> World {
     World {
-        schema: SAVE_SCHEMA,
+        schema: 2,
         seed: old.seed,
         packs: old.packs,
         rngs: old.rngs,
@@ -79,6 +79,18 @@ pub(crate) fn v3_to_v4(mut world: World, data: &Data) -> World {
             let dex = modifier(member.scores[Ability::Dexterity.index()]);
             member.equipped = auto_equip(data, &member.equipment, dex);
         }
+    }
+    world.schema = 4;
+    world
+}
+
+/// Schema 4 to 5: money is copper, not whole gold (owner, 2026-09-27), so the purse and a
+/// fight's unpaid loot are multiplied out; members gain spent hit dice and the party a bank and
+/// the time of its last long rest, all defaulting to none.
+pub(crate) fn v4_to_v5(mut world: World) -> World {
+    world.party.gold = money::from_gp(world.party.gold);
+    if let Mode::Combat(fight) = &mut world.mode {
+        fight.gold = money::from_gp(fight.gold);
     }
     world.schema = SAVE_SCHEMA;
     world

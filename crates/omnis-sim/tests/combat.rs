@@ -112,11 +112,17 @@ fn a_fight_runs_to_victory_and_pays_out() {
     let dropped: u32 = events
         .iter()
         .filter_map(|e| match e {
-            Event::Death { gold: Some(g), .. } => Some(u32::try_from(g.total.max(0)).unwrap()),
+            Event::Death { gold: Some(g), .. } => {
+                Some(u32::try_from(g.total.max(0)).unwrap() * 100)
+            }
             _ => None,
         })
         .sum();
-    assert_eq!((gold, world.party.gold), (dropped, 15 * 6 + dropped));
+    assert_eq!(
+        (gold, world.party.gold),
+        (dropped, 1500 * 6 + dropped),
+        "the drops are rolled in gold and paid in copper"
+    );
     assert!(
         events.iter().all(|e| match e {
             Event::AttackResolved { roll, .. } => roll.trace.stream.0 == "combat",
@@ -328,15 +334,14 @@ fn the_dead_are_buried_under_permadeath_and_kept_otherwise() {
     let data = data();
     let dead = condition_id(&data, "dead").unwrap();
     for permadeath in [true, false] {
-        let mut world = World::new(
+        let mut world = common::new_world(
             &data,
             5,
             Settings {
                 permadeath,
                 ..Settings::default()
             },
-        )
-        .unwrap();
+        );
         party_of(&mut world, &data, 2);
         let fallen = world.party.members[0].id;
         let kit = world.party.members[0].equipment.clone();
@@ -401,7 +406,7 @@ fn members_go_down_save_and_die_by_the_srd() {
     let dead = condition_id(&data, "dead").unwrap();
     let mut seen = (false, false, false, false);
     for seed in 0..120u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 2);
         world.party.members[0].hp = 2;
         world.party.members[0].hp_max = 5;
@@ -533,7 +538,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
 
     let mut outcomes = (false, false);
     for seed in 0..40u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 3);
         start(&mut world, &data, &[("giant_rat", 1)], Surprise::None);
         let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();

@@ -1,12 +1,12 @@
 //! Shared setup for the simulation's integration tests: real pack data, no mocks.
 #![allow(dead_code)]
 
-use omnis_core::{Direction, Pcg32, Position, Rotation, StreamName};
+use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
     CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event, Mode,
-    PartyCommand, Settings, Stack, World, apply, combat_view,
+    ModeKind, PartyCommand, Settings, Stack, World, apply, combat_view,
 };
 use std::path::PathBuf;
 
@@ -24,7 +24,18 @@ pub fn data() -> Data {
 }
 
 pub fn world(data: &Data) -> World {
-    World::new(data, 0x0123_4567_89ab_cdef, Settings::default()).expect("entry map")
+    new_world(data, 0x0123_4567_89ab_cdef, Settings::default())
+}
+
+/// A new game placed on the meadow's start. New games begin in town (M7); the tests written
+/// before the town existed start where new games used to, with nothing else changed. The
+/// town's own tests and the replays use `World::new` and walk out through the gate.
+pub fn new_world(data: &Data, seed: u64, settings: Settings) -> World {
+    let mut world = World::new(data, seed, settings).expect("entry map");
+    let map = data.registry.maps.get("test:map:meadow").expect("meadow");
+    let (x, y, facing) = data.maps[&map].def.start;
+    world.position = Position { map, x, y, facing };
+    world
 }
 
 pub fn step(world: &mut World, data: &Data) -> Vec<Event> {
@@ -176,7 +187,7 @@ pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Ve
     let mut events = Vec::new();
     for _ in 0..1000 {
         let command = match &world.mode {
-            Mode::Explore => return events,
+            Mode::Explore | Mode::Town(_) => return events,
             Mode::Encounter(_) => Command::Encounter(EncounterChoice::Attack),
             Mode::Combat(_) => {
                 let stack = reachable_stack(world, data).expect("something to hit");
@@ -200,4 +211,36 @@ pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>
         events.extend(settle(world, data, &mut commands));
     }
     (commands, events)
+}
+
+/// Where each service stands in the test town.
+pub fn site(name: &str) -> (u16, u16) {
+    match name {
+        "inn" => (1, 1),
+        "temple" => (4, 1),
+        "trainer" => (7, 1),
+        "guild" => (10, 1),
+        "smith" => (1, 3),
+        "tavern" => (4, 3),
+        "bank" => (7, 3),
+        _ => panic!("no {name}"),
+    }
+}
+
+/// A new game with two members and 50 gold, inside the named service.
+pub fn inside(data: &Data, name: &str) -> World {
+    let mut world = World::new(data, 11, Settings::default()).unwrap();
+    party_of(&mut world, data, 2);
+    world.party.gold = 5000;
+    let map = data.registry.maps.get("test:map:town").unwrap();
+    let (x, y) = site(name);
+    world.position = Position {
+        map,
+        x,
+        y,
+        facing: Facing::North,
+    };
+    apply(&mut world, data, Command::Interact).unwrap();
+    assert_eq!(world.mode.kind(), ModeKind::Town, "inside the {name}");
+    world
 }

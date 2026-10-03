@@ -1,5 +1,5 @@
 //! Resolution of the character-facing content: races, classes, backgrounds, items, conditions,
-//! spells, monsters, and rules. Cross-references are checked by id string while the file paths
+//! spells, monsters, services, and rules. Cross-references are checked by id string while the file paths
 //! are still known, then everything is interned and the rules are compiled.
 
 use crate::character::{Background, Class, Race};
@@ -10,6 +10,7 @@ use crate::loader::Data;
 use crate::monster::Monster;
 use crate::registry::Interner;
 use crate::rules::RulesFile;
+use crate::service::ServiceDef;
 use crate::spell::Spell;
 use crate::tileset::Tileset;
 use omnis_expr::Rules;
@@ -35,7 +36,7 @@ macro_rules! content {
     )*};
 }
 content!(
-    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile
+    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef
 );
 
 impl Content for Condition {
@@ -59,6 +60,7 @@ pub(crate) struct RawContent {
     pub spells: Files<Spell>,
     pub monsters: Files<Monster>,
     pub rules: Files<RulesFile>,
+    pub services: Files<ServiceDef>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -74,6 +76,7 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     data.conditions = intern(raw.conditions, &mut data.registry.conditions);
     data.spells = intern(raw.spells, &mut data.registry.spells);
     data.monsters = intern(raw.monsters, &mut data.registry.monsters);
+    data.services = intern(raw.services, &mut data.registry.services);
 }
 
 fn intern<I: Copy + Ord + From<u32> + Into<u32>, T>(
@@ -120,6 +123,14 @@ fn check_references(raw: &RawContent, errors: &mut Vec<DataError>) {
         }
         for (id, _) in &spell.components {
             require(file, "component", id, raw.items.contains_key(id));
+        }
+    }
+    for (file, service) in raw.services.values() {
+        for id in &service.items {
+            require(file, "item", id, raw.items.contains_key(id));
+        }
+        for id in &service.spells {
+            require(file, "spell", id, raw.spells.contains_key(id));
         }
     }
 }
@@ -170,6 +181,10 @@ fn check_text_keys(raw: &RawContent, data: &Data, errors: &mut Vec<DataError>) {
                 .iter()
                 .map(|a| (file.as_path(), a.name.as_str())),
         );
+    }
+    for (file, service) in raw.services.values() {
+        keys.push((file, &service.name));
+        keys.extend(service.rumors.iter().map(|r| (file.as_path(), r.as_str())));
     }
     for (file, key) in keys {
         if data.registry.text.get(key).is_none() {

@@ -20,6 +20,8 @@
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::rest_event::RestEventDef;
+use crate::service::{self, Site};
 use omnis_core::{Edges, Facing};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -86,6 +88,10 @@ pub struct Portal {
     pub to_y: u16,
     /// Facing on arrival.
     pub to_facing: Facing,
+    /// Tileset `Object` surface standing on the trigger tile, so the way on can be seen.
+    /// Required; `None` is only so a file without one gets a named error.
+    #[serde(default)]
+    pub marker: Option<String>,
 }
 
 /// The three surfaces a wall needs, one per viewing angle.
@@ -138,6 +144,12 @@ pub struct MapDef {
     /// The random encounter table, if the map has one.
     #[serde(default)]
     pub random: Option<RandomEncounters>,
+    /// Services placed on tiles.
+    #[serde(default)]
+    pub sites: Vec<Site>,
+    /// What may happen while the party rests here, by terrain.
+    #[serde(default)]
+    pub rest_events: Vec<RestEventDef>,
 }
 
 /// One tile after the layout is parsed.
@@ -247,7 +259,8 @@ impl MapDef {
         (errors.len() == before).then_some(cells)
     }
 
-    /// Checks that need no other file: sizes, glyphs, start tile, portal and encounter shapes.
+    /// Checks that need no other file: sizes, glyphs, start tile, portal, encounter, and site
+    /// shapes.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
         if self.width == 0
             || self.height == 0
@@ -276,10 +289,13 @@ impl MapDef {
                     format!("terrain glyph '{}' is used twice", terrain.glyph),
                 ));
             }
-            if matches!(terrain.glyph, '-' | '=' | '|' | ':' | '+' | ' ') {
+            if matches!(terrain.glyph, '-' | '=' | '|' | ':' | '+' | ' ' | '*') {
                 errors.push(DataError::new(
                     file,
-                    format!("terrain glyph '{}' is reserved for edges", terrain.glyph),
+                    format!(
+                        "terrain glyph '{}' is reserved for edges and portals",
+                        terrain.glyph
+                    ),
                 ));
             }
             if terrain.visibility_depth == 0 || terrain.visibility_depth > MAX_VISIBILITY_DEPTH {
@@ -318,6 +334,15 @@ impl MapDef {
                     format!("portal at ({}, {}) is outside the map", portal.x, portal.y),
                 ));
             }
+            if portal.marker.is_none() {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "portal at ({}, {}) has no marker; every portal must be visible",
+                        portal.x, portal.y
+                    ),
+                ));
+            }
         }
         encounter::validate(
             (self.width, self.height),
@@ -326,6 +351,7 @@ impl MapDef {
             file,
             errors,
         );
+        service::validate_sites(self, file, errors);
     }
 }
 
@@ -366,6 +392,8 @@ mod tests {
             portals: vec![],
             encounters: vec![],
             random: None,
+            sites: vec![],
+            rest_events: vec![],
         }
     }
 

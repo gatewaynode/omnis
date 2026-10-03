@@ -129,9 +129,9 @@ pub(crate) fn hurt_individual(
             let trace = dice
                 .roll(&mut roller.rng, &roller.stream)
                 .map_err(|e| RuleError::new("gold", alloc::format!("{e}")))?;
-            state.gold = state
-                .gold
-                .saturating_add(u32::try_from(trace.total.max(0)).unwrap_or(u32::MAX));
+            // The drop is rolled in whole gold (pack data) and looted as copper.
+            let gp = u32::try_from(trace.total.max(0)).unwrap_or(u32::MAX);
+            state.gold = state.gold.saturating_add(omnis_core::money::from_gp(gp));
             Some(trace)
         }
         None => None,

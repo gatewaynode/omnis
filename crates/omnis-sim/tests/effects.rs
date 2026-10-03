@@ -28,7 +28,7 @@ fn dev_world(data: &Data, seed: u64) -> World {
         devtools: true,
         ..Settings::default()
     };
-    World::new(data, seed, settings).unwrap()
+    common::new_world(data, seed, settings)
 }
 
 fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
@@ -293,7 +293,7 @@ fn damage_breaks_concentration_on_a_failed_constitution_save() {
     let data = data();
     let (mut held, mut lost) = (0, 0);
     for seed in 0..60u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 6);
         for member in &mut world.party.members {
             member.hp_max = 200;
@@ -365,7 +365,7 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
     let mut reacted = 0;
     let mut hits_without = 0;
     for seed in 0..80u64 {
-        let mut world = World::new(&data, seed, Settings::default()).unwrap();
+        let mut world = common::new_world(&data, seed, Settings::default());
         apply(
             &mut world,
             &data,

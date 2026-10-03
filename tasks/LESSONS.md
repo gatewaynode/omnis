@@ -93,3 +93,32 @@
 - **What happened**: The PRD's first draft (mine) said "deliberately retro: 2D pixel art" and D2 gave "most faithful" as a rationale. For nine days display, font and toolkit decisions (the raster canvas, the 5×7 bitmap font, integer scaling, canvas sprites over `bevy_ui`) leaned on that framing. The owner: pixel art was never the intent; Omnis is a modern tactics and strategy re-imagining, the art of the era is not what worked, and no compromise is made for a pixel-art feel (PRD D26).
 - **Rule**: An aesthetic or genre adjective in a vision document ("retro", "faithful", "pixel art", "minimal") is asked as a question with its alternatives before it is written as a decision, exactly like a mechanic. A placeholder source (16×16 CC0 tiles) says nothing about the goal.
 - **Rule**: When a decision is justified by preserving a look or a feel, name that justification to the owner in the recommendation, so a wrong premise surfaces at the first decision and not the tenth.
+
+## 2026-09-20 — After a merge, look at the checkout before exploring it
+- **What happened**: The owner merged PR #9 and checked out an old local `m7-tasks` (at the PR #6 merge). I launched three explorations without looking; two of them read a tree from before M6b, M6c and PRD v0.5, and reported "D26 does not exist" and a six-item pause overlay. The contradiction with my own commit is what gave it away.
+- **Rule**: When the owner reports CI or a merge, run `git branch --show-current`, `git log --oneline -1` and `git log HEAD..main` before any exploration or planning; a checkout behind `main` is reported and fixed first. An exploration's claim that contradicts a commit made in the same session is checked against `git show main:<path>` before it is believed.
+
+## 2026-09-20 — A fact in an option's description is a claim: verify it
+- **What happened**: Offering party creation as the experiment's screen, I wrote that it "sits before a world exists". It does not (`PlayState::CreateParty`; the new-game form makes the world). The owner chose that option; the error made it sound harder than it was, and I corrected it in the plan.
+- **Rule**: Every factual clause in an `AskUserQuestion` option is checked against the code before it is sent, exactly like a claim in a report; what is not checked is worded as unknown.
+
+
+## 2026-09-27 — A step the owner can play needs a "what you will see" line
+- **What happened**: M7 step 3 moved the game's start into a town of seven services, all data. The owner played it and found nothing to interact with and no visible way in or out; the report had given the tests and pins but not that services open only in step 4, nor that no portal on any map is drawn.
+- **Rule**: When a commit changes what a new game shows, the report says what the owner will see and what does not work yet, with the step that makes it work.
+- **Rule**: Before building on a mechanic in a new place, check that the player can perceive it (portals were invisible on every map since M1; the town made it obvious).
+
+## 2026-09-27 — A restart must not leave a tree that cannot run
+- **What happened**: Continuity for a client restart was written with step 3b's data rule (every portal needs a marker) uncommitted in the tree, before any pack had markers. The app built but refused the test pack at start; two `bad_packs` tests failed. The owner launched it, saw a crash, and could not tell whether the tests had been run.
+- **Rule**: Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is stashed (`git stash push -m "<step> WIP: ..."`), and the continuity note says which, with the stash name.
+- **Rule**: A validation rule that the shipped packs cannot yet meet lands in the same change as the data that meets it, never ahead of it.
+
+## 2026-10-02 — A rule break counts only when a named test fails
+- **What happened**: The first run of M7 step 7's fourteen rule breaks reported every one "caught" from a non-zero exit. Every build had in fact failed to link (an Xcode update left its license unaccepted), and then zsh passed `--test service` as one word; no test had run at all.
+- **Rule**: A broken rule is recorded as caught only with the name of the test that failed; an exit code alone proves nothing. Run one break by hand and read its output before trusting a loop.
+- **Rule**: In zsh a variable holding several arguments is split with `${=var}`.
+
+## 2026-10-02 — A gate with nothing to link proves nothing about the linker
+- **What happened**: After the owner accepted the Xcode license, the gate ran green without the `DEVELOPER_DIR` override and was reported as "green on Xcode's toolchain". Every artifact was already built, so nothing was linked. The first fresh build (a scratch worktree) failed to link: inside the sandbox `xcodebuild -find clang` cannot read Xcode's license plist, accepted or not. The claim had to be withdrawn.
+- **Rule**: A toolchain fix is verified with a fresh link (a new target directory, a scratch worktree, or a touched crate that links a binary), never with a cached gate.
+- **Rule**: When a sandbox blocks a file a tool reads, assume the tool behaves as if the file were missing, and test it from inside the sandbox before claiming it works there.

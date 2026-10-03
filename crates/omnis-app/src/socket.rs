@@ -13,7 +13,7 @@ use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, save
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{bounded, client_path, slot_view, status};
+use omnis_sim::ops::{ShotTarget, bounded, client_path, slot_view, status};
 use omnis_sim::{Op, OpError, Reply, dispatch};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
@@ -61,7 +61,20 @@ impl Plugin for DevSocketPlugin {
             Err(e) => error!("dev socket: {e}"),
         }
         app.add_message::<ScreenshotSaved>()
-            .add_systems(Update, serve.in_set(SimSet::Collect));
+            .add_systems(Update, serve.in_set(SimSet::Collect))
+            .add_systems(
+                Update,
+                answer_screen_text
+                    .after(serve)
+                    .run_if(resource_exists::<DevSocket>),
+            );
+        // Only an app with `CapturePlugin` has composed captures to pass on.
+        app.add_systems(
+            Update,
+            composed_saved
+                .before(serve)
+                .run_if(resource_exists::<Messages<crate::capture::ComposedSaved>>),
+        );
     }
 }
 
@@ -83,6 +96,8 @@ pub struct DevSocket {
     client: Option<Client>,
     /// Screenshots awaiting the renderer, by request id.
     pending: Vec<(Value, PathBuf)>,
+    /// `screen.text` requests, answered by `answer_screen_text` with the whole world in hand.
+    wants_text: Vec<Value>,
 }
 
 struct Client {
@@ -113,6 +128,7 @@ fn bind(addr: &str, addr_file: &Path) -> std::io::Result<DevSocket> {
         local_addr,
         client: None,
         pending: Vec::new(),
+        wants_text: Vec::new(),
     })
 }
 
@@ -265,6 +281,7 @@ fn serve(
     mut events: MessageWriter<SimEvent>,
     mut replaced: MessageWriter<WorldReplaced>,
     mut shots: MessageReader<ScreenshotSaved>,
+    mut compose: Option<ResMut<Messages<crate::capture::ComposeCapture>>>,
 ) {
     let Some(mut socket) = socket else {
         return;
@@ -303,11 +320,19 @@ fn serve(
             );
             continue;
         };
-        if let Op::Screenshot { path } = &op {
-            match screenshot(&mut commands, canvas.as_deref(), path.as_deref()) {
+        if let Op::Screenshot { path, target } = &op {
+            let shot = match target {
+                ShotTarget::Canvas => screenshot(&mut commands, canvas.as_deref(), path.as_deref()),
+                ShotTarget::Window => window_shot(compose.as_deref_mut(), path.as_deref()),
+            };
+            match shot {
                 Ok(path) => socket.pending.push((id, path)),
                 Err(e) => socket.queue(&id, &Err(e)),
             }
+            continue;
+        }
+        if op == Op::ScreenText {
+            socket.wants_text.push(id);
             continue;
         }
         let result = handle(world, data, &config, &mut events, &mut replaced, &op);
@@ -326,6 +351,20 @@ fn serve(
             socket.client = None;
         }
     }
+}
+
+/// Answer `screen.text` requests: `serve` holds no `&World`, so they wait for this system, and
+/// the reply goes out with the next frame's flush.
+fn answer_screen_text(world: &mut World) {
+    world.resource_scope(|world, mut socket: Mut<DevSocket>| {
+        if socket.wants_text.is_empty() {
+            return;
+        }
+        let text = crate::ui_text::screen_text(world);
+        for id in std::mem::take(&mut socket.wants_text) {
+            socket.queue(&id, &Ok(Reply::Text { text: text.clone() }));
+        }
+    });
 }
 
 /// Answer one op with the world in hand: host ops here, the rest through `dispatch`.
@@ -397,6 +436,41 @@ fn handle(
     }
 }
 
+fn shot_path(path: Option<&str>) -> Result<PathBuf, OpError> {
+    let path = PathBuf::from(client_path(path.unwrap_or(DEFAULT_SCREENSHOT), &["png"])?);
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(OpError::failed)?;
+    }
+    Ok(path)
+}
+
+/// Ask `capture.rs` for what the window shows, the canvas as it is scaled with the
+/// window-space interface over it (a plain window capture is black when the window is not
+/// on a screen); the reply waits for `ScreenshotSaved`, which `composed_saved` passes on.
+fn window_shot(
+    compose: Option<&mut Messages<crate::capture::ComposeCapture>>,
+    path: Option<&str>,
+) -> Result<PathBuf, OpError> {
+    let compose =
+        compose.ok_or_else(|| OpError::failed("no window to capture; is the renderer running?"))?;
+    let path = shot_path(path)?;
+    compose.write(crate::capture::ComposeCapture(path.clone()));
+    Ok(path)
+}
+
+/// A composed capture finished: the socket hears it as it hears the canvas's.
+fn composed_saved(
+    mut composed: MessageReader<crate::capture::ComposedSaved>,
+    mut saved: MessageWriter<ScreenshotSaved>,
+) {
+    for shot in composed.read() {
+        saved.write(ScreenshotSaved {
+            path: shot.path.clone(),
+            error: shot.error.clone(),
+        });
+    }
+}
+
 /// Ask the renderer for the canvas; the reply waits for `ScreenshotSaved`.
 fn screenshot(
     commands: &mut Commands,
@@ -405,10 +479,7 @@ fn screenshot(
 ) -> Result<PathBuf, OpError> {
     let canvas =
         canvas.ok_or_else(|| OpError::failed("no canvas to capture; is the renderer running?"))?;
-    let path = PathBuf::from(client_path(path.unwrap_or(DEFAULT_SCREENSHOT), &["png"])?);
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(OpError::failed)?;
-    }
+    let path = shot_path(path)?;
     let target = path.clone();
     commands.spawn(Screenshot::image(canvas.0.clone())).observe(
         move |captured: On<ScreenshotCaptured>,
@@ -457,7 +528,10 @@ mod tests {
         );
         assert_eq!(
             parse_request(br#"{"op": "screenshot"}"#).unwrap().1,
-            Op::Screenshot { path: None }
+            Op::Screenshot {
+                path: None,
+                target: ShotTarget::Canvas
+            }
         );
         assert_eq!(
             parse_request(br#"{"op": "game.status", "args": {}}"#)

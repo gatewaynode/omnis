@@ -4,7 +4,8 @@
 //! Exploration and the party: one party holder with its own clock, movement with walls,
 //! doors, portals, a visibility cone that fills the automap, a party of up to six characters
 //! built from pack data, difficulty settings, saves as RON text with migrations, fingerprints,
-//! and replays. Combat: encounters on map tiles and the fight state (M4).
+//! and replays. Combat: encounters on map tiles and the fight state (M4). Town: the services
+//! placed on map tiles, entered by a step (M7).
 #![no_std]
 #![forbid(unsafe_code)]
 #![deny(clippy::float_arithmetic)]
@@ -27,7 +28,10 @@ pub mod ops;
 pub mod party;
 pub mod query;
 pub mod replay;
+pub mod rest;
 mod sense;
+pub mod service;
+pub mod service_view;
 mod utility;
 pub mod view;
 pub mod visibility;
@@ -52,6 +56,9 @@ pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use replay::{Replay, ReplayError};
+pub use rest::RestCommand;
+pub use service::{ServiceCommand, ServiceState};
+pub use service_view::{OfferView, ServiceView, service_view};
 pub use view::{CombatView, SpellView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,

@@ -23,7 +23,7 @@ pub const META_SERVER_INFO: &str = "io.modelcontextprotocol/serverInfo";
 /// `UnsupportedProtocolVersionError`.
 pub const UNSUPPORTED_VERSION: i64 = -32022;
 
-const INSTRUCTIONS: &str = "Omnis is a turn-based first-person grid crawler. sim_command steps the party; map_text and viewport_get show where it is; screenshot returns the canvas when the game window is running.";
+const INSTRUCTIONS: &str = "Omnis is a turn-based first-person grid crawler. sim_command steps the party; map_text and viewport_get show where it is; service_get lists what a town service offers and why not; screenshot returns the canvas and screen_text the open panels' text when the game window is running.";
 
 /// An error line for a given request id.
 type ErrorLine = Box<dyn Fn(&Value) -> String>;
@@ -217,7 +217,7 @@ impl Bridge {
         let value = compact_tiles(value);
         let mut content = Vec::new();
         match tool.op {
-            "map.text" => content.push(json!({"type": "text", "text": value["text"].as_str().unwrap_or("")})),
+            "map.text" | "screen.text" => content.push(json!({"type": "text", "text": value["text"].as_str().unwrap_or("")})),
             "screenshot" if self.root.is_some() => {
                 let path = value["path"].as_str().unwrap_or("");
                 let file = self.root.as_deref().map_or_else(|| PathBuf::from(path), |r| r.join(path));

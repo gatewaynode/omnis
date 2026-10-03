@@ -2,6 +2,7 @@
 //! Boot loads the real test pack, a key press becomes a command, the world moves, events are
 //! published, a save round-trips through the shell.
 
+mod common;
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
 use omnis_app::sim::{AppState, PlayerCommand, ShellCommand, SimEvent, SimPlugin, SimWorld};
@@ -35,7 +36,7 @@ fn boots_steps_and_saves_without_a_window() {
         AppState::Playing
     );
     let start = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((start.x, start.y, start.facing), (16, 16, Facing::North));
+    assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
 
     // A command message moves the party and publishes events.
     app.world_mut()
@@ -43,7 +44,7 @@ fn boots_steps_and_saves_without_a_window() {
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
     let after = app.world().resource::<SimWorld>().0.position;
-    assert_eq!((after.x, after.y), (16, 15));
+    assert_eq!((after.x, after.y), (9, 2));
     let events = app.world().resource::<Messages<SimEvent>>();
     let mut cursor = events.get_cursor();
     let published: Vec<&Event> = cursor.read(events).map(|e| &e.0).collect();
@@ -60,7 +61,7 @@ fn boots_steps_and_saves_without_a_window() {
         .clear();
     assert_eq!(
         app.world().resource::<SimWorld>().0.position.facing,
-        Facing::West
+        Facing::South
     );
 
     // Save, move on, load: back where the save was taken.
@@ -180,44 +181,9 @@ fn start_new_game_by_keys(app: &mut App) {
     );
 }
 
-/// A human fighter: STR 15, DEX 14, CON 13, INT 12, WIS 10, CHA 8, Athletics and Perception.
-fn draft_fighter_by_keys(app: &mut App) {
-    type_text(app, "Brenna");
-    // Race: Left from dwarf wraps to human. Class: Right from cleric is fighter.
-    keys(
-        app,
-        &[
-            Key::ArrowDown,
-            Key::ArrowLeft,
-            Key::ArrowDown,
-            Key::ArrowRight,
-        ],
-    );
-    // Past background and alignment to the scores.
-    keys(app, &[Key::ArrowDown, Key::ArrowDown, Key::ArrowDown]);
-    for raise in [7, 6, 5, 4, 2, 0] {
-        for _ in 0..raise {
-            key(app, Key::ArrowRight);
-        }
-        key(app, Key::ArrowDown);
-    }
-    // Skills: Athletics (third) and Perception (seventh) of the fighter's list.
-    keys(app, &[Key::ArrowRight, Key::ArrowRight, Key::Enter]);
-    keys(
-        app,
-        &[
-            Key::ArrowRight,
-            Key::ArrowRight,
-            Key::ArrowRight,
-            Key::ArrowRight,
-            Key::Enter,
-        ],
-    );
-    keys(app, &[Key::ArrowDown, Key::Enter]);
-}
-
-/// The menus, headless: the title, a typed seed and difficulty, a fighter built by keys,
-/// begin, pause, resume, and a save the rule forbids.
+/// The menus, headless: the title, a typed seed and difficulty, a fighter asked for as the
+/// creation panel asks (the panel itself is `tests/feathers_panel.rs`), begin, pause, resume,
+/// and a save the rule forbids.
 #[test]
 fn the_menus_build_a_party_without_a_window() {
     let mut app = menu_app();
@@ -246,7 +212,7 @@ fn the_menus_build_a_party_without_a_window() {
     assert_eq!(world.settings.save_rule, omnis_sim::SaveRule::Relief);
     assert!(world.party.members.is_empty());
 
-    draft_fighter_by_keys(&mut app);
+    common::add_fighter_by_command(&mut app);
     let members = &app.world().resource::<SimWorld>().0.party.members;
     assert_eq!(members.len(), 1, "the draft became a member");
     assert_eq!(members[0].name, "Brenna");
@@ -258,7 +224,7 @@ fn the_menus_build_a_party_without_a_window() {
         "the form reset for the next member"
     );
 
-    keys(&mut app, &[Key::ArrowDown, Key::Enter]); // Begin
+    common::ask_creation(&mut app, omnis_app::menu::CreationAction::Begin);
     assert_eq!(play_state(&app), PlayState::Explore);
 
     // Escape pauses through the key table; Enter on Resume returns.

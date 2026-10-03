@@ -1,0 +1,9 @@
+(
+    schema: 1,
+    id: "badc:service:shop",
+    name: "badc:text:service.shop.name",
+    kind: Inn,
+    items: ["badc:item:blade", "badc:item:blade", "badc:item:gone"],
+    spells: ["badc:spell:gone"],
+    rumors: ["badc:text:rumor.none"],
+)

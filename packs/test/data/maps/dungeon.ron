@@ -68,7 +68,7 @@
         "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+",
     ],
     portals: [
-        (x: 0, y: 0, to_map: "test:map:meadow", to_x: 16, to_y: 6, to_facing: South),
+        (x: 0, y: 0, to_map: "test:map:meadow", to_x: 16, to_y: 6, to_facing: South, marker: Some("stairs.up")),
     ],
     // Placed groups in the second row of rooms, rats only until the fight systems have been
     // played (owner, 2026-09-13): the pair the M4 acceptance clears (from the start: forward

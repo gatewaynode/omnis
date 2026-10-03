@@ -1,0 +1,406 @@
+//! Driving a `bevy_ui` panel headless: controls found by their id (a screen's own, or `UiId`), reports sent as
+//! the widgets' own events, and the pointer and keys as a window would send them, through real
+//! layout, picking and focus. The window's scale factor is one here, so a node's physical
+//! position is also its logical one.
+
+use super::{feathers_app, start_new_game_by_mouse};
+use bevy::camera::{NormalizedRenderTarget, RenderTarget};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input_focus::InputFocus;
+use bevy::picking::pointer::{Location, PointerAction, PointerButton, PointerId, PointerInput};
+use bevy::prelude::*;
+use bevy::text::{EditableText, TextEdit};
+use bevy::ui::{CalculatedClip, UiGlobalTransform};
+use bevy::ui_widgets::{Activate, MenuPopup, ScrollArea, SliderValue, ValueChange};
+use bevy::window::{PrimaryWindow, WindowRef, WindowResized};
+use omnis_app::creation_panel::{Choice, PanelId};
+use omnis_app::menus::Screens;
+use omnis_app::ui_kit::{Control, PanelRoot, Shown, ToolBar, UiId, UiLabel};
+
+/// A new game by the canvas menus, arriving on the party creation panel.
+pub fn creating(save: &str) -> App {
+    let mut app = feathers_app(save, false);
+    start_new_game_by_mouse(&mut app);
+    settle(&mut app);
+    app
+}
+
+pub fn settle(app: &mut App) {
+    for _ in 0..3 {
+        app.update();
+    }
+}
+
+pub fn control(app: &mut App, id: impl Into<UiId>) -> Entity {
+    let id = id.into();
+    let mut query = app.world_mut().query::<(Entity, &Control)>();
+    query
+        .iter(app.world())
+        .find_map(|(entity, control)| (control.0 == id).then_some(entity))
+        .unwrap_or_else(|| panic!("{id:?} is not on the panel"))
+}
+
+/// Every control on the panels (the tool bar's left out), in `UiId`'s order.
+pub fn controls(app: &mut App) -> Vec<UiId> {
+    let mut query = app.world_mut().query::<(Entity, &Control)>();
+    let found: Vec<_> = query.iter(app.world()).map(|(e, c)| (e, c.0)).collect();
+    let mut ids: Vec<_> = found
+        .into_iter()
+        .filter(|(entity, _)| under_root::<PanelRoot>(app.world(), *entity))
+        .map(|(_, id)| id)
+        .collect();
+    ids.sort();
+    ids
+}
+
+/// Whether an entity lies under a root with the marker.
+fn under_root<T: Component>(world: &World, entity: Entity) -> bool {
+    let mut at = entity;
+    while let Some(parent) = world.get::<ChildOf>(at) {
+        at = parent.parent();
+        if world.get::<T>(at).is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn form(app: &App) -> &omnis_app::menu::CreationForm {
+    &app.world().resource::<Screens>().creation
+}
+
+/// A text the panel writes from the form.
+pub fn shown(app: &mut App, id: impl Into<UiLabel>) -> String {
+    let id = id.into();
+    let mut query = app.world_mut().query::<(&Shown, &Text)>();
+    query
+        .iter(app.world())
+        .find_map(|(shown, text)| (shown.0 == id).then(|| text.0.clone()))
+        .unwrap_or_else(|| panic!("{id:?} is not on the panel"))
+}
+
+// ------------------------------------------------------------------ reports as events
+
+pub fn activate(app: &mut App, id: impl Into<UiId>) {
+    let entity = control(app, id);
+    app.world_mut().trigger(Activate { entity });
+    settle(app);
+}
+
+pub fn change<T: Send + Sync + 'static + Clone>(app: &mut App, id: impl Into<UiId>, value: T) {
+    let source = control(app, id);
+    app.world_mut().trigger(ValueChange {
+        source,
+        value,
+        is_final: true,
+    });
+    settle(app);
+}
+
+pub fn type_name(app: &mut App, name: &str) {
+    let entity = control(app, PanelId::Name);
+    app.world_mut()
+        .get_mut::<EditableText>(entity)
+        .expect("the name input")
+        .queue_edit(TextEdit::Insert(name.into()));
+    settle(app);
+}
+
+/// The human fighter of `fighter_draft`, short of `Add member`: STR 15, DEX 14,
+/// CON 13, INT 12, WIS 10, CHA 8 (number inputs and sliders by turns), Athletics, Perception.
+pub fn draft_fighter(app: &mut App) {
+    type_name(app, "Brenna");
+    activate(app, PanelId::Pick(Choice::Race, 3));
+    activate(app, PanelId::Pick(Choice::Class, 1));
+    for (ability, score) in [15_u8, 14, 13, 12, 10, 8].into_iter().enumerate() {
+        if ability % 2 == 0 {
+            change(app, PanelId::Score(ability), i32::from(score));
+        } else {
+            change(app, PanelId::ScoreSlider(ability), f32::from(score));
+        }
+    }
+    change(app, PanelId::Skill(2), true);
+    change(app, PanelId::Skill(6), true);
+}
+
+// ------------------------------------------------------------------ pointer and keys
+
+pub fn window(app: &mut App) -> Entity {
+    let mut query = app
+        .world_mut()
+        .query_filtered::<Entity, With<PrimaryWindow>>();
+    query.single(app.world()).expect("a primary window")
+}
+
+fn target(app: &mut App) -> NormalizedRenderTarget {
+    let window = window(app);
+    RenderTarget::Window(WindowRef::Entity(window))
+        .normalize(Some(window))
+        .expect("a window target")
+}
+
+/// A node's rectangle in window pixels.
+pub fn rect(app: &App, entity: Entity) -> Rect {
+    let world = app.world();
+    let at = world
+        .get::<UiGlobalTransform>(entity)
+        .expect("a laid-out node");
+    let node = world.get::<ComputedNode>(entity).expect("a node");
+    Rect::from_center_size(at.translation, node.size())
+}
+
+/// One pointer message, and the frame that hears it.
+pub fn pointer(app: &mut App, position: Vec2, action: PointerAction) {
+    let location = Location {
+        target: target(app),
+        position,
+    };
+    app.world_mut()
+        .resource_mut::<Messages<PointerInput>>()
+        .write(PointerInput::new(PointerId::Mouse, location, action));
+    app.update();
+}
+
+/// A real click at a point: the pointer moves there, presses, and lets go, a frame each.
+pub fn click_at(app: &mut App, at: Vec2) {
+    pointer(app, at, PointerAction::Move { delta: Vec2::ZERO });
+    pointer(app, at, PointerAction::Press(PointerButton::Primary));
+    pointer(app, at, PointerAction::Release(PointerButton::Primary));
+    settle(app);
+}
+
+/// A real click on a node's centre.
+pub fn click_node(app: &mut App, entity: Entity) {
+    let at = rect(app, entity).center();
+    click_at(app, at);
+}
+
+/// A real drag: press on the node's centre, move away in four steps, let go.
+pub fn drag_node(app: &mut App, entity: Entity, by: Vec2) {
+    let from = rect(app, entity).center();
+    pointer(app, from, PointerAction::Move { delta: Vec2::ZERO });
+    pointer(app, from, PointerAction::Press(PointerButton::Primary));
+    for step in 1..=4_u8 {
+        let at = from + by * f32::from(step) / 4.0;
+        pointer(app, at, PointerAction::Move { delta: by / 4.0 });
+    }
+    pointer(
+        app,
+        from + by,
+        PointerAction::Release(PointerButton::Primary),
+    );
+    settle(app);
+}
+
+fn key(app: &mut App, key_code: KeyCode, logical_key: Key, text: Option<&str>) {
+    let window = window(app);
+    app.world_mut()
+        .resource_mut::<Messages<KeyboardInput>>()
+        .write(KeyboardInput {
+            key_code,
+            logical_key,
+            state: ButtonState::Pressed,
+            text: text.map(Into::into),
+            repeat: false,
+            window,
+        });
+    app.update();
+}
+
+/// Keys as a keyboard sends them: a logical key with its text.
+pub fn keys(app: &mut App, text: &str) {
+    for c in text.chars() {
+        let s = c.to_string();
+        key(
+            app,
+            KeyCode::F24,
+            Key::Character(s.as_str().into()),
+            Some(&s),
+        );
+    }
+    settle(app);
+}
+
+/// A key pressed and let go, a frame each, as a keyboard sends it: the same key can be
+/// pressed again.
+pub fn press(app: &mut App, key_code: KeyCode, logical_key: Key) {
+    let window = window(app);
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut()
+            .resource_mut::<Messages<KeyboardInput>>()
+            .write(KeyboardInput {
+                key_code,
+                logical_key: logical_key.clone(),
+                state,
+                text: None,
+                repeat: false,
+                window,
+            });
+        app.update();
+    }
+    settle(app);
+}
+
+pub fn tab(app: &mut App) {
+    key(app, KeyCode::Tab, Key::Tab, None);
+    settle(app);
+}
+
+pub fn focus(app: &App) -> Option<Entity> {
+    app.world().resource::<InputFocus>().get()
+}
+
+pub fn name_text(app: &mut App) -> String {
+    let name = control(app, PanelId::Name);
+    let text = app.world().get::<EditableText>(name).expect("an input");
+    text.value().to_string()
+}
+
+/// The text input inside an ability's number input.
+pub fn number_input(app: &mut App, ability: usize) -> Entity {
+    let outer = control(app, PanelId::Score(ability));
+    let children = app.world().get::<Children>(outer).expect("children");
+    children
+        .iter()
+        .find(|child| app.world().get::<EditableText>(*child).is_some())
+        .expect("a text input in the number input")
+}
+
+pub fn slider(app: &mut App, id: impl Into<UiId>) -> f32 {
+    let slider = control(app, id);
+    app.world().get::<SliderValue>(slider).expect("a slider").0
+}
+
+/// Another window size. The camera's target follows the resize message, and so does the
+/// app's `WindowSize`; the resolution alone moves neither.
+pub fn resize(app: &mut App, width: f32, height: f32) {
+    let window = window(app);
+    let mut entity = app.world_mut().entity_mut(window);
+    let mut found = entity.get_mut::<Window>().expect("a window");
+    found.resolution.set(width, height);
+    app.world_mut()
+        .resource_mut::<Messages<WindowResized>>()
+        .write(WindowResized {
+            window,
+            width,
+            height,
+        });
+    settle(app);
+}
+
+/// The owner's display.
+pub fn ultrawide(app: &mut App) {
+    resize(app, 5120.0, 1440.0);
+}
+
+/// Choose a class as a person does: open the menu, click the item. The panel is rebuilt
+/// under the pointer, with the keyboard focus left on an entity that is gone.
+pub fn pick_class_by_mouse(app: &mut App, index: usize) {
+    let before = control(app, PanelId::Name);
+    let menu = control(app, PanelId::Menu(Choice::Class));
+    click_node(app, menu);
+    let item = control(app, PanelId::Pick(Choice::Class, index));
+    click_node(app, item);
+    assert_eq!(form(app).class, index);
+    assert_ne!(control(app, PanelId::Name), before, "the panel was rebuilt");
+}
+
+// ------------------------------------------------------------------ the layout check
+
+/// What is wrong with where a control lies.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Fault {
+    /// It has no size.
+    Empty(UiId),
+    /// It is not wholly inside the panel.
+    Outside(UiId),
+    /// Two controls share pixels.
+    Overlap(UiId, UiId),
+    /// A scroll pane is not wholly inside the panel.
+    PaneOutside,
+}
+
+fn inside(outer: Rect, inner: Rect) -> bool {
+    outer.contains(inner.min) && outer.contains(inner.max)
+}
+
+/// The canvas screens' `assert_laid_out` for the panel: every control has a size and lies
+/// inside the panel, and no two share more than half a pixel. A skill counts as far as its
+/// scroll pane shows it (one scrolled out of sight counts for nothing) and the pane itself
+/// must be inside; menu items are left out, their popups are laid out over the panel.
+pub fn layout_faults(app: &mut App) -> Vec<Fault> {
+    faults_under::<PanelRoot>(app)
+}
+
+/// The same check for the tool bar: its buttons inside its strip, none overlapping.
+pub fn bar_faults(app: &mut App) -> Vec<Fault> {
+    faults_under::<ToolBar>(app)
+}
+
+/// The check over the one root with the marker and the controls under it.
+fn faults_under<T: Component>(app: &mut App) -> Vec<Fault> {
+    let mut roots = app.world_mut().query_filtered::<Entity, With<T>>();
+    let root = roots.single(app.world()).expect("one root");
+    let root = rect(app, root);
+    let mut faults = Vec::new();
+    let mut panes = app.world_mut().query_filtered::<Entity, With<ScrollArea>>();
+    let panes: Vec<_> = panes.iter(app.world()).collect();
+    if panes.iter().any(|pane| !inside(root, rect(app, *pane))) {
+        faults.push(Fault::PaneOutside);
+    }
+    let mut query = app
+        .world_mut()
+        .query::<(Entity, &Control, Option<&CalculatedClip>)>();
+    let mut seen: Vec<(UiId, Rect)> = Vec::new();
+    for (entity, control, clip) in query.iter(app.world()) {
+        if !under_root::<T>(app.world(), entity) {
+            continue;
+        }
+        let id = control.0;
+        let full = rect(app, entity);
+        let under = |app: &App, wanted: fn(&World, Entity) -> bool| {
+            let world = app.world();
+            let mut at = entity;
+            while let Some(parent) = world.get::<ChildOf>(at) {
+                at = parent.parent();
+                if wanted(world, at) {
+                    return true;
+                }
+            }
+            false
+        };
+        match id {
+            _ if under(app, |w, e| w.get::<MenuPopup>(e).is_some()) => {}
+            _ if full.is_empty() => faults.push(Fault::Empty(id)),
+            _ if under(app, |w, e| w.get::<ScrollArea>(e).is_some()) => {
+                let visible = clip.map_or(full, |c| full.intersect(c.clip));
+                if !visible.is_empty() {
+                    seen.push((id, visible));
+                }
+            }
+            _ if !inside(root, full) => faults.push(Fault::Outside(id)),
+            _ => seen.push((id, full)),
+        }
+    }
+    seen.sort_by_key(|(id, _)| *id);
+    for (index, (a, first)) in seen.iter().enumerate() {
+        for (b, second) in &seen[index + 1..] {
+            let shared = first.intersect(*second).size();
+            if shared.x > 0.5 && shared.y > 0.5 {
+                faults.push(Fault::Overlap(*a, *b));
+            }
+        }
+    }
+    faults
+}
+
+// ------------------------------------------------------------------ the text tree
+
+/// The one open panel as text (`omnis_app::ui_text`, what `screen.text` answers, without the
+/// heading).
+pub fn text_tree(app: &mut App) -> String {
+    let mut roots = app.world_mut().query_filtered::<Entity, With<PanelRoot>>();
+    let root = roots.single(app.world()).expect("one panel");
+    omnis_app::ui_text::panel_text(app.world(), root)
+}

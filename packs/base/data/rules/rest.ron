@@ -1,0 +1,23 @@
+// Resting (PRD §8.2, SRD 5.1): a short rest is an hour and spends hit dice; a long rest is
+// eight hours, costs food, restores fully, may be ambushed, and comes at most once a day.
+// Both rests may be ambushed, at the same chance, the map's walking chance (owner, 2026-09-27,
+// after M7 step 5's measurement: a spent level-1 pair ambushed at rest in the test dungeon is
+// wiped about 30% of the time, a party of six never; at 30 per mille that is about one pair
+// lost per 100 rests). The chances are per mille (a d1000), from the map's chance in percent.
+(
+    schema: 1,
+    id: "base:rules:rest",
+    slots: {
+        "rest.ambush_chance": (inputs: ["map_chance"], expr: "map_chance * 10"),
+        "rest.short_ambush_chance": (inputs: ["map_chance"], expr: "map_chance * 10"),
+        // One spent hit die: the die plus the Constitution modifier, never below nothing.
+        "rest.hit_die_heal": (inputs: ["die", "con_mod"], expr: "max(0, die + con_mod)"),
+    },
+    values: {
+        "short_rest_minutes": 60,
+        "long_rest_minutes": 480,
+        "long_rest_every_minutes": 1440,
+        "rest_food_per_member": 1,
+        "rest_ambush_surprise": 0,
+    },
+)

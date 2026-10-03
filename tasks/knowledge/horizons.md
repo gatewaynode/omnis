@@ -4,24 +4,34 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 (`agreements.md`): it stays here until it is built or the owner rejects it outright.
 
 ## Dated re-audits
-- 2026-10-08: `bevy_egui` 0.42.0 clears the 30-day rule (the unused `=0.41.1` pin stays for the editor).
 - 2026-10-10: Socket re-audit of `rhai` 1.26.1.
 
 ## M7 (town, services, rest, progression)
+Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan, each a horizon:
+swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
+limited shop stock, bank interest (M8, the region clock), rumors from the story engine (M11; M7's
+are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
+3rd-level spells, rolled hit points as an option. Money is one copper number from save schema 5
+(owner, 2026-09-27; shown as whole gold rounded down, broken out by denomination in the inventory):
+**a real coin purse** (counts of gp, sp and cp held, change-making, coin weight) is a horizon; so is
+**"remember my choice"** on the confirmation before entering or leaving a service (a checkbox,
+owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
 items; string item ids before many items arrive (ids are interned
 `u32`s guarded by the pack fingerprint); `doff_armor_minutes` as its own value.
 
-## Turn budget and tactics (PRD v0.5: D21–D24, §7.9; approved 2026-09-20)
+## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 Nothing is built yet; M6 has one action per turn and shield as the only (automatic) reaction.
-In or beside M7, because Second Wind and Cunning Action need bonus actions: the turn budget
+**Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
+§4.7's auto resolution inside the simulation is confirmed; its save schema is 6 (M7a takes 5).**
+Because Second Wind and Cunning Action need bonus actions: the turn budget
 (slots `turn.actions`, `turn.bonus_actions`, `turn.reactions`; several commands per turn and an
 `EndTurn`), the cost field on spells, items and features, the three spell fields
 (`bonus_action_available`, `preparation_available`, `preparation_required_for_bonus_action`),
 declared reactions with the closed trigger list and the row/stack proximity mapping (opportunity
-attacks return), `Character.tactics` replacing `auto_cast` (save schema 5), the per-member
-reactions switch, a Tactics page on the sheet (the tool pad and pause overlay are full).
+attacks return), `Character.tactics` replacing `auto_cast` (save schema 6), the per-member
+reactions switch, a Tactics page on the sheet (the tool bar has one free cell after CAMP; the pause overlay one row).
 Later, timing open in PRD §14: criteria-set library and runbooks with encounter criteria, the
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
@@ -55,7 +65,18 @@ geometries other than a ray, skills and divination as sources, cover and conceal
 inputs, the reach drawn on the automap, a look from a fight, `RevealMap` as a dev command.
 
 ## Modern presentation (PRD D26, owner 2026-09-20)
-Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) comes
+**The Feathers experiment is done and a success by the owner's word (2026-09-20): "committing to
+moving the rest of the play UI over bit by bit."** Inter; interface scale 1.1 at canvas 1×, 1.5
+on the ultrawide. The report, the pattern for the next screen, the debts (name limit in bytes
+against characters, the scale slider uncapped, frame time unmeasured on a visible window, the
+canvas creation screen alive until the shipped build carries `bevy_ui`, a `screen.text` op over
+the text tree, vendoring decided at Bevy 0.20) and the recommendations (M7's new screens born in
+`bevy_ui`) are in
+`tasks/plans/feathers-experiment.md`. **Owner, 2026-09-20: Feathers for the editor and all user
+interface moving forward, retrofit as convenient; `bevy_egui` is dropped (its re-audit lapsed, its
+workspace pin went in M7 step 1); `tasks/plans/editor-v1.md` is re-read against Feathers when M5
+returns.** What follows is the record from before it.
+Pixel art is placeholder only. The Feathers-in-game experiment (TODO, M6 closeout block) came
 first; then, by its result: modern fonts everywhere, Bevy UI widgets for the screens the canvas
 toolkit cannot build (the tactics screen's dropdowns, number inputs, lists, scrolling), the
 editor's toolkit reconsidered against `bevy_egui`, smooth instead of integer scaling, and the
@@ -77,11 +98,14 @@ wording for the experiment: "Feathers in game. Start experimenting with feathers
 See how the default styles work, and see if modern fonts can replace our pixel art based fonts."
 
 ## App and tooling
-A seventh tool button needs a wider right column or a menu; word labels on the pad; a fourth pad
-row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
+The movement pad (arrows and USE) on Feathers like the tool bar (M7 step 8a moved the tools
+only; the canvas pad is the right column's last canvas widget); a fourth pad row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
 localized event text; the `screen.text` op; CC0 art; `--no-devtools` for a clean save from a dev
 build; `.omnis/mcp.log` rotation; `SetRule`, `TickEco`, `SpawnEncounter` as dev commands; the
-measurement policy as something other than a fixed heuristic; a rules function for age.
+measurement policy as something other than a fixed heuristic; a rules function for age; a longer
+name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 two-byte or 10
+three-byte letters of the input's 24 characters; 96 bytes would hold 24 of any script, a rules
+change for the owner to call).
 
 ## Later phases
 The editor (M5, deferred; `tasks/plans/editor-v1.md`), GFDL backgrounds as their own pack,

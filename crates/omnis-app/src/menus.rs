@@ -27,6 +27,16 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 use omnis_sim::{Command, Event, PartyCommand, World};
 
+/// What the creation panel (`feathers_ui.rs`) asks of the creation flow. An app without the
+/// panel (the `MinimalPlugins` tests) drafts its party by writing these.
+#[derive(Message, Debug, Clone, PartialEq, Eq)]
+pub struct CreationAsk(pub CreationAction);
+
+/// Where `CreationAsk`s are answered, so whoever writes them can run before it and be
+/// answered in the same frame.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CreationFlow;
+
 /// Every screen's state, kept so a screen reopens where it was.
 #[derive(Resource, Default, Debug)]
 pub struct Screens {
@@ -89,6 +99,10 @@ pub enum Active {
     Sheet,
     /// The inventory overlay.
     Inventory,
+    /// The question before a step into or out of a service (a `bevy_ui` panel).
+    Confirm,
+    /// Inside a town service (a `bevy_ui` panel).
+    Service,
     /// No screen: booting or exploring.
     None,
 }
@@ -113,6 +127,8 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Cast)) => Active::Cast,
             (AppState::Playing, _, Some(PlayState::Sheet)) => Active::Sheet,
             (AppState::Playing, _, Some(PlayState::Inventory)) => Active::Inventory,
+            (AppState::Playing, _, Some(PlayState::Confirm)) => Active::Confirm,
+            (AppState::Playing, _, Some(PlayState::Service)) => Active::Service,
             _ => Active::None,
         }
     }
@@ -138,9 +154,13 @@ impl Plugin for MenusPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<KeyboardInput>()
             .add_message::<UiClick>()
+            .add_message::<CreationAsk>()
             .init_resource::<Screens>()
             .add_systems(OnEnter(PlayState::CreateParty), open_creation)
-            .add_systems(Update, menu_keys.in_set(UiSet::Dispatch))
+            .add_systems(
+                Update,
+                (menu_keys, creation_asks.in_set(CreationFlow)).in_set(UiSet::Dispatch),
+            )
             .add_systems(Update, refresh.in_set(UiSet::Model));
     }
 }
@@ -181,11 +201,14 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
     let target = match active {
         Active::Title => Target::Title(&mut screens.title),
         Active::NewGame => Target::NewGame(&mut screens.new_game),
-        Active::CreateParty => Target::Creation(&mut screens.creation),
         Active::Paused => Target::Pause(&mut screens.pause),
         Active::Cast => Target::Cast(&mut screens.cast),
-        // The combat, debug, sheet and inventory plugins handle their screens' clicks.
-        Active::Encounter
+        // The combat, debug, sheet and inventory plugins handle their screens' clicks; party
+        // creation, the confirmation and a service are `bevy_ui` panels, which take their own.
+        Active::CreateParty
+        | Active::Confirm
+        | Active::Service
+        | Active::Encounter
         | Active::Combat
         | Active::Defeat
         | Active::Debug
@@ -233,9 +256,13 @@ impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
     }
 
     fn leave_game(&mut self) {
-        self.commands.remove_resource::<SimWorld>();
-        self.next.app.set(AppState::MainMenu);
+        leave_game(self.commands, self.next);
     }
+}
+
+fn leave_game(commands: &mut Commands, next: &mut Next) {
+    commands.remove_resource::<SimWorld>();
+    next.app.set(AppState::MainMenu);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -257,7 +284,6 @@ fn menu_keys(
     // The UI plugin's selection; absent in an app without it (the menus alone are testable).
     selected: Option<Res<crate::ui::Selected>>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
     let resume = world
         .as_ref()
         .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode));
@@ -291,8 +317,6 @@ fn menu_keys(
         let Screens {
             title,
             new_game,
-            creation,
-            catalog,
             pause,
             cast,
             ..
@@ -308,11 +332,8 @@ fn menu_keys(
                     new_game_action(action, new_game, &mut act);
                 }
             }
-            Active::CreateParty => {
-                if let Some(action) = creation.key(key, catalog, members) {
-                    creation_action(action, &mut act);
-                }
-            }
+            // The creation panel's widgets own the keyboard (`feathers_ui.rs`).
+            Active::CreateParty => {}
             Active::Paused => {
                 if let Some(action) = pause.key(key) {
                     pause_action(action, &mut act);
@@ -325,8 +346,11 @@ fn menu_keys(
                 world.as_deref(),
                 selected.as_ref().and_then(|s| s.0),
             ),
-            // The combat, debug, sheet and inventory plugins handle their screens' keys.
+            // The combat, debug, sheet and inventory plugins handle their screens' keys; the
+            // input plugin answers the confirmation's.
             Active::Encounter
+            | Active::Confirm
+            | Active::Service
             | Active::Combat
             | Active::Defeat
             | Active::Debug
@@ -380,14 +404,33 @@ fn new_game_action(
     }
 }
 
-fn creation_action(action: CreationAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>) {
+fn creation_action(
+    action: CreationAction,
+    player: &mut MessageWriter<PlayerCommand>,
+    commands: &mut Commands,
+    next: &mut Next,
+) {
     match action {
         CreationAction::Add(draft) => {
-            act.player
-                .write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
+            player.write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
         }
-        CreationAction::Begin => act.next.play.set(PlayState::Explore),
-        CreationAction::Back => act.leave_game(),
+        CreationAction::Begin => next.play.set(PlayState::Explore),
+        CreationAction::Back => leave_game(commands, next),
+    }
+}
+
+/// What the creation panel asked for.
+fn creation_asks(
+    mut asks: MessageReader<CreationAsk>,
+    at: Where,
+    mut player: MessageWriter<PlayerCommand>,
+    mut commands: Commands,
+    mut next: Next,
+) {
+    for CreationAsk(action) in asks.read() {
+        if at.screen() == Active::CreateParty {
+            creation_action(action.clone(), &mut player, &mut commands, &mut next);
+        }
     }
 }
 

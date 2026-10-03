@@ -80,7 +80,7 @@ pub struct CombatView {
     pub surprised: Surprise,
     /// Members dodging this round.
     pub dodging: Vec<CharacterId>,
-    /// Gold looted so far.
+    /// Copper looted so far.
     pub gold: u32,
     /// Members in the front row.
     pub front_row: usize,
@@ -94,7 +94,7 @@ pub struct CombatView {
 #[must_use]
 pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
     let (encounter, fight) = match &world.mode {
-        Mode::Explore => return None,
+        Mode::Explore | Mode::Town(_) => return None,
         Mode::Encounter(e) => (e, None),
         Mode::Combat(c) => (&c.encounter, Some(c)),
     };

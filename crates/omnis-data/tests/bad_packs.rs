@@ -55,10 +55,11 @@ fn every_error_in_a_broken_pack_is_reported() {
         "surface 'floor' slot path 'assets/floor.exe': file type is not allowed",
         // data/maps/glyph.ron
         "terrain glyph '.' is used twice",
-        "terrain glyph '-' is reserved for edges",
+        "terrain glyph '-' is reserved for edges and portals",
         "terrain 'floor' visibility_depth must be 1..=32",
         "start (2, 0) is outside the map",
         "portal at (5, 5) is outside the map",
+        "portal at (5, 5) has no marker; every portal must be visible",
         "tile (1, 0) has unknown glyph '?'",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
@@ -84,10 +85,31 @@ fn every_error_in_a_broken_pack_is_reported() {
         "name text key 'broken:text:map.refs.name' is not defined in any language",
         "portal at (0, 0) leads to unknown map 'broken:map:nowhere'",
         "portal at (0, 0) lands outside map 'broken:map:glyph'",
+        "portal marker surface 'floor' is a Floor surface, not Object",
+        "portal marker surface 'nowhere' is not in tileset 'broken:tileset:bad'",
         "encounter 0 monster 'broken:monster:none' is not defined by any loaded pack",
         "encounter 2 monster 'broken:monster:none' is not defined by any loaded pack",
         "random entry 1 monster 'broken:monster:none' is not defined by any loaded pack",
         "tileset 'broken:tileset:missing' is not defined by any loaded pack",
+        // data/maps/sites.ron: shapes on load, then the tile and the service at resolution
+        "portal at (0, 0) has no marker; every portal must be visible",
+        "site at (0, 0) shares its tile with a portal",
+        "site at (1, 0) shares its tile with an encounter",
+        "site at (2, 0) shares its tile with another site",
+        "site at (9, 9) is outside the map",
+        "site at (3, 0) is on a tile the party cannot enter",
+        "encounter 0 monster 'broken:monster:gone' is not defined by any loaded pack",
+        "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "site at (1, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "site at (2, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "site at (2, 0) names service 'broken:service:also', which is not defined by any loaded pack",
+        "site at (3, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "site at (9, 9) names service 'broken:service:none', which is not defined by any loaded pack",
+        // data/maps/sites.ron's rest events, at resolution
+        "rest event 0 names terrain 'moss', which this map does not have",
+        "rest event 1 has chance 1001 per mille; at most 1000",
+        "rest event 2 repeats terrain 'floor' for the same rest",
+        "rest event 2 text key 'broken:text:rest.none' is not defined in any language",
     ];
     assert_reports("broken", &expected);
 }
@@ -163,6 +185,14 @@ fn every_error_in_bad_content_is_reported() {
         "slot 'a': input '1x' is not an identifier",
         "slot 'b': 1:9: unknown input 'bonus'",
         "slot 'c': 1:1: strings are not allowed in formulas",
+        // data/services/shop.ron: stock the kind does not keep, a repeat, three unknown names
+        "items are stocked only by kind Smith; this service is kind Inn",
+        "spells are stocked only by kind Guild; this service is kind Inn",
+        "rumors are stocked only by kind Tavern; this service is kind Inn",
+        "item 'badc:item:blade' is listed twice",
+        "item 'badc:item:gone' is not defined by any loaded pack",
+        "spell 'badc:spell:gone' is not defined by any loaded pack",
+        "text key 'badc:text:rumor.none' is not defined in any language",
     ];
     assert_reports("bad-content", &expected);
 }
@@ -201,20 +231,21 @@ fn dependencies_must_load_first() {
     )
     .unwrap();
     assert!(load_packs(&[&dir]).is_err());
-    let data = load_packs(&[&common::test_pack(), &dir]).unwrap_or_else(|r| panic!("{r}"));
+    let [base, test] = common::test_packs();
+    let data = load_packs(&[&base, &test, &dir]).unwrap_or_else(|r| panic!("{r}"));
     assert_eq!(
         data.packs.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
-        ["test", "mod"]
+        ["base", "test", "mod"]
     );
     assert_eq!(
         data.maps.len(),
-        2,
+        3,
         "the mod adds nothing and removes nothing"
     );
     assert_eq!(
         data.entry,
-        data.registry.maps.get("test:map:meadow"),
-        "the mod sets no entry, so the base's stands"
+        data.registry.maps.get("test:map:town"),
+        "the mod sets no entry, so the test pack's stands"
     );
 
     let dir = common::scratch("entry-pack");
@@ -223,7 +254,7 @@ fn dependencies_must_load_first() {
         r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"], entry: Some("mod:map:none"))"#,
     )
     .unwrap();
-    let report = load_packs(&[&common::test_pack(), &dir]).unwrap_err();
+    let report = load_packs(&[&base, &test, &dir]).unwrap_err();
     assert_eq!(
         report.messages(),
         ["entry map 'mod:map:none' is not defined by any loaded pack"]

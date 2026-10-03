@@ -5,6 +5,7 @@
 //! files. Bevy-free.
 
 use crate::text::{Line, Names, faces, trace_math};
+use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::DamageType;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult, Roll, RollMode};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
@@ -88,6 +89,7 @@ fn event_line(event: &Event, names: &Names) -> Option<Line> {
         .or_else(|| crate::spell_text::spell_line(event, names))
         .or_else(|| crate::item_text::item_line(event, names))
         .or_else(|| crate::sense_text::sense_line(event, names))
+        .or_else(|| crate::service_text::service_line(event, names))
 }
 
 /// The encounter phase: who stands there, the checks, the bribe.
@@ -153,7 +155,10 @@ fn before_fight_line(event: &Event, names: &Names) -> Option<Line> {
                 format!("{who} {verb}: {result}"),
             )
         }
-        Event::Bribed { cost } => Line::same(format!("The party pays {cost} gold; they leave")),
+        Event::Bribed { cost } => Line::same(format!(
+            "The party pays {} gold; they leave",
+            gp_floor(*cost)
+        )),
         _ => return None,
     })
 }
@@ -258,7 +263,9 @@ fn wound_line(event: &Event, names: &Names) -> Option<Line> {
             fallen,
         } => {
             let mut text = match outcome {
-                CombatOutcome::Victory => format!("Victory! {xp} XP each, {gold} gold"),
+                CombatOutcome::Victory => {
+                    format!("Victory! {xp} XP each, {} gold", gp_floor(*gold))
+                }
                 CombatOutcome::Fled => "The party gets away".to_owned(),
                 CombatOutcome::Defeat => "The party has fallen".to_owned(),
             };
@@ -580,7 +587,7 @@ mod tests {
                 dc: 0,
                 success: true,
             },
-            Event::Bribed { cost: 9999 },
+            Event::Bribed { cost: 999_900 },
         ]
     }
 
@@ -653,7 +660,7 @@ mod tests {
             Event::CombatEnded {
                 outcome: CombatOutcome::Victory,
                 xp: 99999,
-                gold: 99999,
+                gold: 9_999_900,
                 fallen: vec![me, CharacterId(1)],
             },
             Event::CombatEnded {

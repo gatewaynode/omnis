@@ -10,8 +10,10 @@ use crate::command::{Command, Rejection};
 use crate::event::Event;
 use crate::party::{self, PartyCommand};
 use crate::query::{self, ViewportModel};
+use crate::rest;
+use crate::service_view::{ServiceView, service_view};
 use crate::view::{CombatView, combat_view};
-use crate::world::{Known, ModeKind, World};
+use crate::world::{Known, Mode, ModeKind, World};
 use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
@@ -27,6 +29,17 @@ use serde::{Deserialize, Serialize};
 
 /// Most commands one `sim.script` may carry.
 pub const MAX_SCRIPT: usize = 10_000;
+
+/// What a screenshot shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShotTarget {
+    /// The game canvas at its internal resolution.
+    #[default]
+    Canvas,
+    /// The canvas as the window scales it, with the window-space interface over it.
+    Window,
+}
 
 /// A request. On the wire it is `{"op": "<name>", "args": {...}}`, `args` omitted for ops
 /// that take none.
@@ -96,13 +109,20 @@ pub enum Op {
     /// Host: reload the packs from disk, keeping the world.
     #[serde(rename = "pack.reload")]
     PackReload,
-    /// Host, game only: save a PNG of the canvas.
+    /// Host, game only: save a PNG of the canvas, or of everything the window shows.
     #[serde(rename = "screenshot")]
     Screenshot {
         /// Where, or a default under `.omnis/`.
         #[serde(default)]
         path: Option<String>,
+        /// What to capture; the canvas when absent.
+        #[serde(default)]
+        target: ShotTarget,
     },
+    /// Host, game only: the text of every open interface panel, one line per control, label
+    /// or text with its rectangle, so a panel can be read without a picture.
+    #[serde(rename = "screen.text")]
+    ScreenText,
     /// The party: members with their derived numbers, purse, and food.
     #[serde(rename = "party.get")]
     PartyGet,
@@ -115,6 +135,9 @@ pub enum Op {
     /// The encounter or fight in progress: stacks, order, whose turn, round.
     #[serde(rename = "combat.get")]
     CombatGet,
+    /// The service the party is inside: what is on offer, its price, and why not.
+    #[serde(rename = "service.get")]
+    ServiceGet,
     /// Every rule slot with its inputs and source, plus the values and tables.
     #[serde(rename = "rules.list")]
     RulesList,
@@ -149,6 +172,7 @@ impl Op {
                 | Op::SaveRead { .. }
                 | Op::PackReload
                 | Op::Screenshot { .. }
+                | Op::ScreenText
                 | Op::RulesSet { .. }
         )
     }
@@ -184,6 +208,9 @@ pub struct Status {
     pub packs: Vec<PackFingerprint>,
     /// The world fingerprint as sixteen hex digits.
     pub fingerprint: String,
+    /// The id of the service the party is inside, if it is inside one.
+    #[serde(default)]
+    pub service: Option<String>,
 }
 
 /// One known tile.
@@ -248,6 +275,12 @@ pub struct MemberView {
     /// Spell ids of the effects on the member.
     #[serde(default)]
     pub effects: Vec<String>,
+    /// Hit dice in all: one per level.
+    #[serde(default)]
+    pub hit_dice: u8,
+    /// Hit dice not yet spent on short rests.
+    #[serde(default)]
+    pub hit_dice_left: u8,
 }
 
 /// One row of a kit or the stores.
@@ -280,7 +313,7 @@ pub struct PartyView {
     pub slots: usize,
     /// Members in the front row.
     pub front_row: usize,
-    /// Gold pieces.
+    /// The purse in copper pieces (100 to the gold piece).
     pub gold: u32,
     /// Gems.
     pub gems: u32,
@@ -292,6 +325,15 @@ pub struct PartyView {
     /// Spell ids of the effects on the whole party.
     #[serde(default)]
     pub effects: Vec<String>,
+    /// Copper in the bank.
+    #[serde(default)]
+    pub bank: u32,
+    /// The party clock's `elapsed` when the last long rest ended.
+    #[serde(default)]
+    pub last_long_rest: Option<i64>,
+    /// Minutes before a long rest may begin; 0 when it may.
+    #[serde(default)]
+    pub long_rest_wait: u32,
 }
 
 /// One rule slot.
@@ -375,6 +417,11 @@ pub enum Reply {
         /// The encounter or fight.
         combat: CombatView,
     },
+    /// `service.get`.
+    Service {
+        /// The service.
+        service: ServiceView,
+    },
     /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
     /// variants in order and an absent `Option` field reads as `None`, so this variant and
     /// `Done` stay last: they would swallow any object.
@@ -419,6 +466,8 @@ pub enum OpError {
     HostOnly,
     /// No encounter or fight is in progress.
     NoEncounter,
+    /// The party is not inside a service.
+    NoService,
     /// The request itself was malformed: not JSON, not an op, or too long.
     BadRequest {
         /// What was wrong.
@@ -441,6 +490,7 @@ impl fmt::Display for OpError {
             OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
             OpError::NoEncounter => f.write_str("no encounter or fight is in progress"),
+            OpError::NoService => f.write_str("the party is not inside a service"),
             OpError::BadRequest { message } => write!(f, "bad request: {message}"),
             OpError::Failed { message } => f.write_str(message),
         }
@@ -531,6 +581,9 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::CombatGet => combat_view(world, data)
             .map(|combat| Reply::Combat { combat })
             .ok_or(OpError::NoEncounter),
+        Op::ServiceGet => service_view(world, data)
+            .map(|service| Reply::Service { service })
+            .ok_or(OpError::NoService),
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),
@@ -539,6 +592,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         | Op::SaveRead { .. }
         | Op::PackReload
         | Op::Screenshot { .. }
+        | Op::ScreenText
         | Op::RulesSet { .. } => Err(OpError::HostOnly),
     }
 }
@@ -563,6 +617,12 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
         food: world.party.food,
         inventory: item_views(data, &world.party.inventory, None),
         effects: effect_names(data, &world.party.effects),
+        bank: world.party.bank,
+        last_long_rest: world.party.last_long_rest,
+        long_rest_wait: match rest::too_soon(world, data, rest::long_rest_minutes(data)) {
+            Err(Rejection::RestTooSoon { minutes }) => minutes,
+            _ => 0,
+        },
     }
 }
 
@@ -608,6 +668,8 @@ fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> Me
             .map(|(slot, id)| (*slot, name_of(data.registry.items.name(*id))))
             .collect(),
         effects: effect_names(data, &member.effects),
+        hit_dice: member.level,
+        hit_dice_left: member.level.saturating_sub(member.hit_dice_spent),
     }
 }
 
@@ -682,6 +744,10 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
         },
         packs: world.packs.clone(),
         fingerprint: format!("{:016x}", world.fingerprint().map_err(OpError::failed)?),
+        service: match world.mode {
+            Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
+            _ => None,
+        },
     })
 }
 

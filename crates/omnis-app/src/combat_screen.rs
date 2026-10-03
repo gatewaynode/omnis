@@ -360,7 +360,7 @@ mod tests {
                     blocked: (i == 2).then(|| "behind".to_owned()),
                 })
                 .collect(),
-            bribe: Some(9999),
+            bribe: Some(999_900),
             gold: 0,
             spells: (0..6)
                 .map(|i| crate::combat_menu::SpellRow {
