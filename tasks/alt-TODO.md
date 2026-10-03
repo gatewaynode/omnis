@@ -13,7 +13,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 - [x] A1 Crate skeleton: `crates/omnis-vector` (library and `omnis-vector` binary), a member in the root `Cargo.toml`, Bevy features `2d png bevy_pbr ui`. Measure before and after: `Cargo.lock` package count, duplicates, gate time
 - [x] A2 The core's grid math (`geom.rs`, `grid.rs`) with unit tests: cells, facing hysteresis, relative directions, turns, ordered crossings
 - [x] A3 The collision mirror (`collide.rs`) and the agreement test against `omnis_sim::apply` on every cell, edge and door of the test maps
-- [x] A4 The binder and the command log (`bind.rs`, `log.rs`), with headless binding tests: rest equals the simulation's position, jitter, corners, walls, portal, a placed encounter, one random check per cell entered, and the replay fingerprint
+- [x] A4 The binder and the command log (`bind.rs`; the log is `Binder.log`), with headless binding tests: rest equals the simulation's position, jitter, corners, walls, portal, a placed encounter, one random check per cell entered, and the replay fingerprint
 - [x] A5 Geometry extraction (`geometry.rs`) with tests: shared walls once, doors, blocks, the floor grid
 - [x] A6 The Bevy shell: the simulation, input, motion and binding, a `Camera3d` with HDR and bloom, gizmo lines with distance fade. **First walkable build.** Shell smoke test
 - [ ] A7 HUD (text and every action as a button) and the minimap; the fight notice with the encounter choices; saving the log by button

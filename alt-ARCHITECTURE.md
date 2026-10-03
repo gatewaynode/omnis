@@ -88,7 +88,9 @@ The ground is Bevy's X–Z plane. Y is up, and the camera's forward is −Z by d
 | `collide.rs` | The predictive collision mirror | `blocks(data, world, cell, abs: Facing) -> Option<BlockReason>`, `slide(pose, delta, blockers) -> Pose` |
 | `bind.rs` | The binder: pose changes to commands, applied, then reconciled | `Binder { logical: Position, margin }`, `Binder::advance(&mut World, &Data, from: Pose, to: Pose) -> Outcome` |
 | `geometry.rs` | Map data to line segments | `Segment { a: [f32; 3], b: [f32; 3], kind: SegKind, rgb }`, `extract(map, state) -> Vec<Segment>` |
-| `log.rs` | The accepted-command log | `CommandLog`, `CommandLog::finish(&World, &Data) -> Replay` |
+| `party.rs` | The fixed party | `fixed() -> Vec<Draft>`: four base-pack drafts |
+
+As built, the command log is `Binder.log`, with `Binder::replay`; there is no separate `log.rs`.
 
 ### 5.1 Facing and turns
 - `facing_of` keeps the current cardinal facing until the yaw is more than 45° plus a hysteresis margin (5° provisional) away from it, so a yaw near a diagonal does not emit `Turn`s back and forth.
@@ -133,21 +135,23 @@ retreat of Run and flight, which move the party back one cell, facing away.
 ### 5.6 The command log
 - Every command that returned `Ok`, blocked steps included, is appended in order. Party setup commands are logged too, because a replay starts from `World::new` with the same seed and settings.
 - Rejected commands are never logged, because `omnis_sim::replay` fails on a refused command (`ReplayError`).
-- On quit, or on an explicit save button, `CommandLog::finish` builds a `Replay` through `Replay::record` and writes it as RON. The default path is `.omnis/vector-session.ron`.
+- `Session::save_log` builds a `Replay` through `Binder::replay` (`Replay::record`) and writes it as RON. The default path is `.omnis/vector-session.ron`. The save button arrives in A7.
 
 ## 6. The Bevy shell
 
-The plugins and their schedule, all in `Update`, run in chained sets
-`VectorSet::{Input, Move, Bind, Reconcile, Draw}`:
+As built (A6, 2026-10-02), the systems run in `Update` in the chained sets
+`VectorSet::{Grab, Input, Move, Draw}`, which `ShellPlugin` orders. One `Session` resource
+(`shell/session.rs`) holds the `Data`, the `World`, the `Binder`, the pose, the seed and
+settings, the log path, the HUD lines and a `reshape` flag. `Session::start` loads the packs,
+starts the world and creates the fixed party (§9).
 
 | Plugin | Set | Does |
 |---|---|---|
-| `VectorSimPlugin` | — | Loads `Data` with `omnis_data::load_packs`, creates the `World` with `World::new(&data, seed, settings)`, applies the fixed party setup (§9), and holds both as resources, along with `Binder` and `CommandLog`. Flags: `--pack` (repeatable), `--seed`, `--window` |
-| `InputPlugin` | Input | WASD gives forward and strafe motion, the mouse gives yaw (the cursor is grabbed while exploring, and Esc releases it), E is interact. HUD buttons write the same `Motion` and `Interact` messages |
-| `MovePlugin` | Move, Bind, Reconcile | Integrates the pose with sub-steps, calls `Binder::advance`, and applies the reconcile outcome. Motion is skipped unless the view state is `Explore` |
-| `RenderPlugin` | Draw | Spawns a `Camera3d` (`Tonemapping::None`, `Hdr` and `Bloom` for the glow) and follows the pose. It draws the segments with `Gizmos` |
-| `HudPlugin` | Draw | `bevy_ui` text (`default_font` to start) and buttons |
-| `MinimapPlugin` | Draw | Paints the automap into a small `Image` shown as a UI node |
+| `MovementPlugin` | Input, Move | Turns keys and the mouse into an `Intent` resource. WASD and ↑/↓ move, ←/→ turn, Q/R turn 90°, E interacts, and the mouse gives yaw while the cursor is grabbed. Then it integrates the pose, scaled by the terrain's `step_minutes`, calls `Binder::advance`, eases a stopped pose into the simulation's cell, and notes the events. Headless-safe |
+| `RenderPlugin` | Grab, Draw | Click grabs the cursor and Esc releases it. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
+| `HudPlugin` | Draw | `bevy_ui` status text (`default_font`); buttons in A7 |
+| `CapturePlugin` | PreStartup, Input | `--screenshot PATH [--walk FRAMES] [--size WxH]`: renders offscreen into an image (no window, `ScheduleRunnerPlugin`), walks, captures, exits |
+| `MinimapPlugin` | Draw | Planned for A7: paints the automap into a small `Image` shown as a UI node |
 
 `Interact` is sent as `Command::Interact` through the binder, so it is logged. It applies to the
 simulation's facing, which the HUD shows.
