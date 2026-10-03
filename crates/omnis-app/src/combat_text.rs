@@ -1,14 +1,14 @@
 //! Combat events as text, with the roll math the simulation traced (PRD §7.3): a long form
 //! for the band's message line and a short form for the roll log under the viewport. The
 //! simulation sends keys, ids, and traces; this file is where they become English, with the
-//! names and the line shape from `text.rs` and the spell and item lines from their own
-//! files. Bevy-free.
+//! names and the line shape from `text.rs`, the round and wound lines from `round_text.rs` and
+//! the spell and item lines from their own files. Bevy-free.
 
-use crate::text::{Line, Names, faces, trace_math};
+use crate::round_text::{self, adjust_word};
+use crate::text::{Line, Names, faces};
 use omnis_sim::omnis_core::money::gp_floor;
-use omnis_sim::omnis_data::DamageType;
-use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult, Roll, RollMode};
-use omnis_sim::{ActorRef, CheckKind, CombatOutcome, Event, Surprise};
+use omnis_sim::omnis_rules::{DamageAdjust, Roll, RollMode};
+use omnis_sim::{ActorRef, CheckKind, Event};
 
 /// The lines for one command's events, in order. An attack and the damage that follows it
 /// make one line; encounter checks, monster turns, and exploration events make none.
@@ -84,8 +84,8 @@ fn attack_line(
 /// One line for an event that stands alone, or `None` for the silent ones.
 fn event_line(event: &Event, names: &Names) -> Option<Line> {
     before_fight_line(event, names)
-        .or_else(|| round_line(event, names))
-        .or_else(|| wound_line(event, names))
+        .or_else(|| round_text::round_line(event, names))
+        .or_else(|| round_text::wound_line(event, names))
         .or_else(|| crate::spell_text::spell_line(event, names))
         .or_else(|| crate::item_text::item_line(event, names))
         .or_else(|| crate::sense_text::sense_line(event, names))
@@ -163,126 +163,6 @@ fn before_fight_line(event: &Event, names: &Names) -> Option<Line> {
     })
 }
 
-/// The shape of the fight: its start, the order, rounds, and turns that need no die.
-fn round_line(event: &Event, names: &Names) -> Option<Line> {
-    Some(match event {
-        Event::CombatStarted { surprised } => Line::same(
-            match surprised {
-                Surprise::None => "Combat!",
-                Surprise::Party => "Ambush! The party is surprised",
-                Surprise::Monsters => "The monsters are surprised",
-            }
-            .to_owned(),
-        ),
-        Event::Initiative { order, .. } => {
-            let list = order
-                .iter()
-                .map(|(actor, total)| format!("{} {total}", names.actor(actor)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            Line::same(format!("Initiative: {list}"))
-        }
-        Event::RoundStarted { round } => Line::same(format!("Round {round}")),
-        Event::Waited { actor } => Line::same(format!("{} wait", names.actor(actor))),
-        Event::Dodging { actor } => Line::same(format!("{} dodges", names.actor(actor))),
-        Event::Exchanged { a, b } => Line::same(format!("Slots {} and {} exchange", a + 1, b + 1)),
-        _ => return None,
-    })
-}
-
-/// Blood: damage on its own, falling, death saves, conditions, deaths, and the end.
-fn wound_line(event: &Event, names: &Names) -> Option<Line> {
-    Some(match event {
-        Event::Damage {
-            target,
-            kind,
-            rolls,
-            amount,
-            adjust,
-            ..
-        } => {
-            let outcome = format!(
-                "{} takes {amount} {}{}",
-                names.actor(target),
-                kind_word(*kind),
-                adjust_word(*adjust)
-            );
-            let math = rolls.iter().map(trace_math).collect::<Vec<_>>().join(" + ");
-            Line::new(format!("{outcome} ({math})"), outcome)
-        }
-        Event::Down { target } => Line::same(format!("{} falls", names.member(*target))),
-        Event::Wounded { member, failures } => Line::same(format!(
-            "{} is wounded: {failures} of 3 failures",
-            names.member(*member)
-        )),
-        Event::DeathSave {
-            member,
-            roll,
-            result,
-            successes,
-            failures,
-        } => {
-            let who = names.member(*member);
-            let outcome = match result {
-                DeathSaveResult::Success => format!("{who} death save: success {successes}/3"),
-                DeathSaveResult::Failure => format!("{who} death save: failure {failures}/3"),
-                DeathSaveResult::Stable => format!("{who} is stable"),
-                DeathSaveResult::Revived => format!("{who} comes to at 1 hp"),
-                DeathSaveResult::Died => format!("{who} dies"),
-            };
-            Line::new(format!("{outcome} ({})", trace_math(roll)), outcome)
-        }
-        Event::Condition {
-            target,
-            condition,
-            applied,
-        } => Line::same(format!(
-            "{} is {}{}",
-            names.actor(target),
-            if *applied { "" } else { "no longer " },
-            names.condition(*condition)
-        )),
-        Event::Death { target, gold } => {
-            let who = names.actor(target);
-            match gold {
-                Some(trace) => Line::new(
-                    format!(
-                        "{who} dies, dropping {} gold ({})",
-                        trace.total,
-                        trace_math(trace)
-                    ),
-                    format!("{who} dies, dropping {} gold", trace.total),
-                ),
-                None => Line::same(format!("{who} dies")),
-            }
-        }
-        Event::CombatEnded {
-            outcome,
-            xp,
-            gold,
-            fallen,
-        } => {
-            let mut text = match outcome {
-                CombatOutcome::Victory => {
-                    format!("Victory! {xp} XP each, {} gold", gp_floor(*gold))
-                }
-                CombatOutcome::Fled => "The party gets away".to_owned(),
-                CombatOutcome::Defeat => "The party has fallen".to_owned(),
-            };
-            if !fallen.is_empty() {
-                let lost = fallen
-                    .iter()
-                    .map(|id| names.member(*id))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                text = format!("{text}; lost: {lost}");
-            }
-            Line::same(text)
-        }
-        _ => return None,
-    })
-}
-
 /// `1d20+4 [17]=21`, or `2d20 adv+4 [3, 17]=21` under a mode.
 #[must_use]
 pub fn roll_math(roll: &Roll) -> String {
@@ -300,19 +180,6 @@ pub fn roll_math(roll: &Roll) -> String {
     format!("{dice}{bonus} {}={}", faces(&roll.trace), roll.total)
 }
 
-const fn adjust_word(adjust: DamageAdjust) -> &'static str {
-    match adjust {
-        DamageAdjust::None => "",
-        DamageAdjust::Resisted => " (resisted)",
-        DamageAdjust::Vulnerable => " (doubled)",
-        DamageAdjust::Immune => " (immune)",
-    }
-}
-
-fn kind_word(kind: DamageType) -> String {
-    format!("{kind:?}").to_lowercase()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,10 +188,13 @@ mod tests {
     use omnis_sim::omnis_core::{
         CharacterId, ConditionId, Dice, DieRoll, MonsterId, RollTrace, StreamName,
     };
+    use omnis_sim::omnis_data::DamageType;
     use omnis_sim::omnis_data::{Data, Disposition, load_packs};
+    use omnis_sim::omnis_rules::DeathSaveResult;
     use omnis_sim::{
         CombatCommand, Command, EncounterChoice, EncounterSource, ModeKind, apply, combat_view,
     };
+    use omnis_sim::{CombatOutcome, Surprise};
     use std::path::PathBuf;
 
     fn data() -> Data {

@@ -3,9 +3,10 @@
 //! `combat_text.rs`. Keys and clicks arrive as they do for the menus; the intents become
 //! simulation or shell commands. Headless-capable.
 
-use crate::combat_menu::{CombatIntent, DefeatAction, EncounterIntent, fight_view};
+use crate::combat_menu::{CombatIntent, fight_view};
 use crate::combat_text::batch_lines;
 use crate::cursor::UiSet;
+use crate::encounter_menu::{DefeatAction, EncounterIntent};
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};

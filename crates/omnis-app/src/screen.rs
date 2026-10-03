@@ -4,10 +4,11 @@
 
 use crate::band::{self, Band, MemberRow};
 use crate::canvas::{Layout, NARROW};
-use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
+use crate::combat_menu::{CombatMenu, FightView};
 use crate::combat_screen;
 use crate::debug_menu::{DebugMenu, DebugView};
 use crate::debug_screen;
+use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::inventory_menu::{InventoryAction, InventoryMenu, InventoryView};
 use crate::inventory_screen;
 use crate::layout::{CANVAS_HEIGHT, MENU_BOX, VIEWPORT};

@@ -4,7 +4,8 @@
 //! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
-use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
+use crate::combat_menu::{CombatMenu, FightView};
+use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::font::fit;
 use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
 use crate::raster::Rgb;

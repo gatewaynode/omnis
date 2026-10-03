@@ -35,6 +35,7 @@ pub mod debug_menu;
 pub mod debug_screen;
 #[cfg(feature = "devtools")]
 pub mod dev;
+pub mod encounter_menu;
 pub mod feathers_camp;
 pub mod feathers_confirm;
 pub mod feathers_creation;
@@ -56,6 +57,7 @@ pub mod panels;
 pub mod pixel;
 pub mod plan;
 pub mod raster;
+pub mod round_text;
 pub mod screen;
 pub mod screens;
 pub mod sense_text;

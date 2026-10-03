@@ -4,9 +4,10 @@
 //! widgets arrive as `UiClick`s and become the same keys.
 
 use crate::AppConfig;
-use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu};
+use crate::combat_menu::CombatMenu;
 use crate::cursor::UiSet;
 use crate::debug_menu::DebugMenu;
+use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::inventory_menu::InventoryMenu;
 use crate::menu::{
     Catalog, CreationAction, CreationForm, MenuKey, NewGameAction, NewGameForm, Pause, PauseAction,
