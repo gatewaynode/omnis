@@ -142,14 +142,19 @@ retreat of Run and flight, which move the party back one cell, facing away.
 As built (A6, 2026-10-02), the systems run in `Update` in the chained sets
 `VectorSet::{Grab, Input, Move, Draw}`, which `ShellPlugin` orders. One `Session` resource
 (`shell/session.rs`) holds the `Data`, the `World`, the `Binder`, the pose, the seed and
-settings, the log path, the HUD lines and a `reshape` flag. `Session::start` loads the packs,
-starts the world and creates the fixed party (§9).
+settings, the log path, the HUD lines, a `reshape` flag and the `Config` it started from.
+`Session::start` loads the packs, starts the world and creates the fixed party (§9).
+`Session::order` applies a command that is not movement and snaps the pose to the
+simulation's cell when the command moved the party (a retreat); `Session::restart` starts over
+from the same `Config`.
 
 | Plugin | Set | Does |
 |---|---|---|
 | `MovementPlugin` | Input, Move | Turns keys and the mouse into an `Intent` resource. WASD and ↑/↓ move, ←/→ turn, Q/R turn 90°, E interacts, and the mouse gives yaw while the cursor is grabbed. Then it integrates the pose, scaled by the terrain's `step_minutes`, calls `Binder::advance`, eases a stopped pose into the simulation's cell, and notes the events. Headless-safe |
-| `RenderPlugin` | Grab, Draw | Click grabs the cursor and Esc releases it. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
-| `HudPlugin` | Draw | `bevy_ui` status text (`default_font`); buttons in A7 |
+| `ControlsPlugin` | Input | The button pad (A7a, `shell/controls.rs`): forward, back and the sidesteps while held; the quarter turns, use, save log and quit once a press. The keys are shortcuts for the same actions. Headless-safe |
+| `FightPlugin` | Input | The fight notice (A7b, `shell/fight.rs`, §9): a panel while the mode is not `Explore` or the party has fallen. Each choice is tried on a copy of the world first; one the simulation would refuse is drawn dim with the reason. Number keys pick the choices. Headless-safe |
+| `RenderPlugin` | Grab, Draw | Click grabs the cursor and Esc releases it; a notice releases it and keeps it free. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
+| `HudPlugin` | Draw | `bevy_ui` status text (`default_font`) and the recent event lines |
 | `CapturePlugin` | PreStartup, Input | `--screenshot PATH [--walk FRAMES] [--size WxH]`: renders offscreen into an image (no window, `ScheduleRunnerPlugin`), walks, captures, exits |
 | `MinimapPlugin` | Draw | Planned for A7: paints the automap into a small `Image` shown as a UI node |
 
@@ -198,7 +203,12 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
 ## 9. View state, party, and combat
 
 - `ViewState::{Explore, Fight}` follows `world.mode`: `Explore` for `Mode::Explore`, and `Fight` for `Encounter` or `Combat`.
-- **Phase A, the fixed party.** The viewer builds a fixed party at start with `Command::Party(...)` commands, logged like any other command. In `Fight`, Phase A shows a full-screen notice of the encounter and offers the encounter choices the simulation accepts (at least Run), so the proof never dead-ends. Which commands to use is settled while planning, from `PartyCommand` and `EncounterChoice`.
+- **Phase A, the fixed party.** The viewer builds a fixed party at start with `Command::Party(...)` commands, logged like any other command.
+- **Phase A, the fight notice (as built, A7b).** No `ViewState` yet: `fight::notice` reads `world.mode` and `combat_view` each time the log grows. The 3D view stays up under a panel listing the living stacks.
+  - In `Encounter`: Fight, Bribe (with the cost), Hide, Run.
+  - In `Combat`: a placeholder until Phase B, so an accepted Fight never dead-ends. It offers Attack on each stack the acting member reaches, Dodge, and Flee.
+  - When every member is down after a fight: Start again, which restarts the session (`Session::restart`). A fallen party does not walk.
+  - Each choice is tried on a clone of the world. A refused one is drawn dim with the simulation's reason, so the binder's refusal count stays at zero.
 - **Phase B, the 2D combat screen** (X7): on `OnEnter(ViewState::Fight)`, the `Camera3d` is deactivated and a `Camera2d` combat screen is spawned. It shows placeholder sprites for the stacks and the party, the action list, and the roll log, and sends `Command::Encounter` and `Command::Combat`. It is despawned on exit. Whether the menu model comes from `omnis-app`'s Bevy-free `combat_menu.rs` or is written fresh is alt-PRD §10.3, decided before Phase B.
 
 ## 10. Testing

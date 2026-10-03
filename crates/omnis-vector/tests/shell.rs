@@ -1,54 +1,13 @@
 //! The shell's headless half (alt-ARCHITECTURE.md §10.4): held keys and pressed buttons move
 //! the world through the movement plugin with no window or GPU.
 
-use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::input::{ButtonState, InputPlugin};
+mod common;
+
+use bevy::input::ButtonState;
 use bevy::prelude::*;
-use bevy::time::TimeUpdateStrategy;
-use omnis_vector::shell::ShellPlugin;
-use omnis_vector::shell::controls::{Action, ControlsPlugin};
-use omnis_vector::shell::movement::MovementPlugin;
-use omnis_vector::shell::session::{Config, Session};
-use std::path::PathBuf;
-use std::time::Duration;
-
-/// A key press or release as the window would send it.
-fn key(app: &mut App, key_code: KeyCode, state: ButtonState) {
-    app.world_mut().write_message(KeyboardInput {
-        key_code,
-        logical_key: Key::Character("q".into()),
-        state,
-        text: None,
-        repeat: false,
-        window: Entity::PLACEHOLDER,
-    });
-}
-
-fn app() -> App {
-    app_logging_to(PathBuf::from(".omnis/vector-session.ron"))
-}
-
-fn app_logging_to(log: PathBuf) -> App {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
-    let config = Config {
-        packs: vec![root.join("base"), root.join("test")],
-        log,
-        ..Config::default()
-    };
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        InputPlugin,
-        ShellPlugin,
-        MovementPlugin,
-        ControlsPlugin,
-    ))
-    .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
-        16,
-    )))
-    .insert_resource(Session::start(&config).expect("the shipped packs start a session"));
-    app
-}
+use common::app::{app, app_logging_to, key, set};
+use omnis_vector::shell::controls::Action;
+use omnis_vector::shell::session::Session;
 
 #[test]
 fn holding_w_walks_the_party_north_up_the_road() {
@@ -84,33 +43,19 @@ fn q_turns_the_party_left_by_a_quarter() {
     assert_eq!(facing, omnis_sim::omnis_core::Facing::West);
 }
 
-/// Set a button's interaction, as the UI's picking would.
-fn set(app: &mut App, action: Action, interaction: Interaction) {
-    let world = app.world_mut();
-    let mut query = world.query::<(&Action, &mut Interaction)>();
-    let mut found = false;
-    for (a, mut i) in query.iter_mut(world) {
-        if *a == action {
-            *i = interaction;
-            found = true;
-        }
-    }
-    assert!(found, "a {action:?} button exists");
-}
-
 #[test]
 fn holding_the_forward_button_walks_north() {
     let mut app = app();
     app.update();
     let start = app.world().resource::<Session>().world.position;
-    set(&mut app, Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Interaction::Pressed);
     for _ in 0..60 {
         app.update();
     }
     let moved = app.world().resource::<Session>().world.position;
     assert!(moved.y < start.y, "the party moved north");
     // Released, the party stops.
-    set(&mut app, Action::Forward, Interaction::None);
+    set(&mut app, &Action::Forward, Interaction::None);
     for _ in 0..60 {
         app.update();
     }
@@ -122,7 +67,7 @@ fn holding_the_forward_button_walks_north() {
 fn a_turn_button_held_down_turns_once() {
     let mut app = app();
     app.update();
-    set(&mut app, Action::TurnLeft, Interaction::Pressed);
+    set(&mut app, &Action::TurnLeft, Interaction::Pressed);
     for _ in 0..90 {
         app.update();
     }
@@ -136,12 +81,12 @@ fn the_save_button_writes_a_log_that_replays() {
     let path = dir.join("session.ron");
     let mut app = app_logging_to(path.clone());
     app.update();
-    set(&mut app, Action::Forward, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Interaction::Pressed);
     for _ in 0..30 {
         app.update();
     }
-    set(&mut app, Action::Forward, Interaction::None);
-    set(&mut app, Action::SaveLog, Interaction::Pressed);
+    set(&mut app, &Action::Forward, Interaction::None);
+    set(&mut app, &Action::SaveLog, Interaction::Pressed);
     app.update();
     let session = app.world().resource::<Session>();
     let saved: omnis_sim::Replay =

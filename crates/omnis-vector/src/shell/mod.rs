@@ -3,6 +3,7 @@
 
 pub mod capture;
 pub mod controls;
+pub mod fight;
 pub mod hud;
 pub mod movement;
 pub mod render;

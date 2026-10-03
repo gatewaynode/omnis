@@ -3,6 +3,7 @@
 
 use super::VectorSet;
 use super::capture::Offscreen;
+use super::fight::fallen;
 use super::movement::Intent;
 use super::session::Session;
 use crate::geom::EYE_HEIGHT;
@@ -12,6 +13,7 @@ use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use omnis_sim::Mode;
 use omnis_sim::omnis_core::MapId;
 
 /// Cells beyond the visibility depth before a line has faded out completely.
@@ -91,18 +93,30 @@ fn line_style(mut store: ResMut<GizmoConfigStore>) {
     config.line.width = LINE_WIDTH;
 }
 
-/// Click in the window to look with the mouse; Esc gives the cursor back.
+/// Click in the window to look with the mouse; Esc, or a notice opening, gives the cursor back.
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
     interactions: Query<&Interaction>,
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut intent: ResMut<Intent>,
+    session: Res<Session>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
     };
     let over_button = interactions.iter().any(|i| *i != Interaction::None);
+    // A notice needs the pointer: give it back when one opens, and keep it free while it is up.
+    let notice =
+        !matches!(session.world.mode, Mode::Explore) || fallen(&session.world, &session.data);
+    if notice {
+        if intent.looking {
+            cursor.grab_mode = CursorGrabMode::None;
+            cursor.visible = true;
+            intent.looking = false;
+        }
+        return;
+    }
     if mouse.just_pressed(MouseButton::Left) && !intent.looking && !over_button {
         cursor.grab_mode = CursorGrabMode::Locked;
         cursor.visible = false;

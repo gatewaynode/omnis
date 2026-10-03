@@ -84,33 +84,40 @@ impl Plugin for ControlsPlugin {
     }
 }
 
-/// A button: a bordered box with a label, carrying `marker`.
-pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundle) {
-    parent
-        .spawn((
-            Button,
-            marker,
-            Node {
-                width: Val::Px(150.0),
-                height: Val::Px(34.0),
-                border: UiRect::all(Val::Px(1.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
+/// The colour of a button that cannot be pressed now.
+const DIM: Color = Color::srgb(0.25, 0.4, 0.3);
+
+/// A button: a bordered box with a label, carrying `marker`. A disabled one is drawn dim and
+/// takes no clicks (it has no `Button`), so what cannot be done is still shown.
+pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundle, enabled: bool) {
+    let colour = if enabled { GREEN } else { DIM };
+    let mut entity = parent.spawn((
+        marker,
+        Node {
+            min_width: Val::Px(150.0),
+            height: Val::Px(34.0),
+            padding: UiRect::horizontal(Val::Px(10.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BorderColor::all(colour),
+        BackgroundColor(SHADES[0]),
+    ));
+    if enabled {
+        entity.insert(Button);
+    }
+    entity.with_children(|b| {
+        b.spawn((
+            Text::new(label),
+            TextFont {
+                font_size: FontSize::Px(16.0),
                 ..default()
             },
-            BorderColor::all(GREEN),
-            BackgroundColor(SHADES[0]),
-        ))
-        .with_children(|b| {
-            b.spawn((
-                Text::new(label),
-                TextFont {
-                    font_size: FontSize::Px(16.0),
-                    ..default()
-                },
-                TextColor(GREEN),
-            ));
-        });
+            TextColor(colour),
+        ));
+    });
 }
 
 fn spawn(mut commands: Commands) {
@@ -131,7 +138,7 @@ fn spawn(mut commands: Commands) {
                 })
                 .with_children(|r| {
                     for &action in row {
-                        button(r, action.label(), action);
+                        button(r, action.label(), action, true);
                     }
                 });
             }

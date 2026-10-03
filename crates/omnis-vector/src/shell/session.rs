@@ -2,6 +2,7 @@
 
 use super::text::describe;
 use crate::bind::Binder;
+use crate::grid::cell_of;
 use crate::party;
 use crate::pose::Pose;
 use bevy::prelude::Resource;
@@ -132,6 +133,8 @@ pub struct Session {
     pub lines: Vec<String>,
     /// A door moved: the 3D lines must be rebuilt.
     pub reshape: bool,
+    /// What the session started from, for a restart.
+    pub config: Config,
 }
 
 impl Session {
@@ -165,6 +168,7 @@ impl Session {
             log_path: config.log.clone(),
             lines: Vec::new(),
             reshape: false,
+            config: config.clone(),
         })
     }
 
@@ -183,6 +187,38 @@ impl Session {
         omnis_sim::omnis_data::ron_io::write_ron(&self.log_path, &replay)
             .map_err(|e| e.to_string())?;
         Ok(self.log_path.clone())
+    }
+
+    /// Apply a command that is not movement (an encounter choice, a combat action) and report
+    /// what happened. The pose follows when the command moved the party, as a retreat does.
+    pub fn order(&mut self, command: Command) {
+        match self.binder.apply(&mut self.world, &self.data, command) {
+            Ok(events) => self.note(&events),
+            Err(rejection) => self.say(format!("Refused: {rejection}")),
+        }
+        self.follow();
+    }
+
+    /// Snap the pose to the simulation's position when the party is no longer where the pose
+    /// is, keeping the pose otherwise.
+    pub fn follow(&mut self) {
+        let p = self.world.position;
+        let here = cell_of(self.pose.x, self.pose.z);
+        if here != (i32::from(p.x), i32::from(p.y)) {
+            self.pose = Pose::at(p);
+        }
+    }
+
+    /// Start over with a fresh world and party from the same command line.
+    ///
+    /// # Errors
+    /// As [`Session::start`]; the old session is kept.
+    pub fn restart(&mut self) -> Result<(), String> {
+        *self = Session::start(&self.config)?;
+        // The doors are shut again.
+        self.reshape = true;
+        self.say("A new party sets out".to_owned());
+        Ok(())
     }
 
     /// Take in a frame's events: HUD lines for the ones worth showing, and the reshape flag.

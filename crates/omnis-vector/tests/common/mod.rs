@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+pub mod app;
+
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, PartyCommand, Settings, World};
