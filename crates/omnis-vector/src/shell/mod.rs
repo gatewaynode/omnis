@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod capture;
+pub mod cinema;
 pub mod controls;
 pub mod fight;
 pub mod hud;

@@ -157,6 +157,7 @@ from the same `Config`.
 | `HudPlugin` | Draw | `bevy_ui` status text (`default_font`) and the recent event lines |
 | `CapturePlugin` | PreStartup, Input | `--screenshot PATH [--walk FRAMES] [--size WxH]`: renders offscreen into an image (no window, `ScheduleRunnerPlugin`), walks, captures, exits |
 | `MinimapPlugin` | Draw | The minimap (A7c, §8): `minimap::paint` uploaded into a small `Image` shown as a UI node. Needs `Assets<Image>`, so a window or the offscreen capture |
+| `CinemaPlugin` | Draw | The fight's picture window (B1a, §9): `cinema::paint` uploaded as the image of the panel's `Screen` node. Needs `Assets<Image>`, so a window or the offscreen capture |
 
 A chosen action (for example `Command::Interact`) goes through `Session::order`, which applies
 it through the binder, so it is logged. It applies to the simulation's facing, which the HUD
@@ -211,6 +212,12 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
   - In `Combat`: a placeholder until Phase B, so an accepted Fight never dead-ends. It offers Attack on each stack the acting member reaches, Dodge, and Flee.
   - When every member is down after a fight: Start again, which restarts the session (`Session::restart`). A fallen party does not walk.
   - Each choice is tried on a clone of the world. A refused one is drawn dim with the simulation's reason, so the binder's refusal count stays at zero.
+- **The picture window (as built, B1a, a stub).** In a fight the panel's first child is a `Screen` node holding the window's space, 492×200 logical pixels, above the heading and the choices.
+  - `cinema.rs` (Bevy-free) picks the `Scene` (`opening`: the enemy, the first stack still standing) and paints it: the drawing's bounds fitted inside a 12-pixel margin and centred, each line a dim 3-pixel glow under a bright core, on an opaque ground.
+  - Every monster is drawn as the placeholder rat for now.
+  - `shell/cinema.rs` (`CinemaPlugin`, window or capture only) uploads the raster as the node's image, reusing it while the scene is the same.
+  - Planned: scenes queued from the fight's events as they arrive (a swing, a hit landing, a spell, a death), and a drawing per monster.
+- **The roll log (as built, B1).** `rolllog::describe` gives one line per fight event; `Session::note` keeps the last 40 in `fight_log`, cleared when monsters are met. `rolllog::Names` numbers each monster as it was met, though the simulation renumbers the living after a death, and keeps the names of members a fight buries.
 - **Phase B, the 2D combat screen** (X7): on `OnEnter(ViewState::Fight)`, the `Camera3d` is deactivated and a `Camera2d` combat screen is spawned. It shows placeholder sprites for the stacks and the party, the action list, and the roll log, and sends `Command::Encounter` and `Command::Combat`. It is despawned on exit. Whether the menu model comes from `omnis-app`'s Bevy-free `combat_menu.rs` or is written fresh is alt-PRD §10.3, decided before Phase B.
 
 ## 10. Testing

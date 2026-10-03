@@ -49,7 +49,8 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     ));
 }
 
-fn image(raster: &Raster) -> Image {
+/// A raster as an image the UI can show.
+pub fn image(raster: &Raster) -> Image {
     let mut image = Image::new(
         Extent3d {
             width: raster.width,

@@ -88,9 +88,10 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 ## Phase B — the 2D combat screen (after A reports)
 - [x] B0 Plan in plan mode (approved 2026-10-03; `~/.claude/plans/snug-munching-gray.md`). alt-PRD §10.3 decided: **write fresh**. Owner choices: glowing vector-line figures, every fight action with targets picked by clicking, a short roll log written fresh
 - [x] B1 The roll log: `rolllog.rs` describes fight events; `Session` keeps a `fight_log`, cleared when an encounter starts. `Names` numbers each monster as it was met (the simulation renumbers the living after a death) and keeps members a fight buries; both mutation-checked
+- [x] B1a The picture window (owner, after playing the fight notice, 2026-10-03): a window on top of the fight's choices for scenes of the fight as it goes, opening on the enemy. Stubbed: `cinema.rs` (Bevy-free) draws a `Scene` in glowing vector lines, fitted and centred on an opaque ground; every monster is the placeholder rat; `shell/cinema.rs` paints the panel's `Screen` node where there is a window. `Raster` moved to `raster.rs` with a stroke for lines. Horizons: scenes queued from the fight's events (a swing, a hit landing, a spell, a death), stepped or animated; a drawing per monster
 - [ ] B2 The action model: `combat_menu.rs` covers the encounter choices, then Attack, Cast, Use, Dodge, Swap and Flee, with targets and cancel. Every offered choice is accepted (tried on a clone)
 - [ ] B3 The arena: `arena.rs` lays out stacks and party rows in pixels, with line segments to draw and a pick for clicks
-- [ ] B4 The screen: `ViewState`; the `Camera3d` is swapped for a `Camera2d` with bloom; the figures, the action column, the roll log; the pose follows on exit
+- [ ] B4 The screen: `ViewState`; the `Camera3d` is swapped for a `Camera2d` with bloom; the figures, the picture window above the action column, the roll log; the pose follows on exit. **Ask the owner first:** they liked the modal over the 3D view, so whether B4 keeps it (with the picture window) or swaps to the full 2D screen is theirs to settle before B3
 - [ ] B5 Retire the A7b fight notice; adapt the tests; docs as built
 - [ ] B6 The owner plays a fight; fixes
 - [ ] B7 **Before the merge:** rebase onto the mechanics branch's work; rerun the gate and the agreement test

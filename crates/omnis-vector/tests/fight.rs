@@ -142,3 +142,39 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     assert_eq!(session.binder.log.len(), 4, "only the party's creation");
     assert!(enabled(&mut app).is_empty(), "the notice closed");
 }
+
+#[test]
+fn the_picture_window_sits_on_top_of_the_choices_in_a_fight_only() {
+    use omnis_vector::cinema::Scene;
+    use omnis_vector::shell::panel::Screen;
+    let mut app = met();
+    app.update();
+    let monster = match &app.world().resource::<Session>().world.mode {
+        Mode::Encounter(state) => state.stacks[0].monster,
+        _ => unreachable!(),
+    };
+    let world = app.world_mut();
+    let (screen, scene, parent) = world
+        .query::<(Entity, &Screen, &ChildOf)>()
+        .single(world)
+        .map(|(e, s, p)| (e, *s, p.parent()))
+        .expect("one picture window");
+    assert_eq!(scene, Screen(Scene::Enemy(monster)));
+    let first = world.get::<Children>(parent).expect("the panel's children")[0];
+    assert_eq!(
+        first, screen,
+        "the picture is the panel's first child, above the choices"
+    );
+    // The action menu has no picture.
+    let mut app = common::app::app();
+    app.update();
+    common::app::key(&mut app, KeyCode::Space, bevy::input::ButtonState::Pressed);
+    app.update();
+    assert!(
+        app.world()
+            .resource::<omnis_vector::shell::panel::Showing>()
+            .0
+    );
+    let world = app.world_mut();
+    assert_eq!(world.query::<&Screen>().iter(world).count(), 0);
+}

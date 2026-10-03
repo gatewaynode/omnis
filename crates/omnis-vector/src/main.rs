@@ -9,8 +9,8 @@ use bevy::winit::WinitPlugin;
 use omnis_vector::shell::capture::{Capture, CapturePlugin, CaptureSize};
 use omnis_vector::shell::session::{Session, parse};
 use omnis_vector::shell::{
-    ShellPlugin, controls::ControlsPlugin, hud::HudPlugin, minimap::MinimapPlugin,
-    movement::MovementPlugin, panel::PanelPlugin, render::RenderPlugin,
+    ShellPlugin, cinema::CinemaPlugin, controls::ControlsPlugin, hud::HudPlugin,
+    minimap::MinimapPlugin, movement::MovementPlugin, panel::PanelPlugin, render::RenderPlugin,
 };
 use std::time::Duration;
 
@@ -79,6 +79,7 @@ fn main() -> AppExit {
         ControlsPlugin,
         PanelPlugin,
         MinimapPlugin,
+        CinemaPlugin,
         CapturePlugin,
     ));
     app.run()

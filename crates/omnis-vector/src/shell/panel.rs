@@ -1,6 +1,6 @@
 //! The panel in the middle of the screen (alt-ARCHITECTURE.md §8, §9): the fight notice while
 //! monsters are met or the party has fallen, otherwise the action menu when it is open. Its
-//! buttons and the number keys carry out the choices. The action key is Space or a right click.
+//! buttons and the number keys carry out the choices. In a fight the picture window is on top. The action key is Space or a right click.
 //! Headless-safe.
 
 use super::VectorSet;
@@ -9,6 +9,7 @@ use super::controls::{GREEN, SHADES, button};
 use super::fight::{fallen, notice};
 use super::notice::{Notice, Order};
 use super::session::Session;
+use crate::cinema::{SIZE, Scene};
 use bevy::prelude::*;
 use omnis_sim::Mode;
 use omnis_sim::omnis_core::Position;
@@ -20,6 +21,11 @@ pub struct Showing(pub bool);
 /// Marks the panel.
 #[derive(Component)]
 struct Panel;
+
+/// The picture window at the top of the panel, with the scene it shows. The node only holds
+/// the space; `shell/cinema.rs` paints it where there is a window.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Screen(pub Scene);
 
 /// The panel, the action menu's keys, and the choices.
 pub struct PanelPlugin;
@@ -193,6 +199,17 @@ fn refresh(
     };
     node.display = Display::Flex;
     commands.entity(entity).with_children(|p| {
+        if let Some(scene) = shown.scene {
+            #[allow(clippy::cast_precision_loss)]
+            p.spawn((
+                Screen(scene),
+                Node {
+                    width: Val::Px(SIZE.0 as f32),
+                    height: Val::Px(SIZE.1 as f32),
+                    ..default()
+                },
+            ));
+        }
         text(p, &shown.title, 22.0);
         for line in &shown.lines {
             text(p, line, 16.0);

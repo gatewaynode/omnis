@@ -4,6 +4,7 @@
 //! when the party falls it offers a restart. `shell/panel.rs` shows it.
 
 use super::notice::{Choice, Notice, Order, choice};
+use crate::cinema::opening;
 use omnis_sim::combat::state::can_fight;
 use omnis_sim::event::ActorRef;
 use omnis_sim::omnis_data::Data;
@@ -29,6 +30,7 @@ pub fn notice(world: &World, data: &Data) -> Option<Notice> {
                 order: Order::Restart,
                 blocked: None,
             }],
+            scene: None,
         });
     };
     let lines = view
@@ -55,6 +57,7 @@ pub fn notice(world: &World, data: &Data) -> Option<Notice> {
         title,
         lines,
         choices,
+        scene: opening(world),
     })
 }
 

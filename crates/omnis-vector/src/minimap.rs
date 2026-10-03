@@ -9,23 +9,12 @@ use omnis_sim::omnis_data::MapData;
 use omnis_sim::world::layer;
 use std::collections::BTreeMap;
 
+pub use crate::raster::Raster;
+
 /// The longest side of the minimap, in pixels, before scaling to whole pixels a cell.
 pub const SIDE: u32 = 192;
 /// The fewest pixels a cell.
 pub const MIN_SCALE: u32 = 2;
-
-/// An RGBA picture, row-major, four bytes a pixel.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Raster {
-    /// Width in pixels.
-    pub width: u32,
-    /// Height in pixels.
-    pub height: u32,
-    /// Pixels a cell.
-    pub scale: u32,
-    /// The bytes.
-    pub rgba: Vec<u8>,
-}
 
 /// Unknown ground.
 pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
@@ -35,42 +24,6 @@ pub const WALL: [u8; 4] = [60, 255, 120, 255];
 pub const DOOR: [u8; 4] = [255, 170, 40, 255];
 /// The party.
 pub const MARKER: [u8; 4] = [255, 255, 255, 255];
-
-impl Raster {
-    fn new(width: u32, height: u32, scale: u32) -> Raster {
-        let mut rgba = Vec::with_capacity((width * height * 4) as usize);
-        for _ in 0..width * height {
-            rgba.extend_from_slice(&BACKGROUND);
-        }
-        Raster {
-            width,
-            height,
-            scale,
-            rgba,
-        }
-    }
-
-    /// The pixel at `(x, y)`, if inside.
-    #[must_use]
-    pub fn pixel(&self, x: u32, y: u32) -> Option<[u8; 4]> {
-        if x >= self.width || y >= self.height {
-            return None;
-        }
-        let i = ((y * self.width + x) * 4) as usize;
-        self.rgba.get(i..i + 4).map(|p| [p[0], p[1], p[2], p[3]])
-    }
-
-    fn put(&mut self, x: i64, y: i64, colour: [u8; 4]) {
-        let (Ok(x), Ok(y)) = (u32::try_from(x), u32::try_from(y)) else {
-            return;
-        };
-        if x >= self.width || y >= self.height {
-            return;
-        }
-        let i = ((y * self.width + x) * 4) as usize;
-        self.rgba[i..i + 4].copy_from_slice(&colour);
-    }
-}
 
 /// Pixels a cell for a map of `width × height` cells.
 #[must_use]
@@ -136,10 +89,11 @@ fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> 
 #[must_use]
 pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: Pose) -> Raster {
     let scale = scale_for(map.def.width, map.def.height);
-    let mut out = Raster::new(
+    let mut out = Raster::filled(
         u32::from(map.def.width) * scale,
         u32::from(map.def.height) * scale,
         scale,
+        BACKGROUND,
     );
     let s = i64::from(scale);
     let empty = BTreeMap::new();
