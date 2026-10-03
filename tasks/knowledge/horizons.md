@@ -11,7 +11,9 @@ Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan
 swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
 limited shop stock, bank interest (M8, the region clock), rumors from the story engine (M11; M7's
 are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
-3rd-level spells, rolled hit points as an option. Money is one copper number from save schema 5
+3rd-level spells, rolled hit points as an option. M7b's plan (2026-10-03) adds: spell picks at
+creation (known spells are still the class list's first entries), half casters' level-ups, the SRD's
+full spell effects where M7b's spells simplify them (named in each spell file). Money is one copper number from save schema 5
 (owner, 2026-09-27; shown as whole gold rounded down, broken out by denomination in the inventory):
 **a real coin purse** (counts of gp, sp and cp held, change-making, coin weight) is a horizon; so is
 **"remember my choice"** on the confirmation before entering or leaving a service (a checkbox,

@@ -115,6 +115,11 @@ result is fixed before step 1.** `c426d8f` and `53d5320` are unpushed docs commi
    inn-only; and once, `--frame-stats` with a panel open against the canvas alone (the experiment's open number).
 
 ## M7b: progression
+**Re-planned 2026-10-03** in `tasks/plans/m7b-progression.md`, which supersedes steps 10–13 below where they differ.
+Owner decisions: spell picks are owed by a level (`Train { member }`) and spent one per press (`Choose { member, spell
+}`, no checkboxes); the temple sells spells as the guild does (PRD §8.2); content is four 2nd-level and three 1st-level
+spells. The outline below is kept as written.
+
 10. **Rules and sim.** `omnis-rules/level.rs`: `ready(character, data)`, `level_up(character, data, picks) -> Gains`
     (average hit points through `hit_points.per_level`, proficiency by the table, the pool through
     `spell_points.pool`, the features the class lists for the level, still labels). `ClassDef.casting` gains
