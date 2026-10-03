@@ -19,6 +19,8 @@ pub struct Config {
     pub seed: u64,
     /// A window instead of borderless fullscreen.
     pub windowed: bool,
+    /// The display to go fullscreen on, by index (0 is the first); the current one when `None`.
+    pub monitor: Option<usize>,
     /// Wait for the display's refresh before presenting a frame (off measures the frame's cost).
     pub vsync: bool,
     /// Where the command log is written.
@@ -38,6 +40,7 @@ impl Default for Config {
             seed: 1,
             windowed: false,
             vsync: true,
+            monitor: None,
             log: PathBuf::from(".omnis/vector-session.ron"),
             screenshot: None,
             walk: 0,
@@ -47,7 +50,7 @@ impl Default for Config {
 }
 
 /// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>`, `--windowed`,
-/// `--no-vsync`,
+/// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
 /// `--size WxH` (the offscreen capture's size).
@@ -69,6 +72,15 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
             }
             "--windowed" => config.windowed = true,
             "--no-vsync" => config.vsync = false,
+            "--monitor" => {
+                let n: usize = value("--monitor")?
+                    .parse()
+                    .map_err(|_| "--monitor takes a display number".to_owned())?;
+                if n > 15 {
+                    return Err("--monitor takes a display number from 0 to 15".to_owned());
+                }
+                config.monitor = Some(n);
+            }
             "--log" => {
                 let path = PathBuf::from(value("--log")?);
                 if !safe_relative(&path) {
@@ -267,6 +279,8 @@ mod tests {
             "9",
             "--windowed",
             "--no-vsync",
+            "--monitor",
+            "1",
         ]))
         .expect("valid");
         assert_eq!(config.packs, vec![PathBuf::from("a"), PathBuf::from("b")]);
@@ -274,6 +288,9 @@ mod tests {
             (config.seed, config.windowed, config.vsync),
             (9, true, false)
         );
+        assert_eq!(config.monitor, Some(1));
+        assert!(parse(args(&["--monitor", "x"])).is_err());
+        assert!(parse(args(&["--monitor", "99"])).is_err());
     }
 
     #[test]

@@ -6,6 +6,7 @@ use super::movement::Intent;
 use super::session::Session;
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use omnis_sim::Mode;
 
 /// Marks the status text.
@@ -78,6 +79,7 @@ fn status(
     time: Res<Time>,
     diagnostics: Option<Res<DiagnosticsStore>>,
     intent: Res<Intent>,
+    window: Query<&Window, With<PrimaryWindow>>,
     mut text: Query<&mut Text, With<StatusText>>,
 ) {
     let Ok(mut text) = text.single_mut() else {
@@ -89,7 +91,15 @@ fn status(
         .maps
         .get(&w.position.map)
         .map_or("?", |m| m.def.id.as_str());
-    let rate = rate(diagnostics.as_deref(), &time);
+    let mut rate = rate(diagnostics.as_deref(), &time);
+    if let Ok(window) = window.single() {
+        // Physical pixels: what the frame rate was measured at.
+        rate.push_str(&format!(
+            "  {}x{}",
+            window.physical_width(),
+            window.physical_height()
+        ));
+    }
     let mut out = format!(
         "{map}  cell ({}, {}) facing {:?}\n{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}\n",
         w.position.x,

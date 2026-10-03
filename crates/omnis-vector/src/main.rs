@@ -1,5 +1,5 @@
 //! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--log PATH]`.
+//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--monitor N] [--log PATH]`.
 
 use bevy::app::ScheduleRunnerPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
@@ -53,7 +53,11 @@ fn main() -> AppExit {
                 mode: if config.windowed {
                     WindowMode::Windowed
                 } else {
-                    WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+                    WindowMode::BorderlessFullscreen(
+                        config
+                            .monitor
+                            .map_or(MonitorSelection::Current, MonitorSelection::Index),
+                    )
                 },
                 resolution: WindowResolution::new(1600, 900),
                 present_mode: if config.vsync {
