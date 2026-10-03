@@ -27,8 +27,10 @@ keep it to state, next step and pointers. The durable knowledge lives in `tasks/
 - **M7a is closed (2026-10-03):** acceptance a passed; the frame-time numbers were waived by the
   owner, because a different UI approach on a separate branch will replace this one. The owner
   pushes, opens the PR and merges. M7b does not start on a red CI.
-- **Before planning M7b's screens (step 12), ask the owner** how they relate to the new UI branch
-  (build on Feathers now, wait, or build on the new approach).
+- **The track's focus (owner, 2026-10-03):** mechanics first. Feathers panels remain the UI
+  choice while an alternate UI is explored on a separate branch. M7b's screens (step 12) are
+  minimal Feathers panels on the existing kit, enough for manual testing; effort goes to rules,
+  sim, content balance and tests.
 - Then M7b (steps 10–13) in plan mode. Size it from the review's numbers: `crates/*/src` grew
   net +4,940 lines in M7a alone, already the plan's "about 5,000 before M7c".
 
