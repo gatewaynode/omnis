@@ -23,12 +23,12 @@ keep it to state, next step and pointers. The durable knowledge lives in `tasks/
 - ARCH v0.5 matches M7a; the gamepad is gone (owner: keyboard and mouse first, other controls
   stretch goals; LESSONS 2026-10-03).
 
-## Next: the frame-time numbers, then the push
-- **Acceptance a passed (owner, 2026-10-03).** Only step 12's two `--frame-stats` numbers are
-  outstanding; when they arrive, check step 9 in TODO with them.
-- With them: the numbers close the Feathers experiment's open measurement
-  (`tasks/plans/feathers-experiment.md`); then the owner pushes, opens the PR and merges. M7b
-  does not start on a red CI.
+## Next: the push, then M7b
+- **M7a is closed (2026-10-03):** acceptance a passed; the frame-time numbers were waived by the
+  owner, because a different UI approach on a separate branch will replace this one. The owner
+  pushes, opens the PR and merges. M7b does not start on a red CI.
+- **Before planning M7b's screens (step 12), ask the owner** how they relate to the new UI branch
+  (build on Feathers now, wait, or build on the new approach).
 - Then M7b (steps 10–13) in plan mode. Size it from the review's numbers: `crates/*/src` grew
   net +4,940 lines in M7a alone, already the plan's "about 5,000 before M7c".
 
