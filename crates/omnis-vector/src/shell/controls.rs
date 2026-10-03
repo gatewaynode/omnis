@@ -58,23 +58,25 @@ impl Action {
     }
 }
 
-/// The pad's rows, top to bottom.
-const ROWS: [&[Action]; 3] = [
+/// The movement pad's rows, top to bottom, bottom left.
+const PAD: [&[Action]; 2] = [
     &[Action::TurnLeft, Action::Forward, Action::TurnRight],
     &[Action::StrafeLeft, Action::Back, Action::StrafeRight],
-    &[Action::Interact, Action::SaveLog, Action::Quit],
 ];
+
+/// The other actions, bottom right, away from the pad so a slip off Back cannot quit.
+const SIDE: [&[Action]; 1] = [&[Action::Interact, Action::SaveLog, Action::Quit]];
 
 /// The HUD's green.
 pub const GREEN: Color = Color::srgb(0.55, 1.0, 0.65);
-/// A button at rest, hovered and pressed.
-const SHADES: [Color; 3] = [
-    Color::srgba(0.0, 0.08, 0.03, 0.75),
-    Color::srgba(0.05, 0.25, 0.1, 0.85),
-    Color::srgba(0.15, 0.5, 0.2, 0.95),
+/// A button at rest, hovered and pressed; opaque, so the lines behind never cross a label.
+pub const SHADES: [Color; 3] = [
+    Color::srgb(0.0, 0.08, 0.03),
+    Color::srgb(0.05, 0.25, 0.1),
+    Color::srgb(0.15, 0.5, 0.2),
 ];
 
-/// The button pad, bottom left.
+/// The movement pad, bottom left, and the other actions, bottom right.
 pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
@@ -120,27 +122,51 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
     });
 }
 
+/// Which bottom corner a group of buttons sits in.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Corner {
+    /// Bottom left: the movement pad.
+    Left,
+    /// Bottom right: use, save log, quit.
+    Right,
+}
+
 fn spawn(mut commands: Commands) {
+    group(&mut commands, Corner::Left, &PAD);
+    group(&mut commands, Corner::Right, &SIDE);
+}
+
+/// A block of button rows anchored 16 pixels from a bottom corner.
+fn group(commands: &mut Commands, corner: Corner, rows: &[&[Action]]) {
+    let (left, right) = match corner {
+        Corner::Left => (Val::Px(16.0), Val::Auto),
+        Corner::Right => (Val::Auto, Val::Px(16.0)),
+    };
     commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(16.0),
-            bottom: Val::Px(16.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(6.0),
-            ..default()
-        })
-        .with_children(|pad| {
-            for row in ROWS {
-                pad.spawn(Node {
-                    column_gap: Val::Px(6.0),
-                    ..default()
-                })
-                .with_children(|r| {
-                    for &action in row {
-                        button(r, action.label(), action, true);
-                    }
-                });
+        .spawn((
+            corner,
+            Node {
+                position_type: PositionType::Absolute,
+                left,
+                right,
+                bottom: Val::Px(16.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(6.0),
+                ..default()
+            },
+        ))
+        .with_children(|block| {
+            for &row in rows {
+                block
+                    .spawn(Node {
+                        column_gap: Val::Px(6.0),
+                        ..default()
+                    })
+                    .with_children(|r| {
+                        for &action in row {
+                            button(r, action.label(), action, true);
+                        }
+                    });
             }
         });
 }

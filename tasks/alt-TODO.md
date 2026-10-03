@@ -20,6 +20,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - [x] A7a The button pad (`shell/controls.rs`): forward, back, sidesteps (held), quarter turns, use, save log, quit; keys stay as shortcuts. Headless tests press the buttons
   - [x] A7b The fight notice: Fight, Bribe, Hide, Run in an encounter; a placeholder Attack, Dodge, Flee in a fight until Phase B; a restart when the party falls; the pose follows a retreat
   - [x] A7c The minimap from `world.automap`, with the pose marker
+  - [x] A7d After the owner's first play ("buttons need some work"): opaque button and notice backgrounds, so the floor lines no longer cross the labels; use, save log and quit moved to their own group bottom right, away from the movement pad
 - [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
 
 ### A1–A6 review (2026-10-02)

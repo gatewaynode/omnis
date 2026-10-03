@@ -6,7 +6,7 @@ mod common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::{app, app_logging_to, key, set};
-use omnis_vector::shell::controls::Action;
+use omnis_vector::shell::controls::{Action, Corner};
 use omnis_vector::shell::session::Session;
 
 #[test]
@@ -98,4 +98,35 @@ fn the_save_button_writes_a_log_that_replays() {
     );
     assert!(session.lines.iter().any(|l| l.starts_with("Log saved")));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The corner group a button sits in: button → row → group.
+fn corner_of(app: &mut App, action: Action) -> Corner {
+    let world = app.world_mut();
+    let mut buttons = world.query::<(Entity, &Action)>();
+    let button = buttons
+        .iter(world)
+        .find(|(_, a)| **a == action)
+        .map(|(e, _)| e)
+        .expect("the button");
+    let parent = |e: Entity| world.get::<ChildOf>(e).expect("a parent").parent();
+    let group = parent(parent(button));
+    *world.get::<Corner>(group).expect("a corner group")
+}
+
+#[test]
+fn quit_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
+    let mut app = app();
+    app.update();
+    for action in [Action::Forward, Action::Back, Action::TurnLeft] {
+        assert_eq!(corner_of(&mut app, action), Corner::Left, "{action:?}");
+    }
+    for action in [Action::Quit, Action::SaveLog, Action::Interact] {
+        assert_eq!(corner_of(&mut app, action), Corner::Right, "{action:?}");
+    }
+    let world = app.world_mut();
+    let mut backgrounds = world.query_filtered::<&BackgroundColor, With<Action>>();
+    for colour in backgrounds.iter(world) {
+        assert!((colour.0.alpha() - 1.0).abs() < f32::EPSILON, "opaque");
+    }
 }

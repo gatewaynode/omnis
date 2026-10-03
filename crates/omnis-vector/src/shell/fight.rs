@@ -4,7 +4,7 @@
 //! party falls it offers a restart.
 
 use super::VectorSet;
-use super::controls::{GREEN, button};
+use super::controls::{GREEN, SHADES, button};
 use super::session::Session;
 use bevy::prelude::*;
 use omnis_sim::combat::state::can_fight;
@@ -192,7 +192,7 @@ fn spawn(mut commands: Commands) {
             ..default()
         },
         BorderColor::all(GREEN),
-        BackgroundColor(Color::srgba(0.0, 0.05, 0.02, 0.85)),
+        BackgroundColor(SHADES[0]),
     ));
 }
 

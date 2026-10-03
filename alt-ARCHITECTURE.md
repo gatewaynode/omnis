@@ -151,7 +151,7 @@ from the same `Config`.
 | Plugin | Set | Does |
 |---|---|---|
 | `MovementPlugin` | Input, Move | Turns keys and the mouse into an `Intent` resource. WASD and ↑/↓ move, ←/→ turn, Q/R turn 90°, E interacts, and the mouse gives yaw while the cursor is grabbed. Then it integrates the pose, scaled by the terrain's `step_minutes`, calls `Binder::advance`, eases a stopped pose into the simulation's cell, and notes the events. Headless-safe |
-| `ControlsPlugin` | Input | The button pad (A7a, `shell/controls.rs`): forward, back and the sidesteps while held; the quarter turns, use, save log and quit once a press. The keys are shortcuts for the same actions. Headless-safe |
+| `ControlsPlugin` | Input | The buttons (A7a, A7d, `shell/controls.rs`): the movement pad bottom left (forward, back and the sidesteps while held; the quarter turns once a press), and use, save log and quit bottom right. The keys are shortcuts for the same actions. Headless-safe |
 | `FightPlugin` | Input | The fight notice (A7b, `shell/fight.rs`, §9): a panel while the mode is not `Explore` or the party has fallen. Each choice is tried on a copy of the world first; one the simulation would refuse is drawn dim with the reason. Number keys pick the choices. Headless-safe |
 | `RenderPlugin` | Grab, Draw | Click grabs the cursor and Esc releases it; a notice releases it and keeps it free. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
 | `HudPlugin` | Draw | `bevy_ui` status text (`default_font`) and the recent event lines |
@@ -193,7 +193,7 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
   - the last event line (`Moved`, `Blocked`, `Door`, `EncounterStarted`)
   - the reconcile counters (rejections, mirror disagreements)
   - frames per second
-- **Button pad, bottom left (as built, A7a):** forward, back, strafe left, strafe right, turn left 90°, turn right 90°, interact, save log, and quit. They follow the LESSONS rule that a button comes before a key; no function keys.
+- **Buttons (as built, A7a, A7d):** the movement pad bottom left (forward, back, strafe left, strafe right, turn left 90°, turn right 90°), and interact, save log and quit in their own group bottom right. Backgrounds are opaque, so the floor lines never cross a label. They follow the LESSONS rule that a button comes before a key; no function keys.
   - The turn buttons animate the yaw by 90°, and the binder emits the `Turn`.
 - **Minimap (as built, A7c):** top right, 192 pixels on its long side, in whole pixels per cell (at least two).
   - `minimap::paint` (Bevy-free) paints the current map's `world.automap` tiles: visited cells brighter than cells only seen, then walls and doors. Edges are canonical, as in `geometry::extract`, because the map may record a shared edge on one side only.
