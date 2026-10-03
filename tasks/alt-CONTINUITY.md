@@ -1,6 +1,6 @@
 # Alt continuity notes (the 3D experiment)
 
-Written 2026-10-03, before a compact in the middle of Phase B (B4 done and played by the owner, B5 next). Rewrite this
+Written 2026-10-03, before a compact in the middle of Phase B (B5 done, B6 next: the owner plays). Rewrite this
 file every time it is used; keep it to state, next step, pointers and gotchas. It is kept apart
 from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 `m6-closeout-tasks`).
@@ -8,20 +8,19 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## State
 - **Branch:** `gui-3d-experiment`, cut from `main` at `8e111d5`.
   - **The owner pushes:** the agent's sandbox has no GitHub access (memory `owner-pushes`).
-  - The owner pushed through `a171185` (B4). Only this file's commit is local. Check with `git status -sb`.
+  - The owner pushed through `a171185` (B4). Local and unpushed: `305f801` (notes), `b143c70` (B5) and this file's commit. Check with `git status -sb`; remind the owner to `git push`.
 - **Clone:** `/Users/john/code/omnis-alt/omnis`. The main checkout is `/Users/john/code/omnis`.
-- **Gate:** green at 436 passed, 6 ignored. Sentrux rules pass at signal 8902.
+- **Gate:** green at 436 passed, 6 ignored after B5. Sentrux rules pass at signal 8902.
 - **Phase A is complete** (A0–A8; the report is in `tasks/alt-TODO.md`).
 - **Phase B, the 2D combat screen.** The plan, `~/.claude/plans/snug-munching-gray.md`, was approved 2026-10-03. **Read it first.**
-  - **B0, B1, B1a, B2, B3, B4 done** (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
+  - **B0, B1, B1a, B2, B3, B4, B5 done** (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
   - **B1, the roll log:** `src/rolllog.rs`.
     - `describe(&Event, &Names, &Data)`.
     - `Names` numbers each monster as it was met (`follow` on `EncounterStarted` and `Death`), and keeps members a fight buries (`observe`).
     - `Session.fight_log` holds the last 40 lines, cleared when monsters are met. `Session.names` is updated in `note()`.
   - **B1a, the picture window (owner request after playing the modal):**
     - `src/cinema.rs`: `Scene::Enemy(MonsterId)`; `opening(world)`; `drawing` (the placeholder rat for every monster); `paint` fits the drawing's bounds inside a 12 px margin, as a glow under a core on an opaque ground; `SIZE` is 492×200.
-    - `Notice.scene`.
-    - The panel spawns a `shell::panel::Screen(scene)` node as its first child in a fight.
+    - The fight screen spawns a `shell::cinema::Screen(scene)` node at `layout.picture` (moved from the panel in B5).
     - `shell/cinema.rs::CinemaPlugin` (window or capture only) uploads the image.
     - `Raster` moved to `src/raster.rs` (`filled`, `put`, `lighten`, `stroke`).
     - Horizons: scenes queued from fight events, animated; a drawing per monster.
@@ -55,6 +54,7 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
       - `render::grab_cursor`: mouse look is off in a fight.
       - `panel::current` returns `None` in a fight.
     - Tests: `tests/combat.rs` (5). `tests/fight.rs` keeps only the fallen party. `tests/common/app.rs` adds `StatesPlugin`, `CombatPlugin` and `click(app, point)`, which spawns a 1600×900 `PrimaryWindow` and sets its cursor.
+  - **B5, retired the A7b notice (`b143c70`):** `shell/fight.rs` is now `fallen` plus the fallen party's notice (Start again). `notice::choice` and `Notice.scene` are gone; `Screen` lives in `shell/cinema.rs`. Docs as built: `alt-ARCHITECTURE.md` v0.3 (§5, §6, §9, §14) and `alt-PRD.md` §10.3 decided.
 - **Owner decisions:**
   - Phase B (alt-PRD §10.3): **write fresh**. Glowing vector-line figures. Every fight action, with targets picked by clicking. A short roll log.
   - **2026-10-03:** they like the modal, but **the full 2D screen stays the plan** (B3/B4 as written). The picture window carries into B4, **above the action column**.
@@ -69,20 +69,17 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - macOS's main display is an LS27A800U, 60 Hz, 4K scaled to 1920×1080.
 - **Don't repeat it:** a message in the first session looked like a password. It was not used or stored.
 
-## Next: B5, then B6 and B7
-- **B5, retire the A7b notice and write the docs:**
-  - Dead code now: in `shell/fight.rs`, `notice`'s encounter and combat parts (`encounter_choices`, `combat_choices`). Keep `fallen` and the fallen-party notice ("Start again").
-  - In `shell/panel.rs`: the `Screen` child and `Notice.scene`, if nothing else uses them. `shell/cinema.rs` reads `panel::Screen`; consider moving `Screen` to `shell/combat.rs` or `shell/cinema.rs`.
-  - Check `tests/rolllog.rs` and `tests/actions.rs` still pass. The gate catches unused code (clippy `-D warnings`).
-  - Docs as built:
-    - `alt-ARCHITECTURE.md` §6 (the plugin table: `CombatPlugin`, `CombatViewPlugin`) and §9 (the fight screen);
-    - `alt-PRD.md` §10.3 marked decided (write fresh);
-    - the B items in `tasks/alt-TODO.md`.
-- **B6:** the owner plays on the ultrawide. Open items to watch:
-  - whether the stick figures look small next to the rats at 5120×1440, and whether 15 px text is too small;
-  - the roll log on a long fight: the oldest lines should clip off the top (`JustifyContent::FlexEnd`; never seen in a capture);
-  - crowded stacks drawing small.
-- **B7:** rebase onto the mechanics work before merging.
+## Next: B6, then B7
+- **B6, the owner plays a fight on the ultrawide (5120×1440) and reports; fix what they find.** Each fix is its own commit with the gate and Sentrux; a correction from the owner goes in `tasks/LESSONS.md`.
+  - Ask them to walk into the placed group (dungeon (3, 6), facing South) and play at least one fight to its end, ideally a long one, and to send screenshots (they copy files into `.omnis/`; `~/Desktop` is blocked for the agent).
+  - Open items to watch:
+    - whether the stick figures look small next to the rats at 5120×1440, and whether 15 px text (log, labels) and 18/22 px (prompt, title) are too small;
+    - the roll log on a long fight: the oldest lines should clip off the top (`JustifyContent::FlexEnd`; never seen in a capture);
+    - crowded stacks drawing small;
+    - the switch back to 3D after Victory, Run and a fallen party (Start again in the centre panel).
+  - Likely knobs: `PAD`, `font(size)` calls and `colour(Tone)` in `shell/combat.rs`; the bands, `MOST` and `person()` in `src/arena.rs`; `STATUS`/`BUTTONS` in `src/arena.rs`. A scale factor from the window height is the obvious fix if everything reads small.
+  - To check a fix without the owner, use the fight capture recipe below at `--size 5120x1440`.
+- **B7:** rebase onto the mechanics work before merging; rerun the gate and the agreement test.
 
 ## Gotchas
 - **Builds need `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.** The Xcode licence is unaccepted.
@@ -113,12 +110,12 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 - **Commit trailer:** `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Pointers
-- **Vision:** `alt-PRD.md` (Phase B in §6, X7, §10.3) and `alt-ARCHITECTURE.md` (§6 plugin table, with `CinemaPlugin` added; §8; §9, with the picture window and roll log as built).
+- **Vision:** `alt-PRD.md` (Phase B in §6, X7, §10.3) and `alt-ARCHITECTURE.md` v0.3 (§5 core modules; §6 plugin table with `CinemaPlugin`, `CombatPlugin`, `CombatViewPlugin`; §8; §9 the fight screen as built).
 - **Plan and reviews:** `tasks/alt-TODO.md` (B items). The Phase B plan file is listed above.
 - **Core:** `crates/omnis-vector/src/{geom,grid,pose,collide,bind,geometry,minimap,party,raster,rolllog,cinema,trial,combat_menu,arena}.rs`.
 - **Shell:**
   - `src/shell/{mod,session,movement,controls,actions,notice,fight,panel,render,hud,minimap,cinema,combat,text,capture}.rs`
-  - `combat.rs` is the fight screen. `fight.rs` still holds the A7b notice, now shown only for a fallen party (B5 trims it).
+  - `combat.rs` is the fight screen. `fight.rs` holds only the fallen party's notice. `cinema.rs` holds `Screen` and paints it.
 - **Tests:** `tests/{agreement,binding,shell,fight,actions,minimap,rolllog,combat_menu,arena,combat}.rs` and `tests/common/{mod,app,fight}.rs`.
 - **Simulation reads:**
   - `omnis_sim::{combat_view, CombatView, StackView, SpellView, bribe_cost, CombatCommand, Target, EncounterChoice, apply}`
