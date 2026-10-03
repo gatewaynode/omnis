@@ -19,7 +19,7 @@ use omnis_core::{Dice, RollTrace};
 use omnis_data::omnis_expr::Value;
 use omnis_data::rest_event::PER_MILLE;
 use omnis_data::{Ability, Data};
-use omnis_rules::{Character, RuleError, modifier};
+use omnis_rules::{Character, RuleError, modifier, recover_uses};
 use serde::{Deserialize, Serialize};
 
 /// An hour's rest when the rules leave it out.
@@ -89,6 +89,7 @@ pub(crate) fn long_rest_restore(world: &mut World, data: &Data, events: &mut Vec
         if is_dead(member, data) {
             continue;
         }
+        recover_uses(member, data, true);
         let gain = if member.is_down() {
             1 - member.hp
         } else {
@@ -164,6 +165,12 @@ pub(crate) fn apply(
         world.party.food -= food;
         long_rest_restore(world, data, events);
         world.party.last_long_rest = Some(world.party_clock().elapsed);
+    } else {
+        for member in &mut world.party.members {
+            if !is_dead(member, data) {
+                recover_uses(member, data, false);
+            }
+        }
     }
     for spend in spends {
         let member = &mut world.party.members[spend.index];

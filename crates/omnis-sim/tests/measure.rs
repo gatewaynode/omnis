@@ -18,7 +18,7 @@ use omnis_core::{Facing, Position};
 use omnis_data::{Data, Disposition, SpellEffect};
 use omnis_sim::{
     ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, EncounterSource,
-    EncounterState, Event, Mode, RestCommand, Settings, Stack, Surprise, Target, World, apply,
+    EncounterState, Event, Mode, Pay, RestCommand, Settings, Stack, Surprise, Target, World, apply,
     combat, combat_view,
 };
 
@@ -75,6 +75,7 @@ fn cast_or_attack(world: &World, data: &Data) -> Command {
                     Command::Combat(CombatCommand::Cast {
                         spell: s.index,
                         target: t,
+                        pay: Pay::Action,
                     })
                 })
             })
@@ -152,7 +153,7 @@ fn run_fight(
             break;
         }
         let command = policy(&world, data);
-        let events = apply(&mut world, data, command).unwrap_or_else(|r| panic!("{r}"));
+        let events = common::act(&mut world, data, command).unwrap_or_else(|r| panic!("{r}"));
         for event in &events {
             match event {
                 Event::RoundStarted { round } => rounds = rounds.max(u64::from(*round)),
@@ -258,7 +259,7 @@ fn rest_and_fight(
             break;
         }
         let command = policy(world, data);
-        for event in apply(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
+        for event in common::act(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
             if let Event::CombatEnded { outcome: o, .. } = event {
                 outcome = Some(o);
             }
@@ -356,7 +357,7 @@ fn fight_out(world: &mut World, data: &Data, policy: Policy, clear: &mut Clear) 
             break;
         }
         let command = policy(world, data);
-        for event in apply(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
+        for event in common::act(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
             if let Event::CombatEnded { outcome, gold, .. } = event {
                 clear.wiped |= outcome != CombatOutcome::Victory;
                 clear.gold += u64::from(gold);

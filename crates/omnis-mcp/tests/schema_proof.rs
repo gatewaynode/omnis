@@ -10,8 +10,8 @@ use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::Draft;
 use omnis_cli::omnis_sim::{
-    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, RestCommand,
-    ServiceCommand, Target,
+    CombatCommand, Command, DevCommand, EncounterChoice, FeatureChoice, ItemCommand, PartyCommand,
+    Pay, RestCommand, ServiceCommand, Target,
 };
 use omnis_mcp::schema::Schema;
 use serde_json::{Value, json};
@@ -207,11 +207,13 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
         CombatCommand::Attack { .. } => CombatCommand::Cast {
             spell,
             target: Target::Stack(0),
+            pay: Pay::Action,
         },
         CombatCommand::Cast { target, .. } => match target {
             Target::Stack(_) => CombatCommand::Cast {
                 spell,
                 target: Target::Member(1),
+                pay: Pay::BonusAction,
             },
             Target::Member(_) => CombatCommand::Use {
                 item,
@@ -224,7 +226,22 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
         CombatCommand::Use { target: None, .. } => CombatCommand::Dodge,
         CombatCommand::Dodge => CombatCommand::Exchange { with: 5 },
         CombatCommand::Exchange { .. } => CombatCommand::Run,
-        CombatCommand::Run => return None,
+        CombatCommand::Run => CombatCommand::Feature {
+            feature: 0,
+            choice: FeatureChoice::None,
+        },
+        CombatCommand::Feature { choice, .. } => match choice {
+            FeatureChoice::None => CombatCommand::Feature {
+                feature: 1,
+                choice: FeatureChoice::Exchange { with: 2 },
+            },
+            FeatureChoice::Exchange { .. } => CombatCommand::Feature {
+                feature: 1,
+                choice: FeatureChoice::Hide,
+            },
+            FeatureChoice::Hide => CombatCommand::EndTurn,
+        },
+        CombatCommand::EndTurn => return None,
     })
 }
 
@@ -455,8 +472,8 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        80,
-        "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, \
+        84,
+        "4 steps, 3 turns, interact, 11 party, 4 encounter, 12 combat, 2 casts, 10 item, \
          14 service, 2 rest, 21 dev"
     );
     let mut used = Used::new();
@@ -472,7 +489,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 114, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 122, "oneOf branches and enum values offered");
 }
 
 #[test]

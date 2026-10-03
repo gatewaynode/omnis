@@ -648,7 +648,12 @@ mod tests {
                 .map(|s| s.index)
                 .expect("something to hit");
             let command = Command::Combat(CombatCommand::Attack { stack });
-            let events = apply(&mut world, &data, command).unwrap_or_else(|r| panic!("{r}"));
+            let mut events = apply(&mut world, &data, command).unwrap_or_else(|r| panic!("{r}"));
+            // A fighter keeps the turn for Second Wind's bonus action: end it.
+            if matches!(&world.mode, omnis_sim::Mode::Combat(state) if state.budget.actions == 0) {
+                let end = Command::Combat(CombatCommand::EndTurn);
+                events.extend(apply(&mut world, &data, end).unwrap_or_else(|r| panic!("{r}")));
+            }
             names.refresh(&world, &data);
             all.extend(batch_lines(&events, &names));
         }

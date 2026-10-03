@@ -4,14 +4,14 @@
 
 mod common;
 
-use common::{data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, world};
 use omnis_data::{Data, Disposition};
 use omnis_sim::command::parse_script;
 use omnis_sim::items::item_id;
 use omnis_sim::omnis_rules::condition_id;
 use omnis_sim::{
-    ActorRef, CheckKind, CombatCommand, Command, Event, Mode, Rejection, Surprise, Target, World,
-    apply, combat, combat_view,
+    ActorRef, CheckKind, CombatCommand, Command, Event, Mode, Pay, Rejection, Surprise, Target,
+    World, apply, combat, combat_view,
 };
 
 /// Ilvara's slot in the six drafts.
@@ -36,7 +36,7 @@ fn until_turn_of(world: &mut World, data: &Data, slot: usize) -> bool {
         if state.current_actor() == Some(ActorRef::Member(id)) {
             return true;
         }
-        apply(world, data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        act(world, data, Command::Combat(CombatCommand::Dodge)).unwrap();
     }
     panic!("the turn never came");
 }
@@ -57,7 +57,11 @@ fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
 }
 
 fn cast(spell: u8, target: Target) -> Command {
-    Command::Combat(CombatCommand::Cast { spell, target })
+    Command::Combat(CombatCommand::Cast {
+        spell,
+        target,
+        pay: Pay::Action,
+    })
 }
 
 #[test]

@@ -238,9 +238,10 @@ pub struct CombatMenu {
 
 impl CombatMenu {
     /// The actions, in cursor order.
-    pub const ACTIONS: [&'static str; 6] = ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run"];
-    /// The hotkeys, in the same order.
-    pub const HOTKEYS: [char; 6] = ['a', 'c', 'u', 'd', 'e', 'r'];
+    pub const ACTIONS: [&'static str; 7] =
+        ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run", "End"];
+    /// The hotkeys, in the same order (`n` for eNd: `e` is Exchange).
+    pub const HOTKEYS: [char; 7] = ['a', 'c', 'u', 'd', 'e', 'r', 'n'];
 
     /// Keep the target on a living stack: the first one when the current target fell; keep
     /// the picker's cursor on a spell, and close it when the acting member knows none.
@@ -356,7 +357,8 @@ impl CombatMenu {
                     return None;
                 }
             },
-            _ => CombatCommand::Run,
+            5 => CombatCommand::Run,
+            _ => CombatCommand::EndTurn,
         };
         Some(CombatIntent::Command(command))
     }
@@ -596,7 +598,15 @@ pub(crate) mod tests {
         for _ in 0..4 {
             menu.key(MenuKey::Up, &view, None);
         }
-        assert_eq!(menu.cursor, 5, "wraps");
+        assert_eq!(menu.cursor, 6, "wraps to End");
+        assert_eq!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Command(CombatCommand::EndTurn))
+        );
+        assert_eq!(
+            menu.key(MenuKey::Char('n'), &view, None),
+            Some(CombatIntent::Command(CombatCommand::EndTurn))
+        );
         assert_eq!(
             menu.key(MenuKey::Char('r'), &view, None),
             Some(CombatIntent::Command(CombatCommand::Run))

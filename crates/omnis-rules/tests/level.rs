@@ -4,8 +4,8 @@
 use omnis_core::{CharacterId, Pcg32, StreamName};
 use omnis_data::{Alignment, Data, Skill, load_packs};
 use omnis_rules::{
-    Character, Draft, MAX_LEVEL, SpellRefusal, create, eligible, level_up, max_spell_level,
-    may_learn, next_threshold, ready,
+    Character, Draft, MAX_LEVEL, SpellRefusal, combat_features, create, eligible, level_up,
+    max_spell_level, may_learn, next_threshold, ready, recover_uses, spend_use, uses_left,
 };
 use std::path::PathBuf;
 
@@ -227,4 +227,65 @@ fn a_spell_may_be_learned_from_the_class_list_up_to_the_level_s_maximum() {
     let brenna = fighter(&data);
     assert_eq!(check(&brenna, &data, bless), Some(SpellRefusal::NotOnList));
     assert!(eligible(&brenna, &data).unwrap().is_empty());
+}
+
+#[test]
+fn features_with_effect_come_by_level_and_rests_give_their_uses_back() {
+    let mut data = data();
+    let mut brenna = fighter(&data);
+    let names = |c: &Character, d: &Data| -> Vec<String> {
+        combat_features(c, d)
+            .iter()
+            .map(|f| f.name.clone())
+            .collect()
+    };
+    assert_eq!(
+        names(&brenna, &data),
+        ["base:text:class.fighter.second_wind"]
+    );
+    brenna.level = 2;
+    assert_eq!(
+        names(&brenna, &data),
+        [
+            "base:text:class.fighter.second_wind",
+            "base:text:class.fighter.action_surge"
+        ]
+    );
+    // Make Action Surge a long-rest feature to see the two rests apart.
+    let fighter_id = data.registry.classes.get("base:class:fighter").unwrap();
+    let surge = data
+        .classes
+        .get_mut(&fighter_id)
+        .unwrap()
+        .features
+        .iter_mut()
+        .find(|f| f.name.ends_with("action_surge"))
+        .unwrap();
+    surge.uses = Some(omnis_data::Uses {
+        count: 1,
+        per: omnis_data::Recharge::LongRest,
+    });
+    let features: Vec<_> = combat_features(&brenna, &data)
+        .into_iter()
+        .cloned()
+        .collect();
+    let (wind, surge) = (&features[0], &features[1]);
+    assert_eq!(
+        (uses_left(&brenna, wind), uses_left(&brenna, surge)),
+        (Some(1), Some(1))
+    );
+    spend_use(&mut brenna, wind);
+    spend_use(&mut brenna, surge);
+    assert_eq!(
+        (uses_left(&brenna, wind), uses_left(&brenna, surge)),
+        (Some(0), Some(0))
+    );
+    recover_uses(&mut brenna, &data, false);
+    assert_eq!(
+        (uses_left(&brenna, wind), uses_left(&brenna, surge)),
+        (Some(1), Some(0)),
+        "a short rest keeps what only a long one gives back"
+    );
+    recover_uses(&mut brenna, &data, true);
+    assert!(brenna.feature_spent.is_empty());
 }

@@ -2,7 +2,7 @@
 //! Commands carry no client state so a command stream is a replay and, later, a network
 //! protocol. What happened is `event::Event`.
 
-use crate::combat::{CombatCommand, Target};
+use crate::combat::{CombatCommand, FeatureChoice, Pay, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
@@ -76,6 +76,8 @@ impl Command {
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
+            Command::Combat(CombatCommand::Feature { .. }) => "feature",
+            Command::Combat(CombatCommand::EndTurn) => "end",
             Command::Cast { .. } => "cast",
             Command::Item(_) => "item",
             Command::Service(ServiceCommand::Leave) => "leave",
@@ -122,7 +124,11 @@ impl Command {
             "rumor" => Command::Service(ServiceCommand::Rumor),
             "rest" => Command::Rest(RestCommand::Long),
             "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
+            "end" => Command::Combat(CombatCommand::EndTurn),
             _ => {
+                if let Some(rest) = word.strip_prefix("feature-") {
+                    return parse_feature(rest).map(Command::Combat);
+                }
                 if let Some(n) = word.strip_prefix("attack-") {
                     return n
                         .parse()
@@ -147,15 +153,38 @@ impl Command {
     }
 }
 
-/// `N-M` casts spell `N` at stack `M`; `N-mM` at member `M`.
+/// `N-M` casts spell `N` at stack `M`; `N-mM` at member `M`; a trailing `-bonus` pays with
+/// the bonus action.
 fn parse_cast(rest: &str) -> Option<CombatCommand> {
+    let (rest, pay) = match rest.strip_suffix("-bonus") {
+        Some(rest) => (rest, Pay::BonusAction),
+        None => (rest, Pay::Action),
+    };
     let (spell, target) = rest.split_once('-')?;
     let spell = spell.parse().ok()?;
     let target = match target.strip_prefix('m') {
         Some(member) => Target::Member(member.parse().ok()?),
         None => Target::Stack(target.parse().ok()?),
     };
-    Some(CombatCommand::Cast { spell, target })
+    Some(CombatCommand::Cast { spell, target, pay })
+}
+
+/// `F` uses feature row `F`; `F-W` exchanges with slot `W` (Cunning Action); `F-hide` hides.
+fn parse_feature(rest: &str) -> Option<CombatCommand> {
+    let (feature, choice) = match rest.split_once('-') {
+        Some((feature, "hide")) => (feature, FeatureChoice::Hide),
+        Some((feature, with)) => (
+            feature,
+            FeatureChoice::Exchange {
+                with: with.parse().ok()?,
+            },
+        ),
+        None => (rest, FeatureChoice::None),
+    };
+    Some(CombatCommand::Feature {
+        feature: feature.parse().ok()?,
+        choice,
+    })
 }
 
 /// `N` uses item `N` of the acting member's kit on themselves; `N-mM` on member `M`.
@@ -491,6 +520,37 @@ pub enum Rejection {
         /// The slot asked for.
         index: u8,
     },
+    /// The turn's action is spent (ARCHITECTURE.md §4.7).
+    NoActionLeft,
+    /// The turn's bonus action is spent.
+    NoBonusActionLeft,
+    /// That costs a reaction: only a declared reaction pays for it.
+    ReactionOnly,
+    /// The spell cannot be paid with the bonus action (D24).
+    NotABonusAction {
+        /// The known-spell row.
+        spell: u8,
+    },
+    /// The spell takes the bonus action only once readied, and readying is not built (D24).
+    NeedsPreparation {
+        /// The known-spell row.
+        spell: u8,
+    },
+    /// The member has no feature with effect at that row.
+    NoSuchFeature {
+        /// The row asked for.
+        feature: u8,
+    },
+    /// The feature's uses are spent until a rest.
+    NoUsesLeft {
+        /// The row asked for.
+        feature: u8,
+    },
+    /// The feature does not do what was asked (a choice it has not, or none where it needs one).
+    WrongChoice {
+        /// The row asked for.
+        feature: u8,
+    },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
 }
@@ -612,6 +672,31 @@ impl Rejection {
             ),
             Rejection::AlreadyKnown { index } => {
                 write!(f, "the member in slot {index} already knows that spell")
+            }
+            _ => return self.fmt_turn(f),
+        })
+    }
+
+    /// The wording of the turn budget's and the class features' refusals; `None` for the rest.
+    fn fmt_turn(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NoActionLeft => f.write_str("the turn's action is spent"),
+            Rejection::NoBonusActionLeft => f.write_str("the turn's bonus action is spent"),
+            Rejection::ReactionOnly => f.write_str("that is a reaction; declare it in tactics"),
+            Rejection::NotABonusAction { spell } => {
+                write!(f, "spell {spell} cannot be cast with the bonus action")
+            }
+            Rejection::NeedsPreparation { spell } => {
+                write!(f, "spell {spell} takes the bonus action only once readied")
+            }
+            Rejection::NoSuchFeature { feature } => {
+                write!(f, "there is no feature in row {feature}")
+            }
+            Rejection::NoUsesLeft { feature } => {
+                write!(f, "feature {feature} has no uses left until a rest")
+            }
+            Rejection::WrongChoice { feature } => {
+                write!(f, "feature {feature} does not do that")
             }
             _ => return None,
         })

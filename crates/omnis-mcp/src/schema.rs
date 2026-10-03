@@ -185,7 +185,7 @@ fn rest_schema() -> Value {
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, use a kit row on a member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by index at a stack or member with the action or the bonus action, use a kit row on a member, dodge, exchange, run, a class feature by its row with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -198,10 +198,14 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Encounter": {"type": "string", "enum": ["Attack", "Bribe", "Hide", "Run"]}}, "required": ["Encounter"], "additionalProperties": false},
                 {"type": "object", "properties": {"Combat": {"oneOf": [
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
-                    variant("Cast", &[("spell", index()), ("target", target())]),
+                    {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": index(), "target": target(), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
                     variant("Use", &[("item", index()), ("target", member_or_null())]),
-                    {"type": "string", "enum": ["Dodge", "Run"]},
-                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                    {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
+                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Feature": {"type": "object", "properties": {"feature": index(), "choice": {"oneOf": [
+                        {"type": "string", "enum": ["None", "Hide"]},
+                        {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                    ]}}, "required": ["feature"], "additionalProperties": false}}, "required": ["Feature"], "additionalProperties": false}
                 ]}}, "required": ["Combat"], "additionalProperties": false},
                 variant("Cast", &[("caster", index()), ("spell", index()), ("target", target())]),
                 {"type": "object", "properties": {"Item": item_schema()}, "required": ["Item"], "additionalProperties": false},
@@ -292,7 +296,7 @@ mod tests {
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][5]["properties"]["Combat"]["oneOf"];
-        assert_eq!(combat.as_array().unwrap().len(), 5);
+        assert_eq!(combat.as_array().unwrap().len(), 6);
         assert_eq!(
             combat[1]["properties"]["Cast"]["required"],
             json!(["spell", "target"])

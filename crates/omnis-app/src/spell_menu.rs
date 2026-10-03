@@ -10,7 +10,7 @@ use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
 use omnis_sim::combat::cast;
 use omnis_sim::omnis_core::{Pcg32, StreamName};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{CombatCommand, Command, Rejection, Target, World};
+use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target, World};
 
 /// One spell the acting member knows, as the picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,6 +113,7 @@ impl CombatMenu {
         Some(CombatIntent::Command(CombatCommand::Cast {
             spell: row.index,
             target,
+            pay: Pay::Action,
         }))
     }
 }
@@ -334,7 +335,8 @@ mod tests {
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
                 spell: 3,
-                target: Target::Stack(0)
+                target: Target::Stack(0),
+                pay: Pay::Action,
             }))
         );
         assert_eq!(menu.picker, None, "the picker closes on a cast");
@@ -366,7 +368,8 @@ mod tests {
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
                 spell: 0,
-                target: Target::Stack(0)
+                target: Target::Stack(0),
+                pay: Pay::Action,
             }))
         );
     }
@@ -399,7 +402,8 @@ mod tests {
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Cast {
                 spell: u8::try_from(cure).unwrap(),
-                target: Target::Member(0)
+                target: Target::Member(0),
+                pay: Pay::Action,
             }))
         );
         let mut world = facing_goblins(&data);

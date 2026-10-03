@@ -1,16 +1,21 @@
-//! The fight (ARCHITECTURE.md §4.5): one member command resolves, then monster turns run
-//! until the next member who can act, or the end. Every command is validated in full before
-//! the first die, and the dice come from a copy of the `combat` stream written back only when
-//! the command went through, so a rejection leaves the world exactly as it was.
+//! The fight (ARCHITECTURE.md §4.5, §4.7): a member's turn takes commands until their budget
+//! has nothing left to pay for or `EndTurn`, then monster turns run until the next member who
+//! can act, or the end. Every command is validated in full, its cost against the budget
+//! included, before the first die, and the dice come from a copy of the `combat` stream
+//! written back only when the command went through, so a rejection leaves the world exactly as
+//! it was.
 
+mod budget;
 pub mod cast;
+pub mod feature;
+mod opportunity;
 mod reaction;
 mod resolve;
 pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{CombatState, Initiative, monster_front_stacks};
+pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
 
 use crate::command::Rejection;
@@ -21,7 +26,7 @@ use crate::party;
 use crate::world::{Mode, World};
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32, StreamName};
-use omnis_data::Data;
+use omnis_data::{Cost, Data};
 use omnis_rules::{RuleError, Weapon, best_weapon};
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +44,9 @@ pub enum CombatCommand {
         spell: u8,
         /// Whom it goes to.
         target: Target,
+        /// What it is paid with: the action, or the bonus action when the spell allows it.
+        #[serde(default)]
+        pay: Pay,
     },
     /// Use a carried item as the turn's action: a potion on a member, or the user when no
     /// target is named. A sense item is not used from a fight.
@@ -57,6 +65,45 @@ pub enum CombatCommand {
     },
     /// Try to get away; the whole party leaves on success.
     Run,
+    /// Use a class feature, by its row among the member's features with effect.
+    Feature {
+        /// The row of `omnis_rules::combat_features`.
+        feature: u8,
+        /// What the feature is asked to do, for one that offers a choice.
+        #[serde(default)]
+        choice: FeatureChoice,
+    },
+    /// End the turn with budget left.
+    EndTurn,
+}
+
+/// What a spell is paid with.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum Pay {
+    /// The action.
+    #[default]
+    Action,
+    /// The bonus action (D24's `bonus_action_available`).
+    BonusAction,
+}
+
+/// What a feature with a choice is asked to do.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum FeatureChoice {
+    /// The feature does its one thing.
+    #[default]
+    None,
+    /// Cunning Action: swap with the member in this slot, provoking nothing.
+    Exchange {
+        /// The other member's slot.
+        with: u8,
+    },
+    /// Cunning Action: hide.
+    Hide,
 }
 
 /// The `combat` stream, taken out of the world and written back once a command has gone
@@ -113,6 +160,10 @@ pub(crate) enum Plan {
     },
     /// A flight attempt.
     Run,
+    /// A class feature that passed every check.
+    Feature(feature::FeaturePlan),
+    /// The turn ends.
+    EndTurn,
 }
 
 /// Start a fight from an encounter: initiative, round one, and the monster turns up to the
@@ -144,8 +195,9 @@ pub(crate) fn apply(
     // Validation may draw (a pack's point-cost formula could roll): it draws from the copy,
     // which is stored only when the command went through.
     let mut roller = Roller::take(world);
-    let (actor, plan) = validate(state, world, data, command, &mut roller.rng)?;
-    turn::act(world, data, actor, plan, &mut roller, events).map_err(Rejection::Rule)?;
+    let (actor, plan, cost) = validate(state, world, data, command, &mut roller.rng)?;
+    budget::affordable(state.budget, cost)?;
+    turn::act(world, data, actor, plan, cost, &mut roller, events).map_err(Rejection::Rule)?;
     roller.store(world);
     Ok(())
 }
@@ -214,17 +266,38 @@ pub fn weapon_for(
     }
 }
 
+/// What paying for a spell with `pay` costs, or why the spell cannot be paid that way.
+fn spell_cost(spell: &omnis_data::Spell, index: u8, pay: Pay) -> Result<Cost, Rejection> {
+    match pay {
+        Pay::Action => Ok(spell.cost),
+        Pay::BonusAction if !spell.bonus_action_available => {
+            Err(Rejection::NotABonusAction { spell: index })
+        }
+        Pay::BonusAction if spell.preparation_required_for_bonus_action => {
+            Err(Rejection::NeedsPreparation { spell: index })
+        }
+        Pay::BonusAction => Ok(Cost::BonusAction),
+    }
+}
+
 fn validate(
     state: &CombatState,
     world: &World,
     data: &Data,
     command: CombatCommand,
     rng: &mut Pcg32,
-) -> Result<(CharacterId, Plan), Rejection> {
+) -> Result<(CharacterId, Plan, Cost), Rejection> {
     let (id, own) = acting_member(state, world)?;
+    let mut cost = Cost::Action;
     let plan = match command {
-        CombatCommand::Cast { spell, target } => {
-            Plan::Cast(cast::validate(state, world, data, own, spell, target, rng)?)
+        CombatCommand::Cast { spell, target, pay } => {
+            let plan = cast::validate(state, world, data, own, spell, target, rng)?;
+            let def = data
+                .spells
+                .get(&plan.spell)
+                .ok_or(Rejection::UnknownSpell { spell })?;
+            cost = spell_cost(def, spell, pay)?;
+            Plan::Cast(plan)
         }
         CombatCommand::Attack { stack } => {
             let target = state
@@ -255,6 +328,15 @@ fn validate(
             Plan::Exchange { own, with: index }
         }
         CombatCommand::Run => Plan::Run,
+        CombatCommand::Feature { feature, choice } => {
+            let (plan, feature_cost) = feature::validate(world, data, own, feature, choice)?;
+            cost = feature_cost;
+            Plan::Feature(plan)
+        }
+        CombatCommand::EndTurn => {
+            cost = Cost::Free;
+            Plan::EndTurn
+        }
     };
-    Ok((id, plan))
+    Ok((id, plan, cost))
 }

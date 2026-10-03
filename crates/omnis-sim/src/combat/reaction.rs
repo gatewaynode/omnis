@@ -3,8 +3,9 @@
 //! SRD casts it on any hit).
 
 use super::Roller;
+use super::state::CombatState;
 use crate::effects;
-use crate::event::Event;
+use crate::event::{ActorRef, Event};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_data::{Data, SpellEffect};
@@ -12,11 +13,13 @@ use omnis_rules::{
     ActiveEffect, AttackRoll, EffectKind, Expiry, RuleError, armor_class, rejudge, spell_cost,
 };
 
-/// Cast shield for the member if it turns this hit into a miss and no shield is up already
-/// (one lasts until their next turn); the roll is rejudged in place.
+/// Cast shield for the member if it turns this hit into a miss, no shield is up already (one
+/// lasts until their next turn) and the member has a reaction left, which it spends; the roll
+/// is rejudged in place.
 pub(crate) fn try_shield(
     world: &mut World,
     data: &Data,
+    state: &mut CombatState,
     index: usize,
     roll: &mut AttackRoll,
     roller: &mut Roller,
@@ -26,7 +29,7 @@ pub(crate) fn try_shield(
         return Ok(false);
     }
     let member = &world.party.members[index];
-    if member.is_down() {
+    if member.is_down() || state.reactions_left(ActorRef::Member(member.id)) == 0 {
         return Ok(false);
     }
     if member
@@ -61,6 +64,7 @@ pub(crate) fn try_shield(
         return Ok(false);
     }
     let caster = member.id;
+    state.spend_reaction(ActorRef::Member(caster));
     let member = &mut world.party.members[index];
     member.spell_points -= cost;
     events.push(Event::SpellCast {

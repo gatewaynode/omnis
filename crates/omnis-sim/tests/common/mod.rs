@@ -5,8 +5,8 @@ use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
-    CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event, Mode,
-    ModeKind, PartyCommand, Settings, Stack, World, apply, combat_view,
+    ActorRef, CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event,
+    Mode, ModeKind, PartyCommand, Rejection, Settings, Stack, World, apply, combat_view,
 };
 use std::path::PathBuf;
 
@@ -183,6 +183,26 @@ pub fn reachable_stack(world: &World, data: &Data) -> Option<u8> {
 /// Fight whatever stands in the way until the party explores again: attack on an encounter,
 /// then the nearest reachable stack on every member turn. Every command taken is appended to
 /// `commands`; the events come back.
+/// The actor whose turn a fight waits on, if a fight is on.
+fn acting(world: &World) -> Option<ActorRef> {
+    match &world.mode {
+        Mode::Combat(state) => state.current_actor(),
+        _ => None,
+    }
+}
+
+/// One command as one whole turn, as a turn was before the budget (M7c): when the member's turn
+/// goes on with the action spent (a bonus action has something left to pay for), it is ended.
+pub fn act(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
+    let before = acting(world);
+    let mut events = apply(world, data, command)?;
+    let spent = matches!(&world.mode, Mode::Combat(state) if state.budget.actions == 0);
+    if before.is_some() && acting(world) == before && spent {
+        events.extend(apply(world, data, Command::Combat(CombatCommand::EndTurn))?);
+    }
+    Ok(events)
+}
+
 pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Vec<Event> {
     let mut events = Vec::new();
     for _ in 0..1000 {
@@ -194,8 +214,15 @@ pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Ve
                 Command::Combat(CombatCommand::Attack { stack })
             }
         };
+        let before = acting(world);
         events.extend(apply(world, data, command.clone()).unwrap_or_else(|r| panic!("{r}")));
         commands.push(command);
+        let spent = matches!(&world.mode, Mode::Combat(state) if state.budget.actions == 0);
+        if before.is_some() && acting(world) == before && spent {
+            let end = Command::Combat(CombatCommand::EndTurn);
+            events.extend(apply(world, data, end.clone()).unwrap_or_else(|r| panic!("{r}")));
+            commands.push(end);
+        }
     }
     panic!("the fight did not end");
 }

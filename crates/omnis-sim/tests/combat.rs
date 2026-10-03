@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, world};
 use omnis_core::{Direction, Facing, Position};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Data, Disposition};
@@ -37,7 +37,7 @@ fn target(world: &World, data: &Data) -> u8 {
 }
 
 fn attack(world: &mut World, data: &Data, stack: u8) -> Vec<Event> {
-    apply(
+    act(
         world,
         data,
         Command::Combat(CombatCommand::Attack { stack }),
@@ -150,7 +150,7 @@ fn rejections_leave_the_world_untouched() {
     party_of(&mut world, &data, 6);
     let explore = world.clone();
     assert_eq!(
-        apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)),
+        act(&mut world, &data, Command::Combat(CombatCommand::Dodge)),
         Err(Rejection::WrongMode)
     );
     assert_eq!(world, explore);
@@ -173,7 +173,7 @@ fn rejections_leave_the_world_untouched() {
     let before = world.clone();
     let refuse = |world: &mut World, command: CombatCommand, expected: Rejection| {
         assert_eq!(
-            apply(world, &data, Command::Combat(command)),
+            act(world, &data, Command::Combat(command)),
             Err(expected),
             "{command:?}"
         );
@@ -263,7 +263,7 @@ fn dodging_gives_the_monsters_disadvantage_for_the_round() {
     let mut world = world(&data);
     party_of(&mut world, &data, 1);
     start(&mut world, &data, &[("goblin", 3)], Surprise::None);
-    let events = apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+    let events = act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
     let id = world.party.members[0].id;
     assert_eq!(
         events[0],
@@ -309,7 +309,7 @@ fn exchange_swaps_two_slots() {
     let own = world.party.members.iter().position(|m| m.id == id).unwrap();
     let with = (own + 1) % 6;
     let other = world.party.members[with].id;
-    let events = apply(
+    let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Exchange {
@@ -521,7 +521,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
     let mut events = Vec::new();
     let friendly = encounter(&data, &[("giant_rat", 2)], Disposition::Friendly, retreat);
     combat::start(&mut world, &data, friendly, Surprise::None, &mut events).unwrap();
-    let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
+    let events = act(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
     assert!(matches!(
         events[0],
         Event::Check {
@@ -541,7 +541,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
         let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 3);
         start(&mut world, &data, &[("giant_rat", 1)], Surprise::None);
-        let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
+        let events = act(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
         let Event::Check {
             kind: CheckKind::Flee,
             roll: Some(roll),

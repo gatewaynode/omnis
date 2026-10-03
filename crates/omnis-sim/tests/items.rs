@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, world};
 use omnis_core::{ItemId, StreamName};
 use omnis_data::{Data, Disposition, EquipSlot};
 use omnis_sim::command::parse_script;
@@ -533,7 +533,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         if state.current_actor() == Some(ActorRef::Member(brenna)) {
             break;
         }
-        apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
     }
     let glass_row = kit_row(&world, 0, glass);
     refused(
@@ -557,7 +557,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
     );
     let row = kit_row(&world, 0, potion);
     let hp = world.party.members[0].hp;
-    let events = apply(
+    let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Use {

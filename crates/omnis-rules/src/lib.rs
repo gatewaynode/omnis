@@ -17,6 +17,7 @@ mod character;
 mod condition;
 mod effect;
 mod equip;
+mod feature;
 mod level;
 mod monster;
 mod spell;
@@ -34,6 +35,7 @@ pub use effect::{
     roll_bonus,
 };
 pub use equip::{EquipRefusal, Equipped, auto_equip, can_equip, equip, equipped_item, unequip};
+pub use feature::{combat_features, recover_uses, spend_use, spent, uses_left};
 pub use level::{
     Gains, MAX_LEVEL, SpellRefusal, eligible, level_up, max_spell_level, may_learn, next_threshold,
     ready,

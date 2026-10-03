@@ -5,13 +5,13 @@
 
 mod common;
 
-use common::{data, encounter, party_of, six, world};
+use common::{act, data, encounter, party_of, six, world};
 use omnis_core::{Direction, Facing, StreamName};
 use omnis_data::{Ability, BuffOn, Data, Disposition};
 use omnis_sim::omnis_rules::{ActiveEffect, EffectKind, Expiry, armor_class};
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, Command, DevCommand, EffectEnd, EffectTarget,
-    EncounterChoice, Event, Mode, PartyCommand, Rejection, Settings, Surprise, Target, World,
+    EncounterChoice, Event, Mode, PartyCommand, Pay, Rejection, Settings, Surprise, Target, World,
     apply, combat, query,
 };
 
@@ -88,7 +88,7 @@ fn until_turn_of(world: &mut World, data: &Data, slot: usize) -> bool {
         if state.current_actor() == Some(ActorRef::Member(id)) {
             return true;
         }
-        apply(world, data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        act(world, data, Command::Combat(CombatCommand::Dodge)).unwrap();
     }
     panic!("the turn never came");
 }
@@ -166,12 +166,13 @@ fn bless_fans_out_from_the_anchor_and_adds_its_die() {
     start_fight(&mut world, &data, &[("goblin", 2)]);
     assert!(until_turn_of(&mut world, &data, CLERIC));
     let bless = spell_index(&world, &data, CLERIC, "bless");
-    let events = apply(
+    let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Cast {
             spell: bless,
             target: Target::Member(4),
+            pay: Pay::Action,
         }),
     )
     .unwrap();
@@ -197,7 +198,7 @@ fn bless_fans_out_from_the_anchor_and_adds_its_die() {
     assert!(effect.concentration && effect.caster == id(CLERIC));
     assert!(matches!(effect.until, Expiry::Minute(m) if m >= now + 9 && m <= now + 10));
     assert!(until_turn_of(&mut world, &data, 0));
-    let events = apply(
+    let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Attack { stack: 0 }),
@@ -305,12 +306,13 @@ fn damage_breaks_concentration_on_a_failed_constitution_save() {
         }
         let bless = spell_index(&world, &data, CLERIC, "bless");
         let durin = world.party.members[CLERIC].id;
-        apply(
+        act(
             &mut world,
             &data,
             Command::Combat(CombatCommand::Cast {
                 spell: bless,
                 target: slot(CLERIC),
+                pay: Pay::Action,
             }),
         )
         .unwrap();
@@ -318,7 +320,7 @@ fn damage_breaks_concentration_on_a_failed_constitution_save() {
             if !until_turn_of(&mut world, &data, CLERIC) {
                 break;
             }
-            let events = apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+            let events = act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
             for (i, e) in events.iter().enumerate() {
                 if let Event::Check {
                     actor: ActorRef::Member(who),
@@ -404,14 +406,15 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
         let cast = Command::Combat(CombatCommand::Cast {
             spell: shield,
             target: Target::Member(0),
+            pay: Pay::Action,
         });
         assert_eq!(
-            apply(&mut world, &data, cast),
+            act(&mut world, &data, cast),
             Err(Rejection::NotCastable { spell: shield }),
             "a reaction is not cast from the picker"
         );
         let points_before = world.party.members[0].spell_points;
-        let events = apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        let events = act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
         let ilvara = world.party.members[0].id;
         let (r, h) = shield_outcomes(&events, ilvara);
         reacted += r;
@@ -629,9 +632,10 @@ fn mage_hand_toggles_the_first_door_ahead() {
     let cast = Command::Combat(CombatCommand::Cast {
         spell: index,
         target: Target::Stack(0),
+        pay: Pay::Action,
     });
     assert_eq!(
-        apply(&mut world, &data, cast),
+        act(&mut world, &data, cast),
         Err(Rejection::NotCastable { spell: index })
     );
     let view = omnis_sim::combat_view(&world, &data).unwrap();
@@ -706,6 +710,7 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
         Command::Combat(CombatCommand::Cast {
             spell: cure,
             target: Target::Member(0),
+            pay: Pay::Action,
         }),
         Rejection::WrongMode,
     );

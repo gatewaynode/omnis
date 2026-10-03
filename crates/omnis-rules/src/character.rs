@@ -90,6 +90,10 @@ pub struct Character {
     /// Spells owed by levels gained and not yet chosen at a trainer (`crate::level`).
     #[serde(default)]
     pub spell_picks: u8,
+    /// Uses of class features spent since the rest that restores them, as `(feature name key,
+    /// uses)`, sorted (`crate::feature`).
+    #[serde(default)]
+    pub feature_spent: Vec<(String, u8)>,
 }
 
 impl Character {
@@ -255,6 +259,7 @@ pub fn create(
         auto_cast: Vec::new(),
         hit_dice_spent: 0,
         spell_picks: 0,
+        feature_spent: Vec::new(),
     };
     let pool = spell_point_pool(&character, data, rng)?;
     character.spell_points = pool;

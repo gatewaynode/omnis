@@ -3,6 +3,7 @@
 
 use crate::dev::DevCommand;
 use crate::encounter::EncounterSource;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{
     CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
@@ -291,6 +292,21 @@ pub enum Event {
     Dodging {
         /// Who.
         actor: ActorRef,
+    },
+    /// A class feature was used; its effect follows (`Healed`, a `Check`, `Exchanged`).
+    FeatureUsed {
+        /// Who.
+        member: CharacterId,
+        /// The feature's name key.
+        feature: String,
+    },
+    /// A front stack's lead individual swings at a member leaving the engagement; the attack
+    /// events follow.
+    OpportunityAttack {
+        /// The stack.
+        stack: u8,
+        /// The member.
+        member: CharacterId,
     },
     /// Two members swapped marching-order slots.
     Exchanged {

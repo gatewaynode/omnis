@@ -13,7 +13,7 @@ use crate::party;
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, SpellId};
-use omnis_data::{BuffOn, Data, Reach, Spell, SpellEffect};
+use omnis_data::{BuffOn, Cost, Data, Reach, Spell, SpellEffect};
 use omnis_rules::{
     ActiveEffect, EffectKind, Expiry, RollMode, RuleError, cantrip_dice, damage_roll, flags,
     heal_roll, monster_defenses, monster_save, needs_components, roll_bonus, save_dc, saved_damage,
@@ -64,7 +64,8 @@ pub fn check<'a>(
         .get(&id)
         .ok_or(Rejection::UnknownSpell { spell: index })?;
     let castable = match &spell.effect {
-        // Reactions are cast by the simulation when the moment comes.
+        // Reactions are cast by the simulation when a declared reaction fires.
+        _ if spell.cost == Cost::Reaction => false,
         None | Some(SpellEffect::Reaction { .. }) => false,
         Some(SpellEffect::Utility(_)) => !fight,
         Some(effect) => fight || effect.explore_castable(),
@@ -417,7 +418,7 @@ fn cast_attack(
     let target = ActorRef::Monster { stack, index: 0 };
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let mode = RollMode::combine(
-        false,
+        state.reveal(caster.id),
         flags(&caster.conditions, data).own_attacks_disadvantage,
     );
     let ac = i64::from(monster.ac);

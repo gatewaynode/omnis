@@ -46,7 +46,7 @@ pub(crate) fn member_attacks(
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let (bonus, proficiency) = attack_bonus(member, data, weapon)?;
     let mode = RollMode::combine(
-        false,
+        state.reveal(actor),
         flags(&member.conditions, data).own_attacks_disadvantage,
     );
     let ac = i64::from(monster.ac);
@@ -209,11 +209,12 @@ pub(crate) fn monster_turn(
     Ok(())
 }
 
+/// One monster attack at the member in slot `member_index`: shield may answer it, then damage.
 #[allow(clippy::too_many_arguments)]
-fn monster_attacks_member(
+pub(crate) fn monster_attacks_member(
     world: &mut World,
     data: &Data,
-    state: &CombatState,
+    state: &mut CombatState,
     attacker: ActorRef,
     member_index: usize,
     attack: &Attack,
@@ -236,7 +237,7 @@ fn monster_attacks_member(
         &mut roller.rng,
         &roller.stream,
     )?;
-    try_shield(world, data, member_index, &mut roll, roller, events)?;
+    try_shield(world, data, state, member_index, &mut roll, roller, events)?;
     let crit = roll.crit || (roll.hit && condition_flags.melee_hits_crit && !attack.ranged);
     events.push(Event::AttackResolved {
         attacker,

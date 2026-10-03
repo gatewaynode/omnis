@@ -44,8 +44,8 @@ const REASON_COLUMN: i32 = 32;
 const REASON_CELLS: usize = 24;
 /// Cells of a stack row: the text, a gap, the reason.
 const STACK_CELLS: usize = REASON_COLUMN as usize - 1 + REASON_CELLS;
-/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run.
-const COMBAT_ACTION_COLUMNS: [i32; 6] = [1, 9, 15, 20, 27, 37];
+/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run, End.
+const COMBAT_ACTION_COLUMNS: [i32; 7] = [1, 9, 15, 20, 27, 37, 42];
 /// Cells a spell picker row takes: `{name:<18} {cost:>2} pt  {note:<16}`.
 const SPELL_ROW_CELLS: usize = 44;
 /// Spell rows the picker shows: the bottom panel's rows under its header.
@@ -455,7 +455,7 @@ mod tests {
         };
         combat(&mut frame, &view, &menu);
         laid_out(&frame);
-        assert_eq!(frame.widgets.len(), 10, "four stacks, six actions");
+        assert_eq!(frame.widgets.len(), 11, "four stacks, seven actions");
         assert!(
             frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
             "use is live"
