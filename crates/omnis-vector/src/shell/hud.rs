@@ -1,0 +1,94 @@
+//! The HUD: a status block and the recent event lines (alt-ARCHITECTURE.md §8).
+
+use super::VectorSet;
+use super::session::Session;
+use bevy::prelude::*;
+use omnis_sim::Mode;
+
+/// Marks the status text.
+#[derive(Component)]
+pub struct StatusText;
+
+/// The status block, top left.
+pub struct HudPlugin;
+
+impl Plugin for HudPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, spawn)
+            .add_systems(Update, status.in_set(VectorSet::Draw));
+    }
+}
+
+fn spawn(mut commands: Commands) {
+    commands.spawn((
+        StatusText,
+        Text::new(""),
+        TextFont {
+            font_size: FontSize::Px(18.0),
+            ..default()
+        },
+        TextColor(Color::srgb(0.55, 1.0, 0.65)),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(16.0),
+            top: Val::Px(16.0),
+            ..default()
+        },
+    ));
+}
+
+/// Day, hour and minute from elapsed party minutes.
+#[must_use]
+pub fn clock(elapsed: i64) -> String {
+    let day = elapsed.div_euclid(1440) + 1;
+    let minute = elapsed.rem_euclid(1440);
+    format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
+}
+
+fn mode_name(mode: &Mode) -> &'static str {
+    match mode {
+        Mode::Explore => "Exploring",
+        Mode::Encounter(_) => "Encounter",
+        Mode::Combat(_) => "Combat",
+    }
+}
+
+fn status(session: Res<Session>, time: Res<Time>, mut text: Query<&mut Text, With<StatusText>>) {
+    let Ok(mut text) = text.single_mut() else {
+        return;
+    };
+    let w = &session.world;
+    let map = session
+        .data
+        .maps
+        .get(&w.position.map)
+        .map_or("?", |m| m.def.id.as_str());
+    let fps = 1.0 / time.delta_secs().max(1e-4);
+    let mut out = format!(
+        "{map}  cell ({}, {}) facing {:?}\n{}  {}\ncommands {}  refusals {}  disagreements {}  {fps:.0} fps\n",
+        w.position.x,
+        w.position.y,
+        w.position.facing,
+        mode_name(&w.mode),
+        clock(w.party_clock().elapsed),
+        session.binder.log.len(),
+        session.binder.refusals,
+        session.binder.disagreements,
+    );
+    for line in &session.lines {
+        out.push('\n');
+        out.push_str(line);
+    }
+    text.0 = out;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clock;
+
+    #[test]
+    fn the_clock_reads_days_hours_minutes() {
+        assert_eq!(clock(0), "Day 1 00:00");
+        assert_eq!(clock(1440 + 61), "Day 2 01:01");
+    }
+}

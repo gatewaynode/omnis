@@ -1,0 +1,32 @@
+# Alt TODO: the 3D presentation experiment
+
+Branch `gui-3d-experiment`. Vision: `alt-PRD.md`; shape: `alt-ARCHITECTURE.md`. Kept apart from
+`tasks/TODO.md` so that merges from `main` never conflict here. The working agreements in
+`tasks/knowledge/agreements.md` apply: one commit per checked item, the gate run unpiped, a Sentrux
+check before every commit, and never push.
+
+## Phase A — exploration in 3D (owner go-ahead 2026-10-02)
+
+Target: a working viewer soon. Each step leaves a runnable or testable state.
+
+- [x] A0 Vision documents: `alt-PRD.md` v0.2 and `alt-ARCHITECTURE.md` v0.2
+- [x] A1 Crate skeleton: `crates/omnis-vector` (library and `omnis-vector` binary), a member in the root `Cargo.toml`, Bevy features `2d png bevy_pbr ui`. Measure before and after: `Cargo.lock` package count, duplicates, gate time
+- [x] A2 The core's grid math (`geom.rs`, `grid.rs`) with unit tests: cells, facing hysteresis, relative directions, turns, ordered crossings
+- [x] A3 The collision mirror (`collide.rs`) and the agreement test against `omnis_sim::apply` on every cell, edge and door of the test maps
+- [x] A4 The binder and the command log (`bind.rs`, `log.rs`), with headless binding tests: rest equals the simulation's position, jitter, corners, walls, portal, a placed encounter, one random check per cell entered, and the replay fingerprint
+- [x] A5 Geometry extraction (`geometry.rs`) with tests: shared walls once, doors, blocks, the floor grid
+- [x] A6 The Bevy shell: the simulation, input, motion and binding, a `Camera3d` with HDR and bloom, gizmo lines with distance fade. **First walkable build.** Shell smoke test
+- [ ] A7 HUD (text and every action as a button) and the minimap; the fight notice with the encounter choices; saving the log by button
+- [ ] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
+
+### A1–A6 review (2026-10-02)
+- Landed as one crate commit, not one commit per item: the items were built together to reach a walkable build fast; the owner asked for "something working soon".
+- Tests: 32 in `omnis-vector`; the gate went from 353 to 385 passed (6 ignored), green, with no new duplicate crates. The agreement test checks 4 × (24² + 32²) = 6,400 cell edges plus every door opened. The replay test walks a session through the portal and a door into the placed encounter, and reproduces the live world's fingerprint.
+- Seen working: `omnis-vector --screenshot .omnis/shot-260.png --walk 260` walks up the meadow road, through the portal, and down the dungeon to (1, 5). It shows the walls, the ceiling grid and the closed door (amber cross), with 20 commands, 0 refusals and 0 disagreements.
+- Captures render offscreen (the camera targets an image), because a window opened from a non-GUI shell gets no frames on macOS. `omnis-app`'s own `--screenshot` times out the same way there.
+- `Cargo.lock` changed by one entry, the crate itself: the lock already lists Bevy's optional crates. The crate count added by `bevy_pbr` and `ui` is measured from `cargo tree` in A8.
+- Environment: Xcode's licence is not accepted on this machine, so `xcodebuild` refuses and native build scripts fail. Builds here ran with `DEVELOPER_DIR=/Library/Developer/CommandLineTools` until the owner runs `sudo xcodebuild -license accept`.
+- Sentrux: the rules file is local and gitignored. It was copied from the main checkout with `omnis-vector` added to the clients layer and three boundaries (no `omnis-data`, `omnis-core` or `omnis-app` imports). Rules pass.
+
+## Phase B — the 2D combat screen (after A reports)
+- [ ] B0 Plan in plan mode; decide alt-PRD §10.3 (reuse `omnis-app`'s combat menu model or write fresh)

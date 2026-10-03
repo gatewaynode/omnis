@@ -11,6 +11,8 @@ members = [
     "crates/omnis-app",
     "crates/omnis-cli",
     "crates/omnis-mcp",
+    # The 3D presentation experiment (alt-PRD.md); not a simulation crate.
+    "crates/omnis-vector",
 ]
 
 [workspace.package]

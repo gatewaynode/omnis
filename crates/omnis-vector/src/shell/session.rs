@@ -1,0 +1,242 @@
+//! The session resource and the command line (alt-ARCHITECTURE.md §6, §12).
+
+use super::text::describe;
+use crate::bind::Binder;
+use crate::party;
+use crate::pose::Pose;
+use bevy::prelude::Resource;
+use omnis_sim::omnis_data::{Data, load_packs};
+use omnis_sim::{Command, Event, PartyCommand, Settings, World};
+use std::path::{Component, Path, PathBuf};
+
+/// What the command line asked for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Config {
+    /// Pack roots, loaded in order.
+    pub packs: Vec<PathBuf>,
+    /// The world seed.
+    pub seed: u64,
+    /// A window instead of borderless fullscreen.
+    pub windowed: bool,
+    /// Where the command log is written.
+    pub log: PathBuf,
+    /// Capture the window to this file and exit (a check of the view without a person).
+    pub screenshot: Option<PathBuf>,
+    /// Frames to hold forward before the capture.
+    pub walk: u32,
+    /// The capture's size in pixels.
+    pub size: (u32, u32),
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            packs: vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")],
+            seed: 1,
+            windowed: false,
+            log: PathBuf::from(".omnis/vector-session.ron"),
+            screenshot: None,
+            walk: 0,
+            size: (1600, 900),
+        }
+    }
+}
+
+/// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>`, `--windowed`,
+/// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
+/// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
+/// `--size WxH` (the offscreen capture's size).
+///
+/// # Errors
+/// A message naming the bad argument.
+pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
+    let mut config = Config::default();
+    let mut packs = Vec::new();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
+        match arg.as_str() {
+            "--pack" => packs.push(PathBuf::from(value("--pack")?)),
+            "--seed" => {
+                config.seed = value("--seed")?
+                    .parse()
+                    .map_err(|_| "--seed takes a number".to_owned())?
+            }
+            "--windowed" => config.windowed = true,
+            "--log" => {
+                let path = PathBuf::from(value("--log")?);
+                if !safe_relative(&path) {
+                    return Err("--log takes a relative path without '..'".to_owned());
+                }
+                config.log = path;
+            }
+            "--screenshot" => {
+                let path = PathBuf::from(value("--screenshot")?);
+                if !safe_relative(&path) {
+                    return Err("--screenshot takes a relative path without '..'".to_owned());
+                }
+                config.screenshot = Some(path);
+            }
+            "--size" => config.size = size(&value("--size")?)?,
+            "--walk" => {
+                config.walk = value("--walk")?
+                    .parse()
+                    .map_err(|_| "--walk takes a frame count".to_owned())?
+            }
+            other => return Err(format!("unknown argument {other}")),
+        }
+    }
+    if !packs.is_empty() {
+        config.packs = packs;
+    }
+    Ok(config)
+}
+
+/// `WIDTHxHEIGHT`, each 16..=8192.
+fn size(text: &str) -> Result<(u32, u32), String> {
+    let bad = || format!("--size takes WIDTHxHEIGHT, got {text}");
+    let (w, h) = text.split_once('x').ok_or_else(bad)?;
+    let (w, h): (u32, u32) = (w.parse().map_err(|_| bad())?, h.parse().map_err(|_| bad())?);
+    if (16..=8192).contains(&w) && (16..=8192).contains(&h) {
+        Ok((w, h))
+    } else {
+        Err(bad())
+    }
+}
+
+fn safe_relative(path: &Path) -> bool {
+    path.components()
+        .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        && path.components().next().is_some()
+}
+
+/// The simulation and everything the binder keeps, in one resource so a system can borrow the
+/// world, the data and the binder together.
+#[derive(Resource)]
+pub struct Session {
+    /// The loaded packs.
+    pub data: Data,
+    /// The authoritative world.
+    pub world: World,
+    /// Pose-to-command translation and the accepted-command log.
+    pub binder: Binder,
+    /// The camera's pose.
+    pub pose: Pose,
+    /// The seed and settings the world started with, for the replay.
+    pub seed: u64,
+    /// See `seed`.
+    pub settings: Settings,
+    /// Where the log is written.
+    pub log_path: PathBuf,
+    /// Recent event lines for the HUD, newest last.
+    pub lines: Vec<String>,
+    /// A door moved: the 3D lines must be rebuilt.
+    pub reshape: bool,
+}
+
+impl Session {
+    /// Load the packs, start a world, and create the fixed party through the binder.
+    ///
+    /// # Errors
+    /// A message for a pack that fails to load or a world that cannot start.
+    pub fn start(config: &Config) -> Result<Session, String> {
+        let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
+        let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
+        let settings = Settings::default();
+        let mut world = World::new(&data, config.seed, settings).map_err(|e| format!("{e:?}"))?;
+        let mut binder = Binder::default();
+        for draft in party::fixed() {
+            binder
+                .apply(
+                    &mut world,
+                    &data,
+                    Command::Party(PartyCommand::Create(draft)),
+                )
+                .map_err(|e| format!("party: {e:?}"))?;
+        }
+        let pose = Pose::at(world.position);
+        Ok(Session {
+            data,
+            world,
+            binder,
+            pose,
+            seed: config.seed,
+            settings,
+            log_path: config.log.clone(),
+            lines: Vec::new(),
+            reshape: false,
+        })
+    }
+
+    /// Record the session as a replay at `log_path`.
+    ///
+    /// # Errors
+    /// The log did not reproduce, or the file could not be written.
+    pub fn save_log(&self) -> Result<PathBuf, String> {
+        let replay = self
+            .binder
+            .replay(&self.data, self.seed, self.settings)
+            .map_err(|e| e.to_string())?;
+        if let Some(dir) = self.log_path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        omnis_sim::omnis_data::ron_io::write_ron(&self.log_path, &replay)
+            .map_err(|e| e.to_string())?;
+        Ok(self.log_path.clone())
+    }
+
+    /// Take in a frame's events: HUD lines for the ones worth showing, and the reshape flag.
+    pub fn note(&mut self, events: &[Event]) {
+        self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
+        for line in events.iter().filter_map(describe) {
+            self.say(line);
+        }
+    }
+
+    /// Add a line to the HUD's recent events, keeping the last eight.
+    pub fn say(&mut self, line: String) {
+        self.lines.push(line);
+        let excess = self.lines.len().saturating_sub(8);
+        self.lines.drain(..excess);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn defaults_load_both_packs() {
+        let config = parse(Vec::new()).expect("no arguments");
+        assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn flags_parse_and_packs_replace_the_defaults() {
+        let config = parse(args(&[
+            "--pack",
+            "a",
+            "--pack",
+            "b",
+            "--seed",
+            "9",
+            "--windowed",
+        ]))
+        .expect("valid");
+        assert_eq!(config.packs, vec![PathBuf::from("a"), PathBuf::from("b")]);
+        assert_eq!((config.seed, config.windowed), (9, true));
+    }
+
+    #[test]
+    fn the_log_path_stays_inside_the_working_tree() {
+        assert!(parse(args(&["--log", "out/session.ron"])).is_ok());
+        assert!(parse(args(&["--log", "../escape.ron"])).is_err());
+        assert!(parse(args(&["--log", "/etc/passwd"])).is_err());
+        assert!(parse(args(&["--log", "a/../../b"])).is_err());
+        assert!(parse(args(&["--bogus"])).is_err());
+    }
+}
