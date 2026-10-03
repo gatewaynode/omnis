@@ -8,7 +8,7 @@ use omnis_vector::shell::capture::{Capture, CapturePlugin, CaptureSize};
 use omnis_vector::shell::session::{Session, parse};
 use omnis_vector::shell::{
     ShellPlugin, controls::ControlsPlugin, fight::FightPlugin, hud::HudPlugin,
-    movement::MovementPlugin, render::RenderPlugin,
+    minimap::MinimapPlugin, movement::MovementPlugin, render::RenderPlugin,
 };
 use std::time::Duration;
 
@@ -66,6 +66,7 @@ fn main() -> AppExit {
         HudPlugin,
         ControlsPlugin,
         FightPlugin,
+        MinimapPlugin,
         CapturePlugin,
     ));
     app.run()

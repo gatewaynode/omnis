@@ -156,7 +156,7 @@ from the same `Config`.
 | `RenderPlugin` | Grab, Draw | Click grabs the cursor and Esc releases it; a notice releases it and keeps it free. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
 | `HudPlugin` | Draw | `bevy_ui` status text (`default_font`) and the recent event lines |
 | `CapturePlugin` | PreStartup, Input | `--screenshot PATH [--walk FRAMES] [--size WxH]`: renders offscreen into an image (no window, `ScheduleRunnerPlugin`), walks, captures, exits |
-| `MinimapPlugin` | Draw | Planned for A7: paints the automap into a small `Image` shown as a UI node |
+| `MinimapPlugin` | Draw | The minimap (A7c, §8): `minimap::paint` uploaded into a small `Image` shown as a UI node. Needs `Assets<Image>`, so a window or the offscreen capture |
 
 `Interact` is sent as `Command::Interact` through the binder, so it is logged. It applies to the
 simulation's facing, which the HUD shows.
@@ -193,12 +193,12 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
   - the last event line (`Moved`, `Blocked`, `Door`, `EncounterStarted`)
   - the reconcile counters (rejections, mirror disagreements)
   - frames per second
-- **Bottom row of buttons:** forward, back, strafe left, strafe right, turn left 90°, turn right 90°, interact, save log, and quit. They follow the LESSONS rule that a button comes before a key; no function keys.
+- **Button pad, bottom left (as built, A7a):** forward, back, strafe left, strafe right, turn left 90°, turn right 90°, interact, save log, and quit. They follow the LESSONS rule that a button comes before a key; no function keys.
   - The turn buttons animate the yaw by 90°, and the binder emits the `Turn`.
-- **Minimap:**
-  - The automap is painted from `world.automap` on the current map: visited cells, seen cells and walls.
-  - The party marker shows the *pose* (a dot and a heading line), so the gap between the continuous pose and the grid stays visible.
-  - It is redrawn on `Event::Visible` and on a change of cell.
+- **Minimap (as built, A7c):** top right, 192 pixels on its long side, in whole pixels per cell (at least two).
+  - `minimap::paint` (Bevy-free) paints the current map's `world.automap` tiles: visited cells brighter than cells only seen, then walls and doors. Edges are canonical, as in `geometry::extract`, because the map may record a shared edge on one side only.
+  - The party marker is a triangle at the *pose*, pointing along the yaw, so the gap between the continuous pose and the grid stays visible.
+  - `shell/minimap.rs` uploads the pixels into an `Image` shown by an `ImageNode`. It repaints only when the map, the accepted-command count (the automap changes only on an accepted command), the marker's pixel or its heading (to 1/16 of a turn) changes.
 
 ## 9. View state, party, and combat
 
