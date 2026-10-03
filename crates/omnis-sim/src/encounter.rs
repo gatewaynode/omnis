@@ -12,7 +12,7 @@ use crate::world::{Mode, World};
 use alloc::format;
 use alloc::vec::Vec;
 use core::cmp::Reverse;
-use omnis_core::{Dice, Facing, MonsterId, Position, RollTrace, StreamName};
+use omnis_core::{Dice, Facing, MapId, MonsterId, Position, RollTrace, StreamName};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Ability, Data, Disposition, ResolvedRandom, Skill};
 use omnis_rules::{
@@ -378,6 +378,25 @@ pub(crate) fn clear_once(world: &mut World, data: &Data, source: EncounterSource
     if once {
         world.map_state(map).cleared.insert(i);
     }
+}
+
+/// The groups placed `once` on a map, and how many of them are cleared: a map is cleared by
+/// combat when the two are equal (one way among many to pass it).
+#[must_use]
+pub fn groups_cleared(world: &World, data: &Data, map: MapId) -> (u16, u16) {
+    let Some(def) = data.maps.get(&map) else {
+        return (0, 0);
+    };
+    let cleared = world.maps.get(&map).map(|s| &s.cleared);
+    let (mut done, mut total) = (0u16, 0u16);
+    for (i, _) in def.encounters.iter().enumerate().filter(|(_, e)| e.once) {
+        total = total.saturating_add(1);
+        let i = u16::try_from(i).unwrap_or(u16::MAX);
+        if cleared.is_some_and(|c| c.contains(&i)) {
+            done = done.saturating_add(1);
+        }
+    }
+    (done, total)
 }
 
 /// The party's choice before a fight.

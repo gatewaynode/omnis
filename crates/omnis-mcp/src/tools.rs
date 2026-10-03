@@ -81,7 +81,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "game_status",
             "game.status",
-            "Mode, turn, party clock, position, map, packs, and the world fingerprint.",
+            "Mode, turn, party clock, position, map, packs, the world fingerprint, the service the party is inside, and the groups placed once on its map that are cleared out of how many.",
             &[],
         ),
         tool(
@@ -166,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, hit dice and those left, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
             &[],
         ),
         tool(

@@ -182,10 +182,32 @@ fn lists(view: &ServiceView, rows: &[OfferRow]) -> Vec<(&'static str, Vec<(usize
                 pick(|c| matches!(c, ServiceCommand::Sell { .. })),
             ),
         ],
-        ServiceKind::Inn | ServiceKind::Tavern | ServiceKind::Temple => {
-            vec![("On offer", pick(|_| true))]
-        }
-        ServiceKind::Bank | ServiceKind::Trainer | ServiceKind::Guild => Vec::new(),
+        ServiceKind::Inn | ServiceKind::Tavern => vec![("On offer", pick(|_| true))],
+        ServiceKind::Temple => vec![
+            (
+                "On offer",
+                pick(|c| !matches!(c, ServiceCommand::Learn { .. })),
+            ),
+            (
+                "Spells",
+                pick(|c| matches!(c, ServiceCommand::Learn { .. })),
+            ),
+        ],
+        ServiceKind::Trainer => vec![
+            (
+                "Levels",
+                pick(|c| matches!(c, ServiceCommand::Train { .. })),
+            ),
+            (
+                "Spell picks",
+                pick(|c| matches!(c, ServiceCommand::Choose { .. })),
+            ),
+        ],
+        ServiceKind::Guild => vec![(
+            "Spells",
+            pick(|c| matches!(c, ServiceCommand::Learn { .. })),
+        )],
+        ServiceKind::Bank => Vec::new(),
     }
 }
 
@@ -199,7 +221,6 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
         .then(bank_row)
         .into_iter()
         .collect();
-    let note: Vec<_> = model::note_for(view.kind).map(label).into_iter().collect();
     bsn! {
         panel_root()
         Children [
@@ -214,10 +235,6 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
             (
                 Node { display: Display::Flex, flex_direction: FlexDirection::Column }
                 Children [ {bank} ]
-            ),
-            (
-                Node { display: Display::Flex, flex_direction: FlexDirection::Column }
-                Children [ {note} ]
             ),
             (
                 Node {

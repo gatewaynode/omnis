@@ -8,7 +8,7 @@
 use crate::text::coins;
 use crate::ui_model::Payload;
 use omnis_sim::omnis_core::fnv1a64;
-use omnis_sim::omnis_data::{Data, ServiceKind};
+use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_rules::Character;
 use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView, World};
 
@@ -324,16 +324,6 @@ pub fn money_line(view: &ServiceView) -> String {
     )
 }
 
-/// What a service that has nothing on offer yet says.
-#[must_use]
-pub const fn note_for(kind: ServiceKind) -> Option<&'static str> {
-    match kind {
-        ServiceKind::Trainer => Some("Training opens in a later version (M7b)."),
-        ServiceKind::Guild => Some("The guild's spells open in a later version (M7b)."),
-        _ => None,
-    }
-}
-
 /// What the panel's entity tree depends on: the service, each offer's command and what its
 /// row names. Prices, refusals and counts are rewritten in place; a sale that empties a row
 /// or a purchase that adds one builds the panel again.
@@ -353,6 +343,7 @@ pub fn shape(view: &ServiceView, rows: &[OfferRow]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::omnis_data::ServiceKind;
 
     fn offer(command: ServiceCommand, price: Option<u32>, refusal: Option<Rejection>) -> OfferView {
         OfferView {
@@ -530,7 +521,7 @@ mod tests {
             "Gold 16 gp 5 sp 0 cp · Bank 2 gp 0 sp 0 cp · Food 10"
         );
         assert_eq!(caption(ServiceCommand::Room), "Take a room");
-        assert!(note_for(ServiceKind::Trainer).is_some() && note_for(ServiceKind::Inn).is_none());
+        assert_eq!(caption(ServiceCommand::Train { member: 0 }), "Train");
     }
 
     #[test]

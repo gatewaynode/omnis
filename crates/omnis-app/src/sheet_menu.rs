@@ -97,6 +97,10 @@ pub struct SheetView {
     pub sp: (u32, u32),
     /// Hit dice as `(left, total, sides)`: one per level, spent on short rests.
     pub hit_dice: (u8, u8, u8),
+    /// The experience has reached a level a trainer has not granted.
+    pub ready: bool,
+    /// Spells owed by levels, chosen at a trainer.
+    pub spell_picks: u8,
     /// Armour class.
     pub ac: i64,
     /// Proficiency bonus.
@@ -171,6 +175,8 @@ pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView
             m.level,
             class.map_or(8, |c| c.hit_die),
         ),
+        ready: omnis_sim::omnis_rules::ready(m, data).unwrap_or(false),
+        spell_picks: m.spell_picks,
         ac: armor_class(m, data),
         proficiency,
         xp: m.xp,
@@ -358,6 +364,8 @@ pub(crate) mod tests {
             hp: (12, 12),
             sp: (0, 0),
             hit_dice: (1, 1, 10),
+            ready: false,
+            spell_picks: 0,
             ac: 18,
             proficiency: 2,
             xp: 25,
@@ -490,6 +498,16 @@ pub(crate) mod tests {
             sheet_view(&world, &data, 0).expect("the fighter").hit_dice,
             (0, 1, 10),
             "spent on a short rest"
+        );
+        let fresh = sheet_view(&world, &data, 0).unwrap();
+        assert_eq!((fresh.ready, fresh.spell_picks), (false, 0));
+        world.party.members[0].xp = 300;
+        world.party.members[0].spell_picks = 2;
+        let trained = sheet_view(&world, &data, 0).unwrap();
+        assert_eq!(
+            (trained.ready, trained.spell_picks),
+            (true, 2),
+            "300 XP: level 2 waits"
         );
         assert_eq!(sheet_view(&world, &data, 2), None, "no third member");
     }

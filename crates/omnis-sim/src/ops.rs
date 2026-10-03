@@ -211,6 +211,9 @@ pub struct Status {
     /// The id of the service the party is inside, if it is inside one.
     #[serde(default)]
     pub service: Option<String>,
+    /// The groups placed `once` on the party's map that are cleared, and how many there are.
+    #[serde(default)]
+    pub groups_cleared: (u16, u16),
 }
 
 /// One known tile.
@@ -281,6 +284,12 @@ pub struct MemberView {
     /// Hit dice not yet spent on short rests.
     #[serde(default)]
     pub hit_dice_left: u8,
+    /// Spells owed by levels and not yet chosen at a trainer.
+    #[serde(default)]
+    pub spell_picks: u8,
+    /// The experience has reached a level a trainer has not granted.
+    #[serde(default)]
+    pub ready: bool,
 }
 
 /// One row of a kit or the stores.
@@ -670,6 +679,8 @@ fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> Me
         effects: effect_names(data, &member.effects),
         hit_dice: member.level,
         hit_dice_left: member.level.saturating_sub(member.hit_dice_spent),
+        spell_picks: member.spell_picks,
+        ready: omnis_rules::ready(member, data).unwrap_or(false),
     }
 }
 
@@ -748,6 +759,7 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
             Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
             _ => None,
         },
+        groups_cleared: crate::encounter::groups_cleared(world, data, world.position.map),
     })
 }
 

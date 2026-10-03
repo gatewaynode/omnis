@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{data, inside};
+use common::{data, inside, inside_with};
 use omnis_data::ServiceKind;
 use omnis_sim::ops::party_view;
 use omnis_sim::{
@@ -86,8 +86,8 @@ fn the_temple_says_why_not_for_each_member() {
     let view = service_view(&world, &data).unwrap();
     assert_eq!(
         view.offers.len(),
-        2 * 3 + 1,
-        "heal, cure, raise per member, leave"
+        2 * 3 + 5 + 1,
+        "heal, cure, raise per member, the cleric's five spells, leave"
     );
     let heal = offer(&view.offers, ServiceCommand::Heal { member: 0 });
     assert_eq!(heal.member, Some(0));
@@ -97,6 +97,106 @@ fn the_temple_says_why_not_for_each_member() {
     assert_eq!(raise.refusal, Some(Rejection::NotDead { index: 0 }));
     let wounded = offer(&view.offers, ServiceCommand::Heal { member: 1 });
     assert_eq!((wounded.price, wounded.refusal.clone()), (Some(300), None));
+}
+
+/// Every offer is what its command does: an open one charges its price and a refused one is
+/// refused for the same reason.
+fn offers_agree_with_their_commands(world: &omnis_sim::World, data: &omnis_data::Data) -> usize {
+    let view = service_view(world, data).unwrap();
+    for offer in view
+        .offers
+        .iter()
+        .filter(|o| o.command != ServiceCommand::Leave)
+    {
+        let mut after = world.clone();
+        let result = apply(&mut after, data, Command::Service(offer.command));
+        match &offer.refusal {
+            Some(refusal) => assert_eq!(result, Err(refusal.clone()), "{offer:?}"),
+            None => {
+                assert!(result.is_ok(), "{offer:?}: {result:?}");
+                let paid = world.party.gold - after.party.gold;
+                assert_eq!(Some(paid), offer.price, "{offer:?}");
+            }
+        }
+    }
+    view.offers.len()
+}
+
+#[test]
+fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
+    let data = data();
+    let mut world = inside_with(&data, "trainer", 3);
+    world.party.gold = 100_000;
+    world.party.members[1].xp = 300;
+    let view = service_view(&world, &data).unwrap();
+    let train = offer(&view.offers, ServiceCommand::Train { member: 1 });
+    assert_eq!(
+        (train.member, train.price, train.refusal.clone()),
+        (Some(1), Some(2000), None)
+    );
+    let unready = offer(&view.offers, ServiceCommand::Train { member: 0 });
+    assert_eq!(
+        unready.refusal,
+        Some(Rejection::NotReady {
+            index: 0,
+            xp: 0,
+            needed: 300
+        })
+    );
+    assert_eq!(
+        offers_agree_with_their_commands(&world, &data),
+        3 + 1,
+        "no picks owed yet"
+    );
+
+    apply(&mut world, &data, Command::Service(train.command)).unwrap();
+    let view = service_view(&world, &data).unwrap();
+    let rows: Vec<(u8, bool)> = view
+        .offers
+        .iter()
+        .filter_map(|o| match o.command {
+            ServiceCommand::Choose { member: 1, spell } => Some((spell, o.refusal.is_none())),
+            _ => None,
+        })
+        .collect();
+    // Healing word, guiding bolt, inflict wounds now; spiritual weapon and prayer of healing at
+    // level 3.
+    assert_eq!(
+        rows,
+        [(5, true), (6, true), (7, true), (8, false), (9, false)]
+    );
+    assert_eq!(
+        offer(
+            &view.offers,
+            ServiceCommand::Choose {
+                member: 1,
+                spell: 5
+            }
+        )
+        .price,
+        Some(0)
+    );
+    offers_agree_with_their_commands(&world, &data);
+
+    for name in ["guild", "temple"] {
+        let mut world = inside_with(&data, name, 3);
+        world.party.gold = 100_000;
+        let count = offers_agree_with_their_commands(&world, &data);
+        let view = service_view(&world, &data).unwrap();
+        let learners: Vec<Option<u8>> = view
+            .offers
+            .iter()
+            .filter(|o| matches!(o.command, ServiceCommand::Learn { .. }))
+            .map(|o| o.member)
+            .collect();
+        let caster = if name == "guild" { 2 } else { 1 };
+        assert!(!learners.is_empty(), "{name}");
+        assert!(
+            learners.iter().all(|m| *m == Some(caster)),
+            "{name}: {learners:?}"
+        );
+        assert!(count > learners.len(), "{name}");
+    }
 }
 
 #[test]

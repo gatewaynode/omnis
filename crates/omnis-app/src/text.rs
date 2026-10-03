@@ -32,6 +32,8 @@ pub struct Names {
     services: BTreeMap<ServiceId, (String, Vec<String>)>,
     /// A map's rest-event lines, in its file's order.
     rest_events: BTreeMap<MapId, Vec<String>>,
+    /// Class features by text key (a level-up names the ones it brings).
+    features: BTreeMap<String, String>,
 }
 
 impl Names {
@@ -95,6 +97,14 @@ impl Names {
                 self.services.insert(*id, (name, rumors));
             }
         }
+        if self.features.is_empty() {
+            for class in data.classes.values() {
+                for feature in &class.features {
+                    let label = data.label("en", &feature.name).to_owned();
+                    self.features.insert(feature.name.clone(), label);
+                }
+            }
+        }
         if self.rest_events.is_empty() {
             for (id, map) in &data.maps {
                 let lines = map
@@ -142,6 +152,12 @@ impl Names {
     #[must_use]
     pub fn spell(&self, id: SpellId) -> &str {
         self.spells.get(&id).map_or("?", String::as_str)
+    }
+
+    /// A class feature's name, by its text key.
+    #[must_use]
+    pub fn feature<'a>(&'a self, key: &'a str) -> &'a str {
+        self.features.get(key).map_or(key, String::as_str)
     }
 
     /// An item's name.

@@ -346,3 +346,38 @@ fn the_words_name_the_new_commands() {
     let words: Vec<&str> = script.iter().map(Command::word).collect();
     assert_eq!(words, ["train", "choose", "learn"]);
 }
+
+#[test]
+fn the_views_count_the_dungeon_s_groups_and_say_who_may_train() {
+    use omnis_sim::ops::{party_view, status};
+    let data = data();
+    let mut world = common::world(&data);
+    common::party_of(&mut world, &data, 2);
+    let (_, events) = common::play(&mut world, &data, &common::walk_to_the_rats());
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::CombatEnded { .. })),
+        "the rats are fought"
+    );
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert_eq!(world.position.map, dungeon);
+    // Ten groups placed once: the hostile and the friendly rats and the eight goblin and
+    // skeleton groups (the wary rat comes back, so it is not counted).
+    assert_eq!(
+        status(&world, &data).unwrap().groups_cleared,
+        (1, 10),
+        "the rats at (3, 8)"
+    );
+    assert_eq!(omnis_sim::groups_cleared(&world, &data, dungeon), (1, 10));
+
+    world.party.members[0].xp = 300;
+    world.party.members[1].spell_picks = 2;
+    let party = party_view(&world, &data);
+    let flags: Vec<(bool, u8)> = party
+        .members
+        .iter()
+        .map(|m| (m.ready, m.spell_picks))
+        .collect();
+    assert_eq!(flags, [(true, 0), (false, 2)]);
+}

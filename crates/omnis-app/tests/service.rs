@@ -137,8 +137,14 @@ fn every_service_opens_its_panel() {
             "{name}: a button per offer, and Leave"
         );
         control(&mut app, ServicePanelId::Leave);
-        if matches!(name, "trainer" | "guild") {
-            assert!(text.contains("(M7b)"), "{name}: {text}");
+        let lists: &[&str] = match name {
+            "trainer" => &["Levels", "Spell picks"],
+            "guild" => &["Spells"],
+            "temple" => &["On offer", "Spells"],
+            _ => &[],
+        };
+        for title in lists {
+            assert!(text.contains(&format!("\"{title}\"")), "{name}: {text}");
         }
         if name == "bank" {
             control(&mut app, ServicePanelId::Amount);
@@ -226,6 +232,123 @@ fn every_offer_sends_what_the_view_promised() {
         world(&app).party.bank,
         700,
         "a negative amount sends nothing"
+    );
+}
+
+/// A new game in town with Brenna (fighter) and Durin (cleric), plenty of gold, and Durin's
+/// experience at level 2's threshold.
+fn town_with_a_cleric(save: &str) -> App {
+    let mut app = feathers_app(save, true);
+    settle(&mut app);
+    let mut cleric = fighter_draft();
+    cleric.name = "Durin".into();
+    cleric.class = "base:class:cleric".into();
+    cleric.skills = vec![
+        omnis_sim::omnis_data::Skill::Medicine,
+        omnis_sim::omnis_data::Skill::History,
+    ];
+    for draft in [fighter_draft(), cleric] {
+        send(&mut app, Command::Party(PartyCommand::Create(draft)));
+    }
+    let world = &mut app.world_mut().resource_mut::<SimWorld>().0;
+    world.party.gold = 1_000_000;
+    world.party.members[1].xp = 300;
+    settle(&mut app);
+    app
+}
+
+fn dim(app: &mut App, id: ServicePanelId) -> bool {
+    let entity = control(app, id);
+    app.world().get::<InteractionDisabled>(entity).is_some()
+}
+
+#[test]
+fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
+    let mut app = town_with_a_cleric("service-trainer.ron");
+    enter(&mut app, "trainer");
+    let brenna = offer(&app, |c| c == ServiceCommand::Train { member: 0 });
+    assert!(
+        dim(&mut app, ServicePanelId::Offer(brenna)),
+        "Brenna has no experience"
+    );
+    let durin = offer(&app, |c| c == ServiceCommand::Train { member: 1 });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(durin)),
+        "Durin, level 1 to 2"
+    );
+    let before = gold(&app);
+    let button = control(&mut app, ServicePanelId::Offer(durin));
+    click_node(&mut app, button);
+    assert_eq!(before - gold(&app), 2000);
+    assert_eq!(world(&app).party.members[1].level, 2);
+    assert!(logged(&app, "Durin reaches level 2: +"), "{:?}", log(&app));
+
+    // The level owes one pick: healing word, guiding bolt or inflict wounds now.
+    let pick = offer(&app, |c| {
+        c == ServiceCommand::Choose {
+            member: 1,
+            spell: 5,
+        }
+    });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(pick)),
+        "Durin: Healing Word"
+    );
+    assert_eq!(shown(&mut app, ServiceLabelId::Note(pick)), "free");
+    let later = offer(&app, |c| {
+        c == ServiceCommand::Choose {
+            member: 1,
+            spell: 8,
+        }
+    });
+    assert!(
+        dim(&mut app, ServicePanelId::Offer(later)),
+        "spiritual weapon at level 3"
+    );
+    activate(&mut app, ServicePanelId::Offer(pick));
+    assert!(
+        logged(&app, "Durin chooses Healing Word"),
+        "{:?}",
+        log(&app)
+    );
+    assert_eq!(world(&app).party.members[1].spell_picks, 0);
+    assert!(
+        view(&app)
+            .offers
+            .iter()
+            .all(|o| !matches!(o.command, ServiceCommand::Choose { .. })),
+        "no picks are left to offer"
+    );
+    leave(&mut app);
+
+    enter(&mut app, "temple");
+    let bolt = offer(&app, |c| {
+        c == ServiceCommand::Learn {
+            member: 1,
+            spell: 3,
+        }
+    });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(bolt)),
+        "Durin: Guiding Bolt"
+    );
+    let before = gold(&app);
+    activate(&mut app, ServicePanelId::Offer(bolt));
+    assert_eq!(before - gold(&app), 5000);
+    assert!(
+        logged(&app, "Durin learns Guiding Bolt for 50 gp"),
+        "{:?}",
+        log(&app)
+    );
+    leave(&mut app);
+
+    enter(&mut app, "guild");
+    assert!(
+        view(&app)
+            .offers
+            .iter()
+            .all(|o| !matches!(o.command, ServiceCommand::Learn { .. })),
+        "the guild's spells are the wizard's"
     );
 }
 

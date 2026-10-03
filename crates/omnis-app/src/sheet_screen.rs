@@ -102,13 +102,14 @@ fn stats(frame: &mut Frame, view: &SheetView) {
         TEXT,
     );
     let (left, total, sides) = view.hit_dice;
-    label(
-        frame,
-        1,
-        4,
-        &format!("Hit dice {}/{} d{sides}", left.min(99), total.min(99)),
-        TEXT,
-    );
+    let mut line = format!("Hit dice {}/{} d{sides}", left.min(99), total.min(99));
+    if view.ready {
+        line.push_str("   Ready to train");
+    }
+    if view.spell_picks > 0 {
+        line.push_str(&format!("   Spell picks {}", view.spell_picks.min(99)));
+    }
+    label(frame, 1, 4, &line, TEXT);
     let scores: Vec<String> = view
         .scores
         .iter()
@@ -236,6 +237,8 @@ mod tests {
             hp: (-999, 9999),
             sp: (999, 999),
             hit_dice: (255, 255, 12),
+            ready: true,
+            spell_picks: 255,
             ac: 999,
             proficiency: 10,
             xp: 9_999_999,

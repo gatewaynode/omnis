@@ -57,8 +57,12 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
   as deals; a level is worked out on a copy of the member (`Deal::Train { after }`), a pick is
   free and takes no time (`Deal::Spell { pick }`). `service_view.rs` (M7 step 6, `service.get`): `ServiceView` and
   `OfferView`, each offer quoted on its own unstored copy of the stream; the one model the
-  service panel and agents read. `ops.rs`: `PartyView` has `bank`, `last_long_rest`,
-  `long_rest_wait`; `MemberView` `hit_dice`, `hit_dice_left`; `Status.service`. Script words
+  service panel and agents read. M7b: `Train` per member, `Choose` per class-list row for a
+  member owed picks, `Learn` per stocked spell and member (`worth_offering`: learnable now, or
+  too high and shown dim; known, cantrips and off-list spells left out). `ops.rs`: `PartyView`
+  has `bank`, `last_long_rest`, `long_rest_wait`; `MemberView` `hit_dice`, `hit_dice_left`,
+  `spell_picks`, `ready`; `Status.service`, `Status.groups_cleared` (`encounter::groups_cleared`:
+  the map's `once` groups cleared, of how many). Script words
   with numbers: `command.rs::parse_town` (`buy-R-N`, `heal-M`, `short-rest-A-B`, …).
 - Rest (M7 step 5): `rest.rs` (`RestCommand`, `apply`: `check_dice` or `too_soon` and
   `food_needed`, then `ambush_after`, `rest_events` and `roll_hit_dice` on copies of the
@@ -147,7 +151,8 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
   `feathers_service.rs` (`ServiceShown`; `look`, `refusals`, `reconcile`, `sync` in
   `UiSet::Model`; `reports` and `escape_leaves` in `UiSet::Dispatch`) sends every offer through
   `input::Gate`, and `confirm_panel::ask` asks before `Service(Leave)`. Refused offers carry
-  `InteractionDisabled`; the smith's two lists scroll. Inside, the map's keys and pad are off;
+  `InteractionDisabled`; the smith's two lists scroll; the trainer lists Levels and Spell picks,
+  the guild Spells, the temple On offer and Spells (`lists`). Inside, the map's keys and pad are off;
   ITEMS, SPELLS, SHEET and MENU stay live (`tool_bar::tool_states`).
   The fourth is the camp (M7 step 8b): `PlayState::Camp` / `Active::Camp`, a shell overlay over
   the map opened by `ShellCommand::Camp` (CAMP on the bar, live on the map with a member; R) and

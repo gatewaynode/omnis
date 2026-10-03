@@ -49,7 +49,9 @@ pub use apply::apply;
 pub use combat::{CombatCommand, CombatState, Initiative, Target};
 pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
-pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
+pub use encounter::{
+    EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost, groups_cleared,
+};
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
     LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
