@@ -14,9 +14,10 @@ use omnis_vector::cinema::Scene;
 use omnis_vector::combat_menu::{Act, Action, Pick, Step};
 use omnis_vector::grid::cell_of;
 use omnis_vector::shell::ViewState;
+use omnis_vector::shell::cinema::Screen;
 use omnis_vector::shell::combat::{Choose, FightRoot, FightScreen};
 use omnis_vector::shell::controls::Corner;
-use omnis_vector::shell::panel::{Screen, Showing};
+use omnis_vector::shell::panel::Showing;
 use omnis_vector::shell::session::Session;
 
 fn view(app: &App) -> ViewState {

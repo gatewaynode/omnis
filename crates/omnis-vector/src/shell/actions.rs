@@ -108,6 +108,5 @@ pub fn menu(world: &World, data: &Data) -> Notice {
         title: format!("Here: ({}, {}) facing {}", p.x, p.y, facing_name(p.facing)),
         lines,
         choices,
-        scene: None,
     }
 }

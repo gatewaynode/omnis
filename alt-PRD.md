@@ -181,7 +181,7 @@ The experiment reports these as numbers or as yes/no:
 
 1. **Camera height and field of view:** the eye height, and a field of view that suits 32:9 as well as 16:9. The wall height is settled at 1.0 × 1.0 to start, with room to vary per terrain later (owner, 2026-10-02). Bloom glow is in Phase A. Phase A runs on `packs/base` and `packs/test` together.
 2. **Captures:** should the viewer support the dev socket and MCP `screenshot`, or is a command-line screenshot enough for the proof?
-3. **The combat screen's code:** in Phase B, should it reuse `omnis-app`'s Bevy-free combat menu model (`combat_menu.rs`), which depends on `omnis-app` as a library, or be written fresh in `omnis-vector`?
+3. **The combat screen's code (decided, owner, 2026-10-03): written fresh in `omnis-vector`.** Reusing `omnis-app`'s Bevy-free combat menu model (`combat_menu.rs`) would have brought in its key model, raster and fonts as a library dependency. Built in Phase B (alt-ARCHITECTURE.md §9).
 4. **The automap in 3D:**
    - It could record what the 3D camera actually sees, from a camera frustum test, rather than the cardinal cone. That needs a simulation command, so it is a change to the main build and out of scope here.
    - It could also be shown as a 3D overlay.

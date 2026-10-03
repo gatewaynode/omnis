@@ -1,11 +1,8 @@
 //! What the panel shows: a heading, lines, and choices that become orders
-//! (alt-ARCHITECTURE.md §8, §9). Shared by the fight notice and the action menu.
+//! (alt-ARCHITECTURE.md §8, §9). Shared by the fallen party's notice and the action menu.
 
-use crate::cinema::Scene;
-use crate::trial::refusal;
 use bevy::prelude::Component;
-use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, World};
+use omnis_sim::Command;
 
 /// What a notice button does.
 #[derive(Component, Debug, Clone, PartialEq)]
@@ -38,15 +35,4 @@ pub struct Notice {
     pub lines: Vec<String>,
     /// The buttons, in order; the number keys pick them.
     pub choices: Vec<Choice>,
-    /// The picture window's scene, above everything else, in a fight.
-    pub scene: Option<Scene>,
-}
-
-/// A choice for `command`, blocked with the simulation's reason if it would be refused.
-pub fn choice(world: &World, data: &Data, label: String, command: Command) -> Choice {
-    Choice {
-        blocked: refusal(world, data, &command),
-        label,
-        order: Order::Command(command),
-    }
 }

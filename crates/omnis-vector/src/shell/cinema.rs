@@ -1,12 +1,16 @@
 //! The fight's picture window (alt-ARCHITECTURE.md §9): `cinema::paint` uploaded into an
-//! image on the panel's `Screen` node. Needs `Assets<Image>`, so a window or the offscreen
+//! image on the fight screen's `Screen` node. Needs `Assets<Image>`, so a window or the offscreen
 //! capture; headless, the node keeps its space and stays blank.
 
 use super::VectorSet;
 use super::minimap::image;
-use super::panel::Screen;
 use crate::cinema::{SIZE, Scene, paint};
 use bevy::prelude::*;
+
+/// The picture window, with the scene it shows. The node only holds the space; `show` paints
+/// it where there is a window.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Screen(pub Scene);
 
 /// Paints the picture window.
 pub struct CinemaPlugin;
@@ -17,8 +21,8 @@ impl Plugin for CinemaPlugin {
     }
 }
 
-/// Give each new picture window its scene's image. The panel rebuilds its nodes whenever it
-/// changes, so the last scene's image is kept and reused rather than painted again.
+/// Give each new picture window its scene's image. The fight screen rebuilds its nodes whenever
+/// it changes, so the last scene's image is kept and reused rather than painted again.
 fn show(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,

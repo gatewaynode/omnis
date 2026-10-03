@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.2 (2026-10-02: wall height, bloom and packs settled), derived from `alt-PRD.md` v0.2 |
+| Status | Draft v0.3 (2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled), derived from `alt-PRD.md` v0.2 |
 | Branch | `gui-3d-experiment` |
 | Parent documents | `alt-PRD.md`, and for everything not restated here `ARCHITECTURE.md` (v0.3) |
 
@@ -89,6 +89,11 @@ The ground is Bevy's X–Z plane. Y is up, and the camera's forward is −Z by d
 | `bind.rs` | The binder: pose changes to commands, applied, then reconciled | `Binder { logical: Position, margin }`, `Binder::advance(&mut World, &Data, from: Pose, to: Pose) -> Outcome` |
 | `geometry.rs` | Map data to line segments | `Segment { a: [f32; 3], b: [f32; 3], kind: SegKind, rgb }`, `extract(map, state) -> Vec<Segment>` |
 | `party.rs` | The fixed party | `fixed() -> Vec<Draft>`: four base-pack drafts |
+| `trial.rs` | A command tried on a clone of the world | `refusal(world, data, &Command) -> Option<String>`, `accepted` |
+| `rolllog.rs` | The fight's roll log (B1, §9) | `describe(&Event, &Names, &Data) -> Option<String>`, `Names` |
+| `raster.rs`, `cinema.rs` | The picture window's pixels (B1a, §9) | `Raster`; `Scene`, `opening(world)`, `drawing`, `place`, `paint`, `SIZE` |
+| `combat_menu.rs` | The fight's action model (B2, §9) | `CombatMenu { step }`, `Step`, `Action`, `Act`, `Entry`, `Pick`; `entries`, `clickable`, `choose`, `back`, `pick` |
+| `arena.rs` | The fight screen's layout, figures and pick (B3, §9) | `layout(w, h) -> Layout`, `arena(world, data, size, targets, hover) -> Option<Arena>`, `segments(&Arena) -> Vec<Seg2>`, `pick(&Arena, point) -> Option<Pick>` |
 
 As built, the command log is `Binder.log`, with `Binder::replay`; there is no separate `log.rs`.
 
@@ -152,12 +157,14 @@ from the same `Config`.
 |---|---|---|
 | `MovementPlugin` | Input, Move | Turns keys and the mouse into an `Intent` resource. the extended WASD layout (A7e): W/S and ↑/↓ move, A/D sidestep, ←/→ turn, Q/E turn 90°, and the mouse gives yaw while the cursor is grabbed. Then it integrates the pose, scaled by the terrain's `step_minutes`, calls `Binder::advance`, eases a stopped pose into the simulation's cell, and notes the events. Headless-safe |
 | `ControlsPlugin` | Input | The buttons (A7a, A7d, `shell/controls.rs`): the movement pad bottom left (forward, back and the sidesteps while held; the quarter turns once a press), and actions (the menu), save log and quit bottom right. The keys are shortcuts for the same actions. Headless-safe |
-| `PanelPlugin` | Input | The centre panel (A7b, A7e, `shell/panel.rs`): the fight notice (`shell/fight.rs`, §9) while the mode is not `Explore` or the party has fallen, otherwise the action menu (`shell/actions.rs`, §8) when open. The action key (Space or a right click) toggles the menu; with Shift it runs the default action, or opens the menu when there is none; Esc closes it, and so does moving. Number keys pick the choices. The shared types are in `shell/notice.rs`. Headless-safe |
+| `PanelPlugin` | Input | The centre panel (A7b, A7e, `shell/panel.rs`): the fallen party's notice (`shell/fight.rs`, §9), otherwise the action menu (`shell/actions.rs`, §8) when open. The action key (Space or a right click) toggles the menu; with Shift it runs the default action, or opens the menu when there is none; Esc closes it, and so does moving. Number keys pick the choices. The shared types are in `shell/notice.rs`. Headless-safe |
 | `RenderPlugin` | Grab, Draw | Mouse look (A7f, `movement::look`): a left click in the view turns it on and another turns it off, leaving the view where it looks. Space, a right click (the action keys), Esc and the panel opening turn it off too, and the HUD says so while it is on. Spawns a `Camera3d` (`IsDefaultUiCamera`, `Tonemapping::None`, `Hdr`, `Bloom`), rebuilds the line segments on a map change or a door move, follows the pose, and draws with `Gizmos` |
 | `HudPlugin` | Draw | `bevy_ui` status text (`default_font`) and the recent event lines |
 | `CapturePlugin` | PreStartup, Input | `--screenshot PATH [--walk FRAMES] [--size WxH]`: renders offscreen into an image (no window, `ScheduleRunnerPlugin`), walks, captures, exits |
 | `MinimapPlugin` | Draw | The minimap (A7c, §8): `minimap::paint` uploaded into a small `Image` shown as a UI node. Needs `Assets<Image>`, so a window or the offscreen capture |
-| `CinemaPlugin` | Draw | The fight's picture window (B1a, §9): `cinema::paint` uploaded as the image of the panel's `Screen` node. Needs `Assets<Image>`, so a window or the offscreen capture |
+| `CinemaPlugin` | Draw | The fight's picture window (B1a, §9): `cinema::paint` uploaded as the image of the fight screen's `Screen` node (`shell/cinema.rs`). Needs `Assets<Image>`, so a window or the offscreen capture |
+| `CombatPlugin` | Input | The fight screen (B4, §9, `shell/combat.rs`): sets `ViewState`, puts the movement pad, the actions button and the minimap away in a fight, and builds the screen's UI (picture window, title, action column, roll log, name labels) under a `FightRoot` despawned on exit. Its buttons, the number keys, Esc (back) and clicks on the figures choose. Headless-safe |
+| `CombatViewPlugin` | Draw | The fight screen's lines (B4, §9): an inactive `Camera2d` (`FightCamera`, `Hdr`, `Bloom`, render layer 1) that takes over from the `Camera3d` in a fight, and `arena::segments` drawn with the `CombatGizmos` group on layer 1. Window or capture only |
 
 A chosen action (for example `Command::Interact`) goes through `Session::order`, which applies
 it through the binder, so it is logged. It applies to the simulation's facing, which the HUD
@@ -207,18 +214,26 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
 
 - `ViewState::{Explore, Fight}` follows `world.mode`: `Explore` for `Mode::Explore`, and `Fight` for `Encounter` or `Combat`.
 - **Phase A, the fixed party.** The viewer builds a fixed party at start with `Command::Party(...)` commands, logged like any other command.
-- **Phase A, the fight notice (as built, A7b).** No `ViewState` yet: `fight::notice` reads `world.mode` and `combat_view` each time the log grows. The 3D view stays up under a panel listing the living stacks.
-  - In `Encounter`: Fight, Bribe (with the cost), Hide, Run.
-  - In `Combat`: a placeholder until Phase B, so an accepted Fight never dead-ends. It offers Attack on each stack the acting member reaches, Dodge, and Flee.
-  - When every member is down after a fight: Start again, which restarts the session (`Session::restart`). A fallen party does not walk.
-  - Each choice is tried on a clone of the world. A refused one is drawn dim with the simulation's reason, so the binder's refusal count stays at zero.
-- **The picture window (as built, B1a, a stub).** In a fight the panel's first child is a `Screen` node holding the window's space, 492×200 logical pixels, above the heading and the choices.
+- **The fallen party (as built, A7b; trimmed in B5).** When every member is down after a fight, the centre panel offers Start again (`fight::notice`), which restarts the session (`Session::restart`). A fallen party does not walk. Phase A's fight notice, which offered the encounter choices and a placeholder Attack, Dodge and Flee over the 3D view, was retired when the fight screen replaced it.
+- **The picture window (as built, B1a, a stub).** A `shell::cinema::Screen` node holding the window's space, 492×200 logical pixels, top left of the fight screen above the action column.
   - `cinema.rs` (Bevy-free) picks the `Scene` (`opening`: the enemy, the first stack still standing) and paints it: the drawing's bounds fitted inside a 12-pixel margin and centred, each line a dim 3-pixel glow under a bright core, on an opaque ground.
   - Every monster is drawn as the placeholder rat for now.
   - `shell/cinema.rs` (`CinemaPlugin`, window or capture only) uploads the raster as the node's image, reusing it while the scene is the same.
   - Planned: scenes queued from the fight's events as they arrive (a swing, a hit landing, a spell, a death), and a drawing per monster.
 - **The roll log (as built, B1).** `rolllog::describe` gives one line per fight event; `Session::note` keeps the last 40 in `fight_log`, cleared when monsters are met. `rolllog::Names` numbers each monster as it was met, though the simulation renumbers the living after a death, and keeps the names of members a fight buries.
-- **Phase B, the 2D combat screen** (X7): on `OnEnter(ViewState::Fight)`, the `Camera3d` is deactivated and a `Camera2d` combat screen is spawned. It shows placeholder sprites for the stacks and the party, the action list, and the roll log, and sends `Command::Encounter` and `Command::Combat`. It is despawned on exit. Whether the menu model comes from `omnis-app`'s Bevy-free `combat_menu.rs` or is written fresh is alt-PRD §10.3, decided before Phase B.
+- **The action model (as built, B2).** `combat_menu.rs` is written fresh (alt-PRD §10.3, decided). `CombatMenu.step` is `Top`, `Spells`, `Items` or `Target(Action)`.
+  - In an encounter: Fight, Bribe (with the cost), Hide, Run. On a member's turn: Attack, Cast, Use, Dodge, Swap, Flee.
+  - Cast opens the acting member's spells and Use the items with a use effect. Attack, a spell, an item or Swap then asks for a target: a stack or a member, clicked on the field (`clickable`, `pick`), or Back.
+  - Every entry and target is tried on a clone of the world (`trial.rs`). A refused one is shown dim with the simulation's reason and never sent, so the binder's refusal count stays at zero.
+- **The arena (as built, B3).** `arena.rs` lays the screen out in logical pixels for any window size: the picture window top left, the action column under it, the HUD status under that, the roll log on the right (24% of the width, 300 to 640 px) with Save log and Quit under it, and the title and the field between.
+  - The monsters take the field's top 55%, front stacks in the lower band; the party takes the rest in two rows, the front row nearer. One figure per living individual up to 8, then a count; each with an hp bar.
+  - Monsters are `cinema::drawing`s and members stick figures. Brackets mark the acting figure, and an outline the valid targets and the one under the pointer.
+  - `segments` gives the lines to draw and `pick` the stack or member under a point.
+- **The fight screen (as built, B4, X7).** `combat::track` sets `ViewState::Fight` while `combat_view` is `Some`; the switch lands a frame later.
+  - **On entering:** `CombatViewPlugin` deactivates the `Camera3d` and activates the `Camera2d`, moving `IsDefaultUiCamera` to it. `CombatPlugin` hides the movement pad, the actions button and the minimap, mouse look stops, and the centre panel stays down. The HUD status shrinks to two lines bottom left.
+  - **While fighting:** `refresh` rebuilds the screen's UI when the accepted-command count, the menu step or the size changes. `hover` frames the target under the pointer. The lines are drawn each frame on render layer 1, the 3D view's on layer 0, so neither camera draws the other's. Orders go through `Session::order`.
+  - **On leaving:** the cameras swap back, the hidden controls return and the `FightRoot` is despawned. `Session::order` has already snapped the pose to the party's cell, so a retreat lands on the retreat tile.
+  - Headless tests (`tests/combat.rs`) play a whole fight from the screen's buttons and clicks with no refusal, run to the retreat, and check the pick and the hover.
 
 ## 10. Testing
 
@@ -286,8 +301,9 @@ most 100 lines, cyclomatic complexity of at most 25, no cycles.
 
 ## 14. Open questions
 
-Carried from `alt-PRD.md` §10: the field of view and eye height, captures, the combat screen's
-code, the automap in 3D, and what comes after the proof.
+Carried from `alt-PRD.md` §10: the field of view and eye height, captures, the automap in 3D,
+and what comes after the proof. The combat screen's code was decided on 2026-10-03: written
+fresh (§9).
 
 Resolved by the owner (2026-10-02):
 1. **Wall height:** 1.0 × 1.0 to start, with room to vary later. The height is read through one function, `geom::wall_height(&Terrain) -> f32`, which returns 1.0 for now. Per-terrain heights or ceilings can arrive later without touching the extraction or the camera code.

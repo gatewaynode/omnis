@@ -5,9 +5,9 @@
 //! clicks. `CombatViewPlugin` needs a window or the capture: the 2D camera and the lines.
 
 use super::capture::{CaptureSize, Offscreen};
+use super::cinema::Screen;
 use super::controls::{Action, Corner, GREEN, SHADES, button};
 use super::minimap::Minimap;
-use super::panel::Screen;
 use super::render::ViewCamera;
 use super::session::Session;
 use super::{VectorSet, ViewState};

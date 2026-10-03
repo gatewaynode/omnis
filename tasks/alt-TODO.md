@@ -121,7 +121,11 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
     - Mutation checks caught: the click path, the hover's target filter, `give_way`, Esc.
   - **Captures** at 1600×900 and 5120×1440 (temporary placement, reverted). They showed two defects, both fixed: wrapped log lines overlapping, and the status running into Brenna's label. Not yet seen in a capture: the log clipping on a long fight. Check it in B6.
   - Gate 436 passed, 6 ignored; Sentrux rules pass, signal 8902.
-- [ ] B5 Retire the A7b fight notice (now dead code: `fight::notice`'s encounter and combat choices, the panel's `Screen` child); docs as built
+- [x] B5 Retire the A7b fight notice; docs as built (2026-10-03)
+  - `shell/fight.rs` keeps only `fallen` and the fallen party's notice (Start again). The encounter and combat choices, and `notice::choice` that only they used, are gone.
+  - `Notice.scene` and the panel's picture child are gone. `Screen` moved to `shell/cinema.rs`, beside the system that paints it; `combat.rs` and `tests/combat.rs` import it from there, and `cinema.rs` no longer imports the panel.
+  - Docs: `alt-ARCHITECTURE.md` v0.3 (§5 the Phase B core modules; §6 `CombatPlugin`, `CombatViewPlugin` and the panel and cinema rows; §9 the action model, arena and fight screen as built; §14), `alt-PRD.md` §10.3 decided (written fresh).
+  - Gate 436 passed, 6 ignored (no test removed: the old notice's tests had already moved in B4); Sentrux rules pass, signal 8902.
 - [ ] B6 The owner plays a fight; fixes
 - [ ] B7 **Before the merge:** rebase onto the mechanics branch's work; rerun the gate and the agreement test
 - Out of scope for B: animation (the figures are built to move later), reactions and auto-cast, tactics and auto mode, art, any change to omnis-sim or omnis-app
