@@ -26,6 +26,10 @@ pub const BAR: f32 = 6.0;
 pub const GAP: f32 = 4.0;
 /// The most figures drawn for one stack; a larger stack shows its count.
 pub const MOST: usize = 8;
+/// The height kept under the action column for the status lines.
+pub const STATUS: f32 = 48.0;
+/// The height kept under the roll log for the Save log and Quit buttons.
+pub const BUTTONS: f32 = 34.0;
 
 /// A rectangle: its top left corner and its size.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -147,8 +151,12 @@ pub struct Layout {
     pub picture: Rect,
     /// The action column, under the picture window.
     pub actions: Rect,
+    /// The status lines, under the action column at the bottom left.
+    pub status: Rect,
     /// The roll log, down the right side.
     pub log: Rect,
+    /// Save log and Quit, under the roll log at the bottom right.
+    pub buttons: Rect,
     /// The title line, above the field.
     pub title: Rect,
     /// The field the figures stand in.
@@ -168,7 +176,12 @@ pub fn layout(width: f32, height: f32) -> Layout {
     };
     let actions = Rect {
         y: picture.bottom() + MARGIN,
-        h: (height - ph - 3.0 * MARGIN).max(0.0),
+        h: (height - ph - STATUS - 4.0 * MARGIN).max(0.0),
+        ..picture
+    };
+    let status = Rect {
+        y: height - MARGIN - STATUS,
+        h: STATUS,
         ..picture
     };
     let log_w = (width * 0.24).clamp(300.0, 640.0);
@@ -176,7 +189,12 @@ pub fn layout(width: f32, height: f32) -> Layout {
         x: width - MARGIN - log_w,
         y: MARGIN,
         w: log_w,
-        h: (height - 2.0 * MARGIN).max(0.0),
+        h: (height - BUTTONS - 3.0 * MARGIN).max(0.0),
+    };
+    let buttons = Rect {
+        y: height - MARGIN - BUTTONS,
+        h: BUTTONS,
+        ..log
     };
     let left = picture.right() + MARGIN;
     let title = Rect {
@@ -199,7 +217,9 @@ pub fn layout(width: f32, height: f32) -> Layout {
         },
         picture,
         actions,
+        status,
         log,
+        buttons,
         title,
         field,
     }
@@ -678,7 +698,9 @@ mod tests {
     fn the_parts_lie_apart_inside_the_window() {
         for (w, h) in [(1600.0, 900.0), (5120.0, 1440.0), (1920.0, 1080.0)] {
             let l = layout(w, h);
-            let parts = [l.picture, l.actions, l.log, l.title, l.field];
+            let parts = [
+                l.picture, l.actions, l.status, l.log, l.buttons, l.title, l.field,
+            ];
             for (i, a) in parts.iter().enumerate() {
                 assert!(l.window.encloses(a), "{a:?} inside {w}×{h}");
                 assert!(a.w > 0.0 && a.h > 0.0, "{a:?} has room");

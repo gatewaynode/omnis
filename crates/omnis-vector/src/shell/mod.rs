@@ -4,6 +4,7 @@
 pub mod actions;
 pub mod capture;
 pub mod cinema;
+pub mod combat;
 pub mod controls;
 pub mod fight;
 pub mod hud;
@@ -28,6 +29,17 @@ pub enum VectorSet {
     Move,
     /// The view and the HUD follow.
     Draw,
+}
+
+/// Which screen is up: the 3D view while exploring, the fight screen while monsters are met or
+/// fought (`shell/combat.rs` sets it from the simulation's mode).
+#[derive(States, Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ViewState {
+    /// The 3D view.
+    #[default]
+    Explore,
+    /// The fight screen.
+    Fight,
 }
 
 /// Orders the sets; every other plugin adds to them.

@@ -1,11 +1,11 @@
 //! The 3D view: a `Camera3d` with HDR and bloom following the pose, and the map drawn as
 //! glowing gizmo lines that fade with distance (alt-ARCHITECTURE.md §7).
 
-use super::VectorSet;
 use super::capture::Offscreen;
 use super::movement::{Intent, LookInput, look};
 use super::panel::Showing;
 use super::session::Session;
+use super::{VectorSet, ViewState};
 use crate::geom::EYE_HEIGHT;
 use crate::geometry::{SegKind, Segment, extract};
 use bevy::camera::{Hdr, RenderTarget};
@@ -93,8 +93,8 @@ fn line_style(mut store: ResMut<GizmoConfigStore>) {
 }
 
 /// A left click in the view turns mouse look on and another turns it off, leaving the view
-/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so does
-/// the panel opening (`movement::look`).
+/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
+/// the panel opening and the fight screen (`movement::look`).
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -102,6 +102,7 @@ fn grab_cursor(
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut intent: ResMut<Intent>,
     showing: Res<Showing>,
+    view: Option<Res<State<ViewState>>>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
@@ -113,7 +114,7 @@ fn grab_cursor(
             over_button: interactions.iter().any(|i| *i != Interaction::None),
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
-            panel: showing.0,
+            panel: showing.0 || view.is_some_and(|v| *v.get() == ViewState::Fight),
         },
     );
     if next != intent.looking {

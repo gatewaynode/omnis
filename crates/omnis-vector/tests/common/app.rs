@@ -2,13 +2,16 @@
 //! input a window would send.
 
 use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::mouse::MouseButtonInput;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
+use bevy::state::app::StatesPlugin;
 use bevy::time::TimeUpdateStrategy;
 use omnis_sim::Mode;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_vector::pose::Pose;
 use omnis_vector::shell::ShellPlugin;
+use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::panel::PanelPlugin;
@@ -26,6 +29,37 @@ pub fn key(app: &mut App, key_code: KeyCode, state: ButtonState) {
         repeat: false,
         window: Entity::PLACEHOLDER,
     });
+}
+
+/// A left click at `point` (logical pixels from the top left) in the app's window, spawning a
+/// 1600×900 window the first time: headless there is none, so the click needs one to land in.
+pub fn click(app: &mut App, point: (f32, f32)) {
+    let world = app.world_mut();
+    let mut windows = world.query_filtered::<Entity, With<bevy::window::PrimaryWindow>>();
+    let window = match windows.iter(world).next() {
+        Some(window) => window,
+        None => world
+            .spawn((
+                Window {
+                    resolution: bevy::window::WindowResolution::new(1600, 900),
+                    ..default()
+                },
+                bevy::window::PrimaryWindow,
+            ))
+            .id(),
+    };
+    world
+        .get_mut::<Window>(window)
+        .expect("the window")
+        .set_cursor_position(Some(Vec2::new(point.0, point.1)));
+    for state in [ButtonState::Pressed, ButtonState::Released] {
+        app.world_mut().write_message(MouseButtonInput {
+            button: MouseButton::Left,
+            state,
+            window,
+        });
+        app.update();
+    }
 }
 
 pub fn app() -> App {
@@ -48,10 +82,12 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
     app.add_plugins((
         MinimalPlugins,
         InputPlugin,
+        StatesPlugin,
         ShellPlugin,
         MovementPlugin,
         ControlsPlugin,
         PanelPlugin,
+        CombatPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,

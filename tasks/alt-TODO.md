@@ -91,8 +91,37 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 - [x] B1a The picture window (owner, after playing the fight notice, 2026-10-03): a window on top of the fight's choices for scenes of the fight as it goes, opening on the enemy. Stubbed: `cinema.rs` (Bevy-free) draws a `Scene` in glowing vector lines, fitted and centred on an opaque ground; every monster is the placeholder rat; `shell/cinema.rs` paints the panel's `Screen` node where there is a window. `Raster` moved to `raster.rs` with a stroke for lines. Horizons: scenes queued from the fight's events (a swing, a hit landing, a spell, a death), stepped or animated; a drawing per monster
 - [x] B2 The action model: `combat_menu.rs` covers the encounter choices, then Attack, Cast, Use, Dodge, Swap and Flee, with the spell and item lists, targets, Back, and clicks (`pick`). Targets are found by trial on a copy of the world, so the menu holds no rules: Durin cannot swap with himself, Sacred Flame offers stacks, Cure Wounds members, and Light (accepted on either) is cast on the caster without asking. `trial.rs` holds `refusal` and `accepted` for the core and the shell. Tests on the seed-1 fight: every command offered on the cleric's turn accepted, a fight to its end from the menu alone with 0 refusals; the trial filter mutation-checked (4 tests fail without it)
 - [x] B3 The arena: `arena.rs` (Bevy-free) lays out the screen for a window size: the picture window (`cinema::SIZE`) over the action column at the left, the roll log at the right, the title and the field between. Stacks across the top, the pack's front stacks (2) lower and larger than those behind; a figure per living monster up to 8, then the count ("Giant Rat x12"); each figure drawn with the monster's drawing (the rat), scaled by `Size`, with a health bar against the hit dice's most. The party in two rows, the front row (the pack's 3) nearer, each a figure with a name and a bar, marked when down or dead. `segments` gives toned lines (figure, down, dead, bar, health, and frames for the acting member, the targets and the hover); `pick` finds the figure or bar under a point. `cinema::place` fits a drawing in any rectangle. Tests at 1600×900 and 5120×1440 on the seed-1 fight; the band order and hover tone mutation-checked. The fight-test helpers moved to `tests/common/fight.rs`
-- [ ] B4 The screen: `ViewState`; the `Camera3d` is swapped for a `Camera2d` with bloom; the figures, the picture window above the action column, the roll log; the pose follows on exit. Owner (2026-10-03): they like the modal, but the full 2D screen stays the plan
-- [ ] B5 Retire the A7b fight notice; adapt the tests; docs as built
+- [x] B4 The screen: `ViewState`; the `Camera3d` is swapped for a `Camera2d` with bloom; the figures, the picture window above the action column, the roll log; the pose follows on exit. Owner (2026-10-03): they like the modal, but the full 2D screen stays the plan
+  - **`shell/mod.rs::ViewState{Explore, Fight}`:** `combat::track` sets it from `combat_view` (an encounter or a fight).
+  - **`shell/combat.rs::CombatPlugin`** (headless-safe):
+    - `FightScreen{menu, hover, targets, arena}`. The layout is redone, and the `FightRoot` UI rebuilt, when the accepted-command count, the menu's step or the window size changes. The hover only moves the marks.
+    - UI at the layout's rects:
+      - the picture `Screen`;
+      - the title (the turn line);
+      - the action column: the step's question when it is not the first, then `controls::button`s carrying `Choose(Act)`, with blocked entries dim and their reason shown;
+      - the roll log, newest line at the bottom, oldest clipped off the top;
+      - a name label per group.
+    - Input: buttons; digits 1–9; Esc = `back`; a left click → `arena::pick` → `CombatMenu::pick`. Orders go through `Session::order`.
+    - On entering a fight, the movement pad, the Actions button and the minimap give way (`give_way`); they come back after it.
+    - No work on exit beyond resetting: `Session::order` already snaps the pose.
+  - **`CombatViewPlugin`** (window or capture):
+    - a `Camera2d` (inactive until a fight) with `Hdr`, `Bloom`, `Tonemapping::None` and `RenderLayers::layer(1)`, given the offscreen target when capturing;
+    - `cameras::<FIGHT>` swaps `is_active` and `IsDefaultUiCamera`;
+    - `CombatGizmos` on layer 1 draw `arena::segments`, mapping each tone to a colour, with `(x - w/2, h/2 - y)`.
+  - **Layout** gains `status` (48 px under the action column) and `buttons` (34 px under the log). In a fight the HUD status shows its first two lines at the bottom left, at 14 px; Save log and Quit stay at the bottom right.
+  - **Pulled forward from B5:**
+    - `panel::current` shows nothing in a fight.
+    - The notice-driven fight tests moved to `tests/combat.rs`, which has 5 tests:
+      - the switch, with buttons, picture and labels;
+      - Run puts the pose on the retreat and the 3D view back;
+      - a whole fight from the screen: digit 1, clicks and buttons, 0 refusals;
+      - hover and click, including a member that is not a target;
+      - a step opened and closed with Esc.
+    - `tests/fight.rs` keeps only the fallen party.
+    - Mutation checks caught: the click path, the hover's target filter, `give_way`, Esc.
+  - **Captures** at 1600×900 and 5120×1440 (temporary placement, reverted). They showed two defects, both fixed: wrapped log lines overlapping, and the status running into Brenna's label. Not yet seen in a capture: the log clipping on a long fight. Check it in B6.
+  - Gate 436 passed, 6 ignored; Sentrux rules pass, signal 8902.
+- [ ] B5 Retire the A7b fight notice (now dead code: `fight::notice`'s encounter and combat choices, the panel's `Screen` child); docs as built
 - [ ] B6 The owner plays a fight; fixes
 - [ ] B7 **Before the merge:** rebase onto the mechanics branch's work; rerun the gate and the agreement test
 - Out of scope for B: animation (the figures are built to move later), reactions and auto-cast, tactics and auto mode, art, any change to omnis-sim or omnis-app

@@ -136,7 +136,7 @@ fn everything_stays_in_the_field_clear_of_the_picture_and_log() {
         for g in arena.groups() {
             assert!(field.encloses(&g.slot) && g.slot.encloses(&g.label.rect));
             for r in [&g.slot, &g.label.rect] {
-                for part in [l.picture, l.actions, l.log, l.title] {
+                for part in [l.picture, l.actions, l.status, l.log, l.buttons, l.title] {
                     assert!(!r.overlaps(&part), "{r:?} clear of {part:?}");
                 }
             }

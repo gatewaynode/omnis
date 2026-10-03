@@ -1,9 +1,9 @@
 //! The HUD: a status block and the recent event lines (alt-ARCHITECTURE.md §8).
 
-use super::VectorSet;
 use super::controls::GREEN;
 use super::movement::Intent;
 use super::session::Session;
+use super::{VectorSet, ViewState};
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -13,7 +13,8 @@ use omnis_sim::Mode;
 #[derive(Component)]
 pub struct StatusText;
 
-/// The status block, top left.
+/// The status block, top left; in a fight, its first lines only, at the bottom left under the
+/// action column (`arena::Layout::status`).
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
@@ -80,11 +81,24 @@ fn status(
     diagnostics: Option<Res<DiagnosticsStore>>,
     intent: Res<Intent>,
     window: Query<&Window, With<PrimaryWindow>>,
-    mut text: Query<&mut Text, With<StatusText>>,
+    view: Option<Res<State<ViewState>>>,
+    mut text: Query<(&mut Text, &mut TextFont, &mut Node), With<StatusText>>,
 ) {
-    let Ok(mut text) = text.single_mut() else {
+    let Ok((mut text, mut font, mut node)) = text.single_mut() else {
         return;
     };
+    let fight = view.is_some_and(|v| *v.get() == ViewState::Fight);
+    let (top, bottom) = if fight {
+        (Val::Auto, Val::Px(16.0))
+    } else {
+        (Val::Px(16.0), Val::Auto)
+    };
+    if node.top != top {
+        // Smaller in a fight, to fit under the action column.
+        node.top = top;
+        node.bottom = bottom;
+        font.font_size = FontSize::Px(if fight { 14.0 } else { 18.0 });
+    }
     let w = &session.world;
     let map = session
         .data
@@ -101,15 +115,21 @@ fn status(
         ));
     }
     let mut out = format!(
-        "{map}  cell ({}, {}) facing {:?}\n{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}\n",
-        w.position.x,
-        w.position.y,
-        w.position.facing,
+        "{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}",
         mode_name(&w.mode),
         clock(w.party_clock().elapsed),
         session.binder.log.len(),
         session.binder.refusals,
         session.binder.disagreements,
+    );
+    if fight {
+        // The roll log has the fight's lines; the map is out of sight.
+        text.0 = out;
+        return;
+    }
+    out = format!(
+        "{map}  cell ({}, {}) facing {:?}\n{out}\n",
+        w.position.x, w.position.y, w.position.facing
     );
     if intent.looking {
         out.push_str("Mouse look on: click, Space or Esc gives the pointer back\n");

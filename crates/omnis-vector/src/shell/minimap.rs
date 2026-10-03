@@ -12,7 +12,7 @@ use omnis_sim::omnis_core::MapId;
 
 /// Marks the minimap's node.
 #[derive(Component)]
-struct Minimap;
+pub struct Minimap;
 
 /// What the picture last showed: the map, the accepted-command count (the automap only changes
 /// when a command is accepted), and the marker's pixel and heading.
