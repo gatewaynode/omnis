@@ -26,7 +26,7 @@ the dungeon and every spell, so no earlier save loads in play); `doff_armor_minu
 own value.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
-Nothing is built yet (as of M7a): one action per turn and shield as the only (automatic) reaction.
+**Built in M7c (2026-10-04, ARCH §4.7)**: everything in the "Planned for M7c" paragraph below, the tactics panel beside the sheet, and Bob; D24 stands over the SRD's one-spell limit (step 4b reverted in step 8a, owner 2026-10-04). What follows is the history and what stays open.
 **Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
 §4.7's auto resolution inside the simulation is confirmed; its save schema is 6 (M7a takes 5).**
 Because Second Wind and Cunning Action need bonus actions: the turn budget
@@ -55,7 +55,7 @@ Shield is a built-in rule, as opportunity attacks are. Left for later: monster h
 (validation refuses them), Thunderwave's push (rows have no distance), anything answering
 `EnemyCasts` (raised at every monster cast; the trigger field makes it answerable and testable),
 the party's spells aimed past the front stacks by a policy (the harness never targets Bob behind
-his rats), and Bob's points in the MCP and CLI views (step 6 may add them).
+his rats), and Bob's points in the CLI (`combat.get` shows them per individual since step 6; no MCP or CLI test reaches a fight).
 **A trigger field on every action (owner, 2026-10-03, during M7c)**: each action in the data
 (spells, items, class features, the weapon attack) states the triggers it can answer as a reaction,
 validated against the closed list, instead of the simulation deriving them from the effect kind

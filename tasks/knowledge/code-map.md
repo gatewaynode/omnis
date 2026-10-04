@@ -1,6 +1,6 @@
 # Code map
 
-Where each system lives, by crate and file, as of M7a (2026-10-03). Behaviour is described in
+Where each system lives, by crate and file, as of M7c (2026-10-04). Behaviour is described in
 ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name before leaning on it.
 
 ## Crates
@@ -19,7 +19,12 @@ persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `co
 spells on a guild or a temple;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
 `resolve_sites`; `MapData::site_at`), `map.rs` (`Portal.marker`, required, an `Object` surface
-checked in `loader::check_surfaces`; `MapData::marker_at`).
+checked in `loader::check_surfaces`; `MapData::marker_at`). M7c: `action.rs` (`Cost { Action,
+BonusAction, Reaction, Free }`, `Uses`, `Recharge`, `FeatureEffect { Heal, ExtraAction, Cunning }`);
+`spell.rs` carries `cost` and D24's three fields (required in every file); `character.rs`'s class
+features carry `effect`, `cost`, `uses`; `monster.rs` `Monster.casting` (`MonsterCasting`: attack,
+DC, caster level, points, spells). The `turn.*` slots are in `rules/combat.ron` (inputs `level`,
+`is_member`).
 Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,rest,sensing,services}.ron`;
 services under `packs/base/data/services/` (seven, one per kind). The test pack depends on the base
 pack and starts in `test:map:town` (the gate at (11, 2) leads to the meadow's start; the meadow's
@@ -34,6 +39,12 @@ cantrip dice), `effect.rs` (`ActiveEffect`, `Expiry`, `BuffOn`, `Roll.bonus`), `
 (`can_equip`, `equip`, `unequip`, `auto_equip`, `armor_class`, `weapons`), `condition.rs`,
 `level.rs` (M7b: `ready`, `next_threshold`, `level_up` → `Gains { hp, spell_points, picks,
 proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `eligible`).
+M7c: `feature.rs` (`combat_features`, `uses_left`, `spend_use`, `recover_uses`;
+`Character.feature_spent`), `tactics.rs` (`Tactics`, `Runbook`, `CriteriaSet`, `Criteria`,
+`Predicate`, `Cmp`, `Who`, `Row`, `Trigger` (the closed eight, `ALL`), `ActionRef`, the caps
+`TACTICS_NAME_BYTES`, `CRITERIA_DEPTH`, `CRITERIA_NODES`, `LIBRARY_SETS`, `RUNBOOKS`,
+`RUNBOOK_ENTRIES`; `check`, `holds` over `Facts`); `Character.tactics` (`legacy_auto_cast` read from
+old saves only).
 
 ## omnis-sim
 - Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Dev}`,
@@ -79,8 +90,20 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
   step goes somewhere. `World::may_save` counts an inn; a saved `Town` must match the tile
   (`LoadError::BadTown`).
 - Fights: `encounter.rs`, `combat/{mod,state,turn,resolve,cast,reaction}.rs` (`CombatCommand::
-  {Attack, Cast, Use, Dodge, Exchange, Run}`, `Plan`, `Roller::take`/`take_stream`, `run_until_member`,
-  `end_of_round`, `settle`, `try_shield`).
+  {Attack, Cast { pay }, Use, Dodge, Exchange, Run, EndTurn, Feature}`, `Plan`, `Roller::take`/
+  `take_stream`, `run_until_member`, `end_of_round`, `settle`; `payable`, the one answer to "can
+  this spell be paid this way now" for the command and the view). M7c: `combat/budget.rs` (the
+  `turn.*` slots at each turn's start, `refresh_reactions`, `affordable`, `spend`, `goes_on`: the
+  turn-ending rule), `combat/feature.rs` (Second Wind, Action Surge, Cunning Action's exchange and
+  Hide), `combat/opportunity.rs` (monsters' built-in opportunity attacks), `combat/reaction.rs`
+  (`on_attack`, `on_wound`, `on_cast`, `on_missile`: declared reactions walked in marching order),
+  `combat/monster_cast.rs` (a monster's dice roll among its weapon and affordable spells; attack,
+  missile and save spells; a caster's own Shield). `CombatState` gains `budget`, `reactions`,
+  `hidden`, `monster_shields`; `Stack.spent` (points per individual). `tactics.rs`
+  (`TacticsCommand { SetReactions, PutReaction { at }, RemoveReaction }`, `answers`: what an action
+  may answer). `view.rs` (`combat_view`: budget, reactions, hidden, members' switch and features,
+  points, shields, spell rows' `blocked` and `bonus`); `party_view.rs` (moved out of `ops.rs` in
+  M7c step 6a; `MemberView.tactics`: the switch, the declared rows, `answers`).
 - Magic and effects: `casting.rs` (explore casting), `effects.rs`, `checks.rs::roll` (the one
   check wrapper; guidance is spent here), `utility.rs` (`open_door_ahead`).
 - Items: `items.rs` (`ItemCommand`, `UsePlan`, `UseKind`, `validate_use`, `use_item`, `transfer`,
@@ -89,7 +112,10 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
 - Dev: `dev.rs` (`DevCommand`, twelve variants, gated by `Settings.devtools`).
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
   `new_world`: a new game placed on the meadow's start, where tests from before the town begin;
-  `party_of`), `measure.rs` ignored. The replays leave town by a real `Step(Back)`.
+  `party_of`, `act`: one command played as a whole turn). M7c: `turn_budget.rs`, `reactions.rs`,
+  `monster_cast.rs`, `views.rs`. Measurement (ignored) is `tests/measure/` (`main.rs` single fights
+  and ambushes, `clear.rs` the dungeon clear over a `Play`, `budget.rs` `budget_over_seeds`,
+  `boss.rs` `boss_over_seeds`). The replays leave town by a real `Step(Back)`.
 
 ## omnis-app
 - Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
@@ -114,12 +140,16 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
 - Menus (Bevy-free model + painter + plugin): pause `menu.rs` (`Pause::ITEMS` seven rows 8..14,
   `Pause::DEBUG = 4`, `debug_available`) and `menus.rs` (`pause_action`, `Actions`); fight
   `combat_menu.rs`/`combat_screen.rs`/`combat.rs` with `spell_menu.rs` and `use_menu.rs`
-  (pickers); sheet `sheet_menu.rs`/`sheet_screen.rs`/`sheet.rs`; inventory
+  (pickers; M7c: React `o` = `Action(7)`, End `n`, the budget line `combat_screen::budget_line`,
+  features first in the Use picker as `UseKind::Feature`, `CombatMenu::partner` shared by Exchange
+  and Cunning's exchange, `SpellRow.bonus` pays with the bonus action); the fight's other menus
+  `encounter_menu.rs`; sheet `sheet_menu.rs`/`sheet_screen.rs`/`sheet.rs` (TACTICS `Row(4)`, `t`); inventory
   `inventory_menu.rs`/`inventory_screen.rs`/`inventory.rs`; debug `debug_menu.rs`/
   `debug_screen.rs`/`debug.rs` (`DebugPlugin`, feature `devtools`, opens on `OnEnter(PlayState::Debug)`).
 - Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
   downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
-  sense), `spell_text.rs`, `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
+  sense), `round_text.rs` (round, wound, `FeatureUsed`, `OpportunityAttack`), `spell_text.rs`
+  (`ReactionsSwitched`, `TacticsChanged`, `Reaction`, `MonsterCast`, `ShieldStops`), `item_text.rs`, `sense_text.rs`. `look.rs` (`look_command`).
 - `bevy_ui` screens (every build since M7 step 1; the canvas creation screen is gone). The kit:
   `ui_model.rs` (Bevy-free: `Payload`, `FONTS`, `fitted_scale`, `scale_cap`, `SCALE_*`, `whole`)
   and `ui_kit.rs` (`UiId`, `UiLabel`, `UiScreen`, one variant per screen, with `name()` for the
@@ -164,6 +194,14 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
   member who may spend dice, Short rest (dim with nothing chosen), Long rest (dim with its
   reason), Close. The sheet's stats page shows "Hit dice 1/1 d10" on row 4
   (`SheetView.hit_dice`).
+  The fifth is the tactics panel (M7c step 7b): `PlayState::Tactics` / `Active::Tactics`, opened
+  from the sheet's TACTICS outside a fight; Close and Escape go back to the sheet.
+  `tactics_draft.rs` (Bevy-free: `Kind`, `Field`, `Draft` to and from `Predicate`, `Choices` with
+  the pack names, `criteria_text`), `tactics_panel.rs` (`TacticsPanelId`, `TacticsLabelId`,
+  `TacticsForm` with `load` (a deeper tree is `locked`), `TacticsAsk`, `apply`, captions, `shape`),
+  `feathers_tactics.rs` (`TacticsShown`; `look`, `refusals`, `reconcile`, `sync`, `reports`,
+  `escape_closes`), reading `party_view`'s `TacticsView`. `ui_kit::scroll_column` (lifted from the
+  service's offer list) scrolls its body.
 - Dev: `dev.rs` (`DevScript`), `socket.rs` (loopback dev socket, `.omnis/dev.addr`; `screenshot`
   takes `ops::ShotTarget::{Canvas, Window}`; `screen.text` is queued by `serve` and answered by
   the exclusive `answer_screen_text`). `ui_text.rs` (every build): `screen_text` (every panel
@@ -173,7 +211,8 @@ proficiency, features }`, `max_spell_level`, `may_learn` → `SpellRefusal`, `el
   per screen; messages are collected by a reader system, never read from `Messages<M>` directly;
   `tests/common/feathers.rs`, `tests/feathers.rs`, `tests/feathers_panel.rs` for the panel,
   `tests/confirm.rs` for the confirmation, `tests/service.rs` for the service panel
-  (`feathers::press` sends a key pressed and released, so it can be pressed again).
+  (`feathers::press` sends a key pressed and released, so it can be pressed again),
+  `tests/tactics.rs` for the tactics panel.
 
 ## omnis-mcp and omnis-cli
 `omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: twenty tools, the hand-written `Command`
