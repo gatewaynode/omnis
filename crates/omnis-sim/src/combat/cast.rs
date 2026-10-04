@@ -407,6 +407,10 @@ fn cast_auto(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let target = ActorRef::Monster { stack, index: 0 };
+    if super::monster_cast::shield_on_missile(data, state, (stack, 0), roller, events)? {
+        events.push(Event::ShieldStops { target });
+        return Ok(());
+    }
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let damage = damage_roll(
         data,
@@ -439,14 +443,14 @@ fn cast_attack(
         state.reveal(caster.id),
         flags(&caster.conditions, data).own_attacks_disadvantage,
     );
-    let ac = i64::from(monster.ac);
+    let ac = i64::from(monster.ac) + super::monster_cast::shield_bonus(state, data, stack, 0);
     let extra = roll_bonus(
         &caster.effects,
         BuffOn::AttackRolls,
         &mut roller.rng,
         &roller.stream,
     )?;
-    let roll = spell_attack(
+    let mut roll = spell_attack(
         caster,
         data,
         ac,
@@ -455,8 +459,11 @@ fn cast_attack(
         &mut roller.rng,
         &roller.stream,
     )?;
+    let caster_id = caster.id;
+    let ac =
+        super::monster_cast::shield_on_hit(data, state, (stack, 0), &mut roll, roller, events)?;
     events.push(Event::AttackResolved {
-        attacker: ActorRef::Member(caster.id),
+        attacker: ActorRef::Member(caster_id),
         target,
         roll: roll.roll.clone(),
         ac,

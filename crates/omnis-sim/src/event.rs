@@ -346,6 +346,19 @@ pub enum Event {
         /// Which defense applied.
         adjust: DamageAdjust,
     },
+    /// A monster cast a spell (M7c): on its turn, or Shield as its stack's reaction. What it did
+    /// follows.
+    MonsterCast {
+        /// The individual.
+        caster: ActorRef,
+        /// The spell.
+        spell: SpellId,
+    },
+    /// Shield stopped a Magic Missile: the target takes nothing (SRD).
+    ShieldStops {
+        /// Who the missile was cast at.
+        target: ActorRef,
+    },
     /// A spell was cast: the points and components it took. What it did follows.
     SpellCast {
         /// Who cast it.

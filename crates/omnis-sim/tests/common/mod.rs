@@ -143,6 +143,7 @@ pub fn encounter(
                 monster: id,
                 initial: *count,
                 hp: vec![hp; usize::from(*count)],
+                spent: Vec::new(),
             }
         })
         .collect();

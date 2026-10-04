@@ -155,6 +155,7 @@ fn placed(data: &Data, world: &mut World, map: omnis_core::MapId, index: usize) 
                 monster: *monster,
                 initial: *count,
                 hp: vec![hp; usize::from(*count)],
+                spent: Vec::new(),
             }
         })
         .collect();

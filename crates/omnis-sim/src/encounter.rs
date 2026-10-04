@@ -55,6 +55,9 @@ pub struct Stack {
     pub initial: u8,
     /// Hit points of each living individual, in order.
     pub hp: Vec<i32>,
+    /// Spell points each caster has spent, aligned with `hp` (M7c); missing entries spent none.
+    #[serde(default)]
+    pub spent: Vec<u8>,
 }
 
 impl Stack {
@@ -292,6 +295,7 @@ fn begin(
             monster: *monster,
             initial: *count,
             hp,
+            spent: Vec::new(),
         });
     }
     let mut perception = 0;

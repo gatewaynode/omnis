@@ -160,9 +160,20 @@ pub fn cantrip_dice(
     rng: &mut Pcg32,
     stream: &StreamName,
 ) -> Result<Dice, RuleError> {
+    cantrip_dice_at(character.level, data, dice, rng, stream)
+}
+
+/// A cantrip's dice at caster level `level` (a member's level, a monster's `caster_level`).
+pub fn cantrip_dice_at(
+    level: u8,
+    data: &Data,
+    dice: Dice,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<Dice, RuleError> {
     let outcome = data.rules.eval(
         "cantrip.dice",
-        &[("level", Value::Int(i64::from(character.level)))],
+        &[("level", Value::Int(i64::from(level)))],
         rng,
         stream,
     )?;

@@ -40,16 +40,72 @@ pub(crate) fn on_attack(
             same_row(reactor, subject, front).then_some(Trigger::MemberAttacked)
         }
     };
+    let moment = Moment {
+        roll: Some(roll),
+        missile: false,
+    };
     fire(
-        world,
-        data,
-        state,
-        &trigger,
-        subject,
-        Some(roll),
-        roller,
-        events,
+        world, data, state, &trigger, subject, moment, roller, events,
     )
+}
+
+/// A monster's Magic Missile is cast at the member in slot `subject`: the same moment as an
+/// attack, where an armor bonus always changes the outcome (SRD: Shield also stops the spell).
+pub(crate) fn on_missile(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    subject: usize,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let front = party::front_row(data);
+    let trigger = |reactor: usize| {
+        if reactor == subject {
+            Some(Trigger::Attacked)
+        } else {
+            same_row(reactor, subject, front).then_some(Trigger::MemberAttacked)
+        }
+    };
+    let moment = Moment {
+        roll: None,
+        missile: true,
+    };
+    fire(
+        world, data, state, &trigger, subject, moment, roller, events,
+    )
+}
+
+/// A monster cast a spell: every member may answer, each as its own subject (no action in the
+/// packs answers `EnemyCasts` yet; the trigger is raised for when one does).
+pub(crate) fn on_enemy_cast(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    for reactor in 0..world.party.members.len() {
+        let only = |r: usize| (r == reactor).then_some(Trigger::EnemyCasts);
+        fire(
+            world,
+            data,
+            state,
+            &only,
+            reactor,
+            Moment::default(),
+            roller,
+            events,
+        )?;
+    }
+    Ok(())
+}
+
+/// What the reaction answers: the attack roll about to be judged, or a missile with no roll.
+#[derive(Default)]
+struct Moment<'a> {
+    roll: Option<&'a mut AttackRoll>,
+    missile: bool,
 }
 
 /// The member in slot `subject` took damage, and fell when `dying`.
@@ -65,10 +121,28 @@ pub(crate) fn on_wound(
     let front = party::front_row(data);
     let row = |reactor: usize| reactor != subject && same_row(reactor, subject, front);
     let wounded = |reactor: usize| row(reactor).then_some(Trigger::MemberWounded);
-    fire(world, data, state, &wounded, subject, None, roller, events)?;
+    fire(
+        world,
+        data,
+        state,
+        &wounded,
+        subject,
+        Moment::default(),
+        roller,
+        events,
+    )?;
     if dying {
         let falling = |reactor: usize| row(reactor).then_some(Trigger::MemberDying);
-        fire(world, data, state, &falling, subject, None, roller, events)?;
+        fire(
+            world,
+            data,
+            state,
+            &falling,
+            subject,
+            Moment::default(),
+            roller,
+            events,
+        )?;
     }
     Ok(())
 }
@@ -83,7 +157,16 @@ pub(crate) fn on_cast(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let anyone = |reactor: usize| (reactor != caster).then_some(Trigger::SpellCast);
-    fire(world, data, state, &anyone, caster, None, roller, events)
+    fire(
+        world,
+        data,
+        state,
+        &anyone,
+        caster,
+        Moment::default(),
+        roller,
+        events,
+    )
 }
 
 const fn same_row(a: usize, b: usize, front: usize) -> bool {
@@ -97,7 +180,7 @@ fn fire(
     state: &mut CombatState,
     trigger_for: &dyn Fn(usize) -> Option<Trigger>,
     subject: usize,
-    mut roll: Option<&mut AttackRoll>,
+    mut moment: Moment,
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
@@ -126,7 +209,7 @@ fn fire(
                 state,
                 (reactor, subject),
                 &set,
-                roll.as_deref_mut(),
+                (moment.roll.as_deref_mut(), moment.missile),
                 roller,
                 events,
             )? {
@@ -145,7 +228,7 @@ fn react(
     state: &mut CombatState,
     (reactor, subject): (usize, usize),
     set: &CriteriaSet,
-    roll: Option<&mut AttackRoll>,
+    (roll, missile): (Option<&mut AttackRoll>, bool),
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<bool, RuleError> {
@@ -162,25 +245,34 @@ fn react(
     let Some(effect) = data.spells.get(&spell).and_then(|s| s.effect.clone()) else {
         return Ok(false);
     };
-    // An armor bonus answers a hit only, and never on top of another.
+    // An armor bonus answers a hit or a missile, and never on top of another.
     let mut probe = None;
     if let SpellEffect::Reaction { armor_bonus } = effect {
-        let Some(roll) = roll.as_deref() else {
-            return Ok(false);
-        };
         let shielded = member
             .effects
             .iter()
             .any(|e| matches!(e.kind, EffectKind::ArmorBonus(_)));
-        if !roll.hit || roll.crit || shielded {
+        if shielded {
             return Ok(false);
         }
-        let mut rejudged = roll.clone();
-        let ac = armor_class(member, data) + armor_bonus;
-        rejudge(data, &mut rejudged, ac, &mut roller.rng, &roller.stream)?;
-        probe = Some((rejudged, armor_bonus));
+        if missile {
+            probe = Some((None, armor_bonus));
+        } else {
+            let Some(roll) = roll.as_deref() else {
+                return Ok(false);
+            };
+            if !roll.hit || roll.crit {
+                return Ok(false);
+            }
+            let mut rejudged = roll.clone();
+            let ac = armor_class(member, data) + armor_bonus;
+            rejudge(data, &mut rejudged, ac, &mut roller.rng, &roller.stream)?;
+            probe = Some((Some(rejudged), armor_bonus));
+        }
     }
-    let would_change = probe.as_ref().is_some_and(|(r, _)| !r.hit);
+    let would_change = probe
+        .as_ref()
+        .is_some_and(|(r, _)| r.as_ref().is_none_or(|r| !r.hit));
     if !set
         .when
         .holds(&facts(world, data, state, reactor, subject, would_change))
@@ -217,7 +309,7 @@ fn react(
                 },
                 events,
             );
-            if let Some(roll) = roll {
+            if let (Some(roll), Some(rejudged)) = (roll, rejudged) {
                 *roll = rejudged;
             }
         }

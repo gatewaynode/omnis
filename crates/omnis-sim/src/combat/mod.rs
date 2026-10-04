@@ -8,6 +8,7 @@
 mod budget;
 pub mod cast;
 pub mod feature;
+mod monster_cast;
 mod opportunity;
 mod reaction;
 mod resolve;

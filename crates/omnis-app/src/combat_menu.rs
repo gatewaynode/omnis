@@ -434,6 +434,7 @@ pub(crate) mod tests {
                     monster: id,
                     initial: *count,
                     hp: vec![hp; usize::from(*count)],
+                    spent: Vec::new(),
                 }
             })
             .collect();

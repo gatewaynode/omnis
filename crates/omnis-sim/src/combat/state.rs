@@ -62,6 +62,10 @@ pub struct CombatState {
     /// The spells the actor has cast this turn, for the one-spell rule.
     #[serde(default)]
     pub spells_cast: SpellsCast,
+    /// Monster individuals under Shield until their stack's next turn, `(stack, individual)`;
+    /// sorted.
+    #[serde(default)]
+    pub monster_shields: Vec<(u8, u8)>,
 }
 
 /// The spells cast on the current turn (SRD "Bonus Action" casting time: a turn that casts a

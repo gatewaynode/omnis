@@ -3,7 +3,7 @@
 
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
-use super::{budget, cast, feature, opportunity, reaction, resolve};
+use super::{budget, cast, feature, monster_cast, opportunity, reaction, resolve};
 use crate::apply::{advance, retreat};
 use crate::checks::{self, CheckSpec};
 use crate::effects;
@@ -46,6 +46,7 @@ pub(crate) fn start(
         reactions: Vec::new(),
         hidden: Vec::new(),
         spells_cast: super::state::SpellsCast::default(),
+        monster_shields: Vec::new(),
     };
     // Every combatant may react from the start, except the side that is surprised, which gets
     // its reactions at its first turn.
@@ -333,6 +334,7 @@ pub(crate) fn run_until_member(
             }
             ActorRef::Stack(i) => {
                 if stack_acts(state, i) {
+                    monster_cast::drop_shields(state, i);
                     budget::refresh_reactions(world, data, state, actor, roller)?;
                     events.push(Event::Turn { actor });
                     resolve::monster_turn(world, data, state, i, roller, events)?;
