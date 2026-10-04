@@ -49,6 +49,13 @@ Later, timing open in PRD §14: criteria-set library and runbooks with encounter
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
 costs, the budget curves (measured over seeds first, R12).
+**Monster casting after Bob (M7c, 2026-10-04)**: a caster's turn is a dice roll among its weapon
+and the spells its points pay for, until monster runbooks and a priority list replace it; its
+Shield is a built-in rule, as opportunity attacks are. Left for later: monster heals and buffs
+(validation refuses them), Thunderwave's push (rows have no distance), anything answering
+`EnemyCasts` (raised at every monster cast; the trigger field makes it answerable and testable),
+the party's spells aimed past the front stacks by a policy (the harness never targets Bob behind
+his rats), and Bob's points in the MCP and CLI views (step 6 may add them).
 **A trigger field on every action (owner, 2026-10-03, during M7c)**: each action in the data
 (spells, items, class features, the weapon attack) states the triggers it can answer as a reaction,
 validated against the closed list, instead of the simulation deriving them from the effect kind
@@ -65,7 +72,7 @@ paper and ink as charges; fast-travel modifiers wait for sectors (Phase 2); Mini
 Refining are Omnis tools for the Prospector.
 
 ## Combat and magic
-`Reach::AllStacks`, upcasting, monster spellcasting (counterspell waits for it), torches,
+`Reach::AllStacks`, upcasting, counterspell (monster spellcasting came with Bob the Rat King, M7c), torches,
 `Surprise::Monsters`, finesse weapons, loot and encounter budgets
 (M9), floating damage numbers, MAP in a fight, saving from the pause overlay mid-fight,
 `turn::act` restoring `party` as well as `state` on a `RuleError`.
