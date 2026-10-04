@@ -26,6 +26,7 @@ pub mod items;
 mod migrate;
 pub mod ops;
 pub mod party;
+pub mod party_view;
 pub mod query;
 pub mod replay;
 pub mod rest;
@@ -62,6 +63,7 @@ pub use event::{
 pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
+pub use party_view::{ItemView, MemberView, PartyView, party_view};
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
 pub use rest_view::{CampMember, RestView, rest_view};
