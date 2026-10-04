@@ -5,7 +5,7 @@ use crate::event::{ActorRef, CombatOutcome, Surprise};
 use crate::party::Party;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
-use omnis_data::Data;
+use omnis_data::{Cost, Data};
 use omnis_rules::{Character, condition_id, flags};
 use serde::{Deserialize, Serialize};
 
@@ -59,6 +59,40 @@ pub struct CombatState {
     /// Members hidden by Cunning Action: their next attack has advantage. Sorted.
     #[serde(default)]
     pub hidden: Vec<CharacterId>,
+    /// The spells the actor has cast this turn, for the one-spell rule.
+    #[serde(default)]
+    pub spells_cast: SpellsCast,
+}
+
+/// The spells cast on the current turn (SRD "Bonus Action" casting time: a turn that casts a
+/// spell with the bonus action casts no other spell except a cantrip that takes an action).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellsCast {
+    /// A spell was paid with the bonus action.
+    pub bonus: bool,
+    /// A spell above cantrip level was paid with an action.
+    pub levelled: bool,
+}
+
+impl SpellsCast {
+    /// Whether a spell of `level` paid with `cost` breaks the rule (a second bonus-action
+    /// spell is the budget's to refuse).
+    #[must_use]
+    pub const fn refuses(self, level: u8, cost: Cost) -> bool {
+        match cost {
+            Cost::BonusAction => self.levelled,
+            _ => self.bonus && level > 0,
+        }
+    }
+
+    /// Note a spell of `level` paid with `cost`.
+    pub const fn note(&mut self, level: u8, cost: Cost) {
+        match cost {
+            Cost::BonusAction => self.bonus = true,
+            _ if level > 0 => self.levelled = true,
+            _ => {}
+        }
+    }
 }
 
 /// The actions and bonus actions left in the current turn.

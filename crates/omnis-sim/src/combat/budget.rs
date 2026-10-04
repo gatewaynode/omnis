@@ -3,7 +3,7 @@
 //! ends by itself when no action is left and nothing the bonus action could pay for, nor a
 //! free feature, is available; `EndTurn` ends it sooner.
 
-use super::state::{Budget, CombatState};
+use super::state::{Budget, CombatState, SpellsCast};
 use super::{Roller, cast};
 use crate::command::Rejection;
 use crate::event::ActorRef;
@@ -78,6 +78,7 @@ pub(crate) fn begin_member_turn(
 ) -> Result<(), RuleError> {
     let actor = ActorRef::Member(id);
     let (level, member) = inputs(world, actor);
+    state.spells_cast = SpellsCast::default();
     state.budget = Budget {
         actions: slot(data, "turn.actions", level, member, roller)?,
         bonus_actions: slot(data, "turn.bonus_actions", level, member, roller)?,
@@ -145,7 +146,9 @@ pub(crate) fn goes_on(
             return false;
         };
         cast::check(world, data, own, index, true, &mut rng).is_ok_and(|(_, spell, _)| {
-            spell.bonus_action_available && !spell.preparation_required_for_bonus_action
+            spell.bonus_action_available
+                && !spell.preparation_required_for_bonus_action
+                && !state.spells_cast.refuses(spell.level, Cost::BonusAction)
         })
     })
 }

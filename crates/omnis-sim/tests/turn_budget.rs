@@ -164,21 +164,31 @@ fn a_wizard_s_turn_ends_with_its_action_and_a_cleric_keeps_the_bonus_for_healing
 }
 
 #[test]
-fn healing_word_may_also_take_the_action_and_a_readied_spell_cannot_yet_take_the_bonus() {
+fn a_bonus_action_spell_leaves_room_only_for_a_cantrip_and_a_readied_spell_cannot_take_the_bonus() {
     let mut data = data();
-    let mut world = world(&data);
-    party_of(&mut world, &data, 2);
     let healing_word = data.registry.spells.get("base:spell:healing_word").unwrap();
-    world.party.members[DURIN].known_spells.push(healing_word);
-    fight(&mut world, &data, &[("goblin", 1)]);
-    until_turn_of(&mut world, &data, DURIN);
+    let start = |data: &Data| {
+        let mut world = common::world(data);
+        party_of(&mut world, data, 2);
+        world.party.members[DURIN].known_spells.push(healing_word);
+        fight(&mut world, data, &[("goblin", 3)]);
+        until_turn_of(&mut world, data, DURIN);
+        world
+    };
+    let mut world = start(&data);
     let word = spell_row(&world, &data, DURIN, "healing_word");
-    let cast = |pay| CombatCommand::Cast {
-        spell: word,
+    let flame = spell_row(&world, &data, DURIN, "sacred_flame");
+    let cast = |spell, pay| CombatCommand::Cast {
+        spell,
         target: Target::Member(0),
         pay,
     };
-    ask(&mut world, &data, cast(Pay::BonusAction));
+    let flame_at_goblin = CombatCommand::Cast {
+        spell: flame,
+        target: Target::Stack(0),
+        pay: Pay::Action,
+    };
+    ask(&mut world, &data, cast(word, Pay::BonusAction));
     assert_eq!(
         state(&world).budget,
         Budget {
@@ -190,28 +200,53 @@ fn healing_word_may_also_take_the_action_and_a_readied_spell_cannot_yet_take_the
     refused(
         &mut world,
         &data,
-        cast(Pay::BonusAction),
+        cast(word, Pay::BonusAction),
         Rejection::NoBonusActionLeft,
     );
-    ask(&mut world, &data, cast(Pay::Action));
+    refused(
+        &mut world,
+        &data,
+        cast(word, Pay::Action),
+        Rejection::OneSpellATurn { spell: word },
+    );
+    ask(&mut world, &data, flame_at_goblin);
     assert_ne!(
         current(&world),
         Some(member(&world, DURIN)),
-        "D24: two spells in one turn, then the budget is spent"
+        "SRD: a cantrip with the action besides, then the budget is spent"
+    );
+    // The next turn starts clean: a levelled spell with the action is accepted again.
+    until_turn_of(&mut world, &data, DURIN);
+    ask(&mut world, &data, cast(word, Pay::Action));
+
+    // The rule holds in either order: a cantrip first leaves the bonus spell open, a levelled
+    // spell first closes it, so the turn ends with the bonus action unspent.
+    let mut world = start(&data);
+    ask(&mut world, &data, flame_at_goblin);
+    if current(&world) == Some(member(&world, DURIN)) {
+        ask(&mut world, &data, cast(word, Pay::BonusAction));
+    } else {
+        assert!(
+            !matches!(world.mode, Mode::Combat(_)),
+            "the turn passed only because the fight ended"
+        );
+    }
+    let mut world = start(&data);
+    ask(&mut world, &data, cast(word, Pay::Action));
+    assert_ne!(
+        current(&world),
+        Some(member(&world, DURIN)),
+        "a levelled spell with the action leaves the bonus action nothing to pay for"
     );
 
     let spell = data.spells.get_mut(&healing_word).unwrap();
     spell.preparation_available = true;
     spell.preparation_required_for_bonus_action = true;
-    let mut world = common::world(&data);
-    party_of(&mut world, &data, 2);
-    world.party.members[DURIN].known_spells.push(healing_word);
-    fight(&mut world, &data, &[("goblin", 1)]);
-    until_turn_of(&mut world, &data, DURIN);
+    let mut world = start(&data);
     refused(
         &mut world,
         &data,
-        cast(Pay::BonusAction),
+        cast(word, Pay::BonusAction),
         Rejection::NeedsPreparation { spell: word },
     );
 }

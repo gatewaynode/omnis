@@ -15,7 +15,7 @@ pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
+pub use state::{Budget, CombatState, Initiative, SpellsCast, monster_front_stacks};
 pub use turn::run_dc;
 
 use crate::command::Rejection;
@@ -322,6 +322,9 @@ fn validate(
                 .get(&plan.spell)
                 .ok_or(Rejection::UnknownSpell { spell })?;
             cost = spell_cost(def, spell, pay)?;
+            if state.spells_cast.refuses(def.level, cost) {
+                return Err(Rejection::OneSpellATurn { spell });
+            }
             Plan::Cast(plan)
         }
         CombatCommand::Attack { stack } => {
