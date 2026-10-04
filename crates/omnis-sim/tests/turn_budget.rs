@@ -1,6 +1,6 @@
 //! The turn budget (M7c step 3, PRD D21, ARCHITECTURE.md §4.7): several commands in a member's
-//! turn within an action and a bonus action, the turn ending by itself when nothing is left to
-//! pay for or by `EndTurn`, bonus-action spells (D24), Second Wind, Action Surge and Cunning
+//! turn within an action and a bonus action, the turn ending by itself when the action is spent
+//! and no bonus-action spell is left, or by `EndTurn`, bonus-action spells (D24), Second Wind, Action Surge and Cunning
 //! Action with their uses, and the monsters' opportunity attacks. Party: Brenna (human
 //! fighter), Durin (dwarf cleric), Ilvara (elf wizard), Pip (halfling rogue); the first three
 //! stand in front.
@@ -263,22 +263,19 @@ fn action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest() {
         Rejection::WrongChoice { feature: 0 },
     );
 
-    let mut events = ask(&mut world, &data, CombatCommand::Attack { stack: 0 });
-    assert_eq!(current(&world), Some(brenna));
-    events.extend(ask(&mut world, &data, feature(1, FeatureChoice::None)));
+    // Features come before the action (owner, 2026-10-04): surge, attack, Second Wind, attack.
+    let mut events = ask(&mut world, &data, feature(1, FeatureChoice::None));
     assert!(events.iter().any(|e| matches!(
         e,
         Event::FeatureUsed { feature, .. } if feature == "base:text:class.fighter.action_surge"
     )));
     assert_eq!(
         state(&world).budget.actions,
-        1,
-        "Action Surge costs nothing"
+        2,
+        "Action Surge costs nothing and gives an action"
     );
-    if state(&world).encounter.stacks[0].alive() {
-        events.extend(ask(&mut world, &data, CombatCommand::Attack { stack: 0 }));
-        assert_eq!(attacks_by(&events, brenna), 2, "two attacks in one turn");
-    }
+    events.extend(ask(&mut world, &data, CombatCommand::Attack { stack: 0 }));
+    assert_eq!(current(&world), Some(brenna), "an action is left");
     refused(
         &mut world,
         &data,
@@ -287,12 +284,12 @@ fn action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest() {
     );
 
     world.party.members[BRENNA].hp = 3;
-    let events = ask(&mut world, &data, feature(0, FeatureChoice::None));
+    let healed = ask(&mut world, &data, feature(0, FeatureChoice::None));
     let Some(Event::Healed {
         rolls, amount, hp, ..
-    }) = events.iter().find(|e| matches!(e, Event::Healed { .. }))
+    }) = healed.iter().find(|e| matches!(e, Event::Healed { .. }))
     else {
-        panic!("{events:?}");
+        panic!("{healed:?}");
     };
     let die = i64::from(rolls[0].total);
     assert!((1..=10).contains(&die));
@@ -303,17 +300,28 @@ fn action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest() {
         (3 + die + 2).min(max),
         "capped at the maximum"
     );
-    assert_ne!(
-        current(&world),
-        Some(brenna),
-        "no action, no bonus action, no surge: the turn ends by itself"
-    );
+    assert_eq!(current(&world), Some(brenna), "the second action is left");
     assert_eq!(
         world.party.members[BRENNA].feature_spent,
         [
             ("base:text:class.fighter.action_surge".to_owned(), 1),
             ("base:text:class.fighter.second_wind".to_owned(), 1)
         ]
+    );
+    if let Some(stack) = state(&world)
+        .encounter
+        .stacks
+        .iter()
+        .position(|s| s.alive())
+    {
+        let stack = u8::try_from(stack).unwrap();
+        events.extend(ask(&mut world, &data, CombatCommand::Attack { stack }));
+        assert_eq!(attacks_by(&events, brenna), 2, "two attacks in one turn");
+    }
+    assert_ne!(
+        current(&world),
+        Some(brenna),
+        "no action, no bonus action: the turn ends by itself"
     );
 }
 
@@ -577,29 +585,26 @@ fn the_words_name_the_turn_s_commands() {
 }
 
 #[test]
-fn a_held_surge_keeps_the_turn_and_a_spent_one_lets_it_end() {
+fn a_turn_ends_when_its_action_is_spent_though_features_are_left() {
     let data = data();
     let mut world = world(&data);
-    party_of(&mut world, &data, 2);
-    world.party.members[BRENNA].level = 2;
-    world.party.members[BRENNA].feature_spent =
-        vec![("base:text:class.fighter.second_wind".to_owned(), 1)];
-    fight(&mut world, &data, &[("goblin", 3)]);
-    until_turn_of(&mut world, &data, BRENNA);
-    let brenna = member(&world, BRENNA);
-    ask(&mut world, &data, CombatCommand::Attack { stack: 0 });
-    assert_eq!(
-        current(&world),
-        Some(brenna),
-        "Second Wind spent, but Action Surge is free and unused"
-    );
-    ask(&mut world, &data, CombatCommand::EndTurn);
-    world.party.members[BRENNA]
-        .feature_spent
-        .push(("base:text:class.fighter.action_surge".to_owned(), 1));
-    world.party.members[BRENNA].feature_spent.sort();
-    until_turn_of(&mut world, &data, BRENNA);
-    if state(&world).encounter.stacks.iter().any(|s| s.alive()) {
+    party_of(&mut world, &data, 4);
+    // Pip to the front, so both may swing at the goblins.
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Reorder {
+            order: vec![3, 0, 1, 2],
+        }),
+    )
+    .unwrap();
+    let (pip, brenna) = (0, 1);
+    world.party.members[pip].level = 2;
+    world.party.members[brenna].level = 2;
+    fight(&mut world, &data, &[("goblin", 3), ("goblin", 3)]);
+    for slot in [brenna, pip] {
+        until_turn_of(&mut world, &data, slot);
+        let who = member(&world, slot);
         let stack = u8::try_from(
             state(&world)
                 .encounter
@@ -610,7 +615,11 @@ fn a_held_surge_keeps_the_turn_and_a_spent_one_lets_it_end() {
         )
         .unwrap();
         ask(&mut world, &data, CombatCommand::Attack { stack });
-        assert_ne!(current(&world), Some(brenna), "nothing left to pay for");
+        assert_ne!(
+            current(&world),
+            Some(who),
+            "Second Wind, Action Surge and Cunning Action are used before the action"
+        );
     }
 }
 

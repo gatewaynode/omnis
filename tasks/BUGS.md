@@ -1,0 +1,16 @@
+# Bugs
+
+Each bug found in play or review: the report, the cause, the test that reproduces it (written red before
+the fix) and the fixing commit. Newest last.
+
+## B1 — A fighter's turn waits for End every round (acceptance c, 2026-10-04)
+- **Report** (owner, playing `tasks/acceptance/m7c.md`): "my front line fighter has to manually choose the
+  'end' option after her first round of combat to let the combat proceed (doesn't seem quite right)".
+- **Cause**: `combat/budget.rs::goes_on` kept a turn open while a free feature had a use or the bonus action
+  could pay for a feature. Second Wind (level 1, once a short rest) and Action Surge held every fighter's turn
+  until spent; Cunning Action (no use limit) held a level-2 rogue's every turn.
+- **Decision** (owner, 2026-10-04): a turn ends when its action is spent, unless a spell that may take the
+  bonus action can still be cast; features are used before the action.
+- **Test**: `turn_budget.rs::a_turn_ends_when_its_action_is_spent_though_features_are_left` (red on the old
+  rule: the fighter still held the turn).
+- **Fixed in**: the commit "M7c acceptance c, B1".

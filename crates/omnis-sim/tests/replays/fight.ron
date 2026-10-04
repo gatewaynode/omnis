@@ -135,7 +135,6 @@
         Combat(Attack(
             stack: 0,
         )),
-        Combat(EndTurn),
         Combat(Attack(
             stack: 0,
         )),
@@ -149,5 +148,5 @@
             stack: 0,
         )),
     ],
-    fingerprint: 4106035052781345400,
+    fingerprint: 13689675309031319555,
 )

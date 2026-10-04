@@ -1,7 +1,7 @@
 //! The turn budget (PRD D21, ARCHITECTURE.md §4.7): the `turn.*` slots evaluated at the start
 //! of a combatant's turn, what a command spends, and whether a member's turn goes on. A turn
-//! ends by itself when no action is left and nothing the bonus action could pay for, nor a
-//! free feature, is available; `EndTurn` ends it sooner.
+//! ends by itself when no action is left and no spell the bonus action may cast remains;
+//! features are used before the action (owner, 2026-10-04). `EndTurn` ends it sooner.
 
 use super::state::{Budget, CombatState};
 use super::{Roller, cast};
@@ -11,7 +11,7 @@ use crate::world::World;
 use omnis_core::CharacterId;
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Cost, Data};
-use omnis_rules::{RuleError, combat_features, uses_left};
+use omnis_rules::RuleError;
 
 /// One `turn.*` slot for a member of `level`, or a stack (`level` 0, not a member).
 fn slot(
@@ -104,9 +104,9 @@ pub(crate) const fn spend(budget: &mut Budget, cost: Cost) {
     }
 }
 
-/// Whether the member in slot `own` has anything left to do this turn: an action, a free
-/// feature with a use left, or something the bonus action pays for (a feature, or a spell that
-/// may take the bonus action and can be cast now).
+/// Whether the member in slot `own` has anything left to do this turn: an action, or a spell
+/// that may take the bonus action and can be cast now. Features do not hold the turn: Second
+/// Wind, Action Surge and Cunning Action are used before the action (owner, 2026-10-04).
 pub(crate) fn goes_on(
     world: &World,
     data: &Data,
@@ -123,20 +123,8 @@ pub(crate) fn goes_on(
     if state.budget.actions > 0 {
         return true;
     }
-    let features = combat_features(member, data);
-    let usable = |cost: Cost| {
-        features
-            .iter()
-            .any(|f| f.cost == cost && uses_left(member, f) != Some(0))
-    };
-    if usable(Cost::Free) {
-        return true;
-    }
     if state.budget.bonus_actions == 0 {
         return false;
-    }
-    if usable(Cost::BonusAction) {
-        return true;
     }
     // A copy of the stream: a cost formula may roll, and looking must not move the dice.
     let mut rng = roller.rng;

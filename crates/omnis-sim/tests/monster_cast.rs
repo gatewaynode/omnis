@@ -396,7 +396,8 @@ fn bob_shields_himself_from_a_missile_and_a_hit_once_a_round() {
     let turned = (0..100).find_map(|seed| {
         let (mut world, _) = against_bob(&data, seed, (1, 1, 200), |_| {});
         until_member(&mut world, &data, 0);
-        // Brenna keeps her turn (Second Wind is open), so the state is read before Bob's.
+        // A second action keeps Brenna's turn, so the state is read before Bob's.
+        state(&mut world).budget.actions = 2;
         let events = apply(
             &mut world,
             &data,
@@ -509,7 +510,8 @@ fn points_and_shields_stay_with_their_individual_when_the_lead_dies() {
         s.encounter.stacks[0].spent = vec![3, 1];
         s.monster_shields = vec![(0, 0), (0, 1)];
         s.set_reactions(ActorRef::Stack(0), 0);
-        // Brenna keeps her turn (Second Wind is open), so the state is read before Bob's.
+        // A second action keeps Brenna's turn, so the state is read before Bob's.
+        state(&mut world).budget.actions = 2;
         let events = apply(
             &mut world,
             &data,

@@ -12,10 +12,10 @@ told apart from a gap. Play it in the window with a dev build (`cargo run -p omn
 **What changed in a fight.**
 - A turn is no longer one command. Each member has an action, a bonus action and a reaction (the SRD's one of
   each), shown on the budget line above the action row: `Action 1   Bonus 1   Reaction 1 (on)`.
-- A turn ends by itself when no action is left and nothing the bonus action could pay for remains. END (`n`)
+- A turn ends by itself when no action is left and no spell the bonus action may cast remains. END (`n`)
   ends it sooner.
-- A fighter holding Action Surge, or a level-2 rogue (Cunning Action is always there to spend), keeps the turn
-  until you press END. This is by design.
+- Features come before the action (owner, 2026-10-04, after B1): Action Surge, Second Wind and Cunning Action
+  do not hold the turn once the action is spent.
 - A bonus-action spell does not limit the action to a cantrip (PRD D24). A cleric may cast Healing Word with
   the bonus action and Bless or Cure Wounds with the action in the same turn.
 
@@ -50,11 +50,13 @@ Go out through the gate (11, 2) and fight anything: the meadow's road, or the du
 
 1. **The fighter's turn.** Open USE: the first rows are the fighter's features, "Second Wind" and
    "Action Surge", each with "1 use", before any items. Pick Action Surge.
-   *You will see* "… uses Action Surge" and the budget line reading `Action 2`. Attack twice, then pick
-   Second Wind from USE.
-   *You will see* the fighter heal, `Bonus 0`, and the turn pass once the actions are spent.
+   *You will see* "… uses Action Surge" and the budget line reading `Action 2`. Attack once, pick Second Wind
+   from USE, then attack again.
+   *You will see* the fighter heal, `Bonus 0`, and the turn pass by itself after the second attack. On a
+   later turn, attacking with Second Wind or Action Surge unspent also passes the turn.
    Covered by `turn_budget.rs::action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest` and
-   `omnis-app/tests/combat.rs::second_wind_is_used_from_the_use_picker_by_mouse_and_spends_the_bonus_action`.
+   `omnis-app/tests/combat.rs::second_wind_is_used_from_the_use_picker_by_mouse_and_spends_the_bonus_action`
+   and `turn_budget.rs::a_turn_ends_when_its_action_is_spent_though_features_are_left`.
 2. **The cleric's turn.** Open CAST: Healing Word's row reads "bonus action". Cast it on a member.
    *You will see* `Bonus 0` with `Action 1` left. The turn goes on: attack, or cast a second spell (Bless,
    Cure Wounds) with the action.
@@ -96,11 +98,12 @@ Go out through the gate (11, 2) and fight anything: the meadow's road, or the du
      switched on with a declared set named after the spell (`Attacked`, `WouldChangeOutcome`).
 
    Covered by `save_and_replay.rs::loads_are_checked` and `save_and_replay.rs::a_schema_5_save_migrates`.
-8. **END.** On any member's turn with something left, press END (`n`).
-   *You will see* the next combatant act. A fighter who has attacked but still holds Action Surge keeps the
-   turn until END.
-   Covered by `turn_budget.rs::end_turn_passes_the_turn_and_a_reaction_is_never_a_turn_s_command` and
-   `turn_budget.rs::a_held_surge_keeps_the_turn_and_a_spent_one_lets_it_end`.
+8. **END.** On any member's turn with the action left, or on the cleric's turn after an attack while
+   Healing Word can still be cast, press END (`n`).
+   *You will see* the next combatant act. A fighter's or rogue's attack passes the turn by itself.
+   Covered by `turn_budget.rs::end_turn_passes_the_turn_and_a_reaction_is_never_a_turn_s_command`,
+   `a_wizard_s_turn_ends_with_its_action_and_a_cleric_keeps_the_bonus_for_healing_word` and
+   `a_turn_ends_when_its_action_is_spent_though_features_are_left`.
 
 ## Part 2: Bob the Rat King
 9. **The way down.**

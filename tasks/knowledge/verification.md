@@ -42,7 +42,7 @@ repository root (the root has no rules file).
   shape and the bad-pack error wording are pinned in the same directory.
 - Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `7703481389045166225`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `4106035052781345400` under the golden seed (M7c Bob part 1; both leave town through the
+  fight `13689675309031319555` under the golden seed (M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.

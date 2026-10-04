@@ -130,3 +130,14 @@
 ## 2026-10-04 — An SRD rule the PRD set aside is not "missing"
 - **What happened**: Writing M7c step 5's policy I found the SRD's one-spell rule absent and added it as step 4b (`25ce447`), calling it missing. PRD D24 and the §8.3 casting-time row reject exactly that rule (the owner's departure: two spells a turn within the budget). Nobody was asked; three later steps built on it. Found in step 8's planning; the owner chose to revert it.
 - **Rule**: Before adding an SRD rule the code lacks, search the PRD's decisions (D-table "Rejected" column) and §8.3 for it. "SRD is the default direction" applies only where the owner has not departed; a departure the owner wrote is never undone without an ask.
+
+## 2026-10-04 — A rule that keeps a turn open is counted in play, not only asserted
+- **What happened**: M7c's turn-ending rule held a member's turn while any feature could still be spent. Tests
+  asserted it, and the acceptance script even called it "by design", but Second Wind (level 1, once a rest)
+  and Cunning Action (no limit) made every fighter and rogue press End nearly every round. The measurement
+  policy used every feature before the action, so it never saw the chore. The owner found it in the first
+  fight of acceptance c (B1).
+- **Rule**: When a rule decides whether the player must press something, count how often it fires in a
+  measured or scripted fight (End presses a turn, by class) before shipping, and put the number in the report.
+- **Rule**: A test helper or fixture that works around a rule (here `END` pressed "for Second Wind" in two
+  app tests and a replay) is a sign that players will hit the same thing; surface it to the owner.

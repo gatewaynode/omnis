@@ -16,7 +16,7 @@ use omnis_app::sim::{
 use omnis_app::ui::{MessageLine, RollLog};
 use omnis_app::widget::{Part, WidgetId};
 use omnis_sim::omnis_core::{Direction, Facing};
-use omnis_sim::{CheckKind, CombatOutcome, Command, Event, Mode, PartyCommand};
+use omnis_sim::{CheckKind, CombatOutcome, Command, Event, PartyCommand};
 
 /// The rat placement of the test dungeon: (3, 8), entered from the north.
 const DUNGEON: &str = "test:map:dungeon";
@@ -88,10 +88,6 @@ fn a_fixed_encounter_is_fought_by_mouse_to_its_end() {
         }
         // Attack whatever the menu targets; the model keeps the target on a living stack.
         click(&mut app, WidgetId::Action(0), Part::Body);
-        // A fighter keeps the turn for Second Wind's bonus action: End passes it on.
-        if matches!(&world(&app).mode, Mode::Combat(state) if state.budget.actions == 0) {
-            click(&mut app, WidgetId::Action(6), Part::Body);
-        }
     }
     let ended = seen(&app).events.iter().find_map(|e| match e {
         Event::CombatEnded { outcome, xp, .. } => Some((*outcome, *xp)),
