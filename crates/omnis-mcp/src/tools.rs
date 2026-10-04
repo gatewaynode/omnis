@@ -93,13 +93,13 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "sim_command",
             "sim.command",
-            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
+            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast with the action or the bonus action, use an item, dodge, exchange, run, a class feature, end the turn), tactics (switch a member's reactions, any time; declare or remove a reaction, outside a fight), rests and town services, a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
             &[Field::new::<Command>("command", true, "The command.")],
         ),
         tool(
             "sim_script",
             "sim.script",
-            "Apply commands in order, stopping at the first rejection; returns how many applied and every event.",
+            "Apply commands in order, stopping at the first rejection; returns how many applied and every event. A turn in a fight may take several commands: it ends when the budget has nothing left to pay for, or at EndTurn.",
             &[Field::new::<Vec<Command>>(
                 "commands",
                 true,
@@ -166,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin; and each member's tactics: the reactions switch, the declared reactions as the rows PutReaction and RemoveReaction take (action, trigger, criteria), and the actions the member could declare with the triggers each answers.",
             &[],
         ),
         tool(
@@ -178,7 +178,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "combat_get",
             "combat.get",
-            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far. Fails while exploring.",
+            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far; the acting member's turn budget (actions and bonus actions left), the spells cast this turn, and each spell row's reason it cannot be cast with the action and with the bonus action; reactions left by combatant; hidden members; each member's reactions switch and class features with uses left and why each is blocked; each casting monster's points left per individual and the shields it has up. Fails while exploring.",
             &[],
         ),
         tool(

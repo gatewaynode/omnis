@@ -9,6 +9,7 @@ use crate::items::ItemCommand;
 use crate::party::PartyCommand;
 use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
+use crate::tactics::TacticsCommand;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
@@ -126,6 +127,9 @@ impl Command {
             "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
             "end" => Command::Combat(CombatCommand::EndTurn),
             _ => {
+                if let Some(rest) = word.strip_prefix("react-") {
+                    return parse_react(rest).map(Command::Party);
+                }
                 if let Some(rest) = word.strip_prefix("feature-") {
                     return parse_feature(rest).map(Command::Combat);
                 }
@@ -167,6 +171,19 @@ fn parse_cast(rest: &str) -> Option<CombatCommand> {
         None => Target::Stack(target.parse().ok()?),
     };
     Some(CombatCommand::Cast { spell, target, pay })
+}
+
+/// `M-on` or `M-off` switches member `M`'s reactions.
+fn parse_react(rest: &str) -> Option<PartyCommand> {
+    let (member, on) = match rest.split_once('-')? {
+        (member, "on") => (member, true),
+        (member, "off") => (member, false),
+        _ => return None,
+    };
+    Some(PartyCommand::Tactics(TacticsCommand::SetReactions {
+        member: member.parse().ok()?,
+        on,
+    }))
 }
 
 /// `F` uses feature row `F`; `F-W` exchanges with slot `W` (Cunning Action); `F-hide` hides.
@@ -278,8 +295,11 @@ impl fmt::Display for ScriptError {
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
-/// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
-/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, inside a service
+/// `cast-N-mM` (at member `M`), either with `-bonus` to pay with the bonus action,
+/// `use-item-N` (item `N` of the acting member's kit, on themselves), `use-item-N-mM` (on
+/// member `M`), `dodge`, `swap-N`, `flee`, `feature-F` (feature row `F`), `feature-F-W`
+/// (Cunning Action's exchange with slot `W`), `feature-F-hide`, `end` (ends the turn), at any
+/// time `react-M-on` and `react-M-off` (member `M`'s reactions switch), inside a service
 /// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
 /// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line.

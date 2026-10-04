@@ -89,6 +89,20 @@ fn turn_spell(data: &Data, id: &str, roller: &Roller) -> Result<Option<(SpellId,
     Ok(Some((spell, spell_cost(def, data, &mut rng)?)))
 }
 
+/// Each individual's points left, in the stack's order; empty for a monster that does not cast.
+pub(crate) fn points_of(data: &Data, stack: &Stack) -> Vec<u8> {
+    let Some(casting) = data
+        .monsters
+        .get(&stack.monster)
+        .and_then(|m| m.casting.as_ref())
+    else {
+        return Vec::new();
+    };
+    (0..stack.hp.len())
+        .map(|i| u8::try_from(points_left(casting, stack, i)).unwrap_or(u8::MAX))
+        .collect()
+}
+
 /// Points an individual has left.
 fn points_left(casting: &MonsterCasting, stack: &Stack, index: usize) -> u32 {
     let spent = stack.spent.get(index).copied().unwrap_or(0);

@@ -169,6 +169,13 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap_or_else(|| panic!("{member}"));
     assert_eq!(potion["usable"], json!(true));
     assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
+    let tactics = &member["tactics"];
+    assert_eq!(tactics["reactions_on"], json!(true), "{member}");
+    assert_eq!(
+        tactics["answers"],
+        json!([{"action": "Attack", "name": "attack", "triggers": ["EnemyFlees"]}]),
+        "a fighter could declare the weapon at a fleeing enemy"
+    );
     let reply = server.tool(
         12,
         "sim_command",

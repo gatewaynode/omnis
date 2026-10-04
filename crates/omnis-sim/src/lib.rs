@@ -63,13 +63,15 @@ pub use event::{
 pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
-pub use party_view::{ItemView, MemberView, PartyView, party_view};
+pub use party_view::{
+    AnswerView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+};
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
 pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
-pub use view::{CombatView, SpellView, StackView, combat_view};
+pub use view::{CombatView, FeatureView, FighterView, SpellView, StackView, combat_view};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };

@@ -4,13 +4,16 @@
 use crate::command::Rejection;
 use crate::party;
 use crate::rest;
+use crate::tactics::answers;
 use crate::world::World;
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId};
 use omnis_data::{Data, EquipSlot};
-use omnis_rules::{ActiveEffect, Character, DeathSaves, Equipped, condition_id};
+use omnis_rules::{
+    ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Trigger, condition_id,
+};
 use serde::{Deserialize, Serialize};
 
 /// One party member as a client sees it: the sheet plus the derived numbers.
@@ -76,6 +79,50 @@ pub struct MemberView {
     /// The experience has reached a level a trainer has not granted.
     #[serde(default)]
     pub ready: bool,
+    /// The declared reactions and what could be declared.
+    #[serde(default)]
+    pub tactics: TacticsView,
+}
+
+/// A member's tactics as a client sees them (ARCHITECTURE.md §4.7).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TacticsView {
+    /// The in-fight switch: off, no reaction fires.
+    pub reactions_on: bool,
+    /// The runbook takes the member's turns (stored; not built).
+    pub auto: bool,
+    /// The default runbook's entries, in the order they are tried.
+    pub reactions: Vec<ReactionView>,
+    /// The actions the member could declare, each with the triggers it answers.
+    pub answers: Vec<AnswerView>,
+}
+
+/// One declared reaction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReactionView {
+    /// Its entry in the default runbook, the number `PutReaction` and `RemoveReaction` take.
+    pub index: u8,
+    /// The criteria set's name.
+    pub name: String,
+    /// The action as the commands carry it.
+    pub action: ActionRef,
+    /// The action's id (`attack` for the weapon).
+    pub action_name: String,
+    /// What raises it.
+    pub trigger: Trigger,
+    /// The criteria that must hold.
+    pub when: Criteria,
+}
+
+/// An action a member could declare as a reaction.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnswerView {
+    /// The action as the commands carry it.
+    pub action: ActionRef,
+    /// The action's id (`attack` for the weapon).
+    pub name: String,
+    /// The triggers it can answer.
+    pub triggers: Vec<Trigger>,
 }
 
 /// One row of a kit or the stores.
@@ -206,6 +253,61 @@ fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> Me
         hit_dice_left: member.level.saturating_sub(member.hit_dice_spent),
         spell_picks: member.spell_picks,
         ready: omnis_rules::ready(member, data).unwrap_or(false),
+        tactics: tactics_view(data, member),
+    }
+}
+
+/// The default runbook's entries and the actions that could answer a trigger: the weapon and
+/// each known spell (items and features answer nothing yet).
+fn tactics_view(data: &Data, member: &Character) -> TacticsView {
+    let tactics = &member.tactics;
+    let reactions = tactics.active().map_or_else(Vec::new, |book| {
+        book.entries
+            .iter()
+            .enumerate()
+            .filter_map(|(row, (_, set))| {
+                let set = tactics.library.get(usize::from(*set))?;
+                Some(ReactionView {
+                    index: u8::try_from(row).ok()?,
+                    name: set.name.clone(),
+                    action: set.action.clone(),
+                    action_name: action_name(data, &set.action),
+                    trigger: set.trigger,
+                    when: set.when.clone(),
+                })
+            })
+            .collect()
+    });
+    let candidates = core::iter::once(ActionRef::Attack)
+        .chain(member.known_spells.iter().map(|id| ActionRef::Spell(*id)));
+    let answers = candidates
+        .filter_map(|action| {
+            let triggers: Vec<Trigger> = Trigger::ALL
+                .into_iter()
+                .filter(|t| answers(member, data, &action, *t))
+                .collect();
+            (!triggers.is_empty()).then(|| AnswerView {
+                name: action_name(data, &action),
+                action,
+                triggers,
+            })
+        })
+        .collect();
+    TacticsView {
+        reactions_on: tactics.reactions_on,
+        auto: tactics.auto,
+        reactions,
+        answers,
+    }
+}
+
+/// An action's id as the packs name it.
+fn action_name(data: &Data, action: &ActionRef) -> String {
+    match action {
+        ActionRef::Attack => "attack".to_owned(),
+        ActionRef::Spell(id) => name_of(data.registry.spells.name(*id)),
+        ActionRef::Item(id) => name_of(data.registry.items.name(*id)),
+        ActionRef::Feature(name) => name.clone(),
     }
 }
 
