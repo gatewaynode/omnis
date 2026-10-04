@@ -9,8 +9,11 @@ lives in `tasks/knowledge/` (start at its README).
   block of `tasks/TODO.md` (each done step records what was built, what moved, and deviations).
 - **Toolchain**: every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
 - Sentrux: `git add` new files, scan `/Users/john/code/omnis/crates`, `check_rules`.
+- Context: this session reached 513k of 1M before the compact, a third of it Bash output; pipe
+  test and gate runs through `grep`/`tail` and read files by range.
 - Mutation passes: scratchpad scripts `mutate.py` / `mutate4.py` (list of `(name, file, old, new)`,
-  restore in `finally`); a break counts only with a named failing test (LESSONS 2026-10-02).
+  restore in `finally`; the scratchpad is per session, so recreate them; run in the background
+  without `tail` so results arrive as they finish); a break counts only with a named failing test (LESSONS 2026-10-02).
 
 ## State
 - Branch `m7a-b-tasks`, **not pushed since `4b1bd14`**; local commits: `0672521` (M7c plan docs),
