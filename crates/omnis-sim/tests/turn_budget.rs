@@ -164,7 +164,8 @@ fn a_wizard_s_turn_ends_with_its_action_and_a_cleric_keeps_the_bonus_for_healing
 }
 
 #[test]
-fn a_bonus_action_spell_leaves_room_only_for_a_cantrip_and_a_readied_spell_cannot_take_the_bonus() {
+fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus() {
+    // PRD D24: a bonus-action spell does not limit the action to a cantrip.
     let mut data = data();
     let healing_word = data.registry.spells.get("base:spell:healing_word").unwrap();
     let start = |data: &Data| {
@@ -175,20 +176,18 @@ fn a_bonus_action_spell_leaves_room_only_for_a_cantrip_and_a_readied_spell_canno
         until_turn_of(&mut world, data, DURIN);
         world
     };
+    let points = |world: &World| world.party.members[DURIN].spell_points;
     let mut world = start(&data);
     let word = spell_row(&world, &data, DURIN, "healing_word");
-    let flame = spell_row(&world, &data, DURIN, "sacred_flame");
     let cast = |spell, pay| CombatCommand::Cast {
         spell,
         target: Target::Member(0),
         pay,
     };
-    let flame_at_goblin = CombatCommand::Cast {
-        spell: flame,
-        target: Target::Stack(0),
-        pay: Pay::Action,
-    };
+    let full = points(&world);
     ask(&mut world, &data, cast(word, Pay::BonusAction));
+    let one = full - points(&world);
+    assert!(one > 0, "a levelled spell costs points");
     assert_eq!(
         state(&world).budget,
         Budget {
@@ -203,41 +202,24 @@ fn a_bonus_action_spell_leaves_room_only_for_a_cantrip_and_a_readied_spell_canno
         cast(word, Pay::BonusAction),
         Rejection::NoBonusActionLeft,
     );
-    refused(
-        &mut world,
-        &data,
-        cast(word, Pay::Action),
-        Rejection::OneSpellATurn { spell: word },
-    );
-    ask(&mut world, &data, flame_at_goblin);
+    ask(&mut world, &data, cast(word, Pay::Action));
+    assert_eq!(points(&world), full - 2 * one, "both spells paid");
     assert_ne!(
         current(&world),
         Some(member(&world, DURIN)),
-        "SRD: a cantrip with the action besides, then the budget is spent"
+        "the budget is spent and the turn passes"
     );
-    // The next turn starts clean: a levelled spell with the action is accepted again.
-    until_turn_of(&mut world, &data, DURIN);
-    ask(&mut world, &data, cast(word, Pay::Action));
 
-    // The rule holds in either order: a cantrip first leaves the bonus spell open, a levelled
-    // spell first closes it, so the turn ends with the bonus action unspent.
-    let mut world = start(&data);
-    ask(&mut world, &data, flame_at_goblin);
-    if current(&world) == Some(member(&world, DURIN)) {
-        ask(&mut world, &data, cast(word, Pay::BonusAction));
-    } else {
-        assert!(
-            !matches!(world.mode, Mode::Combat(_)),
-            "the turn passed only because the fight ended"
-        );
-    }
+    // Either order: a levelled spell with the action leaves the bonus spell open.
     let mut world = start(&data);
     ask(&mut world, &data, cast(word, Pay::Action));
-    assert_ne!(
+    assert_eq!(
         current(&world),
         Some(member(&world, DURIN)),
-        "a levelled spell with the action leaves the bonus action nothing to pay for"
+        "the bonus action still has a spell to pay for"
     );
+    ask(&mut world, &data, cast(word, Pay::BonusAction));
+    assert_eq!(points(&world), full - 2 * one);
 
     let spell = data.spells.get_mut(&healing_word).unwrap();
     spell.preparation_available = true;
@@ -248,6 +230,12 @@ fn a_bonus_action_spell_leaves_room_only_for_a_cantrip_and_a_readied_spell_canno
         &data,
         cast(word, Pay::BonusAction),
         Rejection::NeedsPreparation { spell: word },
+    );
+    ask(&mut world, &data, cast(word, Pay::Action));
+    assert_ne!(
+        current(&world),
+        Some(member(&world, DURIN)),
+        "a spell needing preparation leaves the bonus action nothing to pay for"
     );
 }
 

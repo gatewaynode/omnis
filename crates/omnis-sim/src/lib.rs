@@ -48,9 +48,7 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use combat::{
-    Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, SpellsCast, Target,
-};
+pub use combat::{Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, Target};
 pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
 pub use encounter::{

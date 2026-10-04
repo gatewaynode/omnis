@@ -556,11 +556,6 @@ pub enum Rejection {
         /// The known-spell row.
         spell: u8,
     },
-    /// A turn with a bonus-action spell casts no other spell but a cantrip with an action.
-    OneSpellATurn {
-        /// The known-spell row.
-        spell: u8,
-    },
     /// The member has no feature with effect at that row.
     NoSuchFeature {
         /// The row asked for.
@@ -723,10 +718,6 @@ impl Rejection {
             Rejection::NeedsPreparation { spell } => {
                 write!(f, "spell {spell} takes the bonus action only once readied")
             }
-            Rejection::OneSpellATurn { spell } => write!(
-                f,
-                "spell {spell}: a turn with a bonus-action spell casts only a cantrip besides"
-            ),
             Rejection::NoSuchFeature { feature } => {
                 write!(f, "there is no feature in row {feature}")
             }

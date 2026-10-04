@@ -7,7 +7,7 @@
 
 use super::clear::{ONE_COMMAND, Play, clear_dungeon};
 use super::common::data;
-use super::{choose, hundredths, tenths};
+use super::{cast_or_attack, hundredths, tenths};
 
 /// Ten times the other tables' seeds: the plays differ by a few points, inside 300 seeds'
 /// noise (about 2.4 points at a 21% wipe rate).
@@ -64,9 +64,6 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
                 && spell.bonus_action_available
                 && !spell.preparation_required_for_bonus_action
                 && matches!(spell.effect, Some(SpellEffect::Heal { .. }))
-                && !state
-                    .spells_cast
-                    .refuses(spell.level, omnis_data::Cost::BonusAction)
         });
         if let (Some(word), Some(hurt)) = (word, hurt) {
             return Command::Combat(CombatCommand::Cast {
@@ -83,7 +80,7 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
         }
     }
     if budget.actions > 0 {
-        return choose(world, data, state.spells_cast.bonus);
+        return cast_or_attack(world, data);
     }
     Command::Combat(CombatCommand::EndTurn)
 }

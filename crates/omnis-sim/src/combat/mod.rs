@@ -16,7 +16,7 @@ pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{Budget, CombatState, Initiative, SpellsCast, monster_front_stacks};
+pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
 
 pub(crate) use monster_cast::points_of;
@@ -309,7 +309,7 @@ fn spell_cost(spell: &omnis_data::Spell, index: u8, pay: Pay) -> Result<Cost, Re
 }
 
 /// What paying for the spell at `index` with `pay` costs this turn, or why it cannot be paid
-/// that way: the spell's own terms, the one-spell rule, then the budget. The command and the
+/// that way: the spell's own terms, then the budget. The command and the
 /// view (`combat.get`'s spell rows) both ask here.
 pub(crate) fn payable(
     state: &CombatState,
@@ -318,9 +318,6 @@ pub(crate) fn payable(
     pay: Pay,
 ) -> Result<Cost, Rejection> {
     let cost = spell_cost(spell, index, pay)?;
-    if state.spells_cast.refuses(spell.level, cost) {
-        return Err(Rejection::OneSpellATurn { spell: index });
-    }
     budget::affordable(state.budget, cost)?;
     Ok(cost)
 }

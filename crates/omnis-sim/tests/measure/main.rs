@@ -44,12 +44,6 @@ struct Tally {
 /// stack: heal a member under half, an area save at the biggest stack, a levelled bolt, a
 /// cantrip, a buff once, in that order, whatever the pool allows.
 pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
-    choose(world, data, false)
-}
-
-/// [`cast_or_attack`], casting only cantrips when `cantrips_only` (the turn has cast a spell
-/// with its bonus action).
-pub(crate) fn choose(world: &World, data: &Data, cantrips_only: bool) -> Command {
     let view = combat_view(world, data).expect("a fight");
     let Some(ActorRef::Member(id)) = view.current else {
         return Command::Combat(CombatCommand::Dodge);
@@ -74,15 +68,8 @@ pub(crate) fn choose(world: &World, data: &Data, cantrips_only: bool) -> Command
         let id = world.party.members[own].known_spells[usize::from(index)];
         data.spells[&id].effect.clone()
     };
-    let level = |index: u8| {
-        let id = world.party.members[own].known_spells[usize::from(index)];
-        data.spells[&id].level
-    };
-    let castable: Vec<&omnis_sim::SpellView> = view
-        .spells
-        .iter()
-        .filter(|s| s.blocked.is_none() && (!cantrips_only || level(s.index) == 0))
-        .collect();
+    let castable: Vec<&omnis_sim::SpellView> =
+        view.spells.iter().filter(|s| s.blocked.is_none()).collect();
     let pick = |wanted: &dyn Fn(&SpellEffect) -> bool, target: Option<Target>| {
         castable
             .iter()

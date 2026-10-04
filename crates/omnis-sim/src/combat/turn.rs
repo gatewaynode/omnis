@@ -45,7 +45,6 @@ pub(crate) fn start(
         budget: super::state::Budget::default(),
         reactions: Vec::new(),
         hidden: Vec::new(),
-        spells_cast: super::state::SpellsCast::default(),
         monster_shields: Vec::new(),
     };
     // Every combatant may react from the start, except the side that is surprised, which gets
@@ -122,10 +121,6 @@ pub(crate) fn act(
         return Ok(());
     };
     budget::spend(&mut state.budget, cost);
-    if let Plan::Cast(cast) = &plan {
-        let level = data.spells.get(&cast.spell).map_or(0, |s| s.level);
-        state.spells_cast.note(level, cost);
-    }
     match act_inner(world, data, &mut state, actor, plan, roller, events) {
         Ok(true) => Ok(()),
         Ok(false) => {

@@ -1,6 +1,6 @@
 //! What `combat.get` and `party.get` show of the turn budget and tactics (M7c step 6): the
 //! budget, features with their uses and why each is blocked, the spell rows for the action and
-//! for the bonus action under the one-spell rule, the reactions switch and reactions left, a
+//! for the bonus action within the budget (PRD D24), the reactions switch and reactions left, a
 //! caster's points and raised shields, and each member's declared reactions with the actions
 //! that could be declared. Party: Brenna (human fighter), Durin (dwarf cleric), Ilvara (elf
 //! wizard).
@@ -168,7 +168,7 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
 }
 
 #[test]
-fn spell_rows_answer_for_the_action_and_the_bonus_action_under_the_one_spell_rule() {
+fn spell_rows_answer_for_the_action_and_the_bonus_action_within_the_budget() {
     let data = data();
     let mut world = world(&data);
     party_of(&mut world, &data, 2);
@@ -190,7 +190,6 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_under_the_one_spell_rul
         (None, Some(Rejection::NotABonusAction { spell: flame })),
         "Sacred Flame takes the action only"
     );
-    assert_eq!(seen.spells_cast, omnis_sim::SpellsCast::default());
 
     ask(
         &mut world,
@@ -198,30 +197,29 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_under_the_one_spell_rul
         CombatCommand::Cast {
             spell: word,
             target: Target::Member(0),
-            pay: Pay::BonusAction,
+            pay: Pay::Action,
         },
     );
     let seen = view(&world, &data);
     assert_eq!(
         seen.budget,
         Budget {
-            actions: 1,
-            bonus_actions: 0
+            actions: 0,
+            bonus_actions: 1
         }
     );
-    assert!(seen.spells_cast.bonus);
     assert_eq!(
         row(&seen, word),
-        (
-            Some(Rejection::OneSpellATurn { spell: word }),
-            Some(Rejection::NoBonusActionLeft)
-        ),
-        "SRD: after a bonus-action spell, only a cantrip with the action"
+        (Some(Rejection::NoActionLeft), None),
+        "PRD D24: after a levelled spell with the action, the bonus action may cast another"
     );
     assert_eq!(
         row(&seen, flame),
-        (None, Some(Rejection::NotABonusAction { spell: flame })),
-        "the cantrip stays open"
+        (
+            Some(Rejection::NoActionLeft),
+            Some(Rejection::NotABonusAction { spell: flame })
+        ),
+        "the cantrip needs the action"
     );
 }
 

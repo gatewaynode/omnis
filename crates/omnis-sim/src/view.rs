@@ -2,8 +2,8 @@
 
 use crate::combat::feature::refusal;
 use crate::combat::{
-    Budget, CombatState, FeatureChoice, Pay, Roller, SpellsCast, cast, monster_front_stacks,
-    payable, points_of, weapon_for,
+    Budget, CombatState, FeatureChoice, Pay, Roller, cast, monster_front_stacks, payable,
+    points_of, weapon_for,
 };
 use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack};
@@ -65,8 +65,8 @@ pub struct SpellView {
     pub reach: Reach,
     /// Aimed at members rather than monsters.
     pub targets_members: bool,
-    /// Why it cannot be cast with the action now, if it cannot: the spell's own checks, the
-    /// one-spell rule, then the budget.
+    /// Why it cannot be cast with the action now, if it cannot: the spell's own checks, then
+    /// the budget.
     pub blocked: Option<Rejection>,
     /// Why it cannot be cast with the bonus action now, if it cannot.
     #[serde(default)]
@@ -140,9 +140,6 @@ pub struct CombatView {
     /// Members hidden (advantage on their next attack).
     #[serde(default)]
     pub hidden: Vec<CharacterId>,
-    /// The spells cast this turn, for the one-spell rule.
-    #[serde(default)]
-    pub spells_cast: SpellsCast,
     /// Each member's reactions switch and features; empty before the fight.
     #[serde(default)]
     pub members: Vec<FighterView>,
@@ -212,7 +209,6 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         budget: fight.map_or_else(Budget::default, |c| c.budget),
         reactions: fight.map_or_else(Vec::new, |c| c.reactions.clone()),
         hidden: fight.map_or_else(Vec::new, |c| c.hidden.clone()),
-        spells_cast: fight.map_or_else(SpellsCast::default, |c| c.spells_cast),
         members: fight.map_or_else(Vec::new, |c| {
             world
                 .party

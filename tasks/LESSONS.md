@@ -126,3 +126,7 @@
 ## 2026-10-03 — A capability in a vision document needs the owner's ask behind it
 - **What happened**: ARCHITECTURE §8.1 said since its first draft (mine) that `InputPlugin` maps the gamepad to commands. No gamepad code was ever written and the PRD never names one; the M7a sync found it, and the owner: "I never mentioned any gamepad. This will definitely be a keyboard and mouse game first. Other control methods are stretch goals."
 - **Rule**: A platform, device or capability (gamepad, touch, controller, network play) goes into a vision document only when the owner asked for it; a sync pass checks every such word against the code and the PRD and asks about any that neither supports.
+
+## 2026-10-04 — An SRD rule the PRD set aside is not "missing"
+- **What happened**: Writing M7c step 5's policy I found the SRD's one-spell rule absent and added it as step 4b (`25ce447`), calling it missing. PRD D24 and the §8.3 casting-time row reject exactly that rule (the owner's departure: two spells a turn within the budget). Nobody was asked; three later steps built on it. Found in step 8's planning; the owner chose to revert it.
+- **Rule**: Before adding an SRD rule the code lacks, search the PRD's decisions (D-table "Rejected" column) and §8.3 for it. "SRD is the default direction" applies only where the owner has not departed; a departure the owner wrote is never undone without an ask.
