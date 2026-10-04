@@ -173,8 +173,8 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     assert_eq!(tactics["reactions_on"], json!(true), "{member}");
     assert_eq!(
         tactics["answers"],
-        json!([{"action": "Attack", "name": "attack", "triggers": ["EnemyFlees"]}]),
-        "a fighter could declare the weapon at a fleeing enemy"
+        json!([]),
+        "a fighter has nothing to declare yet (B2)"
     );
     let reply = server.tool(
         12,

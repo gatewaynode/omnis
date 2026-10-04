@@ -165,7 +165,8 @@ fn check_ids(criteria: &Criteria, data: &Data) -> Result<(), Rejection> {
 
 /// Whether the member has `action` as a reaction and it can answer `trigger`: a known spell that
 /// costs a reaction (an armor bonus answers an attack on the caster; a heal answers an attack,
-/// a wound or a fall in the row), or a weapon attack on a stack that flees.
+/// a wound or a fall in the row). The weapon answers nothing until a source raises
+/// `EnemyFlees` (owner, 2026-10-04, B2: the panel offers only what the game can fire).
 pub fn answers(member: &Character, data: &Data, action: &ActionRef, trigger: Trigger) -> bool {
     match action {
         ActionRef::Spell(id) => {
@@ -187,7 +188,6 @@ pub fn answers(member: &Character, data: &Data, action: &ActionRef, trigger: Tri
                 _ => false,
             }
         }
-        ActionRef::Attack => trigger == Trigger::EnemyFlees,
-        ActionRef::Item(_) | ActionRef::Feature(_) => false,
+        ActionRef::Attack | ActionRef::Item(_) | ActionRef::Feature(_) => false,
     }
 }

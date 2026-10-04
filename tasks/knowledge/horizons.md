@@ -60,7 +60,14 @@ his rats), and Bob's points in the CLI (`combat.get` shows them per individual s
 (spells, items, class features, the weapon attack) states the triggers it can answer as a reaction,
 validated against the closed list, instead of the simulation deriving them from the effect kind
 (`omnis-sim/src/tactics.rs::answers`: an armor bonus answers Attacked; a heal answers Attacked,
-MemberAttacked, MemberWounded, MemberDying; the attack answers EnemyFlees). Timing not set.
+MemberAttacked, MemberWounded, MemberDying; the weapon answers nothing until a flee source exists, B2).
+Timing not set.
+**Something for martial members to declare (owner, 2026-10-04, acceptance c, B2)**: in the base pack Shield
+is the only reaction, so a fighter, rogue or cleric has nothing to declare. Two SRD routes, each its own
+planned step: a source for `EnemyFlees` (a stack breaking and running; the SRD has no morale rule, so the
+rule is ours and moves balance) with members' opportunity attacks at a fleeing stack (PRD §8.3, "Reactions
+and proximity"), resolved by `combat/reaction.rs`, which today resolves only spells; and the Ready action as
+a criteria set (PRD §8.3 names it), holding the action for a declared trigger.
 The trigger bus below would route by these fields.
 
 ## M8 (subjective time)

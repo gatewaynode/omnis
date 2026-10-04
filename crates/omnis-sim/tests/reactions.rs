@@ -111,6 +111,8 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         (bolt, Trigger::Attacked),
         (shield.clone(), Trigger::MemberWounded),
         (ActionRef::Attack, Trigger::Attacked),
+        // B2: nothing raises a flee, so the weapon answers nothing.
+        (ActionRef::Attack, Trigger::EnemyFlees),
         (ActionRef::Item(omnis_core::ItemId(0)), Trigger::Attacked),
         (shield.clone(), Trigger::OwnTurn),
     ] {
@@ -174,7 +176,18 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         put(
             ILVARA,
             None,
-            set(ActionRef::Attack, Trigger::EnemyFlees, Criteria::Always),
+            CriteriaSet {
+                name: "Shield at half".to_owned(),
+                ..set(
+                    shield.clone(),
+                    Trigger::Attacked,
+                    Criteria::Is(Predicate::Hp {
+                        who: Who::Me,
+                        cmp: Cmp::Lt,
+                        percent: 50,
+                    }),
+                )
+            },
         ),
     )
     .unwrap();

@@ -365,7 +365,7 @@ pub fn editing_line(form: &TacticsForm) -> String {
 #[must_use]
 pub fn action_caption(view: &TacticsView, form: &TacticsForm, choices: &Choices) -> String {
     view.answers.get(form.action).map_or_else(
-        || "nothing to declare".to_owned(),
+        || "nothing to declare yet".to_owned(),
         |a| choices.action_name(&a.action, &a.name),
     )
 }
@@ -428,9 +428,11 @@ mod tests {
     }
 
     const SHIELD: ActionRef = ActionRef::Spell(SpellId(3));
+    /// The test pack's reaction heal.
+    const WARD: ActionRef = ActionRef::Spell(SpellId(9));
 
-    /// A wizard's tactics: attack answers an enemy fleeing, Shield an attack; one row is
-    /// declared flat, one deeper.
+    /// A wizard's tactics: Ward answers an attack, a wound or a fall in the row, Shield an
+    /// attack; one row is declared flat, one deeper.
     fn view() -> TacticsView {
         let flat = Criteria::All(vec![Criteria::Is(Predicate::Hp {
             who: Who::Me,
@@ -452,9 +454,14 @@ mod tests {
             reactions: vec![row(0, flat), row(1, deep)],
             answers: vec![
                 AnswerView {
-                    action: ActionRef::Attack,
-                    name: "attack".to_owned(),
-                    triggers: vec![Trigger::EnemyFlees],
+                    action: WARD,
+                    name: "Ward".to_owned(),
+                    triggers: vec![
+                        Trigger::Attacked,
+                        Trigger::MemberAttacked,
+                        Trigger::MemberWounded,
+                        Trigger::MemberDying,
+                    ],
                 },
                 AnswerView {
                     action: SHIELD,
@@ -612,7 +619,7 @@ mod tests {
         };
         assert_eq!(
             (set.action, set.trigger, set.when),
-            (ActionRef::Attack, Trigger::EnemyFlees, Criteria::Always)
+            (WARD, Trigger::Attacked, Criteria::Always)
         );
         let bare = TacticsView {
             answers: Vec::new(),
@@ -737,7 +744,7 @@ mod tests {
         assert!(name.starts_with("Éclair éclatant"), "{name}");
         assert_eq!(set_name("Shield", Trigger::Attacked), "Shield on attacked");
         let form = TacticsForm::new(0);
-        assert_eq!(action_caption(&view(), &form, &choices), "attack");
+        assert_eq!(action_caption(&view(), &form, &choices), "Ward");
         let named = Choices {
             actions: vec![(SHIELD, "Shield of the Mage".to_owned())],
             ..choices.clone()

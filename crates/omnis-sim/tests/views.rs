@@ -362,16 +362,15 @@ fn party_get_lists_declared_reactions_and_what_each_member_could_declare() {
         .collect();
     assert_eq!(
         could,
-        [
-            ("attack", vec![Trigger::EnemyFlees]),
-            ("base:spell:shield", vec![Trigger::Attacked]),
-        ],
-        "the weapon at a fleeing enemy; Shield when attacked"
+        [("base:spell:shield", vec![Trigger::Attacked])],
+        "Shield when attacked; the weapon answers nothing the game raises (B2)"
     );
     let brenna = &party.members[BRENNA].tactics;
     assert!(brenna.reactions.is_empty());
-    assert_eq!(brenna.answers.len(), 1, "a fighter has only the weapon");
-    assert_eq!(brenna.answers[0].action, ActionRef::Attack);
+    assert!(
+        brenna.answers.is_empty(),
+        "a fighter has nothing to declare yet"
+    );
 
     // Both replies go over the wire whole.
     let text = to_string(&Reply::Party {

@@ -23,7 +23,8 @@ told apart from a gap. Play it in the window with a dev build (`cargo run -p omn
 - Nothing answers a member's or an enemy's cast: `SpellCast` and `EnemyCasts` are raised, but no declared
   reaction can take them.
 - Nothing raises "an enemy flees" or "own turn".
-- Items and features cannot be declared as reactions.
+- Items and features cannot be declared as reactions, and the weapon cannot either: nothing makes an enemy
+  flee yet, so only the wizard has something to declare (Shield).
 - The Use picker shows six rows; a long kit is cut after the features.
 - Sneak Attack and Extra Attack are labels only.
 
@@ -83,8 +84,10 @@ Go out through the gate (11, 2) and fight anything: the meadow's road, or the du
    *You will see* a declared row like "Shield on attacked". Close goes back to the sheet. In a fight, when a
    hit would land on the wizard, *you will see* "… reacts: Shield", the hit judged again, and at most one
    shield a round.
-   Covered by `omnis-app/tests/tactics.rs::a_wizard_declares_shield_under_a_condition_edits_it_and_removes_it`
-   and `reactions.rs::shield_declared_for_every_hit_fires_on_hits_once_a_round`.
+   Open TACTICS on the fighter, the rogue and the cleric too: *you will see* "nothing to declare yet" and Save
+   grey. Shield is the base pack's only reaction (B2: the weapon answers nothing until enemies can flee).
+   Covered by `omnis-app/tests/tactics.rs::a_wizard_declares_shield_under_a_condition_edits_it_and_removes_it`,
+   `a_fighter_has_nothing_to_declare_yet` and `reactions.rs::shield_declared_for_every_hit_fires_on_hits_once_a_round`.
 6. **The reactions switch.** In a fight, on the wizard's turn, press REACT (`o`).
    *You will see* "…'s reactions are off" and the budget line ending `(off)`. No shield fires until you press
    it again. TACTICS is grey in a fight; the tool bar keeps the sheet shut there anyway.

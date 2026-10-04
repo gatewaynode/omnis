@@ -1,8 +1,8 @@
 //! The tactics panel (M7c step 7), driven as a person does: the sheet's TACTICS button opens it
 //! on the member shown and Escape goes back to the sheet; in a fight the sheet stays shut and
 //! the button would be grey; a wizard declares Shield on being attacked under a condition, edits it to
-//! any of two, removes it, and switches reactions off; a fighter may declare only the attack
-//! on an enemy fleeing; a reaction set deeper elsewhere is shown and may not be saved; the
+//! any of two, removes it, and switches reactions off; a fighter has nothing to declare yet
+//! (B2: the weapon answers no trigger the game raises); a reaction set deeper elsewhere is shown and may not be saved; the
 //! menus, a number and Save work by pointer; the panel lies inside the map at both window
 //! sizes at its fullest.
 
@@ -84,6 +84,12 @@ fn open(app: &mut App, member: usize) {
     settle(app);
 }
 
+/// Shield, as a declared reaction's action.
+fn shield(app: &App) -> ActionRef {
+    let spells = &app.world().resource::<PackData>().0.registry.spells;
+    ActionRef::Spell(spells.get("base:spell:shield").unwrap())
+}
+
 fn declared(app: &App, member: usize) -> Vec<CriteriaSet> {
     world(app).party.members[member]
         .tactics
@@ -156,9 +162,9 @@ fn a_wizard_declares_shield_under_a_condition_edits_it_and_removes_it() {
     open(&mut app, ILVARA);
     assert!(
         !dim(&mut app, TacticsPanelId::Save),
-        "attack on fleeing is ready"
+        "Shield on attacked is ready"
     );
-    activate(&mut app, TacticsPanelId::ActionPick(1));
+    activate(&mut app, TacticsPanelId::ActionPick(0));
     assert_eq!(shown(&mut app, TacticsLabelId::Action), "Shield");
     assert_eq!(shown(&mut app, TacticsLabelId::Trigger), "attacked");
     activate(&mut app, TacticsPanelId::Add);
@@ -228,21 +234,18 @@ fn a_wizard_declares_shield_under_a_condition_edits_it_and_removes_it() {
 }
 
 #[test]
-fn a_fighter_may_declare_only_the_attack_on_an_enemy_fleeing() {
+fn a_fighter_has_nothing_to_declare_yet() {
     let mut app = meadow("tactics-fighter.ron");
     open(&mut app, BRENNA);
-    assert_eq!(shown(&mut app, TacticsLabelId::Action), "attack");
-    assert_eq!(shown(&mut app, TacticsLabelId::Trigger), "an enemy flees");
-    let ids = controls(&mut app);
-    assert!(ids.contains(&UiId::Tactics(TacticsPanelId::ActionPick(0))));
-    assert!(!ids.contains(&UiId::Tactics(TacticsPanelId::ActionPick(1))));
-    assert!(!ids.contains(&UiId::Tactics(TacticsPanelId::TriggerPick(1))));
-    activate(&mut app, TacticsPanelId::Save);
-    let sets = declared(&app, BRENNA);
     assert_eq!(
-        (sets.len(), &sets[0].action, sets[0].trigger),
-        (1, &ActionRef::Attack, Trigger::EnemyFlees)
+        shown(&mut app, TacticsLabelId::Action),
+        "nothing to declare yet"
     );
+    assert_eq!(shown(&mut app, TacticsLabelId::Trigger), "");
+    let ids = controls(&mut app);
+    assert!(!ids.contains(&UiId::Tactics(TacticsPanelId::ActionPick(0))));
+    assert!(dim(&mut app, TacticsPanelId::Save));
+    assert!(declared(&app, BRENNA).is_empty());
 }
 
 #[test]
@@ -250,8 +253,8 @@ fn a_reaction_set_deeper_elsewhere_is_shown_and_not_saved() {
     let mut app = meadow("tactics-deep.ron");
     let set = CriteriaSet {
         name: "deep".into(),
-        action: ActionRef::Attack,
-        trigger: Trigger::EnemyFlees,
+        action: shield(&app),
+        trigger: Trigger::Attacked,
         when: Criteria::Any(vec![Criteria::All(vec![Criteria::Is(Predicate::Round {
             cmp: Cmp::Ge,
             n: 2,
@@ -260,22 +263,22 @@ fn a_reaction_set_deeper_elsewhere_is_shown_and_not_saved() {
     send(
         &mut app,
         Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
-            member: 0,
+            member: 1,
             at: None,
             set,
         })),
     );
-    open(&mut app, BRENNA);
+    open(&mut app, ILVARA);
     assert_eq!(
         shown(&mut app, TacticsLabelId::Entry(0)),
-        "1. attack on an enemy flees, when (round >= 2)"
+        "1. Shield on attacked, when (round >= 2)"
     );
     activate(&mut app, TacticsPanelId::Edit(0));
     assert!(dim(&mut app, TacticsPanelId::Save));
     assert!(dim(&mut app, TacticsPanelId::Add));
     assert!(shown(&mut app, TacticsLabelId::Message).starts_with("Set elsewhere"));
     activate(&mut app, TacticsPanelId::Remove(0));
-    assert!(declared(&app, BRENNA).is_empty(), "removed all the same");
+    assert!(declared(&app, ILVARA).is_empty(), "removed all the same");
 }
 
 #[test]
@@ -284,7 +287,7 @@ fn the_menus_a_number_the_switch_and_save_work_by_pointer() {
     open(&mut app, ILVARA);
     let menu = control(&mut app, TacticsPanelId::Action);
     click_node(&mut app, menu);
-    let item = control(&mut app, TacticsPanelId::ActionPick(1));
+    let item = control(&mut app, TacticsPanelId::ActionPick(0));
     click_node(&mut app, item);
     assert_eq!(shown(&mut app, TacticsLabelId::Action), "Shield");
     let add = control(&mut app, TacticsPanelId::Add);
@@ -316,9 +319,9 @@ fn the_panel_lies_inside_the_map_at_both_window_sizes_at_its_fullest() {
     let mut app = meadow("tactics-layout.ron");
     for _ in 0..16 {
         let set = CriteriaSet {
-            name: "attack on an enemy flees".into(),
-            action: ActionRef::Attack,
-            trigger: Trigger::EnemyFlees,
+            name: "Shield on attacked".into(),
+            action: shield(&app),
+            trigger: Trigger::Attacked,
             when: Criteria::Always,
         };
         send(
