@@ -20,7 +20,7 @@ use omnis_sim::{
 
 /// The whole budget for the member whose turn it is: free and bonus options first, then the
 /// action, then the end of the turn.
-fn budgeted(world: &World, data: &Data) -> Command {
+pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
     let Mode::Combat(state) = &world.mode else {
         unreachable!("a fight");
     };

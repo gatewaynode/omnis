@@ -105,7 +105,7 @@ fn fight_out(world: &mut World, data: &Data, play: Play, clear: &mut Clear) {
 
 /// Each member who knows Shield and has declared nothing declares it as the save migration
 /// does: on being attacked, when the +5 would turn the hit.
-fn declare_shield(world: &mut World, data: &Data) {
+pub(crate) fn declare_shield(world: &mut World, data: &Data) {
     let shield = data.registry.spells.get("base:spell:shield").unwrap();
     for member in 0..world.party.members.len() {
         let m = &world.party.members[member];
@@ -130,7 +130,12 @@ fn declare_shield(world: &mut World, data: &Data) {
 /// The placed group `index` of `map` as the game starts it on its tile: its own monsters and
 /// counts, each stack's individuals at one roll of the rules' hit points, cleared by a victory
 /// if it is `once`.
-fn placed(data: &Data, world: &mut World, map: omnis_core::MapId, index: usize) -> EncounterState {
+pub(crate) fn placed(
+    data: &Data,
+    world: &mut World,
+    map: omnis_core::MapId,
+    index: usize,
+) -> EncounterState {
     let def = &data.maps[&map].encounters[index];
     world.position = Position {
         map,

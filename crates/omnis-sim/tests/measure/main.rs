@@ -14,6 +14,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 
+mod boss;
 mod budget;
 mod clear;
 
