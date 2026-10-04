@@ -49,6 +49,11 @@ Later, timing open in PRD §14: criteria-set library and runbooks with encounter
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
 costs, the budget curves (measured over seeds first, R12).
+**A trigger field on every action (owner, 2026-10-03, during M7c)**: each action in the data
+(spells, items, class features, the weapon attack) states the triggers it can answer as a reaction,
+validated against the closed list, instead of the simulation deriving them from the effect kind
+(`omnis-sim/src/tactics.rs::answers`: an armor bonus answers Attacked; a heal answers Attacked,
+MemberAttacked, MemberWounded, MemberDying; the attack answers EnemyFlees). Timing not set.
 
 ## Tool proficiencies (PRD §8.1, owner 2026-09-20)
 Tools as pack data (id, name, default ability, the items that count as the tool), `tools` on

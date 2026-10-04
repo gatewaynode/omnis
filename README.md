@@ -83,6 +83,18 @@ cargo run -p omnis-cli -- validate packs/base packs/test
 cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron
 ```
 
+On macOS, `cc` finds clang through `xcodebuild -find clang`, which reads Xcode's license file. A
+sandboxed shell (an agent session) cannot read that file, so every fresh link fails there even
+with the license accepted. Point the build at the Command Line Tools for that process instead:
+
+```sh
+DEVELOPER_DIR=/Library/Developer/CommandLineTools scripts/verify.sh
+DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo test -p omnis-sim
+```
+
+The variable affects only the command it prefixes. A gate with nothing new to link proves nothing
+about the linker; check a toolchain change with a fresh target directory.
+
 ## Driving the game from an agent
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
