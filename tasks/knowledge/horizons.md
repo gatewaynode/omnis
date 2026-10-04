@@ -61,6 +61,23 @@ his rats), and Bob's points in the MCP and CLI views (step 6 may add them).
 validated against the closed list, instead of the simulation deriving them from the effect kind
 (`omnis-sim/src/tactics.rs::answers`: an armor bonus answers Attacked; a heal answers Attacked,
 MemberAttacked, MemberWounded, MemberDying; the attack answers EnemyFlees). Timing not set.
+The trigger bus below would route by these fields.
+
+## M8 (subjective time)
+**An event bus (owner, 2026-10-04, during M7c)**: a publish/subscribe bus on the simulation side with
+topics (a battle, a city, a map section), placed in M8 because it gives subjective time a way to
+carry clock ticks; once it is in place, combat's reaction triggers and other event triggers are
+looked at for moving onto it. The owner wants tried and true external crates evaluated for it, not a
+hand-rolled bus by default. Constraints any candidate must meet, to be checked when M8 is planned:
+the simulation lints (no floats, no hash-ordered maps, no `std::thread`, no async runtime, no
+`bevy_*` in the simulation crates), subscribers called in a fixed order that survives save and
+replay, a cap on nested raises (a reaction raising another trigger), and the dependency policy
+(N-1, over 30 days old, pinned with hashes, a Socket audit). Open for the plan: how "asynchronous"
+fits A13 (no global clock; ticks come from reconciliation at contact) and the determinism rules
+(delivery queued and drained in order, rather than concurrent); whether the bus lives in
+`omnis-sim` or `omnis-core`; whether Bevy's own events stay the app's side. Until then M7c keeps
+the direct calls in `combat/reaction.rs` (`on_attack`, `on_wound`, `on_cast`, `on_missile`,
+`on_enemy_cast`).
 
 ## Tool proficiencies (PRD §8.1, owner 2026-09-20)
 Tools as pack data (id, name, default ability, the items that count as the tool), `tools` on

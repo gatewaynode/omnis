@@ -55,10 +55,9 @@ in `tasks/knowledge/` (start at its README).
   owner acceptance c closes M7.
 
 ## Open questions for the owner
-- `SIDE_NOTE_PLEASE_READ.md` (theirs, untracked): a deterministic trigger bus. My
-  recommendation (in the note): finish M7c on direct calls, record the bus as a horizon beside
-  the trigger field. Asked whether to add the horizon and whether to commit or delete the note;
-  no answer yet.
+- The trigger bus is answered (2026-10-04): an event bus with topics in M8, external crates
+  evaluated; recorded in `horizons.md` (M8) and the TODO's M8 block. Still open: commit or delete
+  the untracked `SIDE_NOTE_PLEASE_READ.md` (its substance is now in the horizon).
 
 ## Carry-over and watch-outs
 - `EnemyCasts` is raised at every monster cast and `SpellCast` at every member cast, but nothing

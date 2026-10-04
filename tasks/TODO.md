@@ -305,6 +305,7 @@ Owner decisions: experiment first, then decide (stage 2 is an outline); the one 
 
 ### M8 — Subjective time
 - [ ] Clocks for every holder, `Contact` records, reconciliation rule in Rhai on region entry with bounded drift and the `time:<a>:<b>` stream, calendar display, rumor text that reports the teller's own elapsed time; MCP `time.clocks`, `time.reconcile`
+- [ ] Plan first: the event bus with topics (owner, 2026-10-04; external crates evaluated; constraints in `tasks/knowledge/horizons.md`, M8)
 - **Done when**: two regions visited in different orders produce different but replayable clock deltas, and PRD §7.8 examples are reproduced as tests
 
 ### M9–M12 — PRD Phases 2–5 (expand when reached)
