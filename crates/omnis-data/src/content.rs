@@ -66,6 +66,7 @@ pub(crate) struct RawContent {
 /// Check references and text keys, compile the rules, intern everything.
 pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec<DataError>) {
     check_references(&raw, errors);
+    check_monster_spells(&raw, errors);
     check_text_keys(&raw, data, errors);
     data.rules = build_rules(&raw.rules, errors);
     check_component_threshold(&raw.spells, &data.rules, errors);
@@ -125,6 +126,11 @@ fn check_references(raw: &RawContent, errors: &mut Vec<DataError>) {
             require(file, "component", id, raw.items.contains_key(id));
         }
     }
+    for (file, monster) in raw.monsters.values() {
+        for id in monster.casting.iter().flat_map(|c| &c.spells) {
+            require(file, "spell", id, raw.spells.contains_key(id));
+        }
+    }
     for (file, service) in raw.services.values() {
         for id in &service.items {
             require(file, "item", id, raw.items.contains_key(id));
@@ -132,6 +138,37 @@ fn check_references(raw: &RawContent, errors: &mut Vec<DataError>) {
         for id in &service.spells {
             require(file, "spell", id, raw.spells.contains_key(id));
         }
+    }
+}
+
+/// Every spell a monster casts has an effect its casting resolves (M7c): damage at members,
+/// and Shield.
+fn check_monster_spells(raw: &RawContent, errors: &mut Vec<DataError>) {
+    for (file, monster) in raw.monsters.values() {
+        for id in monster.casting.iter().flat_map(|c| &c.spells) {
+            if let Some((_, spell)) = raw.spells.get(id)
+                && !monster_may_cast(spell)
+            {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "spell '{id}': a monster casts only attack, auto-hit and save spells and an armor-bonus reaction"
+                    ),
+                ));
+            }
+        }
+    }
+}
+
+/// The effects a monster's casting resolves.
+fn monster_may_cast(spell: &crate::Spell) -> bool {
+    use crate::SpellEffect;
+    match spell.effect {
+        Some(
+            SpellEffect::Attack { .. } | SpellEffect::AutoHit { .. } | SpellEffect::Save { .. },
+        ) => spell.cost == crate::Cost::Action,
+        Some(SpellEffect::Reaction { .. }) => spell.cost == crate::Cost::Reaction,
+        _ => false,
     }
 }
 

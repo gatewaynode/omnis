@@ -182,7 +182,7 @@ fn every_error_in_bad_content_is_reported() {
         "preparation_required_for_bonus_action needs bonus_action_available and preparation_available",
         "a spell costs an action, a bonus action or a reaction",
         "bonus_action_available is for a spell that costs an action",
-        // data/monsters/blob.ron
+        // data/monsters/blob.ron, hush.ron
         "ac must be 1..=30",
         "hit_points needs dice",
         "abilities must be 1..=30",
@@ -191,6 +191,12 @@ fn every_error_in_bad_content_is_reported() {
         "gold needs dice",
         "damage type Fire appears in two of resistances, immunities, vulnerabilities",
         "damage type Cold appears in two of resistances, immunities, vulnerabilities",
+        // blob.ron's casting, and hush.ron, a caster with no spells
+        "casting save_dc must be 1..=30",
+        "casting caster_level must be 1..=20",
+        "spell 'badc:spell:none' is not defined by any loaded pack",
+        "spell 'badc:spell:rush': a monster casts only attack, auto-hit and save spells and an armor-bonus reaction",
+        "casting needs at least one spell",
         // data/rules/bad.ron: a structural check, then two compile errors with positions
         "slot 'a': input '1x' is not an identifier",
         "slot 'b': 1:9: unknown input 'bonus'",

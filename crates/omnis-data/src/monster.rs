@@ -23,6 +23,23 @@ pub struct Attack {
     pub ranged: bool,
 }
 
+/// A monster's spellcasting (homebrew until monster runbooks: a dice roll picks among what it
+/// can cast; ARCHITECTURE.md §4.7). Spells use the members' effects with the stat block's own
+/// numbers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterCasting {
+    /// Spell attack bonus.
+    pub spell_attack: i8,
+    /// Spell save DC.
+    pub save_dc: u8,
+    /// Caster level, for a cantrip's dice.
+    pub caster_level: u8,
+    /// Spell points each individual has (a spell costs its level; cantrips are free).
+    pub points: u8,
+    /// `pack:spell:name` ids: attack, auto-hit and save spells, and an armor-bonus reaction.
+    pub spells: Vec<String>,
+}
+
 /// One monster type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Monster {
@@ -61,6 +78,9 @@ pub struct Monster {
     /// Damage types dealt double.
     #[serde(default)]
     pub vulnerabilities: Vec<DamageType>,
+    /// Spells it casts, if any.
+    #[serde(default)]
+    pub casting: Option<MonsterCasting>,
 }
 
 impl Monster {
@@ -87,6 +107,17 @@ impl Monster {
             .any(|a| a.damage.count == 0 || a.damage.sides == 0)
         {
             errors.push(DataError::new(file, "attack damage needs dice"));
+        }
+        if let Some(casting) = &self.casting {
+            if casting.save_dc == 0 || casting.save_dc > 30 {
+                errors.push(DataError::new(file, "casting save_dc must be 1..=30"));
+            }
+            if casting.caster_level == 0 || casting.caster_level > 20 {
+                errors.push(DataError::new(file, "casting caster_level must be 1..=20"));
+            }
+            if casting.spells.is_empty() {
+                errors.push(DataError::new(file, "casting needs at least one spell"));
+            }
         }
         if self.gold.is_some_and(|g| g.count == 0 || g.sides == 0) {
             errors.push(DataError::new(file, "gold needs dice"));

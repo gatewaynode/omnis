@@ -1,7 +1,9 @@
-// English strings for the test pack's monster copies. Keys are `test:text:monster.<name>.<field>`.
+// English strings for the test pack's monster copies and Bob the Rat King. Keys are `test:text:monster.<name>.<field>`.
 (
     schema: 1,
     entries: {
+        "test:text:monster.bob_the_rat_king.name": "Bob the Rat King",
+        "test:text:monster.bob_the_rat_king.quarterstaff": "Quarterstaff",
         "test:text:monster.giant_rat.bite": "Bite",
         "test:text:monster.giant_rat.name": "Giant Rat",
         "test:text:monster.goblin.name": "Goblin",

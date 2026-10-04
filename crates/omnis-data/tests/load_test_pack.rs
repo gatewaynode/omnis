@@ -210,8 +210,37 @@ fn portals_and_tileset_slots_resolve() {
         (back.to_map, back.to_x, back.to_y, back.to_facing),
         (dungeon_id, 22, 23, Facing::West)
     );
-    assert_eq!(depths.encounters.len(), 4);
+    assert_eq!(depths.encounters.len(), 5);
     assert!(depths.encounters.iter().all(|e| e.once));
+    // Bob the Rat King's throne room (M7c), east of the four rooms: two rat stacks in front.
+    assert_eq!(depths.def.width, 18);
+    let rat = data
+        .registry
+        .monsters
+        .get("test:monster:giant_rat")
+        .unwrap();
+    let bob = data
+        .registry
+        .monsters
+        .get("test:monster:bob_the_rat_king")
+        .unwrap();
+    let throne = &depths.encounters[4];
+    assert_eq!((throne.x, throne.y), (13, 8));
+    assert_eq!(throne.stacks, vec![(rat, 3), (rat, 2), (bob, 1)]);
+    let casting = data.monsters[&bob].casting.as_ref().expect("Bob casts");
+    assert_eq!(
+        (
+            casting.spell_attack,
+            casting.save_dc,
+            casting.caster_level,
+            casting.points
+        ),
+        (5, 13, 5, 5),
+        "Int 16 (+3) and proficiency +2"
+    );
+    for spell in &casting.spells {
+        assert!(data.registry.spells.get(spell).is_some(), "{spell}");
+    }
     let town_id = data.registry.maps.get("test:map:town").unwrap();
     let home = meadow.portal_at(16, 31).expect("the road south");
     assert_eq!(

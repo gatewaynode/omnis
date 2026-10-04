@@ -43,7 +43,7 @@ pub use item::{EquipSlot, Item, ItemKind, UseEffect};
 pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
-pub use monster::{Attack, Monster};
+pub use monster::{Attack, Monster, MonsterCasting};
 pub use omnis_expr;
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};
