@@ -13,12 +13,13 @@ use crate::cursor::WindowSize;
 use crate::layout::TOOLS;
 use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
 use crate::service_panel::{ServiceLabelId, ServicePanelId};
+use crate::tactics_panel::{TacticsLabelId, TacticsPanelId};
 use crate::tool_bar::ToolButton;
 use crate::ui_model::{self as model, Payload};
 use bevy::feathers::constants::{fonts, size};
 use bevy::feathers::controls::{
     ButtonVariant, FeathersButton, FeathersMenu, FeathersMenuButton, FeathersMenuItem,
-    FeathersMenuPopup,
+    FeathersMenuPopup, FeathersScrollbar,
 };
 use bevy::feathers::display::label;
 use bevy::feathers::theme::{ThemeBackgroundColor, ThemeTextColor, ThemedText};
@@ -26,7 +27,7 @@ use bevy::feathers::tokens;
 use bevy::input_focus::tab_navigation::TabGroup;
 use bevy::prelude::*;
 use bevy::text::{EditableText, FontSourceTemplate, TextEditChange};
-use bevy::ui_widgets::{Activate, ValueChange};
+use bevy::ui_widgets::{Activate, ControlOrientation, ScrollArea, ValueChange};
 
 /// A screen built on the kit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -39,6 +40,8 @@ pub enum UiScreen {
     Service,
     /// The camp: resting outside a service (`feathers_camp.rs`).
     Camp,
+    /// A member's declared reactions (`feathers_tactics.rs`).
+    Tactics,
 }
 
 /// One control, on whichever screen. Tests and the sync systems find entities by it.
@@ -54,6 +57,8 @@ pub enum UiId {
     Tool(ToolButton),
     /// A control of the camp panel.
     Camp(CampPanelId),
+    /// A control of the tactics panel.
+    Tactics(TacticsPanelId),
 }
 
 impl Default for UiId {
@@ -72,6 +77,7 @@ impl UiId {
             UiId::Service(id) => format!("{id:?}"),
             UiId::Tool(id) => format!("{id:?}"),
             UiId::Camp(id) => format!("{id:?}"),
+            UiId::Tactics(id) => format!("{id:?}"),
         }
     }
 }
@@ -100,6 +106,12 @@ impl From<CampPanelId> for UiId {
     }
 }
 
+impl From<TacticsPanelId> for UiId {
+    fn from(id: TacticsPanelId) -> Self {
+        UiId::Tactics(id)
+    }
+}
+
 impl From<ToolButton> for UiId {
     fn from(id: ToolButton) -> Self {
         UiId::Tool(id)
@@ -115,6 +127,8 @@ pub enum UiLabel {
     Service(ServiceLabelId),
     /// A text of the camp panel.
     Camp(CampLabelId),
+    /// A text of the tactics panel.
+    Tactics(TacticsLabelId),
 }
 
 impl Default for UiLabel {
@@ -131,6 +145,7 @@ impl UiLabel {
             UiLabel::Creation(id) => format!("{id:?}"),
             UiLabel::Service(id) => format!("{id:?}"),
             UiLabel::Camp(id) => format!("{id:?}"),
+            UiLabel::Tactics(id) => format!("{id:?}"),
         }
     }
 }
@@ -144,6 +159,12 @@ impl From<LabelId> for UiLabel {
 impl From<CampLabelId> for UiLabel {
     fn from(id: CampLabelId) -> Self {
         UiLabel::Camp(id)
+    }
+}
+
+impl From<TacticsLabelId> for UiLabel {
+    fn from(id: TacticsLabelId) -> Self {
+        UiLabel::Tactics(id)
     }
 }
 
@@ -289,6 +310,49 @@ pub fn message_line(shown: UiLabel) -> impl Scene {
         }
         TextColor({ALERT})
         Shown({shown})
+    }
+}
+
+/// A column that takes the height its parent has left and scrolls what it holds, with a
+/// scrollbar at its right edge (the smith's stock, the tactics panel).
+pub fn scroll_column(content: impl Scene) -> impl Scene {
+    let content = vec![content];
+    bsn! {
+        Node {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            flex_grow: 1.0,
+            min_height: px(0),
+            padding: UiRect { right: px(10) },
+        }
+        Children [
+            (
+                #scrolled
+                Node {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(4),
+                    overflow: Overflow::scroll_y(),
+                    flex_grow: 1.0,
+                    min_height: px(0),
+                }
+                ScrollArea
+                Children [ {content} ]
+            ),
+            (
+                @FeathersScrollbar {
+                    @target: #scrolled,
+                    @orientation: {ControlOrientation::Vertical}
+                }
+                Node {
+                    position_type: PositionType::Absolute,
+                    right: px(0),
+                    top: px(0),
+                    bottom: px(0),
+                    width: px(6),
+                }
+            ),
+        ]
     }
 }
 

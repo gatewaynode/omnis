@@ -745,6 +745,7 @@ mod tests {
                 member: 0,
                 page,
                 message: String::new(),
+                armed: false,
             };
             let showing = Menu::Sheet {
                 menu: &sheet_menu,

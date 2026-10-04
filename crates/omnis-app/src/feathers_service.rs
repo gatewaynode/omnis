@@ -14,13 +14,12 @@ use crate::service_panel::{
 use crate::sim::{CommandRefused, PackData, SimEvent, SimWorld};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, button, message_line,
-    panel as panel_root, row, set_text,
+    panel as panel_root, row, scroll_column, set_text,
 };
 use bevy::feathers::constants::{fonts, size};
 use bevy::feathers::containers::flex_spacer;
 use bevy::feathers::controls::{
-    ButtonVariant, FeathersNumberInput, FeathersScrollbar, NumberFormat, NumberInputValue,
-    UpdateNumberInput,
+    ButtonVariant, FeathersNumberInput, NumberFormat, NumberInputValue, UpdateNumberInput,
 };
 use bevy::feathers::display::{label, label_dim};
 use bevy::feathers::theme::ThemeTextColor;
@@ -31,7 +30,6 @@ use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::FontSourceTemplate;
 use bevy::ui::InteractionDisabled;
-use bevy::ui_widgets::{ControlOrientation, ScrollArea};
 use omnis_sim::omnis_data::ServiceKind;
 use omnis_sim::{Command, Event, ServiceCommand, ServiceView, service_view};
 
@@ -102,43 +100,14 @@ fn offer_list(title: &'static str, offers: Vec<(usize, &'static str)>) -> impl S
         }
         Children [
             label_dim(title),
-            (
+            scroll_column(bsn! {
                 Node {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Column,
-                    flex_grow: 1.0,
-                    min_height: px(0),
-                    padding: UiRect { right: px(10) },
+                    row_gap: px(4),
                 }
-                Children [
-                    (
-                        #offers
-                        Node {
-                            display: Display::Flex,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(4),
-                            overflow: Overflow::scroll_y(),
-                            flex_grow: 1.0,
-                            min_height: px(0),
-                        }
-                        ScrollArea
-                        Children [ {rows} ]
-                    ),
-                    (
-                        @FeathersScrollbar {
-                            @target: #offers,
-                            @orientation: {ControlOrientation::Vertical}
-                        }
-                        Node {
-                            position_type: PositionType::Absolute,
-                            right: px(0),
-                            top: px(0),
-                            bottom: px(0),
-                            width: px(6),
-                        }
-                    ),
-                ]
-            ),
+                Children [ {rows} ]
+            }),
         ]
     }
 }

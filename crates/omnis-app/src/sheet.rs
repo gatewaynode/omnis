@@ -1,16 +1,20 @@
 //! `SheetPlugin`: the character sheet over the world, opened from the SHEET button, the P
-//! key, or the pause menu. Keys and clicks drive the state machine in `sheet_menu.rs`; the
-//! member shown and the band's selection keep in step both ways. Headless-capable.
+//! key, or the pause menu; its TACTICS button (or T) opens the tactics panel outside a
+//! fight, which comes back to the sheet. Keys and clicks drive the state machine in
+//! `sheet_menu.rs`; the member shown and the band's selection keep in step both ways.
+//! Headless-capable.
 
 use crate::cursor::UiSet;
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
+use crate::sheet_menu::SheetIntent;
 use crate::sim::{PlayState, SimWorld};
 use crate::ui::{Selected, UiClick};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use omnis_sim::Mode;
 
 /// The sheet plugin.
 pub struct SheetPlugin;
@@ -64,13 +68,22 @@ fn sheet_keys(
     }
     let before = screens.sheet.member;
     for key in pressed {
-        if screens.sheet.key(key, members).is_some() {
-            next.set(PlayState::for_mode(&world.0.mode));
+        match screens.sheet.key(key, members) {
+            Some(SheetIntent::Close) => next.set(PlayState::for_mode(&world.0.mode)),
+            Some(SheetIntent::Tactics) if members > 0 && !in_fight(&world.0.mode) => {
+                next.set(PlayState::Tactics);
+            }
+            Some(SheetIntent::Tactics) | None => {}
         }
     }
     if screens.sheet.member != before {
         selected.0 = Some(screens.sheet.member);
     }
+}
+
+/// Declaring reactions is refused in a fight; the fight's React switches them.
+const fn in_fight(mode: &Mode) -> bool {
+    matches!(mode, Mode::Encounter(_) | Mode::Combat(_))
 }
 
 /// The sheet follows the band: a member clicked there is the member shown.

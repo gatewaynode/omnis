@@ -62,6 +62,8 @@ pub enum PlayState {
     Service,
     /// The camp over the map: rests outside a service (`feathers_camp.rs`).
     Camp,
+    /// A member's declared reactions, from the sheet (`feathers_tactics.rs`).
+    Tactics,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build

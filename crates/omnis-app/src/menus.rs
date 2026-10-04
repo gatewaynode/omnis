@@ -106,6 +106,8 @@ pub enum Active {
     Service,
     /// The camp (a `bevy_ui` panel).
     Camp,
+    /// The tactics panel (a `bevy_ui` panel).
+    Tactics,
     /// No screen: booting or exploring.
     None,
 }
@@ -133,6 +135,7 @@ impl Where<'_> {
             (AppState::Playing, _, Some(PlayState::Confirm)) => Active::Confirm,
             (AppState::Playing, _, Some(PlayState::Service)) => Active::Service,
             (AppState::Playing, _, Some(PlayState::Camp)) => Active::Camp,
+            (AppState::Playing, _, Some(PlayState::Tactics)) => Active::Tactics,
             _ => Active::None,
         }
     }
@@ -213,6 +216,7 @@ fn click_keys(screens: &mut Screens, active: Active, hit: Hit) -> Vec<MenuKey> {
         | Active::Confirm
         | Active::Service
         | Active::Camp
+        | Active::Tactics
         | Active::Encounter
         | Active::Combat
         | Active::Defeat
@@ -357,6 +361,7 @@ fn menu_keys(
             | Active::Confirm
             | Active::Service
             | Active::Camp
+            | Active::Tactics
             | Active::Combat
             | Active::Defeat
             | Active::Debug

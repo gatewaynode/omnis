@@ -7,7 +7,7 @@ use omnis_sim::omnis_data::{Ability, Data, EquipSlot, Skill};
 use omnis_sim::omnis_rules::{
     Expiry, armor_class, casting_ability, modifier, proficiency_bonus, skill_bonus,
 };
-use omnis_sim::{MINUTES_PER_DAY, World};
+use omnis_sim::{MINUTES_PER_DAY, Mode, World};
 
 /// A page of the sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -121,6 +121,8 @@ pub struct SheetView {
     pub magic: SheetMagic,
     /// The gear page.
     pub gear: SheetGear,
+    /// Whether the tactics panel may open: declaring is refused in a fight.
+    pub tactics: bool,
 }
 
 /// The sheet of the member in this slot, or `None` when the slot is empty.
@@ -199,6 +201,7 @@ pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView
             .collect(),
         magic: magic_page(world, data, member, now),
         gear: gear_page(world, data, member),
+        tactics: !matches!(world.mode, Mode::Encounter(_) | Mode::Combat(_)),
     })
 }
 
@@ -284,21 +287,28 @@ fn gear_page(world: &World, data: &Data, member: usize) -> SheetGear {
     }
 }
 
+/// The widget row of the TACTICS button, after the member row.
+pub const ROW_TACTICS: usize = 4;
+
 /// What the sheet asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SheetIntent {
     /// Close the sheet.
     Close,
+    /// Open the tactics panel on the member shown.
+    Tactics,
 }
 
 /// The sheet's cursor: which member, which page. Left/Right change the member, Tab or
-/// Up/Down the page, Escape or P close.
+/// Up/Down the page, T or the TACTICS button open the tactics panel, Escape or P close.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SheetMenu {
     /// The member shown.
     pub member: usize,
     /// The page shown.
     pub page: SheetPage,
+    /// TACTICS was clicked: the Enter that follows the click opens the panel.
+    pub armed: bool,
     /// Why the last key did nothing; empty when it did something.
     pub message: String,
 }
@@ -322,6 +332,7 @@ impl SheetMenu {
         if let Some(page) = SheetPage::ALL.get(row) {
             self.page = *page;
         }
+        self.armed = row == ROW_TACTICS;
     }
 
     /// Handle a key.
@@ -336,6 +347,10 @@ impl SheetMenu {
                 self.page = SheetPage::ALL[cycle(self.page.index(), 3, MenuKey::Right)];
             }
             MenuKey::Escape | MenuKey::Char('p') => return Some(SheetIntent::Close),
+            MenuKey::Char('t') => return Some(SheetIntent::Tactics),
+            MenuKey::Enter if std::mem::take(&mut self.armed) => {
+                return Some(SheetIntent::Tactics);
+            }
             MenuKey::Enter | MenuKey::Char(_) | MenuKey::Backspace => {}
         }
         None
@@ -416,6 +431,7 @@ pub(crate) mod tests {
                     ("Potion of healing".to_owned(), 1),
                 ],
             },
+            tactics: true,
         }
     }
 
@@ -581,6 +597,14 @@ pub(crate) mod tests {
         menu.click_row(3);
         assert_eq!(menu.page, SheetPage::Magic, "the member row is not a tab");
         assert_eq!(menu.key(MenuKey::Enter, 3), None);
+        menu.click_row(ROW_TACTICS);
+        assert_eq!(menu.page, SheetPage::Magic, "TACTICS is not a tab");
+        assert_eq!(menu.key(MenuKey::Enter, 3), Some(SheetIntent::Tactics));
+        assert_eq!(menu.key(MenuKey::Enter, 3), None, "one click, one opening");
+        menu.click_row(ROW_TACTICS);
+        menu.click_row(0);
+        assert_eq!(menu.key(MenuKey::Enter, 3), None, "a tab click disarms it");
+        assert_eq!(menu.key(MenuKey::Char('t'), 3), Some(SheetIntent::Tactics));
         assert_eq!(menu.key(MenuKey::Escape, 3), Some(SheetIntent::Close));
         assert_eq!(menu.key(MenuKey::Char('p'), 3), Some(SheetIntent::Close));
         menu.open(None, 0);

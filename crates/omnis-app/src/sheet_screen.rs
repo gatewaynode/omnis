@@ -1,17 +1,21 @@
 //! The character sheet painted in the menu box: a header with three tabs and the member
 //! choice, then one of three pages laid out in columns. Bevy-free; the only widgets are
-//! the tabs (`Row(0..3)`) and the member row (`Row(3)`, a choice with arrows).
+//! the tabs (`Row(0..3)`), the member row (`Row(3)`, a choice with arrows) and TACTICS
+//! (`Row(4)`, grey in a fight).
 
 use crate::font::fit;
 use crate::layout::MENU_COLUMNS;
 use crate::screens::{ItemState, item_state, label, label_right};
-use crate::sheet_menu::{SheetMenu, SheetPage, SheetView, signed};
+use crate::sheet_menu::{ROW_TACTICS, SheetMenu, SheetPage, SheetView, signed};
 use crate::widget::{DIM, Frame, HI, Kind, TEXT, WidgetId};
 
 /// The widget row of the member choice, after the three tabs.
 pub const ROW_MEMBER: usize = 3;
 /// The tabs' columns on row 0.
 const TAB_COLUMNS: [i32; 3] = [8, 16, 24];
+/// TACTICS's column on row 0, after the tabs.
+const TACTICS_COLUMN: i32 = 32;
+const TACTICS: &str = "TACTICS";
 /// Cells a full-width row may take.
 const ROW_CELLS: usize = MENU_COLUMNS as usize - 2;
 
@@ -57,6 +61,19 @@ fn header(frame: &mut Frame, menu: &SheetMenu, view: &SheetView, members: usize)
             ItemState::from_selected(*page == menu.page),
         );
     }
+    item_state(
+        frame,
+        WidgetId::Row(ROW_TACTICS),
+        Kind::Button,
+        (TACTICS_COLUMN, 0),
+        TACTICS,
+        TACTICS.len(),
+        if view.tactics {
+            ItemState::Normal
+        } else {
+            ItemState::Disabled
+        },
+    );
     label_right(
         frame,
         0,
@@ -273,6 +290,7 @@ mod tests {
                 ],
                 carried: (0..20).map(|i| (format!("{long}{i}"), 65535)).collect(),
             },
+            tactics: true,
         }
     }
 
@@ -295,6 +313,7 @@ mod tests {
                 member: 5,
                 page,
                 message: String::new(),
+                armed: false,
             };
             let mut frame = Frame::default();
             sheet(&mut frame, &menu, &view, 6);
@@ -302,9 +321,11 @@ mod tests {
             assert_no_text_past_the_grid(&frame);
             assert_eq!(
                 frame.widgets.len(),
-                4,
-                "{page:?}: three tabs and the member"
+                5,
+                "{page:?}: three tabs, the member and TACTICS"
             );
+            let tactics = frame.widget(WidgetId::Row(ROW_TACTICS)).unwrap();
+            assert!(tactics.enabled, "out of a fight");
             let member = frame.widget(WidgetId::Row(ROW_MEMBER)).unwrap();
             assert!(member.left.is_some() && member.right.is_some());
             let tab = frame.widget(WidgetId::Row(page.index())).unwrap();
@@ -314,6 +335,8 @@ mod tests {
         let mut frame = Frame::default();
         sheet(&mut frame, &SheetMenu::default(), &SheetView::default(), 1);
         assert_laid_out(&frame, MENU_BOX);
+        let tactics = frame.widget(WidgetId::Row(ROW_TACTICS)).unwrap();
+        assert!(!tactics.enabled, "grey when the view says a fight is on");
         let mut blank = SheetView::default();
         blank.gear.slots = vec![("Main hand".to_owned(), "-".to_owned())];
         for page in SheetPage::ALL {

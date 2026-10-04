@@ -114,6 +114,8 @@ pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G 
 pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
 /// The help line under the camp's panel.
 pub const HELP_CAMP: &str = "Slide the hit dice  click a rest  Esc close";
+/// The status line's help on the tactics panel.
+pub const HELP_TACTICS: &str = "Pick an action, a trigger, conditions  Save  Esc sheet";
 /// The help line under a service's panel.
 pub const HELP_SERVICE: &str =
     "Click what you want  Tab to move  Esc leave  Items Spells Sheet Menu on the bar";
@@ -469,6 +471,8 @@ fn menu_for<'a>(
         (Active::Service, _) => (Menu::None, HELP_SERVICE),
         // The camp is a `bevy_ui` panel over the map (`feathers_camp.rs`).
         (Active::Camp, _) => (Menu::None, HELP_CAMP),
+        // The tactics panel is a `bevy_ui` panel over the map (`feathers_tactics.rs`).
+        (Active::Tactics, _) => (Menu::None, HELP_TACTICS),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,

@@ -12,6 +12,7 @@ use crate::feathers_confirm as confirm;
 use crate::feathers_creation::{self as creation, Synced};
 use crate::feathers_fonts::{self as typefaces, PanelFonts};
 use crate::feathers_service::{self as service, ServiceShown};
+use crate::feathers_tactics::{self as tactics, TacticsShown};
 use crate::feathers_tools as tools;
 use crate::menu::CreationAction;
 use crate::menus::{Active, CreationAsk, CreationFlow, Where};
@@ -44,6 +45,7 @@ impl Plugin for FeathersUiPlugin {
             .init_resource::<Synced>()
             .init_resource::<ServiceShown>()
             .init_resource::<CampShown>()
+            .init_resource::<TacticsShown>()
             .init_resource::<kit::ScaleChoice>()
             .init_resource::<kit::FontChoice>()
             .add_message::<kit::UiReport>()
@@ -83,6 +85,10 @@ impl Plugin for FeathersUiPlugin {
             )
             .add_systems(
                 Update,
+                (tactics::reports, tactics::escape_closes).in_set(UiSet::Dispatch),
+            )
+            .add_systems(
+                Update,
                 (
                     creation::reconcile,
                     confirm::reconcile,
@@ -92,6 +98,7 @@ impl Plugin for FeathersUiPlugin {
                     camp::look,
                     camp::refusals,
                     camp::reconcile,
+                    (tactics::look, tactics::refusals, tactics::reconcile).chain(),
                     tools::reconcile,
                     kit::scale,
                     kit::place,
@@ -99,6 +106,7 @@ impl Plugin for FeathersUiPlugin {
                     creation::sync,
                     service::sync,
                     camp::sync,
+                    tactics::sync,
                     tools::sync,
                     typefaces::wear,
                 )
