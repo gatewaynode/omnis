@@ -13,7 +13,9 @@ pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
 pub use crate::use_menu::UseRow;
 use crate::use_menu::use_rows;
-use omnis_sim::{ActorRef, CombatCommand, Event, Mode, ModeKind, World, bribe_cost, combat_view};
+use omnis_sim::{
+    ActorRef, Budget, CombatCommand, Event, Mode, ModeKind, World, bribe_cost, combat_view,
+};
 
 /// One stack as the rows show it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,8 +79,15 @@ pub struct FightView {
     pub spells: Vec<SpellRow>,
     /// The acting member's spell points and maximum.
     pub points: (u32, u32),
-    /// The acting member's usable kit rows; empty when no member acts or none has a use.
+    /// The acting member's features, then their usable kit rows; empty when no member acts
+    /// or none has a use.
     pub usable: Vec<UseRow>,
+    /// What the acting member's turn has left to pay with.
+    pub budget: Budget,
+    /// Reactions the acting member has left this round.
+    pub reactions_left: u8,
+    /// Whether the acting member's declared reactions fire.
+    pub reactions_on: bool,
 }
 
 impl FightView {
@@ -152,6 +161,13 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         })
         .collect();
     let caster = own.map(|i| &world.party.members[i]);
+    let fighter = own.and_then(|own| view.members.iter().find(|m| usize::from(m.index) == own));
+    let reactions_left = caster.map_or(0, |c| {
+        view.reactions
+            .iter()
+            .find(|(actor, _)| *actor == ActorRef::Member(c.id))
+            .map_or(0, |(_, left)| *left)
+    });
     let spells = view
         .spells
         .iter()
@@ -174,7 +190,8 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
                 targets_members: s.targets_members,
                 reaction,
                 active,
-                blocked: s.blocked.as_ref().map(blocked_note),
+                blocked: s.bonus.as_ref().and(s.blocked.as_ref()).map(blocked_note),
+                bonus: s.bonus.is_none(),
             })
         })
         .collect();
@@ -190,7 +207,10 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         gold: world.party.gold,
         spells,
         points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
-        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own)),
+        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own, fighter)),
+        budget: view.budget,
+        reactions_left,
+        reactions_on: fighter.is_some_and(|f| f.reactions_on),
     })
 }
 
@@ -214,9 +234,11 @@ pub enum CombatIntent {
 pub const ACTION_CAST: usize = 1;
 /// The action row's cursor position of Use.
 pub const ACTION_USE: usize = 2;
+/// The action row's cursor position of React.
+pub const ACTION_REACT: usize = 7;
 
 /// The fight's action row and target: Up/Down choose the action, Left/Right the stack, Enter
-/// confirms, `a c u d e r` are hotkeys, Escape pauses. Cast opens the spell picker over the
+/// confirms, `a c u d e r n o` are hotkeys, Escape pauses. Cast opens the spell picker over the
 /// action row: Up/Down choose the spell, Enter casts it at the target (or the band's selected
 /// member for a heal or a buff), Escape closes it. Use opens the item picker the same way:
 /// Enter uses the item on the band's selected member, or the user.
@@ -236,10 +258,11 @@ pub struct CombatMenu {
 
 impl CombatMenu {
     /// The actions, in cursor order.
-    pub const ACTIONS: [&'static str; 7] =
-        ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run", "End"];
-    /// The hotkeys, in the same order (`n` for eNd: `e` is Exchange).
-    pub const HOTKEYS: [char; 7] = ['a', 'c', 'u', 'd', 'e', 'r', 'n'];
+    pub const ACTIONS: [&'static str; 8] = [
+        "Attack", "Cast", "Use", "Dodge", "Exchange", "Run", "End", "React",
+    ];
+    /// The hotkeys, in the same order (`n` for eNd: `e` is Exchange; `o` for on/off).
+    pub const HOTKEYS: [char; 8] = ['a', 'c', 'u', 'd', 'e', 'r', 'n', 'o'];
 
     /// Keep the target on a living stack: the first one when the current target fell; keep
     /// the picker's cursor on a spell, and close it when the acting member knows none.
@@ -304,6 +327,22 @@ impl CombatMenu {
         }
     }
 
+    /// The member an exchange goes to: the band's selection, when it is not the acting member;
+    /// otherwise `None` with the reason in the message.
+    pub(crate) fn partner(&mut self, view: &FightView, selected: Option<usize>) -> Option<u8> {
+        match (selected, view.own) {
+            (Some(with), Some(own)) if with != own => Some(u8::try_from(with).unwrap_or(u8::MAX)),
+            (Some(_), _) => {
+                self.message = "Select another member to exchange with".to_owned();
+                None
+            }
+            (None, _) => {
+                self.message = "Select a member to exchange with".to_owned();
+                None
+            }
+        }
+    }
+
     fn confirm(&mut self, view: &FightView, selected: Option<usize>) -> Option<CombatIntent> {
         self.message.clear();
         let command = match self.cursor {
@@ -342,20 +381,15 @@ impl CombatMenu {
                 return None;
             }
             3 => CombatCommand::Dodge,
-            4 => match (selected, view.own) {
-                (Some(with), Some(own)) if with != own => CombatCommand::Exchange {
-                    with: u8::try_from(with).unwrap_or(u8::MAX),
-                },
-                (Some(_), _) => {
-                    self.message = "Select another member to exchange with".to_owned();
-                    return None;
-                }
-                (None, _) => {
-                    self.message = "Select a member to exchange with".to_owned();
-                    return None;
-                }
+            4 => CombatCommand::Exchange {
+                with: self.partner(view, selected)?,
             },
             5 => CombatCommand::Run,
+            ACTION_REACT => {
+                return Some(CombatIntent::Reactions {
+                    on: !view.reactions_on,
+                });
+            }
             _ => CombatCommand::EndTurn,
         };
         Some(CombatIntent::Command(command))
@@ -404,6 +438,12 @@ pub(crate) mod tests {
             skills: match class {
                 "wizard" => vec![Skill::Arcana, Skill::History],
                 "cleric" => vec![Skill::Medicine, Skill::History],
+                "rogue" => vec![
+                    Skill::Stealth,
+                    Skill::Acrobatics,
+                    Skill::Perception,
+                    Skill::Investigation,
+                ],
                 _ => vec![Skill::Athletics, Skill::Perception],
             },
         }
@@ -557,12 +597,18 @@ pub(crate) mod tests {
             spells: Vec::new(),
             points: (0, 0),
             usable: Vec::new(),
+            budget: Budget {
+                actions: 1,
+                bonus_actions: 1,
+            },
+            reactions_left: 1,
+            reactions_on: true,
         }
     }
 
     #[test]
     fn combat_keys_choose_actions_and_living_targets() {
-        let view = view_with(
+        let mut view = view_with(
             &[(0, false, None), (1, true, None), (2, true, Some("no"))],
             Some(0),
         );
@@ -597,7 +643,20 @@ pub(crate) mod tests {
         for _ in 0..4 {
             menu.key(MenuKey::Up, &view, None);
         }
-        assert_eq!(menu.cursor, 6, "wraps to End");
+        assert_eq!(menu.cursor, 7, "wraps to React");
+        assert_eq!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Reactions { on: false }),
+            "React turns the acting member's reactions off when they are on"
+        );
+        view.reactions_on = false;
+        assert_eq!(
+            menu.key(MenuKey::Char('o'), &view, None),
+            Some(CombatIntent::Reactions { on: true }),
+            "and on when they are off"
+        );
+        menu.key(MenuKey::Up, &view, None);
+        assert_eq!(menu.cursor, 6, "End before it");
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::EndTurn))

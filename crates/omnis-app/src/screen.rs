@@ -571,6 +571,7 @@ mod tests {
                     reaction: false,
                     active: false,
                     blocked: None,
+                    bonus: false,
                 },
                 crate::combat_menu::SpellRow {
                     index: 1,
@@ -580,15 +581,18 @@ mod tests {
                     reaction: false,
                     active: false,
                     blocked: Some("need 1 pt".to_owned()),
+                    bonus: false,
                 },
             ],
             points: (0, 4),
             usable: vec![crate::combat_menu::UseRow {
-                index: 6,
                 name: "Potion of healing".to_owned(),
-                count: 1,
+                kind: crate::use_menu::UseKind::Item { index: 6, count: 1 },
                 blocked: None,
             }],
+            budget: omnis_sim::Budget::default(),
+            reactions_left: 0,
+            reactions_on: true,
         }
     }
 

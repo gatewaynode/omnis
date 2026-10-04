@@ -1,5 +1,5 @@
 //! The fight's shape and its blood as text: the start, the order, rounds and turns that need no
-//! die, then damage, falling, death saves, conditions, deaths and the end. Split from
+//! die, features used and opportunity attacks, then damage, falling, death saves, conditions, deaths and the end. Split from
 //! `combat_text.rs`, which chains these after the encounter lines; its tests cover them through
 //! `batch_lines`. Bevy-free.
 
@@ -7,7 +7,7 @@ use crate::text::{Line, Names, trace_math};
 use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::DamageType;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
-use omnis_sim::{CombatOutcome, Event, Surprise};
+use omnis_sim::{ActorRef, CombatOutcome, Event, Surprise};
 
 /// The shape of the fight: its start, the order, rounds, and turns that need no die.
 pub(crate) fn round_line(event: &Event, names: &Names) -> Option<Line> {
@@ -32,6 +32,19 @@ pub(crate) fn round_line(event: &Event, names: &Names) -> Option<Line> {
         Event::Waited { actor } => Line::same(format!("{} wait", names.actor(actor))),
         Event::Dodging { actor } => Line::same(format!("{} dodges", names.actor(actor))),
         Event::Exchanged { a, b } => Line::same(format!("Slots {} and {} exchange", a + 1, b + 1)),
+        Event::FeatureUsed { member, feature } => Line::same(format!(
+            "{} uses {}",
+            names.member(*member),
+            names.feature(feature)
+        )),
+        Event::OpportunityAttack { stack, member } => Line::new(
+            format!(
+                "Opportunity attack: {} on {}",
+                names.actor(&ActorRef::Stack(*stack)),
+                names.member(*member)
+            ),
+            format!("Opportunity attack on {}", names.member(*member)),
+        ),
         _ => return None,
     })
 }

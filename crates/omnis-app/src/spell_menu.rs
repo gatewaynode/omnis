@@ -27,20 +27,35 @@ pub struct SpellRow {
     pub reaction: bool,
     /// Whether an effect of this spell by this caster is in force.
     pub active: bool,
-    /// Why it cannot be cast now, in a few words.
+    /// Why it cannot be cast now, in a few words; `None` when the action or the bonus
+    /// action can pay for it.
     pub blocked: Option<String>,
+    /// Whether the bonus action pays for it now; it is cast that way when so, leaving the
+    /// action.
+    pub bonus: bool,
 }
 
 impl SpellRow {
-    /// The note after the cost: that it is a reaction, the reason it is grey, or that it is
-    /// in force.
+    /// The note after the cost: that it is a reaction, the reason it is grey, that it is
+    /// in force, or that the bonus action pays for it.
     #[must_use]
     pub fn note(&self) -> String {
         match (&self.blocked, self.reaction, self.active) {
             (_, true, _) => "reaction".to_owned(),
             (Some(why), false, _) => why.clone(),
             (None, false, true) => "in force".to_owned(),
+            (None, false, false) if self.bonus => "bonus action".to_owned(),
             (None, false, false) => String::new(),
+        }
+    }
+
+    /// What pays for a cast from the picker: the bonus action when it can.
+    #[must_use]
+    pub const fn pay(&self) -> Pay {
+        if self.bonus {
+            Pay::BonusAction
+        } else {
+            Pay::Action
         }
     }
 }
@@ -111,7 +126,7 @@ impl CombatMenu {
         Some(CombatIntent::Command(CombatCommand::Cast {
             spell: row.index,
             target,
-            pay: Pay::Action,
+            pay: row.pay(),
         }))
     }
 }
@@ -298,6 +313,102 @@ mod tests {
         .unwrap();
         assert!(matches!(world.mode, Mode::Combat(_)));
         world
+    }
+
+    #[test]
+    fn a_bonus_action_spell_is_cast_with_the_bonus_action_and_leaves_the_action() {
+        let data = data();
+        let mut world = facing(&data, &["cleric"], &[("giant_rat", 1)]);
+        let word = data.registry.spells.get("base:spell:healing_word").unwrap();
+        world.party.members[0].known_spells.push(word);
+        apply(
+            &mut world,
+            &data,
+            Command::Encounter(EncounterChoice::Attack),
+        )
+        .unwrap();
+        let view = fight_view(&world, &data).unwrap();
+        let row = |view: &FightView, name: &str| {
+            let at = view.spells.iter().position(|s| s.name == name).unwrap();
+            (at, view.spells[at].clone())
+        };
+        let (word_at, word) = row(&view, "Healing Word");
+        let (flame_at, flame) = row(&view, "Sacred Flame");
+        assert!(word.bonus && word.blocked.is_none(), "{word:?}");
+        assert_eq!(word.note(), "bonus action");
+        assert!(!flame.bonus && flame.blocked.is_none(), "{flame:?}");
+        let mut menu = CombatMenu {
+            cursor: crate::combat_menu::ACTION_CAST,
+            picker: Some(word_at),
+            ..CombatMenu::default()
+        };
+        let cast = menu.key(MenuKey::Enter, &view, Some(0));
+        assert_eq!(
+            cast,
+            Some(CombatIntent::Command(CombatCommand::Cast {
+                spell: word.index,
+                target: Target::Member(0),
+                pay: Pay::BonusAction,
+            }))
+        );
+        menu.picker = Some(flame_at);
+        assert!(matches!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Command(CombatCommand::Cast {
+                pay: Pay::Action,
+                ..
+            }))
+        ));
+        let Some(CombatIntent::Command(command)) = cast else {
+            unreachable!()
+        };
+        apply(&mut world, &data, Command::Combat(command)).unwrap();
+        let after = fight_view(&world, &data).unwrap();
+        assert_eq!((after.budget.actions, after.budget.bonus_actions), (1, 0));
+        let (_, word) = row(&after, "Healing Word");
+        assert!(!word.bonus, "the bonus action is spent");
+        assert!(
+            word.blocked.is_some(),
+            "and the action may not cast a second spell"
+        );
+        let (_, flame) = row(&after, "Sacred Flame");
+        assert!(
+            flame.blocked.is_none(),
+            "a cantrip still goes with the action"
+        );
+    }
+
+    #[test]
+    fn a_spent_action_leaves_a_bonus_action_spell_open_and_the_view_reads_own_reactions() {
+        let data = data();
+        let mut world = facing(&data, &["cleric"], &[("giant_rat", 1)]);
+        let word = data.registry.spells.get("base:spell:healing_word").unwrap();
+        world.party.members[0].known_spells.push(word);
+        apply(
+            &mut world,
+            &data,
+            Command::Encounter(EncounterChoice::Attack),
+        )
+        .unwrap();
+        apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        let cleric = world.party.members[0].id;
+        let Mode::Combat(state) = &mut world.mode else {
+            unreachable!()
+        };
+        assert_eq!(state.budget.actions, 0, "Dodge spent the action");
+        state.set_reactions(omnis_sim::ActorRef::Member(cleric), 0);
+        let view = fight_view(&world, &data).unwrap();
+        let row = |name: &str| view.spells.iter().find(|s| s.name == name).unwrap();
+        assert!(
+            row("Healing Word").blocked.is_none() && row("Healing Word").bonus,
+            "the bonus action still pays: {:?}",
+            row("Healing Word")
+        );
+        assert!(row("Sacred Flame").blocked.is_some(), "the action is gone");
+        assert_eq!(
+            view.reactions_left, 0,
+            "the cleric's own count, not the rat's"
+        );
     }
 
     #[test]

@@ -539,6 +539,14 @@ mod tests {
                 gold: 0,
                 fallen: vec![],
             },
+            Event::FeatureUsed {
+                member: me,
+                feature: "base:text:class.fighter.a_feature_key_nobody_named_yet".to_owned(),
+            },
+            Event::OpportunityAttack {
+                stack: 0,
+                member: me,
+            },
             Event::PartyChanged,
         ]
     }
@@ -623,6 +631,16 @@ mod tests {
             "Victory! 99999 XP each, 99999 gold; lost: Brennagh",
         );
         assert_eq!(lines[18].long, "The party has fallen");
+        clipped(
+            &lines[19].long,
+            LONG_CELLS,
+            "Brennagh-of-the-Long-Hall uses base:text:class.fighter.a_feature",
+        );
+        assert_eq!(
+            lines[20].long,
+            "Opportunity attack: Ancient Red Dragon Wys on Brennagh-of-the-Long-Hall"
+        );
+        assert_eq!(lines[20].short, "Opportunity attack on Brennagh-of-the-L");
     }
 
     #[test]

@@ -159,11 +159,11 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
     app.update();
     click(&mut app, WidgetId::Action(2), Part::Body);
     assert!(
-        frame_has(&app, WidgetId::Item(0)),
-        "the picker lists the potion"
+        frame_has(&app, WidgetId::Item(1)),
+        "the picker lists Second Wind, then the potion"
     );
     let mark = seen(&app).events.len();
-    click(&mut app, WidgetId::Item(0), Part::Body);
+    click(&mut app, WidgetId::Item(1), Part::Body);
     let user = world(&app).party.members[own].id;
     assert!(
         seen(&app).events[mark..].iter().any(|e| matches!(
@@ -173,13 +173,81 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
         "{:?}",
         &seen(&app).events[mark..]
     );
-    assert!(!frame_has(&app, WidgetId::Item(0)), "the picker closed");
+    assert!(!frame_has(&app, WidgetId::Item(1)), "the picker closed");
     let log = app.world().resource::<RollLog>();
     assert!(
         log.0.iter().any(|l| l.contains("uses Potion of healing")),
         "{:?}",
         log.0
     );
+}
+
+/// The acting member's slot and the fight's budget.
+fn turn(app: &App) -> (usize, omnis_sim::Budget) {
+    let data = &app.world().resource::<PackData>().0;
+    let view = omnis_app::combat_menu::fight_view(world(app), data).unwrap();
+    (view.own.expect("a member acts"), view.budget)
+}
+
+#[test]
+fn react_switches_the_acting_member_s_reactions_by_mouse() {
+    let mut app = before_the_rats("combat-react.ron");
+    meet_the_rats(&mut app);
+    if play_state(&app) == PlayState::Encounter {
+        click(&mut app, WidgetId::Action(0), Part::Body);
+    }
+    let (own, _) = turn(&app);
+    let on = |app: &App| world(app).party.members[own].tactics.reactions_on;
+    assert!(on(&app), "a new member's reactions are on");
+    click(&mut app, WidgetId::Action(7), Part::Body);
+    assert!(!on(&app), "React turns them off");
+    assert_eq!(turn(&app).0, own, "and costs nothing: the turn stays");
+    click(&mut app, WidgetId::Action(7), Part::Body);
+    assert!(on(&app), "and on again");
+    let log = app.world().resource::<RollLog>();
+    assert!(
+        log.0.iter().any(|l| l.ends_with("reactions are off")),
+        "{:?}",
+        log.0
+    );
+}
+
+#[test]
+fn second_wind_is_used_from_the_use_picker_by_mouse_and_spends_the_bonus_action() {
+    let mut app = before_the_rats("combat-feature.ron");
+    meet_the_rats(&mut app);
+    if play_state(&app) == PlayState::Encounter {
+        click(&mut app, WidgetId::Action(0), Part::Body);
+    }
+    let (own, budget) = turn(&app);
+    assert_eq!((budget.actions, budget.bonus_actions), (1, 1));
+    app.world_mut().resource_mut::<SimWorld>().0.party.members[own].hp = 1;
+    app.update();
+    app.update();
+    click(&mut app, WidgetId::Action(2), Part::Body);
+    let mark = seen(&app).events.len();
+    click(&mut app, WidgetId::Item(0), Part::Body);
+    let user = world(&app).party.members[own].id;
+    assert!(
+        seen(&app).events[mark..]
+            .iter()
+            .any(|e| matches!(e, Event::FeatureUsed { member, .. } if *member == user)),
+        "{:?}",
+        &seen(&app).events[mark..]
+    );
+    let (still, budget) = turn(&app);
+    assert_eq!(still, own, "the action is left: the turn stays");
+    assert_eq!((budget.actions, budget.bonus_actions), (1, 0));
+    assert!(world(&app).party.members[own].hp > 1, "healed");
+    let log = app.world().resource::<RollLog>();
+    assert!(
+        log.0.iter().any(|l| l.contains("uses Second Wind")),
+        "{:?}",
+        log.0
+    );
+    // Second Wind's one use is gone: its row stays, dim.
+    click(&mut app, WidgetId::Action(2), Part::Body);
+    assert!(!widget(&app, WidgetId::Item(0)).enabled, "no uses left");
 }
 
 #[test]
