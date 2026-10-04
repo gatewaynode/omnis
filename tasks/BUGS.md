@@ -26,4 +26,4 @@ the fix) and the fixing commit. Newest last.
 - **Test**: `reactions.rs::the_tactics_commands_check_everything_and_change_nothing_when_refused` (the attack
   on `EnemyFlees` is refused; red before the fix), with `views.rs`, `bridge.rs` and
   `omnis-app/tests/tactics.rs::a_fighter_has_nothing_to_declare_yet`.
-- **Fixed in**: the commit "M7c acceptance c, B2".
+- **Fixed in**: `34f7eec`.
