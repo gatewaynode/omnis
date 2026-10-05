@@ -6,8 +6,6 @@ use crate::band::{self, Band, MemberRow};
 use crate::canvas::{Layout, NARROW};
 use crate::combat_menu::{CombatMenu, FightView};
 use crate::combat_screen;
-use crate::debug_menu::{DebugMenu, DebugView};
-use crate::debug_screen;
 use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::inventory_menu::{InventoryAction, InventoryMenu, InventoryView};
 use crate::inventory_screen;
@@ -35,8 +33,6 @@ pub enum Target<'a> {
     Combat(&'a mut CombatMenu),
     /// The modal after a wipe.
     Defeat(&'a mut DefeatMenu),
-    /// The debug menu.
-    Debug(&'a mut DebugMenu),
     /// The cast menu while exploring.
     Cast(&'a mut CastMenu),
     /// The character sheet.
@@ -104,12 +100,6 @@ fn set_row(target: Target<'_>, row: usize) -> bool {
         Target::NewGame(form) => form.cursor = row,
         Target::Pause(pause) => pause.cursor = row,
         Target::Defeat(menu) => menu.cursor = row,
-        Target::Debug(menu) => {
-            if menu.row != row {
-                menu.row = row;
-                menu.field = 0;
-            }
-        }
         Target::Cast(menu) => menu.cursor = row,
         Target::Sheet(menu) => menu.click_row(row),
         // The inventory's rows are picked in `click`; the fight's rows are not menu rows.
@@ -167,13 +157,6 @@ pub enum Menu<'a> {
         menu: &'a DefeatMenu,
         /// The roll log, oldest first.
         log: &'a [String],
-    },
-    /// The debug menu.
-    Debug {
-        /// The menu.
-        menu: &'a DebugMenu,
-        /// What it edits.
-        view: &'a DebugView,
     },
     /// The cast menu while exploring.
     Cast {
@@ -306,7 +289,6 @@ fn core(frame: &mut Frame, view: &View<'_>, pressed: Option<WidgetId>) {
         Menu::Encounter { menu, view } => combat_screen::encounter(frame, view, menu),
         Menu::Combat { menu, view } => combat_screen::combat(frame, view, menu),
         Menu::Defeat { menu, log } => combat_screen::defeat(frame, menu, log),
-        Menu::Debug { menu, view } => debug_screen::debug(frame, menu, view),
         Menu::Cast { menu, rows } => cast_screen(frame, menu, rows),
         Menu::Sheet {
             menu,
@@ -726,14 +708,6 @@ mod tests {
             view: &fight,
         };
         dump(&dir, "combat_cast", casting, Some(&hud), &event);
-        let debug_view = sample_debug();
-        let mut debug_menu = DebugMenu::default();
-        debug_menu.open(&debug_view);
-        let debugging = Menu::Debug {
-            menu: &debug_menu,
-            view: &debug_view,
-        };
-        dump(&dir, "debug", debugging, Some(&hud), &event);
         let fallen = Menu::Defeat {
             menu: &defeat,
             log: &log,
@@ -782,35 +756,6 @@ mod tests {
             view: fight,
         };
         dump(dir, "combat_use", picking, Some(hud), event);
-    }
-
-    /// The sample debug view: a fight, a dev world, one member.
-    fn sample_debug() -> crate::debug_menu::DebugView {
-        crate::debug_menu::DebugView {
-            fighting: true,
-            devtools: true,
-            members: vec![crate::debug_menu::MemberDebug {
-                name: "Brenna".to_owned(),
-                hp: (12, 12),
-                sp: (0, 0),
-                xp: 25,
-                scores: [15, 14, 13, 12, 10, 8],
-                conditions: vec![],
-            }],
-            gold: 9000,
-            food: 60,
-            items: vec![("base:item:spyglass".to_owned(), "Spyglass".to_owned())],
-            conditions: vec![("base:condition:poisoned".to_owned(), "Poisoned".to_owned())],
-            flags: vec![],
-            maps: vec![("test:map:dungeon".to_owned(), 24, 24)],
-            position: (0, 3, 8, omnis_sim::omnis_core::Facing::South),
-            stacks: vec![crate::debug_menu::StackDebug {
-                index: 0,
-                name: "Goblin".to_owned(),
-                count: (3, 3),
-                lead_hp: 7,
-            }],
-        }
     }
 
     /// The sample explore view: no menu, the location lines, the pad enabled.

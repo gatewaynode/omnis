@@ -144,8 +144,9 @@ old saves only).
   features first in the Use picker as `UseKind::Feature`, `CombatMenu::partner` shared by Exchange
   and Cunning's exchange, `SpellRow.bonus` pays with the bonus action); the fight's other menus
   `encounter_menu.rs`; sheet `sheet_menu.rs`/`sheet_screen.rs`/`sheet.rs` (TACTICS `Row(4)`, `t`); inventory
-  `inventory_menu.rs`/`inventory_screen.rs`/`inventory.rs`; debug `debug_menu.rs`/
-  `debug_screen.rs`/`debug.rs` (`DebugPlugin`, feature `devtools`, opens on `OnEnter(PlayState::Debug)`).
+  `inventory_menu.rs`/`inventory_screen.rs`/`inventory.rs`; debug `debug_menu.rs` (the
+  view and the log line), `debug_panel.rs` (the Bevy-free model; a typed number is sent once, on commit) and
+  `feathers_debug.rs` (`DebugPanelPlugin`, feature `devtools`: the panel, the backtick, Escape).
 - Text: `text.rs` (`Names`, `Line` long ≤100 / short ≤39 cells, `trace_math`, `faces`) imported
   downward by `combat_text.rs` (`event_line` chain: before_fight → round → wound → spell → item →
   sense), `round_text.rs` (round, wound, `FeatureUsed`, `OpportunityAttack`), `spell_text.rs`

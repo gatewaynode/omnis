@@ -6,7 +6,6 @@
 use crate::AppConfig;
 use crate::combat_menu::CombatMenu;
 use crate::cursor::UiSet;
-use crate::debug_menu::DebugMenu;
 use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::inventory_menu::InventoryMenu;
 use crate::menu::{
@@ -57,8 +56,6 @@ pub struct Screens {
     pub combat: CombatMenu,
     /// The modal after a wipe.
     pub defeat: DefeatMenu,
-    /// The debug menu.
-    pub debug: DebugMenu,
     /// The cast menu while exploring.
     pub cast: CastMenu,
     /// The character sheet.

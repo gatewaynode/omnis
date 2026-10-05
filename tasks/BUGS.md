@@ -27,3 +27,14 @@ the fix) and the fixing commit. Newest last.
   on `EnemyFlees` is refused; red before the fix), with `views.rs`, `bridge.rs` and
   `omnis-app/tests/tactics.rs::a_fighter_has_nothing_to_declare_yet`.
 - **Fixed in**: `34f7eec`.
+
+## B3 — Debug changes to gold, food or items seemed not to stay (acceptance c, 2026-10-04) — open
+- **Report** (owner): "changes don't seem to stay when returning to the game world"; asked which, the owner
+  named gold, food or items, and will retest with the new entry methods.
+- **Checked**: headless with the canvas menu, gold went 3000 → 3200 and food 20 → 21 and both held after
+  Escape; given items landed in the kit and the stores. Not reproduced.
+- **Test**: `omnis-app/tests/debug.rs::typed_numbers_reach_the_world_once_and_every_field_holds_after_close`
+  sets every number field, an item to the member and to the stores and a condition through the new Feathers
+  panel, closes it, and checks the world still holds each value.
+- **State**: open until the owner's retest with the debug panel.
+

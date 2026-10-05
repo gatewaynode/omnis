@@ -10,6 +10,7 @@ use crate::canvas::Layout;
 use crate::confirm_panel::ConfirmId;
 use crate::creation_panel::{LabelId, PanelId};
 use crate::cursor::WindowSize;
+use crate::debug_panel::{DebugLabelId, DebugPanelId};
 use crate::layout::TOOLS;
 use crate::layout::{VIEWPORT_SIZE, canvas_rect_to_window};
 use crate::service_panel::{ServiceLabelId, ServicePanelId};
@@ -42,6 +43,8 @@ pub enum UiScreen {
     Camp,
     /// A member's declared reactions (`feathers_tactics.rs`).
     Tactics,
+    /// The debug panel (`feathers_debug.rs`, feature `devtools`).
+    Debug,
 }
 
 /// One control, on whichever screen. Tests and the sync systems find entities by it.
@@ -59,6 +62,8 @@ pub enum UiId {
     Camp(CampPanelId),
     /// A control of the tactics panel.
     Tactics(TacticsPanelId),
+    /// A control of the debug panel.
+    Debug(DebugPanelId),
 }
 
 impl Default for UiId {
@@ -78,6 +83,7 @@ impl UiId {
             UiId::Tool(id) => format!("{id:?}"),
             UiId::Camp(id) => format!("{id:?}"),
             UiId::Tactics(id) => format!("{id:?}"),
+            UiId::Debug(id) => format!("{id:?}"),
         }
     }
 }
@@ -112,6 +118,12 @@ impl From<TacticsPanelId> for UiId {
     }
 }
 
+impl From<DebugPanelId> for UiId {
+    fn from(id: DebugPanelId) -> Self {
+        UiId::Debug(id)
+    }
+}
+
 impl From<ToolButton> for UiId {
     fn from(id: ToolButton) -> Self {
         UiId::Tool(id)
@@ -129,6 +141,8 @@ pub enum UiLabel {
     Camp(CampLabelId),
     /// A text of the tactics panel.
     Tactics(TacticsLabelId),
+    /// A text of the debug panel.
+    Debug(DebugLabelId),
 }
 
 impl Default for UiLabel {
@@ -146,6 +160,7 @@ impl UiLabel {
             UiLabel::Service(id) => format!("{id:?}"),
             UiLabel::Camp(id) => format!("{id:?}"),
             UiLabel::Tactics(id) => format!("{id:?}"),
+            UiLabel::Debug(id) => format!("{id:?}"),
         }
     }
 }
@@ -503,6 +518,9 @@ pub(crate) fn on_slide(event: On<ValueChange<f32>>, mut reporter: Reporter) {
 
 pub(crate) fn on_number(event: On<ValueChange<i32>>, mut reporter: Reporter) {
     reporter.report(event.source, Payload::Number(i64::from(event.value)));
+    if event.is_final {
+        reporter.report(event.source, Payload::Commit(i64::from(event.value)));
+    }
 }
 
 pub(crate) fn on_flag(event: On<ValueChange<bool>>, mut reporter: Reporter) {

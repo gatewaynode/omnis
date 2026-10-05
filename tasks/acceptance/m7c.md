@@ -37,11 +37,11 @@ told apart from a gap. Play it in the window with a dev build (`cargo run -p omn
 
    The first three stand in the front row and the wizard in the back. Any save rule.
 2. **Level 2 for everyone:**
-   - set each member's XP to 300 (MENU → Debug menu → XP);
-   - train at the trainer (7, 1);
-   - for the cleric's spell pick, choose **Healing Word**.
+   - open MENU → Debug menu (or the backtick), choose each member and type 300 into Experience, then Enter;
+   - at the trainer (7, 1), for the cleric's spell pick, choose **Healing Word**.
 
-   *You will see* "… reaches level 2" for each member. The fighter gains Action Surge and the rogue gains
+   *You will see* "… reaches level 2" for each member as the XP is set (the debug panel levels at once since
+   2026-10-04; the trainer still sells levels in play). The fighter gains Action Surge and the rogue gains
    Cunning Action.
    Covered by `training.rs::a_level_is_granted_at_the_trainer_for_its_price` and
    `level.rs::features_with_effect_come_by_level_and_rests_give_their_uses_back`.

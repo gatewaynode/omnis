@@ -8,7 +8,6 @@ use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::batch_lines;
 use crate::cursor::{self, Pointer, UiSet};
-use crate::debug_menu::{DebugView, debug_view};
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
@@ -103,7 +102,7 @@ pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok 
 /// Help after a wipe.
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
 /// Help on the debug menu.
-pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
+pub const HELP_DEBUG: &str = "Type a number, Enter or Tab to set  Esc close";
 /// Help on the cast menu.
 pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter cast  Esc back";
 /// Help on the character sheet.
@@ -384,7 +383,6 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::CreateParty => &screens.creation.message,
         Active::Encounter => &screens.encounter.message,
         Active::Combat => &screens.combat.message,
-        Active::Debug => &screens.debug.message,
         Active::Cast => &screens.cast.message,
         Active::Sheet => &screens.sheet.message,
         Active::Inventory => &screens.inventory.message,
@@ -396,11 +394,10 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
-/// What the frame shows besides the screens' own state: the fight, the debug view, the
-/// road spells, and the log.
+/// What the frame shows besides the screens' own state: the fight, the road spells, and the
+/// log.
 struct Overlays<'a> {
     fight: Option<&'a FightView>,
-    debug: Option<&'a DebugView>,
     casts: &'a [CastRow],
     sheet: Option<&'a SheetView>,
     inventory: Option<&'a InventoryView>,
@@ -421,13 +418,6 @@ fn overlay_for<'a>(
                 rows: over.casts,
             },
             HELP_CAST,
-        ),
-        Active::Debug => (
-            Menu::Debug {
-                menu: &screens.debug,
-                view: over.debug?,
-            },
-            HELP_DEBUG,
         ),
         Active::Sheet => (
             Menu::Sheet {
@@ -473,6 +463,8 @@ fn menu_for<'a>(
         (Active::Camp, _) => (Menu::None, HELP_CAMP),
         // The tactics panel is a `bevy_ui` panel over the map (`feathers_tactics.rs`).
         (Active::Tactics, _) => (Menu::None, HELP_TACTICS),
+        // The debug panel is a `bevy_ui` panel over the map (`feathers_debug.rs`).
+        (Active::Debug, _) => (Menu::None, HELP_DEBUG),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,
@@ -506,7 +498,6 @@ fn menu_for<'a>(
             Active::None
             | Active::Encounter
             | Active::Combat
-            | Active::Debug
             | Active::Cast
             | Active::Sheet
             | Active::Inventory,
@@ -533,9 +524,6 @@ fn build_frame(
     let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
     let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
     let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
-    let debug = (active == Active::Debug)
-        .then(|| loaded.map(|(w, d)| debug_view(&w.0, &d.0)))
-        .flatten();
     let casts = if active == Active::Cast {
         loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
     } else {
@@ -553,7 +541,6 @@ fn build_frame(
     let model_message = model_message(active, &screens);
     let over = Overlays {
         fight: fight.as_ref(),
-        debug: debug.as_ref(),
         casts: &casts,
         sheet: sheet.as_ref(),
         inventory: inventory.as_ref(),

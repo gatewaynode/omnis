@@ -136,6 +136,8 @@ pub fn feathers_app(save: &str, autostart: bool) -> App {
     ))
     .init_resource::<Seen>()
     .add_systems(Update, collect.after(SimSet::Publish));
+    #[cfg(feature = "devtools")]
+    app.add_plugins(omnis_app::feathers_debug::DebugPanelPlugin);
     app.finish();
     app.cleanup();
     app.world_mut().spawn(Camera2d);

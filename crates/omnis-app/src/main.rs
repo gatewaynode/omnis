@@ -247,7 +247,7 @@ fn main() -> AppExit {
     #[cfg(feature = "devtools")]
     {
         app.insert_resource(script)
-            .add_plugins((omnis_app::dev::DevPlugin, omnis_app::debug::DebugPlugin));
+            .add_plugins(omnis_app::dev::DevPlugin);
         if let Some(socket) = socket {
             app.add_plugins(socket);
         }
@@ -257,6 +257,9 @@ fn main() -> AppExit {
     look.apply(&mut app);
     app.add_plugins(omnis_app::feathers_ui::FeathersUiPlugin);
     #[cfg(feature = "devtools")]
-    app.add_plugins(omnis_app::capture::CapturePlugin);
+    app.add_plugins((
+        omnis_app::feathers_debug::DebugPanelPlugin,
+        omnis_app::capture::CapturePlugin,
+    ));
     app.run()
 }

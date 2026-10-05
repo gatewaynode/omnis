@@ -53,7 +53,7 @@ the dice, Rhai adds and compares.
 ## Building and running
 
 The toolchain is pinned by `rust-toolchain.toml`. Dev builds carry the `devtools` feature (the
-dev socket, `Dev` commands, the debug menu); a release build turns it off.
+dev socket, `Dev` commands, the debug panel); a release build turns it off.
 
 ```sh
 just run                                     # the same as the next line; flags pass through (`just run --window medium`)
