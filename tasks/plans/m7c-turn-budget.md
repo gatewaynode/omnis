@@ -1,5 +1,7 @@
 # M7c: the turn budget, declared reactions, the first class features with effect
 
+**Closed 2026-10-05**: owner acceptance c passed after B1, B2 and the debug panel (`tasks/BUGS.md`); M7 is closed.
+
 ## Context
 M7b is closed (owner manual test 2026-10-03, CI clear). M7c is M7's last acceptance point (PRD §14, owner
 2026-09-20): the turn budget (D21), declared reactions (D22, §7.9), D24's spell fields and the first class features
