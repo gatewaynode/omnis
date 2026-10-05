@@ -4,6 +4,7 @@
 
 use crate::apply::visit;
 use crate::combat;
+use crate::combat::Roller;
 use crate::command::Rejection;
 use crate::encounter::Stack;
 use crate::event::{ActorRef, Event};
@@ -14,7 +15,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{Facing, Position};
 use omnis_data::{Ability, Data};
-use omnis_rules::DeathSaves;
+use omnis_rules::{DeathSaves, level_up, modifier, ready, spell_point_pool};
 use serde::{Deserialize, Serialize};
 
 /// A debugging edit. Ids are strings, as a `Draft` names its race and class.
@@ -29,15 +30,15 @@ pub enum DevCommand {
         /// How many; at least one.
         count: u16,
     },
-    /// Hit points, clamped to `0..=hp_max`. Zero downs the member (fresh death saves,
-    /// `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
+    /// Hit points, at least zero and free to pass `hp_max`. Zero downs the member (fresh death
+    /// saves, `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
     SetHp {
         /// The member's slot.
         member: u8,
         /// The new hit points.
         hp: i32,
     },
-    /// Spell points, clamped to the maximum.
+    /// Spell points, free to pass the maximum.
     SetSpellPoints {
         /// The member's slot.
         member: u8,
@@ -54,14 +55,17 @@ pub enum DevCommand {
         /// Food units.
         food: u32,
     },
-    /// A member's experience; the level does not move (levelling is bought in town).
+    /// A member's experience. Each level it reaches is granted at once by the trainer's rule,
+    /// free (`Event::LevelUp` with no cost); a lower figure never takes a level away.
     SetXp {
         /// The member's slot.
         member: u8,
         /// Experience points.
         xp: u32,
     },
-    /// One ability score, `1..=30`. Derived numbers follow at read time; `hp_max` does not.
+    /// One ability score, any `u8`. Constitution moves `hp_max` and hit points by the change in
+    /// modifier times the level (the SRD's rule); a mental score recomputes the spell point pool,
+    /// current points moving by the same amount. Everything else reads the scores live.
     SetScore {
         /// The member's slot.
         member: u8,
@@ -141,22 +145,16 @@ pub(crate) fn apply(
         } => give_item(world, data, *member, item, *count)?,
         DevCommand::SetHp { member, hp } => set_hp(world, data, *member, *hp, &mut caused)?,
         DevCommand::SetSpellPoints { member, points } => {
-            let m = member_mut(world, *member)?;
-            m.spell_points = (*points).min(m.spell_points_max);
+            member_mut(world, *member)?.spell_points = *points;
         }
         DevCommand::SetGold { gold } => world.party.gold = *gold,
         DevCommand::SetFood { food } => world.party.food = *food,
-        DevCommand::SetXp { member, xp } => member_mut(world, *member)?.xp = *xp,
+        DevCommand::SetXp { member, xp } => set_xp(world, data, *member, *xp, &mut caused)?,
         DevCommand::SetScore {
             member,
             ability,
             score,
-        } => {
-            if *score == 0 || *score > 30 {
-                return Err(Rejection::OutOfRange);
-            }
-            member_mut(world, *member)?.scores[ability.index()] = *score;
-        }
+        } => set_score(world, data, *member, *ability, *score, &mut caused)?,
         DevCommand::SetCondition {
             member,
             condition,
@@ -283,7 +281,7 @@ fn set_hp(
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
     let member = member_mut(world, index)?;
-    let hp = hp.clamp(0, member.hp_max);
+    let hp = hp.max(0);
     let was_down = member.is_down();
     member.hp = hp;
     if hp == 0 && !was_down {
@@ -296,6 +294,67 @@ fn set_hp(
         party::set_condition(member, data, "dead", false, events);
     }
     Ok(())
+}
+
+/// Experience, and every level it reaches, worked out on a copy on the `dev` stream.
+fn set_xp(
+    world: &mut World,
+    data: &Data,
+    index: u8,
+    xp: u32,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let mut roller = Roller::take_stream(world, "dev");
+    let mut after = member_mut(world, index)?.clone();
+    after.xp = xp;
+    let mut ups = Vec::new();
+    while ready(&after, data).map_err(Rejection::Rule)? {
+        let gains = level_up(&mut after, data, &mut roller.rng).map_err(Rejection::Rule)?;
+        ups.push(Event::LevelUp {
+            member: after.id,
+            level: after.level,
+            cost: 0,
+            gains,
+        });
+    }
+    *member_mut(world, index)? = after;
+    roller.store(world);
+    events.append(&mut ups);
+    Ok(())
+}
+
+/// A score and the numbers kept from it: Constitution's hit points, a mental score's pool.
+fn set_score(
+    world: &mut World,
+    data: &Data,
+    index: u8,
+    ability: Ability,
+    score: u8,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let mut roller = Roller::take_stream(world, "dev");
+    let mut after = member_mut(world, index)?.clone();
+    let shift = modifier(score) - modifier(after.scores[ability.index()]);
+    after.scores[ability.index()] = score;
+    let mut hp = after.hp;
+    if ability == Ability::Constitution {
+        let gained = i32::try_from(shift * i64::from(after.level)).unwrap_or(0);
+        after.hp_max = after.hp_max.saturating_add(gained).max(1);
+        hp = hp.saturating_add(gained);
+    }
+    if matches!(
+        ability,
+        Ability::Intelligence | Ability::Wisdom | Ability::Charisma
+    ) {
+        let pool = spell_point_pool(&after, data, &mut roller.rng).map_err(Rejection::Rule)?;
+        let moved =
+            i64::from(after.spell_points) + i64::from(pool) - i64::from(after.spell_points_max);
+        after.spell_points = u32::try_from(moved.max(0)).unwrap_or(u32::MAX);
+        after.spell_points_max = pool;
+    }
+    *member_mut(world, index)? = after;
+    roller.store(world);
+    set_hp(world, data, index, hp, events)
 }
 
 fn teleport(

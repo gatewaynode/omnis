@@ -4,10 +4,10 @@
 mod common;
 
 use common::{data, party_of, world};
-use omnis_core::{Direction, Facing, Position};
+use omnis_core::{Direction, Facing, Position, StreamName};
 use omnis_data::Ability;
 use omnis_sim::items::count_of;
-use omnis_sim::omnis_rules::{DeathSaves, armor_class};
+use omnis_sim::omnis_rules::{DeathSaves, armor_class, spell_point_pool};
 use omnis_sim::world::layer;
 use omnis_sim::{
     Command, DevCommand, EncounterChoice, Event, Mode, Rejection, Settings, World, apply, query,
@@ -135,7 +135,7 @@ fn items_go_to_a_member_or_the_stores() {
 }
 
 #[test]
-fn hit_points_clamp_and_move_a_member_down_and_back_up() {
+fn hit_points_pass_the_maximum_and_move_a_member_down_and_back_up() {
     let data = data();
     let mut world = dev_world(&data);
     party_of(&mut world, &data, 1);
@@ -155,7 +155,8 @@ fn hit_points_clamp_and_move_a_member_down_and_back_up() {
     };
     let max = world.party.members[0].hp_max;
     set(&mut world, 999);
-    assert_eq!(world.party.members[0].hp, max, "clamped to the maximum");
+    assert_eq!(world.party.members[0].hp, 999, "no cap at the maximum");
+    assert_eq!(world.party.members[0].hp_max, max, "the maximum stays");
     let events = set(&mut world, -4);
     let brenna = &world.party.members[0];
     assert_eq!(brenna.hp, 0);
@@ -217,8 +218,8 @@ fn points_gold_food_experience_and_scores_are_set() {
     )
     .unwrap();
     let durin = &world.party.members[1];
-    assert_eq!(durin.spell_points, durin.spell_points_max);
-    assert_eq!(durin.spell_points_max, 2, "the dwarf cleric's pool");
+    assert_eq!(durin.spell_points, 99, "no cap at the maximum");
+    assert_eq!(durin.spell_points_max, 2, "the dwarf cleric's pool stays");
     dev(
         &mut world,
         DevCommand::SetSpellPoints {
@@ -234,7 +235,8 @@ fn points_gold_food_experience_and_scores_are_set() {
     assert_eq!((world.party.gold, world.party.food), (1234, 3));
     assert_eq!(
         (world.party.members[0].xp, world.party.members[0].level),
-        (350, 1)
+        (350, 2),
+        "experience levels on the spot"
     );
     let ac = armor_class(&world.party.members[0], &data);
     dev(
@@ -255,21 +257,100 @@ fn points_gold_food_experience_and_scores_are_set() {
         ac,
         "chain mail caps Dexterity, so the armor class holds"
     );
-    let before = world.clone();
-    for score in [0, 31] {
+    for score in [0, 31, 255] {
+        dev(
+            &mut world,
+            DevCommand::SetScore {
+                member: 0,
+                ability: Ability::Strength,
+                score,
+            },
+        )
+        .unwrap();
         assert_eq!(
-            dev(
-                &mut world,
-                DevCommand::SetScore {
-                    member: 0,
-                    ability: Ability::Strength,
-                    score
-                }
-            ),
-            Err(Rejection::OutOfRange)
+            world.party.members[0].scores[Ability::Strength.index()],
+            score,
+            "no 1 to 30 limit"
         );
     }
-    assert_eq!(world, before);
+}
+
+#[test]
+fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
+    let data = data();
+    let mut world = dev_world(&data);
+    party_of(&mut world, &data, 3);
+    let dev = |world: &mut World, edit| apply(world, &data, Command::Dev(edit)).unwrap();
+    let streams =
+        |world: &World| ["party", "combat"].map(|s| world.rngs.get(&StreamName::new(s)).copied());
+    let untouched = streams(&world);
+
+    let events = dev(&mut world, DevCommand::SetXp { member: 0, xp: 300 });
+    let ups: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::LevelUp { level, cost, .. } => Some((*level, *cost)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ups, [(2, 0)], "one free level");
+    assert_eq!(world.party.members[0].level, 2);
+    let events = dev(&mut world, DevCommand::SetXp { member: 1, xp: 900 });
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::LevelUp { .. }))
+            .count(),
+        2,
+        "a level at a time, as a trainer grants them"
+    );
+    assert_eq!(world.party.members[1].level, 3);
+    dev(&mut world, DevCommand::SetXp { member: 1, xp: 0 });
+    assert_eq!(
+        (world.party.members[1].xp, world.party.members[1].level),
+        (0, 3),
+        "lower experience keeps the level"
+    );
+    assert!(world.rngs.contains_key(&StreamName::new("dev")));
+    assert_eq!(streams(&world), untouched, "the dev stream, no other");
+
+    let con = Ability::Constitution.index();
+    let brenna = world.party.members[0].clone();
+    let raised = brenna.scores[con] + 4;
+    dev(
+        &mut world,
+        DevCommand::SetScore {
+            member: 0,
+            ability: Ability::Constitution,
+            score: raised,
+        },
+    );
+    let after = &world.party.members[0];
+    assert_eq!(
+        (after.hp_max, after.hp),
+        (brenna.hp_max + 4, brenna.hp + 4),
+        "two more points of modifier at level 2"
+    );
+
+    let int = Ability::Intelligence.index();
+    let ilvara = world.party.members[2].clone();
+    dev(
+        &mut world,
+        DevCommand::SetScore {
+            member: 2,
+            ability: Ability::Intelligence,
+            score: ilvara.scores[int] + 6,
+        },
+    );
+    let after = &world.party.members[2];
+    let mut rng = omnis_core::Pcg32::for_stream(1, &StreamName::new("x"));
+    let pool = spell_point_pool(after, &data, &mut rng).unwrap();
+    assert!(pool > ilvara.spell_points_max, "a wizard's pool grows");
+    assert_eq!(after.spell_points_max, pool);
+    assert_eq!(
+        after.spell_points,
+        ilvara.spell_points + (pool - ilvara.spell_points_max)
+    );
 }
 
 #[test]
