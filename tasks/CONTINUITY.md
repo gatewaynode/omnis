@@ -1,14 +1,13 @@
 # Continuity notes
 
-Written 2026-10-05 before a compact. M7c steps 0–8b are committed, and so are the fixes from acceptance c so
-far (B1, B2, the debug panel). M7 is still open until the owner finishes **acceptance c**; then commit 8c
-closes it. Rewrite this file every time it is used, and keep it to state, next step and pointers. The durable
+Written 2026-10-05 before a compact. M7c steps 0–8b are committed, and so are the fixes from acceptance c
+(B1, B2, the debug panel). The owner's retest passed B3. M7 is still open until **step 8 (commit 8c)** is
+done. Rewrite this file every time it is used, and keep it to state, next step and pointers. The durable
 knowledge lives in `tasks/knowledge/` (start at its README).
 
 ## On resuming
-- Run `/catchup`, then wait for the owner's report. Don't start new work before it. The report should cover:
-  - **B3:** a retest of gold, food and items through the new debug panel;
-  - the rest of `tasks/acceptance/m7c.md`, by step number.
+- Run `/catchup`. The owner said "let's prepare for another compact before we push through step 8": the
+  next work is **commit 8c** (below). Confirm with the owner before starting if anything is unclear.
 - **Toolchain:** every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
 - **Sentrux:** `git add` new files, scan `/Users/john/code/omnis/crates`, then `check_rules`.
 - **Context:** pipe test and gate runs through `grep`/`tail`; read files by range.
@@ -20,64 +19,45 @@ knowledge lives in `tasks/knowledge/` (start at its README).
   - recreate the script each session, since the scratchpad is per session;
   - run it in the background, and do not build crates that depend on the mutated crate meanwhile;
   - `| tail` holds back all output until the end.
-- **Stashing:** when two commits' changes are in the tree, stash one with `git stash push -u -- <paths>` to
-  gate the other. After `stash pop`, deletions come back **unstaged**: stage them with
-  `git rm --cached` (C2 needed an amend for exactly this).
+- **Stashing:** after `stash pop`, deletions come back **unstaged**: stage them with `git rm --cached`.
+- **Seeing the canvas headless:** a throwaway test can write `common::frame(&app).frame.raster` as a PPM
+  (`P6 w h 255`, RGB of each RGBA pixel), then `sips -s format png x.ppm --out x.png` and Read it. Delete the
+  test afterwards.
 
 ## State
 - Branch `m7a-b-tasks`, **not pushed since `4b1bd14`**; the tree is clean after this file's commit.
-- **This session's commits:**
-  - `8491fd9` **B1**: a turn ends when its action is spent, unless a bonus-action spell can still be cast;
-    features come before the action.
-  - `34f7eec` **B2**: the weapon answers no trigger; the panel shows "nothing to declare yet". Then
-    `a83e92e` (docs).
-  - `6ae3aea` **C1** (sim): dev edits without artificial limits.
-    - HP and SP may exceed their maximums; scores take any `u8`.
-    - Constitution shifts `hp_max` and HP by the change in modifier times the level; a mental score
-      recomputes the spell point pool.
-    - `SetXp` grants levels free (`LevelUp`, cost 0) on a new `dev` stream; lowering XP never lowers the
-      level.
-  - `e300181` **C2** (app): the canvas debug menu is replaced by a Feathers panel.
-    - Files: `debug_panel.rs` is the model; `feathers_debug.rs` holds `DebugPanelPlugin` (feature
-      `devtools`, the backtick and Escape). `debug_menu.rs` keeps the view and `describe`.
-    - `debug.rs` and `debug_screen.rs` are deleted.
-    - `Payload::Commit(i64)` is reported after `Number` when a change is final (Enter, or leaving the field).
-      The model ignores a repeated commit of the same value and one equal to the world's value.
-    - The Feathers test app (`tests/common/mod.rs::feathers_app`) adds `DebugPanelPlugin` under `devtools`.
+- **Commits since the last push** (newest last): `6b622d0` (8b), `2199b74` (docs), `8491fd9` **B1**,
+  `34f7eec` **B2**, `a83e92e` (docs), `6ae3aea` **C1** (dev edits without limits), **`f9940d6` C2** (the
+  Feathers debug panel; it was amended, so `e300181` in older notes is wrong), `085ad32` (docs), then this
+  file.
 - Gate: `tests passed 533 failed 0 ignored 12`.
 - **Pins:**
   - tuple `(4, 4, 3, 24, 16, 18, 3, 34, 7)`;
   - walk replay `7703481389045166225`;
-  - fight replay **`13689675309031319555`** (rebaselined in B1: the fighter's `EndTurn` went);
+  - fight replay **`13689675309031319555`** (rebaselined in B1);
   - `SAVE_SCHEMA 6`, MCP 20 tools, proof 93/141.
   - The measured tables are unchanged since 8a.
-- **Owner decisions, 2026-10-04:**
-  - B1: features are used before the action. ARCH §4.7 says so, as a departure from the SRD's free order.
-  - B2: offer only what the game can fire. `horizons.md` holds two routes to reactions for the fighter,
-    rogue and cleric: a flee source with opportunity attacks, and the Ready action.
-  - The debug panel goes to Feathers with typed numbers. Lifted: the HP and SP caps, the 1–30 score limit,
-    and "XP doesn't level"; derived numbers now follow a score. ARCH §8.1's plugin clause is updated.
-- **BUGS.md:** B1 and B2 are fixed. **B3 is open:** "gold, food or items didn't stay", not reproduced
-  headless. The persistence test is `tests/debug.rs::typed_numbers_reach_the_world_once_and_every_field_holds_after_close`.
-- **LESSONS 2026-10-04:** a rule that keeps a turn open is counted in play, not only asserted. A test
-  workaround for such a rule is a sign worth reporting to the owner.
+- **Owner's report, 2026-10-05:**
+  - "Gold food and character edits stick and are easier to do now." **B3 passes.**
+  - **Log anomaly, not a bug yet:** "everything worked, just not everything was visible in the logs";
+    first described as no cast line for party casters, only the effects. **Not reproduced:** headless, a
+    wizard's Fire Bolt logs "Ilvara casts Fire Bolt (free)" above its hit or miss in the EVENTS column at
+    1280×720 and ultrawide. Every party path emits `Event::SpellCast` before its effect: `casting.rs`
+    (explore), `combat/turn.rs` and `combat/reaction.rs`, all through `combat/cast.rs::pay`. The text is
+    `spell_text.rs::spell_line`. The message line at the top of the band shows only the batch's **last** line
+    (`ui.rs::message_line`), which for a cast is the effect: the likeliest explanation, unconfirmed. The owner
+    will send a screen capture next time; then it becomes B4 (red test first) if real.
+- **BUGS.md:** B1 and B2 are fixed. B3 is still marked open in the file and is closed in 8c.
 
-## Next: finish acceptance c, then 8c
-- **The owner retests:**
-  - B3 through the panel;
-  - steps 1, 5 and 8 (rewritten for B1 and B2);
-  - every step not yet played, including Part 2 (Bob).
-  - The setup now levels by typing XP 300 in the debug panel. The cleric's pick (Healing Word) is still made
-    at the trainer at (7, 1).
-- **Any failure:** a bug in `tasks/BUGS.md` with a test that reproduces it (red first), then the fix (plan
-  mode if non-trivial).
-- **All pass → commit 8c:**
-  - TODO step 8 `[x]` with the acceptance result;
-  - mark M7's heading closed in `tasks/TODO.md`;
-  - mark the plan `tasks/plans/m7c-turn-budget.md` closed;
-  - close B3 in BUGS.md if the retest passes.
-- **After M7:** M8 (subjective time; the event bus with topics, external crates evaluated first, in
-  `horizons.md`). Plan it in plan mode when the owner asks.
+## Next: commit 8c, which closes M7
+- `tasks/TODO.md`: step 8 `[x]` with the acceptance result (B1, B2, the debug panel, B3 passed; the log
+  anomaly awaiting a capture); mark the **M7 heading** (line 227) closed.
+- `tasks/plans/m7c-turn-budget.md`: mark closed.
+- `tasks/BUGS.md` B3: **closed**, "the owner's retest with the Feathers panel passed (2026-10-05); never
+  reproduced with the canvas menu; the panel's test guards it", fixed with `f9940d6`.
+- Run the gate and Sentrux even for a docs commit if anything else changed; stage by name; do not push.
+- Then tell the owner M7 is closed and that pushing is theirs. **After M7:** M8 (subjective time; the event
+  bus with topics, external crates evaluated first, in `horizons.md`), planned in plan mode when asked.
 
 ## Carry-over and watch-outs
 - **Not built:**
