@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-05, mid-M8. M7 is closed (`68c4d09`). M8, subjective time with the signal bus, is
+Written 2026-10-06, mid-M8. M7 is closed (`68c4d09`). M8, subjective time with the signal bus, is
 planned and approved (`tasks/plans/m8-time.md`, the same text as `/Users/john/.claude/plans/snoopy-kindling-origami.md`).
 Steps 0–6 are committed. Rewrite this file every time it is used; the durable knowledge lives in
 `tasks/knowledge/` (start at its README).
@@ -36,7 +36,9 @@ Steps 0–6 are committed. Rewrite this file every time it is used; the durable 
   - `6f6cd4a`: step 4, rumors;
   - `26437cd`: step 5, the ops and MCP;
   - `df4a9b7`: these notes, first version;
-  - `54c3ab2`: step 6, the HUD.
+  - `54c3ab2`: step 6, the HUD;
+  - `b66e556`: these notes;
+  - `99d364e`: PRD §7.8's consequences bullet (owner, 2026-10-06: "regions left for any length of time should have no hard rule on how much time has passed"), then these notes again.
 - Gate: `tests passed 553 failed 0 ignored 12`.
 - **Pins:**
   - tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)` (rule slots 34 → 36);
