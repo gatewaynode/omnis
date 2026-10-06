@@ -71,20 +71,18 @@ a criteria set (PRD §8.3 names it), holding the action for a declared trigger.
 The trigger bus below would route by these fields.
 
 ## M8 (subjective time)
-**An event bus (owner, 2026-10-04, during M7c)**: a publish/subscribe bus on the simulation side with
-topics (a battle, a city, a map section), placed in M8 because it gives subjective time a way to
-carry clock ticks; once it is in place, combat's reaction triggers and other event triggers are
-looked at for moving onto it. The owner wants tried and true external crates evaluated for it, not a
-hand-rolled bus by default. Constraints any candidate must meet, to be checked when M8 is planned:
-the simulation lints (no floats, no hash-ordered maps, no `std::thread`, no async runtime, no
-`bevy_*` in the simulation crates), subscribers called in a fixed order that survives save and
-replay, a cap on nested raises (a reaction raising another trigger), and the dependency policy
-(N-1, over 30 days old, pinned with hashes, a Socket audit). Open for the plan: how "asynchronous"
-fits A13 (no global clock; ticks come from reconciliation at contact) and the determinism rules
-(delivery queued and drained in order, rather than concurrent); whether the bus lives in
-`omnis-sim` or `omnis-core`; whether Bevy's own events stay the app's side. Until then M7c keeps
-the direct calls in `combat/reaction.rs` (`on_attack`, `on_wound`, `on_cast`, `on_missile`,
-`on_enemy_cast`).
+**The signal bus: resolved in M8.** Built in `omnis-sim` (survey 2026-10-05: no external crate fits),
+it carries region entry to reconciliation (step 3) and combat's moments to declared reactions (step 7,
+the direct `on_*` calls now raise a `Cue`). On the owner's direction to expand it (2026-10-06) the
+mechanism moved to its own crate, `omnis-bus` (A16), with the vocabulary left in `omnis-sim`. Three
+expansions are designed in ARCHITECTURE §4.8 and built with their first consumers: a topic hierarchy
+(the first topic below a region), saved deferred signals released at a contact (M10's catch-up or event
+rumors), and pack-declared subscribers (the Rhai `Script` profile, mods). Bevy's own events stay the
+app's side.
+**Veto and ordering phases (owner, 2026-10-06: not designed now)**: a subscriber that cancels or
+rewrites a signal before later subscribers see it (a counterspell, a ward that turns a blow), and
+explicit before/after phases beyond the subscription order. Either changes delivery from "everyone
+hears the same signal" to a pipeline, so it needs its own design when a rule asks for it.
 
 ## Tool proficiencies (PRD §8.1, owner 2026-09-20)
 Tools as pack data (id, name, default ability, the items that count as the tool), `tools` on

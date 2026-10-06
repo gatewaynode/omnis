@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.7, M8 in progress (2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
+| Status | Draft v0.7, M8 in progress (2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; 2026-10-06: the bus is its own crate, `omnis-bus`, with its architecture and three designed expansions in §4.8, §3 and A16; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -70,6 +70,7 @@ Cargo workspace at the repository root. Crates under `crates/`. Names use the `o
 | `omnis-gen` | lib | Procedural generation layers producing ordinary map and region data. | `core`, `data` |
 | `omnis-eco` | lib | Regional ecosystem state, typed region events, daily tick. | `core`, `expr`, `data` |
 | `omnis-story` | lib | Quest graphs, quest templates, static completability check, journal. | `core`, `expr`, `data`, `eco` (types only) |
+| `omnis-bus` | lib | The signal bus mechanism (§4.8): saved subscriptions in call order, synchronous first-in-first-out delivery, depth and budget limits. Generic over a topic, subscriber and signal that its user defines; knows no game types. | `serde` |
 | `omnis-sim` | lib | The orchestrator: `World`, `Command`, `Event`, `apply`, `query`, save and load, replay. Owns exploration, visibility, combat state machine, towns, party, time. | all of the above |
 | `omnis-app` | bin `omnis` | Bevy application: presentation, input, audio, editor, pack asset loading, dev socket server. The only crate that imports Bevy. | `sim` and Bevy |
 | `omnis-cli` | bin `omnis-cli` | Headless tool: validate packs, generate worlds, render maps as text, run command scripts, replay saves, dump schemas, bake tileset sprites. Also exposes a library so `omnis-mcp` can run headless. | `sim`, `data`, `core`, `png` (M1: the loader and the bake tool need them directly) |
@@ -77,6 +78,7 @@ Cargo workspace at the repository root. Crates under `crates/`. Names use the `o
 
 Rules the dependency graph enforces:
 - Nothing below `omnis-app` may depend on Bevy. CI greps `Cargo.lock` paths to prove it.
+- `omnis-bus` is a leaf: it imports no other Omnis crate, and only `omnis-sim` imports it.
 - `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-rules` are leaves that never import each other, except `story` reading `eco` types. Cross-cutting flows go through `omnis-sim`.
 - Only `omnis-data` reads or writes files. Everything else receives loaded data.
 
@@ -287,21 +289,47 @@ Serves PRD D21–D24, §7.3, §7.9, §8.3. Designed 2026-09-20 and built in M7c 
 - **App.** The fight screen stays on the canvas: End (`n`), React (`o`, the acting member's switch), a budget line `Action 1   Bonus 1   Reaction 1 (on)`, the Use picker with features first (Cunning Action as an exchange row and a hide row) then the kit (six rows), the cast picker paying with the bonus action when it can, and a log line for every new event. The tactics panel is `bevy_ui` with Feathers (`tactics_panel.rs`, `tactics_draft.rs`, `feathers_tactics.rs`; its systems registered with the other panels in `feathers_ui.rs`, no `TacticsPlugin`), opened from TACTICS on the sheet (T) outside a fight: per member the switch, the declared rows (Edit, Remove), action and trigger menus offering only what `answers` grants, up to 15 conditions under all or any, Add, Save, New; a set nested deeper (set over the MCP) is shown in words and may be removed, not edited.
 - **Measured before content.** `tests/measure/budget.rs::budget_over_seeds` and `boss.rs::boss_over_seeds`; the tables are in `tasks/TODO.md`. Nothing is tuned: the `turn.*` slots stay at the SRD's 1.
 
-### 4.8 The signal bus (M8)
+### 4.8 The signal bus (`omnis-bus`)
 
-A publish/subscribe bus inside `omnis-sim` (`bus.rs`) carries signals between systems: region entry to reconciliation (§4.4), and combat triggers to declared reactions (§4.7). No external crate was taken (survey 2026-10-05): the candidates were thread or async channels, kept closures that cannot be saved, or were abandoned; none saved its subscriptions, called subscribers in a fixed order, or capped nested raises.
+**Purpose.** Systems talk without calling each other: the code that raises a signal names a topic, and whoever subscribed to that topic answers. Region entry reaches reconciliation this way (§4.4), and combat's moments reach declared reactions (§4.7). It serves A13 (no global clock: things happen at contact, and a contact is a signal) and the determinism rules (A5, A14). The owner's direction (2026-10-06) is that the bus will grow, so its mechanism is its own crate (A16) and its expansions are designed here before they are built.
+
+**Principles.**
+- Subscriptions are data (enum values matched to handlers), never closures, so a save holds them and a replay calls them again.
+- The call order is the subscription order, and it survives a save.
+- Delivery is synchronous at the raise: `drain` runs to the end before the raising code goes on. Moving a direct call onto the bus therefore keeps the event order; steps 3 and 7 of M8 proved it by diffing event lists against the previous commit.
+- A signal raised during delivery is queued one level deeper and delivered after the signals already queued (first in, first out).
+- Limits: depth 4 and 64 signals a drain. Past either, the rest of the queue is dropped and `SignalsDropped { count }` is emitted; never a panic, and never a rejection after the world has changed.
+- No threads, no async, no hashing; the crate is `no_std` with `alloc` and a simulation crate under the lints (§11).
+
+**Mechanism (`omnis-bus`) and vocabulary (`omnis-sim`).** The crate knows no game type:
 
 ```rust
-pub enum Topic { Region(RegionId), Battle }
-pub enum Subscriber { Reconcile, Reactions }          // a match calls each one's handler; no closures
-pub enum Signal { Entered { region: RegionId, from: Option<RegionId> }, Trigger { .. } }
-pub struct Bus { subs: BTreeMap<Topic, Vec<Subscriber>> } // saved; Vec order is the call order
+pub trait Signal { type Topic: Ord + Clone; fn topic(&self) -> Self::Topic; }
+pub struct Bus<T, S> { subs: BTreeMap<T, Vec<S>> }        // saved; Vec order is the call order
+impl<T: Ord, S: Copy + Eq> Bus<T, S> { fn subscribe(..); fn unsubscribe(..); fn subscribers(..) -> &[S]; }
+pub trait Host {
+    type Signal: Signal;
+    type Subscriber: Copy + Eq;
+    fn bus(&self) -> &Bus<<Self::Signal as Signal>::Topic, Self::Subscriber>;
+    fn deliver(&mut self, to: Self::Subscriber, signal: &Self::Signal, raised: &mut Vec<Self::Signal>);
+}
+pub fn drain<H: Host>(host: &mut H, signals: Vec<H::Signal>) -> u32;   // the count dropped
+pub const MAX_DEPTH: u8 = 4;
+pub const MAX_SIGNALS: u32 = 64;
 ```
 
-- `raise` queues a signal (the queue is not saved and is empty at the end of every command); `drain` delivers first in, first out, each topic's subscribers in order. A signal raised during delivery is queued one level deeper.
-- Limits: depth 4 and 64 signals a drain. Past either, the rest of the queue is dropped and `SignalsDropped { count }` is emitted; never a panic, and never a rejection after the world has changed.
-- Subscriptions: every region's topic to `Reconcile` from the world's start; `Battle` to `Reactions` while a fight lasts. Save schema 7 writes the defaults into older saves.
-- Delivery is synchronous at the point of the raise, so moving a direct call onto the bus keeps the event order; the fight replay's event list proves it.
+`omnis-sim/src/bus.rs` holds the vocabulary: `Topic { Region(RegionId), Battle }`, `Subscriber { Reconcile, Reactions }`, `Signal { Entered { region, from }, Battle(Cue) }` with `Cue { Attack, Missile, EnemyCast, Wound, Cast }`, and `type Bus = omnis_bus::Bus<Topic, Subscriber>` in `World.bus`. A host is the simulation at a moment: time's `Sim` (the world, the data, the events) and combat's `Fight` (those plus the fight's state, its roller and the attack roll a reaction may change). Each host matches a (subscriber, signal) pair to its handler; a pair it does not handle is a no-op written out in the match.
+
+**Subscriptions today.** Every region's topic goes to `Reconcile` from the world's start (`time::subscriptions`). `Battle` goes to `Reactions` from a fight's start to its end. Save schema 7 writes the defaults into older saves, and subscribes a fight saved mid-way.
+
+**Designed expansions.** Each is built with the first system that needs it, not before.
+- **A topic hierarchy.** `Host::parent(&self, topic) -> Option<Topic>`, a default method answering none, so today's flat topics are unchanged. The host answers it because the nesting is data: a map section's region comes from the pack. `drain` delivers to the topic's subscribers, then its parent's, up to the root, the most specific first; the chain is capped at 8 levels. A subscriber on two levels of one chain is called once, at the most specific. `Battle` stays a root. Lands with the first topic below a region: a map section or a city's district.
+- **Saved deferred signals.** `Bus` gains a saved queue, `held: BTreeMap<T, Vec<S>>`, in raise order within a topic. `hold(topic, signal)` keeps a signal until the host calls `release(topic)` at a contact, and the released signals are drained like any other; no tick ever delivers them (A13). A topic holds at most 256 signals; past that the oldest is dropped and counted. Held signals must serialize, so the save schema moves when the first is held. Lands with the first news that waits for the party: rumors raised by events, or the ecosystem's catch-up (M10).
+- **Pack-declared subscribers.** The vocabulary gains `Subscriber::Script(ScriptId)`. Packs declare `(topic, script)` pairs as data, checked at load (a known topic kind, a known script), and subscribed after the built-in subscribers, so the game's own answers come first. A script runs under Rhai's `Script` profile (§5.1, not built) with its operation limits. It cannot change the world directly: it returns signals to raise and commands from a closed list, which the host validates as it validates a player's commands. The bus's depth and budget bound a script that raises in a loop. Lands with the `Script` profile (mods, PRD §13).
+
+**Not in the design** (`tasks/knowledge/horizons.md`): a subscriber that vetoes or rewrites a signal before later subscribers see it, and ordering phases beyond the subscription order.
+
+**Why our own.** No external crate was taken (survey 2026-10-05): the candidates were thread or async channels (`event-listener`, `crossbeam-channel`, `flume`, `bus`, `postage`), kept closures that cannot be saved (`signals2`), held unserializable handles with `unsafe` (`shrev`), or were abandoned or pre-release (`eventbus`, `event_bus`, `pubsub`, `message-bus`, `evento`). None saved its subscriptions, called subscribers in a fixed order, or capped nested raises.
 
 ## 5. Rule scripting host (`omnis-expr`, Rhai)
 
@@ -622,3 +650,4 @@ omnis/
 | A13 | No global clock; subjective clocks per holder, reconciled on interaction by a data rule with bounded drift | Global calendar with a world-wide daily tick | Owner direction from `docs/background/introduction.md`; makes NPC agency, multiplayer, construction, and travel the same mechanism; lazy and deterministic. Cost: every interaction site must reconcile. |
 | A14 | One world seed; named PCG32 streams derived by FNV-1a and splitmix64; stateful streams persisted in the save, generation streams stateless | Single global RNG; per-entity RNG objects | Approved 2026-09-12. Isolation between subsystems, exact continuation after load, pure regeneration, traceable draws. |
 | A15 | Tactics are data in the `World`, walked by the simulation: a closed trigger list, criteria trees of integer predicates, runbooks per combatant, reactions and auto turns resolved inside the command that causes them (§4.7) | Interrupt prompts to the front end; tactics evaluated in the app with the log recording only the chosen commands; player-written Rhai | PRD D21–D23. Reactions happen in the middle of another combatant's command, so they must be resolved in the simulation; keeping auto turns there too means one chooser serves members, hirelings and monsters, replays need nothing but the command log, and every front end gets tactics for free. No script from players (PRD R8). |
+| A16 | The signal bus is its own crate, `omnis-bus`, holding the mechanism only; the topics, subscribers and signals are `omnis-sim`'s vocabulary (§4.8) | A bus module inside `omnis-sim` (as first built in M8); a crate that also holds the vocabulary (it would depend on `omnis-core` and change with every new system); an external crate (survey 2026-10-05, §4.8) | The owner's direction to expand the bus (2026-10-06). A crate boundary keeps the mechanism free of game types, tested alone, and unchanged when a system adds a topic; its expansions (a topic hierarchy, saved deferred signals, pack-declared subscribers) are designed in §4.8 and built with their first consumers. |

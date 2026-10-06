@@ -164,6 +164,7 @@ pub struct Bus { subs: BTreeMap<Topic, Vec<Subscriber>> }   // saved; Vec order 
    - the fight replay's event list is identical before and after;
    - a nested-raise test reaches the cap with a synthetic subscriber;
    - mutation: drop the drain, reverse the call order.
+7b. **The bus in its own crate** (owner, 2026-10-06: "We'll have to expand that bus in the future. We should document an architecture for our bus design and should probably isolate it in its own crate."): `omnis-bus` holds the mechanism, generic over a topic, subscriber and signal; `omnis-sim` keeps the vocabulary; ARCH §4.8 rewritten with three designed expansions (a topic hierarchy, saved deferred signals, pack-declared subscribers), §3's row and A16; veto and ordering phases to horizons. Plan: `tasks/plans/m8-bus-crate.md`.
 8. **Docs and review:**
    - ARCH v0.8 as built;
    - `code-map.md` and `horizons.md` (bank interest removed; ecosystem catch-up waits for M10);
