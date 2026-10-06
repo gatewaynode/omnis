@@ -1,77 +1,118 @@
 # Continuity notes
 
-Written 2026-10-05 before a compact. M7c steps 0–8b are committed, and so are the fixes from acceptance c
-(B1, B2, the debug panel). The owner's retest passed B3. M7 is still open until **step 8 (commit 8c)** is
-done. Rewrite this file every time it is used, and keep it to state, next step and pointers. The durable
-knowledge lives in `tasks/knowledge/` (start at its README).
+Written 2026-10-05, mid-M8. M7 is closed (`68c4d09`). M8, subjective time with the signal bus, is
+planned and approved (`tasks/plans/m8-time.md`, the same text as `/Users/john/.claude/plans/snoopy-kindling-origami.md`).
+Steps 0–5 are committed. Rewrite this file every time it is used; the durable knowledge lives in
+`tasks/knowledge/` (start at its README).
 
 ## On resuming
-- Run `/catchup`. The owner said "let's prepare for another compact before we push through step 8": the
-  next work is **commit 8c** (below). Confirm with the owner before starting if anything is unclear.
+- Run `/catchup`, then continue at **step 6** (below). The owner said "do commit 8c and continue":
+  carry on through the M8 steps, one commit each, without asking again unless something needs a
+  decision.
 - **Toolchain:** every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
+  The gate: `scripts/verify.sh > <scratchpad>/gate.txt 2>&1`, then grep `VERIFY|tests passed|FAILED`.
 - **Sentrux:** `git add` new files, scan `/Users/john/code/omnis/crates`, then `check_rules`.
-- **Context:** pipe test and gate runs through `grep`/`tail`; read files by range.
 - **Mutation passes:**
-  - use a scratchpad `mutate.py` that takes a breaks JSON file of `(name, file, old, new)`, applies each
-    break, runs `cargo test -p <crates> --no-fail-fast`, and restores the file in `finally`;
-  - a break counts only when a named test fails (LESSONS 2026-10-02);
-  - pass the breaks file by an **absolute path**, because the script `chdir`s;
-  - recreate the script each session, since the scratchpad is per session;
-  - run it in the background, and do not build crates that depend on the mutated crate meanwhile;
-  - `| tail` holds back all output until the end.
-- **Stashing:** after `stash pop`, deletions come back **unstaged**: stage them with `git rm --cached`.
-- **Seeing the canvas headless:** a throwaway test can write `common::frame(&app).frame.raster` as a PPM
-  (`P6 w h 255`, RGB of each RGBA pixel), then `sips -s format png x.ppm --out x.png` and Read it. Delete the
-  test afterwards.
+  - recreate `<scratchpad>/mutate.py` each session. Its arguments are a breaks JSON file of
+    `[name, file, old, new]`, then the crates joined by commas, then extra cargo args such as
+    `--test time`;
+  - it prints CAUGHT, SURVIVED or BUILD ERROR for each break;
+  - it applies each break, runs `cargo test`, and restores the file in a `finally`.
+- **Proving a refactor keeps the replays' events:** a throwaway test dumps the golden replays'
+  events. Run it in a `git worktree` of HEAD (with its own `CARGO_TARGET_DIR`) and in the tree,
+  diff the two dumps, then remove the worktree. This was done in step 3, and step 7 needs it again.
+- **Seeing the canvas headless:** write `common::frame(&app).frame.raster` as a PPM, convert it
+  with `sips`, and Read the PNG.
 
 ## State
-- Branch `m7a-b-tasks`, **not pushed since `4b1bd14`**; the tree is clean after this file's commit.
-- **Commits since the last push** (newest last): `6b622d0` (8b), `2199b74` (docs), `8491fd9` **B1**,
-  `34f7eec` **B2**, `a83e92e` (docs), `6ae3aea` **C1** (dev edits without limits), **`f9940d6` C2** (the
-  Feathers debug panel; it was amended, so `e300181` in older notes is wrong), `085ad32` (docs), then this
-  file.
-- Gate: `tests passed 533 failed 0 ignored 12`.
+- Branch `m7a-b-tasks`, **not pushed since `4b1bd14`**.
+- **Commits since `51c38ff`:**
+  - `68c4d09`: 8c, M7 closed;
+  - `f852eff`: M8 step 0, docs. It covers PRD v0.7 (§7.4 no bank interest; §7.8 "time aligns
+    where people gather") and ARCH §4.4, §4.8 the bus, §9.3;
+  - `dadcdb0`: step 1, data;
+  - `0bcb02f`: step 2, the bus;
+  - `0bc94d2`: step 3, time;
+  - `6f6cd4a`: step 4, rumors;
+  - `26437cd`: step 5, the ops and MCP.
+- Gate: `tests passed 552 failed 0 ignored 12`.
 - **Pins:**
-  - tuple `(4, 4, 3, 24, 16, 18, 3, 34, 7)`;
-  - walk replay `7703481389045166225`;
-  - fight replay **`13689675309031319555`** (rebaselined in B1);
-  - `SAVE_SCHEMA 6`, MCP 20 tools, proof 93/141.
-  - The measured tables are unchanged since 8a.
-- **Owner's report, 2026-10-05:**
-  - "Gold food and character edits stick and are easier to do now." **B3 passes.**
-  - **Log anomaly, not a bug yet:** "everything worked, just not everything was visible in the logs";
-    first described as no cast line for party casters, only the effects. **Not reproduced:** headless, a
-    wizard's Fire Bolt logs "Ilvara casts Fire Bolt (free)" above its hit or miss in the EVENTS column at
-    1280×720 and ultrawide. Every party path emits `Event::SpellCast` before its effect: `casting.rs`
-    (explore), `combat/turn.rs` and `combat/reaction.rs`, all through `combat/cast.rs::pay`. The text is
-    `spell_text.rs::spell_line`. The message line at the top of the band shows only the batch's **last** line
-    (`ui.rs::message_line`), which for a cast is the effect: the likeliest explanation, unconfirmed. The owner
-    will send a screen capture next time; then it becomes B4 (red test first) if real.
-- **BUGS.md:** B1 and B2 are fixed. B3 is still marked open in the file and is closed in 8c.
+  - tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)` (rule slots 34 → 36);
+  - walk replay `8711507745385976768`, fight replay `5247080599556612730`;
+  - `SAVE_SCHEMA 7`, MCP 22 tools, proof 94/142.
+- **Owner decisions, 2026-10-05:**
+  - Regions are data files.
+  - The bus carries time; then the reactions move onto it (step 7).
+  - Time model: a region's company weighs the party's shared time. A settlement catches up by
+    the shared time and sets the party's date; a wild region catches up by lived time. The
+    party's age never reverses. Memory: `time-aligns-where-people-gather`.
+  - Visible in M8: the calendar as data, and rumors with an age.
+  - "There will be no bank interest in this game."
+- **As built so far:**
+  - **Data:**
+    - `omnis-data/src/region.rs` (`RegionDef`, `Region`, `RegionKind`) and `MapData.region`;
+    - `Data::calendar()`, and `omnis_core::{Calendar, Date}` with `night`;
+    - `packs/base/data/rules/time.ron`: the slots `time.settled` (inputs `shared_time`,
+      `stability`) and `time.wild` (inputs `lived`, `stability`). `shared` is a Rhai keyword, and
+      dice are `d(1, n)`;
+    - the test pack's regions: town (Settlement 900/980, coupled to the crossroads), meadow (Wild
+      100/800), dungeon with the depths (Wild 50/600), and crossroads (a mapless Settlement
+      700/950);
+    - `RumorDef { text, at }`; a bare key still loads, at 0.
+  - **`omnis-sim/src/bus.rs`:** `Topic`, `Subscriber { Reconcile, Reactions }`, `Signal::Entered`,
+    the `Host` trait, and `drain` (depth 4, 64 signals, returns the count dropped).
+  - **`omnis-sim/src/time.rs`:**
+    - `PartyTime { shared_milli, date, era }`;
+    - `live` (called from `apply::advance`, which now takes `data`);
+    - `moved` (portals, retreat, dev teleport), `enter`, the `Sim` host, `reconcile_party` and
+      `reconcile_coupled`;
+    - `region_clock`, `subscriptions`.
+  - `World.{contacts, party_time, bus}`; `v6_to_v7` counts the past in full.
+  - **Events:** `Reconciled`, `SignalsDropped`, and `Rumor.ago`.
+  - **`time_view.rs`:** `TimeView`, `DateView`, and `Status.date`.
+  - `DevCommand::Reconcile`; `Op::{TimeClocks, TimeReconcile}`.
+  - **App:** `text::ago_text`; `Names::rumor(id, index, ago)` fills `{ago}`.
 
-## Next: commit 8c, which closes M7
-- `tasks/TODO.md`: step 8 `[x]` with the acceptance result (B1, B2, the debug panel, B3 passed; the log
-  anomaly awaiting a capture); mark the **M7 heading** (line 227) closed.
-- `tasks/plans/m7c-turn-budget.md`: mark closed.
-- `tasks/BUGS.md` B3: **closed**, "the owner's retest with the Feathers panel passed (2026-10-05); never
-  reproduced with the canvas menu; the panel's test guards it", fixed with `f9940d6`.
-- Run the gate and Sentrux even for a docs commit if anything else changed; stage by name; do not push.
-- Then tell the owner M7 is closed and that pushing is theirs. **After M7:** M8 (subjective time; the event
-  bus with topics, external crates evaluated first, in `horizons.md`), planned in plan mode when asked.
+## Next steps
+- **6, the app.**
+  - The HUD clock: `panels.rs::clock_text`/`clock_text_in` (around line 41) shows `Day d hh:mm`
+    from the party's clock, and `hud_text` is `ui.rs:365`.
+  - Show the party's date as "Year 1, day 40, 14:20 · night" (years and days 1-based for people)
+    with the age beside it, using `data.calendar()` and `time_view::party_date`.
+  - "A new day." already follows the date (`TimeAdvanced.day_rolled` in `apply::advance`).
+  - `MINUTES_PER_DAY` is still used in `panels.rs:49`, `sheet_menu.rs:155,568` (age in years uses
+    365!) and `ops.rs` (gone). Move them to the calendar, then drop the constant from
+    `omnis-sim/src/lib.rs`.
+  - Optionally add a log line for `Reconciled` (none was chosen; the date jump shows).
+  - Headless app tests; a screen capture for the report.
+  - "What you will see" for the owner.
+- **7, reactions onto the bus.**
+  - Add `Signal::Trigger { .. }` (carrying what `combat/reaction.rs`'s `on_attack`, `on_wound`,
+    `on_cast`, `on_missile` and `on_enemy_cast` take) on `Topic::Battle`.
+  - The `Reactions` subscriber calls the existing `fire`/`react`.
+  - Combat start subscribes `Battle → Reactions` and the end unsubscribes. Saves made mid-fight
+    need the subscription: `v6_to_v7` or `begin_after_load`.
+  - Prove it: the fight replay's event list is identical (the worktree diff), plus a nested-raise
+    cap test with a synthetic subscriber and a mutation pass.
+  - The `Sim` host in `time.rs` may move to `bus.rs` or its own file.
+- **8, docs and review.**
+  - ARCH v0.8 as built. Fix the §4.4 wording: the inputs are `lived`, `shared_time` and
+    `stability`.
+  - **Ask the owner** about PRD §7.8's consequences bullet, "a region left for a subjective year
+    has changed by roughly a year": it reads against the new model and was not in the approved
+    edit.
+  - `code-map.md`, `horizons.md` (the bus's later uses; ecosystem catch-up waits for M10),
+    `verification.md` pins, and the README if it lists MCP tools.
+  - `tasks/acceptance/m8.md`, then owner acceptance closes M8.
 
 ## Carry-over and watch-outs
+- **Log anomaly (from M7):** not reproduced. It becomes B4 only if the owner's screen capture
+  confirms it.
 - **Not built:**
   - `SpellCast` and `EnemyCasts` are raised but nothing answers them;
   - `EnemyFlees` and `OwnTurn` have no source;
-  - items, features and the weapon declare nothing as reactions;
-  - no pack declares flags, so the debug panel's flag menu is empty.
-- **Test gaps:**
-  - no MCP or CLI test reaches a fight;
-  - no app test casts a bonus-action spell by pointer;
-  - the sheet's `in_fight` guard is unreachable through the UI and untested.
-- **UI:** the Use picker shows six rows and the canvas has no scroll. Feathers dropdowns do not scroll
-  either (use a list pane for long lists).
-- **Files:**
-  - over 800 lines: `plan.rs` 953, `bake.rs` 934, `screen.rs` 880;
-  - near 800: `tactics_panel.rs` 778, `command.rs` 761.
-- **Dated:** Socket re-audit of `rhai` 1.26.1 on 2026-10-10.
+  - items, features and the weapon declare no reactions;
+  - no pack declares flags.
+- **Large files:** `plan.rs` 953, `bake.rs` 934, `screen.rs` 880, `loader.rs` 805,
+  `tactics_panel.rs` 778, `command.rs` 761.
+- **Dated:** the Socket re-audit of `rhai` 1.26.1 is due 2026-10-10.
