@@ -38,6 +38,7 @@ mod service_level;
 pub mod service_view;
 pub mod tactics;
 pub mod time;
+pub mod time_view;
 mod utility;
 pub mod view;
 pub mod visibility;

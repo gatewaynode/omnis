@@ -319,3 +319,52 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         "party commands carry data"
     );
 }
+
+/// `time.clocks` names every clock and contact; `time.reconcile` is a dev command that a plain
+/// world refuses and a dev world answers with `Reconciled`; `game.status` carries the date
+/// (M8).
+#[test]
+fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
+    let data = data();
+    let mut world = omnis_sim::World::new(&data, 3, omnis_sim::Settings::default()).unwrap();
+    let reconcile = Op::TimeReconcile {
+        region: "test:region:town".into(),
+    };
+    assert_eq!(
+        dispatch(&mut world, &data, &reconcile).unwrap_err(),
+        OpError::Rejected {
+            rejection: omnis_sim::Rejection::DevOnly
+        }
+    );
+    world.settings.devtools = true;
+    world.clocks.get_mut(&omnis_sim::PARTY).unwrap().elapsed = 3000;
+    world.party_time.shared_milli = 3000 * 900;
+    let got = events(dispatch(&mut world, &data, &reconcile).unwrap());
+    assert!(
+        got.iter()
+            .filter(|e| matches!(e, Event::Reconciled { .. }))
+            .count()
+            == 2,
+        "the town and the crossroads by road: {got:?}"
+    );
+    let unknown = Op::TimeReconcile {
+        region: "test:region:none".into(),
+    };
+    assert!(dispatch(&mut world, &data, &unknown).is_err());
+    let Reply::Time { time } = dispatch(&mut world, &data, &Op::TimeClocks).unwrap() else {
+        panic!("a time view")
+    };
+    assert_eq!((time.age, time.shared), (3000, 2700));
+    let holders: Vec<&str> = time.clocks.iter().map(|c| c.holder.as_str()).collect();
+    assert_eq!(
+        holders,
+        ["party:0", "test:region:crossroads", "test:region:town"]
+    );
+    assert_eq!(time.date.minutes, time.clocks[2].elapsed, "the town's date");
+    assert_eq!(time.contacts.len(), 4, "both sides of two meetings");
+    let Reply::Status(status) = dispatch(&mut world, &data, &Op::GameStatus).unwrap() else {
+        panic!("a status")
+    };
+    assert_eq!(status.date, time.date);
+    assert_eq!(status.clock.elapsed, 3000, "the clock is the party's age");
+}

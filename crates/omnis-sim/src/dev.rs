@@ -116,6 +116,12 @@ pub enum DevCommand {
         /// The stack.
         stack: u8,
     },
+    /// Outside a fight: the party meets a region as on entering it (M8): the region catches
+    /// up, a settlement sets the party's date, its couplings follow.
+    Reconcile {
+        /// `pack:region:name`.
+        region: String,
+    },
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -179,6 +185,18 @@ pub(crate) fn apply(
         }
         DevCommand::Teleport { map, x, y, facing } => {
             teleport(world, data, map, *x, *y, *facing, &mut caused)?;
+        }
+        DevCommand::Reconcile { region } => {
+            if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
+                return Err(Rejection::WrongMode);
+            }
+            let id = data
+                .registry
+                .regions
+                .get(region)
+                .filter(|id| data.regions.contains_key(id))
+                .ok_or_else(|| Rejection::UnknownId { id: region.clone() })?;
+            crate::time::enter(world, data, id, None, &mut caused);
         }
     }
     events.push(echo);

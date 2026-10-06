@@ -200,6 +200,7 @@ pub fn describe(command: &DevCommand) -> String {
             format!("dev: stack {stack} #{} hp {hp}", index + 1)
         }
         DevCommand::KillStack { stack } => format!("dev: stack {stack} slain"),
+        DevCommand::Reconcile { region } => format!("dev: reconcile with {region}"),
     }
 }
 

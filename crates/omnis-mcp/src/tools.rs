@@ -188,6 +188,22 @@ fn party_tools() -> Vec<Tool> {
             &[],
         ),
         tool(
+            "time_clocks",
+            "time.clocks",
+            "Subjective time: the party's age and shared time (minutes lived weighted by the company of each region), the date it believes (year, day, minute, night), every holder's clock (the party and each region met) and every contact (each side's clock when they last met). Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "time_reconcile",
+            "time.reconcile",
+            "Dev world only, outside a fight: the party meets a region as on entering it. The region catches up by the party's shared time (a settlement, which then sets the party's date) or lived time (a wild region), its coupled regions follow, and the Reconciled events come back. Sent as a dev command, so a replay holds it.",
+            &[Field::new::<String>(
+                "region",
+                true,
+                "Region id such as test:region:town.",
+            )],
+        ),
+        tool(
             "rules_list",
             "rules.list",
             "Every rule slot with its inputs and source, plus the rule values and tables.",
@@ -269,6 +285,8 @@ mod tests {
             ),
             ("combat_get", json!({})),
             ("service_get", json!({})),
+            ("time_clocks", json!({})),
+            ("time_reconcile", json!({"region": "test:region:town"})),
             ("screen_text", json!({})),
             ("rules_list", json!({})),
             ("rules_get", json!({"slot": "spell_points.pool"})),
@@ -305,6 +323,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 20);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 22);
     }
 }

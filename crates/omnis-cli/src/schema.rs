@@ -379,6 +379,10 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::CombatGet,
         Op::ServiceGet,
+        Op::TimeClocks,
+        Op::TimeReconcile {
+            region: "example:region:vale".into(),
+        },
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),

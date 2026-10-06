@@ -121,7 +121,8 @@ fn dev_schema() -> Value {
         variant("SetFlag", &[("flag", String::schema()), ("value", json!({"type": "integer"}))]),
         variant("Teleport", &[("map", String::schema()), ("x", index()), ("y", index()), ("facing", facing)]),
         variant("SetMonsterHp", &[("stack", index()), ("index", index()), ("hp", json!({"type": "integer"}))]),
-        variant("KillStack", &[("stack", index())])
+        variant("KillStack", &[("stack", index())]),
+        variant("Reconcile", &[("region", String::schema())])
     ]})
 }
 
@@ -323,7 +324,7 @@ mod tests {
             11,
             "step, turn, interact, party, encounter, combat, cast, item, service, rest, dev"
         );
-        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 12);
+        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 13);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
         assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);

@@ -5,16 +5,18 @@
 //! and calls `dispatch` for the rest. Everything arriving is untrusted (§6.2): strings and
 //! scripts are bounded before they are looked at.
 
+use crate::LOG_CAPACITY;
 use crate::apply::apply;
 use crate::command::{Command, Rejection};
+use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::service_view::{ServiceView, service_view};
+use crate::time_view::{DateView, TimeView, party_date, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, Mode, ModeKind, World};
-use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -147,6 +149,16 @@ pub enum Op {
         /// Slot name such as `spell_points.pool`.
         slot: String,
     },
+    /// Every holder's clock and contact, and the party's age, shared time and date (M8).
+    #[serde(rename = "time.clocks")]
+    TimeClocks,
+    /// Dev: the party meets a region as on entering it; `sim.command` with
+    /// `DevCommand::Reconcile`, so a replay holds it.
+    #[serde(rename = "time.reconcile")]
+    TimeReconcile {
+        /// `pack:region:name`.
+        region: String,
+    },
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -178,7 +190,7 @@ impl Op {
     }
 }
 
-/// The party's clock, broken down.
+/// The party's age, broken down; the date it believes is `Status::date`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClockView {
     /// Minutes since the party's origin.
@@ -202,8 +214,10 @@ pub struct Status {
     pub position: Position,
     /// The id of the party's map.
     pub map: String,
-    /// The party's clock.
+    /// The party's age.
     pub clock: ClockView,
+    /// The date the party believes, on the pack's calendar (M8).
+    pub date: DateView,
     /// The packs the world runs on.
     pub packs: Vec<PackFingerprint>,
     /// The world fingerprint as sixteen hex digits.
@@ -312,6 +326,11 @@ pub enum Reply {
     Service {
         /// The service.
         service: ServiceView,
+    },
+    /// `time.clocks`.
+    Time {
+        /// Clocks, contacts and the party's time.
+        time: TimeView,
     },
     /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
     /// variants in order and an absent `Option` field reads as `None`, so this variant and
@@ -475,6 +494,18 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::ServiceGet => service_view(world, data)
             .map(|service| Reply::Service { service })
             .ok_or(OpError::NoService),
+        Op::TimeClocks => Ok(Reply::Time {
+            time: time_view(world, data),
+        }),
+        Op::TimeReconcile { region } => apply(
+            world,
+            data,
+            Command::Dev(DevCommand::Reconcile {
+                region: region.clone(),
+            }),
+        )
+        .map(|events| Reply::Events { events })
+        .map_err(|rejection| OpError::Rejected { rejection }),
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),
@@ -518,7 +549,7 @@ pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
 /// `game.status`.
 pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
     let clock = world.party_clock();
-    let day_length = i64::from(MINUTES_PER_DAY);
+    let day_length = i64::from(data.calendar().minutes_per_day.max(1));
     Ok(Status {
         mode: world.mode.kind(),
         turn: world.turn,
@@ -530,6 +561,7 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
             minute: clock.elapsed.rem_euclid(day_length),
             era: clock.era,
         },
+        date: party_date(world, data),
         packs: world.packs.clone(),
         fingerprint: format!("{:016x}", world.fingerprint().map_err(OpError::failed)?),
         service: match world.mode {
