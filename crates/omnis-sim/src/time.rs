@@ -57,6 +57,15 @@ pub fn subscriptions(data: &Data) -> Bus {
     bus
 }
 
+/// The clock of the region the party stands in: 0 before it was ever met.
+#[must_use]
+pub fn region_clock(world: &World, data: &Data) -> i64 {
+    data.maps
+        .get(&world.position.map)
+        .and_then(|m| world.clocks.get(&HolderId::Region(m.region)))
+        .map_or(0, |c| c.elapsed)
+}
+
 /// The minutes the party lived, at the company of the region of the map it is on.
 pub(crate) fn live(world: &mut World, data: &Data, minutes: u32) {
     let company = data

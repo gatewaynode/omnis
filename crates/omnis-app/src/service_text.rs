@@ -23,9 +23,11 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
         Event::FoodBought { count, cost } => {
             Line::same(format!("Bought {count} food for {}", coins(*cost)))
         }
-        Event::Rumor { service, index } => {
-            Line::same(format!("\"{}\"", names.rumor(*service, *index)))
-        }
+        Event::Rumor {
+            service,
+            index,
+            ago,
+        } => Line::same(format!("\"{}\"", names.rumor(*service, *index, *ago))),
         Event::Treated { member, cost } => Line::same(format!(
             "{} is treated for {}",
             names.member(*member),
@@ -179,14 +181,9 @@ mod tests {
             .collect();
         assert_eq!(lines[0], "The party enters the Tavern");
         assert_eq!(lines[1], "Bought 3 food for 1 gp 5 sp 0 cp");
-        assert!(
-            [
-                "\"They say the rats below grow bolder every week.\"",
-                "\"Old bones walk where the lamps have gone out.\"",
-                "\"Goblins carry their coin with them. Take it back.\""
-            ]
-            .contains(&lines[2].as_str()),
-            "{lines:?}"
+        assert_eq!(
+            lines[2], "\"Talk from today: the rats below grow bolder every week.\"",
+            "at the town's origin only the rats are talked of"
         );
         assert_eq!(lines[3], "The party leaves the Tavern");
         assert_eq!(lines.len(), 4, "{lines:?}");

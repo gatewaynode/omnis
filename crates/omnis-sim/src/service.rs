@@ -147,6 +147,7 @@ pub(crate) enum Deal {
     },
     Rumor {
         index: u16,
+        ago: i64,
     },
     Food {
         count: u16,
@@ -281,12 +282,20 @@ pub(crate) fn quote(
         ServiceCommand::Leave => return Err(Rejection::NotOffered),
         ServiceCommand::Room => room(world, data, roller)?,
         ServiceCommand::Rumor => {
-            let rows = u32::try_from(def.rumors.len()).unwrap_or(u32::MAX);
+            // Only what has happened by the region's clock is told (M8).
+            let now = crate::time::region_clock(world, data);
+            let told: Vec<u16> = (0..def.rumors.len())
+                .filter(|i| def.rumors[*i].at <= now)
+                .filter_map(|i| u16::try_from(i).ok())
+                .collect();
+            let rows = u32::try_from(told.len()).unwrap_or(u32::MAX);
             if rows == 0 {
                 return Err(Rejection::NotOffered);
             }
-            let index = u16::try_from(roller.rng.below(rows)).unwrap_or(u16::MAX);
-            Deal::Rumor { index }
+            let pick = usize::try_from(roller.rng.below(rows)).unwrap_or(0);
+            let index = told[pick];
+            let ago = now - def.rumors[usize::from(index)].at;
+            Deal::Rumor { index, ago }
         }
         ServiceCommand::BuyFood { count } => {
             nonzero(u32::from(count))?;
@@ -504,7 +513,11 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             world.party.last_long_rest = Some(world.party_clock().elapsed);
             return;
         }
-        Deal::Rumor { index } => events.push(Event::Rumor { service, index }),
+        Deal::Rumor { index, ago } => events.push(Event::Rumor {
+            service,
+            index,
+            ago,
+        }),
         Deal::Food { count, cost } => {
             party.gold -= cost;
             party.food += u32::from(count);

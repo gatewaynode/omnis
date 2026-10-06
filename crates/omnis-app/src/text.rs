@@ -4,11 +4,33 @@
 
 use crate::font::fit;
 use omnis_sim::omnis_core::{
-    CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
+    Calendar, CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
 };
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{ActorRef, Mode, World};
 use std::collections::BTreeMap;
+
+/// How long ago `minutes` was, in the calendar's days, months of 30 days, and years:
+/// "today", "yesterday", "3 days ago", "a month ago", "2 years ago".
+#[must_use]
+pub fn ago_text(minutes: i64, calendar: Calendar) -> String {
+    let days = calendar.day(minutes.max(0));
+    let per_year = i64::from(calendar.days_per_year.max(1));
+    let count = |n: i64, one: &str, many: &str| {
+        if n == 1 {
+            format!("a {one} ago")
+        } else {
+            format!("{n} {many} ago")
+        }
+    };
+    match days {
+        0 => "today".to_owned(),
+        1 => "yesterday".to_owned(),
+        d if d < 30 => format!("{d} days ago"),
+        d if d < per_year => count(d / 30, "month", "months"),
+        d => count(d / per_year, "year", "years"),
+    }
+}
 
 /// Cells a long line may take: the band's message line.
 pub const LONG_CELLS: usize = 100;
@@ -34,6 +56,8 @@ pub struct Names {
     rest_events: BTreeMap<MapId, Vec<String>>,
     /// Class features by text key (a level-up names the ones it brings).
     features: BTreeMap<String, String>,
+    /// The calendar, for how long ago something happened.
+    calendar: Calendar,
 }
 
 impl Names {
@@ -86,6 +110,7 @@ impl Names {
                     .insert(*id, data.label("en", &item.name).to_owned());
             }
         }
+        self.calendar = data.calendar();
         if self.services.is_empty() {
             for (id, service) in &data.services {
                 let rumors = service
@@ -174,13 +199,16 @@ impl Names {
             .map_or("?", |(name, _)| name.as_str())
     }
 
-    /// One of a service's rumors, by its row.
+    /// One of a service's rumors, by its row, told `ago` minutes after it happened.
     #[must_use]
-    pub fn rumor(&self, id: ServiceId, index: u16) -> &str {
-        self.services
+    pub fn rumor(&self, id: ServiceId, index: u16, ago: i64) -> String {
+        let text = self
+            .services
             .get(&id)
             .and_then(|(_, rumors)| rumors.get(usize::from(index)))
-            .map_or("?", String::as_str)
+            .map_or("?", String::as_str);
+        let ago = ago_text(ago, self.calendar);
+        omnis_sim::omnis_data::text::fill(text, &[("ago", &ago)])
     }
 
     /// The line of a map's rest event.
@@ -238,4 +266,30 @@ pub(crate) fn faces(trace: &RollTrace) -> String {
         .collect::<Vec<_>>()
         .join(", ");
     format!("[{faces}]")
+}
+
+#[cfg(test)]
+mod ago_tests {
+    use super::ago_text;
+    use omnis_sim::omnis_core::Calendar;
+
+    #[test]
+    fn how_long_ago_reads_in_days_months_and_years() {
+        let c = Calendar::default();
+        let day = 1440;
+        for (minutes, text) in [
+            (0, "today"),
+            (day - 1, "today"),
+            (day, "yesterday"),
+            (3 * day, "3 days ago"),
+            (29 * day, "29 days ago"),
+            (30 * day, "a month ago"),
+            (75 * day, "2 months ago"),
+            (360 * day, "a year ago"),
+            (3 * 360 * day + 5, "3 years ago"),
+            (-5, "today"),
+        ] {
+            assert_eq!(ago_text(minutes, c), text, "{minutes}");
+        }
+    }
 }

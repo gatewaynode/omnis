@@ -174,8 +174,8 @@ fn every_offer_sends_what_the_view_promised() {
     let rumor = offer(&app, |c| c == ServiceCommand::Rumor);
     activate(&mut app, ServicePanelId::Offer(rumor));
     assert!(
-        logged(&app, "\""),
-        "the rumor is in the log: {:?}",
+        logged(&app, "\"Talk from today: the rats below"),
+        "the rumor is in the log, its age filled on the town's clock: {:?}",
         log(&app)
     );
     let food = world(&app).party.food;

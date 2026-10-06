@@ -5,7 +5,7 @@
 mod common;
 
 use common::{data, inside};
-use omnis_core::StreamName;
+use omnis_core::{Clock, EraId, HolderId, StreamName};
 use omnis_data::Data;
 use omnis_sim::{Command, Event, ModeKind, Rejection, ServiceCommand, World, apply};
 
@@ -131,6 +131,27 @@ fn the_tavern_sells_food_and_tells_rumors() {
 
     let tavern = data.registry.services.get("base:service:tavern").unwrap();
     let town = StreamName::new("town");
+    let region = HolderId::Region(data.maps[&world.position.map].region);
+    // At the town's origin only the rats are talked of (M8: the others happen later).
+    for _ in 0..10 {
+        let events = ask(&mut world, &data, ServiceCommand::Rumor);
+        assert!(
+            events.contains(&Event::Rumor {
+                service: tavern,
+                index: 0,
+                ago: 0
+            }),
+            "{events:?}"
+        );
+    }
+    let now = 12 * 1440;
+    world.clocks.insert(
+        region,
+        Clock {
+            elapsed: now,
+            era: EraId(0),
+        },
+    );
     let mut heard = std::collections::BTreeSet::new();
     for _ in 0..30 {
         let before = world.rngs.get(&town).copied();
@@ -138,7 +159,15 @@ fn the_tavern_sells_food_and_tells_rumors() {
         let index = events
             .iter()
             .find_map(|e| match e {
-                Event::Rumor { service, index } if *service == tavern => Some(*index),
+                Event::Rumor {
+                    service,
+                    index,
+                    ago,
+                } if *service == tavern => {
+                    let at = [0, 2 * 1440, 10 * 1440][usize::from(*index)];
+                    assert_eq!(*ago, now - at, "told on the town's clock");
+                    Some(*index)
+                }
                 _ => None,
             })
             .expect("a rumor");

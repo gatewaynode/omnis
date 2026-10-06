@@ -299,7 +299,7 @@ fn fingerprint_depends_on_content_only() {
 }
 
 /// Every map belongs to one region (M8); the town is a settlement coupled to the mapless
-/// crossroads, the dungeon owns the depths too, and a bare rumor key happened at the origin.
+/// crossroads, the dungeon owns the depths too; rumors have their minute, a bare key the origin.
 #[test]
 fn the_regions_own_the_maps_and_couple_by_road() {
     use omnis_data::RegionKind;
@@ -333,8 +333,12 @@ fn the_regions_own_the_maps_and_couple_by_road() {
         .values()
         .find(|s| s.kind == ServiceKind::Tavern)
         .expect("a tavern");
-    assert!(
-        tavern.rumors.iter().all(|r| r.at == 0),
-        "bare keys are at the origin"
+    let at: Vec<i64> = tavern.rumors.iter().map(|r| r.at).collect();
+    assert_eq!(at, [0, 2 * 1440, 10 * 1440]);
+    let bare: omnis_data::RumorDef = omnis_data::ron_io::parse("\"base:text:rumor.rats\"").unwrap();
+    assert_eq!(
+        (bare.text.as_str(), bare.at),
+        ("base:text:rumor.rats", 0),
+        "a bare key happened at the origin"
     );
 }

@@ -1,11 +1,16 @@
+// The tavern: food and rumors. Each rumor has the minute it happened on its region's clock
+// (M8): one not yet happened is not told, and each is told with how long ago it was. The
+// rumors are placeholders until the owner's own.
 (
     schema: 1,
     id: "base:service:tavern",
     name: "base:text:service.tavern.name",
     kind: Tavern,
     rumors: [
-        "base:text:rumor.rats",
-        "base:text:rumor.bones",
-        "base:text:rumor.goblins",
+        (text: "base:text:rumor.rats", at: 0),
+        // Two days in.
+        (text: "base:text:rumor.bones", at: 2880),
+        // Ten days in.
+        (text: "base:text:rumor.goblins", at: 14400),
     ],
 )

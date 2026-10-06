@@ -580,6 +580,8 @@ pub enum Event {
         service: ServiceId,
         /// The row of its rumors.
         index: u16,
+        /// How long ago it happened, in minutes on the region's clock (M8).
+        ago: i64,
     },
     /// A temple healed a member or cured their conditions; `Healed` and `Condition` follow.
     Treated {
