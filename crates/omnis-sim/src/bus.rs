@@ -48,6 +48,37 @@ pub enum Signal {
         /// The region left.
         from: Option<RegionId>,
     },
+    /// A moment in the fight that declared reactions may answer.
+    Battle(Cue),
+}
+
+/// A moment in the fight (ARCHITECTURE.md §4.7), by the members' marching-order slots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cue {
+    /// A monster's attack on `subject` is about to be judged.
+    Attack {
+        /// The member attacked.
+        subject: usize,
+    },
+    /// A monster's Magic Missile is cast at `subject`.
+    Missile {
+        /// The member targeted.
+        subject: usize,
+    },
+    /// A monster cast a spell.
+    EnemyCast,
+    /// `subject` took damage, and fell when `dying`.
+    Wound {
+        /// The member wounded.
+        subject: usize,
+        /// Whether they fell.
+        dying: bool,
+    },
+    /// The member `caster` cast a spell.
+    Cast {
+        /// The member who cast.
+        caster: usize,
+    },
 }
 
 impl Signal {
@@ -56,6 +87,7 @@ impl Signal {
     pub const fn topic(&self) -> Topic {
         match self {
             Signal::Entered { region, .. } => Topic::Region(*region),
+            Signal::Battle(_) => Topic::Battle,
         }
     }
 }
@@ -140,7 +172,9 @@ mod tests {
             &self.bus
         }
         fn deliver(&mut self, to: Subscriber, signal: &Signal, raised: &mut Vec<Signal>) {
-            let Signal::Entered { region, .. } = signal;
+            let Signal::Entered { region, .. } = signal else {
+                return;
+            };
             self.calls.push((to, region.0));
             if region.0 < self.stop && to == Subscriber::Reconcile {
                 for _ in 0..self.fan {
@@ -235,5 +269,42 @@ mod tests {
         assert_eq!(delivered, MAX_SIGNALS as usize);
         // The first signal and three from each of the 64 delivered; the rest are dropped.
         assert_eq!(dropped, 1 + 3 * MAX_SIGNALS - MAX_SIGNALS);
+    }
+
+    /// A host whose reactions answer every cue with another: a runaway the depth cap stops.
+    struct Echo {
+        bus: Bus,
+        calls: Vec<Subscriber>,
+    }
+
+    impl Host for Echo {
+        fn bus(&self) -> &Bus {
+            &self.bus
+        }
+        fn deliver(&mut self, to: Subscriber, signal: &Signal, raised: &mut Vec<Signal>) {
+            self.calls.push(to);
+            if let Signal::Battle(_) = signal {
+                raised.push(Signal::Battle(Cue::EnemyCast));
+            }
+        }
+    }
+
+    #[test]
+    fn a_cue_raised_by_every_answer_stops_at_the_depth_cap() {
+        let mut bus = Bus::default();
+        bus.subscribe(Topic::Battle, Subscriber::Reactions);
+        bus.subscribe(Topic::Region(RegionId(0)), Subscriber::Reconcile);
+        let mut host = Echo {
+            bus,
+            calls: Vec::new(),
+        };
+        let first = Signal::Battle(Cue::Cast { caster: 0 });
+        assert_eq!(first.topic(), Topic::Battle);
+        assert_eq!(drain(&mut host, vec![first]), 1, "the sixth cue is dropped");
+        assert_eq!(
+            host.calls,
+            [Subscriber::Reactions; MAX_DEPTH as usize + 1],
+            "the cue and four nested answers, and only the battle's subscribers"
+        );
     }
 }

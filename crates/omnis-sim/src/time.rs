@@ -133,7 +133,8 @@ impl Host for Sim<'_> {
             (Subscriber::Reconcile, Signal::Entered { region, .. }) => {
                 reconcile_party(self.world, self.data, *region, self.events);
             }
-            (Subscriber::Reactions, _) => {}
+            // Reactions answer in a fight, through the fight's own host.
+            (Subscriber::Reactions, _) | (Subscriber::Reconcile, Signal::Battle(_)) => {}
         }
     }
 }

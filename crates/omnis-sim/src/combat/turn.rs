@@ -5,6 +5,7 @@ use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
 use super::{budget, cast, feature, monster_cast, opportunity, reaction, resolve};
 use crate::apply::{advance, retreat};
+use crate::bus::{Subscriber, Topic};
 use crate::checks::{self, CheckSpec};
 use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
@@ -58,6 +59,7 @@ pub(crate) fn start(
             budget::refresh_reactions(world, data, &mut state, entry.actor, roller)?;
         }
     }
+    world.bus.subscribe(Topic::Battle, Subscriber::Reactions);
     events.push(Event::RoundStarted { round: 1 });
     if !run_until_member(world, data, &mut state, roller, events)? {
         world.mode = Mode::Combat(state);
@@ -414,6 +416,7 @@ fn finish(
         gold,
         fallen,
     });
+    world.bus.unsubscribe(Topic::Battle, Subscriber::Reactions);
     world.mode = Mode::Explore;
 }
 

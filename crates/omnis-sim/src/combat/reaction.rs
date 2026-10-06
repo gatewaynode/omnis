@@ -5,16 +5,20 @@
 //! trigger fires at most one reaction a member. Proximity follows PRD §8.3: an attack on a
 //! member is answered by that member (`Attacked`) and the members of their row
 //! (`MemberAttacked`), a wound or a fall by the row, a cast by anyone. The M6 shield rule is a
-//! criteria set: shield, `Attacked`, `WouldChangeOutcome`.
+//! criteria set: shield, `Attacked`, `WouldChangeOutcome`. Each moment is a [`Cue`] raised on
+//! the signal bus's battle topic (§4.8) and delivered at once; the `Reactions` subscriber,
+//! subscribed from a fight's start to its end, answers it.
 
 use super::Roller;
 use super::cast::{self, CastPlan, Target};
 use super::state::CombatState;
+use crate::bus::{self, Bus, Cue, Host, Signal, Subscriber};
 use crate::effects;
 use crate::event::{ActorRef, Event};
 use crate::party;
 use crate::tactics::answers;
 use crate::world::World;
+use alloc::vec;
 use alloc::vec::Vec;
 use omnis_data::{Data, SpellEffect};
 use omnis_rules::{
@@ -32,21 +36,8 @@ pub(crate) fn on_attack(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let front = party::front_row(data);
-    let trigger = |reactor: usize| {
-        if reactor == subject {
-            Some(Trigger::Attacked)
-        } else {
-            same_row(reactor, subject, front).then_some(Trigger::MemberAttacked)
-        }
-    };
-    let moment = Moment {
-        roll: Some(roll),
-        missile: false,
-    };
-    fire(
-        world, data, state, &trigger, subject, moment, roller, events,
-    )
+    let cue = Cue::Attack { subject };
+    raise(world, data, state, cue, Some(roll), roller, events)
 }
 
 /// A monster's Magic Missile is cast at the member in slot `subject`: the same moment as an
@@ -59,21 +50,8 @@ pub(crate) fn on_missile(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let front = party::front_row(data);
-    let trigger = |reactor: usize| {
-        if reactor == subject {
-            Some(Trigger::Attacked)
-        } else {
-            same_row(reactor, subject, front).then_some(Trigger::MemberAttacked)
-        }
-    };
-    let moment = Moment {
-        roll: None,
-        missile: true,
-    };
-    fire(
-        world, data, state, &trigger, subject, moment, roller, events,
-    )
+    let cue = Cue::Missile { subject };
+    raise(world, data, state, cue, None, roller, events)
 }
 
 /// A monster cast a spell: every member may answer, each as its own subject (no action in the
@@ -85,27 +63,7 @@ pub(crate) fn on_enemy_cast(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    for reactor in 0..world.party.members.len() {
-        let only = |r: usize| (r == reactor).then_some(Trigger::EnemyCasts);
-        fire(
-            world,
-            data,
-            state,
-            &only,
-            reactor,
-            Moment::default(),
-            roller,
-            events,
-        )?;
-    }
-    Ok(())
-}
-
-/// What the reaction answers: the attack roll about to be judged, or a missile with no roll.
-#[derive(Default)]
-struct Moment<'a> {
-    roll: Option<&'a mut AttackRoll>,
-    missile: bool,
+    raise(world, data, state, Cue::EnemyCast, None, roller, events)
 }
 
 /// The member in slot `subject` took damage, and fell when `dying`.
@@ -118,33 +76,8 @@ pub(crate) fn on_wound(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let front = party::front_row(data);
-    let row = |reactor: usize| reactor != subject && same_row(reactor, subject, front);
-    let wounded = |reactor: usize| row(reactor).then_some(Trigger::MemberWounded);
-    fire(
-        world,
-        data,
-        state,
-        &wounded,
-        subject,
-        Moment::default(),
-        roller,
-        events,
-    )?;
-    if dying {
-        let falling = |reactor: usize| row(reactor).then_some(Trigger::MemberDying);
-        fire(
-            world,
-            data,
-            state,
-            &falling,
-            subject,
-            Moment::default(),
-            roller,
-            events,
-        )?;
-    }
-    Ok(())
+    let cue = Cue::Wound { subject, dying };
+    raise(world, data, state, cue, None, roller, events)
 }
 
 /// The member in slot `caster` cast a spell: anyone else in the fight may answer.
@@ -156,68 +89,159 @@ pub(crate) fn on_cast(
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
-    let anyone = |reactor: usize| (reactor != caster).then_some(Trigger::SpellCast);
-    fire(
+    let cue = Cue::Cast { caster };
+    raise(world, data, state, cue, None, roller, events)
+}
+
+/// Raise `cue` on the battle topic and deliver it at once, so the reactions answer at the
+/// moment they always did; `roll` is the attack roll a reaction may change.
+#[allow(clippy::too_many_arguments)]
+fn raise(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    cue: Cue,
+    roll: Option<&mut AttackRoll>,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let mut fight = Fight {
         world,
         data,
         state,
-        &anyone,
-        caster,
-        Moment::default(),
+        roll,
         roller,
         events,
-    )
+        failed: None,
+    };
+    let dropped = bus::drain(&mut fight, vec![Signal::Battle(cue)]);
+    if let Some(e) = fight.failed {
+        return Err(e);
+    }
+    if dropped > 0 {
+        events.push(Event::SignalsDropped { count: dropped });
+    }
+    Ok(())
+}
+
+/// The fight as the bus's host: the `Reactions` subscriber answers a cue. The first rule
+/// error stops every later delivery and is returned by [`raise`].
+struct Fight<'a> {
+    world: &'a mut World,
+    data: &'a Data,
+    state: &'a mut CombatState,
+    roll: Option<&'a mut AttackRoll>,
+    roller: &'a mut Roller,
+    events: &'a mut Vec<Event>,
+    failed: Option<RuleError>,
+}
+
+impl Host for Fight<'_> {
+    fn bus(&self) -> &Bus {
+        &self.world.bus
+    }
+
+    fn deliver(&mut self, to: Subscriber, signal: &Signal, _raised: &mut Vec<Signal>) {
+        match (to, signal) {
+            (Subscriber::Reactions, Signal::Battle(cue)) if self.failed.is_none() => {
+                if let Err(e) = self.answer(*cue) {
+                    self.failed = Some(e);
+                }
+            }
+            // A region is not entered in the middle of a fight.
+            _ => {}
+        }
+    }
+}
+
+impl Fight<'_> {
+    /// Walk the members for `cue`: who answers it, with which trigger, about whom.
+    fn answer(&mut self, cue: Cue) -> Result<(), RuleError> {
+        let front = party::front_row(self.data);
+        match cue {
+            Cue::Attack { subject } | Cue::Missile { subject } => {
+                let trigger = |reactor: usize| {
+                    if reactor == subject {
+                        Some(Trigger::Attacked)
+                    } else {
+                        same_row(reactor, subject, front).then_some(Trigger::MemberAttacked)
+                    }
+                };
+                let missile = matches!(cue, Cue::Missile { .. });
+                self.fire(&trigger, subject, missile)
+            }
+            Cue::EnemyCast => {
+                for reactor in 0..self.world.party.members.len() {
+                    let only = |r: usize| (r == reactor).then_some(Trigger::EnemyCasts);
+                    self.fire(&only, reactor, false)?;
+                }
+                Ok(())
+            }
+            Cue::Wound { subject, dying } => {
+                let row = |reactor: usize| reactor != subject && same_row(reactor, subject, front);
+                let wounded = |reactor: usize| row(reactor).then_some(Trigger::MemberWounded);
+                self.fire(&wounded, subject, false)?;
+                if dying {
+                    let falling = |reactor: usize| row(reactor).then_some(Trigger::MemberDying);
+                    self.fire(&falling, subject, false)?;
+                }
+                Ok(())
+            }
+            Cue::Cast { caster } => {
+                let anyone = |reactor: usize| (reactor != caster).then_some(Trigger::SpellCast);
+                self.fire(&anyone, caster, false)
+            }
+        }
+    }
+
+    /// The members in marching order: for each with reactions on and one left, its sets for
+    /// the trigger in order, until one fires.
+    fn fire(
+        &mut self,
+        trigger_for: &dyn Fn(usize) -> Option<Trigger>,
+        subject: usize,
+        missile: bool,
+    ) -> Result<(), RuleError> {
+        let (world, data, state) = (&mut *self.world, self.data, &mut *self.state);
+        for reactor in 0..world.party.members.len() {
+            let Some(trigger) = trigger_for(reactor) else {
+                continue;
+            };
+            let member = &world.party.members[reactor];
+            if member.is_down()
+                || !member.tactics.reactions_on
+                || state.reactions_left(ActorRef::Member(member.id)) == 0
+            {
+                continue;
+            }
+            let sets: Vec<CriteriaSet> = member
+                .tactics
+                .reactions()
+                .into_iter()
+                .filter(|s| s.trigger == trigger)
+                .cloned()
+                .collect();
+            for set in sets {
+                if react(
+                    world,
+                    data,
+                    state,
+                    (reactor, subject),
+                    &set,
+                    (self.roll.as_deref_mut(), missile),
+                    self.roller,
+                    self.events,
+                )? {
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 const fn same_row(a: usize, b: usize, front: usize) -> bool {
     (a < front) == (b < front)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn fire(
-    world: &mut World,
-    data: &Data,
-    state: &mut CombatState,
-    trigger_for: &dyn Fn(usize) -> Option<Trigger>,
-    subject: usize,
-    mut moment: Moment,
-    roller: &mut Roller,
-    events: &mut Vec<Event>,
-) -> Result<(), RuleError> {
-    for reactor in 0..world.party.members.len() {
-        let Some(trigger) = trigger_for(reactor) else {
-            continue;
-        };
-        let member = &world.party.members[reactor];
-        if member.is_down()
-            || !member.tactics.reactions_on
-            || state.reactions_left(ActorRef::Member(member.id)) == 0
-        {
-            continue;
-        }
-        let sets: Vec<CriteriaSet> = member
-            .tactics
-            .reactions()
-            .into_iter()
-            .filter(|s| s.trigger == trigger)
-            .cloned()
-            .collect();
-        for set in sets {
-            if react(
-                world,
-                data,
-                state,
-                (reactor, subject),
-                &set,
-                (moment.roll.as_deref_mut(), moment.missile),
-                roller,
-                events,
-            )? {
-                break;
-            }
-        }
-    }
-    Ok(())
 }
 
 /// One set considered for one member: fire it if it can be paid and its criteria hold.

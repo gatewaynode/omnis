@@ -138,6 +138,12 @@ pub(crate) fn v5_to_v6(mut world: World, data: &Data) -> World {
 /// first settlement it enters catches up as it would have before; no contacts yet.
 pub(crate) fn v6_to_v7(mut world: World, data: &Data) -> World {
     world.bus = crate::time::subscriptions(data);
+    if matches!(world.mode, crate::world::Mode::Combat(_)) {
+        // A fight saved before the bus: its reactions subscribe as at its start.
+        world
+            .bus
+            .subscribe(crate::bus::Topic::Battle, crate::bus::Subscriber::Reactions);
+    }
     let age = world.party_clock().elapsed;
     world.party_time = crate::time::PartyTime {
         shared_milli: age.saturating_mul(1000),

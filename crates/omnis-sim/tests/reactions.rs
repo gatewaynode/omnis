@@ -8,6 +8,7 @@ mod common;
 use common::{act, data, encounter, party_of};
 use omnis_core::{CharacterId, MonsterId};
 use omnis_data::{Data, Disposition};
+use omnis_sim::bus::{Subscriber, Topic};
 use omnis_sim::omnis_rules::tactics::{LIBRARY_SETS, RUNBOOK_ENTRIES};
 use omnis_sim::omnis_rules::{
     ActionRef, Cmp, Criteria, CriteriaSet, Predicate, TacticsFault, Trigger, Who,
@@ -420,4 +421,169 @@ fn the_switch_turns_every_reaction_off_and_is_the_only_tactics_command_in_a_figh
             "{events:?}"
         );
     }
+}
+
+/// Ilvara holds Shield for every hit.
+fn shielded(data: &Data, seed: u64) -> World {
+    let mut world = party(data, seed);
+    world.party.members[usize::from(ILVARA)].hp_max = 200;
+    world.party.members[usize::from(ILVARA)].hp = 200;
+    world.party.members[usize::from(ILVARA)].spell_points = 50;
+    let shield = ActionRef::Spell(spell(data, "base:spell:shield"));
+    let always = set(shield, Trigger::Attacked, Criteria::Always);
+    apply(&mut world, data, put(ILVARA, None, always)).unwrap();
+    world
+}
+
+#[test]
+fn reactions_answer_through_the_battle_subscription_held_for_the_fight() {
+    let data = data();
+    let (mut with, mut without) = (0, 0);
+    for seed in 0..20u64 {
+        for subscribed in [true, false] {
+            let mut world = shielded(&data, seed);
+            assert!(world.bus.subscribers(Topic::Battle).is_empty());
+            let here = world.position;
+            let foes = encounter(
+                &data,
+                &[("goblin", 3), ("goblin", 3)],
+                Disposition::Hostile,
+                here,
+            );
+            let mut events = Vec::new();
+            combat::start(&mut world, &data, foes, Surprise::None, &mut events).unwrap();
+            if matches!(world.mode, Mode::Combat(_)) {
+                assert_eq!(
+                    world.bus.subscribers(Topic::Battle),
+                    [Subscriber::Reactions]
+                );
+            }
+            if !subscribed {
+                // Monster turns inside the start may already have drawn an answer.
+                events.clear();
+                world.bus.unsubscribe(Topic::Battle, Subscriber::Reactions);
+            }
+            for _ in 0..400 {
+                if !matches!(world.mode, Mode::Combat(_)) {
+                    break;
+                }
+                events
+                    .extend(act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap());
+            }
+            let fired = events
+                .iter()
+                .filter(|e| matches!(e, Event::Reaction { .. }))
+                .count();
+            if subscribed {
+                with += fired;
+            } else {
+                without += fired;
+            }
+            if !matches!(world.mode, Mode::Combat(_)) {
+                assert!(
+                    world.bus.subscribers(Topic::Battle).is_empty(),
+                    "the end of the fight unsubscribes"
+                );
+            }
+        }
+    }
+    assert!(with > 0, "shield never fired in 20 fights");
+    assert_eq!(without, 0, "no subscription, no reaction");
+}
+
+#[test]
+fn a_fight_saved_before_the_bus_keeps_its_reactions() {
+    let data = data();
+    for seed in 0..20u64 {
+        let mut world = shielded(&data, seed);
+        let here = world.position;
+        let foes = encounter(
+            &data,
+            &[("goblin", 3), ("goblin", 3)],
+            Disposition::Hostile,
+            here,
+        );
+        combat::start(&mut world, &data, foes, Surprise::None, &mut Vec::new()).unwrap();
+        if !matches!(world.mode, Mode::Combat(_)) {
+            continue;
+        }
+        let mut old = world.clone();
+        old.bus = Default::default();
+        old.party_time = Default::default();
+        let text = old.to_ron().unwrap().replacen("schema: 7", "schema: 6", 1);
+        let loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(
+            loaded.bus.subscribers(Topic::Battle),
+            [Subscriber::Reactions]
+        );
+        assert_eq!(
+            loaded.bus, world.bus,
+            "as if the fight had started under the bus"
+        );
+        return;
+    }
+    panic!("no fight lasted past its start");
+}
+
+#[test]
+fn a_heal_declared_for_a_falling_ally_answers_the_fall_only() {
+    let data = data();
+    let ward = spell(&data, "test:spell:ward");
+    let mut fired = 0;
+    for seed in 0..40u64 {
+        let mut world = party(&data, seed);
+        let durin = world.party.members[usize::from(DURIN)].id;
+        let front: Vec<CharacterId> = world.party.members[..3].iter().map(|m| m.id).collect();
+        world.party.members[usize::from(DURIN)].spell_points = 50;
+        let falling = set(
+            ActionRef::Spell(ward),
+            Trigger::MemberDying,
+            Criteria::Always,
+        );
+        apply(&mut world, &data, put(DURIN, None, falling)).unwrap();
+        // Dodging while the fallen are raised can last: 400 turns are looked at, ended or not.
+        let here = world.position;
+        let foes = encounter(
+            &data,
+            &[("goblin", 3), ("goblin", 3)],
+            Disposition::Hostile,
+            here,
+        );
+        let mut events = Vec::new();
+        combat::start(&mut world, &data, foes, Surprise::None, &mut events).unwrap();
+        for _ in 0..400 {
+            if !matches!(world.mode, Mode::Combat(_)) {
+                break;
+            }
+            events.extend(act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap());
+        }
+        for (i, event) in events.iter().enumerate() {
+            if let Event::Reaction { actor, trigger, .. } = event
+                && *actor == durin
+            {
+                assert_eq!(*trigger, Trigger::MemberDying);
+                // The last damage before the answer felled its target, or killed them outright.
+                let hit = events[..i]
+                    .iter()
+                    .rposition(|e| matches!(e, Event::Damage { .. }))
+                    .unwrap();
+                let Some(target) = events[hit..i].iter().find_map(|e| match e {
+                    Event::Down { target }
+                    | Event::Death {
+                        target: ActorRef::Member(target),
+                        ..
+                    } => Some(*target),
+                    _ => None,
+                }) else {
+                    panic!("seed {seed}: not after a fall: {:?}", &events[hit..=i]);
+                };
+                assert!(
+                    front.contains(&target) && target != durin,
+                    "a front-row ally"
+                );
+                fired += 1;
+            }
+        }
+    }
+    assert!(fired >= 2, "ward answered {fired} falls in 40 fights");
 }
