@@ -36,7 +36,7 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
     let (ok, out, _) = cli(&["validate", "packs/base", "packs/test"]);
     assert!(ok);
     assert!(out.starts_with("ok: 2 packs, 4 maps, 2 tilesets"), "{out}");
-    assert!(out.ends_with("34 rule slots, 7 services\n"), "{out}");
+    assert!(out.ends_with("36 rule slots, 7 services\n"), "{out}");
     let (ok, _, err) = cli(&["validate", "packs/test"]);
     assert!(!ok);
     assert!(

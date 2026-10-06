@@ -29,4 +29,4 @@ pub use id::{
 };
 pub use money::{CP_PER_GP, CP_PER_SP, Coins};
 pub use rng::{Dice, DieRoll, Pcg32, RollTrace, fnv1a64, splitmix64};
-pub use time::{Clock, Contact};
+pub use time::{Calendar, Clock, Contact, Date};

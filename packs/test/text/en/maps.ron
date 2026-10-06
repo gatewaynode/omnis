@@ -6,6 +6,10 @@
         "test:text:map.dungeon.name": "Test Dungeon",
         "test:text:map.meadow.name": "Test Meadow",
         "test:text:map.town.name": "Test Town",
+        "test:text:region.town.name": "Test Town",
+        "test:text:region.meadow.name": "Test Meadow",
+        "test:text:region.dungeon.name": "Test Dungeon",
+        "test:text:region.crossroads.name": "Test Crossroads",
         // Rest events: placeholders at chance 0 until the owner's ideas fill them.
         "test:text:rest.town.street": "The night watch passes by",
         "test:text:rest.town.green": "Dogs bark somewhere in town",

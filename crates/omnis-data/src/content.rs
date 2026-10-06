@@ -8,6 +8,7 @@ use crate::error::DataError;
 use crate::item::Item;
 use crate::loader::Data;
 use crate::monster::Monster;
+use crate::region::RegionDef;
 use crate::registry::Interner;
 use crate::rules::RulesFile;
 use crate::service::ServiceDef;
@@ -36,7 +37,7 @@ macro_rules! content {
     )*};
 }
 content!(
-    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef
+    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef
 );
 
 impl Content for Condition {
@@ -61,6 +62,7 @@ pub(crate) struct RawContent {
     pub monsters: Files<Monster>,
     pub rules: Files<RulesFile>,
     pub services: Files<ServiceDef>,
+    pub regions: Files<RegionDef>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -221,7 +223,12 @@ fn check_text_keys(raw: &RawContent, data: &Data, errors: &mut Vec<DataError>) {
     }
     for (file, service) in raw.services.values() {
         keys.push((file, &service.name));
-        keys.extend(service.rumors.iter().map(|r| (file.as_path(), r.as_str())));
+        keys.extend(
+            service
+                .rumors
+                .iter()
+                .map(|r| (file.as_path(), r.text.as_str())),
+        );
     }
     for (file, key) in keys {
         if data.registry.text.get(key).is_none() {

@@ -47,14 +47,47 @@ pub struct ServiceDef {
     /// Spell ids for sale; a guild's or a temple's only (PRD §8.2).
     #[serde(default)]
     pub spells: Vec<String>,
-    /// Text keys of the rumors told; a tavern's only.
+    /// The rumors told; a tavern's only.
     #[serde(default)]
-    pub rumors: Vec<String>,
+    pub rumors: Vec<RumorDef>,
+}
+
+/// One rumor: its text and the minute on the region's clock it happened (M8). A rumor is not
+/// told before its region's clock reaches `at`, and is told with how long ago that was. A bare
+/// text key is read as a rumor that happened at the origin.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "RumorRow")]
+pub struct RumorDef {
+    /// Text key; the text may hold `{ago}`.
+    pub text: String,
+    /// The minute it happened, on the region's clock.
+    pub at: i64,
+}
+
+/// A rumor as written: a bare key or the full form.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RumorRow {
+    Key(String),
+    Full { text: String, at: i64 },
+}
+
+impl From<RumorRow> for RumorDef {
+    fn from(row: RumorRow) -> RumorDef {
+        match row {
+            RumorRow::Key(text) => RumorDef { text, at: 0 },
+            RumorRow::Full { text, at } => RumorDef { text, at },
+        }
+    }
 }
 
 impl ServiceDef {
     /// Self-contained checks; every problem is pushed. References are checked at resolution.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
+        let rumors: Vec<String> = self.rumors.iter().map(|r| r.text.clone()).collect();
+        if self.rumors.iter().any(|r| r.at < 0) {
+            errors.push(DataError::new(file, "a rumor's 'at' is negative"));
+        }
         let lists: [(&Vec<String>, &str, &str, &[ServiceKind]); 3] = [
             (&self.items, "item", "items", &[ServiceKind::Smith]),
             (
@@ -63,7 +96,7 @@ impl ServiceDef {
                 "spells",
                 &[ServiceKind::Guild, ServiceKind::Temple],
             ),
-            (&self.rumors, "rumor", "rumors", &[ServiceKind::Tavern]),
+            (&rumors, "rumor", "rumors", &[ServiceKind::Tavern]),
         ];
         for (list, one, many, owners) in lists {
             if !list.is_empty() && !owners.contains(&self.kind) {

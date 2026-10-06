@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 24, 16, 18, 3, 34, 7)
+        (4, 4, 3, 24, 16, 18, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -610,5 +610,53 @@ fn costs_features_and_the_turn_budget_come_from_data() {
                 "{slot}: the SRD's one of each"
             );
         }
+    }
+}
+
+/// The time rules (M8): the calendar's shape, and both reconcile slots drift within
+/// `1000 - stability` per mille of their input, both ways, and never below nothing.
+#[test]
+fn the_time_rules_drift_within_their_stability() {
+    let data = base_data();
+    assert_eq!(data.calendar(), omnis_core::Calendar::default());
+    assert_eq!(data.rules.value("time_cap_minutes"), Some(10 * 360 * 1440));
+    let stream = StreamName::new("time:party:0:region:0");
+    let mut rng = Pcg32::for_stream(7, &stream);
+    for (slot, input) in [("time.settled", "shared_time"), ("time.wild", "lived")] {
+        let (mut low, mut high) = (i64::MAX, i64::MIN);
+        for _ in 0..400 {
+            let out = data
+                .rules
+                .eval(
+                    slot,
+                    &[(input, Value::Int(100_000)), ("stability", Value::Int(980))],
+                    &mut rng,
+                    &stream,
+                )
+                .unwrap();
+            let Value::Int(v) = out.value else {
+                panic!("{slot} is an integer")
+            };
+            assert_eq!(out.rolls.len(), 1, "one jitter die");
+            (low, high) = (low.min(v), high.max(v));
+        }
+        assert!(
+            (98_000..=98_200).contains(&low) && (101_800..=102_000).contains(&high),
+            "{slot}: 2% either way, {low}..={high}"
+        );
+        let still = data
+            .rules
+            .eval(
+                slot,
+                &[(input, Value::Int(5_000)), ("stability", Value::Int(1000))],
+                &mut rng,
+                &stream,
+            )
+            .unwrap();
+        assert_eq!(
+            still.value,
+            Value::Int(5_000),
+            "a stability of 1000 never drifts"
+        );
     }
 }

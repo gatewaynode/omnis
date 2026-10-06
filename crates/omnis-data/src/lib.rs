@@ -19,6 +19,7 @@ pub mod loader;
 pub mod manifest;
 pub mod map;
 pub mod monster;
+pub mod region;
 pub mod registry;
 pub mod rest_event;
 pub mod ron_io;
@@ -45,11 +46,12 @@ pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
 pub use monster::{Attack, Monster, MonsterCasting};
 pub use omnis_expr;
+pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};
 pub use rules::{RulesFile, SlotDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
-pub use service::{ResolvedSite, ServiceDef, ServiceKind, Site};
+pub use service::{ResolvedSite, RumorDef, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
 pub use terms::{
     Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,

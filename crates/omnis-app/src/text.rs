@@ -91,7 +91,7 @@ impl Names {
                 let rumors = service
                     .rumors
                     .iter()
-                    .map(|key| data.label("en", key).to_owned())
+                    .map(|rumor| data.label("en", &rumor.text).to_owned())
                     .collect();
                 let name = data.label("en", &service.name).to_owned();
                 self.services.insert(*id, (name, rumors));

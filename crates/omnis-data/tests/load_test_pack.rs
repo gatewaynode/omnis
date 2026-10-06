@@ -297,3 +297,44 @@ fn fingerprint_depends_on_content_only() {
     assert_eq!(a.fingerprints, b.fingerprints);
     assert_eq!(a, b, "loading is a pure function of the files");
 }
+
+/// Every map belongs to one region (M8); the town is a settlement coupled to the mapless
+/// crossroads, the dungeon owns the depths too, and a bare rumor key happened at the origin.
+#[test]
+fn the_regions_own_the_maps_and_couple_by_road() {
+    use omnis_data::RegionKind;
+    let data = common::load_test_packs();
+    let region = |name: &str| data.registry.regions.get(name).expect(name);
+    let map = |name: &str| data.registry.maps.get(name).expect(name);
+    let (town, crossroads, dungeon) = (
+        region("test:region:town"),
+        region("test:region:crossroads"),
+        region("test:region:dungeon"),
+    );
+    assert_eq!(data.regions.len(), 4);
+    for (m, r) in [
+        ("test:map:town", town),
+        ("test:map:meadow", region("test:region:meadow")),
+        ("test:map:dungeon", dungeon),
+        ("test:map:depths", dungeon),
+    ] {
+        assert_eq!(data.maps[&map(m)].region, r, "{m}");
+    }
+    let t = &data.regions[&town];
+    assert_eq!(
+        (t.kind, t.company, t.rule.as_str()),
+        (RegionKind::Settlement, 900, "time.settled")
+    );
+    assert_eq!(t.couplings, [crossroads]);
+    assert!(data.regions[&crossroads].maps.is_empty());
+    assert_eq!(data.regions[&dungeon].kind, RegionKind::Wild);
+    let tavern = data
+        .services
+        .values()
+        .find(|s| s.kind == ServiceKind::Tavern)
+        .expect("a tavern");
+    assert!(
+        tavern.rumors.iter().all(|r| r.at == 0),
+        "bare keys are at the origin"
+    );
+}

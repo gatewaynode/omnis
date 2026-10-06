@@ -110,6 +110,22 @@ fn every_error_in_a_broken_pack_is_reported() {
         "rest event 1 has chance 1001 per mille; at most 1000",
         "rest event 2 repeats terrain 'floor' for the same rest",
         "rest event 2 text key 'broken:text:rest.none' is not defined in any language",
+        // data/regions/bad.ron: shapes on load, then references at resolution
+        "company and stability are per mille, 0..=1000",
+        "map 'broken:map:refs' is listed twice",
+        "a region cannot couple to itself",
+        "name text key 'broken:text:none' is not defined in any language",
+        "rule 'time.none' is not a rules slot",
+        "coupling 'broken:region:gone' is not defined by any loaded pack",
+        "map 'broken:map:none' is not defined by any loaded pack",
+        "map 'broken:map:refs' already belongs to region 'broken:region:bad'",
+        // data/regions/twice.ron
+        "rule 'time.odd' declares input 'age'; a region's rule takes only lived, shared_time, stability",
+        // every map belongs to a region; glyph and refs do
+        "map 'broken:map:sites' belongs to no region",
+        // data/rules/time.ron: the calendar
+        "value 'days_per_year' is 0; it must be 1..=65535",
+        "value 'night_to' is 1440; it must be 0..=1439",
     ];
     assert_reports("broken", &expected);
 }

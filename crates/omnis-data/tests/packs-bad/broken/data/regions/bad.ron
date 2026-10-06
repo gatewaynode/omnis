@@ -1,0 +1,13 @@
+// Every region refusal: out of range, coupled to itself and to nothing, an unknown name, rule
+// and map, a map listed twice.
+(
+    schema: 1,
+    id: "broken:region:bad",
+    name: "broken:text:none",
+    kind: Wild,
+    company: 1001,
+    stability: 5,
+    rule: "time.none",
+    couplings: ["broken:region:bad", "broken:region:gone"],
+    maps: ["broken:map:none", "broken:map:refs", "broken:map:refs"],
+)

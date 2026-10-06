@@ -1,0 +1,28 @@
+// Subjective time (PRD §7.8, ARCHITECTURE.md §4.4). Time aligns where people gather (owner,
+// 2026-10-05): each minute the party lives counts toward its shared time at the company of the
+// region it is in; a settlement catches up by that shared time, a wild region by the party's
+// own lived time. Stability is per mille: the drift either way is 1000 - stability per mille,
+// drawn from the stream `time:<party>:<region>`. Never negative; capped at `time_cap_minutes`.
+(
+    schema: 1,
+    id: "base:rules:time",
+    slots: {
+        "time.settled": (
+            inputs: ["shared_time", "stability"],
+            expr: "shared_time * (1000 + d(1, 2 * (1000 - stability) + 1) - (1000 - stability) - 1) / 1000",
+        ),
+        "time.wild": (
+            inputs: ["lived", "stability"],
+            expr: "lived * (1000 + d(1, 2 * (1000 - stability) + 1) - (1000 - stability) - 1) / 1000",
+        ),
+    },
+    values: {
+        // The calendar: a day of 1440 minutes, a year of 360 days, night from 20:00 to 06:00.
+        "minutes_per_day": 1440,
+        "days_per_year": 360,
+        "night_from": 1200,
+        "night_to": 360,
+        // Ten years: the most one reconciliation catches a holder up by.
+        "time_cap_minutes": 5184000,
+    },
+)

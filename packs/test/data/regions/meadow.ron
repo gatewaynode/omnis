@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "test:region:meadow",
+    name: "test:text:region.meadow.name",
+    kind: Wild,
+    company: 100,
+    stability: 800,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["test:map:meadow"],
+)

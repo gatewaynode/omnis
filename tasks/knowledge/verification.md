@@ -38,11 +38,11 @@ repository root (the root has no rules file).
 
 ## Pinned numbers
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
-  items 24, conditions 16, spells 18, monsters 3, rule slots 34, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`)`; `chain_mail`'s
+  items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `7703481389045166225`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `9748142822655127576`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `13689675309031319555` under the golden seed (M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
+  fight `17071167585389510742` under the golden seed (M8 step 1: the pack hash moved with the region and time files; before that M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.

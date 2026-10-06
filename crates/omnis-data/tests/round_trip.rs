@@ -39,6 +39,14 @@ fn a_rewritten_pack_loads_identically() {
     for (i, spell) in data.spells.values().enumerate() {
         write_ron(&dir.join(format!("data/spells/s{i}.ron")), spell).unwrap();
     }
+    // Regions keep only their resolved form; the files go across as written.
+    let regions = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/test/data/regions");
+    for entry in std::fs::read_dir(&regions).unwrap() {
+        let path = entry.unwrap().path();
+        let to = dir.join("data/regions").join(path.file_name().unwrap());
+        std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+        std::fs::copy(&path, to).unwrap();
+    }
     for (lang, table) in &data.text {
         let entries = table
             .iter()
@@ -56,6 +64,7 @@ fn a_rewritten_pack_loads_identically() {
     assert_eq!(again.monsters, data.monsters);
     assert_eq!(again.spells, data.spells);
     assert_eq!(again.text, data.text);
+    assert_eq!(again.regions, data.regions);
     assert_eq!(again.registry, data.registry);
     assert_ne!(
         again.fingerprints, data.fingerprints,
