@@ -92,9 +92,7 @@ Steps 0–6 are committed. Rewrite this file every time it is used; the durable 
 - **8, docs and review.**
   - ARCH v0.8 as built. Fix the §4.4 wording: the inputs are `lived`, `shared_time` and
     `stability`.
-  - **Ask the owner** about PRD §7.8's consequences bullet, "a region left for a subjective year
-    has changed by roughly a year": it reads against the new model and was not in the approved
-    edit.
+  - PRD §7.8's consequences bullet: done 2026-10-06 (no fixed rate for a region left behind).
   - `code-map.md`, `horizons.md` (the bus's later uses; ecosystem catch-up waits for M10),
     `verification.md` pins, and the README if it lists MCP tools.
   - `tasks/acceptance/m8.md`, then owner acceptance closes M8.
