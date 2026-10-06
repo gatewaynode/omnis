@@ -7,7 +7,7 @@ use omnis_sim::omnis_data::{Ability, Data, EquipSlot, Skill};
 use omnis_sim::omnis_rules::{
     Expiry, armor_class, casting_ability, modifier, proficiency_bonus, skill_bonus,
 };
-use omnis_sim::{MINUTES_PER_DAY, Mode, World};
+use omnis_sim::{Mode, World};
 
 /// A page of the sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -152,7 +152,9 @@ pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView
             )
         })
         .collect();
-    let minutes_per_year = i64::from(MINUTES_PER_DAY) * 365;
+    let calendar = data.calendar();
+    let minutes_per_year =
+        i64::from(calendar.minutes_per_day.max(1)) * i64::from(calendar.days_per_year.max(1));
     let lived = (now - m.created_at).max(0) / minutes_per_year;
     Some(SheetView {
         name: m.name.clone(),
@@ -565,7 +567,7 @@ pub(crate) mod tests {
         );
         let born = view.age_years;
         let clock = world.clocks.get_mut(&omnis_sim::PARTY).unwrap();
-        clock.elapsed += i64::from(MINUTES_PER_DAY) * 365 * 2 + 5;
+        clock.elapsed += 1440 * 360 * 2 + 5;
         let older = sheet_view(&world, &data, 0).unwrap();
         assert_eq!(older.age_years, born + 2, "two subjective years passed");
         assert_eq!(older.magic.effects[0].1, "0 min", "never negative");

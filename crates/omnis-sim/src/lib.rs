@@ -79,9 +79,6 @@ pub use world::{
 
 use omnis_core::{HolderId, PartyId};
 
-/// Minutes in a day of the default calendar; the calendar is data (`Data::calendar`, M8), and
-/// this stays for clients until they read it.
-pub const MINUTES_PER_DAY: u32 = 1440;
 /// The single party of v1.
 pub const PARTY: HolderId = HolderId::Party(PartyId(0));
 /// Minutes opening or closing a door costs.

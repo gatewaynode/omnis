@@ -373,7 +373,11 @@ pub fn hud_text(world: &World, data: &Data) -> Hud {
         i32::from(p.x),
         i32::from(p.y),
         &p.facing.to_string(),
-        world.party_clock().elapsed,
+        &crate::panels::clock_text(
+            world.party_time.date,
+            world.party_clock().elapsed,
+            data.calendar(),
+        ),
     )
 }
 
@@ -580,5 +584,49 @@ fn build_frame(
     screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hud_text;
+    use crate::debug_menu::tests::world_and_data;
+    use omnis_sim::{Command, DevCommand, PARTY, apply};
+
+    /// The location lines show the party's date and age (M8): two years in the meadow read as
+    /// year 3 there, and walking into town the date snaps to the town's, a few months on, while
+    /// the age keeps its two years.
+    #[test]
+    fn the_clock_line_shows_the_date_and_snaps_to_the_town() {
+        let (mut world, data) = world_and_data();
+        let to = |map: &str, data: &omnis_sim::omnis_data::Data| {
+            let id = data.registry.maps.get(map).unwrap();
+            let (x, y, facing) = data.maps[&id].def.start;
+            Command::Dev(DevCommand::Teleport {
+                map: map.into(),
+                x,
+                y,
+                facing,
+            })
+        };
+        apply(&mut world, &data, to("test:map:meadow", &data)).unwrap();
+        let year = 360 * 1440;
+        world.clocks.get_mut(&PARTY).unwrap().elapsed += 2 * year;
+        world.party_time.shared_milli += 2 * year * 100;
+        world.party_time.date += 2 * year;
+        let wild = hud_text(&world, &data).clock;
+        assert!(wild.starts_with("Year 3 day 1 "), "{wild}");
+        assert!(wild.ends_with("age 2y 0d"), "{wild}");
+        apply(&mut world, &data, to("test:map:town", &data)).unwrap();
+        let town = hud_text(&world, &data).clock;
+        assert!(town.starts_with("Year 1 day "), "{town}");
+        let day: u32 = town["Year 1 day ".len()..]
+            .split(' ')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!((70..=76).contains(&day), "about 72 days on: {town}");
+        assert!(town.ends_with("age 2y 0d"), "{town}");
     }
 }

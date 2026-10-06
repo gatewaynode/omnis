@@ -659,7 +659,13 @@ mod tests {
         let Ok(dir) = std::env::var("OMNIS_DUMP_SCREENS") else {
             return;
         };
-        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let hud = Hud::new(
+            "Test Dungeon",
+            3,
+            4,
+            "south",
+            "Year 1 day 1 03:28 night  age 0d",
+        );
         let event = Message {
             text: "The door opens.".into(),
             alert: false,
@@ -784,7 +790,13 @@ mod tests {
         let wide = Layout::for_width(2560);
         let wing = wide.wing.expect("wide");
         let members = sample_members();
-        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let hud = Hud::new(
+            "Test Dungeon",
+            3,
+            4,
+            "south",
+            "Year 1 day 1 03:28 night  age 0d",
+        );
         let log = sample_log();
         let message = Message::default();
         let fight = sample_fight();
@@ -827,7 +839,13 @@ mod tests {
     fn a_wide_canvas_keeps_the_scene_and_the_minimap_clear_and_frames_the_menu_where_it_sits() {
         let wide = Layout::for_width(2560);
         let members = sample_members();
-        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let hud = Hud::new(
+            "Test Dungeon",
+            3,
+            4,
+            "south",
+            "Year 1 day 1 03:28 night  age 0d",
+        );
         let log = sample_log();
         let message = Message::default();
         let view = explore(&members, &hud, &log, &message);
