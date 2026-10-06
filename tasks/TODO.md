@@ -311,7 +311,16 @@ Owner decisions: experiment first, then decide (stage 2 is an outline); the one 
 
 ### M8 — Subjective time
 - [ ] Clocks for every holder, `Contact` records, reconciliation rule in Rhai on region entry with bounded drift and the `time:<a>:<b>` stream, calendar display, rumor text that reports the teller's own elapsed time; MCP `time.clocks`, `time.reconcile`
-- [ ] Plan first: the event bus with topics (owner, 2026-10-04; external crates evaluated; constraints in `tasks/knowledge/horizons.md`, M8)
+- [x] Plan first: the event bus with topics (owner, 2026-10-04; external crates evaluated; constraints in `tasks/knowledge/horizons.md`, M8). Planned 2026-10-05 in plan mode; plan `tasks/plans/m8-time.md`. **Crate survey**: none fits (thread or async channels, closures that cannot be saved, or abandoned; none saves subscriptions, calls in a fixed order or caps nested raises), so a small bus in `omnis-sim`. **Owner decisions**: regions are data files; the bus carries time, then the combat reactions move onto it; **time aligns where people gather** ("players may adventure in the wilds for years just to realize a city has only had a few months pass … player age changes constantly and doesn't reverse, but dates reconcile in villages, towns and cities"): a region's company weights the party's shared time, a settlement catches up by it and sets the party's date; visible in M8: the calendar as data and rumors with an age; **"There will be no bank interest in this game"** (PRD v0.7 §7.4, §7.8; ARCH §4.4, §4.8, §9.3, text approved with the plan)
+- [ ] 0. Docs: the plan, this block, PRD v0.7 and ARCH's M8 text
+- [ ] 1. Data: region files and the map → region index, `rules/time.ron` (calendar values, `time.settled`, `time.wild`), `RumorDef { text, at }`, `text::fill`, the test pack's regions (town, meadow, dungeon with depths, the mapless crossroads)
+- [ ] 2. Sim: the signal bus (`bus.rs`): saved subscriptions in call order, a queue drained in order, depth 4 and 64 signals a drain with `SignalsDropped`
+- [ ] 3. Sim: time (`time.rs`): party time, contacts, `Reconciled` on region entry through the bus, couplings, the calendar and night from data, save schema 7, replays rebaselined
+- [ ] 4. Sim: rumors with an age on the town's clock; a rumor not yet happened is not told
+- [ ] 5. Ops and MCP: `time.clocks`, `time.reconcile` (`DevCommand::Reconcile`), `game.status` date, age and night
+- [ ] 6. App: the HUD calendar (year, day, time, night, age), the date snapping on entry, rumors filled with their age
+- [ ] 7. Sim: the combat reactions onto the bus; the fight replay's event list unchanged
+- [ ] 8. Docs and review, ARCH v0.8 as built, `tasks/acceptance/m8.md`; **owner acceptance closes M8**
 - **Done when**: two regions visited in different orders produce different but replayable clock deltas, and PRD §7.8 examples are reproduced as tests
 
 ### M9–M12 — PRD Phases 2–5 (expand when reached)

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.6, under discussion (v0.6, 2026-09-20: the Feathers experiment's outcome in D26, §11.1 and §14; the turn budget as M7's last acceptance point in §14. v0.5, 2026-09-20: turn budget, declared reactions, tactics runbooks, bonus-action spells, D21–D24; the time model renumbered D25; a modern look and feel, not pixel art, D26) |
+| Status | Draft v0.7, under discussion (v0.7, 2026-10-05: time aligns where people gather in §7.8; the bank pays no interest in §7.4 and §7.8. v0.6, 2026-09-20: the Feathers experiment's outcome in D26, §11.1 and §14; the turn budget as M7's last acceptance point in §14. v0.5, 2026-09-20: turn budget, declared reactions, tactics runbooks, bonus-action spells, D21–D24; the time model renumbered D25; a modern look and feel, not pixel art, D26) |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Companion | `ARCHITECTURE.md` (derived from this document), `README.md` |
@@ -135,7 +135,7 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 - Training: level up for a fee once experience is sufficient.
 - Blacksmith: buy, sell, identify, repair equipment.
 - Tavern: rumors, food, hireling recruitment, quest hooks.
-- Bank: deposit gold and gems; earns interest on the bank's region clock, so the balance grows by however much time that town has experienced when the party returns (§7.8).
+- Bank: deposit gold and gems; the bank keeps them safe and pays no interest.
 - Guilds: buy spells by level for members.
 - Every service is a data-defined building placed on a map tile; there is nothing special about "a town" beyond its tiles.
 
@@ -160,10 +160,10 @@ Decisions taken during PRD discussion. Changing one of these reopens this docume
 Time in Toel is local. There is no world clock.
 - **Every holder keeps its own clock**: the party (shared by its members while they travel together), every region with its towns, dungeons, lairs, and ecosystem, every named non-player character, any character separated from the party, and, later, construction projects and other players' parties.
 - **Only the actor's clock moves.** A step, a rest, or a service advances the party's clock. Nothing else in the world moves until it is met.
-- **Clocks reconcile on contact, and only somewhat.** Entering a region, meeting a named character, or two parties meeting compares how much time each has lived since their last contact. The other side catches up by an amount set by a data rule: near equal for stable places, drifting by months for places in flux, never backwards in v1. Both remember the contact. The exchange of "how long has it been for you" is the visible face of this rule.
+- **Clocks reconcile on contact, and only somewhat; time aligns where people gather.** Every region has a company (how many people gather there). The party's age is its own clock and never reverses; each minute it lives also counts toward its shared time, weighted by the company of where it was lived. Entering a settlement (a village, town or city) catches the settlement up by the party's shared time since their last contact, with a small drift set by its stability, and the party's date becomes the settlement's. Years in the wilds are months in a city. Wild places and dungeons keep their own clocks and drift by months. Never backwards in v1. Both remember the contact.
 - **Places connected by roads, rivers, and trade** reconcile with each other when either meets the party, so change spreads through a neighbourhood without a global tick.
 - **Eras are part of the model.** A place can exist in more than one age, and a reconciliation may in principle land the party in an older or newer one. V1 content uses a single era and the rule never changes it; the save format carries the field from day one.
-- **Consequences the player feels**: a region left for a subjective year has changed by roughly a year when revisited; a bank balance grows by the bank's time, not the party's; a hireling left at an inn has aged on their own; a quest deadline is counted on the clock of whoever set it; rumors report how long ago on the teller's clock.
+- **Consequences the player feels**: a region left for a subjective year has changed by roughly a year when revisited; a hireling left at an inn has aged on their own; a quest deadline is counted on the clock of whoever set it; rumors report how long ago on the teller's clock.
 - **Why this shape**: it makes NPC free agency, multiplayer, construction time, long travel, and aging the same mechanism, and it keeps the simulation lazy and deterministic. The cost is that every place where things meet must reconcile; those places are enumerated and tested in the architecture.
 
 ### 7.9 Tactics

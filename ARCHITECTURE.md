@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.6 |
+| Status | Draft v0.7, M8 in progress (2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -93,7 +93,9 @@ pub struct World {
     pub packs: Vec<PackFingerprint>, // id, version, content hash
     pub rngs: BTreeMap<StreamName, Pcg32>, // every named stream used so far, state and draw count, serialized
     pub clocks: BTreeMap<HolderId, Clock>,       // subjective time per holder (§4.4); no global clock
-    pub contacts: BTreeMap<(HolderId, HolderId), Contact>, // arrives with M8 (subjective time)
+    pub contacts: BTreeMap<(HolderId, HolderId), Contact>, // M8: the last contact between two holders (§4.4)
+    pub party_time: PartyTime,       // M8: the party's shared time (company-weighted) and the date it believes (§4.4)
+    pub bus: Bus,                    // M8: the signal bus's subscriptions, saved in call order (§4.8)
     pub party: Party,                // up to 6 members (D10), the purse and the bank in copper (M7a), food, inventory, the last long rest
     pub position: Position,          // map, tile, facing
     pub maps: BTreeMap<MapId, MapState>,   // mutable per-map state; static tiles come from data
@@ -136,6 +138,7 @@ pub enum Event {
     Blocked { reason: BlockReason },
     TimeAdvanced { holder: HolderId, minutes: u32, day_rolled: bool },
     Reconciled { a: HolderId, b: HolderId, delta_a: i64, delta_b: i64, era_b: EraId },
+    SignalsDropped { count: u32 },           // M8: the signal bus hit its depth or signal cap (§4.8)
     Visible { tiles: Vec<SeenTile> },        // what the party perceives this turn
     PartyChanged,                            // M3: members or their order changed
     // M4 as built (`omnis-sim/src/event.rs`): integers, ids, and roll traces only.
@@ -193,6 +196,7 @@ pub struct Contact {
     pub other: HolderId,
     pub self_elapsed: i64,     // my clock when we last met
     pub other_elapsed: i64,    // their clock when we last met
+    pub self_shared: i64,      // M8: the party's shared time (minutes × company, per mille) when we last met
 }
 pub enum HolderId { Party(PartyId), Region(RegionId), Actor(ActorId), Character(CharacterId), Project(ProjectId) }
 ```
@@ -205,9 +209,11 @@ Holders in v1: the party (one clock shared by its members while they travel toge
 
 1. Look up the last `Contact` between them, or treat `b` as never met.
 2. `delta_a` = how much `a` has experienced since that contact.
-3. `delta_b` = `reconcile(delta_a, stability_b, coupling_ab, rng)`, a rule expression in data. The v1 base rule is a ratio around 1 with a jitter drawn from the named RNG stream `time:<a>:<b>`, bounded by the region's temporal stability: a stable town might drift by a few percent, a ruin in flux by months. `delta_b` is never negative in v1.
+3. `delta_b` = the region's rule slot (`time.settled` or `time.wild`, named in its region file) evaluated on `lived` (the party's age since the contact), `shared` (its company-weighted time since then) and the region's `stability`, with a jitter drawn from the named RNG stream `time:<a>:<b>`, clamped to `0..=cap`. A settlement's rule uses `shared` with a small drift; a wild region's uses `lived` with drift by months. `delta_b` is never negative in v1.
 4. `b` catches up by `delta_b`: a region runs its ecosystem catch-up (§7.3), respawns, and project progress for that much time; an actor runs their agency catch-up (later).
 5. Both `Contact` records are updated and the simulation emits `Reconciled { a, b, delta_a, delta_b, era_b }`. The greeting in the background text is a `Message` whose arguments are exactly those two deltas.
+
+**Company and the party's date (owner, 2026-10-05: "as more people gather together in the same place time starts to align with them").** Every region has a `company` in per mille (how many people gather there; city 1000, wilds 100, dungeon 50) and a `kind`, settlement or wild, in its region file (`packs/*/data/regions/*.ron`, which also lists the maps it owns and its couplings). The party's age is `clocks[PARTY].elapsed` and never reverses. `PartyTime { shared_milli, date, era }`: each minute the party lives adds `minutes × company` of the region it is in to `shared_milli` and a minute to `date`, so in the wilds the party's own reckoning runs on. Entering a settlement catches it up by the party's shared time since their last contact and sets the party's `date` and `era` to the settlement's; years in the wilds are months in a city. Wild regions keep their own clocks (for the ecosystem, M10) and never set the party's date. The calendar's shape (minutes a day, days a year, night) is data in `rules/time.ron`, rendered from `date`.
 
 Holders that are not part of the interaction do not move. A region the party has not visited for a year of subjective time has experienced nothing yet; it experiences its share when the party returns. This is "the world changes without the player" from PRD goal 4, delivered lazily and deterministically.
 
@@ -280,6 +286,22 @@ Serves PRD D21–D24, §7.3, §7.9, §8.3. Designed 2026-09-20 and built in M7c 
 - **Views.** `combat.get`: the budget, reactions left, who is hidden, each member's switch and features with uses and the refusal, casters' points per individual and whether each is shielded, spell rows' `blocked` (with the action) and `bonus` (with the bonus action). `party.get`: each member's `tactics` (the switch, `auto`, the declared rows, and each action with the triggers it may answer).
 - **App.** The fight screen stays on the canvas: End (`n`), React (`o`, the acting member's switch), a budget line `Action 1   Bonus 1   Reaction 1 (on)`, the Use picker with features first (Cunning Action as an exchange row and a hide row) then the kit (six rows), the cast picker paying with the bonus action when it can, and a log line for every new event. The tactics panel is `bevy_ui` with Feathers (`tactics_panel.rs`, `tactics_draft.rs`, `feathers_tactics.rs`; its systems registered with the other panels in `feathers_ui.rs`, no `TacticsPlugin`), opened from TACTICS on the sheet (T) outside a fight: per member the switch, the declared rows (Edit, Remove), action and trigger menus offering only what `answers` grants, up to 15 conditions under all or any, Add, Save, New; a set nested deeper (set over the MCP) is shown in words and may be removed, not edited.
 - **Measured before content.** `tests/measure/budget.rs::budget_over_seeds` and `boss.rs::boss_over_seeds`; the tables are in `tasks/TODO.md`. Nothing is tuned: the `turn.*` slots stay at the SRD's 1.
+
+### 4.8 The signal bus (M8)
+
+A publish/subscribe bus inside `omnis-sim` (`bus.rs`) carries signals between systems: region entry to reconciliation (§4.4), and combat triggers to declared reactions (§4.7). No external crate was taken (survey 2026-10-05): the candidates were thread or async channels, kept closures that cannot be saved, or were abandoned; none saved its subscriptions, called subscribers in a fixed order, or capped nested raises.
+
+```rust
+pub enum Topic { Region(RegionId), Battle }
+pub enum Subscriber { Reconcile, Reactions }          // a match calls each one's handler; no closures
+pub enum Signal { Entered { region: RegionId, from: Option<RegionId> }, Trigger { .. } }
+pub struct Bus { subs: BTreeMap<Topic, Vec<Subscriber>> } // saved; Vec order is the call order
+```
+
+- `raise` queues a signal (the queue is not saved and is empty at the end of every command); `drain` delivers first in, first out, each topic's subscribers in order. A signal raised during delivery is queued one level deeper.
+- Limits: depth 4 and 64 signals a drain. Past either, the rest of the queue is dropped and `SignalsDropped { count }` is emitted; never a panic, and never a rejection after the world has changed.
+- Subscriptions: every region's topic to `Reconcile` from the world's start; `Battle` to `Reactions` while a fight lasts. Save schema 7 writes the defaults into older saves.
+- Delivery is synchronous at the point of the raise, so moving a direct call onto the bus keeps the event order; the fight replay's event list proves it.
 
 ## 5. Rule scripting host (`omnis-expr`, Rhai)
 
@@ -464,7 +486,7 @@ sequenceDiagram
 | Tool | Purpose |
 |---|---|
 | `game.status` | mode, party clock and calendar, position, packs, fingerprint, the service the party is inside, the map's `once` groups cleared (M7b) |
-| `time.clocks`, `time.reconcile` | list holder clocks and contacts; force a reconciliation between two holders (dev) |
+| `time.clocks`, `time.reconcile` | list holder clocks, contacts and the party's time; force a reconciliation of the party with a region (dev: sends `DevCommand::Reconcile`, so a replay holds it) |
 | `world.query` | read any path (`party.members[0].hp`) |
 | `party.get`, `party.create` | inspect and build a party from data; the view carries bank, hit dice and when a long rest may begin (M7a), spell picks owed and whether a trainer would grant a level (M7b), each member's `tactics`: the switch, `auto`, the declared reactions, and the actions with the triggers each may answer (M7c) |
 | `service.get` | the service the party is inside (M7): every offer as the command that asks for it, its price, and the refusal the rules would give; looking changes nothing |
