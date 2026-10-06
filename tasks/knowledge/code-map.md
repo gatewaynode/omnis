@@ -9,6 +9,9 @@ ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name befor
 (characters, attacks, conditions, spells, effects, equipment) → `omnis-sim` (the world) →
 `omnis-app` (Bevy), `omnis-cli` (headless), `omnis-mcp` (the bridge). The app reaches data through
 `omnis_sim::omnis_data`; the sim reaches `Value` through `omnis_data::omnis_expr::Value`.
+`omnis-bus` (M8 step 7b, A16) is a leaf beside them: the signal bus mechanism (`Bus<T, S>`, the
+`Signal` and `Host` traits, `drain`, `MAX_DEPTH` 4, `MAX_SIGNALS` 64), generic and knowing no game type;
+only `omnis-sim` imports it, and its vocabulary is `omnis-sim/src/bus.rs`.
 
 ## omnis-data
 `spell.rs` (`SpellEffect`, `Reach`), `item.rs` (`ItemKind`, `Slot`, `UseEffect::{Heal, Sense}`,
@@ -51,6 +54,9 @@ old saves only).
   words and `parse_script`, `Rejection` with `fmt_play`/`fmt_items`/`fmt_magic`), `apply.rs`
   (`match (mode, command)`; `advance()` is the only clock writer; effects pruned there),
   `event.rs` (ids and roll traces only; `ItemPlace`, `LayerCheck`, `SensedTile`).
+- Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
+  `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and
+  `combat/reaction.rs::Fight`.
 - World: `world.rs` (`World`, `Settings { save_rule, permadeath, devtools }`, `Automap`,
   `Known`, `layer::{TERRAIN 1, STRUCTURE 2, VISITED 4, REMOTE 8}`, layer-aware `record`),
   `party.rs` (`heal`, `bury`), `visibility.rs` (`depth`, `cone`, `ray`), `query.rs`, `view.rs`,

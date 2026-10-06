@@ -137,6 +137,9 @@ struct Fight<'a> {
 }
 
 impl Host for Fight<'_> {
+    type Signal = Signal;
+    type Subscriber = Subscriber;
+
     fn bus(&self) -> &Bus {
         &self.world.bus
     }

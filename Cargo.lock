@@ -3820,6 +3820,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omnis-bus"
+version = "0.1.0"
+dependencies = [
+ "ron",
+ "serde",
+]
+
+[[package]]
 name = "omnis-cli"
 version = "0.1.0"
 dependencies = [
@@ -3879,6 +3887,7 @@ dependencies = [
 name = "omnis-sim"
 version = "0.1.0"
 dependencies = [
+ "omnis-bus",
  "omnis-core",
  "omnis-data",
  "omnis-rules",

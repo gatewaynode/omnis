@@ -124,6 +124,9 @@ struct Sim<'a> {
 }
 
 impl Host for Sim<'_> {
+    type Signal = Signal;
+    type Subscriber = Subscriber;
+
     fn bus(&self) -> &Bus {
         &self.world.bus
     }
