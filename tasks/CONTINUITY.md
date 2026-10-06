@@ -2,11 +2,11 @@
 
 Written 2026-10-05, mid-M8. M7 is closed (`68c4d09`). M8, subjective time with the signal bus, is
 planned and approved (`tasks/plans/m8-time.md`, the same text as `/Users/john/.claude/plans/snoopy-kindling-origami.md`).
-Steps 0–5 are committed. Rewrite this file every time it is used; the durable knowledge lives in
+Steps 0–6 are committed. Rewrite this file every time it is used; the durable knowledge lives in
 `tasks/knowledge/` (start at its README).
 
 ## On resuming
-- Run `/catchup`, then continue at **step 6** (below). The owner said "do commit 8c and continue":
+- Run `/catchup`, then continue at **step 7** (below). The owner said "do commit 8c and continue":
   carry on through the M8 steps, one commit each, without asking again unless something needs a
   decision.
 - **Toolchain:** every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
@@ -34,8 +34,10 @@ Steps 0–5 are committed. Rewrite this file every time it is used; the durable 
   - `0bcb02f`: step 2, the bus;
   - `0bc94d2`: step 3, time;
   - `6f6cd4a`: step 4, rumors;
-  - `26437cd`: step 5, the ops and MCP.
-- Gate: `tests passed 552 failed 0 ignored 12`.
+  - `26437cd`: step 5, the ops and MCP;
+  - `df4a9b7`: these notes, first version;
+  - `54c3ab2`: step 6, the HUD.
+- Gate: `tests passed 553 failed 0 ignored 12`.
 - **Pins:**
   - tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)` (rule slots 34 → 36);
   - walk replay `8711507745385976768`, fight replay `5247080599556612730`;
@@ -71,21 +73,13 @@ Steps 0–5 are committed. Rewrite this file every time it is used; the durable 
   - **Events:** `Reconciled`, `SignalsDropped`, and `Rumor.ago`.
   - **`time_view.rs`:** `TimeView`, `DateView`, and `Status.date`.
   - `DevCommand::Reconcile`; `Op::{TimeClocks, TimeReconcile}`.
-  - **App:** `text::ago_text`; `Names::rumor(id, index, ago)` fills `{ago}`.
+  - **App:**
+    - `text::ago_text`; `Names::rumor(id, index, ago)` fills `{ago}`;
+    - the HUD clock line `Year 1 day 40 14:20 night  age 2y 40d` (`panels::clock_text(date, age, calendar)`);
+    - the sheet's years use the calendar;
+    - `MINUTES_PER_DAY` is gone.
 
 ## Next steps
-- **6, the app.**
-  - The HUD clock: `panels.rs::clock_text`/`clock_text_in` (around line 41) shows `Day d hh:mm`
-    from the party's clock, and `hud_text` is `ui.rs:365`.
-  - Show the party's date as "Year 1, day 40, 14:20 · night" (years and days 1-based for people)
-    with the age beside it, using `data.calendar()` and `time_view::party_date`.
-  - "A new day." already follows the date (`TimeAdvanced.day_rolled` in `apply::advance`).
-  - `MINUTES_PER_DAY` is still used in `panels.rs:49`, `sheet_menu.rs:155,568` (age in years uses
-    365!) and `ops.rs` (gone). Move them to the calendar, then drop the constant from
-    `omnis-sim/src/lib.rs`.
-  - Optionally add a log line for `Reconciled` (none was chosen; the date jump shows).
-  - Headless app tests; a screen capture for the report.
-  - "What you will see" for the owner.
 - **7, reactions onto the bus.**
   - Add `Signal::Trigger { .. }` (carrying what `combat/reaction.rs`'s `on_attack`, `on_wound`,
     `on_cast`, `on_missile` and `on_enemy_cast` take) on `Topic::Battle`.
