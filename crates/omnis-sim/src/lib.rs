@@ -14,6 +14,7 @@
 extern crate alloc;
 
 pub mod apply;
+pub mod bus;
 mod casting;
 mod checks;
 pub mod combat;
