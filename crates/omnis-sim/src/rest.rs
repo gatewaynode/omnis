@@ -146,11 +146,11 @@ pub(crate) fn apply(
     risk.store(world);
     dice.store(world);
     if let Some(after) = interrupted {
-        advance(world, after, events);
+        advance(world, data, after, events);
         events.push(Event::RestInterrupted { minutes: after });
         return encounter::ambush(world, data, events).map_err(Rejection::Rule);
     }
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     let map = world.position.map;
     events.extend(
         hits.into_iter()

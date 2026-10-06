@@ -132,6 +132,10 @@ pub struct Contact {
     pub self_elapsed: i64,
     /// The other holder's clock when they last met.
     pub other_elapsed: i64,
+    /// The party's shared time (minutes × company, per mille) when they last met; 0 on a
+    /// side that is not the party.
+    #[serde(default)]
+    pub self_shared: i64,
 }
 
 #[cfg(test)]

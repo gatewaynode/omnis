@@ -142,7 +142,8 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         "# pack.ron (schema 1)",
         "# data/tiles/<name>.ron (schema 1)",
         "# data/maps/<name>.ron (schema 1)",
-        "# save (schema 6)",
+        "# data/regions/<name>.ron",
+        "# save (schema 7)",
         "# replay",
         "# protocol ops",
     ] {

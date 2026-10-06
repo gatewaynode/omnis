@@ -92,6 +92,6 @@ pub(crate) fn apply(
         .value("cast_minutes")
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(DEFAULT_CAST_MINUTES);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     Ok(())
 }

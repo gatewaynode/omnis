@@ -4,8 +4,9 @@ use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
+use crate::time;
 use crate::world::{Known, Mode, World, door_key, layer};
-use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
+use crate::{INTERACT_MINUTES, PARTY};
 use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, MapId, Position, Rotation};
@@ -61,9 +62,15 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     Ok(events)
 }
 
-pub(crate) fn advance(world: &mut World, minutes: u32, events: &mut Vec<Event>) {
+/// The party lives `minutes`: its age, its shared time at the company of where it is, and
+/// its date; a day rolls on the date.
+pub(crate) fn advance(world: &mut World, data: &Data, minutes: u32, events: &mut Vec<Event>) {
+    let calendar = data.calendar();
+    let day = calendar.day(world.party_time.date);
     let clock = world.clocks.entry(PARTY).or_insert_with(world_clock_origin);
-    let day_rolled = clock.advance(minutes, MINUTES_PER_DAY);
+    clock.advance(minutes, calendar.minutes_per_day);
+    time::live(world, data, minutes);
+    let day_rolled = calendar.day(world.party_time.date) != day;
     events.push(Event::TimeAdvanced {
         holder: PARTY,
         minutes,
@@ -215,7 +222,7 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
         from,
         to: landing.to,
     });
-    advance(world, landing.minutes, events);
+    advance(world, data, landing.minutes, events);
     visit(world, data);
     if let Some(dest) = landing.through {
         world.position = dest;
@@ -225,6 +232,7 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
         });
         visit(world, data);
         know_portals_beside(world, data);
+        time::moved(world, data, from.map, events);
     }
     true
 }
@@ -240,8 +248,9 @@ pub(crate) fn retreat(world: &mut World, data: &Data, to: Position, events: &mut
         .get(&to.map)
         .and_then(|m| m.cell(to.x, to.y).map(|c| m.terrain(c).step_minutes))
         .unwrap_or(1);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     visit(world, data);
+    time::moved(world, data, from.map, events);
 }
 
 fn turn(world: &mut World, rotation: Rotation) {
@@ -266,7 +275,7 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         return;
     }
     toggle_door(world, pos.map, pos.x, pos.y, pos.facing, events);
-    advance(world, INTERACT_MINUTES, events);
+    advance(world, data, INTERACT_MINUTES, events);
 }
 
 /// Open a closed door or close an open one on the facing edge of a tile, with the event.

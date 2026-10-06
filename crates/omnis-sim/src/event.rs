@@ -6,8 +6,8 @@ use crate::encounter::EncounterSource;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{
-    CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
-    ServiceId, SpellId,
+    CharacterId, ConditionId, EraId, Facing, HolderId, ItemId, MapId, MonsterId, Position,
+    RollTrace, ServiceId, SpellId,
 };
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{ActionRef, Trigger};
@@ -183,6 +183,25 @@ pub enum Event {
     Blocked {
         /// Why.
         reason: BlockReason,
+    },
+    /// Two holders met and their clocks reconciled (§4.4): `b` caught up by `delta_b` for the
+    /// `delta_a` that `a` lived since they last met.
+    Reconciled {
+        /// The holder that came (the party, or the region the party entered for a coupling).
+        a: HolderId,
+        /// The holder that caught up.
+        b: HolderId,
+        /// What `a` lived since the last contact, in minutes.
+        delta_a: i64,
+        /// How far `b` caught up, in minutes.
+        delta_b: i64,
+        /// `b`'s era after.
+        era_b: EraId,
+    },
+    /// The signal bus dropped signals past its depth or its budget (§4.8).
+    SignalsDropped {
+        /// How many.
+        count: u32,
     },
     /// A holder's clock advanced.
     TimeAdvanced {

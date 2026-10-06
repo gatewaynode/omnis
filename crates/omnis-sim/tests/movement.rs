@@ -270,7 +270,12 @@ fn portals_link_the_maps_both_ways() {
     }
     assert_eq!((world.position.x, world.position.y), (16, 6));
     let events = without_visible(step(&mut world, &data));
-    assert_eq!(events.len(), 3, "{events:?}");
+    assert_eq!(events.len(), 4, "{events:?}");
+    let meadow_region = data.maps[&meadow].region;
+    assert!(
+        matches!(events[3], Event::Reconciled { b, .. } if b == omnis_core::HolderId::Region(data.maps[&dungeon].region)),
+        "entering the dungeon's region reconciles it, not the meadow's {meadow_region:?}: {events:?}"
+    );
     assert_eq!(
         events[2],
         Event::Moved {
@@ -525,6 +530,7 @@ fn a_day_rolls_after_1440_minutes() {
     let data = data();
     let mut world = world(&data);
     world.clocks.get_mut(&PARTY).unwrap().elapsed = 1439;
+    world.party_time.date = 1439;
     let events = step(&mut world, &data);
     assert!(
         matches!(

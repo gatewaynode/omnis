@@ -5,8 +5,8 @@ use omnis_cli::{Headless, schema};
 use omnis_data::ron_io::parse;
 use omnis_data::{Alignment, Skill};
 use omnis_data::{
-    Background, Class, Condition, Item, MapDef, Monster, PackManifest, Race, RulesFile, Spell,
-    Tileset,
+    Background, Class, Condition, Item, MapDef, Monster, PackManifest, Race, RegionDef, RulesFile,
+    Spell, Tileset,
 };
 use omnis_sim::omnis_core::Direction;
 use omnis_sim::omnis_rules::Draft;
@@ -124,7 +124,12 @@ fn schema_dump_sections_parse_with_the_real_types() {
     parse::<Monster>(&body("# data/monsters/<name>.ron\n")).unwrap();
     let rules = parse::<RulesFile>(&body("# data/rules/<name>.ron\n")).unwrap();
     assert!(rules.slots.contains_key("spell_points.pool"));
-    parse::<World>(&body("# save (schema 6)\n")).unwrap();
+    let region = parse::<RegionDef>(&body("# data/regions/<name>.ron\n")).unwrap();
+    assert_eq!(
+        (region.company, region.rule.as_str()),
+        (900, "time.settled")
+    );
+    parse::<World>(&body("# save (schema 7)\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();

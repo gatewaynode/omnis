@@ -125,7 +125,11 @@ impl Roller {
 
     /// A copy of any named stream; one stream per consumer (A14), created on first use.
     pub(crate) fn take_stream(world: &World, name: &str) -> Roller {
-        let stream = StreamName::new(name);
+        Roller::take_named(world, StreamName::new(name))
+    }
+
+    /// A copy of the stream `stream`, for names built at run time (`time:<a>:<b>`).
+    pub(crate) fn take_named(world: &World, stream: StreamName) -> Roller {
         let rng = world
             .rngs
             .get(&stream)

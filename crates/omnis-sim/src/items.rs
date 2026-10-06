@@ -173,7 +173,7 @@ pub(crate) fn apply(
             let mut roller = Roller::take_stream(world, stream);
             use_item(world, data, &plan, &mut roller, events).map_err(Rejection::Rule)?;
             roller.store(world);
-            advance(world, minutes, events);
+            advance(world, data, minutes, events);
             Ok(())
         }
     }
@@ -229,6 +229,7 @@ fn don(world: &mut World, data: &Data, slot: EquipSlot, events: &mut Vec<Event>)
     if slot == EquipSlot::Body {
         advance(
             world,
+            data,
             minutes(data, "don_armor_minutes", DEFAULT_DON_MINUTES),
             events,
         );

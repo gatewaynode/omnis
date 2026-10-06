@@ -43,6 +43,9 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         packs: old.packs,
         rngs: old.rngs,
         clocks: old.clocks,
+        contacts: BTreeMap::new(),
+        party_time: crate::time::PartyTime::default(),
+        bus: crate::bus::Bus::default(),
         position: old.position,
         maps: old.maps,
         automap: old.automap,
@@ -126,6 +129,22 @@ pub(crate) fn v5_to_v6(mut world: World, data: &Data) -> World {
         }
     }
     crate::combat::begin_after_load(&mut world, data);
+    world.schema = SAVE_SCHEMA;
+    world
+}
+
+/// Schema 6 to 7: subjective time (M8). The bus gets the default subscriptions; time lived
+/// before M8 counts in full toward the party's shared time, and its date is its age, so the
+/// first settlement it enters catches up as it would have before; no contacts yet.
+pub(crate) fn v6_to_v7(mut world: World, data: &Data) -> World {
+    world.bus = crate::time::subscriptions(data);
+    let age = world.party_clock().elapsed;
+    world.party_time = crate::time::PartyTime {
+        shared_milli: age.saturating_mul(1000),
+        date: age,
+        era: world.party_clock().era,
+    };
+    world.contacts.clear();
     world.schema = SAVE_SCHEMA;
     world
 }

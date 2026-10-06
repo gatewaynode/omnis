@@ -381,7 +381,7 @@ fn end_of_round(
         .value("combat_round_minutes")
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(DEFAULT_ROUND_MINUTES);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     state.round = state.round.saturating_add(1);
     events.push(Event::RoundStarted { round: state.round });
     Ok(())

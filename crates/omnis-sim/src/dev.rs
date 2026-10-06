@@ -390,5 +390,6 @@ fn teleport(
     world.position = to;
     events.push(Event::Moved { from, to });
     visit(world, data);
+    crate::time::moved(world, data, from.map, events);
     Ok(())
 }

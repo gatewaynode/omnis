@@ -499,7 +499,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
         Deal::Room { cost, minutes } => {
             party.gold -= cost;
             events.push(Event::RoomTaken { cost });
-            advance(world, minutes, events);
+            advance(world, data, minutes, events);
             rest::long_rest_restore(world, data, events);
             world.party.last_long_rest = Some(world.party_clock().elapsed);
             return;
@@ -608,7 +608,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
         }
     }
     let minutes = rest::rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
 }
 
 /// A price from its rule slot, in copper.
