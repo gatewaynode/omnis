@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.7, M8 in progress (2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; 2026-10-06: the bus is its own crate, `omnis-bus`, with its architecture and three designed expansions in §4.8, §3 and A16; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
+| Status | Draft v0.7, M8 in progress (2026-10-07: the engine's API in §4.9 and A17 (two tiers, views only, a protocol version), and §4.1–§4.4, §9 and §10 brought to the code as built; 2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; 2026-10-06: the bus is its own crate, `omnis-bus`, with its architecture and three designed expansions in §4.8, §3 and A16; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -108,7 +108,7 @@ pub struct World {
     pub flags: BTreeMap<FlagId, i64>,
     pub settings: Settings,          // save rule (anywhere, relief, inn only), permadeath (D17), devtools
     pub turn: u64,                   // commands applied so far
-    pub log: Vec<Event>,             // recent events for polling clients; not saved, not fingerprinted
+    pub log: Vec<Event>,             // the last LOG_CAPACITY (4096) events for polling clients; not saved, not fingerprinted
 }
 ```
 
@@ -116,72 +116,58 @@ pub struct World {
 - All numbers are integers. Ratios use `core::Fixed` (i64 with 1/1000 scale) where needed. No `f32` or `f64` anywhere in the simulation crates; CI denies the types with a lint.
 - The world is `serde::Serialize + Deserialize`; a save is the world in RON (D15), optionally compressed on disk.
 - `World::fingerprint()` hashes the canonical serialization; equal fingerprints on two platforms is the determinism test.
+- The fields are public for the simulation's own tests and tools. They are not the API: a client reads through the views (§4.3, §4.9). `regions` and `quests` arrive with M10 and M11.
 
 ### 4.2 Command and Event
 
+As built through M8 (`omnis-sim/src/command.rs`, `event.rs`); every field, with its wire form, is in `docs/api.md`.
+
 ```rust
-pub enum Command {
-    Step(Direction),            // forward or back
-    Turn(Rotation),
-    Interact,                   // door, sign, NPC, trigger on the facing tile
-    Rest(RestCommand),          // Short { dice per member } | Long (M7a)
-    Party(PartyCommand),        // create, reorder, tactics (M7c: SetReactions, PutReaction, RemoveReaction; replaced M6's auto_cast, §4.7)
-    Service(ServiceCommand),    // M7a: Leave, Room, Rumor, BuyFood, Heal, Cure, Raise, Buy, Sell, Deposit, Withdraw; M7b: Train, Choose, Learn
-    Combat(CombatCommand),      // per actor: attack { stack }, cast { spell, target, pay }, dodge, exchange { with }, run (M4, M6); use (M6b); end_turn, feature { feature, choice } (M7c)
-    Encounter(EncounterChoice), // attack, bribe, hide, run (M4)
-    Cast { caster, spell, target }, // out of combat (M6): healing, buffs, light, mage hand
-    Item(ItemCommand),          // M6b: equip, unequip, give, stow, take, use (a spyglass's use is the sense of PRD §7.2, M6c)
-    Journal(JournalCommand),
-    Dev(DevCommand),            // M6: give item, set hp/points/gold/food/xp/score/condition/flag, teleport, monster hp, kill stack; accepted only when `Settings.devtools` (§12)
+pub enum Command {                  // 11 variants
+    Step(Direction),                // forward, back, left, right
+    Turn(Rotation),                 // left, right, around
+    Interact,                       // door, sign, site on the facing tile
+    Party(PartyCommand),            // create, reorder; tactics (M7c: SetReactions, PutReaction, RemoveReaction, §4.7)
+    Encounter(EncounterChoice),     // attack, bribe, hide, run (M4)
+    Combat(CombatCommand),          // per actor: attack, cast, use, dodge, exchange, run (M4, M6); end_turn, feature (M7c)
+    Cast { caster: u8, spell: u8, target: Target }, // out of combat (M6): rows of the party and the caster's spell list
+    Item(ItemCommand),              // M6b: equip, unequip, give, stow, take, use (a sense item's use is PRD §7.2, M6c)
+    Service(ServiceCommand),        // M7a: Leave, Room, Rumor, BuyFood, Heal, Cure, Raise, Buy, Sell, Deposit, Withdraw; M7b: Train, Choose, Learn
+    Rest(RestCommand),              // Short { dice per member } | Long (M7a)
+    Dev(DevCommand),                // 13 variants: give item, set hp/points/gold/food/xp/score/condition/flag, teleport,
+                                    // monster hp, kill stack, reconcile (M8); refused unless `Settings.devtools` (§12)
 }
 
-pub enum Event {
-    Moved { from: Position, to: Position },
-    Blocked { reason: BlockReason },
-    TimeAdvanced { holder: HolderId, minutes: u32, day_rolled: bool },
-    Reconciled { a: HolderId, b: HolderId, delta_a: i64, delta_b: i64, era_b: EraId },
-    SignalsDropped { count: u32 },           // M8: the signal bus hit its depth or signal cap (§4.8)
-    Visible { tiles: Vec<SeenTile> },        // what the party perceives this turn
-    PartyChanged,                            // M3: members or their order changed
-    // M4 as built (`omnis-sim/src/event.rs`): integers, ids, and roll traces only.
-    EncounterCheck { roll: RollTrace, chance: u8, fired: bool },   // the map's random table, every step
-    EncounterStarted { source, stacks: Vec<(MonsterId, u8)>, disposition, counts: Vec<RollTrace>,
-                       stealth: Option<Roll>, perception: i64, noticed: bool },
-    Check { actor: ActorRef, kind: CheckKind, roll: Option<Roll>, dc: i64, success: bool }, // hide, run, flee
-    Bribed { cost: u32 },
-    CombatStarted { surprised: Surprise },
-    Initiative { order: Vec<(ActorRef, i64)>, rolls: Vec<RollTrace> },
-    RoundStarted { round }, Turn { actor }, Waited { actor }, Dodging { actor }, Exchanged { a, b },
-    AttackResolved { attacker, target, roll: Roll, ac: i64, hit: bool, crit: bool },
-    Damage { target, kind: DamageType, rolls: Vec<RollTrace>, raw: i64, amount: i64, adjust: DamageAdjust },
-    Down { target: CharacterId }, Wounded { member, failures }, DeathSave { member, roll, result, successes, failures },
-    Condition { target, condition, applied: bool },
-    Death { target: ActorRef, gold: Option<RollTrace> },
-    CombatEnded { outcome: Victory | Fled | Defeat, xp: u32, gold: u32, fallen: Vec<CharacterId> },
-    SpellCast { caster, spell, points, components_consumed },   // M6 as built; then Healed { target, rolls, amount, hp },
-    EffectApplied { target: Member | Party, spell, caster }, EffectEnded { target, spell, why }, Concentration { caster, spell, ended },
-    Check { kind: Save(ability) } for a monster's or a concentrating member's save, Dev { command }
-    // M7c as built: ReactionsSwitched { member, on }, TacticsChanged { member }, Reaction { actor, trigger, action },
-    // FeatureUsed { member, feature }, OpportunityAttack { stack, member }, MonsterCast { caster, spell }, ShieldStops { target }
-    // M7a as built: ServiceEntered, ServiceLeft, RoomTaken, FoodBought, Rumor, Treated, Raised, Bought, Sold, Banked,
-    // Rested, HitDiceSpent, RestInterrupted (an ambush), RestEvent (a map's rest event: reported, changes nothing yet)
-    LevelUp { member, level, cost, gains }, SpellLearned { member, spell, cost }, // M7b as built (cost 0 for a pick)
-    Region(RegionEvent),                     // from omnis-eco
-    Quest(QuestEvent),                       // from omnis-story
-    Message { key: TextKey, args: Vec<Arg> }, // localized by clients
-    Door { map, x, y, facing, open },        // M1 addition: a door changed state
-    Saved, Loaded,
+pub enum Event {                    // 62 variants, integers, ids and roll traces only
+    // Exploration and time: Moved, Blocked, Visible, Door, Message { key: MessageKey }, PartyChanged,
+    //   TimeAdvanced { holder, minutes, day_rolled }, Reconciled { a, b, delta_a, delta_b, era_b } (M8),
+    //   SignalsDropped { count } (M8, §4.8)
+    // Encounters (M4): EncounterCheck, EncounterStarted, Check, Bribed
+    // Fights (M4, M7c): CombatStarted, Initiative, RoundStarted, Turn, Waited, Dodging, Exchanged, AttackResolved, Damage,
+    //   Down, Wounded, DeathSave, Condition, Death, CombatEnded, FeatureUsed, OpportunityAttack, MonsterCast, ShieldStops,
+    //   ReactionsSwitched, TacticsChanged, Reaction
+    // Casting (M6a): SpellCast, Healed, EffectApplied, EffectEnded, Concentration
+    // Items and sensing (M6b, M6c): Equipped, Unequipped, ItemMoved, ItemUsed, Sensed
+    // Town, rest and progression (M7a, M7b): ServiceEntered, ServiceLeft, RoomTaken, FoodBought, Rumor { .., ago } (M8),
+    //   Treated, Raised, Bought, Sold, Banked, Rested, HitDiceSpent, RestInterrupted, RestEvent, LevelUp, SpellLearned
+    // Dev { command }
 }
 ```
 
-- `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs.
+- `apply(&mut World, &Data, Command) -> Result<Vec<Event>, Rejection>`. A `Rejection` (61 variants, `command.rs`) is a rule refusal (not your turn, cannot afford, tile blocked) and is not an error; errors are bugs. A command is validated in full before anything changes, so a rejected command leaves the world and its streams untouched.
 - Every dice roll produces a `RollTrace` in the event so a client can show the math and a test can assert it. A `Roll` (M4) is a d20 with its mode (normal, advantage, disadvantage: both dice in the trace, the kept face named), the modifier, the proficiency bonus, and the total.
-- Events are appended to `World::log` (bounded ring in release, unbounded in dev) so MCP `events.tail` and replay work.
-- Text never appears in events; only keys and arguments. Clients localize from pack `text/`.
+- Events are appended to `World::log`, capped at `LOG_CAPACITY` (4096) in every build, so `events.tail` works for a client that polls.
+- Text never appears in events; only keys and ids. Clients localize from pack `text/`.
+- Later events arrive with their systems: region events from `omnis-eco` (M10) and quest events from `omnis-story` (M11). Saving and loading are host operations and raise no event.
 
-### 4.3 Query
+### 4.3 Query and views
 
-Read-only views for clients: `query::party(&World)`, `query::viewport(&World, &Data) -> ViewportModel` (the tiles within visibility depth, with detail-depth cut, see §8.3), `query::automap(map)`, `query::region(id)`, `query::journal()`, `query::path(&World, "party.members[0].hp")` for MCP's generic inspector. Queries never mutate and never roll dice.
+Read-only views for clients; they never mutate and never consume a die (a view that quotes a price or a cost rolls on a copy of the stream, as `service_view` does with `town`). As built:
+- `query::here` (M8 step 8): mode, position, the service the party is in, the date and the party's age, the turn, whether a save is allowed, the seed and the settings; the cheap read a client makes every frame.
+- `ops::status` (`game.status`): `here` with the packs, the world fingerprint (which serializes the world, so it is not a per-frame read) and the map's `once` groups cleared.
+- `party_view`, `combat_view` (the encounter or the fight), `service_view` (the service the party is inside), `rest_view` (the camp), `time_view` (the clocks, contacts and the party's time, M8), `cast_view` (spells castable outside a fight, M8 step 8).
+- `query::viewport(&World, &Data) -> ViewportModel` (the tiles within visibility depth, with the detail-depth cut, §8.3), `query::automap(map)`, `query::map_text`.
+- `query::path(&World, "party.members[0].hp")` reads the world's serialized shape for MCP's generic inspector; it is a debugging aid outside the API (§4.9).
 
 ### 4.4 Subjective time
 
@@ -211,7 +197,7 @@ Holders in v1: the party (one clock shared by its members while they travel toge
 
 1. Look up the last `Contact` between them, or treat `b` as never met.
 2. `delta_a` = how much `a` has experienced since that contact.
-3. `delta_b` = the region's rule slot (`time.settled` or `time.wild`, named in its region file) evaluated on `lived` (the party's age since the contact), `shared` (its company-weighted time since then) and the region's `stability`, with a jitter drawn from the named RNG stream `time:<a>:<b>`, clamped to `0..=cap`. A settlement's rule uses `shared` with a small drift; a wild region's uses `lived` with drift by months. `delta_b` is never negative in v1.
+3. `delta_b` = the region's rule slot (`time.settled` or `time.wild`, named in its region file) evaluated on `lived` (the party's age since the contact), `shared_time` (its company-weighted time since then; `shared` is a Rhai keyword) and the region's `stability`, with a jitter drawn from the named RNG stream `time:<a>:<b>`, clamped to `0..=cap`. A settlement's rule uses `shared_time` with a small drift; a wild region's uses `lived` with drift by months. `delta_b` is never negative in v1.
 4. `b` catches up by `delta_b`: a region runs its ecosystem catch-up (§7.3), respawns, and project progress for that much time; an actor runs their agency catch-up (later).
 5. Both `Contact` records are updated and the simulation emits `Reconciled { a, b, delta_a, delta_b, era_b }`. The greeting in the background text is a `Message` whose arguments are exactly those two deltas.
 
@@ -330,6 +316,20 @@ pub const MAX_SIGNALS: u32 = 64;
 **Not in the design** (`tasks/knowledge/horizons.md`): a subscriber that vetoes or rewrites a signal before later subscribers see it, and ordering phases beyond the subscription order.
 
 **Why our own.** No external crate was taken (survey 2026-10-05): the candidates were thread or async channels (`event-listener`, `crossbeam-channel`, `flume`, `bus`, `postage`), kept closures that cannot be saved (`signals2`), held unserializable handles with `unsafe` (`shrev`), or were abandoned or pre-release (`eventbus`, `event_bus`, `pubsub`, `message-bus`, `evento`). None saved its subscriptions, called subscribers in a fixed order, or capped nested raises.
+
+### 4.9 The engine's API (M8 step 8)
+
+The owner, 2026-10-07: "we are creating the API that any number of clients might be interacting with. The sim is basically an SRD variant engine that other tracks of development will have to interface with while the sim itself is under development." The simulation's API is a contract with two named tiers; `docs/api.md` is the reference other tracks read, and a test fails when it misses an op, a reply, an error kind, a command, an event or a rejection.
+
+**Tier 1, the Rust library**, for clients in the same process (the app, the CLI, tests, another Rust front end). `omnis_sim::api` re-exports exactly the contract: `World::new`, `apply`, `World::{to_ron, from_ron, fingerprint}`, `Replay`; `Command` and its sub-commands, `Event`, `Rejection`; `ModeKind` and `Settings`; the views of §4.3; `Data` and the pack loader. Anything outside `api` is internal and may change without notice. A client reads state only through the views: `World`'s fields are public for the simulation's own tests and tools, never for clients, and the app is held to that by the compiler (its `SimWorld` keeps the world private).
+
+**Tier 2, the JSON op protocol**, for everything else (`omnis-sim/src/ops.rs`): one `Op` in, one `Reply` or `OpError` out. The transports are the dev socket (§9.1), `omnis_cli::Headless` in process, and the MCP bridge, whose tool names are the op names with `_` for `.`. Every Tier 1 view has an op. A client calls `game.status` first and checks `protocol`.
+
+**Wire forms.** `Op` is `{"op": "<name>", "args": {...}}`; `Reply` is tagged inside, `{"reply": "<name>", ...}`; `OpError` is `{"kind": "<name>", ...}`; `Command`, `Event` and `Rejection` use serde's external tagging, `{"Variant": {...}}` (a unit variant is the bare string). The socket wraps them in `{"id", "ok", "result" | "error"}`. Limits: a script of at most `MAX_SCRIPT` (10,000) commands, a line of at most 1 MiB, bounded strings, paths relative and under the working directory.
+
+**Versions and stability.** `ops::PROTOCOL` versions both tiers' contract. Additions do not bump it: a new op, a new optional field (`serde(default)`), a new event, command or rejection variant; clients ignore fields they do not know and variants they do not handle. A rename, a removal, or a change of meaning or units bumps it, and `docs/api.md`'s changelog names the change and the migration. Saves are versioned separately (`SAVE_SCHEMA`, migrated on load, §4.1) and pack data too (`omnis_data::SCHEMA`); the three move independently. `world.query` reads the world's serialized shape and is outside the contract.
+
+**Host operations.** Six ops touch the host (`save.write`, `save.read`, `pack.reload`, `rules.set`, `screenshot`, `screen.text`); `dispatch` refuses them. Their rules (the save rule, the reload's tile check, the slot check) are I/O-free functions in `ops.rs`, so each host writes only the file and window code around them.
 
 ## 5. Rule scripting host (`omnis-expr`, Rhai)
 
@@ -501,8 +501,8 @@ sequenceDiagram
 
 ### 9.1 Game side
 - `omnis --dev-socket [addr]` (feature `devtools`, on by default in debug builds, compiled out of release builds) listens on `127.0.0.1:0` by default and writes the bound address to `.omnis/dev.addr` in the working directory; the bridge reads that file. Loopback only, one client at a time, no auth beyond loopback in v1; an optional shared token file is a later addition.
-- Transport: TCP, newline-delimited JSON, one request per line, one response per line, `{"id", "op", "args"}` → `{"id", "ok", "result" | "error"}`. No async runtime; a Bevy system polls a non-blocking listener each frame, reads complete lines, dispatches on the main thread with full access to the world, and writes responses. Long operations (tick 1000 days) run in bounded slices across frames and report progress.
-- Ops mirror MCP tools one to one, so the bridge is a pure translator.
+- Transport: TCP, newline-delimited JSON, one request per line, one response per line, `{"id", "op", "args"}` → `{"id", "ok", "result" | "error"}`. No async runtime; a Bevy system polls a non-blocking listener each frame, reads complete lines, dispatches on the main thread with full access to the world, and writes responses. Long operations (an ecosystem tick of 1000 days, M10) are to run in bounded slices across frames and report progress; no op needs it yet, so it is not built.
+- Ops mirror MCP tools one to one, so the bridge is a pure translator. The ops, replies and errors are the Tier 2 contract (§4.9).
 
 ### 9.2 Bridge
 - `omnis-mcp` speaks MCP JSON-RPC 2.0 over stdio, one message per line, stdout only for protocol, logs to stderr, exits on stdin EOF.
@@ -511,13 +511,17 @@ sequenceDiagram
 - Modes: `omnis-mcp` (connect to the running game via `.omnis/dev.addr`) and `omnis-mcp --headless [pack...]` (run the simulation in-process through `omnis-cli`'s library, no window, for fast rule testing and CI-style checks).
 
 ### 9.3 Tool set (v1)
-| Tool | Purpose |
+
+Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.status` is `game_status`). Built through M8 step 8: 24.
+
+| Op | Purpose |
 |---|---|
-| `game.status` | mode, party clock and calendar, position, packs, fingerprint, the service the party is inside, the map's `once` groups cleared (M7b) |
+| `game.status` | protocol version, mode, party clock and calendar, position, packs, fingerprint, the service the party is inside, the map's `once` groups cleared (M7b), whether a save is allowed (M8) |
 | `time.clocks`, `time.reconcile` | list holder clocks, contacts and the party's time; force a reconciliation of the party with a region (dev: sends `DevCommand::Reconcile`, so a replay holds it) |
-| `world.query` | read any path (`party.members[0].hp`) |
-| `party.get`, `party.create` | inspect and build a party from data; the view carries bank, hit dice and when a long rest may begin (M7a), spell picks owed and whether a trainer would grant a level (M7b), each member's `tactics`: the switch, `auto`, the declared reactions, and the actions with the triggers each may answer (M7c) |
+| `world.query` | read any path (`party.members[0].hp`); a debugging aid outside the API (§4.9) |
+| `party.get`, `party.create` | inspect and build a party from data; the view carries bank, hit dice and when a long rest may begin (M7a), spell picks owed and whether a trainer would grant a level (M7b), each member's `tactics`: the switch, `auto`, the declared reactions, and the actions with the triggers each may answer (M7c), the sheet's saves, skills and effects (M8) |
 | `service.get` | the service the party is inside (M7): every offer as the command that asks for it, its price, and the refusal the rules would give; looking changes nothing |
+| `rest.get`, `cast.get` | the camp: hit dice per member and why a rest would be refused; the spells each member may cast outside a fight, with cost and refusal (M8 step 8) |
 | `sim.command` | apply one `Command`, return events with roll traces; script words include `end`, `feature-F[-W\|-hide]`, `cast-N-T-bonus`, `react-M-on\|off` (M7c) |
 | `combat.get` | the encounter or fight (M4): stacks with hit points, front or back, and reach for the acting member; the order, the round, whose turn; M7c: the turn budget, reactions left, who is hidden, each member's reactions switch and features with uses and refusal, casters' points per individual and raised shields, spell rows' `blocked` and `bonus` |
 | `sim.script` | apply a list of commands |
@@ -525,19 +529,17 @@ sequenceDiagram
 | `viewport.get`, `map.text` | the viewport model; a map rendered as text with the party marker |
 | `automap.get` | known tiles with layers and seen-at |
 | `rules.list`, `rules.get`, `rules.set` | inspect and hot-swap expression slots |
-| `pack.validate`, `pack.reload` | run the validator; reload packs into the running game |
-| `eco.region`, `eco.tick` | region state; advance N days |
-| `story.state`, `story.check` | quest state; run the static check |
+| `pack.reload` | reload packs into the running game |
 | `save.write`, `save.read` | snapshot to and from a path |
 | `screenshot` | PNG of the window as image content (game mode only) |
 | `screen.text` | the open `bevy_ui` panels as text, a line per control, label or text with its rectangle (game mode only; M7) |
-| `editor.*` | later: open map, paint, place, lock |
+| later | `pack.validate`, `eco.region`, `eco.tick` (M10), `story.state`, `story.check` (M11), `editor.*` (the editor) |
 
 Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; `omnis-mcp/tests/schema_proof.rs`). The proof runs both ways: every instance must validate and read back, and every `oneOf` branch and `enum` value the schema offers must be used by some instance, so a schema arm with no Rust variant behind it fails too. Its validator reads only the keywords the schema uses and refuses any other.
 
 ## 10. CLI (`omnis-cli`)
 
-Headless, Bevy-free, fast to compile. Subcommands: `validate <packs>`, `schema dump`, `gen region --seed --params`, `map text <map>`, `play --script <file>` (runs commands, prints events), `replay <save> <commands>` (asserts fingerprint), `bench eco --regions N --days D`. CI uses it for golden and determinism tests. It exposes `omnis_cli::Headless` for the MCP bridge.
+Headless, Bevy-free, fast to compile. Subcommands as built: `validate <packs>`, `schema dump` (an example of every data file, a save, a replay, every op and every reply), `tileset bake`, `map text <map>`, `play --script <file>` (runs commands, prints events), `replay <file>` (asserts the fingerprint). Later: `gen region` (M9), `bench eco` (M10). CI uses it for golden and determinism tests. It exposes `omnis_cli::Headless`, the in-process Tier 2 host (§4.9), for the MCP bridge.
 
 ## 11. Determinism and testing
 
@@ -651,3 +653,4 @@ omnis/
 | A14 | One world seed; named PCG32 streams derived by FNV-1a and splitmix64; stateful streams persisted in the save, generation streams stateless | Single global RNG; per-entity RNG objects | Approved 2026-09-12. Isolation between subsystems, exact continuation after load, pure regeneration, traceable draws. |
 | A15 | Tactics are data in the `World`, walked by the simulation: a closed trigger list, criteria trees of integer predicates, runbooks per combatant, reactions and auto turns resolved inside the command that causes them (§4.7) | Interrupt prompts to the front end; tactics evaluated in the app with the log recording only the chosen commands; player-written Rhai | PRD D21–D23. Reactions happen in the middle of another combatant's command, so they must be resolved in the simulation; keeping auto turns there too means one chooser serves members, hirelings and monsters, replays need nothing but the command log, and every front end gets tactics for free. No script from players (PRD R8). |
 | A16 | The signal bus is its own crate, `omnis-bus`, holding the mechanism only; the topics, subscribers and signals are `omnis-sim`'s vocabulary (§4.8) | A bus module inside `omnis-sim` (as first built in M8); a crate that also holds the vocabulary (it would depend on `omnis-core` and change with every new system); an external crate (survey 2026-10-05, §4.8) | The owner's direction to expand the bus (2026-10-06). A crate boundary keeps the mechanism free of game types, tested alone, and unchanged when a system adds a topic; its expansions (a topic hierarchy, saved deferred signals, pack-declared subscribers) are designed in §4.8 and built with their first consumers. |
+| A17 | The simulation's API is a contract in two named tiers: the Rust library (`omnis_sim::api`, state read only through views) and the JSON op protocol (`ops`), with one protocol version, tagged replies, and a changelog in `docs/api.md` checked by a test (§4.9) | `World`'s fields as the API (every layout change breaks every client); the op protocol as the only tier (the app would serialize every frame); generated API docs with no test that they cover the code | Owner, 2026-10-07: other tracks build against the engine while it is still under development, so what they may rely on, and how a change reaches them, has to be explicit. Views keep the world's layout free to change; a version and a changelog tell a client when it must change too. |

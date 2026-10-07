@@ -99,10 +99,12 @@ about the linker; check a toolchain change with a fresh target directory.
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes twenty tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes twenty-two tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
 `pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
-`service_get`, `rules_list`, `rules_get` and `rules_set`.
+`service_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and `time_reconcile`. Each
+tool is an op of the simulation's JSON protocol, the engine's API for clients other than the
+Rust library (`ARCHITECTURE.md` §4.9).
 
 ```sh
 cargo build -p omnis-mcp

@@ -79,6 +79,11 @@ expansions are designed in ARCHITECTURE §4.8 and built with their first consume
 (the first topic below a region), saved deferred signals released at a contact (M10's catch-up or event
 rumors), and pack-declared subscribers (the Rhai `Script` profile, mods). Bevy's own events stay the
 app's side.
+**A region's catch-up waits for M10.** Reconciliation computes `delta_b` and moves the region's
+clock (ARCHITECTURE §4.4 step 4), but nothing yet runs on it: the ecosystem's catch-up, respawns and
+project progress arrive with `omnis-eco` (M10), most likely as saved deferred signals released at
+the contact (§4.8). Until then a region left for years looks as it did, apart from its clock, its
+date and its rumors.
 **Veto and ordering phases (owner, 2026-10-06: not designed now)**: a subscriber that cancels or
 rewrites a signal before later subscribers see it (a counterspell, a ward that turns a blow), and
 explicit before/after phases beyond the subscription order. Either changes delivery from "everyone

@@ -11,8 +11,8 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 531 passed, 12 ignored (2026-10-04, after M7c step 8a). The gate's log says
-it on one line: `tests passed 531 failed 0 ignored 12`.
+Test count at the gate: 557 passed, 12 ignored (2026-10-06, after M8 step 7b). The gate's log says
+it on one line: `tests passed 557 failed 0 ignored 12`.
 
 Linker (2026-10-02): `cc` finds clang through `xcodebuild -find clang`, which reads
 `/Library/Preferences/com.apple.dt.Xcode.plist`. The session's sandbox cannot read that file, so
@@ -46,18 +46,19 @@ repository root (the root has no rules file).
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
-- `SAVE_SCHEMA 6`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
-  (gold ×100, a saved fight's loot too) and `v5_to_v6` (M7c: auto-cast spells become declared sets; a
-  saved fight gets its budget and reactions); fixtures `tests/saves/v1..v5.ron`, each captured by an
+- `SAVE_SCHEMA 7`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
+  (gold ×100, a saved fight's loot too), `v5_to_v6` (M7c: auto-cast spells become declared sets; a
+  saved fight gets its budget and reactions) and `v6_to_v7` (M8: the past counted in full as shared
+  time and date; the bus's default subscriptions, and `Battle → Reactions` for a fight saved mid-way); fixtures `tests/saves/v1..v5.ron` (no schema-6 fixture was captured before M8 moved the schema; step 8c captures one from the step 2 build), each captured by an
   ignored `capture_schema_N_fixture` before the schema moved on. Content ids are interned in
   file order, so a new map or spell file renumbers those after it: the fixtures (loaded with
   `force`) name the dungeon by their own id, `FIXTURE_DUNGEON` (M7b).
-- MCP: 20 tools (asserted in `omnis-mcp/src/tools.rs` and `tests/bridge.rs`; the op list in
-  `omnis-cli`'s schema dump, 20, in `omnis-cli/tests/headless.rs`); the hand-written
+- MCP: 22 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
+  `omnis-cli`'s schema dump, 22, in `omnis-cli/tests/headless.rs`); the hand-written
   `Command` schema has `oneOf` 11, combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
-  `rest_schema` 2, `dev_schema` 12.
-- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 93 instances from the `next` chain of
-  exhaustive matches (M7c), 141 offered `oneOf` branches and `enum` values, all used; the drift test's
+  `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 94 instances from the `next` chain of
+  exhaustive matches (M8: `Reconcile`), 142 offered `oneOf` branches and `enum` values, all used; the drift test's
   padded branch is `/oneOf/11`. A new `Command`
   variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the

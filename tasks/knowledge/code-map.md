@@ -50,18 +50,29 @@ M7c: `feature.rs` (`combat_features`, `uses_left`, `spend_use`, `recover_uses`;
 old saves only).
 
 ## omnis-sim
-- Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Dev}`,
+- Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Service, Rest, Dev}`,
   words and `parse_script`, `Rejection` with `fmt_play`/`fmt_items`/`fmt_magic`), `apply.rs`
   (`match (mode, command)`; `advance()` is the only clock writer; effects pruned there),
   `event.rs` (ids and roll traces only; `ItemPlace`, `LayerCheck`, `SensedTile`).
+- Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
+  `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
+  couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,
+  `time_view`, `party_date`; `time.clocks`); `World.{contacts, party_time, bus}`; `migrate::v6_to_v7`.
+  Data: `omnis-data/src/region.rs` (`RegionDef`, `Region`, `RegionKind`, the load checks),
+  `MapData.region`, `Data::calendar()` → `omnis_core::{Calendar, Date}`, `text::fill` (`{ago}`);
+  `rules/time.ron` (`time.settled`, `time.wild`, the calendar values). App: `panels::clock_text`
+  (the HUD clock line), `text::ago_text` (a rumor's age).
+- The client protocol (ARCHITECTURE §4.9): `ops.rs` (`Op`, `Reply`, `OpError`, `Status`, `dispatch`,
+  `Op::is_host`, `MAX_SCRIPT`); `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
+  `omnis-app/src/socket.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
   `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and
   `combat/reaction.rs::Fight`.
 - World: `world.rs` (`World`, `Settings { save_rule, permadeath, devtools }`, `Automap`,
   `Known`, `layer::{TERRAIN 1, STRUCTURE 2, VISITED 4, REMOTE 8}`, layer-aware `record`),
   `party.rs` (`heal`, `bury`), `visibility.rs` (`depth`, `cone`, `ray`), `query.rs`, `view.rs`,
-  `migrate.rs` (one function per schema step, `v4_to_v5` the copper purse), `replay.rs`, `ops.rs`
-  (`PartyView`, `MemberView`, `ItemView`, `party_view`).
+  `migrate.rs` (one function per schema step, `v4_to_v5` the copper purse), `replay.rs`,
+  `party_view.rs` (`PartyView`, `MemberView`, `ItemView`, `party_view`).
 - Money (schema 5): `Party.gold` and `Party.bank` count copper; `omnis_core::money::{from_gp,
   gp_floor, Coins}`; pack data stays in gold (backgrounds, monster drops) and converts where it is
   read; every rule price is copper (`bribe.cost`, `services.ron`). The app shows `gp_floor` in
