@@ -6,7 +6,7 @@ use crate::combat::{
     points_of, weapon_for,
 };
 use crate::command::Rejection;
-use crate::encounter::{EncounterSource, Stack};
+use crate::encounter::{EncounterSource, Stack, bribe_cost};
 use crate::event::{ActorRef, Surprise};
 use crate::party;
 use crate::world::{Mode, ModeKind, World};
@@ -46,6 +46,9 @@ pub struct StackView {
     /// The individuals whose Shield is up until the stack's next turn.
     #[serde(default)]
     pub shielded: Vec<u8>,
+    /// Why the member whose turn it is cannot attack it, when a member acts and cannot.
+    #[serde(default)]
+    pub refusal: Option<Rejection>,
 }
 
 /// One spell the acting member knows, as a picker shows it.
@@ -87,6 +90,21 @@ pub struct FeatureView {
     /// Why it cannot be used now, if it cannot (`NotYourTurn` off the member's turn; Cunning
     /// Action is judged by its Hide).
     pub blocked: Option<Rejection>,
+    /// The ways the `Feature` command may use it: `Plain` alone, or Cunning Action's `Exchange`
+    /// (which names a member's slot) and `Hide`.
+    #[serde(default)]
+    pub choices: Vec<ChoiceKind>,
+}
+
+/// The shape of a [`FeatureChoice`], without the slot an exchange names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChoiceKind {
+    /// `FeatureChoice::None`: the feature does its one thing.
+    Plain,
+    /// `FeatureChoice::Exchange { with }`.
+    Exchange,
+    /// `FeatureChoice::Hide`.
+    Hide,
 }
 
 /// One member's side of the fight: the reactions switch and the features.
@@ -143,6 +161,9 @@ pub struct CombatView {
     /// Each member's reactions switch and features; empty before the fight.
     #[serde(default)]
     pub members: Vec<FighterView>,
+    /// Copper a bribe would cost, before the fight when the monsters take one.
+    #[serde(default)]
+    pub bribe: Option<u32>,
 }
 
 /// The view, or `None` while exploring.
@@ -169,10 +190,11 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             if front {
                 in_front += 1;
             }
-            let reachable = match (fight, acting) {
-                (Some(c), Some(own)) => weapon_for(c, world, data, own, index).is_ok(),
-                _ => false,
+            let refusal = match (fight, acting) {
+                (Some(c), Some(own)) => weapon_for(c, world, data, own, index).err(),
+                _ => None,
             };
+            let reachable = fight.is_some() && acting.is_some() && refusal.is_none();
             let shielded = fight.map_or_else(Vec::new, |c| {
                 c.monster_shields
                     .iter()
@@ -182,6 +204,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             });
             StackView {
                 shielded,
+                refusal,
                 ..stack_view(data, stack, index, front, reachable)
             }
         })
@@ -218,6 +241,10 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
                 .map(|(own, member)| fighter_view(c, world, data, own, member, acting == Some(own)))
                 .collect()
         }),
+        bribe: fight
+            .is_none()
+            .then(|| bribe_cost(world, data).ok())
+            .flatten(),
     })
 }
 
@@ -235,9 +262,12 @@ fn fighter_view(
         .enumerate()
         .filter_map(|(row, feature)| {
             let index = u8::try_from(row).ok()?;
-            let choice = match feature.effect {
-                Some(FeatureEffect::Cunning) => FeatureChoice::Hide,
-                _ => FeatureChoice::None,
+            let (choice, choices) = match feature.effect {
+                Some(FeatureEffect::Cunning) => (
+                    FeatureChoice::Hide,
+                    alloc::vec![ChoiceKind::Exchange, ChoiceKind::Hide],
+                ),
+                _ => (FeatureChoice::None, alloc::vec![ChoiceKind::Plain]),
             };
             let blocked = if acting {
                 refusal(world, data, state, own, index, choice)
@@ -250,6 +280,7 @@ fn fighter_view(
                 cost: feature.cost,
                 uses_left: uses_left(member, feature),
                 blocked,
+                choices,
             })
         })
         .collect();
@@ -314,5 +345,6 @@ fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: boo
         reachable,
         points_left: points_of(data, stack),
         shielded: Vec::new(),
+        refusal: None,
     }
 }

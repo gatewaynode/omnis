@@ -14,9 +14,9 @@ use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::service_view::{ServiceView, service_view};
-use crate::time_view::{DateView, TimeView, party_date, time_view};
+use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
-use crate::world::{Known, Mode, ModeKind, World};
+use crate::world::{Known, ModeKind, Settings, World};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -228,6 +228,15 @@ pub struct Status {
     /// The groups placed `once` on the party's map that are cleared, and how many there are.
     #[serde(default)]
     pub groups_cleared: (u16, u16),
+    /// Whether the save rule allows a save here (M8 step 8).
+    #[serde(default)]
+    pub may_save: bool,
+    /// The world seed (M8 step 8).
+    #[serde(default)]
+    pub seed: u64,
+    /// The difficulty options the game started with (M8 step 8).
+    #[serde(default)]
+    pub settings: Settings,
 }
 
 /// One known tile.
@@ -550,25 +559,26 @@ pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
 pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
     let clock = world.party_clock();
     let day_length = i64::from(data.calendar().minutes_per_day.max(1));
+    let here = query::here(world, data);
     Ok(Status {
-        mode: world.mode.kind(),
-        turn: world.turn,
-        position: world.position,
-        map: map_name(world.position.map, data),
+        mode: here.mode,
+        turn: here.turn,
+        position: here.position,
+        map: here.map,
         clock: ClockView {
             elapsed: clock.elapsed,
             day: clock.elapsed.div_euclid(day_length),
             minute: clock.elapsed.rem_euclid(day_length),
             era: clock.era,
         },
-        date: party_date(world, data),
+        date: here.date,
         packs: world.packs.clone(),
         fingerprint: format!("{:016x}", world.fingerprint().map_err(OpError::failed)?),
-        service: match world.mode {
-            Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
-            _ => None,
-        },
+        service: here.service,
         groups_cleared: crate::encounter::groups_cleared(world, data, world.position.map),
+        may_save: here.may_save,
+        seed: here.seed,
+        settings: here.settings,
     })
 }
 
@@ -624,12 +634,7 @@ fn resolve_map(world: &World, data: &Data, name: Option<&str>) -> Result<MapId, 
     }
 }
 
-fn map_name(id: MapId, data: &Data) -> String {
-    data.registry
-        .maps
-        .name(id)
-        .map_or_else(|| format!("#{}", id.0), ToString::to_string)
-}
+use query::map_name;
 
 fn unknown(id: MapId, data: &Data) -> OpError {
     OpError::UnknownMap {

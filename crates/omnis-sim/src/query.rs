@@ -1,7 +1,9 @@
 //! Read-only views for clients (ARCHITECTURE.md §4.3). Queries never mutate and never roll.
 
+use crate::time_view::{DateView, party_date};
 use crate::visibility;
-use crate::world::{Known, World};
+use crate::world::{Known, Mode, ModeKind, Settings, World};
+use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -61,6 +63,79 @@ pub struct ViewportModel {
     pub visibility_depth: u8,
     /// Visible tiles, nearest first.
     pub tiles: Vec<ViewTile>,
+}
+
+/// Where the party is and what it is doing: the cheap read a client makes every frame (M8 step 8).
+/// `game.status` adds what costs more to work out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Here {
+    /// What the party is doing.
+    pub mode: ModeKind,
+    /// Commands applied.
+    pub turn: u64,
+    /// Where the party is.
+    pub position: Position,
+    /// The id of the party's map, or `#n` for a map no pack names.
+    pub map: String,
+    /// The id of the service the party is inside, if it is inside one.
+    pub service: Option<String>,
+    /// The party's age in minutes; it never reverses.
+    pub age: i64,
+    /// The date the party believes, on the pack's calendar.
+    pub date: DateView,
+    /// Whether the save rule allows a save here.
+    pub may_save: bool,
+    /// The world seed, shown so a world can be shared.
+    pub seed: u64,
+    /// The difficulty options the game started with.
+    pub settings: Settings,
+}
+
+/// Where the party is and what it is doing.
+#[must_use]
+pub fn here(world: &World, data: &Data) -> Here {
+    Here {
+        mode: world.mode.kind(),
+        turn: world.turn,
+        position: world.position,
+        map: map_name(world.position.map, data),
+        service: match world.mode {
+            Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
+            _ => None,
+        },
+        age: world.party_clock().elapsed,
+        date: party_date(world, data),
+        may_save: world.may_save(),
+        seed: world.seed,
+        settings: world.settings,
+    }
+}
+
+/// A map's id, or `#n` for one no pack names.
+#[must_use]
+pub fn map_name(id: MapId, data: &Data) -> String {
+    data.registry
+        .maps
+        .name(id)
+        .map_or_else(|| alloc::format!("#{}", id.0), ToOwned::to_owned)
+}
+
+/// Every flag the packs declare with its value (0 when never set), in the packs' order.
+#[must_use]
+pub fn flags(world: &World, data: &Data) -> Vec<(String, i64)> {
+    data.registry
+        .flags
+        .names()
+        .map(|name| {
+            let value = data
+                .registry
+                .flags
+                .get(name)
+                .and_then(|id| world.flags.get(&id).copied())
+                .unwrap_or(0);
+            (name.to_owned(), value)
+        })
+        .collect()
 }
 
 /// The viewport model, or `None` when the party's map is not loaded.

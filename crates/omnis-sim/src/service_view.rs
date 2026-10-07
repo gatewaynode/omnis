@@ -50,6 +50,9 @@ pub struct OfferView {
     pub pays: Option<u32>,
     /// Why the rules would refuse it, if they would.
     pub refusal: Option<Rejection>,
+    /// The id of the item or spell the row names, when it names one (M8 step 8).
+    #[serde(default)]
+    pub subject: Option<String>,
 }
 
 /// The service the party is inside, or `None` outside one.
@@ -70,6 +73,7 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
         price: None,
         pays: None,
         refusal: None,
+        subject: None,
     });
     Some(ServiceView {
         service: def.id.clone(),
@@ -208,5 +212,34 @@ fn offer(
         price,
         pays,
         refusal,
+        subject: subject(world, data, def, command),
+    }
+}
+
+/// The id of the item or spell an offer's row names.
+fn subject(
+    world: &World,
+    data: &Data,
+    def: &ServiceDef,
+    command: ServiceCommand,
+) -> Option<String> {
+    let row = |list: &[String], row: u8| list.get(usize::from(row)).cloned();
+    match command {
+        ServiceCommand::Buy { item, .. } => row(&def.items, item),
+        ServiceCommand::Learn { spell, .. } => row(&def.spells, spell),
+        ServiceCommand::Sell { item, .. } => world
+            .party
+            .inventory
+            .get(usize::from(item))
+            .and_then(|(id, _)| data.registry.items.name(*id))
+            .map(String::from),
+        ServiceCommand::Choose { member, spell } => world
+            .party
+            .members
+            .get(usize::from(member))
+            .and_then(|m| data.classes.get(&m.class))
+            .and_then(|c| c.casting.as_ref())
+            .and_then(|c| row(&c.list, spell)),
+        _ => None,
     }
 }

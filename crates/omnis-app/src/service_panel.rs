@@ -353,6 +353,7 @@ mod tests {
             price,
             pays: None,
             refusal,
+            subject: None,
         }
     }
 

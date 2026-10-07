@@ -10,9 +10,10 @@ use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId};
-use omnis_data::{Data, EquipSlot};
+use omnis_data::{Ability, Alignment, Data, EquipSlot, Skill};
 use omnis_rules::{
-    ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Trigger, condition_id,
+    ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Expiry, Trigger,
+    casting_ability, condition_id, modifier, proficiency_bonus, skill_bonus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -64,9 +65,9 @@ pub struct MemberView {
     /// What is worn and wielded, by slot.
     #[serde(default)]
     pub equipped: Vec<(EquipSlot, String)>,
-    /// Spell ids of the effects on the member.
+    /// The effects on the member.
     #[serde(default)]
-    pub effects: Vec<String>,
+    pub effects: Vec<EffectView>,
     /// Hit dice in all: one per level.
     #[serde(default)]
     pub hit_dice: u8,
@@ -82,6 +83,43 @@ pub struct MemberView {
     /// The declared reactions and what could be declared.
     #[serde(default)]
     pub tactics: TacticsView,
+    /// Background id.
+    #[serde(default)]
+    pub background: String,
+    /// Alignment.
+    pub alignment: Alignment,
+    /// Age in years: the age at creation plus the years the party has lived since.
+    #[serde(default)]
+    pub age_years: i64,
+    /// Proficiency bonus.
+    #[serde(default)]
+    pub proficiency: i64,
+    /// The experience the next level needs, when there is one.
+    #[serde(default)]
+    pub next_xp: Option<i64>,
+    /// Faces of the class's hit die.
+    #[serde(default)]
+    pub hit_die: u8,
+    /// The class's saving throws with their bonus.
+    #[serde(default)]
+    pub saves: Vec<(Ability, i64)>,
+    /// The proficient skills with their bonus, in SRD order.
+    #[serde(default)]
+    pub skills: Vec<(Skill, i64)>,
+    /// The ability the member casts with, when the class casts.
+    #[serde(default)]
+    pub casting: Option<Ability>,
+}
+
+/// One effect in force.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectView {
+    /// The spell that made it.
+    pub spell: String,
+    /// Who cast it.
+    pub caster: CharacterId,
+    /// Minutes on the party clock before it ends; `None` when it ends at the bearer's next turn.
+    pub minutes_left: Option<i64>,
 }
 
 /// A member's tactics as a client sees them (ARCHITECTURE.md §4.7).
@@ -164,9 +202,9 @@ pub struct PartyView {
     /// The stores, in the order `Take` indexes them.
     #[serde(default)]
     pub inventory: Vec<ItemView>,
-    /// Spell ids of the effects on the whole party.
+    /// The effects on the whole party.
     #[serde(default)]
-    pub effects: Vec<String>,
+    pub effects: Vec<EffectView>,
     /// Copper in the bank.
     #[serde(default)]
     pub bank: u32,
@@ -182,12 +220,13 @@ pub struct PartyView {
 #[must_use]
 pub fn party_view(world: &World, data: &Data) -> PartyView {
     let front_row = party::front_row(data);
+    let now = world.party_clock().elapsed;
     let members = world
         .party
         .members
         .iter()
         .enumerate()
-        .map(|(index, member)| member_view(data, index, member, index < front_row))
+        .map(|(index, member)| member_view(data, now, index, member, index < front_row))
         .collect();
     PartyView {
         members,
@@ -197,7 +236,7 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
         gems: world.party.gems,
         food: world.party.food,
         inventory: item_views(data, &world.party.inventory, None),
-        effects: effect_names(data, &world.party.effects),
+        effects: effect_views(data, &world.party.effects, now),
         bank: world.party.bank,
         last_long_rest: world.party.last_long_rest,
         long_rest_wait: match rest::too_soon(world, data, rest::long_rest_minutes(data)) {
@@ -212,8 +251,13 @@ fn name_of(name: Option<&str>) -> String {
     name.unwrap_or("?").to_owned()
 }
 
-fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> MemberView {
+fn member_view(data: &Data, now: i64, index: usize, member: &Character, front: bool) -> MemberView {
     let dead = condition_id(data, "dead");
+    let class = data.classes.get(&member.class);
+    let proficiency = proficiency_bonus(member.level, data).unwrap_or(2);
+    let calendar = data.calendar();
+    let year =
+        i64::from(calendar.minutes_per_day.max(1)) * i64::from(calendar.days_per_year.max(1));
     MemberView {
         index: u8::try_from(index).unwrap_or(u8::MAX),
         id: member.id,
@@ -248,12 +292,33 @@ fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> Me
             .iter()
             .map(|(slot, id)| (*slot, name_of(data.registry.items.name(*id))))
             .collect(),
-        effects: effect_names(data, &member.effects),
+        effects: effect_views(data, &member.effects, now),
         hit_dice: member.level,
         hit_dice_left: member.level.saturating_sub(member.hit_dice_spent),
         spell_picks: member.spell_picks,
         ready: omnis_rules::ready(member, data).unwrap_or(false),
         tactics: tactics_view(data, member),
+        background: name_of(data.registry.backgrounds.name(member.background)),
+        alignment: member.alignment,
+        age_years: i64::from(member.age_years) + (now - member.created_at).max(0) / year,
+        proficiency,
+        next_xp: data
+            .rules
+            .table("xp_thresholds")
+            .and_then(|t| t.get(usize::from(member.level)).copied()),
+        hit_die: class.map_or(8, |c| c.hit_die),
+        saves: class.map_or_else(Vec::new, |c| {
+            c.saving_throws
+                .iter()
+                .map(|a| (*a, modifier(member.scores[a.index()]) + proficiency))
+                .collect()
+        }),
+        skills: Skill::ALL
+            .iter()
+            .filter(|s| member.skills.contains(s))
+            .map(|s| (*s, skill_bonus(member, data, *s).unwrap_or(0)))
+            .collect(),
+        casting: casting_ability(member, data),
     }
 }
 
@@ -331,9 +396,16 @@ fn item_views(data: &Data, list: &[(ItemId, u16)], equipped: Option<&Equipped>) 
         .collect()
 }
 
-fn effect_names(data: &Data, effects: &[ActiveEffect]) -> Vec<String> {
+fn effect_views(data: &Data, effects: &[ActiveEffect], now: i64) -> Vec<EffectView> {
     effects
         .iter()
-        .map(|e| name_of(data.registry.spells.name(e.source)))
+        .map(|e| EffectView {
+            spell: name_of(data.registry.spells.name(e.source)),
+            caster: e.caster,
+            minutes_left: match e.until {
+                Expiry::Minute(m) => Some((m - now).max(0)),
+                Expiry::NextTurn => None,
+            },
+        })
         .collect()
 }

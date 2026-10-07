@@ -15,6 +15,7 @@ extern crate alloc;
 
 pub mod apply;
 pub mod bus;
+pub mod cast_view;
 mod casting;
 mod checks;
 pub mod combat;
@@ -51,6 +52,7 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
+pub use cast_view::{CastView, cast_view};
 pub use combat::{Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, Target};
 pub use command::{Command, Rejection, ScriptError};
 pub use dev::DevCommand;
@@ -65,14 +67,16 @@ pub use items::ItemCommand;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{
-    AnswerView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
 };
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
 pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
-pub use view::{CombatView, FeatureView, FighterView, SpellView, StackView, combat_view};
+pub use view::{
+    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };
