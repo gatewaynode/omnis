@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-07, late in M8 step 8. M7 is closed (`68c4d09`). M8 (subjective time with the signal bus) has
+Written 2026-10-08, M8 built and awaiting acceptance (last rewritten before a compact). M7 is closed (`68c4d09`). M8 (subjective time with the signal bus) has
 steps 0–7, 7b and 8a–8f committed. Only the owner's acceptance remains. Plans:
 - `tasks/plans/m8-time.md` (the milestone);
 - `tasks/plans/m8-bus-crate.md` (7b);
@@ -55,9 +55,8 @@ Rewrite this file every time it is used. The durable knowledge lives in `tasks/k
     `{"Rest":{"Short":{"dice":[]}}}`.
   - Parts 2 and 5 are MCP; restart the bridge after building.
 - **On acceptance:** close M8 (the TODO heading and the plans), then plan M9.
-- **Proposals to put to the owner**, neither asked for and neither built:
-  - a dev command to pass time;
-  - `data.*` ops so JSON clients can read pack definitions and labels.
+- **Owner, 2026-10-08:** the dev command to pass time and the `data.*` ops for pack definitions and labels
+  are TODO items under "M9–M12". Neither is built; M8 acceptance does not wait for them.
 
 ## Pins (after 8f)
 - Gate `tests passed 572 failed 0 ignored 13`. The 13th ignored test is `capture_schema_6_fixture`.
