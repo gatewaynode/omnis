@@ -3815,6 +3815,7 @@ name = "omnis-app"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "omnis-app",
  "omnis-sim",
  "serde_json",
 ]

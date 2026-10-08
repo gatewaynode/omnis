@@ -40,7 +40,11 @@ fn meadow(save: &str) -> App {
     }
     place(&mut app, "test:map:meadow", 16, 16, Facing::North);
     {
-        let world = &mut app.world_mut().resource_mut::<SimWorld>().0;
+        let world = app
+            .world_mut()
+            .resource_mut::<SimWorld>()
+            .into_inner()
+            .fixture_mut();
         world.party.food = 10;
         for member in &mut world.party.members {
             member.hp = 1;
@@ -143,10 +147,14 @@ fn the_long_rest_eats_and_then_waits_a_day() {
 
     app.world_mut()
         .resource_mut::<SimWorld>()
-        .0
+        .fixture_mut()
         .party
         .last_long_rest = None;
-    app.world_mut().resource_mut::<SimWorld>().0.party.food = 1;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .food = 1;
     settle(&mut app);
     assert!(dim(&mut app, CampPanelId::Long));
     assert_eq!(
@@ -162,7 +170,12 @@ fn an_ambush_leaves_the_camp_for_the_fight() {
     open_by_bar(&mut app);
     for _ in 0..200 {
         {
-            let party = &mut app.world_mut().resource_mut::<SimWorld>().0.party;
+            let party = &mut app
+                .world_mut()
+                .resource_mut::<SimWorld>()
+                .into_inner()
+                .fixture_mut()
+                .party;
             party.last_long_rest = None;
             party.food = 10;
         }

@@ -271,7 +271,7 @@ pub fn play_state(app: &App) -> PlayState {
 }
 
 pub fn world(app: &App) -> &World {
-    &app.world().resource::<SimWorld>().0
+    app.world().resource::<SimWorld>().fixture()
 }
 
 /// Put the party on a tile of a map directly, as a test of what follows a step needs.
@@ -283,7 +283,10 @@ pub fn place(app: &mut App, map: &str, x: u16, y: u16, facing: Facing) {
             .get(map)
             .unwrap_or_else(|| panic!("{map} is not a map"))
     };
-    app.world_mut().resource_mut::<SimWorld>().0.position = Position {
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .position = Position {
         map: id,
         x,
         y,

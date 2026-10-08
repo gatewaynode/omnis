@@ -144,7 +144,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     );
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert!(reply["result"]["events"][0]["Moved"].is_object(), "{reply}");
-    let position = app.world().resource::<SimWorld>().0.position;
+    let position = app.world().resource::<SimWorld>().fixture().position;
     assert_eq!((position.x, position.y), (9, 2));
     assert!(
         seen(app)
@@ -216,7 +216,7 @@ fn saves_and_reload(app: &mut App, peer: &mut Peer, dir: &Path) {
         r#"{"id": 10, "op": "save.read", "args": {"path": "saves/a.ron"}}"#,
     );
     assert_eq!(reply["result"]["turn"], json!(1), "{reply}");
-    assert_eq!(app.world().resource::<SimWorld>().0.turn, 1);
+    assert_eq!(app.world().resource::<SimWorld>().fixture().turn, 1);
     assert_eq!(seen(app).replaced, 1, "presentation redraws");
     let reply = peer.send(app, r#"{"id": 11, "op": "pack.reload"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");

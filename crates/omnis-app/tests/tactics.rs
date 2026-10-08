@@ -62,8 +62,14 @@ fn meadow(save: &str) -> App {
         .spells
         .get("base:spell:shield")
         .unwrap();
-    let known =
-        &mut app.world_mut().resource_mut::<SimWorld>().0.party.members[ILVARA].known_spells;
+    let known = &mut app
+        .world_mut()
+        .resource_mut::<SimWorld>()
+        .into_inner()
+        .fixture_mut()
+        .party
+        .members[ILVARA]
+        .known_spells;
     if !known.contains(&shield) {
         known.push(shield);
     }

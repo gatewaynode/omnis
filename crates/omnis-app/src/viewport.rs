@@ -12,7 +12,6 @@ use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, Views, Worl
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use omnis_sim::Event;
-use omnis_sim::query;
 
 /// A viewport sprite; despawned on every redraw.
 #[derive(Component)]
@@ -140,7 +139,7 @@ fn redraw(
     for entity in &old_map {
         commands.entity(entity).despawn();
     }
-    let Some(view) = query::viewport(&world.0, &data.0) else {
+    let Some(view) = world.viewport(&data.0) else {
         return;
     };
     let mut spawn = Spawner {
@@ -168,7 +167,7 @@ fn redraw(
         spawn.spawn::<ViewportSprite>(&ops, layout.core, 2.0);
     }
     let party = views.here.position;
-    let known = query::automap(&world.0, party.map);
+    let known = world.automap(party.map);
     let sidebar = plan::automap_window(party, known, &data.0, layout.minimap(), SIDEBAR_MAP_SCALE);
     spawn.spawn::<AutomapSprite>(&sidebar, (0, 0), 10.0);
     if shown.0 {

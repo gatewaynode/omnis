@@ -16,6 +16,10 @@ path = "src/main.rs"
 default = ["devtools"]
 # Dev socket and Dev commands (ARCHITECTURE.md §9). Release builds use --no-default-features.
 devtools = ["dep:serde_json"]
+# Tests only: `SimWorld::fixture` and `fixture_mut` reach the world itself. Enabled for the
+# integration tests by the dev-dependency on this crate below; never in a build that ships, so
+# app code cannot read the world around the engine's API (ARCHITECTURE.md §4.9).
+test-fixtures = []
 # Local iteration only, never shipped: dynamic linking and hot asset reload.
 dev = ["bevy/dynamic_linking", "bevy/bevy_dev_tools", "bevy/file_watcher"]
 
@@ -27,3 +31,7 @@ omnis-sim = { workspace = true }
 bevy = { workspace = true, features = ["2d", "png", "ui", "bevy_feathers"] }
 # Dev socket framing only (ARCHITECTURE.md §9.1, §13).
 serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The integration tests build their fixtures through `SimWorld::fixture_mut`.
+omnis-app = { path = ".", features = ["test-fixtures"] }

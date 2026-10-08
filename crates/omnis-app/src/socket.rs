@@ -13,8 +13,8 @@ use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, writ
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{ShotTarget, check_reload, client_path, rules_set, save_text, status};
-use omnis_sim::{Op, OpError, Reply, dispatch};
+use omnis_sim::ops::{ShotTarget, client_path, rules_set};
+use omnis_sim::{Op, OpError, Reply};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
@@ -380,26 +380,26 @@ fn handle(
         match op {
             Op::SaveWrite { path } => {
                 let path = client_path(path, &["ron"])?;
-                write_text(Path::new(path), &save_text(&world.0)?).map_err(OpError::failed)?;
+                write_text(Path::new(path), &world.save_text()?).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.into() })
             }
             Op::SaveRead { path, force } => {
                 let path = client_path(path, &["ron"])?;
-                world.0 = load(&data.0, Path::new(path), *force).map_err(OpError::failed)?;
+                world.replace(load(&data.0, Path::new(path), *force).map_err(OpError::failed)?);
                 replaced.write(WorldReplaced);
-                status(&world.0, &data.0).map(Reply::Status)
+                world.status(&data.0).map(Reply::Status)
             }
             Op::PackReload => {
                 let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
                 let fresh = load_packs(&roots).map_err(OpError::failed)?;
-                check_reload(&world.0, &fresh)?;
+                world.check_reload(&fresh)?;
                 data.0 = fresh;
                 replaced.write(WorldReplaced);
                 Ok(Reply::Done {})
             }
             Op::RulesSet { slot, source } => rules_set(&mut data.0, slot, source),
             other => {
-                let reply = dispatch(&mut world.0, &data.0, other)?;
+                let reply = world.dispatch(&data.0, other)?;
                 // Presentation follows the socket's commands the way it follows the keyboard.
                 if let Reply::Events { events: produced }
                 | Reply::Script {

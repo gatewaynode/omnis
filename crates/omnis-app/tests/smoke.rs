@@ -35,7 +35,7 @@ fn boots_steps_and_saves_without_a_window() {
         *app.world().resource::<State<AppState>>().get(),
         AppState::Playing
     );
-    let start = app.world().resource::<SimWorld>().0.position;
+    let start = app.world().resource::<SimWorld>().fixture().position;
     assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
 
     // A command message moves the party and publishes events.
@@ -43,7 +43,7 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<Messages<PlayerCommand>>()
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
-    let after = app.world().resource::<SimWorld>().0.position;
+    let after = app.world().resource::<SimWorld>().fixture().position;
     assert_eq!((after.x, after.y), (9, 2));
     let events = app.world().resource::<Messages<SimEvent>>();
     let mut cursor = events.get_cursor();
@@ -60,7 +60,7 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .clear();
     assert_eq!(
-        app.world().resource::<SimWorld>().0.position.facing,
+        app.world().resource::<SimWorld>().fixture().position.facing,
         Facing::South
     );
 
@@ -69,13 +69,22 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);
     app.update();
-    let saved_fingerprint = app.world().resource::<SimWorld>().0.fingerprint().unwrap();
+    let saved_fingerprint = app
+        .world()
+        .resource::<SimWorld>()
+        .fixture()
+        .fingerprint()
+        .unwrap();
     app.world_mut()
         .resource_mut::<Messages<PlayerCommand>>()
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
     assert_ne!(
-        app.world().resource::<SimWorld>().0.fingerprint().unwrap(),
+        app.world()
+            .resource::<SimWorld>()
+            .fixture()
+            .fingerprint()
+            .unwrap(),
         saved_fingerprint
     );
     app.world_mut()
@@ -83,7 +92,11 @@ fn boots_steps_and_saves_without_a_window() {
         .write(ShellCommand::Load);
     app.update();
     assert_eq!(
-        app.world().resource::<SimWorld>().0.fingerprint().unwrap(),
+        app.world()
+            .resource::<SimWorld>()
+            .fixture()
+            .fingerprint()
+            .unwrap(),
         saved_fingerprint
     );
     let notice = app.world().resource::<omnis_app::sim::Notice>();
@@ -207,13 +220,13 @@ fn the_menus_build_a_party_without_a_window() {
         AppState::Playing
     );
     assert_eq!(play_state(&app), PlayState::CreateParty);
-    let world = &app.world().resource::<SimWorld>().0;
+    let world = app.world().resource::<SimWorld>().fixture();
     assert_eq!(world.seed, 42);
     assert_eq!(world.settings.save_rule, omnis_sim::SaveRule::Relief);
     assert!(world.party.members.is_empty());
 
     common::add_fighter_by_command(&mut app);
-    let members = &app.world().resource::<SimWorld>().0.party.members;
+    let members = &app.world().resource::<SimWorld>().fixture().party.members;
     assert_eq!(members.len(), 1, "the draft became a member");
     assert_eq!(members[0].name, "Brenna");
     assert_eq!(members[0].hp_max, 12);

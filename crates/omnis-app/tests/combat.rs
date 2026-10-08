@@ -148,7 +148,11 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
             view.own.expect("a member acts"),
         )
     };
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[own]
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[own]
         .equipment
         .push((potion, 1));
     app.update();
@@ -217,7 +221,12 @@ fn second_wind_is_used_from_the_use_picker_by_mouse_and_spends_the_bonus_action(
     }
     let (own, budget) = turn(&app);
     assert_eq!((budget.actions, budget.bonus_actions), (1, 1));
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[own].hp = 1;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[own]
+        .hp = 1;
     app.update();
     app.update();
     click(&mut app, WidgetId::Action(2), Part::Body);

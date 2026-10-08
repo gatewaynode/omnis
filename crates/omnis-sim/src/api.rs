@@ -44,7 +44,7 @@ pub use crate::party::PartyCommand;
 pub use crate::rest::RestCommand;
 pub use crate::service::ServiceCommand;
 pub use crate::tactics::TacticsCommand;
-pub use omnis_core::{Direction, Facing, Position, Rotation};
+pub use omnis_core::{Direction, Facing, MapId, Position, Rotation};
 pub use omnis_rules::Draft;
 
 // The views.

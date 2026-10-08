@@ -9,10 +9,14 @@ use omnis_sim::api::{
     CastView, CombatView, Here, ModeKind, PartyView, RestView, ServiceView, cast_view, combat_view,
     flags, here, party_view, rest_view, service_view,
 };
-use omnis_sim::api::{Direction, site_ahead, step_lands};
+use omnis_sim::api::{
+    Direction, Known, MapId, Op, OpError, Reply, Status, ViewportModel, automap, check_reload,
+    dispatch, save_text, site_ahead, status, step_lands, viewport,
+};
 use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// Top-level app state (ARCHITECTURE.md §8.1).
@@ -111,19 +115,88 @@ pub struct StartIn(pub PlayState);
 #[derive(Resource)]
 pub struct PackData(pub Data);
 
-/// The game state. Only `SimPlugin` systems mutate it.
+/// The game state. Only `SimPlugin` systems mutate it. The world itself stays private to this
+/// module: the app reaches it only through the engine's API (ARCHITECTURE.md §4.9), as the
+/// methods below, and reads it through [`Views`]. Tests reach it as a fixture.
 #[derive(Resource)]
-pub struct SimWorld(pub World);
+pub struct SimWorld(World);
 
 impl SimWorld {
+    /// A running game on `world`.
+    #[must_use]
+    pub fn new(world: World) -> SimWorld {
+        SimWorld(world)
+    }
+
+    /// Apply one command (`api::apply`).
+    pub fn apply(&mut self, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
+        apply(&mut self.0, data, command)
+    }
+
+    /// Answer one op of the JSON protocol (`api::dispatch`).
+    pub fn dispatch(&mut self, data: &Data, op: &Op) -> Result<Reply, OpError> {
+        dispatch(&mut self.0, data, op)
+    }
+
+    /// Every view of the world.
+    #[must_use]
+    pub fn views(&self, data: &Data) -> Views {
+        Views::of(&self.0, data)
+    }
+
+    /// The scene in front of the party (`api::viewport`).
+    #[must_use]
+    pub fn viewport(&self, data: &Data) -> Option<ViewportModel> {
+        viewport(&self.0, data)
+    }
+
+    /// What the party knows of a map (`api::automap`).
+    #[must_use]
+    pub fn automap(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
+        automap(&self.0, map)
+    }
+
     /// What a step in `direction` would meet: whether it lands anywhere, and the service it
-    /// would go into.
+    /// would go into (`api::step_lands`, `api::site_ahead`).
     #[must_use]
     pub fn ahead(&self, data: &Data, direction: Direction) -> Ahead {
         Ahead {
             lands: step_lands(&self.0, data, direction).is_some(),
             site: site_ahead(&self.0, data, direction),
         }
+    }
+
+    /// The save file's text, or why the save rule refuses it (`api::save_text`).
+    pub fn save_text(&self) -> Result<String, OpError> {
+        save_text(&self.0)
+    }
+
+    /// `game.status` (`api::status`).
+    pub fn status(&self, data: &Data) -> Result<Status, OpError> {
+        status(&self.0, data)
+    }
+
+    /// Whether freshly loaded packs can replace the current ones (`api::check_reload`).
+    pub fn check_reload(&self, fresh: &Data) -> Result<(), OpError> {
+        check_reload(&self.0, fresh)
+    }
+
+    /// Put a loaded world in place of this one.
+    pub fn replace(&mut self, world: World) {
+        self.0 = world;
+    }
+
+    /// The world itself, for tests that build or inspect a fixture.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    #[must_use]
+    pub fn fixture(&self) -> &World {
+        &self.0
+    }
+
+    /// The world itself, mutable, for tests that build a fixture.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn fixture_mut(&mut self) -> &mut World {
+        &mut self.0
     }
 }
 
@@ -197,7 +270,7 @@ fn refresh_views(
 /// runs once the game is up finds both.
 pub fn open_world(commands: &mut Commands, world: World, data: &Data) {
     commands.insert_resource(Views::of(&world, data));
-    commands.insert_resource(SimWorld(world));
+    commands.insert_resource(SimWorld::new(world));
 }
 
 /// End the game: the world and its views go together.
@@ -357,7 +430,7 @@ fn apply_commands(
     mut refused: MessageWriter<CommandRefused>,
 ) {
     for PlayerCommand(command) in incoming.read() {
-        match apply(&mut world.0, &data.0, command.clone()) {
+        match world.apply(&data.0, command.clone()) {
             Ok(produced) => {
                 for event in produced {
                     events.write(SimEvent(event));

@@ -58,7 +58,11 @@ fn town(save: &str) -> App {
         draft.name = name.into();
         send(&mut app, Command::Party(PartyCommand::Create(draft)));
     }
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 1_000_000;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 1_000_000;
     settle(&mut app);
     assert_eq!(play_state(&app), PlayState::Explore);
     app
@@ -199,7 +203,12 @@ fn every_offer_sends_what_the_view_promised() {
     assert!(logged(&app, "Bought 1 ") && logged(&app, "Sold 1 "));
     leave(&mut app);
 
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[1].hp -= 3;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[1]
+        .hp -= 3;
     enter(&mut app, "temple");
     let heal = offer(&app, |c| c == ServiceCommand::Heal { member: 1 });
     activate(&mut app, ServicePanelId::Offer(heal));
@@ -250,7 +259,11 @@ fn town_with_a_cleric(save: &str) -> App {
     for draft in [fighter_draft(), cleric] {
         send(&mut app, Command::Party(PartyCommand::Create(draft)));
     }
-    let world = &mut app.world_mut().resource_mut::<SimWorld>().0;
+    let world = app
+        .world_mut()
+        .resource_mut::<SimWorld>()
+        .into_inner()
+        .fixture_mut();
     world.party.gold = 1_000_000;
     world.party.members[1].xp = 300;
     settle(&mut app);
@@ -382,7 +395,11 @@ fn buttons_are_clicked_and_a_refused_one_is_dim() {
         "the panel was built again with the new row"
     );
 
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 1;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 1;
     settle(&mut app);
     let button = control(&mut app, ServicePanelId::Offer(buy));
     assert!(app.world().get::<InteractionDisabled>(button).is_some());
@@ -398,7 +415,11 @@ fn buttons_are_clicked_and_a_refused_one_is_dim() {
 
     // The bank's amount typed by hand: a withdrawal beyond the account is refused in full on
     // the message line, and the next thing done clears it.
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 100_000;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 100_000;
     enter(&mut app, "bank");
     let amount = control(&mut app, ServicePanelId::Amount);
     let input = app
@@ -506,7 +527,12 @@ fn the_tool_bar_opens_over_the_panel_and_comes_back_to_it() {
 #[test]
 fn the_panels_lie_inside_the_map_at_both_window_sizes() {
     let mut app = town("service-layout.ron");
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[0].hp -= 3;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[0]
+        .hp -= 3;
     enter(&mut app, "smith");
     for _ in 0..3 {
         let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 1, .. }));
