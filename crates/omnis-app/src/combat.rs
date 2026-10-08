@@ -11,7 +11,7 @@ use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
 use crate::sim::{
-    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, SimWorld, Views,
+    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, Views,
     WorldReplaced,
 };
 use crate::ui::{EventNames, RollLog, Selected, UiClick, message_line};
@@ -81,13 +81,13 @@ fn follow_mode(
 /// Names and the roll log follow the events; the combat menu's target follows the stacks.
 fn combat_model(
     mut events: MessageReader<SimEvent>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut names: ResMut<EventNames>,
     mut log: ResMut<RollLog>,
     mut screens: ResMut<Screens>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     let batch: Vec<Event> = events.read().map(|e| e.0.clone()).collect();
@@ -97,14 +97,14 @@ fn combat_model(
     {
         log.clear();
     }
-    names.0.refresh(&world.0, &data.0);
+    names.0.refresh(&views, &data.0);
     for text in batch.iter().filter_map(crate::ui::event_text) {
         log.push(text);
     }
     for line in batch_lines(&batch, &names.0) {
         log.push(line.long);
     }
-    if let Some(view) = fight_view(&world.0, &data.0) {
+    if let Some(view) = fight_view(&views, &data.0) {
         screens.combat.sync(&view);
     }
 }
@@ -117,7 +117,7 @@ fn combat_keys(
     mut commands: Commands,
     at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     mut player: MessageWriter<PlayerCommand>,
@@ -131,10 +131,10 @@ fn combat_keys(
     if !matches!(active, Active::Encounter | Active::Combat | Active::Defeat) {
         return;
     }
-    let view = world
+    let view = views
         .as_ref()
         .zip(data.as_ref())
-        .and_then(|(w, d)| fight_view(&w.0, &d.0));
+        .and_then(|(v, d)| fight_view(v, &d.0));
     for hit in hits {
         let target = match active {
             Active::Encounter => Target::Encounter(&mut screens.encounter),

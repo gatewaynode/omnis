@@ -109,6 +109,9 @@ pub struct MemberView {
     /// The ability the member casts with, when the class casts.
     #[serde(default)]
     pub casting: Option<Ability>,
+    /// Each score's modifier, in score order (M8 step 8d).
+    #[serde(default)]
+    pub modifiers: [i64; 6],
 }
 
 /// One effect in force.
@@ -319,6 +322,7 @@ fn member_view(data: &Data, now: i64, index: usize, member: &Character, front: b
             .map(|s| (*s, skill_bonus(member, data, *s).unwrap_or(0)))
             .collect(),
         casting: casting_ability(member, data),
+        modifiers: member.scores.map(modifier),
     }
 }
 

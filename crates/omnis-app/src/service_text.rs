@@ -174,7 +174,7 @@ mod tests {
         );
         events.extend(apply(&mut world, &data, Command::Service(ServiceCommand::Rumor)).unwrap());
         events.extend(apply(&mut world, &data, Command::Service(ServiceCommand::Leave)).unwrap());
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let lines: Vec<String> = batch_lines(&events, &names)
             .into_iter()
             .map(|l| l.long)
@@ -193,7 +193,7 @@ mod tests {
     fn every_town_line_fits_and_other_events_are_not_town_lines() {
         let data = packs();
         let world = World::new(&data, 3, Settings::default()).unwrap();
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let guild = data.registry.services.get("base:service:guild").unwrap();
         let item = data.registry.items.get("base:item:map_making_kit").unwrap();
         let most = u32::MAX;
@@ -262,7 +262,7 @@ mod tests {
             Command::Party(omnis_sim::party::PartyCommand::Create(draft)),
         )
         .unwrap();
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let member = world.party.members[0].id;
         let shatter = data.registry.spells.get("base:spell:shatter").unwrap();
         // The longest a level reads: a 32-byte name, a full caster's gains and the longest
@@ -331,7 +331,7 @@ mod tests {
     fn rest_lines_read_and_fit() {
         let data = packs();
         let world = World::new(&data, 3, Settings::default()).unwrap();
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let meadow = data.registry.maps.get("test:map:meadow").unwrap();
         let lines = [
             (

@@ -25,6 +25,8 @@
 // The world, its start, its save and its replay.
 pub use crate::replay::{Replay, ReplayError};
 pub use crate::world::{LoadError, ModeKind, NewGameError, SAVE_SCHEMA, SaveRule, Settings, World};
+// What the party knows of a map, as `automap` returns it.
+pub use crate::world::{Known, layer};
 pub use omnis_data::{Data, LoadReport, PackFingerprint, load_packs};
 
 // Commands in, events out.

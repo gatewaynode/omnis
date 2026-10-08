@@ -2,9 +2,11 @@
 //! the items, conditions, flags and maps of the packs, and the stacks of a fight; and the log's
 //! line for a `Dev` command. Bevy-free.
 
+use crate::sim::Views;
+use omnis_sim::DevCommand;
+use omnis_sim::api::ModeKind;
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{DevCommand, Mode, World};
 
 /// One member's numbers.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +67,10 @@ pub struct DebugView {
     pub stacks: Vec<StackDebug>,
 }
 
-/// The view of a world.
+/// The view of a world, from its views and the packs.
 #[must_use]
-pub fn debug_view(world: &World, data: &Data) -> DebugView {
-    let members = world
+pub fn debug_view(views: &Views, data: &Data) -> DebugView {
+    let members = views
         .party
         .members
         .iter()
@@ -79,11 +81,7 @@ pub fn debug_view(world: &World, data: &Data) -> DebugView {
             xp: m.xp,
             level: m.level,
             scores: m.scores,
-            conditions: m
-                .conditions
-                .iter()
-                .map(|c| data.registry.conditions.name(*c).unwrap_or("?").to_owned())
-                .collect(),
+            conditions: m.conditions.clone(),
         })
         .collect();
     let items = data
@@ -110,50 +108,36 @@ pub fn debug_view(world: &World, data: &Data) -> DebugView {
             Some((name.to_owned(), map.def.width, map.def.height))
         })
         .collect();
-    let p = world.position;
-    let here = data.registry.maps.name(p.map).unwrap_or("?");
-    let map_index = maps.iter().position(|(m, _, _)| m == here).unwrap_or(0);
-    let stacks = match &world.mode {
-        Mode::Combat(state) => state
-            .encounter
-            .stacks
+    let here = &views.here;
+    let p = here.position;
+    let map_index = maps
+        .iter()
+        .position(|(m, _, _)| *m == here.map)
+        .unwrap_or(0);
+    let fight = views
+        .combat
+        .as_ref()
+        .filter(|c| here.mode == ModeKind::Combat && c.phase == ModeKind::Combat);
+    let stacks = fight.map_or_else(Vec::new, |c| {
+        c.stacks
             .iter()
-            .enumerate()
-            .map(|(i, s)| StackDebug {
-                index: u8::try_from(i).unwrap_or(u8::MAX),
-                name: data
-                    .monsters
-                    .get(&s.monster)
-                    .map_or("?", |m| data.label("en", &m.name))
-                    .to_owned(),
-                count: (s.count(), s.initial),
+            .map(|s| StackDebug {
+                index: s.index,
+                name: data.label("en", &s.name).to_owned(),
+                count: (u8::try_from(s.hp.len()).unwrap_or(u8::MAX), s.initial),
                 lead_hp: s.hp.first().copied().unwrap_or(0),
             })
-            .collect(),
-        _ => Vec::new(),
-    };
+            .collect()
+    });
     DebugView {
-        fighting: matches!(world.mode, Mode::Combat(_)),
-        devtools: world.settings.devtools,
+        fighting: here.mode == ModeKind::Combat,
+        devtools: here.settings.devtools,
         members,
-        gold: world.party.gold,
-        food: world.party.food,
+        gold: views.party.gold,
+        food: views.party.food,
         items,
         conditions,
-        flags: data
-            .registry
-            .flags
-            .names()
-            .map(|name| {
-                let value = data
-                    .registry
-                    .flags
-                    .get(name)
-                    .and_then(|id| world.flags.get(&id).copied())
-                    .unwrap_or(0);
-                (name.to_owned(), value)
-            })
-            .collect(),
+        flags: views.flags.clone(),
         maps,
         position: (map_index, p.x, p.y, p.facing),
         stacks,
@@ -208,8 +192,13 @@ pub fn describe(command: &DevCommand) -> String {
 pub(crate) mod tests {
     use super::*;
     use omnis_sim::omnis_data::load_packs;
-    use omnis_sim::{Command, PartyCommand, Settings, apply};
+    use omnis_sim::{Command, PartyCommand, Settings, World, apply};
     use std::path::PathBuf;
+
+    /// The view of a world, as the app reads it through its `Views`.
+    pub(crate) fn debug_view(world: &World, data: &Data) -> DebugView {
+        super::debug_view(&Views::of(world, data), data)
+    }
 
     pub(crate) fn world_and_data() -> (World, Data) {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

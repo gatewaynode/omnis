@@ -11,7 +11,7 @@ use common::{
 };
 use omnis_app::dev::recruit;
 use omnis_app::sim::{
-    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimWorld,
+    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimWorld, Views,
 };
 use omnis_app::ui::{MessageLine, RollLog};
 use omnis_app::widget::{Part, WidgetId};
@@ -142,7 +142,7 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
     assert_eq!(play_state(&app), PlayState::Combat);
     let (potion, own) = {
         let data = &app.world().resource::<PackData>().0;
-        let view = omnis_app::combat_menu::fight_view(world(&app), data).unwrap();
+        let view = omnis_app::combat_menu::fight_view(&Views::of(world(&app), data), data).unwrap();
         (
             omnis_sim::items::item_id(data, "potion_of_healing").unwrap(),
             view.own.expect("a member acts"),
@@ -181,7 +181,7 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
 /// The acting member's slot and the fight's budget.
 fn turn(app: &App) -> (usize, omnis_sim::Budget) {
     let data = &app.world().resource::<PackData>().0;
-    let view = omnis_app::combat_menu::fight_view(world(app), data).unwrap();
+    let view = omnis_app::combat_menu::fight_view(&Views::of(world(app), data), data).unwrap();
     (view.own.expect("a member acts"), view.budget)
 }
 

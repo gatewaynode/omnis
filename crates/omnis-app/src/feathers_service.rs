@@ -11,7 +11,7 @@ use crate::menus::{Active, Where};
 use crate::service_panel::{
     self as model, OfferRow, ServiceAsk, ServiceForm, ServiceLabelId, ServicePanelId,
 };
-use crate::sim::{CommandRefused, PackData, SimEvent, SimWorld};
+use crate::sim::{CommandRefused, PackData, SimEvent, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, button, message_line,
     panel as panel_root, row, scroll_column, set_text,
@@ -31,7 +31,7 @@ use bevy::prelude::*;
 use bevy::text::FontSourceTemplate;
 use bevy::ui::InteractionDisabled;
 use omnis_sim::omnis_data::ServiceKind;
-use omnis_sim::{Command, Event, ServiceCommand, ServiceView, service_view};
+use omnis_sim::{Command, Event, ServiceCommand, ServiceView};
 
 /// The service as the panel last read it, and what the panel keeps.
 #[derive(Resource, Debug, Default)]
@@ -233,11 +233,11 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
 /// the panel is down.
 pub fn look(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut shown: ResMut<ServiceShown>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     if at.screen() != Active::Service {
@@ -247,11 +247,11 @@ pub fn look(
         }
         return;
     }
-    if shown.view.is_none() || world.is_changed() {
-        let view = service_view(&world.0, &data.0);
+    if shown.view.is_none() || views.is_changed() {
+        let view = views.service.clone();
         shown.rows = view
             .as_ref()
-            .map_or_else(Vec::new, |v| model::offer_rows(v, &world.0, &data.0));
+            .map_or_else(Vec::new, |v| model::offer_rows(v, &views.party, &data.0));
         shown.view = view;
         shown.synced = false;
     }

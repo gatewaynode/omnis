@@ -9,7 +9,7 @@
 use crate::camp_panel::{self as model, CampAsk, CampForm, CampLabelId, CampPanelId};
 use crate::feathers_ui::HoldsKeyboard;
 use crate::menus::{Active, Where};
-use crate::sim::{CommandRefused, PlayState, PlayerCommand, SimEvent, SimWorld, Views};
+use crate::sim::{CommandRefused, PlayState, PlayerCommand, SimEvent, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, button, message_line,
     panel as panel_root, row, set_text, title,
@@ -23,7 +23,7 @@ use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::ui::InteractionDisabled;
 use bevy::ui_widgets::{SliderPrecision, SliderStep, SliderValue};
-use omnis_sim::{Command, Event, RestView, rest_view};
+use omnis_sim::{Command, Event, RestView};
 
 /// The camp as the panel last read it, and what the panel keeps.
 #[derive(Resource, Debug, Default)]
@@ -126,13 +126,8 @@ fn camp_panel(view: &RestView) -> impl Scene {
 
 /// Read the camp again whenever the world changed while the panel is up; forget it, and the
 /// choices, when the panel is down.
-pub fn look(
-    at: Where,
-    world: Option<Res<SimWorld>>,
-    data: Option<Res<crate::sim::PackData>>,
-    mut shown: ResMut<CampShown>,
-) {
-    let (Some(world), Some(data)) = (world, data) else {
+pub fn look(at: Where, views: Option<Res<Views>>, mut shown: ResMut<CampShown>) {
+    let Some(views) = views else {
         return;
     };
     if at.screen() != Active::Camp {
@@ -141,8 +136,8 @@ pub fn look(
         }
         return;
     }
-    if shown.view.is_none() || world.is_changed() {
-        let view = rest_view(&world.0, &data.0);
+    if shown.view.is_none() || views.is_changed() {
+        let view = views.rest.clone();
         shown.form.fit(&view);
         shown.view = Some(view);
         shown.synced = false;
@@ -204,7 +199,7 @@ pub fn reconcile(
 /// rests that would be refused dimmed.
 pub fn sync(
     mut commands: Commands,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut shown: ResMut<CampShown>,
     controls: Query<(
         Entity,
@@ -214,7 +209,7 @@ pub fn sync(
     )>,
     mut labels: Query<(&Shown, &mut Text)>,
 ) {
-    let (Some(view), Some(world)) = (shown.view.as_ref(), world) else {
+    let (Some(view), Some(views)) = (shown.view.as_ref(), views) else {
         return;
     };
     let ours = controls
@@ -229,7 +224,7 @@ pub fn sync(
         };
         let wanted = match id {
             CampLabelId::Food => model::food_line(view),
-            CampLabelId::Member(slot) => model::member_line(view, &world.0, slot),
+            CampLabelId::Member(slot) => model::member_line(view, &views.party, slot),
             CampLabelId::Dice(slot) => model::dice_note(view, &shown.form, slot),
             CampLabelId::Long => model::long_note(view),
             CampLabelId::Message => shown.form.message.clone(),

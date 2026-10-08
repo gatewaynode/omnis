@@ -7,8 +7,9 @@
 
 use crate::service_panel::reason;
 use crate::ui_model::{Payload, whole};
+use omnis_sim::api::PartyView;
 use omnis_sim::omnis_core::fnv1a64;
-use omnis_sim::{RestCommand, RestView, World};
+use omnis_sim::{RestCommand, RestView};
 
 /// One control of the panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -105,9 +106,8 @@ pub fn apply(
 
 /// A member's line: name, hit points and hit dice.
 #[must_use]
-pub fn member_line(view: &RestView, world: &World, slot: usize) -> String {
-    let (Some(member), Some(character)) = (view.members.get(slot), world.party.members.get(slot))
-    else {
+pub fn member_line(view: &RestView, party: &PartyView, slot: usize) -> String {
+    let (Some(member), Some(character)) = (view.members.get(slot), party.members.get(slot)) else {
         return String::new();
     };
     format!(

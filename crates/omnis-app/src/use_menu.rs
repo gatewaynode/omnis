@@ -4,11 +4,12 @@
 //! goes to the selected member. Bevy-free.
 
 use crate::combat_menu::{CombatIntent, CombatMenu, FightView};
+use crate::defs;
 use crate::menu::{MenuKey, cycle};
 use crate::spell_menu::blocked_note;
-use omnis_sim::omnis_data::{Data, FeatureEffect, UseEffect};
-use omnis_sim::omnis_rules::combat_features;
-use omnis_sim::{CombatCommand, FeatureChoice, FighterView, World};
+use omnis_sim::api::{ChoiceKind, MemberView};
+use omnis_sim::omnis_data::{Data, UseEffect};
+use omnis_sim::{CombatCommand, FeatureChoice, FighterView};
 
 /// What a feature row asks of the feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,22 +76,11 @@ impl UseRow {
 /// The acting member's feature rows (Cunning Action makes two: exchange and hide), then the
 /// kit rows that have a use; a sense item is not used from a fight.
 #[must_use]
-pub fn use_rows(
-    world: &World,
-    data: &Data,
-    own: usize,
-    fighter: Option<&FighterView>,
-) -> Vec<UseRow> {
-    let Some(member) = world.party.members.get(own) else {
-        return Vec::new();
-    };
-    let defs = combat_features(member, data);
+pub fn use_rows(member: &MemberView, data: &Data, fighter: Option<&FighterView>) -> Vec<UseRow> {
     let features = fighter.into_iter().flat_map(|f| &f.features).flat_map(|f| {
         let name = data.label("en", &f.name).to_owned();
         let blocked = f.blocked.as_ref().map(blocked_note);
-        let cunning = defs
-            .get(usize::from(f.index))
-            .is_some_and(|d| d.effect == Some(FeatureEffect::Cunning));
+        let cunning = f.choices.contains(&ChoiceKind::Exchange);
         let choices: &[(Choice, &str)] = if cunning {
             &[(Choice::Exchange, ": exchange"), (Choice::Hide, ": hide")]
         } else {
@@ -109,25 +99,21 @@ pub fn use_rows(
             })
             .collect::<Vec<_>>()
     });
-    let items = member
-        .equipment
-        .iter()
-        .enumerate()
-        .filter_map(|(i, (id, count))| {
-            let item = data.items.get(id)?;
-            let blocked = match item.use_effect.as_ref()? {
-                UseEffect::Heal { .. } => None,
-                UseEffect::Sense(_) => Some("not here".to_owned()),
-            };
-            Some(UseRow {
-                name: data.label("en", &item.name).to_owned(),
-                kind: UseKind::Item {
-                    index: u8::try_from(i).unwrap_or(u8::MAX),
-                    count: *count,
-                },
-                blocked,
-            })
-        });
+    let items = member.equipment.iter().filter_map(|row| {
+        let item = defs::item(data, &row.id)?;
+        let blocked = match item.use_effect.as_ref()? {
+            UseEffect::Heal { .. } => None,
+            UseEffect::Sense(_) => Some("not here".to_owned()),
+        };
+        Some(UseRow {
+            name: data.label("en", &item.name).to_owned(),
+            kind: UseKind::Item {
+                index: row.index,
+                count: row.count,
+            },
+            blocked,
+        })
+    });
     features.chain(items).collect()
 }
 
@@ -193,10 +179,18 @@ impl CombatMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::combat_menu::ACTION_USE;
+    use crate::combat_menu::tests::fight_view;
     use crate::combat_menu::tests::{data, facing};
-    use crate::combat_menu::{ACTION_USE, fight_view};
     use omnis_sim::items::item_id;
-    use omnis_sim::{Command, EncounterChoice, Mode, apply, combat_view};
+    use omnis_sim::{Command, EncounterChoice, Mode, World, apply, combat_view, party_view};
+
+    fn use_rows(world: &World, data: &Data, own: usize, f: Option<&FighterView>) -> Vec<UseRow> {
+        party_view(world, data)
+            .members
+            .get(own)
+            .map_or_else(Vec::new, |member| super::use_rows(member, data, f))
+    }
 
     #[test]
     fn the_picker_lists_the_kit_s_usable_rows_and_uses_one_on_the_selection() {

@@ -80,7 +80,7 @@ mod tests {
     fn item_events_read_as_one_line_each() {
         let data = data();
         let world = facing(&data, &["fighter", "cleric"], &[]);
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let (brenna, gorm) = (world.party.members[0].id, world.party.members[1].id);
         let (sword, bolts, potion) = (
             item_id(&data, "longsword").unwrap(),

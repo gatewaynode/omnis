@@ -163,7 +163,7 @@ fn redraw(
     spawn.spawn::<ViewportSprite>(&[sky], layout.core, 0.5);
     spawn.spawn::<ViewportSprite>(&plan::viewport(&view, &data.0), layout.core, 1.0);
     // Whoever stands before the party, over the scene and under the UI frame.
-    if let Some(fight) = fight_view(&world.0, &data.0) {
+    if let Some(fight) = fight_view(&views, &data.0) {
         let ops = actors::ops(&actors::silhouettes(&fight.actors()));
         spawn.spawn::<ViewportSprite>(&ops, layout.core, 2.0);
     }

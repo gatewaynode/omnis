@@ -98,7 +98,7 @@ mod tests {
     fn a_look_reads_as_its_reaches_with_the_rolls_behind_it() {
         let data = data();
         let world = facing(&data, &["fighter"], &[]);
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let brenna = world.party.members[0].id;
         let glass = item_id(&data, "spyglass").unwrap();
         let looked = Event::Sensed {

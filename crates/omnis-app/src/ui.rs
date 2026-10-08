@@ -16,7 +16,7 @@ use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
 use crate::sheet_menu::{SheetView, sheet_view};
-use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld, Views};
+use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, Views};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::text::Names;
 use crate::tool_bar::{self, ToolPressed, ToolStates};
@@ -509,7 +509,6 @@ fn menu_for<'a>(
 fn build_frame(
     at: Where,
     screens: Res<Screens>,
-    world: Option<Res<SimWorld>>,
     views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
@@ -520,13 +519,12 @@ fn build_frame(
     mut scratch: Local<Frame>,
 ) {
     let active = at.screen();
-    let loaded = world.as_ref().zip(data.as_ref());
     let seen = views.as_ref().zip(data.as_ref());
     let members = seen.map_or_else(Vec::new, |(v, d)| member_rows(&v.party, &d.0));
     let hud = seen.map(|(v, d)| hud_text(&v.here, &d.0));
-    let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
+    let fight = seen.and_then(|(v, d)| fight_view(v, &d.0));
     let casts = if active == Active::Cast {
-        loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
+        seen.map_or_else(Vec::new, |(v, d)| cast_rows(v, &d.0))
     } else {
         Vec::new()
     };

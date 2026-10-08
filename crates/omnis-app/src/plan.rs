@@ -9,14 +9,14 @@
 //! edge at offsets `>= 0`.
 
 use crate::layout::Camera;
+use omnis_sim::api::layer;
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, MapData, MapKind, Tileset};
 use omnis_sim::query::{EdgeView, ViewTile, ViewportModel};
-use omnis_sim::world::layer;
 use std::collections::BTreeMap;
 
 /// What the party knows of a map, tile by tile (`query::automap`).
-pub type Known = BTreeMap<(u16, u16), omnis_sim::Known>;
+pub type Known = BTreeMap<(u16, u16), omnis_sim::api::Known>;
 
 /// What to paint.
 #[derive(Debug, Clone, PartialEq)]

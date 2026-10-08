@@ -647,7 +647,7 @@ mod tests {
     fn a_real_fight_reads_from_the_first_round_to_the_end() {
         let data = data();
         let mut world = facing_goblins(&data);
-        let mut names = Names::new(&world, &data);
+        let mut names = Names::of_world(&world, &data);
         let mut all = Vec::new();
         let attack = Command::Encounter(EncounterChoice::Attack);
         all.extend(batch_lines(
@@ -667,7 +667,7 @@ mod tests {
                 .expect("something to hit");
             let command = Command::Combat(CombatCommand::Attack { stack });
             let events = apply(&mut world, &data, command).unwrap_or_else(|r| panic!("{r}"));
-            names.refresh(&world, &data);
+            names.refresh(&crate::sim::Views::of(&world, &data), &data);
             all.extend(batch_lines(&events, &names));
         }
         assert_eq!(world.mode.kind(), ModeKind::Explore, "the fight ended");

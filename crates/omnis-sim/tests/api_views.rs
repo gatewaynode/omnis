@@ -126,6 +126,12 @@ fn the_sheet_s_numbers_are_the_srd_s() {
         ]
     );
     assert_eq!((brenna.hit_die, brenna.casting), (10, None));
+    // Each modifier is the rule's for its score: Str 16 +3 ... Cha 9 -1.
+    assert_eq!(
+        brenna.modifiers,
+        brenna.scores.map(omnis_sim::omnis_rules::modifier)
+    );
+    assert_eq!(brenna.modifiers[0], 3);
     assert_eq!(brenna.next_xp, Some(300), "SRD: level 2 at 300 experience");
     assert_eq!(brenna.background, "base:background:acolyte");
     assert_eq!(view.members[ILVARA].casting, Some(Ability::Intelligence));

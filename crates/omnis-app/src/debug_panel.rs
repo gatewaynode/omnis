@@ -466,7 +466,7 @@ pub fn shape(view: &DebugView) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::debug_menu::debug_view;
+    use crate::debug_menu::tests::debug_view;
     use crate::debug_menu::tests::world_and_data;
 
     #[test]

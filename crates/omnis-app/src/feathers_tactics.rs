@@ -9,7 +9,7 @@
 
 use crate::feathers_ui::HoldsKeyboard;
 use crate::menus::{Active, Screens, Where};
-use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, SimWorld};
+use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, Views};
 use crate::tactics_panel::{
     self as model, Choices, Field, Kind, TacticsAsk, TacticsForm, TacticsLabelId, TacticsPanelId,
 };
@@ -30,7 +30,7 @@ use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::ui::{Checked, InteractionDisabled};
 use omnis_sim::omnis_rules::Trigger;
-use omnis_sim::{Command, Event, PartyCommand, PartyView, TacticsView, party_view};
+use omnis_sim::{Command, Event, PartyCommand, PartyView, TacticsView};
 
 /// The party's tactics as the panel last read them, and what the panel keeps.
 #[derive(Resource, Debug, Default)]
@@ -272,12 +272,12 @@ fn tactics_panel(
 /// sheet's member; forget it all when the panel is down.
 pub fn look(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     screens: Res<Screens>,
     mut shown: ResMut<TacticsShown>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     if at.screen() != Active::Tactics {
@@ -290,8 +290,8 @@ pub fn look(
         shown.form = TacticsForm::new(screens.sheet.member);
         shown.choices = Choices::from_data(&data.0);
     }
-    if shown.party.is_none() || world.is_changed() {
-        let party = party_view(&world.0, &data.0);
+    if shown.party.is_none() || views.is_changed() {
+        let party = views.party.clone();
         if shown.form.member >= party.members.len() {
             shown.form = TacticsForm::new(0);
         }

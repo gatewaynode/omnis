@@ -6,11 +6,10 @@ use crate::font::fit;
 use crate::layout::MENU_COLUMNS;
 use crate::menu::{MenuKey, cycle};
 use crate::screens::{ItemState, item_state, label};
+use crate::sim::Views;
 use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
-use omnis_sim::combat::cast;
-use omnis_sim::omnis_core::{Pcg32, StreamName};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target, World};
+use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target};
 
 /// One spell the acting member knows, as the picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,41 +153,24 @@ pub struct CastRow {
 
 /// Every member's spells that can be cast outside a fight, in marching order.
 #[must_use]
-pub fn cast_rows(world: &World, data: &Data) -> Vec<CastRow> {
-    let stream = StreamName::new("cast");
-    let mut rng = world
-        .rngs
-        .get(&stream)
-        .copied()
-        .unwrap_or_else(|| Pcg32::for_stream(world.seed, &stream));
-    let mut rows = Vec::new();
-    for (own, member) in world.party.members.iter().enumerate() {
-        for (i, id) in member.known_spells.iter().enumerate() {
-            let Some(spell) = data.spells.get(id) else {
-                continue;
-            };
-            let explore = spell.effect.as_ref().is_some_and(|e| e.explore_castable());
-            if !explore {
-                continue;
-            }
-            let (caster, index) = (
-                u8::try_from(own).unwrap_or(u8::MAX),
-                u8::try_from(i).unwrap_or(u8::MAX),
-            );
-            rows.push(CastRow {
-                caster,
-                caster_name: member.name.clone(),
-                spell: index,
-                name: data.label("en", &spell.name).to_owned(),
-                cost: spell.point_cost(),
-                targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
-                blocked: cast::check(world, data, own, index, false, &mut rng)
-                    .err()
-                    .map(|r| blocked_note(&r)),
-            });
-        }
-    }
-    rows
+pub fn cast_rows(views: &Views, data: &Data) -> Vec<CastRow> {
+    views
+        .casts
+        .iter()
+        .map(|c| CastRow {
+            caster: c.caster,
+            caster_name: views
+                .party
+                .members
+                .get(usize::from(c.caster))
+                .map_or_else(String::new, |m| m.name.clone()),
+            spell: c.spell,
+            name: data.label("en", &c.name).to_owned(),
+            cost: c.cost,
+            targets_members: c.targets_members,
+            blocked: c.refusal.as_ref().map(blocked_note),
+        })
+        .collect()
 }
 
 /// What the cast menu asks for.
@@ -297,10 +279,13 @@ pub fn cast_screen(frame: &mut Frame, menu: &CastMenu, rows: &[CastRow]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat_menu::fight_view;
-    use crate::combat_menu::tests::{data, facing, facing_goblins};
+    use crate::combat_menu::tests::{data, facing, facing_goblins, fight_view};
     use omnis_sim::omnis_data::Data;
     use omnis_sim::{Command, EncounterChoice, Mode, World, apply};
+
+    fn cast_rows(world: &World, data: &Data) -> Vec<CastRow> {
+        super::cast_rows(&Views::of(world, data), data)
+    }
 
     /// A lone wizard against a rat: the fight parks on her turn with her six spells.
     fn wizard_in_a_fight(data: &Data) -> World {

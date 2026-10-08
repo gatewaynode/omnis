@@ -16,7 +16,7 @@ use crate::screen::{self, Target};
 use crate::sheet_menu::SheetMenu;
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
-    SimEvent, SimWorld, StartIn, Views, WorldReplaced, close_world, load, open_world,
+    SimEvent, StartIn, Views, WorldReplaced, close_world, load, open_world,
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
@@ -283,7 +283,6 @@ fn menu_keys(
     mut screens: ResMut<Screens>,
     config: Res<AppConfig>,
     data: Option<Res<PackData>>,
-    world: Option<Res<SimWorld>>,
     views: Option<Res<Views>>,
     mut player: MessageWriter<PlayerCommand>,
     mut shell: MessageWriter<ShellCommand>,
@@ -352,7 +351,7 @@ fn menu_keys(
                 key,
                 cast,
                 &mut act,
-                world.as_deref(),
+                views.as_deref(),
                 selected.as_ref().and_then(|s| s.0),
             ),
             // The combat, debug, sheet and inventory plugins handle their screens' keys; the
@@ -448,13 +447,13 @@ fn cast_key(
     key: MenuKey,
     menu: &mut CastMenu,
     act: &mut Actions<'_, '_, '_, '_, '_, '_, '_, '_>,
-    world: Option<&SimWorld>,
+    views: Option<&Views>,
     selected: Option<usize>,
 ) {
-    let Some((world, data)) = world.zip(act.data) else {
+    let Some((views, data)) = views.zip(act.data) else {
         return;
     };
-    let rows = cast_rows(&world.0, &data.0);
+    let rows = cast_rows(views, &data.0);
     menu.sync(&rows);
     match menu.key(key, &rows, selected) {
         Some(CastIntent::Command(command)) => {

@@ -5,12 +5,13 @@
 //! adds no rule of its own. The widgets are not trusted: an offer out of range or one the view
 //! refuses sends nothing, and the bank's amount is clamped. `feathers_service.rs` draws it.
 
+use crate::defs;
 use crate::text::coins;
 use crate::ui_model::Payload;
+use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::fnv1a64;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::omnis_rules::Character;
-use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView, World};
+use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView};
 
 /// One control of the panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -113,12 +114,12 @@ pub struct OfferRow {
 
 /// The rows of every offer but leaving, in the view's order.
 #[must_use]
-pub fn offer_rows(view: &ServiceView, world: &World, data: &Data) -> Vec<OfferRow> {
+pub fn offer_rows(view: &ServiceView, party: &PartyView, data: &Data) -> Vec<OfferRow> {
     view.offers
         .iter()
         .filter(|o| o.command != ServiceCommand::Leave)
         .map(|offer| {
-            let (key, label) = row_label(offer, world, data);
+            let (key, label) = row_label(offer, party, data);
             OfferRow {
                 key,
                 label,
@@ -130,28 +131,26 @@ pub fn offer_rows(view: &ServiceView, world: &World, data: &Data) -> Vec<OfferRo
         .collect()
 }
 
-fn item_name(data: &Data, id: omnis_sim::omnis_core::ItemId) -> &str {
-    data.items
-        .get(&id)
-        .map_or("?", |i| data.label("en", &i.name))
-}
-
-fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) {
-    let member = |slot: u8| world.party.members.get(usize::from(slot));
+fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, String) {
+    let member = |slot: u8| party.members.get(usize::from(slot));
     match offer.command {
         ServiceCommand::Room => (String::new(), "A night's rest".to_owned()),
         ServiceCommand::Rumor => (String::new(), "A rumor".to_owned()),
         ServiceCommand::BuyFood { count } => (String::new(), format!("Food for {count} day")),
-        ServiceCommand::Buy { item, .. } => {
-            let name = stock_name(world, data, item);
+        ServiceCommand::Buy { .. } => {
+            let name = offer
+                .subject
+                .as_deref()
+                .and_then(|id| defs::item(data, id))
+                .map_or("?", |i| data.label("en", &i.name))
+                .to_owned();
             (name.clone(), name)
         }
         ServiceCommand::Sell { item, .. } => {
-            let (name, count) = world
-                .party
+            let (name, count) = party
                 .inventory
                 .get(usize::from(item))
-                .map_or(("?", 0), |(id, count)| (item_name(data, *id), *count));
+                .map_or(("?", 0), |i| (data.label("en", &i.name), i.count));
             (name.to_owned(), format!("{name} ×{count}"))
         }
         ServiceCommand::Heal { member: slot }
@@ -167,17 +166,15 @@ fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) 
                 (m.name.clone(), label)
             },
         ),
-        ServiceCommand::Choose {
-            member: slot,
-            spell,
-        }
-        | ServiceCommand::Learn {
-            member: slot,
-            spell,
-        } => member(slot).map_or_else(
+        ServiceCommand::Choose { member: slot, .. }
+        | ServiceCommand::Learn { member: slot, .. } => member(slot).map_or_else(
             || ("?".to_owned(), "?".to_owned()),
             |m| {
-                let name = spell_name(world, data, offer.command, m, spell);
+                let name = offer
+                    .subject
+                    .as_deref()
+                    .and_then(|id| defs::spell(data, id))
+                    .map_or("?", |s| data.label("en", &s.name));
                 (format!("{}: {name}", m.name), format!("{}: {name}", m.name))
             },
         ),
@@ -187,38 +184,8 @@ fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) 
     }
 }
 
-/// The spell a pick or a purchase names: a row of the member's class list (a pick) or of the
-/// service's spells (a purchase).
-fn spell_name(
-    world: &World,
-    data: &Data,
-    command: ServiceCommand,
-    member: &Character,
-    row: u8,
-) -> String {
-    let row = usize::from(row);
-    let key = match command {
-        ServiceCommand::Choose { .. } => data
-            .classes
-            .get(&member.class)
-            .and_then(|c| c.casting.as_ref())
-            .and_then(|c| c.list.get(row)),
-        _ => match world.mode {
-            omnis_sim::Mode::Town(state) => data
-                .services
-                .get(&state.service)
-                .and_then(|def| def.spells.get(row)),
-            _ => None,
-        },
-    };
-    key.and_then(|k| data.registry.spells.get(k))
-        .and_then(|id| data.spells.get(&id))
-        .map_or("?", |s| data.label("en", &s.name))
-        .to_owned()
-}
-
 /// A temple row names what it treats: hit points, conditions, or death.
-fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
+fn member_label(offer: &OfferView, member: &MemberView, data: &Data) -> String {
     let name = &member.name;
     match offer.command {
         ServiceCommand::Cure { .. } if member.conditions.is_empty() => {
@@ -228,11 +195,7 @@ fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
             let names: Vec<&str> = member
                 .conditions
                 .iter()
-                .map(|id| {
-                    data.conditions
-                        .get(id)
-                        .map_or("?", |c| data.label("en", &c.name))
-                })
+                .map(|id| defs::condition(data, id).map_or("?", |c| data.label("en", &c.name)))
                 .collect();
             format!("{name}: {}", names.join(", "))
         }
@@ -244,19 +207,6 @@ fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
         ServiceCommand::Raise { .. } => format!("{name}, dead"),
         _ => format!("{name}, {} of {} HP", member.hp.max(0), member.hp_max),
     }
-}
-
-/// The name of a row of the service the party is in.
-fn stock_name(world: &World, data: &Data, row: u8) -> String {
-    let omnis_sim::Mode::Town(state) = world.mode else {
-        return "?".to_owned();
-    };
-    data.services
-        .get(&state.service)
-        .and_then(|def| def.items.get(usize::from(row)))
-        .and_then(|key| data.registry.items.get(key))
-        .map_or("?", |id| item_name(data, id))
-        .to_owned()
 }
 
 /// The button's caption for an offer.

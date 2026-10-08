@@ -3,11 +3,12 @@
 //! `item_text.rs` build on it. Bevy-free.
 
 use crate::font::fit;
+use crate::sim::Views;
+use omnis_sim::ActorRef;
 use omnis_sim::omnis_core::{
     Calendar, CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
 };
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{ActorRef, Mode, World};
 use std::collections::BTreeMap;
 
 /// How long ago `minutes` was, in the calendar's days, months of 30 days, and years:
@@ -61,35 +62,31 @@ pub struct Names {
 }
 
 impl Names {
-    /// Names for the world as it is.
+    /// Names for the world as its views show it.
     #[must_use]
-    pub fn new(world: &World, data: &Data) -> Names {
+    pub fn new(views: &Views, data: &Data) -> Names {
         let mut names = Names::default();
-        names.refresh(world, data);
+        names.refresh(views, data);
         names
     }
 
+    /// Names for a world, as the app's views would show it (tests).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn of_world(world: &omnis_sim::World, data: &Data) -> Names {
+        Names::new(&Views::of(world, data), data)
+    }
+
     /// Learn the current members and, while monsters stand there, the current stacks.
-    pub fn refresh(&mut self, world: &World, data: &Data) {
-        for member in &world.party.members {
+    pub fn refresh(&mut self, views: &Views, data: &Data) {
+        for member in &views.party.members {
             self.members.insert(member.id, member.name.clone());
         }
-        let encounter = match &world.mode {
-            Mode::Explore | Mode::Town(_) => None,
-            Mode::Encounter(e) => Some(e),
-            Mode::Combat(c) => Some(&c.encounter),
-        };
-        if let Some(encounter) = encounter {
-            self.stacks = encounter
+        if let Some(combat) = &views.combat {
+            self.stacks = combat
                 .stacks
                 .iter()
-                .map(|s| {
-                    let label = data
-                        .monsters
-                        .get(&s.monster)
-                        .map_or("?", |m| data.label("en", &m.name));
-                    (label.to_owned(), s.initial)
-                })
+                .map(|s| (data.label("en", &s.name).to_owned(), s.initial))
                 .collect();
         }
         if self.conditions.is_empty() {

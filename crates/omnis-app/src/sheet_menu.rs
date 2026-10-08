@@ -7,7 +7,6 @@ use crate::menu::{MenuKey, cycle, words};
 use crate::sim::Views;
 use omnis_sim::api::{MemberView, ModeKind, PartyView};
 use omnis_sim::omnis_data::{Ability, Data, EquipSlot};
-use omnis_sim::omnis_rules::modifier;
 
 /// A page of the sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -131,7 +130,7 @@ pub fn sheet_view(views: &Views, data: &Data, member: usize) -> Option<SheetView
     let m = views.party.members.get(member)?;
     let mut scores = [("", 0, 0); 6];
     for (i, ability) in Ability::ALL.iter().enumerate() {
-        scores[i] = (ability.short(), m.scores[i], modifier(m.scores[i]));
+        scores[i] = (ability.short(), m.scores[i], m.modifiers[i]);
     }
     let saves = m
         .saves

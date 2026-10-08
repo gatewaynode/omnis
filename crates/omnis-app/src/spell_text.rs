@@ -135,7 +135,11 @@ mod tests {
         )
         .unwrap();
         let bless = data.registry.spells.get("base:spell:bless").unwrap();
-        (Names::new(&world, &data), bless, world.party.members[0].id)
+        (
+            Names::of_world(&world, &data),
+            bless,
+            world.party.members[0].id,
+        )
     }
 
     #[test]

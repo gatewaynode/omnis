@@ -4,8 +4,9 @@
 //! Bevy-free, so every transition is unit-tested against a real fight.
 
 use crate::actors::Actor;
+use crate::defs;
 use crate::menu::{MenuKey, cycle};
-use omnis_sim::combat::weapon_for;
+use crate::sim::Views;
 use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::{Cost, Data, Disposition, Size};
 
@@ -13,9 +14,7 @@ pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
 pub use crate::use_menu::UseRow;
 use crate::use_menu::use_rows;
-use omnis_sim::{
-    ActorRef, Budget, CombatCommand, Event, Mode, ModeKind, World, bribe_cost, combat_view,
-};
+use omnis_sim::{ActorRef, Budget, CombatCommand, Event, ModeKind};
 
 /// One stack as the rows show it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,14 +126,11 @@ impl FightView {
 
 /// The view, or `None` while exploring.
 #[must_use]
-pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
-    let view = combat_view(world, data)?;
+pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
+    let view = views.combat.as_ref()?;
+    let party = &views.party;
     let own = match view.current {
-        Some(ActorRef::Member(id)) => world.party.members.iter().position(|m| m.id == id),
-        _ => None,
-    };
-    let fight = match &world.mode {
-        Mode::Combat(state) => Some(state),
+        Some(ActorRef::Member(id)) => party.members.iter().position(|m| m.id == id),
         _ => None,
     };
     let stacks = view
@@ -145,22 +141,13 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
             name: data.label("en", &s.name).to_owned(),
             count: u8::try_from(s.hp.len()).unwrap_or(u8::MAX),
             initial: s.initial,
-            size: data
-                .registry
-                .monsters
-                .get(&s.monster)
-                .and_then(|id| data.monsters.get(&id))
-                .map_or(Size::Medium, |m| m.size),
+            size: defs::monster(data, &s.monster).map_or(Size::Medium, |m| m.size),
             front: s.front,
             alive: s.alive,
-            blocked: fight.zip(own).and_then(|(state, own)| {
-                weapon_for(state, world, data, own, s.index)
-                    .err()
-                    .map(|r| r.to_string())
-            }),
+            blocked: s.refusal.as_ref().map(ToString::to_string),
         })
         .collect();
-    let caster = own.map(|i| &world.party.members[i]);
+    let caster = own.and_then(|i| party.members.get(i));
     let fighter = own.and_then(|own| view.members.iter().find(|m| usize::from(m.index) == own));
     let reactions_left = caster.map_or(0, |c| {
         view.reactions
@@ -173,16 +160,14 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         .iter()
         .filter_map(|s| {
             let caster = caster?;
-            let id = *caster.known_spells.get(usize::from(s.index))?;
-            let spell = data.spells.get(&id)?;
+            let spell = defs::spell(data, &s.id)?;
             let reaction = spell.cost == Cost::Reaction;
-            let active = world
-                .party
+            let active = party
                 .members
                 .iter()
                 .flat_map(|m| m.effects.iter())
-                .chain(world.party.effects.iter())
-                .any(|e| e.source == id && e.caster == caster.id);
+                .chain(party.effects.iter())
+                .any(|e| e.spell == s.id && e.caster == caster.id);
             Some(SpellRow {
                 index: s.index,
                 name: data.label("en", &s.name).to_owned(),
@@ -201,13 +186,11 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         own,
         disposition: view.disposition,
         stacks,
-        bribe: (view.phase == ModeKind::Encounter)
-            .then(|| bribe_cost(world, data).ok())
-            .flatten(),
-        gold: world.party.gold,
+        bribe: view.bribe,
+        gold: party.gold,
         spells,
         points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
-        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own, fighter)),
+        usable: caster.map_or_else(Vec::new, |member| use_rows(member, data, fighter)),
         budget: view.budget,
         reactions_left,
         reactions_on: fighter.is_some_and(|f| f.reactions_on),
@@ -419,7 +402,13 @@ pub(crate) mod tests {
         Command, EncounterChoice, EncounterSource, EncounterState, PartyCommand, Settings, Stack,
         apply,
     };
+    use omnis_sim::{Mode, World};
     use std::path::PathBuf;
+
+    /// The view of a world, as the app reads it through its `Views`.
+    pub(crate) fn fight_view(world: &World, data: &Data) -> Option<FightView> {
+        super::fight_view(&Views::of(world, data), data)
+    }
 
     pub(crate) fn data() -> Data {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

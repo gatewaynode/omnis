@@ -11,7 +11,7 @@ use crate::debug_menu::{DebugView, debug_view};
 use crate::debug_panel::{self as model, DebugAsk, DebugForm, DebugLabelId, DebugPanelId, FACINGS};
 use crate::feathers_ui::HoldsKeyboard;
 use crate::menus::{Active, Where};
-use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, SimWorld, Views};
+use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, Width, button, column, dropdown,
     message_line, panel as panel_root, row, row_label, scroll_column, set_text, title,
@@ -338,11 +338,11 @@ fn toggle(
 /// Read the world again whenever it changed while the panel is up; forget it all when down.
 fn look(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut shown: ResMut<DebugShown>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     if at.screen() != Active::Debug {
@@ -351,8 +351,8 @@ fn look(
         }
         return;
     }
-    if shown.view.is_none() || world.is_changed() {
-        let view = debug_view(&world.0, &data.0);
+    if shown.view.is_none() || views.is_changed() {
+        let view = debug_view(&views, &data.0);
         let form = shown.form.get_or_insert_with(|| DebugForm::open(&view));
         form.sync(&view);
         shown.view = Some(view);
