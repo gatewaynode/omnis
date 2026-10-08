@@ -141,3 +141,12 @@
   measured or scripted fight (End presses a turn, by class) before shipping, and put the number in the report.
 - **Rule**: A test helper or fixture that works around a rule (here `END` pressed "for Second Wind" in two
   app tests and a replay) is a sign that players will hit the same thing; surface it to the owner.
+
+## 2026-10-07 — A killed mutation run leaves its break in the source
+- **What happened**: M8 step 8c's mutation runner ran under `timeout` piped into `tail`. The timeout killed
+  Python mid-run: its buffered output was lost and its `finally` never restored the last break, so the app's
+  save read was left unguarded in the working tree. Found by grepping for the break before going on.
+- **Rule**: Run `mutate.py` with `python3 -u`, output to a file, never under `timeout` or `| tail`; for a long
+  run use `run_in_background` and wait for its notification.
+- **Rule**: After any mutation run, grep the sources for each break's new text (or `git diff` against the
+  last known state) before testing, committing or editing further.
