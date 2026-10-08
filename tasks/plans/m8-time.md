@@ -1,5 +1,7 @@
 # M8: subjective time, company-weighted, with the signal bus
 
+**Closed 2026-10-08**: owner acceptance of M8 passed (`tasks/acceptance/m8.md`); M8 is closed.
+
 ## Context
 M7 is closed (`68c4d09`). M8 (TODO, PRD §7.8, ARCH §4.4, A13) gives every holder its own clock and reconciles
 clocks on contact. The owner asked for the event bus to be planned first, with external crates evaluated.

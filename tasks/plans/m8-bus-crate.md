@@ -1,5 +1,7 @@
 # The signal bus: its own crate and a written architecture (M8 step 7b)
 
+**Closed 2026-10-08**: owner acceptance of M8 passed (`tasks/acceptance/m8.md`); M8 is closed.
+
 ## Context
 The bus was built in M8 (`crates/omnis-sim/src/bus.rs`, 310 lines with tests) and now carries two flows: region entry to reconciliation (step 3) and combat cues to reactions (step 7, `c4baeb4`). The owner: "We'll have to expand that bus in the future. We should document an architecture for our bus design and should probably isolate it in its own crate."
 

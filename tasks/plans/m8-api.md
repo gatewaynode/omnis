@@ -1,5 +1,7 @@
 # M8 step 8: the engine's API, the docs as built, and acceptance
 
+**Closed 2026-10-08**: owner acceptance of M8 passed (`tasks/acceptance/m8.md`); M8 is closed.
+
 ## Context
 Step 8 was meant to be docs and review. The owner, 2026-10-07: "as we wrap up the docs and review we are creating the API that any number of clients might be interacting with. The sim is basically an SRD variant engine that other tracks of development will have to interface with while the sim itself is under development."
 
