@@ -1,75 +1,91 @@
 # Continuity notes
 
-Written 2026-10-07, late M8. M7 is closed (`68c4d09`). M8, subjective time with the signal bus, has
-steps 0–7 and 7b committed; only **step 8** (docs and review, then owner acceptance) is left. Plans:
-`tasks/plans/m8-time.md` (the milestone) and `tasks/plans/m8-bus-crate.md` (7b). Rewrite this file
-every time it is used; the durable knowledge lives in `tasks/knowledge/` (start at its README).
+Written 2026-10-07, late in M8 step 8. M7 is closed (`68c4d09`). M8 (subjective time with the signal bus) has
+steps 0–7, 7b and 8a–8e committed. Step 8f and the owner's acceptance remain. Plans:
+- `tasks/plans/m8-time.md` (the milestone);
+- `tasks/plans/m8-bus-crate.md` (7b);
+- `tasks/plans/m8-api.md` (step 8, the engine's API).
 
-## On resuming
-- Run `/catchup`, then do **step 8** (below). The owner's standing "continue" covers it: one commit
-  per item, no asking again unless something needs a decision. ARCH and PRD edits for step 8 were
-  approved with the M8 plan ("ARCH v0.8 as built"); anything beyond as-built text is asked first.
-- **Toolchain:** every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`.
-  The gate: `scripts/verify.sh > <scratchpad>/gate.txt 2>&1`, then grep `VERIFY|tests passed|FAILED`.
-  The gate runs `cargo fmt --check` first: run `cargo fmt --all` before it.
-- **Sentrux:** `git add` new files, scan `/Users/john/code/omnis/crates`, then `check_rules`. Its rules
-  file `crates/.sentrux/rules.toml` is gitignored (local); it now has a `bus` layer (order 0) and
-  boundaries keeping `omnis-bus` a leaf.
-- **Mutation passes:** `<scratchpad>/mutate.py breaks.json <crates,comma> [cargo args]` still exists
-  in this session's scratchpad (recreate if gone: apply each `[name, file, old, new]`, run
-  `cargo test -p ... --no-fail-fast`, print CAUGHT by test names / SURVIVED / BUILD ERROR, restore
-  in `finally`). A break counts only with a named failing test.
+Rewrite this file every time it is used. The durable knowledge lives in `tasks/knowledge/`.
 
-## State
-- Branch `m7a-b-tasks`, **not pushed since `4b1bd14`**. Tree clean after the continuity commit.
-- **Commits since the last continuity (`5d9dcfd`):**
-  - `c4baeb4`: step 7, combat reactions on the bus;
-  - `f3d428d`: 7b docs (ARCH §3 row, §4.8 rewritten, A16; horizons; TODO; `m8-bus-crate.md`);
-  - `c36006f`: 7b code, the `omnis-bus` crate.
-- Gate: `tests passed 557 failed 0 ignored 12`.
-- **Pins:** tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)`; walk replay `8711507745385976768`, fight replay
-  `5247080599556612730` (both unchanged by steps 7 and 7b); `SAVE_SCHEMA 7`, MCP 22 tools, proof
-  94/142.
-- **Step 7 as built:** `Signal::Battle(Cue)`, `Cue::{Attack, Missile, EnemyCast, Wound, Cast}` on
-  `Topic::Battle`; the five `reaction::on_*` raise their cue and drain at once through
-  `combat/reaction.rs::Fight` (holds the attack roll; returns the first `RuleError`); `turn.rs`
-  `start` subscribes `Battle → Reactions` before round 1, `finish` unsubscribes; `v6_to_v7`
-  subscribes a fight saved mid-way. Proof: both replays plus 80 scripted fights (360 reactions)
-  identical events vs the previous commit. New tests in `tests/reactions.rs` (subscription held for
-  the fight, schema-6 mid-fight save, a heal for a fall answers falls only). Mutation 8 of 10; the 2
-  survivors are unobservable today (error guard needs a second battle subscriber; `SpellCast` has no
-  answering action).
-- **Step 7b as built (owner, 2026-10-06: "We'll have to expand that bus in the future. We should
-  document an architecture for our bus design and should probably isolate it in its own crate."):**
-  - Owner choices: the crate is **mechanism only** (vocabulary stays in `omnis-sim`); the
-    architecture designs **saved deferred signals, a topic hierarchy, pack-declared subscribers**;
-    veto and ordering phases went to horizons.
-  - `crates/omnis-bus`: `no_std`, `serde` only (`ron` dev-dep); `Bus<T, S>`, traits `Signal` (assoc
-    `Topic`) and `Host` (assoc `Signal`, `Subscriber`), `drain`, `MAX_DEPTH` 4, `MAX_SIGNALS` 64;
-    five tests on their own vocabulary. `subscribers(topic)` takes the topic by value.
-  - `omnis-sim/src/bus.rs` is the vocabulary: `Topic`, `Subscriber`, `Signal`, `Cue`,
-    `type Bus = omnis_bus::Bus<Topic, Subscriber>`, re-exports `Host`, `drain`, the limits.
-  - Workspace member and dep, `scripts/lint-sim.sh` both lists, `CLAUDE.md` crate list.
-  - The three expansions are open TODO items under "M9–M12" (each with its first consumer).
+## Owner direction for step 8 (2026-10-07)
+- "as we wrap up the docs and review we are creating the API that any number of clients might be interacting
+  with. The sim is basically an SRD variant engine that other tracks of development will have to interface with
+  while the sim itself is under development." (memory: `sim-is-an-engine-api`)
+- **Decisions:**
+  - fix the API's gaps now;
+  - the contract lives in ARCH §4.9 (with A17) and in a new `docs/api.md`;
+  - two tiers: the Rust library (`omnis_sim::api`, views only; `World`'s fields are not API) and the JSON op
+    protocol (`ops`, `PROTOCOL` 1, tagged replies).
 
-## Next: step 8, docs and review
-- **ARCH v0.8 as built.** Status line to v0.8. §4.4: the rule inputs are `lived`, `shared_time` and
-  `stability` (the text still says `shared`); check §4.1/§4.2 against the built `World` fields and
-  events (`Reconciled`, `SignalsDropped`, `Rumor.ago`), §9.3 the `time.clocks`/`time.reconcile`
-  rows, the calendar values in `rules/time.ron`. §4.8 is already current (7b).
-- `tasks/knowledge/code-map.md`: the M8 files (`time.rs`, `time_view.rs`, `omnis-data/src/region.rs`,
-  `Data::calendar`, `text::fill`, app `panels::clock_text`, `text::ago_text`); the bus lines are in.
-- `tasks/knowledge/horizons.md`: ecosystem catch-up waits for M10 (bus entry already resolved).
-- `tasks/knowledge/verification.md`: the pins above; README if it lists MCP tools (22).
-- `tasks/acceptance/m8.md`: an owner script with "what you will see" — HUD clock line, years in the
-  meadow vs the town's date snapping on entry, age never reversing, tavern rumors with their age,
-  `time_clocks` over MCP listing the crossroads, a mid-fight save and load keeping reactions.
-- Then owner acceptance closes M8 (TODO M8 heading closed, plan closed).
+## Step 8 commits (none pushed; branch `m7a-b-tasks`, not pushed since `4b1bd14`)
+- `dfc24a1` **8a, docs as built:**
+  - ARCH §4.1–4.4, §9 and §10;
+  - §4.9 and A17;
+  - README, verification, code-map, horizons, TODO.
+- `f25503d` **8b, the views:**
+  - `query::here` and `flags`;
+  - the sheet's fields and `EffectView` on `MemberView`;
+  - `StackView.refusal`, `CombatView.bribe`, `FeatureView.choices` (`ChoiceKind`), `OfferView.subject`;
+  - `cast_view`;
+  - `tests/api_views.rs`.
+- `7b0f3b4` **8c, the protocol:**
+  - `PROTOCOL` 1, tagged `Reply`, `rest.get` and `cast.get` (24 tools);
+  - the host ops' rules once in `ops.rs`, which fixed **B4** (the app read saves without the loader's limits);
+  - `omnis_sim::api`, and `core::error::Error` on the API's errors;
+  - `omnis-mcp/tests/replies.rs`;
+  - `tests/saves/v6.ron` captured from a worktree of `0bcb02f`.
+- `d5be33d`: lesson, a killed mutation run leaves its break in the source.
+- **8d** (`34f341f`, `3b74476`, `1e900b7`, `2a0c5b6`) and **8e** (`76c5078`), done by a subagent and reviewed:
+  - the app reads a `Views` resource;
+  - `SimWorld`'s world is private, with fixtures behind the feature `test-fixtures`;
+  - `MemberView.modifiers` added;
+  - `defs.rs`.
+- `69d48a9`: TODO and code-map for 8d and 8e.
 
-## Carry-over and watch-outs
-- **Log anomaly (from M7):** not reproduced; becomes B4 only if the owner's screen capture confirms.
-- **Not built:** `SpellCast` and `EnemyCasts` raised but nothing answers; `EnemyFlees` and `OwnTurn`
-  have no source; items, features and the weapon declare no reactions; no pack declares flags.
-- **Large files:** `plan.rs` 953, `bake.rs` 934, `screen.rs` 880, `loader.rs` 805,
-  `tactics_panel.rs` 778, `command.rs` 761.
+## Next: step 8f
+1. **`docs/api.md` and its drift test.** A subagent was writing them when this file was written (it does not
+   commit):
+   - the drift test is `omnis-cli/tests/api_doc.rs` or `omnis-mcp/tests/`;
+   - the agent may also add `EdgeView` and `ViewTile` to `api.rs` and switch `plan.rs`'s import.
+   Review its report, then read the document. Check its known gaps; the main one is that JSON clients have no
+   op for pack definitions or labels. Run the gate and commit.
+2. **ARCH:**
+   - the status line to "v0.8, matches M8 as built";
+   - check §4.9 against the build: `api.rs` also re-exports `step_lands`, `site_ahead`, `Known`, `layer` and
+     `MapId`, and the app's `SimWorld` has methods.
+   - Approved with the plan as "ARCH v0.8 as built".
+3. **`tasks/acceptance/m8.md`:** drafted, untracked. Check that the test names it cites exist (grep each), then
+   commit it with 8f.
+4. **TODO:** 8f marked done, plus a review section for M8. Then **ask the owner to run the acceptance**.
+   Part 2 needs me to pass about 30 days in the meadow over MCP (`sim_script` with 720 short rests).
+5. **Proposals to put to the owner:**
+   - a dev command to pass time, for testing time by hand;
+   - a `data.*` op family so JSON clients can read pack definitions and labels.
+   Neither has been asked for; do not build either unasked.
+
+## Pins (after 8e)
+- Gate `tests passed 570 failed 0 ignored 13`. The 13th ignored test is `capture_schema_6_fixture`.
+- Walk replay `8711507745385976768` and fight replay `5247080599556612730` (unchanged through step 8).
+- `SAVE_SCHEMA` 7, `PROTOCOL` 1, MCP 24 tools, schema proof 94/142, dev branches 13.
+- Base pack tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)`.
+
+## Process
+- **Toolchain:** every cargo and gate run needs `DEVELOPER_DIR=/Library/Developer/CommandLineTools`. Run
+  `cargo fmt --all` before the gate.
+- **The gate:** `scripts/verify.sh > <scratchpad>/gate.txt 2>&1`, run in the background. It takes about 5–10
+  minutes. Never edit sources while it runs.
+- **Sentrux:** `git add` new files, scan `/Users/john/code/omnis/crates`, then `check_rules`. The rules file
+  `crates/.sentrux/rules.toml` is local and gitignored.
+- **Mutation runs:** `python3 -u <scratchpad>/mutate.py breaks.json crates [cargo args] > log`, never under
+  `timeout` or `| tail`. Afterwards grep the sources for leftover breaks.
+
+## Carry-over
+- **Log anomaly (M7):** not reproduced. It becomes B5 if the owner's capture confirms it; B4 is now the
+  save-read fix.
+- **Not built:**
+  - `SpellCast` and `EnemyCasts` are raised, but nothing answers them;
+  - `EnemyFlees` and `OwnTurn` have no source;
+  - region catch-up waits for M10.
+- **Large files:** `plan.rs` 978, `bake.rs` 934, `screen.rs` 898, `loader.rs` 805, `tactics_panel.rs` 778.
 - **Dated:** the Socket re-audit of `rhai` 1.26.1 is due 2026-10-10.
