@@ -16,7 +16,7 @@ use crate::screen::{self, Target};
 use crate::sheet_menu::SheetMenu;
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
-    SimEvent, SimWorld, StartIn, Views, WorldReplaced, close_world, load,
+    SimEvent, SimWorld, StartIn, Views, WorldReplaced, close_world, load, open_world,
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
@@ -255,7 +255,8 @@ struct Actions<'a, 'c, 'cs, 'n, 'p, 's, 'e, 'r> {
 
 impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
     fn start_game(&mut self, world: World, start: PlayState) {
-        self.commands.insert_resource(SimWorld(world));
+        let Some(data) = self.data else { return };
+        open_world(self.commands, world, &data.0);
         self.commands.insert_resource(StartIn(start));
         self.next.app.set(AppState::Playing);
         // Presentation draws the new world before its first step.

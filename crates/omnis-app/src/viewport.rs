@@ -8,7 +8,7 @@ use crate::canvas::Layout;
 use crate::combat_menu::{fight_view, redraws};
 use crate::layout::{CANVAS_HEIGHT, OVERLAY_MAP_SCALE, SIDEBAR_MAP_SCALE, VIEWPORT_SIZE};
 use crate::plan::{self, DrawOp, Paint};
-use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, WorldReplaced};
+use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, Views, WorldReplaced};
 use bevy::prelude::*;
 use bevy::sprite::Anchor;
 use omnis_sim::Event;
@@ -117,6 +117,7 @@ fn redraw(
     shown: Res<AutomapShown>,
     layout: Res<Layout>,
     world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     server: Res<AssetServer>,
     mut images: ResMut<PackImages>,
@@ -130,7 +131,7 @@ fn redraw(
     if !(saw_visible || was_replaced || shown.is_changed() || layout.is_changed()) {
         return;
     }
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(world), Some(views), Some(data)) = (world, views, data) else {
         return;
     };
     for entity in &old_view {
@@ -149,7 +150,7 @@ fn redraw(
         width: layout.width,
     };
     // Sky or darkness inside the viewport only; the panel colour shows around it.
-    let backdrop = plan::backdrop(&data.0, world.0.position.map);
+    let backdrop = plan::backdrop(&data.0, view.map);
     let sky = DrawOp {
         paint: Paint::Fill {
             color: backdrop,
@@ -166,12 +167,15 @@ fn redraw(
         let ops = actors::ops(&actors::silhouettes(&fight.actors()));
         spawn.spawn::<ViewportSprite>(&ops, layout.core, 2.0);
     }
-    let sidebar = plan::automap_window(&world.0, &data.0, layout.minimap(), SIDEBAR_MAP_SCALE);
+    let party = views.here.position;
+    let known = query::automap(&world.0, party.map);
+    let sidebar = plan::automap_window(party, known, &data.0, layout.minimap(), SIDEBAR_MAP_SCALE);
     spawn.spawn::<AutomapSprite>(&sidebar, (0, 0), 10.0);
     if shown.0 {
         // Clipped to the viewport so a large map never covers the column or the band.
         let overlay = plan::automap_window(
-            &world.0,
+            party,
+            known,
             &data.0,
             layout.overlay_clip().tuple(),
             OVERLAY_MAP_SCALE,

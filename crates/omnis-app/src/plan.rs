@@ -9,11 +9,14 @@
 //! edge at offsets `>= 0`.
 
 use crate::layout::Camera;
-use omnis_sim::World;
-use omnis_sim::omnis_core::{Facing, MapId};
+use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, MapData, MapKind, Tileset};
 use omnis_sim::query::{EdgeView, ViewTile, ViewportModel};
 use omnis_sim::world::layer;
+use std::collections::BTreeMap;
+
+/// What the party knows of a map, tile by tile (`query::automap`).
+pub type Known = BTreeMap<(u16, u16), omnis_sim::Known>;
 
 /// What to paint.
 #[derive(Debug, Clone, PartialEq)]
@@ -239,9 +242,15 @@ pub const PORTAL_MARK: (u8, u8, u8) = (90, 220, 240);
 /// seen only from afar, walls and doors as one-pixel edges, a centred square in `PORTAL_MARK` on
 /// known portal tiles, the party as a white mark with a red pixel on its facing edge.
 #[must_use]
-pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Vec<DrawOp> {
+pub fn automap(
+    party: Position,
+    known: Option<&Known>,
+    data: &Data,
+    origin: (i32, i32),
+    scale: i32,
+) -> Vec<DrawOp> {
     let mut ops = Vec::new();
-    let map_id = world.position.map;
+    let map_id = party.map;
     let Some(map) = data.maps.get(&map_id) else {
         return ops;
     };
@@ -253,7 +262,7 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Ve
         (i32::from(map.def.width) * s + 2) as u32,
         (i32::from(map.def.height) * s + 2) as u32,
     ));
-    if let Some(known) = world.automap.map(map_id) {
+    if let Some(known) = known {
         for (&(x, y), tile) in known {
             let terrain = &map.def.terrains[usize::from(tile.terrain)];
             let color = if tile.layers & layer::VISITED != 0 {
@@ -300,7 +309,7 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Ve
             }
         }
     }
-    let p = world.position;
+    let p = party;
     let (cx, cy) = (origin.0 + i32::from(p.x) * s, origin.1 + i32::from(p.y) * s);
     if s >= 4 {
         ops.push(DrawOp::fill(
@@ -330,12 +339,13 @@ pub fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Ve
 /// scrolled so the party is as central as the map's edges allow, and clipped to the rect.
 #[must_use]
 pub fn automap_window(
-    world: &World,
+    party: Position,
+    known: Option<&Known>,
     data: &Data,
     rect: (i32, i32, u32, u32),
     scale: i32,
 ) -> Vec<DrawOp> {
-    let Some(map) = data.maps.get(&world.position.map) else {
+    let Some(map) = data.maps.get(&party.map) else {
         return Vec::new();
     };
     let s = scale.max(1);
@@ -349,12 +359,12 @@ pub fn automap_window(
         }
     };
     let origin = (
-        rect.0 + place(rw, mw, i32::from(world.position.x)),
-        rect.1 + place(rh, mh, i32::from(world.position.y)),
+        rect.0 + place(rw, mw, i32::from(party.x)),
+        rect.1 + place(rh, mh, i32::from(party.y)),
     );
     let mut ops = vec![DrawOp::fill((20, 20, 28), rect.0, rect.1, rect.2, rect.3)];
     ops.extend(
-        automap(world, data, origin, s)
+        automap(party, known, data, origin, s)
             .into_iter()
             .filter_map(|op| clip(op, rect)),
     );
@@ -387,7 +397,22 @@ mod tests {
     use omnis_sim::Settings;
     use omnis_sim::omnis_core::{Direction, Facing, Position, Rotation};
     use omnis_sim::omnis_data::load_packs;
-    use omnis_sim::{Command, apply, query};
+    use omnis_sim::{Command, World, apply, query};
+
+    fn automap(world: &World, data: &Data, origin: (i32, i32), scale: i32) -> Vec<DrawOp> {
+        let known = query::automap(world, world.position.map);
+        super::automap(world.position, known, data, origin, scale)
+    }
+
+    fn automap_window(
+        world: &World,
+        data: &Data,
+        rect: (i32, i32, u32, u32),
+        s: i32,
+    ) -> Vec<DrawOp> {
+        let known = query::automap(world, world.position.map);
+        super::automap_window(world.position, known, data, rect, s)
+    }
     use std::path::PathBuf;
 
     fn data() -> Data {

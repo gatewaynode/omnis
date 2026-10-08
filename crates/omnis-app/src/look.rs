@@ -1,24 +1,24 @@
 //! The LOOK shortcut: which item a press of LOOK or L uses. The first sense item carried by
 //! a member who can act, in marching order; the simulation picks the eyes. Bevy-free.
 
-use omnis_sim::combat::state::is_dead;
+use crate::defs;
+use omnis_sim::api::PartyView;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, ItemCommand, World};
+use omnis_sim::{Command, ItemCommand};
 
 /// The use command a look sends, or `None` when nobody who can act carries a sense item.
 #[must_use]
-pub fn look_command(world: &World, data: &Data) -> Option<Command> {
-    world
-        .party
+pub fn look_command(party: &PartyView, data: &Data) -> Option<Command> {
+    party
         .members
         .iter()
         .enumerate()
-        .filter(|(_, m)| !m.is_down() && !is_dead(m, data))
+        .filter(|(_, m)| !m.down && !m.dead)
         .find_map(|(member, m)| {
             let row = m
                 .equipment
                 .iter()
-                .position(|(id, _)| data.items.get(id).is_some_and(|i| i.sense().is_some()))?;
+                .position(|i| defs::item(data, &i.id).is_some_and(|i| i.sense().is_some()))?;
             Some(Command::Item(ItemCommand::Use {
                 member: u8::try_from(member).ok()?,
                 item: u8::try_from(row).ok()?,
@@ -32,6 +32,11 @@ mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::items::item_id;
+    use omnis_sim::{World, party_view};
+
+    fn look_command(world: &World, data: &Data) -> Option<Command> {
+        super::look_command(&party_view(world, data), data)
+    }
 
     #[test]
     fn the_first_glass_of_a_member_who_can_act_is_the_one_used() {

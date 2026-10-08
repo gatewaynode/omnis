@@ -193,6 +193,13 @@ fn refresh_views(
     }
 }
 
+/// Start a game on `world`: the world and its views arrive together, so every system that
+/// runs once the game is up finds both.
+pub fn open_world(commands: &mut Commands, world: World, data: &Data) {
+    commands.insert_resource(Views::of(&world, data));
+    commands.insert_resource(SimWorld(world));
+}
+
 /// End the game: the world and its views go together.
 pub fn close_world(commands: &mut Commands) {
     commands.remove_resource::<SimWorld>();
@@ -318,7 +325,7 @@ fn boot(
                 data.packs.len(),
                 config.seed
             );
-            commands.insert_resource(SimWorld(world));
+            open_world(&mut commands, world, &data);
             commands.insert_resource(PackData(data));
             commands.insert_resource(StartIn(PlayState::Explore));
             next.set(AppState::Playing);
@@ -406,12 +413,14 @@ fn shell(
                 out.next_play.set(PlayState::Camp);
             }
             ShellCommand::Camp => out.notice.0 = "No camp here".to_owned(),
-            ShellCommand::Look => match crate::look::look_command(&world.0, &data.0) {
-                Some(command) => {
-                    out.player.write(PlayerCommand(command));
+            ShellCommand::Look => {
+                match crate::look::look_command(&party_view(&world.0, &data.0), &data.0) {
+                    Some(command) => {
+                        out.player.write(PlayerCommand(command));
+                    }
+                    None => out.notice.0 = "Nothing to look through".to_owned(),
                 }
-                None => out.notice.0 = "Nothing to look through".to_owned(),
-            },
+            }
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }

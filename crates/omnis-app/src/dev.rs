@@ -3,7 +3,7 @@
 //! of M2 grow from here.
 
 use crate::menu::{Catalog, CreationForm};
-use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, SimWorld};
+use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, Views};
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use omnis_sim::omnis_data::Data;
@@ -131,7 +131,7 @@ fn drive(
     script: Res<DevScript>,
     mut progress: ResMut<Progress>,
     data: Res<PackData>,
-    world: Res<SimWorld>,
+    views: Res<Views>,
     mut play: MessageWriter<PlayerCommand>,
     mut shell: MessageWriter<ShellCommand>,
     mut exit: MessageWriter<AppExit>,
@@ -148,7 +148,7 @@ fn drive(
                 shell.write(*s);
             }
             ScriptStep::Party => {
-                let draft = recruit(&data.0, world.0.party.members.len());
+                let draft = recruit(&data.0, views.party.members.len());
                 play.write(PlayerCommand(Command::Party(PartyCommand::Create(draft))));
             }
             ScriptStep::Create => next.set(PlayState::CreateParty),

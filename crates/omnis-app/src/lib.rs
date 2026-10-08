@@ -31,6 +31,7 @@ pub mod creation_panel;
 pub mod cursor;
 pub mod debug_menu;
 pub mod debug_panel;
+pub mod defs;
 #[cfg(feature = "devtools")]
 pub mod dev;
 pub mod encounter_menu;

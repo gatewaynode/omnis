@@ -8,6 +8,7 @@ use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::batch_lines;
 use crate::cursor::{self, Pointer, UiSet};
+use crate::defs;
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
@@ -15,7 +16,7 @@ use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
 use crate::sheet_menu::{SheetView, sheet_view};
-use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
+use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld, Views};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::text::Names;
 use crate::tool_bar::{self, ToolPressed, ToolStates};
@@ -25,8 +26,9 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Anchor;
+use omnis_sim::Event;
+use omnis_sim::api::{Here, PartyView};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Event, World};
 
 /// The canvas sprite the frame is uploaded into.
 #[derive(Resource, Debug, Clone)]
@@ -328,42 +330,39 @@ pub(crate) fn message_line(
 
 /// The party as band rows.
 #[must_use]
-pub fn member_rows(world: &World, data: &Data) -> Vec<MemberRow> {
-    world
-        .party
+pub fn member_rows(party: &PartyView, data: &Data) -> Vec<MemberRow> {
+    party
         .members
         .iter()
         .map(|m| MemberRow {
             name: m.name.clone(),
-            class: data
-                .classes
-                .get(&m.class)
+            class: defs::class(data, &m.class)
                 .map_or("?", |c| data.label("en", &c.name))
                 .to_owned(),
             level: m.level,
             hp: m.hp,
             hp_max: m.hp_max,
             sp: m.spell_points,
-            ac: omnis_sim::omnis_rules::armor_class(m, data),
+            ac: m.ac,
             condition: m
                 .conditions
                 .first()
-                .and_then(|c| data.conditions.get(c))
+                .and_then(|c| defs::condition(data, c))
                 .map(|c| data.label("en", &c.name).to_owned())
                 .or_else(|| {
                     m.effects
                         .first()
-                        .and_then(|e| data.spells.get(&e.source))
+                        .and_then(|e| defs::spell(data, &e.spell))
                         .map(|s| data.label("en", &s.name).to_owned())
                 }),
         })
         .collect()
 }
 
-/// The location lines for the world.
+/// The location lines for where the party is.
 #[must_use]
-pub fn hud_text(world: &World, data: &Data) -> Hud {
-    let p = world.position;
+pub fn hud_text(here: &Here, data: &Data) -> Hud {
+    let p = here.position;
     let map = data
         .maps
         .get(&p.map)
@@ -373,11 +372,7 @@ pub fn hud_text(world: &World, data: &Data) -> Hud {
         i32::from(p.x),
         i32::from(p.y),
         &p.facing.to_string(),
-        &crate::panels::clock_text(
-            world.party_time.date,
-            world.party_clock().elapsed,
-            data.calendar(),
-        ),
+        &crate::panels::clock_text(here.date.minutes, here.age, data.calendar()),
     )
 }
 
@@ -446,7 +441,7 @@ fn overlay_for<'a>(
 fn menu_for<'a>(
     active: Active,
     screens: &'a Screens,
-    world: Option<&World>,
+    here: Option<&Here>,
     over: &Overlays<'a>,
     members: usize,
 ) -> (Menu<'a>, &'static str) {
@@ -472,8 +467,8 @@ fn menu_for<'a>(
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,
-                settings: world.map_or_else(Default::default, |w| w.settings),
-                seed: world.map_or(0, |w| w.seed),
+                settings: here.map_or_else(Default::default, |h| h.settings),
+                seed: here.map_or(0, |h| h.seed),
             },
             HELP_PAUSE,
         ),
@@ -515,6 +510,7 @@ fn build_frame(
     at: Where,
     screens: Res<Screens>,
     world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     line: Res<MessageLine>,
@@ -525,8 +521,9 @@ fn build_frame(
 ) {
     let active = at.screen();
     let loaded = world.as_ref().zip(data.as_ref());
-    let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
-    let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
+    let seen = views.as_ref().zip(data.as_ref());
+    let members = seen.map_or_else(Vec::new, |(v, d)| member_rows(&v.party, &d.0));
+    let hud = seen.map(|(v, d)| hud_text(&v.here, &d.0));
     let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
     let casts = if active == Active::Cast {
         loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
@@ -539,9 +536,7 @@ fn build_frame(
     let inventory = (active == Active::Inventory)
         .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
         .flatten();
-    let front_row = data
-        .as_ref()
-        .map_or(3, |d| omnis_sim::party::front_row(&d.0));
+    let front_row = views.as_ref().map_or(3, |v| v.party.front_row);
     let model_message = model_message(active, &screens);
     let over = Overlays {
         fight: fight.as_ref(),
@@ -553,11 +548,11 @@ fn build_frame(
     let (menu, help) = menu_for(
         active,
         &screens,
-        world.as_ref().map(|w| &w.0),
+        views.as_ref().map(|v| &v.here),
         &over,
         members.len(),
     );
-    let pad = if world.is_none() {
+    let pad = if views.is_none() {
         PadState::Hidden
     } else if at.exploring() {
         PadState::Enabled
@@ -591,6 +586,7 @@ fn build_frame(
 mod tests {
     use super::hud_text;
     use crate::debug_menu::tests::world_and_data;
+    use omnis_sim::api::here;
     use omnis_sim::{Command, DevCommand, PARTY, apply};
 
     /// The location lines show the party's date and age (M8): two years in the meadow read as
@@ -614,11 +610,11 @@ mod tests {
         world.clocks.get_mut(&PARTY).unwrap().elapsed += 2 * year;
         world.party_time.shared_milli += 2 * year * 100;
         world.party_time.date += 2 * year;
-        let wild = hud_text(&world, &data).clock;
+        let wild = hud_text(&here(&world, &data), &data).clock;
         assert!(wild.starts_with("Year 3 day 1 "), "{wild}");
         assert!(wild.ends_with("age 2y 0d"), "{wild}");
         apply(&mut world, &data, to("test:map:town", &data)).unwrap();
-        let town = hud_text(&world, &data).clock;
+        let town = hud_text(&here(&world, &data), &data).clock;
         assert!(town.starts_with("Year 1 day "), "{town}");
         let day: u32 = town["Year 1 day ".len()..]
             .split(' ')

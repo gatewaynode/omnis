@@ -6,8 +6,7 @@
 
 use crate::look::look_command;
 use crate::menus::{Active, Where};
-use crate::sim::{PackData, ShellCommand, SimWorld};
-use crate::spell_menu::cast_rows;
+use crate::sim::{PackData, ShellCommand, Views};
 use crate::widget::PadState;
 use bevy::prelude::*;
 
@@ -159,22 +158,20 @@ pub fn tool_states(
 /// Keep the states for the screen and the world as they are now.
 pub fn track(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut states: ResMut<ToolStates>,
 ) {
     let active = at.screen();
-    let loaded = world.as_ref().zip(data.as_ref());
+    let loaded = views.as_ref().zip(data.as_ref());
     let has_casts = (at.exploring() || active == Active::Service)
-        && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
+        && views.as_ref().is_some_and(|v| !v.casts.is_empty());
     let has_look =
-        at.exploring() && loaded.is_some_and(|(w, d)| look_command(&w.0, &d.0).is_some());
-    let has_members = world
-        .as_ref()
-        .is_some_and(|w| !w.0.party.members.is_empty());
+        at.exploring() && loaded.is_some_and(|(v, d)| look_command(&v.party, &d.0).is_some());
+    let has_members = views.as_ref().is_some_and(|v| !v.party.members.is_empty());
     let wanted = tool_states(
         active,
-        world.is_some() && at.playing(),
+        views.is_some() && at.playing(),
         has_casts,
         has_members,
         has_look,
