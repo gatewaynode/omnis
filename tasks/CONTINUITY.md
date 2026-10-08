@@ -1,7 +1,7 @@
 # Continuity notes
 
 Written 2026-10-07, late in M8 step 8. M7 is closed (`68c4d09`). M8 (subjective time with the signal bus) has
-steps 0–7, 7b and 8a–8e committed. Step 8f and the owner's acceptance remain. Plans:
+steps 0–7, 7b and 8a–8f committed. Only the owner's acceptance remains. Plans:
 - `tasks/plans/m8-time.md` (the milestone);
 - `tasks/plans/m8-bus-crate.md` (7b);
 - `tasks/plans/m8-api.md` (step 8, the engine's API).
@@ -43,29 +43,24 @@ Rewrite this file every time it is used. The durable knowledge lives in `tasks/k
   - `defs.rs`.
 - `69d48a9`: TODO and code-map for 8d and 8e.
 
-## Next: step 8f
-1. **`docs/api.md` and its drift test.** A subagent was writing them when this file was written (it does not
-   commit):
-   - the drift test is `omnis-cli/tests/api_doc.rs` or `omnis-mcp/tests/`;
-   - the agent may also add `EdgeView` and `ViewTile` to `api.rs` and switch `plan.rs`'s import.
-   Review its report, then read the document. Check its known gaps; the main one is that JSON clients have no
-   op for pack definitions or labels. Run the gate and commit.
-2. **ARCH:**
-   - the status line to "v0.8, matches M8 as built";
-   - check §4.9 against the build: `api.rs` also re-exports `step_lands`, `site_ahead`, `Known`, `layer` and
-     `MapId`, and the app's `SimWorld` has methods.
-   - Approved with the plan as "ARCH v0.8 as built".
-3. **`tasks/acceptance/m8.md`:** drafted, untracked. Check that the test names it cites exist (grep each), then
-   commit it with 8f.
-4. **TODO:** 8f marked done, plus a review section for M8. Then **ask the owner to run the acceptance**.
-   Part 2 needs me to pass about 30 days in the meadow over MCP (`sim_script` with 720 short rests).
-5. **Proposals to put to the owner:**
-   - a dev command to pass time, for testing time by hand;
-   - a `data.*` op family so JSON clients can read pack definitions and labels.
-   Neither has been asked for; do not build either unasked.
+## Next: the owner's acceptance of M8
+- 8f is done (`95df279`):
+  - `docs/api.md` and `omnis-mcp/tests/api_doc.rs` (the drift test);
+  - `api` re-exports the types inside replies;
+  - ARCH v0.8;
+  - **B5**: `rules.set` now answers an unknown slot with `UnknownSlot`;
+  - the acceptance script `tasks/acceptance/m8.md`.
+- **The owner runs `tasks/acceptance/m8.md`.**
+  - Part 2 needs me to pass about 30 days in the meadow over MCP: `sim_script` with 720 short rests,
+    `{"Rest":{"Short":{"dice":[]}}}`.
+  - Parts 2 and 5 are MCP; restart the bridge after building.
+- **On acceptance:** close M8 (the TODO heading and the plans), then plan M9.
+- **Proposals to put to the owner**, neither asked for and neither built:
+  - a dev command to pass time;
+  - `data.*` ops so JSON clients can read pack definitions and labels.
 
-## Pins (after 8e)
-- Gate `tests passed 570 failed 0 ignored 13`. The 13th ignored test is `capture_schema_6_fixture`.
+## Pins (after 8f)
+- Gate `tests passed 572 failed 0 ignored 13`. The 13th ignored test is `capture_schema_6_fixture`.
 - Walk replay `8711507745385976768` and fight replay `5247080599556612730` (unchanged through step 8).
 - `SAVE_SCHEMA` 7, `PROTOCOL` 1, MCP 24 tools, schema proof 94/142, dev branches 13.
 - Base pack tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)`.
@@ -81,8 +76,8 @@ Rewrite this file every time it is used. The durable knowledge lives in `tasks/k
   `timeout` or `| tail`. Afterwards grep the sources for leftover breaks.
 
 ## Carry-over
-- **Log anomaly (M7):** not reproduced. It becomes B5 if the owner's capture confirms it; B4 is now the
-  save-read fix.
+- **Log anomaly (M7):** not reproduced. It becomes B6 if the owner's capture confirms it (B4 and B5 are
+  step 8's fixes).
 - **Not built:**
   - `SpellCast` and `EnemyCasts` are raised, but nothing answers them;
   - `EnemyFlees` and `OwnTurn` have no source;
