@@ -368,3 +368,51 @@ fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
     assert_eq!(status.date, time.date);
     assert_eq!(status.clock.elapsed, 3000, "the clock is the party's age");
 }
+
+/// The host ops' rules, shared by the dev socket and the headless driver (ARCHITECTURE.md §4.9):
+/// the save rule decides `save.write`, a save reads back as the world it was, a reload must keep
+/// the party's tile, and `rules.set` bounds and checks its source.
+#[test]
+fn the_host_ops_rules_hold_for_every_host() {
+    use omnis_sim::ops::{check_reload, load_text, rules_set, save_text};
+    use omnis_sim::{SaveRule, Settings, World};
+    let data = data();
+    let world = world(&data);
+    let text = save_text(&world).unwrap();
+    assert_eq!(load_text(&text, &data, false).unwrap(), world);
+    let strict = Settings {
+        save_rule: SaveRule::InnOnly,
+        ..Settings::default()
+    };
+    let outside = World::new(&data, 1, strict).unwrap();
+    assert!(
+        matches!(save_text(&outside), Err(OpError::Failed { .. })),
+        "only at an inn"
+    );
+
+    assert_eq!(check_reload(&world, &data), Ok(()));
+    let mut gone = data.clone();
+    gone.maps.remove(&world.position.map);
+    assert!(
+        matches!(check_reload(&world, &gone), Err(OpError::Failed { .. })),
+        "the party's map is gone"
+    );
+
+    let mut rules = data.clone();
+    let long = "1 + ".repeat(2000) + "1";
+    assert_eq!(
+        rules_set(&mut rules, "spell_points.pool", &long),
+        Err(OpError::TooLong {
+            limit: omnis_data::limits::MAX_STRING_BYTES
+        })
+    );
+    assert!(matches!(
+        rules_set(&mut rules, "spell_points.pool", "level +"),
+        Err(OpError::BadRequest { .. })
+    ));
+    assert_eq!(rules, data, "a refused swap changes nothing");
+    let Ok(Reply::Rule { rule }) = rules_set(&mut rules, "spell_points.pool", "level * 10") else {
+        panic!("a good formula swaps");
+    };
+    assert_eq!(rule.source, "level * 10");
+}

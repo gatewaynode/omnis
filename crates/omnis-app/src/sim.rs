@@ -4,6 +4,7 @@
 use crate::AppConfig;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, Mode, Rejection, Settings, World, apply};
 use std::path::{Path, PathBuf};
@@ -330,17 +331,23 @@ fn shell(
 
 /// Write the world as RON to `path`, creating the directory.
 pub fn save(world: &World, path: &Path) -> Result<(), String> {
-    let text = world.to_ron().map_err(|e| e.to_string())?;
-    if let Some(parent) = path.parent() {
+    write_text(path, &world.to_ron().map_err(|e| e.to_string())?)
+}
+
+/// Write `text` to `path`, making its directory.
+pub fn write_text(path: &Path, text: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
-/// Read a world from `path`, checked against the loaded packs unless `force`.
+/// Read a world from `path`, checked against the loaded packs unless `force`. The file is read
+/// with the pack loader's limits (no symlink, at most `MAX_FILE_BYTES`), as the headless host
+/// reads it: a save is untrusted input (B4).
 pub fn load(data: &Data, path: &Path, force: bool) -> Result<World, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    World::from_ron(&text, data, force).map_err(|e| e.to_string())
+    let text = read_text(path, path).map_err(|e| e.to_string())?;
+    omnis_sim::ops::load_text(&text, data, force).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

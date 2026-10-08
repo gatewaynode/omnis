@@ -7,12 +7,14 @@
 
 use crate::LOG_CAPACITY;
 use crate::apply::apply;
+use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
+use crate::rest_view::{RestView, rest_view};
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
@@ -28,6 +30,11 @@ use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
 use serde::{Deserialize, Serialize};
+
+/// The version of the engine's API, both tiers (ARCHITECTURE.md §4.9). Additions leave it alone;
+/// a rename, a removal, or a change of meaning or units moves it, with a line in the changelog
+/// of `docs/api.md`. `game.status` reports it so a client can check it first.
+pub const PROTOCOL: u32 = 1;
 
 /// Most commands one `sim.script` may carry.
 pub const MAX_SCRIPT: usize = 10_000;
@@ -159,6 +166,12 @@ pub enum Op {
         /// `pack:region:name`.
         region: String,
     },
+    /// The camp: each member's hit dice and why a rest would be refused (M8 step 8).
+    #[serde(rename = "rest.get")]
+    RestGet,
+    /// The spells each member may cast outside a fight, with cost and refusal (M8 step 8).
+    #[serde(rename = "cast.get")]
+    CastGet,
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -206,6 +219,8 @@ pub struct ClockView {
 /// `game.status`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Status {
+    /// The API's version, [`PROTOCOL`].
+    pub protocol: u32,
     /// What the party is doing.
     pub mode: ModeKind,
     /// Commands applied.
@@ -272,9 +287,10 @@ pub struct RulesView {
     pub tables: BTreeMap<String, Vec<i64>>,
 }
 
-/// A successful result. Serialized untagged, so the wire carries the plain object.
+/// A successful result. Tagged inside: the wire carries the plain object with `"reply"` naming
+/// the variant in snake case, so a client can decode a reply without knowing the op it sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "reply", rename_all = "snake_case")]
 pub enum Reply {
     /// `game.status`, and `save.read` once the world is replaced.
     Status(Status),
@@ -341,9 +357,17 @@ pub enum Reply {
         /// Clocks, contacts and the party's time.
         time: TimeView,
     },
-    /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
-    /// variants in order and an absent `Option` field reads as `None`, so this variant and
-    /// `Done` stay last: they would swallow any object.
+    /// `rest.get`.
+    Rest {
+        /// The camp.
+        rest: RestView,
+    },
+    /// `cast.get`.
+    Casts {
+        /// Every member's spells castable outside a fight.
+        casts: Vec<CastView>,
+    },
+    /// `world.query`: `None` when the path does not exist.
     Value {
         /// The value as text.
         value: Option<String>,
@@ -415,6 +439,8 @@ impl fmt::Display for OpError {
         }
     }
 }
+
+impl core::error::Error for OpError {}
 
 impl OpError {
     /// A host failure from anything that displays.
@@ -503,6 +529,12 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::ServiceGet => service_view(world, data)
             .map(|service| Reply::Service { service })
             .ok_or(OpError::NoService),
+        Op::RestGet => Ok(Reply::Rest {
+            rest: rest_view(world, data),
+        }),
+        Op::CastGet => Ok(Reply::Casts {
+            casts: cast_view(world, data),
+        }),
         Op::TimeClocks => Ok(Reply::Time {
             time: time_view(world, data),
         }),
@@ -561,6 +593,7 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
     let day_length = i64::from(data.calendar().minutes_per_day.max(1));
     let here = query::here(world, data);
     Ok(Status {
+        protocol: PROTOCOL,
         mode: here.mode,
         turn: here.turn,
         position: here.position,
@@ -580,6 +613,51 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
         seed: here.seed,
         settings: here.settings,
     })
+}
+
+// The host ops' rules (ARCHITECTURE.md §4.9): every host writes only the file and window code
+// around these, so the socket and the headless driver cannot disagree.
+
+/// `save.write`: the save's text, when the save rule allows a save here.
+pub fn save_text(world: &World) -> Result<String, OpError> {
+    if !world.may_save() {
+        return Err(OpError::failed("the save rule forbids saving here"));
+    }
+    world.to_ron().map_err(OpError::failed)
+}
+
+/// `save.read`: the world a save's text holds, migrated to this schema and checked against the
+/// loaded packs (`force` loads it on other packs anyway). The host reads the text with the
+/// loader's limits (`omnis_data::ron_io::read_text`).
+pub fn load_text(text: &str, data: &Data, force: bool) -> Result<World, OpError> {
+    World::from_ron(text, data, force).map_err(OpError::failed)
+}
+
+/// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
+/// hold the party's tile.
+pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
+    let p = world.position;
+    if fresh
+        .maps
+        .get(&p.map)
+        .and_then(|m| m.cell(p.x, p.y))
+        .is_none()
+    {
+        return Err(OpError::failed(format!(
+            "the party's tile {p} is not in the reloaded packs; nothing changed"
+        )));
+    }
+    Ok(())
+}
+
+/// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with
+/// the slot.
+pub fn rules_set(data: &mut Data, slot: &str, source: &str) -> Result<Reply, OpError> {
+    bounded(source)?;
+    data.rules
+        .set_slot(slot, source)
+        .map_err(OpError::bad_request)?;
+    slot_view(data, slot).map(|rule| Reply::Rule { rule })
 }
 
 fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply, OpError> {

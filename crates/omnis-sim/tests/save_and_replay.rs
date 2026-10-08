@@ -699,6 +699,46 @@ fn capture_schema_4_fixture() {
     write_ron(&save_path("v4"), &world).unwrap();
 }
 
+/// A schema-6 save (captured from the M8 step 2 build, `capture_schema_6_fixture`) loads through
+/// the migration: the party's past counts in full as shared time and date, the regions subscribe
+/// to reconciliation, the fight saved mid-way subscribes its reactions, Ilvara's declared Shield
+/// stays, and the fight goes on.
+#[test]
+fn a_schema_6_save_migrates() {
+    use omnis_sim::bus::{Subscriber, Topic};
+    let data = data();
+    let path = save_path("v6");
+    let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
+    assert!(text.contains("schema: 6") && !text.contains("party_time") && !text.contains("bus"));
+    let mut world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(world.schema, 7);
+    let age = world.party_clock().elapsed;
+    assert!(age > 0, "two steps lived");
+    assert_eq!(
+        (world.party_time.shared_milli, world.party_time.date),
+        (age * 1000, age)
+    );
+    assert_eq!(
+        world.bus.subscribers(Topic::Battle),
+        [Subscriber::Reactions]
+    );
+    assert_eq!(world.party.members[2].tactics.reactions().len(), 1);
+    assert!(matches!(world.mode, Mode::Combat(_)));
+    let text = world.to_ron().unwrap();
+    assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
+    for _ in 0..40 {
+        if !matches!(world.mode, Mode::Combat(_)) {
+            break;
+        }
+        omnis_sim::apply(
+            &mut world,
+            &data,
+            omnis_sim::Command::Combat(omnis_sim::CombatCommand::Dodge),
+        )
+        .unwrap_or_else(|r| panic!("{r}"));
+    }
+}
+
 /// Captures `tests/saves/v5.ron` from a schema-5 build: Brenna, Durin and Ilvara, Ilvara with
 /// shield in `auto_cast`, in round one of a fight with two goblins, so the schema-6 migration has
 /// an auto-cast spell to turn into a declared reaction and a fight state to carry. Run once,
@@ -726,4 +766,47 @@ fn capture_schema_5_fixture() {
     assert!(matches!(world.mode, Mode::Combat(_)));
     assert_eq!(world.schema, 5);
     write_ron(&save_path("v5"), &world).unwrap();
+}
+
+/// Captures `tests/saves/v6.ron` from a schema-6 build (M8 step 2, `0bcb02f`): Brenna, Durin and
+/// Ilvara, Ilvara with Shield declared, two steps lived, in round one of a fight with two goblins,
+/// so the schema-7 migration has a past to count as shared time and a fight to subscribe to the
+/// bus. Run once, deliberately, before the schema moved on (captured late, in M8 step 8c, from a
+/// worktree of that commit).
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-6 build"]
+fn capture_schema_6_fixture() {
+    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
+    use omnis_sim::tactics::TacticsCommand;
+    use omnis_sim::{PartyCommand, Surprise, apply, combat};
+    let data = data();
+    let mut world = world(&data);
+    common::party_of(&mut world, &data, 3);
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    let set = CriteriaSet {
+        name: "Shield".to_owned(),
+        action: ActionRef::Spell(shield),
+        trigger: Trigger::Attacked,
+        when: Criteria::Is(Predicate::WouldChangeOutcome),
+    };
+    let put = PartyCommand::Tactics(TacticsCommand::PutReaction {
+        member: 2,
+        at: None,
+        set,
+    });
+    apply(&mut world, &data, omnis_sim::Command::Party(put)).unwrap();
+    step(&mut world, &data);
+    step(&mut world, &data);
+    let here = world.position;
+    let goblins = common::encounter(
+        &data,
+        &[("goblin", 2)],
+        omnis_data::Disposition::Hostile,
+        here,
+    );
+    let mut events = Vec::new();
+    combat::start(&mut world, &data, goblins, Surprise::None, &mut events).unwrap();
+    assert!(matches!(world.mode, Mode::Combat(_)));
+    assert_eq!(world.schema, 6);
+    write_ron(&save_path("v6"), &world).unwrap();
 }

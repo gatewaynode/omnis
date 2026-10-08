@@ -248,3 +248,39 @@ fn the_menus_build_a_party_without_a_window() {
     let notice = app.world().resource::<omnis_app::sim::Notice>();
     assert!(notice.0.contains("save rule"), "{}", notice.0);
 }
+
+/// A save is untrusted input (ARCHITECTURE.md §6.2): the app reads it with the pack loader's
+/// limits, as the headless host does, so a symlink or an oversized file is refused before it is
+/// parsed (B4).
+#[test]
+fn a_save_is_read_with_the_loader_s_limits() {
+    use omnis_app::sim::{load, save};
+    use omnis_sim::omnis_data::{limits::MAX_FILE_BYTES, load_packs};
+    use omnis_sim::{Settings, World};
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")]).unwrap();
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("load-limits");
+    std::fs::create_dir_all(&dir).unwrap();
+    let world = World::new(&data, 7, Settings::default()).unwrap();
+    let real = dir.join("real.ron");
+    save(&world, &real).unwrap();
+    assert!(load(&data, &real, false).is_ok());
+
+    let big = dir.join("big.ron");
+    std::fs::write(
+        &big,
+        vec![b' '; usize::try_from(MAX_FILE_BYTES).unwrap() + 1],
+    )
+    .unwrap();
+    let refused = load(&data, &big, false).unwrap_err();
+    assert!(refused.contains("limit"), "{refused}");
+
+    #[cfg(unix)]
+    {
+        let link = dir.join("link.ron");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let refused = load(&data, &link, false).unwrap_err();
+        assert!(refused.contains("symlink"), "{refused}");
+    }
+}

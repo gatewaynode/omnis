@@ -40,3 +40,16 @@ the fix) and the fixing commit. Newest last.
   edits stick and are easier to do now"); never reproduced with the canvas menu; the panel's test guards it.
 - **Fixed in**: `f9940d6` (the Feathers debug panel replaced the canvas menu).
 
+
+## B4 — The app read a save file without the loader's limits (review, M8 step 8c, 2026-10-07)
+- **Report**: found in review while sharing the host ops' rules between the app and the headless host (ARCHITECTURE
+  §4.9): `omnis-app/src/sim.rs::load` read a save with `std::fs::read_to_string`, so a symlink or a file of any
+  size reached the RON parser. `Headless` already read saves through `omnis_data::ron_io::read_text` (no
+  symlink, at most `MAX_FILE_BYTES`); a save is untrusted input (§6.2, §12).
+- **Cause**: the host ops were written twice, once per host, and drifted.
+- **Fix**: the app's `load` reads through `read_text` and parses through `ops::load_text`, the same path the
+  headless host takes; the host ops' rules (`save_text`, `load_text`, `check_reload`, `rules_set`) live once in
+  `omnis-sim/src/ops.rs`.
+- **Test**: `omnis-app/tests/smoke.rs::a_save_is_read_with_the_loader_s_limits` (red before the fix: the
+  oversized file reached the parser; a symlink is refused on Unix).
+- **Fixed in**: M8 step 8c.

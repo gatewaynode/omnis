@@ -262,6 +262,8 @@ impl fmt::Display for NewGameError {
     }
 }
 
+impl core::error::Error for NewGameError {}
+
 /// Why a save could not be loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoadError {
@@ -297,6 +299,8 @@ impl fmt::Display for LoadError {
         }
     }
 }
+
+impl core::error::Error for LoadError {}
 
 impl World {
     /// A new game on the packs' entry map, with an empty party and the given settings.

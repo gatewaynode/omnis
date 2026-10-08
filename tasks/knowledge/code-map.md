@@ -62,8 +62,10 @@ old saves only).
   `MapData.region`, `Data::calendar()` → `omnis_core::{Calendar, Date}`, `text::fill` (`{ago}`);
   `rules/time.ron` (`time.settled`, `time.wild`, the calendar values). App: `panels::clock_text`
   (the HUD clock line), `text::ago_text` (a rumor's age).
-- The client protocol (ARCHITECTURE §4.9): `ops.rs` (`Op`, `Reply`, `OpError`, `Status`, `dispatch`,
-  `Op::is_host`, `MAX_SCRIPT`); `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
+- The engine's API (ARCHITECTURE §4.9, M8 step 8): `api.rs` re-exports exactly the contract; `ops.rs` (`PROTOCOL`,
+  `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
+  `save_text`, `load_text`, `check_reload`, `rules_set`); the views `query::here`, `party_view.rs`, `view.rs`,
+  `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-app/src/socket.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
   `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and

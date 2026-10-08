@@ -292,6 +292,8 @@ impl fmt::Display for ScriptError {
     }
 }
 
+impl core::error::Error for ScriptError {}
+
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
 /// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
@@ -592,6 +594,8 @@ impl core::fmt::Display for Rejection {
             .unwrap_or_else(|| self.fmt_magic(f))
     }
 }
+
+impl core::error::Error for Rejection {}
 
 impl Rejection {
     /// The wording of the mode, party and fight refusals; `None` for the rest.
