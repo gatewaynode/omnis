@@ -16,7 +16,7 @@ use crate::screen::{self, Target};
 use crate::sheet_menu::SheetMenu;
 use crate::sim::{
     AppState, CommandRefused, MenuState, Notice, PackData, PlayState, PlayerCommand, ShellCommand,
-    SimEvent, SimWorld, StartIn, WorldReplaced, load,
+    SimEvent, SimWorld, StartIn, Views, WorldReplaced, close_world, load,
 };
 use crate::spell_menu::{CastIntent, CastMenu, cast_rows};
 use crate::ui::UiClick;
@@ -25,6 +25,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
+use omnis_sim::api::here;
 use omnis_sim::{Command, Event, PartyCommand, World};
 
 /// What the creation panel (`feathers_ui.rs`) asks of the creation flow. An app without the
@@ -267,7 +268,7 @@ impl Actions<'_, '_, '_, '_, '_, '_, '_, '_> {
 }
 
 fn leave_game(commands: &mut Commands, next: &mut Next) {
-    commands.remove_resource::<SimWorld>();
+    close_world(commands);
     next.app.set(AppState::MainMenu);
 }
 
@@ -282,6 +283,7 @@ fn menu_keys(
     config: Res<AppConfig>,
     data: Option<Res<PackData>>,
     world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut player: MessageWriter<PlayerCommand>,
     mut shell: MessageWriter<ShellCommand>,
     mut exit: MessageWriter<AppExit>,
@@ -290,12 +292,12 @@ fn menu_keys(
     // The UI plugin's selection; absent in an app without it (the menus alone are testable).
     selected: Option<Res<crate::ui::Selected>>,
 ) {
-    let resume = world
+    let resume = views
         .as_ref()
-        .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode));
-    let debug = world
+        .map_or(PlayState::Explore, |v| PlayState::for_kind(v.here.mode));
+    let debug = views
         .as_ref()
-        .is_some_and(|w| debug_available(w.0.settings));
+        .is_some_and(|v| debug_available(v.here.settings));
     let active = at.screen();
     let mut pressed: Vec<MenuKey> = keys.read().filter_map(menu_key).collect();
     for UiClick(hit) in clicks.read() {
@@ -376,7 +378,7 @@ fn title_action(action: TitleAction, act: &mut Actions<'_, '_, '_, '_, '_, '_, '
             let Some(data) = act.data else { return };
             match load(&data.0, &act.config.save_path, false) {
                 Ok(world) => {
-                    let start = PlayState::for_mode(&world.mode);
+                    let start = PlayState::for_kind(here(&world, &data.0).mode);
                     act.start_game(world, start);
                 }
                 Err(e) => act.notice.0 = format!("Load failed: {e}"),
@@ -396,13 +398,11 @@ fn new_game_action(
     match action {
         NewGameAction::Start => {
             let Some(data) = act.data else { return };
-            match World::new(
-                &data.0,
-                form.seed(crate::entropy_seed()),
-                crate::sim::game_settings(form.settings),
-            ) {
+            let seed = form.seed(crate::entropy_seed());
+            let settings = crate::sim::game_settings(form.settings);
+            match World::new(&data.0, seed, settings) {
                 Ok(world) => {
-                    info!("new game, seed {:#x}, {:?}", world.seed, world.settings);
+                    info!("new game, seed {seed:#x}, {settings:?}");
                     act.start_game(world, PlayState::CreateParty);
                 }
                 Err(e) => act.notice.0 = format!("{e}"),

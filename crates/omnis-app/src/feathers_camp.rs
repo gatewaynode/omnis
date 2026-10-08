@@ -9,7 +9,7 @@
 use crate::camp_panel::{self as model, CampAsk, CampForm, CampLabelId, CampPanelId};
 use crate::feathers_ui::HoldsKeyboard;
 use crate::menus::{Active, Where};
-use crate::sim::{CommandRefused, PlayState, PlayerCommand, SimEvent, SimWorld};
+use crate::sim::{CommandRefused, PlayState, PlayerCommand, SimEvent, SimWorld, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, button, message_line,
     panel as panel_root, row, set_text, title,
@@ -263,7 +263,7 @@ pub fn sync(
 pub(crate) fn reports(
     mut reports: MessageReader<UiReport>,
     mut shown: ResMut<CampShown>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut out: MessageWriter<PlayerCommand>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
@@ -280,14 +280,14 @@ pub(crate) fn reports(
             Some(CampAsk::Rest(rest)) => {
                 out.write(PlayerCommand(Command::Rest(rest)));
             }
-            Some(CampAsk::Close) => close(world.as_deref(), &mut next),
+            Some(CampAsk::Close) => close(views.as_deref(), &mut next),
             None => {}
         }
     }
 }
 
-fn close(world: Option<&SimWorld>, next: &mut NextState<PlayState>) {
-    next.set(world.map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode)));
+fn close(views: Option<&Views>, next: &mut NextState<PlayState>) {
+    next.set(views.map_or(PlayState::Explore, |v| PlayState::for_kind(v.here.mode)));
 }
 
 /// Escape closes the camp, unless a control holds the keyboard.
@@ -296,7 +296,7 @@ pub(crate) fn escape_closes(
     at: Where,
     focus: Res<InputFocus>,
     holders: Query<(), HoldsKeyboard>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
     let escaped = keys
@@ -304,6 +304,6 @@ pub(crate) fn escape_closes(
         .any(|k| k.state == ButtonState::Pressed && k.logical_key == Key::Escape);
     let held = focus.get().is_some_and(|entity| holders.contains(entity));
     if escaped && at.screen() == Active::Camp && !held {
-        close(world.as_deref(), &mut next);
+        close(views.as_deref(), &mut next);
     }
 }

@@ -11,7 +11,7 @@ use crate::debug_menu::{DebugView, debug_view};
 use crate::debug_panel::{self as model, DebugAsk, DebugForm, DebugLabelId, DebugPanelId, FACINGS};
 use crate::feathers_ui::HoldsKeyboard;
 use crate::menus::{Active, Where};
-use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, SimWorld};
+use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimEvent, SimWorld, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, Width, button, column, dropdown,
     message_line, panel as panel_root, row, row_label, scroll_column, set_text, title,
@@ -315,22 +315,22 @@ fn debug_panel(view: &DebugView) -> impl Scene {
 fn toggle(
     mut keys: MessageReader<KeyboardInput>,
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
     let pressed = keys.read().any(|k| {
         k.state == ButtonState::Pressed
             && matches!(&k.logical_key, Key::Character(text) if text.as_str() == "`")
     });
-    let Some(world) = world else {
+    let Some(views) = views else {
         return;
     };
-    if !pressed || !crate::menu::debug_available(world.0.settings) {
+    if !pressed || !crate::menu::debug_available(views.here.settings) {
         return;
     }
     match at.screen() {
         Active::None | Active::Combat if at.playing() => next.set(PlayState::Debug),
-        Active::Debug => next.set(PlayState::for_mode(&world.0.mode)),
+        Active::Debug => next.set(PlayState::for_kind(views.here.mode)),
         _ => {}
     }
 }
@@ -459,7 +459,7 @@ fn sync(
 fn reports(
     mut reports: MessageReader<UiReport>,
     mut shown: ResMut<DebugShown>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut out: MessageWriter<PlayerCommand>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
@@ -478,8 +478,8 @@ fn reports(
                 out.write(PlayerCommand(Command::Dev(command)));
             }
             Some(DebugAsk::Close) => {
-                if let Some(world) = world.as_ref() {
-                    next.set(PlayState::for_mode(&world.0.mode));
+                if let Some(views) = views.as_ref() {
+                    next.set(PlayState::for_kind(views.here.mode));
                 }
             }
             None => {}
@@ -493,7 +493,7 @@ fn escape_closes(
     at: Where,
     focus: Res<InputFocus>,
     holders: Query<(), HoldsKeyboard>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
     let escaped = keys
@@ -503,8 +503,8 @@ fn escape_closes(
     if escaped
         && at.screen() == Active::Debug
         && !held
-        && let Some(world) = world
+        && let Some(views) = views
     {
-        next.set(PlayState::for_mode(&world.0.mode));
+        next.set(PlayState::for_kind(views.here.mode));
     }
 }

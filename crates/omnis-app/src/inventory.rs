@@ -8,7 +8,7 @@ use crate::inventory_menu::{InventoryIntent, inventory_view};
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
-use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimWorld};
+use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimWorld, Views};
 use crate::ui::{Selected, UiClick};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
@@ -33,10 +33,10 @@ impl Plugin for InventoryPlugin {
 /// The overlay opens on the band's selected member, or the first pane.
 fn open_inventory(
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     selected: Res<Selected>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let members = views.as_ref().map_or(0, |v| v.party.members.len());
     screens.inventory.open(selected.0, members);
 }
 
@@ -48,6 +48,7 @@ fn inventory_keys(
     at: Where,
     mut screens: ResMut<Screens>,
     world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     mut player: MessageWriter<PlayerCommand>,
@@ -59,7 +60,7 @@ fn inventory_keys(
     if at.screen() != Active::Inventory {
         return;
     }
-    let Some((world, data)) = world.zip(data) else {
+    let (Some(world), Some(views), Some(data)) = (world, views, data) else {
         return;
     };
     let view = inventory_view(&world.0, &data.0);
@@ -75,7 +76,7 @@ fn inventory_keys(
             Some(InventoryIntent::Command(command)) => {
                 player.write(PlayerCommand(command));
             }
-            Some(InventoryIntent::Close) => next.set(PlayState::for_mode(&world.0.mode)),
+            Some(InventoryIntent::Close) => next.set(PlayState::for_kind(views.here.mode)),
             None => {}
         }
     }

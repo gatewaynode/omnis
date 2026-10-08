@@ -2,11 +2,17 @@
 //! messages (ARCHITECTURE.md §8.1). Runs headless.
 
 use crate::AppConfig;
+use crate::confirm_panel::Ahead;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use omnis_sim::api::{
+    CastView, CombatView, Here, ModeKind, PartyView, RestView, ServiceView, cast_view, combat_view,
+    flags, here, party_view, rest_view, service_view,
+};
+use omnis_sim::api::{Direction, site_ahead, step_lands};
 use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, Mode, Rejection, Settings, World, apply};
+use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
 use std::path::{Path, PathBuf};
 
 /// Top-level app state (ARCHITECTURE.md §8.1).
@@ -81,12 +87,12 @@ pub fn game_settings(base: Settings) -> Settings {
 impl PlayState {
     /// The play state the world's mode calls for.
     #[must_use]
-    pub const fn for_mode(mode: &Mode) -> PlayState {
+    pub const fn for_kind(mode: ModeKind) -> PlayState {
         match mode {
-            Mode::Explore => PlayState::Explore,
-            Mode::Town(_) => PlayState::Service,
-            Mode::Encounter(_) => PlayState::Encounter,
-            Mode::Combat(_) => PlayState::Combat,
+            ModeKind::Explore => PlayState::Explore,
+            ModeKind::Town => PlayState::Service,
+            ModeKind::Encounter => PlayState::Encounter,
+            ModeKind::Combat => PlayState::Combat,
         }
     }
 }
@@ -108,6 +114,90 @@ pub struct PackData(pub Data);
 /// The game state. Only `SimPlugin` systems mutate it.
 #[derive(Resource)]
 pub struct SimWorld(pub World);
+
+impl SimWorld {
+    /// What a step in `direction` would meet: whether it lands anywhere, and the service it
+    /// would go into.
+    #[must_use]
+    pub fn ahead(&self, data: &Data, direction: Direction) -> Ahead {
+        Ahead {
+            lands: step_lands(&self.0, data, direction).is_some(),
+            site: site_ahead(&self.0, data, direction),
+        }
+    }
+}
+
+/// What the app reads of the world: the engine's views (ARCHITECTURE.md §4.9), refreshed at the
+/// end of [`SimSet::Apply`] whenever the world or the packs changed. Presentation reads this,
+/// never the world's fields.
+#[derive(Resource, Debug, Clone, PartialEq)]
+pub struct Views {
+    /// Where the party is and what it is doing.
+    pub here: Here,
+    /// The party and every member's sheet.
+    pub party: PartyView,
+    /// The encounter or fight, if one is on.
+    pub combat: Option<CombatView>,
+    /// The service the party is inside, if any.
+    pub service: Option<ServiceView>,
+    /// The rests on offer.
+    pub rest: RestView,
+    /// The spells castable outside a fight.
+    pub casts: Vec<CastView>,
+    /// Every flag with its value, when the game carries dev tools; empty otherwise.
+    pub flags: Vec<(String, i64)>,
+}
+
+impl Views {
+    /// Every view of `world`, read through the engine's API only.
+    #[must_use]
+    pub fn of(world: &World, data: &Data) -> Views {
+        let here = here(world, data);
+        let flags = if here.settings.devtools {
+            flags(world, data)
+        } else {
+            Vec::new()
+        };
+        Views {
+            here,
+            party: party_view(world, data),
+            combat: combat_view(world, data),
+            service: service_view(world, data),
+            rest: rest_view(world, data),
+            casts: cast_view(world, data),
+            flags,
+        }
+    }
+}
+
+/// Keep [`Views`] with the world: read again when the world or the packs changed or arrived,
+/// gone when the world is. Every change of the world marks the views changed.
+fn refresh_views(
+    mut commands: Commands,
+    world: Option<Res<SimWorld>>,
+    data: Option<Res<PackData>>,
+    views: Option<ResMut<Views>>,
+) {
+    let (Some(world), Some(data)) = (world, data) else {
+        if views.is_some() {
+            commands.remove_resource::<Views>();
+        }
+        return;
+    };
+    match views {
+        Some(mut views) if world.is_changed() || data.is_changed() => {
+            *views = Views::of(&world.0, &data.0);
+        }
+        Some(_) => {}
+        None => commands.insert_resource(Views::of(&world.0, &data.0)),
+    }
+}
+
+/// End the game: the world and its views go together.
+pub fn close_world(commands: &mut Commands) {
+    commands.remove_resource::<SimWorld>();
+    commands.remove_resource::<Views>();
+}
 
 /// A player action for the simulation.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
@@ -194,7 +284,8 @@ impl Plugin for SimPlugin {
                     .chain()
                     .in_set(SimSet::Apply)
                     .run_if(resource_exists::<SimWorld>),
-            );
+            )
+            .add_systems(Update, refresh_views.in_set(SimSet::Apply).after(shell));
     }
 }
 
@@ -311,7 +402,7 @@ fn shell(
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
             ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
-            ShellCommand::Camp if world.0.mode == omnis_sim::Mode::Explore => {
+            ShellCommand::Camp if here(&world.0, &data.0).mode == ModeKind::Explore => {
                 out.next_play.set(PlayState::Camp);
             }
             ShellCommand::Camp => out.notice.0 = "No camp here".to_owned(),
@@ -353,10 +444,44 @@ pub fn load(data: &Data, path: &Path, force: bool) -> Result<World, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::omnis_core::Rotation;
+
+    #[test]
+    fn the_views_arrive_with_the_world_follow_it_and_leave_with_it() {
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")]).unwrap();
+        let world = World::new(&data, 7, Settings::default()).unwrap();
+        let mut app = App::new();
+        app.add_systems(Update, refresh_views);
+        app.update();
+        assert!(
+            app.world().get_resource::<Views>().is_none(),
+            "no world, no views"
+        );
+        app.insert_resource(PackData(data.clone()))
+            .insert_resource(SimWorld(world.clone()));
+        app.update();
+        assert_eq!(*app.world().resource::<Views>(), Views::of(&world, &data));
+        let turned = {
+            let mut sim = app.world_mut().resource_mut::<SimWorld>();
+            apply(&mut sim.0, &data, Command::Turn(Rotation::Right)).unwrap();
+            sim.0.clone()
+        };
+        app.update();
+        let views = app.world().resource::<Views>();
+        assert_eq!(*views, Views::of(&turned, &data));
+        assert_ne!(views.here.position, Views::of(&world, &data).here.position);
+        app.world_mut().remove_resource::<SimWorld>();
+        app.update();
+        assert!(
+            app.world().get_resource::<Views>().is_none(),
+            "the views leave with the world"
+        );
+    }
 
     #[test]
     fn the_play_state_follows_the_mode_and_only_the_pause_stops_commands() {
-        assert_eq!(PlayState::for_mode(&Mode::Explore), PlayState::Explore);
+        assert_eq!(PlayState::for_kind(ModeKind::Explore), PlayState::Explore);
         let mut app = App::new();
         app.add_plugins(bevy::state::app::StatesPlugin)
             .init_state::<AppState>()

@@ -5,9 +5,10 @@
 //! `input.rs` asks, `feathers_confirm.rs` draws the panel. Bevy-free. "Remember my choice"
 //! is a horizon.
 
+use omnis_sim::api::{Here, ModeKind};
 use omnis_sim::omnis_core::{Direction, ServiceId};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Mode, ServiceCommand, World, query};
+use omnis_sim::{Command, ServiceCommand};
 
 /// A held step and its question.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,18 +29,32 @@ pub enum ConfirmId {
     Stay,
 }
 
+/// What a step would meet, as the engine answers it (`query::step_lands`, `query::site_ahead`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ahead {
+    /// Whether the step goes anywhere.
+    pub lands: bool,
+    /// The service it would go into, if it lands on a site.
+    pub site: Option<ServiceId>,
+}
+
 /// The question a command needs first, if any: a step that would go into a service, a step
 /// out of one that would go somewhere (a wall keeps the party inside, so it asks nothing), or
-/// leaving from inside one.
+/// leaving from inside one. `ahead` answers what a step in a direction would meet.
 #[must_use]
-pub fn ask(world: &World, data: &Data, command: &Command) -> Option<Confirm> {
+pub fn ask(
+    here: &Here,
+    data: &Data,
+    command: &Command,
+    ahead: impl FnOnce(Direction) -> Ahead,
+) -> Option<Confirm> {
     let question = match command {
-        Command::Step(direction) => question(world, data, *direction)?,
+        Command::Step(direction) => question(here, data, ahead(*direction))?,
         Command::Service(ServiceCommand::Leave) => {
-            let Mode::Town(state) = &world.mode else {
+            if here.mode != ModeKind::Town {
                 return None;
-            };
-            format!("Leave the {}?", service_name(data, state.service))
+            }
+            format!("Leave the {}?", inside(here, data))
         }
         _ => return None,
     };
@@ -55,18 +70,24 @@ fn service_name(data: &Data, id: ServiceId) -> &str {
         .map_or("?", |s| data.label("en", &s.name))
 }
 
-fn question(world: &World, data: &Data, direction: Direction) -> Option<String> {
-    let name = |id| service_name(data, id);
-    match &world.mode {
-        Mode::Town(state) => {
-            query::step_lands(world, data, direction)?;
-            Some(format!("Leave the {}?", name(state.service)))
+/// The name of the service the party is inside.
+fn inside<'d>(here: &Here, data: &'d Data) -> &'d str {
+    here.service
+        .as_deref()
+        .and_then(|id| data.registry.services.get(id))
+        .map_or("?", |id| service_name(data, id))
+}
+
+fn question(here: &Here, data: &Data, ahead: Ahead) -> Option<String> {
+    match here.mode {
+        ModeKind::Town => ahead
+            .lands
+            .then(|| format!("Leave the {}?", inside(here, data))),
+        ModeKind::Explore => {
+            let service = ahead.site?;
+            Some(format!("Enter the {}?", service_name(data, service)))
         }
-        Mode::Explore => {
-            let service = query::site_ahead(world, data, direction)?;
-            Some(format!("Enter the {}?", name(service)))
-        }
-        Mode::Encounter(_) | Mode::Combat(_) => None,
+        ModeKind::Encounter | ModeKind::Combat => None,
     }
 }
 
@@ -84,8 +105,18 @@ mod tests {
     use super::*;
     use omnis_sim::omnis_core::{Facing, Rotation};
     use omnis_sim::omnis_data::load_packs;
-    use omnis_sim::{Settings, apply};
+    use omnis_sim::{Settings, World, apply, query};
     use std::path::PathBuf;
+
+    /// `ask` with the world's own answers, as the app's gate gives them.
+    fn ask(world: &World, data: &Data, command: &Command) -> Option<Confirm> {
+        super::ask(&query::here(world, data), data, command, |direction| {
+            Ahead {
+                lands: query::step_lands(world, data, direction).is_some(),
+                site: query::site_ahead(world, data, direction),
+            }
+        })
+    }
 
     fn packs() -> Data {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

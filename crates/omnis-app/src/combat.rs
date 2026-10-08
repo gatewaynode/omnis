@@ -11,7 +11,7 @@ use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
 use crate::sim::{
-    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, SimWorld,
+    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, SimWorld, Views,
     WorldReplaced,
 };
 use crate::ui::{EventNames, RollLog, Selected, UiClick, message_line};
@@ -46,7 +46,7 @@ fn follow_mode(
     mut events: MessageReader<SimEvent>,
     mut replaced: MessageReader<WorldReplaced>,
     state: Option<Res<State<PlayState>>>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
     let wiped = events.read().any(|e| {
@@ -59,11 +59,11 @@ fn follow_mode(
         )
     });
     let was_replaced = replaced.read().count() > 0;
-    let (Some(state), Some(world)) = (state, world) else {
+    let (Some(state), Some(views)) = (state, views) else {
         return;
     };
     let current = *state.get();
-    let wanted = PlayState::for_mode(&world.0.mode);
+    let wanted = PlayState::for_kind(views.here.mode);
     // The camp stands over the map; an ambush (a fight) takes the game out of it.
     let follows = (matches!(
         current,
@@ -184,7 +184,7 @@ fn combat_keys(
                     shell.write(ShellCommand::Load);
                 }
                 Some(DefeatAction::QuitToTitle) => {
-                    commands.remove_resource::<SimWorld>();
+                    crate::sim::close_world(&mut commands);
                     next.set(AppState::MainMenu);
                 }
                 None => {}

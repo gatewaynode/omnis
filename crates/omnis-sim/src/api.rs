@@ -51,7 +51,9 @@ pub use crate::ops::status;
 pub use crate::party_view::{
     AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
 };
-pub use crate::query::{Here, ViewportModel, automap, flags, here, map_text, viewport};
+pub use crate::query::{
+    Here, ViewportModel, automap, flags, here, map_text, site_ahead, step_lands, viewport,
+};
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
