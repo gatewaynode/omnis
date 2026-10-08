@@ -188,7 +188,13 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
             source: "1".into(),
         })
         .unwrap_err();
-    assert!(matches!(error, OpError::BadRequest { .. }));
+    assert_eq!(
+        error,
+        OpError::UnknownSlot {
+            slot: "nope".into()
+        },
+        "as rules.get answers it (B5)"
+    );
     assert!(matches!(
         game.handle(&Op::RulesGet { slot: "spell_points.pool".into() }).unwrap(),
         Reply::Rule { rule } if rule.source == "level * 10" && rule.inputs.len() == 4

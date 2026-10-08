@@ -10,9 +10,9 @@
 
 use crate::layout::Camera;
 use omnis_sim::api::layer;
+use omnis_sim::api::{EdgeView, ViewTile, ViewportModel};
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, MapData, MapKind, Tileset};
-use omnis_sim::query::{EdgeView, ViewTile, ViewportModel};
 use std::collections::BTreeMap;
 
 /// What the party knows of a map, tile by tile (`query::automap`).

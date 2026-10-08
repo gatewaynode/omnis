@@ -11,8 +11,12 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 569 passed, 13 ignored (2026-10-07, after M8 step 8c). The gate's log says
-it on one line: `tests passed 569 failed 0 ignored 13`.
+Test count at the gate: 572 passed, 13 ignored (2026-10-07, after M8 step 8f). The gate's log says
+it on one line: `tests passed 572 failed 0 ignored 13`.
+
+The API reference `docs/api.md` is held to the code by `omnis-mcp/tests/api_doc.rs`: a new op, reply,
+`OpError` kind, command, dev command, event or rejection fails the build until it is named there and in
+the document.
 
 Linker (2026-10-02): `cc` finds clang through `xcodebuild -find clang`, which reads
 `/Library/Preferences/com.apple.dt.Xcode.plist`. The session's sandbox cannot read that file, so

@@ -654,6 +654,7 @@ pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
 /// the slot.
 pub fn rules_set(data: &mut Data, slot: &str, source: &str) -> Result<Reply, OpError> {
     bounded(source)?;
+    slot_view(data, slot)?;
     data.rules
         .set_slot(slot, source)
         .map_err(OpError::bad_request)?;

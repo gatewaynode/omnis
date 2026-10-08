@@ -54,7 +54,8 @@ pub use crate::party_view::{
     AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
 };
 pub use crate::query::{
-    Here, ViewportModel, automap, flags, here, map_text, site_ahead, step_lands, viewport,
+    EdgeView, Here, ViewTile, ViewportModel, automap, flags, here, map_text, site_ahead,
+    step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
@@ -65,6 +66,7 @@ pub use crate::view::{
 
 // The JSON op protocol.
 pub use crate::ops::{
-    MAX_SCRIPT, Op, OpError, PROTOCOL, Reply, Status, check_reload, client_path, dispatch,
-    load_text, rules_set, save_text,
+    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, Reply, RulesView, ShotTarget,
+    SlotView, Status, check_reload, client_path, dispatch, load_text, rules_set, save_text,
 };
+pub use omnis_core::Edges;

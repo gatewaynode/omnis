@@ -53,3 +53,12 @@ the fix) and the fixing commit. Newest last.
 - **Test**: `omnis-app/tests/smoke.rs::a_save_is_read_with_the_loader_s_limits` (red before the fix: the
   oversized file reached the parser; a symlink is refused on Unix).
 - **Fixed in**: M8 step 8c.
+
+## B5 — `rules.set` answered an unknown slot as a bad request (review, M8 step 8f, 2026-10-07)
+- **Report**: found while writing `docs/api.md`: `rules.get` answers an unknown slot with `UnknownSlot`, but
+  `rules.set` answered it with `BadRequest`, so a client had to tell the two cases apart by message text.
+- **Cause**: `ops::rules_set` passed the slot straight to `Rules::set_slot`, whose error is a plain message.
+- **Fix**: `rules_set` looks the slot up first, as `rules.get` does.
+- **Test**: `ops.rs::the_host_ops_rules_hold_for_every_host` (red before the fix: `BadRequest`). `omnis-cli/tests/headless.rs::rules_set_changes_the_pool_without_a_rebuild` had pinned the
+  old answer and now expects `UnknownSlot`.
+- **Fixed in**: M8 step 8f.
