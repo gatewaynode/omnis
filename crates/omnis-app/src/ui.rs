@@ -531,10 +531,10 @@ fn build_frame(
         Vec::new()
     };
     let sheet = (active == Active::Sheet)
-        .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
+        .then(|| seen.and_then(|(v, d)| sheet_view(v, &d.0, screens.sheet.member)))
         .flatten();
     let inventory = (active == Active::Inventory)
-        .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
+        .then(|| seen.map(|(v, d)| inventory_view(&v.party, &d.0)))
         .flatten();
     let front_row = views.as_ref().map_or(3, |v| v.party.front_row);
     let model_message = model_message(active, &screens);

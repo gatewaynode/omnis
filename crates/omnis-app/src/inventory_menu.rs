@@ -3,10 +3,12 @@
 //! the simulation; the menu stays open so the player can keep sorting, and the rejection or
 //! the events say what happened. Bevy-free.
 
+use crate::defs;
 use crate::menu::{MenuKey, cycle};
 use crate::text::coins;
+use omnis_sim::api::{ItemView, PartyView};
 use omnis_sim::omnis_data::{Data, EquipSlot};
-use omnis_sim::{Command, ItemCommand, World};
+use omnis_sim::{Command, ItemCommand};
 
 /// One row of a pane.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,24 +51,29 @@ impl InventoryView {
     }
 }
 
-/// The view for the world as it is.
+/// The view for the party as it is.
 #[must_use]
-pub fn inventory_view(world: &World, data: &Data) -> InventoryView {
-    let name = |id| {
-        data.items
-            .get(&id)
+pub fn inventory_view(party: &PartyView, data: &Data) -> InventoryView {
+    let name = |id: &str| {
+        defs::item(data, id)
             .map_or("?", |item| data.label("en", &item.name))
             .to_owned()
     };
-    let mut panes: Vec<Pane> = world
-        .party
+    let row = |item: &ItemView| ItemRow {
+        name: name(&item.id),
+        count: item.count,
+        slot: item.slot,
+        equipped: item.equipped,
+        usable: item.usable,
+    };
+    let mut panes: Vec<Pane> = party
         .members
         .iter()
         .map(|member| {
             let worn: Vec<String> = EquipSlot::ALL
                 .iter()
-                .filter_map(|slot| member.equipped.get(slot))
-                .map(|id| name(*id))
+                .filter_map(|slot| member.equipped.iter().find(|(s, _)| s == slot))
+                .map(|(_, id)| name(id))
                 .collect();
             Pane {
                 title: member.name.clone(),
@@ -75,33 +82,20 @@ pub fn inventory_view(world: &World, data: &Data) -> InventoryView {
                 } else {
                     format!("wearing {}", worn.join(", "))
                 },
-                rows: member
-                    .equipment
-                    .iter()
-                    .map(|(id, count)| ItemRow {
-                        name: name(*id),
-                        count: *count,
-                        slot: data.items.get(id).and_then(|item| item.slot()),
-                        equipped: member.equipped.values().any(|worn| worn == id),
-                        usable: data.items.get(id).is_some_and(|i| i.use_effect.is_some()),
-                    })
-                    .collect(),
+                rows: member.equipment.iter().map(row).collect(),
             }
         })
         .collect();
     panes.push(Pane {
         title: "STORES".to_owned(),
-        summary: format!("{}  food {}", coins(world.party.gold), world.party.food),
-        rows: world
-            .party
+        summary: format!("{}  food {}", coins(party.gold), party.food),
+        rows: party
             .inventory
             .iter()
-            .map(|(id, count)| ItemRow {
-                name: name(*id),
-                count: *count,
+            .map(|item| ItemRow {
                 slot: None,
                 equipped: false,
-                usable: data.items.get(id).is_some_and(|i| i.use_effect.is_some()),
+                ..row(item)
             })
             .collect(),
     });
@@ -355,6 +349,11 @@ pub(crate) mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::items::item_id;
+    use omnis_sim::{World, party_view};
+
+    fn inventory_view(world: &World, data: &Data) -> InventoryView {
+        super::inventory_view(&party_view(world, data), data)
+    }
 
     fn row(name: &str, slot: Option<EquipSlot>, equipped: bool, usable: bool) -> ItemRow {
         ItemRow {

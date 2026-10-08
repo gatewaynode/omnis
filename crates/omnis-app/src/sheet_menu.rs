@@ -2,12 +2,12 @@
 //! member and page under the cursor (`SheetMenu`), and the keys that move them. Bevy-free;
 //! `sheet_screen.rs` paints it and `sheet.rs` wires it to the world.
 
+use crate::defs;
 use crate::menu::{MenuKey, cycle, words};
-use omnis_sim::omnis_data::{Ability, Data, EquipSlot, Skill};
-use omnis_sim::omnis_rules::{
-    Expiry, armor_class, casting_ability, modifier, proficiency_bonus, skill_bonus,
-};
-use omnis_sim::{Mode, World};
+use crate::sim::Views;
+use omnis_sim::api::{MemberView, ModeKind, PartyView};
+use omnis_sim::omnis_data::{Ability, Data, EquipSlot};
+use omnis_sim::omnis_rules::modifier;
 
 /// A page of the sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -127,109 +127,73 @@ pub struct SheetView {
 
 /// The sheet of the member in this slot, or `None` when the slot is empty.
 #[must_use]
-pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView> {
-    let m = world.party.members.get(member)?;
-    let now = world.party_clock().elapsed;
-    let proficiency = proficiency_bonus(m.level, data).unwrap_or(2);
-    let class = data.classes.get(&m.class);
+pub fn sheet_view(views: &Views, data: &Data, member: usize) -> Option<SheetView> {
+    let m = views.party.members.get(member)?;
     let mut scores = [("", 0, 0); 6];
     for (i, ability) in Ability::ALL.iter().enumerate() {
         scores[i] = (ability.short(), m.scores[i], modifier(m.scores[i]));
     }
-    let saves = class.map_or_else(Vec::new, |c| {
-        c.saving_throws
-            .iter()
-            .map(|a| (a.short(), modifier(m.scores[a.index()]) + proficiency))
-            .collect()
-    });
-    let skills = Skill::ALL
+    let saves = m
+        .saves
         .iter()
-        .filter(|s| m.skills.contains(s))
-        .map(|s| {
-            (
-                words(&format!("{s:?}")),
-                skill_bonus(m, data, *s).unwrap_or(0),
-            )
-        })
+        .map(|(a, bonus)| (a.short(), *bonus))
         .collect();
-    let calendar = data.calendar();
-    let minutes_per_year =
-        i64::from(calendar.minutes_per_day.max(1)) * i64::from(calendar.days_per_year.max(1));
-    let lived = (now - m.created_at).max(0) / minutes_per_year;
+    let skills = m
+        .skills
+        .iter()
+        .map(|(s, bonus)| (words(&format!("{s:?}")), *bonus))
+        .collect();
+    let named = |name: Option<&str>| name.map_or("?", |n| data.label("en", n)).to_owned();
     Some(SheetView {
         name: m.name.clone(),
-        race: data
-            .races
-            .get(&m.race)
-            .map_or("?", |r| data.label("en", &r.name))
-            .to_owned(),
-        class: class.map_or("?", |c| data.label("en", &c.name)).to_owned(),
+        race: named(defs::race(data, &m.race).map(|r| r.name.as_str())),
+        class: named(defs::class(data, &m.class).map(|c| c.name.as_str())),
         level: m.level,
-        background: data
-            .backgrounds
-            .get(&m.background)
-            .map_or("?", |b| data.label("en", &b.name))
-            .to_owned(),
+        background: named(defs::background(data, &m.background).map(|b| b.name.as_str())),
         alignment: words(&format!("{:?}", m.alignment)),
-        age_years: i64::from(m.age_years) + lived,
+        age_years: m.age_years,
         hp: (m.hp, m.hp_max),
         sp: (m.spell_points, m.spell_points_max),
-        hit_dice: (
-            m.level.saturating_sub(m.hit_dice_spent),
-            m.level,
-            class.map_or(8, |c| c.hit_die),
-        ),
-        ready: omnis_sim::omnis_rules::ready(m, data).unwrap_or(false),
+        hit_dice: (m.hit_dice_left, m.hit_dice, m.hit_die),
+        ready: m.ready,
         spell_picks: m.spell_picks,
-        ac: armor_class(m, data),
-        proficiency,
+        ac: m.ac,
+        proficiency: m.proficiency,
         xp: m.xp,
-        next_xp: data
-            .rules
-            .table("xp_thresholds")
-            .and_then(|t| t.get(usize::from(m.level)).copied()),
+        next_xp: m.next_xp,
         scores,
         saves,
         skills,
         conditions: m
             .conditions
             .iter()
-            .map(|c| {
-                data.conditions
-                    .get(c)
-                    .map_or("?", |c| data.label("en", &c.name))
-                    .to_owned()
-            })
+            .map(|c| named(defs::condition(data, c).map(|c| c.name.as_str())))
             .collect(),
-        magic: magic_page(world, data, member, now),
-        gear: gear_page(world, data, member),
-        tactics: !matches!(world.mode, Mode::Encounter(_) | Mode::Combat(_)),
+        magic: magic_page(&views.party, data, m),
+        gear: gear_page(data, m),
+        tactics: !matches!(views.here.mode, ModeKind::Encounter | ModeKind::Combat),
     })
 }
 
 /// How long an effect has left, in words.
-fn time_left(until: Expiry, now: i64) -> String {
-    match until {
-        Expiry::Minute(m) => format!("{} min", (m - now).max(0)),
-        Expiry::NextTurn => "next turn".to_owned(),
+fn time_left(minutes_left: Option<i64>) -> String {
+    match minutes_left {
+        Some(m) => format!("{m} min"),
+        None => "next turn".to_owned(),
     }
 }
 
-fn magic_page(world: &World, data: &Data, member: usize, now: i64) -> SheetMagic {
-    let Some(m) = world.party.members.get(member) else {
-        return SheetMagic::default();
-    };
-    let spell_name = |id| {
-        data.spells
-            .get(id)
+fn magic_page(party: &PartyView, data: &Data, m: &MemberView) -> SheetMagic {
+    let spell_name = |id: &str| {
+        defs::spell(data, id)
             .map_or("?", |s| data.label("en", &s.name))
             .to_owned()
     };
     let spells = m
-        .known_spells
+        .spells
         .iter()
         .map(|id| {
-            let cost = data.spells.get(id).map_or(0, |s| s.point_cost());
+            let cost = defs::spell(data, id).map_or(0, |s| s.point_cost());
             let cost = if cost == 0 {
                 "cantrip".to_owned()
             } else {
@@ -241,11 +205,11 @@ fn magic_page(world: &World, data: &Data, member: usize, now: i64) -> SheetMagic
     let effects = m
         .effects
         .iter()
-        .chain(world.party.effects.iter())
-        .map(|e| (spell_name(&e.source), time_left(e.until, now)))
+        .chain(party.effects.iter())
+        .map(|e| (spell_name(&e.spell), time_left(e.minutes_left)))
         .collect();
     SheetMagic {
-        casting: casting_ability(m, data).map(|a| words(&format!("{a:?}"))),
+        casting: m.casting.map(|a| words(&format!("{a:?}"))),
         points: (m.spell_points, m.spell_points_max),
         spells,
         effects,
@@ -263,13 +227,9 @@ pub const fn slot_label(slot: EquipSlot) -> &'static str {
     }
 }
 
-fn gear_page(world: &World, data: &Data, member: usize) -> SheetGear {
-    let Some(m) = world.party.members.get(member) else {
-        return SheetGear::default();
-    };
-    let item_name = |id| {
-        data.items
-            .get(id)
+fn gear_page(data: &Data, m: &MemberView) -> SheetGear {
+    let item_name = |id: &str| {
+        defs::item(data, id)
             .map_or("?", |i| data.label("en", &i.name))
             .to_owned()
     };
@@ -277,14 +237,18 @@ fn gear_page(world: &World, data: &Data, member: usize) -> SheetGear {
         slots: EquipSlot::ALL
             .iter()
             .map(|slot| {
-                let worn = m.equipped.get(slot).map_or("-".to_owned(), item_name);
+                let worn = m
+                    .equipped
+                    .iter()
+                    .find(|(s, _)| s == slot)
+                    .map_or("-".to_owned(), |(_, id)| item_name(id));
                 (slot_label(*slot).to_owned(), worn)
             })
             .collect(),
         carried: m
             .equipment
             .iter()
-            .map(|(id, count)| (item_name(id), *count))
+            .map(|i| (item_name(&i.id), i.count))
             .collect(),
     }
 }
@@ -364,9 +328,14 @@ pub(crate) mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::Mode;
+    use omnis_sim::World;
     use omnis_sim::omnis_core::Dice;
     use omnis_sim::omnis_data::BuffOn;
-    use omnis_sim::omnis_rules::{ActiveEffect, EffectKind};
+    use omnis_sim::omnis_rules::{ActiveEffect, EffectKind, Expiry, armor_class};
+
+    fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView> {
+        super::sheet_view(&Views::of(world, data), data, member)
+    }
 
     /// A fighter's sheet with something on every page, for the screen dumps.
     pub(crate) fn sample() -> SheetView {

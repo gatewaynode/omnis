@@ -8,7 +8,7 @@ use crate::inventory_menu::{InventoryIntent, inventory_view};
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
-use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, SimWorld, Views};
+use crate::sim::{CommandRefused, PackData, PlayState, PlayerCommand, Views};
 use crate::ui::{Selected, UiClick};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
@@ -47,7 +47,6 @@ fn inventory_keys(
     mut clicks: MessageReader<UiClick>,
     at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
     views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
@@ -60,10 +59,10 @@ fn inventory_keys(
     if at.screen() != Active::Inventory {
         return;
     }
-    let (Some(world), Some(views), Some(data)) = (world, views, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
-    let view = inventory_view(&world.0, &data.0);
+    let view = inventory_view(&views.party, &data.0);
     screens.inventory.sync(&view);
     for hit in hits {
         pressed.extend(screen::click(

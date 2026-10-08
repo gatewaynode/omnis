@@ -152,7 +152,9 @@ fn in_a_fight_tactics_stay_shut() {
         "the bar holds the sheet shut in a fight"
     );
     let data = &app.world().resource::<PackData>().0;
-    let view = omnis_app::sheet_menu::sheet_view(world(&app), data, 0).unwrap();
+    let view =
+        omnis_app::sheet_menu::sheet_view(app.world().resource::<omnis_app::sim::Views>(), data, 0)
+            .unwrap();
     assert!(!view.tactics, "and were it open, TACTICS would be grey");
 }
 
