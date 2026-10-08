@@ -137,6 +137,10 @@ old saves only).
   `boss.rs` `boss_over_seeds`). The replays leave town by a real `Step(Back)`.
 
 ## omnis-app
+- The engine boundary (M8 step 8d, 8e): `sim.rs` holds `SimWorld` with its world private (methods mirror
+  `omnis_sim::api`; `fixture`/`fixture_mut` only for tests, feature `test-fixtures`) and the `Views` resource
+  (`Views::of`, `refresh_views`, `open_world`, `close_world`); `defs.rs` turns view ids into pack definitions.
+  Presentation reads `Views`, never the world's fields.
 - Shell: `lib.rs` (`AppConfig`), `main.rs` (flags, plugins), `sim.rs` (`PlayState`,
   `ShellCommand::{Save, Load, ToggleAutomap, Pause, Cast, Sheet, Inventory, Look, Quit}`, the
   `shell` system runs whenever a world exists), `input.rs` (keys and the movement pad),
