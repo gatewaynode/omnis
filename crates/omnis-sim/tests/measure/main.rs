@@ -63,8 +63,9 @@ pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
         .max_by_key(|s| s.hp.len())
         .map(|s| s.index);
     let front = view.stacks.iter().find(|s| s.alive).map(|s| s.index);
-    let effect = |index: u8| {
-        let id = world.party.members[own].known_spells[usize::from(index)];
+    let effect = |spell: &str| {
+        let id = data.registry.spells.get(spell).unwrap();
+        debug_assert!(world.party.members[own].known_spells.contains(&id));
         data.spells[&id].effect.clone()
     };
     let castable: Vec<&omnis_sim::SpellView> =
@@ -72,11 +73,11 @@ pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
     let pick = |wanted: &dyn Fn(&SpellEffect) -> bool, target: Option<Target>| {
         castable
             .iter()
-            .find(|s| effect(s.index).is_some_and(|e| wanted(&e)))
+            .find(|s| effect(&s.spell).is_some_and(|e| wanted(&e)))
             .and_then(|s| {
                 target.map(|t| {
                     Command::Combat(CombatCommand::Cast {
-                        spell: s.index,
+                        spell: s.spell.clone(),
                         target: t,
                         pay: Pay::Action,
                     })

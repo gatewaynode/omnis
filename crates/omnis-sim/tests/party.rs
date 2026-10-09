@@ -288,7 +288,7 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
         panic!("party.get answers with the party");
     };
     let brenna = &party.members[0];
-    let ids: Vec<&str> = brenna.equipment.iter().map(|i| i.id.as_str()).collect();
+    let ids: Vec<&str> = brenna.equipment.iter().map(|i| i.item.as_str()).collect();
     assert_eq!(
         ids,
         [
@@ -301,8 +301,6 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
             "base:item:potion_of_healing"
         ]
     );
-    let rows: Vec<u8> = brenna.equipment.iter().map(|i| i.index).collect();
-    assert_eq!(rows, [0, 1, 2, 3, 4, 5, 6]);
     let bolts = &brenna.equipment[4];
     assert_eq!(
         (bolts.count, bolts.slot, bolts.usable, bolts.equipped),
@@ -330,7 +328,10 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
     );
     assert!(brenna.effects.is_empty() && party.effects.is_empty());
     assert_eq!(party.inventory.len(), 1);
-    assert_eq!((party.inventory[0].index, party.inventory[0].count), (0, 2));
+    assert_eq!(
+        (party.inventory[0].item.as_str(), party.inventory[0].count),
+        ("base:item:potion_of_healing", 2)
+    );
     let taker = world.party.members[0].id;
     let Reply::Events { events } = dispatch(
         &mut world,
@@ -338,7 +339,7 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
         &Op::SimCommand {
             command: Command::Item(omnis_sim::ItemCommand::Take {
                 member: taker,
-                item: 0,
+                item: party.inventory[0].item.clone(),
                 count: 2,
             }),
         },

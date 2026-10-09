@@ -6,11 +6,11 @@
 //! the schema has a branch for it. The validator covers the keywords the schema uses and refuses
 //! any other, so a new keyword cannot pass unread.
 
-use omnis_cli::omnis_sim::omnis_core::{CharacterId, ItemId, SpellId};
+use omnis_cli::omnis_sim::omnis_core::CharacterId;
 use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::{
-    ActionRef, Cmp, Criteria, CriteriaSet, Draft, Predicate, Trigger, Who,
+    ActionRef, Cmp, Criteria, CriteriaSet, Draft, Named, Predicate, Trigger, Who,
 };
 use omnis_cli::omnis_sim::rest::HitDiceSpend;
 use omnis_cli::omnis_sim::tactics::TacticsCommand;
@@ -212,9 +212,9 @@ fn next_party(command: &PartyCommand) -> Option<PartyCommand> {
 fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
     let put = |i: usize| {
         let action = match i % 4 {
-            0 => ActionRef::Spell(SpellId(3)),
+            0 => ActionRef::<Named>::Spell("base:spell:shield".into()),
             1 => ActionRef::Attack,
-            2 => ActionRef::Item(ItemId(4)),
+            2 => ActionRef::Item("base:item:potion_of_healing".into()),
             _ => ActionRef::Feature("base:text:class.fighter.second_wind".into()),
         };
         let when = if i.is_multiple_of(2) {
@@ -228,7 +228,7 @@ fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
         };
         TacticsCommand::PutReaction {
             member: CharacterId(1),
-            at: (i > 0).then(|| u8::try_from(i - 1).unwrap()),
+            entry: (i > 0).then(|| u8::try_from(i - 1).unwrap()),
             set: CriteriaSet {
                 name: format!("Set {i}"),
                 action,
@@ -246,7 +246,7 @@ fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
             } else {
                 TacticsCommand::RemoveReaction {
                     member: CharacterId(1),
-                    at: 0,
+                    entry: 0,
                 }
             }
         }
@@ -255,45 +255,49 @@ fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
 }
 
 fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
-    let (spell, item) = (2, 3);
+    let spell = || String::from("base:spell:magic_missile");
+    let item = || String::from("base:item:potion_of_healing");
     Some(match command {
         CombatCommand::Attack { .. } => CombatCommand::Cast {
-            spell,
+            spell: spell(),
             target: Target::Stack(0),
             pay: Pay::Action,
         },
         CombatCommand::Cast { target, .. } => match target {
             Target::Stack(_) => CombatCommand::Cast {
-                spell,
+                spell: spell(),
                 target: Target::Member(CharacterId(1)),
                 pay: Pay::BonusAction,
             },
             Target::Member(_) => CombatCommand::Use {
-                item,
+                item: item(),
                 target: Some(CharacterId(4)),
             },
         },
         CombatCommand::Use {
             target: Some(_), ..
-        } => CombatCommand::Use { item, target: None },
+        } => CombatCommand::Use {
+            item: item(),
+            target: None,
+        },
         CombatCommand::Use { target: None, .. } => CombatCommand::Dodge,
         CombatCommand::Dodge => CombatCommand::Exchange {
             with: CharacterId(5),
         },
         CombatCommand::Exchange { .. } => CombatCommand::Run,
         CombatCommand::Run => CombatCommand::Feature {
-            feature: 0,
+            feature: "base:text:class.fighter.second_wind".into(),
             choice: FeatureChoice::None,
         },
         CombatCommand::Feature { choice, .. } => match choice {
             FeatureChoice::None => CombatCommand::Feature {
-                feature: 1,
+                feature: "base:text:class.rogue.cunning_action".into(),
                 choice: FeatureChoice::Exchange {
                     with: CharacterId(2),
                 },
             },
             FeatureChoice::Exchange { .. } => CombatCommand::Feature {
-                feature: 1,
+                feature: "base:text:class.rogue.cunning_action".into(),
                 choice: FeatureChoice::Hide,
             },
             FeatureChoice::Hide => CombatCommand::EndTurn,
@@ -312,7 +316,8 @@ fn next_slot(slot: EquipSlot) -> Option<EquipSlot> {
 }
 
 fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
-    let (member, item, count) = (CharacterId(0), 1, 2);
+    let (member, count) = (CharacterId(0), 2);
+    let item = String::from("base:item:dagger");
     Some(match command {
         ItemCommand::Equip { .. } => ItemCommand::Unequip {
             member,
@@ -454,8 +459,10 @@ fn next_encounter(choice: EncounterChoice) -> Command {
     }
 }
 
-fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
-    let (member, item, count, amount) = (CharacterId(1), 2, 3, 250);
+fn next_service(command: &ServiceCommand) -> Option<ServiceCommand> {
+    let (member, count, amount) = (CharacterId(1), 3, 250);
+    let item = || String::from("base:item:dagger");
+    let spell = || String::from("base:spell:bless");
     Some(match command {
         ServiceCommand::Leave => ServiceCommand::Room,
         ServiceCommand::Room => ServiceCommand::Rumor,
@@ -463,18 +470,24 @@ fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
         ServiceCommand::BuyFood { .. } => ServiceCommand::Heal { member },
         ServiceCommand::Heal { .. } => ServiceCommand::Cure { member },
         ServiceCommand::Cure { .. } => ServiceCommand::Raise { member },
-        ServiceCommand::Raise { .. } => ServiceCommand::Buy { item, count },
-        ServiceCommand::Buy { .. } => ServiceCommand::Sell { item, count },
+        ServiceCommand::Raise { .. } => ServiceCommand::Buy {
+            item: item(),
+            count,
+        },
+        ServiceCommand::Buy { .. } => ServiceCommand::Sell {
+            item: item(),
+            count,
+        },
         ServiceCommand::Sell { .. } => ServiceCommand::Deposit { amount },
         ServiceCommand::Deposit { .. } => ServiceCommand::Withdraw { amount },
         ServiceCommand::Withdraw { .. } => ServiceCommand::Train { member },
         ServiceCommand::Train { .. } => ServiceCommand::Choose {
             member,
-            spell: item,
+            spell: spell(),
         },
         ServiceCommand::Choose { .. } => ServiceCommand::Learn {
             member,
-            spell: item,
+            spell: spell(),
         },
         ServiceCommand::Learn { .. } => return None,
     })
@@ -485,7 +498,7 @@ fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
 fn next(command: &Command) -> Option<Command> {
     let cast = |target| Command::Cast {
         caster: CharacterId(0),
-        spell: 1,
+        spell: "base:spell:cure_wounds".into(),
         target,
     };
     Some(match command {
@@ -503,13 +516,13 @@ fn next(command: &Command) -> Option<Command> {
             Target::Stack(_) => cast(Target::Member(CharacterId(3))),
             Target::Member(_) => Command::Item(ItemCommand::Equip {
                 member: CharacterId(0),
-                item: 1,
+                item: "base:item:dagger".into(),
             }),
         },
         Command::Item(item) => {
             next_item(item).map_or(Command::Service(ServiceCommand::Leave), Command::Item)
         }
-        Command::Service(service) => next_service(*service).map_or(
+        Command::Service(service) => next_service(service).map_or(
             Command::Rest(RestCommand::Short {
                 dice: vec![
                     HitDiceSpend {

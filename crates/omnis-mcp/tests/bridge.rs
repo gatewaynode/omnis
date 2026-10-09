@@ -165,7 +165,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let kit = member["equipment"].as_array().unwrap();
     let potion = kit
         .iter()
-        .find(|i| i["id"] == json!("base:item:potion_of_healing"))
+        .find(|i| i["item"] == json!("base:item:potion_of_healing"))
         .unwrap_or_else(|| panic!("{member}"));
     assert_eq!(potion["usable"], json!(true));
     assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
@@ -184,7 +184,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         12,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": id, "item": potion["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": potion["item"], "target": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -202,13 +202,13 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap();
     assert!(
         !kit.iter()
-            .any(|i| i["id"] == json!("base:item:potion_of_healing")),
+            .any(|i| i["item"] == json!("base:item:potion_of_healing")),
         "spent"
     );
     let reply = server.tool(
         14,
         "sim_command",
-        json!({"command": {"Combat": {"Use": {"item": 0, "target": null}}}}),
+        json!({"command": {"Combat": {"Use": {"item": "base:item:potion_of_healing", "target": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
     assert_eq!(
@@ -229,12 +229,12 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap();
     let glass = kit
         .iter()
-        .find(|i| i["id"] == json!("base:item:spyglass"))
+        .find(|i| i["item"] == json!("base:item:spyglass"))
         .unwrap();
     let reply = server.tool(
         17,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": id, "item": glass["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": glass["item"], "target": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -260,6 +260,11 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     assert_eq!(member["name"], json!("Ilvara"));
     let ilvara = member["id"].clone();
     assert!(ilvara.is_u64(), "{member}");
+    let light = member["spells"][1].clone();
+    assert!(
+        light.is_string(),
+        "a spell is named by its string id: {member}"
+    );
     assert_eq!(member["spell_points_max"], json!(4), "{member}");
     let reply = server.tool(
         12,
@@ -318,7 +323,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(
         19,
         "sim_command",
-        json!({"command": {"Combat": {"Cast": {"spell": 0, "target": {"Stack": 0}}}}}),
+        json!({"command": {"Combat": {"Cast": {"spell": "base:spell:fire_bolt", "target": {"Stack": 0}}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
     assert_eq!(
@@ -329,7 +334,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(
         20,
         "sim_command",
-        json!({"command": {"Cast": {"caster": ilvara, "spell": 1, "target": {"Member": ilvara}}}}),
+        json!({"command": {"Cast": {"caster": ilvara, "spell": light, "target": {"Member": ilvara}}}}),
     );
     assert_eq!(
         reply["result"]["isError"],
@@ -357,7 +362,10 @@ fn service_get_reads_a_shop_and_screen_text_needs_the_window() {
     let view = &reply["result"]["structuredContent"]["service"];
     assert_eq!(view["service"], json!("base:service:smith"), "{reply}");
     let buy = &view["offers"][0];
-    assert_eq!(buy["command"], json!({"Buy": {"item": 0, "count": 1}}));
+    assert_eq!(
+        buy["command"],
+        json!({"Buy": {"item": "base:item:dagger", "count": 1}})
+    );
     assert_eq!(buy["refusal"]["CannotAfford"]["gold"], json!(0), "{reply}");
     let reply = server.tool(6, "game_status", json!({}));
     assert_eq!(

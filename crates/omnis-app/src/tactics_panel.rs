@@ -13,7 +13,7 @@ use crate::ui_model::Payload;
 use omnis_sim::TacticsView;
 use omnis_sim::omnis_core::{CharacterId, fnv1a64};
 use omnis_sim::omnis_rules::tactics::{CRITERIA_NODES, RUNBOOK_ENTRIES, TACTICS_NAME_BYTES};
-use omnis_sim::omnis_rules::{Criteria, CriteriaSet, Trigger};
+use omnis_sim::omnis_rules::{Criteria, CriteriaSet, Named, Trigger};
 use omnis_sim::tactics::TacticsCommand;
 
 /// The conditions one reaction may list: a flat list under one node (`CRITERIA_NODES`).
@@ -135,7 +135,7 @@ impl TacticsForm {
 
     /// The criteria the conditions make: always when there are none.
     #[must_use]
-    pub fn criteria(&self, choices: &Choices) -> Option<Criteria> {
+    pub fn criteria(&self, choices: &Choices) -> Option<Criteria<Named>> {
         let list = self
             .conditions
             .iter()
@@ -150,7 +150,7 @@ impl TacticsForm {
 
     /// The set Save declares; `None` when the form cannot make one.
     #[must_use]
-    pub fn set(&self, view: &TacticsView, choices: &Choices) -> Option<CriteriaSet> {
+    pub fn set(&self, view: &TacticsView, choices: &Choices) -> Option<CriteriaSet<Named>> {
         let answer = view.answers.get(self.action)?;
         let trigger = self.chosen_trigger(view)?;
         Some(CriteriaSet {
@@ -243,7 +243,7 @@ pub fn apply(
         (TacticsPanelId::Remove(at), Payload::Activate) if at < view.reactions.len() => {
             return Some(TacticsAsk::Send(TacticsCommand::RemoveReaction {
                 member: member?,
-                at: u8::try_from(at).ok()?,
+                entry: u8::try_from(at).ok()?,
             }));
         }
         (TacticsPanelId::ActionPick(at), Payload::Activate)
@@ -303,7 +303,7 @@ pub fn apply(
             };
             return Some(TacticsAsk::Send(TacticsCommand::PutReaction {
                 member: member?,
-                at: form.editing,
+                entry: form.editing,
                 set,
             }));
         }
@@ -409,27 +409,36 @@ pub fn shape(view: &TacticsView, form: &TacticsForm, members: usize) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omnis_sim::omnis_core::{ConditionId, MonsterId, SpellId};
     use omnis_sim::omnis_rules::{ActionRef, Cmp, Predicate, Row, Who};
     use omnis_sim::{AnswerView, ReactionView};
 
     fn choices() -> Choices {
         Choices {
             monsters: vec![
-                (MonsterId(2), "Giant rat".to_owned()),
-                (MonsterId(5), "Bob the Rat King".to_owned()),
+                (RAT.to_owned(), "Giant rat".to_owned()),
+                (KING.to_owned(), "Bob the Rat King".to_owned()),
             ],
             conditions: vec![
-                (ConditionId(1), "Poisoned".to_owned()),
-                (ConditionId(7), "Prone".to_owned()),
+                (POISONED.to_owned(), "Poisoned".to_owned()),
+                (PRONE.to_owned(), "Prone".to_owned()),
             ],
             actions: Vec::new(),
         }
     }
 
-    const SHIELD: ActionRef = ActionRef::Spell(SpellId(3));
+    const RAT: &str = "base:monster:giant_rat";
+    const KING: &str = "test:monster:rat_king";
+    const POISONED: &str = "base:condition:poisoned";
+    const PRONE: &str = "base:condition:prone";
+
+    fn shield() -> ActionRef<Named> {
+        ActionRef::Spell("base:spell:shield".to_owned())
+    }
+
     /// The test pack's reaction heal.
-    const WARD: ActionRef = ActionRef::Spell(SpellId(9));
+    fn ward() -> ActionRef<Named> {
+        ActionRef::Spell("test:spell:ward".to_owned())
+    }
 
     /// A wizard's tactics: Ward answers an attack, a wound or a fall in the row, Shield an
     /// attack; one row is declared flat, one deeper.
@@ -440,10 +449,10 @@ mod tests {
             percent: 50,
         })]);
         let deep = Criteria::Any(vec![Criteria::All(vec![Criteria::Always])]);
-        let row = |index, when| ReactionView {
-            index,
+        let row = |entry, when| ReactionView {
+            entry,
             name: "Shield on attacked".to_owned(),
-            action: SHIELD,
+            action: shield(),
             action_name: "Shield".to_owned(),
             trigger: Trigger::Attacked,
             when,
@@ -454,7 +463,7 @@ mod tests {
             reactions: vec![row(0, flat), row(1, deep)],
             answers: vec![
                 AnswerView {
-                    action: WARD,
+                    action: ward(),
                     name: "Ward".to_owned(),
                     triggers: vec![
                         Trigger::Attacked,
@@ -464,7 +473,7 @@ mod tests {
                     ],
                 },
                 AnswerView {
-                    action: SHIELD,
+                    action: shield(),
                     name: "Shield".to_owned(),
                     triggers: vec![Trigger::Attacked],
                 },
@@ -489,12 +498,12 @@ mod tests {
         let choices = choices();
         let predicates = [
             Predicate::MonsterCount {
-                monster: MonsterId(5),
+                monster: KING.to_owned(),
                 cmp: Cmp::Ge,
                 n: 3,
             },
             Predicate::MonsterShare {
-                monster: MonsterId(2),
+                monster: RAT.to_owned(),
                 cmp: Cmp::Gt,
                 percent: 60,
             },
@@ -510,7 +519,7 @@ mod tests {
             },
             Predicate::HasCondition {
                 who: Who::Subject,
-                condition: ConditionId(7),
+                condition: PRONE.to_owned(),
             },
             Predicate::Row {
                 who: Who::Me,
@@ -526,7 +535,7 @@ mod tests {
         }
         let unknown = Predicate::HasCondition {
             who: Who::Me,
-            condition: ConditionId(99),
+            condition: "base:condition:nowhere".to_owned(),
         };
         assert_eq!(Draft::of(&unknown, &choices), None, "not loaded");
         let draft = Draft {
@@ -605,10 +614,10 @@ mod tests {
             asked,
             Some(TacticsAsk::Send(TacticsCommand::PutReaction {
                 member: IDS[2],
-                at: None,
+                entry: None,
                 set: CriteriaSet {
                     name: "Shield on attacked".to_owned(),
-                    action: SHIELD,
+                    action: shield(),
                     trigger: Trigger::Attacked,
                     when: Criteria::Any(vec![
                         Criteria::Is(hp),
@@ -627,7 +636,7 @@ mod tests {
         };
         assert_eq!(
             (set.action, set.trigger, set.when),
-            (WARD, Trigger::Attacked, Criteria::Always)
+            (ward(), Trigger::Attacked, Criteria::Always)
         );
         let bare = TacticsView {
             answers: Vec::new(),
@@ -664,12 +673,12 @@ mod tests {
         );
         assert_eq!(form.conditions.len(), 1);
         assert_eq!(editing_line(&form), "Editing reaction 1");
-        let Some(TacticsAsk::Send(TacticsCommand::PutReaction { at, set, .. })) =
+        let Some(TacticsAsk::Send(TacticsCommand::PutReaction { entry, set, .. })) =
             press(TacticsPanelId::Save, &mut form)
         else {
             panic!("an edited row saves")
         };
-        assert_eq!((at, &set.when), (Some(0), &view().reactions[0].when));
+        assert_eq!((entry, &set.when), (Some(0), &view().reactions[0].when));
         press(TacticsPanelId::Edit(1), &mut form);
         assert!(form.locked && form.editing == Some(1), "{form:?}");
         assert!(form.message.starts_with("Set elsewhere"));
@@ -681,7 +690,7 @@ mod tests {
             press(TacticsPanelId::Remove(1), &mut form),
             Some(TacticsAsk::Send(TacticsCommand::RemoveReaction {
                 member: IDS[2],
-                at: 1
+                entry: 1
             })),
             "but removed"
         );
@@ -734,13 +743,13 @@ mod tests {
         );
         let when = Criteria::All(vec![
             Criteria::Is(Predicate::MonsterCount {
-                monster: MonsterId(5),
+                monster: KING.to_owned(),
                 cmp: Cmp::Ge,
                 n: 1,
             }),
             Criteria::Is(Predicate::HasCondition {
                 who: Who::Subject,
-                condition: ConditionId(1),
+                condition: POISONED.to_owned(),
             }),
         ]);
         assert_eq!(
@@ -754,7 +763,7 @@ mod tests {
         let form = TacticsForm::new(0);
         assert_eq!(action_caption(&view(), &form, &choices), "Ward");
         let named = Choices {
-            actions: vec![(SHIELD, "Shield of the Mage".to_owned())],
+            actions: vec![(shield(), "Shield of the Mage".to_owned())],
             ..choices.clone()
         };
         let shield = TacticsForm {

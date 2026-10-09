@@ -16,7 +16,7 @@ use omnis_sim::api::{
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
+use omnis_sim::{Command, Event, Rejection, Settings, Word, World, apply};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -132,6 +132,13 @@ impl SimWorld {
     /// Apply one command (`api::apply`).
     pub fn apply(&mut self, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
         apply(&mut self.0, data, command)
+    }
+
+    /// The command a script word means in the world now (`Word::command`): its slots and rows
+    /// resolved against the party and the packs; `None` when one is empty.
+    #[must_use]
+    pub fn word(&self, data: &Data, word: &Word) -> Option<Command> {
+        word.command(&self.0, data)
     }
 
     /// Answer one op of the JSON protocol (`api::dispatch`).

@@ -18,10 +18,8 @@ use serde::{Deserialize, Serialize};
 pub struct CastView {
     /// The caster, the `caster` that `Command::Cast` takes.
     pub caster: CharacterId,
-    /// The spell's row in the caster's list, the `spell` that `Command::Cast` takes.
-    pub spell: u8,
-    /// Spell id.
-    pub id: String,
+    /// The spell's id, the `spell` that `Command::Cast` takes.
+    pub spell: String,
     /// Text key of the spell's name.
     pub name: String,
     /// Points it costs; 0 for a cantrip.
@@ -37,10 +35,7 @@ pub struct CastView {
 pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
     let mut rows = Vec::new();
     for (own, member) in world.party.members.iter().enumerate() {
-        for (row, id) in member.known_spells.iter().enumerate() {
-            let Ok(spell) = u8::try_from(row) else {
-                break;
-            };
+        for id in &member.known_spells {
             let Some(def) = data.spells.get(id) else {
                 continue;
             };
@@ -49,12 +44,11 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
             }
             rows.push(CastView {
                 caster: member.id,
-                spell,
-                id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
+                spell: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
                 name: def.name.clone(),
                 cost: def.point_cost(),
                 targets_members: def.effect.as_ref().is_some_and(|e| e.targets_members()),
-                refusal: cast::check(world, data, own, spell, false, &mut fresh(world)).err(),
+                refusal: cast::check(world, data, own, *id, false, &mut fresh(world)).err(),
             });
         }
     }

@@ -11,7 +11,10 @@ use alloc::vec::Vec;
 use omnis_core::CharacterId;
 use omnis_data::{Cost, Data, SpellEffect};
 use omnis_rules::tactics::{LIBRARY_SETS, RUNBOOK_ENTRIES};
-use omnis_rules::{ActionRef, Character, Criteria, CriteriaSet, Predicate, TacticsFault, Trigger};
+use omnis_rules::{
+    ActionRef, Character, Criteria, CriteriaSet, Ids, Named, Naming, Predicate, Rename,
+    TacticsFault, Trigger,
+};
 use serde::{Deserialize, Serialize};
 
 /// A change to a member's tactics.
@@ -25,21 +28,22 @@ pub enum TacticsCommand {
         on: bool,
     },
     /// Declare a reaction: the set goes in the library (once) and its entry in the default
-    /// runbook, replacing the entry at `at` or after the last.
+    /// runbook, replacing the entry at `entry` or after the last.
     PutReaction {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
-        /// The entry to replace; `None` appends.
-        at: Option<u8>,
-        /// The trigger, the criteria and the action.
-        set: CriteriaSet,
+        /// The runbook entry to replace; `None` appends.
+        entry: Option<u8>,
+        /// The trigger, the criteria and the action, naming spells, items, monsters and
+        /// conditions by their string ids.
+        set: CriteriaSet<Named>,
     },
     /// Remove an entry from the default runbook; the library keeps the set.
     RemoveReaction {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
-        /// The entry.
-        at: u8,
+        /// The runbook entry.
+        entry: u8,
     },
 }
 
@@ -74,13 +78,18 @@ pub(crate) fn apply(
             });
             return Ok(());
         }
-        TacticsCommand::PutReaction { at, set, .. } => put(member, data, *at, set)?,
-        TacticsCommand::RemoveReaction { at, .. } => {
+        TacticsCommand::PutReaction { entry, set, .. } => {
+            let set = set
+                .map(&Naming(data))
+                .map_err(|id| Rejection::UnknownId { id })?;
+            put(member, data, *entry, &set)?;
+        }
+        TacticsCommand::RemoveReaction { entry, .. } => {
             let book = default_book(member)?;
-            if usize::from(*at) >= book.entries.len() {
-                return Err(Rejection::NoSuchEntry { at: *at });
+            if usize::from(*entry) >= book.entries.len() {
+                return Err(Rejection::NoSuchEntry { entry: *entry });
             }
-            book.entries.remove(usize::from(*at));
+            book.entries.remove(usize::from(*entry));
         }
     }
     events.push(Event::TacticsChanged { member: member.id });
@@ -113,7 +122,9 @@ fn put(
     }
     let entries = default_book(member)?.entries.len();
     match at {
-        Some(at) if usize::from(at) >= entries => return Err(Rejection::NoSuchEntry { at }),
+        Some(entry) if usize::from(entry) >= entries => {
+            return Err(Rejection::NoSuchEntry { entry });
+        }
         None if entries >= RUNBOOK_ENTRIES => {
             return Err(Rejection::Tactics(TacticsFault::TooMany));
         }
@@ -148,13 +159,15 @@ fn check_ids(criteria: &Criteria, data: &Data) -> Result<(), Rejection> {
         Criteria::Is(
             Predicate::MonsterCount { monster, .. } | Predicate::MonsterShare { monster, .. },
         ) if !data.monsters.contains_key(monster) => Err(Rejection::UnknownId {
-            id: alloc::format!("monster {}", monster.0),
+            id: Rename::<Ids, Named>::monster(&Naming(data), monster)
+                .unwrap_or_else(|unnamed| unnamed),
         }),
         Criteria::Is(Predicate::HasCondition { condition, .. })
             if !data.conditions.contains_key(condition) =>
         {
             Err(Rejection::UnknownId {
-                id: alloc::format!("condition {}", condition.0),
+                id: Rename::<Ids, Named>::condition(&Naming(data), condition)
+                    .unwrap_or_else(|unnamed| unnamed),
             })
         }
         Criteria::Is(_) => Ok(()),

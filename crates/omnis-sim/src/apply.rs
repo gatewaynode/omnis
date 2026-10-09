@@ -23,7 +23,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             step_out(world, data, state, *direction, &mut events)?;
         }
         (&Mode::Town(state), Command::Service(command)) => {
-            service::apply(world, data, state, *command, &mut events)?;
+            service::apply(world, data, state, command, &mut events)?;
         }
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
@@ -41,9 +41,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
                 spell,
                 target,
             },
-        ) => casting::apply(world, data, *caster, *spell, *target, &mut events)?,
+        ) => casting::apply(world, data, *caster, spell, *target, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Item(command)) => {
-            items::apply(world, data, *command, &mut events)?;
+            items::apply(world, data, command, &mut events)?;
         }
         (Mode::Explore, Command::Rest(command)) => {
             rest::apply(world, data, command, &mut events)?;
@@ -52,7 +52,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             encounter::apply_choice(world, data, *choice, &mut events)?;
         }
         (Mode::Combat(_), Command::Combat(command)) => {
-            combat::apply(world, data, *command, &mut events)?;
+            combat::apply(world, data, command.clone(), &mut events)?;
         }
         _ => return Err(Rejection::WrongMode),
     }

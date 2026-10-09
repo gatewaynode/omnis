@@ -1,37 +1,43 @@
-//! Script words: a typing aid for `omnis-cli play`, the app's dev script and tests. A word names
-//! members by marching-order slot, as a player counts them, while a command names them by
-//! identity (protocol 2), so a word is checked when the script is read and turned into a command
-//! against the party when it is applied: the slot means whoever stands there at that moment.
+//! Script words: a typing aid for `omnis-cli play`, the app's dev script and tests. A word counts
+//! as a player does: members by marching-order slot, spells, items and features by their row in
+//! the list on screen. A command names members by identity and definitions by string id
+//! (protocol 2), so a word is checked when the script is read and turned into a command against
+//! the world and the packs when it is applied: a slot means whoever stands there at that moment,
+//! a row whatever that list holds then.
 
 use crate::combat::{CombatCommand, FeatureChoice, Pay, Target};
 use crate::command::Command;
 use crate::encounter::EncounterChoice;
+use crate::event::ActorRef;
 use crate::party::PartyCommand;
 use crate::rest::{HitDiceSpend, RestCommand};
 use crate::service::ServiceCommand;
 use crate::tactics::TacticsCommand;
+use crate::world::{Mode, World};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{CharacterId, Direction, Rotation};
+use omnis_core::{CharacterId, Direction, ItemId, Rotation};
+use omnis_data::Data;
+use omnis_rules::{Character, combat_features};
 
 /// One checked script word.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Word(String);
 
 impl Word {
-    /// The word, if it is one: its syntax is checked, its slots are not.
+    /// The word, if it is one: its syntax is checked, its slots and rows are not.
     #[must_use]
     pub fn parse(word: &str) -> Option<Word> {
-        let any = |slot: u8| Some(CharacterId(u32::from(slot)));
-        command(word, &any).map(|_| Word(word.to_string()))
+        command(word, &Scope::Any).map(|_| Word(word.to_string()))
     }
 
-    /// The command for a party whose members, in marching order, have these ids; `None` when
-    /// the word names a slot no member stands in.
+    /// The command this word means in `world` now; `None` when a slot or a row it names is
+    /// empty, or the word does not fit the world's state (`buy-0` outside a shop, `cast-0-1`
+    /// with nobody's turn).
     #[must_use]
-    pub fn command(&self, members: &[CharacterId]) -> Option<Command> {
-        command(&self.0, &|slot| members.get(usize::from(slot)).copied())
+    pub fn command(&self, world: &World, data: &Data) -> Option<Command> {
+        command(&self.0, &Scope::Live { world, data })
     }
 
     /// The word as written.
@@ -47,14 +53,136 @@ impl fmt::Display for Word {
     }
 }
 
-/// A member's identity for a slot named in a word.
-type Slots<'a> = dyn Fn(u8) -> Option<CharacterId> + 'a;
-
-fn member(text: &str, slots: &Slots<'_>) -> Option<CharacterId> {
-    slots(text.parse().ok()?)
+/// What a word's numbers resolve against: anything (a syntax check), or a world and its packs.
+enum Scope<'a> {
+    /// Every slot and row is filled.
+    Any,
+    /// The world as it stands.
+    Live {
+        /// The world.
+        world: &'a World,
+        /// Its packs.
+        data: &'a Data,
+    },
 }
 
-fn command(word: &str, slots: &Slots<'_>) -> Option<Command> {
+/// What a row stands for in a syntax check: a placeholder, when the row is a number.
+fn any_row(row: &str) -> Option<String> {
+    row.parse::<u8>().is_ok().then(String::new)
+}
+
+/// Row `row` of a list.
+fn nth<T: Clone>(list: &[T], row: &str) -> Option<T> {
+    list.get(row.parse::<usize>().ok()?).cloned()
+}
+
+impl Scope<'_> {
+    /// The member standing in a slot.
+    fn member(&self, slot: &str) -> Option<CharacterId> {
+        let slot: u8 = slot.parse().ok()?;
+        match self {
+            Scope::Any => Some(CharacterId(u32::from(slot))),
+            Scope::Live { world, .. } => world.party.members.get(usize::from(slot)).map(|m| m.id),
+        }
+    }
+
+    /// The member whose turn it is in a fight.
+    fn acting(&self) -> Option<&Character> {
+        let Scope::Live { world, .. } = self else {
+            return None;
+        };
+        let Mode::Combat(state) = &world.mode else {
+            return None;
+        };
+        let ActorRef::Member(id) = state.order.get(usize::from(state.current))?.actor else {
+            return None;
+        };
+        world.party.members.iter().find(|m| m.id == id)
+    }
+
+    /// The string id of an item kind.
+    fn item_id(&self, item: ItemId) -> Option<String> {
+        let Scope::Live { data, .. } = self else {
+            return None;
+        };
+        data.registry.items.name(item).map(String::from)
+    }
+
+    /// Row `row` of the acting member's known spells.
+    fn known_spell(&self, row: &str) -> Option<String> {
+        let Scope::Live { data, .. } = self else {
+            return any_row(row);
+        };
+        let spell = nth(&self.acting()?.known_spells, row)?;
+        data.registry.spells.name(spell).map(String::from)
+    }
+
+    /// Row `row` of the acting member's kit.
+    fn kit_item(&self, row: &str) -> Option<String> {
+        if let Scope::Any = self {
+            return any_row(row);
+        }
+        let (item, _) = nth(&self.acting()?.equipment, row)?;
+        self.item_id(item)
+    }
+
+    /// Row `row` of the acting member's features with effect, as its name key.
+    fn feature(&self, row: &str) -> Option<String> {
+        let Scope::Live { data, .. } = self else {
+            return any_row(row);
+        };
+        let features = combat_features(self.acting()?, data);
+        nth(&features, row).map(|f| f.name.clone())
+    }
+
+    /// Row `row` of the party's stores.
+    fn stores_item(&self, row: &str) -> Option<String> {
+        let Scope::Live { world, .. } = self else {
+            return any_row(row);
+        };
+        let (item, _) = nth(&world.party.inventory, row)?;
+        self.item_id(item)
+    }
+
+    /// The definition of the service the party is inside.
+    fn service(&self) -> Option<&omnis_data::ServiceDef> {
+        let Scope::Live { world, data } = self else {
+            return None;
+        };
+        let Mode::Town(state) = &world.mode else {
+            return None;
+        };
+        data.services.get(&state.service)
+    }
+
+    /// Row `row` of the service's stock.
+    fn stock_item(&self, row: &str) -> Option<String> {
+        if let Scope::Any = self {
+            return any_row(row);
+        }
+        nth(&self.service()?.items, row)
+    }
+
+    /// Row `row` of the service's spells.
+    fn service_spell(&self, row: &str) -> Option<String> {
+        if let Scope::Any = self {
+            return any_row(row);
+        }
+        nth(&self.service()?.spells, row)
+    }
+
+    /// Row `row` of the class list of the member in a slot.
+    fn class_spell(&self, member: CharacterId, row: &str) -> Option<String> {
+        let Scope::Live { world, data } = self else {
+            return any_row(row);
+        };
+        let who = world.party.members.iter().find(|m| m.id == member)?;
+        let casting = data.classes.get(&who.class)?.casting.as_ref()?;
+        nth(&casting.list, row)
+    }
+}
+
+fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
     Some(match word {
         "forward" => Command::Step(Direction::Forward),
         "back" => Command::Step(Direction::Back),
@@ -79,10 +207,10 @@ fn command(word: &str, slots: &Slots<'_>) -> Option<Command> {
         "end" => Command::Combat(CombatCommand::EndTurn),
         _ => {
             if let Some(rest) = word.strip_prefix("react-") {
-                return parse_react(rest, slots).map(Command::Party);
+                return parse_react(rest, scope).map(Command::Party);
             }
             if let Some(rest) = word.strip_prefix("feature-") {
-                return parse_feature(rest, slots).map(Command::Combat);
+                return parse_feature(rest, scope).map(Command::Combat);
             }
             if let Some(n) = word.strip_prefix("attack-") {
                 return n
@@ -91,75 +219,77 @@ fn command(word: &str, slots: &Slots<'_>) -> Option<Command> {
                     .map(|stack| Command::Combat(CombatCommand::Attack { stack }));
             }
             if let Some(n) = word.strip_prefix("swap-") {
-                return member(n, slots)
+                return scope
+                    .member(n)
                     .map(|with| Command::Combat(CombatCommand::Exchange { with }));
             }
             if let Some(rest) = word.strip_prefix("cast-") {
-                return parse_cast(rest, slots).map(Command::Combat);
+                return parse_cast(rest, scope).map(Command::Combat);
             }
             if let Some(rest) = word.strip_prefix("use-item-") {
-                return parse_use(rest, slots).map(Command::Combat);
+                return parse_use(rest, scope).map(Command::Combat);
             }
-            return parse_town(word, slots);
+            return parse_town(word, scope);
         }
     })
 }
 
-/// `N-M` casts spell `N` at stack `M`; `N-mM` at member `M`; a trailing `-bonus` pays with
-/// the bonus action.
-fn parse_cast(rest: &str, slots: &Slots<'_>) -> Option<CombatCommand> {
+/// `N-M` casts the acting member's spell row `N` at stack `M`; `N-mM` at member `M`; a
+/// trailing `-bonus` pays with the bonus action.
+fn parse_cast(rest: &str, scope: &Scope<'_>) -> Option<CombatCommand> {
     let (rest, pay) = match rest.strip_suffix("-bonus") {
         Some(rest) => (rest, Pay::BonusAction),
         None => (rest, Pay::Action),
     };
     let (spell, target) = rest.split_once('-')?;
-    let spell = spell.parse().ok()?;
     let target = match target.strip_prefix('m') {
-        Some(slot) => Target::Member(member(slot, slots)?),
+        Some(slot) => Target::Member(scope.member(slot)?),
         None => Target::Stack(target.parse().ok()?),
     };
+    let spell = scope.known_spell(spell)?;
     Some(CombatCommand::Cast { spell, target, pay })
 }
 
 /// `M-on` or `M-off` switches member `M`'s reactions.
-fn parse_react(rest: &str, slots: &Slots<'_>) -> Option<PartyCommand> {
+fn parse_react(rest: &str, scope: &Scope<'_>) -> Option<PartyCommand> {
     let (slot, on) = match rest.split_once('-')? {
         (slot, "on") => (slot, true),
         (slot, "off") => (slot, false),
         _ => return None,
     };
     Some(PartyCommand::Tactics(TacticsCommand::SetReactions {
-        member: member(slot, slots)?,
+        member: scope.member(slot)?,
         on,
     }))
 }
 
-/// `F` uses feature row `F`; `F-W` exchanges with slot `W` (Cunning Action); `F-hide` hides.
-fn parse_feature(rest: &str, slots: &Slots<'_>) -> Option<CombatCommand> {
+/// `F` uses the acting member's feature row `F`; `F-W` exchanges with slot `W` (Cunning
+/// Action); `F-hide` hides.
+fn parse_feature(rest: &str, scope: &Scope<'_>) -> Option<CombatCommand> {
     let (feature, choice) = match rest.split_once('-') {
         Some((feature, "hide")) => (feature, FeatureChoice::Hide),
         Some((feature, with)) => (
             feature,
             FeatureChoice::Exchange {
-                with: member(with, slots)?,
+                with: scope.member(with)?,
             },
         ),
         None => (rest, FeatureChoice::None),
     };
     Some(CombatCommand::Feature {
-        feature: feature.parse().ok()?,
+        feature: scope.feature(feature)?,
         choice,
     })
 }
 
-/// `N` uses item `N` of the acting member's kit on themselves; `N-mM` on member `M`.
-fn parse_use(rest: &str, slots: &Slots<'_>) -> Option<CombatCommand> {
+/// `N` uses row `N` of the acting member's kit on themselves; `N-mM` on member `M`.
+fn parse_use(rest: &str, scope: &Scope<'_>) -> Option<CombatCommand> {
     let (item, target) = match rest.split_once('-') {
-        Some((item, target)) => (item, Some(member(target.strip_prefix('m')?, slots)?)),
+        Some((item, target)) => (item, Some(scope.member(target.strip_prefix('m')?)?)),
         None => (rest, None),
     };
     Some(CombatCommand::Use {
-        item: item.parse().ok()?,
+        item: scope.kit_item(item)?,
         target,
     })
 }
@@ -169,14 +299,14 @@ fn parse_use(rest: &str, slots: &Slots<'_>) -> Option<CombatCommand> {
 /// `deposit-N` and `withdraw-N` (copper), `train-M`, `choose-M-R` (row `R` of the member's
 /// class list), `learn-M-R` (row `R` of the service's spells), `short-rest-A-B-…` (hit dice per
 /// member in marching order).
-fn parse_town(word: &str, slots: &Slots<'_>) -> Option<Command> {
+fn parse_town(word: &str, scope: &Scope<'_>) -> Option<Command> {
     if let Some(dice) = word.strip_prefix("short-rest-") {
         let dice = dice
             .split('-')
             .enumerate()
             .map(|(slot, count)| {
                 Some(HitDiceSpend {
-                    member: slots(u8::try_from(slot).ok()?)?,
+                    member: scope.member(&slot.to_string())?,
                     count: count.parse().ok()?,
                 })
             })
@@ -189,22 +319,24 @@ fn parse_town(word: &str, slots: &Slots<'_>) -> Option<Command> {
             count: args.parse().ok()?,
         },
         "heal" => ServiceCommand::Heal {
-            member: member(args, slots)?,
+            member: scope.member(args)?,
         },
         "cure" => ServiceCommand::Cure {
-            member: member(args, slots)?,
+            member: scope.member(args)?,
         },
         "raise" => ServiceCommand::Raise {
-            member: member(args, slots)?,
+            member: scope.member(args)?,
         },
         "buy" | "sell" => {
-            let (item, count) = match args.split_once('-') {
-                Some((item, count)) => (item.parse().ok()?, count.parse().ok()?),
-                None => (args.parse().ok()?, 1),
+            let (row, count) = match args.split_once('-') {
+                Some((row, count)) => (row, count.parse().ok()?),
+                None => (args, 1),
             };
             if verb == "buy" {
+                let item = scope.stock_item(row)?;
                 ServiceCommand::Buy { item, count }
             } else {
+                let item = scope.stores_item(row)?;
                 ServiceCommand::Sell { item, count }
             }
         }
@@ -215,14 +347,16 @@ fn parse_town(word: &str, slots: &Slots<'_>) -> Option<Command> {
             amount: args.parse().ok()?,
         },
         "train" => ServiceCommand::Train {
-            member: member(args, slots)?,
+            member: scope.member(args)?,
         },
         "choose" | "learn" => {
-            let (slot, spell) = args.split_once('-')?;
-            let (member, spell) = (member(slot, slots)?, spell.parse().ok()?);
+            let (slot, row) = args.split_once('-')?;
+            let member = scope.member(slot)?;
             if verb == "choose" {
+                let spell = scope.class_spell(member, row)?;
                 ServiceCommand::Choose { member, spell }
             } else {
+                let spell = scope.service_spell(row)?;
                 ServiceCommand::Learn { member, spell }
             }
         }
@@ -250,16 +384,18 @@ impl core::error::Error for ScriptError {}
 
 /// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
 /// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
-/// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
+/// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (the acting member's spell
+/// row `N` at stack `M`),
 /// `cast-N-mM` (at member `M`), either with `-bonus` to pay with the bonus action,
-/// `use-item-N` (item `N` of the acting member's kit, on themselves), `use-item-N-mM` (on
+/// `use-item-N` (row `N` of the acting member's kit, on themselves), `use-item-N-mM` (on
 /// member `M`), `dodge`, `swap-N`, `flee`, `feature-F` (feature row `F`), `feature-F-W`
 /// (Cunning Action's exchange with slot `W`), `feature-F-hide`, `end` (ends the turn), at any
 /// time `react-M-on` and `react-M-off` (member `M`'s reactions switch), inside a service
 /// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
 /// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line. Members are named by marching-order
-/// slot; [`Word::command`] turns each into a command against the party it is applied to.
+/// slot and definitions by their row in the list on screen; [`Word::command`] turns each into
+/// a command against the world it is applied to.
 pub fn parse_script(text: &str) -> Result<Vec<Word>, ScriptError> {
     let mut words = Vec::new();
     for (index, line) in text.lines().enumerate() {
@@ -287,42 +423,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_word_s_slot_names_whoever_stands_there() {
-        let members = [CharacterId(7), CharacterId(3), CharacterId(9)];
-        let command = |word: &str| Word::parse(word).and_then(|w| w.command(&members));
+    fn a_word_is_checked_for_its_syntax_alone() {
+        for word in [
+            "heal-1",
+            "short-rest-0-2",
+            "cast-0-m2",
+            "cast-3-1-bonus",
+            "use-item-4-m0",
+            "feature-1-hide",
+            "buy-2-5",
+            "sell-0",
+            "choose-1-3",
+            "learn-0-2",
+        ] {
+            assert!(Word::parse(word).is_some(), "{word}");
+        }
+        for word in [
+            "heal-x",
+            "cast-a-m1",
+            "use-item-",
+            "buy-1-x",
+            "choose-1",
+            "fly",
+        ] {
+            assert!(Word::parse(word).is_none(), "{word}");
+        }
         assert_eq!(
-            command("heal-1"),
+            command("heal-3", &Scope::Any),
             Some(Command::Service(ServiceCommand::Heal {
                 member: CharacterId(3)
-            }))
-        );
-        assert_eq!(
-            command("short-rest-0-2"),
-            Some(Command::Rest(RestCommand::Short {
-                dice: alloc::vec![
-                    HitDiceSpend {
-                        member: CharacterId(7),
-                        count: 0
-                    },
-                    HitDiceSpend {
-                        member: CharacterId(3),
-                        count: 2
-                    },
-                ]
-            }))
-        );
-        assert_eq!(
-            command("cast-0-m2"),
-            Some(Command::Combat(CombatCommand::Cast {
-                spell: 0,
-                target: Target::Member(CharacterId(9)),
-                pay: Pay::Action,
-            }))
-        );
-        assert_eq!(command("heal-3"), None, "nobody stands in slot 3");
-        assert!(
-            Word::parse("heal-3").is_some(),
-            "but the word itself is sound"
+            })),
+            "with nothing to resolve against, a slot stands for itself"
         );
     }
 }

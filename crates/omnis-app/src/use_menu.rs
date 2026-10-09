@@ -23,12 +23,12 @@ pub enum Choice {
 }
 
 /// What a row uses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UseKind {
     /// A class feature.
     Feature {
-        /// Its row, the number `feature` takes.
-        index: u8,
+        /// Its name key, the `feature` that `Feature` takes.
+        feature: String,
         /// Uses left before a rest; `None` at will.
         uses_left: Option<u8>,
         /// Which of its choices.
@@ -36,8 +36,8 @@ pub enum UseKind {
     },
     /// An item of the kit.
     Item {
-        /// Its row in the kit, the number `use-item` takes.
-        index: u8,
+        /// Its id, the `item` that `Use` takes.
+        item: String,
         /// How many.
         count: u16,
     },
@@ -78,7 +78,7 @@ impl UseRow {
 #[must_use]
 pub fn use_rows(member: &MemberView, data: &Data, fighter: Option<&FighterView>) -> Vec<UseRow> {
     let features = fighter.into_iter().flat_map(|f| &f.features).flat_map(|f| {
-        let name = data.label("en", &f.name).to_owned();
+        let name = data.label("en", &f.feature).to_owned();
         let blocked = f.blocked.as_ref().map(blocked_note);
         let cunning = f.choices.contains(&ChoiceKind::Exchange);
         let choices: &[(Choice, &str)] = if cunning {
@@ -91,7 +91,7 @@ pub fn use_rows(member: &MemberView, data: &Data, fighter: Option<&FighterView>)
             .map(|(choice, suffix)| UseRow {
                 name: format!("{name}{suffix}"),
                 kind: UseKind::Feature {
-                    index: f.index,
+                    feature: f.feature.clone(),
                     uses_left: f.uses_left,
                     choice: *choice,
                 },
@@ -100,7 +100,7 @@ pub fn use_rows(member: &MemberView, data: &Data, fighter: Option<&FighterView>)
             .collect::<Vec<_>>()
     });
     let items = member.equipment.iter().filter_map(|row| {
-        let item = defs::item(data, &row.id)?;
+        let item = defs::item(data, &row.item)?;
         let blocked = match item.use_effect.as_ref()? {
             UseEffect::Heal { .. } => None,
             UseEffect::Sense(_) => Some("not here".to_owned()),
@@ -108,7 +108,7 @@ pub fn use_rows(member: &MemberView, data: &Data, fighter: Option<&FighterView>)
         Some(UseRow {
             name: data.label("en", &item.name).to_owned(),
             kind: UseKind::Item {
-                index: row.index,
+                item: row.item.clone(),
                 count: row.count,
             },
             blocked,
@@ -155,13 +155,15 @@ impl CombatMenu {
             self.message = format!("{}: {why}", row.name);
             return None;
         }
-        let command = match row.kind {
-            UseKind::Item { index, .. } => CombatCommand::Use {
-                item: index,
+        let command = match &row.kind {
+            UseKind::Item { item, .. } => CombatCommand::Use {
+                item: item.clone(),
                 target: selected.and_then(|s| view.ids.get(s).copied()),
             },
-            UseKind::Feature { index, choice, .. } => CombatCommand::Feature {
-                feature: index,
+            UseKind::Feature {
+                feature, choice, ..
+            } => CombatCommand::Feature {
+                feature: feature.clone(),
                 choice: match choice {
                     Choice::None => FeatureChoice::None,
                     Choice::Exchange => FeatureChoice::Exchange {
@@ -184,6 +186,11 @@ mod tests {
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::items::item_id;
     use omnis_sim::{Command, EncounterChoice, Mode, World, apply, combat_view, party_view};
+
+    const POTION: &str = "base:item:potion_of_healing";
+    const SECOND_WIND: &str = "base:text:class.fighter.second_wind";
+    const ACTION_SURGE: &str = "base:text:class.fighter.action_surge";
+    const CUNNING: &str = "base:text:class.rogue.cunning_action";
 
     fn use_rows(world: &World, data: &Data, own: usize, f: Option<&FighterView>) -> Vec<UseRow> {
         party_view(world, data)
@@ -211,10 +218,13 @@ mod tests {
         let rows: Vec<(UseKind, &str, String, Option<&str>)> = view
             .usable
             .iter()
-            .map(|r| (r.kind, r.name.as_str(), r.amount(), r.blocked.as_deref()))
+            .map(|r| {
+                let kind = r.kind.clone();
+                (kind, r.name.as_str(), r.amount(), r.blocked.as_deref())
+            })
             .collect();
         let second_wind = UseKind::Feature {
-            index: 0,
+            feature: SECOND_WIND.to_owned(),
             uses_left: Some(1),
             choice: Choice::None,
         };
@@ -223,13 +233,19 @@ mod tests {
             [
                 (second_wind, "Second Wind", "1 use".to_owned(), None),
                 (
-                    UseKind::Item { index: 6, count: 1 },
+                    UseKind::Item {
+                        item: POTION.to_owned(),
+                        count: 1
+                    },
                     "Potion of healing",
                     "x1".to_owned(),
                     None
                 ),
                 (
-                    UseKind::Item { index: 7, count: 1 },
+                    UseKind::Item {
+                        item: "base:item:spyglass".to_owned(),
+                        count: 1
+                    },
                     "Spyglass",
                     "x1".to_owned(),
                     Some("not here")
@@ -250,7 +266,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Use {
-                item: 6,
+                item: POTION.to_owned(),
                 target: Some(world.party.members[0].id)
             }))
         );
@@ -260,7 +276,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Use {
-                item: 6,
+                item: POTION.to_owned(),
                 target: None
             })),
             "no selection: the user"
@@ -269,7 +285,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(2)),
             Some(CombatIntent::Command(CombatCommand::Feature {
-                feature: 0,
+                feature: SECOND_WIND.to_owned(),
                 choice: FeatureChoice::None
             })),
             "a feature row is the Feature command; the selection does not matter"
@@ -323,16 +339,22 @@ mod tests {
                 .map(|r| (r.name, r.kind))
                 .collect()
         };
-        let feature = |index, uses_left, choice| UseKind::Feature {
-            index,
+        let feature = |key: &str, uses_left, choice| UseKind::Feature {
+            feature: key.to_owned(),
             uses_left,
             choice,
         };
         assert_eq!(
             rows(0),
             [
-                ("Second Wind".to_owned(), feature(0, Some(1), Choice::None)),
-                ("Action Surge".to_owned(), feature(1, Some(1), Choice::None)),
+                (
+                    "Second Wind".to_owned(),
+                    feature(SECOND_WIND, Some(1), Choice::None)
+                ),
+                (
+                    "Action Surge".to_owned(),
+                    feature(ACTION_SURGE, Some(1), Choice::None)
+                ),
             ]
         );
         assert_eq!(
@@ -340,11 +362,11 @@ mod tests {
             [
                 (
                     "Cunning Action: exchange".to_owned(),
-                    feature(0, None, Choice::Exchange)
+                    feature(CUNNING, None, Choice::Exchange)
                 ),
                 (
                     "Cunning Action: hide".to_owned(),
-                    feature(0, None, Choice::Hide)
+                    feature(CUNNING, None, Choice::Hide)
                 ),
             ]
         );
@@ -375,7 +397,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Feature {
-                feature: 0,
+                feature: CUNNING.to_owned(),
                 choice: FeatureChoice::Exchange {
                     with: world.party.members[0].id
                 }
@@ -385,7 +407,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Feature {
-                feature: 0,
+                feature: CUNNING.to_owned(),
                 choice: FeatureChoice::Hide
             }))
         );

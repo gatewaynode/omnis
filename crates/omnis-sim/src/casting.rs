@@ -23,7 +23,7 @@ pub(crate) fn apply(
     world: &mut World,
     data: &Data,
     caster: CharacterId,
-    spell: u8,
+    spell: &str,
     target: Target,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -35,9 +35,12 @@ pub(crate) fn apply(
     if member.is_down() {
         return Err(Rejection::MemberDown { member: caster });
     }
+    let spell = cast::spell_id(data, spell)?;
     let mut roller = Roller::take_stream(world, "cast");
     let (id, def, cost) = cast::check(world, data, own, spell, false, &mut roller.rng)?;
-    let effect = def.effect.clone().ok_or(Rejection::NotCastable { spell })?;
+    let effect = def.effect.clone().ok_or_else(|| Rejection::NotCastable {
+        spell: cast::spell_name(data, id),
+    })?;
     if let SpellEffect::Heal { .. } | SpellEffect::Buff { .. } = effect {
         let Target::Member(id) = target else {
             return Err(Rejection::WrongTarget);

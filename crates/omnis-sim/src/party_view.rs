@@ -12,8 +12,8 @@ use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId};
 use omnis_data::{Ability, Alignment, Data, EquipSlot, Skill};
 use omnis_rules::{
-    ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Expiry, Trigger,
-    casting_ability, condition_id, modifier, proficiency_bonus, skill_bonus,
+    ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Expiry, Ids, Named, Naming,
+    Trigger, casting_ability, condition_id, modifier, proficiency_bonus, skill_bonus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -55,10 +55,10 @@ pub struct MemberView {
     pub dead: bool,
     /// Death saving throws in progress.
     pub death_saves: DeathSaves,
-    /// Spell ids known, in the order `cast` indexes them.
+    /// Spell ids known, in the order the caster learned them.
     #[serde(default)]
     pub spells: Vec<String>,
-    /// The kit, in the order the item commands index it.
+    /// The kit, in the order it was filled.
     #[serde(default)]
     pub equipment: Vec<ItemView>,
     /// What is worn and wielded, by slot.
@@ -140,25 +140,26 @@ pub struct TacticsView {
 /// One declared reaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReactionView {
-    /// Its entry in the default runbook, the number `PutReaction` and `RemoveReaction` take.
-    pub index: u8,
+    /// Its entry in the default runbook, the `entry` that `PutReaction` and `RemoveReaction`
+    /// take.
+    pub entry: u8,
     /// The criteria set's name.
     pub name: String,
     /// The action as the commands carry it.
-    pub action: ActionRef,
+    pub action: ActionRef<Named>,
     /// The action's id (`attack` for the weapon).
     pub action_name: String,
     /// What raises it.
     pub trigger: Trigger,
     /// The criteria that must hold.
-    pub when: Criteria,
+    pub when: Criteria<Named>,
 }
 
 /// An action a member could declare as a reaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnswerView {
     /// The action as the commands carry it.
-    pub action: ActionRef,
+    pub action: ActionRef<Named>,
     /// The action's id (`attack` for the weapon).
     pub name: String,
     /// The triggers it can answer.
@@ -168,10 +169,8 @@ pub struct AnswerView {
 /// One row of a kit or the stores.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemView {
-    /// Its row, the number the item commands take.
-    pub index: u8,
-    /// Item id.
-    pub id: String,
+    /// Item id, the `item` the item commands take.
+    pub item: String,
     /// Text key of the item's name.
     pub name: String,
     /// How many.
@@ -201,7 +200,7 @@ pub struct PartyView {
     pub gems: u32,
     /// Food units.
     pub food: u32,
-    /// The stores, in the order `Take` indexes them.
+    /// The stores, in the order they were filled.
     #[serde(default)]
     pub inventory: Vec<ItemView>,
     /// The effects on the whole party.
@@ -334,18 +333,19 @@ fn tactics_view(data: &Data, member: &Character) -> TacticsView {
             .enumerate()
             .filter_map(|(row, (_, set))| {
                 let set = tactics.library.get(usize::from(*set))?;
+                let named = set.map(&Naming(data)).ok()?;
                 Some(ReactionView {
-                    index: u8::try_from(row).ok()?,
+                    entry: u8::try_from(row).ok()?,
                     name: set.name.clone(),
-                    action: set.action.clone(),
                     action_name: action_name(data, &set.action),
+                    action: named.action,
                     trigger: set.trigger,
-                    when: set.when.clone(),
+                    when: named.when,
                 })
             })
             .collect()
     });
-    let candidates = core::iter::once(ActionRef::Attack)
+    let candidates = core::iter::once(ActionRef::<Ids>::Attack)
         .chain(member.known_spells.iter().map(|id| ActionRef::Spell(*id)));
     let answers = candidates
         .filter_map(|action| {
@@ -353,9 +353,12 @@ fn tactics_view(data: &Data, member: &Character) -> TacticsView {
                 .into_iter()
                 .filter(|t| answers(member, data, &action, *t))
                 .collect();
-            (!triggers.is_empty()).then(|| AnswerView {
+            if triggers.is_empty() {
+                return None;
+            }
+            Some(AnswerView {
                 name: action_name(data, &action),
-                action,
+                action: action.map(&Naming(data)).ok()?,
                 triggers,
             })
         })
@@ -381,12 +384,10 @@ fn action_name(data: &Data, action: &ActionRef) -> String {
 /// A counted list as rows; `equipped` marks the rows a kit's owner wears.
 fn item_views(data: &Data, list: &[(ItemId, u16)], equipped: Option<&Equipped>) -> Vec<ItemView> {
     list.iter()
-        .enumerate()
-        .map(|(index, (id, count))| {
+        .map(|(id, count)| {
             let def = data.items.get(id);
             ItemView {
-                index: u8::try_from(index).unwrap_or(u8::MAX),
-                id: name_of(data.registry.items.name(*id)),
+                item: name_of(data.registry.items.name(*id)),
                 name: def.map_or_else(|| "?".to_owned(), |d| d.name.clone()),
                 count: *count,
                 slot: def.and_then(|d| d.slot()),

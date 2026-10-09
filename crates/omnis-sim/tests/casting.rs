@@ -4,14 +4,13 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, script_for_six, word, world};
-use omnis_core::CharacterId;
+use common::{act, data, encounter, party_of, script, word, world};
 use omnis_data::{Data, Disposition};
 use omnis_sim::items::item_id;
 use omnis_sim::omnis_rules::condition_id;
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, Command, Event, Mode, Pay, Rejection, Surprise, Target,
-    World, apply, combat, combat_view,
+    Word, World, apply, combat, combat_view,
 };
 
 /// Ilvara's slot in the six drafts.
@@ -41,24 +40,20 @@ fn until_turn_of(world: &mut World, data: &Data, slot: usize) -> bool {
     panic!("the turn never came");
 }
 
-/// The index of a spell in a member's list.
-fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
-    let id = data
-        .registry
-        .spells
-        .get(&format!("base:spell:{name}"))
-        .unwrap();
-    let at = world.party.members[slot]
-        .known_spells
-        .iter()
-        .position(|s| *s == id)
-        .unwrap_or_else(|| panic!("{name} is not known"));
-    u8::try_from(at).unwrap()
+/// The id of a spell a member knows, as `Cast` takes it.
+fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> String {
+    let spell = format!("base:spell:{name}");
+    let id = data.registry.spells.get(&spell).unwrap();
+    assert!(
+        world.party.members[slot].known_spells.contains(&id),
+        "{name} is not known"
+    );
+    spell
 }
 
-fn cast(spell: u8, target: Target) -> Command {
+fn cast(spell: &str, target: Target) -> Command {
     Command::Combat(CombatCommand::Cast {
-        spell,
+        spell: spell.to_owned(),
         target,
         pay: Pay::Action,
     })
@@ -96,7 +91,7 @@ fn a_caster_empties_the_pool_and_cantrips_stay_free() {
     let ilvara = world.party.members[wizard].id;
     let mut casts = 0;
     while until_turn_of(&mut world, &data, wizard) {
-        match apply(&mut world, &data, cast(missile, Target::Stack(0))) {
+        match apply(&mut world, &data, cast(&missile, Target::Stack(0))) {
             Ok(events) => {
                 casts += 1;
                 let Some(Event::SpellCast {
@@ -133,7 +128,7 @@ fn a_caster_empties_the_pool_and_cantrips_stay_free() {
     assert_eq!(casts, pool, "one point a cast until the pool is empty");
     assert_eq!(world.party.members[wizard].spell_points, 0);
     assert!(matches!(world.mode, Mode::Combat(_)), "the fight goes on");
-    let events = apply(&mut world, &data, cast(bolt, Target::Stack(0))).unwrap();
+    let events = apply(&mut world, &data, cast(&bolt, Target::Stack(0))).unwrap();
     assert!(
         events
             .iter()
@@ -173,23 +168,34 @@ fn rejections_leave_the_fight_untouched() {
     };
     refuse(
         &mut world,
-        cast(9, Target::Stack(0)),
-        Rejection::UnknownSpell { spell: 9 },
+        cast("base:spell:nope", Target::Stack(0)),
+        Rejection::UnknownSpell {
+            spell: "base:spell:nope".to_owned(),
+        },
     );
     refuse(
         &mut world,
-        cast(shield, Target::Stack(0)),
-        Rejection::NotCastable { spell: shield },
+        cast("base:spell:cure_wounds", Target::Stack(0)),
+        Rejection::UnknownSpell {
+            spell: "base:spell:cure_wounds".to_owned(),
+        },
+    );
+    refuse(
+        &mut world,
+        cast(&shield, Target::Stack(0)),
+        Rejection::NotCastable {
+            spell: shield.clone(),
+        },
     );
     let first = world.party.members[0].id;
     refuse(
         &mut world,
-        cast(missile, Target::Member(first)),
+        cast(&missile, Target::Member(first)),
         Rejection::WrongTarget,
     );
     refuse(
         &mut world,
-        cast(missile, Target::Stack(7)),
+        cast(&missile, Target::Stack(7)),
         Rejection::NoSuchStack { stack: 7 },
     );
     let mut dead_rat = world.clone();
@@ -197,7 +203,7 @@ fn rejections_leave_the_fight_untouched() {
         state.encounter.stacks[1].hp.clear();
     }
     assert_eq!(
-        apply(&mut dead_rat, &data, cast(missile, Target::Stack(1))),
+        apply(&mut dead_rat, &data, cast(&missile, Target::Stack(1))),
         Err(Rejection::StackDead { stack: 1 })
     );
     let view = combat_view(&world, &data).unwrap();
@@ -205,7 +211,7 @@ fn rejections_leave_the_fight_untouched() {
     let row = |name: &str| {
         view.spells
             .iter()
-            .find(|s| s.id == format!("base:spell:{name}"))
+            .find(|s| s.spell == format!("base:spell:{name}"))
             .unwrap()
     };
     assert_eq!(
@@ -218,7 +224,9 @@ fn rejections_leave_the_fight_untouched() {
     assert_eq!(row("fire_bolt").cost, 0);
     assert_eq!(
         row("shield").blocked,
-        Some(Rejection::NotCastable { spell: shield }),
+        Some(Rejection::NotCastable {
+            spell: shield.clone()
+        }),
         "a reaction is cast by the sim, not from the picker"
     );
     assert!(
@@ -250,23 +258,35 @@ fn components_are_taken_from_the_stores_at_the_threshold() {
     let bolt = spell_index(&world, &data, WIZARD, "fire_bolt");
     let before = world.clone();
     assert_eq!(
-        apply(&mut world, &data, cast(missile, Target::Stack(0))),
-        Err(Rejection::MissingComponents { spell: missile }),
+        apply(&mut world, &data, cast(&missile, Target::Stack(0))),
+        Err(Rejection::MissingComponents {
+            spell: missile.clone()
+        }),
         "no gem in the stores"
     );
     assert_eq!(world, before);
     let view = combat_view(&world, &data).unwrap();
     assert_eq!(
-        view.spells[usize::from(missile)].blocked,
-        Some(Rejection::MissingComponents { spell: missile })
+        view.spells
+            .iter()
+            .find(|s| s.spell == missile)
+            .unwrap()
+            .blocked,
+        Some(Rejection::MissingComponents {
+            spell: missile.clone()
+        })
     );
     assert_eq!(
-        view.spells[usize::from(bolt)].blocked,
+        view.spells
+            .iter()
+            .find(|s| s.spell == bolt)
+            .unwrap()
+            .blocked,
         None,
         "a cantrip is under the threshold"
     );
     world.party.inventory.push((gem, 2));
-    let events = apply(&mut world, &data, cast(missile, Target::Stack(0))).unwrap();
+    let events = apply(&mut world, &data, cast(&missile, Target::Stack(0))).unwrap();
     assert!(events.iter().any(|e| matches!(
         e,
         Event::SpellCast { components_consumed, .. } if components_consumed == &[(gem, 1)]
@@ -280,8 +300,10 @@ fn components_are_taken_from_the_stores_at_the_threshold() {
     start(&mut world, &listless, &[("goblin", 2)]);
     assert!(until_turn_of(&mut world, &listless, WIZARD));
     assert_eq!(
-        apply(&mut world, &listless, cast(missile, Target::Stack(0))),
-        Err(Rejection::MissingComponents { spell: missile }),
+        apply(&mut world, &listless, cast(&missile, Target::Stack(0))),
+        Err(Rejection::MissingComponents {
+            spell: missile.clone()
+        }),
         "at the threshold a spell must list components (D11)"
     );
 }
@@ -299,7 +321,7 @@ fn burning_hands_rolls_once_and_every_goblin_saves_from_the_back() {
             continue;
         }
         let hands = hands_at(&world);
-        let events = apply(&mut world, &data, cast(hands, Target::Stack(0))).unwrap();
+        let events = apply(&mut world, &data, cast(&hands, Target::Stack(0))).unwrap();
         let ilvara = world.party.members[WIZARD].id;
         let cast_at = events
             .iter()
@@ -391,7 +413,7 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
             continue;
         }
         let flame = spell_index(&world, &data, CLERIC, "sacred_flame");
-        let events = apply(&mut world, &data, cast(flame, Target::Stack(0))).unwrap();
+        let events = apply(&mut world, &data, cast(&flame, Target::Stack(0))).unwrap();
         let pass = events.iter().find_map(|e| match e {
             Event::Check {
                 kind: CheckKind::Save(_),
@@ -430,7 +452,7 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
     brenna.death_saves.failures = 1;
     let cure = spell_index(&world, &data, CLERIC, "cure_wounds");
     let brenna_id = world.party.members[0].id;
-    let events = apply(&mut world, &data, cast(cure, Target::Member(brenna_id))).unwrap();
+    let events = apply(&mut world, &data, cast(&cure, Target::Member(brenna_id))).unwrap();
     let brenna = &world.party.members[0];
     assert!(brenna.hp > 0 && !brenna.conditions.contains(&unconscious));
     assert_eq!(brenna.death_saves.failures, 0);
@@ -453,7 +475,7 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
     let fallen = world2.party.members[3].id;
     if until_turn_of(&mut world2, &data, CLERIC) {
         assert_eq!(
-            apply(&mut world2, &data, cast(cure, Target::Member(fallen))),
+            apply(&mut world2, &data, cast(&cure, Target::Member(fallen))),
             Err(Rejection::MemberDead { member: fallen })
         );
     }
@@ -461,28 +483,46 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
 
 #[test]
 fn cast_words_and_saves_round_trip() {
-    assert_eq!(word("cast-2-0"), Some(cast(2, Target::Stack(0))));
-    assert_eq!(
-        word("cast-4-m1"),
-        Some(cast(4, Target::Member(CharacterId(1))))
-    );
     assert_eq!(word("cast-x-0"), None);
     assert_eq!(word("cast-1"), None);
-    assert_eq!(cast(1, Target::Stack(0)).word(), "cast");
     assert_eq!(
-        script_for_six("cast-0-1, dodge"),
-        [
-            cast(0, Target::Stack(1)),
-            Command::Combat(CombatCommand::Dodge)
-        ]
+        word("cast-0-1"),
+        None,
+        "a spell row means the acting member's, and nobody acts outside a fight"
+    );
+    assert_eq!(
+        cast("base:spell:fire_bolt", Target::Stack(0)).word(),
+        "cast"
     );
     let data = data();
     let mut world = world(&data);
     party_of(&mut world, &data, 6);
     start(&mut world, &data, &[("goblin", 2)]);
     assert!(until_turn_of(&mut world, &data, WIZARD));
+    // A word counts the acting member's spells as the picker lists them; the command it
+    // becomes names the spell by its id.
+    let known = |row: usize| {
+        let id = world.party.members[WIZARD].known_spells[row];
+        data.registry.spells.name(id).unwrap().to_owned()
+    };
+    let resolve = |text: &str| Word::parse(text).and_then(|w| w.command(&world, &data));
+    let durin = world.party.members[CLERIC].id;
+    assert_eq!(
+        resolve("cast-0-m1"),
+        Some(cast(&known(0), Target::Member(durin)))
+    );
+    assert!(known(0).starts_with("base:spell:"));
+    assert_eq!(resolve("cast-2-0"), Some(cast(&known(2), Target::Stack(0))));
+    assert_eq!(resolve("cast-99-0"), None, "no such row");
+    assert_eq!(
+        script(&world, &data, "cast-0-1, dodge"),
+        [
+            cast(&known(0), Target::Stack(1)),
+            Command::Combat(CombatCommand::Dodge)
+        ]
+    );
     let missile = spell_index(&world, &data, WIZARD, "magic_missile");
-    apply(&mut world, &data, cast(missile, Target::Stack(0))).unwrap();
+    apply(&mut world, &data, cast(&missile, Target::Stack(0))).unwrap();
     let text = world.to_ron().unwrap();
     let loaded = World::from_ron(&text, &data, false).unwrap();
     assert_eq!(loaded.party.members[WIZARD].spell_points, 3);

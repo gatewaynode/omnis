@@ -14,6 +14,8 @@ use omnis_sim::{Command, ItemCommand};
 /// One row of a pane.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemRow {
+    /// The item's id, the `item` the item commands take.
+    pub item: String,
     /// The display name.
     pub name: String,
     /// How many.
@@ -63,7 +65,8 @@ pub fn inventory_view(party: &PartyView, data: &Data) -> InventoryView {
             .to_owned()
     };
     let row = |item: &ItemView| ItemRow {
-        name: name(&item.id),
+        item: item.item.clone(),
+        name: name(&item.item),
         count: item.count,
         slot: item.slot,
         equipped: item.equipped,
@@ -302,7 +305,7 @@ impl InventoryMenu {
             return None;
         }
         let id_at = |pane: usize| view.panes.get(pane).and_then(|p| p.member);
-        let item = u8::try_from(self.cursor).unwrap_or(u8::MAX);
+        let item = row.item.clone();
         let target = selected.and_then(id_at);
         // The stores pane has no member: `applies` lets only Take, which names its taker, act there.
         let command = match (action, id_at(self.pane)) {
@@ -360,8 +363,14 @@ pub(crate) mod tests {
         super::inventory_view(&party_view(world, data), data)
     }
 
+    /// The id a sample row's name stands for: `Potion of healing` is `base:item:potion_of_healing`.
+    pub(crate) fn id_of(name: &str) -> String {
+        format!("base:item:{}", name.to_lowercase().replace(' ', "_"))
+    }
+
     fn row(name: &str, slot: Option<EquipSlot>, equipped: bool, usable: bool) -> ItemRow {
         ItemRow {
+            item: id_of(name),
             name: name.to_owned(),
             count: 1,
             slot,
@@ -481,7 +490,7 @@ pub(crate) mod tests {
             Some(InventoryIntent::Command(Command::Item(
                 ItemCommand::Equip {
                     member: BRENNA,
-                    item: 7
+                    item: id_of("Leather")
                 }
             )))
         );
@@ -501,7 +510,7 @@ pub(crate) mod tests {
             menu.key(MenuKey::Enter, &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Use {
                 member: BRENNA,
-                item: 6,
+                item: id_of("Potion of healing"),
                 target: Some(DURIN)
             }))),
             "a potion's Enter uses it on the selected member"
@@ -511,7 +520,7 @@ pub(crate) mod tests {
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Give {
                 from: BRENNA,
                 to: DURIN,
-                item: 6,
+                item: id_of("Potion of healing"),
                 count: 1
             })))
         );
@@ -528,7 +537,7 @@ pub(crate) mod tests {
             menu.key(MenuKey::Enter, &view, None),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Stow {
                 member: BRENNA,
-                item: 5,
+                item: id_of("Holy symbol"),
                 count: 1
             }))),
             "Enter on plain gear stows it"
@@ -541,7 +550,7 @@ pub(crate) mod tests {
             menu.key(MenuKey::Enter, &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Take {
                 member: DURIN,
-                item: 0,
+                item: id_of("Potion of healing"),
                 count: 1
             })))
         );

@@ -170,16 +170,16 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         .iter()
         .filter_map(|s| {
             let caster = caster?;
-            let spell = defs::spell(data, &s.id)?;
+            let spell = defs::spell(data, &s.spell)?;
             let reaction = spell.cost == Cost::Reaction;
             let active = party
                 .members
                 .iter()
                 .flat_map(|m| m.effects.iter())
                 .chain(party.effects.iter())
-                .any(|e| e.spell == s.id && e.caster == caster.id);
+                .any(|e| e.spell == s.spell && e.caster == caster.id);
             Some(SpellRow {
-                index: s.index,
+                spell: s.spell.clone(),
                 name: data.label("en", &s.name).to_owned(),
                 cost: s.cost,
                 targets_members: s.targets_members,
@@ -211,7 +211,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
 // ---------------------------------------------------------------- combat
 
 /// What the combat menu asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CombatIntent {
     /// A command for the acting member.
     Command(CombatCommand),

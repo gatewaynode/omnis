@@ -11,7 +11,7 @@ use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::String;
 use core::fmt;
-use omnis_core::{CharacterId, Coins, Direction, ItemId, Rotation};
+use omnis_core::{CharacterId, Coins, Direction, Rotation};
 use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
@@ -35,8 +35,8 @@ pub enum Command {
     Cast {
         /// The caster.
         caster: CharacterId,
-        /// Index into the caster's known spells.
-        spell: u8,
+        /// The spell's id (`base:spell:bless`); the caster must know it.
+        spell: String,
         /// Whom it goes to (a member for healing and buffs; ignored by light and mage hand).
         target: Target,
     },
@@ -149,15 +149,15 @@ pub enum Rejection {
         /// The purse in copper.
         gold: u32,
     },
-    /// The caster knows no spell at that index.
+    /// The caster knows no spell by that id.
     UnknownSpell {
-        /// The index asked for.
-        spell: u8,
+        /// The id asked for.
+        spell: String,
     },
     /// The spell has no effect the simulation can cast here yet.
     NotCastable {
-        /// The index asked for.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
     /// The caster's pool is short.
     NotEnoughPoints {
@@ -169,8 +169,8 @@ pub enum Rejection {
     /// The spell's components are not in the party's stores, or a spell at the component
     /// threshold lists none.
     MissingComponents {
-        /// The index asked for.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
     /// A stack for a spell that helps members, or a member for one that hurts monsters.
     WrongTarget,
@@ -186,20 +186,20 @@ pub enum Rejection {
     },
     /// The stores or the kit hold fewer of an item than needed.
     NotEnough {
-        /// The item.
-        item: ItemId,
+        /// The item's id.
+        item: String,
         /// How many there are.
         have: u16,
     },
-    /// The kit has no item at that row.
+    /// The kit holds no item of that id.
     UnknownItem {
-        /// The row asked for.
-        item: u8,
+        /// The id asked for.
+        item: String,
     },
-    /// The stores have no item at that row.
+    /// The stores hold no item of that id.
     NotInStores {
-        /// The row asked for.
-        item: u8,
+        /// The id asked for.
+        item: String,
     },
     /// The member does not carry the item.
     NotCarried,
@@ -239,7 +239,7 @@ pub enum Rejection {
         /// Row.
         y: u16,
     },
-    /// This service does not do that, or does not stock that row.
+    /// This service does not do that, or does not stock that item.
     NotOffered,
     /// The member has nothing a temple could treat: full hit points, or no condition to cure.
     NothingToTreat {
@@ -296,10 +296,10 @@ pub enum Rejection {
         /// The member asked for.
         member: CharacterId,
     },
-    /// No such row on the list the command names (the class's spells, the service's stock).
+    /// The spell is not on the list the command names (the class's spells, the service's).
     NoSuchSpell {
-        /// The row asked for.
-        row: u8,
+        /// The id asked for.
+        spell: String,
     },
     /// The spell is not on the member's class list.
     NotOnList {
@@ -328,28 +328,28 @@ pub enum Rejection {
     ReactionOnly,
     /// The spell cannot be paid with the bonus action (D24).
     NotABonusAction {
-        /// The known-spell row.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
     /// The spell takes the bonus action only once readied, and readying is not built (D24).
     NeedsPreparation {
-        /// The known-spell row.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
-    /// The member has no feature with effect at that row.
+    /// The member has no feature with effect by that name key.
     NoSuchFeature {
-        /// The row asked for.
-        feature: u8,
+        /// The name key asked for.
+        feature: String,
     },
     /// The feature's uses are spent until a rest.
     NoUsesLeft {
-        /// The row asked for.
-        feature: u8,
+        /// The feature's name key.
+        feature: String,
     },
     /// The feature does not do what was asked (a choice it has not, or none where it needs one).
     WrongChoice {
-        /// The row asked for.
-        feature: u8,
+        /// The feature's name key.
+        feature: String,
     },
     /// The tactics' shape is refused (a name, a tree, a cap).
     Tactics(TacticsFault),
@@ -358,7 +358,7 @@ pub enum Rejection {
     /// The default runbook has no entry there.
     NoSuchEntry {
         /// The entry asked for.
-        at: u8,
+        entry: u8,
     },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
@@ -422,10 +422,8 @@ impl Rejection {
     /// The wording of the item refusals; `None` for the rest.
     fn fmt_items(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
         Some(match self {
-            Rejection::UnknownItem { item } => write!(f, "the kit has no item at row {item}"),
-            Rejection::NotInStores { item } => {
-                write!(f, "the stores have no item at row {item}")
-            }
+            Rejection::UnknownItem { item } => write!(f, "the kit holds no {item}"),
+            Rejection::NotInStores { item } => write!(f, "the stores hold no {item}"),
             Rejection::NotCarried => f.write_str("the item is not carried"),
             Rejection::NotEquippable => f.write_str("the item cannot be worn or wielded"),
             Rejection::HandsFull => f.write_str("a two-handed weapon leaves no hand for a shield"),
@@ -495,7 +493,7 @@ impl Rejection {
             } => {
                 write!(f, "the member {member} has no spell picks left")
             }
-            Rejection::NoSuchSpell { row } => write!(f, "there is no spell in row {row}"),
+            Rejection::NoSuchSpell { spell } => write!(f, "{spell} is not on that list"),
             Rejection::NotOnList {
                 member: CharacterId(member),
             } => {
@@ -528,7 +526,7 @@ impl Rejection {
                 write!(f, "spell {spell} takes the bonus action only once readied")
             }
             Rejection::NoSuchFeature { feature } => {
-                write!(f, "there is no feature in row {feature}")
+                write!(f, "the member has no feature {feature}")
             }
             Rejection::NoUsesLeft { feature } => {
                 write!(f, "feature {feature} has no uses left until a rest")
@@ -540,7 +538,7 @@ impl Rejection {
             Rejection::CannotReact => {
                 f.write_str("the member has no such reaction, or it cannot answer that")
             }
-            Rejection::NoSuchEntry { at } => write!(f, "the runbook has no entry {at}"),
+            Rejection::NoSuchEntry { entry } => write!(f, "the runbook has no entry {entry}"),
             _ => return None,
         })
     }
@@ -548,7 +546,7 @@ impl Rejection {
     /// The wording of the casting, component and dev refusals.
     fn fmt_magic(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rejection::UnknownSpell { spell } => write!(f, "no known spell at {spell}"),
+            Rejection::UnknownSpell { spell } => write!(f, "the caster does not know {spell}"),
             Rejection::NotCastable { spell } => write!(f, "spell {spell} cannot be cast here"),
             Rejection::NotEnoughPoints { need, have } => {
                 write!(f, "that needs {need} spell points; the caster has {have}")
@@ -558,7 +556,7 @@ impl Rejection {
             }
             Rejection::WrongTarget => f.write_str("the spell cannot go to that target"),
             Rejection::NotEnough { item, have } => {
-                write!(f, "not enough of item {item}; there are {have}")
+                write!(f, "not enough {item}; there are {have}")
             }
             Rejection::DevOnly => f.write_str("dev commands need a devtools world"),
             Rejection::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),

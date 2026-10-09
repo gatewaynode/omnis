@@ -1,6 +1,6 @@
 //! Class features with effect in a fight (M7c): Second Wind heals, Action Surge adds an action,
 //! Cunning Action exchanges without an opportunity attack or hides. A feature is named by its
-//! row among the member's `combat_features`; its cost comes from data and its uses are spent
+//! name key among the member's `combat_features`; its cost comes from data and its uses are spent
 //! here and given back by rests (`omnis_rules::recover_uses`).
 
 use super::state::CombatState;
@@ -48,25 +48,27 @@ pub(crate) struct FeaturePlan {
     pub act: Act,
 }
 
-/// The feature in row `row` for the member in slot `own`, its choice, a use left, and what it
+/// The feature named `key` for the member in slot `own`, its choice, a use left, and what it
 /// costs.
 pub(crate) fn validate(
     world: &World,
     data: &Data,
     own: usize,
-    row: u8,
+    key: &str,
     choice: FeatureChoice,
 ) -> Result<(FeaturePlan, Cost), Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
-    let feature = *combat_features(member, data)
-        .get(usize::from(row))
-        .ok_or(Rejection::NoSuchFeature { feature: row })?;
+    let named = || String::from(key);
+    let feature = combat_features(member, data)
+        .into_iter()
+        .find(|f| f.name == key)
+        .ok_or_else(|| Rejection::NoSuchFeature { feature: named() })?;
     if uses_left(member, feature) == Some(0) {
-        return Err(Rejection::NoUsesLeft { feature: row });
+        return Err(Rejection::NoUsesLeft { feature: named() });
     }
     let effect = feature
         .effect
-        .ok_or(Rejection::NoSuchFeature { feature: row })?;
+        .ok_or_else(|| Rejection::NoSuchFeature { feature: named() })?;
     let act = match (effect, choice) {
         (FeatureEffect::Heal { dice, per_level }, FeatureChoice::None) => {
             Act::Heal { dice, per_level }
@@ -80,7 +82,7 @@ pub(crate) fn validate(
             Act::Exchange { with: index }
         }
         (FeatureEffect::Cunning, FeatureChoice::Hide) => Act::Hide,
-        _ => return Err(Rejection::WrongChoice { feature: row }),
+        _ => return Err(Rejection::WrongChoice { feature: named() }),
     };
     Ok((
         FeaturePlan {
@@ -170,16 +172,16 @@ fn hide(
     Ok(())
 }
 
-/// The cost of a feature row, for a view that greys what the budget cannot pay.
+/// The cost of the feature named `key`, for a view that greys what the budget cannot pay.
 pub fn refusal(
     world: &World,
     data: &Data,
     state: &CombatState,
     own: usize,
-    row: u8,
+    key: &str,
     choice: FeatureChoice,
 ) -> Option<Rejection> {
-    match validate(world, data, own, row, choice) {
+    match validate(world, data, own, key, choice) {
         Ok((_, cost)) => budget::affordable(state.budget, cost).err(),
         Err(why) => Some(why),
     }

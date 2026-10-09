@@ -6,12 +6,12 @@
 mod common;
 
 use common::{act, data, encounter, party_of};
-use omnis_core::{CharacterId, MonsterId};
+use omnis_core::CharacterId;
 use omnis_data::{Data, Disposition};
 use omnis_sim::bus::{Subscriber, Topic};
 use omnis_sim::omnis_rules::tactics::{LIBRARY_SETS, RUNBOOK_ENTRIES};
 use omnis_sim::omnis_rules::{
-    ActionRef, Cmp, Criteria, CriteriaSet, Predicate, TacticsFault, Trigger, Who,
+    ActionRef, Cmp, Criteria, CriteriaSet, Named, Naming, Predicate, TacticsFault, Trigger, Who,
 };
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
@@ -44,10 +44,16 @@ fn id(slot: u8) -> CharacterId {
     CharacterId(u32::from(slot))
 }
 
-fn put(slot: u8, at: Option<u8>, set: CriteriaSet) -> Command {
+/// Declare `set`, built here by registry numbers, as the command carries it: by string ids.
+fn put(slot: u8, entry: Option<u8>, set: CriteriaSet) -> Command {
+    let set = set.map(&Naming(&data())).expect("every name renames");
+    put_named(slot, entry, set)
+}
+
+fn put_named(slot: u8, entry: Option<u8>, set: CriteriaSet<Named>) -> Command {
     Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
         member: id(slot),
-        at,
+        entry,
         set,
     }))
 }
@@ -145,28 +151,33 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         put(ILVARA, None, nameless),
         Rejection::Tactics(TacticsFault::Name),
     );
-    let unknown = Criteria::Is(Predicate::MonsterCount {
-        monster: MonsterId(999),
+    let unknown = Criteria::<Named>::Is(Predicate::MonsterCount {
+        monster: "base:monster:nope".to_owned(),
         cmp: Cmp::Ge,
         n: 1,
     });
     refused(
         &mut world,
         &data,
-        put(
+        put_named(
             ILVARA,
             None,
-            set(shield.clone(), Trigger::Attacked, unknown),
+            CriteriaSet {
+                name: "Answer".to_owned(),
+                action: ActionRef::Spell("base:spell:shield".to_owned()),
+                trigger: Trigger::Attacked,
+                when: unknown,
+            },
         ),
         Rejection::UnknownId {
-            id: "monster 999".to_owned(),
+            id: "base:monster:nope".to_owned(),
         },
     );
     refused(
         &mut world,
         &data,
         put(ILVARA, Some(0), ok.clone()),
-        Rejection::NoSuchEntry { at: 0 },
+        Rejection::NoSuchEntry { entry: 0 },
     );
 
     let events = apply(&mut world, &data, put(ILVARA, None, ok.clone())).unwrap();
@@ -204,16 +215,16 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         &data,
         Command::Party(PartyCommand::Tactics(TacticsCommand::RemoveReaction {
             member: id(ILVARA),
-            at: 3,
+            entry: 3,
         })),
-        Rejection::NoSuchEntry { at: 3 },
+        Rejection::NoSuchEntry { entry: 3 },
     );
     apply(
         &mut world,
         &data,
         Command::Party(PartyCommand::Tactics(TacticsCommand::RemoveReaction {
             member: id(ILVARA),
-            at: 1,
+            entry: 1,
         })),
     )
     .unwrap();

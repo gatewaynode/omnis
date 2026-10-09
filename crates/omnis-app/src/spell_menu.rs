@@ -15,8 +15,8 @@ use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target};
 /// One spell the acting member knows, as the picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellRow {
-    /// Its index in the caster's list, the number `cast` takes.
-    pub index: u8,
+    /// The spell's id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// The spell's name.
     pub name: String,
     /// Points it costs.
@@ -124,7 +124,7 @@ impl CombatMenu {
         };
         self.picker = None;
         Some(CombatIntent::Command(CombatCommand::Cast {
-            spell: row.index,
+            spell: row.spell.clone(),
             target,
             pay: row.pay(),
         }))
@@ -140,8 +140,8 @@ pub struct CastRow {
     pub caster: CharacterId,
     /// The caster's name.
     pub caster_name: String,
-    /// The spell's index in the caster's list.
-    pub spell: u8,
+    /// The spell's id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// The spell's name.
     pub name: String,
     /// Points it costs.
@@ -166,7 +166,7 @@ pub fn cast_rows(views: &Views, data: &Data) -> Vec<CastRow> {
                 .iter()
                 .find(|m| m.id == c.caster)
                 .map_or_else(String::new, |m| m.name.clone()),
-            spell: c.spell,
+            spell: c.spell.clone(),
             name: data.label("en", &c.name).to_owned(),
             cost: c.cost,
             targets_members: c.targets_members,
@@ -239,7 +239,7 @@ impl CastMenu {
         };
         Some(CastIntent::Command(Command::Cast {
             caster: row.caster,
-            spell: row.spell,
+            spell: row.spell.clone(),
             target,
         }))
     }
@@ -333,7 +333,7 @@ mod tests {
         assert_eq!(
             cast,
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: word.index,
+                spell: word.spell.clone(),
                 target: Target::Member(world.party.members[0].id),
                 pay: Pay::BonusAction,
             }))
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: 3,
+                spell: "base:spell:magic_missile".to_owned(),
                 target: Target::Stack(0),
                 pay: Pay::Action,
             }))
@@ -465,7 +465,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: 0,
+                spell: "base:spell:fire_bolt".to_owned(),
                 target: Target::Stack(0),
                 pay: Pay::Action,
             }))
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: u8::try_from(cure).unwrap(),
+                spell: "base:spell:cure_wounds".to_owned(),
                 target: Target::Member(world.party.members[0].id),
                 pay: Pay::Action,
             }))
@@ -560,7 +560,7 @@ mod tests {
             menu.key(MenuKey::Enter, &rows, Some(id(0))),
             Some(CastIntent::Command(Command::Cast {
                 caster: id(1),
-                spell: rows[3].spell,
+                spell: rows[3].spell.clone(),
                 target: Target::Member(id(0))
             }))
         );
@@ -569,7 +569,7 @@ mod tests {
             menu.key(MenuKey::Enter, &rows, None),
             Some(CastIntent::Command(Command::Cast {
                 caster: id(2),
-                spell: rows[4].spell,
+                spell: rows[4].spell.clone(),
                 target: Target::Member(id(2))
             })),
             "light needs no target"

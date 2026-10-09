@@ -8,6 +8,7 @@ use crate::command::Rejection;
 use crate::service::{Deal, price};
 use crate::world::World;
 use alloc::boxed::Box;
+use alloc::string::String;
 use omnis_core::SpellId;
 use omnis_data::{Data, ServiceDef};
 use omnis_rules::{SpellRefusal, level_up, may_learn, next_threshold, ready};
@@ -43,8 +44,13 @@ pub(crate) fn train(
     })
 }
 
-/// A pick owed by a level: `row` of the member's class list.
-pub(crate) fn choose(world: &World, data: &Data, index: usize, row: u8) -> Result<Deal, Rejection> {
+/// A pick owed by a level: `spell`, on the member's class list.
+pub(crate) fn choose(
+    world: &World,
+    data: &Data,
+    index: usize,
+    spell: &str,
+) -> Result<Deal, Rejection> {
     let who = &world.party.members[index];
     if who.spell_picks == 0 {
         return Err(Rejection::NoPicks { member: who.id });
@@ -53,9 +59,8 @@ pub(crate) fn choose(world: &World, data: &Data, index: usize, row: u8) -> Resul
         .classes
         .get(&who.class)
         .and_then(|c| c.casting.as_ref())
-        .and_then(|c| c.list.get(usize::from(row)))
-        .and_then(|id| data.registry.spells.get(id))
-        .ok_or(Rejection::NoSuchSpell { row })?;
+        .and_then(|c| on_list(data, &c.list, spell))
+        .ok_or_else(|| no_such(spell))?;
     learnable(world, data, index, spell)?;
     Ok(Deal::Spell {
         index,
@@ -65,20 +70,16 @@ pub(crate) fn choose(world: &World, data: &Data, index: usize, row: u8) -> Resul
     })
 }
 
-/// A spell bought at `spell.learn_cost` for its level: `row` of the service's spells.
+/// A spell bought at `spell.learn_cost` for its level: `spell`, among the service's spells.
 pub(crate) fn learn(
     world: &World,
     data: &Data,
     def: &ServiceDef,
     index: usize,
-    row: u8,
+    spell: &str,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let spell = def
-        .spells
-        .get(usize::from(row))
-        .and_then(|id| data.registry.spells.get(id))
-        .ok_or(Rejection::NoSuchSpell { row })?;
+    let spell = on_list(data, &def.spells, spell).ok_or_else(|| no_such(spell))?;
     learnable(world, data, index, spell)?;
     let level = data.spells.get(&spell).map_or(0, |s| s.level);
     let cost = price(
@@ -93,6 +94,20 @@ pub(crate) fn learn(
         cost,
         pick: false,
     })
+}
+
+/// The spell `spell` names, when `list` holds it.
+fn on_list(data: &Data, list: &[String], spell: &str) -> Option<SpellId> {
+    list.iter()
+        .find(|id| *id == spell)
+        .and_then(|id| data.registry.spells.get(id))
+}
+
+/// The refusal for a spell not on the list the command names.
+fn no_such(spell: &str) -> Rejection {
+    Rejection::NoSuchSpell {
+        spell: String::from(spell),
+    }
 }
 
 /// Refused unless the spell may go onto the member's list.

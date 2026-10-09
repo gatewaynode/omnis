@@ -10,7 +10,7 @@ mod common;
 use common::{act, data, encounter, party_of, script, world};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Cost, Data, Disposition};
-use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
+use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Named, Predicate, Trigger};
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
     ActorRef, Budget, CombatCommand, CombatView, Command, EncounterSource, EncounterState,
@@ -53,7 +53,8 @@ fn until_turn_of(world: &mut World, data: &Data, slot: usize) {
 }
 
 fn ask(world: &mut World, data: &Data, command: CombatCommand) {
-    apply(world, data, Command::Combat(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"));
+    apply(world, data, Command::Combat(command.clone()))
+        .unwrap_or_else(|r| panic!("{command:?}: {r}"));
 }
 
 fn spell_id(data: &Data, name: &str) -> omnis_core::SpellId {
@@ -63,15 +64,18 @@ fn spell_id(data: &Data, name: &str) -> omnis_core::SpellId {
         .unwrap()
 }
 
-fn spell_row(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
+/// The id of a spell the member knows, as `Cast` takes it and the views show it.
+fn spell_row(world: &World, data: &Data, slot: usize, name: &str) -> String {
     let id = spell_id(data, name);
-    let at = world.party.members[slot]
-        .known_spells
-        .iter()
-        .position(|s| *s == id)
-        .unwrap_or_else(|| panic!("{name}"));
-    u8::try_from(at).unwrap()
+    assert!(
+        world.party.members[slot].known_spells.contains(&id),
+        "{name}"
+    );
+    format!("base:spell:{name}")
 }
+
+const SECOND_WIND: &str = "base:text:class.fighter.second_wind";
+const ACTION_SURGE: &str = "base:text:class.fighter.action_surge";
 
 #[test]
 fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
@@ -95,33 +99,13 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
     let rows: Vec<_> = brenna
         .features
         .iter()
-        .map(|f| {
-            (
-                f.index,
-                f.name.as_str(),
-                f.cost,
-                f.uses_left,
-                f.blocked.clone(),
-            )
-        })
+        .map(|f| (f.feature.as_str(), f.cost, f.uses_left, f.blocked.clone()))
         .collect();
     assert_eq!(
         rows,
         [
-            (
-                0,
-                "base:text:class.fighter.second_wind",
-                Cost::BonusAction,
-                Some(1),
-                None
-            ),
-            (
-                1,
-                "base:text:class.fighter.action_surge",
-                Cost::Free,
-                Some(1),
-                None
-            ),
+            (SECOND_WIND, Cost::BonusAction, Some(1), None),
+            (ACTION_SURGE, Cost::Free, Some(1), None),
         ],
         "SRD: Second Wind at level 1 and Action Surge at 2, once a rest each"
     );
@@ -137,7 +121,7 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
         &mut world,
         &data,
         CombatCommand::Feature {
-            feature: 1,
+            feature: ACTION_SURGE.to_owned(),
             choice: FeatureChoice::None,
         },
     );
@@ -145,7 +129,12 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
     assert_eq!(seen.budget.actions, 2, "Action Surge adds an action");
     let surge = &seen.members[BRENNA].features[1];
     assert_eq!(surge.uses_left, Some(0));
-    assert_eq!(surge.blocked, Some(Rejection::NoUsesLeft { feature: 1 }));
+    assert_eq!(
+        surge.blocked,
+        Some(Rejection::NoUsesLeft {
+            feature: ACTION_SURGE.to_owned()
+        })
+    );
 
     ask(&mut world, &data, CombatCommand::Attack { stack: 0 });
     assert_eq!(view(&world, &data).budget.actions, 1);
@@ -153,7 +142,7 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
         &mut world,
         &data,
         CombatCommand::Feature {
-            feature: 0,
+            feature: SECOND_WIND.to_owned(),
             choice: FeatureChoice::None,
         },
     );
@@ -161,7 +150,9 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
     assert_eq!(seen.budget.bonus_actions, 0);
     assert_eq!(
         seen.members[BRENNA].features[0].blocked,
-        Some(Rejection::NoUsesLeft { feature: 0 }),
+        Some(Rejection::NoUsesLeft {
+            feature: SECOND_WIND.to_owned()
+        }),
         "Second Wind's use is spent before the bonus action is asked"
     );
 }
@@ -177,16 +168,21 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_within_the_budget() {
     until_turn_of(&mut world, &data, DURIN);
     let word = spell_row(&world, &data, DURIN, "healing_word");
     let flame = spell_row(&world, &data, DURIN, "sacred_flame");
-    let row = |seen: &CombatView, at: u8| {
-        let row = seen.spells.iter().find(|s| s.index == at).unwrap();
+    let row = |seen: &CombatView, at: &str| {
+        let row = seen.spells.iter().find(|s| s.spell == at).unwrap();
         (row.blocked.clone(), row.bonus.clone())
     };
 
     let seen = view(&world, &data);
-    assert_eq!(row(&seen, word), (None, None), "Healing Word takes either");
+    assert_eq!(row(&seen, &word), (None, None), "Healing Word takes either");
     assert_eq!(
-        row(&seen, flame),
-        (None, Some(Rejection::NotABonusAction { spell: flame })),
+        row(&seen, &flame),
+        (
+            None,
+            Some(Rejection::NotABonusAction {
+                spell: flame.clone()
+            })
+        ),
         "Sacred Flame takes the action only"
     );
 
@@ -195,7 +191,7 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_within_the_budget() {
         &mut world,
         &data,
         CombatCommand::Cast {
-            spell: word,
+            spell: word.clone(),
             target: Target::Member(brenna),
             pay: Pay::Action,
         },
@@ -209,15 +205,17 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_within_the_budget() {
         }
     );
     assert_eq!(
-        row(&seen, word),
+        row(&seen, &word),
         (Some(Rejection::NoActionLeft), None),
         "PRD D24: after a levelled spell with the action, the bonus action may cast another"
     );
     assert_eq!(
-        row(&seen, flame),
+        row(&seen, &flame),
         (
             Some(Rejection::NoActionLeft),
-            Some(Rejection::NotABonusAction { spell: flame })
+            Some(Rejection::NotABonusAction {
+                spell: flame.clone()
+            })
         ),
         "the cantrip needs the action"
     );
@@ -243,7 +241,7 @@ fn the_view_shows_the_reactions_switch_and_reactions_left_and_the_word_flips_it(
     state(&mut world).set_reactions(ilvara, 0);
     assert_eq!(left(&view(&world, &data)), Some(0));
 
-    let words = script(&world, "react-2-off react-2-on react-2-off");
+    let words = script(&world, &data, "react-2-off react-2-on react-2-off");
     let ilvara_id = world.party.members[ILVARA].id;
     assert_eq!(
         words[0],
@@ -327,35 +325,62 @@ fn party_get_lists_declared_reactions_and_what_each_member_could_declare() {
     let mut world = world(&data);
     party_of(&mut world, &data, 3);
     let shield = spell_id(&data, "shield");
+    let ilvara = world.party.members[ILVARA].id;
+    // The command names the spell by its id; the world keeps the registry's number.
+    let named = |spell: &str| CriteriaSet::<Named> {
+        name: "Shield".to_owned(),
+        action: ActionRef::Spell(spell.to_owned()),
+        trigger: Trigger::Attacked,
+        when: Criteria::Is(Predicate::WouldChangeOutcome),
+    };
+    let put = |set| {
+        Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
+            member: ilvara,
+            entry: None,
+            set,
+        }))
+    };
+    let before = world.clone();
+    assert_eq!(
+        apply(&mut world, &data, put(named("base:spell:nope"))),
+        Err(Rejection::UnknownId {
+            id: "base:spell:nope".to_owned()
+        }),
+        "a name no pack defines"
+    );
+    assert_eq!(world, before, "a refusal changes nothing");
+    apply(&mut world, &data, put(named("base:spell:shield"))).unwrap();
     let set = CriteriaSet {
         name: "Shield".to_owned(),
         action: ActionRef::Spell(shield),
         trigger: Trigger::Attacked,
         when: Criteria::Is(Predicate::WouldChangeOutcome),
     };
-    let put = TacticsCommand::PutReaction {
-        member: world.party.members[ILVARA].id,
-        at: None,
-        set: set.clone(),
-    };
-    apply(
-        &mut world,
-        &data,
-        Command::Party(PartyCommand::Tactics(put)),
-    )
-    .unwrap();
+    assert_eq!(
+        world.party.members[ILVARA].tactics.library,
+        std::slice::from_ref(&set),
+        "saved by the registry's number"
+    );
+    assert_eq!(
+        world.party.members[ILVARA].tactics.runbooks[0].entries,
+        [(ActionRef::Spell(shield), 0)]
+    );
 
     let party = party_view(&world, &data);
     let tactics = &party.members[ILVARA].tactics;
     assert!(tactics.reactions_on && !tactics.auto);
     assert_eq!(tactics.reactions.len(), 1);
     let declared = &tactics.reactions[0];
-    assert_eq!(declared.index, 0);
+    assert_eq!(declared.entry, 0);
     assert_eq!(declared.name, "Shield");
-    assert_eq!(declared.action, ActionRef::Spell(shield));
+    assert_eq!(
+        declared.action,
+        ActionRef::Spell("base:spell:shield".to_owned()),
+        "the view shows the string the command took"
+    );
     assert_eq!(declared.action_name, "base:spell:shield");
     assert_eq!(declared.trigger, Trigger::Attacked);
-    assert_eq!(declared.when, set.when);
+    assert_eq!(declared.when, named("base:spell:shield").when);
     let could: Vec<_> = tactics
         .answers
         .iter()
@@ -403,7 +428,7 @@ fn cunning_action_shows_open_on_the_rogue_s_turn_at_will() {
     let cunning = pip
         .features
         .iter()
-        .find(|f| f.name == "base:text:class.rogue.cunning_action")
+        .find(|f| f.feature == "base:text:class.rogue.cunning_action")
         .unwrap_or_else(|| panic!("{pip:?}"));
     assert_eq!(
         (cunning.cost, cunning.uses_left, cunning.blocked.clone()),

@@ -10,7 +10,9 @@ mod common;
 use common::{act, data, party_of};
 use omnis_core::{MonsterId, SpellId};
 use omnis_data::{Data, Disposition};
-use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, EffectKind, Predicate, Trigger};
+use omnis_sim::omnis_rules::{
+    ActionRef, Criteria, CriteriaSet, EffectKind, Named, Predicate, Trigger,
+};
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, Command, EncounterSource, EncounterState, Event, Mode,
@@ -79,15 +81,15 @@ fn state(world: &mut World) -> &mut omnis_sim::CombatState {
 
 fn declare_shield(world: &mut World, data: &Data, slot: usize) {
     let member = world.party.members[slot].id;
-    let set = CriteriaSet {
+    let set = CriteriaSet::<Named> {
         name: "Shield".to_owned(),
-        action: ActionRef::Spell(spell(data, "shield")),
+        action: ActionRef::Spell("base:spell:shield".to_owned()),
         trigger: Trigger::Attacked,
         when: Criteria::Is(Predicate::WouldChangeOutcome),
     };
     let put = TacticsCommand::PutReaction {
         member,
-        at: None,
+        entry: None,
         set,
     };
     apply(world, data, Command::Party(PartyCommand::Tactics(put))).unwrap();
@@ -361,16 +363,16 @@ fn bob_shields_himself_from_a_missile_and_a_hit_once_a_round() {
     // Ilvara's Magic Missile at Bob: his reaction raises the shield and it stops the missile.
     let (mut world, _) = against_bob(&data, 5, (4, 1, 200), |_| {});
     until_member(&mut world, &data, ILVARA);
-    let missile = world.party.members[ILVARA]
-        .known_spells
-        .iter()
-        .position(|s| *s == spell(&data, "magic_missile"))
-        .unwrap();
+    assert!(
+        world.party.members[ILVARA]
+            .known_spells
+            .contains(&spell(&data, "magic_missile"))
+    );
     let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Cast {
-            spell: u8::try_from(missile).unwrap(),
+            spell: "base:spell:magic_missile".to_owned(),
             target: Target::Stack(0),
             pay: Pay::Action,
         }),

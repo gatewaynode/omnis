@@ -11,6 +11,7 @@ use crate::event::{ActorRef, CheckKind, Event};
 use crate::items::{consume, has_all};
 use crate::party;
 use crate::world::World;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, SpellId};
 use omnis_data::{BuffOn, Cost, Data, Reach, Spell, SpellEffect};
@@ -54,26 +55,41 @@ pub(crate) struct CastPlan {
     pub target: Aim,
 }
 
-/// The target-free half of validation: the spell a member knows at `index`, castable here
-/// (`fight` says whether a fight is on), affordable, its components in the stores. What a
-/// picker shows as the reason a row is grey.
+/// The spell a command names by its string id, refused as `UnknownSpell` with the id as asked
+/// when no pack defines it.
+pub(crate) fn spell_id(data: &Data, spell: &str) -> Result<SpellId, Rejection> {
+    data.registry
+        .spells
+        .get(spell)
+        .ok_or_else(|| Rejection::UnknownSpell {
+            spell: String::from(spell),
+        })
+}
+
+/// A spell's string id, the name its refusals carry.
+pub(crate) fn spell_name(data: &Data, spell: SpellId) -> String {
+    String::from(data.registry.spells.name(spell).unwrap_or("?"))
+}
+
+/// The target-free half of validation: a spell the member knows, castable here (`fight` says
+/// whether a fight is on), affordable, its components in the stores. What a picker shows as
+/// the reason a row is grey.
 pub fn check<'a>(
     world: &World,
     data: &'a Data,
     own: usize,
-    index: u8,
+    id: SpellId,
     fight: bool,
     rng: &mut Pcg32,
 ) -> Result<(SpellId, &'a Spell, u32), Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
-    let id = *member
-        .known_spells
-        .get(usize::from(index))
-        .ok_or(Rejection::UnknownSpell { spell: index })?;
-    let spell = data
-        .spells
-        .get(&id)
-        .ok_or(Rejection::UnknownSpell { spell: index })?;
+    let unknown = || Rejection::UnknownSpell {
+        spell: spell_name(data, id),
+    };
+    if !member.known_spells.contains(&id) {
+        return Err(unknown());
+    }
+    let spell = data.spells.get(&id).ok_or_else(unknown)?;
     let castable = match &spell.effect {
         // Reactions are cast by the simulation when a declared reaction fires.
         _ if spell.cost == Cost::Reaction => false,
@@ -82,7 +98,9 @@ pub fn check<'a>(
         Some(effect) => fight || effect.explore_castable(),
     };
     if !castable {
-        return Err(Rejection::NotCastable { spell: index });
+        return Err(Rejection::NotCastable {
+            spell: spell_name(data, id),
+        });
     }
     let cost = spell_cost(spell, data, rng).map_err(Rejection::Rule)?;
     if member.spell_points < cost {
@@ -94,7 +112,9 @@ pub fn check<'a>(
     if (needs_components(spell, data) && spell.components.is_empty())
         || !has_all(&world.party, &component_ids(data, spell))
     {
-        return Err(Rejection::MissingComponents { spell: index });
+        return Err(Rejection::MissingComponents {
+            spell: spell_name(data, id),
+        });
     }
     Ok((id, spell, cost))
 }
@@ -137,15 +157,14 @@ pub(crate) fn validate(
     world: &World,
     data: &Data,
     own: usize,
-    index: u8,
+    spell: SpellId,
     target: Target,
     rng: &mut Pcg32,
 ) -> Result<CastPlan, Rejection> {
-    let (spell, def, cost) = check(world, data, own, index, true, rng)?;
-    let effect = def
-        .effect
-        .as_ref()
-        .ok_or(Rejection::NotCastable { spell: index })?;
+    let (spell, def, cost) = check(world, data, own, spell, true, rng)?;
+    let effect = def.effect.as_ref().ok_or_else(|| Rejection::NotCastable {
+        spell: spell_name(data, spell),
+    })?;
     if matches!(effect, SpellEffect::Light { .. }) {
         return Ok(CastPlan {
             own,

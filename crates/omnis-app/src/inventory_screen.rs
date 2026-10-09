@@ -151,6 +151,7 @@ mod tests {
         let long = "x".repeat(60);
         let rows: Vec<ItemRow> = (0..25)
             .map(|i| ItemRow {
+                item: format!("base:item:x{i}"),
                 name: format!("{long}{i}"),
                 count: 65535,
                 slot: Some(EquipSlot::MainHand),

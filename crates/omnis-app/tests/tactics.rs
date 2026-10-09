@@ -25,7 +25,9 @@ use omnis_app::ui_text::screen_text;
 use omnis_app::widget::{Part, WidgetId};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Skill;
-use omnis_sim::omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Predicate, Trigger, Who};
+use omnis_sim::omnis_rules::{
+    ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Trigger, Who,
+};
 use omnis_sim::party::PartyCommand;
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{Command, Mode};
@@ -91,9 +93,9 @@ fn open(app: &mut App, member: usize) {
 }
 
 /// Shield, as a declared reaction's action.
-fn shield(app: &App) -> ActionRef {
-    let spells = &app.world().resource::<PackData>().0.registry.spells;
-    ActionRef::Spell(spells.get("base:spell:shield").unwrap())
+/// Shield as a command names it.
+fn shield() -> ActionRef<Named> {
+    ActionRef::Spell("base:spell:shield".to_owned())
 }
 
 fn declared(app: &App, member: usize) -> Vec<CriteriaSet> {
@@ -261,7 +263,7 @@ fn a_reaction_set_deeper_elsewhere_is_shown_and_not_saved() {
     let mut app = meadow("tactics-deep.ron");
     let set = CriteriaSet {
         name: "deep".into(),
-        action: shield(&app),
+        action: shield(),
         trigger: Trigger::Attacked,
         when: Criteria::Any(vec![Criteria::All(vec![Criteria::Is(Predicate::Round {
             cmp: Cmp::Ge,
@@ -273,7 +275,7 @@ fn a_reaction_set_deeper_elsewhere_is_shown_and_not_saved() {
         &mut app,
         Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
             member: ilvara,
-            at: None,
+            entry: None,
             set,
         })),
     );
@@ -329,7 +331,7 @@ fn the_panel_lies_inside_the_map_at_both_window_sizes_at_its_fullest() {
     for _ in 0..16 {
         let set = CriteriaSet {
             name: "Shield on attacked".into(),
-            action: shield(&app),
+            action: shield(),
             trigger: Trigger::Attacked,
             when: Criteria::Always,
         };
@@ -338,7 +340,7 @@ fn the_panel_lies_inside_the_map_at_both_window_sizes_at_its_fullest() {
             &mut app,
             Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
                 member: ilvara,
-                at: None,
+                entry: None,
                 set,
             })),
         );

@@ -150,7 +150,7 @@ fn names_trees_and_percentages_are_capped() {
             "{name:?}"
         );
     }
-    let mut deep = Criteria::Always;
+    let mut deep: Criteria = Criteria::Always;
     for _ in 1..CRITERIA_DEPTH {
         deep = Criteria::All(vec![deep]);
     }
@@ -159,7 +159,7 @@ fn names_trees_and_percentages_are_capped() {
         Criteria::Any(vec![deep]).check(),
         Err(TacticsFault::TooDeep)
     );
-    let wide = |n| Criteria::Any(vec![Criteria::Always; n]);
+    let wide = |n| Criteria::<omnis_rules::Ids>::Any(vec![Criteria::Always; n]);
     assert_eq!(
         wide(CRITERIA_NODES - 1).check(),
         Ok(()),

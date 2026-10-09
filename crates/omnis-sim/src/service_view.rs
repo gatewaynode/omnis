@@ -39,9 +39,6 @@ pub struct ServiceView {
 pub struct OfferView {
     /// The command that asks for it, exactly as it is sent (counts are 1).
     pub command: ServiceCommand,
-    /// The row it names: the service's stock for a purchase, the stores for a sale, the
-    /// service's spells for a spell bought, the member's class list for a pick.
-    pub row: Option<u8>,
     /// The member it names, at the temple and the trainer and for a spell.
     pub member: Option<CharacterId>,
     /// Copper it costs (0 when free), unless it is a sale or refused before its price.
@@ -50,7 +47,7 @@ pub struct OfferView {
     pub pays: Option<u32>,
     /// Why the rules would refuse it, if they would.
     pub refusal: Option<Rejection>,
-    /// The id of the item or spell the row names, when it names one (M8 step 8).
+    /// The id of the item or spell the command names, when it names one (M8 step 8).
     #[serde(default)]
     pub subject: Option<String>,
 }
@@ -64,11 +61,10 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
     let def = data.services.get(&state.service)?;
     let mut offers: Vec<OfferView> = commands(world, data, def)
         .into_iter()
-        .map(|(command, row, member)| offer(world, data, def, command, row, member))
+        .map(|(command, member)| offer(world, data, def, command, member))
         .collect();
     offers.push(OfferView {
         command: ServiceCommand::Leave,
-        row: None,
         member: None,
         price: None,
         pays: None,
@@ -86,23 +82,40 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
     })
 }
 
-type Ask = (ServiceCommand, Option<u8>, Option<CharacterId>);
+type Ask = (ServiceCommand, Option<CharacterId>);
 
 /// What this kind of service offers the party now, but leaving.
 fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
-    let rows = |len: usize| (0..len).filter_map(|i| u8::try_from(i).ok());
     match def.kind {
-        ServiceKind::Inn => alloc::vec![(ServiceCommand::Room, None, None)],
+        ServiceKind::Inn => alloc::vec![(ServiceCommand::Room, None)],
         ServiceKind::Tavern => alloc::vec![
-            (ServiceCommand::Rumor, None, None),
-            (ServiceCommand::BuyFood { count: 1 }, None, None),
+            (ServiceCommand::Rumor, None),
+            (ServiceCommand::BuyFood { count: 1 }, None),
         ],
         ServiceKind::Smith => {
-            let buy = rows(def.items.len())
-                .map(|item| (ServiceCommand::Buy { item, count: 1 }, Some(item), None));
-            let sell = rows(world.party.inventory.len())
-                .map(|item| (ServiceCommand::Sell { item, count: 1 }, Some(item), None));
-            buy.chain(sell).collect()
+            let mut asks: Vec<Ask> = Vec::new();
+            for item in &def.items {
+                let buy = ServiceCommand::Buy {
+                    item: item.clone(),
+                    count: 1,
+                };
+                if !asks.iter().any(|(c, _)| *c == buy) {
+                    asks.push((buy, None));
+                }
+            }
+            for (id, _) in &world.party.inventory {
+                let Some(item) = data.registry.items.name(*id) else {
+                    continue;
+                };
+                let sell = ServiceCommand::Sell {
+                    item: String::from(item),
+                    count: 1,
+                };
+                if !asks.iter().any(|(c, _)| *c == sell) {
+                    asks.push((sell, None));
+                }
+            }
+            asks
         }
         ServiceKind::Temple => {
             let mut asks: Vec<Ask> = world
@@ -116,7 +129,7 @@ fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
                         ServiceCommand::Cure { member },
                         ServiceCommand::Raise { member },
                     ]
-                    .map(|command| (command, None, Some(member)))
+                    .map(|command| (command, Some(member)))
                 })
                 .collect();
             asks.extend(purchases(world, data, def));
@@ -128,7 +141,7 @@ fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
                 .party
                 .members
                 .iter()
-                .map(|m| (ServiceCommand::Train { member: m.id }, None, Some(m.id)))
+                .map(|m| (ServiceCommand::Train { member: m.id }, Some(m.id)))
                 .collect();
             asks.extend(picks(world, data));
             asks
@@ -150,7 +163,8 @@ fn worth_offering(world: &World, data: &Data, member: usize, spell: Option<Spell
     )
 }
 
-/// The trainer's picks: for each member owed some, each row of their class list worth offering.
+/// The trainer's picks: for each member owed some, each spell of their class list worth
+/// offering, in list order.
 fn picks(world: &World, data: &Data) -> Vec<Ask> {
     let mut asks = Vec::new();
     for (index, who) in world.party.members.iter().enumerate() {
@@ -164,13 +178,10 @@ fn picks(world: &World, data: &Data) -> Vec<Ask> {
             continue;
         };
         let member = who.id;
-        for (row, id) in list.iter().enumerate() {
-            let Ok(spell) = u8::try_from(row) else {
-                break;
-            };
-            if worth_offering(world, data, index, data.registry.spells.get(id)) {
-                let command = ServiceCommand::Choose { member, spell };
-                asks.push((command, Some(spell), Some(member)));
+        for spell in list {
+            if worth_offering(world, data, index, data.registry.spells.get(spell)) {
+                let spell = spell.clone();
+                asks.push((ServiceCommand::Choose { member, spell }, Some(member)));
             }
         }
     }
@@ -182,13 +193,10 @@ fn purchases(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
     let mut asks = Vec::new();
     for (index, who) in world.party.members.iter().enumerate() {
         let member = who.id;
-        for (row, id) in def.spells.iter().enumerate() {
-            let Ok(spell) = u8::try_from(row) else {
-                break;
-            };
-            if worth_offering(world, data, index, data.registry.spells.get(id)) {
-                let command = ServiceCommand::Learn { member, spell };
-                asks.push((command, Some(spell), Some(member)));
+        for spell in &def.spells {
+            if worth_offering(world, data, index, data.registry.spells.get(spell)) {
+                let spell = spell.clone();
+                asks.push((ServiceCommand::Learn { member, spell }, Some(member)));
             }
         }
     }
@@ -201,11 +209,10 @@ fn offer(
     data: &Data,
     def: &ServiceDef,
     command: ServiceCommand,
-    row: Option<u8>,
     member: Option<CharacterId>,
 ) -> OfferView {
     let mut roller = Roller::take_stream(world, "town");
-    let (price, pays, refusal) = match service::quote(world, data, def, command, &mut roller) {
+    let (price, pays, refusal) = match service::quote(world, data, def, &command, &mut roller) {
         Ok(deal) => {
             let price = deal.paid().is_none().then_some(deal.cost());
             (price, deal.paid(), service::afford(world, &deal).err())
@@ -213,41 +220,22 @@ fn offer(
         Err(refusal) => (None, None, Some(refusal)),
     };
     OfferView {
+        subject: subject(&command),
         command,
-        row,
         member,
         price,
         pays,
         refusal,
-        subject: subject(world, data, def, command),
     }
 }
 
-/// The id of the item or spell an offer's row names.
-fn subject(
-    world: &World,
-    data: &Data,
-    def: &ServiceDef,
-    command: ServiceCommand,
-) -> Option<String> {
-    let row = |list: &[String], row: u8| list.get(usize::from(row)).cloned();
+/// The id of the item or spell an offer's command names.
+fn subject(command: &ServiceCommand) -> Option<String> {
     match command {
-        ServiceCommand::Buy { item, .. } => row(&def.items, item),
-        ServiceCommand::Learn { spell, .. } => row(&def.spells, spell),
-        ServiceCommand::Sell { item, .. } => world
-            .party
-            .inventory
-            .get(usize::from(item))
-            .and_then(|(id, _)| data.registry.items.name(*id))
-            .map(String::from),
-        ServiceCommand::Choose { member, spell } => world
-            .party
-            .slot_of(member)
-            .ok()
-            .and_then(|slot| world.party.members.get(usize::from(slot)))
-            .and_then(|m| data.classes.get(&m.class))
-            .and_then(|c| c.casting.as_ref())
-            .and_then(|c| row(&c.list, spell)),
+        ServiceCommand::Buy { item, .. } | ServiceCommand::Sell { item, .. } => Some(item.clone()),
+        ServiceCommand::Choose { spell, .. } | ServiceCommand::Learn { spell, .. } => {
+            Some(spell.clone())
+        }
         _ => None,
     }
 }

@@ -27,6 +27,7 @@ use crate::event::{ActorRef, Event, Surprise};
 use crate::items;
 use crate::party;
 use crate::world::{Mode, World};
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32, StreamName};
 use omnis_data::{Cost, Data};
@@ -34,17 +35,17 @@ use omnis_rules::{RuleError, Weapon, best_weapon};
 use serde::{Deserialize, Serialize};
 
 /// One member's action on their turn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum CombatCommand {
     /// Attack a stack with the best weapon that reaches it.
     Attack {
         /// The stack, by its index in the encounter.
         stack: u8,
     },
-    /// Cast a known spell (by its index in the caster's list) at a stack or a member.
+    /// Cast a known spell at a stack or a member.
     Cast {
-        /// Index into the caster's known spells.
-        spell: u8,
+        /// The spell's id (`base:spell:magic_missile`); the caster must know it.
+        spell: String,
         /// Whom it goes to.
         target: Target,
         /// What it is paid with: the action, or the bonus action when the spell allows it.
@@ -54,8 +55,8 @@ pub enum CombatCommand {
     /// Use a carried item as the turn's action: a potion on a member, or the user when no
     /// target is named. A sense item is not used from a fight.
     Use {
-        /// The row of the acting member's kit.
-        item: u8,
+        /// The item's id (`base:item:potion_of_healing`); the acting member's kit must hold it.
+        item: String,
         /// Whom a potion goes to; the user when `None`.
         target: Option<CharacterId>,
     },
@@ -68,10 +69,11 @@ pub enum CombatCommand {
     },
     /// Try to get away; the whole party leaves on success.
     Run,
-    /// Use a class feature, by its row among the member's features with effect.
+    /// Use a class feature with effect, by its name key.
     Feature {
-        /// The row of `omnis_rules::combat_features`.
-        feature: u8,
+        /// The feature's name key (`base:text:class.fighter.second_wind`), as `FeatureView`
+        /// shows it.
+        feature: String,
         /// What the feature is asked to do, for one that offers a choice.
         #[serde(default)]
         choice: FeatureChoice,
@@ -298,30 +300,31 @@ pub fn weapon_for(
     }
 }
 
-/// What paying for a spell with `pay` costs, or why the spell cannot be paid that way.
-fn spell_cost(spell: &omnis_data::Spell, index: u8, pay: Pay) -> Result<Cost, Rejection> {
+/// What paying for the spell `id` with `pay` costs, or why the spell cannot be paid that way.
+fn spell_cost(spell: &omnis_data::Spell, id: &str, pay: Pay) -> Result<Cost, Rejection> {
+    let spell_id = || alloc::string::String::from(id);
     match pay {
         Pay::Action => Ok(spell.cost),
         Pay::BonusAction if !spell.bonus_action_available => {
-            Err(Rejection::NotABonusAction { spell: index })
+            Err(Rejection::NotABonusAction { spell: spell_id() })
         }
         Pay::BonusAction if spell.preparation_required_for_bonus_action => {
-            Err(Rejection::NeedsPreparation { spell: index })
+            Err(Rejection::NeedsPreparation { spell: spell_id() })
         }
         Pay::BonusAction => Ok(Cost::BonusAction),
     }
 }
 
-/// What paying for the spell at `index` with `pay` costs this turn, or why it cannot be paid
-/// that way: the spell's own terms, then the budget. The command and the
-/// view (`combat.get`'s spell rows) both ask here.
+/// What paying for the spell `id` with `pay` costs this turn, or why it cannot be paid that
+/// way: the spell's own terms, then the budget. The command and the view (`combat.get`'s spell
+/// rows) both ask here.
 pub(crate) fn payable(
     state: &CombatState,
     spell: &omnis_data::Spell,
-    index: u8,
+    id: &str,
     pay: Pay,
 ) -> Result<Cost, Rejection> {
-    let cost = spell_cost(spell, index, pay)?;
+    let cost = spell_cost(spell, id, pay)?;
     budget::affordable(state.budget, cost)?;
     Ok(cost)
 }
@@ -337,12 +340,15 @@ fn validate(
     let mut cost = Cost::Action;
     let plan = match command {
         CombatCommand::Cast { spell, target, pay } => {
-            let plan = cast::validate(state, world, data, own, spell, target, rng)?;
+            let id = cast::spell_id(data, &spell)?;
+            let plan = cast::validate(state, world, data, own, id, target, rng)?;
             let def = data
                 .spells
                 .get(&plan.spell)
-                .ok_or(Rejection::UnknownSpell { spell })?;
-            cost = payable(state, def, spell, pay)?;
+                .ok_or(Rejection::UnknownSpell {
+                    spell: spell.clone(),
+                })?;
+            cost = payable(state, def, &spell, pay)?;
             Plan::Cast(plan)
         }
         CombatCommand::Attack { stack } => {
@@ -360,7 +366,7 @@ fn validate(
             }
         }
         CombatCommand::Use { item, target } => {
-            Plan::Use(items::validate_use(world, data, own, item, target, true)?)
+            Plan::Use(items::validate_use(world, data, own, &item, target, true)?)
         }
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {
@@ -372,7 +378,7 @@ fn validate(
         }
         CombatCommand::Run => Plan::Run,
         CombatCommand::Feature { feature, choice } => {
-            let (plan, feature_cost) = feature::validate(world, data, own, feature, choice)?;
+            let (plan, feature_cost) = feature::validate(world, data, own, &feature, choice)?;
             cost = feature_cost;
             Plan::Feature(plan)
         }

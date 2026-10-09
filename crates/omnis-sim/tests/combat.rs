@@ -172,7 +172,7 @@ fn rejections_leave_the_world_untouched() {
     let before = world.clone();
     let refuse = |world: &mut World, command: CombatCommand, expected: Rejection| {
         assert_eq!(
-            act(world, &data, Command::Combat(command)),
+            act(world, &data, Command::Combat(command.clone())),
             Err(expected),
             "{command:?}"
         );

@@ -17,10 +17,10 @@ pub fn look_command(party: &PartyView, data: &Data) -> Option<Command> {
             let row = m
                 .equipment
                 .iter()
-                .position(|i| defs::item(data, &i.id).is_some_and(|i| i.sense().is_some()))?;
+                .find(|i| defs::item(data, &i.item).is_some_and(|i| i.sense().is_some()))?;
             Some(Command::Item(ItemCommand::Use {
                 member: m.id,
-                item: u8::try_from(row).ok()?,
+                item: row.item.clone(),
                 target: None,
             }))
         })
@@ -44,13 +44,12 @@ mod tests {
         assert_eq!(look_command(&world, &data), None);
         let glass = item_id(&data, "spyglass").unwrap();
         world.party.members[1].equipment.push((glass, 1));
-        let row = u8::try_from(world.party.members[1].equipment.len() - 1).unwrap();
         let (first, second) = (world.party.members[0].id, world.party.members[1].id);
         assert_eq!(
             look_command(&world, &data),
             Some(Command::Item(ItemCommand::Use {
                 member: second,
-                item: row,
+                item: "base:item:spyglass".to_owned(),
                 target: None
             }))
         );
@@ -59,7 +58,6 @@ mod tests {
             look_command(&world, &data),
             Some(Command::Item(ItemCommand::Use {
                 member,
-                item: 0,
                 ..
             })) if member == first
         ));

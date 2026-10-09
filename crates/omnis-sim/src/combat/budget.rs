@@ -128,11 +128,8 @@ pub(crate) fn goes_on(
     }
     // A copy of the stream: a cost formula may roll, and looking must not move the dice.
     let mut rng = roller.rng;
-    (0..member.known_spells.len()).any(|index| {
-        let Ok(index) = u8::try_from(index) else {
-            return false;
-        };
-        cast::check(world, data, own, index, true, &mut rng).is_ok_and(|(_, spell, _)| {
+    member.known_spells.iter().any(|id| {
+        cast::check(world, data, own, *id, true, &mut rng).is_ok_and(|(_, spell, _)| {
             spell.bonus_action_available && !spell.preparation_required_for_bonus_action
         })
     })

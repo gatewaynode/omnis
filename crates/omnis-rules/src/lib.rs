@@ -55,6 +55,6 @@ pub use stats::{
     proficiency_bonus, save, skill_bonus, spell_cost, spell_point_pool,
 };
 pub use tactics::{
-    ActionRef, Cmp, Criteria, CriteriaSet, Facts, MemberFacts, Predicate, Row, Runbook, Tactics,
-    TacticsFault, Trigger, Who,
+    ActionRef, Cmp, Criteria, CriteriaSet, Facts, Ids, MemberFacts, Named, Names, Naming,
+    Predicate, Rename, Row, Runbook, Tactics, TacticsFault, Trigger, Who,
 };

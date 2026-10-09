@@ -194,7 +194,7 @@ fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
         };
         item_state_at(
             frame,
-            WidgetId::Spell(usize::from(spell.index)),
+            WidgetId::Spell(i),
             Kind::Button,
             vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
             &text,
@@ -386,7 +386,7 @@ mod tests {
             gold: 0,
             spells: (0..6)
                 .map(|i| crate::combat_menu::SpellRow {
-                    index: i,
+                    spell: format!("base:spell:s{i}"),
                     name: format!("Spell With A Long Name {i}"),
                     cost: 9,
                     targets_members: i == 5,
@@ -402,13 +402,13 @@ mod tests {
                     name: format!("Potion With A Long Name {i}"),
                     kind: if i < 2 {
                         UseKind::Feature {
-                            index: i,
+                            feature: format!("base:text:f{i}"),
                             uses_left: Some(99),
                             choice: Choice::None,
                         }
                     } else {
                         UseKind::Item {
-                            index: i,
+                            item: format!("base:item:i{i}"),
                             count: u16::MAX,
                         }
                     },

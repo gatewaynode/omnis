@@ -4,9 +4,8 @@
 //! to and from the rules' `Predicate`, and criteria in words. `tactics_panel.rs` holds the
 //! panel's controls and form.
 
-use omnis_sim::omnis_core::{ConditionId, MonsterId};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::omnis_rules::{ActionRef, Cmp, Criteria, Predicate, Row, Trigger, Who};
+use omnis_sim::omnis_rules::{ActionRef, Cmp, Criteria, Named, Predicate, Row, Trigger, Who};
 
 /// A part of a condition that is picked from a list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -101,49 +100,54 @@ const CMPS: [Cmp; 5] = [Cmp::Lt, Cmp::Le, Cmp::Eq, Cmp::Ge, Cmp::Gt];
 const WHOS: [Who; 2] = [Who::Me, Who::Subject];
 const ROWS: [Row; 2] = [Row::Front, Row::Back];
 
-/// The monsters and conditions a condition may name, with their names, in id order; and the
-/// names of the actions a member may declare (the views name them by key).
+/// The monsters and conditions a condition may name, by string id with their names, in
+/// registry order; and the names of the actions a member may declare (the views name them by
+/// key).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Choices {
     /// Every loaded monster.
-    pub monsters: Vec<(MonsterId, String)>,
+    pub monsters: Vec<(String, String)>,
     /// Every loaded condition.
-    pub conditions: Vec<(ConditionId, String)>,
+    pub conditions: Vec<(String, String)>,
     /// Every spell and item as an action, with its name.
-    pub actions: Vec<(ActionRef, String)>,
+    pub actions: Vec<(ActionRef<Named>, String)>,
 }
 
 impl Choices {
     /// Read the lists from the packs.
     #[must_use]
     pub fn from_data(data: &Data) -> Self {
+        let reg = &data.registry;
+        let label = |name: &str| data.label("en", name).to_owned();
         Choices {
             monsters: data
                 .monsters
                 .iter()
-                .map(|(id, m)| (*id, data.label("en", &m.name).to_owned()))
+                .filter_map(|(id, m)| Some((reg.monsters.name(*id)?.to_owned(), label(&m.name))))
                 .collect(),
             conditions: data
                 .conditions
                 .iter()
-                .map(|(id, c)| (*id, data.label("en", &c.name).to_owned()))
+                .filter_map(|(id, c)| Some((reg.conditions.name(*id)?.to_owned(), label(&c.name))))
                 .collect(),
             actions: data
                 .spells
                 .iter()
-                .map(|(id, s)| (ActionRef::Spell(*id), data.label("en", &s.name).to_owned()))
-                .chain(
-                    data.items.iter().map(|(id, i)| {
-                        (ActionRef::Item(*id), data.label("en", &i.name).to_owned())
-                    }),
-                )
+                .filter_map(|(id, s)| {
+                    let spell = reg.spells.name(*id)?.to_owned();
+                    Some((ActionRef::Spell(spell), label(&s.name)))
+                })
+                .chain(data.items.iter().filter_map(|(id, i)| {
+                    let item = reg.items.name(*id)?.to_owned();
+                    Some((ActionRef::Item(item), label(&i.name)))
+                }))
                 .collect(),
         }
     }
 
     /// An action's name: a spell's or item's own, otherwise what the view called it.
     #[must_use]
-    pub fn action_name(&self, action: &ActionRef, called: &str) -> String {
+    pub fn action_name(&self, action: &ActionRef<Named>, called: &str) -> String {
         self.actions
             .iter()
             .find(|(a, _)| a == action)
@@ -187,18 +191,18 @@ pub struct Draft {
 impl Draft {
     /// The predicate it stands for; `None` when a list it names is empty.
     #[must_use]
-    pub fn predicate(&self, choices: &Choices) -> Option<Predicate> {
+    pub fn predicate(&self, choices: &Choices) -> Option<Predicate<Named>> {
         let who = WHOS[self.who % WHOS.len()];
         let cmp = CMPS[self.cmp % CMPS.len()];
         let percent = u8::try_from(self.n.min(100)).unwrap_or(100);
         Some(match self.kind {
             Kind::MonsterCount => Predicate::MonsterCount {
-                monster: choices.monsters.get(self.monster)?.0,
+                monster: choices.monsters.get(self.monster)?.0.clone(),
                 cmp,
                 n: self.n,
             },
             Kind::MonsterShare => Predicate::MonsterShare {
-                monster: choices.monsters.get(self.monster)?.0,
+                monster: choices.monsters.get(self.monster)?.0.clone(),
                 cmp,
                 percent,
             },
@@ -206,7 +210,7 @@ impl Draft {
             Kind::SpellPoints => Predicate::SpellPoints { who, cmp, percent },
             Kind::HasCondition => Predicate::HasCondition {
                 who,
-                condition: choices.conditions.get(self.condition)?.0,
+                condition: choices.conditions.get(self.condition)?.0.clone(),
             },
             Kind::Row => Predicate::Row {
                 who,
@@ -219,16 +223,20 @@ impl Draft {
 
     /// The draft a predicate loads as; `None` when it names a monster or condition not loaded.
     #[must_use]
-    pub fn of(predicate: &Predicate, choices: &Choices) -> Option<Draft> {
-        let monster = |id: MonsterId| choices.monsters.iter().position(|(m, _)| *m == id);
+    pub fn of(predicate: &Predicate<Named>, choices: &Choices) -> Option<Draft> {
+        let monster = |id: &String| choices.monsters.iter().position(|(m, _)| m == id);
         let mut draft = Draft::default();
         match *predicate {
-            Predicate::MonsterCount { monster: m, cmp, n } => {
+            Predicate::MonsterCount {
+                monster: ref m,
+                cmp,
+                n,
+            } => {
                 (draft.kind, draft.monster, draft.cmp, draft.n) =
                     (Kind::MonsterCount, monster(m)?, at(&CMPS, cmp), n);
             }
             Predicate::MonsterShare {
-                monster: m,
+                monster: ref m,
                 cmp,
                 percent,
             } => {
@@ -248,13 +256,13 @@ impl Draft {
                 (draft.who, draft.cmp, draft.n) =
                     (at(&WHOS, who), at(&CMPS, cmp), u16::from(percent));
             }
-            Predicate::HasCondition { who, condition } => {
+            Predicate::HasCondition { who, ref condition } => {
                 draft.kind = Kind::HasCondition;
                 draft.who = at(&WHOS, who);
                 draft.condition = choices
                     .conditions
                     .iter()
-                    .position(|(c, _)| *c == condition)?;
+                    .position(|(c, _)| c == condition)?;
             }
             Predicate::Row { who, row } => {
                 (draft.kind, draft.who, draft.row) = (Kind::Row, at(&WHOS, who), at(&ROWS, row));
@@ -326,24 +334,24 @@ const fn row_name(row: Row) -> &'static str {
 }
 
 /// A predicate in words.
-fn predicate_text(predicate: &Predicate, choices: &Choices) -> String {
-    let monster = |id: MonsterId| {
+fn predicate_text(predicate: &Predicate<Named>, choices: &Choices) -> String {
+    let monster = |id: &String| {
         choices
             .monsters
             .iter()
-            .find(|(m, _)| *m == id)
+            .find(|(m, _)| m == id)
             .map_or("?", |(_, n)| n.as_str())
             .to_owned()
     };
     match predicate {
         Predicate::MonsterCount { monster: m, cmp, n } => {
-            format!("{} standing {} {n}", monster(*m), cmp_name(*cmp))
+            format!("{} standing {} {n}", monster(m), cmp_name(*cmp))
         }
         Predicate::MonsterShare {
             monster: m,
             cmp,
             percent,
-        } => format!("{} share {} {percent}%", monster(*m), cmp_name(*cmp)),
+        } => format!("{} share {} {percent}%", monster(m), cmp_name(*cmp)),
         Predicate::Hp { who, cmp, percent } => {
             format!("{} HP {} {percent}%", who_name(*who), cmp_name(*cmp))
         }
@@ -366,7 +374,7 @@ fn predicate_text(predicate: &Predicate, choices: &Choices) -> String {
 
 /// A criteria tree in words; a deeper one in brackets.
 #[must_use]
-pub fn criteria_text(criteria: &Criteria, choices: &Choices) -> String {
+pub fn criteria_text(criteria: &Criteria<Named>, choices: &Choices) -> String {
     match criteria {
         Criteria::Always => "always".to_owned(),
         Criteria::Is(p) => predicate_text(p, choices),

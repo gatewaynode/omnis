@@ -149,6 +149,54 @@ fn the_sheet_s_numbers_are_the_srd_s() {
 }
 
 #[test]
+fn bless_is_cast_by_its_id_and_the_row_carries_that_id() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let durin = world.party.members[DURIN].id;
+    let brenna = world.party.members[BRENNA].id;
+    let bless = "base:spell:bless";
+    let row = cast_view(&world, &data)
+        .into_iter()
+        .find(|r| r.caster == durin && r.spell == bless)
+        .expect("Durin's bless, listed by its id");
+    assert_eq!(row.refusal, None);
+
+    let cast = |spell: &str| Command::Cast {
+        caster: durin,
+        spell: spell.to_owned(),
+        target: Target::Member(brenna),
+    };
+    for unknown in ["base:spell:nope", "base:spell:magic_missile"] {
+        let before = world.clone();
+        assert_eq!(
+            apply(&mut world, &data, cast(unknown)),
+            Err(Rejection::UnknownSpell {
+                spell: unknown.to_owned()
+            }),
+            "no pack defines it, or Durin does not know it"
+        );
+        assert_eq!(world, before, "a refusal changes nothing");
+    }
+    let events = apply(&mut world, &data, cast(&row.spell)).unwrap();
+    let id = data.registry.spells.get(bless).unwrap();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            omnis_sim::Event::SpellCast { caster, spell, .. } if *caster == durin && *spell == id
+        )),
+        "{events:?}"
+    );
+    assert!(
+        party_view(&world, &data).members[BRENNA]
+            .effects
+            .iter()
+            .any(|e| e.spell == bless),
+        "Brenna is blessed"
+    );
+}
+
+#[test]
 fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
     let data = data();
     let mut world = world(&data);
@@ -163,7 +211,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
         let mut after = world.clone();
         let command = Command::Cast {
             caster: row.caster,
-            spell: row.spell,
+            spell: row.spell.clone(),
             target: Target::Member(row.caster),
         };
         let result = apply(&mut after, &data, command);
@@ -191,7 +239,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
                     &data,
                     Command::Cast {
                         caster: r.caster,
-                        spell: r.spell,
+                        spell: r.spell.clone(),
                         target: Target::Member(r.caster),
                     },
                 )
@@ -207,7 +255,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
         &data,
         Command::Cast {
             caster: buff.caster,
-            spell: buff.spell,
+            spell: buff.spell.clone(),
             target: Target::Member(buff.caster),
         },
     )
@@ -219,7 +267,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
         .iter()
         .flat_map(|m| &m.effects)
         .chain(&view.effects)
-        .filter(|e| e.spell == buff.id)
+        .filter(|e| e.spell == buff.spell)
         .collect();
     let held: Vec<_> = world
         .party
@@ -309,7 +357,7 @@ fn cunning_action_offers_its_two_uses_and_second_wind_one() {
     let cunning = view.members[PIP]
         .features
         .iter()
-        .find(|f| f.name == "base:text:class.rogue.cunning_action")
+        .find(|f| f.feature == "base:text:class.rogue.cunning_action")
         .unwrap();
     assert_eq!(cunning.choices, [ChoiceKind::Exchange, ChoiceKind::Hide]);
     assert!(
@@ -340,7 +388,7 @@ fn an_offer_names_the_item_or_spell_its_row_is() {
     for (row, offer) in buys.iter().enumerate() {
         assert_eq!(offer.subject.as_ref(), def.items.get(row), "{offer:?}");
     }
-    apply(&mut world, &data, Command::Service(buys[0].command)).unwrap();
+    apply(&mut world, &data, Command::Service(buys[0].command.clone())).unwrap();
     let view = service_view(&world, &data).unwrap();
     let sale = view
         .offers

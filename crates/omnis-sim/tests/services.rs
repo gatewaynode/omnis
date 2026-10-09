@@ -10,14 +10,15 @@ use omnis_data::Data;
 use omnis_sim::{Command, Event, ModeKind, Rejection, ServiceCommand, World, apply};
 
 fn ask(world: &mut World, data: &Data, command: ServiceCommand) -> Vec<Event> {
-    apply(world, data, Command::Service(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"))
+    apply(world, data, Command::Service(command.clone()))
+        .unwrap_or_else(|r| panic!("{command:?}: {r}"))
 }
 
 /// The command is refused with `why`, and nothing changed.
 fn refused(world: &mut World, data: &Data, command: ServiceCommand, why: Rejection) {
     let before = world.clone();
     assert_eq!(
-        apply(world, data, Command::Service(command)),
+        apply(world, data, Command::Service(command.clone())),
         Err(why),
         "{command:?}"
     );
@@ -271,7 +272,17 @@ fn the_smith_buys_at_list_and_sells_at_half() {
     let data = data();
     let mut world = inside(&data, "smith");
     let dagger = data.registry.items.get("base:item:dagger").unwrap();
-    let events = ask(&mut world, &data, ServiceCommand::Buy { item: 0, count: 2 });
+    let id = || "base:item:dagger".to_owned();
+    // Two daggers at list, 200 cp each: what the stock's first row cost before commands named
+    // the item by id.
+    let events = ask(
+        &mut world,
+        &data,
+        ServiceCommand::Buy {
+            item: id(),
+            count: 2,
+        },
+    );
     assert!(events.contains(&Event::Bought {
         item: dagger,
         count: 2,
@@ -288,20 +299,31 @@ fn the_smith_buys_at_list_and_sells_at_half() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Buy { item: 99, count: 1 },
+        ServiceCommand::Buy {
+            item: "base:item:nope".to_owned(),
+            count: 1,
+        },
+        Rejection::NotOffered,
+    );
+    refused(
+        &mut world,
+        &data,
+        ServiceCommand::Buy {
+            item: "base:item:gem".to_owned(),
+            count: 1,
+        },
         Rejection::NotOffered,
     );
 
-    let row = u8::try_from(row).unwrap();
     refused(
         &mut world,
         &data,
         ServiceCommand::Sell {
-            item: row,
+            item: id(),
             count: 3,
         },
         Rejection::NotEnough {
-            item: dagger,
+            item: id(),
             have: 2,
         },
     );
@@ -309,7 +331,7 @@ fn the_smith_buys_at_list_and_sells_at_half() {
         &mut world,
         &data,
         ServiceCommand::Sell {
-            item: row,
+            item: id(),
             count: 2,
         },
     );
@@ -323,8 +345,11 @@ fn the_smith_buys_at_list_and_sells_at_half() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Sell { item: 99, count: 1 },
-        Rejection::NotInStores { item: 99 },
+        ServiceCommand::Sell {
+            item: id(),
+            count: 1,
+        },
+        Rejection::NotInStores { item: id() },
     );
 }
 
@@ -378,21 +403,30 @@ fn each_service_does_only_its_own_work() {
             ServiceCommand::Room,
             ServiceCommand::Rumor,
             ServiceCommand::Heal { member: brenna },
-            ServiceCommand::Buy { item: 0, count: 1 },
+            ServiceCommand::Buy {
+                item: "base:item:dagger".to_owned(),
+                count: 1,
+            },
             ServiceCommand::Deposit { amount: 1 },
             ServiceCommand::Train { member: brenna },
+            // The guild's shield and the temple's healing word: each on its own list.
             ServiceCommand::Learn {
                 member: durin,
-                spell: 2,
+                spell: if name == "guild" {
+                    "base:spell:shield"
+                } else {
+                    "base:spell:healing_word"
+                }
+                .to_owned(),
             },
         ];
         world.party.members[0].hp -= 1;
         world.party.members[0].xp = 300;
         for command in asks {
             let before = world.clone();
-            let result = apply(&mut world, &data, Command::Service(command));
+            let result = apply(&mut world, &data, Command::Service(command.clone()));
             let offered = matches!(
-                (name, command),
+                (name, &command),
                 ("inn", ServiceCommand::Room)
                     | ("tavern", ServiceCommand::Rumor)
                     | (
@@ -404,7 +438,7 @@ fn each_service_does_only_its_own_work() {
                     | ("trainer", ServiceCommand::Train { .. })
                     | ("guild", ServiceCommand::Learn { .. })
             );
-            if matches!((name, command), ("guild", ServiceCommand::Learn { .. })) {
+            if matches!((name, &command), ("guild", ServiceCommand::Learn { .. })) {
                 // The guild's shield is off the cleric's list: offered, and refused for that.
                 assert_eq!(result, Err(Rejection::NotOnList { member: durin }));
                 world = before;

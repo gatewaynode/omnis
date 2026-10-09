@@ -1,7 +1,7 @@
 //! Shared setup for the simulation's integration tests: real pack data, no mocks.
 #![allow(dead_code)]
 
-use omnis_core::{CharacterId, Direction, Facing, Pcg32, Position, Rotation, StreamName};
+use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
@@ -242,46 +242,39 @@ pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>
     (commands, events)
 }
 
-/// The ids of a party of six created in order, in marching order: what a script word's slots
-/// resolve against in the tests that only check a word's syntax.
-pub const IDS: [CharacterId; 6] = [
-    CharacterId(0),
-    CharacterId(1),
-    CharacterId(2),
-    CharacterId(3),
-    CharacterId(4),
-    CharacterId(5),
-];
+/// A world with the six drafts in marching order, ids 0 to 5, exploring: what the words that
+/// name members but no rows resolve against in the tests that check a word's syntax.
+pub fn six_world(data: &Data) -> World {
+    let mut world = world(data);
+    party_of(&mut world, data, 6);
+    world
+}
 
-/// One script word as a command for [`IDS`]; `None` when it is not a word.
+/// One script word as a command for [`six_world`]; `None` when it is not a word, or names a row
+/// that world has not got (a combat row outside a fight).
 pub fn word(text: &str) -> Option<Command> {
-    Word::parse(text).and_then(|w| w.command(&IDS))
+    let data = data();
+    let world = six_world(&data);
+    Word::parse(text).and_then(|w| w.command(&world, &data))
 }
 
-/// A script as commands for this party as it stands now: each word's slots resolved against
-/// the members' ids in marching order.
-pub fn script(world: &World, text: &str) -> Vec<Command> {
-    let ids = world.party.ids();
+/// A script as commands for this world as it stands now: each word's slots and rows resolved
+/// against it, all at once.
+pub fn script(world: &World, data: &Data, text: &str) -> Vec<Command> {
     parse_script(text)
         .unwrap_or_else(|e| panic!("{e}"))
         .iter()
         .map(|w| {
-            w.command(&ids)
-                .unwrap_or_else(|| panic!("{w}: no such member"))
+            w.command(world, data)
+                .unwrap_or_else(|| panic!("{w}: no such member or row"))
         })
         .collect()
 }
 
-/// A script as commands for [`IDS`].
+/// A script as commands for [`six_world`].
 pub fn script_for_six(text: &str) -> Vec<Command> {
-    parse_script(text)
-        .unwrap_or_else(|e| panic!("{e}"))
-        .iter()
-        .map(|w| {
-            w.command(&IDS)
-                .unwrap_or_else(|| panic!("{w}: no such member"))
-        })
-        .collect()
+    let data = data();
+    script(&six_world(&data), &data, text)
 }
 
 /// Where each service stands in the test town.

@@ -27,14 +27,14 @@ fn place(world: &mut World, data: &Data, x: u16, y: u16, facing: Facing) {
 }
 
 /// The row of the spyglass in a member's kit, given to them if they lack one.
-fn spyglass(world: &mut World, data: &Data, member: usize) -> (ItemId, u8) {
+/// The spyglass, in the member's kit: its registry number and the id `Use` takes.
+fn spyglass(world: &mut World, data: &Data, member: usize) -> (ItemId, String) {
     let glass = item_id(data, "spyglass").unwrap();
     let kit = &mut world.party.members[member].equipment;
     if count_of(kit, glass) == 0 {
         kit.push((glass, 1));
     }
-    let row = kit.iter().position(|(id, _)| *id == glass).unwrap();
-    (glass, u8::try_from(row).unwrap())
+    (glass, "base:item:spyglass".to_owned())
 }
 
 /// The difficulty `sense.dc` gives a tile in the dungeon (visibility six).

@@ -14,18 +14,24 @@ use omnis_sim::{Command, Event, Rejection, ServiceCommand, World, apply};
 // ids follow their slots: Brenna 0, Durin 1, Ilvara 2.
 
 fn ask(world: &mut World, data: &Data, command: ServiceCommand) -> Vec<Event> {
-    apply(world, data, Command::Service(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"))
+    apply(world, data, Command::Service(command.clone()))
+        .unwrap_or_else(|r| panic!("{command:?}: {r}"))
 }
 
 /// The command is refused with `why`, and nothing changed.
 fn refused(world: &mut World, data: &Data, command: ServiceCommand, why: Rejection) {
     let before = world.clone();
     assert_eq!(
-        apply(world, data, Command::Service(command)),
+        apply(world, data, Command::Service(command.clone())),
         Err(why),
         "{command:?}"
     );
     assert_eq!(*world, before, "{command:?} changed the world");
+}
+
+/// A base spell's id, as the service commands take it.
+fn spell(name: &str) -> String {
+    format!("base:spell:{name}")
 }
 
 fn minutes(world: &World) -> i64 {
@@ -142,7 +148,7 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
         &data,
         ServiceCommand::Choose {
             member: CharacterId(1),
-            spell: 5,
+            spell: spell("healing_word"),
         },
         Rejection::NoPicks {
             member: CharacterId(1),
@@ -163,15 +169,20 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
 
     // The cleric's list: guidance, light, sacred flame, bless, cure wounds, healing word, guiding
     // bolt, inflict wounds, spiritual weapon (2nd), prayer of healing (2nd).
-    let choose = |spell| ServiceCommand::Choose {
+    let choose = |name| ServiceCommand::Choose {
         member: CharacterId(1),
-        spell,
+        spell: spell(name),
     };
-    refused(&mut world, &data, choose(0), Rejection::CantripNotLearned);
     refused(
         &mut world,
         &data,
-        choose(3),
+        choose("guidance"),
+        Rejection::CantripNotLearned,
+    );
+    refused(
+        &mut world,
+        &data,
+        choose("bless"),
         Rejection::AlreadyKnown {
             member: CharacterId(1),
         },
@@ -179,19 +190,21 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
     refused(
         &mut world,
         &data,
-        choose(10),
-        Rejection::NoSuchSpell { row: 10 },
+        choose("magic_missile"),
+        Rejection::NoSuchSpell {
+            spell: spell("magic_missile"),
+        },
     );
     refused(
         &mut world,
         &data,
-        choose(8),
+        choose("spiritual_weapon"),
         Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     let clock = minutes(&world);
     let gold = world.party.gold;
     let known = world.party.members[1].known_spells.clone();
-    let events = ask(&mut world, &data, choose(5));
+    let events = ask(&mut world, &data, choose("healing_word"));
     assert_eq!(learned(&events), Some(0), "a pick is free");
     let durin = &world.party.members[1];
     let healing_word = data.registry.spells.get("base:spell:healing_word").unwrap();
@@ -210,7 +223,7 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
     refused(
         &mut world,
         &data,
-        choose(5),
+        choose("healing_word"),
         Rejection::NoPicks {
             member: CharacterId(1),
         },
@@ -218,14 +231,14 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
 
     // The wizard knows every first-level spell on its list and the second-level ones open at
     // level 3: the picks wait.
-    let wizard = |spell| ServiceCommand::Choose {
+    let wizard = |name| ServiceCommand::Choose {
         member: CharacterId(2),
-        spell,
+        spell: spell(name),
     };
     refused(
         &mut world,
         &data,
-        wizard(3),
+        wizard("magic_missile"),
         Rejection::AlreadyKnown {
             member: CharacterId(2),
         },
@@ -233,7 +246,7 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
     refused(
         &mut world,
         &data,
-        wizard(7),
+        wizard("shatter"),
         Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     assert_eq!(world.party.members[2].spell_picks, 2);
@@ -245,16 +258,16 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     let mut world = inside_with(&data, "temple", 3);
     // The temple's spells: bless, cure wounds, healing word, guiding bolt, inflict wounds,
     // spiritual weapon (2nd), prayer of healing (2nd).
-    let learn = |slot, spell| ServiceCommand::Learn {
+    let learn = |slot, name| ServiceCommand::Learn {
         member: CharacterId(slot),
-        spell,
+        spell: spell(name),
     };
     world.party.members[1].spell_picks = 1;
     world.party.gold = 4999;
     refused(
         &mut world,
         &data,
-        learn(1, 2),
+        learn(1, "healing_word"),
         Rejection::CannotAfford {
             cost: 5000,
             gold: 4999,
@@ -264,7 +277,7 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(0, 2),
+        learn(0, "healing_word"),
         Rejection::NotOnList {
             member: CharacterId(0),
         },
@@ -272,7 +285,7 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(1, 0),
+        learn(1, "bless"),
         Rejection::AlreadyKnown {
             member: CharacterId(1),
         },
@@ -280,17 +293,19 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(1, 7),
-        Rejection::NoSuchSpell { row: 7 },
+        learn(1, "magic_missile"),
+        Rejection::NoSuchSpell {
+            spell: spell("magic_missile"),
+        },
     );
     refused(
         &mut world,
         &data,
-        learn(1, 5),
+        learn(1, "spiritual_weapon"),
         Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     let clock = minutes(&world);
-    let events = ask(&mut world, &data, learn(1, 2));
+    let events = ask(&mut world, &data, learn(1, "healing_word"));
     assert_eq!(
         learned(&events),
         Some(5000),
@@ -308,7 +323,7 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(1, 1),
+        learn(1, "magic_missile"),
         Rejection::NotOnList {
             member: CharacterId(1),
         },
@@ -316,7 +331,7 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(2, 1),
+        learn(2, "magic_missile"),
         Rejection::AlreadyKnown {
             member: CharacterId(2),
         },
@@ -331,11 +346,11 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     refused(
         &mut world,
         &data,
-        learn(1, 2),
+        learn(1, "healing_word"),
         Rejection::SpellTooHigh { level: 2, max: 1 },
     );
     world.party.members[1].level = 3;
-    let events = ask(&mut world, &data, learn(1, 2));
+    let events = ask(&mut world, &data, learn(1, "healing_word"));
     assert_eq!(learned(&events), Some(10_000), "50 gp a spell level");
 }
 
@@ -364,7 +379,7 @@ fn the_dead_neither_train_nor_learn() {
         &data,
         ServiceCommand::Choose {
             member: CharacterId(1),
-            spell: 5,
+            spell: spell("healing_word"),
         },
         Rejection::MemberDead {
             member: CharacterId(1),
@@ -374,7 +389,12 @@ fn the_dead_neither_train_nor_learn() {
 
 #[test]
 fn the_words_name_the_new_commands() {
-    let script = common::script_for_six("train-1\nchoose-1-5\nlearn-2-0");
+    let data = data();
+    let mut world = inside_with(&data, "trainer", 3);
+    world.party.members[1].spell_picks = 1;
+    // `choose-M-R` counts row R of member M's class list; `learn-M-R` row R of the service's
+    // spells, which a trainer has none of.
+    let script = common::script(&world, &data, "train-1\nchoose-1-5");
     assert_eq!(
         script,
         [
@@ -383,16 +403,33 @@ fn the_words_name_the_new_commands() {
             }),
             Command::Service(ServiceCommand::Choose {
                 member: CharacterId(1),
-                spell: 5
-            }),
-            Command::Service(ServiceCommand::Learn {
-                member: CharacterId(2),
-                spell: 0
+                spell: spell("healing_word"),
             }),
         ]
     );
+    let resolve = |world: &World, text: &str| {
+        omnis_sim::Word::parse(text).and_then(|w| w.command(world, &data))
+    };
+    assert_eq!(
+        resolve(&world, "learn-2-0"),
+        None,
+        "a trainer sells no spells"
+    );
+    assert_eq!(
+        resolve(&world, "choose-1-10"),
+        None,
+        "the list has ten rows"
+    );
+    let guild = inside_with(&data, "guild", 3);
+    assert_eq!(
+        resolve(&guild, "learn-2-0"),
+        Some(Command::Service(ServiceCommand::Learn {
+            member: CharacterId(2),
+            spell: spell("burning_hands"),
+        }))
+    );
     let words: Vec<&str> = script.iter().map(Command::word).collect();
-    assert_eq!(words, ["train", "choose", "learn"]);
+    assert_eq!(words, ["train", "choose"]);
 }
 
 #[test]

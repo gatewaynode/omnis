@@ -15,6 +15,7 @@ use crate::rest;
 use crate::service_level;
 use crate::world::{Mode, World};
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, ServiceId, SpellId};
 use omnis_data::omnis_expr::Value;
@@ -34,10 +35,11 @@ pub struct ServiceState {
     pub kind: ServiceKind,
 }
 
-/// What the party asks of the service it is in. A `member` is a party slot; `Buy`'s `item` is
-/// a row of the service's stock as its pack lists it, `Sell`'s a row of the party's stores.
-/// Amounts are copper.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// What the party asks of the service it is in. A `member` is a `CharacterId`; an `item` or a
+/// `spell` is a string id (`base:item:dagger`), which must be on the list the command names:
+/// the service's stock for `Buy`, the party's stores for `Sell`, the member's class list for
+/// `Choose`, the service's spells for `Learn`. Amounts are copper.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ServiceCommand {
     /// Go back out onto the tile; any service.
     Leave,
@@ -67,15 +69,15 @@ pub enum ServiceCommand {
     },
     /// Items from the stock into the party's stores; a smith.
     Buy {
-        /// The row of the service's stock.
-        item: u8,
+        /// The item's id; the service must stock it.
+        item: String,
         /// How many.
         count: u16,
     },
     /// Items from the party's stores, at the sell price; a smith.
     Sell {
-        /// The row of the stores.
-        item: u8,
+        /// The item's id; the stores must hold it.
+        item: String,
         /// How many.
         count: u16,
     },
@@ -98,22 +100,22 @@ pub enum ServiceCommand {
     Choose {
         /// The member's slot.
         member: CharacterId,
-        /// The row of the member's class list.
-        spell: u8,
+        /// The spell's id; the member's class list must hold it.
+        spell: String,
     },
     /// A spell bought onto the member's list; a guild or a temple.
     Learn {
         /// The member's slot.
         member: CharacterId,
-        /// The row of the service's spells.
-        spell: u8,
+        /// The spell's id; the service must teach it.
+        spell: String,
     },
 }
 
 impl ServiceCommand {
     /// Whether a service of `kind` does this; leaving, any does.
     #[must_use]
-    pub const fn offered_in(self, kind: ServiceKind) -> bool {
+    pub const fn offered_in(&self, kind: ServiceKind) -> bool {
         match self {
             ServiceCommand::Leave => true,
             ServiceCommand::Room => matches!(kind, ServiceKind::Inn),
@@ -246,10 +248,10 @@ pub(crate) fn apply(
     world: &mut World,
     data: &Data,
     state: ServiceState,
-    command: ServiceCommand,
+    command: &ServiceCommand,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    if command == ServiceCommand::Leave {
+    if *command == ServiceCommand::Leave {
         world.mode = Mode::Explore;
         events.push(Event::ServiceLeft {
             service: state.service,
@@ -275,10 +277,10 @@ pub(crate) fn quote(
     world: &World,
     data: &Data,
     def: &ServiceDef,
-    command: ServiceCommand,
+    command: &ServiceCommand,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let deal = match command {
+    let deal = match *command {
         ServiceCommand::Leave => return Err(Rejection::NotOffered),
         ServiceCommand::Room => room(world, data, roller)?,
         ServiceCommand::Rumor => {
@@ -320,8 +322,8 @@ pub(crate) fn quote(
             let cost = price(data, "temple.raise_cost", &level, roller)?;
             Deal::Raise { index, cost }
         }
-        ServiceCommand::Buy { item, count } => buy(world, data, def, item, count, roller)?,
-        ServiceCommand::Sell { item, count } => sell(world, data, item, count, roller)?,
+        ServiceCommand::Buy { ref item, count } => buy(world, data, def, item, count, roller)?,
+        ServiceCommand::Sell { ref item, count } => sell(world, data, item, count, roller)?,
         ServiceCommand::Deposit { amount } | ServiceCommand::Withdraw { amount } => {
             bank(world, command, amount)?
         }
@@ -329,11 +331,11 @@ pub(crate) fn quote(
             let index = alive(world, data, member)?;
             service_level::train(world, data, index, roller)?
         }
-        ServiceCommand::Choose { member, spell } => {
+        ServiceCommand::Choose { member, ref spell } => {
             let index = alive(world, data, member)?;
             service_level::choose(world, data, index, spell)?
         }
-        ServiceCommand::Learn { member, spell } => {
+        ServiceCommand::Learn { member, ref spell } => {
             let index = alive(world, data, member)?;
             service_level::learn(world, data, def, index, spell, roller)?
         }
@@ -355,7 +357,7 @@ pub(crate) fn afford(world: &World, deal: &Deal) -> Result<(), Rejection> {
 
 /// Copper into or out of the bank: the purse pays a deposit (checked with every other price),
 /// the balance a withdrawal, and neither side may overflow.
-fn bank(world: &World, command: ServiceCommand, amount: u32) -> Result<Deal, Rejection> {
+fn bank(world: &World, command: &ServiceCommand, amount: u32) -> Result<Deal, Rejection> {
     nonzero(amount)?;
     let party = &world.party;
     if let ServiceCommand::Deposit { .. } = command {
@@ -392,7 +394,7 @@ fn room(world: &World, data: &Data, roller: &mut Roller) -> Result<Deal, Rejecti
 fn temple(
     world: &World,
     data: &Data,
-    command: ServiceCommand,
+    command: &ServiceCommand,
     member: CharacterId,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
@@ -442,13 +444,14 @@ fn buy(
     world: &World,
     data: &Data,
     def: &ServiceDef,
-    row: u8,
+    item: &str,
     count: u16,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
     let item = def
         .items
-        .get(usize::from(row))
+        .iter()
+        .find(|name| *name == item)
         .and_then(|name| data.registry.items.get(name))
         .ok_or(Rejection::NotOffered)?;
     nonzero(u32::from(count))?;
@@ -471,18 +474,25 @@ fn buy(
 fn sell(
     world: &World,
     data: &Data,
-    row: u8,
+    name: &str,
     count: u16,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let (item, have) = *world
-        .party
-        .inventory
-        .get(usize::from(row))
-        .ok_or(Rejection::NotInStores { item: row })?;
+    let have = |item| count_of(&world.party.inventory, item);
+    let item = data
+        .registry
+        .items
+        .get(name)
+        .filter(|item| have(*item) > 0)
+        .ok_or_else(|| Rejection::NotInStores {
+            item: String::from(name),
+        })?;
     nonzero(u32::from(count))?;
-    if have < count {
-        return Err(Rejection::NotEnough { item, have });
+    if have(item) < count {
+        return Err(Rejection::NotEnough {
+            item: String::from(name),
+            have: have(item),
+        });
     }
     let each = price(
         data,

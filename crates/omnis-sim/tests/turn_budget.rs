@@ -8,7 +8,6 @@
 mod common;
 
 use common::{act, data, encounter, party_of, script_for_six, world};
-use omnis_core::CharacterId;
 use omnis_data::{Cost, Data, Disposition};
 use omnis_sim::omnis_rules::RollMode;
 use omnis_sim::{
@@ -57,33 +56,38 @@ fn until_turn_of(world: &mut World, data: &Data, slot: usize) {
 }
 
 fn ask(world: &mut World, data: &Data, command: CombatCommand) -> Vec<Event> {
-    apply(world, data, Command::Combat(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"))
+    apply(world, data, Command::Combat(command.clone()))
+        .unwrap_or_else(|r| panic!("{command:?}: {r}"))
 }
 
 /// The command is refused with `why`, and nothing changed.
 fn refused(world: &mut World, data: &Data, command: CombatCommand, why: Rejection) {
     let before = world.clone();
     assert_eq!(
-        apply(world, data, Command::Combat(command)),
+        apply(world, data, Command::Combat(command.clone())),
         Err(why),
         "{command:?}"
     );
     assert_eq!(*world, before, "{command:?} changed the world");
 }
 
-fn spell_row(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
-    let id = data
-        .registry
-        .spells
-        .get(&format!("base:spell:{name}"))
-        .unwrap();
-    let at = world.party.members[slot]
-        .known_spells
-        .iter()
-        .position(|s| *s == id)
-        .unwrap_or_else(|| panic!("{name}"));
-    u8::try_from(at).unwrap()
+/// The id of a spell the member knows, as `Cast` takes it.
+fn spell_row(world: &World, data: &Data, slot: usize, name: &str) -> String {
+    let spell = format!("base:spell:{name}");
+    let id = data.registry.spells.get(&spell).unwrap();
+    assert!(
+        world.party.members[slot].known_spells.contains(&id),
+        "{name}"
+    );
+    spell
 }
+
+/// A class feature's name key, as `Feature` takes it.
+const SECOND_WIND: &str = "base:text:class.fighter.second_wind";
+/// Another.
+const ACTION_SURGE: &str = "base:text:class.fighter.action_surge";
+/// Another.
+const CUNNING_ACTION: &str = "base:text:class.rogue.cunning_action";
 
 fn attacks_by(events: &[Event], who: ActorRef) -> usize {
     events
@@ -142,24 +146,26 @@ fn a_wizard_s_turn_ends_with_its_action_and_a_cleric_keeps_the_bonus_for_healing
     let cure = spell_row(&world, &data, DURIN, "cure_wounds");
     let word = spell_row(&world, &data, DURIN, "healing_word");
     let brenna = world.party.members[BRENNA].id;
-    let cast = |spell, pay| CombatCommand::Cast {
-        spell,
+    let cast = |spell: &String, pay| CombatCommand::Cast {
+        spell: spell.clone(),
         target: Target::Member(brenna),
         pay,
     };
     refused(
         &mut world,
         &data,
-        cast(cure, Pay::Action),
+        cast(&cure, Pay::Action),
         Rejection::NoActionLeft,
     );
     refused(
         &mut world,
         &data,
-        cast(cure, Pay::BonusAction),
-        Rejection::NotABonusAction { spell: cure },
+        cast(&cure, Pay::BonusAction),
+        Rejection::NotABonusAction {
+            spell: cure.clone(),
+        },
     );
-    let events = ask(&mut world, &data, cast(word, Pay::BonusAction));
+    let events = ask(&mut world, &data, cast(&word, Pay::BonusAction));
     assert!(events.iter().any(|e| matches!(e, Event::Healed { .. })));
     assert_ne!(current(&world), Some(durin), "the budget is spent");
 }
@@ -181,13 +187,13 @@ fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus
     let mut world = start(&data);
     let word = spell_row(&world, &data, DURIN, "healing_word");
     let brenna = world.party.members[BRENNA].id;
-    let cast = |spell, pay| CombatCommand::Cast {
-        spell,
+    let cast = |spell: &String, pay| CombatCommand::Cast {
+        spell: spell.clone(),
         target: Target::Member(brenna),
         pay,
     };
     let full = points(&world);
-    ask(&mut world, &data, cast(word, Pay::BonusAction));
+    ask(&mut world, &data, cast(&word, Pay::BonusAction));
     let one = full - points(&world);
     assert!(one > 0, "a levelled spell costs points");
     assert_eq!(
@@ -201,10 +207,10 @@ fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus
     refused(
         &mut world,
         &data,
-        cast(word, Pay::BonusAction),
+        cast(&word, Pay::BonusAction),
         Rejection::NoBonusActionLeft,
     );
-    ask(&mut world, &data, cast(word, Pay::Action));
+    ask(&mut world, &data, cast(&word, Pay::Action));
     assert_eq!(points(&world), full - 2 * one, "both spells paid");
     assert_ne!(
         current(&world),
@@ -214,13 +220,13 @@ fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus
 
     // Either order: a levelled spell with the action leaves the bonus spell open.
     let mut world = start(&data);
-    ask(&mut world, &data, cast(word, Pay::Action));
+    ask(&mut world, &data, cast(&word, Pay::Action));
     assert_eq!(
         current(&world),
         Some(member(&world, DURIN)),
         "the bonus action still has a spell to pay for"
     );
-    ask(&mut world, &data, cast(word, Pay::BonusAction));
+    ask(&mut world, &data, cast(&word, Pay::BonusAction));
     assert_eq!(points(&world), full - 2 * one);
 
     let spell = data.spells.get_mut(&healing_word).unwrap();
@@ -230,10 +236,12 @@ fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus
     refused(
         &mut world,
         &data,
-        cast(word, Pay::BonusAction),
-        Rejection::NeedsPreparation { spell: word },
+        cast(&word, Pay::BonusAction),
+        Rejection::NeedsPreparation {
+            spell: word.clone(),
+        },
     );
-    ask(&mut world, &data, cast(word, Pay::Action));
+    ask(&mut world, &data, cast(&word, Pay::Action));
     assert_ne!(
         current(&world),
         Some(member(&world, DURIN)),
@@ -250,23 +258,34 @@ fn action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest() {
     fight(&mut world, &data, &[("goblin", 3)]);
     until_turn_of(&mut world, &data, BRENNA);
     let brenna = member(&world, BRENNA);
-    // Rows: Second Wind (level 1), Action Surge (level 2).
-    let feature = |feature, choice| CombatCommand::Feature { feature, choice };
+    // Second Wind (level 1), Action Surge (level 2); Cunning Action is a rogue's.
+    let feature = |feature: &str, choice| CombatCommand::Feature {
+        feature: feature.to_owned(),
+        choice,
+    };
     refused(
         &mut world,
         &data,
-        feature(2, FeatureChoice::None),
-        Rejection::NoSuchFeature { feature: 2 },
+        feature(CUNNING_ACTION, FeatureChoice::None),
+        Rejection::NoSuchFeature {
+            feature: CUNNING_ACTION.to_owned(),
+        },
     );
     refused(
         &mut world,
         &data,
-        feature(0, FeatureChoice::Hide),
-        Rejection::WrongChoice { feature: 0 },
+        feature(SECOND_WIND, FeatureChoice::Hide),
+        Rejection::WrongChoice {
+            feature: SECOND_WIND.to_owned(),
+        },
     );
 
     // Features come before the action (owner, 2026-10-04): surge, attack, Second Wind, attack.
-    let mut events = ask(&mut world, &data, feature(1, FeatureChoice::None));
+    let mut events = ask(
+        &mut world,
+        &data,
+        feature(ACTION_SURGE, FeatureChoice::None),
+    );
     assert!(events.iter().any(|e| matches!(
         e,
         Event::FeatureUsed { feature, .. } if feature == "base:text:class.fighter.action_surge"
@@ -281,12 +300,14 @@ fn action_surge_gives_a_second_action_and_second_wind_heals_once_a_rest() {
     refused(
         &mut world,
         &data,
-        feature(1, FeatureChoice::None),
-        Rejection::NoUsesLeft { feature: 1 },
+        feature(ACTION_SURGE, FeatureChoice::None),
+        Rejection::NoUsesLeft {
+            feature: ACTION_SURGE.to_owned(),
+        },
     );
 
     world.party.members[BRENNA].hp = 3;
-    let healed = ask(&mut world, &data, feature(0, FeatureChoice::None));
+    let healed = ask(&mut world, &data, feature(SECOND_WIND, FeatureChoice::None));
     let Some(Event::Healed {
         rolls, amount, hp, ..
     }) = healed.iter().find(|e| matches!(e, Event::Healed { .. }))
@@ -372,7 +393,7 @@ fn cunning_action_exchanges_without_a_swing_and_a_plain_exchange_draws_them() {
         &mut world,
         &data,
         CombatCommand::Feature {
-            feature: 0,
+            feature: CUNNING_ACTION.to_owned(),
             choice: FeatureChoice::Exchange { with: back },
         },
     );
@@ -466,7 +487,7 @@ fn hiding_gives_the_next_attack_advantage() {
             &mut world,
             &data,
             CombatCommand::Feature {
-                feature: 0,
+                feature: CUNNING_ACTION.to_owned(),
                 choice: FeatureChoice::Hide,
             },
         );
@@ -542,7 +563,7 @@ fn end_turn_passes_the_turn_and_a_reaction_is_never_a_turn_s_command() {
         &mut world,
         &data,
         CombatCommand::Feature {
-            feature: 0,
+            feature: SECOND_WIND.to_owned(),
             choice: FeatureChoice::None,
         },
         Rejection::ReactionOnly,
@@ -551,42 +572,77 @@ fn end_turn_passes_the_turn_and_a_reaction_is_never_a_turn_s_command() {
 
 #[test]
 fn the_words_name_the_turn_s_commands() {
-    let script =
-        script_for_six("end\nfeature-0\nfeature-1-2\nfeature-1-hide\ncast-1-0-bonus\ncast-1-m0");
+    let script = script_for_six("end");
+    assert_eq!(script, [Command::Combat(CombatCommand::EndTurn)]);
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    world.party.members[BRENNA].level = 2;
+    world.party.members[PIP].level = 2;
+    fight(&mut world, &data, &[("goblin", 3)]);
+    // A word counts the acting member's features and spells as the turn's menu lists them; the
+    // command names the feature by its key and the spell by its id.
+    let on_turn_of = |slot: usize, text: &str| {
+        let mut world = world.clone();
+        until_turn_of(&mut world, &data, slot);
+        common::script(&world, &data, text)
+    };
+    let ilvara = world.party.members[ILVARA].id;
+    let feature = |key: &str, choice| {
+        Command::Combat(CombatCommand::Feature {
+            feature: key.to_owned(),
+            choice,
+        })
+    };
+    assert_eq!(
+        on_turn_of(BRENNA, "feature-0\nfeature-1"),
+        [
+            feature(SECOND_WIND, FeatureChoice::None),
+            feature(ACTION_SURGE, FeatureChoice::None)
+        ]
+    );
+    assert_eq!(
+        on_turn_of(PIP, "feature-0-2\nfeature-0-hide"),
+        [
+            feature(CUNNING_ACTION, FeatureChoice::Exchange { with: ilvara }),
+            feature(CUNNING_ACTION, FeatureChoice::Hide)
+        ]
+    );
+    let second = data
+        .registry
+        .spells
+        .name(world.party.members[DURIN].known_spells[1])
+        .unwrap()
+        .to_owned();
+    let script = on_turn_of(DURIN, "cast-1-0-bonus\ncast-1-m0");
     assert_eq!(
         script,
         [
-            Command::Combat(CombatCommand::EndTurn),
-            Command::Combat(CombatCommand::Feature {
-                feature: 0,
-                choice: FeatureChoice::None
-            }),
-            Command::Combat(CombatCommand::Feature {
-                feature: 1,
-                choice: FeatureChoice::Exchange {
-                    with: CharacterId(2)
-                }
-            }),
-            Command::Combat(CombatCommand::Feature {
-                feature: 1,
-                choice: FeatureChoice::Hide
-            }),
             Command::Combat(CombatCommand::Cast {
-                spell: 1,
+                spell: second.clone(),
                 target: Target::Stack(0),
                 pay: Pay::BonusAction
             }),
             Command::Combat(CombatCommand::Cast {
-                spell: 1,
-                target: Target::Member(CharacterId(0)),
+                spell: second,
+                target: Target::Member(world.party.members[BRENNA].id),
                 pay: Pay::Action
             }),
         ]
     );
     let words: Vec<&str> = script.iter().map(Command::word).collect();
+    assert_eq!(words, ["cast", "cast"]);
+    let mut brenna_s = world.clone();
+    until_turn_of(&mut brenna_s, &data, BRENNA);
     assert_eq!(
-        words,
-        ["end", "feature", "feature", "feature", "cast", "cast"]
+        common::word("feature-2"),
+        None,
+        "nobody acts outside a fight"
+    );
+    assert_eq!(
+        omnis_sim::Word::parse("feature-2").and_then(|w| w.command(&brenna_s, &data)),
+        None,
+        "Brenna has two features"
     );
 }
 

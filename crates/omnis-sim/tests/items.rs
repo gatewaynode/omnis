@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, script_for_six, world};
+use common::{act, data, encounter, party_of, world};
 use omnis_core::{CharacterId, ItemId, StreamName};
 use omnis_data::{Data, Disposition, EquipSlot};
 use omnis_sim::items::{consume, count_of, has_all, item_id};
@@ -13,18 +13,25 @@ use omnis_sim::omnis_rules::{DeathSaves, armor_class, condition_id};
 use omnis_sim::party::heal;
 use omnis_sim::{
     ActorRef, CombatCommand, Command, Event, ItemCommand, ItemPlace, Mode, Party, Rejection,
-    Surprise, World, apply, combat, parse_script,
+    Surprise, Word, World, apply, combat, parse_script,
 };
 
-/// The row of an item in a member's kit.
-fn kit_row(world: &World, slot: usize, item: ItemId) -> u8 {
-    let at = world.party.members[slot]
-        .equipment
-        .iter()
-        .position(|(id, _)| *id == item)
-        .expect("carried");
-    u8::try_from(at).unwrap()
+/// The id of an item a member's kit holds, as the item commands take it.
+fn kit_row(world: &World, slot: usize, item: ItemId) -> String {
+    assert!(
+        count_of(&world.party.members[slot].equipment, item) > 0,
+        "carried"
+    );
+    world_item(item)
 }
+
+/// An item's string id, from the base pack's registry.
+fn world_item(item: ItemId) -> String {
+    data().registry.items.name(item).unwrap().to_owned()
+}
+
+/// An id no pack defines.
+const NOPE: &str = "base:item:nope";
 
 fn item(command: ItemCommand) -> Command {
     Command::Item(command)
@@ -69,10 +76,18 @@ fn stores_are_counted_and_consumed_exactly_or_not_at_all() {
     let refused = consume(&mut party, &[(gem, 2), (potion, 2)]).unwrap_err();
     assert_eq!(
         refused,
-        omnis_sim::Rejection::NotEnough {
+        omnis_sim::items::Short {
             item: potion,
             have: 1
         }
+    );
+    assert_eq!(
+        refused.rejection(&data),
+        Rejection::NotEnough {
+            item: "base:item:potion_of_healing".to_owned(),
+            have: 1
+        },
+        "the refusal names the item by its id"
     );
     assert_eq!(party, before, "a refusal takes nothing, not even the gems");
     consume(&mut party, &[(gem, 2)]).unwrap();
@@ -128,10 +143,10 @@ fn id(slot: u8) -> CharacterId {
     CharacterId(u32::from(slot))
 }
 
-fn equip(member: u8, item: u8) -> Command {
+fn equip(member: u8, item: &str) -> Command {
     Command::Item(ItemCommand::Equip {
         member: id(member),
-        item,
+        item: item.to_owned(),
     })
 }
 
@@ -142,35 +157,35 @@ fn unequip(member: u8, slot: EquipSlot) -> Command {
     })
 }
 
-fn give(from: u8, to: u8, item: u8, count: u16) -> Command {
+fn give(from: u8, to: u8, item: &str, count: u16) -> Command {
     Command::Item(ItemCommand::Give {
         from: id(from),
         to: id(to),
-        item,
+        item: item.to_owned(),
         count,
     })
 }
 
-fn stow(member: u8, item: u8, count: u16) -> Command {
+fn stow(member: u8, item: &str, count: u16) -> Command {
     Command::Item(ItemCommand::Stow {
         member: id(member),
-        item,
+        item: item.to_owned(),
         count,
     })
 }
 
-fn take(member: u8, item: u8, count: u16) -> Command {
+fn take(member: u8, item: &str, count: u16) -> Command {
     Command::Item(ItemCommand::Take {
         member: id(member),
-        item,
+        item: item.to_owned(),
         count,
     })
 }
 
-fn use_on(member: u8, item: u8, target: Option<u8>) -> Command {
+fn use_on(member: u8, item: &str, target: Option<u8>) -> Command {
     Command::Item(ItemCommand::Use {
         member: id(member),
-        item,
+        item: item.to_owned(),
         target: target.map(id),
     })
 }
@@ -202,7 +217,7 @@ fn equipping_swaps_the_slot_and_armor_takes_its_minutes() {
     assert_eq!(ac(&world), 18);
     world.party.members[0].equipment.push((leather, 1));
     let row = kit_row(&world, 0, leather);
-    let events = apply(&mut world, &data, equip(0, row)).unwrap();
+    let events = apply(&mut world, &data, equip(0, &row)).unwrap();
     assert_eq!(
         slot_events(&events),
         [
@@ -240,7 +255,7 @@ fn equipping_swaps_the_slot_and_armor_takes_its_minutes() {
     assert_eq!(minutes_passed(&events), 5, "doffing armor takes the same");
     assert_eq!(ac(&world), 12);
     let row = kit_row(&world, 0, chain);
-    let events = apply(&mut world, &data, equip(0, row)).unwrap();
+    let events = apply(&mut world, &data, equip(0, &row)).unwrap();
     assert_eq!(
         slot_events(&events).len(),
         1,
@@ -258,19 +273,21 @@ fn equipping_refuses_gear_bad_rows_empty_slots_and_absent_members() {
     refused(
         &mut world,
         &data,
-        equip(0, potion),
+        equip(0, &potion),
         Rejection::NotEquippable,
     );
     refused(
         &mut world,
         &data,
-        equip(0, 99),
-        Rejection::UnknownItem { item: 99 },
+        equip(0, NOPE),
+        Rejection::UnknownItem {
+            item: NOPE.to_owned(),
+        },
     );
     refused(
         &mut world,
         &data,
-        equip(5, 0),
+        equip(5, "base:item:longsword"),
         Rejection::NoSuchMember { member: id(5) },
     );
     apply(&mut world, &data, unequip(0, EquipSlot::OffHand)).unwrap();
@@ -286,7 +303,7 @@ fn equipping_refuses_gear_bad_rows_empty_slots_and_absent_members() {
     refused(
         &mut world,
         &data,
-        equip(0, 0),
+        equip(0, "base:item:longsword"),
         Rejection::MemberDown { member: id(0) },
     );
 }
@@ -300,7 +317,7 @@ fn giving_moves_counts_and_refuses_zero_too_many_oneself_and_nobody() {
     let bolts = item_id(&data, "crossbow_bolts").unwrap();
     let clock = world.party_clock().elapsed;
     let row = kit_row(&world, 0, bolts);
-    let events = apply(&mut world, &data, give(0, 1, row, 5)).unwrap();
+    let events = apply(&mut world, &data, give(0, 1, &row, 5)).unwrap();
     assert!(events.contains(&Event::ItemMoved {
         item: bolts,
         count: 5,
@@ -309,28 +326,35 @@ fn giving_moves_counts_and_refuses_zero_too_many_oneself_and_nobody() {
     }));
     assert_eq!(count_of(&world.party.members[0].equipment, bolts), 15);
     assert_eq!(count_of(&world.party.members[1].equipment, bolts), 25);
-    refused(&mut world, &data, give(0, 1, row, 0), Rejection::ZeroCount);
+    refused(&mut world, &data, give(0, 1, &row, 0), Rejection::ZeroCount);
     refused(
         &mut world,
         &data,
-        give(0, 1, row, 16),
+        give(0, 1, &row, 16),
         Rejection::NotEnough {
-            item: bolts,
+            item: "base:item:crossbow_bolts".to_owned(),
             have: 15,
         },
     );
-    refused(&mut world, &data, give(0, 0, row, 1), Rejection::SameMember);
     refused(
         &mut world,
         &data,
-        give(0, 7, row, 1),
+        give(0, 0, &row, 1),
+        Rejection::SameMember,
+    );
+    refused(
+        &mut world,
+        &data,
+        give(0, 7, &row, 1),
         Rejection::NoSuchMember { member: id(7) },
     );
     refused(
         &mut world,
         &data,
-        give(0, 1, 99, 1),
-        Rejection::UnknownItem { item: 99 },
+        give(0, 1, NOPE, 1),
+        Rejection::UnknownItem {
+            item: NOPE.to_owned(),
+        },
     );
     assert_eq!(
         world.party_clock().elapsed,
@@ -351,7 +375,7 @@ fn stowing_a_worn_item_takes_it_off_and_taking_brings_it_back() {
         Some(&longsword)
     );
     let row = kit_row(&world, 0, longsword);
-    let events = apply(&mut world, &data, stow(0, row, 1)).unwrap();
+    let events = apply(&mut world, &data, stow(0, &row, 1)).unwrap();
     let moved: Vec<&Event> = events
         .iter()
         .filter(|e| matches!(e, Event::Unequipped { .. } | Event::ItemMoved { .. }))
@@ -379,8 +403,9 @@ fn stowing_a_worn_item_takes_it_off_and_taking_brings_it_back() {
     );
     assert_eq!(count_of(&world.party.members[0].equipment, longsword), 0);
     assert_eq!(world.party.inventory, [(longsword, 1)]);
-    // Durin takes it from row 0 of the stores; then the stores are empty.
-    let events = apply(&mut world, &data, take(1, 0, 1)).unwrap();
+    // Durin takes it from the stores; then the stores are empty.
+    let sword = "base:item:longsword";
+    let events = apply(&mut world, &data, take(1, sword, 1)).unwrap();
     assert!(events.contains(&Event::ItemMoved {
         item: longsword,
         count: 1,
@@ -399,8 +424,10 @@ fn stowing_a_worn_item_takes_it_off_and_taking_brings_it_back() {
     refused(
         &mut world,
         &data,
-        take(1, 0, 1),
-        Rejection::NotInStores { item: 0 },
+        take(1, sword, 1),
+        Rejection::NotInStores {
+            item: sword.to_owned(),
+        },
     );
     assert_eq!(minutes_passed(&events), 0);
 }
@@ -421,7 +448,7 @@ fn a_potion_gets_a_downed_member_up_and_is_spent() {
         m.death_saves.failures = 2;
     }
     let row = kit_row(&world, 0, potion);
-    let events = apply(&mut world, &data, use_on(0, row, Some(1))).unwrap();
+    let events = apply(&mut world, &data, use_on(0, &row, Some(1))).unwrap();
     let used = events
         .iter()
         .position(|e| {
@@ -456,7 +483,7 @@ fn a_potion_gets_a_downed_member_up_and_is_spent() {
     // Durin drinks his own on himself: no target named.
     world.party.members[1].hp = 1;
     let row = kit_row(&world, 1, potion);
-    let events = apply(&mut world, &data, use_on(1, row, None)).unwrap();
+    let events = apply(&mut world, &data, use_on(1, &row, None)).unwrap();
     assert!(events.iter().any(|e| matches!(
         e,
         Event::ItemUsed { member, target: Some(t), consumed: true, .. } if *member == durin && *t == durin
@@ -476,20 +503,22 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
     refused(
         &mut world,
         &data,
-        use_on(0, sword, None),
+        use_on(0, &sword, None),
         Rejection::NotUsable,
     );
     // A spyglass is a use on the road: it looks (tests/sense.rs) and is not spent.
     world.party.members[0].equipment.push((glass, 1));
     let glass_row = kit_row(&world, 0, glass);
-    let events = apply(&mut world, &data, use_on(0, glass_row, None)).unwrap();
+    let events = apply(&mut world, &data, use_on(0, &glass_row, None)).unwrap();
     assert!(events.iter().any(|e| matches!(e, Event::Sensed { .. })));
     assert_eq!(count_of(&world.party.members[0].equipment, glass), 1);
     refused(
         &mut world,
         &data,
-        use_on(0, 99, None),
-        Rejection::UnknownItem { item: 99 },
+        use_on(0, NOPE, None),
+        Rejection::UnknownItem {
+            item: NOPE.to_owned(),
+        },
     );
     let row = kit_row(&world, 0, potion);
     let dead = condition_id(&data, "dead").unwrap();
@@ -497,19 +526,19 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
     refused(
         &mut world,
         &data,
-        use_on(0, row, Some(1)),
+        use_on(0, &row, Some(1)),
         Rejection::TargetDead { member: id(1) },
     );
     refused(
         &mut world,
         &data,
-        use_on(1, 0, None),
+        use_on(1, "base:item:potion_of_healing", None),
         Rejection::MemberDead { member: id(1) },
     );
     refused(
         &mut world,
         &data,
-        use_on(0, row, Some(9)),
+        use_on(0, &row, Some(9)),
         Rejection::NoSuchMember { member: id(9) },
     );
     world.party.members[1].conditions.clear();
@@ -517,7 +546,7 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
     refused(
         &mut world,
         &data,
-        use_on(0, row, None),
+        use_on(0, &row, None),
         Rejection::MemberDown { member: id(0) },
     );
 }
@@ -547,11 +576,25 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
     }
     let glass_row = kit_row(&world, 0, glass);
+    // A word counts the acting member's kit as the screen lists it; the command names the kind.
+    let at = world.party.members[0]
+        .equipment
+        .iter()
+        .position(|(id, _)| *id == glass)
+        .unwrap();
+    let durin = world.party.members[1].id;
+    assert_eq!(
+        Word::parse(&format!("use-item-{at}-m1")).and_then(|w| w.command(&world, &data)),
+        Some(Command::Combat(CombatCommand::Use {
+            item: "base:item:spyglass".to_owned(),
+            target: Some(durin),
+        }))
+    );
     refused(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Use {
-            item: glass_row,
+            item: glass_row.clone(),
             target: None,
         }),
         Rejection::NotUsableHere,
@@ -611,21 +654,17 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
 
 #[test]
 fn the_item_words_parse_and_print() {
-    let script = script_for_six("use-item-0, use-item-2-m1");
+    assert!(parse_script("use-item-0, use-item-2-m1").is_ok());
     assert_eq!(
-        script,
-        [
-            Command::Combat(CombatCommand::Use {
-                item: 0,
-                target: None
-            }),
-            Command::Combat(CombatCommand::Use {
-                item: 2,
-                target: Some(CharacterId(1))
-            }),
-        ]
+        common::word("use-item-0"),
+        None,
+        "a kit row means the acting member's, and nobody acts outside a fight"
     );
-    assert!(script.iter().all(|c| c.word() == "use-item"));
+    let used = Command::Combat(CombatCommand::Use {
+        item: "base:item:potion_of_healing".to_owned(),
+        target: Some(CharacterId(1)),
+    });
+    assert_eq!(used.word(), "use-item");
     assert_eq!(
         item(ItemCommand::Unequip {
             member: CharacterId(0),

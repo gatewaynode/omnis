@@ -84,17 +84,18 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         "{out}"
     );
     let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
-    // The walk names no member, so the words resolve against any party.
-    let commands: Vec<_> = parse_script(text)
-        .unwrap()
-        .iter()
-        .map(|w| w.command(&[]).unwrap())
-        .collect();
     // The headless driver is a dev world (`Settings.devtools`), and a save says so.
     let settings = Settings {
         devtools: true,
         ..Settings::default()
     };
+    // The walk names no member or row, so the words resolve against the new world alike.
+    let fresh = omnis_sim::World::new(&data, 9, settings).unwrap();
+    let commands: Vec<_> = parse_script(text)
+        .unwrap()
+        .iter()
+        .map(|w| w.command(&fresh, &data).unwrap())
+        .collect();
     let expected = omnis_sim::replay::run(&data, 9, settings, &commands).unwrap();
     assert_eq!(
         lines.last().copied(),

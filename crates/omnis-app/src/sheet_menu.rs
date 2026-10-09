@@ -247,7 +247,7 @@ fn gear_page(data: &Data, m: &MemberView) -> SheetGear {
         carried: m
             .equipment
             .iter()
-            .map(|i| (item_name(&i.id), i.count))
+            .map(|i| (item_name(&i.item), i.count))
             .collect(),
     }
 }

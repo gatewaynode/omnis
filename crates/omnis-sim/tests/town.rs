@@ -9,7 +9,7 @@ use omnis_core::{CharacterId, Direction, Facing, Position, Rotation, ServiceId};
 use omnis_data::{Data, ServiceKind};
 use omnis_sim::{
     BlockReason, Command, Event, LoadError, Mode, ModeKind, SaveRule, ServiceCommand, ServiceState,
-    Settings, World, apply, query,
+    Settings, Word, World, apply, query,
 };
 
 fn service(data: &Data, name: &str) -> ServiceId {
@@ -279,7 +279,7 @@ fn the_service_words_parse_and_print() {
         ("room", ServiceCommand::Room),
         ("rumor", ServiceCommand::Rumor),
     ] {
-        assert_eq!(parse_word(word), Some(Command::Service(command)));
+        assert_eq!(parse_word(word), Some(Command::Service(command.clone())));
         assert_eq!(Command::Service(command).word(), word);
     }
     let numbered = [
@@ -305,14 +305,6 @@ fn the_service_words_parse_and_print() {
                 member: CharacterId(5),
             },
         ),
-        ("buy-2", "buy", ServiceCommand::Buy { item: 2, count: 1 }),
-        ("buy-2-4", "buy", ServiceCommand::Buy { item: 2, count: 4 }),
-        ("sell-0", "sell", ServiceCommand::Sell { item: 0, count: 1 }),
-        (
-            "sell-1-2",
-            "sell",
-            ServiceCommand::Sell { item: 1, count: 2 },
-        ),
         (
             "deposit-250",
             "deposit",
@@ -325,7 +317,11 @@ fn the_service_words_parse_and_print() {
         ),
     ];
     for (word, verb, command) in numbered {
-        assert_eq!(parse_word(word), Some(Command::Service(command)), "{word}");
+        assert_eq!(
+            parse_word(word),
+            Some(Command::Service(command.clone())),
+            "{word}"
+        );
         assert_eq!(
             Command::Service(command).word(),
             verb,
@@ -346,4 +342,50 @@ fn the_service_words_parse_and_print() {
     ] {
         assert_eq!(parse_word(bad), None, "{bad}");
     }
+    // `buy-R` counts row R of the stock, `sell-R` row R of the stores, as the shop lists them;
+    // the command names the item by its id, and outside a shop a stock row means nothing.
+    assert_eq!(parse_word("buy-2"), None, "no shop outside");
+    let data = data();
+    let mut world = common::inside(&data, "smith");
+    let gem = data.registry.items.get("base:item:gem").unwrap();
+    let dagger = data.registry.items.get("base:item:dagger").unwrap();
+    world.party.inventory = vec![(gem, 3), (dagger, 1)];
+    let resolve = |text: &str| Word::parse(text).and_then(|w| w.command(&world, &data));
+    let item = |id: &str| id.to_owned();
+    for (word, command) in [
+        (
+            "buy-2",
+            ServiceCommand::Buy {
+                item: item("base:item:mace"),
+                count: 1,
+            },
+        ),
+        (
+            "buy-2-4",
+            ServiceCommand::Buy {
+                item: item("base:item:mace"),
+                count: 4,
+            },
+        ),
+        (
+            "sell-0",
+            ServiceCommand::Sell {
+                item: item("base:item:gem"),
+                count: 1,
+            },
+        ),
+        (
+            "sell-1-2",
+            ServiceCommand::Sell {
+                item: item("base:item:dagger"),
+                count: 2,
+            },
+        ),
+    ] {
+        let verb = word.split('-').next().unwrap();
+        assert_eq!(Command::Service(command.clone()).word(), verb);
+        assert_eq!(resolve(word), Some(Command::Service(command)), "{word}");
+    }
+    assert_eq!(resolve("sell-2"), None, "the stores have two rows");
+    assert_eq!(resolve("buy-99"), None, "the stock is shorter");
 }

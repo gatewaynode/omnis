@@ -33,8 +33,8 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
     let feature = |wanted: &dyn Fn(&FeatureEffect) -> bool| {
         combat_features(member, data)
             .iter()
-            .position(|f| f.effect.as_ref().is_some_and(wanted) && uses_left(member, f) != Some(0))
-            .map(|at| u8::try_from(at).unwrap())
+            .find(|f| f.effect.as_ref().is_some_and(wanted) && uses_left(member, f) != Some(0))
+            .map(|f| f.name.clone())
     };
     let use_feature = |feature, choice| Command::Combat(CombatCommand::Feature { feature, choice });
     let budget = state.budget;
@@ -58,7 +58,7 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
             .min_by_key(|m| m.hp)
             .map(|m| m.id);
         let word = view.spells.iter().find(|s| {
-            let spell = &data.spells[&member.known_spells[usize::from(s.index)]];
+            let spell = &data.spells[&data.registry.spells.get(&s.spell).unwrap()];
             s.blocked.is_none()
                 && spell.bonus_action_available
                 && !spell.preparation_required_for_bonus_action
@@ -66,7 +66,7 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
         });
         if let (Some(word), Some(hurt)) = (word, hurt) {
             return Command::Combat(CombatCommand::Cast {
-                spell: word.index,
+                spell: word.spell.clone(),
                 target: Target::Member(hurt),
                 pay: Pay::BonusAction,
             });

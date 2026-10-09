@@ -105,10 +105,10 @@ fn play(args: Args) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     for word in words {
         let turn = game.world.turn;
-        // A word names members by slot: it means whoever stands there now.
+        // A word counts slots and rows: it means whoever and whatever stands there now.
         let command = word
-            .command(&game.world.party.ids())
-            .ok_or_else(|| format!("turn {turn}: '{word}' names an empty slot"))?;
+            .command(&game.world, &game.data)
+            .ok_or_else(|| format!("turn {turn}: '{word}' names an empty slot or row"))?;
         let word = command.word();
         match game.handle(&Op::SimCommand { command }) {
             Ok(Reply::Events { events }) => {

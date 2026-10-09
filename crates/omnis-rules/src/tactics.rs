@@ -6,8 +6,60 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Debug;
 use omnis_core::{ConditionId, ItemId, MonsterId, SpellId};
+use omnis_data::Data;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+/// What a criteria set names things by: the registry's numbers in the world and its save
+/// ([`Ids`], the default), or the packs' string ids on the protocol ([`Named`]; protocol 2 lets
+/// no registry number cross it). [`CriteriaSet::map`] turns one into the other.
+pub trait Names {
+    /// A spell.
+    type Spell: Clone + Debug + Ord + Serialize + DeserializeOwned;
+    /// An item.
+    type Item: Clone + Debug + Ord + Serialize + DeserializeOwned;
+    /// A monster.
+    type Monster: Clone + Debug + Ord + Serialize + DeserializeOwned;
+    /// A condition.
+    type Condition: Clone + Debug + Ord + Serialize + DeserializeOwned;
+}
+
+/// The registry's numbers: what the world keeps and walks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Ids;
+
+impl Names for Ids {
+    type Spell = SpellId;
+    type Item = ItemId;
+    type Monster = MonsterId;
+    type Condition = ConditionId;
+}
+
+/// The packs' string ids (`base:spell:shield`): what a command carries and a view shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Named;
+
+impl Names for Named {
+    type Spell = String;
+    type Item = String;
+    type Monster = String;
+    type Condition = String;
+}
+
+/// How each kind of name in a criteria set becomes the other kind; `Err` carries the name that
+/// did not, as text.
+pub trait Rename<N: Names, M: Names> {
+    /// A spell's.
+    fn spell(&self, spell: &N::Spell) -> Result<M::Spell, String>;
+    /// An item's.
+    fn item(&self, item: &N::Item) -> Result<M::Item, String>;
+    /// A monster's.
+    fn monster(&self, monster: &N::Monster) -> Result<M::Monster, String>;
+    /// A condition's.
+    fn condition(&self, condition: &N::Condition) -> Result<M::Condition, String>;
+}
 
 /// Bytes in a criteria set's or a runbook's name.
 pub const TACTICS_NAME_BYTES: usize = 32;
@@ -151,38 +203,132 @@ fn check_name(name: &str) -> Result<(), TacticsFault> {
     Ok(())
 }
 
+/// Both renamings over the loaded packs: registry numbers to string ids for a view, string ids
+/// to registry numbers for a command. A name the packs do not hold does not rename.
+#[derive(Debug, Clone, Copy)]
+pub struct Naming<'a>(pub &'a Data);
+
+/// A registry number as text, for a name that does not rename.
+fn unnamed(kind: &str, id: u32) -> String {
+    alloc::format!("{kind} {id}")
+}
+
+impl Rename<Ids, Named> for Naming<'_> {
+    fn spell(&self, spell: &SpellId) -> Result<String, String> {
+        let reg = &self.0.registry.spells;
+        reg.name(*spell)
+            .map(String::from)
+            .ok_or_else(|| unnamed("spell", spell.0))
+    }
+    fn item(&self, item: &ItemId) -> Result<String, String> {
+        let reg = &self.0.registry.items;
+        reg.name(*item)
+            .map(String::from)
+            .ok_or_else(|| unnamed("item", item.0))
+    }
+    fn monster(&self, monster: &MonsterId) -> Result<String, String> {
+        let reg = &self.0.registry.monsters;
+        reg.name(*monster)
+            .map(String::from)
+            .ok_or_else(|| unnamed("monster", monster.0))
+    }
+    fn condition(&self, condition: &ConditionId) -> Result<String, String> {
+        let reg = &self.0.registry.conditions;
+        reg.name(*condition)
+            .map(String::from)
+            .ok_or_else(|| unnamed("condition", condition.0))
+    }
+}
+
+impl Rename<Named, Ids> for Naming<'_> {
+    fn spell(&self, spell: &String) -> Result<SpellId, String> {
+        self.0
+            .registry
+            .spells
+            .get(spell)
+            .ok_or_else(|| spell.clone())
+    }
+    fn item(&self, item: &String) -> Result<ItemId, String> {
+        self.0.registry.items.get(item).ok_or_else(|| item.clone())
+    }
+    fn monster(&self, monster: &String) -> Result<MonsterId, String> {
+        self.0
+            .registry
+            .monsters
+            .get(monster)
+            .ok_or_else(|| monster.clone())
+    }
+    fn condition(&self, condition: &String) -> Result<ConditionId, String> {
+        self.0
+            .registry
+            .conditions
+            .get(condition)
+            .ok_or_else(|| condition.clone())
+    }
+}
+
 /// A named trigger and condition for one action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CriteriaSet {
+#[serde(bound = "")]
+pub struct CriteriaSet<N: Names = Ids> {
     /// Player text.
     pub name: String,
     /// What it does.
-    pub action: ActionRef,
+    pub action: ActionRef<N>,
     /// When it is considered.
     pub trigger: Trigger,
     /// What must hold.
-    pub when: Criteria,
+    pub when: Criteria<N>,
 }
 
-impl CriteriaSet {
+impl<N: Names> CriteriaSet<N> {
     /// The name and the tree's shape.
     pub fn check(&self) -> Result<(), TacticsFault> {
         check_name(&self.name)?;
         self.when.check()
     }
+
+    /// The same set naming things the other way.
+    ///
+    /// # Errors
+    /// The first name that does not rename, as text.
+    pub fn map<M: Names>(&self, rename: &impl Rename<N, M>) -> Result<CriteriaSet<M>, String> {
+        Ok(CriteriaSet {
+            name: self.name.clone(),
+            action: self.action.map(rename)?,
+            trigger: self.trigger,
+            when: self.when.map(rename)?,
+        })
+    }
 }
 
 /// An action a criteria set fires.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum ActionRef {
+#[serde(bound = "")]
+pub enum ActionRef<N: Names = Ids> {
     /// A weapon attack (an opportunity attack as a reaction).
     Attack,
     /// A known spell.
-    Spell(SpellId),
+    Spell(N::Spell),
     /// A carried item.
-    Item(ItemId),
+    Item(N::Item),
     /// A class feature, by its name key.
     Feature(String),
+}
+
+impl<N: Names> ActionRef<N> {
+    /// The same action naming things the other way.
+    ///
+    /// # Errors
+    /// The name that does not rename, as text.
+    pub fn map<M: Names>(&self, rename: &impl Rename<N, M>) -> Result<ActionRef<M>, String> {
+        Ok(match self {
+            ActionRef::Attack => ActionRef::Attack,
+            ActionRef::Spell(spell) => ActionRef::Spell(rename.spell(spell)?),
+            ActionRef::Item(item) => ActionRef::Item(rename.item(item)?),
+            ActionRef::Feature(key) => ActionRef::Feature(key.clone()),
+        })
+    }
 }
 
 /// The closed list of moments the simulation raises (ARCHITECTURE.md §4.7).
@@ -222,18 +368,19 @@ impl Trigger {
 
 /// A condition tree.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Criteria {
+#[serde(bound = "")]
+pub enum Criteria<N: Names = Ids> {
     /// Holds.
     Always,
     /// Every child holds.
-    All(Vec<Criteria>),
+    All(Vec<Criteria<N>>),
     /// Some child holds.
-    Any(Vec<Criteria>),
+    Any(Vec<Criteria<N>>),
     /// One predicate.
-    Is(Predicate),
+    Is(Predicate<N>),
 }
 
-impl Criteria {
+impl<N: Names> Criteria<N> {
     /// Depth, size and percentages within the caps.
     pub fn check(&self) -> Result<(), TacticsFault> {
         let mut nodes = 0;
@@ -257,6 +404,27 @@ impl Criteria {
         }
     }
 
+    /// The same tree naming things the other way.
+    ///
+    /// # Errors
+    /// The first name that does not rename, as text.
+    pub fn map<M: Names>(&self, rename: &impl Rename<N, M>) -> Result<Criteria<M>, String> {
+        let all = |children: &Vec<Criteria<N>>| {
+            children
+                .iter()
+                .map(|c| c.map(rename))
+                .collect::<Result<Vec<_>, _>>()
+        };
+        Ok(match self {
+            Criteria::Always => Criteria::Always,
+            Criteria::All(children) => Criteria::All(all(children)?),
+            Criteria::Any(children) => Criteria::Any(all(children)?),
+            Criteria::Is(predicate) => Criteria::Is(predicate.map(rename)?),
+        })
+    }
+}
+
+impl Criteria {
     /// Whether the tree holds over `facts`.
     #[must_use]
     pub fn holds(&self, facts: &Facts) -> bool {
@@ -320,11 +488,12 @@ pub enum Row {
 /// What a criteria tree can ask. Integers only; the system offers these, the player composes
 /// them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Predicate {
+#[serde(bound = "")]
+pub enum Predicate<N: Names = Ids> {
     /// How many living monsters of a kind stand there.
     MonsterCount {
         /// The kind.
-        monster: MonsterId,
+        monster: N::Monster,
         /// The comparison.
         cmp: Cmp,
         /// Against.
@@ -333,7 +502,7 @@ pub enum Predicate {
     /// A kind's share of the living monsters, in percent.
     MonsterShare {
         /// The kind.
-        monster: MonsterId,
+        monster: N::Monster,
         /// The comparison.
         cmp: Cmp,
         /// Against, 0..=100.
@@ -362,7 +531,7 @@ pub enum Predicate {
         /// Whom.
         who: Who,
         /// Which.
-        condition: ConditionId,
+        condition: N::Condition,
     },
     /// Standing in a row.
     Row {
@@ -383,7 +552,7 @@ pub enum Predicate {
     WouldChangeOutcome,
 }
 
-impl Predicate {
+impl<N: Names> Predicate<N> {
     fn check(&self) -> Result<(), TacticsFault> {
         match self {
             Predicate::MonsterShare { percent, .. }
@@ -397,6 +566,51 @@ impl Predicate {
         }
     }
 
+    /// The same predicate naming things the other way.
+    ///
+    /// # Errors
+    /// The name that does not rename, as text.
+    pub fn map<M: Names>(&self, rename: &impl Rename<N, M>) -> Result<Predicate<M>, String> {
+        Ok(match self {
+            Predicate::MonsterCount { monster, cmp, n } => Predicate::MonsterCount {
+                monster: rename.monster(monster)?,
+                cmp: *cmp,
+                n: *n,
+            },
+            Predicate::MonsterShare {
+                monster,
+                cmp,
+                percent,
+            } => Predicate::MonsterShare {
+                monster: rename.monster(monster)?,
+                cmp: *cmp,
+                percent: *percent,
+            },
+            Predicate::Hp { who, cmp, percent } => Predicate::Hp {
+                who: *who,
+                cmp: *cmp,
+                percent: *percent,
+            },
+            Predicate::SpellPoints { who, cmp, percent } => Predicate::SpellPoints {
+                who: *who,
+                cmp: *cmp,
+                percent: *percent,
+            },
+            Predicate::HasCondition { who, condition } => Predicate::HasCondition {
+                who: *who,
+                condition: rename.condition(condition)?,
+            },
+            Predicate::Row { who, row } => Predicate::Row {
+                who: *who,
+                row: *row,
+            },
+            Predicate::Round { cmp, n } => Predicate::Round { cmp: *cmp, n: *n },
+            Predicate::WouldChangeOutcome => Predicate::WouldChangeOutcome,
+        })
+    }
+}
+
+impl Predicate {
     fn holds(&self, facts: &Facts) -> bool {
         match self {
             Predicate::MonsterCount { monster, cmp, n } => {

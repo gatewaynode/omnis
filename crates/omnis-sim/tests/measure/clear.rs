@@ -6,7 +6,7 @@ use super::common::{self, data, party_of};
 use super::{Policy, SEEDS, cast_or_attack, hundredths, tenths};
 use omnis_core::{Facing, Position};
 use omnis_data::Data;
-use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
+use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Named, Predicate, Trigger};
 use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
@@ -113,15 +113,15 @@ pub(crate) fn declare_shield(world: &mut World, data: &Data) {
         if !m.known_spells.contains(&shield) || !m.tactics.reactions().is_empty() {
             continue;
         }
-        let set = CriteriaSet {
+        let set = CriteriaSet::<Named> {
             name: "Shield".to_owned(),
-            action: ActionRef::Spell(shield),
+            action: ActionRef::Spell("base:spell:shield".to_owned()),
             trigger: Trigger::Attacked,
             when: Criteria::Is(Predicate::WouldChangeOutcome),
         };
         let command = TacticsCommand::PutReaction {
             member: m.id,
-            at: None,
+            entry: None,
             set,
         };
         apply(world, data, Command::Party(PartyCommand::Tactics(command))).unwrap();

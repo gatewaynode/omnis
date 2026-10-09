@@ -36,18 +36,15 @@ fn dev_world(data: &Data, seed: u64) -> World {
     common::new_world(data, seed, settings)
 }
 
-fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> u8 {
-    let id = data
-        .registry
-        .spells
-        .get(&format!("base:spell:{name}"))
-        .unwrap();
-    let at = world.party.members[slot]
-        .known_spells
-        .iter()
-        .position(|s| *s == id)
-        .unwrap_or_else(|| panic!("{name}"));
-    u8::try_from(at).unwrap()
+/// The id of a spell the member knows, as the cast commands take it.
+fn spell_index(world: &World, data: &Data, slot: usize, name: &str) -> String {
+    let spell = format!("base:spell:{name}");
+    let id = data.registry.spells.get(&spell).unwrap();
+    assert!(
+        world.party.members[slot].known_spells.contains(&id),
+        "{name}"
+    );
+    spell
 }
 
 fn spell_id(data: &Data, name: &str) -> omnis_core::SpellId {
@@ -389,10 +386,10 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
         let declare = |name: &str| {
             Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
                 member: ilvara,
-                at: None,
+                entry: None,
                 set: CriteriaSet {
                     name: "Ward off".to_owned(),
-                    action: ActionRef::Spell(spell_id(&data, name)),
+                    action: ActionRef::Spell(format!("base:spell:{name}")),
                     trigger: Trigger::Attacked,
                     when: Criteria::Is(Predicate::WouldChangeOutcome),
                 },
@@ -414,13 +411,15 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
             continue;
         }
         let cast = Command::Combat(CombatCommand::Cast {
-            spell: shield,
+            spell: shield.clone(),
             target: Target::Member(ilvara),
             pay: Pay::Action,
         });
         assert_eq!(
             act(&mut world, &data, cast),
-            Err(Rejection::NotCastable { spell: shield }),
+            Err(Rejection::NotCastable {
+                spell: shield.clone()
+            }),
             "a reaction is not cast from the picker"
         );
         let points_before = world.party.members[0].spell_points;
@@ -644,18 +643,26 @@ fn mage_hand_toggles_the_first_door_ahead() {
     assert!(until_turn_of(&mut world, &data, WIZARD));
     let index = spell_index(&world, &data, WIZARD, "mage_hand");
     let cast = Command::Combat(CombatCommand::Cast {
-        spell: index,
+        spell: index.clone(),
         target: Target::Stack(0),
         pay: Pay::Action,
     });
     assert_eq!(
         act(&mut world, &data, cast),
-        Err(Rejection::NotCastable { spell: index })
+        Err(Rejection::NotCastable {
+            spell: index.clone()
+        })
     );
     let view = omnis_sim::combat_view(&world, &data).unwrap();
     assert_eq!(
-        view.spells[usize::from(index)].blocked,
-        Some(Rejection::NotCastable { spell: index })
+        view.spells
+            .iter()
+            .find(|s| s.spell == index)
+            .unwrap()
+            .blocked,
+        Some(Rejection::NotCastable {
+            spell: index.clone()
+        })
     );
 }
 
@@ -697,17 +704,19 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
         &mut world,
         Command::Cast {
             caster: ids[2],
-            spell: missile,
+            spell: missile.clone(),
             target: Target::Stack(0),
         },
-        Rejection::NotCastable { spell: missile },
+        Rejection::NotCastable {
+            spell: missile.clone(),
+        },
     );
     let cure = spell_index(&world, &data, CLERIC, "cure_wounds");
     refuse(
         &mut world,
         Command::Cast {
             caster: ids[1],
-            spell: cure,
+            spell: cure.clone(),
             target: Target::Stack(0),
         },
         Rejection::WrongTarget,
@@ -716,7 +725,7 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
         &mut world,
         Command::Cast {
             caster: CharacterId(9),
-            spell: 0,
+            spell: cure.clone(),
             target: Target::Member(ids[0]),
         },
         Rejection::NoSuchMember {
@@ -726,7 +735,7 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
     refuse(
         &mut world,
         Command::Combat(CombatCommand::Cast {
-            spell: cure,
+            spell: cure.clone(),
             target: Target::Member(ids[0]),
             pay: Pay::Action,
         }),
@@ -740,7 +749,7 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
             &data,
             Command::Cast {
                 caster: ids[1],
-                spell: cure,
+                spell: cure.clone(),
                 target: Target::Member(ids[0])
             }
         ),

@@ -53,7 +53,7 @@ pub struct ServiceForm {
 }
 
 /// What a control asks of the app.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceAsk {
     /// Send this command.
     Send(ServiceCommand),
@@ -78,7 +78,7 @@ pub fn apply(
             if offer.refusal.is_some() || offer.command == ServiceCommand::Leave {
                 return None;
             }
-            Some(ServiceAsk::Send(offer.command))
+            Some(ServiceAsk::Send(offer.command.clone()))
         }
         (ServicePanelId::Amount, Payload::Number(value)) => {
             form.amount_gp = u32::try_from((*value).clamp(0, i64::from(AMOUNT_MAX_GP))).ok()?;
@@ -123,7 +123,7 @@ pub fn offer_rows(view: &ServiceView, party: &PartyView, data: &Data) -> Vec<Off
             OfferRow {
                 key,
                 label,
-                caption: caption(offer.command),
+                caption: caption(&offer.command),
                 note: note(offer),
                 refused: offer.refusal.is_some(),
             }
@@ -146,10 +146,11 @@ fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, Stri
                 .to_owned();
             (name.clone(), name)
         }
-        ServiceCommand::Sell { item, .. } => {
+        ServiceCommand::Sell { ref item, .. } => {
             let (name, count) = party
                 .inventory
-                .get(usize::from(item))
+                .iter()
+                .find(|i| i.item == *item)
                 .map_or(("?", 0), |i| (data.label("en", &i.name), i.count));
             (name.to_owned(), format!("{name} ×{count}"))
         }
@@ -212,7 +213,7 @@ fn member_label(offer: &OfferView, member: &MemberView, data: &Data) -> String {
 
 /// The button's caption for an offer.
 #[must_use]
-pub const fn caption(command: ServiceCommand) -> &'static str {
+pub const fn caption(command: &ServiceCommand) -> &'static str {
     match command {
         ServiceCommand::Room => "Take a room",
         ServiceCommand::Rumor => "Listen",
@@ -296,10 +297,25 @@ mod tests {
     use super::*;
     use omnis_sim::omnis_data::ServiceKind;
 
+    const DAGGER: &str = "base:item:dagger";
+
+    fn buy(item: &str) -> ServiceCommand {
+        ServiceCommand::Buy {
+            item: item.to_owned(),
+            count: 1,
+        }
+    }
+
+    fn sell(item: &str) -> ServiceCommand {
+        ServiceCommand::Sell {
+            item: item.to_owned(),
+            count: 1,
+        }
+    }
+
     fn offer(command: ServiceCommand, price: Option<u32>, refusal: Option<Rejection>) -> OfferView {
         OfferView {
             command,
-            row: None,
             member: None,
             price,
             pays: None,
@@ -317,9 +333,9 @@ mod tests {
             bank: 200,
             food: 10,
             offers: vec![
-                offer(ServiceCommand::Buy { item: 0, count: 1 }, Some(200), None),
+                offer(buy(DAGGER), Some(200), None),
                 offer(
-                    ServiceCommand::Buy { item: 1, count: 1 },
+                    buy("base:item:chain_mail"),
                     Some(7500),
                     Some(Rejection::CannotAfford {
                         cost: 7500,
@@ -328,7 +344,7 @@ mod tests {
                 ),
                 OfferView {
                     pays: Some(250),
-                    ..offer(ServiceCommand::Sell { item: 0, count: 1 }, None, None)
+                    ..offer(sell(DAGGER), None, None)
                 },
                 offer(ServiceCommand::Leave, None, None),
             ],
@@ -342,12 +358,12 @@ mod tests {
         let mut press = |id| apply(id, &Payload::Activate, &view, &mut form);
         assert_eq!(
             press(ServicePanelId::Offer(0)),
-            Some(ServiceAsk::Send(ServiceCommand::Buy { item: 0, count: 1 }))
+            Some(ServiceAsk::Send(buy(DAGGER)))
         );
         assert_eq!(press(ServicePanelId::Offer(1)), None, "refused");
         assert_eq!(
             press(ServicePanelId::Offer(2)),
-            Some(ServiceAsk::Send(ServiceCommand::Sell { item: 0, count: 1 }))
+            Some(ServiceAsk::Send(sell(DAGGER)))
         );
         assert_eq!(
             press(ServicePanelId::Offer(3)),
@@ -474,9 +490,9 @@ mod tests {
             money_line(&view),
             "Gold 16 gp 5 sp 0 cp · Bank 2 gp 0 sp 0 cp · Food 10"
         );
-        assert_eq!(caption(ServiceCommand::Room), "Take a room");
+        assert_eq!(caption(&ServiceCommand::Room), "Take a room");
         assert_eq!(
-            caption(ServiceCommand::Train {
+            caption(&ServiceCommand::Train {
                 member: CharacterId(0)
             }),
             "Train"
@@ -491,9 +507,9 @@ mod tests {
                 .iter()
                 .filter(|o| o.command != ServiceCommand::Leave)
                 .map(|o| OfferRow {
-                    key: format!("{:?}", o.row),
+                    key: format!("{:?}", o.subject),
                     label: String::new(),
-                    caption: caption(o.command),
+                    caption: caption(&o.command),
                     note: note(o),
                     refused: o.refusal.is_some(),
                 })

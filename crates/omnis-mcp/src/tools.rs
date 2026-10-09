@@ -166,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects with the caster and minutes left, the sheet (background, alignment, age in years, proficiency, the next level's experience, the hit die, saving throws and proficient skills with their bonus, the casting ability), the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin; and each member's tactics: the reactions switch, the declared reactions as the rows PutReaction and RemoveReaction take (action, trigger, criteria), and the actions the member could declare with the triggers each answers.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects with the caster and minutes left, the sheet (background, alignment, age in years, proficiency, the next level's experience, the hit die, saving throws and proficient skills with their bonus, the casting ability), the kit (each item's id, the `item` the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores, party-wide effects, when the last long rest ended and the minutes before the next may begin; and each member's tactics: the reactions switch, the declared reactions with the `entry` PutReaction and RemoveReaction take (action, trigger, criteria, naming spells and items by string id), and the actions the member could declare with the triggers each answers.",
             &[],
         ),
         tool(
@@ -178,7 +178,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "combat_get",
             "combat.get",
-            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far; the acting member's turn budget (actions and bonus actions left), the spells cast this turn, and each spell row's reason it cannot be cast with the action and with the bonus action; reactions left by combatant; hidden members; each member's reactions switch and class features with uses left and why each is blocked; each casting monster's points left per individual and the shields it has up; why the acting member cannot attack each stack; the bribe's price before the fight; the choices each feature takes. Fails while exploring.",
+            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far; the acting member's turn budget (actions and bonus actions left), the spells cast this turn, each known spell by id (the `spell` Cast takes) with its reason it cannot be cast with the action and with the bonus action; reactions left by combatant; hidden members; each member's reactions switch and class features by name key (the `feature` Feature takes) with uses left and why each is blocked; each casting monster's points left per individual and the shields it has up; why the acting member cannot attack each stack; the bribe's price before the fight; the choices each feature takes. Fails while exploring.",
             &[],
         ),
         tool(
@@ -196,7 +196,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "cast_get",
             "cast.get",
-            "The spells each member may cast outside a fight: the caster's id and the spell's row (the numbers a Cast command takes), the spell id, its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
+            "The spells each member may cast outside a fight: the caster's id and the spell's id (the `caster` and `spell` a Cast command takes), its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
             &[],
         ),
         tool(

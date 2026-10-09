@@ -547,7 +547,7 @@ mod tests {
             gold: 6000,
             spells: vec![
                 crate::combat_menu::SpellRow {
-                    index: 0,
+                    spell: "base:spell:fire_bolt".to_owned(),
                     name: "Fire Bolt".to_owned(),
                     cost: 0,
                     targets_members: false,
@@ -557,7 +557,7 @@ mod tests {
                     bonus: false,
                 },
                 crate::combat_menu::SpellRow {
-                    index: 1,
+                    spell: "base:spell:magic_missile".to_owned(),
                     name: "Magic Missile".to_owned(),
                     cost: 1,
                     targets_members: false,
@@ -570,7 +570,10 @@ mod tests {
             points: (0, 4),
             usable: vec![crate::combat_menu::UseRow {
                 name: "Potion of healing".to_owned(),
-                kind: crate::use_menu::UseKind::Item { index: 6, count: 1 },
+                kind: crate::use_menu::UseKind::Item {
+                    item: "base:item:potion_of_healing".to_owned(),
+                    count: 1,
+                },
                 blocked: None,
             }],
             budget: omnis_sim::Budget::default(),

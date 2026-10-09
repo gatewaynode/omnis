@@ -54,10 +54,8 @@ pub struct StackView {
 /// One spell the acting member knows, as a picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellView {
-    /// Its index in the caster's list, the number `cast` takes.
-    pub index: u8,
-    /// Spell id.
-    pub id: String,
+    /// Spell id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// Text key of the spell's name.
     pub name: String,
     /// Spell level; 0 is a cantrip.
@@ -76,13 +74,11 @@ pub struct SpellView {
     pub bonus: Option<Rejection>,
 }
 
-/// One class feature with an effect, as the Feature command numbers it.
+/// One class feature with an effect, as the Feature command names it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeatureView {
-    /// Its row, the number `Feature` takes.
-    pub index: u8,
-    /// The feature's name, the key a declared action names it by.
-    pub name: String,
+    /// Its name key: the `feature` that `Feature` takes and a declared action names it by.
+    pub feature: String,
     /// What it costs from the turn's budget.
     pub cost: Cost,
     /// Uses left before a rest; `None` at will.
@@ -259,9 +255,7 @@ fn fighter_view(
 ) -> FighterView {
     let features = combat_features(member, data)
         .into_iter()
-        .enumerate()
-        .filter_map(|(row, feature)| {
-            let index = u8::try_from(row).ok()?;
+        .map(|feature| {
             let (choice, choices) = match feature.effect {
                 Some(FeatureEffect::Cunning) => (
                     FeatureChoice::Hide,
@@ -270,18 +264,17 @@ fn fighter_view(
                 _ => (FeatureChoice::None, alloc::vec![ChoiceKind::Plain]),
             };
             let blocked = if acting {
-                refusal(world, data, state, own, index, choice)
+                refusal(world, data, state, own, &feature.name, choice)
             } else {
                 Some(Rejection::NotYourTurn)
             };
-            Some(FeatureView {
-                index,
-                name: feature.name.clone(),
+            FeatureView {
+                feature: feature.name.clone(),
                 cost: feature.cost,
                 uses_left: uses_left(member, feature),
                 blocked,
                 choices,
-            })
+            }
         })
         .collect();
     FighterView {
@@ -301,19 +294,17 @@ fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> V
     member
         .known_spells
         .iter()
-        .enumerate()
-        .filter_map(|(i, id)| {
-            let index = u8::try_from(i).ok()?;
+        .filter_map(|id| {
             let spell = data.spells.get(id)?;
-            let checked = cast::check(world, data, own, index, true, &mut rng).err();
+            let name = data.registry.spells.name(*id).unwrap_or("?").to_owned();
+            let checked = cast::check(world, data, own, *id, true, &mut rng).err();
             let pays = |pay| {
                 checked
                     .clone()
-                    .or_else(|| payable(state, spell, index, pay).err())
+                    .or_else(|| payable(state, spell, &name, pay).err())
             };
             Some(SpellView {
-                index,
-                id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
+                spell: name.clone(),
                 name: spell.name.clone(),
                 level: spell.level,
                 cost: spell.point_cost(),

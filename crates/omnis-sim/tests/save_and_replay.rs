@@ -476,7 +476,7 @@ fn golden_walk_replay_reproduces() {
 /// declared for every hit replays to the fingerprint the play ended on.
 #[test]
 fn a_replay_reproduces_declared_reactions() {
-    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Trigger};
+    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Named, Trigger};
     use omnis_sim::tactics::TacticsCommand;
     let data = data();
     let seed = 0x0123_4567_89ab_cdef;
@@ -488,13 +488,12 @@ fn a_replay_reproduces_declared_reactions() {
     for command in &commands {
         apply(&mut world, &data, command.clone()).unwrap();
     }
-    let shield = data.registry.spells.get("base:spell:shield").unwrap();
     let put = Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
         member: world.party.members[2].id,
-        at: None,
-        set: CriteriaSet {
+        entry: None,
+        set: CriteriaSet::<Named> {
             name: "Shield".to_owned(),
-            action: ActionRef::Spell(shield),
+            action: ActionRef::Spell("base:spell:shield".to_owned()),
             trigger: Trigger::Attacked,
             when: Criteria::Always,
         },
@@ -776,22 +775,21 @@ fn capture_schema_5_fixture() {
 #[test]
 #[ignore = "writes the fixture; run deliberately on a schema-6 build"]
 fn capture_schema_6_fixture() {
-    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
+    use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Named, Predicate, Trigger};
     use omnis_sim::tactics::TacticsCommand;
     use omnis_sim::{PartyCommand, Surprise, apply, combat};
     let data = data();
     let mut world = world(&data);
     common::party_of(&mut world, &data, 3);
-    let shield = data.registry.spells.get("base:spell:shield").unwrap();
-    let set = CriteriaSet {
+    let set = CriteriaSet::<Named> {
         name: "Shield".to_owned(),
-        action: ActionRef::Spell(shield),
+        action: ActionRef::Spell("base:spell:shield".to_owned()),
         trigger: Trigger::Attacked,
         when: Criteria::Is(Predicate::WouldChangeOutcome),
     };
     let put = PartyCommand::Tactics(TacticsCommand::PutReaction {
         member: world.party.members[2].id,
-        at: None,
+        entry: None,
         set,
     });
     apply(&mut world, &data, omnis_sim::Command::Party(put)).unwrap();

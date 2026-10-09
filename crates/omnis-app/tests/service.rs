@@ -87,11 +87,11 @@ fn view(app: &App) -> ServiceView {
     service_view(world(app), data).expect("inside a service")
 }
 
-fn offer(app: &App, wanted: impl Fn(ServiceCommand) -> bool) -> usize {
+fn offer(app: &App, wanted: impl Fn(&ServiceCommand) -> bool) -> usize {
     view(app)
         .offers
         .iter()
-        .position(|o| wanted(o.command))
+        .position(|o| wanted(&o.command))
         .expect("on offer")
 }
 
@@ -162,7 +162,7 @@ fn every_service_opens_its_panel() {
 fn every_offer_sends_what_the_view_promised() {
     let mut app = town("service-events.ron");
     enter(&mut app, "inn");
-    let room = offer(&app, |c| c == ServiceCommand::Room);
+    let room = offer(&app, |c| *c == ServiceCommand::Room);
     let price = view(&app).offers[room].price.unwrap();
     let before = gold(&app);
     activate(&mut app, ServicePanelId::Offer(room));
@@ -175,7 +175,7 @@ fn every_offer_sends_what_the_view_promised() {
     leave(&mut app);
 
     enter(&mut app, "tavern");
-    let rumor = offer(&app, |c| c == ServiceCommand::Rumor);
+    let rumor = offer(&app, |c| *c == ServiceCommand::Rumor);
     activate(&mut app, ServicePanelId::Offer(rumor));
     assert!(
         logged(&app, "\"Talk from today: the rats below"),
@@ -190,7 +190,10 @@ fn every_offer_sends_what_the_view_promised() {
     leave(&mut app);
 
     enter(&mut app, "smith");
-    let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 0, .. }));
+    let buy = offer(
+        &app,
+        |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:dagger"),
+    );
     let price = view(&app).offers[buy].price.unwrap();
     let before = gold(&app);
     activate(&mut app, ServicePanelId::Offer(buy));
@@ -211,12 +214,12 @@ fn every_offer_sends_what_the_view_promised() {
         .hp -= 3;
     enter(&mut app, "temple");
     let corin_id = world(&app).party.members[1].id;
-    let heal = offer(&app, |c| c == ServiceCommand::Heal { member: corin_id });
+    let heal = offer(&app, |c| *c == ServiceCommand::Heal { member: corin_id });
     activate(&mut app, ServicePanelId::Offer(heal));
     let corin = &world(&app).party.members[1];
     assert_eq!(corin.hp, corin.hp_max);
     assert!(logged(&app, "Corin is treated for"));
-    let row = |app: &App, wanted: ServiceCommand| ServiceLabelId::Row(offer(app, |c| c == wanted));
+    let row = |app: &App, wanted: ServiceCommand| ServiceLabelId::Row(offer(app, |c| *c == wanted));
     for (command, label) in [
         (
             ServiceCommand::Heal { member: corin_id },
@@ -290,12 +293,12 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
         world(&app).party.members[0].id,
         world(&app).party.members[1].id,
     );
-    let brenna = offer(&app, |c| c == ServiceCommand::Train { member: brenna_id });
+    let brenna = offer(&app, |c| *c == ServiceCommand::Train { member: brenna_id });
     assert!(
         dim(&mut app, ServicePanelId::Offer(brenna)),
         "Brenna has no experience"
     );
-    let durin = offer(&app, |c| c == ServiceCommand::Train { member: durin_id });
+    let durin = offer(&app, |c| *c == ServiceCommand::Train { member: durin_id });
     assert_eq!(
         shown(&mut app, ServiceLabelId::Row(durin)),
         "Durin, level 1 to 2"
@@ -309,9 +312,9 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
 
     // The level owes one pick: healing word, guiding bolt or inflict wounds now.
     let pick = offer(&app, |c| {
-        c == ServiceCommand::Choose {
+        *c == ServiceCommand::Choose {
             member: durin_id,
-            spell: 5,
+            spell: "base:spell:healing_word".to_owned(),
         }
     });
     assert_eq!(
@@ -320,9 +323,9 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
     );
     assert_eq!(shown(&mut app, ServiceLabelId::Note(pick)), "free");
     let later = offer(&app, |c| {
-        c == ServiceCommand::Choose {
+        *c == ServiceCommand::Choose {
             member: durin_id,
-            spell: 8,
+            spell: "base:spell:spiritual_weapon".to_owned(),
         }
     });
     assert!(
@@ -347,9 +350,9 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
 
     enter(&mut app, "temple");
     let bolt = offer(&app, |c| {
-        c == ServiceCommand::Learn {
+        *c == ServiceCommand::Learn {
             member: durin_id,
-            spell: 3,
+            spell: "base:spell:guiding_bolt".to_owned(),
         }
     });
     assert_eq!(
@@ -381,7 +384,10 @@ fn buttons_are_clicked_and_a_refused_one_is_dim() {
     let mut app = town("service-pointer.ron");
     enter(&mut app, "smith");
     let stores = world(&app).party.inventory.len();
-    let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 0, .. }));
+    let buy = offer(
+        &app,
+        |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:dagger"),
+    );
     let price = view(&app).offers[buy].price.unwrap();
     let before = gold(&app);
     let button = control(&mut app, ServicePanelId::Offer(buy));
@@ -546,7 +552,10 @@ fn the_panels_lie_inside_the_map_at_both_window_sizes() {
         .hp -= 3;
     enter(&mut app, "smith");
     for _ in 0..3 {
-        let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 1, .. }));
+        let buy = offer(
+            &app,
+            |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:handaxe"),
+        );
         activate(&mut app, ServicePanelId::Offer(buy));
     }
     // The smith's two lists each scroll on their own.

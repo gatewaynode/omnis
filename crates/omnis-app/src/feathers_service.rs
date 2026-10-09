@@ -131,12 +131,12 @@ fn bank_row() -> impl Scene {
 
 /// The lists a kind of service shows, each a title and its offers by index.
 fn lists(view: &ServiceView, rows: &[OfferRow]) -> Vec<(&'static str, Vec<(usize, &'static str)>)> {
-    let pick = |wanted: fn(ServiceCommand) -> bool| -> Vec<(usize, &'static str)> {
+    let pick = |wanted: fn(&ServiceCommand) -> bool| -> Vec<(usize, &'static str)> {
         view.offers
             .iter()
             .zip(rows)
             .enumerate()
-            .filter(|(_, (offer, _))| wanted(offer.command))
+            .filter(|(_, (offer, _))| wanted(&offer.command))
             .map(|(index, (_, row))| (index, row.caption))
             .collect()
     };
