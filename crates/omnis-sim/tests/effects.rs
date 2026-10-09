@@ -6,7 +6,7 @@
 mod common;
 
 use common::{act, data, encounter, party_of, six, world};
-use omnis_core::{Direction, Facing, StreamName};
+use omnis_core::{CharacterId, Direction, Facing, StreamName};
 use omnis_data::{Ability, BuffOn, Data, Disposition};
 use omnis_sim::omnis_rules::{
     ActionRef, ActiveEffect, Criteria, CriteriaSet, EffectKind, Expiry, Predicate, Trigger,
@@ -23,8 +23,9 @@ const CLERIC: usize = 1;
 const WIZARD: usize = 2;
 const ROGUE: usize = 3;
 
-const fn slot(index: usize) -> Target {
-    Target::Member(index as u8)
+/// The member standing in `index` of the marching order, as a target.
+fn slot(world: &World, index: usize) -> Target {
+    Target::Member(world.party.members[index].id)
 }
 
 fn dev_world(data: &Data, seed: u64) -> World {
@@ -68,7 +69,7 @@ fn explore_cast(
         world,
         data,
         Command::Cast {
-            caster: u8::try_from(caster).unwrap(),
+            caster: world.party.members[caster].id,
             spell,
             target,
         },
@@ -170,12 +171,13 @@ fn bless_fans_out_from_the_anchor_and_adds_its_die() {
     start_fight(&mut world, &data, &[("goblin", 2)]);
     assert!(until_turn_of(&mut world, &data, CLERIC));
     let bless = spell_index(&world, &data, CLERIC, "bless");
+    let anchor = slot(&world, 4);
     let events = act(
         &mut world,
         &data,
         Command::Combat(CombatCommand::Cast {
             spell: bless,
-            target: Target::Member(4),
+            target: anchor,
             pay: Pay::Action,
         }),
     )
@@ -226,7 +228,8 @@ fn guidance_is_spent_by_the_next_check_and_concentration_is_one_per_caster() {
     let data = data();
     let mut world = dev_world(&data, 3);
     party_of(&mut world, &data, 6);
-    let events = explore_cast(&mut world, &data, CLERIC, "bless", Target::Member(0));
+    let first = slot(&world, 0);
+    let events = explore_cast(&mut world, &data, CLERIC, "bless", first);
     assert_eq!(
         events
             .iter()
@@ -234,7 +237,8 @@ fn guidance_is_spent_by_the_next_check_and_concentration_is_one_per_caster() {
             .count(),
         3
     );
-    let events = explore_cast(&mut world, &data, CLERIC, "guidance", slot(ROGUE));
+    let rogue = slot(&world, ROGUE);
+    let events = explore_cast(&mut world, &data, CLERIC, "guidance", rogue);
     assert!(events.iter().any(|e| matches!(
         e,
         Event::Concentration { spell, ended: true, .. } if *spell == spell_id(&data, "bless")
@@ -315,7 +319,7 @@ fn damage_breaks_concentration_on_a_failed_constitution_save() {
             &data,
             Command::Combat(CombatCommand::Cast {
                 spell: bless,
-                target: slot(CLERIC),
+                target: Target::Member(durin),
                 pay: Pay::Action,
             }),
         )
@@ -381,9 +385,10 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
         world.party.members[0].hp_max = 100;
         world.party.members[0].hp = 100;
         let shield = spell_index(&world, &data, 0, "shield");
+        let ilvara = world.party.members[0].id;
         let declare = |name: &str| {
             Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
-                member: 0,
+                member: ilvara,
                 at: None,
                 set: CriteriaSet {
                     name: "Ward off".to_owned(),
@@ -410,7 +415,7 @@ fn shield_reacts_only_when_it_turns_a_hit_into_a_miss() {
         }
         let cast = Command::Combat(CombatCommand::Cast {
             spell: shield,
-            target: Target::Member(0),
+            target: Target::Member(ilvara),
             pay: Pay::Action,
         });
         assert_eq!(
@@ -506,7 +511,8 @@ fn light_lifts_the_dungeon_depth_until_it_fades() {
     assert_eq!(view.visibility_depth, 6);
     assert!(view.tiles.iter().all(|t| t.depth <= 6));
     let lit_at = world.party_clock().elapsed;
-    let events = explore_cast(&mut world, &data, WIZARD, "light", slot(WIZARD));
+    let wizard = slot(&world, WIZARD);
+    let events = explore_cast(&mut world, &data, WIZARD, "light", wizard);
     assert!(events.iter().any(|e| matches!(
         e,
         Event::EffectApplied {
@@ -568,7 +574,8 @@ fn light_lifts_the_dungeon_depth_until_it_fades() {
     assert!(world.party.effects.is_empty());
     let mut meadow = common::world(&data);
     party_of(&mut meadow, &data, 6);
-    explore_cast(&mut meadow, &data, WIZARD, "light", Target::Member(0));
+    let first = slot(&meadow, 0);
+    explore_cast(&mut meadow, &data, WIZARD, "light", first);
     assert_eq!(
         query::viewport(&meadow, &data).unwrap().visibility_depth,
         12,
@@ -582,8 +589,10 @@ fn mage_hand_toggles_the_first_door_ahead() {
     let mut world = dev_world(&data, 1);
     party_of(&mut world, &data, 6);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    let hand =
-        |world: &mut World| explore_cast(world, &data, WIZARD, "mage_hand", Target::Member(0));
+    let hand = |world: &mut World| {
+        let first = slot(world, 0);
+        explore_cast(world, &data, WIZARD, "mage_hand", first)
+    };
     teleport(&mut world, &data, 9, 2, Facing::South);
     let events = hand(&mut world);
     assert!(
@@ -664,7 +673,8 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
     brenna.hp = 0;
     brenna.conditions.push(unconscious);
     let clock = world.party_clock().elapsed;
-    let events = explore_cast(&mut world, &data, CLERIC, "cure_wounds", Target::Member(0));
+    let first = slot(&world, 0);
+    let events = explore_cast(&mut world, &data, CLERIC, "cure_wounds", first);
     assert!(
         world.party.members[0].hp > 0 && world.party.members[0].conditions.is_empty(),
         "up again outside a fight"
@@ -682,10 +692,11 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
         );
         assert_eq!(*world, before, "{command:?} changed the world");
     };
+    let ids = world.party.ids();
     refuse(
         &mut world,
         Command::Cast {
-            caster: 2,
+            caster: ids[2],
             spell: missile,
             target: Target::Stack(0),
         },
@@ -695,7 +706,7 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
     refuse(
         &mut world,
         Command::Cast {
-            caster: 1,
+            caster: ids[1],
             spell: cure,
             target: Target::Stack(0),
         },
@@ -704,17 +715,19 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
     refuse(
         &mut world,
         Command::Cast {
-            caster: 9,
+            caster: CharacterId(9),
             spell: 0,
-            target: Target::Member(0),
+            target: Target::Member(ids[0]),
         },
-        Rejection::NoSuchMember { index: 9 },
+        Rejection::NoSuchMember {
+            member: CharacterId(9),
+        },
     );
     refuse(
         &mut world,
         Command::Combat(CombatCommand::Cast {
             spell: cure,
-            target: Target::Member(0),
+            target: Target::Member(ids[0]),
             pay: Pay::Action,
         }),
         Rejection::WrongMode,
@@ -726,12 +739,12 @@ fn casting_outside_a_fight_heals_costs_minutes_and_refuses_the_impossible() {
             &mut down,
             &data,
             Command::Cast {
-                caster: 1,
+                caster: ids[1],
                 spell: cure,
-                target: Target::Member(0)
+                target: Target::Member(ids[0])
             }
         ),
-        Err(Rejection::MemberDown { index: 1 })
+        Err(Rejection::MemberDown { member: ids[1] })
     );
 }
 
@@ -748,9 +761,9 @@ fn casts_replay() {
         Command::Party(PartyCommand::Create(six().remove(0))),
         Command::Party(PartyCommand::Create(six().remove(1))),
         Command::Cast {
-            caster: 1,
+            caster: world.party.members[CLERIC].id,
             spell: spell_index(&world, &data, CLERIC, "bless"),
-            target: Target::Member(0),
+            target: Target::Member(world.party.members[0].id),
         },
         Command::Step(Direction::Forward),
     ];

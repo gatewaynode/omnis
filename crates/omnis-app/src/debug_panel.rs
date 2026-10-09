@@ -180,11 +180,6 @@ impl DebugForm {
         clamp(&mut self.map, view.maps.len());
         clamp(&mut self.stack, view.stacks.len());
     }
-
-    /// The member's slot as the commands want it.
-    fn slot(&self) -> u8 {
-        u8::try_from(self.member).unwrap_or(u8::MAX)
-    }
 }
 
 /// `n` as the command's integer type, saturating at its ends.
@@ -299,32 +294,36 @@ pub fn apply(
             return None;
         }
         P::Hp => DevCommand::SetHp {
-            member: form.slot(),
+            member: member?.id,
             hp: fit(committed?),
         },
         P::Sp => DevCommand::SetSpellPoints {
-            member: form.slot(),
+            member: member?.id,
             points: fit(committed?),
         },
         P::Xp => DevCommand::SetXp {
-            member: form.slot(),
+            member: member?.id,
             xp: fit(committed?),
         },
         P::Score(at) => DevCommand::SetScore {
-            member: form.slot(),
+            member: member?.id,
             ability: *Ability::ALL.get(at)?,
             score: fit(committed?),
         },
         P::Toggle if activated => {
             let (condition, _) = view.conditions.get(form.condition)?;
             DevCommand::SetCondition {
-                member: form.slot(),
+                member: member?.id,
                 applied: !member?.conditions.contains(condition),
                 condition: condition.clone(),
             }
         }
         P::GiveMember | P::GiveStores if activated => DevCommand::GiveItem {
-            member: (id == P::GiveMember).then(|| form.slot()),
+            member: if id == P::GiveMember {
+                Some(member?.id)
+            } else {
+                None
+            },
             item: view.items.get(form.item)?.0.clone(),
             count: form.count,
         },
@@ -474,11 +473,15 @@ mod tests {
         let (world, data) = world_and_data();
         let view = debug_view(&world, &data);
         let mut form = DebugForm::open(&view);
+        let first = world.party.members[0].id;
         let mut put = |id, payload: Payload| apply(id, &payload, &view, &mut form);
         assert_eq!(put(DebugPanelId::Hp, Payload::Number(12)), None, "typing");
         assert_eq!(
             put(DebugPanelId::Hp, Payload::Commit(120)),
-            Some(DebugAsk::Send(DevCommand::SetHp { member: 0, hp: 120 })),
+            Some(DebugAsk::Send(DevCommand::SetHp {
+                member: first,
+                hp: 120
+            })),
             "above the maximum"
         );
         assert_eq!(
@@ -489,7 +492,7 @@ mod tests {
         assert_eq!(
             put(DebugPanelId::Score(2), Payload::Commit(300)),
             Some(DebugAsk::Send(DevCommand::SetScore {
-                member: 0,
+                member: first,
                 ability: Ability::Constitution,
                 score: 255
             })),
@@ -522,12 +525,13 @@ mod tests {
         let view = debug_view(&world, &data);
         let mut form = DebugForm::open(&view);
         assert_eq!(form.tile, (view.position.1, view.position.2));
+        let first = world.party.members[0].id;
         let mut put = |id, payload: Payload| apply(id, &payload, &view, &mut form);
         put(DebugPanelId::Item(1), Payload::Activate);
         assert_eq!(
             put(DebugPanelId::GiveMember, Payload::Activate),
             Some(DebugAsk::Send(DevCommand::GiveItem {
-                member: Some(0),
+                member: Some(first),
                 item: view.items[1].0.clone(),
                 count: 1
             }))
@@ -536,7 +540,7 @@ mod tests {
         assert_eq!(
             put(DebugPanelId::Toggle, Payload::Activate),
             Some(DebugAsk::Send(DevCommand::SetCondition {
-                member: 0,
+                member: first,
                 condition: view.conditions[2].0.clone(),
                 applied: true
             }))

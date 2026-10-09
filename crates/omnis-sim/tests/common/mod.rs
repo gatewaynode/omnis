@@ -1,12 +1,13 @@
 //! Shared setup for the simulation's integration tests: real pack data, no mocks.
 #![allow(dead_code)]
 
-use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
+use omnis_core::{CharacterId, Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
     ActorRef, CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event,
-    Mode, ModeKind, PartyCommand, Rejection, Settings, Stack, World, apply, combat_view,
+    Mode, ModeKind, PartyCommand, Rejection, Settings, Stack, Word, World, apply, combat_view,
+    parse_script,
 };
 use std::path::PathBuf;
 
@@ -239,6 +240,48 @@ pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>
         events.extend(settle(world, data, &mut commands));
     }
     (commands, events)
+}
+
+/// The ids of a party of six created in order, in marching order: what a script word's slots
+/// resolve against in the tests that only check a word's syntax.
+pub const IDS: [CharacterId; 6] = [
+    CharacterId(0),
+    CharacterId(1),
+    CharacterId(2),
+    CharacterId(3),
+    CharacterId(4),
+    CharacterId(5),
+];
+
+/// One script word as a command for [`IDS`]; `None` when it is not a word.
+pub fn word(text: &str) -> Option<Command> {
+    Word::parse(text).and_then(|w| w.command(&IDS))
+}
+
+/// A script as commands for this party as it stands now: each word's slots resolved against
+/// the members' ids in marching order.
+pub fn script(world: &World, text: &str) -> Vec<Command> {
+    let ids = world.party.ids();
+    parse_script(text)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .iter()
+        .map(|w| {
+            w.command(&ids)
+                .unwrap_or_else(|| panic!("{w}: no such member"))
+        })
+        .collect()
+}
+
+/// A script as commands for [`IDS`].
+pub fn script_for_six(text: &str) -> Vec<Command> {
+    parse_script(text)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .iter()
+        .map(|w| {
+            w.command(&IDS)
+                .unwrap_or_else(|| panic!("{w}: no such member"))
+        })
+        .collect()
 }
 
 /// Where each service stands in the test town.

@@ -4,11 +4,10 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, world};
-use omnis_core::{Direction, Facing, Position};
+use common::{act, data, encounter, party_of, script_for_six, word, world};
+use omnis_core::{CharacterId, Direction, Facing, Position};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::omnis_rules::{RollMode, condition_id};
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, CombatOutcome, Command, Event, LoadError, Mode, ModeKind,
@@ -186,8 +185,12 @@ fn rejections_leave_the_world_untouched() {
     );
     refuse(
         &mut world,
-        CombatCommand::Exchange { with: 9 },
-        Rejection::NoSuchMember { index: 9 },
+        CombatCommand::Exchange {
+            with: CharacterId(9),
+        },
+        Rejection::NoSuchMember {
+            member: CharacterId(9),
+        },
     );
     let view = combat_view(&world, &data).unwrap();
     let Some(ActorRef::Member(id)) = view.current else {
@@ -196,9 +199,7 @@ fn rejections_leave_the_world_untouched() {
     let own = world.party.members.iter().position(|m| m.id == id).unwrap();
     refuse(
         &mut world,
-        CombatCommand::Exchange {
-            with: u8::try_from(own).unwrap(),
-        },
+        CombatCommand::Exchange { with: id },
         Rejection::SameMember,
     );
     if own < 3 {
@@ -312,9 +313,7 @@ fn exchange_swaps_two_slots() {
     let events = act(
         &mut world,
         &data,
-        Command::Combat(CombatCommand::Exchange {
-            with: u8::try_from(with).unwrap(),
-        }),
+        Command::Combat(CombatCommand::Exchange { with: other }),
     )
     .unwrap();
     assert_eq!(
@@ -598,22 +597,27 @@ fn the_protocol_reports_the_fight() {
     };
     assert_eq!(status.mode, ModeKind::Combat);
     assert_eq!(
-        parse_script("attack, attack-1, dodge, swap-3, flee").unwrap(),
+        script_for_six("attack, attack-1, dodge, swap-3, flee"),
         [
             Command::Combat(CombatCommand::Attack { stack: 0 }),
             Command::Combat(CombatCommand::Attack { stack: 1 }),
             Command::Combat(CombatCommand::Dodge),
-            Command::Combat(CombatCommand::Exchange { with: 3 }),
+            Command::Combat(CombatCommand::Exchange {
+                with: CharacterId(3)
+            }),
             Command::Combat(CombatCommand::Run),
         ]
     );
-    assert_eq!(Command::from_word("attack-256"), None);
+    assert_eq!(word("attack-256"), None);
     assert_eq!(
         Command::Combat(CombatCommand::Attack { stack: 2 }).word(),
         "attack"
     );
     assert_eq!(
-        Command::Combat(CombatCommand::Exchange { with: 1 }).word(),
+        Command::Combat(CombatCommand::Exchange {
+            with: CharacterId(1)
+        })
+        .word(),
         "swap"
     );
 }

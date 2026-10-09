@@ -8,6 +8,7 @@ use crate::command::Rejection;
 use crate::event::Event;
 use crate::world::World;
 use alloc::vec::Vec;
+use omnis_core::CharacterId;
 use omnis_data::{Cost, Data, SpellEffect};
 use omnis_rules::tactics::{LIBRARY_SETS, RUNBOOK_ENTRIES};
 use omnis_rules::{ActionRef, Character, Criteria, CriteriaSet, Predicate, TacticsFault, Trigger};
@@ -19,7 +20,7 @@ pub enum TacticsCommand {
     /// Switch the member's reactions on or off; any time, in a fight too.
     SetReactions {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// On or off.
         on: bool,
     },
@@ -27,7 +28,7 @@ pub enum TacticsCommand {
     /// runbook, replacing the entry at `at` or after the last.
     PutReaction {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The entry to replace; `None` appends.
         at: Option<u8>,
         /// The trigger, the criteria and the action.
@@ -36,7 +37,7 @@ pub enum TacticsCommand {
     /// Remove an entry from the default runbook; the library keeps the set.
     RemoveReaction {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The entry.
         at: u8,
     },
@@ -57,16 +58,13 @@ pub(crate) fn apply(
     command: &TacticsCommand,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let slot = match command {
+    let id = match command {
         TacticsCommand::SetReactions { member, .. }
         | TacticsCommand::PutReaction { member, .. }
         | TacticsCommand::RemoveReaction { member, .. } => *member,
     };
-    let member = world
-        .party
-        .members
-        .get_mut(usize::from(slot))
-        .ok_or(Rejection::NoSuchMember { index: slot })?;
+    let slot = world.party.slot_of(id)?;
+    let member = &mut world.party.members[usize::from(slot)];
     match command {
         TacticsCommand::SetReactions { on, .. } => {
             member.tactics.reactions_on = *on;

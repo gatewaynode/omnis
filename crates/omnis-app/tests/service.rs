@@ -210,16 +210,23 @@ fn every_offer_sends_what_the_view_promised() {
         .members[1]
         .hp -= 3;
     enter(&mut app, "temple");
-    let heal = offer(&app, |c| c == ServiceCommand::Heal { member: 1 });
+    let corin_id = world(&app).party.members[1].id;
+    let heal = offer(&app, |c| c == ServiceCommand::Heal { member: corin_id });
     activate(&mut app, ServicePanelId::Offer(heal));
     let corin = &world(&app).party.members[1];
     assert_eq!(corin.hp, corin.hp_max);
     assert!(logged(&app, "Corin is treated for"));
     let row = |app: &App, wanted: ServiceCommand| ServiceLabelId::Row(offer(app, |c| c == wanted));
     for (command, label) in [
-        (ServiceCommand::Heal { member: 1 }, "Corin, 12 of 12 HP"),
-        (ServiceCommand::Cure { member: 1 }, "Corin, no conditions"),
-        (ServiceCommand::Raise { member: 1 }, "Corin, alive"),
+        (
+            ServiceCommand::Heal { member: corin_id },
+            "Corin, 12 of 12 HP",
+        ),
+        (
+            ServiceCommand::Cure { member: corin_id },
+            "Corin, no conditions",
+        ),
+        (ServiceCommand::Raise { member: corin_id }, "Corin, alive"),
     ] {
         let id = row(&app, command);
         assert_eq!(shown(&mut app, id), label);
@@ -279,12 +286,16 @@ fn dim(app: &mut App, id: ServicePanelId) -> bool {
 fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
     let mut app = town_with_a_cleric("service-trainer.ron");
     enter(&mut app, "trainer");
-    let brenna = offer(&app, |c| c == ServiceCommand::Train { member: 0 });
+    let (brenna_id, durin_id) = (
+        world(&app).party.members[0].id,
+        world(&app).party.members[1].id,
+    );
+    let brenna = offer(&app, |c| c == ServiceCommand::Train { member: brenna_id });
     assert!(
         dim(&mut app, ServicePanelId::Offer(brenna)),
         "Brenna has no experience"
     );
-    let durin = offer(&app, |c| c == ServiceCommand::Train { member: 1 });
+    let durin = offer(&app, |c| c == ServiceCommand::Train { member: durin_id });
     assert_eq!(
         shown(&mut app, ServiceLabelId::Row(durin)),
         "Durin, level 1 to 2"
@@ -299,7 +310,7 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
     // The level owes one pick: healing word, guiding bolt or inflict wounds now.
     let pick = offer(&app, |c| {
         c == ServiceCommand::Choose {
-            member: 1,
+            member: durin_id,
             spell: 5,
         }
     });
@@ -310,7 +321,7 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
     assert_eq!(shown(&mut app, ServiceLabelId::Note(pick)), "free");
     let later = offer(&app, |c| {
         c == ServiceCommand::Choose {
-            member: 1,
+            member: durin_id,
             spell: 8,
         }
     });
@@ -337,7 +348,7 @@ fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
     enter(&mut app, "temple");
     let bolt = offer(&app, |c| {
         c == ServiceCommand::Learn {
-            member: 1,
+            member: durin_id,
             spell: 3,
         }
     });

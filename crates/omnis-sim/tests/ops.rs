@@ -2,12 +2,11 @@
 
 mod common;
 
-use common::{data, world};
+use common::{data, script_for_six, word, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{parse, to_string};
-use omnis_sim::command::parse_script;
 use omnis_sim::ops::{MAX_SCRIPT, ShotTarget};
-use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch};
+use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch, parse_script};
 
 fn events(reply: Reply) -> Vec<Event> {
     match reply {
@@ -298,7 +297,7 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         }
     }
 
-    let script = parse_script("forward, turn-left  # to the west\n\nuse back\n").unwrap();
+    let script = script_for_six("forward, turn-left  # to the west\n\nuse back\n");
     assert_eq!(
         script,
         [
@@ -311,13 +310,9 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
     let error = parse_script("forward\nfly").unwrap_err();
     assert_eq!((error.line, error.word.as_str()), (2, "fly"));
     for command in script {
-        assert_eq!(Command::from_word(command.word()), Some(command));
+        assert_eq!(word(command.word()), Some(command));
     }
-    assert_eq!(
-        Command::from_word("party"),
-        None,
-        "party commands carry data"
-    );
+    assert_eq!(word("party"), None, "party commands carry data");
 }
 
 /// `time.clocks` names every clock and contact; `time.reconcile` is a dev command that a plain

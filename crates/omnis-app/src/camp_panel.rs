@@ -8,7 +8,8 @@
 use crate::service_panel::reason;
 use crate::ui_model::{Payload, whole};
 use omnis_sim::api::PartyView;
-use omnis_sim::omnis_core::fnv1a64;
+use omnis_sim::omnis_core::{CharacterId, fnv1a64};
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::{RestCommand, RestView};
 
 /// One control of the panel.
@@ -76,11 +77,13 @@ pub enum CampAsk {
     Close,
 }
 
-/// Apply one control's report. `view` is the camp as it is now.
+/// Apply one control's report. `view` is the camp as it is now, `ids` the party's ids in
+/// marching order (the view's members are in the same order).
 pub fn apply(
     id: CampPanelId,
     payload: &Payload,
     view: &RestView,
+    ids: &[CharacterId],
     form: &mut CampForm,
 ) -> Option<CampAsk> {
     form.fit(view);
@@ -92,9 +95,14 @@ pub fn apply(
             None
         }
         (CampPanelId::Short, Payload::Activate) if view.refusal.is_none() && form.spends() => {
-            Some(CampAsk::Rest(RestCommand::Short {
-                dice: form.dice.clone(),
-            }))
+            let dice = form
+                .dice
+                .iter()
+                .zip(ids)
+                .filter(|(count, _)| **count > 0)
+                .map(|(&count, &member)| HitDiceSpend { member, count })
+                .collect();
+            Some(CampAsk::Rest(RestCommand::Short { dice }))
         }
         (CampPanelId::Long, Payload::Activate) if view.long.is_none() => {
             Some(CampAsk::Rest(RestCommand::Long))
@@ -166,6 +174,9 @@ mod tests {
     use super::*;
     use omnis_sim::{CampMember, Rejection};
 
+    /// A party of three whose ids are not their slots, so a slot sent as an id shows.
+    const IDS: [CharacterId; 3] = [CharacterId(7), CharacterId(8), CharacterId(9)];
+
     fn member(hp: i32, dice_left: u8, spendable: u8) -> CampMember {
         CampMember {
             hp,
@@ -192,7 +203,13 @@ mod tests {
         let view = view();
         let mut form = CampForm::default();
         let slide = |form: &mut CampForm, slot, value| {
-            apply(CampPanelId::Dice(slot), &Payload::Slide(value), &view, form)
+            apply(
+                CampPanelId::Dice(slot),
+                &Payload::Slide(value),
+                &view,
+                &IDS,
+                form,
+            )
         };
         assert_eq!(slide(&mut form, 0, 9.0), None);
         assert_eq!(form.dice, vec![2, 0, 0], "held to two");
@@ -204,15 +221,30 @@ mod tests {
         assert_eq!(form.dice[0], 0, "not a number changes nothing");
         assert_eq!(slide(&mut form, 9, 1.0), None, "no such member");
         assert_eq!(
-            apply(CampPanelId::Short, &Payload::Activate, &view, &mut form),
+            apply(
+                CampPanelId::Short,
+                &Payload::Activate,
+                &view,
+                &IDS,
+                &mut form
+            ),
             None,
             "nothing chosen, nothing sent"
         );
         slide(&mut form, 0, 1.4);
         assert_eq!(
-            apply(CampPanelId::Short, &Payload::Activate, &view, &mut form),
+            apply(
+                CampPanelId::Short,
+                &Payload::Activate,
+                &view,
+                &IDS,
+                &mut form
+            ),
             Some(CampAsk::Rest(RestCommand::Short {
-                dice: vec![1, 0, 0]
+                dice: vec![HitDiceSpend {
+                    member: IDS[0],
+                    count: 1
+                }]
             }))
         );
     }
@@ -226,20 +258,44 @@ mod tests {
             message: String::new(),
         };
         assert_eq!(
-            apply(CampPanelId::Long, &Payload::Activate, &refused, &mut form),
+            apply(
+                CampPanelId::Long,
+                &Payload::Activate,
+                &refused,
+                &IDS,
+                &mut form
+            ),
             None
         );
         refused.refusal = Some(Rejection::WrongMode);
         assert_eq!(
-            apply(CampPanelId::Short, &Payload::Activate, &refused, &mut form),
+            apply(
+                CampPanelId::Short,
+                &Payload::Activate,
+                &refused,
+                &IDS,
+                &mut form
+            ),
             None
         );
         assert_eq!(
-            apply(CampPanelId::Long, &Payload::Activate, &view(), &mut form),
+            apply(
+                CampPanelId::Long,
+                &Payload::Activate,
+                &view(),
+                &IDS,
+                &mut form
+            ),
             Some(CampAsk::Rest(RestCommand::Long))
         );
         assert_eq!(
-            apply(CampPanelId::Close, &Payload::Activate, &refused, &mut form),
+            apply(
+                CampPanelId::Close,
+                &Payload::Activate,
+                &refused,
+                &IDS,
+                &mut form
+            ),
             Some(CampAsk::Close)
         );
     }

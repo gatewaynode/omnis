@@ -196,7 +196,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "cast_get",
             "cast.get",
-            "The spells each member may cast outside a fight: the caster's slot and the spell's row (the numbers a Cast command takes), the spell id, its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
+            "The spells each member may cast outside a fight: the caster's id and the spell's row (the numbers a Cast command takes), the spell id, its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
             &[],
         ),
         tool(

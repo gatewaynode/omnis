@@ -14,7 +14,7 @@ use crate::sense;
 use crate::world::World;
 use alloc::vec;
 use alloc::vec::Vec;
-use omnis_core::{Dice, ItemId};
+use omnis_core::{CharacterId, Dice, ItemId};
 use omnis_data::{Data, EquipSlot, SenseSource, UseEffect};
 use omnis_rules::{Character, EquipRefusal, RuleError};
 use serde::{Deserialize, Serialize};
@@ -33,23 +33,23 @@ pub enum ItemCommand {
     /// `don_armor_minutes`.
     Equip {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the member's kit.
         item: u8,
     },
     /// Empty a slot; the item stays carried. Armor takes `don_armor_minutes` to doff too.
     Unequip {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// Which slot.
         slot: EquipSlot,
     },
     /// Hand items from one member's kit to another's.
     Give {
         /// The giver's slot.
-        from: u8,
+        from: CharacterId,
         /// The receiver's slot.
-        to: u8,
+        to: CharacterId,
         /// The row of the giver's kit.
         item: u8,
         /// How many; at least one.
@@ -58,7 +58,7 @@ pub enum ItemCommand {
     /// Put items from a member's kit into the party's stores.
     Stow {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the member's kit.
         item: u8,
         /// How many; at least one.
@@ -67,7 +67,7 @@ pub enum ItemCommand {
     /// Take items from the stores into a member's kit.
     Take {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the stores.
         item: u8,
         /// How many; at least one.
@@ -77,11 +77,11 @@ pub enum ItemCommand {
     /// none is named. A consumable loses one count.
     Use {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the member's kit.
         item: u8,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<u8>,
+        target: Option<CharacterId>,
     },
 }
 
@@ -187,25 +187,20 @@ fn minutes(data: &Data, key: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
-/// A member by slot.
-fn member_index(world: &World, index: u8) -> Result<usize, Rejection> {
-    let own = usize::from(index);
-    if own < world.party.members.len() {
-        Ok(own)
-    } else {
-        Err(Rejection::NoSuchMember { index })
-    }
+/// A member's slot.
+fn member_index(world: &World, member: CharacterId) -> Result<usize, Rejection> {
+    world.party.slot_of(member).map(usize::from)
 }
 
-/// A member by slot who can act: alive and up.
-fn actor(world: &World, data: &Data, index: u8) -> Result<usize, Rejection> {
-    let own = member_index(world, index)?;
-    let member = &world.party.members[own];
-    if state::is_dead(member, data) {
-        return Err(Rejection::MemberDead { index });
+/// The slot of a member who can act: alive and up.
+fn actor(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
+    let own = member_index(world, member)?;
+    let m = &world.party.members[own];
+    if state::is_dead(m, data) {
+        return Err(Rejection::MemberDead { member });
     }
-    if member.is_down() {
-        return Err(Rejection::MemberDown { index });
+    if m.is_down() {
+        return Err(Rejection::MemberDown { member });
     }
     Ok(own)
 }
@@ -239,7 +234,7 @@ fn don(world: &mut World, data: &Data, slot: EquipSlot, events: &mut Vec<Event>)
 fn equip(
     world: &mut World,
     data: &Data,
-    member: u8,
+    member: CharacterId,
     item: u8,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -267,7 +262,7 @@ fn equip(
 fn unequip(
     world: &mut World,
     data: &Data,
-    member: u8,
+    member: CharacterId,
     slot: EquipSlot,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -365,7 +360,7 @@ pub(crate) fn validate_use(
     data: &Data,
     own: usize,
     item: u8,
-    target: Option<u8>,
+    target: Option<CharacterId>,
     fight: bool,
 ) -> Result<UsePlan, Rejection> {
     let id =
@@ -379,10 +374,10 @@ pub(crate) fn validate_use(
     };
     let slot = match kind {
         UseKind::Heal(_) => {
-            let index = target.unwrap_or(u8::try_from(own).unwrap_or(u8::MAX));
-            let slot = member_index(world, index)?;
+            let member = target.unwrap_or(world.party.members[own].id);
+            let slot = member_index(world, member)?;
             if state::is_dead(&world.party.members[slot], data) {
-                return Err(Rejection::TargetDead { index });
+                return Err(Rejection::TargetDead { member });
             }
             slot
         }

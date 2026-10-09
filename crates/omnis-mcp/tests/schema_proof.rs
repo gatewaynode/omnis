@@ -6,12 +6,13 @@
 //! the schema has a branch for it. The validator covers the keywords the schema uses and refuses
 //! any other, so a new keyword cannot pass unread.
 
+use omnis_cli::omnis_sim::omnis_core::{CharacterId, ItemId, SpellId};
 use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
-use omnis_cli::omnis_sim::omnis_core::{ItemId, SpellId};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::{
     ActionRef, Cmp, Criteria, CriteriaSet, Draft, Predicate, Trigger, Who,
 };
+use omnis_cli::omnis_sim::rest::HitDiceSpend;
 use omnis_cli::omnis_sim::tactics::TacticsCommand;
 use omnis_cli::omnis_sim::{
     CombatCommand, Command, DevCommand, EncounterChoice, FeatureChoice, ItemCommand, PartyCommand,
@@ -194,10 +195,12 @@ fn next_party(command: &PartyCommand) -> Option<PartyCommand> {
     Some(match command {
         PartyCommand::Create(made) => match after(&Alignment::ALL, made.alignment) {
             Some(alignment) => PartyCommand::Create(draft(alignment)),
-            None => PartyCommand::Reorder { order: vec![1, 0] },
+            None => PartyCommand::Reorder {
+                order: vec![CharacterId(1), CharacterId(0)],
+            },
         },
         PartyCommand::Reorder { .. } => PartyCommand::Tactics(TacticsCommand::SetReactions {
-            member: 0,
+            member: CharacterId(0),
             on: false,
         }),
         PartyCommand::Tactics(command) => PartyCommand::Tactics(next_tactics(command)?),
@@ -224,7 +227,7 @@ fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
             })])
         };
         TacticsCommand::PutReaction {
-            member: 1,
+            member: CharacterId(1),
             at: (i > 0).then(|| u8::try_from(i - 1).unwrap()),
             set: CriteriaSet {
                 name: format!("Set {i}"),
@@ -241,7 +244,10 @@ fn next_tactics(command: &TacticsCommand) -> Option<TacticsCommand> {
             if i < Trigger::ALL.len() {
                 put(i)
             } else {
-                TacticsCommand::RemoveReaction { member: 1, at: 0 }
+                TacticsCommand::RemoveReaction {
+                    member: CharacterId(1),
+                    at: 0,
+                }
             }
         }
         TacticsCommand::RemoveReaction { .. } => return None,
@@ -259,19 +265,21 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
         CombatCommand::Cast { target, .. } => match target {
             Target::Stack(_) => CombatCommand::Cast {
                 spell,
-                target: Target::Member(1),
+                target: Target::Member(CharacterId(1)),
                 pay: Pay::BonusAction,
             },
             Target::Member(_) => CombatCommand::Use {
                 item,
-                target: Some(4),
+                target: Some(CharacterId(4)),
             },
         },
         CombatCommand::Use {
             target: Some(_), ..
         } => CombatCommand::Use { item, target: None },
         CombatCommand::Use { target: None, .. } => CombatCommand::Dodge,
-        CombatCommand::Dodge => CombatCommand::Exchange { with: 5 },
+        CombatCommand::Dodge => CombatCommand::Exchange {
+            with: CharacterId(5),
+        },
         CombatCommand::Exchange { .. } => CombatCommand::Run,
         CombatCommand::Run => CombatCommand::Feature {
             feature: 0,
@@ -280,7 +288,9 @@ fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
         CombatCommand::Feature { choice, .. } => match choice {
             FeatureChoice::None => CombatCommand::Feature {
                 feature: 1,
-                choice: FeatureChoice::Exchange { with: 2 },
+                choice: FeatureChoice::Exchange {
+                    with: CharacterId(2),
+                },
             },
             FeatureChoice::Exchange { .. } => CombatCommand::Feature {
                 feature: 1,
@@ -302,7 +312,7 @@ fn next_slot(slot: EquipSlot) -> Option<EquipSlot> {
 }
 
 fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
-    let (member, item, count) = (0, 1, 2);
+    let (member, item, count) = (CharacterId(0), 1, 2);
     Some(match command {
         ItemCommand::Equip { .. } => ItemCommand::Unequip {
             member,
@@ -311,8 +321,8 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
         ItemCommand::Unequip { slot, .. } => match next_slot(*slot) {
             Some(slot) => ItemCommand::Unequip { member, slot },
             None => ItemCommand::Give {
-                from: 0,
-                to: 1,
+                from: CharacterId(0),
+                to: CharacterId(1),
                 item,
                 count,
             },
@@ -330,7 +340,7 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
         ItemCommand::Take { .. } => ItemCommand::Use {
             member,
             item,
-            target: Some(1),
+            target: Some(CharacterId(1)),
         },
         ItemCommand::Use {
             target: Some(_), ..
@@ -363,13 +373,13 @@ fn teleport(facing: Facing) -> DevCommand {
 
 fn set_score(ability: Ability) -> DevCommand {
     DevCommand::SetScore {
-        member: 0,
+        member: CharacterId(0),
         ability,
         score: 18,
     }
 }
 
-fn give(member: Option<u8>) -> DevCommand {
+fn give(member: Option<CharacterId>) -> DevCommand {
     DevCommand::GiveItem {
         member,
         item: "base:item:gem".into(),
@@ -378,7 +388,7 @@ fn give(member: Option<u8>) -> DevCommand {
 }
 
 fn next_dev(command: &DevCommand) -> Option<DevCommand> {
-    let member = 0;
+    let member = CharacterId(0);
     Some(match command {
         DevCommand::GiveItem {
             member: Some(_), ..
@@ -445,7 +455,7 @@ fn next_encounter(choice: EncounterChoice) -> Command {
 }
 
 fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
-    let (member, item, count, amount) = (1, 2, 3, 250);
+    let (member, item, count, amount) = (CharacterId(1), 2, 3, 250);
     Some(match command {
         ServiceCommand::Leave => ServiceCommand::Room,
         ServiceCommand::Room => ServiceCommand::Rumor,
@@ -474,7 +484,7 @@ fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
 /// and in the helpers is exhaustive: a new variant gets an arm, and a link from its neighbour.
 fn next(command: &Command) -> Option<Command> {
     let cast = |target| Command::Cast {
-        caster: 0,
+        caster: CharacterId(0),
         spell: 1,
         target,
     };
@@ -490,20 +500,32 @@ fn next(command: &Command) -> Option<Command> {
             next_combat(combat).map_or(cast(Target::Stack(2)), Command::Combat)
         }
         Command::Cast { target, .. } => match target {
-            Target::Stack(_) => cast(Target::Member(3)),
-            Target::Member(_) => Command::Item(ItemCommand::Equip { member: 0, item: 1 }),
+            Target::Stack(_) => cast(Target::Member(CharacterId(3))),
+            Target::Member(_) => Command::Item(ItemCommand::Equip {
+                member: CharacterId(0),
+                item: 1,
+            }),
         },
         Command::Item(item) => {
             next_item(item).map_or(Command::Service(ServiceCommand::Leave), Command::Item)
         }
         Command::Service(service) => next_service(*service).map_or(
             Command::Rest(RestCommand::Short {
-                dice: vec![1, 0, 2],
+                dice: vec![
+                    HitDiceSpend {
+                        member: CharacterId(0),
+                        count: 1,
+                    },
+                    HitDiceSpend {
+                        member: CharacterId(2),
+                        count: 2,
+                    },
+                ],
             }),
             Command::Service,
         ),
         Command::Rest(RestCommand::Short { .. }) => Command::Rest(RestCommand::Long),
-        Command::Rest(RestCommand::Long) => Command::Dev(give(Some(0))),
+        Command::Rest(RestCommand::Long) => Command::Dev(give(Some(CharacterId(0)))),
         Command::Dev(dev) => return next_dev(dev).map(Command::Dev),
     })
 }

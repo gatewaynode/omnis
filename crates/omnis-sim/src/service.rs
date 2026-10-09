@@ -16,7 +16,7 @@ use crate::service_level;
 use crate::world::{Mode, World};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use omnis_core::{ItemId, ServiceId, SpellId};
+use omnis_core::{CharacterId, ItemId, ServiceId, SpellId};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Data, ServiceDef, ServiceKind};
 use omnis_rules::{Character, Gains, RuleError};
@@ -53,17 +53,17 @@ pub enum ServiceCommand {
     /// A living member back to full hit points; a temple.
     Heal {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
     },
     /// Every condition but death and unconsciousness removed; a temple.
     Cure {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
     },
     /// A dead member back at one hit point; a temple.
     Raise {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
     },
     /// Items from the stock into the party's stores; a smith.
     Buy {
@@ -92,19 +92,19 @@ pub enum ServiceCommand {
     /// The member's next level, for a fee; a trainer.
     Train {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
     },
     /// A spell owed by a level onto the member's list, free; a trainer.
     Choose {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the member's class list.
         spell: u8,
     },
     /// A spell bought onto the member's list; a guild or a temple.
     Learn {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The row of the service's spells.
         spell: u8,
     },
@@ -314,7 +314,7 @@ pub(crate) fn quote(
             let index = living_or_dead(world, member)?;
             let who = &world.party.members[index];
             if !is_dead(who, data) {
-                return Err(Rejection::NotDead { index: member });
+                return Err(Rejection::NotDead { member });
             }
             let level = [("level", who.level.into())];
             let cost = price(data, "temple.raise_cost", &level, roller)?;
@@ -393,7 +393,7 @@ fn temple(
     world: &World,
     data: &Data,
     command: ServiceCommand,
-    member: u8,
+    member: CharacterId,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
     let index = alive(world, data, member)?;
@@ -401,7 +401,7 @@ fn temple(
     if let ServiceCommand::Heal { .. } = command {
         let missing = who.hp_max - who.hp;
         if missing <= 0 {
-            return Err(Rejection::NothingToTreat { index: member });
+            return Err(Rejection::NothingToTreat { member });
         }
         let cost = price(
             data,
@@ -416,7 +416,7 @@ fn temple(
         });
     }
     if curable(who, data).next().is_none() {
-        return Err(Rejection::NothingToTreat { index: member });
+        return Err(Rejection::NothingToTreat { member });
     }
     let cost = price(data, "temple.cure_cost", &[], roller)?;
     Ok(Deal::Cure { index, cost })
@@ -652,23 +652,18 @@ fn list_price(data: &Data, item: ItemId) -> i64 {
     data.items.get(&item).map_or(0, |i| i64::from(i.cost_cp))
 }
 
-/// A member's index by slot, refused when they are dead.
-fn alive(world: &World, data: &Data, member: u8) -> Result<usize, Rejection> {
+/// A member's slot, refused when they are dead.
+pub(crate) fn alive(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
     let index = living_or_dead(world, member)?;
     if is_dead(&world.party.members[index], data) {
-        return Err(Rejection::MemberDead { index: member });
+        return Err(Rejection::MemberDead { member });
     }
     Ok(index)
 }
 
-/// A member's index by slot, alive or dead.
-fn living_or_dead(world: &World, member: u8) -> Result<usize, Rejection> {
-    let index = usize::from(member);
-    if index < world.party.members.len() {
-        Ok(index)
-    } else {
-        Err(Rejection::NoSuchMember { index: member })
-    }
+/// A member's slot, alive or dead.
+fn living_or_dead(world: &World, member: CharacterId) -> Result<usize, Rejection> {
+    world.party.slot_of(member).map(usize::from)
 }
 
 /// A count or amount of zero moves nothing.

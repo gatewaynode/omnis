@@ -161,6 +161,7 @@ mod tests {
         let view = InventoryView {
             panes: (0..7)
                 .map(|i| crate::inventory_menu::Pane {
+                    member: (i < 6).then_some(omnis_sim::omnis_core::CharacterId(i)),
                     title: format!("{long}{i}"),
                     summary: long.clone(),
                     rows: rows.clone(),

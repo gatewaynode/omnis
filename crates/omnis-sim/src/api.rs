@@ -41,11 +41,13 @@ pub use crate::event::{
 };
 pub use crate::items::ItemCommand;
 pub use crate::party::PartyCommand;
-pub use crate::rest::RestCommand;
+pub use crate::rest::{HitDiceSpend, RestCommand};
 pub use crate::service::ServiceCommand;
 pub use crate::tactics::TacticsCommand;
-pub use omnis_core::{Direction, Facing, MapId, Position, Rotation};
+pub use omnis_core::{CharacterId, Direction, Facing, MapId, Position, Rotation};
 pub use omnis_rules::Draft;
+// Script words, a typing aid: they name members by slot and resolve against the party.
+pub use crate::word::{ScriptError, Word, parse_script};
 
 // The views.
 pub use crate::cast_view::{CastView, cast_view};

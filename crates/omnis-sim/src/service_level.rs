@@ -20,13 +20,13 @@ pub(crate) fn train(
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
     let who = &world.party.members[index];
-    let slot = slot(index);
+    let member = who.id;
     let Some(needed) = next_threshold(who, data).map_err(Rejection::Rule)? else {
-        return Err(Rejection::MaxLevel { index: slot });
+        return Err(Rejection::MaxLevel { member });
     };
     if !ready(who, data).map_err(Rejection::Rule)? {
         return Err(Rejection::NotReady {
-            index: slot,
+            member,
             xp: who.xp,
             needed,
         });
@@ -47,7 +47,7 @@ pub(crate) fn train(
 pub(crate) fn choose(world: &World, data: &Data, index: usize, row: u8) -> Result<Deal, Rejection> {
     let who = &world.party.members[index];
     if who.spell_picks == 0 {
-        return Err(Rejection::NoPicks { index: slot(index) });
+        return Err(Rejection::NoPicks { member: who.id });
     }
     let spell = data
         .classes
@@ -99,17 +99,12 @@ pub(crate) fn learn(
 fn learnable(world: &World, data: &Data, index: usize, spell: SpellId) -> Result<(), Rejection> {
     let who = &world.party.members[index];
     let refusal = may_learn(who, data, spell).map_err(Rejection::Rule)?;
-    let index = slot(index);
+    let member = who.id;
     match refusal {
         None => Ok(()),
-        Some(SpellRefusal::NotOnList) => Err(Rejection::NotOnList { index }),
+        Some(SpellRefusal::NotOnList) => Err(Rejection::NotOnList { member }),
         Some(SpellRefusal::Cantrip) => Err(Rejection::CantripNotLearned),
         Some(SpellRefusal::TooHigh { level, max }) => Err(Rejection::SpellTooHigh { level, max }),
-        Some(SpellRefusal::Known) => Err(Rejection::AlreadyKnown { index }),
+        Some(SpellRefusal::Known) => Err(Rejection::AlreadyKnown { member }),
     }
-}
-
-/// A party index as the slot a refusal names.
-fn slot(index: usize) -> u8 {
-    u8::try_from(index).unwrap_or(u8::MAX)
 }

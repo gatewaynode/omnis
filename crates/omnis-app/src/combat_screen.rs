@@ -368,6 +368,7 @@ mod tests {
             phase,
             round: 999,
             own: Some(0),
+            ids: vec![omnis_sim::omnis_core::CharacterId(0)],
             disposition: Disposition::Friendly,
             stacks: (0..4)
                 .map(|i| StackRow {

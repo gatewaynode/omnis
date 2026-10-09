@@ -169,6 +169,11 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap_or_else(|| panic!("{member}"));
     assert_eq!(potion["usable"], json!(true));
     assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
+    let id = member["id"].clone();
+    assert!(
+        id.is_u64(),
+        "a member is named by its CharacterId: {member}"
+    );
     let tactics = &member["tactics"];
     assert_eq!(tactics["reactions_on"], json!(true), "{member}");
     assert_eq!(
@@ -179,7 +184,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         12,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": 0, "item": potion["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": potion["index"], "target": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -215,7 +220,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         15,
         "sim_command",
-        json!({"command": {"Dev": {"GiveItem": {"member": 0, "item": "base:item:spyglass", "count": 1}}}}),
+        json!({"command": {"Dev": {"GiveItem": {"member": id, "item": "base:item:spyglass", "count": 1}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let reply = server.tool(16, "party_get", json!({}));
@@ -229,7 +234,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         17,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": 0, "item": glass["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": glass["index"], "target": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -253,6 +258,8 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(11, "party_get", json!({}));
     let member = &reply["result"]["structuredContent"]["party"]["members"][0];
     assert_eq!(member["name"], json!("Ilvara"));
+    let ilvara = member["id"].clone();
+    assert!(ilvara.is_u64(), "{member}");
     assert_eq!(member["spell_points_max"], json!(4), "{member}");
     let reply = server.tool(
         12,
@@ -322,7 +329,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(
         20,
         "sim_command",
-        json!({"command": {"Cast": {"caster": 0, "spell": 1, "target": {"Member": 0}}}}),
+        json!({"command": {"Cast": {"caster": ilvara, "spell": 1, "target": {"Member": ilvara}}}}),
     );
     assert_eq!(
         reply["result"]["isError"],

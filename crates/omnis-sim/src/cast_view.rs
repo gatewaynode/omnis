@@ -16,10 +16,8 @@ use serde::{Deserialize, Serialize};
 /// One spell a member could cast outside a fight.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CastView {
-    /// The caster's slot in marching order, the `caster` that `Command::Cast` takes.
-    pub caster: u8,
-    /// The caster's identity.
-    pub caster_id: CharacterId,
+    /// The caster, the `caster` that `Command::Cast` takes.
+    pub caster: CharacterId,
     /// The spell's row in the caster's list, the `spell` that `Command::Cast` takes.
     pub spell: u8,
     /// Spell id.
@@ -39,9 +37,6 @@ pub struct CastView {
 pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
     let mut rows = Vec::new();
     for (own, member) in world.party.members.iter().enumerate() {
-        let Ok(caster) = u8::try_from(own) else {
-            break;
-        };
         for (row, id) in member.known_spells.iter().enumerate() {
             let Ok(spell) = u8::try_from(row) else {
                 break;
@@ -53,8 +48,7 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
                 continue;
             }
             rows.push(CastView {
-                caster,
-                caster_id: member.id,
+                caster: member.id,
                 spell,
                 id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
                 name: def.name.clone(),

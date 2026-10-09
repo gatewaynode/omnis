@@ -7,9 +7,9 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, script_for_six, world};
+use omnis_core::CharacterId;
 use omnis_data::{Cost, Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::omnis_rules::RollMode;
 use omnis_sim::{
     ActorRef, Budget, CheckKind, CombatCommand, Command, Event, FeatureChoice, Mode, PartyCommand,
@@ -141,9 +141,10 @@ fn a_wizard_s_turn_ends_with_its_action_and_a_cleric_keeps_the_bonus_for_healing
     );
     let cure = spell_row(&world, &data, DURIN, "cure_wounds");
     let word = spell_row(&world, &data, DURIN, "healing_word");
+    let brenna = world.party.members[BRENNA].id;
     let cast = |spell, pay| CombatCommand::Cast {
         spell,
-        target: Target::Member(0),
+        target: Target::Member(brenna),
         pay,
     };
     refused(
@@ -179,9 +180,10 @@ fn two_spells_a_turn_within_the_budget_and_a_readied_spell_cannot_take_the_bonus
     let points = |world: &World| world.party.members[DURIN].spell_points;
     let mut world = start(&data);
     let word = spell_row(&world, &data, DURIN, "healing_word");
+    let brenna = world.party.members[BRENNA].id;
     let cast = |spell, pay| CombatCommand::Cast {
         spell,
-        target: Target::Member(0),
+        target: Target::Member(brenna),
         pay,
     };
     let full = points(&world);
@@ -352,11 +354,12 @@ fn cunning_action_exchanges_without_a_swing_and_a_plain_exchange_draws_them() {
     let data = data();
     let mut world = world(&data);
     party_of(&mut world, &data, 4);
+    let ids = world.party.ids();
     apply(
         &mut world,
         &data,
         Command::Party(PartyCommand::Reorder {
-            order: vec![3, 0, 1, 2],
+            order: vec![ids[3], ids[0], ids[1], ids[2]],
         }),
     )
     .unwrap();
@@ -364,12 +367,13 @@ fn cunning_action_exchanges_without_a_swing_and_a_plain_exchange_draws_them() {
     fight(&mut world, &data, &[("goblin", 2), ("goblin", 2)]);
     let pip = world.party.members[0].id;
     until_turn_of(&mut world, &data, 0);
+    let back = world.party.members[3].id;
     let events = ask(
         &mut world,
         &data,
         CombatCommand::Feature {
             feature: 0,
-            choice: FeatureChoice::Exchange { with: 3 },
+            choice: FeatureChoice::Exchange { with: back },
         },
     );
     assert!(
@@ -402,7 +406,8 @@ fn cunning_action_exchanges_without_a_swing_and_a_plain_exchange_draws_them() {
             None => panic!("the fight ended"),
         }
     };
-    let events = ask(&mut world, &data, CombatCommand::Exchange { with: 3 });
+    assert_eq!(world.party.members[3].id, pip, "Pip is at the back");
+    let events = ask(&mut world, &data, CombatCommand::Exchange { with: pip });
     let swings: Vec<u8> = events
         .iter()
         .filter_map(|e| match e {
@@ -547,8 +552,7 @@ fn end_turn_passes_the_turn_and_a_reaction_is_never_a_turn_s_command() {
 #[test]
 fn the_words_name_the_turn_s_commands() {
     let script =
-        parse_script("end\nfeature-0\nfeature-1-2\nfeature-1-hide\ncast-1-0-bonus\ncast-1-m0")
-            .unwrap();
+        script_for_six("end\nfeature-0\nfeature-1-2\nfeature-1-hide\ncast-1-0-bonus\ncast-1-m0");
     assert_eq!(
         script,
         [
@@ -559,7 +563,9 @@ fn the_words_name_the_turn_s_commands() {
             }),
             Command::Combat(CombatCommand::Feature {
                 feature: 1,
-                choice: FeatureChoice::Exchange { with: 2 }
+                choice: FeatureChoice::Exchange {
+                    with: CharacterId(2)
+                }
             }),
             Command::Combat(CombatCommand::Feature {
                 feature: 1,
@@ -572,7 +578,7 @@ fn the_words_name_the_turn_s_commands() {
             }),
             Command::Combat(CombatCommand::Cast {
                 spell: 1,
-                target: Target::Member(0),
+                target: Target::Member(CharacterId(0)),
                 pay: Pay::Action
             }),
         ]
@@ -590,11 +596,12 @@ fn a_turn_ends_when_its_action_is_spent_though_features_are_left() {
     let mut world = world(&data);
     party_of(&mut world, &data, 4);
     // Pip to the front, so both may swing at the goblins.
+    let ids = world.party.ids();
     apply(
         &mut world,
         &data,
         Command::Party(PartyCommand::Reorder {
-            order: vec![3, 0, 1, 2],
+            order: vec![ids[3], ids[0], ids[1], ids[2]],
         }),
     )
     .unwrap();
@@ -706,11 +713,8 @@ fn a_member_felled_on_the_way_out_falls_where_they_stood_and_the_turn_passes() {
         until_turn_of(&mut world, &data, BRENNA);
         let brenna = member(&world, BRENNA);
         world.party.members[BRENNA].hp = 1;
-        let events = ask(
-            &mut world,
-            &data,
-            CombatCommand::Exchange { with: PIP as u8 },
-        );
+        let pip = world.party.members[PIP].id;
+        let events = ask(&mut world, &data, CombatCommand::Exchange { with: pip });
         if !world.party.members[BRENNA].is_down() {
             continue;
         }

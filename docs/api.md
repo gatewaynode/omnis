@@ -629,7 +629,7 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
 ## 10. Rejections and errors
 
-`Rejection` (61 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (62 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long`).
 
@@ -646,6 +646,7 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 | `NeedsRangedWeapon` | A back-row member needs a ranged weapon to attack. |
 | `NoSuchMember` | No member has that slot. |
 | `SameMember` | A member cannot exchange with themselves. |
+| `MemberTwice` | A list names the same member twice (a short rest's hit dice). |
 | `CannotAfford` | The party cannot pay: `cost` and `gold` in copper. |
 | `UnknownSpell` | The caster knows no spell at that row. |
 | `NotCastable` | The spell has no effect the engine can cast here yet. |

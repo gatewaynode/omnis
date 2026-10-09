@@ -6,8 +6,12 @@
 mod common;
 
 use common::{data, inside_with};
+use omnis_core::CharacterId;
 use omnis_data::Data;
 use omnis_sim::{Command, Event, Rejection, ServiceCommand, World, apply};
+
+// Every party here is made by `inside_with` on a new world and never reordered, so its members'
+// ids follow their slots: Brenna 0, Durin 1, Ilvara 2.
 
 fn ask(world: &mut World, data: &Data, command: ServiceCommand) -> Vec<Event> {
     apply(world, data, Command::Service(command)).unwrap_or_else(|r| panic!("{command:?}: {r}"))
@@ -35,7 +39,9 @@ fn learned(events: &[Event]) -> Option<u32> {
     })
 }
 
-const TRAIN_BRENNA: ServiceCommand = ServiceCommand::Train { member: 0 };
+const TRAIN_BRENNA: ServiceCommand = ServiceCommand::Train {
+    member: CharacterId(0),
+};
 
 #[test]
 fn a_level_is_granted_at_the_trainer_for_its_price() {
@@ -46,7 +52,7 @@ fn a_level_is_granted_at_the_trainer_for_its_price() {
         &data,
         TRAIN_BRENNA,
         Rejection::NotReady {
-            index: 0,
+            member: CharacterId(0),
             xp: 0,
             needed: 300,
         },
@@ -91,7 +97,7 @@ fn a_level_is_granted_at_the_trainer_for_its_price() {
         &data,
         TRAIN_BRENNA,
         Rejection::NotReady {
-            index: 0,
+            member: CharacterId(0),
             xp: 300,
             needed: 900,
         },
@@ -107,13 +113,19 @@ fn a_level_is_granted_at_the_trainer_for_its_price() {
         &mut world,
         &data,
         TRAIN_BRENNA,
-        Rejection::MaxLevel { index: 0 },
+        Rejection::MaxLevel {
+            member: CharacterId(0),
+        },
     );
     refused(
         &mut world,
         &data,
-        ServiceCommand::Train { member: 3 },
-        Rejection::NoSuchMember { index: 3 },
+        ServiceCommand::Train {
+            member: CharacterId(3),
+        },
+        Rejection::NoSuchMember {
+            member: CharacterId(3),
+        },
     );
 }
 
@@ -129,13 +141,21 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
         &mut world,
         &data,
         ServiceCommand::Choose {
-            member: 1,
+            member: CharacterId(1),
             spell: 5,
         },
-        Rejection::NoPicks { index: 1 },
+        Rejection::NoPicks {
+            member: CharacterId(1),
+        },
     );
     for member in 0..3 {
-        ask(&mut world, &data, ServiceCommand::Train { member });
+        ask(
+            &mut world,
+            &data,
+            ServiceCommand::Train {
+                member: CharacterId(member),
+            },
+        );
     }
     let picks: Vec<u8> = world.party.members.iter().map(|m| m.spell_picks).collect();
     assert_eq!(picks, [0, 1, 2], "fighter none, cleric one, wizard two");
@@ -143,13 +163,18 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
 
     // The cleric's list: guidance, light, sacred flame, bless, cure wounds, healing word, guiding
     // bolt, inflict wounds, spiritual weapon (2nd), prayer of healing (2nd).
-    let choose = |spell| ServiceCommand::Choose { member: 1, spell };
+    let choose = |spell| ServiceCommand::Choose {
+        member: CharacterId(1),
+        spell,
+    };
     refused(&mut world, &data, choose(0), Rejection::CantripNotLearned);
     refused(
         &mut world,
         &data,
         choose(3),
-        Rejection::AlreadyKnown { index: 1 },
+        Rejection::AlreadyKnown {
+            member: CharacterId(1),
+        },
     );
     refused(
         &mut world,
@@ -186,17 +211,24 @@ fn casters_owe_picks_and_choose_them_one_at_a_time() {
         &mut world,
         &data,
         choose(5),
-        Rejection::NoPicks { index: 1 },
+        Rejection::NoPicks {
+            member: CharacterId(1),
+        },
     );
 
     // The wizard knows every first-level spell on its list and the second-level ones open at
     // level 3: the picks wait.
-    let wizard = |spell| ServiceCommand::Choose { member: 2, spell };
+    let wizard = |spell| ServiceCommand::Choose {
+        member: CharacterId(2),
+        spell,
+    };
     refused(
         &mut world,
         &data,
         wizard(3),
-        Rejection::AlreadyKnown { index: 2 },
+        Rejection::AlreadyKnown {
+            member: CharacterId(2),
+        },
     );
     refused(
         &mut world,
@@ -213,7 +245,10 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
     let mut world = inside_with(&data, "temple", 3);
     // The temple's spells: bless, cure wounds, healing word, guiding bolt, inflict wounds,
     // spiritual weapon (2nd), prayer of healing (2nd).
-    let learn = |member, spell| ServiceCommand::Learn { member, spell };
+    let learn = |slot, spell| ServiceCommand::Learn {
+        member: CharacterId(slot),
+        spell,
+    };
     world.party.members[1].spell_picks = 1;
     world.party.gold = 4999;
     refused(
@@ -230,13 +265,17 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
         &mut world,
         &data,
         learn(0, 2),
-        Rejection::NotOnList { index: 0 },
+        Rejection::NotOnList {
+            member: CharacterId(0),
+        },
     );
     refused(
         &mut world,
         &data,
         learn(1, 0),
-        Rejection::AlreadyKnown { index: 1 },
+        Rejection::AlreadyKnown {
+            member: CharacterId(1),
+        },
     );
     refused(
         &mut world,
@@ -270,13 +309,17 @@ fn spells_are_bought_at_the_temple_and_the_guild() {
         &mut world,
         &data,
         learn(1, 1),
-        Rejection::NotOnList { index: 1 },
+        Rejection::NotOnList {
+            member: CharacterId(1),
+        },
     );
     refused(
         &mut world,
         &data,
         learn(2, 1),
-        Rejection::AlreadyKnown { index: 2 },
+        Rejection::AlreadyKnown {
+            member: CharacterId(2),
+        },
     );
 
     // The price follows the spell's level: a second-level healing word, to a third-level cleric.
@@ -312,33 +355,38 @@ fn the_dead_neither_train_nor_learn() {
         &mut world,
         &data,
         TRAIN_BRENNA,
-        Rejection::MemberDead { index: 0 },
+        Rejection::MemberDead {
+            member: CharacterId(0),
+        },
     );
     refused(
         &mut world,
         &data,
         ServiceCommand::Choose {
-            member: 1,
+            member: CharacterId(1),
             spell: 5,
         },
-        Rejection::MemberDead { index: 1 },
+        Rejection::MemberDead {
+            member: CharacterId(1),
+        },
     );
 }
 
 #[test]
 fn the_words_name_the_new_commands() {
-    use omnis_sim::command::parse_script;
-    let script = parse_script("train-1\nchoose-1-5\nlearn-2-0").unwrap();
+    let script = common::script_for_six("train-1\nchoose-1-5\nlearn-2-0");
     assert_eq!(
         script,
         [
-            Command::Service(ServiceCommand::Train { member: 1 }),
+            Command::Service(ServiceCommand::Train {
+                member: CharacterId(1)
+            }),
             Command::Service(ServiceCommand::Choose {
-                member: 1,
+                member: CharacterId(1),
                 spell: 5
             }),
             Command::Service(ServiceCommand::Learn {
-                member: 2,
+                member: CharacterId(2),
                 spell: 0
             }),
         ]

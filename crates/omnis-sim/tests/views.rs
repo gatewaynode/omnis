@@ -7,16 +7,15 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, script, world};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Cost, Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
     ActorRef, Budget, CombatCommand, CombatView, Command, EncounterSource, EncounterState,
     FeatureChoice, Mode, Op, PartyCommand, Pay, Rejection, Reply, Stack, Surprise, Target, World,
-    apply, combat, combat_view, dispatch, party_view,
+    apply, combat, combat_view, dispatch, parse_script, party_view,
 };
 
 const BRENNA: usize = 0;
@@ -92,7 +91,7 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
         }
     );
     let brenna = &seen.members[BRENNA];
-    assert_eq!(brenna.index, 0);
+    assert_eq!(brenna.member, world.party.members[BRENNA].id);
     let rows: Vec<_> = brenna
         .features
         .iter()
@@ -191,12 +190,13 @@ fn spell_rows_answer_for_the_action_and_the_bonus_action_within_the_budget() {
         "Sacred Flame takes the action only"
     );
 
+    let brenna = world.party.members[BRENNA].id;
     ask(
         &mut world,
         &data,
         CombatCommand::Cast {
             spell: word,
-            target: Target::Member(0),
+            target: Target::Member(brenna),
             pay: Pay::Action,
         },
     );
@@ -243,18 +243,19 @@ fn the_view_shows_the_reactions_switch_and_reactions_left_and_the_word_flips_it(
     state(&mut world).set_reactions(ilvara, 0);
     assert_eq!(left(&view(&world, &data)), Some(0));
 
-    let words = parse_script("react-2-off react-2-on react-2-off").unwrap();
+    let words = script(&world, "react-2-off react-2-on react-2-off");
+    let ilvara_id = world.party.members[ILVARA].id;
     assert_eq!(
         words[0],
         Command::Party(PartyCommand::Tactics(TacticsCommand::SetReactions {
-            member: 2,
+            member: ilvara_id,
             on: false
         }))
     );
     assert_eq!(
         words[1],
         Command::Party(PartyCommand::Tactics(TacticsCommand::SetReactions {
-            member: 2,
+            member: ilvara_id,
             on: true
         }))
     );
@@ -333,7 +334,7 @@ fn party_get_lists_declared_reactions_and_what_each_member_could_declare() {
         when: Criteria::Is(Predicate::WouldChangeOutcome),
     };
     let put = TacticsCommand::PutReaction {
-        member: 2,
+        member: world.party.members[ILVARA].id,
         at: None,
         set: set.clone(),
     };

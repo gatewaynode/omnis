@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_rules::Draft;
-use omnis_sim::{Command, PartyCommand};
+use omnis_sim::{Command, PartyCommand, Word};
 use std::path::PathBuf;
 
 /// What to do unattended.
@@ -29,8 +29,9 @@ pub struct DevScript {
 /// One scripted action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScriptStep {
-    /// A simulation command.
-    Play(Command),
+    /// A simulation command word, turned into a command against the party when the step runs:
+    /// its slots name whoever stands there then.
+    Play(Word),
     /// A shell action.
     Shell(ShellCommand),
     /// Add a stock member to the party, so a scripted run has someone to fight with.
@@ -39,7 +40,7 @@ pub enum ScriptStep {
     Create,
 }
 
-/// Parse a comma-separated script: the simulation's command words (`Command::from_word`:
+/// Parse a comma-separated script: the simulation's command words (`Word::parse`:
 /// `forward`, `back`, `left`, `right`, `turn-left`, `turn-right`, `around`, `use`, and the
 /// fight words `fight`, `bribe`, `hide`, `run`, `attack`, `attack-N`, `dodge`, `swap-N`,
 /// `flee`, and inside a service `leave`, `room`, `rumor`) plus the shell words `map`, `save`, `load`, `party` for a stock member, and `create`
@@ -49,8 +50,8 @@ pub fn parse_script(text: &str) -> Result<Vec<ScriptStep>, String> {
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(|word| {
-            if let Some(command) = Command::from_word(word) {
-                return Ok(ScriptStep::Play(command));
+            if let Some(word) = Word::parse(word) {
+                return Ok(ScriptStep::Play(word));
             }
             Ok(match word {
                 "map" => ScriptStep::Shell(ShellCommand::ToggleAutomap),
@@ -141,8 +142,14 @@ fn drive(
 ) {
     if let Some(step) = script.commands.get(progress.next) {
         match step {
-            ScriptStep::Play(c) => {
-                play.write(PlayerCommand(c.clone()));
+            ScriptStep::Play(word) => {
+                let ids: Vec<_> = views.party.members.iter().map(|m| m.id).collect();
+                match word.command(&ids) {
+                    Some(command) => {
+                        play.write(PlayerCommand(command));
+                    }
+                    None => warn!("script step {}: no member for '{word}'", progress.next + 1),
+                }
             }
             ScriptStep::Shell(s) => {
                 shell.write(*s);
@@ -181,16 +188,20 @@ fn drive(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omnis_sim::omnis_core::Rotation;
+    use omnis_sim::omnis_core::{CharacterId, Rotation};
 
     #[test]
     fn scripts_parse() {
         let steps = parse_script("forward, turn-left,use,map,party,fight,attack-1").unwrap();
         assert_eq!(steps.len(), 7);
-        assert_eq!(steps[1], ScriptStep::Play(Command::Turn(Rotation::Left)));
+        let play = |step: &ScriptStep| match step {
+            ScriptStep::Play(word) => word.command(&[CharacterId(0)]),
+            _ => None,
+        };
+        assert_eq!(play(&steps[1]), Some(Command::Turn(Rotation::Left)));
         assert_eq!(steps[3], ScriptStep::Shell(ShellCommand::ToggleAutomap));
         assert_eq!(steps[4], ScriptStep::Party);
-        assert!(matches!(steps[6], ScriptStep::Play(Command::Combat(_))));
+        assert!(matches!(play(&steps[6]), Some(Command::Combat(_))));
         assert_eq!(parse_script("create").unwrap(), [ScriptStep::Create]);
         assert!(parse_script("fly").is_err());
         assert!(parse_script("").unwrap().is_empty());

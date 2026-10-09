@@ -8,6 +8,7 @@ use crate::menu::{MenuKey, cycle};
 use crate::screens::{ItemState, item_state, label};
 use crate::sim::Views;
 use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target};
 
@@ -112,7 +113,7 @@ impl CombatMenu {
         }
         let target = if row.targets_members {
             match selected {
-                Some(member) => Target::Member(u8::try_from(member).unwrap_or(u8::MAX)),
+                Some(member) => Target::Member(*view.ids.get(member)?),
                 None => {
                     self.message = format!("Select a member to cast {} on", row.name);
                     return None;
@@ -135,8 +136,8 @@ impl CombatMenu {
 /// One spell a member can cast while exploring, as the cast menu lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CastRow {
-    /// The caster's slot.
-    pub caster: u8,
+    /// The caster's id.
+    pub caster: CharacterId,
     /// The caster's name.
     pub caster_name: String,
     /// The spell's index in the caster's list.
@@ -162,7 +163,8 @@ pub fn cast_rows(views: &Views, data: &Data) -> Vec<CastRow> {
             caster_name: views
                 .party
                 .members
-                .get(usize::from(c.caster))
+                .iter()
+                .find(|m| m.id == c.caster)
                 .map_or_else(String::new, |m| m.name.clone()),
             spell: c.spell,
             name: data.label("en", &c.name).to_owned(),
@@ -203,7 +205,7 @@ impl CastMenu {
         &mut self,
         key: MenuKey,
         rows: &[CastRow],
-        selected: Option<usize>,
+        selected: Option<CharacterId>,
     ) -> Option<CastIntent> {
         match key {
             MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, rows.len(), key),
@@ -214,7 +216,7 @@ impl CastMenu {
         None
     }
 
-    fn confirm(&mut self, rows: &[CastRow], selected: Option<usize>) -> Option<CastIntent> {
+    fn confirm(&mut self, rows: &[CastRow], selected: Option<CharacterId>) -> Option<CastIntent> {
         self.message.clear();
         let Some(row) = rows.get(self.cursor) else {
             self.message = "Nobody can cast anything here".to_owned();
@@ -226,7 +228,7 @@ impl CastMenu {
         }
         let target = if row.targets_members {
             match selected {
-                Some(member) => Target::Member(u8::try_from(member).unwrap_or(u8::MAX)),
+                Some(member) => Target::Member(member),
                 None => {
                     self.message = format!("Select a member to cast {} on", row.name);
                     return None;
@@ -332,7 +334,7 @@ mod tests {
             cast,
             Some(CombatIntent::Command(CombatCommand::Cast {
                 spell: word.index,
-                target: Target::Member(0),
+                target: Target::Member(world.party.members[0].id),
                 pay: Pay::BonusAction,
             }))
         );
@@ -498,7 +500,7 @@ mod tests {
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Cast {
                 spell: u8::try_from(cure).unwrap(),
-                target: Target::Member(0),
+                target: Target::Member(world.party.members[0].id),
                 pay: Pay::Action,
             }))
         );
@@ -553,21 +555,22 @@ mod tests {
         }
         assert_eq!(menu.key(MenuKey::Enter, &rows, None), None);
         assert_eq!(menu.message, "Select a member to cast Cure Wounds on");
+        let id = |slot: usize| world.party.members[slot].id;
         assert_eq!(
-            menu.key(MenuKey::Enter, &rows, Some(0)),
+            menu.key(MenuKey::Enter, &rows, Some(id(0))),
             Some(CastIntent::Command(Command::Cast {
-                caster: 1,
+                caster: id(1),
                 spell: rows[3].spell,
-                target: Target::Member(0)
+                target: Target::Member(id(0))
             }))
         );
         menu.key(MenuKey::Down, &rows, None);
         assert_eq!(
             menu.key(MenuKey::Enter, &rows, None),
             Some(CastIntent::Command(Command::Cast {
-                caster: 2,
+                caster: id(2),
                 spell: rows[4].spell,
-                target: Target::Member(2)
+                target: Target::Member(id(2))
             })),
             "light needs no target"
         );

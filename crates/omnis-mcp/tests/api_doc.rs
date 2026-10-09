@@ -46,7 +46,7 @@ variants!(Event, EVENTS, event_name:
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
-    NeedsRangedWeapon NoSuchMember SameMember CannotAfford UnknownSpell NotCastable
+    NeedsRangedWeapon NoSuchMember SameMember MemberTwice CannotAfford UnknownSpell NotCastable
     NotEnoughPoints MissingComponents WrongTarget MemberDead MemberDown NotEnough UnknownItem
     NotInStores NotCarried NotEquippable HandsFull SlotEmpty NotUsable NotUsableHere TargetDead
     ZeroCount DevOnly UnknownId OutOfRange OffMap NotOffered NothingToTreat NotDead BankShort
@@ -216,7 +216,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (COMMANDS.len(), "`Command` (11 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
         (EVENTS.len(), "`Event` has 62 variants"),
-        (REJECTIONS.len(), "`Rejection` (61 variants)"),
+        (REJECTIONS.len(), "`Rejection` (62 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "24 ops."),
     ] {

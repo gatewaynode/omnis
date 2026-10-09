@@ -15,7 +15,7 @@ use crate::party;
 use crate::world::World;
 use alloc::format;
 use alloc::vec::Vec;
-use omnis_core::{Dice, RollTrace};
+use omnis_core::{CharacterId, Dice, RollTrace};
 use omnis_data::omnis_expr::Value;
 use omnis_data::rest_event::PER_MILLE;
 use omnis_data::{Ability, Data};
@@ -32,14 +32,23 @@ const DEFAULT_LONG_REST_EVERY: u32 = 1440;
 /// A rest outside a service.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RestCommand {
-    /// An hour. `dice[i]` is how many hit dice member `i` spends; members past the end spend
-    /// none.
+    /// An hour. Each named member spends their `count` of hit dice; members not named spend
+    /// none. The dice are rolled in marching order whatever the list's order.
     Short {
-        /// Hit dice per member, in party order.
-        dice: Vec<u8>,
+        /// Hit dice per member, by identity.
+        dice: Vec<HitDiceSpend>,
     },
     /// The night: food for every member not dead, at most once a day.
     Long,
+}
+
+/// Hit dice one member spends in a short rest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HitDiceSpend {
+    /// The member.
+    pub member: CharacterId,
+    /// How many of their hit dice.
+    pub count: u8,
 }
 
 /// Hit dice a long rest gives back: half the member's total (one per level), at least one.
@@ -184,33 +193,44 @@ pub(crate) fn apply(
     Ok(())
 }
 
-/// The members spending hit dice and how many, after every check: a slot in the party, not
-/// dead, hit points to regain, and dice enough left.
-fn check_dice(world: &World, data: &Data, dice: &[u8]) -> Result<Vec<(usize, u8)>, Rejection> {
-    let members = &world.party.members;
-    if dice.len() > members.len() {
-        return Err(Rejection::NoSuchMember {
-            index: u8::try_from(members.len()).unwrap_or(u8::MAX),
-        });
-    }
+/// The members spending hit dice and how many, in marching order, after every check: in the
+/// party, named once, not dead, hit points to regain, and dice enough left.
+fn check_dice(
+    world: &World,
+    data: &Data,
+    dice: &[HitDiceSpend],
+) -> Result<Vec<(usize, u8)>, Rejection> {
+    let party = &world.party;
+    let mut named = Vec::new();
     let mut asked = Vec::new();
-    for (index, (&count, member)) in dice.iter().zip(members).enumerate() {
-        if count == 0 {
+    for spend in dice {
+        let index = usize::from(party.slot_of(spend.member)?);
+        if named.contains(&index) {
+            return Err(Rejection::MemberTwice {
+                member: spend.member,
+            });
+        }
+        named.push(index);
+        if spend.count == 0 {
             continue;
         }
-        let slot = u8::try_from(index).unwrap_or(u8::MAX);
+        let member = &party.members[index];
         if is_dead(member, data) {
-            return Err(Rejection::MemberDead { index: slot });
+            return Err(Rejection::MemberDead { member: member.id });
         }
         if member.hp >= member.hp_max {
-            return Err(Rejection::NothingToTreat { index: slot });
+            return Err(Rejection::NothingToTreat { member: member.id });
         }
         let left = member.level.saturating_sub(member.hit_dice_spent);
-        if count > left {
-            return Err(Rejection::NoHitDice { index: slot, left });
+        if spend.count > left {
+            return Err(Rejection::NoHitDice {
+                member: member.id,
+                left,
+            });
         }
-        asked.push((index, count));
+        asked.push((index, spend.count));
     }
+    asked.sort_unstable_by_key(|&(index, _)| index);
     Ok(asked)
 }
 

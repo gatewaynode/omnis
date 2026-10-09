@@ -4,12 +4,12 @@
 mod common;
 
 use common::{data, step, world};
-use omnis_core::Direction;
+use omnis_core::{CharacterId, Direction};
 use omnis_data::{Alignment, EquipSlot, Skill};
 use omnis_rules::{CreationError, Draft};
 use omnis_sim::{
     Command, Event, Op, OpError, PartyCommand, Rejection, Replay, Reply, Settings, World, apply,
-    dispatch, query,
+    dispatch, query, tactics::TacticsCommand,
 };
 
 fn draft(name: &str, race: &str, class: &str, scores: [u8; 6], skills: &[Skill]) -> Draft {
@@ -153,14 +153,17 @@ fn the_marching_order_is_a_permutation() {
     for d in six().into_iter().take(3) {
         create(&mut world, &data, d).unwrap();
     }
-    let reorder = |world: &mut World, order: Vec<u8>| {
+    let reorder = |world: &mut World, order: Vec<CharacterId>| {
         apply(
             world,
             &data,
             Command::Party(PartyCommand::Reorder { order }),
         )
     };
-    reorder(&mut world, vec![2, 0, 1]).unwrap();
+    let [brenna, durin, ilvara] = world.party.ids()[..] else {
+        panic!("three members");
+    };
+    reorder(&mut world, vec![ilvara, brenna, durin]).unwrap();
     let names: Vec<&str> = world
         .party
         .members
@@ -173,12 +176,67 @@ fn the_marching_order_is_a_permutation() {
         "identities travel with the members"
     );
     let before = world.clone();
-    for bad in [vec![0, 1], vec![0, 1, 1], vec![0, 1, 3], vec![0, 1, 2, 2]] {
+    let nobody = CharacterId(3);
+    for bad in [
+        vec![brenna, durin],
+        vec![brenna, durin, durin],
+        vec![brenna, durin, nobody],
+        vec![brenna, durin, ilvara, ilvara],
+    ] {
         assert_eq!(reorder(&mut world, bad).unwrap_err(), Rejection::BadOrder);
     }
     assert_eq!(world, before);
     assert_eq!(omnis_sim::party::slots(&data), 6);
     assert_eq!(omnis_sim::party::front_row(&data), 3);
+}
+
+/// Protocol 2: a command names a member by identity, so it reaches the same member after a
+/// reorder; under protocol 1 it named a slot and reached whoever had moved into it.
+#[test]
+fn a_command_reaches_the_same_member_after_a_reorder() {
+    let data = data();
+    let mut world = world(&data);
+    for d in six().into_iter().take(3) {
+        create(&mut world, &data, d).unwrap();
+    }
+    let [brenna, durin, ilvara] = world.party.ids()[..] else {
+        panic!("three members");
+    };
+    apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Reorder {
+            order: vec![ilvara, brenna, durin],
+        }),
+    )
+    .unwrap();
+    let events = apply(
+        &mut world,
+        &data,
+        Command::Party(PartyCommand::Tactics(TacticsCommand::SetReactions {
+            member: brenna,
+            on: false,
+        })),
+    )
+    .unwrap();
+    assert_eq!(
+        events.first(),
+        Some(&Event::ReactionsSwitched {
+            member: brenna,
+            on: false
+        })
+    );
+    let on: Vec<(&str, bool)> = world
+        .party
+        .members
+        .iter()
+        .map(|m| (m.name.as_str(), m.tactics.reactions_on))
+        .collect();
+    assert_eq!(
+        on,
+        [("Ilvara", true), ("Brenna", false), ("Durin", true)],
+        "Brenna, now in slot 1, is the one switched; Ilvara, now in Brenna's old slot 0, is not"
+    );
 }
 
 #[test]
@@ -189,7 +247,10 @@ fn a_party_survives_a_save_and_a_replay() {
     for d in six().into_iter().take(2) {
         commands.push(Command::Party(PartyCommand::Create(d)));
     }
-    commands.push(Command::Party(PartyCommand::Reorder { order: vec![1, 0] }));
+    // Identities follow creation order: Brenna 0, Durin 1; Durin goes first.
+    commands.push(Command::Party(PartyCommand::Reorder {
+        order: vec![CharacterId(1), CharacterId(0)],
+    }));
     commands.push(Command::Step(Direction::Forward));
     for command in &commands {
         apply(&mut world, &data, command.clone()).unwrap();
@@ -270,12 +331,13 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
     assert!(brenna.effects.is_empty() && party.effects.is_empty());
     assert_eq!(party.inventory.len(), 1);
     assert_eq!((party.inventory[0].index, party.inventory[0].count), (0, 2));
+    let taker = world.party.members[0].id;
     let Reply::Events { events } = dispatch(
         &mut world,
         &data,
         &Op::SimCommand {
             command: Command::Item(omnis_sim::ItemCommand::Take {
-                member: 0,
+                member: taker,
                 item: 0,
                 count: 2,
             }),
@@ -318,8 +380,8 @@ fn the_ops_expose_the_party_and_the_rules() {
     );
     let member = &party.members[0];
     assert_eq!(
-        (member.index, member.name.as_str(), member.race.as_str()),
-        (0, "Brenna", "base:race:human")
+        (member.id, member.name.as_str(), member.race.as_str()),
+        (world.party.members[0].id, "Brenna", "base:race:human")
     );
     assert_eq!(
         (

@@ -4,10 +4,11 @@
 
 mod common;
 
-use common::{data, encounter, party_of};
-use omnis_core::{Facing, MapId, Position};
+use common::{data, encounter, party_of, word as parse_word};
+use omnis_core::{CharacterId, Facing, MapId, Position};
 use omnis_data::{Ability, Data, Disposition, RestKind};
 use omnis_rules::modifier;
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::{
     Command, EncounterSource, Event, Mode, Rejection, RestCommand, ServiceCommand, Settings, World,
     apply,
@@ -23,6 +24,15 @@ fn map(data: &Data, name: &str) -> MapId {
 fn at(data: &Data, seed: u64, members: usize, name: &str, x: u16, y: u16) -> World {
     let mut world = World::new(data, seed, Settings::default()).unwrap();
     party_of(&mut world, data, members);
+    assert!(
+        world
+            .party
+            .ids()
+            .iter()
+            .enumerate()
+            .all(|(slot, id)| id == &slot_id(slot)),
+        "a new party's ids follow its slots, as `short` names them"
+    );
     world.position = Position {
         map: map(data, name),
         x,
@@ -37,9 +47,22 @@ fn rest(world: &mut World, data: &Data, command: RestCommand) -> Vec<Event> {
         .unwrap_or_else(|r| panic!("{command:?}: {r}"))
 }
 
+/// The identity of the member in `slot` of a party made by [`at`] (checked there).
+fn slot_id(slot: usize) -> CharacterId {
+    CharacterId(u32::try_from(slot).unwrap())
+}
+
+/// A short rest spending `dice[slot]` of each member's hit dice, as `short-rest-A-B-…` reads.
 fn short(dice: &[u8]) -> RestCommand {
     RestCommand::Short {
-        dice: dice.to_vec(),
+        dice: dice
+            .iter()
+            .enumerate()
+            .map(|(slot, &count)| HitDiceSpend {
+                member: slot_id(slot),
+                count,
+            })
+            .collect(),
     }
 }
 
@@ -128,26 +151,29 @@ fn short_rest_refusals_change_nothing() {
         &mut world,
         &data,
         short(&[0, 0, 1]),
-        Rejection::NoSuchMember { index: 2 },
+        Rejection::NoSuchMember { member: slot_id(2) },
     );
     refused(
         &mut world,
         &data,
         short(&[0, 1]),
-        Rejection::NothingToTreat { index: 1 },
+        Rejection::NothingToTreat { member: slot_id(1) },
     );
     refused(
         &mut world,
         &data,
         short(&[2]),
-        Rejection::NoHitDice { index: 0, left: 1 },
+        Rejection::NoHitDice {
+            member: slot_id(0),
+            left: 1,
+        },
     );
     kill(&mut world, &data, 1);
     refused(
         &mut world,
         &data,
         short(&[0, 1]),
-        Rejection::MemberDead { index: 1 },
+        Rejection::MemberDead { member: slot_id(1) },
     );
     rest(&mut world, &data, short(&[1]));
     world.party.members[0].hp = 1;
@@ -155,7 +181,10 @@ fn short_rest_refusals_change_nothing() {
         &mut world,
         &data,
         short(&[1]),
-        Rejection::NoHitDice { index: 0, left: 0 },
+        Rejection::NoHitDice {
+            member: slot_id(0),
+            left: 0,
+        },
     );
     let start = minutes(&world);
     rest(&mut world, &data, short(&[]));
@@ -164,6 +193,60 @@ fn short_rest_refusals_change_nothing() {
         start + 60,
         "an hour with no dice still passes"
     );
+}
+
+#[test]
+fn hit_dice_roll_in_marching_order_whatever_the_list_order() {
+    let data = data();
+    let hurt = || {
+        let mut world = at(&data, 5, 3, "meadow", 16, 16);
+        for member in &mut world.party.members {
+            member.hp = 1;
+        }
+        world
+    };
+    let spend = |slots: &[usize]| RestCommand::Short {
+        dice: slots
+            .iter()
+            .map(|&slot| HitDiceSpend {
+                member: slot_id(slot),
+                count: 1,
+            })
+            .collect(),
+    };
+    let (mut forward, mut backward) = (hurt(), hurt());
+    rest(&mut forward, &data, spend(&[0, 1, 2]));
+    rest(&mut backward, &data, spend(&[2, 0, 1]));
+    assert_eq!(
+        forward, backward,
+        "the same spends in another order roll the same dice for the same members"
+    );
+    let hp: Vec<i32> = forward.party.members.iter().map(|m| m.hp).collect();
+    assert!(hp.iter().all(|&hp| hp > 1), "each member healed: {hp:?}");
+}
+
+#[test]
+fn a_member_named_twice_is_refused_whatever_they_spend() {
+    let data = data();
+    let mut world = at(&data, 5, 2, "meadow", 16, 16);
+    world.party.members[0].hp = 1;
+    for counts in [[1, 1], [0, 1], [1, 0], [0, 0]] {
+        let twice = RestCommand::Short {
+            dice: counts
+                .iter()
+                .map(|&count| HitDiceSpend {
+                    member: slot_id(0),
+                    count,
+                })
+                .collect(),
+        };
+        refused(
+            &mut world,
+            &data,
+            twice,
+            Rejection::MemberTwice { member: slot_id(0) },
+        );
+    }
 }
 
 #[test]
@@ -400,27 +483,21 @@ fn rest_is_refused_in_a_fight_or_before_one() {
 #[test]
 fn the_rest_words_parse_and_print() {
     for (word, command) in [("rest", RestCommand::Long), ("short-rest", short(&[]))] {
-        assert_eq!(
-            Command::from_word(word),
-            Some(Command::Rest(command.clone()))
-        );
+        assert_eq!(parse_word(word), Some(Command::Rest(command.clone())));
         assert_eq!(Command::Rest(command).word(), word);
     }
     assert_eq!(Command::Rest(short(&[1, 2])).word(), "short-rest");
     assert_eq!(
-        Command::from_word("short-rest-1-0-2"),
+        parse_word("short-rest-1-0-2"),
         Some(Command::Rest(short(&[1, 0, 2])))
     );
-    assert_eq!(
-        Command::from_word("short-rest-3"),
-        Some(Command::Rest(short(&[3])))
-    );
+    assert_eq!(parse_word("short-rest-3"), Some(Command::Rest(short(&[3]))));
     for bad in [
         "short-rest-",
         "short-rest-1-",
         "short-rest-x",
         "short-rest-1-256",
     ] {
-        assert_eq!(Command::from_word(bad), None, "{bad}");
+        assert_eq!(parse_word(bad), None, "{bad}");
     }
 }

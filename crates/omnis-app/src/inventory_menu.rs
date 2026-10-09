@@ -7,6 +7,7 @@ use crate::defs;
 use crate::menu::{MenuKey, cycle};
 use crate::text::coins;
 use omnis_sim::api::{ItemView, PartyView};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::{Data, EquipSlot};
 use omnis_sim::{Command, ItemCommand};
 
@@ -28,6 +29,8 @@ pub struct ItemRow {
 /// One pane: a member's kit, or the stores.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pane {
+    /// The member whose kit it is, by id; `None` for the stores.
+    pub member: Option<CharacterId>,
     /// The tab's text: the member's name, or `STORES`.
     pub title: String,
     /// The line under the tabs: what the member wears, or the purse and larder.
@@ -76,6 +79,7 @@ pub fn inventory_view(party: &PartyView, data: &Data) -> InventoryView {
                 .map(|(_, id)| name(id))
                 .collect();
             Pane {
+                member: Some(member.id),
                 title: member.name.clone(),
                 summary: if worn.is_empty() {
                     "wearing nothing".to_owned()
@@ -87,6 +91,7 @@ pub fn inventory_view(party: &PartyView, data: &Data) -> InventoryView {
         })
         .collect();
     panes.push(Pane {
+        member: None,
         title: "STORES".to_owned(),
         summary: format!("{}  food {}", coins(party.gold), party.food),
         rows: party
@@ -296,38 +301,38 @@ impl InventoryMenu {
             };
             return None;
         }
-        let (member, item) = (
-            u8::try_from(self.pane).unwrap_or(u8::MAX),
-            u8::try_from(self.cursor).unwrap_or(u8::MAX),
-        );
-        let target = selected.map(|s| u8::try_from(s).unwrap_or(u8::MAX));
-        let command = match action {
-            InventoryAction::Equip => match row.slot.filter(|_| row.equipped) {
-                Some(slot) => ItemCommand::Unequip { member, slot },
-                None => ItemCommand::Equip { member, item },
-            },
-            InventoryAction::Use => ItemCommand::Use {
-                member,
-                item,
-                target,
-            },
-            InventoryAction::Stow => ItemCommand::Stow {
-                member,
-                item,
-                count: 1,
-            },
-            InventoryAction::Take => {
-                if view.members() == 0 {
+        let id_at = |pane: usize| view.panes.get(pane).and_then(|p| p.member);
+        let item = u8::try_from(self.cursor).unwrap_or(u8::MAX);
+        let target = selected.and_then(id_at);
+        // The stores pane has no member: `applies` lets only Take, which names its taker, act there.
+        let command = match (action, id_at(self.pane)) {
+            (InventoryAction::Take, _) => {
+                let Some(member) = target.or_else(|| id_at(0)) else {
                     self.message = "Nobody to take it".to_owned();
                     return None;
-                }
+                };
                 ItemCommand::Take {
-                    member: target.unwrap_or(0),
+                    member,
                     item,
                     count: 1,
                 }
             }
-            InventoryAction::Give => match target {
+            (_, None) => return None,
+            (InventoryAction::Equip, Some(member)) => match row.slot.filter(|_| row.equipped) {
+                Some(slot) => ItemCommand::Unequip { member, slot },
+                None => ItemCommand::Equip { member, item },
+            },
+            (InventoryAction::Use, Some(member)) => ItemCommand::Use {
+                member,
+                item,
+                target,
+            },
+            (InventoryAction::Stow, Some(member)) => ItemCommand::Stow {
+                member,
+                item,
+                count: 1,
+            },
+            (InventoryAction::Give, Some(member)) => match target {
                 Some(to) if to != member => ItemCommand::Give {
                     from: member,
                     to,
@@ -365,11 +370,16 @@ pub(crate) mod tests {
         }
     }
 
+    /// The sample's members, whose ids are not their slots, so a slot sent as an id shows.
+    const BRENNA: CharacterId = CharacterId(30);
+    const DURIN: CharacterId = CharacterId(31);
+
     /// A sample view: a fighter's kit and a stocked store.
     pub(crate) fn sample() -> InventoryView {
         InventoryView {
             panes: vec![
                 Pane {
+                    member: Some(BRENNA),
                     title: "Brenna".to_owned(),
                     summary: "wearing Longsword, Shield, Light crossbow, Chain mail".to_owned(),
                     rows: vec![
@@ -387,11 +397,13 @@ pub(crate) mod tests {
                     ],
                 },
                 Pane {
+                    member: Some(DURIN),
                     title: "Durin".to_owned(),
                     summary: "wearing Mace, Shield, Scale mail".to_owned(),
                     rows: vec![row("Mace", Some(EquipSlot::MainHand), true, false)],
                 },
                 Pane {
+                    member: None,
                     title: "STORES".to_owned(),
                     summary: "gold 90  food 60".to_owned(),
                     rows: vec![
@@ -467,7 +479,10 @@ pub(crate) mod tests {
         assert_eq!(
             equip,
             Some(InventoryIntent::Command(Command::Item(
-                ItemCommand::Equip { member: 0, item: 7 }
+                ItemCommand::Equip {
+                    member: BRENNA,
+                    item: 7
+                }
             )))
         );
         menu.cursor = 0;
@@ -475,7 +490,7 @@ pub(crate) mod tests {
             menu.key(MenuKey::Char('e'), &view, None),
             Some(InventoryIntent::Command(Command::Item(
                 ItemCommand::Unequip {
-                    member: 0,
+                    member: BRENNA,
                     slot: EquipSlot::Body
                 }
             ))),
@@ -485,17 +500,17 @@ pub(crate) mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Use {
-                member: 0,
+                member: BRENNA,
                 item: 6,
-                target: Some(1)
+                target: Some(DURIN)
             }))),
             "a potion's Enter uses it on the selected member"
         );
         assert_eq!(
             menu.key(MenuKey::Char('g'), &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Give {
-                from: 0,
-                to: 1,
+                from: BRENNA,
+                to: DURIN,
                 item: 6,
                 count: 1
             })))
@@ -512,7 +527,7 @@ pub(crate) mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Stow {
-                member: 0,
+                member: BRENNA,
                 item: 5,
                 count: 1
             }))),
@@ -525,7 +540,7 @@ pub(crate) mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Take {
-                member: 1,
+                member: DURIN,
                 item: 0,
                 count: 1
             })))
@@ -556,6 +571,7 @@ pub(crate) mod tests {
         assert_eq!(menu.cursor, 1, "the same tab keeps the cursor");
         let empty = InventoryView {
             panes: vec![Pane {
+                member: None,
                 title: "STORES".to_owned(),
                 summary: String::new(),
                 rows: Vec::new(),

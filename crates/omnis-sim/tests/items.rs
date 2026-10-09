@@ -5,16 +5,15 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, world};
-use omnis_core::{ItemId, StreamName};
+use common::{act, data, encounter, party_of, script_for_six, world};
+use omnis_core::{CharacterId, ItemId, StreamName};
 use omnis_data::{Data, Disposition, EquipSlot};
-use omnis_sim::command::parse_script;
 use omnis_sim::items::{consume, count_of, has_all, item_id};
 use omnis_sim::omnis_rules::{DeathSaves, armor_class, condition_id};
 use omnis_sim::party::heal;
 use omnis_sim::{
     ActorRef, CombatCommand, Command, Event, ItemCommand, ItemPlace, Mode, Party, Rejection,
-    Surprise, World, apply, combat,
+    Surprise, World, apply, combat, parse_script,
 };
 
 /// The row of an item in a member's kit.
@@ -123,18 +122,30 @@ fn healing_caps_at_the_maximum_and_gets_a_downed_member_up() {
     assert_eq!(world.party.members[0].hp, 4, "healing never hurts");
 }
 
+/// The identity of the member in `slot`: every party here is made by `party_of` on a new world
+/// and never reordered, so the ids follow the slots (0, 1, …); an id past the party names nobody.
+fn id(slot: u8) -> CharacterId {
+    CharacterId(u32::from(slot))
+}
+
 fn equip(member: u8, item: u8) -> Command {
-    Command::Item(ItemCommand::Equip { member, item })
+    Command::Item(ItemCommand::Equip {
+        member: id(member),
+        item,
+    })
 }
 
 fn unequip(member: u8, slot: EquipSlot) -> Command {
-    Command::Item(ItemCommand::Unequip { member, slot })
+    Command::Item(ItemCommand::Unequip {
+        member: id(member),
+        slot,
+    })
 }
 
 fn give(from: u8, to: u8, item: u8, count: u16) -> Command {
     Command::Item(ItemCommand::Give {
-        from,
-        to,
+        from: id(from),
+        to: id(to),
         item,
         count,
     })
@@ -142,7 +153,7 @@ fn give(from: u8, to: u8, item: u8, count: u16) -> Command {
 
 fn stow(member: u8, item: u8, count: u16) -> Command {
     Command::Item(ItemCommand::Stow {
-        member,
+        member: id(member),
         item,
         count,
     })
@@ -150,7 +161,7 @@ fn stow(member: u8, item: u8, count: u16) -> Command {
 
 fn take(member: u8, item: u8, count: u16) -> Command {
     Command::Item(ItemCommand::Take {
-        member,
+        member: id(member),
         item,
         count,
     })
@@ -158,9 +169,9 @@ fn take(member: u8, item: u8, count: u16) -> Command {
 
 fn use_on(member: u8, item: u8, target: Option<u8>) -> Command {
     Command::Item(ItemCommand::Use {
-        member,
+        member: id(member),
         item,
-        target,
+        target: target.map(id),
     })
 }
 
@@ -260,7 +271,7 @@ fn equipping_refuses_gear_bad_rows_empty_slots_and_absent_members() {
         &mut world,
         &data,
         equip(5, 0),
-        Rejection::NoSuchMember { index: 5 },
+        Rejection::NoSuchMember { member: id(5) },
     );
     apply(&mut world, &data, unequip(0, EquipSlot::OffHand)).unwrap();
     refused(
@@ -276,7 +287,7 @@ fn equipping_refuses_gear_bad_rows_empty_slots_and_absent_members() {
         &mut world,
         &data,
         equip(0, 0),
-        Rejection::MemberDown { index: 0 },
+        Rejection::MemberDown { member: id(0) },
     );
 }
 
@@ -313,7 +324,7 @@ fn giving_moves_counts_and_refuses_zero_too_many_oneself_and_nobody() {
         &mut world,
         &data,
         give(0, 7, row, 1),
-        Rejection::NoSuchMember { index: 7 },
+        Rejection::NoSuchMember { member: id(7) },
     );
     refused(
         &mut world,
@@ -487,19 +498,19 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
         &mut world,
         &data,
         use_on(0, row, Some(1)),
-        Rejection::TargetDead { index: 1 },
+        Rejection::TargetDead { member: id(1) },
     );
     refused(
         &mut world,
         &data,
         use_on(1, 0, None),
-        Rejection::MemberDead { index: 1 },
+        Rejection::MemberDead { member: id(1) },
     );
     refused(
         &mut world,
         &data,
         use_on(0, row, Some(9)),
-        Rejection::NoSuchMember { index: 9 },
+        Rejection::NoSuchMember { member: id(9) },
     );
     world.party.members[1].conditions.clear();
     world.party.members[0].hp = 0;
@@ -507,7 +518,7 @@ fn a_use_refuses_useless_items_dead_targets_and_users_who_cannot_act() {
         &mut world,
         &data,
         use_on(0, row, None),
-        Rejection::MemberDown { index: 0 },
+        Rejection::MemberDown { member: id(0) },
     );
 }
 
@@ -549,7 +560,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         &mut world,
         &data,
         item(ItemCommand::Stow {
-            member: 0,
+            member: brenna,
             item: glass_row,
             count: 1,
         }),
@@ -600,7 +611,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
 
 #[test]
 fn the_item_words_parse_and_print() {
-    let script = parse_script("use-item-0, use-item-2-m1").unwrap();
+    let script = script_for_six("use-item-0, use-item-2-m1");
     assert_eq!(
         script,
         [
@@ -610,14 +621,14 @@ fn the_item_words_parse_and_print() {
             }),
             Command::Combat(CombatCommand::Use {
                 item: 2,
-                target: Some(1)
+                target: Some(CharacterId(1))
             }),
         ]
     );
     assert!(script.iter().all(|c| c.word() == "use-item"));
     assert_eq!(
         item(ItemCommand::Unequip {
-            member: 0,
+            member: CharacterId(0),
             slot: EquipSlot::Body
         })
         .word(),

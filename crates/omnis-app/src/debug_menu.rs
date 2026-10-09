@@ -5,12 +5,14 @@
 use crate::sim::Views;
 use omnis_sim::DevCommand;
 use omnis_sim::api::ModeKind;
-use omnis_sim::omnis_core::Facing;
+use omnis_sim::omnis_core::{CharacterId, Facing};
 use omnis_sim::omnis_data::Data;
 
 /// One member's numbers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemberDebug {
+    /// The member's id, which the commands name it by.
+    pub id: CharacterId,
     /// The name.
     pub name: String,
     /// Hit points and maximum.
@@ -75,6 +77,7 @@ pub fn debug_view(views: &Views, data: &Data) -> DebugView {
         .members
         .iter()
         .map(|m| MemberDebug {
+            id: m.id,
             name: m.name.clone(),
             hp: (m.hp, m.hp_max),
             sp: (m.spell_points, m.spell_points_max),

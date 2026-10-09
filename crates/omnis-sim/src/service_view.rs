@@ -10,7 +10,7 @@ use crate::service::{self, ServiceCommand};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::SpellId;
+use omnis_core::{CharacterId, SpellId};
 use omnis_data::{Data, ServiceDef, ServiceKind};
 use omnis_rules::{SpellRefusal, may_learn};
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub struct OfferView {
     /// service's spells for a spell bought, the member's class list for a pick.
     pub row: Option<u8>,
     /// The member it names, at the temple and the trainer and for a spell.
-    pub member: Option<u8>,
+    pub member: Option<CharacterId>,
     /// Copper it costs (0 when free), unless it is a sale or refused before its price.
     pub price: Option<u32>,
     /// Copper a sale brings.
@@ -86,7 +86,7 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
     })
 }
 
-type Ask = (ServiceCommand, Option<u8>, Option<u8>);
+type Ask = (ServiceCommand, Option<u8>, Option<CharacterId>);
 
 /// What this kind of service offers the party now, but leaving.
 fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
@@ -105,7 +105,11 @@ fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
             buy.chain(sell).collect()
         }
         ServiceKind::Temple => {
-            let mut asks: Vec<Ask> = rows(world.party.members.len())
+            let mut asks: Vec<Ask> = world
+                .party
+                .members
+                .iter()
+                .map(|m| m.id)
                 .flat_map(|member| {
                     [
                         ServiceCommand::Heal { member },
@@ -120,8 +124,11 @@ fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
         }
         ServiceKind::Guild => purchases(world, data, def),
         ServiceKind::Trainer => {
-            let mut asks: Vec<Ask> = rows(world.party.members.len())
-                .map(|member| (ServiceCommand::Train { member }, None, Some(member)))
+            let mut asks: Vec<Ask> = world
+                .party
+                .members
+                .iter()
+                .map(|m| (ServiceCommand::Train { member: m.id }, None, Some(m.id)))
                 .collect();
             asks.extend(picks(world, data));
             asks
@@ -156,7 +163,7 @@ fn picks(world: &World, data: &Data) -> Vec<Ask> {
         else {
             continue;
         };
-        let member = u8::try_from(index).unwrap_or(u8::MAX);
+        let member = who.id;
         for (row, id) in list.iter().enumerate() {
             let Ok(spell) = u8::try_from(row) else {
                 break;
@@ -173,8 +180,8 @@ fn picks(world: &World, data: &Data) -> Vec<Ask> {
 /// A guild's or temple's spells: for each member, each stocked spell worth offering them.
 fn purchases(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
     let mut asks = Vec::new();
-    for index in 0..world.party.members.len() {
-        let member = u8::try_from(index).unwrap_or(u8::MAX);
+    for (index, who) in world.party.members.iter().enumerate() {
+        let member = who.id;
         for (row, id) in def.spells.iter().enumerate() {
             let Ok(spell) = u8::try_from(row) else {
                 break;
@@ -195,7 +202,7 @@ fn offer(
     def: &ServiceDef,
     command: ServiceCommand,
     row: Option<u8>,
-    member: Option<u8>,
+    member: Option<CharacterId>,
 ) -> OfferView {
     let mut roller = Roller::take_stream(world, "town");
     let (price, pays, refusal) = match service::quote(world, data, def, command, &mut roller) {
@@ -235,8 +242,9 @@ fn subject(
             .map(String::from),
         ServiceCommand::Choose { member, spell } => world
             .party
-            .members
-            .get(usize::from(member))
+            .slot_of(member)
+            .ok()
+            .and_then(|slot| world.party.members.get(usize::from(slot)))
             .and_then(|m| data.classes.get(&m.class))
             .and_then(|c| c.casting.as_ref())
             .and_then(|c| row(&c.list, spell)),

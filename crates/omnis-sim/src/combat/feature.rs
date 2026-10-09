@@ -73,10 +73,7 @@ pub(crate) fn validate(
         }
         (FeatureEffect::ExtraAction, FeatureChoice::None) => Act::Surge,
         (FeatureEffect::Cunning, FeatureChoice::Exchange { with }) => {
-            let index = usize::from(with);
-            if index >= world.party.members.len() {
-                return Err(Rejection::NoSuchMember { index: with });
-            }
+            let index = usize::from(world.party.slot_of(with)?);
             if index == own {
                 return Err(Rejection::SameMember);
             }

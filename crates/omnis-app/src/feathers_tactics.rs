@@ -29,6 +29,7 @@ use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::ui::{Checked, InteractionDisabled};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_rules::Trigger;
 use omnis_sim::{Command, Event, PartyCommand, PartyView, TacticsView};
 
@@ -452,7 +453,10 @@ pub(crate) fn reports(
         let UiId::Tactics(control) = report.id else {
             continue;
         };
-        let members = shown.party.as_ref().map_or(0, |p| p.members.len());
+        let ids: Vec<CharacterId> = shown
+            .party
+            .as_ref()
+            .map_or_else(Vec::new, |p| p.members.iter().map(|m| m.id).collect());
         let Some(view) = shown.view().cloned() else {
             continue;
         };
@@ -464,7 +468,7 @@ pub(crate) fn reports(
         } = &mut *shown;
         *synced = false;
         form.message.clear();
-        match model::apply(control, &report.payload, &view, members, choices, form) {
+        match model::apply(control, &report.payload, &view, &ids, choices, form) {
             Some(TacticsAsk::Send(command)) => {
                 out.write(PlayerCommand(Command::Party(PartyCommand::Tactics(
                     command,

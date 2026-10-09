@@ -268,10 +268,11 @@ fn a_reaction_set_deeper_elsewhere_is_shown_and_not_saved() {
             n: 2,
         })])]),
     };
+    let ilvara = world(&app).party.members[ILVARA].id;
     send(
         &mut app,
         Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
-            member: 1,
+            member: ilvara,
             at: None,
             set,
         })),
@@ -332,10 +333,11 @@ fn the_panel_lies_inside_the_map_at_both_window_sizes_at_its_fullest() {
             trigger: Trigger::Attacked,
             when: Criteria::Always,
         };
+        let ilvara = world(&app).party.members[ILVARA].id;
         send(
             &mut app,
             Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
-                member: 1,
+                member: ilvara,
                 at: None,
                 set,
             })),

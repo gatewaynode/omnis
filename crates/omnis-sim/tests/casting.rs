@@ -4,9 +4,9 @@
 
 mod common;
 
-use common::{act, data, encounter, party_of, world};
+use common::{act, data, encounter, party_of, script_for_six, word, world};
+use omnis_core::CharacterId;
 use omnis_data::{Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::items::item_id;
 use omnis_sim::omnis_rules::condition_id;
 use omnis_sim::{
@@ -71,11 +71,12 @@ fn a_caster_empties_the_pool_and_cantrips_stay_free() {
     party_of(&mut world, &data, 6);
     // The wizard moves to the back row behind a front line hardened for the test, against
     // stacks too big to fall before her pool does; everyone else dodges.
+    let ids = world.party.ids();
     apply(
         &mut world,
         &data,
         Command::Party(omnis_sim::PartyCommand::Reorder {
-            order: vec![0, 1, 3, 4, 5, 2],
+            order: [0, 1, 3, 4, 5, 2].map(|slot| ids[slot]).to_vec(),
         }),
     )
     .unwrap();
@@ -180,9 +181,10 @@ fn rejections_leave_the_fight_untouched() {
         cast(shield, Target::Stack(0)),
         Rejection::NotCastable { spell: shield },
     );
+    let first = world.party.members[0].id;
     refuse(
         &mut world,
-        cast(missile, Target::Member(0)),
+        cast(missile, Target::Member(first)),
         Rejection::WrongTarget,
     );
     refuse(
@@ -427,7 +429,8 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
     brenna.conditions.push(unconscious);
     brenna.death_saves.failures = 1;
     let cure = spell_index(&world, &data, CLERIC, "cure_wounds");
-    let events = apply(&mut world, &data, cast(cure, Target::Member(0))).unwrap();
+    let brenna_id = world.party.members[0].id;
+    let events = apply(&mut world, &data, cast(cure, Target::Member(brenna_id))).unwrap();
     let brenna = &world.party.members[0];
     assert!(brenna.hp > 0 && !brenna.conditions.contains(&unconscious));
     assert_eq!(brenna.death_saves.failures, 0);
@@ -447,29 +450,27 @@ fn sacred_flame_deals_nothing_on_a_pass_and_cure_wounds_raises_the_downed() {
     let mut world2 = world.clone();
     let dead = condition_id(&data, "dead").unwrap();
     world2.party.members[3].conditions.push(dead);
+    let fallen = world2.party.members[3].id;
     if until_turn_of(&mut world2, &data, CLERIC) {
         assert_eq!(
-            apply(&mut world2, &data, cast(cure, Target::Member(3))),
-            Err(Rejection::MemberDead { index: 3 })
+            apply(&mut world2, &data, cast(cure, Target::Member(fallen))),
+            Err(Rejection::MemberDead { member: fallen })
         );
     }
 }
 
 #[test]
 fn cast_words_and_saves_round_trip() {
+    assert_eq!(word("cast-2-0"), Some(cast(2, Target::Stack(0))));
     assert_eq!(
-        Command::from_word("cast-2-0"),
-        Some(cast(2, Target::Stack(0)))
+        word("cast-4-m1"),
+        Some(cast(4, Target::Member(CharacterId(1))))
     );
-    assert_eq!(
-        Command::from_word("cast-4-m1"),
-        Some(cast(4, Target::Member(1)))
-    );
-    assert_eq!(Command::from_word("cast-x-0"), None);
-    assert_eq!(Command::from_word("cast-1"), None);
+    assert_eq!(word("cast-x-0"), None);
+    assert_eq!(word("cast-1"), None);
     assert_eq!(cast(1, Target::Stack(0)).word(), "cast");
     assert_eq!(
-        parse_script("cast-0-1, dodge").unwrap(),
+        script_for_six("cast-0-1, dodge"),
         [
             cast(0, Target::Stack(1)),
             Command::Combat(CombatCommand::Dodge)

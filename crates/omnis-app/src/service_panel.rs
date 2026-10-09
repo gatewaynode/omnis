@@ -9,7 +9,7 @@ use crate::defs;
 use crate::text::coins;
 use crate::ui_model::Payload;
 use omnis_sim::api::{MemberView, PartyView};
-use omnis_sim::omnis_core::fnv1a64;
+use omnis_sim::omnis_core::{CharacterId, fnv1a64};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView};
 
@@ -132,7 +132,7 @@ pub fn offer_rows(view: &ServiceView, party: &PartyView, data: &Data) -> Vec<Off
 }
 
 fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, String) {
-    let member = |slot: u8| party.members.get(usize::from(slot));
+    let member = |id: CharacterId| party.members.iter().find(|m| m.id == id);
     match offer.command {
         ServiceCommand::Room => (String::new(), "A night's rest".to_owned()),
         ServiceCommand::Rumor => (String::new(), "A rumor".to_owned()),
@@ -153,31 +153,32 @@ fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, Stri
                 .map_or(("?", 0), |i| (data.label("en", &i.name), i.count));
             (name.to_owned(), format!("{name} ×{count}"))
         }
-        ServiceCommand::Heal { member: slot }
-        | ServiceCommand::Cure { member: slot }
-        | ServiceCommand::Raise { member: slot } => member(slot).map_or_else(
+        ServiceCommand::Heal { member: id }
+        | ServiceCommand::Cure { member: id }
+        | ServiceCommand::Raise { member: id } => member(id).map_or_else(
             || ("?".to_owned(), "?".to_owned()),
             |m| (m.name.clone(), member_label(offer, m, data)),
         ),
-        ServiceCommand::Train { member: slot } => member(slot).map_or_else(
+        ServiceCommand::Train { member: id } => member(id).map_or_else(
             || ("?".to_owned(), "?".to_owned()),
             |m| {
                 let label = format!("{}, level {} to {}", m.name, m.level, m.level + 1);
                 (m.name.clone(), label)
             },
         ),
-        ServiceCommand::Choose { member: slot, .. }
-        | ServiceCommand::Learn { member: slot, .. } => member(slot).map_or_else(
-            || ("?".to_owned(), "?".to_owned()),
-            |m| {
-                let name = offer
-                    .subject
-                    .as_deref()
-                    .and_then(|id| defs::spell(data, id))
-                    .map_or("?", |s| data.label("en", &s.name));
-                (format!("{}: {name}", m.name), format!("{}: {name}", m.name))
-            },
-        ),
+        ServiceCommand::Choose { member: id, .. } | ServiceCommand::Learn { member: id, .. } => {
+            member(id).map_or_else(
+                || ("?".to_owned(), "?".to_owned()),
+                |m| {
+                    let name = offer
+                        .subject
+                        .as_deref()
+                        .and_then(|id| defs::spell(data, id))
+                        .map_or("?", |s| data.label("en", &s.name));
+                    (format!("{}: {name}", m.name), format!("{}: {name}", m.name))
+                },
+            )
+        }
         ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => (String::new(), String::new()),
@@ -460,7 +461,9 @@ mod tests {
             "rested too recently (10h 05m)"
         );
         assert_eq!(
-            reason(&Rejection::NothingToTreat { index: 1 }),
+            reason(&Rejection::NothingToTreat {
+                member: CharacterId(1)
+            }),
             "nothing to treat"
         );
         assert_eq!(
@@ -472,7 +475,12 @@ mod tests {
             "Gold 16 gp 5 sp 0 cp · Bank 2 gp 0 sp 0 cp · Food 10"
         );
         assert_eq!(caption(ServiceCommand::Room), "Take a room");
-        assert_eq!(caption(ServiceCommand::Train { member: 0 }), "Train");
+        assert_eq!(
+            caption(ServiceCommand::Train {
+                member: CharacterId(0)
+            }),
+            "Train"
+        );
     }
 
     #[test]

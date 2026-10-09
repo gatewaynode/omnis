@@ -8,6 +8,7 @@ mod common;
 use common::{data, encounter, party_of};
 use omnis_core::{Facing, Position};
 use omnis_data::{Data, Disposition};
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::{
     Command, Mode, Rejection, RestCommand, RestView, Settings, World, apply, rest_view,
 };
@@ -36,10 +37,14 @@ fn answer(world: &World, data: &Data, command: RestCommand) -> Result<(), Reject
     apply(&mut world.clone(), data, Command::Rest(command)).map(|_| ())
 }
 
-fn dice(members: usize, index: usize, count: u8) -> RestCommand {
-    let mut dice = vec![0; members];
-    dice[index] = count;
-    RestCommand::Short { dice }
+/// A short rest spending `count` of the dice of the member in slot `index`.
+fn dice(world: &World, index: usize, count: u8) -> RestCommand {
+    RestCommand::Short {
+        dice: vec![HitDiceSpend {
+            member: world.party.members[index].id,
+            count,
+        }],
+    }
 }
 
 /// The view, checked against the command for the long rest and for every member's dice; and
@@ -68,14 +73,14 @@ fn agreed(world: &World, data: &Data) -> RestView {
         assert!([6, 8, 10, 12].contains(&member.die), "{member:?}");
         if member.spendable > 0 {
             assert_eq!(
-                answer(world, data, dice(members, index, member.spendable)),
+                answer(world, data, dice(world, index, member.spendable)),
                 Ok(()),
                 "member {index} spends {}",
                 member.spendable
             );
         }
         assert!(
-            answer(world, data, dice(members, index, member.spendable + 1)).is_err(),
+            answer(world, data, dice(world, index, member.spendable + 1)).is_err(),
             "member {index} cannot spend {}",
             member.spendable + 1
         );

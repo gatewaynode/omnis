@@ -14,6 +14,7 @@ pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
 pub use crate::use_menu::UseRow;
 use crate::use_menu::use_rows;
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::{ActorRef, Budget, CombatCommand, Event, ModeKind};
 
 /// One stack as the rows show it.
@@ -66,6 +67,9 @@ pub struct FightView {
     pub round: u32,
     /// The acting member's slot.
     pub own: Option<usize>,
+    /// The party's ids in marching order: a slot (`own`, the band's selection) names its
+    /// member through it.
+    pub ids: Vec<CharacterId>,
     /// How the monsters feel about the party.
     pub disposition: Disposition,
     /// The stacks, in encounter order.
@@ -90,6 +94,12 @@ pub struct FightView {
 }
 
 impl FightView {
+    /// The acting member's id.
+    #[must_use]
+    pub fn own_id(&self) -> Option<CharacterId> {
+        self.ids.get(self.own?).copied()
+    }
+
     /// Whether the party can pay the bribe.
     #[must_use]
     pub fn bribe_allowed(&self) -> bool {
@@ -148,7 +158,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         })
         .collect();
     let caster = own.and_then(|i| party.members.get(i));
-    let fighter = own.and_then(|own| view.members.iter().find(|m| usize::from(m.index) == own));
+    let fighter = caster.and_then(|c| view.members.iter().find(|m| m.member == c.id));
     let reactions_left = caster.map_or(0, |c| {
         view.reactions
             .iter()
@@ -184,6 +194,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         phase: view.phase,
         round: view.round,
         own,
+        ids: party.members.iter().map(|m| m.id).collect(),
         disposition: view.disposition,
         stacks,
         bribe: view.bribe,
@@ -312,9 +323,13 @@ impl CombatMenu {
 
     /// The member an exchange goes to: the band's selection, when it is not the acting member;
     /// otherwise `None` with the reason in the message.
-    pub(crate) fn partner(&mut self, view: &FightView, selected: Option<usize>) -> Option<u8> {
+    pub(crate) fn partner(
+        &mut self,
+        view: &FightView,
+        selected: Option<usize>,
+    ) -> Option<CharacterId> {
         match (selected, view.own) {
-            (Some(with), Some(own)) if with != own => Some(u8::try_from(with).unwrap_or(u8::MAX)),
+            (Some(with), Some(own)) if with != own => view.ids.get(with).copied(),
             (Some(_), _) => {
                 self.message = "Select another member to exchange with".to_owned();
                 None
@@ -562,11 +577,21 @@ pub(crate) mod tests {
         );
     }
 
+    /// The party of a hand-built view: four members whose ids are not their slots, so a slot
+    /// sent as an id shows.
+    pub(crate) const IDS: [CharacterId; 4] = [
+        CharacterId(20),
+        CharacterId(21),
+        CharacterId(22),
+        CharacterId(23),
+    ];
+
     pub(crate) fn view_with(stacks: &[(u8, bool, Option<&str>)], own: Option<usize>) -> FightView {
         FightView {
             phase: ModeKind::Combat,
             round: 1,
             own,
+            ids: IDS.to_vec(),
             disposition: Disposition::Hostile,
             stacks: stacks
                 .iter()
@@ -675,7 +700,9 @@ pub(crate) mod tests {
         assert_eq!(menu.message, "Select another member to exchange with");
         assert_eq!(
             menu.key(MenuKey::Char('e'), &view, Some(3)),
-            Some(CombatIntent::Command(CombatCommand::Exchange { with: 3 }))
+            Some(CombatIntent::Command(CombatCommand::Exchange {
+                with: IDS[3]
+            }))
         );
         let none = view_with(&[(0, false, None)], Some(0));
         menu.sync(&none);

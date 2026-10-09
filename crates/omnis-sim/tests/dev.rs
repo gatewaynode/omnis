@@ -4,7 +4,7 @@
 mod common;
 
 use common::{data, party_of, world};
-use omnis_core::{Direction, Facing, Position, StreamName};
+use omnis_core::{CharacterId, Direction, Facing, Position, StreamName};
 use omnis_data::Ability;
 use omnis_sim::items::count_of;
 use omnis_sim::omnis_rules::{DeathSaves, armor_class, spell_point_pool};
@@ -14,6 +14,8 @@ use omnis_sim::{
     replay,
 };
 
+/// A new devtools world. A party made on it by `party_of` takes the ids 0, 1, … in slot
+/// order, and nothing here reorders it, so the edits name members by those ids.
 fn dev_world(data: &omnis_data::Data) -> World {
     let settings = Settings {
         devtools: true,
@@ -25,25 +27,31 @@ fn dev_world(data: &omnis_data::Data) -> World {
 fn every_edit() -> Vec<DevCommand> {
     vec![
         DevCommand::GiveItem {
-            member: Some(0),
+            member: Some(CharacterId(0)),
             item: "base:item:spyglass".into(),
             count: 1,
         },
-        DevCommand::SetHp { member: 0, hp: 1 },
+        DevCommand::SetHp {
+            member: CharacterId(0),
+            hp: 1,
+        },
         DevCommand::SetSpellPoints {
-            member: 0,
+            member: CharacterId(0),
             points: 1,
         },
         DevCommand::SetGold { gold: 5 },
         DevCommand::SetFood { food: 5 },
-        DevCommand::SetXp { member: 0, xp: 5 },
+        DevCommand::SetXp {
+            member: CharacterId(0),
+            xp: 5,
+        },
         DevCommand::SetScore {
-            member: 0,
+            member: CharacterId(0),
             ability: Ability::Strength,
             score: 5,
         },
         DevCommand::SetCondition {
-            member: 0,
+            member: CharacterId(0),
             condition: "base:condition:poisoned".into(),
             applied: true,
         },
@@ -98,7 +106,12 @@ fn items_go_to_a_member_or_the_stores() {
         })
     };
     let turn = world.turn;
-    let events = apply(&mut world, &data, give(Some(1), "base:item:spyglass", 2)).unwrap();
+    let events = apply(
+        &mut world,
+        &data,
+        give(Some(CharacterId(1)), "base:item:spyglass", 2),
+    )
+    .unwrap();
     assert!(matches!(
         &events[0],
         Event::Dev {
@@ -106,7 +119,12 @@ fn items_go_to_a_member_or_the_stores() {
         }
     ));
     assert_eq!(count_of(&world.party.members[1].equipment, glass), 2);
-    apply(&mut world, &data, give(Some(1), "base:item:spyglass", 1)).unwrap();
+    apply(
+        &mut world,
+        &data,
+        give(Some(CharacterId(1)), "base:item:spyglass", 1),
+    )
+    .unwrap();
     assert_eq!(
         count_of(&world.party.members[1].equipment, glass),
         3,
@@ -118,18 +136,32 @@ fn items_go_to_a_member_or_the_stores() {
     assert_eq!(world.turn, turn + 3, "every accepted edit is a turn");
     let before = world.clone();
     assert_eq!(
-        apply(&mut world, &data, give(Some(0), "base:item:spyglass", 0)),
+        apply(
+            &mut world,
+            &data,
+            give(Some(CharacterId(0)), "base:item:spyglass", 0)
+        ),
         Err(Rejection::OutOfRange)
     );
     assert_eq!(
-        apply(&mut world, &data, give(Some(0), "base:item:nope", 1)),
+        apply(
+            &mut world,
+            &data,
+            give(Some(CharacterId(0)), "base:item:nope", 1)
+        ),
         Err(Rejection::UnknownId {
             id: "base:item:nope".into()
         })
     );
     assert_eq!(
-        apply(&mut world, &data, give(Some(9), "base:item:gem", 1)),
-        Err(Rejection::NoSuchMember { index: 9 })
+        apply(
+            &mut world,
+            &data,
+            give(Some(CharacterId(9)), "base:item:gem", 1)
+        ),
+        Err(Rejection::NoSuchMember {
+            member: CharacterId(9)
+        })
     );
     assert_eq!(world, before);
 }
@@ -149,7 +181,10 @@ fn hit_points_pass_the_maximum_and_move_a_member_down_and_back_up() {
         apply(
             world,
             &data,
-            Command::Dev(DevCommand::SetHp { member: 0, hp }),
+            Command::Dev(DevCommand::SetHp {
+                member: CharacterId(0),
+                hp,
+            }),
         )
         .unwrap()
     };
@@ -173,7 +208,7 @@ fn hit_points_pass_the_maximum_and_move_a_member_down_and_back_up() {
         &mut world,
         &data,
         Command::Dev(DevCommand::SetCondition {
-            member: 0,
+            member: CharacterId(0),
             condition: "base:condition:dead".into(),
             applied: true,
         }),
@@ -212,7 +247,7 @@ fn points_gold_food_experience_and_scores_are_set() {
     dev(
         &mut world,
         DevCommand::SetSpellPoints {
-            member: 1,
+            member: CharacterId(1),
             points: 99,
         },
     )
@@ -223,7 +258,7 @@ fn points_gold_food_experience_and_scores_are_set() {
     dev(
         &mut world,
         DevCommand::SetSpellPoints {
-            member: 1,
+            member: CharacterId(1),
             points: 0,
         },
     )
@@ -231,7 +266,14 @@ fn points_gold_food_experience_and_scores_are_set() {
     assert_eq!(world.party.members[1].spell_points, 0);
     dev(&mut world, DevCommand::SetGold { gold: 1234 }).unwrap();
     dev(&mut world, DevCommand::SetFood { food: 3 }).unwrap();
-    dev(&mut world, DevCommand::SetXp { member: 0, xp: 350 }).unwrap();
+    dev(
+        &mut world,
+        DevCommand::SetXp {
+            member: CharacterId(0),
+            xp: 350,
+        },
+    )
+    .unwrap();
     assert_eq!((world.party.gold, world.party.food), (1234, 3));
     assert_eq!(
         (world.party.members[0].xp, world.party.members[0].level),
@@ -242,7 +284,7 @@ fn points_gold_food_experience_and_scores_are_set() {
     dev(
         &mut world,
         DevCommand::SetScore {
-            member: 0,
+            member: CharacterId(0),
             ability: Ability::Dexterity,
             score: 20,
         },
@@ -261,7 +303,7 @@ fn points_gold_food_experience_and_scores_are_set() {
         dev(
             &mut world,
             DevCommand::SetScore {
-                member: 0,
+                member: CharacterId(0),
                 ability: Ability::Strength,
                 score,
             },
@@ -285,7 +327,13 @@ fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
         |world: &World| ["party", "combat"].map(|s| world.rngs.get(&StreamName::new(s)).copied());
     let untouched = streams(&world);
 
-    let events = dev(&mut world, DevCommand::SetXp { member: 0, xp: 300 });
+    let events = dev(
+        &mut world,
+        DevCommand::SetXp {
+            member: CharacterId(0),
+            xp: 300,
+        },
+    );
     let ups: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
@@ -295,7 +343,13 @@ fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
         .collect();
     assert_eq!(ups, [(2, 0)], "one free level");
     assert_eq!(world.party.members[0].level, 2);
-    let events = dev(&mut world, DevCommand::SetXp { member: 1, xp: 900 });
+    let events = dev(
+        &mut world,
+        DevCommand::SetXp {
+            member: CharacterId(1),
+            xp: 900,
+        },
+    );
     assert_eq!(
         events
             .iter()
@@ -305,7 +359,13 @@ fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
         "a level at a time, as a trainer grants them"
     );
     assert_eq!(world.party.members[1].level, 3);
-    dev(&mut world, DevCommand::SetXp { member: 1, xp: 0 });
+    dev(
+        &mut world,
+        DevCommand::SetXp {
+            member: CharacterId(1),
+            xp: 0,
+        },
+    );
     assert_eq!(
         (world.party.members[1].xp, world.party.members[1].level),
         (0, 3),
@@ -320,7 +380,7 @@ fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
     dev(
         &mut world,
         DevCommand::SetScore {
-            member: 0,
+            member: CharacterId(0),
             ability: Ability::Constitution,
             score: raised,
         },
@@ -337,7 +397,7 @@ fn a_score_carries_its_derived_numbers_and_experience_levels_on_the_spot() {
     dev(
         &mut world,
         DevCommand::SetScore {
-            member: 2,
+            member: CharacterId(2),
             ability: Ability::Intelligence,
             score: ilvara.scores[int] + 6,
         },
@@ -369,7 +429,7 @@ fn conditions_and_flags_are_set_by_id() {
             world,
             &data,
             Command::Dev(DevCommand::SetCondition {
-                member: 0,
+                member: CharacterId(0),
                 condition: "base:condition:poisoned".into(),
                 applied,
             }),
@@ -397,7 +457,7 @@ fn conditions_and_flags_are_set_by_id() {
             &mut world,
             &data,
             Command::Dev(DevCommand::SetCondition {
-                member: 0,
+                member: CharacterId(0),
                 condition: "base:condition:sleepy".into(),
                 applied: true
             })
@@ -649,17 +709,11 @@ fn downing_the_acting_member_moves_the_fight_on_and_the_save_still_loads() {
     let Some(omnis_sim::ActorRef::Member(actor)) = acting(&world) else {
         panic!("the fight parks on a member")
     };
-    let slot = world
-        .party
-        .members
-        .iter()
-        .position(|m| m.id == actor)
-        .unwrap();
     let events = apply(
         &mut world,
         &data,
         Command::Dev(DevCommand::SetHp {
-            member: u8::try_from(slot).unwrap(),
+            member: actor,
             hp: 0,
         }),
     )
@@ -681,12 +735,11 @@ fn downing_the_acting_member_moves_the_fight_on_and_the_save_still_loads() {
     let text = world.to_ron().unwrap();
     World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
     if let Some(omnis_sim::ActorRef::Member(id)) = acting(&world) {
-        let slot = world.party.members.iter().position(|m| m.id == id).unwrap();
         let events = apply(
             &mut world,
             &data,
             Command::Dev(DevCommand::SetCondition {
-                member: u8::try_from(slot).unwrap(),
+                member: id,
                 condition: "base:condition:paralyzed".into(),
                 applied: true,
             }),

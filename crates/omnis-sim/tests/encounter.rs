@@ -4,10 +4,9 @@
 
 mod common;
 
-use common::{data, encounter, party_of, play, walk_to_the_rats, world};
+use common::{data, encounter, party_of, play, script_for_six, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, StreamName};
 use omnis_data::{Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::{
     ActorRef, CheckKind, Command, EncounterChoice, EncounterSource, Event, Mode, ModeKind, Op,
     Rejection, Reply, Settings, Surprise, World, apply, dispatch,
@@ -354,7 +353,7 @@ fn attacking_starts_the_fight_and_the_protocol_knows_the_choices() {
         "the choice is made"
     );
     assert_eq!(
-        parse_script("fight, bribe, hide, run").unwrap(),
+        script_for_six("fight, bribe, hide, run"),
         [
             Command::Encounter(EncounterChoice::Attack),
             Command::Encounter(EncounterChoice::Bribe),

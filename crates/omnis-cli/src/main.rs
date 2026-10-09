@@ -5,8 +5,7 @@ use omnis_cli::args::Args;
 use omnis_cli::{Headless, bake, schema};
 use omnis_data::load_packs;
 use omnis_data::ron_io::read_ron;
-use omnis_sim::command::parse_script;
-use omnis_sim::{Op, Replay, Reply};
+use omnis_sim::{Op, Replay, Reply, parse_script};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -101,11 +100,15 @@ fn map_text(args: Args) -> Result<(), String> {
 fn play(args: Args) -> Result<(), String> {
     let script = args.script.as_ref().ok_or("play needs --script <file>")?;
     let text = std::fs::read_to_string(script).map_err(|e| format!("{}: {e}", script.display()))?;
-    let commands = parse_script(&text).map_err(|e| format!("{}: {e}", script.display()))?;
+    let words = parse_script(&text).map_err(|e| format!("{}: {e}", script.display()))?;
     let mut game = Headless::new(args.packs_or_default(), args.seed.unwrap_or(0))
         .map_err(|e| e.to_string())?;
-    for command in commands {
+    for word in words {
         let turn = game.world.turn;
+        // A word names members by slot: it means whoever stands there now.
+        let command = word
+            .command(&game.world.party.ids())
+            .ok_or_else(|| format!("turn {turn}: '{word}' names an empty slot"))?;
         let word = command.word();
         match game.handle(&Op::SimCommand { command }) {
             Ok(Reply::Events { events }) => {

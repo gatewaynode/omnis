@@ -110,8 +110,8 @@ pub enum ChoiceKind {
 /// One member's side of the fight: the reactions switch and the features.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FighterView {
-    /// Position in marching order.
-    pub index: u8,
+    /// The member; `CombatView.members` is in marching order.
+    pub member: CharacterId,
     /// Whether the member's declared reactions fire.
     pub reactions_on: bool,
     /// The class features with an effect.
@@ -285,7 +285,7 @@ fn fighter_view(
         })
         .collect();
     FighterView {
-        index: u8::try_from(own).unwrap_or(u8::MAX),
+        member: member.id,
         reactions_on: member.tactics.reactions_on,
         features,
     }

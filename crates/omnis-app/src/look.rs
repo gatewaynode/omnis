@@ -12,15 +12,14 @@ pub fn look_command(party: &PartyView, data: &Data) -> Option<Command> {
     party
         .members
         .iter()
-        .enumerate()
-        .filter(|(_, m)| !m.down && !m.dead)
-        .find_map(|(member, m)| {
+        .filter(|m| !m.down && !m.dead)
+        .find_map(|m| {
             let row = m
                 .equipment
                 .iter()
                 .position(|i| defs::item(data, &i.id).is_some_and(|i| i.sense().is_some()))?;
             Some(Command::Item(ItemCommand::Use {
-                member: u8::try_from(member).ok()?,
+                member: m.id,
                 item: u8::try_from(row).ok()?,
                 target: None,
             }))
@@ -46,10 +45,11 @@ mod tests {
         let glass = item_id(&data, "spyglass").unwrap();
         world.party.members[1].equipment.push((glass, 1));
         let row = u8::try_from(world.party.members[1].equipment.len() - 1).unwrap();
+        let (first, second) = (world.party.members[0].id, world.party.members[1].id);
         assert_eq!(
             look_command(&world, &data),
             Some(Command::Item(ItemCommand::Use {
-                member: 1,
+                member: second,
                 item: row,
                 target: None
             }))
@@ -58,15 +58,15 @@ mod tests {
         assert!(matches!(
             look_command(&world, &data),
             Some(Command::Item(ItemCommand::Use {
-                member: 0,
+                member,
                 item: 0,
                 ..
-            }))
+            })) if member == first
         ));
         world.party.members[0].hp = 0;
         assert!(matches!(
             look_command(&world, &data),
-            Some(Command::Item(ItemCommand::Use { member: 1, .. }))
+            Some(Command::Item(ItemCommand::Use { member, .. })) if member == second
         ));
     }
 }

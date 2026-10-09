@@ -4,8 +4,8 @@
 
 mod common;
 
-use common::{data, interact, party_of, step, turn};
-use omnis_core::{Direction, Facing, Position, Rotation, ServiceId};
+use common::{data, interact, party_of, step, turn, word as parse_word};
+use omnis_core::{CharacterId, Direction, Facing, Position, Rotation, ServiceId};
 use omnis_data::{Data, ServiceKind};
 use omnis_sim::{
     BlockReason, Command, Event, LoadError, Mode, ModeKind, SaveRule, ServiceCommand, ServiceState,
@@ -166,10 +166,13 @@ fn a_service_command_outside_or_in_the_wrong_service_is_refused() {
     assert_eq!(wrong, Err(omnis_sim::Rejection::NotOffered));
     assert_eq!(world, before, "a refusal changes nothing");
     // The party's own commands work inside.
+    let ids = world.party.ids();
     apply(
         &mut world,
         &data,
-        Command::Party(omnis_sim::PartyCommand::Reorder { order: vec![1, 0] }),
+        Command::Party(omnis_sim::PartyCommand::Reorder {
+            order: vec![ids[1], ids[0]],
+        }),
     )
     .expect("a reorder inside a service");
 }
@@ -276,14 +279,32 @@ fn the_service_words_parse_and_print() {
         ("room", ServiceCommand::Room),
         ("rumor", ServiceCommand::Rumor),
     ] {
-        assert_eq!(Command::from_word(word), Some(Command::Service(command)));
+        assert_eq!(parse_word(word), Some(Command::Service(command)));
         assert_eq!(Command::Service(command).word(), word);
     }
     let numbered = [
         ("food-3", "food", ServiceCommand::BuyFood { count: 3 }),
-        ("heal-1", "heal", ServiceCommand::Heal { member: 1 }),
-        ("cure-0", "cure", ServiceCommand::Cure { member: 0 }),
-        ("raise-5", "raise", ServiceCommand::Raise { member: 5 }),
+        (
+            "heal-1",
+            "heal",
+            ServiceCommand::Heal {
+                member: CharacterId(1),
+            },
+        ),
+        (
+            "cure-0",
+            "cure",
+            ServiceCommand::Cure {
+                member: CharacterId(0),
+            },
+        ),
+        (
+            "raise-5",
+            "raise",
+            ServiceCommand::Raise {
+                member: CharacterId(5),
+            },
+        ),
         ("buy-2", "buy", ServiceCommand::Buy { item: 2, count: 1 }),
         ("buy-2-4", "buy", ServiceCommand::Buy { item: 2, count: 4 }),
         ("sell-0", "sell", ServiceCommand::Sell { item: 0, count: 1 }),
@@ -304,11 +325,7 @@ fn the_service_words_parse_and_print() {
         ),
     ];
     for (word, verb, command) in numbered {
-        assert_eq!(
-            Command::from_word(word),
-            Some(Command::Service(command)),
-            "{word}"
-        );
+        assert_eq!(parse_word(word), Some(Command::Service(command)), "{word}");
         assert_eq!(
             Command::Service(command).word(),
             verb,
@@ -327,6 +344,6 @@ fn the_service_words_parse_and_print() {
         "sell-300",
         "bribe-1",
     ] {
-        assert_eq!(Command::from_word(bad), None, "{bad}");
+        assert_eq!(parse_word(bad), None, "{bad}");
     }
 }

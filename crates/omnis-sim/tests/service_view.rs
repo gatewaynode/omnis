@@ -4,9 +4,11 @@
 
 mod common;
 
-use common::{data, inside, inside_with};
+use common::{data, inside, inside_with, script};
+use omnis_core::CharacterId;
 use omnis_data::ServiceKind;
 use omnis_sim::ops::party_view;
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::{
     Command, OfferView, Op, OpError, Rejection, Reply, RestCommand, ServiceCommand, apply,
     dispatch, service_view,
@@ -83,19 +85,23 @@ fn the_temple_says_why_not_for_each_member() {
     let data = data();
     let mut world = inside(&data, "temple");
     world.party.members[1].hp -= 3;
+    let (first, second) = (world.party.members[0].id, world.party.members[1].id);
     let view = service_view(&world, &data).unwrap();
     assert_eq!(
         view.offers.len(),
         2 * 3 + 5 + 1,
         "heal, cure, raise per member, the cleric's five spells, leave"
     );
-    let heal = offer(&view.offers, ServiceCommand::Heal { member: 0 });
-    assert_eq!(heal.member, Some(0));
-    assert_eq!(heal.refusal, Some(Rejection::NothingToTreat { index: 0 }));
+    let heal = offer(&view.offers, ServiceCommand::Heal { member: first });
+    assert_eq!(heal.member, Some(first));
+    assert_eq!(
+        heal.refusal,
+        Some(Rejection::NothingToTreat { member: first })
+    );
     assert_eq!(heal.price, None);
-    let raise = offer(&view.offers, ServiceCommand::Raise { member: 0 });
-    assert_eq!(raise.refusal, Some(Rejection::NotDead { index: 0 }));
-    let wounded = offer(&view.offers, ServiceCommand::Heal { member: 1 });
+    let raise = offer(&view.offers, ServiceCommand::Raise { member: first });
+    assert_eq!(raise.refusal, Some(Rejection::NotDead { member: first }));
+    let wounded = offer(&view.offers, ServiceCommand::Heal { member: second });
     assert_eq!((wounded.price, wounded.refusal.clone()), (Some(300), None));
 }
 
@@ -128,17 +134,18 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
     let mut world = inside_with(&data, "trainer", 3);
     world.party.gold = 100_000;
     world.party.members[1].xp = 300;
+    let (first, second) = (world.party.members[0].id, world.party.members[1].id);
     let view = service_view(&world, &data).unwrap();
-    let train = offer(&view.offers, ServiceCommand::Train { member: 1 });
+    let train = offer(&view.offers, ServiceCommand::Train { member: second });
     assert_eq!(
         (train.member, train.price, train.refusal.clone()),
-        (Some(1), Some(2000), None)
+        (Some(second), Some(2000), None)
     );
-    let unready = offer(&view.offers, ServiceCommand::Train { member: 0 });
+    let unready = offer(&view.offers, ServiceCommand::Train { member: first });
     assert_eq!(
         unready.refusal,
         Some(Rejection::NotReady {
-            index: 0,
+            member: first,
             xp: 0,
             needed: 300
         })
@@ -155,7 +162,9 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
         .offers
         .iter()
         .filter_map(|o| match o.command {
-            ServiceCommand::Choose { member: 1, spell } => Some((spell, o.refusal.is_none())),
+            ServiceCommand::Choose { member, spell } if member == second => {
+                Some((spell, o.refusal.is_none()))
+            }
             _ => None,
         })
         .collect();
@@ -169,7 +178,7 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
         offer(
             &view.offers,
             ServiceCommand::Choose {
-                member: 1,
+                member: second,
                 spell: 5
             }
         )
@@ -183,13 +192,13 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
         world.party.gold = 100_000;
         let count = offers_agree_with_their_commands(&world, &data);
         let view = service_view(&world, &data).unwrap();
-        let learners: Vec<Option<u8>> = view
+        let learners: Vec<Option<CharacterId>> = view
             .offers
             .iter()
             .filter(|o| matches!(o.command, ServiceCommand::Learn { .. }))
             .map(|o| o.member)
             .collect();
-        let caster = if name == "guild" { 2 } else { 1 };
+        let caster = world.party.members[if name == "guild" { 2 } else { 1 }].id;
         assert!(!learners.is_empty(), "{name}");
         assert!(
             learners.iter().all(|m| *m == Some(caster)),
@@ -269,12 +278,17 @@ fn the_party_view_and_status_carry_the_town_and_rest() {
 
     let member = &mut world.party.members[0];
     member.hp = 1;
-    let level = member.level;
+    let (level, id) = (member.level, member.id);
     assert_eq!(party_view(&world, &data).members[0].hit_dice_left, level);
     apply(
         &mut world,
         &data,
-        Command::Rest(RestCommand::Short { dice: vec![1] }),
+        Command::Rest(RestCommand::Short {
+            dice: vec![HitDiceSpend {
+                member: id,
+                count: 1,
+            }],
+        }),
     )
     .unwrap();
     let view = party_view(&world, &data);
@@ -292,7 +306,7 @@ fn a_town_script_runs_end_to_end() {
     let data = data();
     let mut world = inside(&data, "smith");
     let gold = world.party.gold;
-    let commands = omnis_sim::command::parse_script("buy-0-2, sell-0, leave").unwrap();
+    let commands = script(&world, "buy-0-2, sell-0, leave");
     for command in commands {
         apply(&mut world, &data, command).unwrap();
     }

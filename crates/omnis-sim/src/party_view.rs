@@ -20,9 +20,8 @@ use serde::{Deserialize, Serialize};
 /// One party member as a client sees it: the sheet plus the derived numbers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemberView {
-    /// Position in marching order.
-    pub index: u8,
-    /// Stable identity.
+    /// Stable identity, the `member` every command and event names; `PartyView.members` is in
+    /// marching order.
     pub id: CharacterId,
     /// Display name.
     pub name: String,
@@ -229,7 +228,7 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
         .members
         .iter()
         .enumerate()
-        .map(|(index, member)| member_view(data, now, index, member, index < front_row))
+        .map(|(index, member)| member_view(data, now, member, index < front_row))
         .collect();
     PartyView {
         members,
@@ -254,7 +253,7 @@ fn name_of(name: Option<&str>) -> String {
     name.unwrap_or("?").to_owned()
 }
 
-fn member_view(data: &Data, now: i64, index: usize, member: &Character, front: bool) -> MemberView {
+fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> MemberView {
     let dead = condition_id(data, "dead");
     let class = data.classes.get(&member.class);
     let proficiency = proficiency_bonus(member.level, data).unwrap_or(2);
@@ -262,7 +261,6 @@ fn member_view(data: &Data, now: i64, index: usize, member: &Character, front: b
     let year =
         i64::from(calendar.minutes_per_day.max(1)) * i64::from(calendar.days_per_year.max(1));
     MemberView {
-        index: u8::try_from(index).unwrap_or(u8::MAX),
         id: member.id,
         name: member.name.clone(),
         race: name_of(data.registry.races.name(member.race)),

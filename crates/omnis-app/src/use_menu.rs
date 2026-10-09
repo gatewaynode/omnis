@@ -158,7 +158,7 @@ impl CombatMenu {
         let command = match row.kind {
             UseKind::Item { index, .. } => CombatCommand::Use {
                 item: index,
-                target: selected.map(|s| u8::try_from(s).unwrap_or(u8::MAX)),
+                target: selected.and_then(|s| view.ids.get(s).copied()),
             },
             UseKind::Feature { index, choice, .. } => CombatCommand::Feature {
                 feature: index,
@@ -251,7 +251,7 @@ mod tests {
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Use {
                 item: 6,
-                target: Some(0)
+                target: Some(world.party.members[0].id)
             }))
         );
         assert_eq!(menu.use_picker, None, "a use closes the picker");
@@ -313,7 +313,10 @@ mod tests {
         let (data, world) = level_two();
         let view = combat_view(&world, &data).unwrap();
         let rows = |own: usize| -> Vec<(String, UseKind)> {
-            let fighter = view.members.iter().find(|m| usize::from(m.index) == own);
+            let fighter = view
+                .members
+                .iter()
+                .find(|m| m.member == world.party.members[own].id);
             use_rows(&world, &data, own, fighter)
                 .into_iter()
                 .filter(|r| matches!(r.kind, UseKind::Feature { .. }))
@@ -352,7 +355,10 @@ mod tests {
         let (data, world) = level_two();
         let mut view = fight_view(&world, &data).unwrap();
         let fighter = combat_view(&world, &data).unwrap();
-        let rogue = fighter.members.iter().find(|m| m.index == 1);
+        let rogue = fighter
+            .members
+            .iter()
+            .find(|m| m.member == world.party.members[1].id);
         view.own = Some(1);
         view.usable = use_rows(&world, &data, 1, rogue);
         for row in &mut view.usable {
@@ -370,7 +376,9 @@ mod tests {
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Feature {
                 feature: 0,
-                choice: FeatureChoice::Exchange { with: 0 }
+                choice: FeatureChoice::Exchange {
+                    with: world.party.members[0].id
+                }
             }))
         );
         menu.use_picker = Some(1);

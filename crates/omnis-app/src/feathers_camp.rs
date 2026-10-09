@@ -271,7 +271,10 @@ pub(crate) fn reports(
             continue;
         };
         *synced = false;
-        match model::apply(id, &report.payload, view, form) {
+        let ids: Vec<_> = views
+            .as_deref()
+            .map_or_else(Vec::new, |v| v.party.members.iter().map(|m| m.id).collect());
+        match model::apply(id, &report.payload, view, &ids, form) {
             Some(CampAsk::Rest(rest)) => {
                 out.write(PlayerCommand(Command::Rest(rest)));
             }

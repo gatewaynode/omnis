@@ -114,7 +114,7 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
         &mut world,
         &data,
         Command::Item(ItemCommand::Use {
-            member: 0,
+            member: brenna,
             item: row,
             target: None,
         }),
@@ -202,7 +202,7 @@ fn the_best_eyes_look_and_a_source_without_a_die_reaches_the_whole_ray() {
     // Brenna carries the glass, but Durin (Wisdom 16, +3) outsees her Perception (+2).
     let (glass, row) = spyglass(&mut world, &data, 0);
     let use_it = Command::Item(ItemCommand::Use {
-        member: 0,
+        member: brenna,
         item: row,
         target: None,
     });

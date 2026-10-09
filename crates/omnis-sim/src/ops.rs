@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 /// The version of the engine's API, both tiers (ARCHITECTURE.md §4.9). Additions leave it alone;
 /// a rename, a removal, or a change of meaning or units moves it, with a line in the changelog
 /// of `docs/api.md`. `game.status` reports it so a client can check it first.
-pub const PROTOCOL: u32 = 1;
+pub const PROTOCOL: u32 = 2;
 
 /// Most commands one `sim.script` may carry.
 pub const MAX_SCRIPT: usize = 10_000;

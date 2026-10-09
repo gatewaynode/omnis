@@ -523,6 +523,7 @@ mod tests {
             phase: omnis_sim::ModeKind::Combat,
             round: 2,
             own: Some(0),
+            ids: vec![omnis_sim::omnis_core::CharacterId(0)],
             disposition: omnis_sim::omnis_data::Disposition::Hostile,
             stacks: [
                 ("Goblin", 3, 2, true),

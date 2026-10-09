@@ -57,14 +57,14 @@ pub enum CombatCommand {
         /// The row of the acting member's kit.
         item: u8,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<u8>,
+        target: Option<CharacterId>,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
     /// Swap marching-order slots with another member.
     Exchange {
         /// The other member's slot.
-        with: u8,
+        with: CharacterId,
     },
     /// Try to get away; the whole party leaves on success.
     Run,
@@ -103,7 +103,7 @@ pub enum FeatureChoice {
     /// Cunning Action: swap with the member in this slot, provoking nothing.
     Exchange {
         /// The other member's slot.
-        with: u8,
+        with: CharacterId,
     },
     /// Cunning Action: hide.
     Hide,
@@ -364,10 +364,7 @@ fn validate(
         }
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {
-            let index = usize::from(with);
-            if index >= world.party.members.len() {
-                return Err(Rejection::NoSuchMember { index: with });
-            }
+            let index = usize::from(world.party.slot_of(with)?);
             if index == own {
                 return Err(Rejection::SameMember);
             }

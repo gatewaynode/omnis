@@ -7,6 +7,7 @@ use super::{Policy, SEEDS, cast_or_attack, hundredths, tenths};
 use omnis_core::{Facing, Position};
 use omnis_data::Data;
 use omnis_sim::omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger};
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{
     CombatCommand, CombatOutcome, Command, EncounterChoice, EncounterSource, EncounterState, Event,
@@ -119,7 +120,7 @@ pub(crate) fn declare_shield(world: &mut World, data: &Data) {
             when: Criteria::Is(Predicate::WouldChangeOutcome),
         };
         let command = TacticsCommand::PutReaction {
-            member: u8::try_from(member).unwrap(),
+            member: m.id,
             at: None,
             set,
         };
@@ -175,19 +176,18 @@ pub(crate) fn placed(
 /// After a fight: an hour's rest spending every die of each member under half, and any
 /// ambush it brings fought out.
 fn short_rest(world: &mut World, data: &Data, play: Play, clear: &mut Clear) {
-    let dice: Vec<u8> = world
+    let dice: Vec<HitDiceSpend> = world
         .party
         .members
         .iter()
-        .map(|m| {
-            if m.hp > 0 && m.hp * 2 < m.hp_max {
-                m.level.saturating_sub(m.hit_dice_spent)
-            } else {
-                0
-            }
+        .filter(|m| m.hp > 0 && m.hp * 2 < m.hp_max)
+        .map(|m| HitDiceSpend {
+            member: m.id,
+            count: m.level.saturating_sub(m.hit_dice_spent),
         })
+        .filter(|spend| spend.count > 0)
         .collect();
-    if dice.iter().all(|d| *d == 0) {
+    if dice.is_empty() {
         return;
     }
     if apply(world, data, Command::Rest(RestCommand::Short { dice })).is_err() {

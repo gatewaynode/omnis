@@ -26,8 +26,19 @@ use serde::{Deserialize, Serialize};
 pub enum Target {
     /// A stack, by its index in the encounter; the whole stack under `Reach::Stack`.
     Stack(u8),
+    /// A member, by identity.
+    Member(CharacterId),
+}
+
+/// A checked target: a member by slot once validation has found them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Aim {
+    /// A stack, by its index in the encounter.
+    Stack(u8),
     /// A member, by marching-order slot.
-    Member(u8),
+    Member(usize),
+    /// Nobody in particular (light).
+    Party,
 }
 
 /// A cast that passed every check.
@@ -40,7 +51,7 @@ pub(crate) struct CastPlan {
     /// Points it costs.
     pub cost: u32,
     /// Whom it goes to.
-    pub target: Target,
+    pub target: Aim,
 }
 
 /// The target-free half of validation: the spell a member knows at `index`, castable here
@@ -140,19 +151,16 @@ pub(crate) fn validate(
             own,
             spell,
             cost,
-            target,
+            target: Aim::Party,
         });
     }
-    match (effect.targets_members(), target) {
-        (true, Target::Member(slot)) => {
-            let member = world
-                .party
-                .members
-                .get(usize::from(slot))
-                .ok_or(Rejection::NoSuchMember { index: slot })?;
-            if super::state::is_dead(member, data) {
-                return Err(Rejection::MemberDead { index: slot });
+    let aim = match (effect.targets_members(), target) {
+        (true, Target::Member(id)) => {
+            let slot = usize::from(world.party.slot_of(id)?);
+            if super::state::is_dead(&world.party.members[slot], data) {
+                return Err(Rejection::MemberDead { member: id });
             }
+            Aim::Member(slot)
         }
         (false, Target::Stack(stack)) => {
             let s = state
@@ -163,14 +171,15 @@ pub(crate) fn validate(
             if !s.alive() {
                 return Err(Rejection::StackDead { stack });
             }
+            Aim::Stack(stack)
         }
         _ => return Err(Rejection::WrongTarget),
-    }
+    };
     Ok(CastPlan {
         own,
         spell,
         cost,
-        target,
+        target: aim,
     })
 }
 
@@ -216,7 +225,7 @@ pub(crate) fn resolve(
         return Ok(());
     };
     match (effect, plan.target) {
-        (SpellEffect::Attack { dice, damage_type }, Target::Stack(stack)) => {
+        (SpellEffect::Attack { dice, damage_type }, Aim::Stack(stack)) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             cast_attack(
                 world,
@@ -229,7 +238,7 @@ pub(crate) fn resolve(
                 events,
             )
         }
-        (SpellEffect::AutoHit { dice, damage_type }, Target::Stack(stack)) => {
+        (SpellEffect::AutoHit { dice, damage_type }, Aim::Stack(stack)) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             cast_auto(data, state, stack, (dice, *damage_type), roller, events)
         }
@@ -240,7 +249,7 @@ pub(crate) fn resolve(
                 damage_type,
                 half_on_save,
             },
-            Target::Stack(stack),
+            Aim::Stack(stack),
         ) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             let save = SaveSpell {
@@ -252,7 +261,7 @@ pub(crate) fn resolve(
             };
             cast_save(world, data, state, plan, stack, &save, roller, events)
         }
-        (SpellEffect::Heal { dice, add_mod }, Target::Member(slot)) => {
+        (SpellEffect::Heal { dice, add_mod }, Aim::Member(slot)) => {
             let caster = &world.party.members[plan.own];
             let heal = heal_roll(
                 caster,
@@ -262,18 +271,11 @@ pub(crate) fn resolve(
                 &mut roller.rng,
                 &roller.stream,
             )?;
-            party::heal(
-                world,
-                data,
-                usize::from(slot),
-                heal.rolls,
-                heal.amount,
-                events,
-            );
+            party::heal(world, data, slot, heal.rolls, heal.amount, events);
             Ok(())
         }
-        (SpellEffect::Buff { .. }, Target::Member(slot)) => {
-            cast_buff(world, data, plan, usize::from(slot), events);
+        (SpellEffect::Buff { .. }, Aim::Member(slot)) => {
+            cast_buff(world, data, plan, slot, events);
             Ok(())
         }
         (SpellEffect::Light { depth, minutes }, _) => {

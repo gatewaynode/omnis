@@ -10,7 +10,7 @@
 //! subscribed from a fight's start to its end, answers it.
 
 use super::Roller;
-use super::cast::{self, CastPlan, Target};
+use super::cast::{self, Aim, CastPlan};
 use super::state::CombatState;
 use crate::bus::{self, Bus, Cue, Host, Signal, Subscriber};
 use crate::effects;
@@ -313,12 +313,11 @@ fn react(
         trigger: set.trigger,
         action: set.action.clone(),
     });
-    let target = u8::try_from(subject).unwrap_or(u8::MAX);
     let plan = CastPlan {
         own: reactor,
         spell,
         cost,
-        target: Target::Member(target),
+        target: Aim::Member(subject),
     };
     cast::pay(world, data, &plan, events)?;
     match (effect, probe) {

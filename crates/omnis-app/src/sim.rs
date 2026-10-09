@@ -13,6 +13,7 @@ use omnis_sim::api::{
     Direction, Known, MapId, Op, OpError, Reply, Status, ViewportModel, automap, check_reload,
     dispatch, save_text, site_ahead, status, step_lands, viewport,
 };
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, Rejection, Settings, World, apply};
@@ -222,6 +223,13 @@ pub struct Views {
 }
 
 impl Views {
+    /// The id of the member standing in marching-order `slot` (the band's selection), which
+    /// the commands name members by.
+    #[must_use]
+    pub fn member_id(&self, slot: usize) -> Option<CharacterId> {
+        self.party.members.get(slot).map(|m| m.id)
+    }
+
     /// Every view of `world`, read through the engine's API only.
     #[must_use]
     pub fn of(world: &World, data: &Data) -> Views {

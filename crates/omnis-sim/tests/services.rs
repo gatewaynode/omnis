@@ -5,7 +5,7 @@
 mod common;
 
 use common::{data, inside};
-use omnis_core::{Clock, EraId, HolderId, StreamName};
+use omnis_core::{CharacterId, Clock, EraId, HolderId, StreamName};
 use omnis_data::Data;
 use omnis_sim::{Command, Event, ModeKind, Rejection, ServiceCommand, World, apply};
 
@@ -187,15 +187,15 @@ fn the_tavern_sells_food_and_tells_rumors() {
 fn the_temple_heals_cures_and_raises_for_a_price() {
     let data = data();
     let mut world = inside(&data, "temple");
+    let (brenna, durin) = (world.party.members[0].id, world.party.members[1].id);
     refused(
         &mut world,
         &data,
-        ServiceCommand::Heal { member: 0 },
-        Rejection::NothingToTreat { index: 0 },
+        ServiceCommand::Heal { member: brenna },
+        Rejection::NothingToTreat { member: brenna },
     );
     world.party.members[0].hp -= 4;
-    let events = ask(&mut world, &data, ServiceCommand::Heal { member: 0 });
-    let brenna = world.party.members[0].id;
+    let events = ask(&mut world, &data, ServiceCommand::Heal { member: brenna });
     assert!(events.contains(&Event::Treated {
         member: brenna,
         cost: 400
@@ -206,12 +206,12 @@ fn the_temple_heals_cures_and_raises_for_a_price() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Cure { member: 0 },
-        Rejection::NothingToTreat { index: 0 },
+        ServiceCommand::Cure { member: brenna },
+        Rejection::NothingToTreat { member: brenna },
     );
     let poisoned = omnis_rules::condition_id(&data, "poisoned").unwrap();
     world.party.members[0].conditions.push(poisoned);
-    let events = ask(&mut world, &data, ServiceCommand::Cure { member: 0 });
+    let events = ask(&mut world, &data, ServiceCommand::Cure { member: brenna });
     assert!(events.contains(&Event::Condition {
         target: omnis_sim::ActorRef::Member(brenna),
         condition: poisoned,
@@ -223,8 +223,8 @@ fn the_temple_heals_cures_and_raises_for_a_price() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Raise { member: 1 },
-        Rejection::NotDead { index: 1 },
+        ServiceCommand::Raise { member: durin },
+        Rejection::NotDead { member: durin },
     );
     let dead = omnis_rules::condition_id(&data, "dead").unwrap();
     world.party.members[1].hp = 0;
@@ -232,22 +232,21 @@ fn the_temple_heals_cures_and_raises_for_a_price() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Heal { member: 1 },
-        Rejection::MemberDead { index: 1 },
+        ServiceCommand::Heal { member: durin },
+        Rejection::MemberDead { member: durin },
     );
     world.party.gold = 2499;
     refused(
         &mut world,
         &data,
-        ServiceCommand::Raise { member: 1 },
+        ServiceCommand::Raise { member: durin },
         Rejection::CannotAfford {
             cost: 2500,
             gold: 2499,
         },
     );
     world.party.gold = 2500;
-    let events = ask(&mut world, &data, ServiceCommand::Raise { member: 1 });
-    let durin = world.party.members[1].id;
+    let events = ask(&mut world, &data, ServiceCommand::Raise { member: durin });
     assert!(events.contains(&Event::Raised {
         member: durin,
         cost: 2500
@@ -258,8 +257,12 @@ fn the_temple_heals_cures_and_raises_for_a_price() {
     refused(
         &mut world,
         &data,
-        ServiceCommand::Heal { member: 6 },
-        Rejection::NoSuchMember { index: 6 },
+        ServiceCommand::Heal {
+            member: CharacterId(6),
+        },
+        Rejection::NoSuchMember {
+            member: CharacterId(6),
+        },
     );
 }
 
@@ -366,22 +369,23 @@ fn the_bank_keeps_copper() {
 #[test]
 fn each_service_does_only_its_own_work() {
     let data = data();
-    let asks = [
-        ServiceCommand::Room,
-        ServiceCommand::Rumor,
-        ServiceCommand::Heal { member: 0 },
-        ServiceCommand::Buy { item: 0, count: 1 },
-        ServiceCommand::Deposit { amount: 1 },
-        ServiceCommand::Train { member: 0 },
-        ServiceCommand::Learn {
-            member: 1,
-            spell: 2,
-        },
-    ];
     for name in [
         "inn", "temple", "trainer", "guild", "smith", "tavern", "bank",
     ] {
         let mut world = inside(&data, name);
+        let (brenna, durin) = (world.party.members[0].id, world.party.members[1].id);
+        let asks = [
+            ServiceCommand::Room,
+            ServiceCommand::Rumor,
+            ServiceCommand::Heal { member: brenna },
+            ServiceCommand::Buy { item: 0, count: 1 },
+            ServiceCommand::Deposit { amount: 1 },
+            ServiceCommand::Train { member: brenna },
+            ServiceCommand::Learn {
+                member: durin,
+                spell: 2,
+            },
+        ];
         world.party.members[0].hp -= 1;
         world.party.members[0].xp = 300;
         for command in asks {
@@ -402,7 +406,7 @@ fn each_service_does_only_its_own_work() {
             );
             if matches!((name, command), ("guild", ServiceCommand::Learn { .. })) {
                 // The guild's shield is off the cleric's list: offered, and refused for that.
-                assert_eq!(result, Err(Rejection::NotOnList { index: 1 }));
+                assert_eq!(result, Err(Rejection::NotOnList { member: durin }));
                 world = before;
             } else if offered {
                 assert!(result.is_ok(), "{name} {command:?}: {result:?}");

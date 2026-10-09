@@ -77,7 +77,8 @@ fn state(world: &mut World) -> &mut omnis_sim::CombatState {
     }
 }
 
-fn declare_shield(world: &mut World, data: &Data, member: u8) {
+fn declare_shield(world: &mut World, data: &Data, slot: usize) {
+    let member = world.party.members[slot].id;
     let set = CriteriaSet {
         name: "Shield".to_owned(),
         action: ActionRef::Spell(spell(data, "shield")),
@@ -213,7 +214,7 @@ fn fire_bolt_is_a_plus_five_spell_attack_of_2d10_that_a_declared_shield_answers(
     bob_casting(&mut data, &["fire_bolt"], false);
     let ilvara_shielded = (0..200).find_map(|seed| {
         let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |w| {
-            declare_shield(w, &data, u8::try_from(ILVARA).unwrap());
+            declare_shield(w, &data, ILVARA);
         });
         let ilvara = world.party.members[ILVARA].id;
         let events = bob_turn(&mut world, &data, &start);
@@ -257,7 +258,7 @@ fn magic_missile_stops_at_a_shield_raised_or_already_up() {
     bob_casting(&mut data, &["magic_missile"], false);
     // Only Ilvara stands, so both missiles come at her.
     let (mut world, start) = against_bob(&data, 3, (3, 2, 200), |w| {
-        declare_shield(w, &data, u8::try_from(ILVARA).unwrap());
+        declare_shield(w, &data, ILVARA);
         for slot in 0..2 {
             w.party.members[slot].hp = 0;
         }

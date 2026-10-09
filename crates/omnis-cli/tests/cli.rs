@@ -2,7 +2,7 @@
 
 use omnis_data::load_packs;
 use omnis_sim::Settings;
-use omnis_sim::command::parse_script;
+use omnis_sim::parse_script;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -84,7 +84,12 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         "{out}"
     );
     let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
-    let commands = parse_script(text).unwrap();
+    // The walk names no member, so the words resolve against any party.
+    let commands: Vec<_> = parse_script(text)
+        .unwrap()
+        .iter()
+        .map(|w| w.command(&[]).unwrap())
+        .collect();
     // The headless driver is a dev world (`Settings.devtools`), and a save says so.
     let settings = Settings {
         devtools: true,
@@ -100,6 +105,15 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
     assert!(!ok);
     assert!(err.contains("line 2: unknown command 'fly'"), "{err}");
+    // A word names a slot, resolved when it is applied: the headless party is empty, so the
+    // fourth slot names nobody.
+    std::fs::write(&script, "forward\ncast-0-m3\n").unwrap();
+    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    assert!(!ok);
+    assert!(
+        err.contains("turn 1: 'cast-0-m3' names an empty slot"),
+        "{err}"
+    );
     let (ok, _, err) = cli(&["play"]);
     assert!(!ok && err.contains("--script"), "{err}");
 }

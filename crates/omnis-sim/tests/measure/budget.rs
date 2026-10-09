@@ -54,10 +54,9 @@ pub(crate) fn budgeted(world: &World, data: &Data) -> Command {
             .party
             .members
             .iter()
-            .enumerate()
-            .filter(|(_, m)| m.hp > 0 && m.hp * 2 < m.hp_max)
-            .min_by_key(|(_, m)| m.hp)
-            .map(|(i, _)| u8::try_from(i).unwrap());
+            .filter(|m| m.hp > 0 && m.hp * 2 < m.hp_max)
+            .min_by_key(|m| m.hp)
+            .map(|m| m.id);
         let word = view.spells.iter().find(|s| {
             let spell = &data.spells[&member.known_spells[usize::from(s.index)]];
             s.blocked.is_none()

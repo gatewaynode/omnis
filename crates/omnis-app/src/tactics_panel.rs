@@ -11,7 +11,7 @@
 pub use crate::tactics_draft::{Choices, Draft, Field, Kind, criteria_text, trigger_name};
 use crate::ui_model::Payload;
 use omnis_sim::TacticsView;
-use omnis_sim::omnis_core::fnv1a64;
+use omnis_sim::omnis_core::{CharacterId, fnv1a64};
 use omnis_sim::omnis_rules::tactics::{CRITERIA_NODES, RUNBOOK_ENTRIES, TACTICS_NAME_BYTES};
 use omnis_sim::omnis_rules::{Criteria, CriteriaSet, Trigger};
 use omnis_sim::tactics::TacticsCommand;
@@ -217,32 +217,32 @@ pub enum TacticsAsk {
     Close,
 }
 
-/// Apply one control's report. `view` is the member's tactics as they are now, `members` the
-/// party's size.
+/// Apply one control's report. `view` is the member's tactics as they are now, `ids` the
+/// party's ids in marching order (the form's member is a slot among them).
 pub fn apply(
     id: TacticsPanelId,
     payload: &Payload,
     view: &TacticsView,
-    members: usize,
+    ids: &[CharacterId],
     choices: &Choices,
     form: &mut TacticsForm,
 ) -> Option<TacticsAsk> {
-    let member = u8::try_from(form.member).ok()?;
+    let member = ids.get(form.member).copied();
     let editable = !form.locked;
     match (id, payload) {
-        (TacticsPanelId::MemberPick(slot), Payload::Activate) if slot < members => {
+        (TacticsPanelId::MemberPick(slot), Payload::Activate) if slot < ids.len() => {
             *form = TacticsForm::new(slot);
         }
         (TacticsPanelId::Reactions, Payload::Flag(on)) => {
             return Some(TacticsAsk::Send(TacticsCommand::SetReactions {
-                member,
+                member: member?,
                 on: *on,
             }));
         }
         (TacticsPanelId::Edit(at), Payload::Activate) => form.load(view, at, choices),
         (TacticsPanelId::Remove(at), Payload::Activate) if at < view.reactions.len() => {
             return Some(TacticsAsk::Send(TacticsCommand::RemoveReaction {
-                member,
+                member: member?,
                 at: u8::try_from(at).ok()?,
             }));
         }
@@ -302,7 +302,7 @@ pub fn apply(
                 return None;
             };
             return Some(TacticsAsk::Send(TacticsCommand::PutReaction {
-                member,
+                member: member?,
                 at: form.editing,
                 set,
             }));
@@ -472,8 +472,16 @@ mod tests {
         }
     }
 
+    /// A party of four whose ids are not their slots, so a slot sent as an id shows.
+    const IDS: [CharacterId; 4] = [
+        CharacterId(10),
+        CharacterId(11),
+        CharacterId(12),
+        CharacterId(13),
+    ];
+
     fn press(id: TacticsPanelId, form: &mut TacticsForm) -> Option<TacticsAsk> {
-        apply(id, &Payload::Activate, &view(), 4, &choices(), form)
+        apply(id, &Payload::Activate, &view(), &IDS, &choices(), form)
     }
 
     #[test]
@@ -537,7 +545,7 @@ mod tests {
                 TacticsPanelId::Number(0),
                 &Payload::Number(value),
                 &view(),
-                4,
+                &IDS,
                 &choices(),
                 form,
             )
@@ -596,7 +604,7 @@ mod tests {
         assert_eq!(
             asked,
             Some(TacticsAsk::Send(TacticsCommand::PutReaction {
-                member: 2,
+                member: IDS[2],
                 at: None,
                 set: CriteriaSet {
                     name: "Shield on attacked".to_owned(),
@@ -630,7 +638,7 @@ mod tests {
             TacticsPanelId::Save,
             &Payload::Activate,
             &bare,
-            4,
+            &IDS,
             &choices(),
             &mut form,
         );
@@ -672,7 +680,7 @@ mod tests {
         assert_eq!(
             press(TacticsPanelId::Remove(1), &mut form),
             Some(TacticsAsk::Send(TacticsCommand::RemoveReaction {
-                member: 2,
+                member: IDS[2],
                 at: 1
             })),
             "but removed"
@@ -691,14 +699,14 @@ mod tests {
             TacticsPanelId::Reactions,
             &Payload::Flag(false),
             &view(),
-            4,
+            &IDS,
             &choices(),
             &mut form,
         );
         assert_eq!(
             flag,
             Some(TacticsAsk::Send(TacticsCommand::SetReactions {
-                member: 2,
+                member: IDS[2],
                 on: false
             }))
         );

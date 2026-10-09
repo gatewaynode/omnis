@@ -165,8 +165,7 @@ fn combat_keys(
                         player.write(PlayerCommand(Command::Combat(command)));
                     }
                     Some(CombatIntent::Reactions { on }) => {
-                        if let Some(own) = view.own {
-                            let member = u8::try_from(own).unwrap_or(u8::MAX);
+                        if let Some(member) = view.own_id() {
                             let switch = TacticsCommand::SetReactions { member, on };
                             player.write(PlayerCommand(Command::Party(PartyCommand::Tactics(
                                 switch,

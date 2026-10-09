@@ -86,11 +86,27 @@ fn index() -> Value {
     json!({"type": "integer", "minimum": 0})
 }
 
-/// A spell's target: a stack or a member by index.
+/// A member's identity (`CharacterId`, a `u32`), as `party_get` lists it: commands name members
+/// by id, never by marching-order slot (protocol 2).
+fn member_id() -> Value {
+    json!({"type": "integer", "minimum": 0, "maximum": u32::MAX})
+}
+
+/// A member's identity, or null (the actor, or none).
+fn member_or_null() -> Value {
+    json!({"type": ["integer", "null"], "minimum": 0, "maximum": u32::MAX})
+}
+
+/// A list row, or null.
+fn index_or_null() -> Value {
+    json!({"type": ["integer", "null"], "minimum": 0})
+}
+
+/// A spell's target: a stack by index or a member by identity.
 fn target() -> Value {
     json!({"oneOf": [
         {"type": "object", "properties": {"Stack": index()}, "required": ["Stack"], "additionalProperties": false},
-        {"type": "object", "properties": {"Member": index()}, "required": ["Member"], "additionalProperties": false}
+        {"type": "object", "properties": {"Member": member_id()}, "required": ["Member"], "additionalProperties": false}
     ]})
 }
 
@@ -106,11 +122,11 @@ fn variant(name: &str, fields: &[(&str, Value)]) -> Value {
 
 /// The `Dev` command's variants: debugging edits, accepted only in a devtools world.
 fn dev_schema() -> Value {
-    let member = ("member", index());
+    let member = ("member", member_id());
     let abilities = json!({"type": "string", "enum": ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]});
     let facing = json!({"type": "string", "enum": ["North", "East", "South", "West"]});
     json!({"oneOf": [
-        variant("GiveItem", &[("member", json!({"type": ["integer", "null"], "minimum": 0})), ("item", String::schema()), ("count", index())]),
+        variant("GiveItem", &[("member", member_or_null()), ("item", String::schema()), ("count", index())]),
         variant("SetHp", &[member.clone(), ("hp", json!({"type": "integer"}))]),
         variant("SetSpellPoints", &[member.clone(), ("points", index())]),
         variant("SetGold", &[("gold", index())]),
@@ -126,33 +142,28 @@ fn dev_schema() -> Value {
     ]})
 }
 
-/// A member's slot, or null for the actor.
-fn member_or_null() -> Value {
-    json!({"type": ["integer", "null"], "minimum": 0})
-}
-
 /// The `Item` command's variants: every `item` is a row of the kit or the stores it names.
 fn item_schema() -> Value {
-    let member = ("member", index());
+    let member = ("member", member_id());
     let item = ("item", index());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
     let slot = json!({"type": "string", "enum": ["MainHand", "OffHand", "Ranged", "Body"]});
     json!({"oneOf": [
         variant("Equip", &[member.clone(), item.clone()]),
         variant("Unequip", &[member.clone(), ("slot", slot)]),
-        variant("Give", &[("from", index()), ("to", index()), item.clone(), count.clone()]),
+        variant("Give", &[("from", member_id()), ("to", member_id()), item.clone(), count.clone()]),
         variant("Stow", &[member.clone(), item.clone(), count.clone()]),
         variant("Take", &[member.clone(), item.clone(), count]),
         variant("Use", &[member, item, ("target", member_or_null())])
     ]})
 }
 
-/// The `Service` command's variants, inside a service only: `member` is a party slot, `Buy`'s
+/// The `Service` command's variants, inside a service only: `member` is a member's id, `Buy`'s
 /// `item` a row of the service's stock, `Sell`'s a row of the stores; amounts are copper.
 /// `Choose`'s `spell` is a row of the member's class list, `Learn`'s a row of the service's
 /// spells.
 fn service_schema() -> Value {
-    let member = ("member", index());
+    let member = ("member", member_id());
     let spell = ("spell", index());
     let item = ("item", index());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
@@ -184,7 +195,7 @@ fn newtype(name: &str, value: Value) -> Value {
 /// `"Always"` or one object node, `{"All": [..]}`, `{"Any": [..]}` or `{"Is": predicate}`, the
 /// simulation checking the whole tree (depth 4, 16 nodes, percentages 0..=100, known ids).
 fn tactics_schema() -> Value {
-    let member = ("member", index());
+    let member = ("member", member_id());
     let set = json!({"type": "object", "properties": {
         "name": {"type": "string", "minLength": 1, "maxLength": 32},
         "action": {"oneOf": [
@@ -201,15 +212,17 @@ fn tactics_schema() -> Value {
     }, "required": ["name", "action", "trigger", "when"], "additionalProperties": false});
     json!({"oneOf": [
         variant("SetReactions", &[member.clone(), ("on", bool::schema())]),
-        variant("PutReaction", &[member.clone(), ("at", member_or_null()), ("set", set)]),
+        variant("PutReaction", &[member.clone(), ("at", index_or_null()), ("set", set)]),
         variant("RemoveReaction", &[member, ("at", index())])
     ]})
 }
 
 /// The `Rest` command's variants, outside a service only: `Long` is the night (food, once a
-/// day); `Short` is an hour, `dice[i]` the hit dice member `i` spends (missing members none).
+/// day); `Short` is an hour, `dice` the hit dice each named member spends (members not named
+/// spend none, a member named twice is refused), rolled in marching order.
 fn rest_schema() -> Value {
-    let dice = json!({"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}});
+    let spend = json!({"type": "object", "properties": {"member": member_id(), "count": {"type": "integer", "minimum": 0, "maximum": 255}}, "required": ["member", "count"], "additionalProperties": false});
+    let dice = json!({"type": "array", "items": spend});
     json!({"oneOf": [
         {"type": "string", "enum": ["Long"]},
         variant("Short", &[("dice", dice)])
@@ -219,14 +232,14 @@ fn rest_schema() -> Value {
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by index at a stack or member with the action or the bonus action, use a kit row on a member, dodge, exchange, run, a class feature by its row with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by index at a stack or a member by id with the action or the bonus action, use a kit row on a member, dodge, exchange with a member, run, a class feature by its row with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
                 {"type": "string", "enum": ["Interact"]},
                 {"type": "object", "properties": {"Party": {"oneOf": [
                     {"type": "object", "properties": {"Create": Draft::schema()}, "required": ["Create"], "additionalProperties": false},
-                    {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": {"type": "integer", "minimum": 0}}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": member_id()}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false},
                     newtype("Tactics", tactics_schema())
                 ]}}, "required": ["Party"], "additionalProperties": false},
                 {"type": "object", "properties": {"Encounter": {"type": "string", "enum": ["Attack", "Bribe", "Hide", "Run"]}}, "required": ["Encounter"], "additionalProperties": false},
@@ -235,13 +248,13 @@ impl Schema for Command {
                     {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": index(), "target": target(), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
                     variant("Use", &[("item", index()), ("target", member_or_null())]),
                     {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
-                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
                     {"type": "object", "properties": {"Feature": {"type": "object", "properties": {"feature": index(), "choice": {"oneOf": [
                         {"type": "string", "enum": ["None", "Hide"]},
-                        {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                        {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
                     ]}}, "required": ["feature"], "additionalProperties": false}}, "required": ["Feature"], "additionalProperties": false}
                 ]}}, "required": ["Combat"], "additionalProperties": false},
-                variant("Cast", &[("caster", index()), ("spell", index()), ("target", target())]),
+                variant("Cast", &[("caster", member_id()), ("spell", index()), ("target", target())]),
                 {"type": "object", "properties": {"Item": item_schema()}, "required": ["Item"], "additionalProperties": false},
                 {"type": "object", "properties": {"Service": service_schema()}, "required": ["Service"], "additionalProperties": false},
                 {"type": "object", "properties": {"Rest": rest_schema()}, "required": ["Rest"], "additionalProperties": false},

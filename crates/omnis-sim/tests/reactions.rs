@@ -38,9 +38,15 @@ fn set(action: ActionRef, trigger: Trigger, when: Criteria) -> CriteriaSet {
     }
 }
 
-fn put(member: u8, at: Option<u8>, set: CriteriaSet) -> Command {
+/// The identity of the member in `slot`: [`party`] creates its members in order and nothing here
+/// reorders them, so the ids follow the slots (checked there).
+fn id(slot: u8) -> CharacterId {
+    CharacterId(u32::from(slot))
+}
+
+fn put(slot: u8, at: Option<u8>, set: CriteriaSet) -> Command {
     Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
-        member,
+        member: id(slot),
         at,
         set,
     }))
@@ -49,6 +55,7 @@ fn put(member: u8, at: Option<u8>, set: CriteriaSet) -> Command {
 fn party(data: &Data, seed: u64) -> World {
     let mut world = common::new_world(data, seed, Settings::default());
     party_of(&mut world, data, 4);
+    assert_eq!(world.party.ids(), [id(0), id(1), id(2), id(3)]);
     let ward = spell(data, "test:spell:ward");
     world.party.members[usize::from(DURIN)]
         .known_spells
@@ -106,7 +113,7 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         &mut world,
         &data,
         put(9, None, ok.clone()),
-        Rejection::NoSuchMember { index: 9 },
+        Rejection::NoSuchMember { member: id(9) },
     );
     for (action, trigger) in [
         (bolt, Trigger::Attacked),
@@ -196,7 +203,7 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         &mut world,
         &data,
         Command::Party(PartyCommand::Tactics(TacticsCommand::RemoveReaction {
-            member: ILVARA,
+            member: id(ILVARA),
             at: 3,
         })),
         Rejection::NoSuchEntry { at: 3 },
@@ -205,7 +212,7 @@ fn the_tactics_commands_check_everything_and_change_nothing_when_refused() {
         &mut world,
         &data,
         Command::Party(PartyCommand::Tactics(TacticsCommand::RemoveReaction {
-            member: ILVARA,
+            member: id(ILVARA),
             at: 1,
         })),
     )
@@ -394,7 +401,7 @@ fn the_switch_turns_every_reaction_off_and_is_the_only_tactics_command_in_a_figh
             Rejection::WrongMode,
         );
         let off = Command::Party(PartyCommand::Tactics(TacticsCommand::SetReactions {
-            member: ILVARA,
+            member: id(ILVARA),
             on: false,
         }));
         let events = apply(&mut world, &data, off).unwrap();

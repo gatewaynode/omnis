@@ -13,7 +13,7 @@ use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Facing, Position};
+use omnis_core::{CharacterId, Facing, Position};
 use omnis_data::{Ability, Data};
 use omnis_rules::{DeathSaves, level_up, modifier, ready, spell_point_pool};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub enum DevCommand {
     /// `count` of an item to a member's kit, or to the party's stores when `member` is `None`.
     GiveItem {
         /// The member's slot, or the stores.
-        member: Option<u8>,
+        member: Option<CharacterId>,
         /// `pack:item:name`.
         item: String,
         /// How many; at least one.
@@ -34,14 +34,14 @@ pub enum DevCommand {
     /// saves, `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
     SetHp {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The new hit points.
         hp: i32,
     },
     /// Spell points, free to pass the maximum.
     SetSpellPoints {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// The new points.
         points: u32,
     },
@@ -59,7 +59,7 @@ pub enum DevCommand {
     /// free (`Event::LevelUp` with no cost); a lower figure never takes a level away.
     SetXp {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// Experience points.
         xp: u32,
     },
@@ -68,7 +68,7 @@ pub enum DevCommand {
     /// current points moving by the same amount. Everything else reads the scores live.
     SetScore {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// Which score.
         ability: Ability,
         /// The new score.
@@ -77,7 +77,7 @@ pub enum DevCommand {
     /// A pack condition on or off, raw: `dead` set this way does not zero hit points.
     SetCondition {
         /// The member's slot.
-        member: u8,
+        member: CharacterId,
         /// `pack:condition:name`.
         condition: String,
         /// On or off.
@@ -258,18 +258,18 @@ fn kill_stack(world: &mut World, stack: u8, events: &mut Vec<Event>) -> Result<(
     Ok(())
 }
 
-fn member_mut(world: &mut World, index: u8) -> Result<&mut omnis_rules::Character, Rejection> {
-    world
-        .party
-        .members
-        .get_mut(usize::from(index))
-        .ok_or(Rejection::NoSuchMember { index })
+fn member_mut(
+    world: &mut World,
+    member: CharacterId,
+) -> Result<&mut omnis_rules::Character, Rejection> {
+    let slot = world.party.slot_of(member)?;
+    Ok(&mut world.party.members[usize::from(slot)])
 }
 
 fn give_item(
     world: &mut World,
     data: &Data,
-    member: Option<u8>,
+    member: Option<CharacterId>,
     item: &str,
     count: u16,
 ) -> Result<(), Rejection> {
@@ -294,11 +294,11 @@ fn give_item(
 fn set_hp(
     world: &mut World,
     data: &Data,
-    index: u8,
+    member: CharacterId,
     hp: i32,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let member = member_mut(world, index)?;
+    let member = member_mut(world, member)?;
     let hp = hp.max(0);
     let was_down = member.is_down();
     member.hp = hp;
@@ -318,12 +318,12 @@ fn set_hp(
 fn set_xp(
     world: &mut World,
     data: &Data,
-    index: u8,
+    member: CharacterId,
     xp: u32,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
     let mut roller = Roller::take_stream(world, "dev");
-    let mut after = member_mut(world, index)?.clone();
+    let mut after = member_mut(world, member)?.clone();
     after.xp = xp;
     let mut ups = Vec::new();
     while ready(&after, data).map_err(Rejection::Rule)? {
@@ -335,7 +335,7 @@ fn set_xp(
             gains,
         });
     }
-    *member_mut(world, index)? = after;
+    *member_mut(world, member)? = after;
     roller.store(world);
     events.append(&mut ups);
     Ok(())
@@ -345,13 +345,13 @@ fn set_xp(
 fn set_score(
     world: &mut World,
     data: &Data,
-    index: u8,
+    member: CharacterId,
     ability: Ability,
     score: u8,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
     let mut roller = Roller::take_stream(world, "dev");
-    let mut after = member_mut(world, index)?.clone();
+    let mut after = member_mut(world, member)?.clone();
     let shift = modifier(score) - modifier(after.scores[ability.index()]);
     after.scores[ability.index()] = score;
     let mut hp = after.hp;
@@ -370,9 +370,9 @@ fn set_score(
         after.spell_points = u32::try_from(moved.max(0)).unwrap_or(u32::MAX);
         after.spell_points_max = pool;
     }
-    *member_mut(world, index)? = after;
+    *member_mut(world, member)? = after;
     roller.store(world);
-    set_hp(world, data, index, hp, events)
+    set_hp(world, data, member, hp, events)
 }
 
 fn teleport(

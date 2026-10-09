@@ -455,6 +455,7 @@ fn cast_key(
     };
     let rows = cast_rows(views, &data.0);
     menu.sync(&rows);
+    let selected = selected.and_then(|slot| views.member_id(slot));
     match menu.key(key, &rows, selected) {
         Some(CastIntent::Command(command)) => {
             act.player.write(PlayerCommand(command));

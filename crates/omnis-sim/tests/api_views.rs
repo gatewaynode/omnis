@@ -176,7 +176,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
     let broke = cast_view(&spent, &data);
     for row in broke
         .iter()
-        .filter(|r| usize::from(r.caster) == DURIN && r.cost > 0)
+        .filter(|r| r.caster == spent.party.members[DURIN].id && r.cost > 0)
     {
         assert!(row.refusal.is_some(), "no points: {row:?}");
     }
@@ -230,7 +230,7 @@ fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
         .collect();
     assert_eq!(shown.len(), held.len(), "{shown:?}");
     for (view, effect) in shown.iter().zip(&held) {
-        assert_eq!(view.caster, buff.caster_id);
+        assert_eq!(view.caster, buff.caster);
         let left = match effect.until {
             Expiry::Minute(m) => Some(m - now),
             Expiry::NextTurn => None,

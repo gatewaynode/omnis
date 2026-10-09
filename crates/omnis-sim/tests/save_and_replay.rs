@@ -485,22 +485,22 @@ fn a_replay_reproduces_declared_reactions() {
         .into_iter()
         .map(|d| Command::Party(PartyCommand::Create(d)))
         .collect();
-    let shield = data.registry.spells.get("base:spell:shield").unwrap();
-    commands.push(Command::Party(PartyCommand::Tactics(
-        TacticsCommand::PutReaction {
-            member: 2,
-            at: None,
-            set: CriteriaSet {
-                name: "Shield".to_owned(),
-                action: ActionRef::Spell(shield),
-                trigger: Trigger::Attacked,
-                when: Criteria::Always,
-            },
-        },
-    )));
     for command in &commands {
         apply(&mut world, &data, command.clone()).unwrap();
     }
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    let put = Command::Party(PartyCommand::Tactics(TacticsCommand::PutReaction {
+        member: world.party.members[2].id,
+        at: None,
+        set: CriteriaSet {
+            name: "Shield".to_owned(),
+            action: ActionRef::Spell(shield),
+            trigger: Trigger::Attacked,
+            when: Criteria::Always,
+        },
+    }));
+    apply(&mut world, &data, put.clone()).unwrap();
+    commands.push(put);
     let mut walk = out_of_town();
     walk.extend(walk_to_the_rats());
     let (taken, events) = play(&mut world, &data, &walk);
@@ -790,7 +790,7 @@ fn capture_schema_6_fixture() {
         when: Criteria::Is(Predicate::WouldChangeOutcome),
     };
     let put = PartyCommand::Tactics(TacticsCommand::PutReaction {
-        member: 2,
+        member: world.party.members[2].id,
         at: None,
         set,
     });
