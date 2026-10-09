@@ -23,7 +23,7 @@ pub const META_SERVER_INFO: &str = "io.modelcontextprotocol/serverInfo";
 /// `UnsupportedProtocolVersionError`.
 pub const UNSUPPORTED_VERSION: i64 = -32022;
 
-const INSTRUCTIONS: &str = "Omnis is a turn-based first-person grid crawler. sim_command steps the party; map_text and viewport_get show where it is; service_get lists what a town service offers and why not; screenshot returns the canvas and screen_text the open panels' text when the game window is running. Every tool is an op of the engine's API, protocol 2 (game_status reports it); each result names itself in its `reply` field. A member is named by its CharacterId (party_get's `id`) everywhere.";
+const INSTRUCTIONS: &str = "Omnis is a turn-based first-person grid crawler. sim_command steps the party; map_text and viewport_get show where it is; service_get lists what a town service offers and why not; screenshot returns the canvas and screen_text the open panels' text when the game window is running. Every tool is an op of the engine's API, protocol 2 (game_status reports it); each result names itself in its `reply` field. A member is named by its CharacterId (party_get's `id`) everywhere, a definition by its string id (`pack:kind:name`), a place by its map's string id with x, y and facing.";
 
 /// An error line for a given request id.
 type ErrorLine = Box<dyn Fn(&Value) -> String>;

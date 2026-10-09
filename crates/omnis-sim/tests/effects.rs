@@ -238,7 +238,7 @@ fn guidance_is_spent_by_the_next_check_and_concentration_is_one_per_caster() {
     let events = explore_cast(&mut world, &data, CLERIC, "guidance", rogue);
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::Concentration { spell, ended: true, .. } if *spell == spell_id(&data, "bless")
+        Event::Concentration { spell, ended: true, .. } if spell == "base:spell:bless"
     )));
     assert_eq!(
         events

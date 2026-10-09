@@ -3,6 +3,7 @@
 
 use crate::command::Rejection;
 use crate::event::{ActorRef, Event};
+use crate::names::id_of;
 use crate::tactics::{self, TacticsCommand};
 use crate::world::World;
 use alloc::vec::Vec;
@@ -180,13 +181,14 @@ pub(crate) fn set_condition(
     events: &mut Vec<Event>,
 ) {
     if let Some(condition) = condition_id(data, name) {
-        set_condition_id(member, condition, applied, events);
+        set_condition_id(member, data, condition, applied, events);
     }
 }
 
 /// Add or remove a condition by id, with the event; nothing when already so.
 pub(crate) fn set_condition_id(
     member: &mut Character,
+    data: &Data,
     condition: ConditionId,
     applied: bool,
     events: &mut Vec<Event>,
@@ -201,7 +203,7 @@ pub(crate) fn set_condition_id(
     }
     events.push(Event::Condition {
         target: ActorRef::Member(member.id),
-        condition,
+        condition: id_of(&data.registry.conditions, condition),
         applied,
     });
 }

@@ -27,6 +27,7 @@ pub mod encounter;
 pub mod event;
 pub mod items;
 mod migrate;
+pub mod names;
 pub mod ops;
 pub mod party;
 pub mod party_view;
@@ -66,6 +67,7 @@ pub use event::{
     LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
+pub use names::Place;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{

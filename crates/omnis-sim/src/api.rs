@@ -40,6 +40,7 @@ pub use crate::event::{
     LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use crate::items::ItemCommand;
+pub use crate::names::Place;
 pub use crate::party::PartyCommand;
 pub use crate::rest::{HitDiceSpend, RestCommand};
 pub use crate::service::ServiceCommand;

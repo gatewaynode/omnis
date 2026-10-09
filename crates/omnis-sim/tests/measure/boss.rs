@@ -59,6 +59,7 @@ fn fight(data: &Data, world: &mut World, spells: &[SpellId; 4], tally: &mut Tall
     let encounter = placed(data, world, depths, 4);
     let mut events = Vec::new();
     combat::start(world, data, encounter, Surprise::None, &mut events).unwrap();
+    let ids = spells.map(|s| data.registry.spells.name(s).unwrap().to_owned());
     let (mut rounds, mut outcome, mut last) = (1, None, None);
     for _ in 0..2000 {
         for event in &events {
@@ -66,15 +67,15 @@ fn fight(data: &Data, world: &mut World, spells: &[SpellId; 4], tally: &mut Tall
                 Event::RoundStarted { round } => rounds = u64::from(*round),
                 Event::CombatEnded { outcome: o, .. } => outcome = Some(*o),
                 Event::MonsterCast { spell, .. } => {
-                    last = Some(*spell);
-                    if let Some(at) = spells.iter().position(|s| s == spell) {
+                    last = Some(spell.clone());
+                    if let Some(at) = ids.iter().position(|s| s == spell) {
                         tally.casts[at] += 1;
                     }
                 }
                 Event::Reaction {
                     action: ActionRef::Spell(spell),
                     ..
-                } if *spell == spells[3] => tally.party_shields += 1,
+                } if *spell == ids[3] => tally.party_shields += 1,
                 Event::ShieldStops { target } => {
                     let at = usize::from(!matches!(target, ActorRef::Member(_)));
                     tally.stopped[at] += 1;
@@ -85,7 +86,7 @@ fn fight(data: &Data, world: &mut World, spells: &[SpellId; 4], tally: &mut Tall
                     dc: 13,
                     success,
                     ..
-                } if last == Some(spells[2]) => {
+                } if last.as_ref() == Some(&ids[2]) => {
                     tally.saves[0] += u64::from(*success);
                     tally.saves[1] += 1;
                 }

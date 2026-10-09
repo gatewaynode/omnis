@@ -9,6 +9,7 @@ use crate::apply::advance;
 use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::{Event, ItemPlace};
+use crate::names::id_of;
 use crate::party::{self, Party};
 use crate::sense;
 use crate::world::World;
@@ -266,13 +267,13 @@ fn equip(
         events.push(Event::Unequipped {
             member: m.id,
             slot,
-            item: old,
+            item: id_of(&data.registry.items, old),
         });
     }
     events.push(Event::Equipped {
         member: m.id,
         slot,
-        item: id,
+        item: id_of(&data.registry.items, id),
     });
     don(world, data, slot, events);
     Ok(())
@@ -291,7 +292,7 @@ fn unequip(
     events.push(Event::Unequipped {
         member: m.id,
         slot,
-        item,
+        item: id_of(&data.registry.items, item),
     });
     don(world, data, slot, events);
     Ok(())
@@ -319,7 +320,7 @@ fn place_of(party: &Party, place: Place) -> ItemPlace {
 }
 
 /// A slot that held an item the kit no longer carries empties, with the event.
-fn drop_worn(member: &mut Character, item: ItemId, events: &mut Vec<Event>) {
+fn drop_worn(member: &mut Character, data: &Data, item: ItemId, events: &mut Vec<Event>) {
     if count_of(&member.equipment, item) > 0 {
         return;
     }
@@ -329,7 +330,7 @@ fn drop_worn(member: &mut Character, item: ItemId, events: &mut Vec<Event>) {
             events.push(Event::Unequipped {
                 member: member.id,
                 slot,
-                item,
+                item: id_of(&data.registry.items, item),
             });
         }
     }
@@ -366,10 +367,10 @@ fn transfer(
         .map_err(|short| short.rejection(data))?;
     add_to(list_mut(&mut world.party, to), id, count);
     if let Place::Kit(own) = from {
-        drop_worn(&mut world.party.members[own], id, events);
+        drop_worn(&mut world.party.members[own], data, id, events);
     }
     events.push(Event::ItemMoved {
-        item: id,
+        item: id_of(&data.registry.items, id),
         count,
         from: place_of(&world.party, from),
         to: place_of(&world.party, to),
@@ -435,7 +436,7 @@ pub(crate) fn use_item(
     let heals = matches!(plan.kind, UseKind::Heal(_));
     events.push(Event::ItemUsed {
         member: user.id,
-        item: plan.item,
+        item: id_of(&data.registry.items, plan.item),
         target: heals.then_some(target),
         consumed: plan.consumable,
     });

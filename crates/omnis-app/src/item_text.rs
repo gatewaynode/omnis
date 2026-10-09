@@ -17,13 +17,13 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
             Line::same(format!(
                 "{} {verb} {}",
                 names.member(*member),
-                names.item(*item)
+                names.item(item)
             ))
         }
         Event::Unequipped { member, item, .. } => Line::same(format!(
             "{} takes off {}",
             names.member(*member),
-            names.item(*item)
+            names.item(item)
         )),
         Event::ItemMoved {
             item,
@@ -32,9 +32,9 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
             to,
         } => {
             let what = if *count == 1 {
-                names.item(*item).to_owned()
+                names.item(item).to_owned()
             } else {
-                format!("{count} {}", names.item(*item))
+                format!("{count} {}", names.item(item))
             };
             Line::same(match (from, to) {
                 (ItemPlace::Member(from), ItemPlace::Member(to)) => format!(
@@ -60,7 +60,7 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
             ..
         } => {
             let who = names.member(*member);
-            let what = names.item(*item);
+            let what = names.item(item);
             Line::same(match target {
                 Some(t) if t != member => format!("{who} uses {what} on {}", names.member(*t)),
                 _ => format!("{who} uses {what}"),
@@ -74,7 +74,6 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
 mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
-    use omnis_sim::items::item_id;
 
     #[test]
     fn item_events_read_as_one_line_each() {
@@ -83,16 +82,16 @@ mod tests {
         let names = Names::of_world(&world, &data);
         let (brenna, gorm) = (world.party.members[0].id, world.party.members[1].id);
         let (sword, bolts, potion) = (
-            item_id(&data, "longsword").unwrap(),
-            item_id(&data, "crossbow_bolts").unwrap(),
-            item_id(&data, "potion_of_healing").unwrap(),
+            "base:item:longsword",
+            "base:item:crossbow_bolts",
+            "base:item:potion_of_healing",
         );
         let line = |event: &Event| item_line(event, &names).unwrap().long;
         assert_eq!(
             line(&Event::Equipped {
                 member: brenna,
                 slot: EquipSlot::MainHand,
-                item: sword
+                item: sword.to_owned()
             }),
             "Brenna wields Longsword"
         );
@@ -100,7 +99,7 @@ mod tests {
             line(&Event::Equipped {
                 member: brenna,
                 slot: EquipSlot::Body,
-                item: item_id(&data, "chain_mail").unwrap()
+                item: "base:item:chain_mail".to_owned()
             }),
             "Brenna wears Chain mail"
         );
@@ -108,13 +107,13 @@ mod tests {
             line(&Event::Unequipped {
                 member: brenna,
                 slot: EquipSlot::MainHand,
-                item: sword
+                item: sword.to_owned()
             }),
             "Brenna takes off Longsword"
         );
         assert_eq!(
             line(&Event::ItemMoved {
-                item: bolts,
+                item: bolts.to_owned(),
                 count: 5,
                 from: ItemPlace::Member(brenna),
                 to: ItemPlace::Member(gorm)
@@ -123,7 +122,7 @@ mod tests {
         );
         assert_eq!(
             line(&Event::ItemMoved {
-                item: sword,
+                item: sword.to_owned(),
                 count: 1,
                 from: ItemPlace::Member(brenna),
                 to: ItemPlace::Stores
@@ -132,7 +131,7 @@ mod tests {
         );
         assert_eq!(
             line(&Event::ItemMoved {
-                item: sword,
+                item: sword.to_owned(),
                 count: 1,
                 from: ItemPlace::Stores,
                 to: ItemPlace::Member(gorm)
@@ -142,7 +141,7 @@ mod tests {
         assert_eq!(
             line(&Event::ItemUsed {
                 member: brenna,
-                item: potion,
+                item: potion.to_owned(),
                 target: Some(gorm),
                 consumed: true
             }),
@@ -151,7 +150,7 @@ mod tests {
         assert_eq!(
             line(&Event::ItemUsed {
                 member: brenna,
-                item: potion,
+                item: potion.to_owned(),
                 target: Some(brenna),
                 consumed: true
             }),
@@ -160,7 +159,7 @@ mod tests {
         assert!(item_line(&Event::PartyChanged, &names).is_none());
         let looked = Event::ItemUsed {
             member: brenna,
-            item: item_id(&data, "spyglass").unwrap(),
+            item: "base:item:spyglass".to_owned(),
             target: None,
             consumed: false,
         };

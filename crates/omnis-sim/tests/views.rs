@@ -444,3 +444,26 @@ fn cunning_action_shows_open_on_the_rogue_s_turn_at_will() {
         "Second Wind waits for Brenna's own turn"
     );
 }
+
+#[test]
+fn each_stack_row_is_the_number_attack_takes_and_the_retreat_is_a_named_place() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let here = world.position;
+    fight(
+        &mut world,
+        &data,
+        &[("giant_rat", 2), ("goblin", 1), ("skeleton", 1)],
+    );
+    let shown = view(&world, &data);
+    assert_eq!(shown.stacks.len(), 3);
+    for (i, stack) in shown.stacks.iter().enumerate() {
+        assert_eq!(usize::from(stack.stack), i, "row {i}");
+    }
+    assert_eq!(shown.retreat, omnis_sim::Place::of(here, &data));
+    assert_eq!(
+        shown.retreat.map, "test:map:meadow",
+        "the map by its string id"
+    );
+}

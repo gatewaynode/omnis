@@ -276,7 +276,7 @@ fn hiding_and_running_roll_against_the_group_or_start_a_surprised_fight() {
         assert_eq!((*dc, *success), (12, roll.total >= 12), "wary: 12");
         if *success {
             seen[2] = true;
-            assert!(matches!(events[1], Event::Moved { to, .. } if to.y == from.y - 1));
+            assert!(matches!(&events[1], Event::Moved { to, .. } if to.y == from.y - 1));
             assert!(matches!(events[2], Event::TimeAdvanced { minutes: 1, .. }));
             assert_eq!(
                 (world.position.y, world.position.facing, &world.mode),

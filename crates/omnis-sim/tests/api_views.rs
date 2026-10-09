@@ -49,20 +49,8 @@ fn here_is_the_status_without_the_fingerprint_and_no_view_changes_the_world() {
     let place = here(&world, &data);
     let status = ops::status(&world, &data).unwrap();
     assert_eq!(
-        (
-            place.mode,
-            place.turn,
-            place.position,
-            &place.map,
-            &place.service
-        ),
-        (
-            status.mode,
-            status.turn,
-            status.position,
-            &status.map,
-            &status.service
-        )
+        (place.mode, place.turn, &place.position, &place.service),
+        (status.mode, status.turn, &status.position, &status.service)
     );
     assert_eq!(place.date, status.date);
     assert_eq!(place.age, status.clock.elapsed);
@@ -179,13 +167,31 @@ fn bless_is_cast_by_its_id_and_the_row_carries_that_id() {
         assert_eq!(world, before, "a refusal changes nothing");
     }
     let events = apply(&mut world, &data, cast(&row.spell)).unwrap();
-    let id = data.registry.spells.get(bless).unwrap();
+    let casts: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            omnis_sim::Event::SpellCast { caster, spell, .. } => Some((*caster, spell.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        casts,
+        [(durin, bless)],
+        "the cast names its caster and spell"
+    );
+    let applied: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            omnis_sim::Event::EffectApplied { spell, caster, .. } => {
+                Some((spell.as_str(), *caster))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(!applied.is_empty(), "bless settles on someone: {events:?}");
     assert!(
-        events.iter().any(|e| matches!(
-            e,
-            omnis_sim::Event::SpellCast { caster, spell, .. } if *caster == durin && *spell == id
-        )),
-        "{events:?}"
+        applied.iter().all(|a| *a == (bless, durin)),
+        "every effect names the spell by its id: {applied:?}"
     );
     assert!(
         party_view(&world, &data).members[BRENNA]
@@ -310,7 +316,7 @@ fn a_stack_s_refusal_is_the_attack_s_and_reach_follows_it() {
         let result = apply(
             &mut after,
             &data,
-            Command::Combat(CombatCommand::Attack { stack: stack.index }),
+            Command::Combat(CombatCommand::Attack { stack: stack.stack }),
         );
         assert_eq!(result.err(), stack.refusal, "{stack:?}");
         assert_eq!(stack.reachable, stack.refusal.is_none());

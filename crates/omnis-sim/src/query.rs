@@ -1,5 +1,6 @@
 //! Read-only views for clients (ARCHITECTURE.md §4.3). Queries never mutate and never roll.
 
+use crate::names::{Place, id_of};
 use crate::time_view::{DateView, party_date};
 use crate::visibility;
 use crate::world::{Known, Mode, ModeKind, Settings, World};
@@ -7,7 +8,7 @@ use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Direction, Facing, MapId, Position, ServiceId, TilesetId};
+use omnis_core::{Direction, Facing, MapId, Position, ServiceId};
 use omnis_data::Data;
 use serde::{Deserialize, Serialize};
 
@@ -51,10 +52,10 @@ pub struct ViewTile {
 /// What the renderer draws (ARCHITECTURE.md §8.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ViewportModel {
-    /// The map.
-    pub map: MapId,
-    /// Its tileset.
-    pub tileset: TilesetId,
+    /// The map's string id.
+    pub map: String,
+    /// Its tileset's string id.
+    pub tileset: String,
     /// Which way the party looks.
     pub facing: Facing,
     /// Rows drawn with sprites.
@@ -74,9 +75,7 @@ pub struct Here {
     /// Commands applied.
     pub turn: u64,
     /// Where the party is.
-    pub position: Position,
-    /// The id of the party's map, or `#n` for a map no pack names.
-    pub map: String,
+    pub position: Place,
     /// The id of the service the party is inside, if it is inside one.
     pub service: Option<String>,
     /// The party's age in minutes; it never reverses.
@@ -97,8 +96,7 @@ pub fn here(world: &World, data: &Data) -> Here {
     Here {
         mode: world.mode.kind(),
         turn: world.turn,
-        position: world.position,
-        map: map_name(world.position.map, data),
+        position: Place::of(world.position, data),
         service: match world.mode {
             Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
             _ => None,
@@ -114,10 +112,7 @@ pub fn here(world: &World, data: &Data) -> Here {
 /// A map's id, or `#n` for one no pack names.
 #[must_use]
 pub fn map_name(id: MapId, data: &Data) -> String {
-    data.registry
-        .maps
-        .name(id)
-        .map_or_else(|| alloc::format!("#{}", id.0), ToOwned::to_owned)
+    id_of(&data.registry.maps, id)
 }
 
 /// Every flag the packs declare with its value (0 when never set), in the packs' order.
@@ -175,8 +170,8 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
         })
         .collect();
     Some(ViewportModel {
-        map: pos.map,
-        tileset: map.tileset,
+        map: id_of(&data.registry.maps, pos.map),
+        tileset: id_of(&data.registry.tilesets, map.tileset),
         facing: pos.facing,
         detail_depth: data
             .tilesets

@@ -61,8 +61,8 @@ pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
         .iter()
         .filter(|s| s.alive)
         .max_by_key(|s| s.hp.len())
-        .map(|s| s.index);
-    let front = view.stacks.iter().find(|s| s.alive).map(|s| s.index);
+        .map(|s| s.stack);
+    let front = view.stacks.iter().find(|s| s.alive).map(|s| s.stack);
     let effect = |spell: &str| {
         let id = data.registry.spells.get(spell).unwrap();
         debug_assert!(world.party.members[own].known_spells.contains(&id));

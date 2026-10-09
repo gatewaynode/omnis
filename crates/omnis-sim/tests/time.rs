@@ -37,7 +37,16 @@ fn region(data: &Data, name: &str) -> HolderId {
 }
 
 /// Every reconciliation in `events`: `(a, b, delta_a, delta_b)`.
-fn reconciled(events: &[Event]) -> Vec<(HolderId, HolderId, i64, i64)> {
+/// The holder an event names: `party:0`, or a region's string id.
+fn holder(data: &Data, name: &str) -> HolderId {
+    if name == "party:0" {
+        PARTY
+    } else {
+        region(data, name)
+    }
+}
+
+fn reconciled(data: &Data, events: &[Event]) -> Vec<(HolderId, HolderId, i64, i64)> {
     events
         .iter()
         .filter_map(|e| match e {
@@ -47,7 +56,7 @@ fn reconciled(events: &[Event]) -> Vec<(HolderId, HolderId, i64, i64)> {
                 delta_a,
                 delta_b,
                 ..
-            } => Some((*a, *b, *delta_a, *delta_b)),
+            } => Some((holder(data, a), holder(data, b), *delta_a, *delta_b)),
             _ => None,
         })
         .collect()
@@ -88,7 +97,7 @@ fn years_in_the_wilds_are_months_in_the_town_and_the_date_snaps_back() {
         world.party_time.shared_milli += 2 * YEAR * 100;
         world.party_time.date += 2 * YEAR;
         let events = run(&mut world, &data, &[to(&data, "test:map:town")]);
-        let r = reconciled(&events);
+        let r = reconciled(&data, &events);
         let (_, b, lived, delta) = r[0];
         assert_eq!((b, lived), (town, 2 * YEAR), "seed {seed}: {r:?}");
         let shared = 2 * YEAR / 10;
@@ -151,7 +160,7 @@ fn a_wild_region_catches_up_by_lived_time_and_never_sets_the_date() {
     let age = world.party_clock().elapsed;
     let date = world.party_time.date;
     let events = run(&mut world, &data, &[to(&data, "test:map:dungeon")]);
-    let (a, b, lived, delta) = reconciled(&events)[0];
+    let (a, b, lived, delta) = reconciled(&data, &events)[0];
     assert_eq!(
         (a, b, lived),
         (PARTY, region(&data, "test:region:dungeon"), age),
@@ -164,7 +173,7 @@ fn a_wild_region_catches_up_by_lived_time_and_never_sets_the_date() {
     assert_eq!(world.party_time.date, date, "a wild region sets no date");
     let again = run(&mut world, &data, &[to(&data, "test:map:depths")]);
     assert!(
-        reconciled(&again).is_empty(),
+        reconciled(&data, &again).is_empty(),
         "the depths are the dungeon's region"
     );
 }
@@ -208,7 +217,7 @@ fn routes_in_different_orders_give_different_deltas_and_each_replays() {
     b.push(town);
     let deltas = |commands: &[Command]| {
         let mut world = World::new(&data, 9, settings).unwrap();
-        reconciled(&run(&mut world, &data, commands))
+        reconciled(&data, &run(&mut world, &data, commands))
     };
     let (da, db) = (deltas(&a), deltas(&b));
     assert_ne!(
@@ -251,12 +260,18 @@ fn a_second_visit_counts_only_the_time_since_the_last() {
     let mut world = dev_world(&data, 6);
     run(&mut world, &data, &[to(&data, "test:map:meadow")]);
     run(&mut world, &data, &pace(4));
-    let first = reconciled(&run(&mut world, &data, &[to(&data, "test:map:town")]));
+    let first = reconciled(
+        &data,
+        &run(&mut world, &data, &[to(&data, "test:map:town")]),
+    );
     let at_first = world.party_clock().elapsed;
     assert_eq!((first[0].1, first[0].2), (town, at_first));
     run(&mut world, &data, &[to(&data, "test:map:meadow")]);
     run(&mut world, &data, &pace(6));
-    let second = reconciled(&run(&mut world, &data, &[to(&data, "test:map:town")]));
+    let second = reconciled(
+        &data,
+        &run(&mut world, &data, &[to(&data, "test:map:town")]),
+    );
     assert_eq!(
         (second[0].1, second[0].2),
         (town, world.party_clock().elapsed - at_first),
@@ -281,8 +296,10 @@ fn one_reconciliation_catches_up_at_most_the_cap() {
         let mut world = dev_world(&data, seed);
         run(&mut world, &data, &[to(&data, "test:map:meadow")]);
         world.clocks.get_mut(&PARTY).unwrap().elapsed += 20 * YEAR;
-        let (_, _, lived, delta) =
-            reconciled(&run(&mut world, &data, &[to(&data, "test:map:dungeon")]))[0];
+        let (_, _, lived, delta) = reconciled(
+            &data,
+            &run(&mut world, &data, &[to(&data, "test:map:dungeon")]),
+        )[0];
         assert_eq!(lived, 20 * YEAR);
         assert!(
             (cap * 6 / 10..=cap).contains(&delta),
@@ -317,5 +334,34 @@ fn the_day_rolls_on_the_date_not_the_age() {
     assert!(
         !rolled(1439, 3 * 1440 + 5),
         "a date days ahead of the age rolls nothing"
+    );
+}
+
+#[test]
+fn a_reconciliation_names_the_party_and_each_region_by_id() {
+    let data = data();
+    let mut world = dev_world(&data, 2);
+    run(&mut world, &data, &[to(&data, "test:map:meadow")]);
+    let events = run(&mut world, &data, &[to(&data, "test:map:town")]);
+    let named: Vec<(&str, &str)> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Reconciled { a, b, .. } => Some((a.as_str(), b.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        named,
+        [
+            ("party:0", "test:region:town"),
+            ("test:region:town", "test:region:crossroads"),
+        ],
+        "the party meets the town, and the town its coupling"
+    );
+    let step = run(&mut world, &data, &pace(1));
+    assert!(
+        step.iter()
+            .any(|e| matches!(e, Event::TimeAdvanced { holder, .. } if holder == "party:0")),
+        "the party's clock is named as the party: {step:?}"
     );
 }

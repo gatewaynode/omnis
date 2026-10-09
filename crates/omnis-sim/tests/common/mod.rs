@@ -179,7 +179,7 @@ pub fn reachable_stack(world: &World, data: &Data) -> Option<u8> {
         .stacks
         .iter()
         .find(|s| s.alive && s.reachable)
-        .map(|s| s.index)
+        .map(|s| s.stack)
 }
 
 /// Fight whatever stands in the way until the party explores again: attack on an encounter,

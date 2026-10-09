@@ -122,7 +122,7 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
     .unwrap();
     assert!(events.contains(&Event::ItemUsed {
         member: brenna,
-        item: glass,
+        item: "base:item:spyglass".to_owned(),
         target: None,
         consumed: false,
     }));
@@ -130,7 +130,7 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
     assert!(
         events.iter().any(|e| matches!(
             e,
-            Event::Sensed { actor, item, .. } if *actor == durin && *item == glass
+            Event::Sensed { actor, item, .. } if *actor == durin && item == "base:item:spyglass"
         )),
         "Brenna holds the glass; Durin's Wisdom 16 outsees her trained Perception"
     );

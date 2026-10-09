@@ -72,7 +72,7 @@ pub(crate) fn apply(
             cast::cast_buff(world, data, &plan, slot, events);
         }
         (SpellEffect::Light { depth, minutes }, _) => {
-            cast::cast_light(world, &plan, def, depth, minutes, events);
+            cast::cast_light(world, data, &plan, def, depth, minutes, events);
         }
         (SpellEffect::Utility(Utility::OpenDoor { range_tiles }), _) => {
             open_door_ahead(world, data, range_tiles, events);

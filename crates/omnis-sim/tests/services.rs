@@ -130,7 +130,7 @@ fn the_tavern_sells_food_and_tells_rumors() {
         Rejection::ZeroCount,
     );
 
-    let tavern = data.registry.services.get("base:service:tavern").unwrap();
+    let tavern = "base:service:tavern";
     let town = StreamName::new("town");
     let region = HolderId::Region(data.maps[&world.position.map].region);
     // At the town's origin only the rats are talked of (M8: the others happen later).
@@ -138,8 +138,8 @@ fn the_tavern_sells_food_and_tells_rumors() {
         let events = ask(&mut world, &data, ServiceCommand::Rumor);
         assert!(
             events.contains(&Event::Rumor {
-                service: tavern,
-                index: 0,
+                service: tavern.to_owned(),
+                rumor: 0,
                 ago: 0
             }),
             "{events:?}"
@@ -162,12 +162,12 @@ fn the_tavern_sells_food_and_tells_rumors() {
             .find_map(|e| match e {
                 Event::Rumor {
                     service,
-                    index,
+                    rumor,
                     ago,
-                } if *service == tavern => {
-                    let at = [0, 2 * 1440, 10 * 1440][usize::from(*index)];
+                } if service == tavern => {
+                    let at = [0, 2 * 1440, 10 * 1440][usize::from(*rumor)];
                     assert_eq!(*ago, now - at, "told on the town's clock");
-                    Some(*index)
+                    Some(*rumor)
                 }
                 _ => None,
             })
@@ -215,7 +215,7 @@ fn the_temple_heals_cures_and_raises_for_a_price() {
     let events = ask(&mut world, &data, ServiceCommand::Cure { member: brenna });
     assert!(events.contains(&Event::Condition {
         target: omnis_sim::ActorRef::Member(brenna),
-        condition: poisoned,
+        condition: "base:condition:poisoned".to_owned(),
         applied: false
     }));
     assert!(world.party.members[0].conditions.is_empty());
@@ -284,7 +284,7 @@ fn the_smith_buys_at_list_and_sells_at_half() {
         },
     );
     assert!(events.contains(&Event::Bought {
-        item: dagger,
+        item: "base:item:dagger".to_owned(),
         count: 2,
         cost: 400
     }));
@@ -336,7 +336,7 @@ fn the_smith_buys_at_list_and_sells_at_half() {
         },
     );
     assert!(events.contains(&Event::Sold {
-        item: dagger,
+        item: "base:item:dagger".to_owned(),
         count: 2,
         price: 200
     }));

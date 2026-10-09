@@ -106,7 +106,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.tool(4, "game_status", json!({}));
     assert_eq!(
-        reply["result"]["structuredContent"]["map"],
+        reply["result"]["structuredContent"]["position"]["map"],
         json!("test:map:town")
     );
     assert_eq!(reply["result"]["content"][0]["type"], json!("text"));

@@ -9,6 +9,7 @@ use crate::command::Rejection;
 use crate::effects;
 use crate::event::{ActorRef, CheckKind, Event};
 use crate::items::{consume, has_all};
+use crate::names::id_of;
 use crate::party;
 use crate::world::World;
 use alloc::string::String;
@@ -220,9 +221,12 @@ pub(crate) fn pay(
     member.spell_points = member.spell_points.saturating_sub(plan.cost);
     events.push(Event::SpellCast {
         caster: member.id,
-        spell: plan.spell,
+        spell: id_of(&data.registry.spells, plan.spell),
         points: plan.cost,
-        components_consumed: components,
+        components_consumed: components
+            .iter()
+            .map(|&(item, count)| (id_of(&data.registry.items, item), count))
+            .collect(),
     });
     Ok(member.id)
 }
@@ -298,7 +302,7 @@ pub(crate) fn resolve(
             Ok(())
         }
         (SpellEffect::Light { depth, minutes }, _) => {
-            cast_light(world, plan, spell, *depth, *minutes, events);
+            cast_light(world, data, plan, spell, *depth, *minutes, events);
             Ok(())
         }
         _ => Ok(()),
@@ -308,6 +312,7 @@ pub(crate) fn resolve(
 /// A light on the whole party, ending the caster's previous concentration first.
 pub(crate) fn cast_light(
     world: &mut World,
+    data: &Data,
     plan: &CastPlan,
     spell: &Spell,
     depth: u8,
@@ -315,10 +320,11 @@ pub(crate) fn cast_light(
     events: &mut Vec<Event>,
 ) {
     let caster = world.party.members[plan.own].id;
-    effects::end_concentration(world, caster, events);
+    effects::end_concentration(world, data, caster, events);
     let until = Expiry::Minute(world.party_clock().elapsed + i64::from(minutes));
     effects::apply_to_party(
         world,
+        data,
         ActiveEffect {
             source: plan.spell,
             caster,
@@ -354,7 +360,7 @@ pub(crate) fn cast_buff(
     };
     let caster = world.party.members[plan.own].id;
     if spell.concentration {
-        effects::end_concentration(world, caster, events);
+        effects::end_concentration(world, data, caster, events);
     }
     let until = Expiry::Minute(world.party_clock().elapsed + i64::from(*minutes));
     let count = world.party.members.len();
@@ -369,6 +375,7 @@ pub(crate) fn cast_buff(
     for index in chosen {
         effects::apply_to_member(
             world,
+            data,
             index,
             ActiveEffect {
                 source: plan.spell,

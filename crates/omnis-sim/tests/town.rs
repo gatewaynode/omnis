@@ -75,7 +75,9 @@ fn a_step_onto_a_site_goes_inside_with_no_encounter_roll() {
     world.mode = Mode::Explore;
     turn(&mut world, &data, Rotation::Around);
     let inside = step(&mut world, &data);
-    assert!(inside.contains(&Event::ServiceEntered { service: inn }));
+    assert!(inside.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert!(
         !inside
             .iter()
@@ -91,7 +93,9 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     let mut world = new_game(&data, SaveRule::Anywhere);
     let inn = service(&data, "base:service:inn");
     let events = walk_into_the_inn(&mut world, &data);
-    assert!(events.contains(&Event::ServiceEntered { service: inn }));
+    assert!(events.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(
         world.mode,
         Mode::Town(ServiceState {
@@ -121,7 +125,11 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     let out = apply(&mut world, &data, Command::Step(Direction::Right)).unwrap();
     let left = out
         .iter()
-        .position(|e| *e == Event::ServiceLeft { service: inn })
+        .position(|e| {
+            *e == Event::ServiceLeft {
+                service: "base:service:inn".to_owned(),
+            }
+        })
         .expect("left");
     let moved = out
         .iter()
@@ -135,12 +143,16 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     apply(&mut world, &data, Command::Step(Direction::Left)).unwrap();
     assert_eq!(world.mode.kind(), ModeKind::Town);
     let left = apply(&mut world, &data, Command::Service(ServiceCommand::Leave)).unwrap();
-    assert!(left.contains(&Event::ServiceLeft { service: inn }));
+    assert!(left.contains(&Event::ServiceLeft {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.position, town(&data, 1, 1, Facing::North));
     let before = world.party_clock().elapsed;
     let back = interact(&mut world, &data);
-    assert!(back.contains(&Event::ServiceEntered { service: inn }));
+    assert!(back.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(world.mode.kind(), ModeKind::Town);
     assert_eq!(
         world.party_clock().elapsed,

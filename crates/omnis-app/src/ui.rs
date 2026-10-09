@@ -362,11 +362,8 @@ pub fn member_rows(party: &PartyView, data: &Data) -> Vec<MemberRow> {
 /// The location lines for where the party is.
 #[must_use]
 pub fn hud_text(here: &Here, data: &Data) -> Hud {
-    let p = here.position;
-    let map = data
-        .maps
-        .get(&p.map)
-        .map_or("?", |m| data.text("en", m.name));
+    let p = &here.position;
+    let map = defs::map(data, &p.map).map_or("?", |m| data.text("en", m.name));
     Hud::new(
         map,
         i32::from(p.x),

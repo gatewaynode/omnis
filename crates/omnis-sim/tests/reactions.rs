@@ -285,12 +285,21 @@ fn shield_declared_for_every_hit_fires_on_hits_once_a_round() {
         let events = fight_out(&mut world, &data, &[("goblin", 3), ("goblin", 3)]);
         fired += once_a_round(&events, ilvara);
         for (i, event) in events.iter().enumerate() {
-            if let Event::Reaction { actor, trigger, .. } = event
+            if let Event::Reaction {
+                actor,
+                trigger,
+                action,
+            } = event
                 && *actor == ilvara
             {
                 assert_eq!(*trigger, Trigger::Attacked);
+                assert_eq!(
+                    *action,
+                    ActionRef::Spell("base:spell:shield".to_owned()),
+                    "the reaction names its spell by id"
+                );
                 assert!(
-                    matches!(events[i + 1], Event::SpellCast { caster, spell, .. } if caster == ilvara && spell == shield),
+                    matches!(&events[i + 1], Event::SpellCast { caster, spell, .. } if *caster == ilvara && spell == "base:spell:shield"),
                     "the cast follows the reaction"
                 );
                 // Every hit, and only hits: the judged roll would have reached the armor class

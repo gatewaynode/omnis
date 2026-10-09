@@ -2,6 +2,7 @@
 
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
+use crate::names::{Place, id_of};
 use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
 use crate::time;
@@ -72,11 +73,11 @@ pub(crate) fn advance(world: &mut World, data: &Data, minutes: u32, events: &mut
     time::live(world, data, minutes);
     let day_rolled = calendar.day(world.party_time.date) != day;
     events.push(Event::TimeAdvanced {
-        holder: PARTY,
+        holder: crate::time_view::holder_name(PARTY, data),
         minutes,
         day_rolled,
     });
-    effects::prune(world, events);
+    effects::prune(world, data, events);
 }
 
 fn world_clock_origin() -> omnis_core::Clock {
@@ -116,7 +117,7 @@ fn step_out(
     events.insert(
         at,
         Event::ServiceLeft {
-            service: state.service,
+            service: id_of(&data.registry.services, state.service),
         },
     );
     world.mode = Mode::Explore;
@@ -219,16 +220,16 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
     };
     world.position = landing.to;
     events.push(Event::Moved {
-        from,
-        to: landing.to,
+        from: Place::of(from, data),
+        to: Place::of(landing.to, data),
     });
     advance(world, data, landing.minutes, events);
     visit(world, data);
     if let Some(dest) = landing.through {
         world.position = dest;
         events.push(Event::Moved {
-            from: landing.to,
-            to: dest,
+            from: Place::of(landing.to, data),
+            to: Place::of(dest, data),
         });
         visit(world, data);
         know_portals_beside(world, data);
@@ -242,7 +243,10 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
 pub(crate) fn retreat(world: &mut World, data: &Data, to: Position, events: &mut Vec<Event>) {
     let from = world.position;
     world.position = to;
-    events.push(Event::Moved { from, to });
+    events.push(Event::Moved {
+        from: Place::of(from, data),
+        to: Place::of(to, data),
+    });
     let minutes = data
         .maps
         .get(&to.map)
@@ -274,13 +278,14 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         });
         return;
     }
-    toggle_door(world, pos.map, pos.x, pos.y, pos.facing, events);
+    toggle_door(world, data, pos.map, pos.x, pos.y, pos.facing, events);
     advance(world, data, INTERACT_MINUTES, events);
 }
 
 /// Open a closed door or close an open one on the facing edge of a tile, with the event.
 pub(crate) fn toggle_door(
     world: &mut World,
+    data: &Data,
     map: MapId,
     x: u16,
     y: u16,
@@ -296,7 +301,7 @@ pub(crate) fn toggle_door(
         true
     };
     events.push(Event::Door {
-        map,
+        map: id_of(&data.registry.maps, map),
         x,
         y,
         facing,

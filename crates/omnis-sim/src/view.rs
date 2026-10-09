@@ -8,12 +8,13 @@ use crate::combat::{
 use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack, bribe_cost};
 use crate::event::{ActorRef, Surprise};
+use crate::names::Place;
 use crate::party;
 use crate::world::{Mode, ModeKind, World};
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Position};
+use omnis_core::CharacterId;
 use omnis_data::{Cost, Data, Disposition, FeatureEffect, Reach};
 use omnis_rules::{Character, combat_features, uses_left};
 use serde::{Deserialize, Serialize};
@@ -21,8 +22,8 @@ use serde::{Deserialize, Serialize};
 /// One stack as a client sees it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StackView {
-    /// Its index in the encounter, the number `attack` takes.
-    pub index: u8,
+    /// Its row in the encounter, the number `attack` takes.
+    pub stack: u8,
     /// Monster id.
     pub monster: String,
     /// Text key of the monster's name.
@@ -126,7 +127,7 @@ pub struct CombatView {
     /// The stacks.
     pub stacks: Vec<StackView>,
     /// Where Run and Flee put the party.
-    pub retreat: Position,
+    pub retreat: Place,
     /// The round, zero before the fight.
     pub round: u32,
     /// Whose turn it is.
@@ -210,7 +211,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         source: encounter.source,
         disposition: encounter.disposition,
         stacks,
-        retreat: encounter.retreat,
+        retreat: Place::of(encounter.retreat, data),
         round: fight.map_or(0, |c| c.round),
         current: fight.and_then(CombatState::current_actor),
         order: fight.map_or_else(Vec::new, |c| {
@@ -320,7 +321,7 @@ fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> V
 fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: bool) -> StackView {
     let monster = data.monsters.get(&stack.monster);
     StackView {
-        index,
+        stack: index,
         monster: data
             .registry
             .monsters

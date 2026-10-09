@@ -3,14 +3,15 @@
 //! only live effects: `prune` runs whenever the clock moves, so readers never need the time.
 
 use crate::event::{EffectEnd, EffectTarget, Event};
+use crate::names::id_of;
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, SpellId};
-use omnis_data::BuffOn;
+use omnis_data::{BuffOn, Data};
 use omnis_rules::{ActiveEffect, Expiry, consumable_index};
 
 /// Drop every timed effect the party clock has passed.
-pub(crate) fn prune(world: &mut World, events: &mut Vec<Event>) {
+pub(crate) fn prune(world: &mut World, data: &Data, events: &mut Vec<Event>) {
     let now = world.party_clock().elapsed;
     for member in &mut world.party.members {
         let target = EffectTarget::Member(member.id);
@@ -19,7 +20,7 @@ pub(crate) fn prune(world: &mut World, events: &mut Vec<Event>) {
             if gone {
                 events.push(Event::EffectEnded {
                     target,
-                    spell: e.source,
+                    spell: id_of(&data.registry.spells, e.source),
                     why: EffectEnd::Expired,
                 });
             }
@@ -31,7 +32,7 @@ pub(crate) fn prune(world: &mut World, events: &mut Vec<Event>) {
         if gone {
             events.push(Event::EffectEnded {
                 target: EffectTarget::Party,
-                spell: e.source,
+                spell: id_of(&data.registry.spells, e.source),
                 why: EffectEnd::Expired,
             });
         }
@@ -42,6 +43,7 @@ pub(crate) fn prune(world: &mut World, events: &mut Vec<Event>) {
 /// Put an effect on a member.
 pub(crate) fn apply_to_member(
     world: &mut World,
+    data: &Data,
     index: usize,
     effect: ActiveEffect,
     events: &mut Vec<Event>,
@@ -49,17 +51,22 @@ pub(crate) fn apply_to_member(
     let member = &mut world.party.members[index];
     events.push(Event::EffectApplied {
         target: EffectTarget::Member(member.id),
-        spell: effect.source,
+        spell: id_of(&data.registry.spells, effect.source),
         caster: effect.caster,
     });
     member.effects.push(effect);
 }
 
 /// Put an effect on the party.
-pub(crate) fn apply_to_party(world: &mut World, effect: ActiveEffect, events: &mut Vec<Event>) {
+pub(crate) fn apply_to_party(
+    world: &mut World,
+    data: &Data,
+    effect: ActiveEffect,
+    events: &mut Vec<Event>,
+) {
     events.push(Event::EffectApplied {
         target: EffectTarget::Party,
-        spell: effect.source,
+        spell: id_of(&data.registry.spells, effect.source),
         caster: effect.caster,
     });
     world.party.effects.push(effect);
@@ -81,6 +88,7 @@ pub fn concentrating(world: &World, caster: CharacterId) -> Option<SpellId> {
 /// End every effect the caster is concentrating on, with the events.
 pub(crate) fn end_concentration(
     world: &mut World,
+    data: &Data,
     caster: CharacterId,
     events: &mut Vec<Event>,
 ) -> Option<SpellId> {
@@ -92,7 +100,7 @@ pub(crate) fn end_concentration(
             if ended(e) {
                 events.push(Event::EffectEnded {
                     target,
-                    spell: e.source,
+                    spell: id_of(&data.registry.spells, e.source),
                     why: EffectEnd::Concentration,
                 });
             }
@@ -103,7 +111,7 @@ pub(crate) fn end_concentration(
         if ended(e) {
             events.push(Event::EffectEnded {
                 target: EffectTarget::Party,
-                spell: e.source,
+                spell: id_of(&data.registry.spells, e.source),
                 why: EffectEnd::Concentration,
             });
         }
@@ -111,20 +119,26 @@ pub(crate) fn end_concentration(
     });
     events.push(Event::Concentration {
         caster,
-        spell,
+        spell: id_of(&data.registry.spells, spell),
         ended: true,
     });
     Some(spell)
 }
 
 /// Spend the first consumed buff on this kind of roll, when one is in force.
-pub(crate) fn consume(world: &mut World, index: usize, on: BuffOn, events: &mut Vec<Event>) {
+pub(crate) fn consume(
+    world: &mut World,
+    data: &Data,
+    index: usize,
+    on: BuffOn,
+    events: &mut Vec<Event>,
+) {
     let member = &mut world.party.members[index];
     if let Some(at) = consumable_index(&member.effects, on) {
         let effect = member.effects.remove(at);
         events.push(Event::EffectEnded {
             target: EffectTarget::Member(member.id),
-            spell: effect.source,
+            spell: id_of(&data.registry.spells, effect.source),
             why: EffectEnd::Consumed,
         });
     }
@@ -133,6 +147,7 @@ pub(crate) fn consume(world: &mut World, index: usize, on: BuffOn, events: &mut 
 /// Clear a member's next-turn effects (their turn began), or everyone's when the fight ends.
 pub(crate) fn clear_next_turn(
     world: &mut World,
+    data: &Data,
     bearer: Option<CharacterId>,
     why: EffectEnd,
     events: &mut Vec<Event>,
@@ -147,7 +162,7 @@ pub(crate) fn clear_next_turn(
             if gone {
                 events.push(Event::EffectEnded {
                     target,
-                    spell: e.source,
+                    spell: id_of(&data.registry.spells, e.source),
                     why,
                 });
             }

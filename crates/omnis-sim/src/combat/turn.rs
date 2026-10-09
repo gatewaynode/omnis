@@ -207,10 +207,12 @@ fn act_inner(
 
 /// Swap two marching-order slots, with the events.
 pub(crate) fn exchange(world: &mut World, own: usize, with: usize, events: &mut Vec<Event>) {
+    let member = world.party.members[own].id;
+    let partner = world.party.members[with].id;
     world.party.members.swap(own, with);
     events.push(Event::Exchanged {
-        a: u8::try_from(own).unwrap_or(u8::MAX),
-        b: u8::try_from(with).unwrap_or(u8::MAX),
+        member,
+        with: partner,
     });
     events.push(Event::PartyChanged);
 }
@@ -323,7 +325,7 @@ pub(crate) fn run_until_member(
         match actor {
             ActorRef::Member(id) => {
                 if member_acts(state, world, data, id) {
-                    effects::clear_next_turn(world, Some(id), EffectEnd::TurnBegan, events);
+                    effects::clear_next_turn(world, data, Some(id), EffectEnd::TurnBegan, events);
                     budget::begin_member_turn(world, data, state, id, roller)?;
                     events.push(Event::Turn { actor });
                     return Ok(false);
@@ -408,7 +410,7 @@ fn finish(
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}
     }
-    effects::clear_next_turn(world, None, EffectEnd::FightOver, events);
+    effects::clear_next_turn(world, data, None, EffectEnd::FightOver, events);
     let fallen = resolve::bury(world, data);
     events.push(Event::CombatEnded {
         outcome,

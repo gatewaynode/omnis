@@ -17,7 +17,7 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
             components_consumed,
         } => {
             let who = names.member(*caster);
-            let what = names.spell(*spell);
+            let what = names.spell(spell);
             let cost = match points {
                 0 => "free".to_owned(),
                 1 => "1 pt".to_owned(),
@@ -46,14 +46,14 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
             }
         }
         Event::EffectApplied { target, spell, .. } => {
-            let what = names.spell(*spell);
+            let what = names.spell(spell);
             Line::same(match target {
                 EffectTarget::Member(id) => format!("{what} settles on {}", names.member(*id)),
                 EffectTarget::Party => format!("{what} lights the party's way"),
             })
         }
         Event::EffectEnded { target, spell, why } => {
-            let what = names.spell(*spell);
+            let what = names.spell(spell);
             let whom = match target {
                 EffectTarget::Member(id) => names.member(*id).to_owned(),
                 EffectTarget::Party => "the party".to_owned(),
@@ -69,7 +69,7 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
         Event::Concentration { caster, spell, .. } => Line::same(format!(
             "{} lets {} go",
             names.member(*caster),
-            names.spell(*spell)
+            names.spell(spell)
         )),
         Event::ReactionsSwitched { member, on } => Line::same(format!(
             "{}'s reactions are {}",
@@ -83,16 +83,16 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
             "{} reacts: {}",
             names.member(*actor),
             match action {
-                ActionRef::Spell(spell) => names.spell(*spell).to_owned(),
+                ActionRef::Spell(spell) => names.spell(spell).to_owned(),
                 ActionRef::Attack => "an opportunity attack".to_owned(),
-                ActionRef::Item(item) => names.item(*item).to_owned(),
+                ActionRef::Item(item) => names.item(item).to_owned(),
                 ActionRef::Feature(feature) => names.feature(feature).to_owned(),
             }
         )),
         Event::MonsterCast { caster, spell } => Line::same(format!(
             "{} casts {}",
             names.actor(caster),
-            names.spell(*spell)
+            names.spell(spell)
         )),
         Event::ShieldStops { target } => Line::new(
             format!("{}'s shield stops the missile", names.actor(target)),
@@ -106,12 +106,12 @@ pub fn spell_line(event: &Event, names: &Names) -> Option<Line> {
 mod tests {
     use super::*;
     use crate::combat_text::batch_lines;
-    use omnis_sim::omnis_core::{CharacterId, SpellId};
+    use omnis_sim::omnis_core::CharacterId;
     use omnis_sim::omnis_data::load_packs;
     use omnis_sim::{ActorRef, Command, PartyCommand, Settings, World};
     use std::path::PathBuf;
 
-    fn names() -> (Names, SpellId, CharacterId) {
+    fn names() -> (Names, &'static str, CharacterId) {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")])
             .unwrap_or_else(|r| panic!("{r}"));
@@ -134,7 +134,7 @@ mod tests {
             Command::Party(PartyCommand::Create(draft)),
         )
         .unwrap();
-        let bless = data.registry.spells.get("base:spell:bless").unwrap();
+        let bless = "base:spell:bless";
         (
             Names::of_world(&world, &data),
             bless,
@@ -150,14 +150,7 @@ mod tests {
             ("Bob the Rat King".to_owned(), 1),
         ];
         let bob = ActorRef::Monster { stack: 1, index: 0 };
-        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")])
-            .unwrap_or_else(|r| panic!("{r}"));
-        let missile = data
-            .registry
-            .spells
-            .get("base:spell:magic_missile")
-            .unwrap();
+        let missile = "base:spell:magic_missile".to_owned();
         let cast = spell_line(
             &Event::MonsterCast {
                 caster: bob,
@@ -178,7 +171,7 @@ mod tests {
         let (names, bless, durin) = names();
         let cast = Event::SpellCast {
             caster: durin,
-            spell: bless,
+            spell: bless.to_owned(),
             points: 1,
             components_consumed: vec![],
         };
@@ -188,7 +181,7 @@ mod tests {
         );
         let settled = Event::EffectApplied {
             target: EffectTarget::Member(durin),
-            spell: bless,
+            spell: bless.to_owned(),
             caster: durin,
         };
         assert_eq!(
@@ -197,7 +190,7 @@ mod tests {
         );
         let faded = Event::EffectEnded {
             target: EffectTarget::Party,
-            spell: bless,
+            spell: bless.to_owned(),
             why: EffectEnd::Expired,
         };
         assert_eq!(
@@ -206,7 +199,7 @@ mod tests {
         );
         let let_go = Event::Concentration {
             caster: durin,
-            spell: bless,
+            spell: bless.to_owned(),
             ended: true,
         };
         assert_eq!(
@@ -229,7 +222,7 @@ mod tests {
         let reacted = Event::Reaction {
             actor: durin,
             trigger: omnis_sim::omnis_rules::Trigger::Attacked,
-            action: ActionRef::Spell(bless),
+            action: ActionRef::Spell(bless.to_owned()),
         };
         assert_eq!(
             spell_line(&reacted, &names).unwrap().long,

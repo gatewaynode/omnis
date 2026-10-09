@@ -11,7 +11,8 @@ use omnis_data::{Data, Disposition};
 use omnis_sim::omnis_rules::{RollMode, condition_id};
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, CombatOutcome, Command, Event, LoadError, Mode, ModeKind,
-    Op, OpError, Rejection, Reply, Settings, Surprise, World, apply, combat, combat_view, dispatch,
+    Op, OpError, Place, Rejection, Reply, Settings, Surprise, World, apply, combat, combat_view,
+    dispatch,
 };
 
 fn here(world: &World) -> Position {
@@ -31,7 +32,7 @@ fn target(world: &World, data: &Data) -> u8 {
     view.stacks
         .iter()
         .find(|s| s.alive && s.reachable)
-        .map(|s| s.index)
+        .map(|s| s.stack)
         .expect("something to hit")
 }
 
@@ -319,9 +320,10 @@ fn exchange_swaps_two_slots() {
     assert_eq!(
         events[0],
         Event::Exchanged {
-            a: u8::try_from(own).unwrap(),
-            b: u8::try_from(with).unwrap()
-        }
+            member: id,
+            with: other
+        },
+        "the actor and the partner, by identity"
     );
     assert_eq!(events[1], Event::PartyChanged);
     assert_eq!(world.party.members[with].id, id);
@@ -417,12 +419,12 @@ fn members_go_down_save_and_die_by_the_srd() {
                 Event::Down { target } if *target == fragile => {
                     seen.0 = true;
                     assert!(matches!(
-                        events[i + 1],
+                        &events[i + 1],
                         Event::Condition {
                             condition,
                             applied: true,
                             ..
-                        } if condition == unconscious
+                        } if condition == "base:condition:unconscious"
                     ));
                 }
                 Event::DeathSave {
@@ -530,7 +532,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
             ..
         }
     ));
-    assert!(matches!(events[1], Event::Moved { to, .. } if to == retreat));
+    assert!(matches!(&events[1], Event::Moved { to, .. } if *to == Place::of(retreat, &data)));
     assert_eq!(ended(&events).map(|e| e.0), Some(CombatOutcome::Fled));
     assert_eq!((world.position, &world.mode), (retreat, &Mode::Explore));
     assert!(world.party.members.iter().all(|m| m.xp == 0));

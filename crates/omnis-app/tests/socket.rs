@@ -135,7 +135,7 @@ fn status_commands_and_queries(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 1, "op": "game.status"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
     assert_eq!(reply["id"], json!(1));
-    assert_eq!(reply["result"]["map"], json!("test:map:town"));
+    assert_eq!(reply["result"]["position"]["map"], json!("test:map:town"));
     assert_eq!(reply["result"]["turn"], json!(0));
 
     let reply = peer.send(

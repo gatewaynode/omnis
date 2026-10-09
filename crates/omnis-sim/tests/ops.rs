@@ -6,7 +6,7 @@ use common::{data, script_for_six, word, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_sim::ops::{MAX_SCRIPT, ShotTarget};
-use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch, parse_script};
+use omnis_sim::{Command, Event, Op, OpError, Place, Reply, dispatch, parse_script};
 
 fn events(reply: Reply) -> Vec<Event> {
     match reply {
@@ -22,12 +22,12 @@ fn status_reports_the_new_game() {
     let Reply::Status(status) = dispatch(&mut world, &data, &Op::GameStatus).unwrap() else {
         panic!("not a status")
     };
-    assert_eq!(status.map, "test:map:meadow");
+    assert_eq!(status.position.map, "test:map:meadow");
     assert_eq!(
         (status.turn, status.clock.day, status.clock.minute),
         (0, 0, 0)
     );
-    assert_eq!(status.position, world.position);
+    assert_eq!(status.position, Place::of(world.position, &data));
     assert_eq!(status.packs, data.fingerprints);
     assert_eq!(
         status.fingerprint,

@@ -8,6 +8,7 @@ use crate::combat::state::can_fight;
 use crate::combat::{self, Roller, run_dc};
 use crate::command::Rejection;
 use crate::event::{ActorRef, CheckKind, Event, Surprise};
+use crate::names::id_of;
 use crate::world::{Mode, World};
 use alloc::format;
 use alloc::vec::Vec;
@@ -335,7 +336,10 @@ fn begin(
     };
     events.push(Event::EncounterStarted {
         source,
-        stacks,
+        stacks: stacks
+            .iter()
+            .map(|&(monster, count)| (id_of(&data.registry.monsters, monster), count))
+            .collect(),
         disposition,
         counts,
         stealth,

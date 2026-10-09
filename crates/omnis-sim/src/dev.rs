@@ -9,6 +9,7 @@ use crate::command::Rejection;
 use crate::encounter::Stack;
 use crate::event::{ActorRef, Event};
 use crate::items::add_to;
+use crate::names::Place;
 use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
 use alloc::string::String;
@@ -23,7 +24,7 @@ use serde::{Deserialize, Serialize};
 pub enum DevCommand {
     /// `count` of an item to a member's kit, or to the party's stores when `member` is `None`.
     GiveItem {
-        /// The member's slot, or the stores.
+        /// The member, or the stores.
         member: Option<CharacterId>,
         /// `pack:item:name`.
         item: String,
@@ -33,14 +34,14 @@ pub enum DevCommand {
     /// Hit points, at least zero and free to pass `hp_max`. Zero downs the member (fresh death
     /// saves, `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
     SetHp {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The new hit points.
         hp: i32,
     },
     /// Spell points, free to pass the maximum.
     SetSpellPoints {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The new points.
         points: u32,
@@ -58,7 +59,7 @@ pub enum DevCommand {
     /// A member's experience. Each level it reaches is granted at once by the trainer's rule,
     /// free (`Event::LevelUp` with no cost); a lower figure never takes a level away.
     SetXp {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// Experience points.
         xp: u32,
@@ -67,7 +68,7 @@ pub enum DevCommand {
     /// modifier times the level (the SRD's rule); a mental score recomputes the spell point pool,
     /// current points moving by the same amount. Everything else reads the scores live.
     SetScore {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// Which score.
         ability: Ability,
@@ -76,7 +77,7 @@ pub enum DevCommand {
     },
     /// A pack condition on or off, raw: `dead` set this way does not zero hit points.
     SetCondition {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// `pack:condition:name`.
         condition: String,
@@ -173,7 +174,7 @@ pub(crate) fn apply(
                     .ok_or_else(|| Rejection::UnknownId {
                         id: condition.clone(),
                     })?;
-            set_condition_id(member_mut(world, *member)?, id, *applied, &mut caused);
+            set_condition_id(member_mut(world, *member)?, data, id, *applied, &mut caused);
         }
         DevCommand::SetFlag { flag, value } => {
             let id = data
@@ -406,7 +407,10 @@ fn teleport(
         facing,
     };
     world.position = to;
-    events.push(Event::Moved { from, to });
+    events.push(Event::Moved {
+        from: Place::of(from, data),
+        to: Place::of(to, data),
+    });
     visit(world, data);
     crate::time::moved(world, data, from.map, events);
     Ok(())

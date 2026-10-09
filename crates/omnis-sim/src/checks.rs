@@ -40,7 +40,7 @@ pub(crate) fn roll(
         &roller.stream,
     )?;
     if roll.bonus.is_some() {
-        effects::consume(world, index, BuffOn::AbilityChecks, events);
+        effects::consume(world, data, index, BuffOn::AbilityChecks, events);
     }
     Ok(roll)
 }

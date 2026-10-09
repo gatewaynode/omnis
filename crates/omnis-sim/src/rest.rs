@@ -11,6 +11,7 @@ use crate::combat::state::is_dead;
 use crate::command::Rejection;
 use crate::encounter;
 use crate::event::Event;
+use crate::names::id_of;
 use crate::party;
 use crate::world::World;
 use alloc::format;
@@ -160,11 +161,11 @@ pub(crate) fn apply(
         return encounter::ambush(world, data, events).map_err(Rejection::Rule);
     }
     advance(world, data, minutes, events);
-    let map = world.position.map;
-    events.extend(
-        hits.into_iter()
-            .map(|index| Event::RestEvent { map, index }),
-    );
+    let map = id_of(&data.registry.maps, world.position.map);
+    events.extend(hits.into_iter().map(|entry| Event::RestEvent {
+        map: map.clone(),
+        entry,
+    }));
     events.push(Event::Rested {
         long,
         minutes,

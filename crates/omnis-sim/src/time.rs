@@ -14,6 +14,7 @@ use crate::PARTY;
 use crate::bus::{self, Bus, Host, Signal, Subscriber, Topic};
 use crate::combat::Roller;
 use crate::event::Event;
+use crate::time_view::holder_name;
 use crate::world::World;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -163,8 +164,8 @@ fn reconcile_party(world: &mut World, data: &Data, region: RegionId, events: &mu
     let shared_now = world.party_time.shared_milli;
     remember(world, a, b, age, clock.elapsed, shared_now);
     events.push(Event::Reconciled {
-        a,
-        b,
+        a: holder_name(a, data),
+        b: holder_name(b, data),
         delta_a: lived,
         delta_b: delta,
         era_b: clock.era,
@@ -198,8 +199,8 @@ fn reconcile_coupled(
     let clock = advance_holder(world, b, delta);
     remember(world, a, b, now, clock.elapsed, 0);
     events.push(Event::Reconciled {
-        a,
-        b,
+        a: holder_name(a, data),
+        b: holder_name(b, data),
         delta_a: lived,
         delta_b: delta,
         era_b: clock.era,

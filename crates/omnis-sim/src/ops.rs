@@ -11,6 +11,7 @@ use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::dev::DevCommand;
 use crate::event::Event;
+use crate::names::Place;
 use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
@@ -25,7 +26,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{EraId, MapId, Position};
+use omnis_core::{EraId, MapId};
 use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
@@ -226,9 +227,7 @@ pub struct Status {
     /// Commands applied.
     pub turn: u64,
     /// Where the party is.
-    pub position: Position,
-    /// The id of the party's map.
-    pub map: String,
+    pub position: Place,
     /// The party's age.
     pub clock: ClockView,
     /// The date the party believes, on the pack's calendar (M8).
@@ -597,7 +596,6 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
         mode: here.mode,
         turn: here.turn,
         position: here.position,
-        map: here.map,
         clock: ClockView {
             elapsed: clock.elapsed,
             day: clock.elapsed.div_euclid(day_length),

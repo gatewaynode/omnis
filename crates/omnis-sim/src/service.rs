@@ -10,6 +10,7 @@ use crate::combat::state::is_dead;
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::items::{add_to, count_of, take_from};
+use crate::names::id_of;
 use crate::party;
 use crate::rest;
 use crate::service_level;
@@ -239,7 +240,9 @@ pub(crate) fn enter_here(world: &mut World, data: &Data, events: &mut Vec<Event>
         service,
         kind: def.kind,
     });
-    events.push(Event::ServiceEntered { service });
+    events.push(Event::ServiceEntered {
+        service: id_of(&data.registry.services, service),
+    });
     true
 }
 
@@ -254,7 +257,7 @@ pub(crate) fn apply(
     if *command == ServiceCommand::Leave {
         world.mode = Mode::Explore;
         events.push(Event::ServiceLeft {
-            service: state.service,
+            service: id_of(&data.registry.services, state.service),
         });
         return Ok(());
     }
@@ -524,8 +527,8 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             return;
         }
         Deal::Rumor { index, ago } => events.push(Event::Rumor {
-            service,
-            index,
+            service: id_of(&data.registry.services, service),
+            rumor: index,
             ago,
         }),
         Deal::Food { count, cost } => {
@@ -552,7 +555,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             });
             let cured: Vec<_> = curable(member, data).collect();
             for condition in cured {
-                party::set_condition_id(member, condition, false, events);
+                party::set_condition_id(member, data, condition, false, events);
             }
         }
         Deal::Raise { index, cost } => {
@@ -569,13 +572,21 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
         Deal::Buy { item, count, cost } => {
             party.gold -= cost;
             add_to(&mut party.inventory, item, count);
-            events.push(Event::Bought { item, count, cost });
+            events.push(Event::Bought {
+                item: id_of(&data.registry.items, item),
+                count,
+                cost,
+            });
         }
         Deal::Sell { item, count, price } => {
             // Validated: the stores hold `count`.
             let _ = take_from(&mut party.inventory, item, count);
             party.gold += price;
-            events.push(Event::Sold { item, count, price });
+            events.push(Event::Sold {
+                item: id_of(&data.registry.items, item),
+                count,
+                price,
+            });
         }
         Deal::Deposit { amount } => {
             party.gold -= amount;
@@ -620,7 +631,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             member.known_spells.push(spell);
             events.push(Event::SpellLearned {
                 member: member.id,
-                spell,
+                spell: id_of(&data.registry.spells, spell),
                 cost,
             });
             if pick {

@@ -368,7 +368,7 @@ fn keep_concentration(
         success,
     });
     if !success {
-        effects::end_concentration(world, id, events);
+        effects::end_concentration(world, data, id, events);
     }
     Ok(())
 }

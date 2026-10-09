@@ -439,7 +439,7 @@ fn conditions_and_flags_are_set_by_id() {
     assert!(world.party.members[0].conditions.contains(&poisoned));
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::Condition { condition, applied: true, .. } if *condition == poisoned
+        Event::Condition { condition, applied: true, .. } if condition == "base:condition:poisoned"
     )));
     let events = set(&mut world, true).unwrap();
     assert_eq!(

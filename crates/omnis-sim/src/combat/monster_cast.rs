@@ -14,6 +14,7 @@ use super::resolve::{harm_member, monster, monster_attacks_member, reached};
 use super::state::CombatState;
 use crate::encounter::Stack;
 use crate::event::{ActorRef, CheckKind, Event};
+use crate::names::id_of;
 use crate::party;
 use alloc::vec::Vec;
 use omnis_core::SpellId;
@@ -145,7 +146,10 @@ fn cast(
     let mut rng = roller.rng;
     let cost = spell_cost(def, data, &mut rng)?;
     pay(&mut state.encounter.stacks[usize::from(stack)], index, cost);
-    events.push(Event::MonsterCast { caster, spell });
+    events.push(Event::MonsterCast {
+        caster,
+        spell: id_of(&data.registry.spells, spell),
+    });
     reaction::on_enemy_cast(world, data, state, roller, events)?;
     let scale = |dice, roller: &mut Roller| {
         if def.level == 0 {
@@ -375,7 +379,7 @@ fn raise_shield(
     }
     events.push(Event::MonsterCast {
         caster: ActorRef::Monster { stack, index },
-        spell,
+        spell: id_of(&data.registry.spells, spell),
     });
     Ok(Some(bonus))
 }

@@ -15,6 +15,7 @@ use super::state::CombatState;
 use crate::bus::{self, Bus, Cue, Host, Signal, Subscriber};
 use crate::effects;
 use crate::event::{ActorRef, Event};
+use crate::names::action_named;
 use crate::party;
 use crate::tactics::answers;
 use crate::world::World;
@@ -311,7 +312,7 @@ fn react(
     events.push(Event::Reaction {
         actor: id,
         trigger: set.trigger,
-        action: set.action.clone(),
+        action: action_named(&set.action, data),
     });
     let plan = CastPlan {
         own: reactor,
@@ -325,6 +326,7 @@ fn react(
             let concentration = data.spells.get(&spell).is_some_and(|s| s.concentration);
             effects::apply_to_member(
                 world,
+                data,
                 reactor,
                 ActiveEffect {
                     source: spell,

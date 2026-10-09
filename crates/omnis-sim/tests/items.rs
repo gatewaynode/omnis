@@ -204,10 +204,9 @@ fn equipping_swaps_the_slot_and_armor_takes_its_minutes() {
     let mut world = world(&data);
     party_of(&mut world, &data, 1);
     let brenna = world.party.members[0].id;
-    let (chain, leather, shield) = (
+    let (chain, leather) = (
         item_id(&data, "chain_mail").unwrap(),
         item_id(&data, "leather").unwrap(),
-        item_id(&data, "shield").unwrap(),
     );
     let ac = |world: &World| armor_class(&world.party.members[0], &data);
     assert_eq!(
@@ -224,12 +223,12 @@ fn equipping_swaps_the_slot_and_armor_takes_its_minutes() {
             &Event::Unequipped {
                 member: brenna,
                 slot: EquipSlot::Body,
-                item: chain
+                item: "base:item:chain_mail".to_owned()
             },
             &Event::Equipped {
                 member: brenna,
                 slot: EquipSlot::Body,
-                item: leather
+                item: "base:item:leather".to_owned()
             }
         ]
     );
@@ -246,7 +245,7 @@ fn equipping_swaps_the_slot_and_armor_takes_its_minutes() {
         [&Event::Unequipped {
             member: brenna,
             slot: EquipSlot::OffHand,
-            item: shield
+            item: "base:item:shield".to_owned()
         }]
     );
     assert_eq!(minutes_passed(&events), 0, "a shield comes off for free");
@@ -319,7 +318,7 @@ fn giving_moves_counts_and_refuses_zero_too_many_oneself_and_nobody() {
     let row = kit_row(&world, 0, bolts);
     let events = apply(&mut world, &data, give(0, 1, &row, 5)).unwrap();
     assert!(events.contains(&Event::ItemMoved {
-        item: bolts,
+        item: "base:item:crossbow_bolts".to_owned(),
         count: 5,
         from: ItemPlace::Member(brenna),
         to: ItemPlace::Member(durin),
@@ -386,10 +385,10 @@ fn stowing_a_worn_item_takes_it_off_and_taking_brings_it_back() {
             &Event::Unequipped {
                 member: brenna,
                 slot: EquipSlot::MainHand,
-                item: longsword
+                item: "base:item:longsword".to_owned()
             },
             &Event::ItemMoved {
-                item: longsword,
+                item: "base:item:longsword".to_owned(),
                 count: 1,
                 from: ItemPlace::Member(brenna),
                 to: ItemPlace::Stores,
@@ -407,7 +406,7 @@ fn stowing_a_worn_item_takes_it_off_and_taking_brings_it_back() {
     let sword = "base:item:longsword";
     let events = apply(&mut world, &data, take(1, sword, 1)).unwrap();
     assert!(events.contains(&Event::ItemMoved {
-        item: longsword,
+        item: "base:item:longsword".to_owned(),
         count: 1,
         from: ItemPlace::Stores,
         to: ItemPlace::Member(durin),
@@ -454,7 +453,7 @@ fn a_potion_gets_a_downed_member_up_and_is_spent() {
         .position(|e| {
             *e == Event::ItemUsed {
                 member: brenna,
-                item: potion,
+                item: "base:item:potion_of_healing".to_owned(),
                 target: Some(durin),
                 consumed: true,
             }
@@ -625,7 +624,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         .position(|e| {
             *e == Event::ItemUsed {
                 member: brenna,
-                item: potion,
+                item: "base:item:potion_of_healing".to_owned(),
                 target: Some(brenna),
                 consumed: true,
             }

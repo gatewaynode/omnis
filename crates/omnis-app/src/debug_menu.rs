@@ -112,10 +112,10 @@ pub fn debug_view(views: &Views, data: &Data) -> DebugView {
         })
         .collect();
     let here = &views.here;
-    let p = here.position;
+    let p = &here.position;
     let map_index = maps
         .iter()
-        .position(|(m, _, _)| *m == here.map)
+        .position(|(m, _, _)| *m == here.position.map)
         .unwrap_or(0);
     let fight = views
         .combat
@@ -125,7 +125,7 @@ pub fn debug_view(views: &Views, data: &Data) -> DebugView {
         c.stacks
             .iter()
             .map(|s| StackDebug {
-                index: s.index,
+                index: s.stack,
                 name: data.label("en", &s.name).to_owned(),
                 count: (u8::try_from(s.hp.len()).unwrap_or(u8::MAX), s.initial),
                 lead_hp: s.hp.first().copied().unwrap_or(0),

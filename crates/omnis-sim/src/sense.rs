@@ -9,6 +9,7 @@ use crate::checks::{self, CheckSpec};
 use crate::combat::Roller;
 use crate::combat::state::can_fight;
 use crate::event::{Event, LayerCheck, SensedTile};
+use crate::names::id_of;
 use crate::visibility;
 use crate::world::{Known, World, layer};
 use alloc::vec::Vec;
@@ -159,7 +160,7 @@ pub(crate) fn resolve(
     }
     events.push(Event::Sensed {
         actor,
-        item,
+        item: id_of(&data.registry.items, item),
         checks,
         tiles,
     });

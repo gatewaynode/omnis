@@ -289,7 +289,8 @@ fn components_are_taken_from_the_stores_at_the_threshold() {
     let events = apply(&mut world, &data, cast(&missile, Target::Stack(0))).unwrap();
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::SpellCast { components_consumed, .. } if components_consumed == &[(gem, 1)]
+        Event::SpellCast { components_consumed, .. }
+            if *components_consumed == [("base:item:gem".to_owned(), 1)]
     )));
     assert_eq!(world.party.inventory, [(gem, 1)], "one gem burnt");
 

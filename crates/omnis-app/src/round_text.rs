@@ -31,7 +31,11 @@ pub(crate) fn round_line(event: &Event, names: &Names) -> Option<Line> {
         Event::RoundStarted { round } => Line::same(format!("Round {round}")),
         Event::Waited { actor } => Line::same(format!("{} wait", names.actor(actor))),
         Event::Dodging { actor } => Line::same(format!("{} dodges", names.actor(actor))),
-        Event::Exchanged { a, b } => Line::same(format!("Slots {} and {} exchange", a + 1, b + 1)),
+        Event::Exchanged { member, with } => Line::same(format!(
+            "{} and {} exchange",
+            names.member(*member),
+            names.member(*with)
+        )),
         Event::FeatureUsed { member, feature } => Line::same(format!(
             "{} uses {}",
             names.member(*member),
@@ -99,7 +103,7 @@ pub(crate) fn wound_line(event: &Event, names: &Names) -> Option<Line> {
             "{} is {}{}",
             names.actor(target),
             if *applied { "" } else { "no longer " },
-            names.condition(*condition)
+            names.condition(condition)
         )),
         Event::Death { target, gold } => {
             let who = names.actor(target);

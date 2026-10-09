@@ -445,8 +445,8 @@ fn rest_events_roll_for_their_terrain_and_rest_and_change_nothing() {
     assert_eq!(
         at_rest,
         [&Event::RestEvent {
-            map: meadow,
-            index: 0
+            map: "test:map:meadow".to_owned(),
+            entry: 0
         }]
     );
     let mut quiet = fresh.clone();

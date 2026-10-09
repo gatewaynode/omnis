@@ -28,6 +28,11 @@ fn bob(data: &Data) -> MonsterId {
         .unwrap()
 }
 
+/// A base spell's string id, as events name it.
+fn named(name: &str) -> String {
+    format!("base:spell:{name}")
+}
+
 fn spell(data: &Data, name: &str) -> SpellId {
     data.registry
         .spells
@@ -151,9 +156,9 @@ fn bob_actor(index: u8) -> ActorRef {
 }
 
 /// What Bob's turn was: the spell he cast, or `None` for his staff.
-fn choice(events: &[Event]) -> Option<SpellId> {
+fn choice(events: &[Event]) -> Option<String> {
     match events.first() {
-        Some(Event::MonsterCast { spell, .. }) => Some(*spell),
+        Some(Event::MonsterCast { spell, .. }) => Some(spell.clone()),
         Some(Event::AttackResolved { attacker, .. }) if *attacker == bob_actor(0) => None,
         other => panic!("Bob's turn began with {other:?}"),
     }
@@ -163,18 +168,22 @@ fn choice(events: &[Event]) -> Option<SpellId> {
 fn bob_rolls_among_his_staff_and_the_spells_his_points_pay_for() {
     let data = data();
     let (bolt, missile, wave, shield) = (
-        spell(&data, "fire_bolt"),
-        spell(&data, "magic_missile"),
-        spell(&data, "thunderwave"),
-        spell(&data, "shield"),
+        named("fire_bolt"),
+        named("magic_missile"),
+        named("thunderwave"),
+        named("shield"),
     );
     let mut seen = Vec::new();
     for seed in 0..60 {
         let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});
         let events = bob_turn(&mut world, &data, &start);
         let picked = choice(&events);
-        assert_ne!(picked, Some(shield), "Shield is a reaction, never his turn");
-        if let Some(levelled) = picked.filter(|s| *s == missile || *s == wave) {
+        assert_ne!(
+            picked,
+            Some(shield.clone()),
+            "Shield is a reaction, never his turn"
+        );
+        if let Some(levelled) = picked.clone().filter(|s| *s == missile || *s == wave) {
             assert_eq!(
                 state(&mut world).encounter.stacks[0].spent,
                 vec![1],
@@ -185,7 +194,7 @@ fn bob_rolls_among_his_staff_and_the_spells_his_points_pay_for() {
             seen.push(picked);
         }
     }
-    for wanted in [None, Some(bolt), Some(missile), Some(wave)] {
+    for wanted in [None, Some(bolt.clone()), Some(missile), Some(wave)] {
         assert!(seen.contains(&wanted), "{wanted:?} never rolled: {seen:?}");
     }
 
@@ -202,7 +211,10 @@ fn bob_rolls_among_his_staff_and_the_spells_his_points_pay_for() {
     for seed in 0..40 {
         let (mut world, start) = against_bob(&data, seed, (4, 1, 200), |_| {});
         let picked = choice(&bob_turn(&mut world, &data, &start));
-        assert!(picked.is_none() || picked == Some(bolt), "{picked:?}");
+        assert!(
+            picked.is_none() || picked == Some(bolt.clone()),
+            "{picked:?}"
+        );
         if !seen.contains(&picked) {
             seen.push(picked);
         }
@@ -359,7 +371,6 @@ fn bob_shields_himself_from_a_missile_and_a_hit_once_a_round() {
     // Bob does nothing on his turns here: his only spell is his reaction.
     let mut data = data();
     bob_casting(&mut data, &["shield"], false);
-    let shield = spell(&data, "shield");
     // Ilvara's Magic Missile at Bob: his reaction raises the shield and it stops the missile.
     let (mut world, _) = against_bob(&data, 5, (4, 1, 200), |_| {});
     until_member(&mut world, &data, ILVARA);
@@ -383,7 +394,7 @@ fn bob_shields_himself_from_a_missile_and_a_hit_once_a_round() {
         .position(|e| {
             *e == Event::MonsterCast {
                 caster: bob_actor(0),
-                spell: shield,
+                spell: named("shield"),
             }
         })
         .expect("Bob shields");

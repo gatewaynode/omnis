@@ -147,7 +147,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         .stacks
         .iter()
         .map(|s| StackRow {
-            index: s.index,
+            index: s.stack,
             name: data.label("en", &s.name).to_owned(),
             count: u8::try_from(s.hp.len()).unwrap_or(u8::MAX),
             initial: s.initial,

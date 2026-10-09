@@ -5,10 +5,9 @@
 use crate::font::fit;
 use crate::sim::Views;
 use omnis_sim::ActorRef;
-use omnis_sim::omnis_core::{
-    Calendar, CharacterId, Coins, ConditionId, ItemId, MapId, RollTrace, ServiceId, SpellId,
-};
+use omnis_sim::omnis_core::{Calendar, CharacterId, Coins, RollTrace};
 use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::registry::Interner;
 use std::collections::BTreeMap;
 
 /// How long ago `minutes` was, in the calendar's days, months of 30 days, and years:
@@ -41,20 +40,20 @@ pub const SHORT_CELLS: usize = 39;
 const _: () = assert!(LONG_CELLS <= crate::band::LOG_CELLS);
 const _: () = assert!(LONG_CELLS <= crate::band::BAND_COLUMNS);
 
-/// The names events refer to by id. Members are remembered by id after they leave the party
+/// The names events refer to by id: members by `CharacterId`, definitions by string id. Members are remembered by id after they leave the party
 /// and stacks after a fight ends, so the batch that ends a fight still reads.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Names {
     pub(crate) members: BTreeMap<CharacterId, String>,
     /// Label and initial count per stack index.
     pub(crate) stacks: Vec<(String, u8)>,
-    conditions: BTreeMap<ConditionId, String>,
-    spells: BTreeMap<SpellId, String>,
-    items: BTreeMap<ItemId, String>,
+    conditions: BTreeMap<String, String>,
+    spells: BTreeMap<String, String>,
+    items: BTreeMap<String, String>,
     /// A service's name and its rumors, in its pack's order.
-    services: BTreeMap<ServiceId, (String, Vec<String>)>,
+    services: BTreeMap<String, (String, Vec<String>)>,
     /// A map's rest-event lines, in its file's order.
-    rest_events: BTreeMap<MapId, Vec<String>>,
+    rest_events: BTreeMap<String, Vec<String>>,
     /// Class features by text key (a level-up names the ones it brings).
     features: BTreeMap<String, String>,
     /// The calendar, for how long ago something happened.
@@ -91,20 +90,26 @@ impl Names {
         }
         if self.conditions.is_empty() {
             for (id, condition) in &data.conditions {
-                self.conditions
-                    .insert(*id, data.label("en", &condition.name).to_owned());
+                self.conditions.insert(
+                    key(&data.registry.conditions, *id),
+                    data.label("en", &condition.name).to_owned(),
+                );
             }
         }
         if self.spells.is_empty() {
             for (id, spell) in &data.spells {
-                self.spells
-                    .insert(*id, data.label("en", &spell.name).to_owned());
+                self.spells.insert(
+                    key(&data.registry.spells, *id),
+                    data.label("en", &spell.name).to_owned(),
+                );
             }
         }
         if self.items.is_empty() {
             for (id, item) in &data.items {
-                self.items
-                    .insert(*id, data.label("en", &item.name).to_owned());
+                self.items.insert(
+                    key(&data.registry.items, *id),
+                    data.label("en", &item.name).to_owned(),
+                );
             }
         }
         self.calendar = data.calendar();
@@ -116,7 +121,8 @@ impl Names {
                     .map(|rumor| data.label("en", &rumor.text).to_owned())
                     .collect();
                 let name = data.label("en", &service.name).to_owned();
-                self.services.insert(*id, (name, rumors));
+                self.services
+                    .insert(key(&data.registry.services, *id), (name, rumors));
             }
         }
         if self.features.is_empty() {
@@ -135,7 +141,8 @@ impl Names {
                     .iter()
                     .map(|e| data.label("en", &e.text).to_owned())
                     .collect();
-                self.rest_events.insert(*id, lines);
+                self.rest_events
+                    .insert(key(&data.registry.maps, *id), lines);
             }
         }
     }
@@ -166,14 +173,14 @@ impl Names {
 
     /// A condition's name.
     #[must_use]
-    pub fn condition(&self, id: ConditionId) -> &str {
-        self.conditions.get(&id).map_or("?", String::as_str)
+    pub fn condition(&self, id: &str) -> &str {
+        self.conditions.get(id).map_or("?", String::as_str)
     }
 
     /// A spell's name.
     #[must_use]
-    pub fn spell(&self, id: SpellId) -> &str {
-        self.spells.get(&id).map_or("?", String::as_str)
+    pub fn spell(&self, id: &str) -> &str {
+        self.spells.get(id).map_or("?", String::as_str)
     }
 
     /// A class feature's name, by its text key.
@@ -184,25 +191,23 @@ impl Names {
 
     /// An item's name.
     #[must_use]
-    pub fn item(&self, id: ItemId) -> &str {
-        self.items.get(&id).map_or("?", String::as_str)
+    pub fn item(&self, id: &str) -> &str {
+        self.items.get(id).map_or("?", String::as_str)
     }
 
     /// A service's name.
     #[must_use]
-    pub fn service(&self, id: ServiceId) -> &str {
-        self.services
-            .get(&id)
-            .map_or("?", |(name, _)| name.as_str())
+    pub fn service(&self, id: &str) -> &str {
+        self.services.get(id).map_or("?", |(name, _)| name.as_str())
     }
 
     /// One of a service's rumors, by its row, told `ago` minutes after it happened.
     #[must_use]
-    pub fn rumor(&self, id: ServiceId, index: u16, ago: i64) -> String {
+    pub fn rumor(&self, id: &str, rumor: u16, ago: i64) -> String {
         let text = self
             .services
-            .get(&id)
-            .and_then(|(_, rumors)| rumors.get(usize::from(index)))
+            .get(id)
+            .and_then(|(_, rumors)| rumors.get(usize::from(rumor)))
             .map_or("?", String::as_str);
         let ago = ago_text(ago, self.calendar);
         omnis_sim::omnis_data::text::fill(text, &[("ago", &ago)])
@@ -210,12 +215,20 @@ impl Names {
 
     /// The line of a map's rest event.
     #[must_use]
-    pub fn rest_event(&self, map: MapId, index: u16) -> &str {
+    pub fn rest_event(&self, map: &str, entry: u16) -> &str {
         self.rest_events
-            .get(&map)
-            .and_then(|lines| lines.get(usize::from(index)))
+            .get(map)
+            .and_then(|lines| lines.get(usize::from(entry)))
             .map_or("?", String::as_str)
     }
+}
+
+/// The string id events carry for a registry number: `#n` for one no pack names, as the
+/// engine writes it.
+fn key<I: Copy + From<u32> + Into<u32>>(registry: &Interner<I>, id: I) -> String {
+    registry
+        .name(id)
+        .map_or_else(|| format!("#{}", id.into()), str::to_owned)
 }
 
 /// One event as text.

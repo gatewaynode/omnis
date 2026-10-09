@@ -81,7 +81,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "game_status",
             "game.status",
-            "Mode, turn, party clock, position, map, packs, the world fingerprint, the service the party is inside, and the groups placed once on its map that are cleared out of how many.",
+            "Mode, turn, party clock, position (its map by string id), packs, the world fingerprint, the service the party is inside, and the groups placed once on its map that are cleared out of how many.",
             &[],
         ),
         tool(

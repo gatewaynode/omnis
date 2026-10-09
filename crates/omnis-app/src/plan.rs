@@ -11,7 +11,7 @@
 use crate::layout::Camera;
 use omnis_sim::api::layer;
 use omnis_sim::api::{EdgeView, ViewTile, ViewportModel};
-use omnis_sim::omnis_core::{Facing, MapId, Position};
+use omnis_sim::omnis_core::{Facing, Position};
 use omnis_sim::omnis_data::{Data, MapData, MapKind, Tileset};
 use std::collections::BTreeMap;
 
@@ -69,8 +69,8 @@ impl DrawOp {
 
 /// The background behind the viewport: sky outdoors, dark underground.
 #[must_use]
-pub fn backdrop(data: &Data, map: MapId) -> (u8, u8, u8) {
-    match data.maps.get(&map).map(|m| m.def.kind) {
+pub fn backdrop(data: &Data, map: &str) -> (u8, u8, u8) {
+    match crate::defs::map(data, map).map(|m| m.def.kind) {
         Some(MapKind::Outdoor) | Some(MapKind::Town) => (96, 150, 220),
         _ => (8, 6, 12),
     }
@@ -80,8 +80,10 @@ pub fn backdrop(data: &Data, map: MapId) -> (u8, u8, u8) {
 #[must_use]
 pub fn viewport(view: &ViewportModel, data: &Data) -> Vec<DrawOp> {
     let mut ops = Vec::new();
-    let (Some(map), Some(tileset)) = (data.maps.get(&view.map), data.tilesets.get(&view.tileset))
-    else {
+    let (Some(map), Some(tileset)) = (
+        crate::defs::map(data, &view.map),
+        crate::defs::tileset(data, &view.tileset),
+    ) else {
         return ops;
     };
     let camera = Camera::new(tileset.viewport);
@@ -395,7 +397,7 @@ fn dim(c: (u8, u8, u8)) -> (u8, u8, u8) {
 mod tests {
     use super::*;
     use omnis_sim::Settings;
-    use omnis_sim::omnis_core::{Direction, Facing, Position, Rotation};
+    use omnis_sim::omnis_core::{Direction, Facing, MapId, Position, Rotation};
     use omnis_sim::omnis_data::load_packs;
     use omnis_sim::{Command, World, apply, query};
 
@@ -432,7 +434,7 @@ mod tests {
 
     /// The tileset a view draws with.
     fn tileset<'a>(data: &'a Data, view: &ViewportModel) -> &'a Tileset {
-        &data.tilesets[&view.tileset]
+        crate::defs::tileset(data, &view.tileset).unwrap()
     }
 
     /// Where the tileset places the slot whose image path ends with `suffix`.
@@ -508,7 +510,7 @@ mod tests {
             !paths.iter().any(|p| p.contains("hedge")),
             "no walls in the open meadow"
         );
-        assert_eq!(backdrop(&data, world.position.map), (96, 150, 220));
+        assert_eq!(backdrop(&data, &view.map), (96, 150, 220));
     }
 
     #[test]
@@ -548,7 +550,7 @@ mod tests {
                 .any(|p| p.contains("wall.left_d0_o1") || p.contains("wall.right_d0_o-1")),
             "no plane twice"
         );
-        assert_eq!(backdrop(&data, dungeon), (8, 6, 12));
+        assert_eq!(backdrop(&data, "test:map:dungeon"), (8, 6, 12));
         let placed = ops
             .iter()
             .find(|o| matches!(&o.paint, Paint::Sprite(p) if p.ends_with("door_d0_o0.png")))

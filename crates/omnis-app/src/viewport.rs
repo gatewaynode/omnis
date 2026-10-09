@@ -6,6 +6,7 @@ use crate::actors;
 use crate::assets::PackImages;
 use crate::canvas::Layout;
 use crate::combat_menu::{fight_view, redraws};
+use crate::defs;
 use crate::layout::{CANVAS_HEIGHT, OVERLAY_MAP_SCALE, SIDEBAR_MAP_SCALE, VIEWPORT_SIZE};
 use crate::plan::{self, DrawOp, Paint};
 use crate::sim::{PackData, ShellCommand, SimEvent, SimSet, SimWorld, Views, WorldReplaced};
@@ -149,7 +150,7 @@ fn redraw(
         width: layout.width,
     };
     // Sky or darkness inside the viewport only; the panel colour shows around it.
-    let backdrop = plan::backdrop(&data.0, view.map);
+    let backdrop = plan::backdrop(&data.0, &view.map);
     let sky = DrawOp {
         paint: Paint::Fill {
             color: backdrop,
@@ -166,7 +167,9 @@ fn redraw(
         let ops = actors::ops(&actors::silhouettes(&fight.actors()));
         spawn.spawn::<ViewportSprite>(&ops, layout.core, 2.0);
     }
-    let party = views.here.position;
+    let Some(party) = defs::position(&data.0, &views.here.position) else {
+        return;
+    };
     let known = world.automap(party.map);
     let sidebar = plan::automap_window(party, known, &data.0, layout.minimap(), SIDEBAR_MAP_SCALE);
     spawn.spawn::<AutomapSprite>(&sidebar, (0, 0), 10.0);

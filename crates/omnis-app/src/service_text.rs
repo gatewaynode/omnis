@@ -11,10 +11,10 @@ use omnis_sim::Event;
 pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
     Some(match event {
         Event::ServiceEntered { service } => {
-            Line::same(format!("The party enters the {}", names.service(*service)))
+            Line::same(format!("The party enters the {}", names.service(service)))
         }
         Event::ServiceLeft { service } => {
-            Line::same(format!("The party leaves the {}", names.service(*service)))
+            Line::same(format!("The party leaves the {}", names.service(service)))
         }
         Event::RoomTaken { cost } => Line::new(
             format!("A night's rest for {}", coins(*cost)),
@@ -25,9 +25,9 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
         }
         Event::Rumor {
             service,
-            index,
+            rumor,
             ago,
-        } => Line::same(format!("\"{}\"", names.rumor(*service, *index, *ago))),
+        } => Line::same(format!("\"{}\"", names.rumor(service, *rumor, *ago))),
         Event::Treated { member, cost } => Line::same(format!(
             "{} is treated for {}",
             names.member(*member),
@@ -40,12 +40,12 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
         )),
         Event::Bought { item, count, cost } => Line::same(format!(
             "Bought {count} {} for {}",
-            names.item(*item),
+            names.item(item),
             coins(*cost)
         )),
         Event::Sold { item, count, price } => Line::same(format!(
             "Sold {count} {} for {}",
-            names.item(*item),
+            names.item(item),
             coins(*price)
         )),
         Event::Banked {
@@ -74,7 +74,7 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
             format!("Ambushed after {}!", span(*minutes)),
             "Ambushed!".to_owned(),
         ),
-        Event::RestEvent { map, index } => Line::same(names.rest_event(*map, *index).to_owned()),
+        Event::RestEvent { map, entry } => Line::same(names.rest_event(map, *entry).to_owned()),
         Event::LevelUp {
             member,
             level,
@@ -88,7 +88,7 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
         } => Line::same(format!(
             "{} chooses {}",
             names.member(*member),
-            names.spell(*spell)
+            names.spell(spell)
         )),
         Event::SpellLearned {
             member,
@@ -98,10 +98,10 @@ pub fn service_line(event: &Event, names: &Names) -> Option<Line> {
             format!(
                 "{} learns {} for {}",
                 names.member(*member),
-                names.spell(*spell),
+                names.spell(spell),
                 coins(*cost)
             ),
-            format!("{} learns {}", names.member(*member), names.spell(*spell)),
+            format!("{} learns {}", names.member(*member), names.spell(spell)),
         ),
         _ => return None,
     })
@@ -194,24 +194,28 @@ mod tests {
         let data = packs();
         let world = World::new(&data, 3, Settings::default()).unwrap();
         let names = Names::of_world(&world, &data);
-        let guild = data.registry.services.get("base:service:guild").unwrap();
-        let item = data.registry.items.get("base:item:map_making_kit").unwrap();
+        let guild = "base:service:guild";
+        let item = "base:item:map_making_kit";
         let most = u32::MAX;
         let events = [
-            Event::ServiceEntered { service: guild },
-            Event::ServiceLeft { service: guild },
+            Event::ServiceEntered {
+                service: guild.to_owned(),
+            },
+            Event::ServiceLeft {
+                service: guild.to_owned(),
+            },
             Event::RoomTaken { cost: most },
             Event::FoodBought {
                 count: u16::MAX,
                 cost: most,
             },
             Event::Bought {
-                item,
+                item: item.to_owned(),
                 count: u16::MAX,
                 cost: most,
             },
             Event::Sold {
-                item,
+                item: item.to_owned(),
                 count: u16::MAX,
                 price: most,
             },
@@ -264,7 +268,7 @@ mod tests {
         .unwrap();
         let names = Names::of_world(&world, &data);
         let member = world.party.members[0].id;
-        let shatter = data.registry.spells.get("base:spell:shatter").unwrap();
+        let shatter = "base:spell:shatter";
         // The longest a level reads: a 32-byte name, a full caster's gains and the longest
         // feature a class lists.
         let worst = Event::LevelUp {
@@ -310,7 +314,7 @@ mod tests {
         let ilvara = world.party.members[1].id;
         let pick = Event::SpellLearned {
             member: ilvara,
-            spell: shatter,
+            spell: shatter.to_owned(),
             cost: 0,
         };
         assert_eq!(
@@ -319,7 +323,7 @@ mod tests {
         );
         let bought = Event::SpellLearned {
             member: ilvara,
-            spell: shatter,
+            spell: shatter.to_owned(),
             cost: 10_000,
         };
         let line = service_line(&bought, &names).unwrap();
@@ -332,7 +336,7 @@ mod tests {
         let data = packs();
         let world = World::new(&data, 3, Settings::default()).unwrap();
         let names = Names::of_world(&world, &data);
-        let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+        let meadow = "test:map:meadow";
         let lines = [
             (
                 Event::Rested {
@@ -360,8 +364,8 @@ mod tests {
             ),
             (
                 Event::RestEvent {
-                    map: meadow,
-                    index: 0,
+                    map: meadow.to_owned(),
+                    entry: 0,
                 },
                 "A cart rattles past on the road",
             ),

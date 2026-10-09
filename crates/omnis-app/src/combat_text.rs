@@ -185,9 +185,7 @@ mod tests {
     use super::*;
     use crate::combat_menu::tests::facing_goblins;
     use crate::text::{LONG_CELLS, SHORT_CELLS};
-    use omnis_sim::omnis_core::{
-        CharacterId, ConditionId, Dice, DieRoll, MonsterId, RollTrace, StreamName,
-    };
+    use omnis_sim::omnis_core::{CharacterId, Dice, DieRoll, RollTrace, StreamName};
     use omnis_sim::omnis_data::DamageType;
     use omnis_sim::omnis_data::{Data, Disposition, load_packs};
     use omnis_sim::omnis_rules::DeathSaveResult;
@@ -436,7 +434,10 @@ mod tests {
         vec![
             Event::EncounterStarted {
                 source: EncounterSource::Random,
-                stacks: vec![(MonsterId(0), 3), (MonsterId(1), 1)],
+                stacks: vec![
+                    ("base:monster:goblin".to_owned(), 3),
+                    ("base:monster:skeleton".to_owned(), 1),
+                ],
                 disposition: Disposition::Wary,
                 counts: vec![],
                 stealth: Some(d20(RollMode::Normal, &[14], 14, 2, 0)),
@@ -494,7 +495,10 @@ mod tests {
             Event::Dodging {
                 actor: ActorRef::Member(me),
             },
-            Event::Exchanged { a: 0, b: 3 },
+            Event::Exchanged {
+                member: me,
+                with: CharacterId(1),
+            },
             Event::Down { target: me },
             Event::Wounded {
                 member: me,
@@ -516,7 +520,7 @@ mod tests {
             },
             Event::Condition {
                 target: ActorRef::Member(me),
-                condition: ConditionId(0),
+                condition: "base:condition:blinded".to_owned(),
                 applied: true,
             },
             Event::Death {
@@ -596,7 +600,11 @@ mod tests {
         assert_eq!(lines[6].long, "Round 999");
         assert_eq!(lines[7].long, "Ancient Red Dragon Wys wait");
         assert_eq!(lines[8].long, "Brennagh-of-the-Long-Hall dodges");
-        assert_eq!(lines[9].long, "Slots 1 and 4 exchange");
+        clipped(
+            &lines[9].long,
+            LONG_CELLS,
+            "Brennagh-of-the-Long-Hall and Gormundsson-the-Younger exchange",
+        );
         assert_eq!(lines[10].long, "Brennagh-of-the-Long-Hall falls");
         clipped(
             &lines[11].long,
@@ -663,7 +671,7 @@ mod tests {
                 .stacks
                 .iter()
                 .find(|s| s.alive && s.reachable)
-                .map(|s| s.index)
+                .map(|s| s.stack)
                 .expect("something to hit");
             let command = Command::Combat(CombatCommand::Attack { stack });
             let events = apply(&mut world, &data, command).unwrap_or_else(|r| panic!("{r}"));
