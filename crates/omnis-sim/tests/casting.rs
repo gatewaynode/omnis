@@ -2,7 +2,7 @@
 //! rejections that leave the world untouched, components at the threshold, a spell attack,
 //! an area save, healing, the script words, a save mid-fight, and the protocol view.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, script, word, world};
 use omnis_data::{Data, Disposition};

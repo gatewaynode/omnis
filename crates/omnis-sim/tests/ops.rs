@@ -1,6 +1,6 @@
 //! The client protocol answers every simulation op on real pack data and refuses what it must.
 
-mod common;
+use crate::common;
 
 use common::{data, script_for_six, word, world};
 use omnis_core::{Direction, Facing, Position, Rotation};

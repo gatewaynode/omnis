@@ -3,7 +3,7 @@
 //! word inside its button at every interface scale the slider allows and in every font, dim
 //! buttons that send nothing however they are pressed, and the bar gone without a world.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::feathers::{bar_faults, click_node, control, rect, resize, settle, ultrawide};

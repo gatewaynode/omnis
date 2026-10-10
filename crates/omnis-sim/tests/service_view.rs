@@ -2,7 +2,7 @@
 //! command would be priced if it were sent next, with the refusal the rules would give; the
 //! view changes nothing; and the party view and status carry the town and rest numbers.
 
-mod common;
+use crate::common;
 
 use common::{data, inside, inside_with, script};
 use omnis_core::CharacterId;

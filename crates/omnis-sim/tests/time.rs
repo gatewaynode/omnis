@@ -3,7 +3,7 @@
 //! and sets the party's date; a wild region catches up by the lived time; coupled regions follow;
 //! the jitter comes from the pair's own stream; routes in different orders replay.
 
-mod common;
+use crate::common;
 
 use common::data;
 use omnis_core::{Direction, HolderId, StreamName};

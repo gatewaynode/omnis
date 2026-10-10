@@ -3,7 +3,7 @@
 //! commands: equipping with its minutes, moves between kits and the stores, a potion on the
 //! road and in a fight, the rejections that leave the world untouched, the script words.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, world};
 use omnis_core::{CharacterId, ItemId, StreamName};

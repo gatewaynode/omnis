@@ -3,7 +3,7 @@
 //! refusal it names is the refusal sent back, a count it allows is accepted and one more is
 //! not, and reading it changes nothing.
 
-mod common;
+use crate::common;
 
 use common::{data, encounter, party_of};
 use omnis_core::{Facing, Position};

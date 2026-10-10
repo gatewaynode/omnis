@@ -4,7 +4,7 @@
 //! refusals show on the message line, leaving asks first, the tool pad's overlays come back to
 //! the panel, and the panel lies inside the map at both window sizes.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

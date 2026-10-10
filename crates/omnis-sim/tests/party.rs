@@ -1,7 +1,7 @@
 //! The party: creation from base data through commands, the slot limit, marching order,
 //! rejections that leave the world untouched, saves and replays that carry members.
 
-mod common;
+use crate::common;
 
 use common::{data, step, world};
 use omnis_core::{CharacterId, Direction};

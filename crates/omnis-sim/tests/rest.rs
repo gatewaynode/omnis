@@ -2,7 +2,7 @@
 //! restoration, the once-a-day rule shared with the inn, the ambush, the map's rest events,
 //! and the refusals, each leaving the world as it was.
 
-mod common;
+use crate::common;
 
 use common::{data, encounter, party_of, word as parse_word};
 use omnis_core::{CharacterId, Facing, MapId, Position};

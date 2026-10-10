@@ -4,7 +4,7 @@
 //! food; an ambush takes the game into the fight; Close and Escape go back to the map; the
 //! panel lies inside the map at both window sizes; the sheet shows the hit dice.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

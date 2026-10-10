@@ -1,7 +1,7 @@
 //! What the writer produces, the loader reads back unchanged: the editor and the game share
 //! one code path (PRD §10).
 
-mod common;
+use crate::common;
 
 use omnis_data::ron_io::{from_str, read_ron, to_string, write_ron};
 use omnis_data::{MapDef, TextFile, Tileset, load_packs};

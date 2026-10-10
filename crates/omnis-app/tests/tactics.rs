@@ -6,7 +6,7 @@
 //! menus, a number and Save work by pointer; the panel lies inside the map at both window
 //! sizes at its fullest.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

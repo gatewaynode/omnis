@@ -2,7 +2,7 @@
 //! window would send, without a window, and the whole menu flow driven by clicks on the
 //! composed frame's widgets.
 
-mod common;
+use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;

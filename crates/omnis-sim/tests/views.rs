@@ -5,7 +5,7 @@
 //! that could be declared. Party: Brenna (human fighter), Durin (dwarf cleric), Ilvara (elf
 //! wizard).
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, script, world};
 use omnis_data::ron_io::{parse, to_string};

@@ -2,7 +2,7 @@
 //! them, the four choices resolve by the rules, random tables draw from their own stream, and
 //! the protocol knows the choices.
 
-mod common;
+use crate::common;
 
 use common::{data, encounter, party_of, play, script_for_six, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, StreamName};

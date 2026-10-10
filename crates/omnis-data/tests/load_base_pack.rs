@@ -1,6 +1,6 @@
 //! The base pack loads, and the SRD figures it was transcribed from come back through the API.
 
-mod common;
+use crate::common;
 
 use omnis_core::{Dice, Pcg32, StreamName};
 use omnis_data::omnis_expr::Value;

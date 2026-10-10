@@ -5,7 +5,7 @@
 //! right individual when one dies. Party: Brenna (fighter), Durin (cleric), Ilvara (wizard) in
 //! front, Pip (rogue) behind.
 
-mod common;
+use crate::common;
 
 use common::{act, data, party_of};
 use omnis_core::{MonsterId, SpellId};

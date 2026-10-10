@@ -12,5 +12,7 @@ cargo test --workspace --locked --no-fail-fast 2>&1 \
 scripts/lint-sim.sh --self-test
 scripts/lint-sim.sh
 scripts/check-duplicates.sh
+scripts/check-test-modules.sh --self-test
+scripts/check-test-modules.sh
 cargo run -q -p omnis-cli -- validate packs/base packs/test
 echo VERIFY-GREEN

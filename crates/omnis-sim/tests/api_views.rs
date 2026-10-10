@@ -4,7 +4,7 @@
 //! against the command it describes, and looking changes nothing. Party: Brenna (human
 //! fighter), Durin (dwarf cleric), Ilvara (elf wizard), Pip (halfling rogue).
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, inside, new_world, party_of, world};
 use omnis_data::{Ability, Data, Disposition, EquipSlot, ServiceKind, Skill};

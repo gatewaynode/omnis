@@ -1,7 +1,7 @@
 //! Remote sensing headless: LOOK and L are dim or say so with no spyglass in the party, and
 //! look through the first one carried once there is one, leaving a line in the log.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{play_state, seen, ui_app_saving_to, world};

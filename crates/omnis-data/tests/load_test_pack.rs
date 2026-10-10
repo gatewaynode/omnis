@@ -1,6 +1,6 @@
 //! The fixture pack loads after the base pack, and what it contains is what the maps need.
 
-mod common;
+use crate::common;
 
 use omnis_core::{Edges, Facing};
 use omnis_data::{MapKind, ServiceKind, SlotKind, load_packs};

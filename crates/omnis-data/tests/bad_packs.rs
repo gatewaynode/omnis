@@ -1,6 +1,6 @@
 //! Known-bad packs are refused with the complete expected error list, never a panic.
 
-mod common;
+use crate::common;
 
 use omnis_data::load_packs;
 use std::path::Path;

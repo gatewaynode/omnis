@@ -4,7 +4,7 @@
 //! arrows do nothing and Escape asks to leave. The panel lies inside the map at both window
 //! sizes.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

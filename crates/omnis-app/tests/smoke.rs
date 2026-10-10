@@ -2,7 +2,7 @@
 //! Boot loads the real test pack, a key press becomes a command, the world moves, events are
 //! published, a save round-trips through the shell.
 
-mod common;
+use crate::common;
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
 use omnis_app::sim::{AppState, PlayerCommand, ShellCommand, SimEvent, SimPlugin, SimWorld};

@@ -3,7 +3,7 @@
 //! shield reaction, light widening the dungeon, mage hand on a door, and casting outside a
 //! fight with its minutes and refusals.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, six, world};
 use omnis_core::{CharacterId, Direction, Facing, StreamName};

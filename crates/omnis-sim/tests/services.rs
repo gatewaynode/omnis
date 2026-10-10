@@ -2,7 +2,7 @@
 //! `services.ron` slots in copper, the clock, and a refusal that leaves the world (its dice
 //! streams included) as it was.
 
-mod common;
+use crate::common;
 
 use common::{data, inside};
 use omnis_core::{CharacterId, Clock, EraId, HolderId, StreamName};

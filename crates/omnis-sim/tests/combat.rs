@@ -2,7 +2,7 @@
 //! the world untouched, surprise, dodging, exchanges, deaths and permadeath, saves mid-fight,
 //! flight, and the protocol view.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, script_for_six, word, world};
 use omnis_core::{CharacterId, Direction, Facing, Position};

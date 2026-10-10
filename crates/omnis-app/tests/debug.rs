@@ -6,7 +6,7 @@
 //! window sizes.
 #![cfg(feature = "devtools")]
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

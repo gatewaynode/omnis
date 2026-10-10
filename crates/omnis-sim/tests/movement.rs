@@ -1,6 +1,6 @@
 //! Walking the test maps: steps, walls, doors, pillars, portals, time, and the automap.
 
-mod common;
+use crate::common;
 
 use common::{data, interact, step, turn, without_visible, world};
 use omnis_core::{Direction, Facing, Position, Rotation};

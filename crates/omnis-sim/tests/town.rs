@@ -2,7 +2,7 @@
 //! a step out leaves, a turn stays, `Leave` leaves in place, and an inn is where inn-only rules
 //! allow a save.
 
-mod common;
+use crate::common;
 
 use common::{data, interact, party_of, step, turn, word as parse_word};
 use omnis_core::{CharacterId, Direction, Facing, Position, Rotation, ServiceId};

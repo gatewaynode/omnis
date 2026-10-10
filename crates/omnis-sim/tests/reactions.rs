@@ -3,7 +3,7 @@
 //! row it concerns, once a round, and not at all with the switch off. Party: Brenna (fighter),
 //! Durin (cleric), Ilvara (wizard) in front, Pip (rogue) behind.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of};
 use omnis_core::CharacterId;

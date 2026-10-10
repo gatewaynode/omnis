@@ -5,7 +5,7 @@
 //! fighter), Durin (dwarf cleric), Ilvara (elf wizard), Pip (halfling rogue); the first three
 //! stand in front.
 
-mod common;
+use crate::common;
 
 use common::{act, data, encounter, party_of, script_for_six, world};
 use omnis_data::{Cost, Data, Disposition};

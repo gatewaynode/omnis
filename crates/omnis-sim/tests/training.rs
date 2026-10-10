@@ -3,7 +3,7 @@
 //! `spell.learn_cost`, and every refusal leaving the world (its dice streams included) as it
 //! was. Party: Brenna (human fighter), Durin (dwarf cleric), Ilvara (elf wizard).
 
-mod common;
+use crate::common;
 
 use common::{data, inside_with};
 use omnis_core::CharacterId;

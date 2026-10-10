@@ -4,6 +4,7 @@
 `scripts/verify.sh` runs `cargo fmt --check`, clippy on every target and on the app's release
 configuration (`--no-default-features --lib`), every test with `--no-fail-fast` (a failed test
 fails the script), `scripts/lint-sim.sh --self-test` and the lint, `scripts/check-duplicates.sh`,
+`scripts/check-test-modules.sh --self-test` and the check (every test file is in a target),
 and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exits zero only when
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
 same steps, the release clippy included since M7 step 1, plus both golden replays through the CLI
@@ -25,6 +26,18 @@ inside it every fresh link fails ("xcodebuild -find clang ... exit code 17664", 
 2026-10-02). Prefix cargo and the gate with `DEVELOPER_DIR=/Library/Developer/CommandLineTools`
 (process-local) inside the sandbox. A gate with nothing new to link proves nothing about the
 linker: test it with a fresh target directory or a scratch worktree.
+
+Test binaries (2026-10-10): every crate with several test files builds them as one target,
+`integration` (`autotests = false`, `tests/main.rs` declares the files as modules; a file reaches
+the shared helpers with `use crate::common;`). Run one file's tests with
+`cargo test -p omnis-mcp --test integration vocabulary::`. Kept as their own binaries: `omnis-app`
+`socket` and `omnis-cli` `headless` (each changes the working directory, which is per process) and
+`omnis-sim` `measure`. A new test file is added to its crate's `tests/main.rs`;
+`scripts/check-test-modules.sh` fails the gate on a file no target runs. Why: macOS holds every newly linked executable about 20 s on its first launch (the
+owner's log: the kernel refuses the linker's ad hoc signature, about 10 s pass before Gatekeeper's
+scan, then XProtect never answers and Gatekeeper cancels it after 10 s), and the Developer Tools
+exemption did not lift it for iTerm2. 72 test binaries became 23; the test step went from about
+38 min to 549 s on a full rebuild.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen

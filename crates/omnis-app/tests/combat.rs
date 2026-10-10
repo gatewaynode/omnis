@@ -1,7 +1,7 @@
 //! Headless fight tests (ARCHITECTURE.md §11, tier 6): a fixed encounter of the test dungeon
 //! fought by mouse to its end, running away, the defeat modal, and pausing a fight.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

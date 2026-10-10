@@ -2,7 +2,7 @@
 //! and puts it back on, S stows, the stores tab and Enter take back, U drinks, G without a
 //! second member says so, an action button acts, and Escape or I closes.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

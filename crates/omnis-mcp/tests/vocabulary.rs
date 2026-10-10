@@ -7,7 +7,7 @@
 //! string id, when a key that names a member holds a number no member has had, or when a key that
 //! names a position in no particular list appears.
 
-mod common;
+use crate::common;
 
 use common::commands::instances;
 use omnis_cli::Headless;

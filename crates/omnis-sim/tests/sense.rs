@@ -3,7 +3,7 @@
 //! one below it), the best eyes doing the looking, a look without a die, and the automap's
 //! layer rules (a direct sighting clears the remote mark, the visited bit sticks).
 
-mod common;
+use crate::common;
 
 use common::{data, party_of, world};
 use omnis_core::{Edges, Facing, ItemId, MapId, Position};

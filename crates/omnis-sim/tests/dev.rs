@@ -1,7 +1,7 @@
 //! Dev commands: the devtools gate, each explore-mode edit and its rejections, the echo event,
 //! and that a dev world says so in its save and its replays.
 
-mod common;
+use crate::common;
 
 use common::{data, party_of, world};
 use omnis_core::{CharacterId, Direction, Facing, Position, StreamName};

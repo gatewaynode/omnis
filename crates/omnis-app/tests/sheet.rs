@@ -2,7 +2,7 @@
 //! selection with it, a tab click turns the page, a band click steers the sheet, Escape
 //! closes it where the world is, and the pause menu's item and the SHEET button open it.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

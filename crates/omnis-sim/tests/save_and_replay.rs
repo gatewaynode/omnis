@@ -1,7 +1,7 @@
 //! Saves round-trip through RON text with equal fingerprints, refuse the wrong packs or
 //! schema, and replays reproduce the golden fingerprint under `tests/replays/`.
 
-mod common;
+use crate::common;
 
 use common::{data, interact, play, six, step, turn, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, Rotation};

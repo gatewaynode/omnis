@@ -6,7 +6,7 @@
 //! the schema has a branch for it. The validator covers the keywords the schema uses and refuses
 //! any other, so a new keyword cannot pass unread.
 
-mod common;
+use crate::common;
 
 use common::commands::{draft, instances};
 use omnis_cli::omnis_sim::omnis_core::Rotation;
