@@ -270,6 +270,17 @@ pub fn step_lands(world: &World, data: &Data, direction: Direction) -> Option<Po
         .map(crate::apply::Landing::end)
 }
 
+/// Whether the door on `facing` of tile `(x, y)` of `map` is open: the world's state, not the
+/// party's knowledge (a client drawing the map or predicting a step asks this). `false` for a
+/// door never opened, an edge without a door, or a map not loaded.
+#[must_use]
+pub fn door_open(world: &World, map: MapId, x: u16, y: u16, facing: Facing) -> bool {
+    world
+        .maps
+        .get(&map)
+        .is_some_and(|state| state.door_open(x, y, facing))
+}
+
 /// The service a step in `direction` would go into, if it lands on a site.
 #[must_use]
 pub fn site_ahead(world: &World, data: &Data, direction: Direction) -> Option<ServiceId> {

@@ -59,7 +59,7 @@ pub use crate::party_view::{
     AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
 };
 pub use crate::query::{
-    EdgeView, Here, ViewTile, ViewportModel, automap, flags, here, map_text, site_ahead,
+    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
     step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};

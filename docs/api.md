@@ -142,7 +142,7 @@ rejections alike (ARCHITECTURE.md §4.9):
 5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
    `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
    `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
-   world), and Tier 1's `automap` and `map_text` (which take a `MapId`), `step_lands` (a
+   world), and Tier 1's `automap`, `map_text` and `door_open` (which take a `MapId`), `step_lands` (a
    `Position`) and `site_ahead` (a `ServiceId`). The `World`'s own fields keep
    registry numbers; they are not API.
 
@@ -275,8 +275,9 @@ and places by `Place` (§4); lists are in marching or list order.
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
+| `door_open(&World, MapId, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
 
-`automap`, `map_text`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+`automap`, `map_text`, `door_open`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
 
 ### 7.1 `Here` and `Status`
@@ -339,6 +340,7 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `in_front` | In the front row. |
 | `conditions` | Condition ids in effect. |
 | `down`, `dead` | At zero hit points; dead (carries the pack's `dead` condition). |
+| `can_fight` | Can still take part in a fight: up, alive and not incapacitated (any condition with `incapacitated`). |
 | `death_saves` | `{"successes", "failures", "stable"}`. |
 | `spells` | Known spell ids, in the order the member learned them; the `spell` that `Cast` takes. |
 | `equipment` | The kit, `[ItemView]`, in the order it was filled. |
@@ -834,7 +836,7 @@ As of protocol 2:
   (`base:text:item.mace.name`), not display text, and no op turns an id or a key into a label or
   a definition (the planned `data.*` ops). `ViewTile.terrain` indexes terrains no op lists. Only
   Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.

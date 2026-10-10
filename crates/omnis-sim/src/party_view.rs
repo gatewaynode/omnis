@@ -54,6 +54,9 @@ pub struct MemberView {
     pub down: bool,
     /// Dead: carries the pack's `dead` condition.
     pub dead: bool,
+    /// Can still take part in a fight: up, alive and not incapacitated.
+    #[serde(default)]
+    pub can_fight: bool,
     /// Death saving throws in progress.
     pub death_saves: DeathSaves,
     /// Spell ids known, in the order the caster learned them.
@@ -276,6 +279,7 @@ fn member_view(data: &Data, now: i64, member: &Character, in_front: bool) -> Mem
             .collect(),
         down: member.is_down(),
         dead: dead.is_some_and(|d| member.conditions.contains(&d)),
+        can_fight: crate::combat::state::can_fight(member, data),
         death_saves: member.death_saves,
         spells: member
             .known_spells

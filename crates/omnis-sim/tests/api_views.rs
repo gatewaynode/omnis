@@ -8,10 +8,11 @@ use crate::common;
 
 use common::{act, data, encounter, inside, new_world, party_of, world};
 use omnis_data::{Ability, Data, Disposition, EquipSlot, ServiceKind, Skill};
+use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_rules::Expiry;
-use omnis_sim::query::{flags, here};
+use omnis_sim::query::{door_open, flags, here, map_text};
 use omnis_sim::{
-    ActorRef, ChoiceKind, CombatCommand, Command, EncounterChoice, Mode, PARTY, Rejection,
+    ActorRef, ChoiceKind, CombatCommand, Command, EncounterChoice, Event, Mode, PARTY, Rejection,
     SaveRule, ServiceCommand, Settings, Surprise, Target, World, apply, cast_view, combat,
     combat_view, ops, party_view, service_view,
 };
@@ -433,4 +434,104 @@ fn a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere() {
         view.members[0].spells.last().map(String::as_str),
         Some("#999")
     );
+}
+
+/// Whether `text` (a `map_text` layout) shows the door on `facing` of `(x, y)` open.
+fn drawn_open(text: &str, x: u16, y: u16, facing: Facing) -> bool {
+    let (row, col) = (2 * usize::from(y) + 1, 2 * usize::from(x) + 1);
+    let (row, col) = match facing {
+        Facing::North => (row - 1, col),
+        Facing::South => (row + 1, col),
+        Facing::West => (row, col - 1),
+        Facing::East => (row, col + 1),
+    };
+    let line = text.lines().nth(row).expect("row");
+    matches!(line.chars().nth(col), Some('_' | '\''))
+}
+
+#[test]
+fn door_open_is_the_world_s_door_on_every_edge_of_every_map() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 1);
+    // Open the first door Interact opens, standing on each door's tile in turn.
+    let mut opened = None;
+    'find: for (&map, map_data) in &data.maps {
+        for y in 0..map_data.def.height {
+            for x in 0..map_data.def.width {
+                for facing in Facing::ALL {
+                    if !map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                        continue;
+                    }
+                    let mut trial = world.clone();
+                    trial.position = Position { map, x, y, facing };
+                    let events = apply(&mut trial, &data, Command::Interact).unwrap_or_default();
+                    if events.iter().any(|e| matches!(e, Event::Door { .. })) {
+                        world = trial;
+                        opened = Some((map, x, y, facing));
+                        break 'find;
+                    }
+                }
+            }
+        }
+    }
+    let (map, x, y, facing) = opened.expect("some door opens");
+    assert!(
+        door_open(&world, map, x, y, facing),
+        "the opened door reads open"
+    );
+    let mut doors = 0;
+    for (&map, map_data) in &data.maps {
+        let text = map_text(&world, &data, map).expect("map text");
+        for y in 0..map_data.def.height {
+            for x in 0..map_data.def.width {
+                for facing in Facing::ALL {
+                    if map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                        doors += 1;
+                        assert_eq!(
+                            door_open(&world, map, x, y, facing),
+                            drawn_open(&text, x, y, facing),
+                            "map {map:?} ({x}, {y}) {facing:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(doors > 1, "the test pack has doors");
+    assert!(
+        !door_open(&world, MapId(u32::MAX), 0, 0, Facing::North),
+        "an unknown map"
+    );
+}
+
+#[test]
+fn can_fight_is_up_alive_and_not_incapacitated() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let fit = |world: &World| -> Vec<bool> {
+        party_view(world, &data)
+            .members
+            .iter()
+            .map(|m| m.can_fight)
+            .collect()
+    };
+    assert_eq!(fit(&world), [true, true, true, true]);
+    world.party.members[BRENNA].hp = 0;
+    let incapacitated = data
+        .registry
+        .conditions
+        .get("base:condition:incapacitated")
+        .expect("incapacitated");
+    world.party.members[DURIN].conditions.push(incapacitated);
+    let dead = data
+        .registry
+        .conditions
+        .get("base:condition:dead")
+        .expect("dead");
+    world.party.members[ILVARA].conditions.push(dead);
+    assert_eq!(fit(&world), [false, false, false, true]);
+    let view = party_view(&world, &data);
+    assert!(view.members[BRENNA].down && !view.members[DURIN].down && view.members[ILVARA].dead);
 }
