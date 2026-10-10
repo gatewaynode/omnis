@@ -310,10 +310,22 @@ fn the_vocabulary_catches_a_name_that_drifted() {
         &json!({"Monster": {"stack": 0, "index": 1}}),
         &members,
     );
-    rows.read(
+    assert_eq!(
+        rows.broken(),
+        vec![
+            "banned key `index` among [\"index\", \"row\"] (first at view: {\"index\":0,\"row\":1})"
+                .to_string(),
+            "banned key `row` among [\"index\", \"row\"] (first at view: {\"index\":0,\"row\":1})"
+                .to_string(),
+        ]
+    );
+
+    // The front or back row in a criterion is a name, not a list row: nothing to report.
+    let mut front = Vocabulary::default();
+    front.read(
         "criteria",
         &json!({"Row": {"who": "Me", "row": "Front"}}),
         &members,
     );
-    assert_eq!(rows.broken().len(), 2, "{:?}", rows.broken());
+    assert_eq!(front.broken(), Vec::<String>::new());
 }
