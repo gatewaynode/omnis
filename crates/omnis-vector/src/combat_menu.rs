@@ -15,7 +15,7 @@ use crate::trial::{accepted, refusal};
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{
-    ActorRef, CombatCommand, CombatView, Command, EncounterChoice, ItemView, ModeKind, Pay,
+    ActorRef, Budget, CombatCommand, CombatView, Command, EncounterChoice, ItemView, ModeKind, Pay,
     SpellView, Target, World, bribe_cost, combat_view, party_view,
 };
 
@@ -189,6 +189,20 @@ fn acting(view: &CombatView) -> Option<CharacterId> {
     }
 }
 
+/// What the turn has left to pay with, in words.
+fn budget(left: Budget) -> String {
+    let count = |n: u8, one: &str| match n {
+        0 => format!("no {one}"),
+        1 => format!("1 {one}"),
+        n => format!("{n} {one}s"),
+    };
+    format!(
+        "{}, {}",
+        count(left.actions, "action"),
+        count(left.bonus_actions, "bonus action")
+    )
+}
+
 /// A member's name, or `?` for one the party no longer holds.
 fn name_of(world: &World, id: Option<CharacterId>) -> String {
     id.and_then(|id| world.party.members.iter().find(|m| m.id == id))
@@ -222,7 +236,11 @@ impl CombatMenu {
         }
         let who = name_of(world, acting(&view));
         match self.step {
-            Step::Top => format!("Round {}: {who}'s turn", view.round),
+            Step::Top => format!(
+                "Round {}: {who}'s turn ({})",
+                view.round,
+                budget(view.budget)
+            ),
             Step::Spells => format!("{who} casts which spell?"),
             Step::Items => format!("{who} uses what?"),
             Step::Target(Action::Attack) => format!("{who} attacks whom?"),

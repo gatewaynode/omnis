@@ -15,6 +15,7 @@ pub mod panel;
 pub mod render;
 pub mod session;
 pub mod text;
+pub mod town;
 
 use bevy::prelude::*;
 

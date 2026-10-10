@@ -146,3 +146,41 @@ fn the_hud_reports_a_smoothed_frame_rate_and_frame_time() {
     // Frames are 16 ms apart: about 62 frames a second.
     assert!(status.contains("62 fps  16.0 ms"), "{status}");
 }
+
+#[test]
+fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
+    use omnis_sim::omnis_core::{Direction, Rotation};
+    use omnis_sim::{Command, Mode, ServiceCommand};
+    use omnis_vector::shell::notice::Order;
+    use omnis_vector::shell::panel::current;
+    // The game's start: the street at (10, 2) facing West, the guild's door to the north.
+    let mut app = common::app::app_with(".omnis/vector-session.ron".into(), 1);
+    app.update();
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        session.order(Command::Turn(Rotation::Right));
+        session.order(Command::Interact);
+        session.order(Command::Step(Direction::Forward));
+        assert!(matches!(session.world.mode, Mode::Town(_)), "in the guild");
+    }
+    app.update();
+    let leave = Order::Command(Command::Service(ServiceCommand::Leave));
+    {
+        let session = app.world().resource::<Session>();
+        let shown = current(session, false).expect("the town notice");
+        assert!(
+            shown.lines[0].contains("not in this client yet"),
+            "{shown:?}"
+        );
+        assert_eq!(shown.choices.len(), 1);
+        assert_eq!(shown.choices[0].order, leave);
+    }
+    set(&mut app, &leave, Interaction::Pressed);
+    app.update();
+    let session = app.world().resource::<Session>();
+    assert!(
+        matches!(session.world.mode, Mode::Explore),
+        "back on the street"
+    );
+    assert_eq!(current(session, false), None, "the notice closed");
+}

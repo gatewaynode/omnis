@@ -5,10 +5,10 @@
 
 use crate::common;
 
-use common::fight::{met, turn_of};
+use common::fight::{acting, met, turn_of};
 use common::id;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{CombatCommand, Command, Event, Mode, Target, World, apply, combat_view};
+use omnis_sim::{CombatCommand, Command, Event, Mode, Pay, Target, World, apply, combat_view};
 use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step};
 
 fn labels(entries: &[Entry]) -> Vec<&str> {
@@ -122,7 +122,10 @@ fn a_spell_at_a_stack_and_a_spell_on_a_member() {
     let session = turn_of("Durin");
     let (world, data) = (&session.world, &session.data);
     let mut menu = CombatMenu::default();
-    assert_eq!(menu.prompt(world, data), "Round 1: Durin's turn");
+    assert_eq!(
+        menu.prompt(world, data),
+        "Round 1: Durin's turn (1 action, 1 bonus action)"
+    );
     let top = menu.entries(world, data);
     assert_eq!(menu.choose(&entry(&top, "Cast").act), None);
     assert_eq!(menu.step, Step::Spells);
@@ -295,5 +298,91 @@ fn a_fight_runs_to_its_end_from_the_menu_alone() {
             .iter()
             .any(|e| last.starts_with(e)),
         "{last}"
+    );
+}
+
+#[test]
+fn end_turn_passes_the_turn_with_budget_left() {
+    let mut session = turn_of("Durin");
+    let menu = CombatMenu::default();
+    let prompt = menu.prompt(&session.world, &session.data);
+    assert!(
+        prompt.ends_with("(1 action, 1 bonus action)"),
+        "the budget is shown: {prompt}"
+    );
+    let entries = menu.entries(&session.world, &session.data);
+    let end = entry(&entries, "End turn");
+    assert_eq!(end.blocked, None);
+    let Act::Command(command) = end.act.clone() else {
+        panic!("End turn is a command: {end:?}")
+    };
+    session.order(command);
+    assert_ne!(
+        acting(&session).as_deref(),
+        Some("Durin"),
+        "the turn passed"
+    );
+}
+
+#[test]
+fn a_bonus_action_spell_is_paid_with_the_bonus_action_and_leaves_the_action() {
+    let mut session = turn_of("Durin");
+    // Durin learns Healing Word (the fixed party knows no bonus-action spell at level 1).
+    let word = session
+        .data
+        .registry
+        .spells
+        .get("base:spell:healing_word")
+        .expect("the base pack's Healing Word");
+    session.world.party.members[1].known_spells.push(word);
+    let mut menu = CombatMenu { step: Step::Spells };
+    let spells = menu.entries(&session.world, &session.data);
+    let word = entry(&spells, "Healing Word");
+    assert!(word.label.contains("bonus"), "{word:?}");
+    menu.choose(&word.act.clone());
+    let targets = menu.entries(&session.world, &session.data);
+    let Act::Command(cast) = entry(&targets, "Brenna").act.clone() else {
+        panic!("a member target sends the cast")
+    };
+    assert!(
+        matches!(
+            &cast,
+            Command::Combat(CombatCommand::Cast { spell, pay: Pay::BonusAction, target: Target::Member(m) })
+                if spell == "base:spell:healing_word" && *m == id(&session.world, 0)
+        ),
+        "{cast:?}"
+    );
+    session.order(cast);
+    assert_eq!(
+        acting(&session).as_deref(),
+        Some("Durin"),
+        "still Durin's turn"
+    );
+    let view = combat_view(&session.world, &session.data).expect("the fight goes on");
+    assert_eq!((view.budget.actions, view.budget.bonus_actions), (1, 0));
+}
+
+#[test]
+fn a_member_is_picked_by_identity_wherever_they_stand() {
+    let session = turn_of("Durin");
+    let (mut world, data) = (session.world.clone(), &session.data);
+    let (brenna, ilvara) = (id(&world, 0), id(&world, 2));
+    world.party.members.swap(0, 2);
+    let mut menu = CombatMenu {
+        step: Step::Target(Action::Swap),
+    };
+    assert_eq!(
+        menu.pick(&world, data, Pick::Member(brenna)),
+        Some(Command::Combat(CombatCommand::Exchange { with: brenna })),
+        "Brenna, now in Ilvara's slot, is still Brenna"
+    );
+    let names = CombatMenu {
+        step: Step::Target(Action::Swap),
+    }
+    .entries(&world, data);
+    assert_eq!(labels(&names), ["Ilvara", "Brenna", "Pip", "Back"]);
+    assert_eq!(
+        entry(&names, "Ilvara").act,
+        Act::Command(Command::Combat(CombatCommand::Exchange { with: ilvara }))
     );
 }

@@ -1,5 +1,6 @@
 //! The panel in the middle of the screen (alt-ARCHITECTURE.md §8, §9): the notice when the
-//! party has fallen, otherwise the action menu when it is open. Its buttons and the number keys
+//! party has fallen, the town notice inside a service, otherwise the action menu when it is
+//! open. Its buttons and the number keys
 //! carry out the choices. The action key is Space or a right click.
 //! Headless-safe.
 
@@ -9,6 +10,7 @@ use super::controls::{GREEN, SHADES, button};
 use super::fight::{fallen, notice};
 use super::notice::{Notice, Order};
 use super::session::Session;
+use super::town;
 use bevy::prelude::*;
 use omnis_sim::omnis_core::Position;
 use omnis_sim::{Mode, combat_view};
@@ -36,17 +38,20 @@ impl Plugin for PanelPlugin {
     }
 }
 
-/// What the panel shows now: the fallen party's notice first, then the open action menu.
+/// What the panel shows now: the fallen party's notice first, then the town notice, then the
+/// open action menu.
 /// Nothing while monsters are met or fought: the fight screen has them (`shell/combat.rs`).
 #[must_use]
 pub fn current(session: &Session, menu_open: bool) -> Option<Notice> {
     if combat_view(&session.world, &session.data).is_some() {
         return None;
     }
-    notice(&session.world, &session.data).or_else(|| {
-        (menu_open && matches!(session.world.mode, Mode::Explore))
-            .then(|| menu(&session.world, &session.data))
-    })
+    notice(&session.world, &session.data)
+        .or_else(|| town::notice(&session.world, &session.data))
+        .or_else(|| {
+            (menu_open && matches!(session.world.mode, Mode::Explore))
+                .then(|| menu(&session.world, &session.data))
+        })
 }
 
 fn spawn(mut commands: Commands) {
