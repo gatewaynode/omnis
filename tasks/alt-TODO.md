@@ -130,5 +130,6 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - The owner played fights by hand on the ultrawide. Nothing stood out but the fight screen's scale at 5120×1440. No fix in B6: the owner chose to do the scale with the art update, which touches the same layout and figures.
   - No code change, so the gate and Sentrux stand as after B5.
 - [ ] B7 **Before the merge:** rebase onto the mechanics branch's work; rerun the gate and the agreement test
+- [ ] Bevy 0.20 migration (planned 2026-10-10; not before 2026-11-07, after B7 and the merge): `tasks/plans/bevy-0.20-migration.md`
 - Out of scope for B: animation (the figures are built to move later), reactions and auto-cast, tactics and auto mode, art, any change to omnis-sim or omnis-app
 - Deferred to the art update (owner, 2026-10-03): the fight screen's scale on large windows (figures, text, bands; likely a factor from the window height across `arena.rs` and `shell/combat.rs`)
