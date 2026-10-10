@@ -1,7 +1,7 @@
 # Protocol 2: one meaning per field name (identities everywhere)
 
-**Built 2026-10-10** (P2a–P2d; the record is in `tasks/TODO.md`): owner acceptance open
-(`tasks/acceptance/protocol-2.md`). As built, beyond this plan: 11 more renames the vocabulary test found
+**Closed 2026-10-10** (P2a–P2d; the record is in `tasks/TODO.md`): accepted by the owner the same day
+(`tasks/acceptance/protocol-2.md`, all three parts). As built, beyond this plan: 11 more renames the vocabulary test found
 (owner: "Rename all 11"), `on` kept as the bool it is (not a member key), and one integration test binary per
 crate (`8eed1cc`).
 
