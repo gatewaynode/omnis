@@ -1,98 +1,84 @@
 # Continuity notes
 
-Written 2026-10-10, mid P2d (paused so the owner can push and restart the terminal for the gate fix below). M8 is closed
-(`8921c07`). Branch `m7a-b-tasks`. Rewrite this file every time it is used. Durable knowledge lives in
-`tasks/knowledge/`.
+Written 2026-10-10, mid P2d, before a terminal restart (the owner has added iTerm2 under Developer
+Tools). M8 is closed (`8921c07`). Branch `m7a-b-tasks`. Rewrite this file every time it is used. Durable
+knowledge lives in `tasks/knowledge/`.
 
-## FIRST: the P2d work is committed as WIP, not gated
-- Commit **"Protocol 2, step P2d (WIP, not gated): renames, vocabulary test, docs"**, just before this note's
-  commit. Owner, 2026-10-10: "Don't stash, we need to capture this work" (lesson written).
-- It has NOT passed the full gate. What has passed on it: `cargo check --workspace --all-targets`; `omnis-mcp`
-  `vocabulary` and `schema_proof`; `omnis-sim` `api_views`; `cargo clippy -p omnis-sim --all-targets`. A full gate
-  of the tree before the last round (the `receiver` renames, the row rule, the `#n` fix) was 581/1 with only the
-  vocabulary test failing, which is since fixed. The next commit (the rest of P2d below) is the gated one.
+## State of the tree
+- `4ecb1d6` P2d WIP (renames, vocabulary test, docs), then `8eed1cc` "Tests: one integration binary
+  per crate", then `3a13481` the vocabulary self-check fix. **The WIP has now passed the full gate**:
+  `tests passed 583 failed 0 ignored 13`, VERIFY-GREEN, 127 s (binaries reused from a run before).
+- The self-check (`the_vocabulary_catches_a_name_that_drifted`) was failing on the WIP commit: the
+  last note's "vocabulary passed" was wrong. It read a numeric `row` and the `Row` predicate's string
+  `row` into one vocabulary (3 findings, expected 2); now the planted breaks are asserted by message
+  and the predicate has its own vocabulary that must report nothing.
 
-## The gate is slow because of macOS, not the tests (measured 2026-10-10)
-- `scratchpad/measure_gate.py` (session scratchpad, gone after restart; the method: time each gate step, build
-  with `cargo test --no-run --message-format=json`, run each test executable twice). Results:
-  fmt 0.5 s, clippy workspace 113 s, clippy app 6 s, test build 137 s, **72 test binaries' first runs 2,279 s**,
-  second runs 16 s in all, lints and validate 24 s. Total ≈ 43 min, 88 % of it the first launch of each freshly
-  linked binary (22.7–61.7 s, median 30.5 s, 42 of 72 within 28–31 s: looks like a network timeout in macOS's
-  first-launch check). Slowest real tests: app `feathers_panel` 3.3 s, `camp` 1.6 s, `tactics` 1.6 s.
-- Owner ran `DevToolsSecurity -enable`; a fresh binary still took 30.7 s, so the owner is adding the terminal app
-  under System Settings → Privacy & Security → Developer Tools and restarting it.
-- **After the restart, check first:** `touch crates/omnis-bus/src/lib.rs`, `cargo test -p omnis-bus --lib
-  --no-run`, then `/usr/bin/time -p target/debug/deps/omnis_bus-<hash>` (it was 30.7 s). Near 0 s means fixed:
-  expect a ~5 min gate. Still ~30 s: the sandbox may cause it (test once with the sandbox off), and the fallback
-  is one test binary per crate (`tests/main.rs` with `mod`s, 72 → ~20 binaries). Report the number to the owner.
+## Test layout (new, `8eed1cc`; detail in `tasks/knowledge/verification.md` "Test binaries")
+- Each crate with several test files builds one target, `integration` (`autotests = false`,
+  `tests/main.rs`, `use crate::common;`). Own binaries: app `socket`, cli `headless` (they change the
+  working directory), sim `measure`. 72 → 23 test binaries.
+- One file's tests: `cargo test -p omnis-mcp --test integration vocabulary::`.
+- A new test file goes into its crate's `tests/main.rs`; `scripts/check-test-modules.sh` (in the gate
+  and CI) fails on a file no target runs.
 
-## Protocol 2, P2d: what the WIP commit holds
-Owner, 2026-10-10: "Rename all 11" (the vocabulary test found field names with two JSON types beyond the plan's
-inventory; protocol 2 is unreleased, so no extra bump; no save change).
-- **Renames** (Rust field = wire name, no serde renames): `ItemCommand::Give {giver, receiver}`; `ItemCommand::Use`,
-  `CombatCommand::Use` and the `ItemUsed` event: `receiver` (I first chose `on`, which clashed with
-  `SetReactions.on`: lesson written); `Reply::Service.view`; `DieRoll.draw` (omnis-core); `MemberView.member`
-  (was `id`), `.worn` (was `equipped`), `.in_front`; `StackView.hps`, `.in_front`; `FeatureView.pay` (was `cost`);
-  `CampMember.hit_dice`, `.hit_dice_left`; `RestCommand::Short { spend }` (was `dice`, which would still clash
-  with `Roll.dice`); `RestView.long_refusal`. App, MCP schema and bridge tests follow. Stale "slot" doc comments
-  on public command fields and the stack/member rejections fixed.
-- **`omnis-mcp/tests/vocabulary.rs`** (new; instances moved to `tests/common/commands.rs`, shared with the schema
-  proof). Sources: every command instance applied to a headless world, a visit to the town smith, the golden
-  walk and fight; every view op after each command. Fails on a key with two JSON types (string and object count
-  as one: serde's tagged enums; capitalized variant tags are not checked), a definition key that is not a string
-  or null, a member key holding a number no member has had, `caster_id`/`at`, a numeric `row`, or an `index`
-  without `stack` beside it. Self-check `the_vocabulary_catches_a_name_that_drifted`. Mutation 3 of 3 caught on
-  real data (member named `id` again, a die's `index`, terrain serialized as `map`).
-- **`#n` bug** (party_view printed `?` for an unnamed id, everything else `#n`): `party_view.rs` uses
-  `names::id_of`; red-first test `api_views.rs::a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere`
-  (red: `Some("?")`). **BUGS.md entry B6 still to write.**
-- **ARCH** §4.9 "Names (protocol 2)" paragraph (the approved rule, adjusted as built: items by kind, no
-  `kit_row`/`stores_row`; `stack` with `index` also in `SetMonsterHp`; `row` names only the front or back row,
-  `Predicate::Row`, which is saved, so not renamed; Tier 1's `automap`, `map_text`, `step_lands`, `site_ahead`
-  speak registry numbers), the vocabulary test, A17's protocol 2 sentence, status line.
-- **`docs/api.md`**: protocol 2 throughout; §4 names rule and value types; §5–§10 brought to the code by a docs
-  agent (rejections table has a Fields column now); §14; changelog "Protocol 2 (2026-10-10)" with the old → new
-  table and migration. Counts unchanged (11 commands, 13 dev, 62 events, 62 rejections, 10 errors, 24 ops).
-- `tasks/acceptance/protocol-2.md` (new): status, one cast named the same in command/event/view, reorder, window.
-- `tasks/LESSONS.md`: "A new wire name is checked against the whole vocabulary first"; "Unfinished work is
-  committed, not stashed, before a restart" (the 2026-09 stash rule revised).
+## The first-launch wait (owner's log, 2026-10-10)
+- Every newly linked binary waits ~20 s on its first launch; the second launch is 0.00 s. The log
+  (`target/omnis-launch.log`, ignored): the kernel's AMFI refuses the ad hoc linker signature; ~10 s
+  pass before `syspolicyd`'s `GK performScan`; its network check takes 71 ms ("Code did not match any
+  currently allowed policy"); XProtect then never answers and Gatekeeper cancels it after 9.8 s.
+- Developer Tools with iTerm2 "on" did not lift it before; the owner now thinks iTerm2 is properly in
+  the list and is restarting the terminal.
+- **After the restart, check first** (from the owner's iTerm2, and once from this session):
+  `touch crates/omnis-bus/src/lib.rs && DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo test
+  -p omnis-bus --lib --no-run -q && /usr/bin/time -p "$(ls -t target/debug/deps/omnis_bus-* | grep
+  -v '\.d$' | head -1)"`. Near 0 s: fixed for that launcher. Still ~20 s: the merge is the remedy;
+  a session under Claude Code is not covered by the iTerm2 entry either way (unverified).
+- In zsh, `log` is a builtin: use `/usr/bin/log`. It refuses to run in this session ("Cannot run
+  while sandboxed", even with the sandbox off), and files at the top of `~` are not readable here:
+  the owner captures and copies into `target/`.
 
 ## Left for P2d
-1. Recapture `docs/api.md` §3's transcripts (still protocol 1: `"protocol":1`, `"map":3`, `"index"` in dice,
-   `{"Party":0}`) from a `Headless` world on base+test, seed 1, with the same requests (game.status,
-   party.create Wren, Turn Left + Step Forward, Encounter Attack rejected, combat.get NoEncounter, and an attack's
-   `AttackResolved`/`Damage`). A small throwaway test or `omnis-mcp --headless` over stdio.
-2. BUGS.md B6 (the `#n` fix above; found by the docs agent during P2d).
-3. Knowledge: `tasks/knowledge/verification.md` pins (test count, vocabulary test, mutation), `code-map.md`
-   (`names.rs`, `word.rs`, `omnis-mcp/tests/vocabulary.rs` and `tests/common/`).
-4. TODO: P2d and the parent protocol-2 item checked with detail; plan `tasks/plans/protocol-2.md` marked closed
-   (note the 12 extra renames and the as-built rule changes).
-5. `cargo fmt --all`, full gate (VERIFY-GREEN), replays unchanged, Sentrux (`git add` new files, scan
-   `/Users/john/code/omnis/crates`, `check_rules`), then one commit staged by name that completes P2d (and says the WIP
-   commit before it is now gated).
+1. Recapture `docs/api.md` §3's transcripts (still protocol 1: `"protocol":1`, `"map":3`, `"index"` in
+   dice, `{"Party":0}`) from a `Headless` world on base+test, seed 1, with the same requests
+   (game.status, party.create Wren, Turn Left + Step Forward, Encounter Attack rejected, combat.get
+   NoEncounter, and an attack's `AttackResolved`/`Damage`). A small throwaway test or `omnis-mcp
+   --headless` over stdio.
+2. BUGS.md B6: party_view printed `?` for an unnamed id where everything else printed `#n`; fixed with
+   `names::id_of`; red-first test `api_views.rs::a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere`.
+3. Knowledge: `verification.md` pins (test count 583, `PROTOCOL` 2 at line ~60, the vocabulary test,
+   its mutation 3 of 3), `code-map.md` (`names.rs`, `word.rs`, `omnis-mcp/tests/vocabulary.rs`,
+   `tests/common/`, each crate's `tests/main.rs`).
+4. TODO: P2d and the parent protocol-2 item checked with detail; plan `tasks/plans/protocol-2.md`
+   marked closed (the 12 renames beyond the plan, the as-built rule changes, the self-check fix).
+   Also the TODO item "one test binary per crate" if one exists: done in `8eed1cc`.
+5. `cargo fmt --all`, full gate, replays unchanged (walk `8711507745385976768`, fight
+   `5247080599556612730`), Sentrux (`git add` new files, scan `/Users/john/code/omnis/crates`,
+   `check_rules`), then one commit staged by name that completes P2d.
 6. Raise with the owner: the Socket re-audit of `rhai` 1.26.1 (due 2026-10-10).
 
-## Pins (after P2c; P2d expected to move only the test count)
-- Gate `tests passed 580 failed 0 ignored 13` before P2d (P2d adds 2 vocabulary + 1 api_views; the agent's run
-  showed 581 passed + 1 failed before the `#n` test).
-- Walk replay `8711507745385976768`, fight replay `5247080599556612730` (reproduced in the agent's run).
+## Pins
+- Gate `tests passed 583 failed 0 ignored 13` (580 before P2d + 2 vocabulary + 1 api_views).
+- Walk replay `8711507745385976768`, fight replay `5247080599556612730` (not rerun since the merge;
+  check in step 5).
 - `SAVE_SCHEMA` 7, `PROTOCOL` 2, MCP 24 tools, schema proof 94/142, dev branches 13, 62 rejections.
 - Base pack tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)`. Sentrux quality 9038 (before P2d), rules pass.
 
 ## Process
 - Every cargo and gate run: `DEVELOPER_DIR=/Library/Developer/CommandLineTools`; `cargo fmt --all` first.
 - Gate: `scripts/verify.sh > <scratchpad>/gate.txt 2>&1` in the background; no edits while it runs.
-- Run `cargo test -p omnis-mcp --test vocabulary` (seconds) after any wire change, before the gate.
+- Run `cargo test -p omnis-mcp --test integration vocabulary::` (seconds) after any wire change.
 - Mutation: apply a break, run the named tests, restore in `finally`; check the sources are clean after.
-- zsh: split a file list with `${=files}` when staging by name; avoid backticks inside double quotes in commands.
+- zsh: split a file list with `${=files}` when staging by name; avoid backticks inside double quotes.
+- A file with hunks for two commits: write one hunk to a patch and `git apply --cached` it.
 
 ## Other open TODO items (unscheduled, owner's call)
 - `DevCommand::Pass { minutes }`; the `data.*` ops (labels and definitions); `scripts/mcp-probe.py`.
 - Editor v1 is held "after M8, before M9" (owner, 2026-09-20).
-- Possibly: one test binary per crate (see the gate section), whatever the macOS fix yields.
 
 ## Carry-over
-- Not built: nothing answers `SpellCast`/`EnemyCasts`; `EnemyFlees`/`OwnTurn` have no source; region catch-up
-  waits for M10.
-- Large files: `plan.rs` 980, `bake.rs` 934, `screen.rs` 902, `save_and_replay.rs` 810, `tactics_panel.rs` 795.
-- The command instances (`tests/common/commands.rs`) have no `Predicate::Row`, so the vocabulary never sees it.
+- Not built: nothing answers `SpellCast`/`EnemyCasts`; `EnemyFlees`/`OwnTurn` have no source; region
+  catch-up waits for M10.
+- Large files: `plan.rs` 980, `bake.rs` 934, `screen.rs` 902, `save_and_replay.rs` 810,
+  `tactics_panel.rs` 795.
+- The command instances (`tests/common/commands.rs`) have no `Predicate::Row`, so the vocabulary
+  never sees it on real data (the self-check covers it).
