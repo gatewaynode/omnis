@@ -7,7 +7,7 @@ ARCHITECTURE.md §4.5; this file is the index into the code. Verify a name befor
 `omnis-core` (ids, `Fixed`, dice, `Pcg32` streams, geometry, time, `money`) → `omnis-expr` (Rhai, `no_float`,
 `only_i64`, checked) → `omnis-data` (the pack loader; the only file I/O) → `omnis-rules`
 (characters, attacks, conditions, spells, effects, equipment) → `omnis-sim` (the world) →
-`omnis-app` (Bevy), `omnis-cli` (headless), `omnis-mcp` (the bridge). The app reaches data through
+`omnis-vector` (the game client, Bevy, since 2026-10-10), `omnis-app` (the previous Bevy client, until parity), `omnis-cli` (headless), `omnis-mcp` (the bridge). The app reaches data through
 `omnis_sim::omnis_data`; the sim reaches `Value` through `omnis_data::omnis_expr::Value`.
 `omnis-bus` (M8 step 7b, A16) is a leaf beside them: the signal bus mechanism (`Bus<T, S>`, the
 `Signal` and `Host` traits, `drain`, `MAX_DEPTH` 4, `MAX_SIGNALS` 64), generic and knowing no game type;
@@ -137,6 +137,27 @@ old saves only).
   `monster_cast.rs`, `views.rs`. Measurement (ignored) is `tests/measure/` (`main.rs` single fights
   and ambushes, `clear.rs` the dungeon clear over a `Play`, `budget.rs` `budget_over_seeds`,
   `boss.rs` `boss_over_seeds`). The replays leave town by a real `Step(Back)`.
+
+## omnis-vector
+The game client since 2026-10-10 (ARCH A18; specified in `alt-ARCHITECTURE.md`). A Bevy-free core in `src/`
+and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`, `png`, `bevy_pbr`, `ui`).
+- Core: `grid.rs`/`geometry.rs`/`geom.rs` (the map as line segments, cell and yaw maths), `pose.rs` (the
+  free pose), `bind.rs` (the binder: cell crossings become `Step`, cardinal yaws `Turn`, refusals and
+  disagreements counted; it keeps the command log that replays), `collide.rs` (the collision mirror, held
+  to `apply(Step)` by `tests/agreement.rs` on every map), `minimap.rs`, `party.rs` (the fixed party of four),
+  `trial.rs` (`refusal`/`accepted` on a world clone), `combat_menu.rs` (the fight's choices; members by
+  `CharacterId`, spells and items as rows of the views turned into string ids by `resolve`; End turn; the
+  budget in the prompt), `arena.rs` (the fight screen's layout and picks), `rolllog.rs` (the roll log,
+  definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
+- Shell: `session.rs` (`Config` flags, `Session::start`, `order`, `save_log`), `movement.rs`, `controls.rs`
+  (buttons for every action), `panel.rs` (the centre panel: the fallen party's notice, the town notice, the
+  action menu), `town.rs` (inside a service: the name and Leave, a stopgap until parity P4), `combat.rs`
+  (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`, offscreen).
+- Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
+  the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays.
+- Debt: the client reads `World` fields directly (`world.party`, `world.mode`, `world.position`, the automap;
+  30 sites in 13 files), where A17 says clients read views; `omnis-app` moved off them in M8 step 8d/8e.
+  Tracked in `tasks/TODO.md` ("Vector adoption").
 
 ## omnis-app
 - The engine boundary (M8 step 8d, 8e): `sim.rs` holds `SimWorld` with its world private (methods mirror

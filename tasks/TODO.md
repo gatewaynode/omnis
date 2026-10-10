@@ -343,6 +343,7 @@ Owner, 2026-10-10: the 3D vector experiment (`origin/gui-3d-experiment`) is adop
 - [ ] V5. Gate, replays, Sentrux, captures, `tasks/acceptance/vector-adoption.md`; owner acceptance.
 
 Parity, then retirement (each item planned in plan mode when reached; tools first, then the game loop):
+- [ ] P0. Views, not `World` fields, in vector (A17): 30 direct reads of `world.party`, `world.mode`, `world.position` and the automap in 13 files, as `omnis-app` did in M8 step 8d/8e; before or with P1.
 - [ ] P1. Dev socket in vector (`.omnis/dev.addr`, newline JSON, protocol-2 ops, `Screenshot`/`ScreenText`) so window-mode MCP drives vector.
 - [ ] P2. Title screen, new game, pause, save and load (replaces the fixed party).
 - [ ] P3. Character creation.

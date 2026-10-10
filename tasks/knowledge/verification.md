@@ -12,8 +12,14 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 572 passed, 13 ignored (2026-10-07, after M8 step 8f). The gate's log says
-it on one line: `tests passed 572 failed 0 ignored 13`.
+Test count at the gate: 670 passed, 13 ignored (2026-10-10, after the vector adoption's V3; 583 of
+them before `omnis-vector` joined), in 268 s with Bevy's `bevy_pbr` unified across the workspace (222 s
+before). The gate's log says it on one line: `tests passed 670 failed 0 ignored 13`.
+
+The vector client: `cargo test -p omnis-vector` (seconds once built); `tests/agreement.rs` holds its
+collision mirror to the simulation on every map. An offscreen capture:
+`cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]` (paths must be
+relative, without `..`).
 
 The API reference `docs/api.md` is held to the code by `omnis-mcp/tests/api_doc.rs`: a new op, reply,
 `OpError` kind, command, dev command, event or rejection fails the build until it is named there and in

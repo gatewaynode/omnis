@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Status | Draft v0.3 (2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled), derived from `alt-PRD.md` v0.2 |
-| Branch | `gui-3d-experiment` |
+| Branch | Merged from `gui-3d-experiment` on 2026-10-10; `omnis-vector` is on protocol 2 since then (members by `CharacterId`, spells and items by string id, End turn, the town notice: `tasks/plans/vector-adoption.md` V2). §1.4's "no edits to main crates" held through the merge |
 | Parent documents | `alt-PRD.md`, and for everything not restated here `ARCHITECTURE.md` (v0.3) |
 
 Section and decision numbers prefixed X refer to `alt-PRD.md`. Decisions made here are numbered
