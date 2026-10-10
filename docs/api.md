@@ -2,11 +2,12 @@
 
 Reference for developers on other tracks (an alternate UI, external tools, test harnesses) who
 code against the simulation while it is still being built. It describes the API **as built**,
-protocol version 1. The rules behind it are in `ARCHITECTURE.md` §4.9; when this document and
+protocol version 2. The rules behind it are in `ARCHITECTURE.md` §4.9; when this document and
 the code disagree, the code wins and this document has a bug.
 
 `crates/omnis-mcp/tests/api_doc.rs` fails when this document misses an op, a reply tag, an error
-kind, a command, a dev command, an event or a rejection.
+kind, a command, a dev command, an event or a rejection. `crates/omnis-mcp/tests/vocabulary.rs`
+fails when a field name on the wire carries two meanings (§4).
 
 ## 1. Overview
 
@@ -22,7 +23,7 @@ The API has two tiers that share one version:
 | 1 | The Rust library, `omnis_sim::api` | Your client is Rust and runs in the same process (the app, the CLI, a test, another Rust front end). |
 | 2 | The JSON op protocol, `omnis_sim::ops` | Anything else: another language, another process, a script, an agent. |
 
-**Version.** `ops::PROTOCOL` is `1`. A client calls `game.status` first and checks the
+**Version.** `ops::PROTOCOL` is `2`. A client calls `game.status` first and checks the
 `protocol` field of the reply. See §12 and §13 for what moves it.
 
 **Not API.** Anything not re-exported from `crates/omnis-sim/src/api.rs` is internal and may
@@ -46,7 +47,7 @@ match apply(&mut world, &data, Command::Step(Direction::Forward)) {
     Ok(events) => { /* Vec<Event>, in the order they happened */ }
     Err(rejection) => { /* a Rejection: the rules refused; the world is unchanged */ }
 }
-let place: Here = here(&world, &data);        // mode, position, map id, date, may_save, ...
+let place: Here = here(&world, &data);        // mode, position (a Place), date, may_save, ...
 let party: PartyView = party_view(&world, &data);
 ```
 
@@ -118,6 +119,37 @@ An attack in a fight, showing roll traces:
 
 All JSON is serde's derived form of the Rust types; field names are the Rust field names.
 
+**Names (protocol 2).** One field name has one meaning, in commands, events, views and
+rejections alike (ARCHITECTURE.md §4.9):
+
+1. **A member is named by its `CharacterId`** wherever it appears: `member`, `caster`, `with`,
+   `giver`, `receiver`, `on`; `{"Member": id}` in `Target`, `ActorRef`, `EffectTarget` and
+   `ItemPlace`; `Reorder.order`. No command addresses a marching-order slot, so a command means
+   the same member after a reorder. `MemberView.member` is the id to send.
+2. **A definition is named by its string id** (`pack:kind:name`; a feature by its name key)
+   wherever it appears: `spell`, `item` (an item kind; a kit and the stores count by kind),
+   `monster`, `map`, `service`, `condition`, `class`, `feature`; `ActionRef::{Spell, Item}`; the
+   criteria's monster and condition. No registry number crosses the protocol. A number no pack
+   names shows as `#n`.
+3. **A thing with no identity is named by its place in a named list**: `stack` (a stack in the
+   fight), `stack` with `index` (one of a stack's living: `{"Monster": {"stack", "index"}}`,
+   `SetMonsterHp`), `entry` (a runbook entry; a map's rest event), `rumor` (a tavern's rumor).
+   There is no other `index` field, and `row` names only the front or back row (`Predicate::Row`).
+   Lists in views are in marching or list order.
+4. **A place on a map is a `Place`**, `{"map": "<string id>", "x", "y", "facing"}`, in events,
+   views and `Status`.
+5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
+   `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
+   `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
+   world), and Tier 1's `automap` and `map_text` (which take a `MapId`), `step_lands` (a
+   `Position`) and `site_ahead` (a `ServiceId`). The `World`'s own fields keep
+   registry numbers; they are not API.
+
+The vocabulary test collects every key that every command, the golden replays' events and every
+view put on the wire, and fails when a key carries two JSON types, a definition key is not a
+string, a member key holds a number no member has had, or `caster_id`, `at`, a numeric `row` or
+a stray `index` appears.
+
 | Type | Form | Example |
 |---|---|---|
 | `Op` | adjacently tagged, `{"op", "args"}` | `{"op":"events.tail","args":{"count":8}}` |
@@ -131,13 +163,13 @@ Common value types:
 
 | Type | Wire | Meaning |
 |---|---|---|
-| `Position` | `{"map": <MapId>, "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). |
-| `MapId`, `ItemId`, `SpellId`, `MonsterId`, `ServiceId`, `ConditionId`, `TilesetId`, `EraId` | number | The loaded packs' registry index. Views give string ids (`base:item:mace`) where they can; see §14. |
-| `CharacterId` | number | A member's stable identity; `MemberView.id` maps it to a slot. Slots (`index`, `member`) are marching-order positions and change on reorder. |
-| `HolderId` | `{"Party":0}`, `{"Region":n}`, ... | Who owns a clock (`Party`, `Region`, `Actor`, `Character`, `Project`). |
+| `Place` | `{"map": "<string id>", "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). |
+| String id | `"pack:kind:name"`, e.g. `"base:spell:bless"` | A definition in the loaded packs; `#n` for a number no pack names. Tier 1 maps ids to registry numbers through `Data::registry`. |
+| `CharacterId` | number | A member's stable identity, `MemberView.member`; kept through reorders, deaths and saves. |
+| Holder | `"party:0"` or a region's string id | Who owns a clock, in events and `TimeView`. |
 | `Direction` | `Forward`, `Back`, `Left`, `Right` | Relative to the facing; `Left`/`Right` sidestep. |
 | `Rotation` | `Left`, `Right`, `Around` | |
-| `RollTrace` | `{"stream", "dice": {"count","sides","modifier"}, "rolls": [{"index","raw","value"}], "total"}` | One dice roll: the random stream, the draw index and raw value of each die, the face, the total. |
+| `RollTrace` | `{"stream", "dice": {"count","sides","modifier"}, "rolls": [{"draw","raw","value"}], "total"}` | One dice roll: the random stream, the draw count and raw value of each die, the face, the total. |
 | `Roll` | `{"trace", "mode", "face", "modifier", "proficiency", "bonus", "total"}` | A d20 check or attack. `mode` is `Normal`, `Advantage` or `Disadvantage` (then `trace` holds both dice and `face` is the kept one); `bonus` is a buff die (bless, guidance). |
 | `Edges` | number, bits `1` North, `2` East, `4` South, `8` West | Walls or doors on a tile's sides. |
 | `Settings` | `{"save_rule", "permadeath", "devtools"}` | `save_rule` is `Anywhere`, `Relief` (inns and granted saves) or `InnOnly`. |
@@ -201,14 +233,14 @@ Notes:
 | `viewport` | `Reply::Viewport(ViewportModel)` | `ViewportModel`'s fields, flattened | `viewport.get` |
 | `script` | `Reply::Script` | `applied` (count), `events` (`[Event]`), `rejected` (`Rejection` or null) | `sim.script` |
 | `events` | `Reply::Events` | `events` (`[Event]`) | `sim.command`, `party.create`, `time.reconcile`, `events.tail` |
-| `automap` | `Reply::Automap` | `map` (string id), `tiles` (`[KnownTile]`, row-major) | `automap.get` |
+| `automap` | `Reply::Automap` | `map` (string id), `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
 | `text` | `Reply::Text` | `text` (string) | `map.text`, `screen.text` |
 | `written` | `Reply::Written` | `path` (string) | `save.write`, `screenshot` |
 | `party` | `Reply::Party` | `party` (`PartyView`) | `party.get` |
 | `rules` | `Reply::Rules` | `rules` (`RulesView`: `slots` `[SlotView]`, `values` map name → integer, `tables` map name → `[integer]`) | `rules.list` |
 | `rule` | `Reply::Rule` | `rule` (`SlotView`: `name`, `inputs` `[string]`, `source`) | `rules.get`, `rules.set` |
 | `combat` | `Reply::Combat` | `combat` (`CombatView`) | `combat.get` |
-| `service` | `Reply::Service` | `service` (`ServiceView`) | `service.get` |
+| `service` | `Reply::Service` | `view` (`ServiceView`) | `service.get` |
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
@@ -216,14 +248,15 @@ Notes:
 | `done` | `Reply::Done` | nothing | `pack.reload` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.9). `map.text` renders the map in the pack
-map layout (`2h+1` rows of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
+map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
 `_` `'`, a portal `*`, the party `^` `>` `v` `<`.
 
 ## 7. Views
 
 Every view is a pure read: **views never mutate the world and never consume a die**. A view
 that quotes a price or a cost rolls on a copy of the stream. Tier 1 functions take
-`(&World, &Data)` unless noted.
+`(&World, &Data)` unless noted. Views name members by `CharacterId`, definitions by string id
+and places by `Place` (§4); lists are in marching or list order.
 
 | Function | Returns | Op |
 |---|---|---|
@@ -235,12 +268,15 @@ that quotes a price or a cost rolls on a copy of the stream. Tier 1 functions ta
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
-| `viewport` | `Option<ViewportModel>` | `viewport.get` |
+| `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
 | `automap(&World, MapId)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
-| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end) | none |
-| `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter | none |
+| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end); a Tier 1 `Position` with its `MapId` | none |
+| `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
+
+`automap`, `map_text`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+the ops answer with string ids.
 
 ### 7.1 `Here` and `Status`
 
@@ -250,8 +286,7 @@ that quotes a price or a cost rolls on a copy of the stream. Tier 1 functions ta
 |---|---|
 | `mode` | `ModeKind`. |
 | `turn` | Commands applied. |
-| `position` | `Position`. |
-| `map` | The party's map id (`#n` for a map no pack names). |
+| `position` | `Place`. |
 | `service` | The service id the party is inside, or null. |
 | `age` | The party's age in minutes; never reverses. |
 | `date` | `DateView`, the date the party believes. |
@@ -259,7 +294,7 @@ that quotes a price or a cost rolls on a copy of the stream. Tier 1 functions ta
 | `seed` | The world seed. |
 | `settings` | `Settings`, fixed when the game started. |
 
-`Status` (`game.status`): `protocol` (`PROTOCOL`), `mode`, `turn`, `position`, `map`, `clock`
+`Status` (`game.status`): `protocol` (`PROTOCOL`), `mode`, `turn`, `position` (`Place`), `clock`
 (`ClockView`: `elapsed` minutes since the party's origin, `day`, `minute` of the day, `era`),
 `date`, `packs` (`[PackFingerprint]`: `id`, `version`, `hash`), `fingerprint` (the world hash
 as 16 hex digits; serializes the world, so not a per-frame read), `service`, `groups_cleared`
@@ -275,9 +310,9 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `slots` | Party slots the rules allow. |
 | `front_row` | How many members stand in the front row. |
 | `gold` | Purse, copper. |
-| `gems` | Gems. |
+| `gems` | Gems; never written (components are items in the stores), kept for the shape. |
 | `food` | Food units in the stores. |
-| `inventory` | The stores, `[ItemView]`, in the order `ItemCommand::Take` and `ServiceCommand::Sell` index them. |
+| `inventory` | The stores, `[ItemView]`, in the order they were filled. |
 | `effects` | `[EffectView]` on the whole party (light). |
 | `bank` | Copper in the bank. |
 | `last_long_rest` | Party clock `elapsed` when the last long rest ended, or null. |
@@ -287,8 +322,7 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 
 | Field | Meaning |
 |---|---|
-| `index` | Marching-order slot, the number commands take. |
-| `id` | `CharacterId`, stable. |
+| `member` | `CharacterId`: what every command and event names the member by. |
 | `name`, `race`, `class`, `background` | Display name; race, class and background ids. |
 | `alignment` | e.g. `LawfulGood`. |
 | `level`, `xp`, `next_xp` | Level, experience, experience the next level needs (null at the top). |
@@ -301,22 +335,23 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `saves` | `[[Ability, bonus]]`, the class's saving throws. |
 | `skills` | `[[Skill, bonus]]`, proficient skills, SRD order. |
 | `casting` | The casting ability, or null. |
-| `front` | In the front row. |
+| `in_front` | In the front row. |
 | `conditions` | Condition ids in effect. |
 | `down`, `dead` | At zero hit points; dead (carries the pack's `dead` condition). |
 | `death_saves` | `{"successes", "failures", "stable"}`. |
-| `spells` | Known spell ids, in the order `cast` indexes them. |
-| `equipment` | The kit, `[ItemView]`, in the order item commands index it. |
-| `equipped` | `[[EquipSlot, item id]]`; slots `MainHand`, `OffHand`, `Ranged`, `Body`. |
+| `spells` | Known spell ids, in the order the member learned them; the `spell` that `Cast` takes. |
+| `equipment` | The kit, `[ItemView]`, in the order it was filled. |
+| `worn` | `[[EquipSlot, item id]]`; slots `MainHand`, `OffHand`, `Ranged`, `Body`. |
 | `effects` | `[EffectView]` on the member. |
 | `hit_dice`, `hit_dice_left`, `hit_die` | Hit dice in all (one per level), left for short rests, faces of the class's die. |
 | `spell_picks` | Spells owed by levels, chosen at a trainer. |
 | `tactics` | `TacticsView`. |
 | `age_years` | Age at creation plus the years the party has lived since. |
 
-`ItemView`: `index` (row), `id`, `name` (text key), `count`, `slot` (`EquipSlot` or null),
-`usable` (Use does something), `consumable` (a use spends one), `equipped` (worn or wielded by
-the kit's owner; always false in the stores).
+`ItemView` (one item kind in a kit or the stores): `item` (the item id, the `item` the item and
+service commands take), `name` (text key), `count`, `slot` (`EquipSlot` or null), `usable` (Use
+does something), `consumable` (a use spends one), `equipped` (worn or wielded by the kit's
+owner; always false in the stores).
 
 `EffectView`: `spell` (id), `caster` (`CharacterId`), `minutes_left` (party-clock minutes, or
 null when it ends at the bearer's next turn).
@@ -325,15 +360,22 @@ null when it ends at the bearer's next turn).
 
 `TacticsView`: `reactions_on` (the in-fight switch), `auto` (the runbook takes the member's
 turns; stored, not built), `reactions` (`[ReactionView]`, tried in order), `answers`
-(`[AnswerView]`, what could be declared).
+(`[AnswerView]`, what could be declared: the weapon and each known spell).
 
-`ReactionView`: `index` (entry in the default runbook, the number `PutReaction` and
+`ReactionView`: `entry` (its entry in the default runbook, the `entry` that `PutReaction` and
 `RemoveReaction` take), `name` (the criteria set's name), `action` (`ActionRef`: `"Attack"`,
-`{"Spell": SpellId}`, `{"Item": ItemId}`, `{"Feature": "<name key>"}`), `action_name` (the
-action's id), `trigger` (`Trigger`), `when` (`Criteria`: `"Always"`, `{"All": [..]}`,
-`{"Any": [..]}`, `{"Is": Predicate}`; see `omnis-rules/src/tactics.rs`).
+`{"Spell": "<spell id>"}`, `{"Item": "<item id>"}`, `{"Feature": "<name key>"}`), `action_name`
+(the action's id; `attack` for the weapon), `trigger` (`Trigger`), `when` (`Criteria`:
+`"Always"`, `{"All": [..]}`, `{"Any": [..]}`, `{"Is": Predicate}`).
 
-`AnswerView`: `action`, `name` (the action's id), `triggers` (`[Trigger]` it can answer).
+`Predicate` (in `omnis-rules/src/tactics.rs`): `MonsterCount { monster, cmp, n }`,
+`MonsterShare { monster, cmp, percent }` (`monster` a monster id), `Hp { who, cmp, percent }`,
+`SpellPoints { who, cmp, percent }`, `HasCondition { who, condition }` (a condition id),
+`Row { who, row }` (`Front` or `Back`), `Round { cmp, n }`, `WouldChangeOutcome`. `cmp` is
+`Lt`, `Le`, `Eq`, `Ge`, `Gt`; `who` is `Me` or `Subject` (the member the trigger is about).
+
+`AnswerView`: `action` (`ActionRef`), `name` (the action's id), `triggers` (`[Trigger]` it can
+answer).
 
 `Trigger` is one of `SpellCast`, `Attacked`, `MemberAttacked`, `MemberWounded`, `MemberDying`,
 `EnemyFlees`, `EnemyCasts`, `OwnTurn` (see §14 for which are live).
@@ -345,10 +387,10 @@ action's id), `trigger` (`Trigger`), `when` (`Criteria`: `"Always"`, `{"All": [.
 | Field | Meaning |
 |---|---|
 | `phase` | `Encounter` or `Combat`. |
-| `source` | `EncounterSource`: `{"Fixed": n}` (placement index in the map file), `Random`, `Ambush` (at rest). |
+| `source` | `EncounterSource`: `{"Fixed": n}` (the placement's position in the map file), `Random`, `Ambush` (at rest). |
 | `disposition` | `Hostile`, `Wary`, `Neutral`, `Friendly`. |
-| `stacks` | `[StackView]`. |
-| `retreat` | `Position` that Run and Flee put the party on. |
+| `stacks` | `[StackView]`, in encounter order. |
+| `retreat` | `Place` that Run and Flee put the party on. |
 | `round` | From 1; 0 before the fight. |
 | `current` | `ActorRef` whose turn it is, or null. |
 | `order` | `[[ActorRef, initiative total]]`, highest first. |
@@ -359,31 +401,33 @@ action's id), `trigger` (`Trigger`), `when` (`Criteria`: `"Always"`, `{"All": [.
 | `spells` | The acting member's `[SpellView]`; empty when no member acts. |
 | `budget` | `{"actions", "bonus_actions"}` the acting member's turn has left. |
 | `reactions` | `[[ActorRef, left]]` reactions left this round. |
-| `members` | `[FighterView]`; empty before the fight. |
+| `members` | `[FighterView]` in marching order; empty before the fight. |
 | `bribe` | Copper a bribe would cost, before the fight, when the monsters take one. |
 
 `ActorRef` is `{"Member": CharacterId}`, `{"Stack": n}` or `{"Monster": {"stack", "index"}}`
-(index among the living at that moment).
+(`index` among the stack's living at that moment).
 
-`StackView`: `index` (the number `attack` takes), `monster` (id), `name` (text key), `initial`
-(count at the start), `hp` (`[hp]` of the living), `ac`, `front`, `alive`, `reachable` (the
-acting member can reach it), `points_left` (spell points per living caster; empty for
-non-casters), `shielded` (individuals whose Shield is up), `refusal` (`Rejection` the acting
+`StackView`: `stack` (the stack's position in the encounter, the `stack` that `Attack` and
+`Target::Stack` take), `monster` (id), `name` (text key), `initial` (count at the start), `hps`
+(`[hp]` of the living), `ac`, `in_front`, `alive`, `reachable` (the acting member can reach
+it), `points_left` (spell points per living caster; empty for non-casters), `shielded` (the
+living whose Shield is up, by their place among the living), `refusal` (`Rejection` the acting
 member would get attacking it, or null).
 
-`SpellView`: `index` (the number `cast` takes), `id`, `name` (text key), `level` (0 cantrip),
-`cost` (points), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`, `blocked`
-(`Rejection` for paying with the action, or null), `bonus` (`Rejection` for paying with the
-bonus action, or null).
+`SpellView`: `spell` (the spell id, the `spell` that `Cast` takes), `name` (text key), `level`
+(0 cantrip), `cost` (points), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
+`blocked` (`Rejection` for paying with the action, or null), `bonus` (`Rejection` for paying
+with the bonus action, or null).
 
-`FighterView`: `index` (slot), `reactions_on`, `features` (`[FeatureView]`).
+`FighterView`: `member` (`CharacterId`), `reactions_on`, `features` (`[FeatureView]`).
 
-`FeatureView`: `index` (the number `Feature` takes), `name` (the feature's name key), `cost`
-(`Action`, `BonusAction`, `Reaction`, `Free`), `uses_left` (null at will), `blocked`
+`FeatureView`: `feature` (the feature's name key, the `feature` that `Feature` takes),
+`pay` (`Action`, `BonusAction`, `Reaction`, `Free`), `uses_left` (null at will), `blocked`
 (`Rejection` or null; `NotYourTurn` off the member's turn), `choices` (`[ChoiceKind]`).
 
 `ChoiceKind`: `Plain` (send `FeatureChoice::None`), `Exchange` (send
-`FeatureChoice::Exchange { with }`), `Hide` (send `FeatureChoice::Hide`).
+`FeatureChoice::Exchange { with }`, `with` a `CharacterId`), `Hide` (send
+`FeatureChoice::Hide`).
 
 ### 7.5 `ServiceView`, `OfferView`
 
@@ -391,20 +435,24 @@ bonus action, or null).
 `Tavern`, `Bank`, `Guild`), `gold`, `bank` (copper), `food`, `offers` (`[OfferView]`, leaving
 last).
 
-`OfferView`: `command` (the exact `ServiceCommand` that asks for it; counts are 1), `row` (the
-row it names: the stock, the stores for a sale, the service's spells, the member's class list),
-`member` (slot, at the temple, the trainer and for spells), `price` (copper, 0 when free; null
-for a sale or when refused before a price), `pays` (copper a sale brings), `refusal`
-(`Rejection` or null), `subject` (the item or spell id the row names).
+`OfferView`: `command` (the exact `ServiceCommand` that asks for it, ready to send; counts are
+1), `member` (`CharacterId` at the temple, the trainer and for spells, or null), `price`
+(copper, 0 when free; null for a sale or when refused before a price), `pays` (copper a sale
+brings), `refusal` (`Rejection` or null), `subject` (the item or spell id the command names, or
+null). A smith offers each stocked item to buy and each item kind in the stores to sell; a
+temple heals, cures and raises each member; a trainer trains each member and offers each spell
+pick; a guild or temple offers its spells to each member. A bank lists only leaving; deposits
+and withdrawals are sent with an amount.
 
 ### 7.6 `RestView`, `CampMember`
 
-`RestView`: `refusal` (why no rest may begin here: inside a service, in a fight), `members`
-(`[CampMember]` in party order), `long_food` (food a long rest eats), `food` (food in the
-stores), `long` (why the long rest would be refused, or null).
+`RestView`: `refusal` (why no rest may begin here: inside a service, in a fight; or null),
+`members` (`[CampMember]` in marching order), `long_food` (food a long rest eats), `food` (food
+in the stores), `long_refusal` (why the long rest would be refused, or null).
 
-`CampMember`: `hp`, `hp_max`, `dice_left`, `dice` (one per level), `die` (faces), `spendable`
-(hit dice a short rest may spend now; 0 when dead or at full hit points).
+`CampMember`: `hp`, `hp_max`, `hit_dice_left`, `hit_dice` (one per level), `die` (faces),
+`spendable` (hit dice a short rest may spend now; 0 when dead or at full hit points). It has
+no member field: the list is in the order of `PartyView.members`.
 
 ### 7.7 `TimeView`, `DateView`, `HolderClock`, `ContactView`
 
@@ -424,19 +472,19 @@ met).
 
 ### 7.8 `CastView`
 
-One row per spell a member may cast outside a fight: `caster` (slot, `Command::Cast`'s
-`caster`), `caster_id`, `spell` (row in the caster's list, `Command::Cast`'s `spell`), `id`,
-`name` (text key), `cost` (points, 0 for a cantrip), `targets_members`, `refusal` (`Rejection`
-or null).
+One entry per spell a member may cast outside a fight, in marching order, then the order the
+member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spell` (the spell
+id, `Command::Cast`'s `spell`), `name` (text key), `cost` (points, 0 for a cantrip),
+`targets_members`, `refusal` (`Rejection` or null).
 
 ### 7.9 `ViewportModel`, `ViewTile`, `EdgeView`, `Known`, `layer`
 
-`ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (`MapId`), `tileset`
-(`TilesetId`), `facing`, `detail_depth` (rows drawn with sprites), `visibility_depth` (rows
-visible at all), `tiles` (`[ViewTile]`, nearest first).
+`ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
+`tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
+`visibility_depth` (rows visible at all), `tiles` (`[ViewTile]`, nearest first).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
-`x`, `y` (map cell), `terrain` (index into the map's terrains), `front`, `left`, `right`
+`x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `front`, `left`, `right`
 (`EdgeView`: `"Open"`, `"Wall"`, `{"Door": {"open": bool}}`, as seen from the party).
 
 `Known` (one automap tile): `terrain`, `walls` and `doors` (`Edges` bits), `layers` (`layer`
@@ -446,8 +494,10 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (11 variants). Slots (`member`, `caster`, `index`) are marching-order positions; rows
-(`item`, `spell`, `feature`) index the lists the views return.
+`Command` (11 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+definitions by string id (a feature by its name key); a stack is named by its position in the
+encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
+means the same thing after a reorder or a change to a list.
 
 | Variant | Fields | Meaning |
 |---|---|---|
@@ -457,91 +507,113 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
-| `Cast` | `caster` (slot), `spell` (row), `target` (`Target`) | Cast outside a fight (rows from `cast.get`). |
-| `Item` | `ItemCommand` | Equip, give, stow, take or use outside a fight. |
+| `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast). `target` is ignored by light and mage hand. |
+| `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
-`Reorder { order }` (a permutation of current slots), `Tactics(TacticsCommand)`.
+`Reorder { order }` (`[CharacterId]`: every member once, front first),
+`Tactics(TacticsCommand)`.
 
 `TacticsCommand`: `SetReactions { member, on }` (the switch; any time),
-`PutReaction { member, at, set }` (declare a `CriteriaSet` `{name, action, trigger, when}`;
-replaces entry `at`, or appends when null), `RemoveReaction { member, at }`.
+`PutReaction { member, entry, set }` (declare a `CriteriaSet` `{name, action, trigger, when}`
+naming spells, items, monsters and conditions by string id; replaces runbook entry `entry`, or
+appends when null), `RemoveReaction { member, entry }` (the library keeps the set).
 
 `EncounterChoice`: `Attack` (fight), `Bribe` (pay `CombatView.bribe`; free for a friendly
 group), `Hide` (Stealth against their passive Perception), `Run` (back to `retreat` on
 Dexterity).
 
-`CombatCommand`: `Attack { stack }`, `Cast { spell, target, pay }` (`pay` defaults to
-`Action`), `Use { item, target }` (a potion; `target` slot or null for the user), `Dodge`,
-`Exchange { with }` (swap slots), `Run` (the whole party tries to flee),
-`Feature { feature, choice }` (`choice` defaults to `None`), `EndTurn`.
+`CombatCommand`: `Attack { stack }` (the best weapon that reaches it),
+`Cast { spell, target, pay }` (`spell` a known spell's id; `pay` defaults to `Action`),
+`Use { item, receiver }` (an item id in the acting member's kit, a potion; `receiver` a
+`CharacterId`, or null for the user), `Dodge`, `Exchange { with }` (swap marching places with
+member `with`), `Run` (the whole party tries to flee), `Feature { feature, choice }` (`feature`
+the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn`.
 
-`Target`: `{"Stack": n}` or `{"Member": slot}`. `Pay`: `Action`, `BonusAction`.
-`FeatureChoice`: `None`, `Exchange { with }` (Cunning Action's swap), `Hide`.
+`Target`: `{"Stack": n}` or `{"Member": CharacterId}`. `Pay`: `Action`, `BonusAction`.
+`FeatureChoice`: `None`, `Exchange { with }` (Cunning Action's swap, `with` a `CharacterId`),
+`Hide`.
 
-`ItemCommand`: `Equip { member, item }`, `Unequip { member, slot }` (`EquipSlot`),
-`Give { from, to, item, count }`, `Stow { member, item, count }` (kit to stores),
-`Take { member, item, count }` (stores row to kit), `Use { member, item, target }`.
+`ItemCommand` (`member`, `giver`, `receiver` are `CharacterId`s; `item` an item id; a kit and
+the stores count by kind): `Equip { member, item }`,
+`Unequip { member, slot }` (`EquipSlot`), `Give { giver, receiver, item, count }` (kit to kit),
+`Stow { member, item, count }` (kit to stores), `Take { member, item, count }` (stores to kit),
+`Use { member, item, receiver }` (`receiver` null for the user).
 
-`ServiceCommand`: `Leave` (any), `Room` (inn: a long rest), `Rumor` (tavern),
-`BuyFood { count }` (tavern), `Heal { member }`, `Cure { member }`, `Raise { member }` (temple),
-`Buy { item, count }` (smith: stock row), `Sell { item, count }` (smith: stores row),
-`Deposit { amount }`, `Withdraw { amount }` (bank, copper), `Train { member }` (trainer: the
-next level), `Choose { member, spell }` (trainer: a pick from the class list),
-`Learn { member, spell }` (guild or temple: a spell row bought).
+`ServiceCommand` (`member` a `CharacterId`; `item` and `spell` string ids): `Leave` (any),
+`Room` (inn: a long rest), `Rumor` (tavern), `BuyFood { count }` (tavern), `Heal { member }`,
+`Cure { member }`, `Raise { member }` (temple), `Buy { item, count }` (smith: an item it
+stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amount }`,
+`Withdraw { amount }` (bank, copper), `Train { member }` (trainer: the next level),
+`Choose { member, spell }` (trainer: a pick from the member's class list, free),
+`Learn { member, spell }` (guild or temple: a spell it teaches, bought).
 
-`RestCommand`: `Short { dice }` (an hour; `dice[i]` hit dice for member `i`), `Long` (the night;
-eats food; once per 24 hours).
+`RestCommand`: `Short { spend }` (an hour; `spend` is `[HitDiceSpend]`, each
+`{"member": CharacterId, "count"}`; members not named spend none, a member named twice is
+`MemberTwice`; the dice are rolled in marching order), `Long` (the night; eats food; once per
+24 hours).
 
 `DevCommand` (13 variants; every one is raised back as `Event::Dev`):
 
 | Variant | Fields | Meaning |
 |---|---|---|
-| `GiveItem` | `member` (slot or null for the stores), `item` (id), `count` | Add items. |
+| `GiveItem` | `member` (`CharacterId`, or null for the stores), `item` (id), `count` | Add items. |
 | `SetHp` | `member`, `hp` | Hit points; 0 downs, above 0 clears down and dead. |
 | `SetSpellPoints` | `member`, `points` | Spell points, may pass the maximum. |
 | `SetGold` | `gold` | The purse, copper. |
 | `SetFood` | `food` | Food units. |
 | `SetXp` | `member`, `xp` | Experience; levels reached are granted at once, free. |
-| `SetScore` | `member`, `ability`, `score` | One ability score (Con and mental scores recompute their pools). |
+| `SetScore` | `member`, `ability`, `score` | One ability score, any `u8` (Con and mental scores recompute their pools). |
 | `SetCondition` | `member`, `condition` (id), `applied` | A condition on or off, raw. |
 | `SetFlag` | `flag` (id), `value` | A world flag. |
 | `Teleport` | `map` (id), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
-| `SetMonsterHp` | `stack`, `index`, `hp` | Fights only; 0 removes it without gold. |
+| `SetMonsterHp` | `stack`, `index` (among the stack's living, as in `ActorRef::Monster`), `hp` | Fights only; 0 removes it without gold. |
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
 | `Reconcile` | `region` (id) | Outside a fight: meet a region as on entering it (`time.reconcile`). |
 
-**Script words.** `Command::word` names a command and `parse_script` (`command.rs`) reads a
-text script for the CLI's `play --script`: words separated by whitespace or commas, `#` starts a
-comment. `forward` `back` `left` `right` `turn-left` `turn-right` `around` `use`; before a fight
-`fight` `bribe` `hide` `run`; in one `attack` `attack-N` `cast-N-M` (at stack M) `cast-N-mM`
-(at member M), either with `-bonus`, `use-item-N` `use-item-N-mM` `dodge` `swap-N` `flee`
-`feature-F` `feature-F-W` `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a
-service `leave` `room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` `sell-R[-N]`
-`deposit-N` `withdraw-N` `train-M` `choose-M-R` `learn-M-R`; outside one `rest` `short-rest`
-`short-rest-A-B-…`. Party creation, items, `Cast` outside a fight and `Dev` have no words.
+**Script words.** A typing aid for the CLI's `play --script`, the app's dev script and tests
+(`word.rs`). `parse_script(text) -> Result<Vec<Word>, ScriptError>` reads a text script: words
+separated by whitespace or commas, `#` starts a comment; it checks each word's syntax only.
+Words count as the player sees the screen: members by marching-order slot, spells, items and
+features by their position in the list shown. `Word::command(&World, &Data) -> Option<Command>`
+resolves a word against the world when it is applied, into a command that names identities and
+string ids: a slot means whoever stands there at that moment, a position whatever that list
+holds then; `None` when the slot or position is empty or the word does not fit the world's
+state. The words: `forward` `back` `left` `right` `turn-left` `turn-right` `around` `use`;
+before a fight `fight` `bribe` `hide` `run`; in one `attack` (the first stack) `attack-N`
+(stack `N`) `cast-N-M` (the acting member's known spell `N` at stack `M`) `cast-N-mM` (at the
+member in slot `M`), either with `-bonus`, `use-item-N` (kit item `N`, on the user)
+`use-item-N-mM` `dodge` `swap-N` `flee` `feature-F` `feature-F-W` (Cunning Action's swap with
+slot `W`) `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a service `leave`
+`room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` (stock item `R`) `sell-R[-N]`
+(stores item `R`) `deposit-N` `withdraw-N` (copper) `train-M` `choose-M-R` (class-list spell
+`R`) `learn-M-R` (the service's spell `R`); outside one `rest` `short-rest`
+`short-rest-A-B-…` (hit dice per member in marching order). Party creation, items, `Cast`
+outside a fight and `Dev` have no words. `Command::word` (`command.rs`) gives a command's bare
+verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their own).
 
 ## 9. Events
 
-`Event` has 62 variants. Events carry ids, numbers and roll traces, never text. Most commands
-end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
+`Event` has 62 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
+`Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
 ### Exploration and time
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `Moved` | `from`, `to` (`Position`) | The party moved, possibly through a portal. |
+| `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. |
 | `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`) | A step did not happen; the turn was taken. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
-| `Door` | `map`, `x`, `y`, `facing`, `open` | A door changed state. |
+| `Door` | `map` (id), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
 | `PartyChanged` | | Members or their order changed. |
-| `TimeAdvanced` | `holder`, `minutes`, `day_rolled` | A clock advanced. |
-| `Reconciled` | `a`, `b` (`HolderId`), `delta_a`, `delta_b` (minutes), `era_b` | Two holders met; `b` caught up by `delta_b` for the `delta_a` that `a` lived. |
+| `TimeAdvanced` | `holder` (`"party:0"` or a region id), `minutes`, `day_rolled` | A clock advanced. |
+| `Reconciled` | `a`, `b` (holders, named as `holder`), `delta_a`, `delta_b` (minutes), `era_b` | Two holders met; `b` caught up by `delta_b` for the `delta_a` that `a` lived. |
 | `SignalsDropped` | `count` | The signal bus dropped signals past its depth or budget. |
 
 ### Encounters
@@ -549,8 +621,8 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 | Event | Fields | Meaning |
 |---|---|---|
 | `EncounterCheck` | `roll` (d100 `RollTrace`), `chance`, `fired` | A step rolled for a random encounter. |
-| `EncounterStarted` | `source`, `stacks` (`[[MonsterId, count]]`), `disposition`, `counts` (`[RollTrace]`), `stealth` (`Roll` or null), `perception`, `noticed` | Monsters stand before the party; unnoticed means the party is surprised. |
-| `Check` | `actor`, `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`), `roll`, `dc`, `success` | A check against a difficulty. |
+| `EncounterStarted` | `source`, `stacks` (`[[monster id, count]]`), `disposition`, `counts` (`[RollTrace]`), `stealth` (`Roll` or null), `perception`, `noticed` | Monsters stand before the party; unnoticed means the party is surprised. |
+| `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
 | `Bribed` | `cost` (copper) | The monsters took the money and left. |
 
 ### Fights
@@ -558,35 +630,35 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 | Event | Fields | Meaning |
 |---|---|---|
 | `CombatStarted` | `surprised` | The fight is on. |
-| `Initiative` | `order` (`[[ActorRef, total]]`), `rolls` | Initiative order, highest first. |
+| `Initiative` | `order` (`[[ActorRef, total]]`), `rolls` (`[RollTrace]`: members in marching order, then stacks) | Initiative order, highest first. |
 | `RoundStarted` | `round` | A round began (from 1). |
 | `Turn` | `actor` | A turn began; on a member's turn the engine waits for a command. |
 | `Waited` | `actor` | A stack could do nothing from where it stands. |
 | `Dodging` | `actor` | A member dodges until the round ends. |
-| `Exchanged` | `a`, `b` (slots) | Two members swapped slots. |
-| `AttackResolved` | `attacker`, `target`, `roll` (`Roll`), `ac`, `hit`, `crit` | An attack roll. |
-| `Damage` | `target`, `kind` (`DamageType`), `rolls`, `raw`, `amount`, `adjust` (`None`, `Resisted`, `Vulnerable`, `Immune`) | Damage dealt, before and after defenses. |
+| `Exchanged` | `member`, `with` (`CharacterId`s) | The acting member and `with` swapped marching places. |
+| `AttackResolved` | `attacker`, `target` (`ActorRef`), `roll` (`Roll`), `ac`, `hit`, `crit` | An attack roll. |
+| `Damage` | `target` (`ActorRef`), `kind` (`DamageType`), `rolls`, `raw`, `amount`, `adjust` (`None`, `Resisted`, `Vulnerable`, `Immune`) | Damage dealt, before and after defenses. |
 | `Down` | `target` (`CharacterId`) | A member fell to 0 hit points. |
 | `Wounded` | `member`, `failures` | Damage at 0 hit points: a failed death save (two on a crit). |
-| `DeathSave` | `member`, `roll`, `result` (`Success`, `Failure`, `Stable`, `Revived`, `Died`), `successes`, `failures` | A death saving throw at the end of a round. |
-| `Condition` | `target` (`ActorRef`), `condition` (`ConditionId`), `applied` | A condition came or went. |
-| `Death` | `target`, `gold` (`RollTrace` of whole gold pieces, or null) | A combatant died; the gold is looted as copper. |
+| `DeathSave` | `member`, `roll` (`RollTrace`), `result` (`Success`, `Failure`, `Stable`, `Revived`, `Died`), `successes`, `failures` | A death saving throw at the end of a round. |
+| `Condition` | `target` (`ActorRef`), `condition` (id), `applied` | A condition came or went. |
+| `Death` | `target` (`ActorRef`), `gold` (`RollTrace` of whole gold pieces, or null) | A combatant died; the gold is looted as copper. |
 | `CombatEnded` | `outcome` (`Victory`, `Fled`, `Defeat`), `xp` (each survivor), `gold` (copper), `fallen` (`[CharacterId]` removed by permadeath) | The fight is over. |
 | `FeatureUsed` | `member`, `feature` (name key) | A class feature was used; its effect follows. |
 | `OpportunityAttack` | `stack`, `member` | A front stack swings at a member leaving; attack events follow. |
-| `MonsterCast` | `caster` (`ActorRef`), `spell` | A monster cast; what it did follows. |
-| `ShieldStops` | `target` | Shield stopped a Magic Missile. |
+| `MonsterCast` | `caster` (`ActorRef`), `spell` (id) | A monster cast; what it did follows. |
+| `ShieldStops` | `target` (`ActorRef`) | Shield stopped a Magic Missile. |
 | `ReactionsSwitched` | `member`, `on` | A member's reactions switch changed. |
 | `TacticsChanged` | `member` | A member's declared reactions changed. |
-| `Reaction` | `actor`, `trigger`, `action` (`ActionRef`) | A declared reaction fired; its events follow. |
+| `Reaction` | `actor` (`CharacterId`), `trigger`, `action` (`ActionRef`, by string ids) | A declared reaction fired; its events follow. |
 
 ### Casting
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `SpellCast` | `caster`, `spell`, `points`, `components_consumed` (`[[ItemId, count]]`) | A member cast; what it did follows. |
-| `Healed` | `target`, `rolls`, `amount` (before the cap), `hp` (after) | Hit points regained. |
-| `EffectApplied` | `target` (`{"Member": id}` or `"Party"`), `spell`, `caster` | An effect settled. |
+| `SpellCast` | `caster` (`CharacterId`), `spell` (id), `points`, `components_consumed` (`[[item id, count]]`) | A member cast; what it did follows. |
+| `Healed` | `target` (`CharacterId`), `rolls`, `amount` (before the cap), `hp` (after) | Hit points regained. |
+| `EffectApplied` | `target` (`{"Member": CharacterId}` or `"Party"`), `spell` (id), `caster` | An effect settled. |
 | `EffectEnded` | `target`, `spell`, `why` (`Expired`, `Consumed`, `Concentration`, `TurnBegan`, `FightOver`) | An effect ended. |
 | `Concentration` | `caster`, `spell`, `ended` (always true) | Concentration ended. |
 
@@ -594,32 +666,32 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `Equipped` | `member`, `slot`, `item` | Worn or wielded. |
+| `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
-| `ItemMoved` | `item`, `count`, `from`, `to` (`{"Member": id}` or `"Stores"`) | Items moved. |
-| `ItemUsed` | `member`, `item`, `target` (or null), `consumed` | An item was used; what it did follows. |
-| `Sensed` | `actor`, `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
+| `ItemMoved` | `item`, `count`, `from`, `to` (`{"Member": CharacterId}` or `"Stores"`) | Items moved. |
+| `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
+| `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
 ### Town, rest and progression
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `ServiceEntered` | `service` (`ServiceId`) | The party went into the service on its tile. |
+| `ServiceEntered` | `service` (id) | The party went into the service on its tile. |
 | `ServiceLeft` | `service` | The party came out. |
 | `RoomTaken` | `cost` | A night at the inn (a long rest); `Healed` follows. |
 | `FoodBought` | `count`, `cost` | Food into the larder. |
-| `Rumor` | `service`, `index` (row of its rumors), `ago` (minutes on the region's clock) | A rumor heard. |
+| `Rumor` | `service`, `rumor` (the rumor's position in the tavern's rumors, file order), `ago` (minutes on the region's clock) | A rumor heard. |
 | `Treated` | `member`, `cost` | A temple healed or cured; `Healed` and `Condition` follow. |
 | `Raised` | `member`, `cost` | A temple raised the dead at 1 hit point. |
-| `Bought` | `item`, `count`, `cost` | Into the stores. |
+| `Bought` | `item` (id), `count`, `cost` | Into the stores. |
 | `Sold` | `item`, `count`, `price` | Out of the stores. |
 | `Banked` | `amount`, `deposit` | Copper between purse and bank. |
 | `Rested` | `long`, `minutes`, `food` | A rest ran its course; restoration follows. |
 | `HitDiceSpent` | `member`, `dice` | Hit dice spent on a short rest; `Healed` follows. |
 | `RestInterrupted` | `minutes` | Monsters came upon the resting party; the encounter follows; nothing restored. |
-| `RestEvent` | `map`, `index` | Entry `index` of the map's rest events happened; it changes nothing yet. |
+| `RestEvent` | `map` (id), `entry` (its position in the map's rest events, file order) | A rest event happened; it changes nothing yet. |
 | `LevelUp` | `member`, `level`, `cost`, `gains` (`{hp, spell_points, picks, proficiency, features}`) | A trainer (or `SetXp`, cost 0) granted a level. |
-| `SpellLearned` | `member`, `spell`, `cost` | A spell went onto the member's list (a pick costs 0). |
+| `SpellLearned` | `member`, `spell` (id), `cost` | A spell went onto the member's list (a pick costs 0). |
 
 ### Dev
 
@@ -631,79 +703,81 @@ end with a `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
 `Rejection` (62 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
-(`refusal`, `blocked`, `bonus`, `long`).
+(`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
+(`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
+`stack`.
 
-| Rejection | Meaning |
-|---|---|
-| `WrongMode` | The command does not apply in the current mode. |
-| `PartyFull` | Every party slot is taken. |
-| `Character` | The draft does not make a character (`CreationError`: `Name`, `UnknownRace`, `ScoreRange`, `Points`, `Skills`, ...). |
-| `BadOrder` | The order is not a permutation of the current members. |
-| `NotYourTurn` | The fight is not waiting on a (living) member. |
-| `NoSuchStack` | No stack has that index. |
-| `StackDead` | Nobody in that stack still stands. |
-| `OutOfReach` | A front-row melee member cannot reach a stack behind the front. |
-| `NeedsRangedWeapon` | A back-row member needs a ranged weapon to attack. |
-| `NoSuchMember` | No member has that slot. |
-| `SameMember` | A member cannot exchange with themselves. |
-| `MemberTwice` | A list names the same member twice (a short rest's hit dice). |
-| `CannotAfford` | The party cannot pay: `cost` and `gold` in copper. |
-| `UnknownSpell` | The caster knows no spell at that row. |
-| `NotCastable` | The spell has no effect the engine can cast here yet. |
-| `NotEnoughPoints` | The caster's pool is short (`need`, `have`). |
-| `MissingComponents` | The components are not in the stores. |
-| `WrongTarget` | A stack for a helping spell, or a member for a harmful one. |
-| `MemberDead` | The member is dead. |
-| `MemberDown` | The member is at 0 hit points and cannot act. |
-| `NotEnough` | Fewer of an item than needed (`item`, `have`). |
-| `UnknownItem` | The kit has no item at that row. |
-| `NotInStores` | The stores have no item at that row. |
-| `NotCarried` | The member does not carry the item. |
-| `NotEquippable` | The item has no slot. |
-| `HandsFull` | A two-handed weapon and a shield cannot both be held. |
-| `SlotEmpty` | Nothing is in that slot. |
-| `NotUsable` | The item does nothing when used. |
-| `NotUsableHere` | The item is not used from a fight. |
-| `TargetDead` | The member the item goes to is dead. |
-| `ZeroCount` | A count of zero moves nothing. |
-| `DevOnly` | A `Dev` command in a world whose settings do not allow them. |
-| `UnknownId` | No loaded pack defines that id. |
-| `OutOfRange` | A count of zero, a score outside 1..=30, or an index past the end. |
-| `OffMap` | The tile is not on the map. |
-| `NotOffered` | This service does not do that, or does not stock that row. |
-| `NothingToTreat` | Full hit points, or no condition to cure. |
-| `NotDead` | Only the dead are raised. |
-| `BankShort` | The bank holds less than the withdrawal (`amount`, `bank`, copper). |
-| `RestTooSoon` | The last long rest ended too recently (`minutes` until allowed). |
-| `NoFood` | Less food than a long rest eats (`need`, `have`). |
-| `NoHitDice` | Fewer hit dice left than asked (`index`, `left`). |
-| `NotReady` | Experience has not reached the next level (`xp`, `needed`). |
-| `MaxLevel` | The member is at the highest level. |
-| `NoPicks` | No spell picks left to choose. |
-| `NoSuchSpell` | No such row on the list the command names. |
-| `NotOnList` | The spell is not on the member's class list. |
-| `CantripNotLearned` | Cantrips come with the class; none is picked or bought. |
-| `SpellTooHigh` | Above the highest level the member may learn (`level`, `max`). |
-| `AlreadyKnown` | The spell is already on the member's list. |
-| `NoActionLeft` | The turn's action is spent. |
-| `NoBonusActionLeft` | The turn's bonus action is spent. |
-| `ReactionOnly` | That costs a reaction; only a declared reaction pays for it. |
-| `NotABonusAction` | The spell cannot be paid with the bonus action. |
-| `NeedsPreparation` | The spell takes the bonus action only once readied; readying is not built. |
-| `NoSuchFeature` | No feature with effect at that row. |
-| `NoUsesLeft` | The feature's uses are spent until a rest. |
-| `WrongChoice` | The feature does not do what was asked. |
-| `Tactics` | The tactics' shape is refused (`TacticsFault`: `Name`, `TooDeep`, `TooMany`, `Percent`, `NoSuchSet`, `NoDefault`). |
-| `CannotReact` | No such reaction, or it cannot answer that trigger. |
-| `NoSuchEntry` | The default runbook has no entry there. |
-| `Rule` | A rule formula failed while resolving: bad pack data, reported instead of a panic. |
+| Rejection | Fields | Meaning |
+|---|---|---|
+| `WrongMode` | | The command does not apply in the current mode. |
+| `PartyFull` | | Every party slot is taken. |
+| `Character` | `CreationError` | The draft does not make a character (`Name`, `UnknownRace`, `UnknownClass`, `UnknownBackground`, `ScoreRange`, `Points`, `Skills`, `Rule`). |
+| `BadOrder` | | The order does not list every member once. |
+| `NotYourTurn` | | The fight is not waiting on a (living) member. |
+| `NoSuchStack` | `stack` | No stack has that number. |
+| `StackDead` | `stack` | Nobody in that stack still stands. |
+| `OutOfReach` | `stack` | A front-row member without a ranged weapon cannot reach a stack behind the front. |
+| `NeedsRangedWeapon` | | A back-row member needs a ranged weapon to attack. |
+| `NoSuchMember` | `member` | No member has that identity. |
+| `SameMember` | | A member cannot exchange with themselves. |
+| `MemberTwice` | `member` | A list names the same member twice (a short rest's hit dice). |
+| `CannotAfford` | `cost`, `gold` | The party cannot pay (copper). |
+| `UnknownSpell` | `spell` | The caster knows no spell by that id. |
+| `NotCastable` | `spell` | The spell has no effect the engine can cast here yet. |
+| `NotEnoughPoints` | `need`, `have` | The caster's pool is short. |
+| `MissingComponents` | `spell` | The components are not in the stores. |
+| `WrongTarget` | | A stack for a helping spell, or a member for a harmful one. |
+| `MemberDead` | `member` | The member is dead. |
+| `MemberDown` | `member` | The member is at 0 hit points and cannot act. |
+| `NotEnough` | `item`, `have` | Fewer of an item than needed. |
+| `UnknownItem` | `item` | The kit holds no item of that id. |
+| `NotInStores` | `item` | The stores hold no item of that id. |
+| `NotCarried` | | The member does not carry the item. |
+| `NotEquippable` | | The item has no slot. |
+| `HandsFull` | | A two-handed weapon and a shield cannot both be held. |
+| `SlotEmpty` | `slot` | Nothing is in that slot. |
+| `NotUsable` | | The item does nothing when used. |
+| `NotUsableHere` | | The item is not used from a fight. |
+| `TargetDead` | `member` | The member the item goes to is dead. |
+| `ZeroCount` | | A count of zero moves nothing. |
+| `DevOnly` | | A `Dev` command in a world whose settings do not allow them. |
+| `UnknownId` | `id` | No loaded pack defines that id. |
+| `OutOfRange` | | A number out of range: a `GiveItem` count of zero, a total that would overflow (food, purse, bank, stores), an individual past the end of its stack (`SetMonsterHp`). |
+| `OffMap` | `x`, `y` | The tile is not on the map. |
+| `NotOffered` | | This service does not do that, or does not stock that item. |
+| `NothingToTreat` | `member` | Full hit points, or no condition to cure. |
+| `NotDead` | `member` | Only the dead are raised. |
+| `BankShort` | `amount`, `bank` | The bank holds less than the withdrawal (copper). |
+| `RestTooSoon` | `minutes` | The last long rest ended too recently (`minutes` until allowed). |
+| `NoFood` | `need`, `have` | Less food than a long rest eats. |
+| `NoHitDice` | `member`, `left` | The member has fewer hit dice left than asked. |
+| `NotReady` | `member`, `xp`, `needed` | Experience has not reached the next level. |
+| `MaxLevel` | `member` | The member is at the highest level. |
+| `NoPicks` | `member` | No spell picks left to choose. |
+| `NoSuchSpell` | `spell` | The spell is not on the list the command names (the class list, the service's spells). |
+| `NotOnList` | `member` | The spell is not on the member's class list. |
+| `CantripNotLearned` | | Cantrips come with the class; none is picked or bought. |
+| `SpellTooHigh` | `level`, `max` | Above the highest level the member may learn. |
+| `AlreadyKnown` | `member` | The spell is already on the member's list. |
+| `NoActionLeft` | | The turn's action is spent. |
+| `NoBonusActionLeft` | | The turn's bonus action is spent. |
+| `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
+| `NotABonusAction` | `spell` | The spell cannot be paid with the bonus action. |
+| `NeedsPreparation` | `spell` | The spell takes the bonus action only once readied; readying is not built. |
+| `NoSuchFeature` | `feature` | The member has no feature with effect by that name key. |
+| `NoUsesLeft` | `feature` | The feature's uses are spent until a rest. |
+| `WrongChoice` | `feature` | The feature does not do what was asked. |
+| `Tactics` | `TacticsFault` | The tactics' shape is refused (`Name`, `TooDeep`, `TooMany`, `Percent`, `NoSuchSet`, `NoDefault`). |
+| `CannotReact` | | No such reaction, or it cannot answer that trigger. |
+| `NoSuchEntry` | `entry` | The default runbook has no entry there. |
+| `Rule` | `RuleError` | A rule formula failed while resolving: bad pack data, reported instead of a panic. |
 
 `OpError` (10 kinds). The world is unchanged unless the message says otherwise.
 
 | Kind | Fields | Meaning |
 |---|---|---|
 | `Rejected` | `rejection` | The rules refused the command. |
-| `UnknownMap` | `map` | No such map is loaded. |
+| `UnknownMap` | `map` (the id given) | No such map is loaded. |
 | `UnknownSlot` | `slot` | No rule slot has that name. |
 | `TooLong` | `limit` (bytes) | A string argument is over `MAX_STRING_BYTES`. |
 | `TooMany` | `limit` | A script is over `MAX_SCRIPT` commands. |
@@ -731,7 +805,7 @@ looked at.
 
 | Version | Value | Covers | Moves when |
 |---|---|---|---|
-| `ops::PROTOCOL` | 1 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
+| `ops::PROTOCOL` | 2 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
 | `SAVE_SCHEMA` | 7 | Save files (`World::to_ron`) | The saved world's shape changes; older schemas (1 to 6) migrate on load. |
 | `omnis_data::SCHEMA` | 1 | Pack data files | The pack file format changes; the loader refuses other schemas. |
 | Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files (FNV-1a 64 over them). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
@@ -752,14 +826,13 @@ From ARCHITECTURE.md §4.9:
 
 ## 14. Known gaps
 
-As of protocol 1:
+As of protocol 2:
 
 - **No pack definitions or text over Tier 2.** No op exposes pack data or the `text/` tables.
-  Views carry string ids and text keys (`base:text:item.mace.name`), not display text; events
-  and positions carry numeric registry ids (`MapId`, `ItemId`, `SpellId`, `MonsterId`,
-  `ServiceId`, `ConditionId`, `TilesetId`) that no op resolves to names, and `ViewTile.terrain`
-  indexes terrains no op lists. Only Tier 1 has `Data`. A `Predicate` in a declared reaction
-  names a `MonsterId` the same way.
+  Commands, events and views name definitions by string id and carry text keys
+  (`base:text:item.mace.name`), not display text, and no op turns an id or a key into a label or
+  a definition (the planned `data.*` ops). `ViewTile.terrain` indexes terrains no op lists. Only
+  Tier 1 has `Data`.
 - **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
@@ -781,6 +854,50 @@ As of protocol 1:
   proven against the `Command` type; replies have none beyond this document.
 
 ## Changelog
+
+### Protocol 2 (2026-10-10)
+
+One meaning per field name (§4; owner, 2026-10-08: "identities everywhere"). Under protocol 1,
+casting Bless with `{"Cast":{"caster":2,"spell":3,...}}` raised `{"SpellCast":{"caster":2,
+"spell":1}}`: in the command `caster` was a marching-order slot and `spell` a row of the
+caster's list, in the event an identity and a registry number, and in the view a string id.
+Saves (`SAVE_SCHEMA` 7) and replays are unchanged: the world keeps its registry numbers and
+the wire types convert at the boundary.
+
+| Where | Protocol 1 | Protocol 2 |
+|---|---|---|
+| Every command, rejection and view naming a member (`member`, `caster`, `with`, `Target::Member`, `Reorder.order`, `NoSuchMember`, the member refusals, `FighterView`, `OfferView.member`, `CastView.caster`) | Marching-order slot (`index`, `member`) | `CharacterId`; the member refusals' `index` and `FighterView.index` are `member`; `MemberView.index` and `CastView.caster_id` removed |
+| `MemberView.id` | `CharacterId` | `member` |
+| `ItemCommand::Give { from, to }` | slots | `{ giver, receiver }`, ids |
+| `ItemCommand::Use.target`, `CombatCommand::Use.target`, `ItemUsed.target` | slot / id | `receiver`, id |
+| `RestCommand::Short { dice }` | `[count]` by slot | `{ spend: [{member, count}] }`; `MemberTwice` new |
+| `Cast.spell`, `CombatCommand::Cast.spell`, `Choose.spell`, `Learn.spell` | row of a list | spell id |
+| Item commands' `item`, `Buy.item`, `Sell.item`, `Take.item` | row of the kit, stock or stores | item id (a kit and the stores count by kind) |
+| `CombatCommand::Feature.feature` | row | the feature's name key |
+| `PutReaction.at`, `RemoveReaction.at`, `ReactionView.index` | `at`, `index` | `entry` |
+| `PutReaction.set` (`CriteriaSet`), `ReactionView.action`, `Reaction.action` | `ActionRef` and criteria with registry numbers | string ids |
+| `NoSuchSpell.row`, `UnknownSpell`, `NotEnough.item`, the spell and feature refusals | rows, registry numbers | `spell`, `item`, `feature` ids; `NoSuchEntry { entry }` |
+| `SpellView.{index,id}`, `FeatureView.{index,name}`, `ItemView.{index,id}`, `CastView.{spell,id}`, `OfferView.row` | a row, beside the id (a feature's `name`) | rows removed; the id is `SpellView.spell`, `FeatureView.feature`, `ItemView.item`, `CastView.spell`, the ids commands take |
+| Every event field naming a spell, item, monster, condition, service or map (`SpellCast`, `EffectApplied`, `EncounterStarted.stacks`, `components_consumed`, `Bought`, `Condition`, `Door.map`, ...) | registry number | string id |
+| `Moved.{from,to}`, `Status.position`, `Here.position`, `CombatView.retreat` | `Position` with a `MapId` | `Place` with the map's string id; `Status.map` and `Here.map` removed |
+| `ViewportModel.map`, `ViewportModel.tileset` | registry numbers | string ids |
+| `TimeAdvanced.holder`, `Reconciled.{a,b}` | `HolderId` (`{"Party":0}`) | `"party:0"` or the region's id |
+| `Exchanged { a, b }` | slots | `{ member, with }`, ids |
+| `Rumor.index`, `RestEvent.index` | `index` | `rumor`, `entry` |
+| `StackView.index` | `index` | `stack` |
+| `StackView.hp`, `StackView.front`, `MemberView.front` | `hp`, `front` | `hps`, `in_front` |
+| `MemberView.equipped` | `[[slot, item]]` | `worn` |
+| `FeatureView.cost` | `Cost` | `pay` |
+| `CampMember.dice`, `CampMember.dice_left` | counts | `hit_dice`, `hit_dice_left` |
+| `RestView.long` | `Rejection` or null | `long_refusal` |
+| `Reply::Service.service` | `ServiceView` | `view` |
+| A die in a `RollTrace` | `{index, raw, value}` | `{draw, raw, value}` |
+
+**Migration.** Read members' ids from `party.get` (`MemberView.member`) and send them wherever a
+member is named; send the string ids the views list (`MemberView.spells`, `ItemView.item`,
+`SpellView.spell`, `FeatureView.feature`, `OfferView.command`) instead of list rows. Read
+places from `position.map` and events' `Place`s. Script words (`cast-1-2`, `heal-0`) still count
+slots and rows as the player sees them, and resolve against the world when applied.
 
 ### Protocol 1 (2026-10-07)
 

@@ -237,7 +237,7 @@ fn gear_page(data: &Data, m: &MemberView) -> SheetGear {
             .iter()
             .map(|slot| {
                 let worn = m
-                    .equipped
+                    .worn
                     .iter()
                     .find(|(s, _)| s == slot)
                     .map_or("-".to_owned(), |(_, id)| item_name(id));

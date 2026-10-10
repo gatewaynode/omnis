@@ -55,7 +55,7 @@ fn slot_id(slot: usize) -> CharacterId {
 /// A short rest spending `dice[slot]` of each member's hit dice, as `short-rest-A-B-…` reads.
 fn short(dice: &[u8]) -> RestCommand {
     RestCommand::Short {
-        dice: dice
+        spend: dice
             .iter()
             .enumerate()
             .map(|(slot, &count)| HitDiceSpend {
@@ -206,7 +206,7 @@ fn hit_dice_roll_in_marching_order_whatever_the_list_order() {
         world
     };
     let spend = |slots: &[usize]| RestCommand::Short {
-        dice: slots
+        spend: slots
             .iter()
             .map(|&slot| HitDiceSpend {
                 member: slot_id(slot),
@@ -232,7 +232,7 @@ fn a_member_named_twice_is_refused_whatever_they_spend() {
     world.party.members[0].hp = 1;
     for counts in [[1, 1], [0, 1], [1, 0], [0, 0]] {
         let twice = RestCommand::Short {
-            dice: counts
+            spend: counts
                 .iter()
                 .map(|&count| HitDiceSpend {
                     member: slot_id(0),

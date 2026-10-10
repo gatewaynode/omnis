@@ -359,7 +359,7 @@ fn a_short_rest_gives_the_uses_back() {
         let events = apply(
             &mut world,
             &data,
-            Command::Rest(RestCommand::Short { dice: Vec::new() }),
+            Command::Rest(RestCommand::Short { spend: Vec::new() }),
         )
         .unwrap();
         if events.iter().any(|e| matches!(e, Event::Rested { .. })) {

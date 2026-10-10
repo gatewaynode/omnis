@@ -19,9 +19,9 @@ pub fn look_command(party: &PartyView, data: &Data) -> Option<Command> {
                 .iter()
                 .find(|i| defs::item(data, &i.item).is_some_and(|i| i.sense().is_some()))?;
             Some(Command::Item(ItemCommand::Use {
-                member: m.id,
+                member: m.member,
                 item: row.item.clone(),
-                target: None,
+                receiver: None,
             }))
         })
 }
@@ -50,7 +50,7 @@ mod tests {
             Some(Command::Item(ItemCommand::Use {
                 member: second,
                 item: "base:item:spyglass".to_owned(),
-                target: None
+                receiver: None
             }))
         );
         world.party.members[0].equipment.insert(0, (glass, 1));

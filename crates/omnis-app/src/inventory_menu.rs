@@ -78,11 +78,11 @@ pub fn inventory_view(party: &PartyView, data: &Data) -> InventoryView {
         .map(|member| {
             let worn: Vec<String> = EquipSlot::ALL
                 .iter()
-                .filter_map(|slot| member.equipped.iter().find(|(s, _)| s == slot))
+                .filter_map(|slot| member.worn.iter().find(|(s, _)| s == slot))
                 .map(|(_, id)| name(id))
                 .collect();
             Pane {
-                member: Some(member.id),
+                member: Some(member.member),
                 title: member.name.clone(),
                 summary: if worn.is_empty() {
                     "wearing nothing".to_owned()
@@ -328,7 +328,7 @@ impl InventoryMenu {
             (InventoryAction::Use, Some(member)) => ItemCommand::Use {
                 member,
                 item,
-                target,
+                receiver: target,
             },
             (InventoryAction::Stow, Some(member)) => ItemCommand::Stow {
                 member,
@@ -337,8 +337,8 @@ impl InventoryMenu {
             },
             (InventoryAction::Give, Some(member)) => match target {
                 Some(to) if to != member => ItemCommand::Give {
-                    from: member,
-                    to,
+                    giver: member,
+                    receiver: to,
                     item,
                     count: 1,
                 },
@@ -511,15 +511,15 @@ pub(crate) mod tests {
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Use {
                 member: BRENNA,
                 item: id_of("Potion of healing"),
-                target: Some(DURIN)
+                receiver: Some(DURIN)
             }))),
             "a potion's Enter uses it on the selected member"
         );
         assert_eq!(
             menu.key(MenuKey::Char('g'), &view, Some(1)),
             Some(InventoryIntent::Command(Command::Item(ItemCommand::Give {
-                from: BRENNA,
-                to: DURIN,
+                giver: BRENNA,
+                receiver: DURIN,
                 item: id_of("Potion of healing"),
                 count: 1
             })))

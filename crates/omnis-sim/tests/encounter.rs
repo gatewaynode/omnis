@@ -333,7 +333,7 @@ fn attacking_starts_the_fight_and_the_protocol_knows_the_choices() {
         (ModeKind::Encounter, 0, None)
     );
     assert!(combat.order.is_empty() && combat.stacks.iter().all(|s| !s.reachable));
-    assert!(combat.stacks[0].front && combat.stacks[1].front);
+    assert!(combat.stacks[0].in_front && combat.stacks[1].in_front);
     assert_eq!(
         apply(&mut world, &data, Command::Step(Direction::Forward)),
         Err(Rejection::WrongMode),

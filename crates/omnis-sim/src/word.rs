@@ -203,7 +203,7 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
         "room" => Command::Service(ServiceCommand::Room),
         "rumor" => Command::Service(ServiceCommand::Rumor),
         "rest" => Command::Rest(RestCommand::Long),
-        "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
+        "short-rest" => Command::Rest(RestCommand::Short { spend: Vec::new() }),
         "end" => Command::Combat(CombatCommand::EndTurn),
         _ => {
             if let Some(rest) = word.strip_prefix("react-") {
@@ -290,7 +290,7 @@ fn parse_use(rest: &str, scope: &Scope<'_>) -> Option<CombatCommand> {
     };
     Some(CombatCommand::Use {
         item: scope.kit_item(item)?,
-        target,
+        receiver: target,
     })
 }
 
@@ -311,7 +311,7 @@ fn parse_town(word: &str, scope: &Scope<'_>) -> Option<Command> {
                 })
             })
             .collect::<Option<Vec<_>>>()?;
-        return Some(Command::Rest(RestCommand::Short { dice }));
+        return Some(Command::Rest(RestCommand::Short { spend: dice }));
     }
     let (verb, args) = word.split_once('-')?;
     let service = match verb {

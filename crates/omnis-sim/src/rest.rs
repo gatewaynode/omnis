@@ -37,7 +37,7 @@ pub enum RestCommand {
     /// none. The dice are rolled in marching order whatever the list's order.
     Short {
         /// Hit dice per member, by identity.
-        dice: Vec<HitDiceSpend>,
+        spend: Vec<HitDiceSpend>,
     },
     /// The night: food for every member not dead, at most once a day.
     Long,
@@ -132,9 +132,9 @@ pub(crate) fn apply(
 ) -> Result<(), Rejection> {
     let long = matches!(command, RestCommand::Long);
     let (minutes, food, asked) = match command {
-        RestCommand::Short { dice } => {
+        RestCommand::Short { spend } => {
             let minutes = rule_minutes(data, "short_rest_minutes", DEFAULT_SHORT_REST_MINUTES);
-            (minutes, 0, check_dice(world, data, dice)?)
+            (minutes, 0, check_dice(world, data, spend)?)
         }
         RestCommand::Long => {
             let minutes = long_rest_minutes(data);

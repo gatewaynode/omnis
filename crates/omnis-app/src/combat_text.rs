@@ -205,7 +205,7 @@ mod tests {
         let rolls = values
             .iter()
             .map(|v| DieRoll {
-                index: 0,
+                draw: 0,
                 raw: 0,
                 value: *v,
             })

@@ -318,7 +318,7 @@ fn party_get_lists_the_kit_as_rows_with_the_worn_slots_and_the_stores() {
     let flask = &brenna.equipment[6];
     assert!(flask.usable && flask.consumable && !flask.equipped);
     assert_eq!(
-        brenna.equipped,
+        brenna.worn,
         [
             (EquipSlot::MainHand, "base:item:longsword".to_owned()),
             (EquipSlot::OffHand, "base:item:shield".to_owned()),
@@ -381,7 +381,7 @@ fn the_ops_expose_the_party_and_the_rules() {
     );
     let member = &party.members[0];
     assert_eq!(
-        (member.id, member.name.as_str(), member.race.as_str()),
+        (member.member, member.name.as_str(), member.race.as_str()),
         (world.party.members[0].id, "Brenna", "base:race:human")
     );
     assert_eq!(
@@ -393,7 +393,7 @@ fn the_ops_expose_the_party_and_the_rules() {
         ),
         ("base:class:fighter", 1, 12, 18)
     );
-    assert!(member.front && member.conditions.is_empty());
+    assert!(member.in_front && member.conditions.is_empty());
     let text = omnis_data::ron_io::to_string(&Reply::Party {
         party: party.clone(),
     })

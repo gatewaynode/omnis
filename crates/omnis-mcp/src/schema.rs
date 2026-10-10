@@ -152,10 +152,10 @@ fn item_schema() -> Value {
     json!({"oneOf": [
         variant("Equip", &[member.clone(), item.clone()]),
         variant("Unequip", &[member.clone(), ("slot", slot)]),
-        variant("Give", &[("from", member_id()), ("to", member_id()), item.clone(), count.clone()]),
+        variant("Give", &[("giver", member_id()), ("receiver", member_id()), item.clone(), count.clone()]),
         variant("Stow", &[member.clone(), item.clone(), count.clone()]),
         variant("Take", &[member.clone(), item.clone(), count]),
-        variant("Use", &[member, item, ("target", member_or_null())])
+        variant("Use", &[member, item, ("receiver", member_or_null())])
     ]})
 }
 
@@ -220,14 +220,14 @@ fn tactics_schema() -> Value {
 }
 
 /// The `Rest` command's variants, outside a service only: `Long` is the night (food, once a
-/// day); `Short` is an hour, `dice` the hit dice each named member spends (members not named
+/// day); `Short` is an hour, `spend` the hit dice each named member spends (members not named
 /// spend none, a member named twice is refused), rolled in marching order.
 fn rest_schema() -> Value {
-    let spend = json!({"type": "object", "properties": {"member": member_id(), "count": {"type": "integer", "minimum": 0, "maximum": 255}}, "required": ["member", "count"], "additionalProperties": false});
-    let dice = json!({"type": "array", "items": spend});
+    let entry = json!({"type": "object", "properties": {"member": member_id(), "count": {"type": "integer", "minimum": 0, "maximum": 255}}, "required": ["member", "count"], "additionalProperties": false});
+    let spend = json!({"type": "array", "items": entry});
     json!({"oneOf": [
         {"type": "string", "enum": ["Long"]},
-        variant("Short", &[("dice", dice)])
+        variant("Short", &[("spend", spend)])
     ]})
 }
 
@@ -248,7 +248,7 @@ impl Schema for Command {
                 {"type": "object", "properties": {"Combat": {"oneOf": [
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
                     {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": String::schema(), "target": target(), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
-                    variant("Use", &[("item", String::schema()), ("target", member_or_null())]),
+                    variant("Use", &[("item", String::schema()), ("receiver", member_or_null())]),
                     {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
                     {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
                     {"type": "object", "properties": {"Feature": {"type": "object", "properties": {"feature": String::schema(), "choice": {"oneOf": [
@@ -351,13 +351,13 @@ mod tests {
             json!(["spell", "target"])
         );
         assert_eq!(
-            combat[2]["properties"]["Use"]["properties"]["target"]["type"],
+            combat[2]["properties"]["Use"]["properties"]["receiver"]["type"],
             json!(["integer", "null"])
         );
         let item = &schema["properties"]["commands"]["items"]["oneOf"][7]["properties"]["Item"];
         assert_eq!(
             item["oneOf"][2]["properties"]["Give"]["required"],
-            json!(["from", "to", "item", "count"])
+            json!(["giver", "receiver", "item", "count"])
         );
         assert_eq!(Draft::schema()["required"].as_array().unwrap().len(), 6);
         assert_eq!(

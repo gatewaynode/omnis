@@ -23,7 +23,7 @@ pub struct RestView {
     /// Food in the stores.
     pub food: u32,
     /// Why the long rest would be refused, if it would.
-    pub long: Option<Rejection>,
+    pub long_refusal: Option<Rejection>,
 }
 
 /// One member at camp.
@@ -34,9 +34,9 @@ pub struct CampMember {
     /// Hit point maximum.
     pub hp_max: i32,
     /// Hit dice not yet spent.
-    pub dice_left: u8,
+    pub hit_dice_left: u8,
     /// Hit dice in all (one per level).
-    pub dice: u8,
+    pub hit_dice: u8,
     /// The hit die's sides.
     pub die: u8,
     /// How many a short rest may spend now: none when dead or at full hit points.
@@ -52,19 +52,19 @@ pub fn rest_view(world: &World, data: &Data) -> RestView {
         .members
         .iter()
         .map(|member| {
-            let dice_left = member.level.saturating_sub(member.hit_dice_spent);
+            let hit_dice_left = member.level.saturating_sub(member.hit_dice_spent);
             let hurt = member.hp < member.hp_max && !is_dead(member, data);
             CampMember {
                 hp: member.hp,
                 hp_max: member.hp_max,
-                dice_left,
-                dice: member.level,
+                hit_dice_left,
+                hit_dice: member.level,
                 die: rest::hit_die(data, member),
-                spendable: if hurt { dice_left } else { 0 },
+                spendable: if hurt { hit_dice_left } else { 0 },
             }
         })
         .collect();
-    let long = refusal.clone().or_else(|| {
+    let long_refusal = refusal.clone().or_else(|| {
         rest::too_soon(world, data, rest::long_rest_minutes(data))
             .and_then(|()| rest::food_needed(world, data).map(|_| ()))
             .err()
@@ -74,6 +74,6 @@ pub fn rest_view(world: &World, data: &Data) -> RestView {
         members,
         long_food: rest::food_need(world, data),
         food: world.party.food,
-        long,
+        long_refusal,
     }
 }

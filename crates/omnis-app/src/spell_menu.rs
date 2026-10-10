@@ -164,7 +164,7 @@ pub fn cast_rows(views: &Views, data: &Data) -> Vec<CastRow> {
                 .party
                 .members
                 .iter()
-                .find(|m| m.id == c.caster)
+                .find(|m| m.member == c.caster)
                 .map_or_else(String::new, |m| m.name.clone()),
             spell: c.spell.clone(),
             name: data.label("en", &c.name).to_owned(),

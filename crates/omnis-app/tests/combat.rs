@@ -168,7 +168,7 @@ fn a_potion_is_drunk_from_the_use_picker_by_mouse() {
     assert!(
         seen(&app).events[mark..].iter().any(|e| matches!(
             e,
-            Event::ItemUsed { member, target: Some(t), consumed: true, .. } if *member == user && *t == user
+            Event::ItemUsed { member, receiver: Some(t), consumed: true, .. } if *member == user && *t == user
         )),
         "{:?}",
         &seen(&app).events[mark..]

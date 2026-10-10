@@ -129,8 +129,8 @@ impl Pcg32 {
 /// One die's contribution to a roll.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DieRoll {
-    /// The stream's draw count when this die was rolled (zero-based index of the first draw).
-    pub index: u64,
+    /// The stream's draw count when this die was rolled (zero-based).
+    pub draw: u64,
     /// The generator's raw 32-bit output that produced the face.
     pub raw: u32,
     /// The face, `1..=sides`.
@@ -185,9 +185,9 @@ impl Dice {
         let mut rolls = Vec::with_capacity(usize::from(self.count));
         let mut total: i32 = self.modifier;
         for _ in 0..self.count {
-            let index = rng.draws();
+            let draw = rng.draws();
             let (raw, value) = roll_die(rng, u32::from(self.sides));
-            rolls.push(DieRoll { index, raw, value });
+            rolls.push(DieRoll { draw, raw, value });
             total = total.saturating_add(value as i32);
         }
         Ok(RollTrace {
@@ -301,7 +301,7 @@ mod tests {
         let mut rng = Pcg32::for_stream(3, &stream);
         let trace = Dice::new(3, 6).plus(2).roll(&mut rng, &stream).unwrap();
         assert_eq!(trace.rolls.len(), 3);
-        assert_eq!(trace.rolls[0].index, 0);
+        assert_eq!(trace.rolls[0].draw, 0);
         let faces: i32 = trace.rolls.iter().map(|r| r.value as i32).sum();
         assert_eq!(trace.total, faces + 2);
         assert!(trace.rolls.iter().all(|r| (1..=6).contains(&r.value)));

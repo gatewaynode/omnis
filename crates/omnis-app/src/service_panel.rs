@@ -132,7 +132,7 @@ pub fn offer_rows(view: &ServiceView, party: &PartyView, data: &Data) -> Vec<Off
 }
 
 fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, String) {
-    let member = |id: CharacterId| party.members.iter().find(|m| m.id == id);
+    let member = |id: CharacterId| party.members.iter().find(|m| m.member == id);
     match offer.command {
         ServiceCommand::Room => (String::new(), "A night's rest".to_owned()),
         ServiceCommand::Rumor => (String::new(), "A rumor".to_owned()),

@@ -586,7 +586,7 @@ fn the_protocol_reports_the_fight() {
     assert_eq!((combat.phase, combat.round), (ModeKind::Combat, 1));
     assert_eq!(combat.stacks.len(), 3);
     assert_eq!(combat.stacks[2].monster, "base:monster:skeleton");
-    assert!(combat.stacks[0].front && combat.stacks[1].front && !combat.stacks[2].front);
+    assert!(combat.stacks[0].in_front && combat.stacks[1].in_front && !combat.stacks[2].in_front);
     assert!(matches!(combat.current, Some(ActorRef::Member(_))));
     assert_eq!(combat.order.len(), 9);
     let text = to_string(&Reply::Combat {

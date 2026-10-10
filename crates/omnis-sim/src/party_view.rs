@@ -2,6 +2,7 @@
 //! kits and the stores as rows the item commands take.
 
 use crate::command::Rejection;
+use crate::names::id_of;
 use crate::party;
 use crate::rest;
 use crate::tactics::answers;
@@ -20,9 +21,9 @@ use serde::{Deserialize, Serialize};
 /// One party member as a client sees it: the sheet plus the derived numbers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemberView {
-    /// Stable identity, the `member` every command and event names; `PartyView.members` is in
-    /// marching order.
-    pub id: CharacterId,
+    /// The member's identity: what every command and event names it by. `PartyView.members`
+    /// is in marching order.
+    pub member: CharacterId,
     /// Display name.
     pub name: String,
     /// Race id.
@@ -46,7 +47,7 @@ pub struct MemberView {
     /// The six scores in SRD order.
     pub scores: [u8; 6],
     /// In the front row.
-    pub front: bool,
+    pub in_front: bool,
     /// Condition ids in effect.
     pub conditions: Vec<String>,
     /// At zero hit points.
@@ -63,7 +64,7 @@ pub struct MemberView {
     pub equipment: Vec<ItemView>,
     /// What is worn and wielded, by slot.
     #[serde(default)]
-    pub equipped: Vec<(EquipSlot, String)>,
+    pub worn: Vec<(EquipSlot, String)>,
     /// The effects on the member.
     #[serde(default)]
     pub effects: Vec<EffectView>,
@@ -247,12 +248,7 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
     }
 }
 
-/// A registry name, or `?` for an id no pack defines.
-fn name_of(name: Option<&str>) -> String {
-    name.unwrap_or("?").to_owned()
-}
-
-fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> MemberView {
+fn member_view(data: &Data, now: i64, member: &Character, in_front: bool) -> MemberView {
     let dead = condition_id(data, "dead");
     let class = data.classes.get(&member.class);
     let proficiency = proficiency_bonus(member.level, data).unwrap_or(2);
@@ -260,10 +256,10 @@ fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> Member
     let year =
         i64::from(calendar.minutes_per_day.max(1)) * i64::from(calendar.days_per_year.max(1));
     MemberView {
-        id: member.id,
+        member: member.id,
         name: member.name.clone(),
-        race: name_of(data.registry.races.name(member.race)),
-        class: name_of(data.registry.classes.name(member.class)),
+        race: id_of(&data.registry.races, member.race),
+        class: id_of(&data.registry.classes, member.class),
         level: member.level,
         xp: member.xp,
         hp: member.hp,
@@ -272,11 +268,11 @@ fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> Member
         spell_points_max: member.spell_points_max,
         ac: omnis_rules::armor_class(member, data),
         scores: member.scores,
-        front,
+        in_front,
         conditions: member
             .conditions
             .iter()
-            .map(|c| name_of(data.registry.conditions.name(*c)))
+            .map(|c| id_of(&data.registry.conditions, *c))
             .collect(),
         down: member.is_down(),
         dead: dead.is_some_and(|d| member.conditions.contains(&d)),
@@ -284,13 +280,13 @@ fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> Member
         spells: member
             .known_spells
             .iter()
-            .map(|s| name_of(data.registry.spells.name(*s)))
+            .map(|s| id_of(&data.registry.spells, *s))
             .collect(),
         equipment: item_views(data, &member.equipment, Some(&member.equipped)),
-        equipped: member
+        worn: member
             .equipped
             .iter()
-            .map(|(slot, id)| (*slot, name_of(data.registry.items.name(*id))))
+            .map(|(slot, id)| (*slot, id_of(&data.registry.items, *id)))
             .collect(),
         effects: effect_views(data, &member.effects, now),
         hit_dice: member.level,
@@ -298,7 +294,7 @@ fn member_view(data: &Data, now: i64, member: &Character, front: bool) -> Member
         spell_picks: member.spell_picks,
         ready: omnis_rules::ready(member, data).unwrap_or(false),
         tactics: tactics_view(data, member),
-        background: name_of(data.registry.backgrounds.name(member.background)),
+        background: id_of(&data.registry.backgrounds, member.background),
         alignment: member.alignment,
         age_years: i64::from(member.age_years) + (now - member.created_at).max(0) / year,
         proficiency,
@@ -375,8 +371,8 @@ fn tactics_view(data: &Data, member: &Character) -> TacticsView {
 fn action_name(data: &Data, action: &ActionRef) -> String {
     match action {
         ActionRef::Attack => "attack".to_owned(),
-        ActionRef::Spell(id) => name_of(data.registry.spells.name(*id)),
-        ActionRef::Item(id) => name_of(data.registry.items.name(*id)),
+        ActionRef::Spell(id) => id_of(&data.registry.spells, *id),
+        ActionRef::Item(id) => id_of(&data.registry.items, *id),
         ActionRef::Feature(name) => name.clone(),
     }
 }
@@ -387,7 +383,7 @@ fn item_views(data: &Data, list: &[(ItemId, u16)], equipped: Option<&Equipped>) 
         .map(|(id, count)| {
             let def = data.items.get(id);
             ItemView {
-                item: name_of(data.registry.items.name(*id)),
+                item: id_of(&data.registry.items, *id),
                 name: def.map_or_else(|| "?".to_owned(), |d| d.name.clone()),
                 count: *count,
                 slot: def.and_then(|d| d.slot()),
@@ -403,7 +399,7 @@ fn effect_views(data: &Data, effects: &[ActiveEffect], now: i64) -> Vec<EffectVi
     effects
         .iter()
         .map(|e| EffectView {
-            spell: name_of(data.registry.spells.name(e.source)),
+            spell: id_of(&data.registry.spells, e.source),
             caster: e.caster,
             minutes_left: match e.until {
                 Expiry::Minute(m) => Some((m - now).max(0)),

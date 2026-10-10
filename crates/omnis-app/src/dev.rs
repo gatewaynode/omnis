@@ -211,7 +211,7 @@ mod tests {
             Some(ScriptStep::Play(word)) => world.word(&data, &word),
             other => panic!("{other:?}"),
         };
-        let cleric = world.views(&data).party.members[1].id;
+        let cleric = world.views(&data).party.members[1].member;
         assert_eq!(
             word("heal-1"),
             Some(Command::Service(ServiceCommand::Heal { member: cleric })),

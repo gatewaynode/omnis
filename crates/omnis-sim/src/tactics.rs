@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 pub enum TacticsCommand {
     /// Switch the member's reactions on or off; any time, in a fight too.
     SetReactions {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// On or off.
         on: bool,

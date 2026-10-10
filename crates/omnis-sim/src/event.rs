@@ -473,7 +473,7 @@ pub enum Event {
         /// Which item.
         item: String,
         /// Whom it went to, when it went to someone.
-        target: Option<CharacterId>,
+        receiver: Option<CharacterId>,
         /// Whether a count was spent.
         consumed: bool,
     },

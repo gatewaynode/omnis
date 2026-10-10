@@ -306,7 +306,7 @@ fn the_party_view_and_status_carry_the_town_and_rest() {
         &mut world,
         &data,
         Command::Rest(RestCommand::Short {
-            dice: vec![HitDiceSpend {
+            spend: vec![HitDiceSpend {
                 member: id,
                 count: 1,
             }],

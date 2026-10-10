@@ -234,7 +234,7 @@ impl Views {
     /// the commands name members by.
     #[must_use]
     pub fn member_id(&self, slot: usize) -> Option<CharacterId> {
-        self.party.members.get(slot).map(|m| m.id)
+        self.party.members.get(slot).map(|m| m.member)
     }
 
     /// Every view of `world`, read through the engine's API only.

@@ -140,7 +140,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
     let view = views.combat.as_ref()?;
     let party = &views.party;
     let own = match view.current {
-        Some(ActorRef::Member(id)) => party.members.iter().position(|m| m.id == id),
+        Some(ActorRef::Member(id)) => party.members.iter().position(|m| m.member == id),
         _ => None,
     };
     let stacks = view
@@ -149,20 +149,20 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         .map(|s| StackRow {
             index: s.stack,
             name: data.label("en", &s.name).to_owned(),
-            count: u8::try_from(s.hp.len()).unwrap_or(u8::MAX),
+            count: u8::try_from(s.hps.len()).unwrap_or(u8::MAX),
             initial: s.initial,
             size: defs::monster(data, &s.monster).map_or(Size::Medium, |m| m.size),
-            front: s.front,
+            front: s.in_front,
             alive: s.alive,
             blocked: s.refusal.as_ref().map(ToString::to_string),
         })
         .collect();
     let caster = own.and_then(|i| party.members.get(i));
-    let fighter = caster.and_then(|c| view.members.iter().find(|m| m.member == c.id));
+    let fighter = caster.and_then(|c| view.members.iter().find(|m| m.member == c.member));
     let reactions_left = caster.map_or(0, |c| {
         view.reactions
             .iter()
-            .find(|(actor, _)| *actor == ActorRef::Member(c.id))
+            .find(|(actor, _)| *actor == ActorRef::Member(c.member))
             .map_or(0, |(_, left)| *left)
     });
     let spells = view
@@ -177,7 +177,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
                 .iter()
                 .flat_map(|m| m.effects.iter())
                 .chain(party.effects.iter())
-                .any(|e| e.spell == s.spell && e.caster == caster.id);
+                .any(|e| e.spell == s.spell && e.caster == caster.member);
             Some(SpellRow {
                 spell: s.spell.clone(),
                 name: data.label("en", &s.name).to_owned(),
@@ -194,7 +194,7 @@ pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
         phase: view.phase,
         round: view.round,
         own,
-        ids: party.members.iter().map(|m| m.id).collect(),
+        ids: party.members.iter().map(|m| m.member).collect(),
         disposition: view.disposition,
         stacks,
         bribe: view.bribe,

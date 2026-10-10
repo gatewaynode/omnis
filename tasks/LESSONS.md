@@ -110,7 +110,7 @@
 
 ## 2026-09-27 — A restart must not leave a tree that cannot run
 - **What happened**: Continuity for a client restart was written with step 3b's data rule (every portal needs a marker) uncommitted in the tree, before any pack had markers. The app built but refused the test pack at start; two `bad_packs` tests failed. The owner launched it, saw a crash, and could not tell whether the tests had been run.
-- **Rule**: Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is stashed (`git stash push -m "<step> WIP: ..."`), and the continuity note says which, with the stash name.
+- **Rule** (revised 2026-10-10, see below): Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is committed as a labelled WIP commit, and the continuity note says which, with the commit.
 - **Rule**: A validation rule that the shipped packs cannot yet meet lands in the same change as the data that meets it, never ahead of it.
 
 ## 2026-10-02 — A rule break counts only when a named test fails
@@ -150,3 +150,21 @@
   run use `run_in_background` and wait for its notification.
 - **Rule**: After any mutation run, grep the sources for each break's new text (or `git diff` against the
   last known state) before testing, committing or editing further.
+
+## 2026-10-10 — A new wire name is checked against the whole vocabulary first
+- **What happened**: Renaming protocol 2's colliding fields, I gave `ItemCommand::Use`'s potion recipient the
+  name `on`, which `SetReactions.on` and `ReactionsSwitched.on` already carry as a bool. The vocabulary test
+  caught it after a 45-minute gate. I had also missed `CombatCommand::Use.target`, the same field in the fight.
+- **Rule**: Before proposing a wire field name, grep the wire types for it (`grep -rn "\bname:" crates/omnis-sim/src
+  crates/omnis-core/src`) and run the vocabulary test (`cargo test -p omnis-mcp --test vocabulary`, seconds)
+  before the full gate. A rename covers every sibling with the same meaning (the command outside a fight and in
+  one, and the event it raises).
+
+## 2026-10-10 — Unfinished work is committed, not stashed, before a restart
+- **What happened**: Before the owner restarted the terminal (and pushed), I stashed P2d's ungated work, as the
+  2026-09 rule said. Owner: "Don't stash, we need to capture this work." A stash is local only: the push would
+  not carry it, and nothing outside this machine would hold it.
+- **Rule**: Unfinished work before a restart, compact or push is committed by name as its own commit whose
+  subject says `WIP` and whose body says it has not passed the full gate and what has passed. The next commit
+  completes it; nothing is squashed or amended once the owner may have pushed. Never stash work the owner has
+  not seen committed.

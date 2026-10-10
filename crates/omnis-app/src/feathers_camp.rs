@@ -234,7 +234,7 @@ pub fn sync(
     for (entity, control, disabled, slider) in &controls {
         let dim = match control.0 {
             UiId::Camp(CampPanelId::Short) => view.refusal.is_some() || !shown.form.spends(),
-            UiId::Camp(CampPanelId::Long) => view.long.is_some(),
+            UiId::Camp(CampPanelId::Long) => view.long_refusal.is_some(),
             UiId::Camp(CampPanelId::Dice(slot)) => {
                 let wanted = f32::from(shown.form.dice.get(slot).copied().unwrap_or(0));
                 if slider.map(|s| s.0) != Some(wanted) {
@@ -271,9 +271,9 @@ pub(crate) fn reports(
             continue;
         };
         *synced = false;
-        let ids: Vec<_> = views
-            .as_deref()
-            .map_or_else(Vec::new, |v| v.party.members.iter().map(|m| m.id).collect());
+        let ids: Vec<_> = views.as_deref().map_or_else(Vec::new, |v| {
+            v.party.members.iter().map(|m| m.member).collect()
+        });
         match model::apply(id, &report.payload, view, &ids, form) {
             Some(CampAsk::Rest(rest)) => {
                 out.write(PlayerCommand(Command::Rest(rest)));

@@ -190,7 +190,13 @@ fn short_rest(world: &mut World, data: &Data, play: Play, clear: &mut Clear) {
     if dice.is_empty() {
         return;
     }
-    if apply(world, data, Command::Rest(RestCommand::Short { dice })).is_err() {
+    if apply(
+        world,
+        data,
+        Command::Rest(RestCommand::Short { spend: dice }),
+    )
+    .is_err()
+    {
         return;
     }
     if matches!(world.mode, Mode::Encounter(_)) {

@@ -168,8 +168,8 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .find(|i| i["item"] == json!("base:item:potion_of_healing"))
         .unwrap_or_else(|| panic!("{member}"));
     assert_eq!(potion["usable"], json!(true));
-    assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
-    let id = member["id"].clone();
+    assert_eq!(member["worn"][0][0], json!("MainHand"), "{member}");
+    let id = member["member"].clone();
     assert!(
         id.is_u64(),
         "a member is named by its CharacterId: {member}"
@@ -184,7 +184,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         12,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": id, "item": potion["item"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": potion["item"], "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -208,7 +208,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         14,
         "sim_command",
-        json!({"command": {"Combat": {"Use": {"item": "base:item:potion_of_healing", "target": null}}}}),
+        json!({"command": {"Combat": {"Use": {"item": "base:item:potion_of_healing", "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
     assert_eq!(
@@ -234,7 +234,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         17,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": id, "item": glass["item"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": glass["item"], "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -258,7 +258,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(11, "party_get", json!({}));
     let member = &reply["result"]["structuredContent"]["party"]["members"][0];
     assert_eq!(member["name"], json!("Ilvara"));
-    let ilvara = member["id"].clone();
+    let ilvara = member["member"].clone();
     assert!(ilvara.is_u64(), "{member}");
     let light = member["spells"][1].clone();
     assert!(
@@ -359,7 +359,7 @@ fn service_get_reads_a_shop_and_screen_text_needs_the_window() {
     let reply = server.tool(4, "sim_command", json!({"command": "Interact"}));
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let reply = server.tool(5, "service_get", json!({}));
-    let view = &reply["result"]["structuredContent"]["service"];
+    let view = &reply["result"]["structuredContent"]["view"];
     assert_eq!(view["service"], json!("base:service:smith"), "{reply}");
     let buy = &view["offers"][0];
     assert_eq!(

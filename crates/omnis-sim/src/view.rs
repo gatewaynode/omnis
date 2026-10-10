@@ -31,11 +31,11 @@ pub struct StackView {
     /// How many there were.
     pub initial: u8,
     /// Hit points of the living, in order.
-    pub hp: Vec<i32>,
+    pub hps: Vec<i32>,
     /// Armor class.
     pub ac: u8,
     /// Whether it stands in front.
-    pub front: bool,
+    pub in_front: bool,
     /// Whether anyone in it still stands.
     pub alive: bool,
     /// Whether the member whose turn it is can reach it.
@@ -81,19 +81,19 @@ pub struct FeatureView {
     /// Its name key: the `feature` that `Feature` takes and a declared action names it by.
     pub feature: String,
     /// What it costs from the turn's budget.
-    pub cost: Cost,
+    pub pay: Cost,
     /// Uses left before a rest; `None` at will.
     pub uses_left: Option<u8>,
     /// Why it cannot be used now, if it cannot (`NotYourTurn` off the member's turn; Cunning
     /// Action is judged by its Hide).
     pub blocked: Option<Rejection>,
     /// The ways the `Feature` command may use it: `Plain` alone, or Cunning Action's `Exchange`
-    /// (which names a member's slot) and `Hide`.
+    /// (which names a member by identity) and `Hide`.
     #[serde(default)]
     pub choices: Vec<ChoiceKind>,
 }
 
-/// The shape of a [`FeatureChoice`], without the slot an exchange names.
+/// The shape of a [`FeatureChoice`], without the member an exchange names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChoiceKind {
     /// `FeatureChoice::None`: the feature does its one thing.
@@ -271,7 +271,7 @@ fn fighter_view(
             };
             FeatureView {
                 feature: feature.name.clone(),
-                cost: feature.cost,
+                pay: feature.cost,
                 uses_left: uses_left(member, feature),
                 blocked,
                 choices,
@@ -318,7 +318,7 @@ fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> V
         .collect()
 }
 
-fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: bool) -> StackView {
+fn stack_view(data: &Data, stack: &Stack, index: u8, in_front: bool, reachable: bool) -> StackView {
     let monster = data.monsters.get(&stack.monster);
     StackView {
         stack: index,
@@ -330,9 +330,9 @@ fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: boo
             .to_owned(),
         name: monster.map_or_else(|| "?".to_owned(), |m| m.name.clone()),
         initial: stack.initial,
-        hp: stack.hp.clone(),
+        hps: stack.hp.clone(),
         ac: monster.map_or(0, |m| m.ac),
-        front,
+        in_front,
         alive: stack.alive(),
         reachable,
         points_left: points_of(data, stack),

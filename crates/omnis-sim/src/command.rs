@@ -113,24 +113,24 @@ pub enum Rejection {
     BadOrder,
     /// The fight is not waiting on a member, or not on a living one.
     NotYourTurn,
-    /// No stack has that index.
+    /// No stack has that number.
     NoSuchStack {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// Nobody in that stack still stands.
     StackDead {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// A front-row member without a ranged weapon cannot reach a stack behind the front.
     OutOfReach {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// A back-row member needs a ranged weapon to attack at all.
     NeedsRangedWeapon,
-    /// No member has that slot.
+    /// No member has that identity.
     NoSuchMember {
         /// The member asked for.
         member: CharacterId,

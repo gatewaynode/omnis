@@ -52,11 +52,11 @@ pub fn item_line(event: &Event, names: &Names) -> Option<Line> {
             })
         }
         // A look has no target; `Sensed` follows and is the line.
-        Event::ItemUsed { target: None, .. } => return None,
+        Event::ItemUsed { receiver: None, .. } => return None,
         Event::ItemUsed {
             member,
             item,
-            target,
+            receiver: target,
             ..
         } => {
             let who = names.member(*member);
@@ -142,7 +142,7 @@ mod tests {
             line(&Event::ItemUsed {
                 member: brenna,
                 item: potion.to_owned(),
-                target: Some(gorm),
+                receiver: Some(gorm),
                 consumed: true
             }),
             "Brenna uses Potion of healing on Gorm"
@@ -151,7 +151,7 @@ mod tests {
             line(&Event::ItemUsed {
                 member: brenna,
                 item: potion.to_owned(),
-                target: Some(brenna),
+                receiver: Some(brenna),
                 consumed: true
             }),
             "Brenna uses Potion of healing"
@@ -160,7 +160,7 @@ mod tests {
         let looked = Event::ItemUsed {
             member: brenna,
             item: "base:item:spyglass".to_owned(),
-            target: None,
+            receiver: None,
             consumed: false,
         };
         assert!(

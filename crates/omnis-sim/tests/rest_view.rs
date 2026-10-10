@@ -40,7 +40,7 @@ fn answer(world: &World, data: &Data, command: RestCommand) -> Result<(), Reject
 /// A short rest spending `count` of the dice of the member in slot `index`.
 fn dice(world: &World, index: usize, count: u8) -> RestCommand {
     RestCommand::Short {
-        dice: vec![HitDiceSpend {
+        spend: vec![HitDiceSpend {
             member: world.party.members[index].id,
             count,
         }],
@@ -55,7 +55,7 @@ fn agreed(world: &World, data: &Data) -> RestView {
     assert_eq!(*world, before, "reading the view changed the world");
     assert_eq!(
         answer(world, data, RestCommand::Long).err(),
-        view.long,
+        view.long_refusal,
         "the long rest"
     );
     assert_eq!(view.food, world.party.food);
@@ -63,13 +63,15 @@ fn agreed(world: &World, data: &Data) -> RestView {
     assert_eq!(view.members.len(), members);
     if let Some(why) = &view.refusal {
         assert_eq!(
-            answer(world, data, RestCommand::Short { dice: Vec::new() }),
+            answer(world, data, RestCommand::Short { spend: Vec::new() }),
             Err(why.clone())
         );
         return view;
     }
     for (index, member) in view.members.iter().enumerate() {
-        assert!(member.spendable <= member.dice_left && member.dice_left <= member.dice);
+        assert!(
+            member.spendable <= member.hit_dice_left && member.hit_dice_left <= member.hit_dice
+        );
         assert!([6, 8, 10, 12].contains(&member.die), "{member:?}");
         if member.spendable > 0 {
             assert_eq!(
@@ -94,7 +96,10 @@ fn the_view_agrees_with_the_command_in_every_state() {
     let mut world = at(&data, 3, "meadow", 16, 16);
     let fresh = agreed(&world, &data);
     assert_eq!(fresh.refusal, None);
-    assert_eq!(fresh.long, None, "a first night with food is allowed");
+    assert_eq!(
+        fresh.long_refusal, None,
+        "a first night with food is allowed"
+    );
     assert_eq!(fresh.long_food, 3, "one each");
     assert!(
         fresh.members.iter().all(|m| m.spendable == 0),
@@ -106,7 +111,7 @@ fn the_view_agrees_with_the_command_in_every_state() {
     world.party.members[1].hit_dice_spent = world.party.members[1].level;
     kill(&mut world, &data, 2);
     let hurt = agreed(&world, &data);
-    assert_eq!(hurt.members[0].spendable, hurt.members[0].dice_left);
+    assert_eq!(hurt.members[0].spendable, hurt.members[0].hit_dice_left);
     assert!(hurt.members[0].spendable > 0);
     assert_eq!(hurt.members[1].spendable, 0, "no dice left");
     assert_eq!(hurt.members[2].spendable, 0, "the dead spend none");
@@ -114,14 +119,14 @@ fn the_view_agrees_with_the_command_in_every_state() {
 
     world.party.food = 1;
     assert_eq!(
-        agreed(&world, &data).long,
+        agreed(&world, &data).long_refusal,
         Some(Rejection::NoFood { need: 2, have: 1 })
     );
 
     world.party.food = 10;
     apply(&mut world, &data, Command::Rest(RestCommand::Long)).unwrap();
     assert_eq!(
-        agreed(&world, &data).long,
+        agreed(&world, &data).long_refusal,
         Some(Rejection::RestTooSoon { minutes: 960 })
     );
 }
@@ -134,7 +139,7 @@ fn no_rest_inside_a_service_or_a_fight() {
     assert!(matches!(world.mode, Mode::Town(_)));
     let inside = agreed(&world, &data);
     assert_eq!(inside.refusal, Some(Rejection::WrongMode));
-    assert_eq!(inside.long, Some(Rejection::WrongMode));
+    assert_eq!(inside.long_refusal, Some(Rejection::WrongMode));
 
     let mut world = at(&data, 2, "meadow", 16, 16);
     let retreat = world.position;

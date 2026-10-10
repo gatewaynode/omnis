@@ -158,7 +158,7 @@ impl CombatMenu {
         let command = match &row.kind {
             UseKind::Item { item, .. } => CombatCommand::Use {
                 item: item.clone(),
-                target: selected.and_then(|s| view.ids.get(s).copied()),
+                receiver: selected.and_then(|s| view.ids.get(s).copied()),
             },
             UseKind::Feature {
                 feature, choice, ..
@@ -267,7 +267,7 @@ mod tests {
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Use {
                 item: POTION.to_owned(),
-                target: Some(world.party.members[0].id)
+                receiver: Some(world.party.members[0].id)
             }))
         );
         assert_eq!(menu.use_picker, None, "a use closes the picker");
@@ -277,7 +277,7 @@ mod tests {
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Use {
                 item: POTION.to_owned(),
-                target: None
+                receiver: None
             })),
             "no selection: the user"
         );

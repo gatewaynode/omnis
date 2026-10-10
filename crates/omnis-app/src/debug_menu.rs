@@ -77,7 +77,7 @@ pub fn debug_view(views: &Views, data: &Data) -> DebugView {
         .members
         .iter()
         .map(|m| MemberDebug {
-            id: m.id,
+            id: m.member,
             name: m.name.clone(),
             hp: (m.hp, m.hp_max),
             sp: (m.spell_points, m.spell_points_max),
@@ -127,8 +127,8 @@ pub fn debug_view(views: &Views, data: &Data) -> DebugView {
             .map(|s| StackDebug {
                 index: s.stack,
                 name: data.label("en", &s.name).to_owned(),
-                count: (u8::try_from(s.hp.len()).unwrap_or(u8::MAX), s.initial),
-                lead_hp: s.hp.first().copied().unwrap_or(0),
+                count: (u8::try_from(s.hps.len()).unwrap_or(u8::MAX), s.initial),
+                lead_hp: s.hps.first().copied().unwrap_or(0),
             })
             .collect()
     });

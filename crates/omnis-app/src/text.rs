@@ -79,7 +79,7 @@ impl Names {
     /// Learn the current members and, while monsters stand there, the current stacks.
     pub fn refresh(&mut self, views: &Views, data: &Data) {
         for member in &views.party.members {
-            self.members.insert(member.id, member.name.clone());
+            self.members.insert(member.member, member.name.clone());
         }
         if let Some(combat) = &views.combat {
             self.stacks = combat

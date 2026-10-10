@@ -116,14 +116,14 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
         Command::Item(ItemCommand::Use {
             member: brenna,
             item: row,
-            target: None,
+            receiver: None,
         }),
     )
     .unwrap();
     assert!(events.contains(&Event::ItemUsed {
         member: brenna,
         item: "base:item:spyglass".to_owned(),
-        target: None,
+        receiver: None,
         consumed: false,
     }));
     assert_eq!(count_of(&world.party.members[0].equipment, glass), 1);
@@ -204,7 +204,7 @@ fn the_best_eyes_look_and_a_source_without_a_die_reaches_the_whole_ray() {
     let use_it = Command::Item(ItemCommand::Use {
         member: brenna,
         item: row,
-        target: None,
+        receiver: None,
     });
     let events = apply(&mut world, &data, use_it.clone()).unwrap();
     assert!(events.iter().any(|e| matches!(

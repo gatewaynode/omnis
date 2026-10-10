@@ -60,7 +60,7 @@ pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
         .stacks
         .iter()
         .filter(|s| s.alive)
-        .max_by_key(|s| s.hp.len())
+        .max_by_key(|s| s.hps.len())
         .map(|s| s.stack);
     let front = view.stacks.iter().find(|s| s.alive).map(|s| s.stack);
     let effect = |spell: &str| {
@@ -320,7 +320,7 @@ fn ambush_over_seeds() {
     let rests = 3000u64;
     for (label, command) in [
         ("long", RestCommand::Long),
-        ("short", RestCommand::Short { dice: Vec::new() }),
+        ("short", RestCommand::Short { spend: Vec::new() }),
     ] {
         let mut ambushes = 0u64;
         for seed in 0..rests {

@@ -313,7 +313,7 @@ pub enum Reply {
     Automap {
         /// The map id.
         map: String,
-        /// Known tiles in row-major order.
+        /// Known tiles, column by column (`x`, then `y`).
         tiles: Vec<KnownTile>,
     },
     /// `map.text`.
@@ -348,8 +348,8 @@ pub enum Reply {
     },
     /// `service.get`.
     Service {
-        /// The service.
-        service: ServiceView,
+        /// The service's view.
+        view: ServiceView,
     },
     /// `time.clocks`.
     Time {
@@ -526,7 +526,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
             .map(|combat| Reply::Combat { combat })
             .ok_or(OpError::NoEncounter),
         Op::ServiceGet => service_view(world, data)
-            .map(|service| Reply::Service { service })
+            .map(|view| Reply::Service { view })
             .ok_or(OpError::NoService),
         Op::RestGet => Ok(Reply::Rest {
             rest: rest_view(world, data),

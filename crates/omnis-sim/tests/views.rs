@@ -99,7 +99,7 @@ fn the_view_shows_the_budget_and_each_feature_s_uses_and_cost() {
     let rows: Vec<_> = brenna
         .features
         .iter()
-        .map(|f| (f.feature.as_str(), f.cost, f.uses_left, f.blocked.clone()))
+        .map(|f| (f.feature.as_str(), f.pay, f.uses_left, f.blocked.clone()))
         .collect();
     assert_eq!(
         rows,
@@ -431,7 +431,7 @@ fn cunning_action_shows_open_on_the_rogue_s_turn_at_will() {
         .find(|f| f.feature == "base:text:class.rogue.cunning_action")
         .unwrap_or_else(|| panic!("{pip:?}"));
     assert_eq!(
-        (cunning.cost, cunning.uses_left, cunning.blocked.clone()),
+        (cunning.pay, cunning.uses_left, cunning.blocked.clone()),
         (Cost::BonusAction, None, None),
         "SRD: a bonus action, at will"
     );

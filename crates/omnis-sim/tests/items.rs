@@ -159,8 +159,8 @@ fn unequip(member: u8, slot: EquipSlot) -> Command {
 
 fn give(from: u8, to: u8, item: &str, count: u16) -> Command {
     Command::Item(ItemCommand::Give {
-        from: id(from),
-        to: id(to),
+        giver: id(from),
+        receiver: id(to),
         item: item.to_owned(),
         count,
     })
@@ -186,7 +186,7 @@ fn use_on(member: u8, item: &str, target: Option<u8>) -> Command {
     Command::Item(ItemCommand::Use {
         member: id(member),
         item: item.to_owned(),
-        target: target.map(id),
+        receiver: target.map(id),
     })
 }
 
@@ -454,7 +454,7 @@ fn a_potion_gets_a_downed_member_up_and_is_spent() {
             *e == Event::ItemUsed {
                 member: brenna,
                 item: "base:item:potion_of_healing".to_owned(),
-                target: Some(durin),
+                receiver: Some(durin),
                 consumed: true,
             }
         })
@@ -485,7 +485,7 @@ fn a_potion_gets_a_downed_member_up_and_is_spent() {
     let events = apply(&mut world, &data, use_on(1, &row, None)).unwrap();
     assert!(events.iter().any(|e| matches!(
         e,
-        Event::ItemUsed { member, target: Some(t), consumed: true, .. } if *member == durin && *t == durin
+        Event::ItemUsed { member, receiver: Some(t), consumed: true, .. } if *member == durin && *t == durin
     )));
     assert!(world.party.members[1].hp > 1);
     assert_eq!(count_of(&world.party.members[1].equipment, potion), 0);
@@ -586,7 +586,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         Word::parse(&format!("use-item-{at}-m1")).and_then(|w| w.command(&world, &data)),
         Some(Command::Combat(CombatCommand::Use {
             item: "base:item:spyglass".to_owned(),
-            target: Some(durin),
+            receiver: Some(durin),
         }))
     );
     refused(
@@ -594,7 +594,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         &data,
         Command::Combat(CombatCommand::Use {
             item: glass_row.clone(),
-            target: None,
+            receiver: None,
         }),
         Rejection::NotUsableHere,
     );
@@ -615,7 +615,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
         &data,
         Command::Combat(CombatCommand::Use {
             item: row,
-            target: None,
+            receiver: None,
         }),
     )
     .unwrap();
@@ -625,7 +625,7 @@ fn a_potion_in_a_fight_is_the_turn_and_a_spyglass_is_not_used_there() {
             *e == Event::ItemUsed {
                 member: brenna,
                 item: "base:item:potion_of_healing".to_owned(),
-                target: Some(brenna),
+                receiver: Some(brenna),
                 consumed: true,
             }
         })
@@ -661,7 +661,7 @@ fn the_item_words_parse_and_print() {
     );
     let used = Command::Combat(CombatCommand::Use {
         item: "base:item:potion_of_healing".to_owned(),
-        target: Some(CharacterId(1)),
+        receiver: Some(CharacterId(1)),
     });
     assert_eq!(used.word(), "use-item");
     assert_eq!(

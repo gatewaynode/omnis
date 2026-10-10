@@ -417,3 +417,20 @@ fn an_offer_names_the_item_or_spell_its_row_is() {
         .all(|o| o.refusal != Some(Rejection::WrongMode));
     assert!(refused);
 }
+
+/// A number no pack names reads `#n` in the party view as it does in events and every other
+/// view (protocol 2, `names::id_of`); it read `?`, a second spelling of the same thing.
+#[test]
+fn a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 1);
+    world.party.members[0]
+        .known_spells
+        .push(omnis_core::SpellId(999));
+    let view = omnis_sim::party_view(&world, &data);
+    assert_eq!(
+        view.members[0].spells.last().map(String::as_str),
+        Some("#999")
+    );
+}

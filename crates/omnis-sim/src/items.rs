@@ -34,24 +34,24 @@ pub enum ItemCommand {
     /// Wear or wield a carried item; what the slot held stays carried. Armor takes
     /// `don_armor_minutes`.
     Equip {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The item's id; the member's kit must hold it.
         item: String,
     },
     /// Empty a slot; the item stays carried. Armor takes `don_armor_minutes` to doff too.
     Unequip {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// Which slot.
         slot: EquipSlot,
     },
     /// Hand items from one member's kit to another's.
     Give {
-        /// The giver's slot.
-        from: CharacterId,
-        /// The receiver's slot.
-        to: CharacterId,
+        /// The giver.
+        giver: CharacterId,
+        /// The receiver.
+        receiver: CharacterId,
         /// The item's id; the giver's kit must hold it.
         item: String,
         /// How many; at least one.
@@ -59,7 +59,7 @@ pub enum ItemCommand {
     },
     /// Put items from a member's kit into the party's stores.
     Stow {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The item's id; the member's kit must hold it.
         item: String,
@@ -68,22 +68,22 @@ pub enum ItemCommand {
     },
     /// Take items from the stores into a member's kit.
     Take {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The item's id; the stores must hold it.
         item: String,
         /// How many; at least one.
         count: u16,
     },
-    /// Use a carried item, for `use_item_minutes`: a potion heals `target`, or the user when
+    /// Use a carried item, for `use_item_minutes`: a potion heals `receiver`, or the user when
     /// none is named. A consumable loses one count.
     Use {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The item's id; the member's kit must hold it.
         item: String,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<CharacterId>,
+        receiver: Option<CharacterId>,
     },
 }
 
@@ -131,15 +131,15 @@ pub(crate) fn apply(
         ItemCommand::Equip { member, ref item } => equip(world, data, member, item, events),
         ItemCommand::Unequip { member, slot } => unequip(world, data, member, slot, events),
         ItemCommand::Give {
-            from,
-            to,
+            giver,
+            receiver,
             ref item,
             count,
         } => {
-            if from == to {
+            if giver == receiver {
                 return Err(Rejection::SameMember);
             }
-            let (from, to) = (member_index(world, from)?, member_index(world, to)?);
+            let (from, to) = (member_index(world, giver)?, member_index(world, receiver)?);
             let route = (Place::Kit(from), Place::Kit(to));
             transfer(world, data, route, item, count, events)
         }
@@ -164,10 +164,10 @@ pub(crate) fn apply(
         ItemCommand::Use {
             member,
             ref item,
-            target,
+            receiver,
         } => {
             let own = actor(world, data, member)?;
-            let plan = validate_use(world, data, own, item, target, false)?;
+            let plan = validate_use(world, data, own, item, receiver, false)?;
             let (stream, minutes) = match &plan.kind {
                 UseKind::Heal(_) => (
                     "items",
@@ -437,7 +437,7 @@ pub(crate) fn use_item(
     events.push(Event::ItemUsed {
         member: user.id,
         item: id_of(&data.registry.items, plan.item),
-        target: heals.then_some(target),
+        receiver: heals.then_some(target),
         consumed: plan.consumable,
     });
     match &plan.kind {

@@ -58,13 +58,13 @@ pub enum CombatCommand {
         /// The item's id (`base:item:potion_of_healing`); the acting member's kit must hold it.
         item: String,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<CharacterId>,
+        receiver: Option<CharacterId>,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
     /// Swap marching-order slots with another member.
     Exchange {
-        /// The other member's slot.
+        /// The other member.
         with: CharacterId,
     },
     /// Try to get away; the whole party leaves on success.
@@ -104,7 +104,7 @@ pub enum FeatureChoice {
     None,
     /// Cunning Action: swap with the member in this slot, provoking nothing.
     Exchange {
-        /// The other member's slot.
+        /// The other member.
         with: CharacterId,
     },
     /// Cunning Action: hide.
@@ -365,9 +365,9 @@ fn validate(
                 weapon: weapon_for(state, world, data, own, stack)?,
             }
         }
-        CombatCommand::Use { item, target } => {
-            Plan::Use(items::validate_use(world, data, own, &item, target, true)?)
-        }
+        CombatCommand::Use { item, receiver } => Plan::Use(items::validate_use(
+            world, data, own, &item, receiver, true,
+        )?),
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {
             let index = usize::from(world.party.slot_of(with)?);

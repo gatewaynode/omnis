@@ -102,9 +102,9 @@ pub fn apply(
                 .filter(|(count, _)| **count > 0)
                 .map(|(&count, &member)| HitDiceSpend { member, count })
                 .collect();
-            Some(CampAsk::Rest(RestCommand::Short { dice }))
+            Some(CampAsk::Rest(RestCommand::Short { spend: dice }))
         }
-        (CampPanelId::Long, Payload::Activate) if view.long.is_none() => {
+        (CampPanelId::Long, Payload::Activate) if view.long_refusal.is_none() => {
             Some(CampAsk::Rest(RestCommand::Long))
         }
         (CampPanelId::Close, Payload::Activate) => Some(CampAsk::Close),
@@ -120,7 +120,7 @@ pub fn member_line(view: &RestView, party: &PartyView, slot: usize) -> String {
     };
     format!(
         "{}  HP {}/{} · Hit dice {}/{} d{}",
-        character.name, member.hp, member.hp_max, member.dice_left, member.dice, member.die
+        character.name, member.hp, member.hp_max, member.hit_dice_left, member.hit_dice, member.die
     )
 }
 
@@ -130,7 +130,7 @@ pub fn dice_note(view: &RestView, form: &CampForm, slot: usize) -> String {
     let Some(member) = view.members.get(slot) else {
         return String::new();
     };
-    match (member.spendable, member.dice_left) {
+    match (member.spendable, member.hit_dice_left) {
         (0, 0) => "no hit dice left".to_owned(),
         (0, _) if member.hp >= member.hp_max => "unhurt".to_owned(),
         (0, _) => "cannot spend".to_owned(),
@@ -153,7 +153,7 @@ pub fn food_line(view: &RestView) -> String {
 /// What the long rest gives, or why it would be refused.
 #[must_use]
 pub fn long_note(view: &RestView) -> String {
-    view.long.as_ref().map_or_else(
+    view.long_refusal.as_ref().map_or_else(
         || "eight hours: full hit points and spell points, half the hit dice back".to_owned(),
         reason,
     )
@@ -181,8 +181,8 @@ mod tests {
         CampMember {
             hp,
             hp_max: 12,
-            dice_left,
-            dice: 3,
+            hit_dice_left: dice_left,
+            hit_dice: 3,
             die: 10,
             spendable,
         }
@@ -194,7 +194,7 @@ mod tests {
             members: vec![member(5, 2, 2), member(12, 3, 0), member(4, 0, 0)],
             long_food: 3,
             food: 7,
-            long: None,
+            long_refusal: None,
         }
     }
 
@@ -241,7 +241,7 @@ mod tests {
                 &mut form
             ),
             Some(CampAsk::Rest(RestCommand::Short {
-                dice: vec![HitDiceSpend {
+                spend: vec![HitDiceSpend {
                     member: IDS[0],
                     count: 1
                 }]
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn a_refused_rest_sends_nothing() {
         let mut refused = view();
-        refused.long = Some(Rejection::NoFood { need: 3, have: 1 });
+        refused.long_refusal = Some(Rejection::NoFood { need: 3, have: 1 });
         let mut form = CampForm {
             dice: vec![1, 0, 0],
             message: String::new(),
@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(dice_note(&view, &form, 2), "no hit dice left");
         assert_eq!(food_line(&view), "The night eats 3 food; the stores hold 7");
         let mut soon = view.clone();
-        soon.long = Some(Rejection::RestTooSoon { minutes: 605 });
+        soon.long_refusal = Some(Rejection::RestTooSoon { minutes: 605 });
         assert_eq!(long_note(&soon), "rested too recently (10h 05m)");
         assert_eq!(
             shape(&view),

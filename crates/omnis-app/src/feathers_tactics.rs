@@ -456,7 +456,7 @@ pub(crate) fn reports(
         let ids: Vec<CharacterId> = shown
             .party
             .as_ref()
-            .map_or_else(Vec::new, |p| p.members.iter().map(|m| m.id).collect());
+            .map_or_else(Vec::new, |p| p.members.iter().map(|m| m.member).collect());
         let Some(view) = shown.view().cloned() else {
             continue;
         };

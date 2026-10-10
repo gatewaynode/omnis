@@ -55,17 +55,17 @@ pub enum ServiceCommand {
     },
     /// A living member back to full hit points; a temple.
     Heal {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
     },
     /// Every condition but death and unconsciousness removed; a temple.
     Cure {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
     },
     /// A dead member back at one hit point; a temple.
     Raise {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
     },
     /// Items from the stock into the party's stores; a smith.
@@ -94,19 +94,19 @@ pub enum ServiceCommand {
     },
     /// The member's next level, for a fee; a trainer.
     Train {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
     },
     /// A spell owed by a level onto the member's list, free; a trainer.
     Choose {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The spell's id; the member's class list must hold it.
         spell: String,
     },
     /// A spell bought onto the member's list; a guild or a temple.
     Learn {
-        /// The member's slot.
+        /// The member.
         member: CharacterId,
         /// The spell's id; the service must teach it.
         spell: String,
