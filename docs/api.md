@@ -87,14 +87,14 @@ lists shortened with `...`).
 
 ```text
 > {"id":1,"op":"game.status"}
-< {"id":1,"ok":true,"result":{"clock":{"day":0,"elapsed":0,"era":0,"minute":0},"date":{"day":0,"era":0,"minute":0,"minutes":0,"night":true,"year":0},"fingerprint":"3412d45a770d0c6b","groups_cleared":[0,0],"map":"test:map:town","may_save":true,"mode":"Explore","packs":[{"hash":10297398543596196832,"id":"base","version":"0.1.0"},{"hash":9493551322087149983,"id":"test","version":"0.1.0"}],"position":{"facing":"West","map":3,"x":10,"y":2},"protocol":1,"reply":"status","seed":1,"service":null,"settings":{"devtools":true,"permadeath":false,"save_rule":"Anywhere"},"turn":0}}
+< {"id":1,"ok":true,"result":{"clock":{"day":0,"elapsed":0,"era":0,"minute":0},"date":{"day":0,"era":0,"minute":0,"minutes":0,"night":true,"year":0},"fingerprint":"3412d45a770d0c6b","groups_cleared":[0,0],"may_save":true,"mode":"Explore","packs":[{"hash":10297398543596196832,"id":"base","version":"0.1.0"},{"hash":9493551322087149983,"id":"test","version":"0.1.0"}],"position":{"facing":"West","map":"test:map:town","x":10,"y":2},"protocol":2,"reply":"status","seed":1,"service":null,"settings":{"devtools":true,"permadeath":false,"save_rule":"Anywhere"},"turn":0}}
 
 > {"id":3,"op":"party.create","args":{"character":{"name":"Wren","race":"base:race:human","class":"base:class:cleric","background":"base:background:acolyte","alignment":"LawfulGood","scores":[15,14,13,12,10,8],"skills":["History","Medicine"]}}}
 < {"id":3,"ok":true,"result":{"events":["PartyChanged",{"Visible":{"tiles":[{"depth":0,"offset":0,"x":10,"y":2}, ...]}}],"reply":"events"}}
 
 > {"id":4,"op":"sim.command","args":{"command":{"Turn":"Left"}}}
 > {"id":5,"op":"sim.command","args":{"command":{"Step":"Forward"}}}
-< {"id":5,"ok":true,"result":{"events":[{"Moved":{"from":{"facing":"South","map":3,"x":10,"y":2},"to":{"facing":"South","map":3,"x":10,"y":3}}},{"TimeAdvanced":{"day_rolled":false,"holder":{"Party":0},"minutes":1}},{"Visible":{"tiles":[...]}}],"reply":"events"}}
+< {"id":5,"ok":true,"result":{"events":[{"Moved":{"from":{"facing":"South","map":"test:map:town","x":10,"y":2},"to":{"facing":"South","map":"test:map:town","x":10,"y":3}}},{"TimeAdvanced":{"day_rolled":false,"holder":"party:0","minutes":1}},{"Visible":{"tiles":[...]}}],"reply":"events"}}
 
 > {"id":6,"op":"sim.command","args":{"command":{"Encounter":"Attack"}}}
 < {"error":{"kind":"Rejected","rejection":"WrongMode"},"id":6,"ok":false}
@@ -103,15 +103,16 @@ lists shortened with `...`).
 < {"error":{"kind":"NoEncounter"},"id":11,"ok":false}
 ```
 
-An attack in a fight, showing roll traces:
+An attack in a fight, showing roll traces (the first hit in the golden fight replay,
+`crates/omnis-sim/tests/replays/fight.ron`):
 
 ```json
-{"AttackResolved":{"ac":15,"attacker":{"Member":0},"crit":false,"hit":true,
-  "roll":{"bonus":null,"face":11,"mode":"Normal","modifier":3,"proficiency":2,"total":16,
-          "trace":{"dice":{"count":1,"modifier":0,"sides":20},"rolls":[{"index":7,"raw":2187878670,"value":11}],"stream":"combat","total":11}},
+{"AttackResolved":{"ac":12,"attacker":{"Member":0},"crit":false,"hit":true,
+  "roll":{"bonus":null,"face":17,"mode":"Normal","modifier":3,"proficiency":2,"total":22,
+          "trace":{"dice":{"count":1,"modifier":0,"sides":20},"rolls":[{"draw":7,"raw":3255901076,"value":17}],"stream":"combat","total":17}},
   "target":{"Monster":{"index":0,"stack":0}}}}
-{"Damage":{"adjust":"None","amount":9,"kind":"Slashing","raw":9,
-  "rolls":[{"dice":{"count":1,"modifier":0,"sides":8},"rolls":[{"index":8,"raw":1739936317,"value":6}],"stream":"combat","total":6}],
+{"Damage":{"adjust":"None","amount":8,"kind":"Slashing","raw":8,
+  "rolls":[{"dice":{"count":1,"modifier":0,"sides":8},"rolls":[{"draw":8,"raw":3380988940,"value":5}],"stream":"combat","total":5}],
   "target":{"Monster":{"index":0,"stack":0}}}}
 ```
 
@@ -123,7 +124,7 @@ All JSON is serde's derived form of the Rust types; field names are the Rust fie
 rejections alike (ARCHITECTURE.md §4.9):
 
 1. **A member is named by its `CharacterId`** wherever it appears: `member`, `caster`, `with`,
-   `giver`, `receiver`, `on`; `{"Member": id}` in `Target`, `ActorRef`, `EffectTarget` and
+   `giver`, `receiver`; `{"Member": id}` in `Target`, `ActorRef`, `EffectTarget` and
    `ItemPlace`; `Reorder.order`. No command addresses a marching-order slot, so a command means
    the same member after a reorder. `MemberView.member` is the id to send.
 2. **A definition is named by its string id** (`pack:kind:name`; a feature by its name key)

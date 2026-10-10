@@ -62,3 +62,13 @@ the fix) and the fixing commit. Newest last.
 - **Test**: `ops.rs::the_host_ops_rules_hold_for_every_host` (red before the fix: `BadRequest`). `omnis-cli/tests/headless.rs::rules_set_changes_the_pool_without_a_rebuild` had pinned the
   old answer and now expects `UnknownSlot`.
 - **Fixed in**: M8 step 8f.
+
+## B6 — The party view printed `?` for a number no pack names (review, protocol 2 P2d, 2026-10-10)
+- **Report**: found in review while naming definitions by string id (protocol 2): every event and view printed a
+  registry number no pack names as `#n` (`names::id_of`), but `party_view` printed `?` for an unnamed race,
+  class, background, condition, spell or item, so one id read two ways depending on where it appeared.
+- **Cause**: `party_view` kept its own `name_of` helper from before `names::id_of` existed.
+- **Fix**: `party_view` names every definition through `names::id_of`; `name_of` is gone.
+- **Test**: `omnis-sim/tests/api_views.rs::a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere`
+  (a spell id 999 in the known list reads `#999`; with the spell line put back to `?` it fails: `Some("?")`).
+- **Fixed in**: `4ecb1d6` (P2d WIP).

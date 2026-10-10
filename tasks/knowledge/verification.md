@@ -36,8 +36,11 @@ the shared helpers with `use crate::common;`). Run one file's tests with
 `scripts/check-test-modules.sh` fails the gate on a file no target runs. Why: macOS holds every newly linked executable about 20 s on its first launch (the
 owner's log: the kernel refuses the linker's ad hoc signature, about 10 s pass before Gatekeeper's
 scan, then XProtect never answers and Gatekeeper cancels it after 10 s), and the Developer Tools
-exemption did not lift it for iTerm2. 72 test binaries became 23; the test step went from about
-38 min to 549 s on a full rebuild.
+exemption did not lift it for iTerm2 at first. 72 test binaries became 23; the test step went from about
+38 min to 549 s on a full rebuild. Lifted 2026-10-10 after the owner restarted iTerm2 with it listed
+under Developer Tools: a freshly relinked `omnis-bus` test binary and a never-seen scratch binary both
+launch in 0.00 s the first time, from this session too. Measure a first launch with a binary whose
+bytes are new (a touch can relink to identical bytes); if the wait returns, check that entry first.
 
 ## Sentrux
 `rescan` then `check_rules` before every commit. A `scan` does not count untracked files (seen
@@ -70,8 +73,12 @@ repository root (the root has no rules file).
   ignored `capture_schema_N_fixture` before the schema moved on. Content ids are interned in
   file order, so a new map or spell file renumbers those after it: the fixtures (loaded with
   `force`) name the dungeon by their own id, `FIXTURE_DUNGEON` (M7b).
-- The API (ARCHITECTURE §4.9): `ops::PROTOCOL` 1, reported by `game.status`; every `Reply` tagged `reply`,
+- The API (ARCHITECTURE §4.9): `ops::PROTOCOL` 2 (`omnis-sim/src/ops.rs`), reported by `game.status`; every `Reply` tagged `reply`,
   each variant round-tripped through JSON from a live headless world in `omnis-mcp/tests/replies.rs` (17).
+  Protocol 2's names are held by `omnis-mcp/tests/vocabulary.rs`: `every_key_on_the_wire_has_one_meaning`
+  reads every key from the schema proof's command instances, a town service and both golden replays (with
+  every view after each command); `the_vocabulary_catches_a_name_that_drifted` plants breaks and asserts
+  each finding by message. Seconds to run: run it after any wire change, before the gate.
 - MCP: 24 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
   `omnis-cli`'s schema dump, 24, in `omnis-cli/tests/headless.rs`); the hand-written
   `Command` schema has `oneOf` 11, combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,

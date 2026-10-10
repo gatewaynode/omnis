@@ -51,7 +51,8 @@ old saves only).
 
 ## omnis-sim
 - Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Service, Rest, Dev}`,
-  words and `parse_script`, `Rejection` with `fmt_play`/`fmt_items`/`fmt_magic`), `apply.rs`
+  `Rejection` with `fmt_play`/`fmt_items`/`fmt_magic`), `word.rs` (script words: `Word`, `parse_script`,
+  `Word::command(world, data)` turns a slot or a list row into an identity when applied), `apply.rs`
   (`match (mode, command)`; `advance()` is the only clock writer; effects pruned there),
   `event.rs` (ids and roll traces only; `ItemPlace`, `LayerCheck`, `SensedTile`).
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
@@ -64,7 +65,8 @@ old saves only).
   (the HUD clock line), `text::ago_text` (a rumor's age).
 - The engine's API (ARCHITECTURE §4.9, M8 step 8): `api.rs` re-exports exactly the contract; `ops.rs` (`PROTOCOL`,
   `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
-  `save_text`, `load_text`, `check_reload`, `rules_set`); the views `query::here`, `party_view.rs`, `view.rs`,
+  `save_text`, `load_text`, `check_reload`, `rules_set`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
+  number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-app/src/socket.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
@@ -93,7 +95,7 @@ old saves only).
   has `bank`, `last_long_rest`, `long_rest_wait`; `MemberView` `hit_dice`, `hit_dice_left`,
   `spell_picks`, `ready`; `Status.service`, `Status.groups_cleared` (`encounter::groups_cleared`:
   the map's `once` groups cleared, of how many). Script words
-  with numbers: `command.rs::parse_town` (`buy-R-N`, `heal-M`, `short-rest-A-B`, …).
+  with numbers: `word.rs::parse_town` (`buy-R-N`, `heal-M`, `short-rest-A-B`, …).
 - Rest (M7 step 5): `rest.rs` (`RestCommand`, `apply`: `check_dice` or `too_soon` and
   `food_needed`, then `ambush_after`, `rest_events` and `roll_hit_dice` on copies of the
   `encounter` and `rest` streams, then the changes; `long_rest_restore` and `too_soon` are the
@@ -239,8 +241,15 @@ old saves only).
   `tests/tactics.rs` for the tactics panel.
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: twenty tools, the hand-written `Command`
+`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 24 tools, the hand-written `Command`
 schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
+`omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant), `replies.rs`, `schema_proof.rs`,
+`vocabulary.rs` (protocol 2: one meaning per JSON key across commands, rejections, events and views),
+`common/commands.rs` (the schema proof's `Command` instances, shared with the vocabulary test).
+
+Tests: each crate's `tests/main.rs` declares its test files as modules of one `integration` binary, with
+the helpers in `tests/common/`; `omnis-app` `socket`, `omnis-cli` `headless` and `omnis-sim` `measure` are
+their own binaries (verification.md, "Test binaries").
 `bake.rs`: `BakeSpec.key` (colour key for `Object` crops), `SurfaceSpec.size` in tiles,
 `surface_texture`, `standee` (an `Object` upright at the tile's centre).

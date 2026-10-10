@@ -156,7 +156,7 @@
   name `on`, which `SetReactions.on` and `ReactionsSwitched.on` already carry as a bool. The vocabulary test
   caught it after a 45-minute gate. I had also missed `CombatCommand::Use.target`, the same field in the fight.
 - **Rule**: Before proposing a wire field name, grep the wire types for it (`grep -rn "\bname:" crates/omnis-sim/src
-  crates/omnis-core/src`) and run the vocabulary test (`cargo test -p omnis-mcp --test vocabulary`, seconds)
+  crates/omnis-core/src`) and run the vocabulary test (`cargo test -p omnis-mcp --test integration vocabulary::`, seconds)
   before the full gate. A rename covers every sibling with the same meaning (the command outside a fight and in
   one, and the event it raises).
 
