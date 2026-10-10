@@ -5,20 +5,20 @@ use crate::common;
 
 use bevy::prelude::*;
 use common::app::{app, set};
+use omnis_vector::screen::ControlId;
 use omnis_vector::shell::controls::Action;
-use omnis_vector::shell::fight::fallen;
-use omnis_vector::shell::notice::Order;
+use omnis_vector::shell::screen::Pressable;
 use omnis_vector::shell::session::Session;
 
 /// The orders of the notice's buttons that can be pressed, in screen order.
-fn enabled(app: &mut App) -> Vec<Order> {
+fn enabled(app: &mut App) -> Vec<Pressable> {
     let world = app.world_mut();
-    let mut query = world.query_filtered::<&Order, With<Button>>();
-    query.iter(world).cloned().collect()
+    let mut query = world.query_filtered::<&Pressable, With<Button>>();
+    query.iter(world).copied().collect()
 }
 
-fn press(app: &mut App, order: &Order) {
-    set(app, order, Interaction::Pressed);
+fn press(app: &mut App, control: &Pressable) {
+    set(app, control, Interaction::Pressed);
     app.update();
 }
 
@@ -33,10 +33,11 @@ fn a_fallen_party_is_offered_a_fresh_start() {
             member.hp = 0;
         }
         session.refresh();
-        assert!(fallen(&session.views));
+        assert!(session.views.fallen());
     }
     app.update();
-    assert_eq!(enabled(&mut app), vec![Order::Restart]);
+    let start_again = Pressable(ControlId::StartAgain);
+    assert_eq!(enabled(&mut app), vec![start_again]);
     // A fallen party does not walk.
     set(&mut app, &Action::Forward, Interaction::Pressed);
     for _ in 0..30 {
@@ -44,10 +45,10 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     }
     set(&mut app, &Action::Forward, Interaction::None);
     assert_eq!(app.world().resource::<Session>().world.position, start);
-    press(&mut app, &Order::Restart);
+    press(&mut app, &start_again);
     app.update();
     let session = app.world().resource::<Session>();
-    assert!(!fallen(&session.views));
+    assert!(!session.views.fallen());
     let town = common::map(&session.data, "test:map:town");
     let (p, facing) = (session.world.position, omnis_sim::omnis_core::Facing::West);
     assert_eq!(

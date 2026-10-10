@@ -18,8 +18,8 @@ use omnis_vector::shell::{
     hud::HudPlugin,
     minimap::MinimapPlugin,
     movement::MovementPlugin,
-    panel::PanelPlugin,
     render::RenderPlugin,
+    screen::ScreenPlugin,
 };
 use std::time::Duration;
 
@@ -91,7 +91,7 @@ fn main() -> AppExit {
         RenderPlugin,
         HudPlugin,
         ControlsPlugin,
-        PanelPlugin,
+        ScreenPlugin,
         MinimapPlugin,
         CinemaPlugin,
         CombatPlugin,

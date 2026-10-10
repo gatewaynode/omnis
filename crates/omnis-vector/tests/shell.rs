@@ -151,8 +151,8 @@ fn the_hud_reports_a_smoothed_frame_rate_and_frame_time() {
 fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
     use omnis_sim::omnis_core::{Direction, Rotation};
     use omnis_sim::{Command, Mode, ServiceCommand};
-    use omnis_vector::shell::notice::Order;
-    use omnis_vector::shell::panel::current;
+    use omnis_vector::screen::{self, ControlId, ScreenId};
+    use omnis_vector::shell::screen::{Pressable, Screens, ctx};
     // The game's start: the street at (10, 2) facing West, the guild's door to the north.
     let mut app = common::app::app_with(".omnis/vector-session.ron".into(), 1);
     app.update();
@@ -164,25 +164,32 @@ fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
         assert!(matches!(session.world.mode, Mode::Town(_)), "in the guild");
     }
     app.update();
-    let leave = Order::Command(Command::Service(ServiceCommand::Leave));
+    let top = |app: &App| {
+        let session = app.world().resource::<Session>();
+        app.world().resource::<Screens>().nav.top(&session.views)
+    };
+    assert_eq!(top(&app), Some(ScreenId::Service));
     {
         let session = app.world().resource::<Session>();
-        let shown = current(session, false).expect("the town notice");
-        assert!(
-            shown.lines[0].contains("not in this client yet"),
-            "{shown:?}"
-        );
-        assert_eq!(shown.choices.len(), 1);
-        assert_eq!(shown.choices[0].order, leave);
+        let shown = screen::content(ScreenId::Service, &ctx(session));
+        let first = &shown.panels[0].rows[0].spans[0].text;
+        assert!(first.contains("not in this client yet"), "{shown:?}");
+        let ids: Vec<_> = shown.controls().map(|c| c.id).collect();
+        assert_eq!(ids, [ControlId::Leave]);
     }
-    set(&mut app, &leave, Interaction::Pressed);
+    let _ = ServiceCommand::Leave;
+    set(&mut app, &Pressable(ControlId::Leave), Interaction::Pressed);
     app.update();
     let session = app.world().resource::<Session>();
     assert!(
         matches!(session.world.mode, Mode::Explore),
         "back on the street"
     );
-    assert_eq!(current(session, false), None, "the notice closed");
+    assert_eq!(
+        app.world().resource::<Screens>().nav.top(&session.views),
+        None,
+        "the notice closed"
+    );
 }
 
 /// The views the shell reads are the world's at the end of every frame: walking, a door, monsters

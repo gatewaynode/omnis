@@ -3,7 +3,7 @@
 
 use super::capture::Offscreen;
 use super::movement::{Intent, LookInput, look};
-use super::panel::Showing;
+use super::screen::Showing;
 use super::session::Session;
 use super::{VectorSet, ViewState};
 use crate::geom::EYE_HEIGHT;

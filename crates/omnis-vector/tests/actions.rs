@@ -10,10 +10,10 @@ use common::app::{app, key, set};
 use common::map;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_vector::pose::Pose;
-use omnis_vector::shell::actions::{Menu, available, menu};
+use omnis_vector::screen::actions::available;
+use omnis_vector::screen::{self, ControlId, ScreenId};
 use omnis_vector::shell::controls::Action;
-use omnis_vector::shell::notice::Order;
-use omnis_vector::shell::panel::{Showing, current};
+use omnis_vector::shell::screen::{Pressable, Screens, Showing, ctx};
 use omnis_vector::shell::session::Session;
 
 fn tap(app: &mut App, code: KeyCode) {
@@ -31,7 +31,10 @@ fn shift_space(app: &mut App) {
 }
 
 fn open(app: &App) -> bool {
-    app.world().resource::<Menu>().open
+    app.world()
+        .resource::<Screens>()
+        .nav
+        .is_open(ScreenId::Actions)
 }
 
 /// An app with the party at the dungeon's (3, 5), facing the closed door on its south side.
@@ -61,10 +64,14 @@ fn door_open(app: &App) -> bool {
 }
 
 fn labels(app: &App) -> Vec<String> {
+    if !open(app) {
+        return Vec::new();
+    }
     let session = app.world().resource::<Session>();
-    current(session, open(app))
-        .map(|n| n.choices.into_iter().map(|c| c.label).collect())
-        .unwrap_or_default()
+    screen::content(ScreenId::Actions, &ctx(session))
+        .controls()
+        .map(|c| c.label.clone())
+        .collect()
 }
 
 #[test]
@@ -114,14 +121,14 @@ fn shift_space_with_nothing_to_do_opens_the_menu_saying_so() {
     {
         let session = app.world().resource::<Session>();
         assert!(available(&session.world, &session.data).is_empty());
-        let shown = menu(&session.world, &session.data);
-        assert_eq!(shown.lines, ["Nothing to do here"]);
+        let shown = screen::content(ScreenId::Actions, &ctx(session));
+        assert_eq!(shown.panels[0].rows[0].spans[0].text, "Nothing to do here");
     }
     shift_space(&mut app);
     assert!(open(&app));
     assert_eq!(labels(&app), ["Close"]);
     // The Close button closes it.
-    set(&mut app, &Order::Close, Interaction::Pressed);
+    set(&mut app, &Pressable(ControlId::Close), Interaction::Pressed);
     app.update();
     assert!(!open(&app));
     assert_eq!(app.world().resource::<Session>().binder.refusals, 0);

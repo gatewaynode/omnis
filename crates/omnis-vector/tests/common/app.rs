@@ -14,7 +14,7 @@ use omnis_vector::shell::ShellPlugin;
 use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
-use omnis_vector::shell::panel::PanelPlugin;
+use omnis_vector::shell::screen::ScreenPlugin;
 use omnis_vector::shell::session::{Config, Session};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -93,7 +93,7 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
         ShellPlugin,
         MovementPlugin,
         ControlsPlugin,
-        PanelPlugin,
+        ScreenPlugin,
         CombatPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(

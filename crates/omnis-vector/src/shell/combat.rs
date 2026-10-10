@@ -61,7 +61,8 @@ impl Plugin for CombatPlugin {
             .init_resource::<FightScreen>()
             .add_systems(OnEnter(ViewState::Fight), (enter, give_way::<true>))
             .add_systems(OnExit(ViewState::Fight), (leave, give_way::<false>))
-            .add_systems(Update, track.in_set(VectorSet::Input))
+            // After the frame's orders, so the switch follows the order that caused it.
+            .add_systems(Update, track.in_set(VectorSet::Move))
             .add_systems(
                 Update,
                 (input, refresh, hover)
@@ -130,7 +131,7 @@ fn give_way<const FIGHT: bool>(
 }
 
 /// The window's size in logical pixels: the window's, the capture's, or a headless default.
-fn size(window: Option<&Window>, capture: Option<&CaptureSize>) -> (f32, f32) {
+pub(super) fn size(window: Option<&Window>, capture: Option<&CaptureSize>) -> (f32, f32) {
     #[allow(clippy::cast_precision_loss)]
     match (window, capture) {
         (Some(w), _) => (w.width(), w.height()),
@@ -177,10 +178,8 @@ fn input(
     {
         act = Some(entry.act);
     }
+    // Esc steps the menu back through the screens' router (`Nav::escape`).
     let mut command = act.and_then(|a| screen.menu.choose(&a));
-    if keys.just_pressed(KeyCode::Escape) {
-        screen.menu.back();
-    }
     if command.is_none()
         && mouse.just_pressed(MouseButton::Left)
         && let Some(point) = window.single().ok().and_then(Window::cursor_position)

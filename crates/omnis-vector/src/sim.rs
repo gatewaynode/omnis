@@ -213,4 +213,11 @@ impl Views {
     pub fn exploring(&self) -> bool {
         self.here.mode == ModeKind::Explore
     }
+
+    /// Whether the party can no longer fight: every member is down, dead or incapacitated (or
+    /// none is left). A fallen party walks no further (`screen::defeat`).
+    #[must_use]
+    pub fn fallen(&self) -> bool {
+        !self.party.members.iter().any(|m| m.can_fight)
+    }
 }

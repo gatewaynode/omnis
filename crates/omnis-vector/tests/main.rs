@@ -13,5 +13,6 @@ mod fight;
 mod labels;
 mod minimap;
 mod rolllog;
+mod screens;
 mod shell;
 mod socket;

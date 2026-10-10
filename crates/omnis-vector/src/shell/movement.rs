@@ -1,7 +1,6 @@
 //! Input to intent, and intent through the binder (presentation-ARCHITECTURE.md §6).
 
 use super::VectorSet;
-use super::fight::fallen;
 use super::session::Session;
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
@@ -139,7 +138,7 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
     #[allow(clippy::cast_precision_loss)]
     let speed = BASE_SPEED / terrain_minutes as f32;
     let yaw = yaw_delta(&mut intent, dt);
-    if fallen(&session.views) {
+    if session.views.fallen() {
         // The notice offers a restart; a fallen party does not walk on.
         intent.motion = Motion::default();
     }

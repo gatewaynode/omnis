@@ -3,9 +3,11 @@
 //! a test can set.
 
 use super::VectorSet;
-use super::actions::Menu;
 use super::movement::Intent;
+use super::screen::Screens;
 use super::session::Session;
+use crate::screen::ScreenId;
+use crate::style::{Role, SHADES as SHADE_RGB};
 use bevy::prelude::*;
 use core::f32::consts::FRAC_PI_2;
 
@@ -68,14 +70,14 @@ const PAD: [&[Action]; 2] = [
 /// The other actions, bottom right, away from the pad so a slip off Back cannot quit.
 const SIDE: [&[Action]; 1] = [&[Action::Actions, Action::SaveLog, Action::Quit]];
 
-/// The HUD's green.
-pub const GREEN: Color = Color::srgb(0.55, 1.0, 0.65);
-/// A button at rest, hovered and pressed; opaque, so the lines behind never cross a label.
-pub const SHADES: [Color; 3] = [
-    Color::srgb(0.0, 0.08, 0.03),
-    Color::srgb(0.05, 0.25, 0.1),
-    Color::srgb(0.15, 0.5, 0.2),
-];
+/// The interface role's colour (`style::Role::Interface`).
+pub const GREEN: Color = srgb(Role::Interface.rgb());
+/// A button at rest, hovered and pressed (`style::SHADES`).
+pub const SHADES: [Color; 3] = [srgb(SHADE_RGB[0]), srgb(SHADE_RGB[1]), srgb(SHADE_RGB[2])];
+
+const fn srgb([r, g, b]: [f32; 3]) -> Color {
+    Color::srgb(r, g, b)
+}
 
 /// The movement pad, bottom left, and the other actions, bottom right.
 pub struct ControlsPlugin;
@@ -87,8 +89,8 @@ impl Plugin for ControlsPlugin {
     }
 }
 
-/// The colour of a button that cannot be pressed now.
-const DIM: Color = Color::srgb(0.25, 0.4, 0.3);
+/// The colour of a button that cannot be pressed now (`style::Role::Dim`).
+const DIM: Color = srgb(Role::Dim.rgb());
 
 /// A button: a bordered box with a label, carrying `marker`. A disabled one is drawn dim and
 /// takes no clicks (it has no `Button`), so what cannot be done is still shown.
@@ -177,7 +179,7 @@ fn press(
     buttons: Query<(Ref<Interaction>, &Action)>,
     mut intent: ResMut<Intent>,
     mut session: ResMut<Session>,
-    mut menu: ResMut<Menu>,
+    mut screens: ResMut<Screens>,
     mut exit: MessageWriter<AppExit>,
 ) {
     for (interaction, &action) in &buttons {
@@ -200,7 +202,7 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
-            Action::Actions => menu.open = !menu.open,
+            Action::Actions => screens.nav.toggle(ScreenId::Actions, &session.views),
             Action::SaveLog => {
                 let line = match session.save_log() {
                     Ok(path) => format!("Log saved to {}", path.display()),

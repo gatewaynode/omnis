@@ -1,33 +1,32 @@
 //! The Bevy shell: wiring only. `MovementPlugin` runs headless; `RenderPlugin` and
 //! `HudPlugin` need a window.
 
-pub mod actions;
 pub mod capture;
 pub mod cinema;
 pub mod combat;
 pub mod controls;
-pub mod fight;
 pub mod host;
 pub mod hud;
 pub mod minimap;
 pub mod movement;
-pub mod notice;
-pub mod panel;
 pub mod render;
+pub mod screen;
 pub mod screen_text;
 pub mod session;
 #[cfg(feature = "devtools")]
 pub mod socket;
 pub mod text;
-pub mod town;
 
 use bevy::prelude::*;
 
-/// The frame's order: cursor grab, input, movement through the binder, drawing.
+/// The frame's order: cursor grab, the screens (their presses and keys, then drawing them),
+/// input, movement through the binder, drawing.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VectorSet {
     /// The cursor is grabbed or released.
     Grab,
+    /// The top screen routes its input and is drawn (`shell/screen.rs`).
+    Screens,
     /// Keys, mouse and buttons become intent.
     Input,
     /// Intent moves the pose through the binder.
@@ -56,6 +55,7 @@ impl Plugin for ShellPlugin {
             Update,
             (
                 VectorSet::Grab,
+                VectorSet::Screens,
                 VectorSet::Input,
                 VectorSet::Move,
                 VectorSet::Draw,

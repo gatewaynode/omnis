@@ -18,7 +18,7 @@ use omnis_vector::shell::ViewState;
 use omnis_vector::shell::cinema::Screen;
 use omnis_vector::shell::combat::{Choose, FightRoot, FightScreen};
 use omnis_vector::shell::controls::Corner;
-use omnis_vector::shell::panel::Showing;
+use omnis_vector::shell::screen::Showing;
 use omnis_vector::shell::session::Session;
 
 fn view(app: &App) -> ViewState {
