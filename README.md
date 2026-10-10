@@ -41,7 +41,8 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-data` | The pack loader: RON data files, text, rules, tilesets; the only crate that reads files |
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
-| `omnis-app` | The game: Bevy 0.19.1, a pixel canvas, menus, the dev socket |
+| `omnis-vector` | The game client: Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`alt-PRD.md`) |
+| `omnis-app` | The previous client: a pixel canvas, menus, saves, town services, the dev socket; retired once `omnis-vector` matches it |
 | `omnis-cli` | Headless subcommands: validate, replay, play, map text, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 
@@ -56,12 +57,19 @@ The toolchain is pinned by `rust-toolchain.toml`. Dev builds carry the `devtools
 dev socket, `Dev` commands, the debug panel); a release build turns it off.
 
 ```sh
-just run                                     # the same as the next line; flags pass through (`just run --window medium`)
-cargo run -p omnis-app                       # fullscreen on the current monitor
+just run                                     # the vector client, the same as the next line; flags pass through
+cargo run -p omnis-vector                    # fullscreen; --windowed, --monitor N, --seed 7, --pack DIR
+just run-app                                 # the previous client (cargo run -p omnis-app); flags pass through
 cargo run -p omnis-app -- --window medium    # windowed: small, medium, large, huge
 cargo run -p omnis-app -- --pack packs/base --seed 7 --save .omnis/quick.ron
 cargo build -p omnis-app --release --no-default-features
+cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
 ```
+
+The vector client is the game going forward (`alt-PRD.md`, `alt-ARCHITECTURE.md`). It walks,
+opens doors and fights; character creation, saves, town services, inventory and the dev socket
+are still in `omnis-app` until the vector client matches it screen by screen (`tasks/TODO.md`,
+"Vector adoption"). What follows describes `omnis-app`.
 
 Every action has a button or menu item; the keys are shortcuts. While exploring, the arrows or the
 pad move, and the tool pad offers ITEMS, SPELLS, SHEET, LOOK, MAP and MENU (keys I, C, P, L, M,
