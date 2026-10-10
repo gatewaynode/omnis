@@ -7,13 +7,17 @@ pub mod cinema;
 pub mod combat;
 pub mod controls;
 pub mod fight;
+pub mod host;
 pub mod hud;
 pub mod minimap;
 pub mod movement;
 pub mod notice;
 pub mod panel;
 pub mod render;
+pub mod screen_text;
 pub mod session;
+#[cfg(feature = "devtools")]
+pub mod socket;
 pub mod text;
 pub mod town;
 

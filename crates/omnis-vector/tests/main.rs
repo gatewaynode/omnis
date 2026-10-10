@@ -13,3 +13,4 @@ mod fight;
 mod minimap;
 mod rolllog;
 mod shell;
+mod socket;

@@ -1,5 +1,7 @@
 //! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--monitor N] [--log PATH]`.
+//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--monitor N] [--log PATH]`
+//! `[--screenshot PATH [--walk N] [--size WxH]]`, and with feature `devtools`
+//! `[--dev-socket IP:PORT | --no-dev-socket]`.
 
 use bevy::app::ScheduleRunnerPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
@@ -76,6 +78,11 @@ fn main() -> AppExit {
             }),
             ..default()
         }));
+    }
+    // The dev socket serves a window; the offscreen capture runs alone.
+    #[cfg(feature = "devtools")]
+    if let (Some(addr), None) = (config.dev_socket.clone(), &config.screenshot) {
+        app.add_plugins(omnis_vector::shell::socket::DevSocketPlugin { addr, ..default() });
     }
     app.insert_resource(session).add_plugins((
         FrameTimeDiagnosticsPlugin::default(),

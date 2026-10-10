@@ -33,6 +33,8 @@ pub struct Config {
     pub walk: u32,
     /// The capture's size in pixels.
     pub size: (u32, u32),
+    /// The dev socket's loopback address (feature `devtools`); `None` with `--no-dev-socket`.
+    pub dev_socket: Option<String>,
 }
 
 impl Default for Config {
@@ -47,6 +49,7 @@ impl Default for Config {
             screenshot: None,
             walk: 0,
             size: (1600, 900),
+            dev_socket: Some("127.0.0.1:0".to_owned()),
         }
     }
 }
@@ -55,7 +58,9 @@ impl Default for Config {
 /// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
-/// `--size WxH` (the offscreen capture's size).
+/// `--size WxH` (the offscreen capture's size), and with feature `devtools`
+/// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
+/// `--no-dev-socket`.
 ///
 /// # Errors
 /// A message naming the bad argument.
@@ -103,6 +108,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     .parse()
                     .map_err(|_| "--walk takes a frame count".to_owned())?
             }
+            "--dev-socket" if cfg!(feature = "devtools") => {
+                config.dev_socket = Some(value("--dev-socket")?);
+            }
+            "--no-dev-socket" if cfg!(feature = "devtools") => config.dev_socket = None,
             other => return Err(format!("unknown argument {other}")),
         }
     }
@@ -160,6 +169,9 @@ pub struct Session {
     pub reshape: bool,
     /// What the session started from, for a restart.
     pub config: Config,
+    /// Why the binder's log no longer replays this world, once something outside it changed
+    /// the world or the packs (a save loaded, packs reloaded, a rule set over the dev socket).
+    pub unreplayable: Option<String>,
 }
 
 impl Session {
@@ -201,6 +213,7 @@ impl Session {
             names,
             reshape: false,
             config: config.clone(),
+            unreplayable: None,
         })
     }
 
@@ -209,6 +222,9 @@ impl Session {
     /// # Errors
     /// The log did not reproduce, or the file could not be written.
     pub fn save_log(&self) -> Result<PathBuf, String> {
+        if let Some(why) = &self.unreplayable {
+            return Err(format!("the log no longer replays: {why}"));
+        }
         let replay = self
             .binder
             .replay(&self.data, self.seed, self.settings)
@@ -273,6 +289,17 @@ impl Session {
         for line in events.iter().filter_map(describe) {
             self.say(line);
         }
+    }
+
+    /// A world from outside the binder (a loaded save) takes this one's place: the views, the
+    /// pose and the names follow it, the lines are redrawn, and the log stops replaying.
+    pub fn replace(&mut self, world: omnis_sim::World, why: &str) {
+        self.world.replace(world);
+        self.refresh();
+        self.pose = Pose::at(self.views.position);
+        self.names.observe(&self.views.party);
+        self.reshape = true;
+        self.unreplayable = Some(why.to_owned());
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`
