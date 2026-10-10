@@ -7,7 +7,7 @@ use super::{VectorSet, ViewState};
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use omnis_sim::Mode;
+use omnis_sim::ModeKind;
 
 /// Marks the status text.
 #[derive(Component)]
@@ -50,12 +50,12 @@ pub fn clock(elapsed: i64) -> String {
     format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
 }
 
-fn mode_name(mode: &Mode) -> &'static str {
+fn mode_name(mode: ModeKind) -> &'static str {
     match mode {
-        Mode::Explore => "Exploring",
-        Mode::Town(_) => "In town",
-        Mode::Encounter(_) => "Encounter",
-        Mode::Combat(_) => "Combat",
+        ModeKind::Explore => "Exploring",
+        ModeKind::Town => "In town",
+        ModeKind::Encounter => "Encounter",
+        ModeKind::Combat => "Combat",
     }
 }
 
@@ -100,12 +100,8 @@ fn status(
         node.bottom = bottom;
         font.font_size = FontSize::Px(if fight { 14.0 } else { 18.0 });
     }
-    let w = &session.world;
-    let map = session
-        .data
-        .maps
-        .get(&w.position.map)
-        .map_or("?", |m| m.def.id.as_str());
+    let here = &session.views.here;
+    let (map, p) = (&here.position.map, &here.position);
     let mut rate = rate(diagnostics.as_deref(), &time);
     if let Ok(window) = window.single() {
         // Physical pixels: what the frame rate was measured at.
@@ -117,8 +113,8 @@ fn status(
     }
     let mut out = format!(
         "{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}",
-        mode_name(&w.mode),
-        clock(w.party_clock().elapsed),
+        mode_name(here.mode),
+        clock(here.age),
         session.binder.log.len(),
         session.binder.refusals,
         session.binder.disagreements,
@@ -130,7 +126,7 @@ fn status(
     }
     out = format!(
         "{map}  cell ({}, {}) facing {:?}\n{out}\n",
-        w.position.x, w.position.y, w.position.facing
+        p.x, p.y, p.facing
     );
     if intent.looking {
         out.push_str("Mouse look on: click, Space or Esc gives the pointer back\n");

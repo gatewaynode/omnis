@@ -16,11 +16,12 @@ use omnis_vector::pose::Pose;
 const STEP: f32 = 0.05;
 
 fn at_rest(
-    world: &omnis_sim::World,
+    world: &omnis_vector::sim::SimWorld,
+    data: &omnis_sim::omnis_data::Data,
     binder: &omnis_vector::bind::Binder,
     pose: Pose,
 ) -> (i32, i32) {
-    let rest = binder.settle(world, pose);
+    let rest = binder.settle(world, data, pose);
     cell_of(rest.x, rest.z)
 }
 
@@ -43,7 +44,7 @@ fn walking_north_five_cells_ends_on_the_simulations_cell() {
         100,
     );
     assert_eq!(position(&world), (16, 11));
-    assert_eq!(at_rest(&world, &binder, pose), position(&world));
+    assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));
     assert_eq!((binder.refusals, binder.disagreements), (0, 0));
 }
 
@@ -56,7 +57,7 @@ fn strafing_is_a_sidestep() {
     assert_eq!(position(&world), (19, 16));
     assert_eq!(world.position.facing, Facing::North);
     assert!(binder.log.contains(&Command::Step(Direction::Right)));
-    assert_eq!(at_rest(&world, &binder, pose), position(&world));
+    assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));
 }
 
 #[test]
@@ -99,7 +100,7 @@ fn a_diagonal_walk_alternates_steps_and_ends_where_the_simulation_is() {
     );
     assert_eq!(position(&world), (19, 13));
     assert_eq!(steps(&binder.log), 6);
-    assert_eq!(at_rest(&world, &binder, pose), position(&world));
+    assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));
     assert_eq!((binder.refusals, binder.disagreements), (0, 0));
 }
 
@@ -166,7 +167,7 @@ fn the_portal_snaps_the_pose_into_the_dungeon() {
     assert!((snap.yaw - yaw_of(Facing::South)).abs() < 1e-5);
     // This driver keeps asking for yaw 0 afterwards (a real shell integrates from the snapped
     // yaw), so the party turns north into the map edge; the pose stays in the simulation's cell.
-    assert_eq!(at_rest(&world, &binder, pose), position(&world));
+    assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));
     assert_eq!(binder.disagreements, 0);
 }
 
@@ -180,7 +181,7 @@ fn entering_a_placed_encounter_freezes_motion() {
     assert!(matches!(world.mode, Mode::Encounter(_)));
     assert_eq!(position(&world), (3, 8));
     assert!(outcomes.iter().any(|o| o.frozen));
-    assert_eq!(at_rest(&world, &binder, pose), position(&world));
+    assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));
 }
 
 #[test]
@@ -261,7 +262,7 @@ fn a_free_movement_session_replays_to_the_same_fingerprint() {
         .iter()
         .filter(|c| matches!(c, Command::Turn(_)))
         .count();
-    let still = binder.settle(&world, Pose::at(world.position));
+    let still = binder.settle(&world, &data, Pose::at(world.position));
     let _ = binder.advance(
         &mut world,
         &data,

@@ -10,9 +10,9 @@
 
 use crate::cinema::{self, Drawing, Scene};
 use crate::combat_menu::Pick;
+use crate::sim::Views;
+use omnis_sim::ActorRef;
 use omnis_sim::omnis_data::{Data, Size};
-use omnis_sim::ops::party_view;
-use omnis_sim::{ActorRef, World, combat_view};
 
 /// Space kept between the screen's parts and around its edge.
 pub const MARGIN: f32 = 16.0;
@@ -416,16 +416,16 @@ fn share(hp: i32, max: i32) -> f32 {
 }
 
 /// The fight screen for a `width × height` window, or `None` outside a fight. `targets` and
-/// `hover` are marked; the acting stack or member is found from the world.
+/// `hover` are marked; the acting stack or member is found from the views.
 #[must_use]
 pub fn arena(
-    world: &World,
+    views: &Views,
     data: &Data,
     (width, height): (f32, f32),
     targets: &[Pick],
     hover: Option<Pick>,
 ) -> Option<Arena> {
-    let view = combat_view(world, data)?;
+    let view = views.combat.as_ref()?;
     let layout = layout(width, height);
     let (monsters, party) = layout.field.split(0.55);
     let (back, front) = monsters.split(0.45);
@@ -464,7 +464,7 @@ pub fn arena(
         }
     }
     let (back, front) = party.split(0.45);
-    let view_members = party_view(world, data).members;
+    let view_members = &views.party.members;
     let mut members = Vec::new();
     let kind = Kind {
         drawing: person(),

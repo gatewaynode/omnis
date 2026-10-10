@@ -4,7 +4,7 @@
 //! row line `z` from `x` to `x + 1`, or a vertical edge at column line `x` from `z` to `z + 1`.
 
 use crate::geom::wall_height;
-use omnis_sim::World;
+use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, MapId};
 use omnis_sim::omnis_data::MapData;
 use std::collections::BTreeMap;
@@ -47,10 +47,9 @@ type EdgeLook = (SegKind, bool, (u8, u8, u8), f32);
 
 /// The segments for `map`, with doors drawn open or closed as `world` has them.
 #[must_use]
-pub fn extract(map: &MapData, map_id: MapId, world: &World) -> Vec<Segment> {
+pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld) -> Vec<Segment> {
     let mut out = Vec::new();
     let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
-    let state = world.maps.get(&map_id);
     for y in 0..map.def.height {
         for x in 0..map.def.width {
             let Some(cell) = map.cell(x, y) else { continue };
@@ -74,7 +73,7 @@ pub fn extract(map: &MapData, map_id: MapId, world: &World) -> Vec<Segment> {
                 } else {
                     continue;
                 };
-                let open = state.is_some_and(|s| s.door_open(x, y, facing));
+                let open = world.door_open(map_id, x, y, facing);
                 let entry =
                     edges
                         .entry(key(x, y, facing))

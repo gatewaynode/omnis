@@ -4,9 +4,10 @@
 use crate::collide::{blocks, clamp};
 use crate::grid::{crossings, facing_of, relative, rotation};
 use crate::pose::Pose;
+use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, Mode, Rejection, Replay, ReplayError, Settings, World, apply};
+use omnis_sim::{Command, Event, Rejection, Replay, ReplayError, Settings};
 
 /// The binder's distances, in cells, and angles, in radians.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -65,11 +66,11 @@ impl Binder {
     /// The simulation's rejection; nothing is logged and the world is unchanged.
     pub fn apply(
         &mut self,
-        world: &mut World,
+        world: &mut SimWorld,
         data: &Data,
         command: Command,
     ) -> Result<Vec<Event>, Rejection> {
-        match apply(world, data, command.clone()) {
+        match world.apply(data, command.clone()) {
             Ok(events) => {
                 self.log.push(command);
                 Ok(events)
@@ -83,14 +84,14 @@ impl Binder {
 
     /// Move the pose from `from` to `to`, emitting a `Turn` when the yaw reaches a new facing
     /// and a `Step` for every cell boundary crossed, in the order they are met.
-    pub fn advance(&mut self, world: &mut World, data: &Data, from: Pose, to: Pose) -> Outcome {
+    pub fn advance(&mut self, world: &mut SimWorld, data: &Data, from: Pose, to: Pose) -> Outcome {
         let mut out = Outcome::default();
-        if !matches!(world.mode, Mode::Explore) {
+        let Some(here) = world.exploring_at(data) else {
             out.frozen = true;
-            out.pose = Some(self.settle(world, from));
+            out.pose = Some(self.settle(world, data, from));
             return out;
-        }
-        let facing = world.position.facing;
+        };
+        let facing = here.facing;
         let want = facing_of(to.yaw, facing, self.tuning.yaw_margin);
         if let Some(turn) = rotation(facing, want)
             && let Ok(events) = self.apply(world, data, Command::Turn(turn))
@@ -123,7 +124,7 @@ impl Binder {
     /// boundaries. `None` when the pose was snapped or frozen and `out.pose` is final.
     fn substep(
         &mut self,
-        world: &mut World,
+        world: &mut SimWorld,
         data: &Data,
         (prev, target): ((f32, f32), (f32, f32)),
         yaw: f32,
@@ -131,7 +132,9 @@ impl Binder {
     ) -> Option<(f32, f32)> {
         let mut point = self.clamp_here(world, data, target);
         for _ in 0..2 {
-            let here = world.position;
+            let Some(here) = world.position(data) else {
+                break;
+            };
             let cell = (i32::from(here.x), i32::from(here.y));
             let Some(&heading) = crossings(prev, point, cell, self.tuning.margin).first() else {
                 break;
@@ -150,16 +153,19 @@ impl Binder {
                 self.disagreements += 1;
                 return Some(self.hold(here, point, heading));
             }
-            let now = world.position;
+            let Some(now) = world.position(data) else {
+                break;
+            };
             if moves > 1 || now.map != here.map || here.neighbour(heading) != Some((now.x, now.y)) {
                 out.snapped = true;
                 out.pose = Some(Pose::at(now));
                 return None;
             }
-            if !matches!(world.mode, Mode::Explore) {
+            if world.exploring_at(data).is_none() {
                 out.frozen = true;
                 out.pose = Some(self.settle(
                     world,
+                    data,
                     Pose {
                         x: point.0,
                         z: point.1,
@@ -174,8 +180,10 @@ impl Binder {
     }
 
     /// Clamp a point against the closed sides of the simulation's current cell.
-    fn clamp_here(&self, world: &World, data: &Data, point: (f32, f32)) -> (f32, f32) {
-        let p = world.position;
+    fn clamp_here(&self, world: &SimWorld, data: &Data, point: (f32, f32)) -> (f32, f32) {
+        let Some(p) = world.position(data) else {
+            return point;
+        };
         clamp(point, (p.x, p.y), self.tuning.radius, |f| {
             blocks(data, world, p.map, p.x, p.y, f).is_some()
         })
@@ -191,8 +199,10 @@ impl Binder {
     /// The pose moved just inside the simulation's cell, so the camera's cell equals the
     /// simulation's position. Used when motion stops.
     #[must_use]
-    pub fn settle(&self, world: &World, pose: Pose) -> Pose {
-        let p = world.position;
+    pub fn settle(&self, world: &SimWorld, data: &Data, pose: Pose) -> Pose {
+        let Some(p) = world.position(data) else {
+            return pose;
+        };
         let (x, z) = clamp(pose.ground(), (p.x, p.y), 0.02, |_| true);
         Pose {
             x,
@@ -202,7 +212,7 @@ impl Binder {
     }
 
     /// Use whatever is on the simulation's faced edge.
-    pub fn interact(&mut self, world: &mut World, data: &Data) -> Vec<Event> {
+    pub fn interact(&mut self, world: &mut SimWorld, data: &Data) -> Vec<Event> {
         self.apply(world, data, Command::Interact)
             .unwrap_or_default()
     }

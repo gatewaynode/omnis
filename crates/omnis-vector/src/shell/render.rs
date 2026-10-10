@@ -129,7 +129,7 @@ fn grab_cursor(
 }
 
 fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
-    let map = session.world.position.map;
+    let map = session.views.position.map;
     if lines.map == Some(map) && !session.reshape {
         return;
     }
@@ -175,9 +175,9 @@ fn draw(session: Res<Session>, lines: Res<Lines>, mut gizmos: Gizmos) {
     let depth = session
         .data
         .maps
-        .get(&session.world.position.map)
+        .get(&session.views.position.map)
         .and_then(|m| {
-            m.cell(session.world.position.x, session.world.position.y)
+            m.cell(session.views.position.x, session.views.position.y)
                 .map(|c| m.terrain(c).visibility_depth)
         })
         .unwrap_or(6);

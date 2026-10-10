@@ -184,3 +184,70 @@ fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
     );
     assert_eq!(current(session, false), None, "the notice closed");
 }
+
+/// The views the shell reads are the world's at the end of every frame: walking, a door, monsters
+/// met and a fight (A17: the shell reads views, so a stale one would show the wrong world).
+#[test]
+fn the_views_are_the_world_s_after_every_frame() {
+    use omnis_sim::omnis_core::{Facing, Position};
+    use omnis_sim::{CombatCommand, Command, EncounterChoice, ModeKind};
+    use omnis_vector::pose::Pose;
+    use omnis_vector::sim::Views;
+    let fresh = |app: &App, when: &str| {
+        let session = app.world().resource::<Session>();
+        assert_eq!(
+            session.views,
+            Views::of(&session.world, &session.data),
+            "stale views {when}"
+        );
+    };
+    let mut app = app_logging_to(".omnis/vector-views.ron".into());
+    app.update();
+    fresh(&app, "at the start");
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let dungeon = common::map(&session.data, "test:map:dungeon");
+        session.world.position = Position {
+            map: dungeon,
+            x: 3,
+            y: 5,
+            facing: Facing::South,
+        };
+        session.pose = Pose::at(session.world.position);
+        session.refresh();
+        let before = session.binder.log.len();
+        session.order(Command::Interact);
+        assert!(session.binder.log.len() > before, "the door opened");
+    }
+    fresh(&app, "after the door");
+    set(&mut app, &Action::Forward, Interaction::Pressed);
+    let mut met = false;
+    for frame in 0..120 {
+        app.update();
+        fresh(&app, &format!("walking, frame {frame}"));
+        if app.world().resource::<Session>().views.combat.is_some() {
+            met = true;
+            break;
+        }
+    }
+    set(&mut app, &Action::Forward, Interaction::None);
+    assert!(met, "the rats are met");
+    let mut session = app.world_mut().resource_mut::<Session>();
+    session.order(Command::Encounter(EncounterChoice::Attack));
+    let mut fought = false;
+    for _ in 0..200 {
+        let events_before = session.fight_log.len();
+        session.order(Command::Combat(CombatCommand::Dodge));
+        session.order(Command::Combat(CombatCommand::EndTurn));
+        assert_eq!(
+            session.views,
+            Views::of(&session.world, &session.data),
+            "in the fight"
+        );
+        fought |= session.fight_log.len() != events_before;
+        if session.views.here.mode != ModeKind::Combat {
+            break;
+        }
+    }
+    assert!(fought, "the fight ran");
+}

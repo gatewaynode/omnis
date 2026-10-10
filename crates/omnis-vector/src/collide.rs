@@ -4,16 +4,17 @@
 //! order, so the pose slides along walls instead of walking into them. The simulation stays
 //! authoritative; `tests/agreement.rs` holds the copy to it on every edge of the test maps.
 
+use crate::sim::SimWorld;
+use omnis_sim::BlockReason;
 use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{BlockReason, World};
 
 /// Why a step from `(x, y)` on `map` toward `heading` would be refused, or `None` when the
 /// simulation would take it. Mirrors `omnis_sim::apply::move`.
 #[must_use]
 pub fn blocks(
     data: &Data,
-    world: &World,
+    world: &SimWorld,
     map: MapId,
     x: u16,
     y: u16,
@@ -28,12 +29,7 @@ pub fn blocks(
     if cell.walls.has(heading) {
         return Some(BlockReason::Wall);
     }
-    if cell.doors.has(heading)
-        && !world
-            .maps
-            .get(&map)
-            .is_some_and(|s| s.door_open(x, y, heading))
-    {
+    if cell.doors.has(heading) && !world.door_open(map, x, y, heading) {
         return Some(BlockReason::ClosedDoor);
     }
     let here = Position {

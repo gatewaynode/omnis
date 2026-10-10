@@ -68,6 +68,7 @@ pub fn app() -> App {
     let mut session = app.world_mut().resource_mut::<Session>();
     let session = &mut *session;
     session.pose = super::to_meadow(&mut session.world, &session.data);
+    session.refresh();
     app
 }
 
@@ -135,6 +136,7 @@ pub fn met_with(seed: u64) -> App {
             facing: Facing::South,
         };
         session.pose = Pose::at(session.world.position);
+        session.refresh();
     }
     set(&mut app, &Action::Forward, Interaction::Pressed);
     for _ in 0..80 {

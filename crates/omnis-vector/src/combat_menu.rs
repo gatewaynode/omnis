@@ -11,12 +11,13 @@
 //! found the same way: a stack or member is offered for an action only when the simulation
 //! accepts that action on it, so the menu holds no rules of its own.
 
+use crate::sim::SimWorld;
 use crate::trial::{accepted, refusal};
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{
     ActorRef, Budget, CombatCommand, CombatView, Command, EncounterChoice, ItemView, ModeKind, Pay,
-    SpellView, Target, World, bribe_cost, combat_view, party_view,
+    SpellView, Target,
 };
 
 /// An action waiting for its target.
@@ -96,8 +97,9 @@ fn pay(spell: &SpellView) -> Pay {
 }
 
 /// The acting member's kit as the party view shows it.
-fn kit(world: &World, data: &Data, own: CharacterId) -> Vec<ItemView> {
-    party_view(world, data)
+fn kit(world: &SimWorld, data: &Data, own: CharacterId) -> Vec<ItemView> {
+    world
+        .party(data)
         .members
         .into_iter()
         .find(|m| m.member == own)
@@ -106,7 +108,7 @@ fn kit(world: &World, data: &Data, own: CharacterId) -> Vec<ItemView> {
 }
 
 /// Read `action`'s row out of the views; `None` when the row is gone.
-fn resolve(world: &World, data: &Data, view: &CombatView, action: Action) -> Option<Resolved> {
+fn resolve(world: &SimWorld, data: &Data, view: &CombatView, action: Action) -> Option<Resolved> {
     Some(match action {
         Action::Attack => Resolved::Attack,
         Action::Cast(row) => {
@@ -151,15 +153,15 @@ fn build(action: &Resolved, pick: Pick) -> Option<Command> {
 
 /// The command `action` makes on `pick` now, if that kind of target fits the action.
 #[must_use]
-pub fn command(world: &World, data: &Data, action: Action, pick: Pick) -> Option<Command> {
-    let view = combat_view(world, data)?;
+pub fn command(world: &SimWorld, data: &Data, action: Action, pick: Pick) -> Option<Command> {
+    let view = world.combat(data)?;
     build(&resolve(world, data, &view, action)?, pick)
 }
 
 /// Every stack still standing and every member, the candidates for any action.
-fn candidates(world: &World, view: &CombatView) -> Vec<Pick> {
+fn candidates(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Pick> {
     let stacks = view.stacks.iter().filter(|s| s.alive).map(|s| s.stack);
-    let members = world.party.members.iter().map(|m| m.id);
+    let members = world.party(data).members.into_iter().map(|m| m.member);
     stacks
         .map(Pick::Stack)
         .chain(members.map(Pick::Member))
@@ -168,14 +170,14 @@ fn candidates(world: &World, view: &CombatView) -> Vec<Pick> {
 
 /// The targets the simulation accepts `action` on now, stacks first.
 #[must_use]
-pub fn targets(world: &World, data: &Data, action: Action) -> Vec<Pick> {
-    let Some(view) = combat_view(world, data) else {
+pub fn targets(world: &SimWorld, data: &Data, action: Action) -> Vec<Pick> {
+    let Some(view) = world.combat(data) else {
         return Vec::new();
     };
     let Some(resolved) = resolve(world, data, &view, action) else {
         return Vec::new();
     };
-    candidates(world, &view)
+    candidates(world, data, &view)
         .into_iter()
         .filter(|&pick| build(&resolved, pick).is_some_and(|c| accepted(world, data, &c)))
         .collect()
@@ -204,10 +206,15 @@ fn budget(left: Budget) -> String {
 }
 
 /// A member's name, or `?` for one the party no longer holds.
-fn name_of(world: &World, id: Option<CharacterId>) -> String {
-    id.and_then(|id| world.party.members.iter().find(|m| m.id == id))
-        .map_or("?", |m| m.name.as_str())
-        .to_owned()
+fn name_of(world: &SimWorld, data: &Data, id: Option<CharacterId>) -> String {
+    id.and_then(|id| {
+        world
+            .party(data)
+            .members
+            .into_iter()
+            .find(|m| m.member == id)
+    })
+    .map_or_else(|| "?".to_owned(), |m| m.name)
 }
 
 /// A spell whose target does not matter: the simulation takes it on a stack and on a member
@@ -227,14 +234,14 @@ pub struct CombatMenu {
 impl CombatMenu {
     /// The line above the entries: the encounter, whose turn it is, or what the step asks.
     #[must_use]
-    pub fn prompt(&self, world: &World, data: &Data) -> String {
-        let Some(view) = combat_view(world, data) else {
+    pub fn prompt(&self, world: &SimWorld, data: &Data) -> String {
+        let Some(view) = world.combat(data) else {
             return String::new();
         };
         if view.phase == ModeKind::Encounter {
             return format!("Monsters ahead ({:?})", view.disposition);
         }
-        let who = name_of(world, acting(&view));
+        let who = name_of(world, data, acting(&view));
         match self.step {
             Step::Top => format!(
                 "Round {}: {who}'s turn ({})",
@@ -259,12 +266,12 @@ impl CombatMenu {
     /// The entries for the world as it stands. An empty list outside a fight or while no
     /// member acts.
     #[must_use]
-    pub fn entries(&self, world: &World, data: &Data) -> Vec<Entry> {
-        let Some(view) = combat_view(world, data) else {
+    pub fn entries(&self, world: &SimWorld, data: &Data) -> Vec<Entry> {
+        let Some(view) = world.combat(data) else {
             return Vec::new();
         };
         if view.phase == ModeKind::Encounter {
-            return encounter(world, data);
+            return encounter(world, data, &view);
         }
         let Some(own) = acting(&view) else {
             return Vec::new();
@@ -286,7 +293,7 @@ impl CombatMenu {
     /// The targets a click can choose now: the stacks an attack reaches on the turn's first
     /// step, or the targets of the action waiting for one.
     #[must_use]
-    pub fn clickable(&self, world: &World, data: &Data) -> Vec<Pick> {
+    pub fn clickable(&self, world: &SimWorld, data: &Data) -> Vec<Pick> {
         match self.step {
             Step::Top => targets(world, data, Action::Attack),
             Step::Target(action) => targets(world, data, action),
@@ -319,7 +326,7 @@ impl CombatMenu {
 
     /// A click on `pick`: the command to send when it is one of the clickable targets, and the
     /// menu goes back to its first step.
-    pub fn pick(&mut self, world: &World, data: &Data, pick: Pick) -> Option<Command> {
+    pub fn pick(&mut self, world: &SimWorld, data: &Data, pick: Pick) -> Option<Command> {
         if !self.clickable(world, data).contains(&pick) {
             return None;
         }
@@ -334,7 +341,7 @@ impl CombatMenu {
 }
 
 /// An entry for a command, blocked with the simulation's reason if it would be refused.
-fn order(world: &World, data: &Data, label: String, command: Command) -> Entry {
+fn order(world: &SimWorld, data: &Data, label: String, command: Command) -> Entry {
     Entry {
         blocked: refusal(world, data, &command),
         label,
@@ -351,11 +358,10 @@ fn open(label: &str, step: Step, why: Option<&str>) -> Entry {
     }
 }
 
-fn encounter(world: &World, data: &Data) -> Vec<Entry> {
-    let bribe = bribe_cost(world, data).map_or_else(
-        |_| "Bribe".to_owned(),
-        |cost| format!("Bribe ({cost} gold)"),
-    );
+fn encounter(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Entry> {
+    let bribe = view
+        .bribe
+        .map_or_else(|| "Bribe".to_owned(), |cost| format!("Bribe ({cost} gold)"));
     [
         ("Fight".to_owned(), EncounterChoice::Attack),
         (bribe, EncounterChoice::Bribe),
@@ -368,7 +374,7 @@ fn encounter(world: &World, data: &Data) -> Vec<Entry> {
 }
 
 /// The turn's first step.
-fn turn(world: &World, data: &Data, view: &CombatView) -> Vec<Entry> {
+fn turn(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Entry> {
     let Some(own) = acting(view) else {
         return Vec::new();
     };
@@ -431,7 +437,7 @@ fn turn(world: &World, data: &Data, view: &CombatView) -> Vec<Entry> {
 /// The acting member's spells. A spell whose target does not matter is cast at once on the
 /// caster; the others ask for a target. A spell the bonus action can pay for is cast that way,
 /// leaving the action; it is blocked only when neither can pay.
-fn spells(world: &World, data: &Data, view: &CombatView, own: CharacterId) -> Vec<Entry> {
+fn spells(world: &SimWorld, data: &Data, view: &CombatView, own: CharacterId) -> Vec<Entry> {
     (0..u8::try_from(view.spells.len()).unwrap_or(u8::MAX))
         .zip(&view.spells)
         .map(|(row, s)| {
@@ -463,7 +469,7 @@ fn spells(world: &World, data: &Data, view: &CombatView, own: CharacterId) -> Ve
         .collect()
 }
 
-fn item_name(world: &World, data: &Data, view: &CombatView, row: u8) -> String {
+fn item_name(world: &SimWorld, data: &Data, view: &CombatView, row: u8) -> String {
     acting(view)
         .and_then(|own| kit(world, data, own).into_iter().nth(usize::from(row)))
         .map_or_else(
@@ -474,7 +480,7 @@ fn item_name(world: &World, data: &Data, view: &CombatView, row: u8) -> String {
 
 /// The acting member's kit rows that have a use, each blocked with the simulation's reason
 /// when it can go to no one.
-fn items(world: &World, data: &Data, own: CharacterId) -> Vec<Entry> {
+fn items(world: &SimWorld, data: &Data, own: CharacterId) -> Vec<Entry> {
     kit(world, data, own)
         .into_iter()
         .enumerate()
@@ -506,7 +512,7 @@ fn items(world: &World, data: &Data, own: CharacterId) -> Vec<Entry> {
 }
 
 /// One entry per target the simulation accepts the action on.
-fn target_entries(world: &World, data: &Data, view: &CombatView, action: Action) -> Vec<Entry> {
+fn target_entries(world: &SimWorld, data: &Data, view: &CombatView, action: Action) -> Vec<Entry> {
     let Some(resolved) = resolve(world, data, view, action) else {
         return Vec::new();
     };
@@ -518,7 +524,7 @@ fn target_entries(world: &World, data: &Data, view: &CombatView, action: Action)
                     let s = view.stacks.iter().find(|s| s.stack == i)?;
                     format!("{} x{}", data.label("en", &s.name), s.hps.len())
                 }
-                Pick::Member(m) => name_of(world, Some(m)),
+                Pick::Member(m) => name_of(world, data, Some(m)),
             };
             Some(Entry {
                 label,

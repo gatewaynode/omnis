@@ -6,10 +6,11 @@
 //! `Interact` (a door on the faced edge of the party's cell).
 
 use super::notice::{Choice, Notice, Order};
+use crate::sim::SimWorld;
 use bevy::prelude::Resource;
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, MessageKey, World, apply};
+use omnis_sim::{Command, Event, MessageKey};
 
 /// Whether the action menu is open.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -20,25 +21,20 @@ pub struct Menu {
 
 /// Whether the faced edge of the party's cell holds a door, as the simulation's `Interact`
 /// looks for it, and whether that door is open.
-fn faced_door(world: &World, data: &Data) -> Option<bool> {
-    let p = world.position;
+fn faced_door(world: &SimWorld, data: &Data) -> Option<bool> {
+    let p = world.position(data)?;
     let map = data.maps.get(&p.map)?;
     if !map.cell(p.x, p.y)?.doors.has(p.facing) {
         return None;
     }
-    Some(
-        world
-            .maps
-            .get(&p.map)
-            .is_some_and(|s| s.door_open(p.x, p.y, p.facing)),
-    )
+    Some(world.door_open(p.map, p.x, p.y, p.facing))
 }
 
 /// Whether the simulation would do something with `command` here: it accepts it, and does not
 /// answer "nothing here" (every accepted command also reports what the party sees, so the
 /// events alone are never empty).
-fn does_something(world: &World, data: &Data, command: &Command) -> bool {
-    apply(&mut world.clone(), data, command.clone()).is_ok_and(|events| {
+fn does_something(world: &SimWorld, data: &Data, command: &Command) -> bool {
+    world.trial(data, command).is_ok_and(|events| {
         !events.iter().any(|e| {
             matches!(
                 e,
@@ -61,7 +57,7 @@ fn facing_name(facing: Facing) -> &'static str {
 
 /// The actions the simulation would accept here, in menu order.
 #[must_use]
-pub fn available(world: &World, data: &Data) -> Vec<Choice> {
+pub fn available(world: &SimWorld, data: &Data) -> Vec<Choice> {
     let interact = Command::Interact;
     if !does_something(world, data, &interact) {
         return Vec::new();
@@ -80,7 +76,7 @@ pub fn available(world: &World, data: &Data) -> Vec<Choice> {
 
 /// The command Shift+Space runs, if there is one: the first available action.
 #[must_use]
-pub fn default_action(world: &World, data: &Data) -> Option<Command> {
+pub fn default_action(world: &SimWorld, data: &Data) -> Option<Command> {
     available(world, data)
         .into_iter()
         .find_map(|c| match c.order {
@@ -91,8 +87,8 @@ pub fn default_action(world: &World, data: &Data) -> Option<Command> {
 
 /// The menu: the square, the actions, and Close last.
 #[must_use]
-pub fn menu(world: &World, data: &Data) -> Notice {
-    let p = world.position;
+pub fn menu(world: &SimWorld, data: &Data) -> Notice {
+    let p = world.here(data).position;
     let mut choices = available(world, data);
     let lines = if choices.is_empty() {
         vec!["Nothing to do here".to_owned()]

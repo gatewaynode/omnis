@@ -75,7 +75,7 @@ fn repaint(
     let Ok((picture, mut layout)) = node.single_mut() else {
         return;
     };
-    let p = session.world.position;
+    let p = session.views.position;
     let Some(map) = session.data.maps.get(&p.map) else {
         return;
     };
@@ -93,7 +93,7 @@ fn repaint(
         return;
     }
     *last = Some(shown);
-    let raster = paint(map, session.world.automap.map(p.map), pose);
+    let raster = paint(map, session.world.automap(p.map), pose);
     #[allow(clippy::cast_precision_loss)]
     let (w, h) = (raster.width as f32, raster.height as f32);
     layout.width = Val::Px(w);

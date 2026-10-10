@@ -48,6 +48,7 @@ fn at_the_door() -> App {
             facing: Facing::South,
         };
         session.pose = Pose::at(session.world.position);
+        session.refresh();
     }
     app.update();
     app

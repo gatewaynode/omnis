@@ -20,7 +20,6 @@ use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use omnis_sim::combat_view;
 
 /// The window size used when there is neither a window nor a capture: a headless test's.
 const HEADLESS: (f32, f32) = (1600.0, 900.0);
@@ -79,7 +78,7 @@ fn track(
     state: Res<State<ViewState>>,
     mut next: ResMut<NextState<ViewState>>,
 ) {
-    let want = if combat_view(&session.world, &session.data).is_some() {
+    let want = if session.views.combat.is_some() {
         ViewState::Fight
     } else {
         ViewState::Explore
@@ -221,7 +220,7 @@ fn refresh(
     let (world, data) = (&session.world, &session.data);
     screen.targets = screen.menu.clickable(world, data);
     screen.hover = None;
-    screen.arena = arena(world, data, (w, h), &screen.targets, None);
+    screen.arena = arena(&session.views, data, (w, h), &screen.targets, None);
     commands.entity(root).despawn_related::<Children>();
     let Some(laid) = &screen.arena else {
         return;
@@ -231,7 +230,7 @@ fn refresh(
     let prompt = (screen.menu.step != Step::Top).then(|| screen.menu.prompt(world, data));
     let entries = screen.menu.entries(world, data);
     commands.entity(root).with_children(|p| {
-        if let Some(scene) = opening(world) {
+        if let Some(scene) = opening(session.views.combat.as_ref(), data) {
             p.spawn((Screen(scene), at(&l.picture)));
         }
         p.spawn((at(&l.title), Text::new(title), font(22.0), TextColor(GREEN)));

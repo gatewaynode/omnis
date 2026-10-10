@@ -8,7 +8,7 @@
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::{Data, Disposition};
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
-use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, Surprise, World};
+use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, PartyView, Surprise};
 use std::collections::BTreeMap;
 
 /// One stack as the log names it.
@@ -42,9 +42,9 @@ fn monster_name<'d>(data: &'d Data, id: &str) -> &'d str {
 
 impl Names {
     /// Take in the party's members. Members are added, never removed.
-    pub fn observe(&mut self, world: &World) {
-        for m in &world.party.members {
-            self.members.insert(m.id, m.name.clone());
+    pub fn observe(&mut self, party: &PartyView) {
+        for m in &party.members {
+            self.members.insert(m.member, m.name.clone());
         }
     }
 

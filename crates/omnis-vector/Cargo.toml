@@ -17,8 +17,16 @@ path = "src/main.rs"
 name = "integration"
 path = "tests/main.rs"
 
+[features]
+# The world itself for the integration tests (`sim::SimWorld` derefs to it). Never in a build:
+# the library is checked without it, so it reads the world only through views (ARCH A17).
+test-fixtures = []
+
 [dependencies]
 omnis-sim = { workspace = true }
 # `bevy_pbr` is the smallest addition that draws gizmos through a Camera3d; the full `3d` group
 # (glTF, ktx2, zstd, LUTs) is not used (presentation-ARCHITECTURE.md §3, VA1). `ui` is for the HUD.
 bevy = { workspace = true, features = ["2d", "png", "bevy_pbr", "ui"] }
+
+[dev-dependencies]
+omnis-vector = { path = ".", features = ["test-fixtures"] }

@@ -10,6 +10,7 @@ use common::id;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{CombatCommand, Command, Event, Mode, Pay, Target, World, apply, combat_view};
 use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step};
+use omnis_vector::sim::SimWorld;
 
 fn labels(entries: &[Entry]) -> Vec<&str> {
     entries.iter().map(|e| e.label.as_str()).collect()
@@ -47,7 +48,7 @@ fn the_encounter_offers_its_four_choices() {
 }
 
 /// Every step reachable from the turn's first, each with its entries.
-fn walk(world: &World, data: &Data) -> Vec<(Step, Vec<Entry>)> {
+fn walk(world: &SimWorld, data: &Data) -> Vec<(Step, Vec<Entry>)> {
     let mut seen = Vec::new();
     let mut queue = vec![Step::Top];
     while let Some(step) = queue.pop() {

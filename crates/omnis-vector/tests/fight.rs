@@ -32,7 +32,8 @@ fn a_fallen_party_is_offered_a_fresh_start() {
         for member in &mut session.world.party.members {
             member.hp = 0;
         }
-        assert!(fallen(&session.world, &session.data));
+        session.refresh();
+        assert!(fallen(&session.views));
     }
     app.update();
     assert_eq!(enabled(&mut app), vec![Order::Restart]);
@@ -46,7 +47,7 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     press(&mut app, &Order::Restart);
     app.update();
     let session = app.world().resource::<Session>();
-    assert!(!fallen(&session.world, &session.data));
+    assert!(!fallen(&session.views));
     let town = common::map(&session.data, "test:map:town");
     let (p, facing) = (session.world.position, omnis_sim::omnis_core::Facing::West);
     assert_eq!(

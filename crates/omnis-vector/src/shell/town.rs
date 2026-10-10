@@ -4,18 +4,19 @@
 //! `shell/panel.rs` shows it.
 
 use super::notice::{Choice, Notice, Order};
+use crate::sim::Views;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Mode, ServiceCommand, World};
+use omnis_sim::{Command, ServiceCommand};
 
 /// The notice while the party is in a service, or `None` outside one.
 #[must_use]
-pub fn notice(world: &World, data: &Data) -> Option<Notice> {
-    let Mode::Town(state) = &world.mode else {
-        return None;
-    };
+pub fn notice(views: &Views, data: &Data) -> Option<Notice> {
+    let service = views.here.service.as_ref()?;
     let name = data
+        .registry
         .services
-        .get(&state.service)
+        .get(service)
+        .and_then(|id| data.services.get(&id))
         .map_or("A service", |s| data.label("en", &s.name));
     Some(Notice {
         title: name.to_owned(),

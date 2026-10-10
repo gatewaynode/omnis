@@ -7,7 +7,6 @@ use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use core::f32::consts::FRAC_PI_2;
-use omnis_sim::Mode;
 
 /// Cells a second on terrain that costs one minute a step; slower terrain is slower to cross.
 pub const BASE_SPEED: f32 = 3.0;
@@ -130,9 +129,9 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
     let terrain_minutes = session
         .data
         .maps
-        .get(&session.world.position.map)
+        .get(&session.views.position.map)
         .and_then(|m| {
-            m.cell(session.world.position.x, session.world.position.y)
+            m.cell(session.views.position.x, session.views.position.y)
                 .map(|c| m.terrain(c).step_minutes)
         })
         .unwrap_or(1)
@@ -140,7 +139,7 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
     #[allow(clippy::cast_precision_loss)]
     let speed = BASE_SPEED / terrain_minutes as f32;
     let yaw = yaw_delta(&mut intent, dt);
-    if fallen(&session.world, &session.data) {
+    if fallen(&session.views) {
         // The notice offers a restart; a fallen party does not walk on.
         intent.motion = Motion::default();
     }
@@ -150,8 +149,12 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
         .binder
         .advance(&mut session.world, &session.data, from, to);
     let mut pose = out.pose.unwrap_or(to);
-    if intent.motion.is_idle() && matches!(session.world.mode, Mode::Explore) {
-        pose = ease(pose, session.binder.settle(&session.world, pose), dt);
+    if intent.motion.is_idle() && session.world.exploring_at(&session.data).is_some() {
+        pose = ease(
+            pose,
+            session.binder.settle(&session.world, &session.data, pose),
+            dt,
+        );
     }
     session.pose = pose;
     session.note(&out.events);

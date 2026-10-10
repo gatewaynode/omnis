@@ -5,18 +5,27 @@
 
 use crate::common;
 
+use crate::common::views;
 use common::fight::{met, turn_of};
 use common::id;
-use omnis_sim::{Mode, World};
+use omnis_sim::Mode;
 use omnis_vector::arena::{Arena, Group, Rect, State, Tone, arena, pick, segments};
 use omnis_vector::combat_menu::{CombatMenu, Pick};
 use omnis_vector::shell::session::Session;
+use omnis_vector::sim::SimWorld;
 
 /// The owner's main display and ultrawide, in logical pixels.
 const SIZES: [(f32, f32); 2] = [(1600.0, 900.0), (5120.0, 1440.0)];
 
 fn laid_out(session: &Session, size: (f32, f32)) -> Arena {
-    arena(&session.world, &session.data, size, &[], None).expect("a fight to lay out")
+    arena(
+        &views(&session.world, &session.data),
+        &session.data,
+        size,
+        &[],
+        None,
+    )
+    .expect("a fight to lay out")
 }
 
 fn centre(r: &Rect) -> (f32, f32) {
@@ -35,7 +44,16 @@ fn nothing_to_lay_out_outside_a_fight() {
     let session = met();
     let mut world = session.world.clone();
     world.mode = Mode::Explore;
-    assert!(arena(&world, &session.data, SIZES[0], &[], None).is_none());
+    assert!(
+        arena(
+            &views(&world, &session.data),
+            &session.data,
+            SIZES[0],
+            &[],
+            None
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -91,7 +109,7 @@ fn the_rats_stand_above_the_party_in_its_two_rows() {
 
 /// The world with a stack of rats added for each count. The pack keeps two stacks in front,
 /// so a third stands behind.
-fn with_stacks(world: &World, counts: &[u8]) -> World {
+fn with_stacks(world: &SimWorld, counts: &[u8]) -> SimWorld {
     let mut world = world.clone();
     let Mode::Encounter(encounter) = &mut world.mode else {
         panic!("met in an encounter");
@@ -110,7 +128,14 @@ fn a_stack_behind_stands_higher_and_smaller_and_a_crowd_shows_its_count() {
     let session = met();
     let world = with_stacks(&session.world, &[1, 12]);
     for size in SIZES {
-        let arena = arena(&world, &session.data, size, &[], None).expect("a fight");
+        let arena = arena(
+            &views(&world, &session.data),
+            &session.data,
+            size,
+            &[],
+            None,
+        )
+        .expect("a fight");
         let front = group(&arena, Pick::Stack(0));
         let beside = group(&arena, Pick::Stack(1));
         let back = group(&arena, Pick::Stack(2));
@@ -135,7 +160,14 @@ fn everything_stays_in_the_field_clear_of_the_picture_and_log() {
     let world = with_stacks(&session.world, &[1, 12]);
     let mut tallest = Vec::new();
     for size in SIZES {
-        let arena = arena(&world, &session.data, size, &[], None).expect("a fight");
+        let arena = arena(
+            &views(&world, &session.data),
+            &session.data,
+            size,
+            &[],
+            None,
+        )
+        .expect("a fight");
         let l = arena.layout;
         let field = l.field.grown(0.01);
         for s in segments(&arena) {
@@ -207,7 +239,7 @@ fn the_marks_frame_whoever_acts_and_the_targets() {
     let targets = CombatMenu::default().clickable(world, data);
     assert_eq!(targets, [Pick::Stack(0)], "the rats in reach");
     for size in SIZES {
-        let plain = arena(world, data, size, &targets, None).expect("a fight");
+        let plain = arena(&views(world, data), data, size, &targets, None).expect("a fight");
         assert_eq!(
             plain.marks.acting,
             Some(Pick::Member(id(world, 1))),
@@ -231,7 +263,14 @@ fn the_marks_frame_whoever_acts_and_the_targets() {
         );
         assert!(tones(&plain, Tone::Hover).is_empty());
         // The pointer on the rats turns their frame to the hover's.
-        let hovered = arena(world, data, size, &targets, Some(Pick::Stack(0))).expect("a fight");
+        let hovered = arena(
+            &views(world, data),
+            data,
+            size,
+            &targets,
+            Some(Pick::Stack(0)),
+        )
+        .expect("a fight");
         assert!(tones(&hovered, Tone::Target).is_empty());
         assert_eq!(tones(&hovered, Tone::Hover).len(), 4);
     }
@@ -242,7 +281,14 @@ fn a_member_at_zero_is_drawn_down_with_an_empty_bar() {
     let session = met();
     let mut world = session.world.clone();
     world.party.members[0].hp = 0;
-    let arena = arena(&world, &session.data, SIZES[0], &[], None).expect("a fight");
+    let arena = arena(
+        &views(&world, &session.data),
+        &session.data,
+        SIZES[0],
+        &[],
+        None,
+    )
+    .expect("a fight");
     let brenna = &group(&arena, Pick::Member(id(&world, 0))).figures[0];
     assert_eq!(brenna.state, State::Down);
     assert!(brenna.health == 0.0);

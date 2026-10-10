@@ -8,6 +8,7 @@ use common::{SEED, data};
 use omnis_sim::omnis_core::{Direction, Facing, Position};
 use omnis_sim::{BlockReason, Command, Event, Settings, World, apply};
 use omnis_vector::collide::blocks;
+use omnis_vector::sim::SimWorld;
 
 fn simulated(world: &World, data: &omnis_sim::omnis_data::Data) -> Option<BlockReason> {
     let mut trial = world.clone();
@@ -22,7 +23,7 @@ fn simulated(world: &World, data: &omnis_sim::omnis_data::Data) -> Option<BlockR
 #[test]
 fn the_mirror_agrees_with_the_simulation_everywhere() {
     let data = data();
-    let base = World::new(&data, SEED, Settings::default()).expect("an entry map");
+    let base = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
     let mut checked = 0;
     let mut doors = 0;
     let mut services = 0;

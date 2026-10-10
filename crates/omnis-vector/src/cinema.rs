@@ -6,8 +6,9 @@
 //! queued from the events as they come, and drawings per monster replace the rat.
 
 use crate::raster::Raster;
+use omnis_sim::CombatView;
 use omnis_sim::omnis_core::MonsterId;
-use omnis_sim::{Mode, World};
+use omnis_sim::omnis_data::Data;
 
 /// The window's size in logical pixels, to fit the fight panel's width.
 pub const SIZE: (u32, u32) = (492, 200);
@@ -28,17 +29,13 @@ pub enum Scene {
 
 /// The scene a fight opens on, or `None` outside a fight or when no stack stands.
 #[must_use]
-pub fn opening(world: &World) -> Option<Scene> {
-    let encounter = match &world.mode {
-        Mode::Explore | Mode::Town(_) => return None,
-        Mode::Encounter(e) => e,
-        Mode::Combat(c) => &c.encounter,
-    };
-    encounter
+pub fn opening(combat: Option<&CombatView>, data: &Data) -> Option<Scene> {
+    combat?
         .stacks
         .iter()
-        .find(|s| s.alive())
-        .map(|s| Scene::Enemy(s.monster))
+        .find(|s| s.alive)
+        .and_then(|s| data.registry.monsters.get(&s.monster))
+        .map(Scene::Enemy)
 }
 
 /// A drawing: polylines in a unit square, x to the right and y down.

@@ -13,7 +13,6 @@ use super::session::Session;
 use super::town;
 use bevy::prelude::*;
 use omnis_sim::omnis_core::Position;
-use omnis_sim::{Mode, combat_view};
 
 /// Whether the panel is up; the cursor is freed while it is.
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -43,15 +42,13 @@ impl Plugin for PanelPlugin {
 /// Nothing while monsters are met or fought: the fight screen has them (`shell/combat.rs`).
 #[must_use]
 pub fn current(session: &Session, menu_open: bool) -> Option<Notice> {
-    if combat_view(&session.world, &session.data).is_some() {
+    let views = &session.views;
+    if views.combat.is_some() {
         return None;
     }
-    notice(&session.world, &session.data)
-        .or_else(|| town::notice(&session.world, &session.data))
-        .or_else(|| {
-            (menu_open && matches!(session.world.mode, Mode::Explore))
-                .then(|| menu(&session.world, &session.data))
-        })
+    notice(views)
+        .or_else(|| town::notice(views, &session.data))
+        .or_else(|| (menu_open && views.exploring()).then(|| menu(&session.world, &session.data)))
 }
 
 fn spawn(mut commands: Commands) {
@@ -86,9 +83,8 @@ fn keys(
     mut menu: ResMut<Menu>,
     mut last: Local<Option<Position>>,
 ) {
-    let here = session.world.position;
-    let exploring =
-        matches!(session.world.mode, Mode::Explore) && !fallen(&session.world, &session.data);
+    let here = session.views.position;
+    let exploring = session.views.exploring() && !fallen(&session.views);
     if last.is_some_and(|p| p != here) || !exploring {
         menu.open = false;
     }
@@ -182,9 +178,9 @@ fn refresh(
 ) {
     let key = (
         session.binder.log.len(),
-        fallen(&session.world, &session.data),
+        fallen(&session.views),
         menu.open,
-        session.world.position,
+        session.views.position,
     );
     if *last == Some(key) {
         return;

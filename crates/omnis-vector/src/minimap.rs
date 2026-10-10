@@ -1,5 +1,5 @@
 //! The minimap as pixels (presentation-ARCHITECTURE.md §8): what the party knows of the current map,
-//! from `world.automap`, with the pose marked. No Bevy, so it is tested directly; the shell
+//! from the automap view (`SimWorld::automap`), with the pose marked. No Bevy, so it is tested directly; the shell
 //! uploads the pixels into an image.
 
 use crate::pose::Pose;

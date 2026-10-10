@@ -6,9 +6,10 @@ use crate::grid::cell_of;
 use crate::party;
 use crate::pose::Pose;
 use crate::rolllog::{self, Names};
+use crate::sim::{SimWorld, Views};
 use bevy::prelude::Resource;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, PartyCommand, Settings, World};
+use omnis_sim::{Command, Event, PartyCommand, Settings};
 use std::path::{Component, Path, PathBuf};
 
 /// What the command line asked for.
@@ -135,8 +136,10 @@ fn safe_relative(path: &Path) -> bool {
 pub struct Session {
     /// The loaded packs.
     pub data: Data,
-    /// The authoritative world.
-    pub world: World,
+    /// The authoritative world, reached only through the engine's API.
+    pub world: SimWorld,
+    /// What the shell reads of the world, refreshed after every accepted command.
+    pub views: Views,
     /// Pose-to-command translation and the accepted-command log.
     pub binder: Binder,
     /// The camera's pose.
@@ -168,7 +171,8 @@ impl Session {
         let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
         let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
         let settings = Settings::default();
-        let mut world = World::new(&data, config.seed, settings).map_err(|e| format!("{e:?}"))?;
+        let mut world =
+            SimWorld::start(&data, config.seed, settings).map_err(|e| format!("{e:?}"))?;
         let mut binder = Binder::default();
         for draft in party::fixed() {
             binder
@@ -179,12 +183,14 @@ impl Session {
                 )
                 .map_err(|e| format!("party: {e:?}"))?;
         }
-        let pose = Pose::at(world.position);
+        let views = world.views(&data);
+        let pose = Pose::at(views.position);
         let mut names = Names::default();
-        names.observe(&world);
+        names.observe(&views.party);
         Ok(Session {
             data,
             world,
+            views,
             binder,
             pose,
             seed: config.seed,
@@ -228,7 +234,7 @@ impl Session {
     /// Snap the pose to the simulation's position when the party is no longer where the pose
     /// is, keeping the pose otherwise.
     pub fn follow(&mut self) {
-        let p = self.world.position;
+        let p = self.views.position;
         let here = cell_of(self.pose.x, self.pose.z);
         if here != (i32::from(p.x), i32::from(p.y)) {
             self.pose = Pose::at(p);
@@ -250,8 +256,9 @@ impl Session {
     /// Take in a frame's events: HUD lines for the ones worth showing, the roll log (cleared
     /// when monsters are met, the last 40 lines kept), and the reshape flag.
     pub fn note(&mut self, events: &[Event]) {
+        self.refresh();
         self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
-        self.names.observe(&self.world);
+        self.names.observe(&self.views.party);
         for event in events {
             if matches!(event, Event::EncounterStarted { .. }) {
                 self.fight_log.clear();
@@ -266,6 +273,12 @@ impl Session {
         for line in events.iter().filter_map(describe) {
             self.say(line);
         }
+    }
+
+    /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`
+    /// follows every command the binder applies.
+    pub fn refresh(&mut self) {
+        self.views = self.world.views(&self.data);
     }
 
     /// Add a line to the HUD's recent events, keeping the last eight.
