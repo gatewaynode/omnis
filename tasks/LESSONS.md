@@ -51,6 +51,7 @@
 ## 2026-09-13 — A display target is measured on the owner's primary display
 - **What happened**: The display rework sized the canvas for a 16:9 4K monitor because the PRD named one. The owner's primary display is a 5120×1440 ultrawide; the fixed 16:9 canvas left half of it empty and every windowed class fell to 1× under the menu bar. A second rework followed the same day.
 - **Rule**: Before a decision about display size, scale, or aspect, ask which display is primary and read the machine (`system_profiler SPDisplaysDataType` on macOS: physical and "looks like" sizes for every panel), then measure the design on every panel listed, windowed and fullscreen, before proposing it.
+- **Rule** (2026-10-03): "Primary" is two things on macOS. One is the display the owner works on. The other is the *main display* (the menu bar), which can pace frames. Ask for both, with each display's refresh rate and its scaling (a 4K panel can show "1920×1080"). System Settings screenshots work when `system_profiler` lists no displays from the agent's shell.
 - **Rule**: A layout is designed for the aspect range the hardware shows, not for one canvas: state what fills the screen on each panel and what stays empty, with numbers, so the owner decides on the bars before the code exists.
 
 ## 2026-09-19 — A deferred milestone keeps its number
@@ -122,6 +123,16 @@
 - **What happened**: After the owner accepted the Xcode license, the gate ran green without the `DEVELOPER_DIR` override and was reported as "green on Xcode's toolchain". Every artifact was already built, so nothing was linked. The first fresh build (a scratch worktree) failed to link: inside the sandbox `xcodebuild -find clang` cannot read Xcode's license plist, accepted or not. The claim had to be withdrawn.
 - **Rule**: A toolchain fix is verified with a fresh link (a new target directory, a scratch worktree, or a touched crate that links a binary), never with a cached gate.
 - **Rule**: When a sandbox blocks a file a tool reads, assume the tool behaves as if the file were missing, and test it from inside the sandbox before claiming it works there.
+
+## 2026-10-02 — An overlay is judged over the busiest frame, and a destructive button stands apart
+- **What happened**: The 3D viewer's first button pad had translucent backgrounds and put Save log and Quit in the movement pad, one row under Back. My checks were offscreen captures where no line happened to cross a label. The owner's first play: "buttons need some work". In their screenshot a floor line ran through Save log and Quit, and a slip off Back could quit.
+- **Rule**: UI drawn over a moving 3D or line-art view gets opaque backgrounds unless translucency is asked for. The visual check uses a frame where scene lines pass behind the overlay.
+- **Rule**: A destructive or session-ending action (quit, restart, delete) never shares a group with frequent actions. It goes in its own group, away from where the hand rests.
+
+## 2026-10-03 — A mode that takes the pointer shows its way out, and the click that entered it leaves it
+- **What happened**: The 3D viewer locked and hid the pointer on any left click in the view. Only Esc released it, and nothing on screen said so. The owner was trapped in the window and got out with Space, they think by accident. Headless tests could not see this, because the grab needs a window.
+- **Rule**: Any mode that captures input (pointer lock, a modal, full-screen capture) is left the way it was entered: a second click leaves a click-entered mode. It also shows how to leave while it is on.
+- **Rule**: The decision behind a window-only behaviour is a pure function with unit tests (`movement::look`), so the part the headless suite cannot reach is as small as possible.
 
 ## 2026-10-03 — A capability in a vision document needs the owner's ask behind it
 - **What happened**: ARCHITECTURE §8.1 said since its first draft (mine) that `InputPlugin` maps the gamepad to commands. No gamepad code was ever written and the PRD never names one; the M7a sync found it, and the owner: "I never mentioned any gamepad. This will definitely be a keyboard and mouse game first. Other control methods are stretch goals."
