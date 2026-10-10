@@ -53,6 +53,7 @@ pub fn clock(elapsed: i64) -> String {
 fn mode_name(mode: &Mode) -> &'static str {
     match mode {
         Mode::Explore => "Exploring",
+        Mode::Town(_) => "In town",
         Mode::Encounter(_) => "Encounter",
         Mode::Combat(_) => "Combat",
     }

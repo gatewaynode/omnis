@@ -2,7 +2,7 @@
 //! Space opens the square's actions, Shift+Space runs the default action or opens the menu, and
 //! the menu lists only what the simulation would accept.
 
-mod common;
+use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;

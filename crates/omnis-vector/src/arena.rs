@@ -434,19 +434,19 @@ pub fn arena(
         let here: Vec<_> = view
             .stacks
             .iter()
-            .filter(|s| s.alive && s.front == in_front)
+            .filter(|s| s.alive && s.in_front == in_front)
             .collect();
         for (stack, slot) in here.iter().zip(band.columns(here.len())) {
             let id = data.registry.monsters.get(&stack.monster)?;
             let monster = data.monsters.get(&id)?;
             let max = monster.hit_points.max();
             let health: Vec<_> = stack
-                .hp
+                .hps
                 .iter()
                 .map(|&hp| (share(hp, max), State::Standing))
                 .collect();
-            let text = if stack.hp.len() > MOST {
-                format!("{} x{}", data.label("en", &stack.name), stack.hp.len())
+            let text = if stack.hps.len() > MOST {
+                format!("{} x{}", data.label("en", &stack.name), stack.hps.len())
             } else {
                 data.label("en", &stack.name).to_owned()
             };
@@ -456,7 +456,7 @@ pub fn arena(
             };
             let (figures, label) = stand(&slot, &kind, &health, text);
             stacks.push(Group {
-                pick: Pick::Stack(stack.index),
+                pick: Pick::Stack(stack.stack),
                 figures,
                 label,
                 slot,
@@ -473,7 +473,7 @@ pub fn arena(
     for (band, in_front) in [(back, false), (front, true)] {
         let here: Vec<_> = view_members
             .iter()
-            .filter(|m| m.front == in_front)
+            .filter(|m| m.in_front == in_front)
             .collect();
         for (member, slot) in here.iter().zip(band.columns(here.len())) {
             let state = if member.dead {
@@ -486,22 +486,21 @@ pub fn arena(
             let health = [(share(member.hp, member.hp_max), state)];
             let (figures, label) = stand(&slot, &kind, &health, member.name.clone());
             members.push(Group {
-                pick: Pick::Member(member.index),
+                pick: Pick::Member(member.member),
                 figures,
                 label,
                 slot,
             });
         }
     }
-    members.sort_by_key(|g| g.pick);
-    let acting = match view.current {
-        Some(ActorRef::Member(id)) => world
-            .party
-            .members
+    let slot = |pick: Pick| {
+        view_members
             .iter()
-            .position(|m| m.id == id)
-            .and_then(|slot| u8::try_from(slot).ok())
-            .map(Pick::Member),
+            .position(|m| Pick::Member(m.member) == pick)
+    };
+    members.sort_by_key(|g| slot(g.pick));
+    let acting = match view.current {
+        Some(ActorRef::Member(id)) => Some(Pick::Member(id)),
         Some(ActorRef::Stack(stack) | ActorRef::Monster { stack, .. }) => Some(Pick::Stack(stack)),
         None => None,
     };

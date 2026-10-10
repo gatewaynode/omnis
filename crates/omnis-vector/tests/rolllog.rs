@@ -2,7 +2,7 @@
 //! starts a fresh log, and every line of the fight, the last command's included, names who
 //! acted, though that command ends the fight and the stacks leave the world with it.
 
-mod common;
+use crate::common;
 
 use common::app::met_with;
 use omnis_sim::omnis_data::Disposition;
@@ -30,7 +30,7 @@ fn fought(seed: u64) -> Session {
             .iter()
             .find(|s| s.alive && s.reachable)
             .map_or(CombatCommand::Dodge, |s| CombatCommand::Attack {
-                stack: s.index,
+                stack: s.stack,
             });
         session.order(Command::Combat(command));
     }
@@ -136,7 +136,7 @@ fn a_member_the_fight_removed_is_still_named() {
 fn meeting_monsters_starts_a_fresh_log() {
     let mut session = fought(1);
     assert!(!session.fight_log.is_empty());
-    let monster = *session.data.monsters.keys().next().expect("a monster");
+    let monster = "test:monster:giant_rat".to_owned();
     session.note(&[Event::EncounterStarted {
         source: EncounterSource::Random,
         stacks: vec![(monster, 2)],

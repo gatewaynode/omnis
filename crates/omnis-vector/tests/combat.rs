@@ -3,11 +3,12 @@
 //! fight runs to its end from its buttons and clicks on the figures alone, every one accepted;
 //! and leaving puts the pose where the party is.
 
-mod common;
+use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::{click, key, met_with, set};
+use common::id;
 use omnis_sim::{Command, EncounterChoice, Mode};
 use omnis_vector::arena::Rect;
 use omnis_vector::cinema::Scene;
@@ -213,7 +214,7 @@ fn the_pointer_frames_a_target_and_a_click_attacks_it() {
     assert_eq!(session(&app).binder.log.len(), accepted);
     assert_eq!(screen(&app).hover, None);
     // A member is no target for an attack: resting on one frames nothing, clicking does nothing.
-    let pip = spot(&app, Pick::Member(3));
+    let pip = spot(&app, Pick::Member(id(&session(&app).world, 3)));
     point_at(&mut app, pip);
     assert_eq!(screen(&app).hover, None);
     click(&mut app, pip);

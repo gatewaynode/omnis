@@ -1,7 +1,7 @@
 //! The shell's headless half (alt-ARCHITECTURE.md §10.4): held keys and pressed buttons move
 //! the world through the movement plugin with no window or GPU.
 
-mod common;
+use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;

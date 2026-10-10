@@ -5,7 +5,7 @@
 //! keeps it, and it keeps the names of members a fight's last command buries. The session
 //! shows it every event after describing it.
 
-use omnis_sim::omnis_core::{CharacterId, SpellId};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::{Data, Disposition};
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, Surprise, World};
@@ -27,25 +27,25 @@ struct Stack {
 pub struct Names {
     /// Every member seen, kept after they leave the party.
     members: BTreeMap<CharacterId, String>,
-    /// Marching order, slot to member.
-    order: Vec<CharacterId>,
     /// The stacks of the current or last encounter.
     stacks: Vec<Stack>,
 }
 
-fn monster_name(data: &Data, id: omnis_sim::omnis_core::MonsterId) -> &str {
-    data.monsters
-        .get(&id)
+/// A monster's name from the string id an event carries.
+fn monster_name<'d>(data: &'d Data, id: &str) -> &'d str {
+    data.registry
+        .monsters
+        .get(id)
+        .and_then(|id| data.monsters.get(&id))
         .map_or("?", |m| data.label("en", &m.name))
 }
 
 impl Names {
-    /// Take in the party's members and marching order. Members are added, never removed.
+    /// Take in the party's members. Members are added, never removed.
     pub fn observe(&mut self, world: &World) {
         for m in &world.party.members {
             self.members.insert(m.id, m.name.clone());
         }
-        self.order = world.party.members.iter().map(|m| m.id).collect();
     }
 
     /// Follow an event already described: meeting monsters numbers them afresh, and a death
@@ -56,7 +56,7 @@ impl Names {
                 self.stacks = stacks
                     .iter()
                     .map(|(monster, count)| Stack {
-                        name: monster_name(data, *monster).to_owned(),
+                        name: monster_name(data, monster).to_owned(),
                         initial: *count,
                         living: (1..=*count).collect(),
                     })
@@ -81,12 +81,6 @@ impl Names {
             .get(&id)
             .cloned()
             .unwrap_or_else(|| "someone".to_owned())
-    }
-
-    fn slot(&self, slot: u8) -> String {
-        self.order
-            .get(usize::from(slot))
-            .map_or_else(|| "someone".to_owned(), |id| self.member(*id))
     }
 
     /// A member's name, a stack's monster name, or one individual by the number it was met
@@ -120,9 +114,12 @@ impl Names {
     }
 }
 
-fn spell(data: &Data, id: SpellId) -> &str {
-    data.spells
-        .get(&id)
+/// A spell's name from the string id an event carries.
+fn spell<'d>(data: &'d Data, id: &str) -> &'d str {
+    data.registry
+        .spells
+        .get(id)
+        .and_then(|id| data.spells.get(&id))
         .map_or("a spell", |s| data.label("en", &s.name))
 }
 
@@ -139,7 +136,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => {
             let met: Vec<String> = stacks
                 .iter()
-                .map(|(monster, count)| format!("{count} {}", monster_name(data, *monster)))
+                .map(|(monster, count)| format!("{count} {}", monster_name(data, monster)))
                 .collect();
             let mood = match disposition {
                 Disposition::Hostile => "hostile",
@@ -191,8 +188,9 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         Event::RoundStarted { round } => format!("Round {round}"),
         Event::Waited { actor } => format!("{} waits", names.actor(*actor)),
         Event::Dodging { actor } => format!("{} dodges", names.actor(*actor)),
-        Event::Exchanged { a, b } => {
-            format!("{} and {} swap places", names.slot(*a), names.slot(*b))
+        Event::Exchanged { member, with } => {
+            let (a, b) = (names.member(*member), names.member(*with));
+            format!("{a} and {b} swap places")
         }
         Event::AttackResolved {
             attacker,
@@ -241,40 +239,42 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             } else {
                 format!(" ({points} points)")
             };
-            format!("{} casts {}{cost}", names.member(*caster), spell(data, *id))
+            format!("{} casts {}{cost}", names.member(*caster), spell(data, id))
         }
         Event::EffectApplied {
             target, spell: id, ..
         } => {
             format!(
                 "{} takes hold on {}",
-                spell(data, *id),
+                spell(data, id),
                 names.effect(*target)
             )
         }
         Event::EffectEnded {
             target, spell: id, ..
         } => {
-            format!("{} on {} ends", spell(data, *id), names.effect(*target))
+            format!("{} on {} ends", spell(data, id), names.effect(*target))
         }
         Event::Concentration {
             caster, spell: id, ..
         } => format!(
             "{} stops concentrating on {}",
             names.member(*caster),
-            spell(data, *id)
+            spell(data, id)
         ),
         Event::ItemUsed {
             member,
             item,
-            target,
+            receiver,
             ..
         } => {
             let item = data
+                .registry
                 .items
                 .get(item)
+                .and_then(|id| data.items.get(&id))
                 .map_or("an item", |i| data.label("en", &i.name));
-            let on = target.map_or_else(String::new, |t| format!(" on {}", names.member(t)));
+            let on = receiver.map_or_else(String::new, |t| format!(" on {}", names.member(t)));
             format!("{} uses {item}{on}", names.member(*member))
         }
         Event::Healed { target, hp, .. } => {
@@ -301,8 +301,10 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             applied,
         } => {
             let condition = data
+                .registry
                 .conditions
                 .get(condition)
+                .and_then(|id| data.conditions.get(&id))
                 .map_or("a condition", |c| data.label("en", &c.name));
             let state = if *applied { "is now" } else { "is no longer" };
             format!("{} {state} {condition}", names.actor(*target))

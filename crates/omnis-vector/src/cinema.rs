@@ -30,7 +30,7 @@ pub enum Scene {
 #[must_use]
 pub fn opening(world: &World) -> Option<Scene> {
     let encounter = match &world.mode {
-        Mode::Explore => return None,
+        Mode::Explore | Mode::Town(_) => return None,
         Mode::Encounter(e) => e,
         Mode::Combat(c) => &c.encounter,
     };

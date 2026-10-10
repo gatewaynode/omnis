@@ -2,9 +2,9 @@
 //! the real test maps: at rest the camera's cell is the simulation's position; boundaries,
 //! corners, walls, a portal and a placed encounter behave; the log replays.
 
-mod common;
+use crate::common;
 
-use common::{data, drive, map, place, session, steps};
+use common::{data, drive, map, place, session, steps, town_session_seeded};
 use core::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use omnis_sim::omnis_core::{Direction, Facing};
 use omnis_sim::{Command, Event, Mode, Settings};
@@ -201,10 +201,25 @@ fn the_random_table_rolls_once_per_cell_never_per_frame() {
 #[test]
 fn a_free_movement_session_replays_to_the_same_fingerprint() {
     let data = data();
-    let (mut world, mut binder) = session(&data);
-    // North up the road into the portal, then through the dungeon door to the placed group.
+    // A seed whose walk from the town meets no random encounter before the placed group (most
+    // do; the shared seed 7 meets one in the dungeon's first room).
+    let seed = 1;
+    let (mut world, mut binder) = town_session_seeded(&data, seed);
+    // From the game's start, east through the signpost onto the meadow, north up the road into
+    // the portal, then through the dungeon door to the placed group.
     let pose = Pose::at(world.position);
-    let (pose, _, _) = drive(&mut binder, &mut world, &data, pose, (0.0, -STEP), 0.0, 240);
+    let (_, _, _) = drive(
+        &mut binder,
+        &mut world,
+        &data,
+        pose,
+        (STEP, 0.0),
+        yaw_of(Facing::East),
+        20,
+    );
+    assert_eq!(world.position.map, map(&data, "test:map:meadow"));
+    let pose = Pose::at(world.position);
+    let (pose, _, _) = drive(&mut binder, &mut world, &data, pose, (0.0, -STEP), 0.0, 520);
     assert_eq!(world.position.map, map(&data, "test:map:dungeon"));
     // Face south (a turn from the yaw), walk to (1, 5), then east to (3, 5).
     let (pose, _, _) = drive(
@@ -263,7 +278,7 @@ fn a_free_movement_session_replays_to_the_same_fingerprint() {
         .count();
     assert_eq!(turns_before, turns_after, "no turns while frozen");
     let replay = binder
-        .replay(&data, common::SEED, Settings::default())
+        .replay(&data, seed, Settings::default())
         .expect("the log replays");
     assert_eq!(
         replay.fingerprint,

@@ -3,9 +3,10 @@
 //! spell, item and swap steps reach their targets, clicks choose only offered targets, and a
 //! fight runs to its end from the menu alone.
 
-mod common;
+use crate::common;
 
 use common::fight::{met, turn_of};
+use common::id;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{CombatCommand, Command, Event, Mode, Target, World, apply, combat_view};
 use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step};
@@ -107,7 +108,7 @@ fn a_rogue_who_knows_no_spells_is_told_so() {
     let entries = CombatMenu::default().entries(&session.world, &session.data);
     assert_eq!(
         labels(&entries),
-        ["Attack", "Cast", "Use", "Dodge", "Swap", "Flee"]
+        ["Attack", "Cast", "Use", "Dodge", "Swap", "End turn", "Flee"]
     );
     assert_eq!(
         entry(&entries, "Cast").blocked.as_deref(),
@@ -172,9 +173,9 @@ fn a_spell_whose_target_does_not_matter_is_cast_at_once() {
         matches!(
             &light.act,
             Act::Command(Command::Combat(CombatCommand::Cast {
-                target: Target::Member(1),
+                target: Target::Member(durin),
                 ..
-            }))
+            })) if *durin == id(&session.world, 1)
         ),
         "cast on Durin, slot 1, without asking: {light:?}"
     );
@@ -192,7 +193,10 @@ fn swap_offers_the_others_and_a_potion_goes_to_a_member() {
         panic!("a member sends the swap")
     };
     let events = events_of(world, data, swap);
-    assert!(events.contains(&Event::Exchanged { a: 1, b: 0 }));
+    assert!(events.contains(&Event::Exchanged {
+        member: id(world, 1),
+        with: id(world, 0)
+    }));
     // Use: the potion, then whom.
     menu.choose(&entry(&menu.entries(world, data), "Use").act);
     let items = menu.entries(world, data);
@@ -235,7 +239,7 @@ fn a_click_chooses_only_an_offered_target() {
     let (world, data) = (&session.world, &session.data);
     let mut menu = CombatMenu::default();
     // On the turn's first step a click on a stack in reach attacks it.
-    assert_eq!(menu.pick(world, data, Pick::Member(0)), None);
+    assert_eq!(menu.pick(world, data, Pick::Member(id(world, 0))), None);
     let stack = menu.clickable(world, data)[0];
     let Some(attack) = menu.pick(world, data, stack) else {
         panic!("a stack in reach is clickable")
@@ -249,13 +253,15 @@ fn a_click_chooses_only_an_offered_target() {
     assert_eq!(menu.pick(world, data, stack), None);
     assert_eq!(menu.step, Step::Target(Action::Swap));
     assert_eq!(
-        menu.pick(world, data, Pick::Member(0)),
-        Some(Command::Combat(CombatCommand::Exchange { with: 0 }))
+        menu.pick(world, data, Pick::Member(id(world, 0))),
+        Some(Command::Combat(CombatCommand::Exchange {
+            with: id(world, 0)
+        }))
     );
     assert_eq!(menu.step, Step::Top);
     // Durin cannot swap with himself.
     menu.step = Step::Target(Action::Swap);
-    assert_eq!(menu.pick(world, data, Pick::Member(1)), None);
+    assert_eq!(menu.pick(world, data, Pick::Member(id(world, 1))), None);
 }
 
 #[test]

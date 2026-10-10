@@ -62,10 +62,16 @@ pub fn click(app: &mut App, point: (f32, f32)) {
     }
 }
 
+/// The shell with the party on the meadow start the walking tests were written on.
 pub fn app() -> App {
-    app_with(PathBuf::from(".omnis/vector-session.ron"), 1)
+    let mut app = app_with(PathBuf::from(".omnis/vector-session.ron"), 1);
+    let mut session = app.world_mut().resource_mut::<Session>();
+    let session = &mut *session;
+    session.pose = super::to_meadow(&mut session.world, &session.data);
+    app
 }
 
+/// The shell at the game's own start (the town), logging to `log`: its log replays.
 pub fn app_logging_to(log: PathBuf) -> App {
     app_with(log, 1)
 }

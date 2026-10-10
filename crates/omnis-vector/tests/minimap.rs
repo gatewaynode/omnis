@@ -1,7 +1,7 @@
 //! The minimap's pixels on the real test maps (alt-ARCHITECTURE.md §8): only what the automap
 //! knows is painted, the party is marked where the pose is, and walls appear once seen.
 
-mod common;
+use crate::common;
 
 use common::{data, drive, session};
 use omnis_vector::minimap::{BACKGROUND, MARKER, Raster, WALL, paint, scale_for};

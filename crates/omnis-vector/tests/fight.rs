@@ -1,7 +1,7 @@
 //! The fallen party's notice, headless (alt-ARCHITECTURE.md §9): a party that can no longer
 //! fight does not walk on, and can start again. The fight itself is `tests/combat.rs`.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::app::{app, set};
@@ -47,7 +47,13 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     app.update();
     let session = app.world().resource::<Session>();
     assert!(!fallen(&session.world, &session.data));
-    assert_eq!(session.world.position, start);
+    let town = common::map(&session.data, "test:map:town");
+    let (p, facing) = (session.world.position, omnis_sim::omnis_core::Facing::West);
+    assert_eq!(
+        (p.map, p.x, p.y, p.facing),
+        (town, 10, 2, facing),
+        "the game's start"
+    );
     assert_eq!(session.binder.log.len(), 4, "only the party's creation");
     assert!(enabled(&mut app).is_empty(), "the notice closed");
 }

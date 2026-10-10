@@ -2,7 +2,7 @@
 //! (alt-ARCHITECTURE.md §5.4, §10.2): for each cell and heading, `collide::blocks` names a
 //! reason exactly when `apply(Step)` reports `Blocked` with that reason, closed doors and open.
 
-mod common;
+use crate::common;
 
 use common::{SEED, data};
 use omnis_sim::omnis_core::{Direction, Facing, Position};
@@ -25,6 +25,7 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
     let base = World::new(&data, SEED, Settings::default()).expect("an entry map");
     let mut checked = 0;
     let mut doors = 0;
+    let mut services = 0;
     for (&map_id, map) in &data.maps {
         for y in 0..map.def.height {
             for x in 0..map.def.width {
@@ -45,8 +46,16 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
                     );
                     checked += 1;
                     if mirror == Some(BlockReason::ClosedDoor) {
-                        apply(&mut world, &data, Command::Interact)
+                        let events = apply(&mut world, &data, Command::Interact)
                             .expect("explore accepts interact");
+                        // On a service's site Interact enters the service, not the door.
+                        if events
+                            .iter()
+                            .any(|e| matches!(e, Event::ServiceEntered { .. }))
+                        {
+                            services += 1;
+                            continue;
+                        }
                         let opened = blocks(&data, &world, map_id, x, y, facing);
                         assert_ne!(opened, Some(BlockReason::ClosedDoor), "the door opened");
                         assert_eq!(
@@ -61,7 +70,13 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
             }
         }
     }
-    // Both test maps, every cell, four headings: 24² + 32² cells.
-    assert_eq!(checked, 4 * (24 * 24 + 32 * 32));
+    // Every map, every cell, four headings.
+    let cells: usize = data
+        .maps
+        .values()
+        .map(|m| usize::from(m.def.width) * usize::from(m.def.height))
+        .sum();
+    assert_eq!(checked, 4 * cells);
     assert!(doors > 0, "the dungeon's doors were exercised");
+    assert!(services > 0, "the town's service doors were met");
 }

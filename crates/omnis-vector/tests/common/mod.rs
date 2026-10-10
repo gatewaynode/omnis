@@ -5,7 +5,7 @@
 pub mod app;
 pub mod fight;
 
-use omnis_sim::omnis_core::{Facing, MapId, Position};
+use omnis_sim::omnis_core::{CharacterId, Facing, MapId, Position};
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::{Command, Event, PartyCommand, Settings, World};
 use omnis_vector::bind::{Binder, Outcome};
@@ -15,10 +15,23 @@ use std::path::PathBuf;
 
 pub const SEED: u64 = 7;
 
+/// Put the party on the meadow cell the test pack started on before it gained the town: the
+/// walking tests were written there. Set directly, so a session placed here does not replay
+/// from its log (`town_session` does).
+pub fn to_meadow(world: &mut World, data: &Data) -> Pose {
+    let meadow = map(data, "test:map:meadow");
+    place(world, meadow, 16, 16, Facing::North)
+}
+
 pub fn data() -> Data {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
     let (base, test) = (root.join("base"), root.join("test"));
     load_packs(&[base.as_path(), test.as_path()]).expect("the shipped packs load")
+}
+
+/// The member at marching-order `slot`, by identity.
+pub fn id(world: &World, slot: u8) -> CharacterId {
+    world.party.members[usize::from(slot)].id
 }
 
 pub fn map(data: &Data, name: &str) -> MapId {
@@ -30,10 +43,22 @@ pub fn map(data: &Data, name: &str) -> MapId {
         .expect("a test map")
 }
 
-/// A fresh world at the entry map with the fixed party, built through the binder so the
-/// party commands are in its log.
+/// A fresh world with the fixed party on the meadow (`to_meadow`).
 pub fn session(data: &Data) -> (World, Binder) {
-    let mut world = World::new(data, SEED, Settings::default()).expect("an entry map");
+    let (mut world, binder) = town_session(data);
+    to_meadow(&mut world, data);
+    (world, binder)
+}
+
+/// A fresh world at the entry map (the town) with the fixed party, built through the binder so
+/// the party commands are in its log and the session replays.
+pub fn town_session(data: &Data) -> (World, Binder) {
+    town_session_seeded(data, SEED)
+}
+
+/// `town_session` with its own seed.
+pub fn town_session_seeded(data: &Data, seed: u64) -> (World, Binder) {
+    let mut world = World::new(data, seed, Settings::default()).expect("an entry map");
     let mut binder = Binder::default();
     for draft in party::fixed() {
         binder

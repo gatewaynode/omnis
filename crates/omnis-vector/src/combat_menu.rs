@@ -1,6 +1,10 @@
 //! The fight's choices (alt-ARCHITECTURE.md §9): the encounter's four, then a member's turn
-//! (Attack, Cast, Use, Dodge, Swap, Flee) with the spell and item lists and the targets.
-//! Bevy-free.
+//! (Attack, Cast, Use, Dodge, Swap, End turn, Flee) with the spell and item lists and the
+//! targets. Bevy-free.
+//!
+//! Members are named by their `CharacterId` and spells and items by their string ids, as the
+//! simulation's commands name them (protocol 2, ARCHITECTURE §4.9); the menu keeps only rows of
+//! the lists it shows.
 //!
 //! Every command the menu offers is tried on a copy of the world first (`trial`), so a choice
 //! the simulation would refuse is shown blocked with its reason and never sent. Targets are
@@ -8,10 +12,11 @@
 //! accepts that action on it, so the menu holds no rules of its own.
 
 use crate::trial::{accepted, refusal};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{
-    ActorRef, CombatCommand, CombatView, Command, EncounterChoice, ModeKind, Target, World,
-    bribe_cost, combat_view,
+    ActorRef, CombatCommand, CombatView, Command, EncounterChoice, ItemView, ModeKind, Pay,
+    SpellView, Target, World, bribe_cost, combat_view, party_view,
 };
 
 /// An action waiting for its target.
@@ -19,9 +24,9 @@ use omnis_sim::{
 pub enum Action {
     /// Attack a stack.
     Attack,
-    /// Cast the spell at this index of the caster's list.
+    /// Cast the spell at this row of the caster's list (`CombatView.spells`).
     Cast(u8),
-    /// Use the item at this row of the acting member's kit.
+    /// Use the item at this row of the acting member's kit (`MemberView.equipment`).
     Use(u8),
     /// Swap places with another member.
     Swap,
@@ -64,42 +69,97 @@ pub struct Entry {
 }
 
 /// Something clicked on the screen: a stack by its index in the encounter, or a member by
-/// marching-order slot.
+/// identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Pick {
     /// A stack.
     Stack(u8),
     /// A member.
-    Member(u8),
+    Member(CharacterId),
 }
 
-/// The command `action` makes on `pick`, if that kind of target fits the action.
-#[must_use]
-pub fn command(action: Action, pick: Pick) -> Option<Command> {
+/// An action with its row read out of the views: what a command needs besides the target.
+enum Resolved {
+    Attack,
+    Cast { spell: String, pay: Pay },
+    Use { item: String },
+    Swap,
+}
+
+/// What pays for a cast from the menu: the bonus action when it can, leaving the action.
+fn pay(spell: &SpellView) -> Pay {
+    if spell.bonus.is_none() {
+        Pay::BonusAction
+    } else {
+        Pay::Action
+    }
+}
+
+/// The acting member's kit as the party view shows it.
+fn kit(world: &World, data: &Data, own: CharacterId) -> Vec<ItemView> {
+    party_view(world, data)
+        .members
+        .into_iter()
+        .find(|m| m.member == own)
+        .map(|m| m.equipment)
+        .unwrap_or_default()
+}
+
+/// Read `action`'s row out of the views; `None` when the row is gone.
+fn resolve(world: &World, data: &Data, view: &CombatView, action: Action) -> Option<Resolved> {
+    Some(match action {
+        Action::Attack => Resolved::Attack,
+        Action::Cast(row) => {
+            let spell = view.spells.get(usize::from(row))?;
+            Resolved::Cast {
+                spell: spell.spell.clone(),
+                pay: pay(spell),
+            }
+        }
+        Action::Use(row) => {
+            let own = acting(view)?;
+            let item = kit(world, data, own).into_iter().nth(usize::from(row))?;
+            Resolved::Use { item: item.item }
+        }
+        Action::Swap => Resolved::Swap,
+    })
+}
+
+/// The command a resolved action makes on `pick`, if that kind of target fits it.
+fn build(action: &Resolved, pick: Pick) -> Option<Command> {
     let combat = match (action, pick) {
-        (Action::Attack, Pick::Stack(stack)) => CombatCommand::Attack { stack },
-        (Action::Cast(spell), Pick::Stack(s)) => CombatCommand::Cast {
-            spell,
+        (Resolved::Attack, Pick::Stack(stack)) => CombatCommand::Attack { stack },
+        (Resolved::Cast { spell, pay }, Pick::Stack(s)) => CombatCommand::Cast {
+            spell: spell.clone(),
             target: Target::Stack(s),
+            pay: *pay,
         },
-        (Action::Cast(spell), Pick::Member(m)) => CombatCommand::Cast {
-            spell,
+        (Resolved::Cast { spell, pay }, Pick::Member(m)) => CombatCommand::Cast {
+            spell: spell.clone(),
             target: Target::Member(m),
+            pay: *pay,
         },
-        (Action::Use(item), Pick::Member(m)) => CombatCommand::Use {
-            item,
-            target: Some(m),
+        (Resolved::Use { item }, Pick::Member(m)) => CombatCommand::Use {
+            item: item.clone(),
+            receiver: Some(m),
         },
-        (Action::Swap, Pick::Member(with)) => CombatCommand::Exchange { with },
+        (Resolved::Swap, Pick::Member(with)) => CombatCommand::Exchange { with },
         _ => return None,
     };
     Some(Command::Combat(combat))
 }
 
+/// The command `action` makes on `pick` now, if that kind of target fits the action.
+#[must_use]
+pub fn command(world: &World, data: &Data, action: Action, pick: Pick) -> Option<Command> {
+    let view = combat_view(world, data)?;
+    build(&resolve(world, data, &view, action)?, pick)
+}
+
 /// Every stack still standing and every member, the candidates for any action.
 fn candidates(world: &World, view: &CombatView) -> Vec<Pick> {
-    let stacks = view.stacks.iter().filter(|s| s.alive).map(|s| s.index);
-    let members = 0..u8::try_from(world.party.members.len()).unwrap_or(u8::MAX);
+    let stacks = view.stacks.iter().filter(|s| s.alive).map(|s| s.stack);
+    let members = world.party.members.iter().map(|m| m.id);
     stacks
         .map(Pick::Stack)
         .chain(members.map(Pick::Member))
@@ -112,19 +172,28 @@ pub fn targets(world: &World, data: &Data, action: Action) -> Vec<Pick> {
     let Some(view) = combat_view(world, data) else {
         return Vec::new();
     };
+    let Some(resolved) = resolve(world, data, &view, action) else {
+        return Vec::new();
+    };
     candidates(world, &view)
         .into_iter()
-        .filter(|&pick| command(action, pick).is_some_and(|c| accepted(world, data, &c)))
+        .filter(|&pick| build(&resolved, pick).is_some_and(|c| accepted(world, data, &c)))
         .collect()
 }
 
-/// The acting member's marching-order slot, on a member's turn.
-fn acting(world: &World, view: &CombatView) -> Option<u8> {
-    let Some(ActorRef::Member(id)) = view.current else {
-        return None;
-    };
-    let slot = world.party.members.iter().position(|m| m.id == id)?;
-    u8::try_from(slot).ok()
+/// The acting member, on a member's turn.
+fn acting(view: &CombatView) -> Option<CharacterId> {
+    match view.current {
+        Some(ActorRef::Member(id)) => Some(id),
+        _ => None,
+    }
+}
+
+/// A member's name, or `?` for one the party no longer holds.
+fn name_of(world: &World, id: Option<CharacterId>) -> String {
+    id.and_then(|id| world.party.members.iter().find(|m| m.id == id))
+        .map_or("?", |m| m.name.as_str())
+        .to_owned()
 }
 
 /// A spell whose target does not matter: the simulation takes it on a stack and on a member
@@ -151,19 +220,14 @@ impl CombatMenu {
         if view.phase == ModeKind::Encounter {
             return format!("Monsters ahead ({:?})", view.disposition);
         }
-        let name = |slot: Option<u8>| {
-            slot.and_then(|s| world.party.members.get(usize::from(s)))
-                .map_or("?", |m| m.name.as_str())
-                .to_owned()
-        };
-        let who = name(acting(world, &view));
+        let who = name_of(world, acting(&view));
         match self.step {
             Step::Top => format!("Round {}: {who}'s turn", view.round),
             Step::Spells => format!("{who} casts which spell?"),
             Step::Items => format!("{who} uses what?"),
             Step::Target(Action::Attack) => format!("{who} attacks whom?"),
             Step::Target(Action::Cast(i)) => {
-                let spell = view.spells.iter().find(|s| s.index == i);
+                let spell = view.spells.get(usize::from(i));
                 let spell = spell.map_or("the spell", |s| data.label("en", &s.name));
                 format!("{who} casts {spell} on whom?")
             }
@@ -184,7 +248,7 @@ impl CombatMenu {
         if view.phase == ModeKind::Encounter {
             return encounter(world, data);
         }
-        let Some(own) = acting(world, &view) else {
+        let Some(own) = acting(&view) else {
             return Vec::new();
         };
         let mut entries = match self.step {
@@ -245,7 +309,7 @@ impl CombatMenu {
             Step::Target(action) => action,
             _ => Action::Attack,
         };
-        let command = command(action, pick)?;
+        let command = command(world, data, action, pick)?;
         self.step = Step::Top;
         Some(command)
     }
@@ -287,7 +351,9 @@ fn encounter(world: &World, data: &Data) -> Vec<Entry> {
 
 /// The turn's first step.
 fn turn(world: &World, data: &Data, view: &CombatView) -> Vec<Entry> {
-    let own = acting(world, view).unwrap_or(0);
+    let Some(own) = acting(view) else {
+        return Vec::new();
+    };
     let none = |empty: bool, why| empty.then_some(why);
     let castable = spells(world, data, view, own)
         .iter()
@@ -332,6 +398,12 @@ fn turn(world: &World, data: &Data, view: &CombatView) -> Vec<Entry> {
         order(
             world,
             data,
+            "End turn".to_owned(),
+            Command::Combat(CombatCommand::EndTurn),
+        ),
+        order(
+            world,
+            data,
             "Flee".to_owned(),
             Command::Combat(CombatCommand::Run),
         ),
@@ -339,22 +411,24 @@ fn turn(world: &World, data: &Data, view: &CombatView) -> Vec<Entry> {
 }
 
 /// The acting member's spells. A spell whose target does not matter is cast at once on the
-/// caster; the others ask for a target.
-fn spells(world: &World, data: &Data, view: &CombatView, own: u8) -> Vec<Entry> {
-    view.spells
-        .iter()
-        .map(|s| {
-            let label = format!("{} ({} pt)", data.label("en", &s.name), s.cost);
-            if let Some(why) = &s.blocked {
+/// caster; the others ask for a target. A spell the bonus action can pay for is cast that way,
+/// leaving the action; it is blocked only when neither can pay.
+fn spells(world: &World, data: &Data, view: &CombatView, own: CharacterId) -> Vec<Entry> {
+    (0..u8::try_from(view.spells.len()).unwrap_or(u8::MAX))
+        .zip(&view.spells)
+        .map(|(row, s)| {
+            let note = if s.bonus.is_none() { ", bonus" } else { "" };
+            let label = format!("{} ({} pt{note})", data.label("en", &s.name), s.cost);
+            if let Some(why) = s.bonus.as_ref().and(s.blocked.as_ref()) {
                 return Entry {
                     label,
-                    act: Act::Open(Step::Target(Action::Cast(s.index))),
+                    act: Act::Open(Step::Target(Action::Cast(row))),
                     blocked: Some(why.to_string()),
                 };
             }
-            let picks = targets(world, data, Action::Cast(s.index));
+            let picks = targets(world, data, Action::Cast(row));
             if untargeted(&picks) {
-                let cast = command(Action::Cast(s.index), Pick::Member(own));
+                let cast = command(world, data, Action::Cast(row), Pick::Member(own));
                 return order(
                     world,
                     data,
@@ -364,7 +438,7 @@ fn spells(world: &World, data: &Data, view: &CombatView, own: u8) -> Vec<Entry> 
             }
             Entry {
                 label,
-                act: Act::Open(Step::Target(Action::Cast(s.index))),
+                act: Act::Open(Step::Target(Action::Cast(row))),
                 blocked: picks.is_empty().then(|| "no target".to_owned()),
             }
         })
@@ -372,10 +446,8 @@ fn spells(world: &World, data: &Data, view: &CombatView, own: u8) -> Vec<Entry> 
 }
 
 fn item_name(world: &World, data: &Data, view: &CombatView, row: u8) -> String {
-    acting(world, view)
-        .and_then(|own| world.party.members.get(usize::from(own)))
-        .and_then(|m| m.equipment.get(usize::from(row)))
-        .and_then(|(id, _)| data.items.get(id))
+    acting(view)
+        .and_then(|own| kit(world, data, own).into_iter().nth(usize::from(row)))
         .map_or_else(
             || "the item".to_owned(),
             |i| data.label("en", &i.name).to_owned(),
@@ -384,23 +456,20 @@ fn item_name(world: &World, data: &Data, view: &CombatView, row: u8) -> String {
 
 /// The acting member's kit rows that have a use, each blocked with the simulation's reason
 /// when it can go to no one.
-fn items(world: &World, data: &Data, own: u8) -> Vec<Entry> {
-    let Some(member) = world.party.members.get(usize::from(own)) else {
-        return Vec::new();
-    };
-    member
-        .equipment
-        .iter()
+fn items(world: &World, data: &Data, own: CharacterId) -> Vec<Entry> {
+    kit(world, data, own)
+        .into_iter()
         .enumerate()
-        .filter_map(|(i, (id, count))| {
-            let item = data.items.get(id)?;
-            item.use_effect.as_ref()?;
+        .filter_map(|(i, item)| {
+            if !item.usable {
+                return None;
+            }
             let row = u8::try_from(i).ok()?;
-            let label = format!("{} x{count}", data.label("en", &item.name));
+            let label = format!("{} x{}", data.label("en", &item.name), item.count);
             let blocked = if targets(world, data, Action::Use(row)).is_empty() {
                 let alone = Command::Combat(CombatCommand::Use {
-                    item: row,
-                    target: None,
+                    item: item.item,
+                    receiver: None,
                 });
                 Some(
                     refusal(world, data, &alone)
@@ -420,19 +489,22 @@ fn items(world: &World, data: &Data, own: u8) -> Vec<Entry> {
 
 /// One entry per target the simulation accepts the action on.
 fn target_entries(world: &World, data: &Data, view: &CombatView, action: Action) -> Vec<Entry> {
+    let Some(resolved) = resolve(world, data, view, action) else {
+        return Vec::new();
+    };
     targets(world, data, action)
         .into_iter()
         .filter_map(|pick| {
             let label = match pick {
                 Pick::Stack(i) => {
-                    let s = view.stacks.iter().find(|s| s.index == i)?;
-                    format!("{} x{}", data.label("en", &s.name), s.hp.len())
+                    let s = view.stacks.iter().find(|s| s.stack == i)?;
+                    format!("{} x{}", data.label("en", &s.name), s.hps.len())
                 }
-                Pick::Member(m) => world.party.members.get(usize::from(m))?.name.clone(),
+                Pick::Member(m) => name_of(world, Some(m)),
             };
             Some(Entry {
                 label,
-                act: Act::Command(command(action, pick)?),
+                act: Act::Command(build(&resolved, pick)?),
                 blocked: None,
             })
         })

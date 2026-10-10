@@ -3,9 +3,10 @@
 //! at the owner's two window sizes, a click lands on the figure under it and nowhere else, and
 //! the marks frame whoever acts and whatever can be clicked.
 
-mod common;
+use crate::common;
 
 use common::fight::{met, turn_of};
+use common::id;
 use omnis_sim::{Mode, World};
 use omnis_vector::arena::{Arena, Group, Rect, State, Tone, arena, pick, segments};
 use omnis_vector::combat_menu::{CombatMenu, Pick};
@@ -48,7 +49,13 @@ fn the_rats_stand_above_the_party_in_its_two_rows() {
         assert_eq!(rats.figures.len(), 2, "a figure per rat");
         assert_eq!(rats.label.text, "Giant Rat");
         let picks: Vec<Pick> = arena.members.iter().map(|g| g.pick).collect();
-        assert_eq!(picks, (0..4).map(Pick::Member).collect::<Vec<_>>());
+        let marching = session
+            .world
+            .party
+            .members
+            .iter()
+            .map(|m| Pick::Member(m.id));
+        assert_eq!(picks, marching.collect::<Vec<_>>());
         let names: Vec<&str> = arena
             .members
             .iter()
@@ -57,7 +64,11 @@ fn the_rats_stand_above_the_party_in_its_two_rows() {
         assert_eq!(names, ["Brenna", "Durin", "Ilvara", "Pip"]);
         // The front row (the pack's first three in marching order) stands nearer: lower on
         // the screen. Pip, behind, stands higher.
-        let foot = |slot: u8| group(&arena, Pick::Member(slot)).figures[0].rect.bottom();
+        let foot = |slot: u8| {
+            group(&arena, Pick::Member(id(&session.world, slot))).figures[0]
+                .rect
+                .bottom()
+        };
         let party_top = arena
             .members
             .iter()
@@ -141,7 +152,11 @@ fn everything_stays_in_the_field_clear_of_the_picture_and_log() {
                 }
             }
         }
-        tallest.push(group(&arena, Pick::Member(0)).figures[0].rect.h);
+        tallest.push(
+            group(&arena, Pick::Member(id(&session.world, 0))).figures[0]
+                .rect
+                .h,
+        );
     }
     assert!(
         tallest[1] > tallest[0],
@@ -168,8 +183,8 @@ fn a_click_lands_on_the_figure_under_it_and_nowhere_else() {
         );
         assert_eq!(pick(&arena, between), None);
         let (a, b) = (
-            &group(&arena, Pick::Member(0)).figures[0].rect,
-            &group(&arena, Pick::Member(1)).figures[0].rect,
+            &group(&arena, Pick::Member(id(&session.world, 0))).figures[0].rect,
+            &group(&arena, Pick::Member(id(&session.world, 1))).figures[0].rect,
         );
         assert_eq!(pick(&arena, ((a.right() + b.x) / 2.0, centre(a).1)), None);
         for part in [arena.layout.picture, arena.layout.log, arena.layout.title] {
@@ -193,8 +208,12 @@ fn the_marks_frame_whoever_acts_and_the_targets() {
     assert_eq!(targets, [Pick::Stack(0)], "the rats in reach");
     for size in SIZES {
         let plain = arena(world, data, size, &targets, None).expect("a fight");
-        assert_eq!(plain.marks.acting, Some(Pick::Member(1)), "Durin acts");
-        let durin = group(&plain, Pick::Member(1)).slot;
+        assert_eq!(
+            plain.marks.acting,
+            Some(Pick::Member(id(world, 1))),
+            "Durin acts"
+        );
+        let durin = group(&plain, Pick::Member(id(world, 1))).slot;
         let acting = tones(&plain, Tone::Acting);
         assert_eq!(acting.len(), 8, "four corner brackets");
         assert!(
@@ -224,7 +243,7 @@ fn a_member_at_zero_is_drawn_down_with_an_empty_bar() {
     let mut world = session.world.clone();
     world.party.members[0].hp = 0;
     let arena = arena(&world, &session.data, SIZES[0], &[], None).expect("a fight");
-    let brenna = &group(&arena, Pick::Member(0)).figures[0];
+    let brenna = &group(&arena, Pick::Member(id(&world, 0))).figures[0];
     assert_eq!(brenna.state, State::Down);
     assert!(brenna.health == 0.0);
     let down = tones(&arena, Tone::Down);
