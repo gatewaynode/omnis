@@ -83,7 +83,7 @@ Project start date: 2026-09-11 18:40 EDT
 
 ## Simulation Crate Lints (mandatory, CI-enforced)
 
-The simulation crates (`omnis-core`, `omnis-expr`, `omnis-data`, `omnis-rules`, `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-sim`) must stay deterministic across platforms and runs. See `ARCHITECTURE.md` §4.1, §11, A5, A14. A CI job fails the build if any of these crates contains:
+The simulation crates (`omnis-core`, `omnis-bus`, `omnis-expr`, `omnis-data`, `omnis-rules`, `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-sim`) must stay deterministic across platforms and runs. See `ARCHITECTURE.md` §4.1, §11, A5, A14. A CI job fails the build if any of these crates contains:
 
 - `f32` or `f64` in any form (types, literals, casts). Use integers and `core::Fixed`.
 - `HashMap`, `HashSet`, `DefaultHasher`, `RandomState`, or any randomized hasher. Use `BTreeMap`, `BTreeSet`, `Vec`.

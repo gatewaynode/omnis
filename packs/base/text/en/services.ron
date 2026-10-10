@@ -1,5 +1,5 @@
 // English strings for the base pack's services. Keys are `base:text:service.<name>.name` and
-// `base:text:rumor.<name>`.
+// `base:text:rumor.<name>`; a rumor's `{ago}` is how long ago it happened on the town's clock.
 (
     schema: 1,
     entries: {
@@ -10,8 +10,8 @@
         "base:text:service.tavern.name": "Tavern",
         "base:text:service.bank.name": "Bank",
         "base:text:service.guild.name": "Mages' guild",
-        "base:text:rumor.rats": "They say the rats below grow bolder every week.",
-        "base:text:rumor.bones": "Old bones walk where the lamps have gone out.",
-        "base:text:rumor.goblins": "Goblins carry their coin with them. Take it back.",
+        "base:text:rumor.rats": "Talk from {ago}: the rats below grow bolder every week.",
+        "base:text:rumor.bones": "Talk from {ago}: old bones walk where the lamps have gone out.",
+        "base:text:rumor.goblins": "Talk from {ago}: goblins carry their coin with them. Take it back.",
     },
 )

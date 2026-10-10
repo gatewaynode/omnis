@@ -1,21 +1,21 @@
-//! The encounter, combat, and defeat menus as pure state machines (ARCHITECTURE.md §8.1),
-//! and the view they read: stack rows with labels, the acting member, the bribe price. Each
+//! The combat menu as a pure state machine (ARCHITECTURE.md §8.1), and the view it and the
+//! encounter and defeat menus (`encounter_menu.rs`) read: stack rows with labels, the acting member, the bribe price. Each
 //! menu takes a key and answers with an intent; `combat.rs` feeds keys and applies intents.
 //! Bevy-free, so every transition is unit-tested against a real fight.
 
 use crate::actors::Actor;
+use crate::defs;
 use crate::menu::{MenuKey, cycle};
-use omnis_sim::combat::weapon_for;
+use crate::sim::Views;
 use omnis_sim::omnis_core::money::gp_floor;
-use omnis_sim::omnis_data::{Data, Disposition, Size, SpellEffect};
+use omnis_sim::omnis_data::{Cost, Data, Disposition, Size};
 
 pub use crate::spell_menu::SpellRow;
 use crate::spell_menu::blocked_note;
 pub use crate::use_menu::UseRow;
 use crate::use_menu::use_rows;
-use omnis_sim::{
-    ActorRef, CombatCommand, EncounterChoice, Event, Mode, ModeKind, World, bribe_cost, combat_view,
-};
+use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::{ActorRef, Budget, CombatCommand, Event, ModeKind};
 
 /// One stack as the rows show it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,6 +67,9 @@ pub struct FightView {
     pub round: u32,
     /// The acting member's slot.
     pub own: Option<usize>,
+    /// The party's ids in marching order: a slot (`own`, the band's selection) names its
+    /// member through it.
+    pub ids: Vec<CharacterId>,
     /// How the monsters feel about the party.
     pub disposition: Disposition,
     /// The stacks, in encounter order.
@@ -79,11 +82,24 @@ pub struct FightView {
     pub spells: Vec<SpellRow>,
     /// The acting member's spell points and maximum.
     pub points: (u32, u32),
-    /// The acting member's usable kit rows; empty when no member acts or none has a use.
+    /// The acting member's features, then their usable kit rows; empty when no member acts
+    /// or none has a use.
     pub usable: Vec<UseRow>,
+    /// What the acting member's turn has left to pay with.
+    pub budget: Budget,
+    /// Reactions the acting member has left this round.
+    pub reactions_left: u8,
+    /// Whether the acting member's declared reactions fire.
+    pub reactions_on: bool,
 }
 
 impl FightView {
+    /// The acting member's id.
+    #[must_use]
+    pub fn own_id(&self) -> Option<CharacterId> {
+        self.ids.get(self.own?).copied()
+    }
+
     /// Whether the party can pay the bribe.
     #[must_use]
     pub fn bribe_allowed(&self) -> bool {
@@ -120,63 +136,57 @@ impl FightView {
 
 /// The view, or `None` while exploring.
 #[must_use]
-pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
-    let view = combat_view(world, data)?;
+pub fn fight_view(views: &Views, data: &Data) -> Option<FightView> {
+    let view = views.combat.as_ref()?;
+    let party = &views.party;
     let own = match view.current {
-        Some(ActorRef::Member(id)) => world.party.members.iter().position(|m| m.id == id),
-        _ => None,
-    };
-    let fight = match &world.mode {
-        Mode::Combat(state) => Some(state),
+        Some(ActorRef::Member(id)) => party.members.iter().position(|m| m.member == id),
         _ => None,
     };
     let stacks = view
         .stacks
         .iter()
         .map(|s| StackRow {
-            index: s.index,
+            index: s.stack,
             name: data.label("en", &s.name).to_owned(),
-            count: u8::try_from(s.hp.len()).unwrap_or(u8::MAX),
+            count: u8::try_from(s.hps.len()).unwrap_or(u8::MAX),
             initial: s.initial,
-            size: data
-                .registry
-                .monsters
-                .get(&s.monster)
-                .and_then(|id| data.monsters.get(&id))
-                .map_or(Size::Medium, |m| m.size),
-            front: s.front,
+            size: defs::monster(data, &s.monster).map_or(Size::Medium, |m| m.size),
+            front: s.in_front,
             alive: s.alive,
-            blocked: fight.zip(own).and_then(|(state, own)| {
-                weapon_for(state, world, data, own, s.index)
-                    .err()
-                    .map(|r| r.to_string())
-            }),
+            blocked: s.refusal.as_ref().map(ToString::to_string),
         })
         .collect();
-    let caster = own.map(|i| &world.party.members[i]);
+    let caster = own.and_then(|i| party.members.get(i));
+    let fighter = caster.and_then(|c| view.members.iter().find(|m| m.member == c.member));
+    let reactions_left = caster.map_or(0, |c| {
+        view.reactions
+            .iter()
+            .find(|(actor, _)| *actor == ActorRef::Member(c.member))
+            .map_or(0, |(_, left)| *left)
+    });
     let spells = view
         .spells
         .iter()
         .filter_map(|s| {
             let caster = caster?;
-            let id = *caster.known_spells.get(usize::from(s.index))?;
-            let spell = data.spells.get(&id)?;
-            let reaction = matches!(spell.effect, Some(SpellEffect::Reaction { .. }));
-            let active = world
-                .party
+            let spell = defs::spell(data, &s.spell)?;
+            let reaction = spell.cost == Cost::Reaction;
+            let active = party
                 .members
                 .iter()
                 .flat_map(|m| m.effects.iter())
-                .chain(world.party.effects.iter())
-                .any(|e| e.source == id && e.caster == caster.id);
+                .chain(party.effects.iter())
+                .any(|e| e.spell == s.spell && e.caster == caster.member);
             Some(SpellRow {
-                index: s.index,
+                spell: s.spell.clone(),
                 name: data.label("en", &s.name).to_owned(),
                 cost: s.cost,
                 targets_members: s.targets_members,
-                auto: reaction.then(|| caster.auto_cast.contains(&id)),
+                reaction,
                 active,
-                blocked: s.blocked.as_ref().map(blocked_note),
+                blocked: s.bonus.as_ref().and(s.blocked.as_ref()).map(blocked_note),
+                bonus: s.bonus.is_none(),
             })
         })
         .collect();
@@ -184,29 +194,29 @@ pub fn fight_view(world: &World, data: &Data) -> Option<FightView> {
         phase: view.phase,
         round: view.round,
         own,
+        ids: party.members.iter().map(|m| m.member).collect(),
         disposition: view.disposition,
         stacks,
-        bribe: (view.phase == ModeKind::Encounter)
-            .then(|| bribe_cost(world, data).ok())
-            .flatten(),
-        gold: world.party.gold,
+        bribe: view.bribe,
+        gold: party.gold,
         spells,
         points: caster.map_or((0, 0), |c| (c.spell_points, c.spell_points_max)),
-        usable: own.map_or_else(Vec::new, |own| use_rows(world, data, own)),
+        usable: caster.map_or_else(Vec::new, |member| use_rows(member, data, fighter)),
+        budget: view.budget,
+        reactions_left,
+        reactions_on: fighter.is_some_and(|f| f.reactions_on),
     })
 }
 
 // ---------------------------------------------------------------- combat
 
 /// What the combat menu asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CombatIntent {
     /// A command for the acting member.
     Command(CombatCommand),
-    /// Switch a reaction spell's auto-cast for the acting member.
-    AutoCast {
-        /// The spell's index in the caster's list.
-        spell: u8,
+    /// Switch the acting member's reactions on or off (costs nothing).
+    Reactions {
         /// On or off.
         on: bool,
     },
@@ -218,9 +228,11 @@ pub enum CombatIntent {
 pub const ACTION_CAST: usize = 1;
 /// The action row's cursor position of Use.
 pub const ACTION_USE: usize = 2;
+/// The action row's cursor position of React.
+pub const ACTION_REACT: usize = 7;
 
 /// The fight's action row and target: Up/Down choose the action, Left/Right the stack, Enter
-/// confirms, `a c u d e r` are hotkeys, Escape pauses. Cast opens the spell picker over the
+/// confirms, `a c u d e r n o` are hotkeys, Escape pauses. Cast opens the spell picker over the
 /// action row: Up/Down choose the spell, Enter casts it at the target (or the band's selected
 /// member for a heal or a buff), Escape closes it. Use opens the item picker the same way:
 /// Enter uses the item on the band's selected member, or the user.
@@ -240,9 +252,11 @@ pub struct CombatMenu {
 
 impl CombatMenu {
     /// The actions, in cursor order.
-    pub const ACTIONS: [&'static str; 6] = ["Attack", "Cast", "Use", "Dodge", "Exchange", "Run"];
-    /// The hotkeys, in the same order.
-    pub const HOTKEYS: [char; 6] = ['a', 'c', 'u', 'd', 'e', 'r'];
+    pub const ACTIONS: [&'static str; 8] = [
+        "Attack", "Cast", "Use", "Dodge", "Exchange", "Run", "End", "React",
+    ];
+    /// The hotkeys, in the same order (`n` for eNd: `e` is Exchange; `o` for on/off).
+    pub const HOTKEYS: [char; 8] = ['a', 'c', 'u', 'd', 'e', 'r', 'n', 'o'];
 
     /// Keep the target on a living stack: the first one when the current target fell; keep
     /// the picker's cursor on a spell, and close it when the acting member knows none.
@@ -307,6 +321,26 @@ impl CombatMenu {
         }
     }
 
+    /// The member an exchange goes to: the band's selection, when it is not the acting member;
+    /// otherwise `None` with the reason in the message.
+    pub(crate) fn partner(
+        &mut self,
+        view: &FightView,
+        selected: Option<usize>,
+    ) -> Option<CharacterId> {
+        match (selected, view.own) {
+            (Some(with), Some(own)) if with != own => view.ids.get(with).copied(),
+            (Some(_), _) => {
+                self.message = "Select another member to exchange with".to_owned();
+                None
+            }
+            (None, _) => {
+                self.message = "Select a member to exchange with".to_owned();
+                None
+            }
+        }
+    }
+
     fn confirm(&mut self, view: &FightView, selected: Option<usize>) -> Option<CombatIntent> {
         self.message.clear();
         let command = match self.cursor {
@@ -345,132 +379,18 @@ impl CombatMenu {
                 return None;
             }
             3 => CombatCommand::Dodge,
-            4 => match (selected, view.own) {
-                (Some(with), Some(own)) if with != own => CombatCommand::Exchange {
-                    with: u8::try_from(with).unwrap_or(u8::MAX),
-                },
-                (Some(_), _) => {
-                    self.message = "Select another member to exchange with".to_owned();
-                    return None;
-                }
-                (None, _) => {
-                    self.message = "Select a member to exchange with".to_owned();
-                    return None;
-                }
+            4 => CombatCommand::Exchange {
+                with: self.partner(view, selected)?,
             },
-            _ => CombatCommand::Run,
-        };
-        Some(CombatIntent::Command(command))
-    }
-}
-
-// ---------------------------------------------------------------- encounter
-
-/// What the encounter menu asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EncounterIntent {
-    /// One of the four choices.
-    Choice(EncounterChoice),
-    /// Open the pause overlay.
-    Pause,
-}
-
-/// The choice before a fight: arrows cycle the four, Enter confirms, `a b h r` are hotkeys,
-/// Escape pauses.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct EncounterMenu {
-    /// The choice under the cursor.
-    pub cursor: usize,
-    /// Why the last confirmation did nothing; empty when it did something.
-    pub message: String,
-}
-
-impl EncounterMenu {
-    /// The choices, in cursor order (the bribe's text comes from the view).
-    pub const ACTIONS: [&'static str; 4] = ["Attack", "Bribe", "Hide", "Run"];
-    /// The hotkeys, in the same order.
-    pub const HOTKEYS: [char; 4] = ['a', 'b', 'h', 'r'];
-    /// The choices, in the same order.
-    const CHOICES: [EncounterChoice; 4] = [
-        EncounterChoice::Attack,
-        EncounterChoice::Bribe,
-        EncounterChoice::Hide,
-        EncounterChoice::Run,
-    ];
-
-    /// Handle a key.
-    pub fn key(&mut self, key: MenuKey, view: &FightView) -> Option<EncounterIntent> {
-        match key {
-            MenuKey::Up | MenuKey::Down | MenuKey::Left | MenuKey::Right => {
-                self.cursor = cycle(self.cursor, Self::ACTIONS.len(), key);
-            }
-            MenuKey::Enter => return self.confirm(view),
-            MenuKey::Char(c) => {
-                if let Some(at) = Self::HOTKEYS.iter().position(|h| *h == c) {
-                    self.cursor = at;
-                    return self.confirm(view);
-                }
-            }
-            MenuKey::Escape => return Some(EncounterIntent::Pause),
-            MenuKey::Backspace => {}
-        }
-        None
-    }
-
-    fn confirm(&mut self, view: &FightView) -> Option<EncounterIntent> {
-        self.message.clear();
-        let choice = Self::CHOICES[self.cursor.min(3)];
-        if choice == EncounterChoice::Bribe && !view.bribe_allowed() {
-            self.message = match view.bribe {
-                Some(cost) => format!(
-                    "Not enough gold: {} needed, {} carried",
-                    gp_floor(cost),
-                    gp_floor(view.gold)
-                ),
-                None => "They cannot be bribed".to_owned(),
-            };
-            return None;
-        }
-        Some(EncounterIntent::Choice(choice))
-    }
-}
-
-// ---------------------------------------------------------------- defeat
-
-/// What the defeat modal asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DefeatAction {
-    /// Load the last save.
-    Load,
-    /// Drop the game and return to the title.
-    QuitToTitle,
-}
-
-/// "The party has fallen": two choices, no escape.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct DefeatMenu {
-    /// The choice under the cursor.
-    pub cursor: usize,
-}
-
-impl DefeatMenu {
-    /// The choices, in cursor order.
-    pub const ITEMS: [&'static str; 2] = ["Load last save", "Quit to title"];
-
-    /// Handle a key.
-    pub fn key(&mut self, key: MenuKey) -> Option<DefeatAction> {
-        match key {
-            MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, 2, key),
-            MenuKey::Enter => {
-                return Some(if self.cursor == 0 {
-                    DefeatAction::Load
-                } else {
-                    DefeatAction::QuitToTitle
+            5 => CombatCommand::Run,
+            ACTION_REACT => {
+                return Some(CombatIntent::Reactions {
+                    on: !view.reactions_on,
                 });
             }
-            _ => {}
-        }
-        None
+            _ => CombatCommand::EndTurn,
+        };
+        Some(CombatIntent::Command(command))
     }
 }
 
@@ -494,9 +414,16 @@ pub(crate) mod tests {
     use omnis_sim::omnis_data::{Alignment, Skill, load_packs};
     use omnis_sim::omnis_rules::{Draft, monster_hit_points};
     use omnis_sim::{
-        Command, EncounterSource, EncounterState, PartyCommand, Settings, Stack, apply,
+        Command, EncounterChoice, EncounterSource, EncounterState, PartyCommand, Settings, Stack,
+        apply,
     };
+    use omnis_sim::{Mode, World};
     use std::path::PathBuf;
+
+    /// The view of a world, as the app reads it through its `Views`.
+    pub(crate) fn fight_view(world: &World, data: &Data) -> Option<FightView> {
+        super::fight_view(&Views::of(world, data), data)
+    }
 
     pub(crate) fn data() -> Data {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -515,6 +442,12 @@ pub(crate) mod tests {
             skills: match class {
                 "wizard" => vec![Skill::Arcana, Skill::History],
                 "cleric" => vec![Skill::Medicine, Skill::History],
+                "rogue" => vec![
+                    Skill::Stealth,
+                    Skill::Acrobatics,
+                    Skill::Perception,
+                    Skill::Investigation,
+                ],
                 _ => vec![Skill::Athletics, Skill::Perception],
             },
         }
@@ -545,6 +478,7 @@ pub(crate) mod tests {
                     monster: id,
                     initial: *count,
                     hp: vec![hp; usize::from(*count)],
+                    spent: Vec::new(),
                 }
             })
             .collect();
@@ -643,11 +577,21 @@ pub(crate) mod tests {
         );
     }
 
-    fn view_with(stacks: &[(u8, bool, Option<&str>)], own: Option<usize>) -> FightView {
+    /// The party of a hand-built view: four members whose ids are not their slots, so a slot
+    /// sent as an id shows.
+    pub(crate) const IDS: [CharacterId; 4] = [
+        CharacterId(20),
+        CharacterId(21),
+        CharacterId(22),
+        CharacterId(23),
+    ];
+
+    pub(crate) fn view_with(stacks: &[(u8, bool, Option<&str>)], own: Option<usize>) -> FightView {
         FightView {
             phase: ModeKind::Combat,
             round: 1,
             own,
+            ids: IDS.to_vec(),
             disposition: Disposition::Hostile,
             stacks: stacks
                 .iter()
@@ -667,12 +611,18 @@ pub(crate) mod tests {
             spells: Vec::new(),
             points: (0, 0),
             usable: Vec::new(),
+            budget: Budget {
+                actions: 1,
+                bonus_actions: 1,
+            },
+            reactions_left: 1,
+            reactions_on: true,
         }
     }
 
     #[test]
     fn combat_keys_choose_actions_and_living_targets() {
-        let view = view_with(
+        let mut view = view_with(
             &[(0, false, None), (1, true, None), (2, true, Some("no"))],
             Some(0),
         );
@@ -707,7 +657,28 @@ pub(crate) mod tests {
         for _ in 0..4 {
             menu.key(MenuKey::Up, &view, None);
         }
-        assert_eq!(menu.cursor, 5, "wraps");
+        assert_eq!(menu.cursor, 7, "wraps to React");
+        assert_eq!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Reactions { on: false }),
+            "React turns the acting member's reactions off when they are on"
+        );
+        view.reactions_on = false;
+        assert_eq!(
+            menu.key(MenuKey::Char('o'), &view, None),
+            Some(CombatIntent::Reactions { on: true }),
+            "and on when they are off"
+        );
+        menu.key(MenuKey::Up, &view, None);
+        assert_eq!(menu.cursor, 6, "End before it");
+        assert_eq!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Command(CombatCommand::EndTurn))
+        );
+        assert_eq!(
+            menu.key(MenuKey::Char('n'), &view, None),
+            Some(CombatIntent::Command(CombatCommand::EndTurn))
+        );
         assert_eq!(
             menu.key(MenuKey::Char('r'), &view, None),
             Some(CombatIntent::Command(CombatCommand::Run))
@@ -729,72 +700,14 @@ pub(crate) mod tests {
         assert_eq!(menu.message, "Select another member to exchange with");
         assert_eq!(
             menu.key(MenuKey::Char('e'), &view, Some(3)),
-            Some(CombatIntent::Command(CombatCommand::Exchange { with: 3 }))
+            Some(CombatIntent::Command(CombatCommand::Exchange {
+                with: IDS[3]
+            }))
         );
         let none = view_with(&[(0, false, None)], Some(0));
         menu.sync(&none);
         assert_eq!(menu.key(MenuKey::Char('a'), &none, None), None);
         assert_eq!(menu.message, "Stack 0 are slain");
-    }
-
-    #[test]
-    fn encounter_keys_cycle_and_gate_the_bribe() {
-        let mut view = view_with(&[(0, true, None)], None);
-        view.phase = ModeKind::Encounter;
-        view.bribe = Some(1200);
-        view.gold = 1199;
-        let mut menu = EncounterMenu::default();
-        assert_eq!(menu.key(MenuKey::Right, &view), None);
-        assert_eq!(menu.cursor, 1);
-        assert_eq!(menu.key(MenuKey::Enter, &view), None);
-        assert_eq!(
-            menu.message, "Not enough gold: 12 needed, 11 carried",
-            "a copper short shows the purse rounded down"
-        );
-        assert_eq!(view.bribe_label(), "Bribe 12g");
-        view.gold = 1200;
-        assert_eq!(
-            menu.key(MenuKey::Enter, &view),
-            Some(EncounterIntent::Choice(EncounterChoice::Bribe))
-        );
-        assert!(menu.message.is_empty());
-        view.bribe = Some(0);
-        assert_eq!(view.bribe_label(), "Bribe free");
-        assert!(view.bribe_allowed());
-        view.bribe = None;
-        assert_eq!(menu.key(MenuKey::Enter, &view), None);
-        assert_eq!(menu.message, "They cannot be bribed");
-        menu.key(MenuKey::Up, &view);
-        assert_eq!(menu.cursor, 0);
-        menu.key(MenuKey::Left, &view);
-        assert_eq!(menu.cursor, 3, "wraps");
-        assert_eq!(
-            menu.key(MenuKey::Char('h'), &view),
-            Some(EncounterIntent::Choice(EncounterChoice::Hide))
-        );
-        assert_eq!(
-            menu.key(MenuKey::Char('r'), &view),
-            Some(EncounterIntent::Choice(EncounterChoice::Run))
-        );
-        assert_eq!(
-            menu.key(MenuKey::Char('a'), &view),
-            Some(EncounterIntent::Choice(EncounterChoice::Attack))
-        );
-        assert_eq!(
-            menu.key(MenuKey::Escape, &view),
-            Some(EncounterIntent::Pause)
-        );
-    }
-
-    #[test]
-    fn the_defeat_menu_loads_or_quits() {
-        let mut menu = DefeatMenu::default();
-        assert_eq!(menu.key(MenuKey::Escape), None, "no way out but the two");
-        assert_eq!(menu.key(MenuKey::Enter), Some(DefeatAction::Load));
-        menu.key(MenuKey::Down);
-        assert_eq!(menu.key(MenuKey::Enter), Some(DefeatAction::QuitToTitle));
-        menu.key(MenuKey::Down);
-        assert_eq!(menu.cursor, 0, "wraps");
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! control by its event, the pointer and the keys through real layout and picking, the layout
 //! at both window sizes whatever interface scale is asked, the text tree that stands in for a screen
 //! dump, the panel's fighter against the party command's, and the refusals.
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use bevy::text::EditableText;

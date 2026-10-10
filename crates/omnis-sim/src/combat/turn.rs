@@ -1,10 +1,11 @@
-//! The turn loop: initiative, one member action, monster turns until the next member, the
-//! end of a round, and the end of the fight.
+//! The turn loop: initiative, a member's turn of one or more commands within their budget,
+//! monster turns until the next member, the end of a round, and the end of the fight.
 
 use super::state::{CombatState, Initiative, can_fight};
 use super::{Plan, Roller};
-use super::{cast, resolve};
+use super::{budget, cast, feature, monster_cast, opportunity, reaction, resolve};
 use crate::apply::{advance, retreat};
+use crate::bus::{Subscriber, Topic};
 use crate::checks::{self, CheckSpec};
 use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
@@ -14,7 +15,7 @@ use crate::world::{Mode, World};
 use alloc::vec::Vec;
 use core::cmp::Reverse;
 use omnis_core::{CharacterId, RollTrace};
-use omnis_data::{Ability, Data, Disposition};
+use omnis_data::{Ability, Cost, Data, Disposition};
 use omnis_rules::{RollMode, RuleError, initiative, modifier, modifier_of};
 
 /// Minutes a round costs when the rules do not say.
@@ -42,7 +43,23 @@ pub(crate) fn start(
         surprised,
         dodging: Vec::new(),
         gold: 0,
+        budget: super::state::Budget::default(),
+        reactions: Vec::new(),
+        hidden: Vec::new(),
+        monster_shields: Vec::new(),
     };
+    // Every combatant may react from the start, except the side that is surprised, which gets
+    // its reactions at its first turn.
+    for entry in state.order.clone() {
+        let caught = match entry.actor {
+            ActorRef::Member(_) => surprised == Surprise::Party,
+            _ => surprised == Surprise::Monsters,
+        };
+        if !caught {
+            budget::refresh_reactions(world, data, &mut state, entry.actor, roller)?;
+        }
+    }
+    world.bus.subscribe(Topic::Battle, Subscriber::Reactions);
     events.push(Event::RoundStarted { round: 1 });
     if !run_until_member(world, data, &mut state, roller, events)? {
         world.mode = Mode::Combat(state);
@@ -98,12 +115,14 @@ pub(crate) fn act(
     data: &Data,
     actor: CharacterId,
     plan: Plan,
+    cost: Cost,
     roller: &mut Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let Mode::Combat(mut state) = core::mem::replace(&mut world.mode, Mode::Explore) else {
         return Ok(());
     };
+    budget::spend(&mut state.budget, cost);
     match act_inner(world, data, &mut state, actor, plan, roller, events) {
         Ok(true) => Ok(()),
         Ok(false) => {
@@ -133,6 +152,7 @@ fn act_inner(
         Plan::Cast(plan) => {
             cast::pay(world, data, &plan, events)?;
             cast::resolve(world, data, state, &plan, roller, events)?;
+            reaction::on_cast(world, data, state, plan.own, roller, events)?;
         }
         Plan::Use(plan) => items::use_item(world, data, &plan, roller, events)?,
         Plan::Dodge => {
@@ -144,22 +164,57 @@ fn act_inner(
             });
         }
         Plan::Exchange { own, with } => {
-            world.party.members.swap(own, with);
-            events.push(Event::Exchanged {
-                a: u8::try_from(own).unwrap_or(u8::MAX),
-                b: u8::try_from(with).unwrap_or(u8::MAX),
-            });
-            events.push(Event::PartyChanged);
+            let front = crate::party::front_row(data);
+            if own < front && with >= front {
+                opportunity::provoke(world, data, state, own, roller, events)?;
+            }
+            // A member felled on the way out falls where they stood.
+            if !world.party.members[own].is_down() {
+                exchange(world, own, with, events);
+            }
         }
         Plan::Run => {
             if flee(world, data, state, roller, events)? {
-                finish(world, data, state, CombatOutcome::Fled, events);
+                // A friendly group lets the party go without a swing.
+                if state.encounter.disposition != Disposition::Friendly {
+                    opportunity::provoke_run(world, data, state, roller, events)?;
+                }
+                let outcome = match state.outcome(&world.party, data) {
+                    Some(CombatOutcome::Defeat) => CombatOutcome::Defeat,
+                    _ => CombatOutcome::Fled,
+                };
+                finish(world, data, state, outcome, events);
                 return Ok(true);
             }
         }
+        Plan::Feature(plan) => feature::resolve(world, data, state, &plan, roller, events)?,
+        Plan::EndTurn => {
+            step_current(world, data, state, roller, events)?;
+            return run_until_member(world, data, state, roller, events);
+        }
+    }
+    if let Some(outcome) = state.outcome(&world.party, data) {
+        finish(world, data, state, outcome, events);
+        return Ok(true);
+    }
+    let own = world.party.members.iter().position(|m| m.id == actor);
+    if own.is_some_and(|own| budget::goes_on(world, data, state, own, roller)) {
+        return Ok(false);
     }
     step_current(world, data, state, roller, events)?;
     run_until_member(world, data, state, roller, events)
+}
+
+/// Swap two marching-order slots, with the events.
+pub(crate) fn exchange(world: &mut World, own: usize, with: usize, events: &mut Vec<Event>) {
+    let member = world.party.members[own].id;
+    let partner = world.party.members[with].id;
+    world.party.members.swap(own, with);
+    events.push(Event::Exchanged {
+        member,
+        with: partner,
+    });
+    events.push(Event::PartyChanged);
 }
 
 /// The party's best Dexterity against the run difficulty; a friendly group lets them go.
@@ -270,13 +325,16 @@ pub(crate) fn run_until_member(
         match actor {
             ActorRef::Member(id) => {
                 if member_acts(state, world, data, id) {
-                    effects::clear_next_turn(world, Some(id), EffectEnd::TurnBegan, events);
+                    effects::clear_next_turn(world, data, Some(id), EffectEnd::TurnBegan, events);
+                    budget::begin_member_turn(world, data, state, id, roller)?;
                     events.push(Event::Turn { actor });
                     return Ok(false);
                 }
             }
             ActorRef::Stack(i) => {
                 if stack_acts(state, i) {
+                    monster_cast::drop_shields(state, i);
+                    budget::refresh_reactions(world, data, state, actor, roller)?;
                     events.push(Event::Turn { actor });
                     resolve::monster_turn(world, data, state, i, roller, events)?;
                 }
@@ -327,7 +385,7 @@ fn end_of_round(
         .value("combat_round_minutes")
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(DEFAULT_ROUND_MINUTES);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     state.round = state.round.saturating_add(1);
     events.push(Event::RoundStarted { round: state.round });
     Ok(())
@@ -352,7 +410,7 @@ fn finish(
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}
     }
-    effects::clear_next_turn(world, None, EffectEnd::FightOver, events);
+    effects::clear_next_turn(world, data, None, EffectEnd::FightOver, events);
     let fallen = resolve::bury(world, data);
     events.push(Event::CombatEnded {
         outcome,
@@ -360,6 +418,7 @@ fn finish(
         gold,
         fallen,
     });
+    world.bus.unsubscribe(Topic::Battle, Subscriber::Reactions);
     world.mode = Mode::Explore;
 }
 

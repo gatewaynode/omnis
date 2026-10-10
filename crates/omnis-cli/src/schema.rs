@@ -5,7 +5,7 @@
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{
     Background, Class, Condition, DataError, Item, MapDef, Monster, PackFingerprint, PackManifest,
-    Race, RulesFile, SCHEMA, Spell, Tileset,
+    Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
 use omnis_sim::world::SAVE_SCHEMA;
@@ -89,8 +89,10 @@ const CLASS: &str = r#"(
     weapon_ids: [],
     skills: (choose: 2, from: [Acrobatics, Athletics, Perception]),
     starting_equipment: [("example:item:longsword", 1)],
-    casting: Some((ability: Intelligence, half: false, cantrips_at_1: 3, spells_at_1: 6, list: ["example:spell:magic_missile"])),
-    features: [(level: 1, name: "example:text:class.fighter.second_wind")],
+    casting: Some((ability: Intelligence, half: false, cantrips_at_1: 3, spells_at_1: 6, spells_per_level: 2, list: ["example:spell:magic_missile"])),
+    // A feature is a label, or acts in a fight: an effect (Heal, ExtraAction, Cunning), what it
+    // costs (Action, BonusAction, Free) and its uses per ShortRest or LongRest.
+    features: [(level: 1, name: "example:text:class.fighter.fighting_style"), (level: 1, name: "example:text:class.fighter.second_wind", effect: Some(Heal(dice: (count: 1, sides: 10, modifier: 0), per_level: true)), cost: BonusAction, uses: Some((count: 1, per: ShortRest)))],
 )"#;
 
 const BACKGROUND: &str = r#"(
@@ -167,6 +169,14 @@ const SPELL: &str = r#"(
     description: "example:text:spell.magic_missile.description",
     effect: Some(AutoHit(dice: (count: 3, sides: 4, modifier: 3), damage_type: Force)),
     reach: One,
+    // What casting spends from the turn's budget: Action, BonusAction or Reaction (a reaction
+    // spell is cast only by a declared reaction).
+    cost: Action,
+    // D24, stated in every spell: an action spell that may take the bonus action instead, and
+    // readying in advance (Prepare is not built yet).
+    bonus_action_available: false,
+    preparation_available: false,
+    preparation_required_for_bonus_action: false,
 )"#;
 
 const BLESS: &str = r#"(
@@ -183,6 +193,10 @@ const BLESS: &str = r#"(
     description: "example:text:spell.bless.description",
     effect: Some(Buff(bonus: (count: 1, sides: 4, modifier: 0), on: [AttackRolls, SavingThrows], targets: 3, consumed: false, minutes: 10)),
     reach: One,
+    cost: Action,
+    bonus_action_available: false,
+    preparation_available: false,
+    preparation_required_for_bonus_action: false,
 )"#;
 
 const MONSTER: &str = r#"(
@@ -212,6 +226,18 @@ const RULES: &str = r#"(
     },
     values: {"component_threshold": 5},
     tables: {"point_cost": [0, 1, 2, 3, 4, 5, 7, 9]},
+)"#;
+
+const REGION: &str = r#"(
+    schema: 1,
+    id: "example:region:vale",
+    name: "example:text:region.vale.name",
+    kind: Settlement,
+    company: 900,
+    stability: 980,
+    rule: "time.settled",
+    couplings: ["example:region:ford"],
+    maps: ["example:map:vale"],
 )"#;
 
 /// Every data file type as a parsed-and-rewritten example, then a save, a replay, and the
@@ -270,6 +296,7 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     )?;
     section(out, "data/monsters/<name>.ron", &parse::<Monster>(MONSTER)?)?;
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
+    section(out, "data/regions/<name>.ron", &parse::<RegionDef>(REGION)?)?;
     Ok(())
 }
 
@@ -285,6 +312,9 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         packs: vec![fingerprint.clone()],
         rngs: BTreeMap::new(),
         clocks: BTreeMap::from([(PARTY, Clock::new(EraId(0)))]),
+        contacts: BTreeMap::new(),
+        party_time: Default::default(),
+        bus: Default::default(),
         position: Position {
             map: MapId(0),
             x: 0,
@@ -349,6 +379,12 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::CombatGet,
         Op::ServiceGet,
+        Op::RestGet,
+        Op::CastGet,
+        Op::TimeClocks,
+        Op::TimeReconcile {
+            region: "example:region:vale".into(),
+        },
         Op::RulesList,
         Op::RulesGet {
             slot: "spell_points.pool".into(),

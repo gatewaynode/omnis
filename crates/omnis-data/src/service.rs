@@ -44,28 +44,67 @@ pub struct ServiceDef {
     /// Item ids for sale; a smith's only.
     #[serde(default)]
     pub items: Vec<String>,
-    /// Spell ids for sale; a guild's only.
+    /// Spell ids for sale; a guild's or a temple's only (PRD §8.2).
     #[serde(default)]
     pub spells: Vec<String>,
-    /// Text keys of the rumors told; a tavern's only.
+    /// The rumors told; a tavern's only.
     #[serde(default)]
-    pub rumors: Vec<String>,
+    pub rumors: Vec<RumorDef>,
+}
+
+/// One rumor: its text and the minute on the region's clock it happened (M8). A rumor is not
+/// told before its region's clock reaches `at`, and is told with how long ago that was. A bare
+/// text key is read as a rumor that happened at the origin.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "RumorRow")]
+pub struct RumorDef {
+    /// Text key; the text may hold `{ago}`.
+    pub text: String,
+    /// The minute it happened, on the region's clock.
+    pub at: i64,
+}
+
+/// A rumor as written: a bare key or the full form.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RumorRow {
+    Key(String),
+    Full { text: String, at: i64 },
+}
+
+impl From<RumorRow> for RumorDef {
+    fn from(row: RumorRow) -> RumorDef {
+        match row {
+            RumorRow::Key(text) => RumorDef { text, at: 0 },
+            RumorRow::Full { text, at } => RumorDef { text, at },
+        }
+    }
 }
 
 impl ServiceDef {
     /// Self-contained checks; every problem is pushed. References are checked at resolution.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
-        let lists = [
-            (&self.items, "item", "items", ServiceKind::Smith),
-            (&self.spells, "spell", "spells", ServiceKind::Guild),
-            (&self.rumors, "rumor", "rumors", ServiceKind::Tavern),
+        let rumors: Vec<String> = self.rumors.iter().map(|r| r.text.clone()).collect();
+        if self.rumors.iter().any(|r| r.at < 0) {
+            errors.push(DataError::new(file, "a rumor's 'at' is negative"));
+        }
+        let lists: [(&Vec<String>, &str, &str, &[ServiceKind]); 3] = [
+            (&self.items, "item", "items", &[ServiceKind::Smith]),
+            (
+                &self.spells,
+                "spell",
+                "spells",
+                &[ServiceKind::Guild, ServiceKind::Temple],
+            ),
+            (&rumors, "rumor", "rumors", &[ServiceKind::Tavern]),
         ];
-        for (list, one, many, owner) in lists {
-            if !list.is_empty() && self.kind != owner {
+        for (list, one, many, owners) in lists {
+            if !list.is_empty() && !owners.contains(&self.kind) {
                 errors.push(DataError::new(
                     file,
                     format!(
-                        "{many} are stocked only by kind {owner:?}; this service is kind {:?}",
+                        "{many} are stocked only by kind {}; this service is kind {:?}",
+                        kinds(owners),
                         self.kind
                     ),
                 ));
@@ -90,6 +129,15 @@ impl ServiceDef {
             }
         }
     }
+}
+
+/// The kinds that may stock a list, as an error names them: `Guild or Temple`.
+fn kinds(owners: &[ServiceKind]) -> String {
+    owners
+        .iter()
+        .map(|k| format!("{k:?}"))
+        .collect::<Vec<_>>()
+        .join(" or ")
 }
 
 /// A service placed on a map tile: stepping onto the tile enters it.

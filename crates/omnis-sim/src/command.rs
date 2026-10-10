@@ -9,12 +9,11 @@ use crate::items::ItemCommand;
 use crate::party::PartyCommand;
 use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::string::String;
 use core::fmt;
-use omnis_core::{Coins, Direction, ItemId, Rotation};
+use omnis_core::{CharacterId, Coins, Direction, Rotation};
 use omnis_data::EquipSlot;
-use omnis_rules::{CreationError, RuleError};
+use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
 
 /// One player action.
@@ -34,10 +33,10 @@ pub enum Command {
     Combat(CombatCommand),
     /// Cast outside a fight: healing, a buff, light, or mage hand.
     Cast {
-        /// The caster's slot.
-        caster: u8,
-        /// Index into the caster's known spells.
-        spell: u8,
+        /// The caster.
+        caster: CharacterId,
+        /// The spell's id (`base:spell:bless`); the caster must know it.
+        spell: String,
         /// Whom it goes to (a member for healing and buffs; ignored by light and mage hand).
         target: Target,
     },
@@ -52,7 +51,7 @@ pub enum Command {
 }
 
 impl Command {
-    /// The script word for this command; see [`parse_script`]. Party commands carry data and
+    /// The script word for this command; see [`crate::word::parse_script`]. Party commands carry data and
     /// have no script word; they log as `party`. Combat commands log their bare verb.
     #[must_use]
     pub const fn word(&self) -> &'static str {
@@ -76,6 +75,8 @@ impl Command {
             Command::Combat(CombatCommand::Dodge) => "dodge",
             Command::Combat(CombatCommand::Exchange { .. }) => "swap",
             Command::Combat(CombatCommand::Run) => "flee",
+            Command::Combat(CombatCommand::Feature { .. }) => "feature",
+            Command::Combat(CombatCommand::EndTurn) => "end",
             Command::Cast { .. } => "cast",
             Command::Item(_) => "item",
             Command::Service(ServiceCommand::Leave) => "leave",
@@ -89,174 +90,14 @@ impl Command {
             Command::Service(ServiceCommand::Sell { .. }) => "sell",
             Command::Service(ServiceCommand::Deposit { .. }) => "deposit",
             Command::Service(ServiceCommand::Withdraw { .. }) => "withdraw",
+            Command::Service(ServiceCommand::Train { .. }) => "train",
+            Command::Service(ServiceCommand::Choose { .. }) => "choose",
+            Command::Service(ServiceCommand::Learn { .. }) => "learn",
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
         }
     }
-
-    /// The command for a script word, if it is one.
-    #[must_use]
-    pub fn from_word(word: &str) -> Option<Command> {
-        Some(match word {
-            "forward" => Command::Step(Direction::Forward),
-            "back" => Command::Step(Direction::Back),
-            "left" => Command::Step(Direction::Left),
-            "right" => Command::Step(Direction::Right),
-            "turn-left" => Command::Turn(Rotation::Left),
-            "turn-right" => Command::Turn(Rotation::Right),
-            "around" => Command::Turn(Rotation::Around),
-            "use" => Command::Interact,
-            "fight" => Command::Encounter(EncounterChoice::Attack),
-            "bribe" => Command::Encounter(EncounterChoice::Bribe),
-            "hide" => Command::Encounter(EncounterChoice::Hide),
-            "run" => Command::Encounter(EncounterChoice::Run),
-            "attack" => Command::Combat(CombatCommand::Attack { stack: 0 }),
-            "dodge" => Command::Combat(CombatCommand::Dodge),
-            "flee" => Command::Combat(CombatCommand::Run),
-            "leave" => Command::Service(ServiceCommand::Leave),
-            "room" => Command::Service(ServiceCommand::Room),
-            "rumor" => Command::Service(ServiceCommand::Rumor),
-            "rest" => Command::Rest(RestCommand::Long),
-            "short-rest" => Command::Rest(RestCommand::Short { dice: Vec::new() }),
-            _ => {
-                if let Some(n) = word.strip_prefix("attack-") {
-                    return n
-                        .parse()
-                        .ok()
-                        .map(|stack| Command::Combat(CombatCommand::Attack { stack }));
-                }
-                if let Some(n) = word.strip_prefix("swap-") {
-                    return n
-                        .parse()
-                        .ok()
-                        .map(|with| Command::Combat(CombatCommand::Exchange { with }));
-                }
-                if let Some(rest) = word.strip_prefix("cast-") {
-                    return parse_cast(rest).map(Command::Combat);
-                }
-                if let Some(rest) = word.strip_prefix("use-item-") {
-                    return parse_use(rest).map(Command::Combat);
-                }
-                return parse_town(word);
-            }
-        })
-    }
-}
-
-/// `N-M` casts spell `N` at stack `M`; `N-mM` at member `M`.
-fn parse_cast(rest: &str) -> Option<CombatCommand> {
-    let (spell, target) = rest.split_once('-')?;
-    let spell = spell.parse().ok()?;
-    let target = match target.strip_prefix('m') {
-        Some(member) => Target::Member(member.parse().ok()?),
-        None => Target::Stack(target.parse().ok()?),
-    };
-    Some(CombatCommand::Cast { spell, target })
-}
-
-/// `N` uses item `N` of the acting member's kit on themselves; `N-mM` on member `M`.
-fn parse_use(rest: &str) -> Option<CombatCommand> {
-    let (item, target) = match rest.split_once('-') {
-        Some((item, target)) => (item, Some(target.strip_prefix('m')?.parse().ok()?)),
-        None => (rest, None),
-    };
-    Some(CombatCommand::Use {
-        item: item.parse().ok()?,
-        target,
-    })
-}
-
-/// Town and rest words that carry numbers: `food-N`, `heal-M`, `cure-M`, `raise-M`, `buy-R`
-/// and `buy-R-N` (row `R` of the stock), `sell-R` and `sell-R-N` (row `R` of the stores),
-/// `deposit-N` and `withdraw-N` (copper), `short-rest-A-B-…` (hit dice per member in order).
-fn parse_town(word: &str) -> Option<Command> {
-    if let Some(dice) = word.strip_prefix("short-rest-") {
-        let dice = dice
-            .split('-')
-            .map(|d| d.parse().ok())
-            .collect::<Option<Vec<u8>>>()?;
-        return Some(Command::Rest(RestCommand::Short { dice }));
-    }
-    let (verb, args) = word.split_once('-')?;
-    let service = match verb {
-        "food" => ServiceCommand::BuyFood {
-            count: args.parse().ok()?,
-        },
-        "heal" => ServiceCommand::Heal {
-            member: args.parse().ok()?,
-        },
-        "cure" => ServiceCommand::Cure {
-            member: args.parse().ok()?,
-        },
-        "raise" => ServiceCommand::Raise {
-            member: args.parse().ok()?,
-        },
-        "buy" | "sell" => {
-            let (item, count) = match args.split_once('-') {
-                Some((item, count)) => (item.parse().ok()?, count.parse().ok()?),
-                None => (args.parse().ok()?, 1),
-            };
-            if verb == "buy" {
-                ServiceCommand::Buy { item, count }
-            } else {
-                ServiceCommand::Sell { item, count }
-            }
-        }
-        "deposit" => ServiceCommand::Deposit {
-            amount: args.parse().ok()?,
-        },
-        "withdraw" => ServiceCommand::Withdraw {
-            amount: args.parse().ok()?,
-        },
-        _ => return None,
-    };
-    Some(Command::Service(service))
-}
-
-/// A word in a script that is not a command.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScriptError {
-    /// One-based line of the word.
-    pub line: usize,
-    /// The word.
-    pub word: String,
-}
-
-impl fmt::Display for ScriptError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "line {}: unknown command '{}'", self.line, self.word)
-    }
-}
-
-/// Parse a command script: words `forward`, `back`, `left`, `right` (sidesteps),
-/// `turn-left`, `turn-right`, `around`, `use`, before a fight `fight`, `bribe`, `hide`, `run`,
-/// and in one `attack` (the first stack), `attack-N`, `cast-N-M` (spell `N` at stack `M`),
-/// `cast-N-mM` (at member `M`), `use-item-N` (item `N` of the acting member's kit, on
-/// themselves), `use-item-N-mM` (on member `M`), `dodge`, `swap-N`, `flee`, inside a service
-/// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
-/// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
-/// `#` starts a comment that runs to the end of the line.
-pub fn parse_script(text: &str) -> Result<Vec<Command>, ScriptError> {
-    let mut commands = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        let code = line.split('#').next().unwrap_or("");
-        for word in code.split(|c: char| c.is_whitespace() || c == ',') {
-            if word.is_empty() {
-                continue;
-            }
-            match Command::from_word(word) {
-                Some(command) => commands.push(command),
-                None => {
-                    return Err(ScriptError {
-                        line: index + 1,
-                        word: word.to_string(),
-                    });
-                }
-            }
-        }
-    }
-    Ok(commands)
 }
 
 /// A command the rules refuse. Not an error: the world is unchanged.
@@ -272,30 +113,35 @@ pub enum Rejection {
     BadOrder,
     /// The fight is not waiting on a member, or not on a living one.
     NotYourTurn,
-    /// No stack has that index.
+    /// No stack has that number.
     NoSuchStack {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// Nobody in that stack still stands.
     StackDead {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// A front-row member without a ranged weapon cannot reach a stack behind the front.
     OutOfReach {
-        /// The index asked for.
+        /// The stack asked for.
         stack: u8,
     },
     /// A back-row member needs a ranged weapon to attack at all.
     NeedsRangedWeapon,
-    /// No member has that slot.
+    /// No member has that identity.
     NoSuchMember {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// A member cannot exchange with themselves.
     SameMember,
+    /// A list names the same member twice (a short rest's hit dice).
+    MemberTwice {
+        /// The member named twice.
+        member: CharacterId,
+    },
     /// The party cannot pay.
     CannotAfford {
         /// The price in copper.
@@ -303,15 +149,15 @@ pub enum Rejection {
         /// The purse in copper.
         gold: u32,
     },
-    /// The caster knows no spell at that index.
+    /// The caster knows no spell by that id.
     UnknownSpell {
-        /// The index asked for.
-        spell: u8,
+        /// The id asked for.
+        spell: String,
     },
     /// The spell has no effect the simulation can cast here yet.
     NotCastable {
-        /// The index asked for.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
     /// The caster's pool is short.
     NotEnoughPoints {
@@ -323,37 +169,37 @@ pub enum Rejection {
     /// The spell's components are not in the party's stores, or a spell at the component
     /// threshold lists none.
     MissingComponents {
-        /// The index asked for.
-        spell: u8,
+        /// The spell's id.
+        spell: String,
     },
     /// A stack for a spell that helps members, or a member for one that hurts monsters.
     WrongTarget,
     /// The member is dead; no spell here raises the dead.
     MemberDead {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// The member is at zero hit points and cannot act.
     MemberDown {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// The stores or the kit hold fewer of an item than needed.
     NotEnough {
-        /// The item.
-        item: ItemId,
+        /// The item's id.
+        item: String,
         /// How many there are.
         have: u16,
     },
-    /// The kit has no item at that row.
+    /// The kit holds no item of that id.
     UnknownItem {
-        /// The row asked for.
-        item: u8,
+        /// The id asked for.
+        item: String,
     },
-    /// The stores have no item at that row.
+    /// The stores hold no item of that id.
     NotInStores {
-        /// The row asked for.
-        item: u8,
+        /// The id asked for.
+        item: String,
     },
     /// The member does not carry the item.
     NotCarried,
@@ -372,8 +218,8 @@ pub enum Rejection {
     NotUsableHere,
     /// The member the item goes to is dead.
     TargetDead {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// A count of zero moves nothing.
     ZeroCount,
@@ -393,17 +239,17 @@ pub enum Rejection {
         /// Row.
         y: u16,
     },
-    /// This service does not do that, or does not stock that row.
+    /// This service does not do that, or does not stock that item.
     NotOffered,
     /// The member has nothing a temple could treat: full hit points, or no condition to cure.
     NothingToTreat {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// Only the dead are raised.
     NotDead {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
     },
     /// The bank holds less than the withdrawal.
     BankShort {
@@ -426,10 +272,93 @@ pub enum Rejection {
     },
     /// A member has fewer hit dice left than asked to spend.
     NoHitDice {
-        /// The slot asked for.
-        index: u8,
+        /// The member asked for.
+        member: CharacterId,
         /// Hit dice the member has left.
         left: u8,
+    },
+    /// The member's experience has not reached their next level.
+    NotReady {
+        /// The member asked for.
+        member: CharacterId,
+        /// Experience held.
+        xp: u32,
+        /// Experience the next level needs.
+        needed: u32,
+    },
+    /// The member is at the highest level.
+    MaxLevel {
+        /// The member asked for.
+        member: CharacterId,
+    },
+    /// The member has no spell picks left to choose.
+    NoPicks {
+        /// The member asked for.
+        member: CharacterId,
+    },
+    /// The spell is not on the list the command names (the class's spells, the service's).
+    NoSuchSpell {
+        /// The id asked for.
+        spell: String,
+    },
+    /// The spell is not on the member's class list.
+    NotOnList {
+        /// The member asked for.
+        member: CharacterId,
+    },
+    /// Cantrips come with the class; none is picked or bought.
+    CantripNotLearned,
+    /// The spell is above the highest level the member may learn.
+    SpellTooHigh {
+        /// The spell's level.
+        level: u8,
+        /// The highest the member may learn.
+        max: u8,
+    },
+    /// The spell is already on the member's list.
+    AlreadyKnown {
+        /// The member asked for.
+        member: CharacterId,
+    },
+    /// The turn's action is spent (ARCHITECTURE.md §4.7).
+    NoActionLeft,
+    /// The turn's bonus action is spent.
+    NoBonusActionLeft,
+    /// That costs a reaction: only a declared reaction pays for it.
+    ReactionOnly,
+    /// The spell cannot be paid with the bonus action (D24).
+    NotABonusAction {
+        /// The spell's id.
+        spell: String,
+    },
+    /// The spell takes the bonus action only once readied, and readying is not built (D24).
+    NeedsPreparation {
+        /// The spell's id.
+        spell: String,
+    },
+    /// The member has no feature with effect by that name key.
+    NoSuchFeature {
+        /// The name key asked for.
+        feature: String,
+    },
+    /// The feature's uses are spent until a rest.
+    NoUsesLeft {
+        /// The feature's name key.
+        feature: String,
+    },
+    /// The feature does not do what was asked (a choice it has not, or none where it needs one).
+    WrongChoice {
+        /// The feature's name key.
+        feature: String,
+    },
+    /// The tactics' shape is refused (a name, a tree, a cap).
+    Tactics(TacticsFault),
+    /// The member has no such reaction, or it cannot answer that trigger.
+    CannotReact,
+    /// The default runbook has no entry there.
+    NoSuchEntry {
+        /// The entry asked for.
+        entry: u8,
     },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
@@ -443,6 +372,8 @@ impl core::fmt::Display for Rejection {
             .unwrap_or_else(|| self.fmt_magic(f))
     }
 }
+
+impl core::error::Error for Rejection {}
 
 impl Rejection {
     /// The wording of the mode, party and fight refusals; `None` for the rest.
@@ -464,7 +395,12 @@ impl Rejection {
             Rejection::NeedsRangedWeapon => {
                 f.write_str("a back-row member needs a ranged weapon to attack")
             }
-            Rejection::NoSuchMember { index } => write!(f, "there is no member in slot {index}"),
+            Rejection::NoSuchMember {
+                member: CharacterId(member),
+            } => write!(f, "there is no member {member}"),
+            Rejection::MemberTwice {
+                member: CharacterId(member),
+            } => write!(f, "member {member} is named twice"),
             Rejection::SameMember => f.write_str("a member cannot exchange with themselves"),
             Rejection::CannotAfford { cost, gold } => write!(
                 f,
@@ -472,8 +408,12 @@ impl Rejection {
                 Coins::of(*cost),
                 Coins::of(*gold)
             ),
-            Rejection::MemberDead { index } => write!(f, "the member in slot {index} is dead"),
-            Rejection::MemberDown { index } => write!(f, "the member in slot {index} is down"),
+            Rejection::MemberDead {
+                member: CharacterId(member),
+            } => write!(f, "the member {member} is dead"),
+            Rejection::MemberDown {
+                member: CharacterId(member),
+            } => write!(f, "the member {member} is down"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })
@@ -482,17 +422,17 @@ impl Rejection {
     /// The wording of the item refusals; `None` for the rest.
     fn fmt_items(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
         Some(match self {
-            Rejection::UnknownItem { item } => write!(f, "the kit has no item at row {item}"),
-            Rejection::NotInStores { item } => {
-                write!(f, "the stores have no item at row {item}")
-            }
+            Rejection::UnknownItem { item } => write!(f, "the kit holds no {item}"),
+            Rejection::NotInStores { item } => write!(f, "the stores hold no {item}"),
             Rejection::NotCarried => f.write_str("the item is not carried"),
             Rejection::NotEquippable => f.write_str("the item cannot be worn or wielded"),
             Rejection::HandsFull => f.write_str("a two-handed weapon leaves no hand for a shield"),
             Rejection::SlotEmpty { slot } => write!(f, "nothing is in the {slot:?} slot"),
             Rejection::NotUsable => f.write_str("the item does nothing when used"),
             Rejection::NotUsableHere => f.write_str("the item is not used from a fight"),
-            Rejection::TargetDead { index } => write!(f, "the member in slot {index} is dead"),
+            Rejection::TargetDead {
+                member: CharacterId(member),
+            } => write!(f, "the member {member} is dead"),
             Rejection::ZeroCount => f.write_str("a count of zero moves nothing"),
             _ => return None,
         })
@@ -502,10 +442,14 @@ impl Rejection {
     fn fmt_town(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
         Some(match self {
             Rejection::NotOffered => f.write_str("this service does not offer that"),
-            Rejection::NothingToTreat { index } => {
-                write!(f, "the member in slot {index} needs no treatment")
+            Rejection::NothingToTreat {
+                member: CharacterId(member),
+            } => {
+                write!(f, "the member {member} needs no treatment")
             }
-            Rejection::NotDead { index } => write!(f, "the member in slot {index} is not dead"),
+            Rejection::NotDead {
+                member: CharacterId(member),
+            } => write!(f, "the member {member} is not dead"),
             Rejection::BankShort { amount, bank } => write!(
                 f,
                 "that withdraws {}; the bank holds {}",
@@ -518,9 +462,83 @@ impl Rejection {
             Rejection::NoFood { need, have } => {
                 write!(f, "the rest eats {need} food; the stores hold {have}")
             }
-            Rejection::NoHitDice { index, left } => {
-                write!(f, "the member in slot {index} has {left} hit dice left")
+            Rejection::NoHitDice {
+                member: CharacterId(member),
+                left,
+            } => {
+                write!(f, "the member {member} has {left} hit dice left")
             }
+            _ => return self.fmt_level(f),
+        })
+    }
+
+    /// The wording of the trainer's and the spell sellers' refusals; `None` for the rest.
+    fn fmt_level(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NotReady {
+                member: CharacterId(member),
+                xp,
+                needed,
+            } => write!(
+                f,
+                "the member {member} has {xp} experience; the next level needs {needed}"
+            ),
+            Rejection::MaxLevel {
+                member: CharacterId(member),
+            } => {
+                write!(f, "the member {member} is at the highest level")
+            }
+            Rejection::NoPicks {
+                member: CharacterId(member),
+            } => {
+                write!(f, "the member {member} has no spell picks left")
+            }
+            Rejection::NoSuchSpell { spell } => write!(f, "{spell} is not on that list"),
+            Rejection::NotOnList {
+                member: CharacterId(member),
+            } => {
+                write!(f, "that spell is not on the list of the member {member}")
+            }
+            Rejection::CantripNotLearned => f.write_str("cantrips come with the class"),
+            Rejection::SpellTooHigh { level, max } => write!(
+                f,
+                "that is a level {level} spell; the member may learn up to level {max}"
+            ),
+            Rejection::AlreadyKnown {
+                member: CharacterId(member),
+            } => {
+                write!(f, "the member {member} already knows that spell")
+            }
+            _ => return self.fmt_turn(f),
+        })
+    }
+
+    /// The wording of the turn budget's and the class features' refusals; `None` for the rest.
+    fn fmt_turn(&self, f: &mut fmt::Formatter<'_>) -> Option<fmt::Result> {
+        Some(match self {
+            Rejection::NoActionLeft => f.write_str("the turn's action is spent"),
+            Rejection::NoBonusActionLeft => f.write_str("the turn's bonus action is spent"),
+            Rejection::ReactionOnly => f.write_str("that is a reaction; declare it in tactics"),
+            Rejection::NotABonusAction { spell } => {
+                write!(f, "spell {spell} cannot be cast with the bonus action")
+            }
+            Rejection::NeedsPreparation { spell } => {
+                write!(f, "spell {spell} takes the bonus action only once readied")
+            }
+            Rejection::NoSuchFeature { feature } => {
+                write!(f, "the member has no feature {feature}")
+            }
+            Rejection::NoUsesLeft { feature } => {
+                write!(f, "feature {feature} has no uses left until a rest")
+            }
+            Rejection::WrongChoice { feature } => {
+                write!(f, "feature {feature} does not do that")
+            }
+            Rejection::Tactics(fault) => write!(f, "tactics refused: {fault:?}"),
+            Rejection::CannotReact => {
+                f.write_str("the member has no such reaction, or it cannot answer that")
+            }
+            Rejection::NoSuchEntry { entry } => write!(f, "the runbook has no entry {entry}"),
             _ => return None,
         })
     }
@@ -528,7 +546,7 @@ impl Rejection {
     /// The wording of the casting, component and dev refusals.
     fn fmt_magic(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Rejection::UnknownSpell { spell } => write!(f, "no known spell at {spell}"),
+            Rejection::UnknownSpell { spell } => write!(f, "the caster does not know {spell}"),
             Rejection::NotCastable { spell } => write!(f, "spell {spell} cannot be cast here"),
             Rejection::NotEnoughPoints { need, have } => {
                 write!(f, "that needs {need} spell points; the caster has {have}")
@@ -538,7 +556,7 @@ impl Rejection {
             }
             Rejection::WrongTarget => f.write_str("the spell cannot go to that target"),
             Rejection::NotEnough { item, have } => {
-                write!(f, "not enough of item {item}; there are {have}")
+                write!(f, "not enough {item}; there are {have}")
             }
             Rejection::DevOnly => f.write_str("dev commands need a devtools world"),
             Rejection::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),

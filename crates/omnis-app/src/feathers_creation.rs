@@ -7,7 +7,7 @@
 use crate::creation_panel::{self as panel, Choice, LabelId, PanelAction, PanelId};
 use crate::cursor::WindowSize;
 use crate::menus::{Active, CreationAsk, Screens, Where};
-use crate::sim::SimWorld;
+use crate::sim::Views;
 use crate::ui_kit::{
     Control, FontChoice, PanelRoot, ScaleChoice, Shown, UiId, UiLabel, UiReport, UiScreen, Width,
     button, column, dropdown, message_line, panel as panel_root, row, row_label, scale_for,
@@ -277,9 +277,9 @@ fn creation_panel(
     }
 }
 
-fn roster(world: Option<&SimWorld>) -> Vec<String> {
-    world.map_or_else(Vec::new, |w| {
-        w.0.party.members.iter().map(|m| m.name.clone()).collect()
+fn roster(views: Option<&Views>) -> Vec<String> {
+    views.map_or_else(Vec::new, |v| {
+        v.party.members.iter().map(|m| m.name.clone()).collect()
     })
 }
 
@@ -289,12 +289,12 @@ pub fn reconcile(
     mut commands: Commands,
     at: Where,
     screens: Res<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     roots: Query<(Entity, &PanelRoot)>,
     mut synced: ResMut<Synced>,
 ) {
     let wanted = at.screen() == Active::CreateParty;
-    let names = roster(world.as_deref());
+    let names = roster(views.as_deref());
     let shape = panel::shape(&screens.creation, &screens.catalog, &names);
     let mut standing = false;
     for (entity, root) in &roots {
@@ -375,7 +375,7 @@ fn label_text(
 pub fn sync(
     mut commands: Commands,
     screens: Res<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     focus: Res<InputFocus>,
     mut synced: ResMut<Synced>,
     font: Res<FontChoice>,
@@ -383,7 +383,7 @@ pub fn sync(
     mut inputs: Query<&mut EditableText>,
     mut labels: Query<(&Shown, &mut Text)>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let members = views.as_ref().map_or(0, |v| v.party.members.len());
     let (form, catalog) = (&screens.creation, &screens.catalog);
     let fresh = synced
         .0
@@ -449,13 +449,13 @@ pub fn sync(
 pub fn reports(
     mut reports: MessageReader<UiReport>,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut asks: MessageWriter<CreationAsk>,
     mut scale: ResMut<ScaleChoice>,
     mut font: ResMut<FontChoice>,
     mut synced: ResMut<Synced>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let members = views.as_ref().map_or(0, |v| v.party.members.len());
     for report in reports.read() {
         let UiId::Creation(id) = report.id else {
             continue;

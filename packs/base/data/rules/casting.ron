@@ -3,6 +3,8 @@
 // Components are required from `component_threshold` up (D11). Change through `rules.set`.
 // The casting slots add and compare what Rust rolls: the save DC, damage after a save, healing,
 // cantrip dice by level (SRD: 1, 2 at 5, 3 at 11, 4 at 17) and the concentration DC on damage.
+// `max_spell_level` is the highest spell level a full caster may learn at each character level
+// (index = level - 1), the SRD's spell slot tables read by their last column.
 (
     schema: 1,
     id: "base:rules:casting",
@@ -23,6 +25,9 @@
             expr: "if level >= 17 { 4 } else if level >= 11 { 3 } else if level >= 5 { 2 } else { 1 }",
         ),
         "concentration.dc": (inputs: ["damage"], expr: "max(10, damage / 2)"),
+    },
+    tables: {
+        "max_spell_level": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 9, 9],
     },
     values: {"component_threshold": 5, "cast_minutes": 1},
 )

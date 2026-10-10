@@ -2,17 +2,17 @@
 //! the world untouched, surprise, dodging, exchanges, deaths and permadeath, saves mid-fight,
 //! flight, and the protocol view.
 
-mod common;
+use crate::common;
 
-use common::{data, encounter, party_of, world};
-use omnis_core::{Direction, Facing, Position};
+use common::{act, data, encounter, party_of, script_for_six, word, world};
+use omnis_core::{CharacterId, Direction, Facing, Position};
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::omnis_rules::{RollMode, condition_id};
 use omnis_sim::{
     ActorRef, CheckKind, CombatCommand, CombatOutcome, Command, Event, LoadError, Mode, ModeKind,
-    Op, OpError, Rejection, Reply, Settings, Surprise, World, apply, combat, combat_view, dispatch,
+    Op, OpError, Place, Rejection, Reply, Settings, Surprise, World, apply, combat, combat_view,
+    dispatch,
 };
 
 fn here(world: &World) -> Position {
@@ -32,12 +32,12 @@ fn target(world: &World, data: &Data) -> u8 {
     view.stacks
         .iter()
         .find(|s| s.alive && s.reachable)
-        .map(|s| s.index)
+        .map(|s| s.stack)
         .expect("something to hit")
 }
 
 fn attack(world: &mut World, data: &Data, stack: u8) -> Vec<Event> {
-    apply(
+    act(
         world,
         data,
         Command::Combat(CombatCommand::Attack { stack }),
@@ -150,7 +150,7 @@ fn rejections_leave_the_world_untouched() {
     party_of(&mut world, &data, 6);
     let explore = world.clone();
     assert_eq!(
-        apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)),
+        act(&mut world, &data, Command::Combat(CombatCommand::Dodge)),
         Err(Rejection::WrongMode)
     );
     assert_eq!(world, explore);
@@ -173,7 +173,7 @@ fn rejections_leave_the_world_untouched() {
     let before = world.clone();
     let refuse = |world: &mut World, command: CombatCommand, expected: Rejection| {
         assert_eq!(
-            apply(world, &data, Command::Combat(command)),
+            act(world, &data, Command::Combat(command.clone())),
             Err(expected),
             "{command:?}"
         );
@@ -186,8 +186,12 @@ fn rejections_leave_the_world_untouched() {
     );
     refuse(
         &mut world,
-        CombatCommand::Exchange { with: 9 },
-        Rejection::NoSuchMember { index: 9 },
+        CombatCommand::Exchange {
+            with: CharacterId(9),
+        },
+        Rejection::NoSuchMember {
+            member: CharacterId(9),
+        },
     );
     let view = combat_view(&world, &data).unwrap();
     let Some(ActorRef::Member(id)) = view.current else {
@@ -196,9 +200,7 @@ fn rejections_leave_the_world_untouched() {
     let own = world.party.members.iter().position(|m| m.id == id).unwrap();
     refuse(
         &mut world,
-        CombatCommand::Exchange {
-            with: u8::try_from(own).unwrap(),
-        },
+        CombatCommand::Exchange { with: id },
         Rejection::SameMember,
     );
     if own < 3 {
@@ -263,7 +265,7 @@ fn dodging_gives_the_monsters_disadvantage_for_the_round() {
     let mut world = world(&data);
     party_of(&mut world, &data, 1);
     start(&mut world, &data, &[("goblin", 3)], Surprise::None);
-    let events = apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+    let events = act(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
     let id = world.party.members[0].id;
     assert_eq!(
         events[0],
@@ -309,20 +311,19 @@ fn exchange_swaps_two_slots() {
     let own = world.party.members.iter().position(|m| m.id == id).unwrap();
     let with = (own + 1) % 6;
     let other = world.party.members[with].id;
-    let events = apply(
+    let events = act(
         &mut world,
         &data,
-        Command::Combat(CombatCommand::Exchange {
-            with: u8::try_from(with).unwrap(),
-        }),
+        Command::Combat(CombatCommand::Exchange { with: other }),
     )
     .unwrap();
     assert_eq!(
         events[0],
         Event::Exchanged {
-            a: u8::try_from(own).unwrap(),
-            b: u8::try_from(with).unwrap()
-        }
+            member: id,
+            with: other
+        },
+        "the actor and the partner, by identity"
     );
     assert_eq!(events[1], Event::PartyChanged);
     assert_eq!(world.party.members[with].id, id);
@@ -418,12 +419,12 @@ fn members_go_down_save_and_die_by_the_srd() {
                 Event::Down { target } if *target == fragile => {
                     seen.0 = true;
                     assert!(matches!(
-                        events[i + 1],
+                        &events[i + 1],
                         Event::Condition {
                             condition,
                             applied: true,
                             ..
-                        } if condition == unconscious
+                        } if condition == "base:condition:unconscious"
                     ));
                 }
                 Event::DeathSave {
@@ -521,7 +522,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
     let mut events = Vec::new();
     let friendly = encounter(&data, &[("giant_rat", 2)], Disposition::Friendly, retreat);
     combat::start(&mut world, &data, friendly, Surprise::None, &mut events).unwrap();
-    let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
+    let events = act(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
     assert!(matches!(
         events[0],
         Event::Check {
@@ -531,7 +532,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
             ..
         }
     ));
-    assert!(matches!(events[1], Event::Moved { to, .. } if to == retreat));
+    assert!(matches!(&events[1], Event::Moved { to, .. } if *to == Place::of(retreat, &data)));
     assert_eq!(ended(&events).map(|e| e.0), Some(CombatOutcome::Fled));
     assert_eq!((world.position, &world.mode), (retreat, &Mode::Explore));
     assert!(world.party.members.iter().all(|m| m.xp == 0));
@@ -541,7 +542,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
         let mut world = common::new_world(&data, seed, Settings::default());
         party_of(&mut world, &data, 3);
         start(&mut world, &data, &[("giant_rat", 1)], Surprise::None);
-        let events = apply(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
+        let events = act(&mut world, &data, Command::Combat(CombatCommand::Run)).unwrap();
         let Event::Check {
             kind: CheckKind::Flee,
             roll: Some(roll),
@@ -585,7 +586,7 @@ fn the_protocol_reports_the_fight() {
     assert_eq!((combat.phase, combat.round), (ModeKind::Combat, 1));
     assert_eq!(combat.stacks.len(), 3);
     assert_eq!(combat.stacks[2].monster, "base:monster:skeleton");
-    assert!(combat.stacks[0].front && combat.stacks[1].front && !combat.stacks[2].front);
+    assert!(combat.stacks[0].in_front && combat.stacks[1].in_front && !combat.stacks[2].in_front);
     assert!(matches!(combat.current, Some(ActorRef::Member(_))));
     assert_eq!(combat.order.len(), 9);
     let text = to_string(&Reply::Combat {
@@ -598,22 +599,27 @@ fn the_protocol_reports_the_fight() {
     };
     assert_eq!(status.mode, ModeKind::Combat);
     assert_eq!(
-        parse_script("attack, attack-1, dodge, swap-3, flee").unwrap(),
+        script_for_six("attack, attack-1, dodge, swap-3, flee"),
         [
             Command::Combat(CombatCommand::Attack { stack: 0 }),
             Command::Combat(CombatCommand::Attack { stack: 1 }),
             Command::Combat(CombatCommand::Dodge),
-            Command::Combat(CombatCommand::Exchange { with: 3 }),
+            Command::Combat(CombatCommand::Exchange {
+                with: CharacterId(3)
+            }),
             Command::Combat(CombatCommand::Run),
         ]
     );
-    assert_eq!(Command::from_word("attack-256"), None);
+    assert_eq!(word("attack-256"), None);
     assert_eq!(
         Command::Combat(CombatCommand::Attack { stack: 2 }).word(),
         "attack"
     );
     assert_eq!(
-        Command::Combat(CombatCommand::Exchange { with: 1 }).word(),
+        Command::Combat(CombatCommand::Exchange {
+            with: CharacterId(1)
+        })
+        .word(),
         "swap"
     );
 }

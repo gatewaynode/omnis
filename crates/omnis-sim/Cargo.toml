@@ -7,9 +7,19 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true
+autotests = false
 
 [dependencies]
+omnis-bus = { workspace = true }
 omnis-core = { workspace = true }
 omnis-data = { workspace = true }
 omnis-rules = { workspace = true }
 serde = { workspace = true }
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[[test]]
+name = "measure"
+path = "tests/measure/main.rs"

@@ -5,12 +5,13 @@
 //! adds no rule of its own. The widgets are not trusted: an offer out of range or one the view
 //! refuses sends nothing, and the bank's amount is clamped. `feathers_service.rs` draws it.
 
+use crate::defs;
 use crate::text::coins;
 use crate::ui_model::Payload;
-use omnis_sim::omnis_core::fnv1a64;
-use omnis_sim::omnis_data::{Data, ServiceKind};
-use omnis_sim::omnis_rules::Character;
-use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView, World};
+use omnis_sim::api::{MemberView, PartyView};
+use omnis_sim::omnis_core::{CharacterId, fnv1a64};
+use omnis_sim::omnis_data::Data;
+use omnis_sim::{OfferView, Rejection, ServiceCommand, ServiceView};
 
 /// One control of the panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -52,7 +53,7 @@ pub struct ServiceForm {
 }
 
 /// What a control asks of the app.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceAsk {
     /// Send this command.
     Send(ServiceCommand),
@@ -77,7 +78,7 @@ pub fn apply(
             if offer.refusal.is_some() || offer.command == ServiceCommand::Leave {
                 return None;
             }
-            Some(ServiceAsk::Send(offer.command))
+            Some(ServiceAsk::Send(offer.command.clone()))
         }
         (ServicePanelId::Amount, Payload::Number(value)) => {
             form.amount_gp = u32::try_from((*value).clamp(0, i64::from(AMOUNT_MAX_GP))).ok()?;
@@ -113,16 +114,16 @@ pub struct OfferRow {
 
 /// The rows of every offer but leaving, in the view's order.
 #[must_use]
-pub fn offer_rows(view: &ServiceView, world: &World, data: &Data) -> Vec<OfferRow> {
+pub fn offer_rows(view: &ServiceView, party: &PartyView, data: &Data) -> Vec<OfferRow> {
     view.offers
         .iter()
         .filter(|o| o.command != ServiceCommand::Leave)
         .map(|offer| {
-            let (key, label) = row_label(offer, world, data);
+            let (key, label) = row_label(offer, party, data);
             OfferRow {
                 key,
                 label,
-                caption: caption(offer.command),
+                caption: caption(&offer.command),
                 note: note(offer),
                 refused: offer.refusal.is_some(),
             }
@@ -130,36 +131,55 @@ pub fn offer_rows(view: &ServiceView, world: &World, data: &Data) -> Vec<OfferRo
         .collect()
 }
 
-fn item_name(data: &Data, id: omnis_sim::omnis_core::ItemId) -> &str {
-    data.items
-        .get(&id)
-        .map_or("?", |i| data.label("en", &i.name))
-}
-
-fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) {
-    let member = |slot: u8| world.party.members.get(usize::from(slot));
+fn row_label(offer: &OfferView, party: &PartyView, data: &Data) -> (String, String) {
+    let member = |id: CharacterId| party.members.iter().find(|m| m.member == id);
     match offer.command {
         ServiceCommand::Room => (String::new(), "A night's rest".to_owned()),
         ServiceCommand::Rumor => (String::new(), "A rumor".to_owned()),
         ServiceCommand::BuyFood { count } => (String::new(), format!("Food for {count} day")),
-        ServiceCommand::Buy { item, .. } => {
-            let name = stock_name(world, data, item);
+        ServiceCommand::Buy { .. } => {
+            let name = offer
+                .subject
+                .as_deref()
+                .and_then(|id| defs::item(data, id))
+                .map_or("?", |i| data.label("en", &i.name))
+                .to_owned();
             (name.clone(), name)
         }
-        ServiceCommand::Sell { item, .. } => {
-            let (name, count) = world
-                .party
+        ServiceCommand::Sell { ref item, .. } => {
+            let (name, count) = party
                 .inventory
-                .get(usize::from(item))
-                .map_or(("?", 0), |(id, count)| (item_name(data, *id), *count));
+                .iter()
+                .find(|i| i.item == *item)
+                .map_or(("?", 0), |i| (data.label("en", &i.name), i.count));
             (name.to_owned(), format!("{name} ×{count}"))
         }
-        ServiceCommand::Heal { member: slot }
-        | ServiceCommand::Cure { member: slot }
-        | ServiceCommand::Raise { member: slot } => member(slot).map_or_else(
+        ServiceCommand::Heal { member: id }
+        | ServiceCommand::Cure { member: id }
+        | ServiceCommand::Raise { member: id } => member(id).map_or_else(
             || ("?".to_owned(), "?".to_owned()),
             |m| (m.name.clone(), member_label(offer, m, data)),
         ),
+        ServiceCommand::Train { member: id } => member(id).map_or_else(
+            || ("?".to_owned(), "?".to_owned()),
+            |m| {
+                let label = format!("{}, level {} to {}", m.name, m.level, m.level + 1);
+                (m.name.clone(), label)
+            },
+        ),
+        ServiceCommand::Choose { member: id, .. } | ServiceCommand::Learn { member: id, .. } => {
+            member(id).map_or_else(
+                || ("?".to_owned(), "?".to_owned()),
+                |m| {
+                    let name = offer
+                        .subject
+                        .as_deref()
+                        .and_then(|id| defs::spell(data, id))
+                        .map_or("?", |s| data.label("en", &s.name));
+                    (format!("{}: {name}", m.name), format!("{}: {name}", m.name))
+                },
+            )
+        }
         ServiceCommand::Leave
         | ServiceCommand::Deposit { .. }
         | ServiceCommand::Withdraw { .. } => (String::new(), String::new()),
@@ -167,7 +187,7 @@ fn row_label(offer: &OfferView, world: &World, data: &Data) -> (String, String) 
 }
 
 /// A temple row names what it treats: hit points, conditions, or death.
-fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
+fn member_label(offer: &OfferView, member: &MemberView, data: &Data) -> String {
     let name = &member.name;
     match offer.command {
         ServiceCommand::Cure { .. } if member.conditions.is_empty() => {
@@ -177,11 +197,7 @@ fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
             let names: Vec<&str> = member
                 .conditions
                 .iter()
-                .map(|id| {
-                    data.conditions
-                        .get(id)
-                        .map_or("?", |c| data.label("en", &c.name))
-                })
+                .map(|id| defs::condition(data, id).map_or("?", |c| data.label("en", &c.name)))
                 .collect();
             format!("{name}: {}", names.join(", "))
         }
@@ -195,22 +211,9 @@ fn member_label(offer: &OfferView, member: &Character, data: &Data) -> String {
     }
 }
 
-/// The name of a row of the service the party is in.
-fn stock_name(world: &World, data: &Data, row: u8) -> String {
-    let omnis_sim::Mode::Town(state) = world.mode else {
-        return "?".to_owned();
-    };
-    data.services
-        .get(&state.service)
-        .and_then(|def| def.items.get(usize::from(row)))
-        .and_then(|key| data.registry.items.get(key))
-        .map_or("?", |id| item_name(data, id))
-        .to_owned()
-}
-
 /// The button's caption for an offer.
 #[must_use]
-pub const fn caption(command: ServiceCommand) -> &'static str {
+pub const fn caption(command: &ServiceCommand) -> &'static str {
     match command {
         ServiceCommand::Room => "Take a room",
         ServiceCommand::Rumor => "Listen",
@@ -221,6 +224,9 @@ pub const fn caption(command: ServiceCommand) -> &'static str {
         ServiceCommand::Raise { .. } => "Raise",
         ServiceCommand::Deposit { .. } => "Deposit",
         ServiceCommand::Withdraw { .. } => "Withdraw",
+        ServiceCommand::Train { .. } => "Train",
+        ServiceCommand::Choose { .. } => "Choose",
+        ServiceCommand::Learn { .. } => "Learn",
         ServiceCommand::Leave => "Leave",
     }
 }
@@ -270,16 +276,6 @@ pub fn money_line(view: &ServiceView) -> String {
     )
 }
 
-/// What a service that has nothing on offer yet says.
-#[must_use]
-pub const fn note_for(kind: ServiceKind) -> Option<&'static str> {
-    match kind {
-        ServiceKind::Trainer => Some("Training opens in a later version (M7b)."),
-        ServiceKind::Guild => Some("The guild's spells open in a later version (M7b)."),
-        _ => None,
-    }
-}
-
 /// What the panel's entity tree depends on: the service, each offer's command and what its
 /// row names. Prices, refusals and counts are rewritten in place; a sale that empties a row
 /// or a purchase that adds one builds the panel again.
@@ -299,15 +295,32 @@ pub fn shape(view: &ServiceView, rows: &[OfferRow]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::omnis_data::ServiceKind;
+
+    const DAGGER: &str = "base:item:dagger";
+
+    fn buy(item: &str) -> ServiceCommand {
+        ServiceCommand::Buy {
+            item: item.to_owned(),
+            count: 1,
+        }
+    }
+
+    fn sell(item: &str) -> ServiceCommand {
+        ServiceCommand::Sell {
+            item: item.to_owned(),
+            count: 1,
+        }
+    }
 
     fn offer(command: ServiceCommand, price: Option<u32>, refusal: Option<Rejection>) -> OfferView {
         OfferView {
             command,
-            row: None,
             member: None,
             price,
             pays: None,
             refusal,
+            subject: None,
         }
     }
 
@@ -320,9 +333,9 @@ mod tests {
             bank: 200,
             food: 10,
             offers: vec![
-                offer(ServiceCommand::Buy { item: 0, count: 1 }, Some(200), None),
+                offer(buy(DAGGER), Some(200), None),
                 offer(
-                    ServiceCommand::Buy { item: 1, count: 1 },
+                    buy("base:item:chain_mail"),
                     Some(7500),
                     Some(Rejection::CannotAfford {
                         cost: 7500,
@@ -331,7 +344,7 @@ mod tests {
                 ),
                 OfferView {
                     pays: Some(250),
-                    ..offer(ServiceCommand::Sell { item: 0, count: 1 }, None, None)
+                    ..offer(sell(DAGGER), None, None)
                 },
                 offer(ServiceCommand::Leave, None, None),
             ],
@@ -345,12 +358,12 @@ mod tests {
         let mut press = |id| apply(id, &Payload::Activate, &view, &mut form);
         assert_eq!(
             press(ServicePanelId::Offer(0)),
-            Some(ServiceAsk::Send(ServiceCommand::Buy { item: 0, count: 1 }))
+            Some(ServiceAsk::Send(buy(DAGGER)))
         );
         assert_eq!(press(ServicePanelId::Offer(1)), None, "refused");
         assert_eq!(
             press(ServicePanelId::Offer(2)),
-            Some(ServiceAsk::Send(ServiceCommand::Sell { item: 0, count: 1 }))
+            Some(ServiceAsk::Send(sell(DAGGER)))
         );
         assert_eq!(
             press(ServicePanelId::Offer(3)),
@@ -464,7 +477,9 @@ mod tests {
             "rested too recently (10h 05m)"
         );
         assert_eq!(
-            reason(&Rejection::NothingToTreat { index: 1 }),
+            reason(&Rejection::NothingToTreat {
+                member: CharacterId(1)
+            }),
             "nothing to treat"
         );
         assert_eq!(
@@ -475,8 +490,13 @@ mod tests {
             money_line(&view),
             "Gold 16 gp 5 sp 0 cp · Bank 2 gp 0 sp 0 cp · Food 10"
         );
-        assert_eq!(caption(ServiceCommand::Room), "Take a room");
-        assert!(note_for(ServiceKind::Trainer).is_some() && note_for(ServiceKind::Inn).is_none());
+        assert_eq!(caption(&ServiceCommand::Room), "Take a room");
+        assert_eq!(
+            caption(&ServiceCommand::Train {
+                member: CharacterId(0)
+            }),
+            "Train"
+        );
     }
 
     #[test]
@@ -487,9 +507,9 @@ mod tests {
                 .iter()
                 .filter(|o| o.command != ServiceCommand::Leave)
                 .map(|o| OfferRow {
-                    key: format!("{:?}", o.row),
+                    key: format!("{:?}", o.subject),
                     label: String::new(),
-                    caption: caption(o.command),
+                    caption: caption(&o.command),
                     note: note(o),
                     refused: o.refusal.is_some(),
                 })

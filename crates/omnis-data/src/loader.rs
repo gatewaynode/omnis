@@ -13,6 +13,7 @@ use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::{Cell, MapDef, Terrain};
 use crate::monster::Monster;
+use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
 use crate::rest_event::{self, ResolvedRestEvent};
 use crate::ron_io::{from_str, read_text};
@@ -22,8 +23,8 @@ use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId, ServiceId,
-    SpellId, TextKey, TilesetId, fnv1a64,
+    BackgroundId, Calendar, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId,
+    RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -78,6 +79,8 @@ pub struct MapData {
     pub random: Option<ResolvedRandom>,
     /// Services placed on tiles, in file order.
     pub sites: Vec<ResolvedSite>,
+    /// The region that owns the map.
+    pub region: RegionId,
     /// What may happen while resting here, in file order.
     pub rest_events: Vec<ResolvedRestEvent>,
 }
@@ -171,9 +174,29 @@ pub struct Data {
     pub services: BTreeMap<ServiceId, ServiceDef>,
     /// The compiled rule set from every `data/rules` file.
     pub rules: Rules,
+    /// Regions by id.
+    pub regions: BTreeMap<RegionId, Region>,
 }
 
 impl Data {
+    /// The calendar's shape from `rules/time.ron`, each value the default when it is missing.
+    #[must_use]
+    pub fn calendar(&self) -> Calendar {
+        let base = Calendar::default();
+        let value = |name: &str, default: u32| {
+            self.rules
+                .value(name)
+                .and_then(|v| u32::try_from(v).ok())
+                .unwrap_or(default)
+        };
+        Calendar {
+            minutes_per_day: value("minutes_per_day", base.minutes_per_day),
+            days_per_year: value("days_per_year", base.days_per_year),
+            night_from: value("night_from", base.night_from),
+            night_to: value("night_to", base.night_to),
+        }
+    }
+
     /// A localized string, falling back to the key's name when the language lacks it.
     #[must_use]
     pub fn text(&self, lang: &str, key: TextKey) -> &str {
@@ -477,6 +500,14 @@ fn gather_content(
         errors,
         &mut content.services,
     );
+    gather(
+        root,
+        "data/regions",
+        "region",
+        hasher,
+        errors,
+        &mut content.regions,
+    );
 }
 
 trait HasSchema {
@@ -505,6 +536,7 @@ has_schema!(
     Monster,
     RulesFile,
     ServiceDef,
+    RegionDef,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
@@ -561,8 +593,9 @@ fn list_entries(
 }
 
 /// Intern ids and check every cross-reference. Runs once after all packs are read.
-fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
+fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     let before = errors.len();
+    let region_files = std::mem::take(&mut raw.content.regions);
     for (id, (_, tileset)) in raw.tilesets {
         let tid = data.registry.tilesets.intern(&id);
         data.tilesets.insert(tid, tileset);
@@ -582,6 +615,16 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         .keys()
         .map(|id| (id.as_str(), data.registry.maps.intern(id)))
         .collect();
+    let (regions, owners) = region::resolve(
+        region_files,
+        &map_ids,
+        &mut data.registry.regions,
+        &data.registry.text,
+        &data.rules,
+        errors,
+    );
+    data.regions = regions;
+    check_calendar(&data.rules, errors);
     for (id, (file, def, cells)) in &raw.maps {
         let Some(tileset_id) = data.registry.tilesets.get(&def.tileset) else {
             errors.push(DataError::new(
@@ -617,6 +660,13 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         );
         let sites = service::resolve_sites(def, cells, &data.registry.services, file, errors);
         let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
+        let region = owners.get(&map_ids[id.as_str()]).copied();
+        if region.is_none() {
+            errors.push(DataError::new(
+                file,
+                format!("map '{id}' belongs to no region"),
+            ));
+        }
         if errors.len() == before {
             data.maps.insert(
                 map_ids[id.as_str()],
@@ -629,6 +679,7 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     encounters,
                     random,
                     sites,
+                    region: region.unwrap_or(RegionId(0)),
                     rest_events,
                 },
             );
@@ -645,6 +696,29 @@ fn resolve(raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     }
     if errors.len() > before {
         data.maps.clear();
+    }
+}
+
+/// The calendar's values, when given, must make a calendar: a day and a year of at least one,
+/// night inside the day, and a reconciliation cap that is not negative.
+fn check_calendar(rules: &Rules, errors: &mut Vec<DataError>) {
+    let day = rules.value("minutes_per_day").unwrap_or(1440);
+    let checks = [
+        ("minutes_per_day", 1, i64::from(u16::MAX)),
+        ("days_per_year", 1, i64::from(u16::MAX)),
+        ("night_from", 0, day - 1),
+        ("night_to", 0, day - 1),
+        ("time_cap_minutes", 0, i64::MAX),
+    ];
+    for (name, low, high) in checks {
+        if let Some(v) = rules.value(name)
+            && !(low..=high).contains(&v)
+        {
+            errors.push(DataError::new(
+                "data/rules",
+                format!("value '{name}' is {v}; it must be {low}..={high}"),
+            ));
+        }
     }
 }
 

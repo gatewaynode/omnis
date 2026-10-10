@@ -57,11 +57,8 @@ impl Headless {
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
         match op {
             Op::SaveWrite { path } => {
-                if !self.world.may_save() {
-                    return Err(OpError::failed("the save rule forbids saving here"));
-                }
                 let file = PathBuf::from(client_path(path, &["ron"])?);
-                let text = self.world.to_ron().map_err(OpError::failed)?;
+                let text = ops::save_text(&self.world)?;
                 if let Some(parent) = file.parent().filter(|p| !p.as_os_str().is_empty()) {
                     std::fs::create_dir_all(parent).map_err(OpError::failed)?;
                 }
@@ -71,22 +68,12 @@ impl Headless {
             Op::SaveRead { path, force } => {
                 let file = PathBuf::from(client_path(path, &["ron"])?);
                 let text = read_text(&file, &file).map_err(OpError::failed)?;
-                self.world = World::from_ron(&text, &self.data, *force).map_err(OpError::failed)?;
+                self.world = ops::load_text(&text, &self.data, *force)?;
                 ops::status(&self.world, &self.data).map(Reply::Status)
             }
             Op::PackReload => {
                 let data = load(&self.packs).map_err(OpError::failed)?;
-                let p = self.world.position;
-                if data
-                    .maps
-                    .get(&p.map)
-                    .and_then(|m| m.cell(p.x, p.y))
-                    .is_none()
-                {
-                    return Err(OpError::failed(format!(
-                        "the party's tile {p} is not in the reloaded packs; nothing changed"
-                    )));
-                }
+                ops::check_reload(&self.world, &data)?;
                 self.data = data;
                 Ok(Reply::Done {})
             }
@@ -96,14 +83,7 @@ impl Headless {
             Op::ScreenText => Err(OpError::failed(
                 "screen text needs the game window; this is headless",
             )),
-            Op::RulesSet { slot, source } => {
-                ops::bounded(source)?;
-                self.data
-                    .rules
-                    .set_slot(slot, source)
-                    .map_err(OpError::bad_request)?;
-                ops::slot_view(&self.data, slot).map(|rule| Reply::Rule { rule })
-            }
+            Op::RulesSet { slot, source } => ops::rules_set(&mut self.data, slot, source),
             other => dispatch(&mut self.world, &self.data, other),
         }
     }

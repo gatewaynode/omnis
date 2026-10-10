@@ -8,7 +8,7 @@ use crate::canvas::Layout;
 use crate::combat_menu::{FightView, fight_view};
 use crate::combat_text::batch_lines;
 use crate::cursor::{self, Pointer, UiSet};
-use crate::debug_menu::{DebugView, debug_view};
+use crate::defs;
 use crate::inventory_menu::{InventoryView, inventory_view};
 use crate::layout::{CANVAS_HEIGHT, CANVAS_WIDTH};
 use crate::menus::{Active, Screens, Where};
@@ -16,7 +16,7 @@ use crate::panels::{Hud, Message};
 use crate::pixel::PIXEL_LAYER;
 use crate::screen::{self, Menu, View};
 use crate::sheet_menu::{SheetView, sheet_view};
-use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, SimWorld};
+use crate::sim::{AppState, CommandRefused, Notice, PackData, SimEvent, Views};
 use crate::spell_menu::{CastRow, cast_rows};
 use crate::text::Names;
 use crate::tool_bar::{self, ToolPressed, ToolStates};
@@ -26,8 +26,9 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::sprite::Anchor;
+use omnis_sim::Event;
+use omnis_sim::api::{Here, PartyView};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Event, World};
 
 /// The canvas sprite the frame is uploaded into.
 #[derive(Resource, Debug, Clone)]
@@ -86,7 +87,8 @@ impl RollLog {
 }
 
 /// Help while exploring.
-pub const HELP_EXPLORE: &str = "Arrows/pad move  C cast  I items  L look  P sheet  M map  Esc menu";
+pub const HELP_EXPLORE: &str =
+    "Arrows/pad move  C cast  I items  L look  P sheet  R camp  M map  Esc menu";
 /// Help on the title.
 pub const HELP_TITLE: &str = "Arrows or click  Enter ok";
 /// Help on the new game form.
@@ -102,7 +104,7 @@ pub const HELP_COMBAT: &str = "Up/Down act  Left/Right target  C cast  Enter ok 
 /// Help after a wipe.
 pub const HELP_DEFEAT: &str = "Up/Down select  Enter ok";
 /// Help on the debug menu.
-pub const HELP_DEBUG: &str = "Arrows edit  Tab field  Enter act  Esc close";
+pub const HELP_DEBUG: &str = "Type a number, Enter or Tab to set  Esc close";
 /// Help on the cast menu.
 pub const HELP_CAST: &str = "Up/Down choose  click a member for a target  Enter cast  Esc back";
 /// Help on the character sheet.
@@ -111,6 +113,10 @@ pub const HELP_SHEET: &str = "Left/Right member  Tab page  click a tab or a memb
 pub const HELP_INVENTORY: &str = "Left/Right pane  Up/Down row  Enter/E/U/S/T/G act  Esc close";
 /// The help line under the question before a step into or out of a service.
 pub const HELP_CONFIRM: &str = "Click Go or Stay  Enter go  Esc stay";
+/// The help line under the camp's panel.
+pub const HELP_CAMP: &str = "Slide the hit dice  click a rest  Esc close";
+/// The status line's help on the tactics panel.
+pub const HELP_TACTICS: &str = "Pick an action, a trigger, conditions  Save  Esc sheet";
 /// The help line under a service's panel.
 pub const HELP_SERVICE: &str =
     "Click what you want  Tab to move  Esc leave  Items Spells Sheet Menu on the bar";
@@ -324,52 +330,46 @@ pub(crate) fn message_line(
 
 /// The party as band rows.
 #[must_use]
-pub fn member_rows(world: &World, data: &Data) -> Vec<MemberRow> {
-    world
-        .party
+pub fn member_rows(party: &PartyView, data: &Data) -> Vec<MemberRow> {
+    party
         .members
         .iter()
         .map(|m| MemberRow {
             name: m.name.clone(),
-            class: data
-                .classes
-                .get(&m.class)
+            class: defs::class(data, &m.class)
                 .map_or("?", |c| data.label("en", &c.name))
                 .to_owned(),
             level: m.level,
             hp: m.hp,
             hp_max: m.hp_max,
             sp: m.spell_points,
-            ac: omnis_sim::omnis_rules::armor_class(m, data),
+            ac: m.ac,
             condition: m
                 .conditions
                 .first()
-                .and_then(|c| data.conditions.get(c))
+                .and_then(|c| defs::condition(data, c))
                 .map(|c| data.label("en", &c.name).to_owned())
                 .or_else(|| {
                     m.effects
                         .first()
-                        .and_then(|e| data.spells.get(&e.source))
+                        .and_then(|e| defs::spell(data, &e.spell))
                         .map(|s| data.label("en", &s.name).to_owned())
                 }),
         })
         .collect()
 }
 
-/// The location lines for the world.
+/// The location lines for where the party is.
 #[must_use]
-pub fn hud_text(world: &World, data: &Data) -> Hud {
-    let p = world.position;
-    let map = data
-        .maps
-        .get(&p.map)
-        .map_or("?", |m| data.text("en", m.name));
+pub fn hud_text(here: &Here, data: &Data) -> Hud {
+    let p = &here.position;
+    let map = defs::map(data, &p.map).map_or("?", |m| data.text("en", m.name));
     Hud::new(
         map,
         i32::from(p.x),
         i32::from(p.y),
         &p.facing.to_string(),
-        world.party_clock().elapsed,
+        &crate::panels::clock_text(here.date.minutes, here.age, data.calendar()),
     )
 }
 
@@ -379,7 +379,6 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
         Active::CreateParty => &screens.creation.message,
         Active::Encounter => &screens.encounter.message,
         Active::Combat => &screens.combat.message,
-        Active::Debug => &screens.debug.message,
         Active::Cast => &screens.cast.message,
         Active::Sheet => &screens.sheet.message,
         Active::Inventory => &screens.inventory.message,
@@ -391,11 +390,10 @@ fn model_message(active: Active, screens: &Screens) -> Option<Message> {
     })
 }
 
-/// What the frame shows besides the screens' own state: the fight, the debug view, the
-/// road spells, and the log.
+/// What the frame shows besides the screens' own state: the fight, the road spells, and the
+/// log.
 struct Overlays<'a> {
     fight: Option<&'a FightView>,
-    debug: Option<&'a DebugView>,
     casts: &'a [CastRow],
     sheet: Option<&'a SheetView>,
     inventory: Option<&'a InventoryView>,
@@ -416,13 +414,6 @@ fn overlay_for<'a>(
                 rows: over.casts,
             },
             HELP_CAST,
-        ),
-        Active::Debug => (
-            Menu::Debug {
-                menu: &screens.debug,
-                view: over.debug?,
-            },
-            HELP_DEBUG,
         ),
         Active::Sheet => (
             Menu::Sheet {
@@ -447,7 +438,7 @@ fn overlay_for<'a>(
 fn menu_for<'a>(
     active: Active,
     screens: &'a Screens,
-    world: Option<&World>,
+    here: Option<&Here>,
     over: &Overlays<'a>,
     members: usize,
 ) -> (Menu<'a>, &'static str) {
@@ -464,11 +455,17 @@ fn menu_for<'a>(
         (Active::Confirm, _) => (Menu::None, HELP_CONFIRM),
         // A service is a `bevy_ui` panel over the map (`feathers_service.rs`).
         (Active::Service, _) => (Menu::None, HELP_SERVICE),
+        // The camp is a `bevy_ui` panel over the map (`feathers_camp.rs`).
+        (Active::Camp, _) => (Menu::None, HELP_CAMP),
+        // The tactics panel is a `bevy_ui` panel over the map (`feathers_tactics.rs`).
+        (Active::Tactics, _) => (Menu::None, HELP_TACTICS),
+        // The debug panel is a `bevy_ui` panel over the map (`feathers_debug.rs`).
+        (Active::Debug, _) => (Menu::None, HELP_DEBUG),
         (Active::Paused, _) => (
             Menu::Pause {
                 pause: &screens.pause,
-                settings: world.map_or_else(Default::default, |w| w.settings),
-                seed: world.map_or(0, |w| w.seed),
+                settings: here.map_or_else(Default::default, |h| h.settings),
+                seed: here.map_or(0, |h| h.seed),
             },
             HELP_PAUSE,
         ),
@@ -497,7 +494,6 @@ fn menu_for<'a>(
             Active::None
             | Active::Encounter
             | Active::Combat
-            | Active::Debug
             | Active::Cast
             | Active::Sheet
             | Active::Inventory,
@@ -510,7 +506,7 @@ fn menu_for<'a>(
 fn build_frame(
     at: Where,
     screens: Res<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     line: Res<MessageLine>,
@@ -520,31 +516,25 @@ fn build_frame(
     mut scratch: Local<Frame>,
 ) {
     let active = at.screen();
-    let loaded = world.as_ref().zip(data.as_ref());
-    let members = loaded.map_or_else(Vec::new, |(w, d)| member_rows(&w.0, &d.0));
-    let hud = loaded.map(|(w, d)| hud_text(&w.0, &d.0));
-    let fight = loaded.and_then(|(w, d)| fight_view(&w.0, &d.0));
-    let debug = (active == Active::Debug)
-        .then(|| loaded.map(|(w, d)| debug_view(&w.0, &d.0)))
-        .flatten();
+    let seen = views.as_ref().zip(data.as_ref());
+    let members = seen.map_or_else(Vec::new, |(v, d)| member_rows(&v.party, &d.0));
+    let hud = seen.map(|(v, d)| hud_text(&v.here, &d.0));
+    let fight = seen.and_then(|(v, d)| fight_view(v, &d.0));
     let casts = if active == Active::Cast {
-        loaded.map_or_else(Vec::new, |(w, d)| cast_rows(&w.0, &d.0))
+        seen.map_or_else(Vec::new, |(v, d)| cast_rows(v, &d.0))
     } else {
         Vec::new()
     };
     let sheet = (active == Active::Sheet)
-        .then(|| loaded.and_then(|(w, d)| sheet_view(&w.0, &d.0, screens.sheet.member)))
+        .then(|| seen.and_then(|(v, d)| sheet_view(v, &d.0, screens.sheet.member)))
         .flatten();
     let inventory = (active == Active::Inventory)
-        .then(|| loaded.map(|(w, d)| inventory_view(&w.0, &d.0)))
+        .then(|| seen.map(|(v, d)| inventory_view(&v.party, &d.0)))
         .flatten();
-    let front_row = data
-        .as_ref()
-        .map_or(3, |d| omnis_sim::party::front_row(&d.0));
+    let front_row = views.as_ref().map_or(3, |v| v.party.front_row);
     let model_message = model_message(active, &screens);
     let over = Overlays {
         fight: fight.as_ref(),
-        debug: debug.as_ref(),
         casts: &casts,
         sheet: sheet.as_ref(),
         inventory: inventory.as_ref(),
@@ -553,11 +543,11 @@ fn build_frame(
     let (menu, help) = menu_for(
         active,
         &screens,
-        world.as_ref().map(|w| &w.0),
+        views.as_ref().map(|v| &v.here),
         &over,
         members.len(),
     );
-    let pad = if world.is_none() {
+    let pad = if views.is_none() {
         PadState::Hidden
     } else if at.exploring() {
         PadState::Enabled
@@ -584,5 +574,50 @@ fn build_frame(
     screen::compose_into(&mut scratch, &layout, &view, ui.hover, ui.pressed);
     if ui.frame != *scratch {
         ui.frame.clone_from(&scratch);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hud_text;
+    use crate::debug_menu::tests::world_and_data;
+    use omnis_sim::api::here;
+    use omnis_sim::{Command, DevCommand, PARTY, apply};
+
+    /// The location lines show the party's date and age (M8): two years in the meadow read as
+    /// year 3 there, and walking into town the date snaps to the town's, a few months on, while
+    /// the age keeps its two years.
+    #[test]
+    fn the_clock_line_shows_the_date_and_snaps_to_the_town() {
+        let (mut world, data) = world_and_data();
+        let to = |map: &str, data: &omnis_sim::omnis_data::Data| {
+            let id = data.registry.maps.get(map).unwrap();
+            let (x, y, facing) = data.maps[&id].def.start;
+            Command::Dev(DevCommand::Teleport {
+                map: map.into(),
+                x,
+                y,
+                facing,
+            })
+        };
+        apply(&mut world, &data, to("test:map:meadow", &data)).unwrap();
+        let year = 360 * 1440;
+        world.clocks.get_mut(&PARTY).unwrap().elapsed += 2 * year;
+        world.party_time.shared_milli += 2 * year * 100;
+        world.party_time.date += 2 * year;
+        let wild = hud_text(&here(&world, &data), &data).clock;
+        assert!(wild.starts_with("Year 3 day 1 "), "{wild}");
+        assert!(wild.ends_with("age 2y 0d"), "{wild}");
+        apply(&mut world, &data, to("test:map:town", &data)).unwrap();
+        let town = hud_text(&here(&world, &data), &data).clock;
+        assert!(town.starts_with("Year 1 day "), "{town}");
+        let day: u32 = town["Year 1 day ".len()..]
+            .split(' ')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!((70..=76).contains(&day), "about 72 days on: {town}");
+        assert!(town.ends_with("age 2y 0d"), "{town}");
     }
 }

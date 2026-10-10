@@ -4,17 +4,19 @@
 
 use crate::apply::visit;
 use crate::combat;
+use crate::combat::Roller;
 use crate::command::Rejection;
 use crate::encounter::Stack;
 use crate::event::{ActorRef, Event};
 use crate::items::add_to;
+use crate::names::Place;
 use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Facing, Position};
+use omnis_core::{CharacterId, Facing, Position};
 use omnis_data::{Ability, Data};
-use omnis_rules::DeathSaves;
+use omnis_rules::{DeathSaves, level_up, modifier, ready, spell_point_pool};
 use serde::{Deserialize, Serialize};
 
 /// A debugging edit. Ids are strings, as a `Draft` names its race and class.
@@ -22,25 +24,25 @@ use serde::{Deserialize, Serialize};
 pub enum DevCommand {
     /// `count` of an item to a member's kit, or to the party's stores when `member` is `None`.
     GiveItem {
-        /// The member's slot, or the stores.
-        member: Option<u8>,
+        /// The member, or the stores.
+        member: Option<CharacterId>,
         /// `pack:item:name`.
         item: String,
         /// How many; at least one.
         count: u16,
     },
-    /// Hit points, clamped to `0..=hp_max`. Zero downs the member (fresh death saves,
-    /// `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
+    /// Hit points, at least zero and free to pass `hp_max`. Zero downs the member (fresh death
+    /// saves, `unconscious`); above zero clears `unconscious` and `dead` and resets the saves.
     SetHp {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// The new hit points.
         hp: i32,
     },
-    /// Spell points, clamped to the maximum.
+    /// Spell points, free to pass the maximum.
     SetSpellPoints {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// The new points.
         points: u32,
     },
@@ -54,17 +56,20 @@ pub enum DevCommand {
         /// Food units.
         food: u32,
     },
-    /// A member's experience; the level does not move (levelling is bought in town).
+    /// A member's experience. Each level it reaches is granted at once by the trainer's rule,
+    /// free (`Event::LevelUp` with no cost); a lower figure never takes a level away.
     SetXp {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// Experience points.
         xp: u32,
     },
-    /// One ability score, `1..=30`. Derived numbers follow at read time; `hp_max` does not.
+    /// One ability score, any `u8`. Constitution moves `hp_max` and hit points by the change in
+    /// modifier times the level (the SRD's rule); a mental score recomputes the spell point pool,
+    /// current points moving by the same amount. Everything else reads the scores live.
     SetScore {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// Which score.
         ability: Ability,
         /// The new score.
@@ -72,8 +77,8 @@ pub enum DevCommand {
     },
     /// A pack condition on or off, raw: `dead` set this way does not zero hit points.
     SetCondition {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// `pack:condition:name`.
         condition: String,
         /// On or off.
@@ -112,6 +117,12 @@ pub enum DevCommand {
         /// The stack.
         stack: u8,
     },
+    /// Outside a fight: the party meets a region as on entering it (M8): the region catches
+    /// up, a settlement sets the party's date, its couplings follow.
+    Reconcile {
+        /// `pack:region:name`.
+        region: String,
+    },
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -141,22 +152,16 @@ pub(crate) fn apply(
         } => give_item(world, data, *member, item, *count)?,
         DevCommand::SetHp { member, hp } => set_hp(world, data, *member, *hp, &mut caused)?,
         DevCommand::SetSpellPoints { member, points } => {
-            let m = member_mut(world, *member)?;
-            m.spell_points = (*points).min(m.spell_points_max);
+            member_mut(world, *member)?.spell_points = *points;
         }
         DevCommand::SetGold { gold } => world.party.gold = *gold,
         DevCommand::SetFood { food } => world.party.food = *food,
-        DevCommand::SetXp { member, xp } => member_mut(world, *member)?.xp = *xp,
+        DevCommand::SetXp { member, xp } => set_xp(world, data, *member, *xp, &mut caused)?,
         DevCommand::SetScore {
             member,
             ability,
             score,
-        } => {
-            if *score == 0 || *score > 30 {
-                return Err(Rejection::OutOfRange);
-            }
-            member_mut(world, *member)?.scores[ability.index()] = *score;
-        }
+        } => set_score(world, data, *member, *ability, *score, &mut caused)?,
         DevCommand::SetCondition {
             member,
             condition,
@@ -169,7 +174,7 @@ pub(crate) fn apply(
                     .ok_or_else(|| Rejection::UnknownId {
                         id: condition.clone(),
                     })?;
-            set_condition_id(member_mut(world, *member)?, id, *applied, &mut caused);
+            set_condition_id(member_mut(world, *member)?, data, id, *applied, &mut caused);
         }
         DevCommand::SetFlag { flag, value } => {
             let id = data
@@ -181,6 +186,18 @@ pub(crate) fn apply(
         }
         DevCommand::Teleport { map, x, y, facing } => {
             teleport(world, data, map, *x, *y, *facing, &mut caused)?;
+        }
+        DevCommand::Reconcile { region } => {
+            if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
+                return Err(Rejection::WrongMode);
+            }
+            let id = data
+                .registry
+                .regions
+                .get(region)
+                .filter(|id| data.regions.contains_key(id))
+                .ok_or_else(|| Rejection::UnknownId { id: region.clone() })?;
+            crate::time::enter(world, data, id, None, &mut caused);
         }
     }
     events.push(echo);
@@ -242,18 +259,18 @@ fn kill_stack(world: &mut World, stack: u8, events: &mut Vec<Event>) -> Result<(
     Ok(())
 }
 
-fn member_mut(world: &mut World, index: u8) -> Result<&mut omnis_rules::Character, Rejection> {
-    world
-        .party
-        .members
-        .get_mut(usize::from(index))
-        .ok_or(Rejection::NoSuchMember { index })
+fn member_mut(
+    world: &mut World,
+    member: CharacterId,
+) -> Result<&mut omnis_rules::Character, Rejection> {
+    let slot = world.party.slot_of(member)?;
+    Ok(&mut world.party.members[usize::from(slot)])
 }
 
 fn give_item(
     world: &mut World,
     data: &Data,
-    member: Option<u8>,
+    member: Option<CharacterId>,
     item: &str,
     count: u16,
 ) -> Result<(), Rejection> {
@@ -278,12 +295,12 @@ fn give_item(
 fn set_hp(
     world: &mut World,
     data: &Data,
-    index: u8,
+    member: CharacterId,
     hp: i32,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let member = member_mut(world, index)?;
-    let hp = hp.clamp(0, member.hp_max);
+    let member = member_mut(world, member)?;
+    let hp = hp.max(0);
     let was_down = member.is_down();
     member.hp = hp;
     if hp == 0 && !was_down {
@@ -296,6 +313,67 @@ fn set_hp(
         party::set_condition(member, data, "dead", false, events);
     }
     Ok(())
+}
+
+/// Experience, and every level it reaches, worked out on a copy on the `dev` stream.
+fn set_xp(
+    world: &mut World,
+    data: &Data,
+    member: CharacterId,
+    xp: u32,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let mut roller = Roller::take_stream(world, "dev");
+    let mut after = member_mut(world, member)?.clone();
+    after.xp = xp;
+    let mut ups = Vec::new();
+    while ready(&after, data).map_err(Rejection::Rule)? {
+        let gains = level_up(&mut after, data, &mut roller.rng).map_err(Rejection::Rule)?;
+        ups.push(Event::LevelUp {
+            member: after.id,
+            level: after.level,
+            cost: 0,
+            gains,
+        });
+    }
+    *member_mut(world, member)? = after;
+    roller.store(world);
+    events.append(&mut ups);
+    Ok(())
+}
+
+/// A score and the numbers kept from it: Constitution's hit points, a mental score's pool.
+fn set_score(
+    world: &mut World,
+    data: &Data,
+    member: CharacterId,
+    ability: Ability,
+    score: u8,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let mut roller = Roller::take_stream(world, "dev");
+    let mut after = member_mut(world, member)?.clone();
+    let shift = modifier(score) - modifier(after.scores[ability.index()]);
+    after.scores[ability.index()] = score;
+    let mut hp = after.hp;
+    if ability == Ability::Constitution {
+        let gained = i32::try_from(shift * i64::from(after.level)).unwrap_or(0);
+        after.hp_max = after.hp_max.saturating_add(gained).max(1);
+        hp = hp.saturating_add(gained);
+    }
+    if matches!(
+        ability,
+        Ability::Intelligence | Ability::Wisdom | Ability::Charisma
+    ) {
+        let pool = spell_point_pool(&after, data, &mut roller.rng).map_err(Rejection::Rule)?;
+        let moved =
+            i64::from(after.spell_points) + i64::from(pool) - i64::from(after.spell_points_max);
+        after.spell_points = u32::try_from(moved.max(0)).unwrap_or(u32::MAX);
+        after.spell_points_max = pool;
+    }
+    *member_mut(world, member)? = after;
+    roller.store(world);
+    set_hp(world, data, member, hp, events)
 }
 
 fn teleport(
@@ -329,7 +407,11 @@ fn teleport(
         facing,
     };
     world.position = to;
-    events.push(Event::Moved { from, to });
+    events.push(Event::Moved {
+        from: Place::of(from, data),
+        to: Place::of(to, data),
+    });
     visit(world, data);
+    crate::time::moved(world, data, from.map, events);
     Ok(())
 }

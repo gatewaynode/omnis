@@ -5,27 +5,37 @@
 //! and calls `dispatch` for the rest. Everything arriving is untrusted (§6.2): strings and
 //! scripts are bounded before they are looked at.
 
+use crate::LOG_CAPACITY;
 use crate::apply::apply;
+use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
+use crate::dev::DevCommand;
 use crate::event::Event;
-use crate::party::{self, PartyCommand};
+use crate::names::Place;
+use crate::party::PartyCommand;
+pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
-use crate::rest;
+use crate::rest_view::{RestView, rest_view};
 use crate::service_view::{ServiceView, service_view};
+use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
-use crate::world::{Known, Mode, ModeKind, World};
-use crate::{LOG_CAPACITY, MINUTES_PER_DAY};
+use crate::world::{Known, ModeKind, Settings, World};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{CharacterId, EraId, ItemId, MapId, Position};
+use omnis_core::{EraId, MapId};
 use omnis_data::limits::{check_asset_path, string_fits};
-use omnis_data::{Data, EquipSlot, PackFingerprint};
-use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, Equipped, condition_id};
+use omnis_data::{Data, PackFingerprint};
+use omnis_rules::Draft;
 use serde::{Deserialize, Serialize};
+
+/// The version of the engine's API, both tiers (ARCHITECTURE.md §4.9). Additions leave it alone;
+/// a rename, a removal, or a change of meaning or units moves it, with a line in the changelog
+/// of `docs/api.md`. `game.status` reports it so a client can check it first.
+pub const PROTOCOL: u32 = 2;
 
 /// Most commands one `sim.script` may carry.
 pub const MAX_SCRIPT: usize = 10_000;
@@ -147,6 +157,22 @@ pub enum Op {
         /// Slot name such as `spell_points.pool`.
         slot: String,
     },
+    /// Every holder's clock and contact, and the party's age, shared time and date (M8).
+    #[serde(rename = "time.clocks")]
+    TimeClocks,
+    /// Dev: the party meets a region as on entering it; `sim.command` with
+    /// `DevCommand::Reconcile`, so a replay holds it.
+    #[serde(rename = "time.reconcile")]
+    TimeReconcile {
+        /// `pack:region:name`.
+        region: String,
+    },
+    /// The camp: each member's hit dice and why a rest would be refused (M8 step 8).
+    #[serde(rename = "rest.get")]
+    RestGet,
+    /// The spells each member may cast outside a fight, with cost and refusal (M8 step 8).
+    #[serde(rename = "cast.get")]
+    CastGet,
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -178,7 +204,7 @@ impl Op {
     }
 }
 
-/// The party's clock, broken down.
+/// The party's age, broken down; the date it believes is `Status::date`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClockView {
     /// Minutes since the party's origin.
@@ -194,16 +220,18 @@ pub struct ClockView {
 /// `game.status`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Status {
+    /// The API's version, [`PROTOCOL`].
+    pub protocol: u32,
     /// What the party is doing.
     pub mode: ModeKind,
     /// Commands applied.
     pub turn: u64,
     /// Where the party is.
-    pub position: Position,
-    /// The id of the party's map.
-    pub map: String,
-    /// The party's clock.
+    pub position: Place,
+    /// The party's age.
     pub clock: ClockView,
+    /// The date the party believes, on the pack's calendar (M8).
+    pub date: DateView,
     /// The packs the world runs on.
     pub packs: Vec<PackFingerprint>,
     /// The world fingerprint as sixteen hex digits.
@@ -211,6 +239,18 @@ pub struct Status {
     /// The id of the service the party is inside, if it is inside one.
     #[serde(default)]
     pub service: Option<String>,
+    /// The groups placed `once` on the party's map that are cleared, and how many there are.
+    #[serde(default)]
+    pub groups_cleared: (u16, u16),
+    /// Whether the save rule allows a save here (M8 step 8).
+    #[serde(default)]
+    pub may_save: bool,
+    /// The world seed (M8 step 8).
+    #[serde(default)]
+    pub seed: u64,
+    /// The difficulty options the game started with (M8 step 8).
+    #[serde(default)]
+    pub settings: Settings,
 }
 
 /// One known tile.
@@ -222,118 +262,6 @@ pub struct KnownTile {
     pub y: u16,
     /// What is known.
     pub known: Known,
-}
-
-/// One party member as a client sees it: the sheet plus the derived numbers.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MemberView {
-    /// Position in marching order.
-    pub index: u8,
-    /// Stable identity.
-    pub id: CharacterId,
-    /// Display name.
-    pub name: String,
-    /// Race id.
-    pub race: String,
-    /// Class id.
-    pub class: String,
-    /// Level.
-    pub level: u8,
-    /// Experience.
-    pub xp: u32,
-    /// Hit points.
-    pub hp: i32,
-    /// Hit point maximum.
-    pub hp_max: i32,
-    /// Spell points.
-    pub spell_points: u32,
-    /// Spell point maximum.
-    pub spell_points_max: u32,
-    /// Armor class.
-    pub ac: i64,
-    /// The six scores in SRD order.
-    pub scores: [u8; 6],
-    /// In the front row.
-    pub front: bool,
-    /// Condition ids in effect.
-    pub conditions: Vec<String>,
-    /// At zero hit points.
-    pub down: bool,
-    /// Dead: carries the pack's `dead` condition.
-    pub dead: bool,
-    /// Death saving throws in progress.
-    pub death_saves: DeathSaves,
-    /// Spell ids known, in the order `cast` indexes them.
-    #[serde(default)]
-    pub spells: Vec<String>,
-    /// The kit, in the order the item commands index it.
-    #[serde(default)]
-    pub equipment: Vec<ItemView>,
-    /// What is worn and wielded, by slot.
-    #[serde(default)]
-    pub equipped: Vec<(EquipSlot, String)>,
-    /// Spell ids of the effects on the member.
-    #[serde(default)]
-    pub effects: Vec<String>,
-    /// Hit dice in all: one per level.
-    #[serde(default)]
-    pub hit_dice: u8,
-    /// Hit dice not yet spent on short rests.
-    #[serde(default)]
-    pub hit_dice_left: u8,
-}
-
-/// One row of a kit or the stores.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ItemView {
-    /// Its row, the number the item commands take.
-    pub index: u8,
-    /// Item id.
-    pub id: String,
-    /// Text key of the item's name.
-    pub name: String,
-    /// How many.
-    pub count: u16,
-    /// The slot it equips into, if any.
-    pub slot: Option<EquipSlot>,
-    /// Whether Use does something with it.
-    pub usable: bool,
-    /// Whether a use spends one.
-    pub consumable: bool,
-    /// Worn or wielded by the kit's owner.
-    pub equipped: bool,
-}
-
-/// The party as a client sees it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PartyView {
-    /// Members in marching order.
-    pub members: Vec<MemberView>,
-    /// Slots the rules allow.
-    pub slots: usize,
-    /// Members in the front row.
-    pub front_row: usize,
-    /// The purse in copper pieces (100 to the gold piece).
-    pub gold: u32,
-    /// Gems.
-    pub gems: u32,
-    /// Food units.
-    pub food: u32,
-    /// The stores, in the order `Take` indexes them.
-    #[serde(default)]
-    pub inventory: Vec<ItemView>,
-    /// Spell ids of the effects on the whole party.
-    #[serde(default)]
-    pub effects: Vec<String>,
-    /// Copper in the bank.
-    #[serde(default)]
-    pub bank: u32,
-    /// The party clock's `elapsed` when the last long rest ended.
-    #[serde(default)]
-    pub last_long_rest: Option<i64>,
-    /// Minutes before a long rest may begin; 0 when it may.
-    #[serde(default)]
-    pub long_rest_wait: u32,
 }
 
 /// One rule slot.
@@ -358,9 +286,10 @@ pub struct RulesView {
     pub tables: BTreeMap<String, Vec<i64>>,
 }
 
-/// A successful result. Serialized untagged, so the wire carries the plain object.
+/// A successful result. Tagged inside: the wire carries the plain object with `"reply"` naming
+/// the variant in snake case, so a client can decode a reply without knowing the op it sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "reply", rename_all = "snake_case")]
 pub enum Reply {
     /// `game.status`, and `save.read` once the world is replaced.
     Status(Status),
@@ -384,7 +313,7 @@ pub enum Reply {
     Automap {
         /// The map id.
         map: String,
-        /// Known tiles in row-major order.
+        /// Known tiles, column by column (`x`, then `y`).
         tiles: Vec<KnownTile>,
     },
     /// `map.text`.
@@ -419,12 +348,25 @@ pub enum Reply {
     },
     /// `service.get`.
     Service {
-        /// The service.
-        service: ServiceView,
+        /// The service's view.
+        view: ServiceView,
     },
-    /// `world.query`: `None` when the path does not exist. Untagged deserialization tries
-    /// variants in order and an absent `Option` field reads as `None`, so this variant and
-    /// `Done` stay last: they would swallow any object.
+    /// `time.clocks`.
+    Time {
+        /// Clocks, contacts and the party's time.
+        time: TimeView,
+    },
+    /// `rest.get`.
+    Rest {
+        /// The camp.
+        rest: RestView,
+    },
+    /// `cast.get`.
+    Casts {
+        /// Every member's spells castable outside a fight.
+        casts: Vec<CastView>,
+    },
+    /// `world.query`: `None` when the path does not exist.
     Value {
         /// The value as text.
         value: Option<String>,
@@ -496,6 +438,8 @@ impl fmt::Display for OpError {
         }
     }
 }
+
+impl core::error::Error for OpError {}
 
 impl OpError {
     /// A host failure from anything that displays.
@@ -582,8 +526,26 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
             .map(|combat| Reply::Combat { combat })
             .ok_or(OpError::NoEncounter),
         Op::ServiceGet => service_view(world, data)
-            .map(|service| Reply::Service { service })
+            .map(|view| Reply::Service { view })
             .ok_or(OpError::NoService),
+        Op::RestGet => Ok(Reply::Rest {
+            rest: rest_view(world, data),
+        }),
+        Op::CastGet => Ok(Reply::Casts {
+            casts: cast_view(world, data),
+        }),
+        Op::TimeClocks => Ok(Reply::Time {
+            time: time_view(world, data),
+        }),
+        Op::TimeReconcile { region } => apply(
+            world,
+            data,
+            Command::Dev(DevCommand::Reconcile {
+                region: region.clone(),
+            }),
+        )
+        .map(|events| Reply::Events { events })
+        .map_err(|rejection| OpError::Rejected { rejection }),
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),
@@ -595,109 +557,6 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         | Op::ScreenText
         | Op::RulesSet { .. } => Err(OpError::HostOnly),
     }
-}
-
-/// `party.get`.
-#[must_use]
-pub fn party_view(world: &World, data: &Data) -> PartyView {
-    let front_row = party::front_row(data);
-    let members = world
-        .party
-        .members
-        .iter()
-        .enumerate()
-        .map(|(index, member)| member_view(data, index, member, index < front_row))
-        .collect();
-    PartyView {
-        members,
-        slots: party::slots(data),
-        front_row,
-        gold: world.party.gold,
-        gems: world.party.gems,
-        food: world.party.food,
-        inventory: item_views(data, &world.party.inventory, None),
-        effects: effect_names(data, &world.party.effects),
-        bank: world.party.bank,
-        last_long_rest: world.party.last_long_rest,
-        long_rest_wait: match rest::too_soon(world, data, rest::long_rest_minutes(data)) {
-            Err(Rejection::RestTooSoon { minutes }) => minutes,
-            _ => 0,
-        },
-    }
-}
-
-/// A registry name, or `?` for an id no pack defines.
-fn name_of(name: Option<&str>) -> String {
-    name.unwrap_or("?").to_owned()
-}
-
-fn member_view(data: &Data, index: usize, member: &Character, front: bool) -> MemberView {
-    let dead = condition_id(data, "dead");
-    MemberView {
-        index: u8::try_from(index).unwrap_or(u8::MAX),
-        id: member.id,
-        name: member.name.clone(),
-        race: name_of(data.registry.races.name(member.race)),
-        class: name_of(data.registry.classes.name(member.class)),
-        level: member.level,
-        xp: member.xp,
-        hp: member.hp,
-        hp_max: member.hp_max,
-        spell_points: member.spell_points,
-        spell_points_max: member.spell_points_max,
-        ac: omnis_rules::armor_class(member, data),
-        scores: member.scores,
-        front,
-        conditions: member
-            .conditions
-            .iter()
-            .map(|c| name_of(data.registry.conditions.name(*c)))
-            .collect(),
-        down: member.is_down(),
-        dead: dead.is_some_and(|d| member.conditions.contains(&d)),
-        death_saves: member.death_saves,
-        spells: member
-            .known_spells
-            .iter()
-            .map(|s| name_of(data.registry.spells.name(*s)))
-            .collect(),
-        equipment: item_views(data, &member.equipment, Some(&member.equipped)),
-        equipped: member
-            .equipped
-            .iter()
-            .map(|(slot, id)| (*slot, name_of(data.registry.items.name(*id))))
-            .collect(),
-        effects: effect_names(data, &member.effects),
-        hit_dice: member.level,
-        hit_dice_left: member.level.saturating_sub(member.hit_dice_spent),
-    }
-}
-
-/// A counted list as rows; `equipped` marks the rows a kit's owner wears.
-fn item_views(data: &Data, list: &[(ItemId, u16)], equipped: Option<&Equipped>) -> Vec<ItemView> {
-    list.iter()
-        .enumerate()
-        .map(|(index, (id, count))| {
-            let def = data.items.get(id);
-            ItemView {
-                index: u8::try_from(index).unwrap_or(u8::MAX),
-                id: name_of(data.registry.items.name(*id)),
-                name: def.map_or_else(|| "?".to_owned(), |d| d.name.clone()),
-                count: *count,
-                slot: def.and_then(|d| d.slot()),
-                usable: def.is_some_and(|d| d.use_effect.is_some()),
-                consumable: def.is_some_and(|d| d.consumable),
-                equipped: equipped.is_some_and(|e| e.values().any(|worn| worn == id)),
-            }
-        })
-        .collect()
-}
-
-fn effect_names(data: &Data, effects: &[ActiveEffect]) -> Vec<String> {
-    effects
-        .iter()
-        .map(|e| name_of(data.registry.spells.name(e.source)))
-        .collect()
 }
 
 /// `rules.list`.
@@ -730,25 +589,74 @@ pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
 /// `game.status`.
 pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
     let clock = world.party_clock();
-    let day_length = i64::from(MINUTES_PER_DAY);
+    let day_length = i64::from(data.calendar().minutes_per_day.max(1));
+    let here = query::here(world, data);
     Ok(Status {
-        mode: world.mode.kind(),
-        turn: world.turn,
-        position: world.position,
-        map: map_name(world.position.map, data),
+        protocol: PROTOCOL,
+        mode: here.mode,
+        turn: here.turn,
+        position: here.position,
         clock: ClockView {
             elapsed: clock.elapsed,
             day: clock.elapsed.div_euclid(day_length),
             minute: clock.elapsed.rem_euclid(day_length),
             era: clock.era,
         },
+        date: here.date,
         packs: world.packs.clone(),
         fingerprint: format!("{:016x}", world.fingerprint().map_err(OpError::failed)?),
-        service: match world.mode {
-            Mode::Town(state) => data.services.get(&state.service).map(|d| d.id.clone()),
-            _ => None,
-        },
+        service: here.service,
+        groups_cleared: crate::encounter::groups_cleared(world, data, world.position.map),
+        may_save: here.may_save,
+        seed: here.seed,
+        settings: here.settings,
     })
+}
+
+// The host ops' rules (ARCHITECTURE.md §4.9): every host writes only the file and window code
+// around these, so the socket and the headless driver cannot disagree.
+
+/// `save.write`: the save's text, when the save rule allows a save here.
+pub fn save_text(world: &World) -> Result<String, OpError> {
+    if !world.may_save() {
+        return Err(OpError::failed("the save rule forbids saving here"));
+    }
+    world.to_ron().map_err(OpError::failed)
+}
+
+/// `save.read`: the world a save's text holds, migrated to this schema and checked against the
+/// loaded packs (`force` loads it on other packs anyway). The host reads the text with the
+/// loader's limits (`omnis_data::ron_io::read_text`).
+pub fn load_text(text: &str, data: &Data, force: bool) -> Result<World, OpError> {
+    World::from_ron(text, data, force).map_err(OpError::failed)
+}
+
+/// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
+/// hold the party's tile.
+pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
+    let p = world.position;
+    if fresh
+        .maps
+        .get(&p.map)
+        .and_then(|m| m.cell(p.x, p.y))
+        .is_none()
+    {
+        return Err(OpError::failed(format!(
+            "the party's tile {p} is not in the reloaded packs; nothing changed"
+        )));
+    }
+    Ok(())
+}
+
+/// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with
+/// the slot.
+pub fn rules_set(data: &mut Data, slot: &str, source: &str) -> Result<Reply, OpError> {
+    bounded(source)?;
+    slot_view(data, slot)?;
+    data.rules
+        .set_slot(slot, source)
+        .map_err(OpError::bad_request)?;
+    slot_view(data, slot).map(|rule| Reply::Rule { rule })
 }
 
 fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply, OpError> {
@@ -803,12 +711,7 @@ fn resolve_map(world: &World, data: &Data, name: Option<&str>) -> Result<MapId, 
     }
 }
 
-fn map_name(id: MapId, data: &Data) -> String {
-    data.registry
-        .maps
-        .name(id)
-        .map_or_else(|| format!("#{}", id.0), ToString::to_string)
-}
+use query::map_name;
 
 fn unknown(id: MapId, data: &Data) -> OpError {
     OpError::UnknownMap {

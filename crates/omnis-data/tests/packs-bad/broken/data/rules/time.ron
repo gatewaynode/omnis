@@ -1,0 +1,12 @@
+// A region rule with an input no region gives, and a calendar that cannot be.
+(
+    schema: 1,
+    id: "broken:rules:time",
+    slots: {
+        "time.odd": (inputs: ["age"], expr: "age"),
+    },
+    values: {
+        "days_per_year": 0,
+        "night_to": 1440,
+    },
+)

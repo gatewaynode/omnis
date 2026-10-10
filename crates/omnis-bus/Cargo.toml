@@ -1,0 +1,15 @@
+[package]
+name = "omnis-bus"
+description = "The Omnis signal bus: saved subscriptions in call order, synchronous first-in-first-out delivery, depth and budget limits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+ron = { workspace = true }

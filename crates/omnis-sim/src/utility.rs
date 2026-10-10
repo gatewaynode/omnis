@@ -27,7 +27,7 @@ pub(crate) fn open_door_ahead(world: &mut World, data: &Data, range: u8, events:
             break;
         }
         if cell.doors.has(pos.facing) {
-            toggle_door(world, pos.map, x, y, pos.facing, events);
+            toggle_door(world, data, pos.map, x, y, pos.facing, events);
             return;
         }
         if !edge_open(map, state, x, y, pos.facing) {

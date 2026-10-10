@@ -2,11 +2,13 @@
 //! command would be priced if it were sent next, with the refusal the rules would give; the
 //! view changes nothing; and the party view and status carry the town and rest numbers.
 
-mod common;
+use crate::common;
 
-use common::{data, inside};
+use common::{data, inside, inside_with, script};
+use omnis_core::CharacterId;
 use omnis_data::ServiceKind;
 use omnis_sim::ops::party_view;
+use omnis_sim::rest::HitDiceSpend;
 use omnis_sim::{
     Command, OfferView, Op, OpError, Rejection, Reply, RestCommand, ServiceCommand, apply,
     dispatch, service_view,
@@ -35,16 +37,26 @@ fn every_smith_price_is_what_the_command_charges() {
         .cloned()
         .collect();
     assert!(!buys.is_empty(), "the smith has stock");
-    for (row, buy) in buys.iter().enumerate() {
-        assert_eq!(buy.row, Some(u8::try_from(row).unwrap()));
+    let stock = &data.services[&data.registry.services.get("base:service:smith").unwrap()].items;
+    assert_eq!(buys.len(), stock.len(), "one offer for each item stocked");
+    for (id, buy) in stock.iter().zip(&buys) {
+        assert_eq!(
+            buy.command,
+            ServiceCommand::Buy {
+                item: id.clone(),
+                count: 1
+            },
+            "the offer names the item by its id, in stock order"
+        );
+        assert_eq!(buy.subject.as_ref(), Some(id));
         assert_eq!(buy.refusal, None, "{buy:?}");
         let mut after = world.clone();
         let gold = after.party.gold;
-        apply(&mut after, &data, Command::Service(buy.command)).unwrap();
+        apply(&mut after, &data, Command::Service(buy.command.clone())).unwrap();
         assert_eq!(Some(gold - after.party.gold), buy.price, "{buy:?}");
     }
 
-    apply(&mut world, &data, Command::Service(buys[0].command)).unwrap();
+    apply(&mut world, &data, Command::Service(buys[0].command.clone())).unwrap();
     let view = service_view(&world, &data).unwrap();
     let sale = view
         .offers
@@ -53,10 +65,10 @@ fn every_smith_price_is_what_the_command_charges() {
         .expect("the stores can be sold");
     assert_eq!(sale.price, None);
     let gold = world.party.gold;
-    apply(&mut world, &data, Command::Service(sale.command)).unwrap();
+    apply(&mut world, &data, Command::Service(sale.command.clone())).unwrap();
     assert_eq!(Some(world.party.gold - gold), sale.pays);
     assert_eq!(
-        view.offers.last().map(|o| o.command),
+        view.offers.last().map(|o| o.command.clone()),
         Some(ServiceCommand::Leave)
     );
 }
@@ -67,12 +79,18 @@ fn an_offer_the_party_cannot_pay_keeps_its_price() {
     let mut world = inside(&data, "smith");
     world.party.gold = 1;
     let view = service_view(&world, &data).unwrap();
-    let buy = offer(&view.offers, ServiceCommand::Buy { item: 0, count: 1 });
+    let buy = offer(
+        &view.offers,
+        ServiceCommand::Buy {
+            item: "base:item:dagger".to_owned(),
+            count: 1,
+        },
+    );
     let cost = buy.price.expect("a price");
     assert!(cost > 1);
     assert_eq!(buy.refusal, Some(Rejection::CannotAfford { cost, gold: 1 }));
     assert_eq!(
-        apply(&mut world, &data, Command::Service(buy.command)),
+        apply(&mut world, &data, Command::Service(buy.command.clone())),
         Err(buy.refusal.clone().unwrap()),
         "the refusal is the one the command gets"
     );
@@ -83,20 +101,133 @@ fn the_temple_says_why_not_for_each_member() {
     let data = data();
     let mut world = inside(&data, "temple");
     world.party.members[1].hp -= 3;
+    let (first, second) = (world.party.members[0].id, world.party.members[1].id);
     let view = service_view(&world, &data).unwrap();
     assert_eq!(
         view.offers.len(),
-        2 * 3 + 1,
-        "heal, cure, raise per member, leave"
+        2 * 3 + 5 + 1,
+        "heal, cure, raise per member, the cleric's five spells, leave"
     );
-    let heal = offer(&view.offers, ServiceCommand::Heal { member: 0 });
-    assert_eq!(heal.member, Some(0));
-    assert_eq!(heal.refusal, Some(Rejection::NothingToTreat { index: 0 }));
+    let heal = offer(&view.offers, ServiceCommand::Heal { member: first });
+    assert_eq!(heal.member, Some(first));
+    assert_eq!(
+        heal.refusal,
+        Some(Rejection::NothingToTreat { member: first })
+    );
     assert_eq!(heal.price, None);
-    let raise = offer(&view.offers, ServiceCommand::Raise { member: 0 });
-    assert_eq!(raise.refusal, Some(Rejection::NotDead { index: 0 }));
-    let wounded = offer(&view.offers, ServiceCommand::Heal { member: 1 });
+    let raise = offer(&view.offers, ServiceCommand::Raise { member: first });
+    assert_eq!(raise.refusal, Some(Rejection::NotDead { member: first }));
+    let wounded = offer(&view.offers, ServiceCommand::Heal { member: second });
     assert_eq!((wounded.price, wounded.refusal.clone()), (Some(300), None));
+}
+
+/// Every offer is what its command does: an open one charges its price and a refused one is
+/// refused for the same reason.
+fn offers_agree_with_their_commands(world: &omnis_sim::World, data: &omnis_data::Data) -> usize {
+    let view = service_view(world, data).unwrap();
+    for offer in view
+        .offers
+        .iter()
+        .filter(|o| o.command != ServiceCommand::Leave)
+    {
+        let mut after = world.clone();
+        let result = apply(&mut after, data, Command::Service(offer.command.clone()));
+        match &offer.refusal {
+            Some(refusal) => assert_eq!(result, Err(refusal.clone()), "{offer:?}"),
+            None => {
+                assert!(result.is_ok(), "{offer:?}: {result:?}");
+                let paid = world.party.gold - after.party.gold;
+                assert_eq!(Some(paid), offer.price, "{offer:?}");
+            }
+        }
+    }
+    view.offers.len()
+}
+
+#[test]
+fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
+    let data = data();
+    let mut world = inside_with(&data, "trainer", 3);
+    world.party.gold = 100_000;
+    world.party.members[1].xp = 300;
+    let (first, second) = (world.party.members[0].id, world.party.members[1].id);
+    let view = service_view(&world, &data).unwrap();
+    let train = offer(&view.offers, ServiceCommand::Train { member: second });
+    assert_eq!(
+        (train.member, train.price, train.refusal.clone()),
+        (Some(second), Some(2000), None)
+    );
+    let unready = offer(&view.offers, ServiceCommand::Train { member: first });
+    assert_eq!(
+        unready.refusal,
+        Some(Rejection::NotReady {
+            member: first,
+            xp: 0,
+            needed: 300
+        })
+    );
+    assert_eq!(
+        offers_agree_with_their_commands(&world, &data),
+        3 + 1,
+        "no picks owed yet"
+    );
+
+    apply(&mut world, &data, Command::Service(train.command.clone())).unwrap();
+    let view = service_view(&world, &data).unwrap();
+    let rows: Vec<(&str, bool)> = view
+        .offers
+        .iter()
+        .filter_map(|o| match &o.command {
+            ServiceCommand::Choose { member, spell } if *member == second => {
+                Some((spell.as_str(), o.refusal.is_none()))
+            }
+            _ => None,
+        })
+        .collect();
+    // Healing word, guiding bolt, inflict wounds now; spiritual weapon and prayer of healing at
+    // level 3.
+    assert_eq!(
+        rows,
+        [
+            ("base:spell:healing_word", true),
+            ("base:spell:guiding_bolt", true),
+            ("base:spell:inflict_wounds", true),
+            ("base:spell:spiritual_weapon", false),
+            ("base:spell:prayer_of_healing", false)
+        ]
+    );
+    assert_eq!(
+        offer(
+            &view.offers,
+            ServiceCommand::Choose {
+                member: second,
+                spell: "base:spell:healing_word".to_owned(),
+            }
+        )
+        .price,
+        Some(0)
+    );
+    offers_agree_with_their_commands(&world, &data);
+
+    for name in ["guild", "temple"] {
+        let mut world = inside_with(&data, name, 3);
+        world.party.gold = 100_000;
+        let count = offers_agree_with_their_commands(&world, &data);
+        let view = service_view(&world, &data).unwrap();
+        let learners: Vec<Option<CharacterId>> = view
+            .offers
+            .iter()
+            .filter(|o| matches!(o.command, ServiceCommand::Learn { .. }))
+            .map(|o| o.member)
+            .collect();
+        let caster = world.party.members[if name == "guild" { 2 } else { 1 }].id;
+        assert!(!learners.is_empty(), "{name}");
+        assert!(
+            learners.iter().all(|m| *m == Some(caster)),
+            "{name}: {learners:?}"
+        );
+        assert!(count > learners.len(), "{name}");
+    }
 }
 
 #[test]
@@ -169,12 +300,17 @@ fn the_party_view_and_status_carry_the_town_and_rest() {
 
     let member = &mut world.party.members[0];
     member.hp = 1;
-    let level = member.level;
+    let (level, id) = (member.level, member.id);
     assert_eq!(party_view(&world, &data).members[0].hit_dice_left, level);
     apply(
         &mut world,
         &data,
-        Command::Rest(RestCommand::Short { dice: vec![1] }),
+        Command::Rest(RestCommand::Short {
+            spend: vec![HitDiceSpend {
+                member: id,
+                count: 1,
+            }],
+        }),
     )
     .unwrap();
     let view = party_view(&world, &data);
@@ -192,8 +328,10 @@ fn a_town_script_runs_end_to_end() {
     let data = data();
     let mut world = inside(&data, "smith");
     let gold = world.party.gold;
-    let commands = omnis_sim::command::parse_script("buy-0-2, sell-0, leave").unwrap();
-    for command in commands {
+    // Each word resolves against the world as it stands when it is applied: `sell-0` is the
+    // first row of the stores after the purchase.
+    for text in ["buy-0-2", "sell-0", "leave"] {
+        let command = script(&world, &data, text).remove(0);
         apply(&mut world, &data, command).unwrap();
     }
     assert!(world.party.gold < gold);

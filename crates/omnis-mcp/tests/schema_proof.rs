@@ -6,13 +6,13 @@
 //! the schema has a branch for it. The validator covers the keywords the schema uses and refuses
 //! any other, so a new keyword cannot pass unread.
 
-use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
-use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
+use crate::common;
+
+use common::commands::{draft, instances};
+use omnis_cli::omnis_sim::omnis_core::Rotation;
+use omnis_cli::omnis_sim::omnis_data::Alignment;
 use omnis_cli::omnis_sim::omnis_rules::Draft;
-use omnis_cli::omnis_sim::{
-    CombatCommand, Command, DevCommand, EncounterChoice, ItemCommand, PartyCommand, RestCommand,
-    ServiceCommand, Target,
-};
+use omnis_cli::omnis_sim::{CombatCommand, Command};
 use omnis_mcp::schema::Schema;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -168,287 +168,15 @@ fn offered(schema: &Value, at: &str, out: &mut Used) {
     }
 }
 
-fn draft(alignment: Alignment) -> Draft {
-    Draft {
-        name: "Wren".into(),
-        race: "base:race:human".into(),
-        class: "base:class:cleric".into(),
-        background: "base:background:acolyte".into(),
-        alignment,
-        scores: [15, 14, 13, 12, 10, 8],
-        skills: Skill::ALL.to_vec(),
-    }
-}
-
-/// The item after `current` in a type's `ALL` list.
-fn after<T: Copy + PartialEq>(all: &[T], current: T) -> Option<T> {
-    let at = all.iter().position(|one| *one == current)?;
-    all.get(at + 1).copied()
-}
-
-fn next_party(command: &PartyCommand) -> Option<PartyCommand> {
-    Some(match command {
-        PartyCommand::Create(made) => match after(&Alignment::ALL, made.alignment) {
-            Some(alignment) => PartyCommand::Create(draft(alignment)),
-            None => PartyCommand::Reorder { order: vec![1, 0] },
-        },
-        PartyCommand::Reorder { .. } => PartyCommand::AutoCast {
-            member: 0,
-            spell: 1,
-            on: true,
-        },
-        PartyCommand::AutoCast { .. } => return None,
-    })
-}
-
-fn next_combat(command: &CombatCommand) -> Option<CombatCommand> {
-    let (spell, item) = (2, 3);
-    Some(match command {
-        CombatCommand::Attack { .. } => CombatCommand::Cast {
-            spell,
-            target: Target::Stack(0),
-        },
-        CombatCommand::Cast { target, .. } => match target {
-            Target::Stack(_) => CombatCommand::Cast {
-                spell,
-                target: Target::Member(1),
-            },
-            Target::Member(_) => CombatCommand::Use {
-                item,
-                target: Some(4),
-            },
-        },
-        CombatCommand::Use {
-            target: Some(_), ..
-        } => CombatCommand::Use { item, target: None },
-        CombatCommand::Use { target: None, .. } => CombatCommand::Dodge,
-        CombatCommand::Dodge => CombatCommand::Exchange { with: 5 },
-        CombatCommand::Exchange { .. } => CombatCommand::Run,
-        CombatCommand::Run => return None,
-    })
-}
-
-fn next_slot(slot: EquipSlot) -> Option<EquipSlot> {
-    match slot {
-        EquipSlot::MainHand => Some(EquipSlot::OffHand),
-        EquipSlot::OffHand => Some(EquipSlot::Ranged),
-        EquipSlot::Ranged => Some(EquipSlot::Body),
-        EquipSlot::Body => None,
-    }
-}
-
-fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
-    let (member, item, count) = (0, 1, 2);
-    Some(match command {
-        ItemCommand::Equip { .. } => ItemCommand::Unequip {
-            member,
-            slot: EquipSlot::MainHand,
-        },
-        ItemCommand::Unequip { slot, .. } => match next_slot(*slot) {
-            Some(slot) => ItemCommand::Unequip { member, slot },
-            None => ItemCommand::Give {
-                from: 0,
-                to: 1,
-                item,
-                count,
-            },
-        },
-        ItemCommand::Give { .. } => ItemCommand::Stow {
-            member,
-            item,
-            count,
-        },
-        ItemCommand::Stow { .. } => ItemCommand::Take {
-            member,
-            item,
-            count,
-        },
-        ItemCommand::Take { .. } => ItemCommand::Use {
-            member,
-            item,
-            target: Some(1),
-        },
-        ItemCommand::Use {
-            target: Some(_), ..
-        } => ItemCommand::Use {
-            member,
-            item,
-            target: None,
-        },
-        ItemCommand::Use { target: None, .. } => return None,
-    })
-}
-
-fn next_facing(facing: Facing) -> Option<Facing> {
-    match facing {
-        Facing::North => Some(Facing::East),
-        Facing::East => Some(Facing::South),
-        Facing::South => Some(Facing::West),
-        Facing::West => None,
-    }
-}
-
-fn teleport(facing: Facing) -> DevCommand {
-    DevCommand::Teleport {
-        map: "test:map:dungeon".into(),
-        x: 3,
-        y: 4,
-        facing,
-    }
-}
-
-fn set_score(ability: Ability) -> DevCommand {
-    DevCommand::SetScore {
-        member: 0,
-        ability,
-        score: 18,
-    }
-}
-
-fn give(member: Option<u8>) -> DevCommand {
-    DevCommand::GiveItem {
-        member,
-        item: "base:item:gem".into(),
-        count: 2,
-    }
-}
-
-fn next_dev(command: &DevCommand) -> Option<DevCommand> {
-    let member = 0;
-    Some(match command {
-        DevCommand::GiveItem {
-            member: Some(_), ..
-        } => give(None),
-        DevCommand::GiveItem { member: None, .. } => DevCommand::SetHp { member, hp: -1 },
-        DevCommand::SetHp { .. } => DevCommand::SetSpellPoints { member, points: 4 },
-        DevCommand::SetSpellPoints { .. } => DevCommand::SetGold { gold: 50 },
-        DevCommand::SetGold { .. } => DevCommand::SetFood { food: 7 },
-        DevCommand::SetFood { .. } => DevCommand::SetXp { member, xp: 300 },
-        DevCommand::SetXp { .. } => set_score(Ability::ALL[0]),
-        DevCommand::SetScore { ability, .. } => match after(&Ability::ALL, *ability) {
-            Some(ability) => set_score(ability),
-            None => DevCommand::SetCondition {
-                member,
-                condition: "base:condition:poisoned".into(),
-                applied: true,
-            },
-        },
-        DevCommand::SetCondition { .. } => DevCommand::SetFlag {
-            flag: "test:flag:door".into(),
-            value: -3,
-        },
-        DevCommand::SetFlag { .. } => teleport(Facing::North),
-        DevCommand::Teleport { facing, .. } => match next_facing(*facing) {
-            Some(facing) => teleport(facing),
-            None => DevCommand::SetMonsterHp {
-                stack: 0,
-                index: 1,
-                hp: 0,
-            },
-        },
-        DevCommand::SetMonsterHp { .. } => DevCommand::KillStack { stack: 1 },
-        DevCommand::KillStack { .. } => return None,
-    })
-}
-
-fn next_step(direction: Direction) -> Command {
-    match direction {
-        Direction::Forward => Command::Step(Direction::Back),
-        Direction::Back => Command::Step(Direction::Left),
-        Direction::Left => Command::Step(Direction::Right),
-        Direction::Right => Command::Turn(Rotation::Left),
-    }
-}
-
-fn next_turn(rotation: Rotation) -> Command {
-    match rotation {
-        Rotation::Left => Command::Turn(Rotation::Right),
-        Rotation::Right => Command::Turn(Rotation::Around),
-        Rotation::Around => Command::Interact,
-    }
-}
-
-fn next_encounter(choice: EncounterChoice) -> Command {
-    match choice {
-        EncounterChoice::Attack => Command::Encounter(EncounterChoice::Bribe),
-        EncounterChoice::Bribe => Command::Encounter(EncounterChoice::Hide),
-        EncounterChoice::Hide => Command::Encounter(EncounterChoice::Run),
-        EncounterChoice::Run => Command::Combat(CombatCommand::Attack { stack: 0 }),
-    }
-}
-
-fn next_service(command: ServiceCommand) -> Option<ServiceCommand> {
-    let (member, item, count, amount) = (1, 2, 3, 250);
-    Some(match command {
-        ServiceCommand::Leave => ServiceCommand::Room,
-        ServiceCommand::Room => ServiceCommand::Rumor,
-        ServiceCommand::Rumor => ServiceCommand::BuyFood { count },
-        ServiceCommand::BuyFood { .. } => ServiceCommand::Heal { member },
-        ServiceCommand::Heal { .. } => ServiceCommand::Cure { member },
-        ServiceCommand::Cure { .. } => ServiceCommand::Raise { member },
-        ServiceCommand::Raise { .. } => ServiceCommand::Buy { item, count },
-        ServiceCommand::Buy { .. } => ServiceCommand::Sell { item, count },
-        ServiceCommand::Sell { .. } => ServiceCommand::Deposit { amount },
-        ServiceCommand::Deposit { .. } => ServiceCommand::Withdraw { amount },
-        ServiceCommand::Withdraw { .. } => return None,
-    })
-}
-
-/// The instance after `command`, from `Step(Forward)` to the last `Dev` edit. Every match here
-/// and in the helpers is exhaustive: a new variant gets an arm, and a link from its neighbour.
-fn next(command: &Command) -> Option<Command> {
-    let cast = |target| Command::Cast {
-        caster: 0,
-        spell: 1,
-        target,
-    };
-    Some(match command {
-        Command::Step(direction) => next_step(*direction),
-        Command::Turn(rotation) => next_turn(*rotation),
-        Command::Interact => Command::Party(PartyCommand::Create(draft(Alignment::ALL[0]))),
-        Command::Party(party) => {
-            next_party(party).map_or(Command::Encounter(EncounterChoice::Attack), Command::Party)
-        }
-        Command::Encounter(choice) => next_encounter(*choice),
-        Command::Combat(combat) => {
-            next_combat(combat).map_or(cast(Target::Stack(2)), Command::Combat)
-        }
-        Command::Cast { target, .. } => match target {
-            Target::Stack(_) => cast(Target::Member(3)),
-            Target::Member(_) => Command::Item(ItemCommand::Equip { member: 0, item: 1 }),
-        },
-        Command::Item(item) => {
-            next_item(item).map_or(Command::Service(ServiceCommand::Leave), Command::Item)
-        }
-        Command::Service(service) => next_service(*service).map_or(
-            Command::Rest(RestCommand::Short {
-                dice: vec![1, 0, 2],
-            }),
-            Command::Service,
-        ),
-        Command::Rest(RestCommand::Short { .. }) => Command::Rest(RestCommand::Long),
-        Command::Rest(RestCommand::Long) => Command::Dev(give(Some(0))),
-        Command::Dev(dev) => return next_dev(dev).map(Command::Dev),
-    })
-}
-
-fn instances() -> Vec<Command> {
-    let mut all = vec![Command::Step(Direction::Forward)];
-    while let Some(following) = next(&all[all.len() - 1]) {
-        all.push(following);
-    }
-    all
-}
-
 #[test]
 fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let schema = Command::schema();
     let all = instances();
     assert_eq!(
         all.len(),
-        77,
-        "4 steps, 3 turns, interact, 11 party, 4 encounter, 8 combat, 2 casts, 10 item, \
-         11 service, 2 rest, 21 dev"
+        94,
+        "4 steps, 3 turns, interact, 20 party, 4 encounter, 12 combat, 2 casts, 10 item, \
+         14 service, 2 rest, 22 dev"
     );
     let mut used = Used::new();
     for command in &all {
@@ -463,7 +191,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 111, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 142, "oneOf branches and enum values offered");
 }
 
 #[test]

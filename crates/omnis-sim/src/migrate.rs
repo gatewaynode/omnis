@@ -4,11 +4,13 @@
 use crate::event::Event;
 use crate::party::Party;
 use crate::world::{Automap, MapState, Mode, SAVE_SCHEMA, SaveRule, Settings, World};
+use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use omnis_core::{Clock, FlagId, HolderId, MapId, Pcg32, Position, StreamName, money};
 use omnis_data::{Ability, Data, PackFingerprint};
-use omnis_rules::{auto_equip, modifier};
+use omnis_rules::tactics::TACTICS_NAME_BYTES;
+use omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger, auto_equip, modifier};
 use serde::Deserialize;
 
 /// Schema 1 settings: the save rule was a single switch.
@@ -41,6 +43,9 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         packs: old.packs,
         rngs: old.rngs,
         clocks: old.clocks,
+        contacts: BTreeMap::new(),
+        party_time: crate::time::PartyTime::default(),
+        bus: crate::bus::Bus::default(),
         position: old.position,
         maps: old.maps,
         automap: old.automap,
@@ -92,6 +97,60 @@ pub(crate) fn v4_to_v5(mut world: World) -> World {
     if let Mode::Combat(fight) = &mut world.mode {
         fight.gold = money::from_gp(fight.gold);
     }
+    world.schema = 5;
+    world
+}
+
+/// Schema 5 to 6: the turn budget and declared reactions (M7c). Each auto-cast spell becomes a
+/// declared reaction, `Attacked` when it would turn the hit into a miss, in the default
+/// runbook, so the save fights as it did; a fight in progress gets the budget and the
+/// reactions the turn slots give, as if its turn had just begun.
+pub(crate) fn v5_to_v6(mut world: World, data: &Data) -> World {
+    for member in &mut world.party.members {
+        for spell in core::mem::take(&mut member.legacy_auto_cast) {
+            let label = data
+                .spells
+                .get(&spell)
+                .map(|s| data.label("en", &s.name).to_owned())
+                .filter(|l| !l.trim().is_empty() && l.len() <= TACTICS_NAME_BYTES)
+                .unwrap_or_else(|| "Reaction".to_owned());
+            let set = CriteriaSet {
+                name: label,
+                action: ActionRef::Spell(spell),
+                trigger: Trigger::Attacked,
+                when: Criteria::Is(Predicate::WouldChangeOutcome),
+            };
+            let index = u16::try_from(member.tactics.library.len()).unwrap_or(u16::MAX);
+            member.tactics.library.push(set);
+            let at = usize::from(member.tactics.default_runbook);
+            if let Some(book) = member.tactics.runbooks.get_mut(at) {
+                book.entries.push((ActionRef::Spell(spell), index));
+            }
+        }
+    }
+    crate::combat::begin_after_load(&mut world, data);
+    world.schema = SAVE_SCHEMA;
+    world
+}
+
+/// Schema 6 to 7: subjective time (M8). The bus gets the default subscriptions; time lived
+/// before M8 counts in full toward the party's shared time, and its date is its age, so the
+/// first settlement it enters catches up as it would have before; no contacts yet.
+pub(crate) fn v6_to_v7(mut world: World, data: &Data) -> World {
+    world.bus = crate::time::subscriptions(data);
+    if matches!(world.mode, crate::world::Mode::Combat(_)) {
+        // A fight saved before the bus: its reactions subscribe as at its start.
+        world
+            .bus
+            .subscribe(crate::bus::Topic::Battle, crate::bus::Subscriber::Reactions);
+    }
+    let age = world.party_clock().elapsed;
+    world.party_time = crate::time::PartyTime {
+        shared_milli: age.saturating_mul(1000),
+        date: age,
+        era: world.party_clock().era,
+    };
+    world.contacts.clear();
     world.schema = SAVE_SCHEMA;
     world
 }

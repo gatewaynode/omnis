@@ -1,6 +1,6 @@
 // SRD 5.1 Wizard (docs/dnd.srd.5.1/02_Classes). Starting equipment is the first option of
 // each SRD line; packs of gear are not itemised yet. Prepared casters get a fixed number of
-// spells per level (PRD §8.3), so `spells_at_1` stands in for "Wisdom modifier + level".
+// spells per level (PRD §8.3): the SRD spellbook's six at level 1 and two for each level after.
 (
     schema: 1,
     id: "base:class:wizard",
@@ -12,7 +12,7 @@
     weapon_ids: ["base:item:dagger", "base:item:quarterstaff", "base:item:light_crossbow"],
     skills: (choose: 2, from: [Arcana, History, Insight, Investigation, Medicine, Religion]),
     starting_equipment: [("base:item:quarterstaff", 1), ("base:item:component_pouch", 1), ("base:item:spellbook", 1)],
-    casting: Some((ability: Intelligence, cantrips_at_1: 3, spells_at_1: 6, list: ["base:spell:fire_bolt", "base:spell:light", "base:spell:mage_hand", "base:spell:magic_missile", "base:spell:shield", "base:spell:burning_hands"])),
+    casting: Some((ability: Intelligence, cantrips_at_1: 3, spells_at_1: 6, spells_per_level: 2, list: ["base:spell:fire_bolt", "base:spell:light", "base:spell:mage_hand", "base:spell:magic_missile", "base:spell:shield", "base:spell:burning_hands", "base:spell:thunderwave", "base:spell:shatter", "base:spell:acid_arrow"])),
     features: [
         (level: 1, name: "base:text:class.wizard.spellcasting"),
         (level: 1, name: "base:text:class.wizard.arcane_recovery"),

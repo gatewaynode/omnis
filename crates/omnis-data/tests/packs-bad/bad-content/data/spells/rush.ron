@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:spell:rush", name: "badc:text:spell.rush.name", level: 1, school: Abjuration, classes: ["badc:class:warlord"], cost: Action, bonus_action_available: true, preparation_available: false, preparation_required_for_bonus_action: true, description: "badc:text:spell.rush.description", effect: Some(Reaction(armor_bonus: 5)), reach: One)

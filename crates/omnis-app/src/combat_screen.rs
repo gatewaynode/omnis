@@ -4,7 +4,8 @@
 //! show through; the band shows the log. Bevy-free.
 
 use crate::actors;
-use crate::combat_menu::{CombatMenu, DefeatMenu, EncounterMenu, FightView};
+use crate::combat_menu::{CombatMenu, FightView};
+use crate::encounter_menu::{DefeatMenu, EncounterMenu};
 use crate::font::fit;
 use crate::layout::{CELL, Rect, VIEWPORT, VIEWPORT_COLUMNS, VIEWPORT_ROWS, cell, row_y, rows};
 use crate::raster::Rgb;
@@ -43,10 +44,14 @@ const REASON_COLUMN: i32 = 32;
 const REASON_CELLS: usize = 24;
 /// Cells of a stack row: the text, a gap, the reason.
 const STACK_CELLS: usize = REASON_COLUMN as usize - 1 + REASON_CELLS;
-/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run.
-const COMBAT_ACTION_COLUMNS: [i32; 6] = [1, 9, 15, 20, 27, 37];
+/// The action row columns for the fight: Attack, Cast, Use, Dodge, Exchange, Run, End, React.
+const COMBAT_ACTION_COLUMNS: [i32; 8] = [1, 9, 15, 20, 27, 37, 42, 47];
+/// The row of the turn's budget, above the action row.
+const BUDGET_ROW: i32 = BOTTOM_ROW + 1;
 /// Cells a spell picker row takes: `{name:<18} {cost:>2} pt  {note:<16}`.
 const SPELL_ROW_CELLS: usize = 44;
+/// Cells a use picker row takes: `{name:<24} {amount:>7}  {blocked:<24}`.
+const USE_ROW_CELLS: usize = 58;
 /// Spell rows the picker shows: the bottom panel's rows under its header.
 pub const SPELL_ROWS: usize = (BOTTOM_ROWS - 1) as usize;
 // Each action label ends before the next column begins.
@@ -61,6 +66,7 @@ const _: () = {
     }
 };
 const _: () = assert!((SPELL_ROW_CELLS as i32) < VIEWPORT_COLUMNS);
+const _: () = assert!((USE_ROW_CELLS as i32) < VIEWPORT_COLUMNS);
 /// The action row columns before it: Attack, Bribe …, Hide, Run.
 const ENCOUNTER_ACTION_COLUMNS: [i32; 4] = [1, 11, 26, 34];
 /// Cells a modal line may take inside the defeat box: a whole log line.
@@ -111,8 +117,8 @@ fn vp_label_right(frame: &mut Frame, row: i32, text: &str, color: Rgb) {
     vp_label(frame, column.max(0), row, text, color);
 }
 
-/// The fight: header, stack rows with the target marked, the six actions or the spell
-/// picker in their place; the band shows the log.
+/// The fight: header, stack rows with the target marked, the turn's budget and the actions,
+/// or a picker in their place; the band shows the log.
 pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     panels(frame);
     vp_label(
@@ -132,6 +138,7 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
         use_picker(frame, view, cursor);
         return;
     }
+    vp_label(frame, 1, BUDGET_ROW, &budget_line(view), TEXT);
     for (i, (text, column)) in CombatMenu::ACTIONS
         .iter()
         .zip(COMBAT_ACTION_COLUMNS)
@@ -149,8 +156,21 @@ pub fn combat(frame: &mut Frame, view: &FightView, menu: &CombatMenu) {
     }
 }
 
+/// What the acting member's turn has left: `Action 1   Bonus 1   Reaction 1 (on)`.
+#[must_use]
+pub fn budget_line(view: &FightView) -> String {
+    format!(
+        "Action {}   Bonus {}   Reaction {} ({})",
+        view.budget.actions,
+        view.budget.bonus_actions,
+        view.reactions_left,
+        if view.reactions_on { "on" } else { "off" }
+    )
+}
+
 /// The spell picker in the bottom panel: a header with the caster's points, then one row per
-/// spell with its cost and note; blocked rows are dim, a reaction row switches its auto-cast.
+/// spell with its cost and note; blocked and reaction rows are dim (a reaction is declared on
+/// the tactics panel).
 fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
     let (points, max) = view.points;
     vp_label(
@@ -167,14 +187,14 @@ fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
             spell.cost.min(99),
             fit(&spell.note(), 16)
         );
-        let state = if spell.blocked.is_some() && spell.auto.is_none() {
+        let state = if spell.blocked.is_some() || spell.reaction {
             ItemState::Disabled
         } else {
             ItemState::from_selected(cursor == i)
         };
         item_state_at(
             frame,
-            WidgetId::Spell(usize::from(spell.index)),
+            WidgetId::Spell(i),
             Kind::Button,
             vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
             &text,
@@ -183,8 +203,8 @@ fn picker(frame: &mut Frame, view: &FightView, cursor: usize) {
     }
 }
 
-/// The item picker in the bottom panel: a header, then one row per usable item of the
-/// acting member's kit with its count and why it is grey.
+/// The use picker in the bottom panel: a header, then one row per feature and usable item of
+/// the acting member with its uses or count and why it is grey.
 fn use_picker(frame: &mut Frame, view: &FightView, cursor: usize) {
     vp_label(
         frame,
@@ -195,10 +215,10 @@ fn use_picker(frame: &mut Frame, view: &FightView, cursor: usize) {
     );
     for (i, row) in view.usable.iter().enumerate().take(SPELL_ROWS) {
         let text = format!(
-            "{:<24} x{:>3}  {:<12}",
+            "{:<24} {:>7}  {:<24}",
             fit(&row.name, 24),
-            row.count.min(999),
-            fit(row.blocked.as_deref().unwrap_or(""), 12)
+            fit(&row.amount(), 7),
+            fit(row.blocked.as_deref().unwrap_or(""), 24)
         );
         let state = if row.blocked.is_some() {
             ItemState::Disabled
@@ -209,7 +229,7 @@ fn use_picker(frame: &mut Frame, view: &FightView, cursor: usize) {
             frame,
             WidgetId::Item(i),
             Kind::Button,
-            vp_rect(1, BOTTOM_ROW + 1 + i as i32, SPELL_ROW_CELLS),
+            vp_rect(1, BOTTOM_ROW + 1 + i as i32, USE_ROW_CELLS),
             &text,
             state,
         );
@@ -337,9 +357,10 @@ mod tests {
         assert_laid_out(frame, area);
     }
     use crate::screens::{MODAL_BOTTOM_PAD, MODAL_BUTTON_PITCH, MODAL_LINES_Y, MODAL_TEXT_X};
+    use crate::use_menu::{Choice, UseKind};
     use crate::widget::hit;
-    use omnis_sim::ModeKind;
     use omnis_sim::omnis_data::{Disposition, Size};
+    use omnis_sim::{Budget, ModeKind};
 
     /// Four stacks of the widest names and counts, the widest round.
     fn widest_view(phase: ModeKind) -> FightView {
@@ -347,6 +368,7 @@ mod tests {
             phase,
             round: 999,
             own: Some(0),
+            ids: vec![omnis_sim::omnis_core::CharacterId(0)],
             disposition: Disposition::Friendly,
             stacks: (0..4)
                 .map(|i| StackRow {
@@ -364,25 +386,63 @@ mod tests {
             gold: 0,
             spells: (0..6)
                 .map(|i| crate::combat_menu::SpellRow {
-                    index: i,
+                    spell: format!("base:spell:s{i}"),
                     name: format!("Spell With A Long Name {i}"),
                     cost: 9,
                     targets_members: i == 5,
-                    auto: (i == 4).then_some(false),
+                    reaction: i == 4,
                     active: i == 1,
                     blocked: (i == 2).then(|| "need 9 pt".to_owned()),
+                    bonus: i == 0,
                 })
                 .collect(),
             points: (99, 99),
             usable: (0..6)
                 .map(|i| crate::combat_menu::UseRow {
-                    index: i,
                     name: format!("Potion With A Long Name {i}"),
-                    count: 999,
-                    blocked: (i == 2).then(|| "not here".to_owned()),
+                    kind: if i < 2 {
+                        UseKind::Feature {
+                            feature: format!("base:text:f{i}"),
+                            uses_left: Some(99),
+                            choice: Choice::None,
+                        }
+                    } else {
+                        UseKind::Item {
+                            item: format!("base:item:i{i}"),
+                            count: u16::MAX,
+                        }
+                    },
+                    blocked: (i == 2).then(|| "no bonus action left in the turn".to_owned()),
                 })
                 .collect(),
+            budget: Budget {
+                actions: u8::MAX,
+                bonus_actions: u8::MAX,
+            },
+            reactions_left: u8::MAX,
+            reactions_on: false,
         }
+    }
+
+    #[test]
+    fn the_budget_line_reads_the_turn_and_the_switch() {
+        let mut view = widest_view(ModeKind::Combat);
+        view.budget = Budget {
+            actions: 2,
+            bonus_actions: 0,
+        };
+        view.reactions_left = 1;
+        view.reactions_on = true;
+        assert_eq!(budget_line(&view), "Action 2   Bonus 0   Reaction 1 (on)");
+        let mut frame = Frame::default();
+        let menu = CombatMenu {
+            use_picker: Some(0),
+            ..CombatMenu::default()
+        };
+        combat(&mut frame, &view, &menu);
+        let (bx, by) = cell(1, BUDGET_ROW);
+        let row = frame.widget(WidgetId::Item(0)).unwrap();
+        assert_eq!((row.rect.x, row.rect.y), (bx, by), "a picker takes its row");
     }
 
     #[test]
@@ -428,7 +488,11 @@ mod tests {
         for i in 0..6 {
             let w = frame.widget(WidgetId::Spell(i)).unwrap();
             assert!(BOTTOM_PANEL.encloses(w.rect), "{i}: {:?}", w.rect);
-            assert_eq!(w.enabled, i != 2, "the blocked row is inert");
+            assert_eq!(
+                w.enabled,
+                i != 2 && i != 4,
+                "the blocked row and the reaction are inert"
+            );
         }
         let chosen = frame.widget(WidgetId::Spell(1)).unwrap();
         assert_eq!(rgb(&frame, chosen.rect.x - 5, chosen.rect.y + 1), Some(HI));
@@ -454,7 +518,7 @@ mod tests {
         };
         combat(&mut frame, &view, &menu);
         laid_out(&frame);
-        assert_eq!(frame.widgets.len(), 10, "four stacks, six actions");
+        assert_eq!(frame.widgets.len(), 12, "four stacks, eight actions");
         assert!(
             frame.widget(WidgetId::Action(ACTION_USE)).unwrap().enabled,
             "use is live"
@@ -466,6 +530,17 @@ mod tests {
         }
         let run = frame.widget(WidgetId::Action(5)).unwrap();
         assert!(run.rect.right() <= VIEWPORT.right());
+        let react = frame.widget(WidgetId::Action(7)).unwrap();
+        assert!(BOTTOM_PANEL.encloses(react.rect), "{:?}", react.rect);
+        assert_eq!(
+            budget_line(&view),
+            "Action 255   Bonus 255   Reaction 255 (off)"
+        );
+        let (bx, by) = cell(1, BUDGET_ROW);
+        assert!(
+            (0..60).any(|dx| rgb(&frame, bx + dx, by + 3) == Some(TEXT)),
+            "the budget line is painted above the actions"
+        );
         let mid = VIEWPORT.w as i32 / 2;
         let (top, bottom) = (TOP_PANEL, BOTTOM_PANEL);
         // The reason a stack is out of reach stands after its row's text, dim.

@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// The sphere is the whole stack: one damage roll, one save per individual. Disadvantage for
+// creatures of inorganic material is dropped (no such trait on monsters yet).
+(schema: 1, id: "base:spell:shatter", name: "base:text:spell.shatter.name", level: 2, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.shatter.description", effect: Some(Save(ability: Constitution, dice: (count: 3, sides: 8, modifier: 0), damage_type: Thunder, half_on_save: true)), reach: Stack)

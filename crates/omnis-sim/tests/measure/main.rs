@@ -6,21 +6,30 @@
 //! mean spell points spent, and how often a pool emptied. `ambush_over_seeds` measures resting
 //! in the dungeon (M7 step 5): how often a spent party is wiped when its rest is ambushed, what
 //! that costs per 100 rests at a few chances, and the ambush rate the slots give.
+//! `clear_over_seeds` measures one clear of the dungeon (M7b step 11) by parties of two, four
+//! and six, going back to town to rest and train when spent: the wipe rate, the trips, the
+//! experience and gold a clear brings, the level reached, and the trainer's price against that
+//! income (levels the purse could not pay, gold left).
 
+#[path = "../common/mod.rs"]
 mod common;
+
+mod boss;
+mod budget;
+mod clear;
 
 use common::{data, encounter, party_of, reachable_stack};
 use omnis_core::{Facing, Position};
 use omnis_data::{Data, Disposition, SpellEffect};
 use omnis_sim::{
-    ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, Event, Mode, RestCommand,
-    Settings, Surprise, Target, World, apply, combat, combat_view,
+    ActorRef, CombatCommand, CombatOutcome, Command, EncounterChoice, Event, Mode, Pay,
+    RestCommand, Settings, Surprise, Target, World, apply, combat, combat_view,
 };
 
-const SEEDS: u64 = 300;
+pub(crate) const SEEDS: u64 = 300;
 
 /// What a member does on their turn.
-type Policy = fn(&World, &Data) -> Command;
+pub(crate) type Policy = fn(&World, &Data) -> Command;
 
 #[derive(Default)]
 struct Tally {
@@ -34,7 +43,7 @@ struct Tally {
 /// Cast something useful on the acting member's turn, else attack the nearest reachable
 /// stack: heal a member under half, an area save at the biggest stack, a levelled bolt, a
 /// cantrip, a buff once, in that order, whatever the pool allows.
-fn cast_or_attack(world: &World, data: &Data) -> Command {
+pub(crate) fn cast_or_attack(world: &World, data: &Data) -> Command {
     let view = combat_view(world, data).expect("a fight");
     let Some(ActorRef::Member(id)) = view.current else {
         return Command::Combat(CombatCommand::Dodge);
@@ -44,19 +53,19 @@ fn cast_or_attack(world: &World, data: &Data) -> Command {
         .party
         .members
         .iter()
-        .enumerate()
-        .filter(|(_, m)| m.hp > 0 && m.hp * 2 < m.hp_max)
-        .min_by_key(|(_, m)| m.hp)
-        .map(|(i, _)| u8::try_from(i).unwrap());
+        .filter(|m| m.hp > 0 && m.hp * 2 < m.hp_max)
+        .min_by_key(|m| m.hp)
+        .map(|m| m.id);
     let biggest = view
         .stacks
         .iter()
         .filter(|s| s.alive)
-        .max_by_key(|s| s.hp.len())
-        .map(|s| s.index);
-    let front = view.stacks.iter().find(|s| s.alive).map(|s| s.index);
-    let effect = |index: u8| {
-        let id = world.party.members[own].known_spells[usize::from(index)];
+        .max_by_key(|s| s.hps.len())
+        .map(|s| s.stack);
+    let front = view.stacks.iter().find(|s| s.alive).map(|s| s.stack);
+    let effect = |spell: &str| {
+        let id = data.registry.spells.get(spell).unwrap();
+        debug_assert!(world.party.members[own].known_spells.contains(&id));
         data.spells[&id].effect.clone()
     };
     let castable: Vec<&omnis_sim::SpellView> =
@@ -64,12 +73,13 @@ fn cast_or_attack(world: &World, data: &Data) -> Command {
     let pick = |wanted: &dyn Fn(&SpellEffect) -> bool, target: Option<Target>| {
         castable
             .iter()
-            .find(|s| effect(s.index).is_some_and(|e| wanted(&e)))
+            .find(|s| effect(&s.spell).is_some_and(|e| wanted(&e)))
             .and_then(|s| {
                 target.map(|t| {
                     Command::Combat(CombatCommand::Cast {
-                        spell: s.index,
+                        spell: s.spell.clone(),
                         target: t,
+                        pay: Pay::Action,
                     })
                 })
             })
@@ -111,14 +121,14 @@ fn cast_or_attack(world: &World, data: &Data) -> Command {
                         }
                     )
                 },
-                Some(Target::Member(0)),
+                Some(Target::Member(world.party.members[0].id)),
             )
         }
     });
     choice.unwrap_or_else(|| attack_only(world, data))
 }
 
-fn attack_only(world: &World, data: &Data) -> Command {
+pub(crate) fn attack_only(world: &World, data: &Data) -> Command {
     match reachable_stack(world, data) {
         Some(stack) => Command::Combat(CombatCommand::Attack { stack }),
         None => Command::Combat(CombatCommand::Dodge),
@@ -147,7 +157,7 @@ fn run_fight(
             break;
         }
         let command = policy(&world, data);
-        let events = apply(&mut world, data, command).unwrap_or_else(|r| panic!("{r}"));
+        let events = common::act(&mut world, data, command).unwrap_or_else(|r| panic!("{r}"));
         for event in &events {
             match event {
                 Event::RoundStarted { round } => rounds = rounds.max(u64::from(*round)),
@@ -253,7 +263,7 @@ fn rest_and_fight(
             break;
         }
         let command = policy(world, data);
-        for event in apply(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
+        for event in common::act(world, data, command).unwrap_or_else(|r| panic!("{r}")) {
             if let Event::CombatEnded { outcome: o, .. } = event {
                 outcome = Some(o);
             }
@@ -310,7 +320,7 @@ fn ambush_over_seeds() {
     let rests = 3000u64;
     for (label, command) in [
         ("long", RestCommand::Long),
-        ("short", RestCommand::Short { dice: Vec::new() }),
+        ("short", RestCommand::Short { spend: Vec::new() }),
     ] {
         let mut ambushes = 0u64;
         for seed in 0..rests {
@@ -325,12 +335,13 @@ fn ambush_over_seeds() {
     }
 }
 
+/// The dungeon's maps, in the order a clear goes down them; a map the packs lack is skipped.
 /// `n` tenths as `x.y`.
-fn tenths(n: u64) -> String {
+pub(crate) fn tenths(n: u64) -> String {
     format!("{}.{}", n / 10, n % 10)
 }
 
 /// `n` hundredths as `x.yz`.
-fn hundredths(n: u64) -> String {
+pub(crate) fn hundredths(n: u64) -> String {
     format!("{}.{:02}", n / 100, n % 100)
 }

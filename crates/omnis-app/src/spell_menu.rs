@@ -6,41 +6,56 @@ use crate::font::fit;
 use crate::layout::MENU_COLUMNS;
 use crate::menu::{MenuKey, cycle};
 use crate::screens::{ItemState, item_state, label};
+use crate::sim::Views;
 use crate::widget::{DIM, Frame, HI, Kind, WidgetId};
-use omnis_sim::combat::cast;
-use omnis_sim::omnis_core::{Pcg32, StreamName};
+use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{CombatCommand, Command, Rejection, Target, World};
+use omnis_sim::{CombatCommand, Command, Pay, Rejection, Target};
 
 /// One spell the acting member knows, as the picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellRow {
-    /// Its index in the caster's list, the number `cast` takes.
-    pub index: u8,
+    /// The spell's id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// The spell's name.
     pub name: String,
     /// Points it costs.
     pub cost: u32,
     /// Aimed at a member rather than a stack.
     pub targets_members: bool,
-    /// For a reaction spell, whether the caster casts it on their own.
-    pub auto: Option<bool>,
+    /// A reaction spell: cast only by a declared reaction (the tactics panel), never picked.
+    pub reaction: bool,
     /// Whether an effect of this spell by this caster is in force.
     pub active: bool,
-    /// Why it cannot be cast now, in a few words.
+    /// Why it cannot be cast now, in a few words; `None` when the action or the bonus
+    /// action can pay for it.
     pub blocked: Option<String>,
+    /// Whether the bonus action pays for it now; it is cast that way when so, leaving the
+    /// action.
+    pub bonus: bool,
 }
 
 impl SpellRow {
-    /// The note after the cost: the reason it is grey, the auto-cast switch, or that it is
-    /// in force.
+    /// The note after the cost: that it is a reaction, the reason it is grey, that it is
+    /// in force, or that the bonus action pays for it.
     #[must_use]
     pub fn note(&self) -> String {
-        match (&self.blocked, self.auto, self.active) {
-            (_, Some(on), _) => format!("auto: {}", if on { "on" } else { "off" }),
-            (Some(why), _, _) => why.clone(),
-            (None, None, true) => "in force".to_owned(),
-            (None, None, false) => String::new(),
+        match (&self.blocked, self.reaction, self.active) {
+            (_, true, _) => "reaction".to_owned(),
+            (Some(why), false, _) => why.clone(),
+            (None, false, true) => "in force".to_owned(),
+            (None, false, false) if self.bonus => "bonus action".to_owned(),
+            (None, false, false) => String::new(),
+        }
+    }
+
+    /// What pays for a cast from the picker: the bonus action when it can.
+    #[must_use]
+    pub const fn pay(&self) -> Pay {
+        if self.bonus {
+            Pay::BonusAction
+        } else {
+            Pay::Action
         }
     }
 }
@@ -88,11 +103,9 @@ impl CombatMenu {
             self.picker = None;
             return None;
         };
-        if let Some(on) = row.auto {
-            return Some(CombatIntent::AutoCast {
-                spell: row.index,
-                on: !on,
-            });
+        if row.reaction {
+            self.message = format!("{} is a reaction: declare it in tactics", row.name);
+            return None;
         }
         if let Some(why) = &row.blocked {
             self.message = format!("{}: {why}", row.name);
@@ -100,7 +113,7 @@ impl CombatMenu {
         }
         let target = if row.targets_members {
             match selected {
-                Some(member) => Target::Member(u8::try_from(member).unwrap_or(u8::MAX)),
+                Some(member) => Target::Member(*view.ids.get(member)?),
                 None => {
                     self.message = format!("Select a member to cast {} on", row.name);
                     return None;
@@ -111,8 +124,9 @@ impl CombatMenu {
         };
         self.picker = None;
         Some(CombatIntent::Command(CombatCommand::Cast {
-            spell: row.index,
+            spell: row.spell.clone(),
             target,
+            pay: row.pay(),
         }))
     }
 }
@@ -122,12 +136,12 @@ impl CombatMenu {
 /// One spell a member can cast while exploring, as the cast menu lists it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CastRow {
-    /// The caster's slot.
-    pub caster: u8,
+    /// The caster's id.
+    pub caster: CharacterId,
     /// The caster's name.
     pub caster_name: String,
-    /// The spell's index in the caster's list.
-    pub spell: u8,
+    /// The spell's id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// The spell's name.
     pub name: String,
     /// Points it costs.
@@ -140,41 +154,25 @@ pub struct CastRow {
 
 /// Every member's spells that can be cast outside a fight, in marching order.
 #[must_use]
-pub fn cast_rows(world: &World, data: &Data) -> Vec<CastRow> {
-    let stream = StreamName::new("cast");
-    let mut rng = world
-        .rngs
-        .get(&stream)
-        .copied()
-        .unwrap_or_else(|| Pcg32::for_stream(world.seed, &stream));
-    let mut rows = Vec::new();
-    for (own, member) in world.party.members.iter().enumerate() {
-        for (i, id) in member.known_spells.iter().enumerate() {
-            let Some(spell) = data.spells.get(id) else {
-                continue;
-            };
-            let explore = spell.effect.as_ref().is_some_and(|e| e.explore_castable());
-            if !explore {
-                continue;
-            }
-            let (caster, index) = (
-                u8::try_from(own).unwrap_or(u8::MAX),
-                u8::try_from(i).unwrap_or(u8::MAX),
-            );
-            rows.push(CastRow {
-                caster,
-                caster_name: member.name.clone(),
-                spell: index,
-                name: data.label("en", &spell.name).to_owned(),
-                cost: spell.point_cost(),
-                targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
-                blocked: cast::check(world, data, own, index, false, &mut rng)
-                    .err()
-                    .map(|r| blocked_note(&r)),
-            });
-        }
-    }
-    rows
+pub fn cast_rows(views: &Views, data: &Data) -> Vec<CastRow> {
+    views
+        .casts
+        .iter()
+        .map(|c| CastRow {
+            caster: c.caster,
+            caster_name: views
+                .party
+                .members
+                .iter()
+                .find(|m| m.member == c.caster)
+                .map_or_else(String::new, |m| m.name.clone()),
+            spell: c.spell.clone(),
+            name: data.label("en", &c.name).to_owned(),
+            cost: c.cost,
+            targets_members: c.targets_members,
+            blocked: c.refusal.as_ref().map(blocked_note),
+        })
+        .collect()
 }
 
 /// What the cast menu asks for.
@@ -207,7 +205,7 @@ impl CastMenu {
         &mut self,
         key: MenuKey,
         rows: &[CastRow],
-        selected: Option<usize>,
+        selected: Option<CharacterId>,
     ) -> Option<CastIntent> {
         match key {
             MenuKey::Up | MenuKey::Down => self.cursor = cycle(self.cursor, rows.len(), key),
@@ -218,7 +216,7 @@ impl CastMenu {
         None
     }
 
-    fn confirm(&mut self, rows: &[CastRow], selected: Option<usize>) -> Option<CastIntent> {
+    fn confirm(&mut self, rows: &[CastRow], selected: Option<CharacterId>) -> Option<CastIntent> {
         self.message.clear();
         let Some(row) = rows.get(self.cursor) else {
             self.message = "Nobody can cast anything here".to_owned();
@@ -230,7 +228,7 @@ impl CastMenu {
         }
         let target = if row.targets_members {
             match selected {
-                Some(member) => Target::Member(u8::try_from(member).unwrap_or(u8::MAX)),
+                Some(member) => Target::Member(member),
                 None => {
                     self.message = format!("Select a member to cast {} on", row.name);
                     return None;
@@ -241,7 +239,7 @@ impl CastMenu {
         };
         Some(CastIntent::Command(Command::Cast {
             caster: row.caster,
-            spell: row.spell,
+            spell: row.spell.clone(),
             target,
         }))
     }
@@ -283,10 +281,13 @@ pub fn cast_screen(frame: &mut Frame, menu: &CastMenu, rows: &[CastRow]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::combat_menu::fight_view;
-    use crate::combat_menu::tests::{data, facing, facing_goblins};
+    use crate::combat_menu::tests::{data, facing, facing_goblins, fight_view};
     use omnis_sim::omnis_data::Data;
     use omnis_sim::{Command, EncounterChoice, Mode, World, apply};
+
+    fn cast_rows(world: &World, data: &Data) -> Vec<CastRow> {
+        super::cast_rows(&Views::of(world, data), data)
+    }
 
     /// A lone wizard against a rat: the fight parks on her turn with her six spells.
     fn wizard_in_a_fight(data: &Data) -> World {
@@ -299,6 +300,102 @@ mod tests {
         .unwrap();
         assert!(matches!(world.mode, Mode::Combat(_)));
         world
+    }
+
+    #[test]
+    fn a_bonus_action_spell_is_cast_with_the_bonus_action_and_leaves_the_action() {
+        let data = data();
+        let mut world = facing(&data, &["cleric"], &[("giant_rat", 1)]);
+        let word = data.registry.spells.get("base:spell:healing_word").unwrap();
+        world.party.members[0].known_spells.push(word);
+        apply(
+            &mut world,
+            &data,
+            Command::Encounter(EncounterChoice::Attack),
+        )
+        .unwrap();
+        let view = fight_view(&world, &data).unwrap();
+        let row = |view: &FightView, name: &str| {
+            let at = view.spells.iter().position(|s| s.name == name).unwrap();
+            (at, view.spells[at].clone())
+        };
+        let (word_at, word) = row(&view, "Healing Word");
+        let (flame_at, flame) = row(&view, "Sacred Flame");
+        assert!(word.bonus && word.blocked.is_none(), "{word:?}");
+        assert_eq!(word.note(), "bonus action");
+        assert!(!flame.bonus && flame.blocked.is_none(), "{flame:?}");
+        let mut menu = CombatMenu {
+            cursor: crate::combat_menu::ACTION_CAST,
+            picker: Some(word_at),
+            ..CombatMenu::default()
+        };
+        let cast = menu.key(MenuKey::Enter, &view, Some(0));
+        assert_eq!(
+            cast,
+            Some(CombatIntent::Command(CombatCommand::Cast {
+                spell: word.spell.clone(),
+                target: Target::Member(world.party.members[0].id),
+                pay: Pay::BonusAction,
+            }))
+        );
+        menu.picker = Some(flame_at);
+        assert!(matches!(
+            menu.key(MenuKey::Enter, &view, None),
+            Some(CombatIntent::Command(CombatCommand::Cast {
+                pay: Pay::Action,
+                ..
+            }))
+        ));
+        let Some(CombatIntent::Command(command)) = cast else {
+            unreachable!()
+        };
+        apply(&mut world, &data, Command::Combat(command)).unwrap();
+        let after = fight_view(&world, &data).unwrap();
+        assert_eq!((after.budget.actions, after.budget.bonus_actions), (1, 0));
+        let (_, word) = row(&after, "Healing Word");
+        assert!(!word.bonus, "the bonus action is spent");
+        assert!(
+            word.blocked.is_some(),
+            "and the action may not cast a second spell"
+        );
+        let (_, flame) = row(&after, "Sacred Flame");
+        assert!(
+            flame.blocked.is_none(),
+            "a cantrip still goes with the action"
+        );
+    }
+
+    #[test]
+    fn a_spent_action_leaves_a_bonus_action_spell_open_and_the_view_reads_own_reactions() {
+        let data = data();
+        let mut world = facing(&data, &["cleric"], &[("giant_rat", 1)]);
+        let word = data.registry.spells.get("base:spell:healing_word").unwrap();
+        world.party.members[0].known_spells.push(word);
+        apply(
+            &mut world,
+            &data,
+            Command::Encounter(EncounterChoice::Attack),
+        )
+        .unwrap();
+        apply(&mut world, &data, Command::Combat(CombatCommand::Dodge)).unwrap();
+        let cleric = world.party.members[0].id;
+        let Mode::Combat(state) = &mut world.mode else {
+            unreachable!()
+        };
+        assert_eq!(state.budget.actions, 0, "Dodge spent the action");
+        state.set_reactions(omnis_sim::ActorRef::Member(cleric), 0);
+        let view = fight_view(&world, &data).unwrap();
+        let row = |name: &str| view.spells.iter().find(|s| s.name == name).unwrap();
+        assert!(
+            row("Healing Word").blocked.is_none() && row("Healing Word").bonus,
+            "the bonus action still pays: {:?}",
+            row("Healing Word")
+        );
+        assert!(row("Sacred Flame").blocked.is_some(), "the action is gone");
+        assert_eq!(
+            view.reactions_left, 0,
+            "the cleric's own count, not the rat's"
+        );
     }
 
     #[test]
@@ -317,11 +414,12 @@ mod tests {
                 "Mage Hand",
                 "Magic Missile",
                 "Shield",
-                "Burning Hands"
+                "Burning Hands",
+                "Thunderwave"
             ]
         );
         assert_eq!(view.spells[2].note(), "not here", "mage hand is for doors");
-        assert_eq!(view.spells[4].note(), "auto: off");
+        assert_eq!(view.spells[4].note(), "reaction");
         let mut menu = CombatMenu::default();
         menu.sync(&view);
         assert_eq!(menu.key(MenuKey::Char('c'), &view, None), None);
@@ -332,8 +430,9 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: 3,
-                target: Target::Stack(0)
+                spell: "base:spell:magic_missile".to_owned(),
+                target: Target::Stack(0),
+                pay: Pay::Action,
             }))
         );
         assert_eq!(menu.picker, None, "the picker closes on a cast");
@@ -343,9 +442,11 @@ mod tests {
         }
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
-            Some(CombatIntent::AutoCast { spell: 4, on: true }),
-            "a reaction row is a switch"
+            None,
+            "a reaction is declared in tactics, never picked"
         );
+        assert_eq!(menu.message, "Shield is a reaction: declare it in tactics");
+        assert_eq!(view.spells[4].note(), "reaction");
         menu.key(MenuKey::Escape, &view, None);
         assert_eq!(menu.picker, None, "escape closes the picker, not the fight");
         world.party.members[0].spell_points = 0;
@@ -364,8 +465,9 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, None),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: 0,
-                target: Target::Stack(0)
+                spell: "base:spell:fire_bolt".to_owned(),
+                target: Target::Stack(0),
+                pay: Pay::Action,
             }))
         );
     }
@@ -397,8 +499,9 @@ mod tests {
         assert_eq!(
             menu.key(MenuKey::Enter, &view, Some(0)),
             Some(CombatIntent::Command(CombatCommand::Cast {
-                spell: u8::try_from(cure).unwrap(),
-                target: Target::Member(0)
+                spell: "base:spell:cure_wounds".to_owned(),
+                target: Target::Member(world.party.members[0].id),
+                pay: Pay::Action,
             }))
         );
         let mut world = facing_goblins(&data);
@@ -452,21 +555,22 @@ mod tests {
         }
         assert_eq!(menu.key(MenuKey::Enter, &rows, None), None);
         assert_eq!(menu.message, "Select a member to cast Cure Wounds on");
+        let id = |slot: usize| world.party.members[slot].id;
         assert_eq!(
-            menu.key(MenuKey::Enter, &rows, Some(0)),
+            menu.key(MenuKey::Enter, &rows, Some(id(0))),
             Some(CastIntent::Command(Command::Cast {
-                caster: 1,
-                spell: rows[3].spell,
-                target: Target::Member(0)
+                caster: id(1),
+                spell: rows[3].spell.clone(),
+                target: Target::Member(id(0))
             }))
         );
         menu.key(MenuKey::Down, &rows, None);
         assert_eq!(
             menu.key(MenuKey::Enter, &rows, None),
             Some(CastIntent::Command(Command::Cast {
-                caster: 2,
-                spell: rows[4].spell,
-                target: Target::Member(2)
+                caster: id(2),
+                spell: rows[4].spell.clone(),
+                target: Target::Member(id(2))
             })),
             "light needs no target"
         );

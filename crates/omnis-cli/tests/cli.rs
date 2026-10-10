@@ -2,7 +2,7 @@
 
 use omnis_data::load_packs;
 use omnis_sim::Settings;
-use omnis_sim::command::parse_script;
+use omnis_sim::parse_script;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -35,8 +35,8 @@ fn cli(args: &[&str]) -> (bool, String, String) {
 fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
     let (ok, out, _) = cli(&["validate", "packs/base", "packs/test"]);
     assert!(ok);
-    assert!(out.starts_with("ok: 2 packs, 3 maps, 2 tilesets"), "{out}");
-    assert!(out.ends_with("31 rule slots, 7 services\n"), "{out}");
+    assert!(out.starts_with("ok: 2 packs, 4 maps, 2 tilesets"), "{out}");
+    assert!(out.ends_with("36 rule slots, 7 services\n"), "{out}");
     let (ok, _, err) = cli(&["validate", "packs/test"]);
     assert!(!ok);
     assert!(
@@ -84,12 +84,18 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         "{out}"
     );
     let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
-    let commands = parse_script(text).unwrap();
     // The headless driver is a dev world (`Settings.devtools`), and a save says so.
     let settings = Settings {
         devtools: true,
         ..Settings::default()
     };
+    // The walk names no member or row, so the words resolve against the new world alike.
+    let fresh = omnis_sim::World::new(&data, 9, settings).unwrap();
+    let commands: Vec<_> = parse_script(text)
+        .unwrap()
+        .iter()
+        .map(|w| w.command(&fresh, &data).unwrap())
+        .collect();
     let expected = omnis_sim::replay::run(&data, 9, settings, &commands).unwrap();
     assert_eq!(
         lines.last().copied(),
@@ -100,6 +106,15 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
     assert!(!ok);
     assert!(err.contains("line 2: unknown command 'fly'"), "{err}");
+    // A word names a slot, resolved when it is applied: the headless party is empty, so the
+    // fourth slot names nobody.
+    std::fs::write(&script, "forward\ncast-0-m3\n").unwrap();
+    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    assert!(!ok);
+    assert!(
+        err.contains("turn 1: 'cast-0-m3' names an empty slot"),
+        "{err}"
+    );
     let (ok, _, err) = cli(&["play"]);
     assert!(!ok && err.contains("--script"), "{err}");
 }
@@ -142,7 +157,8 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         "# pack.ron (schema 1)",
         "# data/tiles/<name>.ron (schema 1)",
         "# data/maps/<name>.ron (schema 1)",
-        "# save (schema 5)",
+        "# data/regions/<name>.ron",
+        "# save (schema 7)",
         "# replay",
         "# protocol ops",
     ] {

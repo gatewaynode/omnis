@@ -49,9 +49,70 @@ pub struct CombatState {
     pub dodging: Vec<CharacterId>,
     /// Copper looted so far, paid out on victory.
     pub gold: u32,
+    /// What the actor whose turn it is has left to spend (PRD D21, ARCHITECTURE.md §4.7).
+    #[serde(default)]
+    pub budget: Budget,
+    /// Reactions left to each combatant (a member, or a stack as one), refreshed at the start
+    /// of its own turn; sorted by actor.
+    #[serde(default)]
+    pub reactions: Vec<(ActorRef, u8)>,
+    /// Members hidden by Cunning Action: their next attack has advantage. Sorted.
+    #[serde(default)]
+    pub hidden: Vec<CharacterId>,
+    /// Monster individuals under Shield until their stack's next turn, `(stack, individual)`;
+    /// sorted.
+    #[serde(default)]
+    pub monster_shields: Vec<(u8, u8)>,
+}
+
+/// The actions and bonus actions left in the current turn.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Budget {
+    /// Actions left.
+    pub actions: u8,
+    /// Bonus actions left.
+    pub bonus_actions: u8,
 }
 
 impl CombatState {
+    /// Reactions `actor` has left this round.
+    #[must_use]
+    pub fn reactions_left(&self, actor: ActorRef) -> u8 {
+        self.reactions
+            .binary_search_by(|(a, _)| a.cmp(&actor))
+            .map_or(0, |at| self.reactions[at].1)
+    }
+
+    /// Set what `actor` has left.
+    pub fn set_reactions(&mut self, actor: ActorRef, count: u8) {
+        match self.reactions.binary_search_by(|(a, _)| a.cmp(&actor)) {
+            Ok(at) => self.reactions[at].1 = count,
+            Err(at) => self.reactions.insert(at, (actor, count)),
+        }
+    }
+
+    /// Spend one of `actor`'s reactions; `false` when none was left.
+    pub fn spend_reaction(&mut self, actor: ActorRef) -> bool {
+        let left = self.reactions_left(actor);
+        if left == 0 {
+            return false;
+        }
+        self.set_reactions(actor, left - 1);
+        true
+    }
+
+    /// Whether a member is hidden, and no longer once they attack: their attack has
+    /// advantage.
+    pub fn reveal(&mut self, member: CharacterId) -> bool {
+        match self.hidden.binary_search(&member) {
+            Ok(at) => {
+                self.hidden.remove(at);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// The stacks in front: the first living ones, as many as the rules allow. A stack that
     /// empties drops out and the next living one moves up.
     #[must_use]

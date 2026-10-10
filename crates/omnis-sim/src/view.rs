@@ -1,23 +1,29 @@
 //! The encounter or fight as a client sees it (`combat.get`).
 
-use crate::combat::{CombatState, Roller, cast, monster_front_stacks, weapon_for};
+use crate::combat::feature::refusal;
+use crate::combat::{
+    Budget, CombatState, FeatureChoice, Pay, Roller, cast, monster_front_stacks, payable,
+    points_of, weapon_for,
+};
 use crate::command::Rejection;
-use crate::encounter::{EncounterSource, Stack};
+use crate::encounter::{EncounterSource, Stack, bribe_cost};
 use crate::event::{ActorRef, Surprise};
+use crate::names::Place;
 use crate::party;
 use crate::world::{Mode, ModeKind, World};
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Position};
-use omnis_data::{Data, Disposition, Reach};
+use omnis_core::CharacterId;
+use omnis_data::{Cost, Data, Disposition, FeatureEffect, Reach};
+use omnis_rules::{Character, combat_features, uses_left};
 use serde::{Deserialize, Serialize};
 
 /// One stack as a client sees it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StackView {
-    /// Its index in the encounter, the number `attack` takes.
-    pub index: u8,
+    /// Its row in the encounter, the number `attack` takes.
+    pub stack: u8,
     /// Monster id.
     pub monster: String,
     /// Text key of the monster's name.
@@ -25,24 +31,32 @@ pub struct StackView {
     /// How many there were.
     pub initial: u8,
     /// Hit points of the living, in order.
-    pub hp: Vec<i32>,
+    pub hps: Vec<i32>,
     /// Armor class.
     pub ac: u8,
     /// Whether it stands in front.
-    pub front: bool,
+    pub in_front: bool,
     /// Whether anyone in it still stands.
     pub alive: bool,
     /// Whether the member whose turn it is can reach it.
     pub reachable: bool,
+    /// Spell points each living individual has left, in order; empty for a monster that does
+    /// not cast.
+    #[serde(default)]
+    pub points_left: Vec<u8>,
+    /// The individuals whose Shield is up until the stack's next turn.
+    #[serde(default)]
+    pub shielded: Vec<u8>,
+    /// Why the member whose turn it is cannot attack it, when a member acts and cannot.
+    #[serde(default)]
+    pub refusal: Option<Rejection>,
 }
 
 /// One spell the acting member knows, as a picker shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellView {
-    /// Its index in the caster's list, the number `cast` takes.
-    pub index: u8,
-    /// Spell id.
-    pub id: String,
+    /// Spell id, the `spell` that `Cast` takes.
+    pub spell: String,
     /// Text key of the spell's name.
     pub name: String,
     /// Spell level; 0 is a cantrip.
@@ -53,8 +67,52 @@ pub struct SpellView {
     pub reach: Reach,
     /// Aimed at members rather than monsters.
     pub targets_members: bool,
-    /// Why it cannot be cast now, if it cannot.
+    /// Why it cannot be cast with the action now, if it cannot: the spell's own checks, then
+    /// the budget.
     pub blocked: Option<Rejection>,
+    /// Why it cannot be cast with the bonus action now, if it cannot.
+    #[serde(default)]
+    pub bonus: Option<Rejection>,
+}
+
+/// One class feature with an effect, as the Feature command names it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeatureView {
+    /// Its name key: the `feature` that `Feature` takes and a declared action names it by.
+    pub feature: String,
+    /// What it costs from the turn's budget.
+    pub pay: Cost,
+    /// Uses left before a rest; `None` at will.
+    pub uses_left: Option<u8>,
+    /// Why it cannot be used now, if it cannot (`NotYourTurn` off the member's turn; Cunning
+    /// Action is judged by its Hide).
+    pub blocked: Option<Rejection>,
+    /// The ways the `Feature` command may use it: `Plain` alone, or Cunning Action's `Exchange`
+    /// (which names a member by identity) and `Hide`.
+    #[serde(default)]
+    pub choices: Vec<ChoiceKind>,
+}
+
+/// The shape of a [`FeatureChoice`], without the member an exchange names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChoiceKind {
+    /// `FeatureChoice::None`: the feature does its one thing.
+    Plain,
+    /// `FeatureChoice::Exchange { with }`.
+    Exchange,
+    /// `FeatureChoice::Hide`.
+    Hide,
+}
+
+/// One member's side of the fight: the reactions switch and the features.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FighterView {
+    /// The member; `CombatView.members` is in marching order.
+    pub member: CharacterId,
+    /// Whether the member's declared reactions fire.
+    pub reactions_on: bool,
+    /// The class features with an effect.
+    pub features: Vec<FeatureView>,
 }
 
 /// The encounter or fight in progress.
@@ -69,7 +127,7 @@ pub struct CombatView {
     /// The stacks.
     pub stacks: Vec<StackView>,
     /// Where Run and Flee put the party.
-    pub retreat: Position,
+    pub retreat: Place,
     /// The round, zero before the fight.
     pub round: u32,
     /// Whose turn it is.
@@ -88,6 +146,21 @@ pub struct CombatView {
     pub monster_front_stacks: usize,
     /// The acting member's spells; empty when no member acts.
     pub spells: Vec<SpellView>,
+    /// What the acting member's turn has left to pay with.
+    #[serde(default)]
+    pub budget: Budget,
+    /// Reactions left this round, by combatant.
+    #[serde(default)]
+    pub reactions: Vec<(ActorRef, u8)>,
+    /// Members hidden (advantage on their next attack).
+    #[serde(default)]
+    pub hidden: Vec<CharacterId>,
+    /// Each member's reactions switch and features; empty before the fight.
+    #[serde(default)]
+    pub members: Vec<FighterView>,
+    /// Copper a bribe would cost, before the fight when the monsters take one.
+    #[serde(default)]
+    pub bribe: Option<u32>,
 }
 
 /// The view, or `None` while exploring.
@@ -114,11 +187,23 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             if front {
                 in_front += 1;
             }
-            let reachable = match (fight, acting) {
-                (Some(c), Some(own)) => weapon_for(c, world, data, own, index).is_ok(),
-                _ => false,
+            let refusal = match (fight, acting) {
+                (Some(c), Some(own)) => weapon_for(c, world, data, own, index).err(),
+                _ => None,
             };
-            stack_view(data, stack, index, front, reachable)
+            let reachable = fight.is_some() && acting.is_some() && refusal.is_none();
+            let shielded = fight.map_or_else(Vec::new, |c| {
+                c.monster_shields
+                    .iter()
+                    .filter(|(s, _)| *s == index)
+                    .map(|(_, i)| *i)
+                    .collect()
+            });
+            StackView {
+                shielded,
+                refusal,
+                ..stack_view(data, stack, index, front, reachable)
+            }
         })
         .collect();
     Some(CombatView {
@@ -126,7 +211,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         source: encounter.source,
         disposition: encounter.disposition,
         stacks,
-        retreat: encounter.retreat,
+        retreat: Place::of(encounter.retreat, data),
         round: fight.map_or(0, |c| c.round),
         current: fight.and_then(CombatState::current_actor),
         order: fight.map_or_else(Vec::new, |c| {
@@ -137,13 +222,72 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         gold: fight.map_or(0, |c| c.gold),
         front_row: party::front_row(data),
         monster_front_stacks: front_count,
-        spells: acting.map_or_else(Vec::new, |own| spell_views(world, data, own)),
+        spells: match (fight, acting) {
+            (Some(c), Some(own)) => spell_views(c, world, data, own),
+            _ => Vec::new(),
+        },
+        budget: fight.map_or_else(Budget::default, |c| c.budget),
+        reactions: fight.map_or_else(Vec::new, |c| c.reactions.clone()),
+        hidden: fight.map_or_else(Vec::new, |c| c.hidden.clone()),
+        members: fight.map_or_else(Vec::new, |c| {
+            world
+                .party
+                .members
+                .iter()
+                .enumerate()
+                .map(|(own, member)| fighter_view(c, world, data, own, member, acting == Some(own)))
+                .collect()
+        }),
+        bribe: fight
+            .is_none()
+            .then(|| bribe_cost(world, data).ok())
+            .flatten(),
     })
 }
 
-/// The spells a member knows with what each costs and why it is blocked, read off a copy of
-/// the combat stream so the view draws nothing.
-fn spell_views(world: &World, data: &Data, own: usize) -> Vec<SpellView> {
+/// A member's reactions switch and features; only the acting member's features can be free.
+fn fighter_view(
+    state: &CombatState,
+    world: &World,
+    data: &Data,
+    own: usize,
+    member: &Character,
+    acting: bool,
+) -> FighterView {
+    let features = combat_features(member, data)
+        .into_iter()
+        .map(|feature| {
+            let (choice, choices) = match feature.effect {
+                Some(FeatureEffect::Cunning) => (
+                    FeatureChoice::Hide,
+                    alloc::vec![ChoiceKind::Exchange, ChoiceKind::Hide],
+                ),
+                _ => (FeatureChoice::None, alloc::vec![ChoiceKind::Plain]),
+            };
+            let blocked = if acting {
+                refusal(world, data, state, own, &feature.name, choice)
+            } else {
+                Some(Rejection::NotYourTurn)
+            };
+            FeatureView {
+                feature: feature.name.clone(),
+                pay: feature.cost,
+                uses_left: uses_left(member, feature),
+                blocked,
+                choices,
+            }
+        })
+        .collect();
+    FighterView {
+        member: member.id,
+        reactions_on: member.tactics.reactions_on,
+        features,
+    }
+}
+
+/// The spells a member knows with what each costs and why it is blocked, for the action and for
+/// the bonus action, read off a copy of the combat stream so the view draws nothing.
+fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> Vec<SpellView> {
     let Some(member) = world.party.members.get(own) else {
         return Vec::new();
     };
@@ -151,29 +295,33 @@ fn spell_views(world: &World, data: &Data, own: usize) -> Vec<SpellView> {
     member
         .known_spells
         .iter()
-        .enumerate()
-        .filter_map(|(i, id)| {
-            let index = u8::try_from(i).ok()?;
+        .filter_map(|id| {
             let spell = data.spells.get(id)?;
-            let blocked = cast::check(world, data, own, index, true, &mut rng).err();
+            let name = data.registry.spells.name(*id).unwrap_or("?").to_owned();
+            let checked = cast::check(world, data, own, *id, true, &mut rng).err();
+            let pays = |pay| {
+                checked
+                    .clone()
+                    .or_else(|| payable(state, spell, &name, pay).err())
+            };
             Some(SpellView {
-                index,
-                id: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
+                spell: name.clone(),
                 name: spell.name.clone(),
                 level: spell.level,
                 cost: spell.point_cost(),
                 reach: spell.reach,
                 targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
-                blocked,
+                blocked: pays(Pay::Action),
+                bonus: pays(Pay::BonusAction),
             })
         })
         .collect()
 }
 
-fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: bool) -> StackView {
+fn stack_view(data: &Data, stack: &Stack, index: u8, in_front: bool, reachable: bool) -> StackView {
     let monster = data.monsters.get(&stack.monster);
     StackView {
-        index,
+        stack: index,
         monster: data
             .registry
             .monsters
@@ -182,10 +330,13 @@ fn stack_view(data: &Data, stack: &Stack, index: u8, front: bool, reachable: boo
             .to_owned(),
         name: monster.map_or_else(|| "?".to_owned(), |m| m.name.clone()),
         initial: stack.initial,
-        hp: stack.hp.clone(),
+        hps: stack.hp.clone(),
         ac: monster.map_or(0, |m| m.ac),
-        front,
+        in_front,
         alive: stack.alive(),
         reachable,
+        points_left: points_of(data, stack),
+        shielded: Vec::new(),
+        refusal: None,
     }
 }

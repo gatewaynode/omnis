@@ -2,12 +2,11 @@
 //! member and page under the cursor (`SheetMenu`), and the keys that move them. Bevy-free;
 //! `sheet_screen.rs` paints it and `sheet.rs` wires it to the world.
 
+use crate::defs;
 use crate::menu::{MenuKey, cycle, words};
-use omnis_sim::omnis_data::{Ability, Data, EquipSlot, Skill};
-use omnis_sim::omnis_rules::{
-    Expiry, armor_class, casting_ability, modifier, proficiency_bonus, skill_bonus,
-};
-use omnis_sim::{MINUTES_PER_DAY, World};
+use crate::sim::Views;
+use omnis_sim::api::{MemberView, ModeKind, PartyView};
+use omnis_sim::omnis_data::{Ability, Data, EquipSlot};
 
 /// A page of the sheet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -95,6 +94,12 @@ pub struct SheetView {
     pub hp: (i32, i32),
     /// Spell points, current and maximum.
     pub sp: (u32, u32),
+    /// Hit dice as `(left, total, sides)`: one per level, spent on short rests.
+    pub hit_dice: (u8, u8, u8),
+    /// The experience has reached a level a trainer has not granted.
+    pub ready: bool,
+    /// Spells owed by levels, chosen at a trainer.
+    pub spell_picks: u8,
     /// Armour class.
     pub ac: i64,
     /// Proficiency bonus.
@@ -115,103 +120,79 @@ pub struct SheetView {
     pub magic: SheetMagic,
     /// The gear page.
     pub gear: SheetGear,
+    /// Whether the tactics panel may open: declaring is refused in a fight.
+    pub tactics: bool,
 }
 
 /// The sheet of the member in this slot, or `None` when the slot is empty.
 #[must_use]
-pub fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView> {
-    let m = world.party.members.get(member)?;
-    let now = world.party_clock().elapsed;
-    let proficiency = proficiency_bonus(m.level, data).unwrap_or(2);
-    let class = data.classes.get(&m.class);
+pub fn sheet_view(views: &Views, data: &Data, member: usize) -> Option<SheetView> {
+    let m = views.party.members.get(member)?;
     let mut scores = [("", 0, 0); 6];
     for (i, ability) in Ability::ALL.iter().enumerate() {
-        scores[i] = (ability.short(), m.scores[i], modifier(m.scores[i]));
+        scores[i] = (ability.short(), m.scores[i], m.modifiers[i]);
     }
-    let saves = class.map_or_else(Vec::new, |c| {
-        c.saving_throws
-            .iter()
-            .map(|a| (a.short(), modifier(m.scores[a.index()]) + proficiency))
-            .collect()
-    });
-    let skills = Skill::ALL
+    let saves = m
+        .saves
         .iter()
-        .filter(|s| m.skills.contains(s))
-        .map(|s| {
-            (
-                words(&format!("{s:?}")),
-                skill_bonus(m, data, *s).unwrap_or(0),
-            )
-        })
+        .map(|(a, bonus)| (a.short(), *bonus))
         .collect();
-    let minutes_per_year = i64::from(MINUTES_PER_DAY) * 365;
-    let lived = (now - m.created_at).max(0) / minutes_per_year;
+    let skills = m
+        .skills
+        .iter()
+        .map(|(s, bonus)| (words(&format!("{s:?}")), *bonus))
+        .collect();
+    let named = |name: Option<&str>| name.map_or("?", |n| data.label("en", n)).to_owned();
     Some(SheetView {
         name: m.name.clone(),
-        race: data
-            .races
-            .get(&m.race)
-            .map_or("?", |r| data.label("en", &r.name))
-            .to_owned(),
-        class: class.map_or("?", |c| data.label("en", &c.name)).to_owned(),
+        race: named(defs::race(data, &m.race).map(|r| r.name.as_str())),
+        class: named(defs::class(data, &m.class).map(|c| c.name.as_str())),
         level: m.level,
-        background: data
-            .backgrounds
-            .get(&m.background)
-            .map_or("?", |b| data.label("en", &b.name))
-            .to_owned(),
+        background: named(defs::background(data, &m.background).map(|b| b.name.as_str())),
         alignment: words(&format!("{:?}", m.alignment)),
-        age_years: i64::from(m.age_years) + lived,
+        age_years: m.age_years,
         hp: (m.hp, m.hp_max),
         sp: (m.spell_points, m.spell_points_max),
-        ac: armor_class(m, data),
-        proficiency,
+        hit_dice: (m.hit_dice_left, m.hit_dice, m.hit_die),
+        ready: m.ready,
+        spell_picks: m.spell_picks,
+        ac: m.ac,
+        proficiency: m.proficiency,
         xp: m.xp,
-        next_xp: data
-            .rules
-            .table("xp_thresholds")
-            .and_then(|t| t.get(usize::from(m.level)).copied()),
+        next_xp: m.next_xp,
         scores,
         saves,
         skills,
         conditions: m
             .conditions
             .iter()
-            .map(|c| {
-                data.conditions
-                    .get(c)
-                    .map_or("?", |c| data.label("en", &c.name))
-                    .to_owned()
-            })
+            .map(|c| named(defs::condition(data, c).map(|c| c.name.as_str())))
             .collect(),
-        magic: magic_page(world, data, member, now),
-        gear: gear_page(world, data, member),
+        magic: magic_page(&views.party, data, m),
+        gear: gear_page(data, m),
+        tactics: !matches!(views.here.mode, ModeKind::Encounter | ModeKind::Combat),
     })
 }
 
 /// How long an effect has left, in words.
-fn time_left(until: Expiry, now: i64) -> String {
-    match until {
-        Expiry::Minute(m) => format!("{} min", (m - now).max(0)),
-        Expiry::NextTurn => "next turn".to_owned(),
+fn time_left(minutes_left: Option<i64>) -> String {
+    match minutes_left {
+        Some(m) => format!("{m} min"),
+        None => "next turn".to_owned(),
     }
 }
 
-fn magic_page(world: &World, data: &Data, member: usize, now: i64) -> SheetMagic {
-    let Some(m) = world.party.members.get(member) else {
-        return SheetMagic::default();
-    };
-    let spell_name = |id| {
-        data.spells
-            .get(id)
+fn magic_page(party: &PartyView, data: &Data, m: &MemberView) -> SheetMagic {
+    let spell_name = |id: &str| {
+        defs::spell(data, id)
             .map_or("?", |s| data.label("en", &s.name))
             .to_owned()
     };
     let spells = m
-        .known_spells
+        .spells
         .iter()
         .map(|id| {
-            let cost = data.spells.get(id).map_or(0, |s| s.point_cost());
+            let cost = defs::spell(data, id).map_or(0, |s| s.point_cost());
             let cost = if cost == 0 {
                 "cantrip".to_owned()
             } else {
@@ -223,11 +204,11 @@ fn magic_page(world: &World, data: &Data, member: usize, now: i64) -> SheetMagic
     let effects = m
         .effects
         .iter()
-        .chain(world.party.effects.iter())
-        .map(|e| (spell_name(&e.source), time_left(e.until, now)))
+        .chain(party.effects.iter())
+        .map(|e| (spell_name(&e.spell), time_left(e.minutes_left)))
         .collect();
     SheetMagic {
-        casting: casting_ability(m, data).map(|a| words(&format!("{a:?}"))),
+        casting: m.casting.map(|a| words(&format!("{a:?}"))),
         points: (m.spell_points, m.spell_points_max),
         spells,
         effects,
@@ -245,13 +226,9 @@ pub const fn slot_label(slot: EquipSlot) -> &'static str {
     }
 }
 
-fn gear_page(world: &World, data: &Data, member: usize) -> SheetGear {
-    let Some(m) = world.party.members.get(member) else {
-        return SheetGear::default();
-    };
-    let item_name = |id| {
-        data.items
-            .get(id)
+fn gear_page(data: &Data, m: &MemberView) -> SheetGear {
+    let item_name = |id: &str| {
+        defs::item(data, id)
             .map_or("?", |i| data.label("en", &i.name))
             .to_owned()
     };
@@ -259,33 +236,44 @@ fn gear_page(world: &World, data: &Data, member: usize) -> SheetGear {
         slots: EquipSlot::ALL
             .iter()
             .map(|slot| {
-                let worn = m.equipped.get(slot).map_or("-".to_owned(), item_name);
+                let worn = m
+                    .worn
+                    .iter()
+                    .find(|(s, _)| s == slot)
+                    .map_or("-".to_owned(), |(_, id)| item_name(id));
                 (slot_label(*slot).to_owned(), worn)
             })
             .collect(),
         carried: m
             .equipment
             .iter()
-            .map(|(id, count)| (item_name(id), *count))
+            .map(|i| (item_name(&i.item), i.count))
             .collect(),
     }
 }
+
+/// The widget row of the TACTICS button, after the member row.
+pub const ROW_TACTICS: usize = 4;
 
 /// What the sheet asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SheetIntent {
     /// Close the sheet.
     Close,
+    /// Open the tactics panel on the member shown.
+    Tactics,
 }
 
 /// The sheet's cursor: which member, which page. Left/Right change the member, Tab or
-/// Up/Down the page, Escape or P close.
+/// Up/Down the page, T or the TACTICS button open the tactics panel, Escape or P close.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SheetMenu {
     /// The member shown.
     pub member: usize,
     /// The page shown.
     pub page: SheetPage,
+    /// TACTICS was clicked: the Enter that follows the click opens the panel.
+    pub armed: bool,
     /// Why the last key did nothing; empty when it did something.
     pub message: String,
 }
@@ -309,6 +297,7 @@ impl SheetMenu {
         if let Some(page) = SheetPage::ALL.get(row) {
             self.page = *page;
         }
+        self.armed = row == ROW_TACTICS;
     }
 
     /// Handle a key.
@@ -323,6 +312,10 @@ impl SheetMenu {
                 self.page = SheetPage::ALL[cycle(self.page.index(), 3, MenuKey::Right)];
             }
             MenuKey::Escape | MenuKey::Char('p') => return Some(SheetIntent::Close),
+            MenuKey::Char('t') => return Some(SheetIntent::Tactics),
+            MenuKey::Enter if std::mem::take(&mut self.armed) => {
+                return Some(SheetIntent::Tactics);
+            }
             MenuKey::Enter | MenuKey::Char(_) | MenuKey::Backspace => {}
         }
         None
@@ -334,9 +327,14 @@ pub(crate) mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::Mode;
+    use omnis_sim::World;
     use omnis_sim::omnis_core::Dice;
     use omnis_sim::omnis_data::BuffOn;
-    use omnis_sim::omnis_rules::{ActiveEffect, EffectKind};
+    use omnis_sim::omnis_rules::{ActiveEffect, EffectKind, Expiry, armor_class};
+
+    fn sheet_view(world: &World, data: &Data, member: usize) -> Option<SheetView> {
+        super::sheet_view(&Views::of(world, data), data, member)
+    }
 
     /// A fighter's sheet with something on every page, for the screen dumps.
     pub(crate) fn sample() -> SheetView {
@@ -350,6 +348,9 @@ pub(crate) mod tests {
             age_years: 24,
             hp: (12, 12),
             sp: (0, 0),
+            hit_dice: (1, 1, 10),
+            ready: false,
+            spell_picks: 0,
             ac: 18,
             proficiency: 2,
             xp: 25,
@@ -400,6 +401,7 @@ pub(crate) mod tests {
                     ("Potion of healing".to_owned(), 1),
                 ],
             },
+            tactics: true,
         }
     }
 
@@ -457,7 +459,11 @@ pub(crate) mod tests {
         let wren = sheet_view(&world, &data, 1).expect("the wizard");
         assert_eq!(wren.magic.casting.as_deref(), Some("Intelligence"));
         assert_eq!(wren.magic.points, (1, 1), "Int 13: one point");
-        assert_eq!(wren.magic.spells.len(), 6);
+        assert_eq!(
+            wren.magic.spells.len(),
+            7,
+            "three cantrips, four first-level spells"
+        );
         assert_eq!(
             wren.magic.spells[0],
             ("Fire Bolt".to_owned(), "cantrip".to_owned())
@@ -467,6 +473,28 @@ pub(crate) mod tests {
             ("Magic Missile".to_owned(), "1 pt".to_owned())
         );
         assert_eq!(wren.saves, [("INT", 3), ("WIS", 2)]);
+        assert_eq!(
+            brenna.hit_dice,
+            (1, 1, 10),
+            "a fighter's d10, one per level"
+        );
+        assert_eq!(wren.hit_dice, (1, 1, 6), "a wizard's d6");
+        world.party.members[0].hit_dice_spent = 1;
+        assert_eq!(
+            sheet_view(&world, &data, 0).expect("the fighter").hit_dice,
+            (0, 1, 10),
+            "spent on a short rest"
+        );
+        let fresh = sheet_view(&world, &data, 0).unwrap();
+        assert_eq!((fresh.ready, fresh.spell_picks), (false, 0));
+        world.party.members[0].xp = 300;
+        world.party.members[0].spell_picks = 2;
+        let trained = sheet_view(&world, &data, 0).unwrap();
+        assert_eq!(
+            (trained.ready, trained.spell_picks),
+            (true, 2),
+            "300 XP: level 2 waits"
+        );
         assert_eq!(sheet_view(&world, &data, 2), None, "no third member");
     }
 
@@ -507,7 +535,7 @@ pub(crate) mod tests {
         );
         let born = view.age_years;
         let clock = world.clocks.get_mut(&omnis_sim::PARTY).unwrap();
-        clock.elapsed += i64::from(MINUTES_PER_DAY) * 365 * 2 + 5;
+        clock.elapsed += 1440 * 360 * 2 + 5;
         let older = sheet_view(&world, &data, 0).unwrap();
         assert_eq!(older.age_years, born + 2, "two subjective years passed");
         assert_eq!(older.magic.effects[0].1, "0 min", "never negative");
@@ -539,6 +567,14 @@ pub(crate) mod tests {
         menu.click_row(3);
         assert_eq!(menu.page, SheetPage::Magic, "the member row is not a tab");
         assert_eq!(menu.key(MenuKey::Enter, 3), None);
+        menu.click_row(ROW_TACTICS);
+        assert_eq!(menu.page, SheetPage::Magic, "TACTICS is not a tab");
+        assert_eq!(menu.key(MenuKey::Enter, 3), Some(SheetIntent::Tactics));
+        assert_eq!(menu.key(MenuKey::Enter, 3), None, "one click, one opening");
+        menu.click_row(ROW_TACTICS);
+        menu.click_row(0);
+        assert_eq!(menu.key(MenuKey::Enter, 3), None, "a tab click disarms it");
+        assert_eq!(menu.key(MenuKey::Char('t'), 3), Some(SheetIntent::Tactics));
         assert_eq!(menu.key(MenuKey::Escape, 3), Some(SheetIntent::Close));
         assert_eq!(menu.key(MenuKey::Char('p'), 3), Some(SheetIntent::Close));
         menu.open(None, 0);

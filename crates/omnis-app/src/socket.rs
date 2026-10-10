@@ -9,12 +9,12 @@
 
 use crate::AppConfig;
 use crate::pixel::CanvasImage;
-use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, save};
+use crate::sim::{PackData, SimEvent, SimSet, SimWorld, WorldReplaced, load, write_text};
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::ops::{ShotTarget, bounded, client_path, slot_view, status};
-use omnis_sim::{Op, OpError, Reply, dispatch};
+use omnis_sim::ops::{ShotTarget, client_path, rules_set};
+use omnis_sim::{Op, OpError, Reply};
 use serde_json::{Value, json};
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
@@ -379,47 +379,27 @@ fn handle(
     {
         match op {
             Op::SaveWrite { path } => {
-                if !world.0.may_save() {
-                    return Err(OpError::failed("the save rule forbids saving here"));
-                }
                 let path = client_path(path, &["ron"])?;
-                save(&world.0, Path::new(path)).map_err(OpError::failed)?;
+                write_text(Path::new(path), &world.save_text()?).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.into() })
             }
             Op::SaveRead { path, force } => {
                 let path = client_path(path, &["ron"])?;
-                world.0 = load(&data.0, Path::new(path), *force).map_err(OpError::failed)?;
+                world.replace(load(&data.0, Path::new(path), *force).map_err(OpError::failed)?);
                 replaced.write(WorldReplaced);
-                status(&world.0, &data.0).map(Reply::Status)
+                world.status(&data.0).map(Reply::Status)
             }
             Op::PackReload => {
                 let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
                 let fresh = load_packs(&roots).map_err(OpError::failed)?;
-                let p = world.0.position;
-                if fresh
-                    .maps
-                    .get(&p.map)
-                    .and_then(|m| m.cell(p.x, p.y))
-                    .is_none()
-                {
-                    return Err(OpError::failed(format!(
-                        "the party's tile {p} is not in the reloaded packs; nothing changed"
-                    )));
-                }
+                world.check_reload(&fresh)?;
                 data.0 = fresh;
                 replaced.write(WorldReplaced);
                 Ok(Reply::Done {})
             }
-            Op::RulesSet { slot, source } => {
-                bounded(source)?;
-                data.0
-                    .rules
-                    .set_slot(slot, source)
-                    .map_err(OpError::bad_request)?;
-                slot_view(&data.0, slot).map(|rule| Reply::Rule { rule })
-            }
+            Op::RulesSet { slot, source } => rules_set(&mut data.0, slot, source),
             other => {
-                let reply = dispatch(&mut world.0, &data.0, other)?;
+                let reply = world.dispatch(&data.0, other)?;
                 // Presentation follows the socket's commands the way it follows the keyboard.
                 if let Reply::Events { events: produced }
                 | Reply::Script {
@@ -547,7 +527,10 @@ mod tests {
         assert_eq!(parse_request(b"nope").unwrap_err().0, Value::Null);
 
         let line = encode(&json!(1), &Ok(Reply::Value { value: None }));
-        assert_eq!(line, "{\"id\":1,\"ok\":true,\"result\":{\"value\":null}}\n");
+        assert_eq!(
+            line, "{\"id\":1,\"ok\":true,\"result\":{\"reply\":\"value\",\"value\":null}}\n",
+            "a reply names itself (ARCHITECTURE.md §4.9)"
+        );
         let line = encode(&Value::Null, &Err(OpError::HostOnly));
         assert_eq!(
             line,

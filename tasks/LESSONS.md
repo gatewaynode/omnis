@@ -110,7 +110,7 @@
 
 ## 2026-09-27 — A restart must not leave a tree that cannot run
 - **What happened**: Continuity for a client restart was written with step 3b's data rule (every portal needs a marker) uncommitted in the tree, before any pack had markers. The app built but refused the test pack at start; two `bad_packs` tests failed. The owner launched it, saw a crash, and could not tell whether the tests had been run.
-- **Rule**: Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is stashed (`git stash push -m "<step> WIP: ..."`), and the continuity note says which, with the stash name.
+- **Rule** (revised 2026-10-10, see below): Before a restart, compact or hand-over, the working tree either passes the gate or the unfinished work is committed as a labelled WIP commit, and the continuity note says which, with the commit.
 - **Rule**: A validation rule that the shipped packs cannot yet meet lands in the same change as the data that meets it, never ahead of it.
 
 ## 2026-10-02 — A rule break counts only when a named test fails
@@ -122,3 +122,49 @@
 - **What happened**: After the owner accepted the Xcode license, the gate ran green without the `DEVELOPER_DIR` override and was reported as "green on Xcode's toolchain". Every artifact was already built, so nothing was linked. The first fresh build (a scratch worktree) failed to link: inside the sandbox `xcodebuild -find clang` cannot read Xcode's license plist, accepted or not. The claim had to be withdrawn.
 - **Rule**: A toolchain fix is verified with a fresh link (a new target directory, a scratch worktree, or a touched crate that links a binary), never with a cached gate.
 - **Rule**: When a sandbox blocks a file a tool reads, assume the tool behaves as if the file were missing, and test it from inside the sandbox before claiming it works there.
+
+## 2026-10-03 — A capability in a vision document needs the owner's ask behind it
+- **What happened**: ARCHITECTURE §8.1 said since its first draft (mine) that `InputPlugin` maps the gamepad to commands. No gamepad code was ever written and the PRD never names one; the M7a sync found it, and the owner: "I never mentioned any gamepad. This will definitely be a keyboard and mouse game first. Other control methods are stretch goals."
+- **Rule**: A platform, device or capability (gamepad, touch, controller, network play) goes into a vision document only when the owner asked for it; a sync pass checks every such word against the code and the PRD and asks about any that neither supports.
+
+## 2026-10-04 — An SRD rule the PRD set aside is not "missing"
+- **What happened**: Writing M7c step 5's policy I found the SRD's one-spell rule absent and added it as step 4b (`25ce447`), calling it missing. PRD D24 and the §8.3 casting-time row reject exactly that rule (the owner's departure: two spells a turn within the budget). Nobody was asked; three later steps built on it. Found in step 8's planning; the owner chose to revert it.
+- **Rule**: Before adding an SRD rule the code lacks, search the PRD's decisions (D-table "Rejected" column) and §8.3 for it. "SRD is the default direction" applies only where the owner has not departed; a departure the owner wrote is never undone without an ask.
+
+## 2026-10-04 — A rule that keeps a turn open is counted in play, not only asserted
+- **What happened**: M7c's turn-ending rule held a member's turn while any feature could still be spent. Tests
+  asserted it, and the acceptance script even called it "by design", but Second Wind (level 1, once a rest)
+  and Cunning Action (no limit) made every fighter and rogue press End nearly every round. The measurement
+  policy used every feature before the action, so it never saw the chore. The owner found it in the first
+  fight of acceptance c (B1).
+- **Rule**: When a rule decides whether the player must press something, count how often it fires in a
+  measured or scripted fight (End presses a turn, by class) before shipping, and put the number in the report.
+- **Rule**: A test helper or fixture that works around a rule (here `END` pressed "for Second Wind" in two
+  app tests and a replay) is a sign that players will hit the same thing; surface it to the owner.
+
+## 2026-10-07 — A killed mutation run leaves its break in the source
+- **What happened**: M8 step 8c's mutation runner ran under `timeout` piped into `tail`. The timeout killed
+  Python mid-run: its buffered output was lost and its `finally` never restored the last break, so the app's
+  save read was left unguarded in the working tree. Found by grepping for the break before going on.
+- **Rule**: Run `mutate.py` with `python3 -u`, output to a file, never under `timeout` or `| tail`; for a long
+  run use `run_in_background` and wait for its notification.
+- **Rule**: After any mutation run, grep the sources for each break's new text (or `git diff` against the
+  last known state) before testing, committing or editing further.
+
+## 2026-10-10 — A new wire name is checked against the whole vocabulary first
+- **What happened**: Renaming protocol 2's colliding fields, I gave `ItemCommand::Use`'s potion recipient the
+  name `on`, which `SetReactions.on` and `ReactionsSwitched.on` already carry as a bool. The vocabulary test
+  caught it after a 45-minute gate. I had also missed `CombatCommand::Use.target`, the same field in the fight.
+- **Rule**: Before proposing a wire field name, grep the wire types for it (`grep -rn "\bname:" crates/omnis-sim/src
+  crates/omnis-core/src`) and run the vocabulary test (`cargo test -p omnis-mcp --test integration vocabulary::`, seconds)
+  before the full gate. A rename covers every sibling with the same meaning (the command outside a fight and in
+  one, and the event it raises).
+
+## 2026-10-10 — Unfinished work is committed, not stashed, before a restart
+- **What happened**: Before the owner restarted the terminal (and pushed), I stashed P2d's ungated work, as the
+  2026-09 rule said. Owner: "Don't stash, we need to capture this work." A stash is local only: the push would
+  not carry it, and nothing outside this machine would hold it.
+- **Rule**: Unfinished work before a restart, compact or push is committed by name as its own commit whose
+  subject says `WIP` and whose body says it has not passed the full gate and what has passed. The next commit
+  completes it; nothing is squashed or amended once the owner may have pushed. Never stash work the owner has
+  not seen committed.

@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:monster:hush", name: "badc:text:monster.blob.name", size: Small, ac: 10, hit_points: (count: 1, sides: 6, modifier: 0), speed: 30, abilities: (10, 10, 10, 10, 10, 10), challenge: (1, 8), xp: 25, casting: Some((spell_attack: 2, save_dc: 10, caster_level: 1, points: 0, spells: [])))

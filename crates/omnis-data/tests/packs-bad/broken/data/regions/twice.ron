@@ -1,0 +1,11 @@
+// A rule that takes an input a region does not give.
+(
+    schema: 1,
+    id: "broken:region:twice",
+    name: "broken:text:map.glyph.name",
+    kind: Settlement,
+    company: 10,
+    stability: 10,
+    rule: "time.odd",
+    maps: ["broken:map:glyph"],
+)

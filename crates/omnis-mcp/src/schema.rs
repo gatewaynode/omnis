@@ -86,11 +86,27 @@ fn index() -> Value {
     json!({"type": "integer", "minimum": 0})
 }
 
-/// A spell's target: a stack or a member by index.
+/// A member's identity (`CharacterId`, a `u32`), as `party_get` lists it: commands name members
+/// by id, never by marching-order slot (protocol 2).
+fn member_id() -> Value {
+    json!({"type": "integer", "minimum": 0, "maximum": u32::MAX})
+}
+
+/// A member's identity, or null (the actor, or none).
+fn member_or_null() -> Value {
+    json!({"type": ["integer", "null"], "minimum": 0, "maximum": u32::MAX})
+}
+
+/// A list row, or null.
+fn index_or_null() -> Value {
+    json!({"type": ["integer", "null"], "minimum": 0})
+}
+
+/// A spell's target: a stack by index or a member by identity.
 fn target() -> Value {
     json!({"oneOf": [
         {"type": "object", "properties": {"Stack": index()}, "required": ["Stack"], "additionalProperties": false},
-        {"type": "object", "properties": {"Member": index()}, "required": ["Member"], "additionalProperties": false}
+        {"type": "object", "properties": {"Member": member_id()}, "required": ["Member"], "additionalProperties": false}
     ]})
 }
 
@@ -106,11 +122,11 @@ fn variant(name: &str, fields: &[(&str, Value)]) -> Value {
 
 /// The `Dev` command's variants: debugging edits, accepted only in a devtools world.
 fn dev_schema() -> Value {
-    let member = ("member", index());
+    let member = ("member", member_id());
     let abilities = json!({"type": "string", "enum": ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]});
     let facing = json!({"type": "string", "enum": ["North", "East", "South", "West"]});
     json!({"oneOf": [
-        variant("GiveItem", &[("member", json!({"type": ["integer", "null"], "minimum": 0})), ("item", String::schema()), ("count", index())]),
+        variant("GiveItem", &[("member", member_or_null()), ("item", String::schema()), ("count", index())]),
         variant("SetHp", &[member.clone(), ("hp", json!({"type": "integer"}))]),
         variant("SetSpellPoints", &[member.clone(), ("points", index())]),
         variant("SetGold", &[("gold", index())]),
@@ -121,36 +137,36 @@ fn dev_schema() -> Value {
         variant("SetFlag", &[("flag", String::schema()), ("value", json!({"type": "integer"}))]),
         variant("Teleport", &[("map", String::schema()), ("x", index()), ("y", index()), ("facing", facing)]),
         variant("SetMonsterHp", &[("stack", index()), ("index", index()), ("hp", json!({"type": "integer"}))]),
-        variant("KillStack", &[("stack", index())])
+        variant("KillStack", &[("stack", index())]),
+        variant("Reconcile", &[("region", String::schema())])
     ]})
 }
 
-/// A member's slot, or null for the actor.
-fn member_or_null() -> Value {
-    json!({"type": ["integer", "null"], "minimum": 0})
-}
-
-/// The `Item` command's variants: every `item` is a row of the kit or the stores it names.
+/// The `Item` command's variants: every `item` is an item kind's string id that the kit or the
+/// stores it names holds.
 fn item_schema() -> Value {
-    let member = ("member", index());
-    let item = ("item", index());
+    let member = ("member", member_id());
+    let item = ("item", String::schema());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
     let slot = json!({"type": "string", "enum": ["MainHand", "OffHand", "Ranged", "Body"]});
     json!({"oneOf": [
         variant("Equip", &[member.clone(), item.clone()]),
         variant("Unequip", &[member.clone(), ("slot", slot)]),
-        variant("Give", &[("from", index()), ("to", index()), item.clone(), count.clone()]),
+        variant("Give", &[("giver", member_id()), ("receiver", member_id()), item.clone(), count.clone()]),
         variant("Stow", &[member.clone(), item.clone(), count.clone()]),
         variant("Take", &[member.clone(), item.clone(), count]),
-        variant("Use", &[member, item, ("target", member_or_null())])
+        variant("Use", &[member, item, ("receiver", member_or_null())])
     ]})
 }
 
-/// The `Service` command's variants, inside a service only: `member` is a party slot, `Buy`'s
-/// `item` a row of the service's stock, `Sell`'s a row of the stores; amounts are copper.
+/// The `Service` command's variants, inside a service only: `member` is a member's id, `Buy`'s
+/// `item` a string id in the service's stock, `Sell`'s one in the stores; amounts are copper.
+/// `Choose`'s `spell` is a string id on the member's class list, `Learn`'s one among the
+/// service's spells.
 fn service_schema() -> Value {
-    let member = ("member", index());
-    let item = ("item", index());
+    let member = ("member", member_id());
+    let spell = ("spell", String::schema());
+    let item = ("item", String::schema());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
     let amount = ("amount", json!({"type": "integer", "minimum": 1}));
     json!({"oneOf": [
@@ -158,46 +174,89 @@ fn service_schema() -> Value {
         variant("BuyFood", std::slice::from_ref(&count)),
         variant("Heal", std::slice::from_ref(&member)),
         variant("Cure", std::slice::from_ref(&member)),
-        variant("Raise", &[member]),
+        variant("Raise", std::slice::from_ref(&member)),
         variant("Buy", &[item.clone(), count.clone()]),
         variant("Sell", &[item, count]),
         variant("Deposit", std::slice::from_ref(&amount)),
-        variant("Withdraw", &[amount])
+        variant("Withdraw", &[amount]),
+        variant("Train", std::slice::from_ref(&member)),
+        variant("Choose", &[member.clone(), spell.clone()]),
+        variant("Learn", &[member, spell])
+    ]})
+}
+
+/// A newtype variant `{name: value}`.
+fn newtype(name: &str, value: Value) -> Value {
+    json!({"type": "object", "properties": {name: value}, "required": [name], "additionalProperties": false})
+}
+
+/// The tactics commands (M7c): the reactions switch, any time; a declared reaction put in the
+/// default runbook (`entry` replaces that entry, `null` appends) or removed, outside a fight.
+/// Spells, items, monsters and conditions in an action or a predicate are string ids
+/// (`base:spell:shield`), as `party_get` shows them. `when` is
+/// `"Always"` or one object node, `{"All": [..]}`, `{"Any": [..]}` or `{"Is": predicate}`, the
+/// simulation checking the whole tree (depth 4, 16 nodes, percentages 0..=100, known ids).
+fn tactics_schema() -> Value {
+    let member = ("member", member_id());
+    let set = json!({"type": "object", "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 32},
+        "action": {"oneOf": [
+            {"type": "string", "enum": ["Attack"]},
+            newtype("Spell", String::schema()),
+            newtype("Item", String::schema()),
+            newtype("Feature", json!({"type": "string"}))
+        ]},
+        "trigger": {"type": "string", "enum": ["SpellCast", "Attacked", "MemberAttacked", "MemberWounded", "MemberDying", "EnemyFlees", "EnemyCasts", "OwnTurn"]},
+        "when": {"oneOf": [
+            {"type": "string", "enum": ["Always"]},
+            {"type": "object", "description": "One node: All or Any with a list of trees, or Is with a predicate: MonsterCount {monster, cmp, n}, MonsterShare {monster, cmp, percent} (monster a string id), Hp or SpellPoints {who: Me|Subject, cmp, percent}, HasCondition {who, condition} (condition a string id), Row {who, row: Front|Back}, Round {cmp, n}, or \"WouldChangeOutcome\"; cmp is Lt, Le, Eq, Ge or Gt"}
+        ]}
+    }, "required": ["name", "action", "trigger", "when"], "additionalProperties": false});
+    json!({"oneOf": [
+        variant("SetReactions", &[member.clone(), ("on", bool::schema())]),
+        variant("PutReaction", &[member.clone(), ("entry", index_or_null()), ("set", set)]),
+        variant("RemoveReaction", &[member, ("entry", index())])
     ]})
 }
 
 /// The `Rest` command's variants, outside a service only: `Long` is the night (food, once a
-/// day); `Short` is an hour, `dice[i]` the hit dice member `i` spends (missing members none).
+/// day); `Short` is an hour, `spend` the hit dice each named member spends (members not named
+/// spend none, a member named twice is refused), rolled in marching order.
 fn rest_schema() -> Value {
-    let dice = json!({"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 255}});
+    let entry = json!({"type": "object", "properties": {"member": member_id(), "count": {"type": "integer", "minimum": 0, "maximum": 255}}, "required": ["member", "count"], "additionalProperties": false});
+    let spend = json!({"type": "array", "items": entry});
     json!({"oneOf": [
         {"type": "string", "enum": ["Long"]},
-        variant("Short", &[("dice", dice)])
+        variant("Short", &[("spend", spend)])
     ]})
 }
 
 impl Schema for Command {
     fn schema() -> Value {
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or a reaction spell's auto-cast switch), an Encounter choice before a fight, a Combat action on the acting member's turn (attack, cast a known spell by index at a stack or member, use a kit row on a member, dodge, exchange, run), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; rows as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper), a Rest outside a service (Short spends hit dice per member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use the facing edge, such as a door), a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by its string id at a stack or a member by id with the action or the bonus action, use a carried item by its string id on a member, dodge, exchange with a member, run, a class feature by its name key with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; items by string id as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), or a Dev edit in a devtools world. A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
                 {"type": "string", "enum": ["Interact"]},
                 {"type": "object", "properties": {"Party": {"oneOf": [
                     {"type": "object", "properties": {"Create": Draft::schema()}, "required": ["Create"], "additionalProperties": false},
-                    {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": {"type": "integer", "minimum": 0}}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false},
-                    variant("AutoCast", &[("member", index()), ("spell", index()), ("on", bool::schema())])
+                    {"type": "object", "properties": {"Reorder": {"type": "object", "properties": {"order": {"type": "array", "items": member_id()}}, "required": ["order"], "additionalProperties": false}}, "required": ["Reorder"], "additionalProperties": false},
+                    newtype("Tactics", tactics_schema())
                 ]}}, "required": ["Party"], "additionalProperties": false},
                 {"type": "object", "properties": {"Encounter": {"type": "string", "enum": ["Attack", "Bribe", "Hide", "Run"]}}, "required": ["Encounter"], "additionalProperties": false},
                 {"type": "object", "properties": {"Combat": {"oneOf": [
                     {"type": "object", "properties": {"Attack": {"type": "object", "properties": {"stack": {"type": "integer", "minimum": 0}}, "required": ["stack"], "additionalProperties": false}}, "required": ["Attack"], "additionalProperties": false},
-                    variant("Cast", &[("spell", index()), ("target", target())]),
-                    variant("Use", &[("item", index()), ("target", member_or_null())]),
-                    {"type": "string", "enum": ["Dodge", "Run"]},
-                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": {"type": "integer", "minimum": 0}}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                    {"type": "object", "properties": {"Cast": {"type": "object", "properties": {"spell": String::schema(), "target": target(), "pay": {"type": "string", "enum": ["Action", "BonusAction"], "description": "Paid with the action (the default) or, for a spell that allows it, the bonus action"}}, "required": ["spell", "target"], "additionalProperties": false}}, "required": ["Cast"], "additionalProperties": false},
+                    variant("Use", &[("item", String::schema()), ("receiver", member_or_null())]),
+                    {"type": "string", "enum": ["Dodge", "Run", "EndTurn"]},
+                    {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false},
+                    {"type": "object", "properties": {"Feature": {"type": "object", "properties": {"feature": String::schema(), "choice": {"oneOf": [
+                        {"type": "string", "enum": ["None", "Hide"]},
+                        {"type": "object", "properties": {"Exchange": {"type": "object", "properties": {"with": member_id()}, "required": ["with"], "additionalProperties": false}}, "required": ["Exchange"], "additionalProperties": false}
+                    ]}}, "required": ["feature"], "additionalProperties": false}}, "required": ["Feature"], "additionalProperties": false}
                 ]}}, "required": ["Combat"], "additionalProperties": false},
-                variant("Cast", &[("caster", index()), ("spell", index()), ("target", target())]),
+                variant("Cast", &[("caster", member_id()), ("spell", String::schema()), ("target", target())]),
                 {"type": "object", "properties": {"Item": item_schema()}, "required": ["Item"], "additionalProperties": false},
                 {"type": "object", "properties": {"Service": service_schema()}, "required": ["Service"], "additionalProperties": false},
                 {"type": "object", "properties": {"Rest": rest_schema()}, "required": ["Rest"], "additionalProperties": false},
@@ -280,25 +339,25 @@ mod tests {
             11,
             "step, turn, interact, party, encounter, combat, cast, item, service, rest, dev"
         );
-        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 12);
+        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 13);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
-        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 9);
+        assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][5]["properties"]["Combat"]["oneOf"];
-        assert_eq!(combat.as_array().unwrap().len(), 5);
+        assert_eq!(combat.as_array().unwrap().len(), 6);
         assert_eq!(
             combat[1]["properties"]["Cast"]["required"],
             json!(["spell", "target"])
         );
         assert_eq!(
-            combat[2]["properties"]["Use"]["properties"]["target"]["type"],
+            combat[2]["properties"]["Use"]["properties"]["receiver"]["type"],
             json!(["integer", "null"])
         );
         let item = &schema["properties"]["commands"]["items"]["oneOf"][7]["properties"]["Item"];
         assert_eq!(
             item["oneOf"][2]["properties"]["Give"]["required"],
-            json!(["from", "to", "item", "count"])
+            json!(["giver", "receiver", "item", "count"])
         );
         assert_eq!(Draft::schema()["required"].as_array().unwrap().len(), 6);
         assert_eq!(

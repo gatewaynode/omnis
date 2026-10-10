@@ -3,20 +3,22 @@
 //! `combat_text.rs`. Keys and clicks arrive as they do for the menus; the intents become
 //! simulation or shell commands. Headless-capable.
 
-use crate::combat_menu::{CombatIntent, DefeatAction, EncounterIntent, fight_view};
+use crate::combat_menu::{CombatIntent, fight_view};
 use crate::combat_text::batch_lines;
 use crate::cursor::UiSet;
+use crate::encounter_menu::{DefeatAction, EncounterIntent};
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
 use crate::sim::{
-    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, SimWorld,
+    AppState, PackData, PlayState, PlayerCommand, ShellCommand, SimEvent, SimSet, Views,
     WorldReplaced,
 };
 use crate::ui::{EventNames, RollLog, Selected, UiClick, message_line};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use omnis_sim::tactics::TacticsCommand;
 use omnis_sim::{CombatOutcome, Command, Event, PartyCommand};
 
 /// The combat plugin.
@@ -44,7 +46,7 @@ fn follow_mode(
     mut events: MessageReader<SimEvent>,
     mut replaced: MessageReader<WorldReplaced>,
     state: Option<Res<State<PlayState>>>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
     let wiped = events.read().any(|e| {
@@ -57,15 +59,17 @@ fn follow_mode(
         )
     });
     let was_replaced = replaced.read().count() > 0;
-    let (Some(state), Some(world)) = (state, world) else {
+    let (Some(state), Some(views)) = (state, views) else {
         return;
     };
     let current = *state.get();
-    let wanted = PlayState::for_mode(&world.0.mode);
-    let follows = matches!(
+    let wanted = PlayState::for_kind(views.here.mode);
+    // The camp stands over the map; an ambush (a fight) takes the game out of it.
+    let follows = (matches!(
         current,
         PlayState::Explore | PlayState::Service | PlayState::Encounter | PlayState::Combat
-    ) && current != wanted;
+    ) && current != wanted)
+        || (current == PlayState::Camp && wanted != PlayState::Explore);
     let leaves_defeat = current == PlayState::Defeat && was_replaced;
     if wiped {
         next.set(PlayState::Defeat);
@@ -77,13 +81,13 @@ fn follow_mode(
 /// Names and the roll log follow the events; the combat menu's target follows the stacks.
 fn combat_model(
     mut events: MessageReader<SimEvent>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut names: ResMut<EventNames>,
     mut log: ResMut<RollLog>,
     mut screens: ResMut<Screens>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     let batch: Vec<Event> = events.read().map(|e| e.0.clone()).collect();
@@ -93,14 +97,14 @@ fn combat_model(
     {
         log.clear();
     }
-    names.0.refresh(&world.0, &data.0);
+    names.0.refresh(&views, &data.0);
     for text in batch.iter().filter_map(crate::ui::event_text) {
         log.push(text);
     }
     for line in batch_lines(&batch, &names.0) {
         log.push(line.long);
     }
-    if let Some(view) = fight_view(&world.0, &data.0) {
+    if let Some(view) = fight_view(&views, &data.0) {
         screens.combat.sync(&view);
     }
 }
@@ -113,7 +117,7 @@ fn combat_keys(
     mut commands: Commands,
     at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     selected: Res<Selected>,
     mut player: MessageWriter<PlayerCommand>,
@@ -127,10 +131,10 @@ fn combat_keys(
     if !matches!(active, Active::Encounter | Active::Combat | Active::Defeat) {
         return;
     }
-    let view = world
+    let view = views
         .as_ref()
         .zip(data.as_ref())
-        .and_then(|(w, d)| fight_view(&w.0, &d.0));
+        .and_then(|(v, d)| fight_view(v, &d.0));
     for hit in hits {
         let target = match active {
             Active::Encounter => Target::Encounter(&mut screens.encounter),
@@ -160,13 +164,12 @@ fn combat_keys(
                     Some(CombatIntent::Command(command)) => {
                         player.write(PlayerCommand(Command::Combat(command)));
                     }
-                    Some(CombatIntent::AutoCast { spell, on }) => {
-                        if let Some(own) = view.own {
-                            player.write(PlayerCommand(Command::Party(PartyCommand::AutoCast {
-                                member: u8::try_from(own).unwrap_or(u8::MAX),
-                                spell,
-                                on,
-                            })));
+                    Some(CombatIntent::Reactions { on }) => {
+                        if let Some(member) = view.own_id() {
+                            let switch = TacticsCommand::SetReactions { member, on };
+                            player.write(PlayerCommand(Command::Party(PartyCommand::Tactics(
+                                switch,
+                            ))));
                         }
                     }
                     Some(CombatIntent::Pause) => {
@@ -180,7 +183,7 @@ fn combat_keys(
                     shell.write(ShellCommand::Load);
                 }
                 Some(DefeatAction::QuitToTitle) => {
-                    commands.remove_resource::<SimWorld>();
+                    crate::sim::close_world(&mut commands);
                     next.set(AppState::MainMenu);
                 }
                 None => {}

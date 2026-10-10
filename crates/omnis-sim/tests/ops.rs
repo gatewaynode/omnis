@@ -1,13 +1,12 @@
 //! The client protocol answers every simulation op on real pack data and refuses what it must.
 
-mod common;
+use crate::common;
 
-use common::{data, world};
+use common::{data, script_for_six, word, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::ron_io::{parse, to_string};
-use omnis_sim::command::parse_script;
 use omnis_sim::ops::{MAX_SCRIPT, ShotTarget};
-use omnis_sim::{Command, Event, Op, OpError, Reply, dispatch};
+use omnis_sim::{Command, Event, Op, OpError, Place, Reply, dispatch, parse_script};
 
 fn events(reply: Reply) -> Vec<Event> {
     match reply {
@@ -23,12 +22,12 @@ fn status_reports_the_new_game() {
     let Reply::Status(status) = dispatch(&mut world, &data, &Op::GameStatus).unwrap() else {
         panic!("not a status")
     };
-    assert_eq!(status.map, "test:map:meadow");
+    assert_eq!(status.position.map, "test:map:meadow");
     assert_eq!(
         (status.turn, status.clock.day, status.clock.minute),
         (0, 0, 0)
     );
-    assert_eq!(status.position, world.position);
+    assert_eq!(status.position, Place::of(world.position, &data));
     assert_eq!(status.packs, data.fingerprints);
     assert_eq!(
         status.fingerprint,
@@ -97,8 +96,10 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
     let mut world = world(&data);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     let mut layout = data.maps[&dungeon].def.layout.clone();
-    // The way up at (0, 0) is a portal: row 1, column 1 of the layout.
+    // The way up at (0, 0) and the way down at (23, 23) are portals: rows and columns 1 and 47
+    // of the layout.
     layout[1].replace_range(1..2, "*");
+    layout[47].replace_range(47..48, "*");
     assert_eq!(
         text(&mut world, &data, Some("test:map:dungeon")),
         layout.join("\n") + "\n",
@@ -296,7 +297,7 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         }
     }
 
-    let script = parse_script("forward, turn-left  # to the west\n\nuse back\n").unwrap();
+    let script = script_for_six("forward, turn-left  # to the west\n\nuse back\n");
     assert_eq!(
         script,
         [
@@ -309,11 +310,111 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
     let error = parse_script("forward\nfly").unwrap_err();
     assert_eq!((error.line, error.word.as_str()), (2, "fly"));
     for command in script {
-        assert_eq!(Command::from_word(command.word()), Some(command));
+        assert_eq!(word(command.word()), Some(command));
     }
+    assert_eq!(word("party"), None, "party commands carry data");
+}
+
+/// `time.clocks` names every clock and contact; `time.reconcile` is a dev command that a plain
+/// world refuses and a dev world answers with `Reconciled`; `game.status` carries the date
+/// (M8).
+#[test]
+fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
+    let data = data();
+    let mut world = omnis_sim::World::new(&data, 3, omnis_sim::Settings::default()).unwrap();
+    let reconcile = Op::TimeReconcile {
+        region: "test:region:town".into(),
+    };
     assert_eq!(
-        Command::from_word("party"),
-        None,
-        "party commands carry data"
+        dispatch(&mut world, &data, &reconcile).unwrap_err(),
+        OpError::Rejected {
+            rejection: omnis_sim::Rejection::DevOnly
+        }
     );
+    world.settings.devtools = true;
+    world.clocks.get_mut(&omnis_sim::PARTY).unwrap().elapsed = 3000;
+    world.party_time.shared_milli = 3000 * 900;
+    let got = events(dispatch(&mut world, &data, &reconcile).unwrap());
+    assert!(
+        got.iter()
+            .filter(|e| matches!(e, Event::Reconciled { .. }))
+            .count()
+            == 2,
+        "the town and the crossroads by road: {got:?}"
+    );
+    let unknown = Op::TimeReconcile {
+        region: "test:region:none".into(),
+    };
+    assert!(dispatch(&mut world, &data, &unknown).is_err());
+    let Reply::Time { time } = dispatch(&mut world, &data, &Op::TimeClocks).unwrap() else {
+        panic!("a time view")
+    };
+    assert_eq!((time.age, time.shared), (3000, 2700));
+    let holders: Vec<&str> = time.clocks.iter().map(|c| c.holder.as_str()).collect();
+    assert_eq!(
+        holders,
+        ["party:0", "test:region:crossroads", "test:region:town"]
+    );
+    assert_eq!(time.date.minutes, time.clocks[2].elapsed, "the town's date");
+    assert_eq!(time.contacts.len(), 4, "both sides of two meetings");
+    let Reply::Status(status) = dispatch(&mut world, &data, &Op::GameStatus).unwrap() else {
+        panic!("a status")
+    };
+    assert_eq!(status.date, time.date);
+    assert_eq!(status.clock.elapsed, 3000, "the clock is the party's age");
+}
+
+/// The host ops' rules, shared by the dev socket and the headless driver (ARCHITECTURE.md §4.9):
+/// the save rule decides `save.write`, a save reads back as the world it was, a reload must keep
+/// the party's tile, and `rules.set` bounds and checks its source.
+#[test]
+fn the_host_ops_rules_hold_for_every_host() {
+    use omnis_sim::ops::{check_reload, load_text, rules_set, save_text};
+    use omnis_sim::{SaveRule, Settings, World};
+    let data = data();
+    let world = world(&data);
+    let text = save_text(&world).unwrap();
+    assert_eq!(load_text(&text, &data, false).unwrap(), world);
+    let strict = Settings {
+        save_rule: SaveRule::InnOnly,
+        ..Settings::default()
+    };
+    let outside = World::new(&data, 1, strict).unwrap();
+    assert!(
+        matches!(save_text(&outside), Err(OpError::Failed { .. })),
+        "only at an inn"
+    );
+
+    assert_eq!(check_reload(&world, &data), Ok(()));
+    let mut gone = data.clone();
+    gone.maps.remove(&world.position.map);
+    assert!(
+        matches!(check_reload(&world, &gone), Err(OpError::Failed { .. })),
+        "the party's map is gone"
+    );
+
+    let mut rules = data.clone();
+    let long = "1 + ".repeat(2000) + "1";
+    assert_eq!(
+        rules_set(&mut rules, "spell_points.pool", &long),
+        Err(OpError::TooLong {
+            limit: omnis_data::limits::MAX_STRING_BYTES
+        })
+    );
+    assert!(matches!(
+        rules_set(&mut rules, "spell_points.pool", "level +"),
+        Err(OpError::BadRequest { .. })
+    ));
+    assert_eq!(
+        rules_set(&mut rules, "no.such.slot", "1"),
+        Err(OpError::UnknownSlot {
+            slot: "no.such.slot".to_owned()
+        }),
+        "as rules.get answers it (B5)"
+    );
+    assert_eq!(rules, data, "a refused swap changes nothing");
+    let Ok(Reply::Rule { rule }) = rules_set(&mut rules, "spell_points.pool", "level * 10") else {
+        panic!("a good formula swaps");
+    };
+    assert_eq!(rule.source, "level * 10");
 }

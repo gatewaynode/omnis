@@ -4,6 +4,7 @@ resolver = "3"
 # same change). A glob would also pick up tool directories such as crates/.sentrux.
 members = [
     "crates/omnis-core",
+    "crates/omnis-bus",
     "crates/omnis-expr",
     "crates/omnis-data",
     "crates/omnis-rules",
@@ -26,6 +27,7 @@ publish = false
 # checksums in Cargo.lock. Owner exceptions are logged in ARCHITECTURE.md §13.
 [workspace.dependencies]
 omnis-core = { path = "crates/omnis-core" }
+omnis-bus = { path = "crates/omnis-bus" }
 omnis-expr = { path = "crates/omnis-expr" }
 omnis-data = { path = "crates/omnis-data" }
 omnis-rules = { path = "crates/omnis-rules" }

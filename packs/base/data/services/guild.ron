@@ -1,11 +1,12 @@
-// The guild sells first-level spells; cantrips come with the class.
+// The guild sells the wizard's spells (PRD §8.2: guilds and temples sell spells); cantrips come
+// with the class. A spell off the buyer's class list is refused.
 (
     schema: 1,
     id: "base:service:guild",
     name: "base:text:service.guild.name",
     kind: Guild,
     spells: [
-        "base:spell:bless", "base:spell:burning_hands", "base:spell:cure_wounds",
-        "base:spell:healing_word", "base:spell:magic_missile", "base:spell:shield",
+        "base:spell:burning_hands", "base:spell:magic_missile", "base:spell:shield",
+        "base:spell:thunderwave", "base:spell:shatter", "base:spell:acid_arrow",
     ],
 )

@@ -10,14 +10,18 @@ use crate::combat::state::is_dead;
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::items::{add_to, count_of, take_from};
+use crate::names::id_of;
 use crate::party;
 use crate::rest;
+use crate::service_level;
 use crate::world::{Mode, World};
+use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{ItemId, ServiceId};
+use omnis_core::{CharacterId, ItemId, ServiceId, SpellId};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Data, ServiceDef, ServiceKind};
-use omnis_rules::RuleError;
+use omnis_rules::{Character, Gains, RuleError};
 use serde::{Deserialize, Serialize};
 
 /// Party-clock minutes a transaction takes when the rules do not say.
@@ -32,10 +36,11 @@ pub struct ServiceState {
     pub kind: ServiceKind,
 }
 
-/// What the party asks of the service it is in. A `member` is a party slot; `Buy`'s `item` is
-/// a row of the service's stock as its pack lists it, `Sell`'s a row of the party's stores.
-/// Amounts are copper.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// What the party asks of the service it is in. A `member` is a `CharacterId`; an `item` or a
+/// `spell` is a string id (`base:item:dagger`), which must be on the list the command names:
+/// the service's stock for `Buy`, the party's stores for `Sell`, the member's class list for
+/// `Choose`, the service's spells for `Learn`. Amounts are copper.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ServiceCommand {
     /// Go back out onto the tile; any service.
     Leave,
@@ -50,30 +55,30 @@ pub enum ServiceCommand {
     },
     /// A living member back to full hit points; a temple.
     Heal {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
     },
     /// Every condition but death and unconsciousness removed; a temple.
     Cure {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
     },
     /// A dead member back at one hit point; a temple.
     Raise {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
     },
     /// Items from the stock into the party's stores; a smith.
     Buy {
-        /// The row of the service's stock.
-        item: u8,
+        /// The item's id; the service must stock it.
+        item: String,
         /// How many.
         count: u16,
     },
     /// Items from the party's stores, at the sell price; a smith.
     Sell {
-        /// The row of the stores.
-        item: u8,
+        /// The item's id; the stores must hold it.
+        item: String,
         /// How many.
         count: u16,
     },
@@ -87,22 +92,53 @@ pub enum ServiceCommand {
         /// Copper.
         amount: u32,
     },
+    /// The member's next level, for a fee; a trainer.
+    Train {
+        /// The member.
+        member: CharacterId,
+    },
+    /// A spell owed by a level onto the member's list, free; a trainer.
+    Choose {
+        /// The member.
+        member: CharacterId,
+        /// The spell's id; the member's class list must hold it.
+        spell: String,
+    },
+    /// A spell bought onto the member's list; a guild or a temple.
+    Learn {
+        /// The member.
+        member: CharacterId,
+        /// The spell's id; the service must teach it.
+        spell: String,
+    },
 }
 
 impl ServiceCommand {
-    /// The kind of service that does this; `None` for leaving, which any does.
+    /// Whether a service of `kind` does this; leaving, any does.
     #[must_use]
-    pub const fn kind(self) -> Option<ServiceKind> {
-        Some(match self {
-            ServiceCommand::Leave => return None,
-            ServiceCommand::Room => ServiceKind::Inn,
-            ServiceCommand::Rumor | ServiceCommand::BuyFood { .. } => ServiceKind::Tavern,
+    pub const fn offered_in(&self, kind: ServiceKind) -> bool {
+        match self {
+            ServiceCommand::Leave => true,
+            ServiceCommand::Room => matches!(kind, ServiceKind::Inn),
+            ServiceCommand::Rumor | ServiceCommand::BuyFood { .. } => {
+                matches!(kind, ServiceKind::Tavern)
+            }
             ServiceCommand::Heal { .. }
             | ServiceCommand::Cure { .. }
-            | ServiceCommand::Raise { .. } => ServiceKind::Temple,
-            ServiceCommand::Buy { .. } | ServiceCommand::Sell { .. } => ServiceKind::Smith,
-            ServiceCommand::Deposit { .. } | ServiceCommand::Withdraw { .. } => ServiceKind::Bank,
-        })
+            | ServiceCommand::Raise { .. } => matches!(kind, ServiceKind::Temple),
+            ServiceCommand::Buy { .. } | ServiceCommand::Sell { .. } => {
+                matches!(kind, ServiceKind::Smith)
+            }
+            ServiceCommand::Deposit { .. } | ServiceCommand::Withdraw { .. } => {
+                matches!(kind, ServiceKind::Bank)
+            }
+            ServiceCommand::Train { .. } | ServiceCommand::Choose { .. } => {
+                matches!(kind, ServiceKind::Trainer)
+            }
+            ServiceCommand::Learn { .. } => {
+                matches!(kind, ServiceKind::Guild | ServiceKind::Temple)
+            }
+        }
     }
 }
 
@@ -114,6 +150,7 @@ pub(crate) enum Deal {
     },
     Rumor {
         index: u16,
+        ago: i64,
     },
     Food {
         count: u16,
@@ -148,6 +185,20 @@ pub(crate) enum Deal {
     Withdraw {
         amount: u32,
     },
+    Train {
+        index: usize,
+        cost: u32,
+        /// The member as the level leaves them, worked out on a copy.
+        after: Box<Character>,
+        gains: Gains,
+    },
+    Spell {
+        index: usize,
+        spell: SpellId,
+        cost: u32,
+        /// A pick owed by a level (a trainer's, free) rather than a purchase.
+        pick: bool,
+    },
 }
 
 impl Deal {
@@ -159,7 +210,9 @@ impl Deal {
             | Deal::Heal { cost, .. }
             | Deal::Cure { cost, .. }
             | Deal::Raise { cost, .. }
-            | Deal::Buy { cost, .. } => cost,
+            | Deal::Buy { cost, .. }
+            | Deal::Train { cost, .. }
+            | Deal::Spell { cost, .. } => cost,
             Deal::Deposit { amount } => amount,
             Deal::Rumor { .. } | Deal::Sell { .. } | Deal::Withdraw { .. } => 0,
         }
@@ -187,7 +240,9 @@ pub(crate) fn enter_here(world: &mut World, data: &Data, events: &mut Vec<Event>
         service,
         kind: def.kind,
     });
-    events.push(Event::ServiceEntered { service });
+    events.push(Event::ServiceEntered {
+        service: id_of(&data.registry.services, service),
+    });
     true
 }
 
@@ -196,20 +251,20 @@ pub(crate) fn apply(
     world: &mut World,
     data: &Data,
     state: ServiceState,
-    command: ServiceCommand,
+    command: &ServiceCommand,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let Some(kind) = command.kind() else {
+    if *command == ServiceCommand::Leave {
         world.mode = Mode::Explore;
         events.push(Event::ServiceLeft {
-            service: state.service,
+            service: id_of(&data.registry.services, state.service),
         });
         return Ok(());
-    };
+    }
     let def = data
         .services
         .get(&state.service)
-        .filter(|_| kind == state.kind)
+        .filter(|_| command.offered_in(state.kind))
         .ok_or(Rejection::NotOffered)?;
     let mut roller = Roller::take_stream(world, "town");
     let deal = quote(world, data, def, command, &mut roller)?;
@@ -225,19 +280,27 @@ pub(crate) fn quote(
     world: &World,
     data: &Data,
     def: &ServiceDef,
-    command: ServiceCommand,
+    command: &ServiceCommand,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let deal = match command {
+    let deal = match *command {
         ServiceCommand::Leave => return Err(Rejection::NotOffered),
         ServiceCommand::Room => room(world, data, roller)?,
         ServiceCommand::Rumor => {
-            let rows = u32::try_from(def.rumors.len()).unwrap_or(u32::MAX);
+            // Only what has happened by the region's clock is told (M8).
+            let now = crate::time::region_clock(world, data);
+            let told: Vec<u16> = (0..def.rumors.len())
+                .filter(|i| def.rumors[*i].at <= now)
+                .filter_map(|i| u16::try_from(i).ok())
+                .collect();
+            let rows = u32::try_from(told.len()).unwrap_or(u32::MAX);
             if rows == 0 {
                 return Err(Rejection::NotOffered);
             }
-            let index = u16::try_from(roller.rng.below(rows)).unwrap_or(u16::MAX);
-            Deal::Rumor { index }
+            let pick = usize::try_from(roller.rng.below(rows)).unwrap_or(0);
+            let index = told[pick];
+            let ago = now - def.rumors[usize::from(index)].at;
+            Deal::Rumor { index, ago }
         }
         ServiceCommand::BuyFood { count } => {
             nonzero(u32::from(count))?;
@@ -256,16 +319,28 @@ pub(crate) fn quote(
             let index = living_or_dead(world, member)?;
             let who = &world.party.members[index];
             if !is_dead(who, data) {
-                return Err(Rejection::NotDead { index: member });
+                return Err(Rejection::NotDead { member });
             }
             let level = [("level", who.level.into())];
             let cost = price(data, "temple.raise_cost", &level, roller)?;
             Deal::Raise { index, cost }
         }
-        ServiceCommand::Buy { item, count } => buy(world, data, def, item, count, roller)?,
-        ServiceCommand::Sell { item, count } => sell(world, data, item, count, roller)?,
+        ServiceCommand::Buy { ref item, count } => buy(world, data, def, item, count, roller)?,
+        ServiceCommand::Sell { ref item, count } => sell(world, data, item, count, roller)?,
         ServiceCommand::Deposit { amount } | ServiceCommand::Withdraw { amount } => {
             bank(world, command, amount)?
+        }
+        ServiceCommand::Train { member } => {
+            let index = alive(world, data, member)?;
+            service_level::train(world, data, index, roller)?
+        }
+        ServiceCommand::Choose { member, ref spell } => {
+            let index = alive(world, data, member)?;
+            service_level::choose(world, data, index, spell)?
+        }
+        ServiceCommand::Learn { member, ref spell } => {
+            let index = alive(world, data, member)?;
+            service_level::learn(world, data, def, index, spell, roller)?
         }
     };
     Ok(deal)
@@ -285,7 +360,7 @@ pub(crate) fn afford(world: &World, deal: &Deal) -> Result<(), Rejection> {
 
 /// Copper into or out of the bank: the purse pays a deposit (checked with every other price),
 /// the balance a withdrawal, and neither side may overflow.
-fn bank(world: &World, command: ServiceCommand, amount: u32) -> Result<Deal, Rejection> {
+fn bank(world: &World, command: &ServiceCommand, amount: u32) -> Result<Deal, Rejection> {
     nonzero(amount)?;
     let party = &world.party;
     if let ServiceCommand::Deposit { .. } = command {
@@ -322,19 +397,16 @@ fn room(world: &World, data: &Data, roller: &mut Roller) -> Result<Deal, Rejecti
 fn temple(
     world: &World,
     data: &Data,
-    command: ServiceCommand,
-    member: u8,
+    command: &ServiceCommand,
+    member: CharacterId,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let index = living_or_dead(world, member)?;
+    let index = alive(world, data, member)?;
     let who = &world.party.members[index];
-    if is_dead(who, data) {
-        return Err(Rejection::MemberDead { index: member });
-    }
     if let ServiceCommand::Heal { .. } = command {
         let missing = who.hp_max - who.hp;
         if missing <= 0 {
-            return Err(Rejection::NothingToTreat { index: member });
+            return Err(Rejection::NothingToTreat { member });
         }
         let cost = price(
             data,
@@ -349,7 +421,7 @@ fn temple(
         });
     }
     if curable(who, data).next().is_none() {
-        return Err(Rejection::NothingToTreat { index: member });
+        return Err(Rejection::NothingToTreat { member });
     }
     let cost = price(data, "temple.cure_cost", &[], roller)?;
     Ok(Deal::Cure { index, cost })
@@ -375,13 +447,14 @@ fn buy(
     world: &World,
     data: &Data,
     def: &ServiceDef,
-    row: u8,
+    item: &str,
     count: u16,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
     let item = def
         .items
-        .get(usize::from(row))
+        .iter()
+        .find(|name| *name == item)
         .and_then(|name| data.registry.items.get(name))
         .ok_or(Rejection::NotOffered)?;
     nonzero(u32::from(count))?;
@@ -404,18 +477,25 @@ fn buy(
 fn sell(
     world: &World,
     data: &Data,
-    row: u8,
+    name: &str,
     count: u16,
     roller: &mut Roller,
 ) -> Result<Deal, Rejection> {
-    let (item, have) = *world
-        .party
-        .inventory
-        .get(usize::from(row))
-        .ok_or(Rejection::NotInStores { item: row })?;
+    let have = |item| count_of(&world.party.inventory, item);
+    let item = data
+        .registry
+        .items
+        .get(name)
+        .filter(|item| have(*item) > 0)
+        .ok_or_else(|| Rejection::NotInStores {
+            item: String::from(name),
+        })?;
     nonzero(u32::from(count))?;
-    if have < count {
-        return Err(Rejection::NotEnough { item, have });
+    if have(item) < count {
+        return Err(Rejection::NotEnough {
+            item: String::from(name),
+            have: have(item),
+        });
     }
     let each = price(
         data,
@@ -441,12 +521,16 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
         Deal::Room { cost, minutes } => {
             party.gold -= cost;
             events.push(Event::RoomTaken { cost });
-            advance(world, minutes, events);
+            advance(world, data, minutes, events);
             rest::long_rest_restore(world, data, events);
             world.party.last_long_rest = Some(world.party_clock().elapsed);
             return;
         }
-        Deal::Rumor { index } => events.push(Event::Rumor { service, index }),
+        Deal::Rumor { index, ago } => events.push(Event::Rumor {
+            service: id_of(&data.registry.services, service),
+            rumor: index,
+            ago,
+        }),
         Deal::Food { count, cost } => {
             party.gold -= cost;
             party.food += u32::from(count);
@@ -471,7 +555,7 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
             });
             let cured: Vec<_> = curable(member, data).collect();
             for condition in cured {
-                party::set_condition_id(member, condition, false, events);
+                party::set_condition_id(member, data, condition, false, events);
             }
         }
         Deal::Raise { index, cost } => {
@@ -488,13 +572,21 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
         Deal::Buy { item, count, cost } => {
             party.gold -= cost;
             add_to(&mut party.inventory, item, count);
-            events.push(Event::Bought { item, count, cost });
+            events.push(Event::Bought {
+                item: id_of(&data.registry.items, item),
+                count,
+                cost,
+            });
         }
         Deal::Sell { item, count, price } => {
             // Validated: the stores hold `count`.
             let _ = take_from(&mut party.inventory, item, count);
             party.gold += price;
-            events.push(Event::Sold { item, count, price });
+            events.push(Event::Sold {
+                item: id_of(&data.registry.items, item),
+                count,
+                price,
+            });
         }
         Deal::Deposit { amount } => {
             party.gold -= amount;
@@ -512,13 +604,49 @@ fn settle(world: &mut World, data: &Data, service: ServiceId, deal: Deal, events
                 deposit: false,
             });
         }
+        Deal::Train {
+            index,
+            cost,
+            after,
+            gains,
+        } => {
+            party.gold -= cost;
+            party.members[index] = *after;
+            let member = &party.members[index];
+            events.push(Event::LevelUp {
+                member: member.id,
+                level: member.level,
+                cost,
+                gains,
+            });
+        }
+        Deal::Spell {
+            index,
+            spell,
+            cost,
+            pick,
+        } => {
+            party.gold -= cost;
+            let member = &mut party.members[index];
+            member.known_spells.push(spell);
+            events.push(Event::SpellLearned {
+                member: member.id,
+                spell: id_of(&data.registry.spells, spell),
+                cost,
+            });
+            if pick {
+                // Validated: at least one pick is left. A pick takes no time.
+                member.spell_picks -= 1;
+                return;
+            }
+        }
     }
     let minutes = rest::rule_minutes(data, "service_minutes", DEFAULT_SERVICE_MINUTES);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
 }
 
 /// A price from its rule slot, in copper.
-fn price(
+pub(crate) fn price(
     data: &Data,
     slot: &str,
     inputs: &[(&str, i64)],
@@ -545,14 +673,18 @@ fn list_price(data: &Data, item: ItemId) -> i64 {
     data.items.get(&item).map_or(0, |i| i64::from(i.cost_cp))
 }
 
-/// A member's index by slot, alive or dead.
-fn living_or_dead(world: &World, member: u8) -> Result<usize, Rejection> {
-    let index = usize::from(member);
-    if index < world.party.members.len() {
-        Ok(index)
-    } else {
-        Err(Rejection::NoSuchMember { index: member })
+/// A member's slot, refused when they are dead.
+pub(crate) fn alive(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
+    let index = living_or_dead(world, member)?;
+    if is_dead(&world.party.members[index], data) {
+        return Err(Rejection::MemberDead { member });
     }
+    Ok(index)
+}
+
+/// A member's slot, alive or dead.
+fn living_or_dead(world: &World, member: CharacterId) -> Result<usize, Rejection> {
+    world.party.slot_of(member).map(usize::from)
 }
 
 /// A count or amount of zero moves nothing.

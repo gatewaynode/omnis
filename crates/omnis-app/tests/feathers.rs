@@ -1,6 +1,6 @@
 //! Feathers headless: Bevy's widgets build, lay out and
 //! answer with no window and no GPU, beside the whole canvas app.
-mod common;
+use crate::common;
 
 use bevy::feathers::controls::{FeathersButton, FeathersTextInput, FeathersTextInputContainer};
 use bevy::feathers::theme::ThemedText;

@@ -2,14 +2,14 @@
 //! a step out leaves, a turn stays, `Leave` leaves in place, and an inn is where inn-only rules
 //! allow a save.
 
-mod common;
+use crate::common;
 
-use common::{data, interact, party_of, step, turn};
-use omnis_core::{Direction, Facing, Position, Rotation, ServiceId};
+use common::{data, interact, party_of, step, turn, word as parse_word};
+use omnis_core::{CharacterId, Direction, Facing, Position, Rotation, ServiceId};
 use omnis_data::{Data, ServiceKind};
 use omnis_sim::{
     BlockReason, Command, Event, LoadError, Mode, ModeKind, SaveRule, ServiceCommand, ServiceState,
-    Settings, World, apply, query,
+    Settings, Word, World, apply, query,
 };
 
 fn service(data: &Data, name: &str) -> ServiceId {
@@ -75,7 +75,9 @@ fn a_step_onto_a_site_goes_inside_with_no_encounter_roll() {
     world.mode = Mode::Explore;
     turn(&mut world, &data, Rotation::Around);
     let inside = step(&mut world, &data);
-    assert!(inside.contains(&Event::ServiceEntered { service: inn }));
+    assert!(inside.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert!(
         !inside
             .iter()
@@ -91,7 +93,9 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     let mut world = new_game(&data, SaveRule::Anywhere);
     let inn = service(&data, "base:service:inn");
     let events = walk_into_the_inn(&mut world, &data);
-    assert!(events.contains(&Event::ServiceEntered { service: inn }));
+    assert!(events.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(
         world.mode,
         Mode::Town(ServiceState {
@@ -121,7 +125,11 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     let out = apply(&mut world, &data, Command::Step(Direction::Right)).unwrap();
     let left = out
         .iter()
-        .position(|e| *e == Event::ServiceLeft { service: inn })
+        .position(|e| {
+            *e == Event::ServiceLeft {
+                service: "base:service:inn".to_owned(),
+            }
+        })
         .expect("left");
     let moved = out
         .iter()
@@ -135,12 +143,16 @@ fn walking_in_stepping_out_turning_and_leaving_in_place() {
     apply(&mut world, &data, Command::Step(Direction::Left)).unwrap();
     assert_eq!(world.mode.kind(), ModeKind::Town);
     let left = apply(&mut world, &data, Command::Service(ServiceCommand::Leave)).unwrap();
-    assert!(left.contains(&Event::ServiceLeft { service: inn }));
+    assert!(left.contains(&Event::ServiceLeft {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.position, town(&data, 1, 1, Facing::North));
     let before = world.party_clock().elapsed;
     let back = interact(&mut world, &data);
-    assert!(back.contains(&Event::ServiceEntered { service: inn }));
+    assert!(back.contains(&Event::ServiceEntered {
+        service: "base:service:inn".to_owned()
+    }));
     assert_eq!(world.mode.kind(), ModeKind::Town);
     assert_eq!(
         world.party_clock().elapsed,
@@ -166,10 +178,13 @@ fn a_service_command_outside_or_in_the_wrong_service_is_refused() {
     assert_eq!(wrong, Err(omnis_sim::Rejection::NotOffered));
     assert_eq!(world, before, "a refusal changes nothing");
     // The party's own commands work inside.
+    let ids = world.party.ids();
     apply(
         &mut world,
         &data,
-        Command::Party(omnis_sim::PartyCommand::Reorder { order: vec![1, 0] }),
+        Command::Party(omnis_sim::PartyCommand::Reorder {
+            order: vec![ids[1], ids[0]],
+        }),
     )
     .expect("a reorder inside a service");
 }
@@ -276,21 +291,31 @@ fn the_service_words_parse_and_print() {
         ("room", ServiceCommand::Room),
         ("rumor", ServiceCommand::Rumor),
     ] {
-        assert_eq!(Command::from_word(word), Some(Command::Service(command)));
+        assert_eq!(parse_word(word), Some(Command::Service(command.clone())));
         assert_eq!(Command::Service(command).word(), word);
     }
     let numbered = [
         ("food-3", "food", ServiceCommand::BuyFood { count: 3 }),
-        ("heal-1", "heal", ServiceCommand::Heal { member: 1 }),
-        ("cure-0", "cure", ServiceCommand::Cure { member: 0 }),
-        ("raise-5", "raise", ServiceCommand::Raise { member: 5 }),
-        ("buy-2", "buy", ServiceCommand::Buy { item: 2, count: 1 }),
-        ("buy-2-4", "buy", ServiceCommand::Buy { item: 2, count: 4 }),
-        ("sell-0", "sell", ServiceCommand::Sell { item: 0, count: 1 }),
         (
-            "sell-1-2",
-            "sell",
-            ServiceCommand::Sell { item: 1, count: 2 },
+            "heal-1",
+            "heal",
+            ServiceCommand::Heal {
+                member: CharacterId(1),
+            },
+        ),
+        (
+            "cure-0",
+            "cure",
+            ServiceCommand::Cure {
+                member: CharacterId(0),
+            },
+        ),
+        (
+            "raise-5",
+            "raise",
+            ServiceCommand::Raise {
+                member: CharacterId(5),
+            },
         ),
         (
             "deposit-250",
@@ -305,8 +330,8 @@ fn the_service_words_parse_and_print() {
     ];
     for (word, verb, command) in numbered {
         assert_eq!(
-            Command::from_word(word),
-            Some(Command::Service(command)),
+            parse_word(word),
+            Some(Command::Service(command.clone())),
             "{word}"
         );
         assert_eq!(
@@ -327,6 +352,52 @@ fn the_service_words_parse_and_print() {
         "sell-300",
         "bribe-1",
     ] {
-        assert_eq!(Command::from_word(bad), None, "{bad}");
+        assert_eq!(parse_word(bad), None, "{bad}");
     }
+    // `buy-R` counts row R of the stock, `sell-R` row R of the stores, as the shop lists them;
+    // the command names the item by its id, and outside a shop a stock row means nothing.
+    assert_eq!(parse_word("buy-2"), None, "no shop outside");
+    let data = data();
+    let mut world = common::inside(&data, "smith");
+    let gem = data.registry.items.get("base:item:gem").unwrap();
+    let dagger = data.registry.items.get("base:item:dagger").unwrap();
+    world.party.inventory = vec![(gem, 3), (dagger, 1)];
+    let resolve = |text: &str| Word::parse(text).and_then(|w| w.command(&world, &data));
+    let item = |id: &str| id.to_owned();
+    for (word, command) in [
+        (
+            "buy-2",
+            ServiceCommand::Buy {
+                item: item("base:item:mace"),
+                count: 1,
+            },
+        ),
+        (
+            "buy-2-4",
+            ServiceCommand::Buy {
+                item: item("base:item:mace"),
+                count: 4,
+            },
+        ),
+        (
+            "sell-0",
+            ServiceCommand::Sell {
+                item: item("base:item:gem"),
+                count: 1,
+            },
+        ),
+        (
+            "sell-1-2",
+            ServiceCommand::Sell {
+                item: item("base:item:dagger"),
+                count: 2,
+            },
+        ),
+    ] {
+        let verb = word.split('-').next().unwrap();
+        assert_eq!(Command::Service(command.clone()).word(), verb);
+        assert_eq!(resolve(word), Some(Command::Service(command)), "{word}");
+    }
+    assert_eq!(resolve("sell-2"), None, "the stores have two rows");
+    assert_eq!(resolve("buy-99"), None, "the stock is shorter");
 }

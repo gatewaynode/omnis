@@ -3,7 +3,7 @@
 //! word inside its button at every interface scale the slider allows and in every font, dim
 //! buttons that send nothing however they are pressed, and the bar gone without a world.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::feathers::{bar_faults, click_node, control, rect, resize, settle, ultrawide};
@@ -158,8 +158,8 @@ fn every_live_button_opens_its_screen_by_pointer() {
 fn a_dim_button_sends_nothing_by_pointer_or_by_a_forged_press() {
     let mut app = exploring("tool-bar-dim.ron");
     let sent = seen(&app).shell.len();
-    // A fighter has no spell for the road; CAMP waits for its panel (step 8b).
-    for button in [ToolButton::Spells, ToolButton::Camp] {
+    // A fighter has no spell for the road and carries no spyglass.
+    for button in [ToolButton::Spells, ToolButton::Look] {
         click_tool(&mut app, button);
         app.world_mut()
             .resource_mut::<Messages<ToolPressed>>()

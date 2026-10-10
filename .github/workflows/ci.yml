@@ -28,6 +28,8 @@ jobs:
         run: scripts/lint-sim.sh --self-test && scripts/lint-sim.sh
       - name: Dependency duplicates
         run: scripts/check-duplicates.sh
+      - name: Every test file in a target
+        run: scripts/check-test-modules.sh --self-test && scripts/check-test-modules.sh
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Clippy on the shipped configuration (no devtools)
         run: cargo clippy -p omnis-app --no-default-features --lib --locked -- -D warnings

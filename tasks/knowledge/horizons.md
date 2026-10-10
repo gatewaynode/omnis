@@ -9,20 +9,24 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 ## M7 (town, services, rest, progression)
 Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan, each a horizon:
 swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
-limited shop stock, bank interest (M8, the region clock), rumors from the story engine (M11; M7's
+limited shop stock (bank interest is out: owner, 2026-10-05, "There will be no bank interest in this game"), rumors from the story engine (M11; M7's
 are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
-3rd-level spells, rolled hit points as an option. Money is one copper number from save schema 5
+3rd-level spells, rolled hit points as an option. M7b's plan (2026-10-03) adds: spell picks at
+creation (known spells are still the class list's first entries), half casters' level-ups, the SRD's
+full spell effects where M7b's spells simplify them (named in each spell file). Money is one copper number from save schema 5
 (owner, 2026-09-27; shown as whole gold rounded down, broken out by denomination in the inventory):
 **a real coin purse** (counts of gp, sp and cp held, change-making, coin weight) is a horizon; so is
 **"remember my choice"** on the confirmation before entering or leaving a service (a checkbox,
 owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
-items; string item ids before many items arrive (ids are interned
-`u32`s guarded by the pack fingerprint); `doff_armor_minutes` as its own value.
+items; string ids in saves before much more content arrives (ids are interned `u32`s in file
+order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files renumbered
+the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
+own value.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
-Nothing is built yet; M6 has one action per turn and shield as the only (automatic) reaction.
+**Built in M7c (2026-10-04, ARCH §4.7)**: everything in the "Planned for M7c" paragraph below, the tactics panel beside the sheet, and Bob; D24 stands over the SRD's one-spell limit (step 4b reverted in step 8a, owner 2026-10-04). What follows is the history and what stays open.
 **Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
 §4.7's auto resolution inside the simulation is confirmed; its save schema is 6 (M7a takes 5).**
 Because Second Wind and Cunning Action need bonus actions: the turn budget
@@ -32,10 +36,58 @@ Because Second Wind and Cunning Action need bonus actions: the turn budget
 declared reactions with the closed trigger list and the row/stack proximity mapping (opportunity
 attacks return), `Character.tactics` replacing `auto_cast` (save schema 6), the per-member
 reactions switch, a Tactics page on the sheet (the tool bar has one free cell after CAMP; the pause overlay one row).
+**Planned for M7c (2026-10-03, `tasks/plans/m7c-turn-budget.md`)**: the budget, the D24 fields,
+declared reactions on ARCH §4.7's whole data shape (reactions only), Second Wind, Action Surge,
+Cunning Action (a bonus-action exchange without opportunity attacks, and Hide), and monsters'
+opportunity attacks by a built-in rule. Left for later by the owner's choices that day: the fight
+screen on `bevy_ui` (stays on the canvas; the UI branch); the runbook editor, encounter criteria
+and auto play (`auto` is stored, inert); opportunity attacks as monster tactics instead of the
+built-in rule; Sneak Attack's damage; `Prepare` (the two preparation fields are stored and a spell
+needing preparation for its bonus action cannot take one); members' "enemy flees" and "enemy
+casts" triggers firing, which waits for monsters that flee and cast.
 Later, timing open in PRD §14: criteria-set library and runbooks with encounter criteria, the
 per-member auto flag and fully automated fights, a chooser any front end can call (the command
 log still records plain commands), monster and hireling runbook collections, what preparation
 costs, the budget curves (measured over seeds first, R12).
+**Monster casting after Bob (M7c, 2026-10-04)**: a caster's turn is a dice roll among its weapon
+and the spells its points pay for, until monster runbooks and a priority list replace it; its
+Shield is a built-in rule, as opportunity attacks are. Left for later: monster heals and buffs
+(validation refuses them), Thunderwave's push (rows have no distance), anything answering
+`EnemyCasts` (raised at every monster cast; the trigger field makes it answerable and testable),
+the party's spells aimed past the front stacks by a policy (the harness never targets Bob behind
+his rats), and Bob's points in the CLI (`combat.get` shows them per individual since step 6; no MCP or CLI test reaches a fight).
+**A trigger field on every action (owner, 2026-10-03, during M7c)**: each action in the data
+(spells, items, class features, the weapon attack) states the triggers it can answer as a reaction,
+validated against the closed list, instead of the simulation deriving them from the effect kind
+(`omnis-sim/src/tactics.rs::answers`: an armor bonus answers Attacked; a heal answers Attacked,
+MemberAttacked, MemberWounded, MemberDying; the weapon answers nothing until a flee source exists, B2).
+Timing not set.
+**Something for martial members to declare (owner, 2026-10-04, acceptance c, B2)**: in the base pack Shield
+is the only reaction, so a fighter, rogue or cleric has nothing to declare. Two SRD routes, each its own
+planned step: a source for `EnemyFlees` (a stack breaking and running; the SRD has no morale rule, so the
+rule is ours and moves balance) with members' opportunity attacks at a fleeing stack (PRD §8.3, "Reactions
+and proximity"), resolved by `combat/reaction.rs`, which today resolves only spells; and the Ready action as
+a criteria set (PRD §8.3 names it), holding the action for a declared trigger.
+The trigger bus below would route by these fields.
+
+## M8 (subjective time)
+**The signal bus: resolved in M8.** Built in `omnis-sim` (survey 2026-10-05: no external crate fits),
+it carries region entry to reconciliation (step 3) and combat's moments to declared reactions (step 7,
+the direct `on_*` calls now raise a `Cue`). On the owner's direction to expand it (2026-10-06) the
+mechanism moved to its own crate, `omnis-bus` (A16), with the vocabulary left in `omnis-sim`. Three
+expansions are designed in ARCHITECTURE §4.8 and built with their first consumers: a topic hierarchy
+(the first topic below a region), saved deferred signals released at a contact (M10's catch-up or event
+rumors), and pack-declared subscribers (the Rhai `Script` profile, mods). Bevy's own events stay the
+app's side.
+**A region's catch-up waits for M10.** Reconciliation computes `delta_b` and moves the region's
+clock (ARCHITECTURE §4.4 step 4), but nothing yet runs on it: the ecosystem's catch-up, respawns and
+project progress arrive with `omnis-eco` (M10), most likely as saved deferred signals released at
+the contact (§4.8). Until then a region left for years looks as it did, apart from its clock, its
+date and its rumors.
+**Veto and ordering phases (owner, 2026-10-06: not designed now)**: a subscriber that cancels or
+rewrites a signal before later subscribers see it (a counterspell, a ward that turns a blow), and
+explicit before/after phases beyond the subscription order. Either changes delivery from "everyone
+hears the same signal" to a pipeline, so it needs its own design when a rule asks for it.
 
 ## Tool proficiencies (PRD §8.1, owner 2026-09-20)
 Tools as pack data (id, name, default ability, the items that count as the tool), `tools` on
@@ -47,7 +99,7 @@ paper and ink as charges; fast-travel modifiers wait for sectors (Phase 2); Mini
 Refining are Omnis tools for the Prospector.
 
 ## Combat and magic
-`Reach::AllStacks`, upcasting, monster spellcasting (counterspell waits for it), torches,
+`Reach::AllStacks`, upcasting, counterspell (monster spellcasting came with Bob the Rat King, M7c), torches,
 `Surprise::Monsters`, finesse weapons, loot and encounter budgets
 (M9), floating damage numbers, MAP in a fight, saving from the pause overlay mid-fight,
 `turn::act` restoring `party` as well as `state` on a `RuleError`.
@@ -100,7 +152,7 @@ See how the default styles work, and see if modern fonts can replace our pixel a
 ## App and tooling
 The movement pad (arrows and USE) on Feathers like the tool bar (M7 step 8a moved the tools
 only; the canvas pad is the right column's last canvas widget); a fourth pad row; `texel_scale 1`; a scrollable log; `Line::short` deletion; raw `sim:message:*` keys and
-localized event text; the `screen.text` op; CC0 art; `--no-devtools` for a clean save from a dev
+localized event text; CC0 art; `--no-devtools` for a clean save from a dev
 build; `.omnis/mcp.log` rotation; `SetRule`, `TickEco`, `SpawnEncounter` as dev commands; the
 measurement policy as something other than a fixed heuristic; a rules function for age; a longer
 name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 two-byte or 10

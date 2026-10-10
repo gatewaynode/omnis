@@ -1,6 +1,6 @@
 //! The fixture pack loads after the base pack, and what it contains is what the maps need.
 
-mod common;
+use crate::common;
 
 use omnis_core::{Edges, Facing};
 use omnis_data::{MapKind, ServiceKind, SlotKind, load_packs};
@@ -12,7 +12,7 @@ fn test_pack_loads_with_its_maps() {
     assert_eq!(data.packs[1].id, "test");
     assert_eq!(data.packs[1].depends, ["base"]);
     assert_eq!(data.fingerprints[1].id, "test");
-    assert_eq!(data.maps.len(), 3);
+    assert_eq!(data.maps.len(), 4, "town, meadow, dungeon, depths");
     assert_ne!(data.fingerprints[1].hash, 0);
 
     let dungeon_id = data
@@ -175,7 +175,11 @@ fn portals_and_tileset_slots_resolve() {
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
     );
-    assert_eq!(dungeon.encounters.len(), 3);
+    assert_eq!(
+        dungeon.encounters.len(),
+        11,
+        "three rat groups, eight of goblins and skeletons"
+    );
     let (index, rats) = dungeon.encounter_at(3, 8).expect("the rats");
     assert_eq!(index, 0);
     assert_eq!(rats.stacks.len(), 1);
@@ -193,6 +197,50 @@ fn portals_and_tileset_slots_resolve() {
     assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
     let up = dungeon.portal_at(0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
+    // The depths below, and back (M7b).
+    let depths_id = data.registry.maps.get("test:map:depths").unwrap();
+    let deeper = dungeon.portal_at(23, 23).expect("the way down");
+    assert_eq!(
+        (deeper.to_map, deeper.to_x, deeper.to_y, deeper.to_facing),
+        (depths_id, 1, 0, Facing::South)
+    );
+    let depths = &data.maps[&depths_id];
+    let back = depths.portal_at(0, 0).expect("the way up");
+    assert_eq!(
+        (back.to_map, back.to_x, back.to_y, back.to_facing),
+        (dungeon_id, 22, 23, Facing::West)
+    );
+    assert_eq!(depths.encounters.len(), 5);
+    assert!(depths.encounters.iter().all(|e| e.once));
+    // Bob the Rat King's throne room (M7c), east of the four rooms: two rat stacks in front.
+    assert_eq!(depths.def.width, 18);
+    let rat = data
+        .registry
+        .monsters
+        .get("test:monster:giant_rat")
+        .unwrap();
+    let bob = data
+        .registry
+        .monsters
+        .get("test:monster:bob_the_rat_king")
+        .unwrap();
+    let throne = &depths.encounters[4];
+    assert_eq!((throne.x, throne.y), (13, 8));
+    assert_eq!(throne.stacks, vec![(rat, 3), (rat, 2), (bob, 1)]);
+    let casting = data.monsters[&bob].casting.as_ref().expect("Bob casts");
+    assert_eq!(
+        (
+            casting.spell_attack,
+            casting.save_dc,
+            casting.caster_level,
+            casting.points
+        ),
+        (5, 13, 5, 5),
+        "Int 16 (+3) and proficiency +2"
+    );
+    for spell in &casting.spells {
+        assert!(data.registry.spells.get(spell).is_some(), "{spell}");
+    }
     let town_id = data.registry.maps.get("test:map:town").unwrap();
     let home = meadow.portal_at(16, 31).expect("the road south");
     assert_eq!(
@@ -248,4 +296,49 @@ fn fingerprint_depends_on_content_only() {
     let b = load_packs(&[&base, &test]).unwrap();
     assert_eq!(a.fingerprints, b.fingerprints);
     assert_eq!(a, b, "loading is a pure function of the files");
+}
+
+/// Every map belongs to one region (M8); the town is a settlement coupled to the mapless
+/// crossroads, the dungeon owns the depths too; rumors have their minute, a bare key the origin.
+#[test]
+fn the_regions_own_the_maps_and_couple_by_road() {
+    use omnis_data::RegionKind;
+    let data = common::load_test_packs();
+    let region = |name: &str| data.registry.regions.get(name).expect(name);
+    let map = |name: &str| data.registry.maps.get(name).expect(name);
+    let (town, crossroads, dungeon) = (
+        region("test:region:town"),
+        region("test:region:crossroads"),
+        region("test:region:dungeon"),
+    );
+    assert_eq!(data.regions.len(), 4);
+    for (m, r) in [
+        ("test:map:town", town),
+        ("test:map:meadow", region("test:region:meadow")),
+        ("test:map:dungeon", dungeon),
+        ("test:map:depths", dungeon),
+    ] {
+        assert_eq!(data.maps[&map(m)].region, r, "{m}");
+    }
+    let t = &data.regions[&town];
+    assert_eq!(
+        (t.kind, t.company, t.rule.as_str()),
+        (RegionKind::Settlement, 900, "time.settled")
+    );
+    assert_eq!(t.couplings, [crossroads]);
+    assert!(data.regions[&crossroads].maps.is_empty());
+    assert_eq!(data.regions[&dungeon].kind, RegionKind::Wild);
+    let tavern = data
+        .services
+        .values()
+        .find(|s| s.kind == ServiceKind::Tavern)
+        .expect("a tavern");
+    let at: Vec<i64> = tavern.rumors.iter().map(|r| r.at).collect();
+    assert_eq!(at, [0, 2 * 1440, 10 * 1440]);
+    let bare: omnis_data::RumorDef = omnis_data::ron_io::parse("\"base:text:rumor.rats\"").unwrap();
+    assert_eq!(
+        (bare.text.as_str(), bare.at),
+        ("base:text:rumor.rats", 0),
+        "a bare key happened at the origin"
+    );
 }

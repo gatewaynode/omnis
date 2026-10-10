@@ -36,7 +36,7 @@ pub fn sense_line(event: &Event, names: &Names) -> Option<Line> {
         return None;
     };
     let who = names.member(*actor);
-    let what = names.item(*item);
+    let what = names.item(item);
     if checks.is_empty() {
         return Some(Line::new(
             format!("{who} looks through {what}: nothing ahead"),
@@ -73,7 +73,6 @@ mod tests {
     use super::*;
     use crate::combat_menu::tests::{data, facing};
     use omnis_sim::SensedTile;
-    use omnis_sim::items::item_id;
     use omnis_sim::omnis_core::{Dice, RollTrace, StreamName};
     use omnis_sim::omnis_rules::{Roll, RollMode};
 
@@ -98,12 +97,12 @@ mod tests {
     fn a_look_reads_as_its_reaches_with_the_rolls_behind_it() {
         let data = data();
         let world = facing(&data, &["fighter"], &[]);
-        let names = Names::new(&world, &data);
+        let names = Names::of_world(&world, &data);
         let brenna = world.party.members[0].id;
-        let glass = item_id(&data, "spyglass").unwrap();
+        let glass = "base:item:spyglass";
         let looked = Event::Sensed {
             actor: brenna,
-            item: glass,
+            item: glass.to_owned(),
             checks: vec![
                 LayerCheck {
                     layer: 1,
@@ -128,7 +127,7 @@ mod tests {
         );
         let blind = Event::Sensed {
             actor: brenna,
-            item: glass,
+            item: glass.to_owned(),
             checks: vec![LayerCheck {
                 layer: 1,
                 roll: None,
@@ -142,7 +141,7 @@ mod tests {
         );
         let wall = Event::Sensed {
             actor: brenna,
-            item: glass,
+            item: glass.to_owned(),
             checks: Vec::new(),
             tiles: Vec::new(),
         };

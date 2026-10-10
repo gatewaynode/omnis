@@ -5,8 +5,9 @@ use omnis_core::{Direction, Facing, Pcg32, Position, Rotation, StreamName};
 use omnis_data::{Alignment, Data, Disposition, Skill, load_packs};
 use omnis_sim::omnis_rules::{Draft, monster_hit_points};
 use omnis_sim::{
-    CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event, Mode,
-    ModeKind, PartyCommand, Settings, Stack, World, apply, combat_view,
+    ActorRef, CombatCommand, Command, EncounterChoice, EncounterSource, EncounterState, Event,
+    Mode, ModeKind, PartyCommand, Rejection, Settings, Stack, Word, World, apply, combat_view,
+    parse_script,
 };
 use std::path::PathBuf;
 
@@ -143,6 +144,7 @@ pub fn encounter(
                 monster: id,
                 initial: *count,
                 hp: vec![hp; usize::from(*count)],
+                spent: Vec::new(),
             }
         })
         .collect();
@@ -177,12 +179,32 @@ pub fn reachable_stack(world: &World, data: &Data) -> Option<u8> {
         .stacks
         .iter()
         .find(|s| s.alive && s.reachable)
-        .map(|s| s.index)
+        .map(|s| s.stack)
 }
 
 /// Fight whatever stands in the way until the party explores again: attack on an encounter,
 /// then the nearest reachable stack on every member turn. Every command taken is appended to
 /// `commands`; the events come back.
+/// The actor whose turn a fight waits on, if a fight is on.
+fn acting(world: &World) -> Option<ActorRef> {
+    match &world.mode {
+        Mode::Combat(state) => state.current_actor(),
+        _ => None,
+    }
+}
+
+/// One command as one whole turn, as a turn was before the budget (M7c): when the member's turn
+/// goes on with the action spent (a bonus action has something left to pay for), it is ended.
+pub fn act(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
+    let before = acting(world);
+    let mut events = apply(world, data, command)?;
+    let spent = matches!(&world.mode, Mode::Combat(state) if state.budget.actions == 0);
+    if before.is_some() && acting(world) == before && spent {
+        events.extend(apply(world, data, Command::Combat(CombatCommand::EndTurn))?);
+    }
+    Ok(events)
+}
+
 pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Vec<Event> {
     let mut events = Vec::new();
     for _ in 0..1000 {
@@ -194,8 +216,15 @@ pub fn settle(world: &mut World, data: &Data, commands: &mut Vec<Command>) -> Ve
                 Command::Combat(CombatCommand::Attack { stack })
             }
         };
+        let before = acting(world);
         events.extend(apply(world, data, command.clone()).unwrap_or_else(|r| panic!("{r}")));
         commands.push(command);
+        let spent = matches!(&world.mode, Mode::Combat(state) if state.budget.actions == 0);
+        if before.is_some() && acting(world) == before && spent {
+            let end = Command::Combat(CombatCommand::EndTurn);
+            events.extend(apply(world, data, end.clone()).unwrap_or_else(|r| panic!("{r}")));
+            commands.push(end);
+        }
     }
     panic!("the fight did not end");
 }
@@ -211,6 +240,41 @@ pub fn play(world: &mut World, data: &Data, script: &[Command]) -> (Vec<Command>
         events.extend(settle(world, data, &mut commands));
     }
     (commands, events)
+}
+
+/// A world with the six drafts in marching order, ids 0 to 5, exploring: what the words that
+/// name members but no rows resolve against in the tests that check a word's syntax.
+pub fn six_world(data: &Data) -> World {
+    let mut world = world(data);
+    party_of(&mut world, data, 6);
+    world
+}
+
+/// One script word as a command for [`six_world`]; `None` when it is not a word, or names a row
+/// that world has not got (a combat row outside a fight).
+pub fn word(text: &str) -> Option<Command> {
+    let data = data();
+    let world = six_world(&data);
+    Word::parse(text).and_then(|w| w.command(&world, &data))
+}
+
+/// A script as commands for this world as it stands now: each word's slots and rows resolved
+/// against it, all at once.
+pub fn script(world: &World, data: &Data, text: &str) -> Vec<Command> {
+    parse_script(text)
+        .unwrap_or_else(|e| panic!("{e}"))
+        .iter()
+        .map(|w| {
+            w.command(world, data)
+                .unwrap_or_else(|| panic!("{w}: no such member or row"))
+        })
+        .collect()
+}
+
+/// A script as commands for [`six_world`].
+pub fn script_for_six(text: &str) -> Vec<Command> {
+    let data = data();
+    script(&six_world(&data), &data, text)
 }
 
 /// Where each service stands in the test town.
@@ -229,8 +293,13 @@ pub fn site(name: &str) -> (u16, u16) {
 
 /// A new game with two members and 50 gold, inside the named service.
 pub fn inside(data: &Data, name: &str) -> World {
+    inside_with(data, name, 2)
+}
+
+/// A new game with the first `members` of the six and 50 gold, inside the named service.
+pub fn inside_with(data: &Data, name: &str, members: usize) -> World {
     let mut world = World::new(data, 11, Settings::default()).unwrap();
-    party_of(&mut world, data, 2);
+    party_of(&mut world, data, members);
     world.party.gold = 5000;
     let map = data.registry.maps.get("test:map:town").unwrap();
     let (x, y) = site(name);

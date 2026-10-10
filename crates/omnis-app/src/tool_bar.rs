@@ -6,8 +6,7 @@
 
 use crate::look::look_command;
 use crate::menus::{Active, Where};
-use crate::sim::{PackData, ShellCommand, SimWorld};
-use crate::spell_menu::cast_rows;
+use crate::sim::{PackData, ShellCommand, Views};
 use crate::widget::PadState;
 use bevy::prelude::*;
 
@@ -92,18 +91,18 @@ impl ToolStates {
     }
 }
 
-/// The shell action a tool button stands for; none for CAMP until its panel (step 8b).
+/// The shell action a tool button stands for.
 #[must_use]
-pub const fn tool_for(button: ToolButton) -> Option<ShellCommand> {
-    Some(match button {
+pub const fn tool_for(button: ToolButton) -> ShellCommand {
+    match button {
         ToolButton::Items => ShellCommand::Inventory,
         ToolButton::Spells => ShellCommand::Cast,
         ToolButton::Sheet => ShellCommand::Sheet,
-        ToolButton::Camp => return None,
+        ToolButton::Camp => ShellCommand::Camp,
         ToolButton::Look => ShellCommand::Look,
         ToolButton::Map => ShellCommand::ToggleAutomap,
         ToolButton::Menu => ShellCommand::Pause,
-    })
+    }
 }
 
 /// A press on a tool bar button, from the bar or a test; `answer` gates it.
@@ -114,8 +113,8 @@ pub struct ToolPressed(pub ToolButton);
 /// an encounter, a fight) and inside a service; MAP live on the map; SPELLS on the map and
 /// inside a service when someone has a spell for the road; SHEET on the map, inside a service
 /// and in a fight once the party has a member; ITEMS on the map and inside a service with a
-/// member; LOOK on the map when a member who can act carries a sense item; CAMP dim until its
-/// panel (step 8b).
+/// member; LOOK on the map when a member who can act carries a sense item; CAMP on the map
+/// with a member (never inside a service: the room is the rest indoors).
 #[must_use]
 pub fn tool_states(
     active: Active,
@@ -144,6 +143,7 @@ pub fn tool_states(
         )),
     );
     tools.set(ToolButton::Map, live(exploring));
+    tools.set(ToolButton::Camp, live(exploring && has_members));
     let indoors = exploring || active == Active::Service;
     tools.set(ToolButton::Items, live(indoors && has_members));
     tools.set(ToolButton::Look, live(exploring && has_look));
@@ -158,22 +158,20 @@ pub fn tool_states(
 /// Keep the states for the screen and the world as they are now.
 pub fn track(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut states: ResMut<ToolStates>,
 ) {
     let active = at.screen();
-    let loaded = world.as_ref().zip(data.as_ref());
+    let loaded = views.as_ref().zip(data.as_ref());
     let has_casts = (at.exploring() || active == Active::Service)
-        && loaded.is_some_and(|(w, d)| !cast_rows(&w.0, &d.0).is_empty());
+        && views.as_ref().is_some_and(|v| !v.casts.is_empty());
     let has_look =
-        at.exploring() && loaded.is_some_and(|(w, d)| look_command(&w.0, &d.0).is_some());
-    let has_members = world
-        .as_ref()
-        .is_some_and(|w| !w.0.party.members.is_empty());
+        at.exploring() && loaded.is_some_and(|(v, d)| look_command(&v.party, &d.0).is_some());
+    let has_members = views.as_ref().is_some_and(|v| !v.party.members.is_empty());
     let wanted = tool_states(
         active,
-        world.is_some() && at.playing(),
+        views.is_some() && at.playing(),
         has_casts,
         has_members,
         has_look,
@@ -190,10 +188,8 @@ pub fn answer(
     mut shell: MessageWriter<ShellCommand>,
 ) {
     for ToolPressed(button) in presses.read() {
-        if states.get(*button) == PadState::Enabled
-            && let Some(command) = tool_for(*button)
-        {
-            shell.write(command);
+        if states.get(*button) == PadState::Enabled {
+            shell.write(tool_for(*button));
         }
     }
 }
@@ -212,12 +208,7 @@ mod tests {
         let map = tool_states(Active::None, true, true, true, true);
         assert!(map.shown());
         for button in ToolButton::ALL {
-            let wanted = if button == ToolButton::Camp {
-                PadState::Disabled
-            } else {
-                PadState::Enabled
-            };
-            assert_eq!(map.get(button), wanted, "{button:?}");
+            assert_eq!(map.get(button), PadState::Enabled, "{button:?}");
         }
         assert_eq!(
             tool_states(Active::None, true, true, true, false).get(ToolButton::Look),
@@ -229,6 +220,11 @@ mod tests {
         assert_eq!(nobody.get(ToolButton::Sheet), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Items), PadState::Disabled);
         assert_eq!(nobody.get(ToolButton::Look), PadState::Disabled);
+        assert_eq!(
+            nobody.get(ToolButton::Camp),
+            PadState::Disabled,
+            "nobody to rest"
+        );
         assert_eq!(nobody.get(ToolButton::Map), PadState::Enabled);
         let fight = tool_states(Active::Combat, true, true, true, true);
         assert_eq!(fight.get(ToolButton::Menu), PadState::Enabled);
@@ -237,6 +233,7 @@ mod tests {
         assert_eq!(fight.get(ToolButton::Spells), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Items), PadState::Disabled);
         assert_eq!(fight.get(ToolButton::Look), PadState::Disabled);
+        assert_eq!(fight.get(ToolButton::Camp), PadState::Disabled);
         let shop = tool_states(Active::Service, true, true, true, true);
         for button in [
             ToolButton::Items,
@@ -251,6 +248,11 @@ mod tests {
             );
         }
         assert_eq!(shop.get(ToolButton::Map), PadState::Disabled);
+        assert_eq!(
+            shop.get(ToolButton::Camp),
+            PadState::Disabled,
+            "the room is the rest"
+        );
         assert_eq!(shop.get(ToolButton::Look), PadState::Disabled);
         for active in [
             Active::Paused,
@@ -259,6 +261,7 @@ mod tests {
             Active::Defeat,
             Active::Sheet,
             Active::Inventory,
+            Active::Camp,
         ] {
             assert_eq!(
                 tool_states(active, true, true, true, true),
@@ -271,13 +274,13 @@ mod tests {
     #[test]
     fn tool_buttons_send_what_their_keys_send() {
         use crate::input::shell_for;
-        assert_eq!(tool_for(ToolButton::Spells), shell_for(KeyCode::KeyC));
-        assert_eq!(tool_for(ToolButton::Map), shell_for(KeyCode::KeyM));
-        assert_eq!(tool_for(ToolButton::Sheet), shell_for(KeyCode::KeyP));
-        assert_eq!(tool_for(ToolButton::Menu), shell_for(KeyCode::Escape));
-        assert_eq!(tool_for(ToolButton::Items), shell_for(KeyCode::KeyI));
-        assert_eq!(tool_for(ToolButton::Look), shell_for(KeyCode::KeyL));
-        assert_eq!(tool_for(ToolButton::Camp), None, "until step 8b");
+        assert_eq!(Some(tool_for(ToolButton::Spells)), shell_for(KeyCode::KeyC));
+        assert_eq!(Some(tool_for(ToolButton::Map)), shell_for(KeyCode::KeyM));
+        assert_eq!(Some(tool_for(ToolButton::Sheet)), shell_for(KeyCode::KeyP));
+        assert_eq!(Some(tool_for(ToolButton::Menu)), shell_for(KeyCode::Escape));
+        assert_eq!(Some(tool_for(ToolButton::Items)), shell_for(KeyCode::KeyI));
+        assert_eq!(Some(tool_for(ToolButton::Look)), shell_for(KeyCode::KeyL));
+        assert_eq!(Some(tool_for(ToolButton::Camp)), shell_for(KeyCode::KeyR));
     }
 
     #[test]

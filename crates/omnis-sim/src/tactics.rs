@@ -1,0 +1,204 @@
+//! The tactics commands (ARCHITECTURE.md §4.7, M7c): the reactions switch, accepted at any time
+//! and costing nothing, and declaring or removing a reaction in the default runbook, accepted
+//! outside a fight. Every input is player data and is checked whole before anything changes:
+//! names and caps (`omnis_rules::tactics`), the ids a predicate names, an action the member has
+//! that costs a reaction, and a trigger that action can answer.
+
+use crate::command::Rejection;
+use crate::event::Event;
+use crate::world::World;
+use alloc::vec::Vec;
+use omnis_core::CharacterId;
+use omnis_data::{Cost, Data, SpellEffect};
+use omnis_rules::tactics::{LIBRARY_SETS, RUNBOOK_ENTRIES};
+use omnis_rules::{
+    ActionRef, Character, Criteria, CriteriaSet, Ids, Named, Naming, Predicate, Rename,
+    TacticsFault, Trigger,
+};
+use serde::{Deserialize, Serialize};
+
+/// A change to a member's tactics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TacticsCommand {
+    /// Switch the member's reactions on or off; any time, in a fight too.
+    SetReactions {
+        /// The member.
+        member: CharacterId,
+        /// On or off.
+        on: bool,
+    },
+    /// Declare a reaction: the set goes in the library (once) and its entry in the default
+    /// runbook, replacing the entry at `entry` or after the last.
+    PutReaction {
+        /// The member.
+        member: CharacterId,
+        /// The runbook entry to replace; `None` appends.
+        entry: Option<u8>,
+        /// The trigger, the criteria and the action, naming spells, items, monsters and
+        /// conditions by their string ids.
+        set: CriteriaSet<Named>,
+    },
+    /// Remove an entry from the default runbook; the library keeps the set.
+    RemoveReaction {
+        /// The member.
+        member: CharacterId,
+        /// The runbook entry.
+        entry: u8,
+    },
+}
+
+impl TacticsCommand {
+    /// Whether the command is accepted in a fight.
+    #[must_use]
+    pub const fn in_fight(&self) -> bool {
+        matches!(self, TacticsCommand::SetReactions { .. })
+    }
+}
+
+/// Apply a tactics command.
+pub(crate) fn apply(
+    world: &mut World,
+    data: &Data,
+    command: &TacticsCommand,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let id = match command {
+        TacticsCommand::SetReactions { member, .. }
+        | TacticsCommand::PutReaction { member, .. }
+        | TacticsCommand::RemoveReaction { member, .. } => *member,
+    };
+    let slot = world.party.slot_of(id)?;
+    let member = &mut world.party.members[usize::from(slot)];
+    match command {
+        TacticsCommand::SetReactions { on, .. } => {
+            member.tactics.reactions_on = *on;
+            events.push(Event::ReactionsSwitched {
+                member: member.id,
+                on: *on,
+            });
+            return Ok(());
+        }
+        TacticsCommand::PutReaction { entry, set, .. } => {
+            let set = set
+                .map(&Naming(data))
+                .map_err(|id| Rejection::UnknownId { id })?;
+            put(member, data, *entry, &set)?;
+        }
+        TacticsCommand::RemoveReaction { entry, .. } => {
+            let book = default_book(member)?;
+            if usize::from(*entry) >= book.entries.len() {
+                return Err(Rejection::NoSuchEntry { entry: *entry });
+            }
+            book.entries.remove(usize::from(*entry));
+        }
+    }
+    events.push(Event::TacticsChanged { member: member.id });
+    Ok(())
+}
+
+fn default_book(member: &mut Character) -> Result<&mut omnis_rules::Runbook, Rejection> {
+    let at = usize::from(member.tactics.default_runbook);
+    member
+        .tactics
+        .runbooks
+        .get_mut(at)
+        .ok_or(Rejection::Tactics(TacticsFault::NoDefault))
+}
+
+fn put(
+    member: &mut Character,
+    data: &Data,
+    at: Option<u8>,
+    set: &CriteriaSet,
+) -> Result<(), Rejection> {
+    set.check().map_err(Rejection::Tactics)?;
+    check_ids(&set.when, data)?;
+    if !answers(member, data, &set.action, set.trigger) {
+        return Err(Rejection::CannotReact);
+    }
+    let found = member.tactics.library.iter().position(|s| s == set);
+    if found.is_none() && member.tactics.library.len() >= LIBRARY_SETS {
+        return Err(Rejection::Tactics(TacticsFault::TooMany));
+    }
+    let entries = default_book(member)?.entries.len();
+    match at {
+        Some(entry) if usize::from(entry) >= entries => {
+            return Err(Rejection::NoSuchEntry { entry });
+        }
+        None if entries >= RUNBOOK_ENTRIES => {
+            return Err(Rejection::Tactics(TacticsFault::TooMany));
+        }
+        _ => {}
+    }
+    let index = match found {
+        Some(index) => index,
+        None => {
+            member.tactics.library.push(set.clone());
+            member.tactics.library.len() - 1
+        }
+    };
+    let entry = (
+        set.action.clone(),
+        u16::try_from(index).map_err(|_| Rejection::Tactics(TacticsFault::TooMany))?,
+    );
+    let book = default_book(member)?;
+    match at {
+        Some(at) => book.entries[usize::from(at)] = entry,
+        None => book.entries.push(entry),
+    }
+    Ok(())
+}
+
+/// Every monster and condition a tree names is loaded.
+fn check_ids(criteria: &Criteria, data: &Data) -> Result<(), Rejection> {
+    match criteria {
+        Criteria::Always => Ok(()),
+        Criteria::All(children) | Criteria::Any(children) => {
+            children.iter().try_for_each(|c| check_ids(c, data))
+        }
+        Criteria::Is(
+            Predicate::MonsterCount { monster, .. } | Predicate::MonsterShare { monster, .. },
+        ) if !data.monsters.contains_key(monster) => Err(Rejection::UnknownId {
+            id: Rename::<Ids, Named>::monster(&Naming(data), monster)
+                .unwrap_or_else(|unnamed| unnamed),
+        }),
+        Criteria::Is(Predicate::HasCondition { condition, .. })
+            if !data.conditions.contains_key(condition) =>
+        {
+            Err(Rejection::UnknownId {
+                id: Rename::<Ids, Named>::condition(&Naming(data), condition)
+                    .unwrap_or_else(|unnamed| unnamed),
+            })
+        }
+        Criteria::Is(_) => Ok(()),
+    }
+}
+
+/// Whether the member has `action` as a reaction and it can answer `trigger`: a known spell that
+/// costs a reaction (an armor bonus answers an attack on the caster; a heal answers an attack,
+/// a wound or a fall in the row). The weapon answers nothing until a source raises
+/// `EnemyFlees` (owner, 2026-10-04, B2: the panel offers only what the game can fire).
+pub fn answers(member: &Character, data: &Data, action: &ActionRef, trigger: Trigger) -> bool {
+    match action {
+        ActionRef::Spell(id) => {
+            let Some(spell) = data.spells.get(id) else {
+                return false;
+            };
+            if !member.known_spells.contains(id) || spell.cost != Cost::Reaction {
+                return false;
+            }
+            match spell.effect {
+                Some(SpellEffect::Reaction { .. }) => trigger == Trigger::Attacked,
+                Some(SpellEffect::Heal { .. }) => matches!(
+                    trigger,
+                    Trigger::Attacked
+                        | Trigger::MemberAttacked
+                        | Trigger::MemberWounded
+                        | Trigger::MemberDying
+                ),
+                _ => false,
+            }
+        }
+        ActionRef::Attack | ActionRef::Item(_) | ActionRef::Feature(_) => false,
+    }
+}

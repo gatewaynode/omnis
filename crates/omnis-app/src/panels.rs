@@ -8,7 +8,7 @@ use crate::layout::{CELL, HUD_COLUMNS, HUD_LINES, Rect};
 use crate::widget::{
     DIM, FRAME, Frame, HI, Kind, PANEL, PadButton, PadState, TEXT, Widget, WidgetId,
 };
-use omnis_sim::MINUTES_PER_DAY;
+use omnis_sim::omnis_core::Calendar;
 
 /// The three location lines, each fitted to the column.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -17,14 +17,14 @@ pub struct Hud {
     pub map: String,
     /// `x,y F` with the facing's initial.
     pub position: String,
-    /// `Day d hh:mm`.
+    /// The party's date, the night, and its age (`clock_text`).
     pub clock: String,
 }
 
 impl Hud {
-    /// From the map name, the position, the facing as displayed, and the party clock.
+    /// From the map name, the position, the facing as displayed, and the clock line.
     #[must_use]
-    pub fn new(map: &str, x: i32, y: i32, facing: &str, elapsed: i64) -> Hud {
+    pub fn new(map: &str, x: i32, y: i32, facing: &str, clock: &str) -> Hud {
         let initial = facing
             .chars()
             .next()
@@ -33,31 +33,40 @@ impl Hud {
         Hud {
             map: fit(map, HUD_COLUMNS),
             position: fit(&format!("{x},{y} {initial}"), HUD_COLUMNS),
-            clock: clock_text(elapsed),
+            clock: fit(clock, HUD_COLUMNS),
         }
     }
 }
 
-/// The clock as `Day d hh:mm`, or `Dd hh:mm` once the day number no longer fits the HUD.
+/// The party's date on `calendar` (`Year 1 day 40 14:20`, counted from 1 for people), `night`
+/// while it is, and the party's age (M8): `Year 1 day 40 14:20 night  age 2y 40d`.
 #[must_use]
-pub fn clock_text(elapsed: i64) -> String {
-    clock_text_in(elapsed, HUD_COLUMNS)
+pub fn clock_text(date: i64, age: i64, calendar: Calendar) -> String {
+    clock_text_in(date, age, calendar, HUD_COLUMNS)
 }
 
-/// The clock fitted to `columns` cells.
-pub(crate) fn clock_text_in(elapsed: i64, columns: usize) -> String {
-    let per_day = i64::from(MINUTES_PER_DAY);
-    let day = elapsed.div_euclid(per_day) + 1;
-    let minute = elapsed.rem_euclid(per_day);
-    let long = format!("Day {day} {:02}:{:02}", minute / 60, minute % 60);
-    if long.len() <= columns {
-        long
-    } else {
-        fit(
-            &format!("D{day} {:02}:{:02}", minute / 60, minute % 60),
-            columns,
-        )
-    }
+/// The clock line fitted to `columns` cells: without the age, then as `Y1 D40 14:20`, when the
+/// long form does not fit.
+pub(crate) fn clock_text_in(date: i64, age: i64, calendar: Calendar, columns: usize) -> String {
+    let d = calendar.date(date);
+    let (year, day) = (d.year.saturating_add(1), d.day + 1);
+    let time = format!("{:02}:{:02}", d.minute / 60, d.minute % 60);
+    let night = if calendar.night(date) { " night" } else { "" };
+    let days = calendar.day(age.max(0));
+    let per_year = i64::from(calendar.days_per_year.max(1));
+    let age = match days / per_year {
+        0 => format!("age {days}d"),
+        years => format!("age {years}y {}d", days % per_year),
+    };
+    let date = format!("Year {year} day {day} {time}{night}");
+    [
+        format!("{date}  {age}"),
+        date,
+        format!("Y{year} D{day} {time}{night}"),
+    ]
+    .into_iter()
+    .find(|line| line.len() <= columns)
+    .unwrap_or_else(|| fit(&format!("Y{year} D{day} {time}"), columns))
 }
 
 /// The message line: the last event, notice, or rejection.
@@ -141,20 +150,28 @@ mod tests {
 
     #[test]
     fn location_lines_fit_the_hud() {
-        let hud = Hud::new("Test Dungeon", 3, 4, "south", 208);
+        let c = Calendar::default();
+        let hud = Hud::new("Test Dungeon", 3, 4, "south", &clock_text(208, 208, c));
         assert_eq!(hud.map, "Test Dungeon");
         assert_eq!(hud.position, "3,4 S");
-        assert_eq!(hud.clock, "Day 1 03:28");
+        assert_eq!(hud.clock, "Year 1 day 1 03:28 night  age 0d");
         let name = "The Sunken Cathedral of the Drowned Kings and Their Court";
-        let wide = Hud::new(name, 65535, 65535, "north", 0);
+        let wide = Hud::new(name, 65535, 65535, "north", "");
         assert_eq!(wide.map, fit(name, HUD_COLUMNS));
         assert!(wide.map.len() <= HUD_COLUMNS && wide.position.len() <= HUD_COLUMNS);
         assert_eq!(wide.position, "65535,65535 N");
-        // At thirteen cells the day number runs out of room after day 999.
-        assert_eq!(clock_text_in(1440 * 998 + 208, 13), "Day 999 03:28");
-        assert_eq!(clock_text_in(1440 * 999 + 208, 13), "D1000 03:28");
-        assert!(clock_text(i64::MAX).len() <= HUD_COLUMNS);
-        assert_eq!(Hud::new("", 0, 0, "", 0).position, "0,0 ?");
+        // The date runs on its own; the age is the party's.
+        let year = 360 * 1440;
+        assert_eq!(
+            clock_text(2 * year + 39 * 1440 + 14 * 60 + 20, year + 3 * 1440, c),
+            "Year 3 day 40 14:20  age 1y 3d"
+        );
+        // Narrower, the age goes first, then the words.
+        assert_eq!(clock_text_in(208, 208, c, 26), "Year 1 day 1 03:28 night");
+        assert_eq!(clock_text_in(208, 208, c, 18), "Y1 D1 03:28 night");
+        assert_eq!(clock_text_in(208, 208, c, 12), "Y1 D1 03:28");
+        assert!(clock_text(i64::MAX, i64::MAX, c).len() <= HUD_COLUMNS);
+        assert_eq!(Hud::new("", 0, 0, "", "").position, "0,0 ?");
     }
 
     #[test]

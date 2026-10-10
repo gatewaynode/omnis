@@ -1,27 +1,31 @@
 //! The complete game state (ARCHITECTURE.md §4.1). Ordered collections, integers, serde. A save
 //! is this struct as RON text; the fingerprint hashes that text.
 
+use crate::bus::Bus;
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5};
+use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7};
 use crate::party::Party;
 use crate::service::ServiceState;
+use crate::time::PartyTime;
 use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{
-    Clock, Edges, EraId, Facing, FlagId, HolderId, MapId, Pcg32, Position, StreamName, fnv1a64,
+    Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, MapId, Pcg32, Position, StreamName,
+    fnv1a64,
 };
 use omnis_data::{Data, DataError, PackFingerprint, ServiceKind};
 use serde::{Deserialize, Serialize};
 
 /// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
 /// schema 3 (no equipment slots, no effects, no devtools bit) and schema 4 (gold in whole pieces)
-/// migrate on load.
-pub const SAVE_SCHEMA: u32 = 5;
+/// migrate on load, and so do schema 5 (no turn budget) and schema 6 (no subjective time:
+/// contacts, the party's shared time and date, the signal bus).
+pub const SAVE_SCHEMA: u32 = 7;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -214,6 +218,15 @@ pub struct World {
     pub rngs: BTreeMap<StreamName, Pcg32>,
     /// Subjective time per holder; no global clock (§4.4).
     pub clocks: BTreeMap<HolderId, Clock>,
+    /// The last contact each holder keeps with another, keyed (self, other) (M8).
+    #[serde(default)]
+    pub contacts: BTreeMap<(HolderId, HolderId), Contact>,
+    /// The party's shared time and the date it believes (M8).
+    #[serde(default)]
+    pub party_time: PartyTime,
+    /// The signal bus's subscriptions, in call order (M8).
+    #[serde(default)]
+    pub bus: Bus,
     /// Where the party is.
     pub position: Position,
     /// Mutable per-map state.
@@ -248,6 +261,8 @@ impl fmt::Display for NewGameError {
         f.write_str("no loaded pack names an entry map")
     }
 }
+
+impl core::error::Error for NewGameError {}
 
 /// Why a save could not be loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -285,6 +300,8 @@ impl fmt::Display for LoadError {
     }
 }
 
+impl core::error::Error for LoadError {}
+
 impl World {
     /// A new game on the packs' entry map, with an empty party and the given settings.
     pub fn new(data: &Data, seed: u64, settings: Settings) -> Result<World, NewGameError> {
@@ -298,6 +315,9 @@ impl World {
             packs: data.fingerprints.clone(),
             rngs: BTreeMap::new(),
             clocks,
+            contacts: BTreeMap::new(),
+            party_time: PartyTime::default(),
+            bus: crate::time::subscriptions(data),
             position: Position { map, x, y, facing },
             maps: BTreeMap::new(),
             automap: Automap::default(),
@@ -380,18 +400,33 @@ impl World {
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
                 .map(v4_to_v5)
+                .map(|w| v5_to_v6(w, data))
+                .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
             2 => omnis_data::ron_io::parse::<World>(text)
                 .map(v2_to_v3)
                 .map(|w| v3_to_v4(w, data))
                 .map(v4_to_v5)
+                .map(|w| v5_to_v6(w, data))
+                .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
             3 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v3_to_v4(w, data))
                 .map(v4_to_v5)
+                .map(|w| v5_to_v6(w, data))
+                .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
             4 => omnis_data::ron_io::parse::<World>(text)
                 .map(v4_to_v5)
+                .map(|w| v5_to_v6(w, data))
+                .map(|w| v6_to_v7(w, data))
+                .map_err(LoadError::Parse)?,
+            5 => omnis_data::ron_io::parse::<World>(text)
+                .map(|w| v5_to_v6(w, data))
+                .map(|w| v6_to_v7(w, data))
+                .map_err(LoadError::Parse)?,
+            6 => omnis_data::ron_io::parse::<World>(text)
+                .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),

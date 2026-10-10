@@ -2,5 +2,6 @@
 // Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
 // `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
 // Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
-// Cast by the sim as a reaction, for members who opted in, when a hit would land that +5 turns into a miss.
-(schema: 1, id: "base:spell:shield", name: "base:text:spell.shield.name", level: 1, school: Abjuration, classes: ["base:class:wizard"], concentration: false, ritual: false, description: "base:text:spell.shield.description", effect: Some(Reaction(armor_bonus: 5)), reach: One)
+// A reaction: cast only when a member's declared reaction fires (D22), as the shield rule does on a
+// hit that +5 would turn into a miss.
+(schema: 1, id: "base:spell:shield", name: "base:text:spell.shield.name", level: 1, school: Abjuration, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Reaction, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.shield.description", effect: Some(Reaction(armor_bonus: 5)), reach: One)

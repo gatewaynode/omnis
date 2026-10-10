@@ -1,35 +1,42 @@
 # Continuity notes
 
-Written 2026-10-02 after M7 step 8a. Rewrite this file every time it is used; keep it to state,
-next step and pointers. The durable knowledge lives in `tasks/knowledge/` (start at its README).
+Written 2026-10-10, after P2d's closing commit `8525ef2`. M8 is closed (`8921c07`). Branch `m7a-b-tasks`.
+Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
-## On resuming
-- Run `/catchup`, then read `tasks/knowledge/README.md`, `agreements.md`, `verification.md` and
-  `code-map.md` (the tool bar and service panel entries) before touching code.
-- **Toolchain**: inside the sandbox every cargo and gate run needs
-  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (the sandbox cannot read Xcode's license
-  plist, so `xcodebuild -find clang` fails; the license itself is accepted). See `verification.md`.
-- Sentrux: scan `/Users/john/code/omnis/crates` (the rules file is `crates/.sentrux/rules.toml`).
+## State of the tree
+- Protocol 2 is built (P2a–P2d; `4ecb1d6` WIP, `3a13481`, `8525ef2`). Gate `tests passed 583 failed 0
+  ignored 13`, VERIFY-GREEN, 222 s. CLI replays unchanged. Sentrux rules pass, quality 9003 (9038 before
+  P2d; the drop came with the P2d code in the WIP commit, not looked into).
+- **Open: owner acceptance** (`tasks/acceptance/protocol-2.md`). Parts 1 and 2 were run over the real
+  `omnis-mcp --headless` binary on 2026-10-10 and passed (protocol 2, `Place` position, Bless by id agrees
+  across `cast_get`, `SpellCast`, `EffectApplied`, `party_get`; after a reorder `caster: 0` still reaches
+  Wren, `caster: 1` is Ash). Part 3 is the owner's play in the window. When it passes: check P2d and the
+  parent protocol-2 item in `tasks/TODO.md`, mark `tasks/plans/protocol-2.md` closed.
 
-## State
-- Branch `m7-tasks`. Pushed up to `5bce8b7`; every later commit is unpushed.
-- M7 steps 0–7 and 8a done. Step 8 was split by the owner (plan `tasks/plans/m7-step8.md`):
-  8a moved the canvas tool pad to a Feathers bar (seven buttons, CAMP dim); 8b is the camp panel.
-- Gate `tests passed 447 failed 0 ignored 8`; pins unmoved: tuple `(4, 4, 3, 24, 16, 11, 3, 31, 7)`,
-  walk `9901411989274517557` (`WALK_SEED = 2`), fight `15728260309841309156`; `SAVE_SCHEMA 5`;
-  MCP 20 tools, `oneOf` 11, proof 77/111.
-- Owed by the owner: a manual look at the 8a bar (on the ultrawide too); agent-launched windows
-  draw no frames.
-- ARCHITECTURE.md §8 line on `UiPlugin` still says it composes the "tool pad"; it is drift for
-  step 9's "as built" pass (ask the owner before editing ARCH).
+## The first-launch wait is gone
+- After the owner restarted iTerm2 (listed under Developer Tools), a never-seen binary launches in 0.00 s
+  the first time, from this session too. Recorded in `verification.md` "Test binaries".
 
-## Next: M7 step 8b (the camp panel), per `tasks/plans/m7-step8.md` part "8b"
-- Commit 2: `omnis-sim` `rest_view.rs` (read-only; `food_need` split out of `rest.rs`).
-- Commit 3: the app: `PlayState::Camp`, `camp_panel.rs` + `feathers_camp.rs`, CAMP live on the map
-  (`tool_bar::tool_states`, `tool_for`), R in `input::shell_for`, `follow_mode` gains `Camp`,
-  hit dice on the sheet's stats page row 4. Then step 9 (docs, acceptance a).
+## Next (owner's call)
+- The Socket re-audit of `rhai` 1.26.1 (due 2026-10-10).
+- Unscheduled TODO items: `DevCommand::Pass { minutes }`; the `data.*` ops; `scripts/mcp-probe.py`.
+- Editor v1 is held "after M8, before M9" (owner, 2026-09-20); M8 is closed.
+
+## Pins
+- Gate 583/0/13. Walk replay `8711507745385976768`, fight `5247080599556612730`.
+- `SAVE_SCHEMA` 7, `PROTOCOL` 2, MCP 24 tools, schema proof 94/142, dev branches 13, 62 rejections.
+- Base pack tuple `(4, 4, 3, 24, 16, 18, 3, 36, 7)`.
+
+## Process
+- Every cargo and gate run: `DEVELOPER_DIR=/Library/Developer/CommandLineTools`; `cargo fmt --all` first.
+- Gate: `scripts/verify.sh > <scratchpad>/gate.txt 2>&1` in the background; no edits while it runs.
+- After any wire change: `cargo test -p omnis-mcp --test integration vocabulary::` (seconds).
+- A new test file goes into its crate's `tests/main.rs`.
 
 ## Carry-over
-- Owed by the owner at acceptance a: `--frame-stats` with a panel open.
-- Dated: Socket re-audit of `rhai` 1.26.1 on 2026-10-10.
-- Merged local branches `m5-tasks`, `m6c-tasks`, `m6-closeout-tasks` can be deleted by the owner.
+- Not built: nothing answers `SpellCast`/`EnemyCasts`; `EnemyFlees`/`OwnTurn` have no source; region
+  catch-up waits for M10.
+- Large files: `plan.rs` 980, `bake.rs` 934, `screen.rs` 902, `save_and_replay.rs` 810,
+  `tactics_panel.rs` 795.
+- The command instances (`omnis-mcp/tests/common/commands.rs`) have no `Predicate::Row`, so the vocabulary
+  never sees it on real data (the self-check covers it).

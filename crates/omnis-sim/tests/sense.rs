@@ -3,7 +3,7 @@
 //! one below it), the best eyes doing the looking, a look without a die, and the automap's
 //! layer rules (a direct sighting clears the remote mark, the visited bit sticks).
 
-mod common;
+use crate::common;
 
 use common::{data, party_of, world};
 use omnis_core::{Edges, Facing, ItemId, MapId, Position};
@@ -27,14 +27,14 @@ fn place(world: &mut World, data: &Data, x: u16, y: u16, facing: Facing) {
 }
 
 /// The row of the spyglass in a member's kit, given to them if they lack one.
-fn spyglass(world: &mut World, data: &Data, member: usize) -> (ItemId, u8) {
+/// The spyglass, in the member's kit: its registry number and the id `Use` takes.
+fn spyglass(world: &mut World, data: &Data, member: usize) -> (ItemId, String) {
     let glass = item_id(data, "spyglass").unwrap();
     let kit = &mut world.party.members[member].equipment;
     if count_of(kit, glass) == 0 {
         kit.push((glass, 1));
     }
-    let row = kit.iter().position(|(id, _)| *id == glass).unwrap();
-    (glass, u8::try_from(row).unwrap())
+    (glass, "base:item:spyglass".to_owned())
 }
 
 /// The difficulty `sense.dc` gives a tile in the dungeon (visibility six).
@@ -114,23 +114,23 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
         &mut world,
         &data,
         Command::Item(ItemCommand::Use {
-            member: 0,
+            member: brenna,
             item: row,
-            target: None,
+            receiver: None,
         }),
     )
     .unwrap();
     assert!(events.contains(&Event::ItemUsed {
         member: brenna,
-        item: glass,
-        target: None,
+        item: "base:item:spyglass".to_owned(),
+        receiver: None,
         consumed: false,
     }));
     assert_eq!(count_of(&world.party.members[0].equipment, glass), 1);
     assert!(
         events.iter().any(|e| matches!(
             e,
-            Event::Sensed { actor, item, .. } if *actor == durin && *item == glass
+            Event::Sensed { actor, item, .. } if *actor == durin && item == "base:item:spyglass"
         )),
         "Brenna holds the glass; Durin's Wisdom 16 outsees her trained Perception"
     );
@@ -202,9 +202,9 @@ fn the_best_eyes_look_and_a_source_without_a_die_reaches_the_whole_ray() {
     // Brenna carries the glass, but Durin (Wisdom 16, +3) outsees her Perception (+2).
     let (glass, row) = spyglass(&mut world, &data, 0);
     let use_it = Command::Item(ItemCommand::Use {
-        member: 0,
+        member: brenna,
         item: row,
-        target: None,
+        receiver: None,
     });
     let events = apply(&mut world, &data, use_it.clone()).unwrap();
     assert!(events.iter().any(|e| matches!(

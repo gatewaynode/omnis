@@ -2,12 +2,11 @@
 //! them, the four choices resolve by the rules, random tables draw from their own stream, and
 //! the protocol knows the choices.
 
-mod common;
+use crate::common;
 
-use common::{data, encounter, party_of, play, walk_to_the_rats, world};
+use common::{data, encounter, party_of, play, script_for_six, walk_to_the_rats, world};
 use omnis_core::{Direction, Facing, Position, StreamName};
 use omnis_data::{Data, Disposition};
-use omnis_sim::command::parse_script;
 use omnis_sim::{
     ActorRef, CheckKind, Command, EncounterChoice, EncounterSource, Event, Mode, ModeKind, Op,
     Rejection, Reply, Settings, Surprise, World, apply, dispatch,
@@ -277,7 +276,7 @@ fn hiding_and_running_roll_against_the_group_or_start_a_surprised_fight() {
         assert_eq!((*dc, *success), (12, roll.total >= 12), "wary: 12");
         if *success {
             seen[2] = true;
-            assert!(matches!(events[1], Event::Moved { to, .. } if to.y == from.y - 1));
+            assert!(matches!(&events[1], Event::Moved { to, .. } if to.y == from.y - 1));
             assert!(matches!(events[2], Event::TimeAdvanced { minutes: 1, .. }));
             assert_eq!(
                 (world.position.y, world.position.facing, &world.mode),
@@ -334,7 +333,7 @@ fn attacking_starts_the_fight_and_the_protocol_knows_the_choices() {
         (ModeKind::Encounter, 0, None)
     );
     assert!(combat.order.is_empty() && combat.stacks.iter().all(|s| !s.reachable));
-    assert!(combat.stacks[0].front && combat.stacks[1].front);
+    assert!(combat.stacks[0].in_front && combat.stacks[1].in_front);
     assert_eq!(
         apply(&mut world, &data, Command::Step(Direction::Forward)),
         Err(Rejection::WrongMode),
@@ -354,7 +353,7 @@ fn attacking_starts_the_fight_and_the_protocol_knows_the_choices() {
         "the choice is made"
     );
     assert_eq!(
-        parse_script("fight, bribe, hide, run").unwrap(),
+        script_for_six("fight, bribe, hide, run"),
         [
             Command::Encounter(EncounterChoice::Attack),
             Command::Encounter(EncounterChoice::Bribe),

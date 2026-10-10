@@ -2,8 +2,8 @@
 //! fall to zero, death saves, instant death, and the burial at the end.
 
 use super::Roller;
-use super::reaction::try_shield;
 use super::state::{CombatState, is_dead};
+use super::{monster_cast, reaction};
 use crate::effects;
 use crate::encounter::Stack;
 use crate::event::{ActorRef, CheckKind, Event};
@@ -46,10 +46,10 @@ pub(crate) fn member_attacks(
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let (bonus, proficiency) = attack_bonus(member, data, weapon)?;
     let mode = RollMode::combine(
-        false,
+        state.reveal(actor),
         flags(&member.conditions, data).own_attacks_disadvantage,
     );
-    let ac = i64::from(monster.ac);
+    let ac = i64::from(monster.ac) + monster_cast::shield_bonus(state, data, stack, 0);
     let extra = roll_bonus(
         &member.effects,
         BuffOn::AttackRolls,
@@ -61,7 +61,8 @@ pub(crate) fn member_attacks(
         proficiency,
         extra,
     };
-    let roll = attack_roll_with(data, with, ac, mode, &mut roller.rng, &roller.stream)?;
+    let mut roll = attack_roll_with(data, with, ac, mode, &mut roller.rng, &roller.stream)?;
+    let ac = monster_cast::shield_on_hit(data, state, (stack, 0), &mut roll, roller, events)?;
     events.push(Event::AttackResolved {
         attacker: ActorRef::Member(actor),
         target,
@@ -124,6 +125,11 @@ pub(crate) fn hurt_individual(
         return Ok(());
     }
     s.hp.remove(index);
+    if index < s.spent.len() {
+        s.spent.remove(index);
+    }
+    monster_cast::forget(&mut state.monster_shields, stack, index);
+    let s = &state.encounter.stacks[usize::from(stack)];
     let gold = match monster(data, s)?.gold {
         Some(dice) => {
             let trace = dice
@@ -146,9 +152,10 @@ pub(crate) fn hurt_individual(
     Ok(())
 }
 
-/// Every living individual of a stack attacks once: a front stack in melee against the front
-/// row (the back row once the front has fallen), a back stack with a ranged attack against
-/// anyone, or the stack waits.
+/// Every living individual of a stack acts once: a caster by a dice roll among its staff and
+/// the spells it can pay for (`monster_cast`); the others attack, a front stack in melee
+/// against the front row (the back row once the front has fallen), a back stack with a ranged
+/// attack against anyone, or the stack waits.
 pub(crate) fn monster_turn(
     world: &mut World,
     data: &Data,
@@ -158,62 +165,93 @@ pub(crate) fn monster_turn(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let s = &state.encounter.stacks[usize::from(stack)];
+    let m = monster(data, s)?;
     let front = state.is_front(data, stack);
-    let Some(attack) = pick_attack(monster(data, s)?, !front).cloned() else {
+    let attack = pick_attack(m, !front).cloned();
+    let casts = m.casting.is_some();
+    if attack.is_none() && !casts {
         events.push(Event::Waited {
             actor: ActorRef::Stack(stack),
         });
         return Ok(());
-    };
-    let front_row = party::front_row(data);
+    }
     for index in 0..s.hp.len() {
         if state.outcome(&world.party, data).is_some() {
             break;
         }
-        let living: Vec<usize> = world
-            .party
-            .members
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| !m.is_down())
-            .map(|(i, _)| i)
-            .collect();
-        let candidates: Vec<usize> = if attack.ranged {
-            living
-        } else {
-            let in_front: Vec<usize> = living.iter().copied().filter(|i| *i < front_row).collect();
-            if in_front.is_empty() {
-                living
-            } else {
-                in_front
-            }
-        };
-        let Some(pick) = choose_target(candidates.len(), &mut roller.rng) else {
-            break;
-        };
-        let attacker = ActorRef::Monster {
-            stack,
-            index: u8::try_from(index).unwrap_or(u8::MAX),
-        };
-        monster_attacks_member(
-            world,
-            data,
-            state,
-            attacker,
-            candidates[pick],
-            &attack,
-            roller,
-            events,
-        )?;
+        if casts {
+            monster_cast::act(
+                world,
+                data,
+                state,
+                stack,
+                index,
+                attack.as_ref(),
+                roller,
+                events,
+            )?;
+        } else if let Some(attack) = &attack {
+            swing(world, data, state, stack, index, attack, roller, events)?;
+        }
     }
     Ok(())
 }
 
+/// One individual's attack at a member it reaches: anyone for a ranged attack, else the front
+/// row while it stands.
 #[allow(clippy::too_many_arguments)]
-fn monster_attacks_member(
+pub(crate) fn swing(
     world: &mut World,
     data: &Data,
-    state: &CombatState,
+    state: &mut CombatState,
+    stack: u8,
+    index: usize,
+    attack: &Attack,
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let Some(target) = reached(world, data, attack.ranged, &mut roller.rng) else {
+        return Ok(());
+    };
+    let attacker = ActorRef::Monster {
+        stack,
+        index: u8::try_from(index).unwrap_or(u8::MAX),
+    };
+    monster_attacks_member(world, data, state, attacker, target, attack, roller, events)
+}
+
+/// A living member picked at random among those a monster reaches: anyone at range, else the
+/// front row while it stands.
+pub(crate) fn reached(
+    world: &World,
+    data: &Data,
+    ranged: bool,
+    rng: &mut omnis_core::Pcg32,
+) -> Option<usize> {
+    let front_row = party::front_row(data);
+    let living: Vec<usize> = world
+        .party
+        .members
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| !m.is_down())
+        .map(|(i, _)| i)
+        .collect();
+    let in_front: Vec<usize> = living.iter().copied().filter(|i| *i < front_row).collect();
+    let candidates = if ranged || in_front.is_empty() {
+        living
+    } else {
+        in_front
+    };
+    choose_target(candidates.len(), rng).map(|pick| candidates[pick])
+}
+
+/// One monster attack at the member in slot `member_index`: shield may answer it, then damage.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn monster_attacks_member(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
     attacker: ActorRef,
     member_index: usize,
     attack: &Attack,
@@ -236,7 +274,7 @@ fn monster_attacks_member(
         &mut roller.rng,
         &roller.stream,
     )?;
-    try_shield(world, data, member_index, &mut roll, roller, events)?;
+    reaction::on_attack(world, data, state, member_index, &mut roll, roller, events)?;
     let crit = roll.crit || (roll.hit && condition_flags.melee_hits_crit && !attack.ranged);
     events.push(Event::AttackResolved {
         attacker,
@@ -266,8 +304,35 @@ fn monster_attacks_member(
         amount: damage.amount,
         adjust: damage.adjust,
     });
-    hurt_member(world, data, member_index, damage.amount, crit, events);
-    keep_concentration(world, data, member_index, damage.amount, roller, events)
+    harm_member(
+        world,
+        data,
+        state,
+        member_index,
+        (damage.amount, crit),
+        roller,
+        events,
+    )
+}
+
+/// Damage already announced lands on a member: the fall, the row's wound reactions, and the
+/// member's concentration.
+pub(crate) fn harm_member(
+    world: &mut World,
+    data: &Data,
+    state: &mut CombatState,
+    member_index: usize,
+    (amount, crit): (i64, bool),
+    roller: &mut Roller,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let was_up = !world.party.members[member_index].is_down();
+    hurt_member(world, data, member_index, amount, crit, events);
+    if amount > 0 {
+        let dying = was_up && world.party.members[member_index].is_down();
+        reaction::on_wound(world, data, state, member_index, dying, roller, events)?;
+    }
+    keep_concentration(world, data, member_index, amount, roller, events)
 }
 
 /// A concentrating member who took damage saves on Constitution against `concentration.dc`
@@ -303,7 +368,7 @@ fn keep_concentration(
         success,
     });
     if !success {
-        effects::end_concentration(world, id, events);
+        effects::end_concentration(world, data, id, events);
     }
     Ok(())
 }

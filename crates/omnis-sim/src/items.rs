@@ -9,12 +9,14 @@ use crate::apply::advance;
 use crate::combat::{Roller, state};
 use crate::command::Rejection;
 use crate::event::{Event, ItemPlace};
+use crate::names::id_of;
 use crate::party::{self, Party};
 use crate::sense;
 use crate::world::World;
+use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
-use omnis_core::{Dice, ItemId};
+use omnis_core::{CharacterId, Dice, ItemId};
 use omnis_data::{Data, EquipSlot, SenseSource, UseEffect};
 use omnis_rules::{Character, EquipRefusal, RuleError};
 use serde::{Deserialize, Serialize};
@@ -24,64 +26,64 @@ const DEFAULT_DON_MINUTES: u32 = 5;
 /// Minutes using an item costs when the rules do not say.
 const DEFAULT_USE_MINUTES: u32 = 1;
 
-/// A change to who carries, wears, or uses what. Every `item` is a row of the list it names
-/// (a member's kit, or the stores for `Take`) as it stands when the command is applied, the
-/// way `spell` is a row of a caster's list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// A change to who carries, wears, or uses what. Every `item` is an item kind's string id
+/// (`base:item:dagger`) that the list the command names holds (a member's kit, or the stores
+/// for `Take`); a counted list holds each kind once.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ItemCommand {
     /// Wear or wield a carried item; what the slot held stays carried. Armor takes
     /// `don_armor_minutes`.
     Equip {
-        /// The member's slot.
-        member: u8,
-        /// The row of the member's kit.
-        item: u8,
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the member's kit must hold it.
+        item: String,
     },
     /// Empty a slot; the item stays carried. Armor takes `don_armor_minutes` to doff too.
     Unequip {
-        /// The member's slot.
-        member: u8,
+        /// The member.
+        member: CharacterId,
         /// Which slot.
         slot: EquipSlot,
     },
     /// Hand items from one member's kit to another's.
     Give {
-        /// The giver's slot.
-        from: u8,
-        /// The receiver's slot.
-        to: u8,
-        /// The row of the giver's kit.
-        item: u8,
+        /// The giver.
+        giver: CharacterId,
+        /// The receiver.
+        receiver: CharacterId,
+        /// The item's id; the giver's kit must hold it.
+        item: String,
         /// How many; at least one.
         count: u16,
     },
     /// Put items from a member's kit into the party's stores.
     Stow {
-        /// The member's slot.
-        member: u8,
-        /// The row of the member's kit.
-        item: u8,
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the member's kit must hold it.
+        item: String,
         /// How many; at least one.
         count: u16,
     },
     /// Take items from the stores into a member's kit.
     Take {
-        /// The member's slot.
-        member: u8,
-        /// The row of the stores.
-        item: u8,
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the stores must hold it.
+        item: String,
         /// How many; at least one.
         count: u16,
     },
-    /// Use a carried item, for `use_item_minutes`: a potion heals `target`, or the user when
+    /// Use a carried item, for `use_item_minutes`: a potion heals `receiver`, or the user when
     /// none is named. A consumable loses one count.
     Use {
-        /// The member's slot.
-        member: u8,
-        /// The row of the member's kit.
-        item: u8,
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the member's kit must hold it.
+        item: String,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<u8>,
+        receiver: Option<CharacterId>,
     },
 }
 
@@ -122,47 +124,50 @@ enum Place {
 pub(crate) fn apply(
     world: &mut World,
     data: &Data,
-    command: ItemCommand,
+    command: &ItemCommand,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    match command {
-        ItemCommand::Equip { member, item } => equip(world, data, member, item, events),
+    match *command {
+        ItemCommand::Equip { member, ref item } => equip(world, data, member, item, events),
         ItemCommand::Unequip { member, slot } => unequip(world, data, member, slot, events),
         ItemCommand::Give {
-            from,
-            to,
-            item,
+            giver,
+            receiver,
+            ref item,
             count,
         } => {
-            if from == to {
+            if giver == receiver {
                 return Err(Rejection::SameMember);
             }
-            let (from, to) = (member_index(world, from)?, member_index(world, to)?);
-            transfer(world, Place::Kit(from), Place::Kit(to), item, count, events)
+            let (from, to) = (member_index(world, giver)?, member_index(world, receiver)?);
+            let route = (Place::Kit(from), Place::Kit(to));
+            transfer(world, data, route, item, count, events)
         }
         ItemCommand::Stow {
             member,
-            item,
+            ref item,
             count,
         } => {
             let own = member_index(world, member)?;
-            transfer(world, Place::Kit(own), Place::Stores, item, count, events)
+            let route = (Place::Kit(own), Place::Stores);
+            transfer(world, data, route, item, count, events)
         }
         ItemCommand::Take {
             member,
-            item,
+            ref item,
             count,
         } => {
             let own = member_index(world, member)?;
-            transfer(world, Place::Stores, Place::Kit(own), item, count, events)
+            let route = (Place::Stores, Place::Kit(own));
+            transfer(world, data, route, item, count, events)
         }
         ItemCommand::Use {
             member,
-            item,
-            target,
+            ref item,
+            receiver,
         } => {
             let own = actor(world, data, member)?;
-            let plan = validate_use(world, data, own, item, target, false)?;
+            let plan = validate_use(world, data, own, item, receiver, false)?;
             let (stream, minutes) = match &plan.kind {
                 UseKind::Heal(_) => (
                     "items",
@@ -173,7 +178,7 @@ pub(crate) fn apply(
             let mut roller = Roller::take_stream(world, stream);
             use_item(world, data, &plan, &mut roller, events).map_err(Rejection::Rule)?;
             roller.store(world);
-            advance(world, minutes, events);
+            advance(world, data, minutes, events);
             Ok(())
         }
     }
@@ -187,32 +192,42 @@ fn minutes(data: &Data, key: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
-/// A member by slot.
-fn member_index(world: &World, index: u8) -> Result<usize, Rejection> {
-    let own = usize::from(index);
-    if own < world.party.members.len() {
-        Ok(own)
-    } else {
-        Err(Rejection::NoSuchMember { index })
-    }
+/// A member's slot.
+fn member_index(world: &World, member: CharacterId) -> Result<usize, Rejection> {
+    world.party.slot_of(member).map(usize::from)
 }
 
-/// A member by slot who can act: alive and up.
-fn actor(world: &World, data: &Data, index: u8) -> Result<usize, Rejection> {
-    let own = member_index(world, index)?;
-    let member = &world.party.members[own];
-    if state::is_dead(member, data) {
-        return Err(Rejection::MemberDead { index });
+/// The slot of a member who can act: alive and up.
+fn actor(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
+    let own = member_index(world, member)?;
+    let m = &world.party.members[own];
+    if state::is_dead(m, data) {
+        return Err(Rejection::MemberDead { member });
     }
-    if member.is_down() {
-        return Err(Rejection::MemberDown { index });
+    if m.is_down() {
+        return Err(Rejection::MemberDown { member });
     }
     Ok(own)
 }
 
-/// The item at a row of a list.
-fn row(list: &[(ItemId, u16)], item: u8) -> Option<ItemId> {
-    list.get(usize::from(item)).map(|(id, _)| *id)
+/// The item kind a command names by its string id, when the list holds some of it.
+fn held(data: &Data, list: &[(ItemId, u16)], item: &str) -> Option<ItemId> {
+    data.registry
+        .items
+        .get(item)
+        .filter(|id| count_of(list, *id) > 0)
+}
+
+/// An item's string id, the name its refusals carry.
+pub(crate) fn item_name(data: &Data, item: ItemId) -> String {
+    String::from(data.registry.items.name(item).unwrap_or("?"))
+}
+
+/// The kit holds none of the item asked for.
+fn not_in_kit(item: &str) -> Rejection {
+    Rejection::UnknownItem {
+        item: String::from(item),
+    }
 }
 
 /// The refusal of the equipment rules as a rejection.
@@ -229,6 +244,7 @@ fn don(world: &mut World, data: &Data, slot: EquipSlot, events: &mut Vec<Event>)
     if slot == EquipSlot::Body {
         advance(
             world,
+            data,
             minutes(data, "don_armor_minutes", DEFAULT_DON_MINUTES),
             events,
         );
@@ -238,26 +254,26 @@ fn don(world: &mut World, data: &Data, slot: EquipSlot, events: &mut Vec<Event>)
 fn equip(
     world: &mut World,
     data: &Data,
-    member: u8,
-    item: u8,
+    member: CharacterId,
+    item: &str,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
     let own = actor(world, data, member)?;
     let m = &mut world.party.members[own];
-    let id = row(&m.equipment, item).ok_or(Rejection::UnknownItem { item })?;
+    let id = held(data, &m.equipment, item).ok_or_else(|| not_in_kit(item))?;
     let (slot, displaced) =
         omnis_rules::equip(data, &m.equipment, &mut m.equipped, id).map_err(refusal)?;
     if let Some(old) = displaced {
         events.push(Event::Unequipped {
             member: m.id,
             slot,
-            item: old,
+            item: id_of(&data.registry.items, old),
         });
     }
     events.push(Event::Equipped {
         member: m.id,
         slot,
-        item: id,
+        item: id_of(&data.registry.items, id),
     });
     don(world, data, slot, events);
     Ok(())
@@ -266,7 +282,7 @@ fn equip(
 fn unequip(
     world: &mut World,
     data: &Data,
-    member: u8,
+    member: CharacterId,
     slot: EquipSlot,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -276,7 +292,7 @@ fn unequip(
     events.push(Event::Unequipped {
         member: m.id,
         slot,
-        item,
+        item: id_of(&data.registry.items, item),
     });
     don(world, data, slot, events);
     Ok(())
@@ -304,7 +320,7 @@ fn place_of(party: &Party, place: Place) -> ItemPlace {
 }
 
 /// A slot that held an item the kit no longer carries empties, with the event.
-fn drop_worn(member: &mut Character, item: ItemId, events: &mut Vec<Event>) {
+fn drop_worn(member: &mut Character, data: &Data, item: ItemId, events: &mut Vec<Event>) {
     if count_of(&member.equipment, item) > 0 {
         return;
     }
@@ -314,19 +330,19 @@ fn drop_worn(member: &mut Character, item: ItemId, events: &mut Vec<Event>) {
             events.push(Event::Unequipped {
                 member: member.id,
                 slot,
-                item,
+                item: id_of(&data.registry.items, item),
             });
         }
     }
 }
 
-/// Move `count` of the item at row `item` of `from` into `to`. A kit that loses the last of a
-/// worn item takes it off first. No minutes pass.
+/// Move `count` of the item `item` from one list into the other. A kit that loses the last of
+/// a worn item takes it off first. No minutes pass.
 fn transfer(
     world: &mut World,
-    from: Place,
-    to: Place,
-    item: u8,
+    data: &Data,
+    (from, to): (Place, Place),
+    item: &str,
     count: u16,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -334,21 +350,27 @@ fn transfer(
         return Err(Rejection::ZeroCount);
     }
     let source = list(&world.party, from);
-    let id = row(source, item).ok_or(match from {
-        Place::Kit(_) => Rejection::UnknownItem { item },
-        Place::Stores => Rejection::NotInStores { item },
+    let id = held(data, source, item).ok_or_else(|| match from {
+        Place::Kit(_) => not_in_kit(item),
+        Place::Stores => Rejection::NotInStores {
+            item: String::from(item),
+        },
     })?;
     let have = count_of(source, id);
     if have < count {
-        return Err(Rejection::NotEnough { item: id, have });
+        return Err(Rejection::NotEnough {
+            item: String::from(item),
+            have,
+        });
     }
-    take_from(list_mut(&mut world.party, from), id, count)?;
+    take_from(list_mut(&mut world.party, from), id, count)
+        .map_err(|short| short.rejection(data))?;
     add_to(list_mut(&mut world.party, to), id, count);
     if let Place::Kit(own) = from {
-        drop_worn(&mut world.party.members[own], id, events);
+        drop_worn(&mut world.party.members[own], data, id, events);
     }
     events.push(Event::ItemMoved {
-        item: id,
+        item: id_of(&data.registry.items, id),
         count,
         from: place_of(&world.party, from),
         to: place_of(&world.party, to),
@@ -363,13 +385,13 @@ pub(crate) fn validate_use(
     world: &World,
     data: &Data,
     own: usize,
-    item: u8,
-    target: Option<u8>,
+    item: &str,
+    target: Option<CharacterId>,
     fight: bool,
 ) -> Result<UsePlan, Rejection> {
     let id =
-        row(&world.party.members[own].equipment, item).ok_or(Rejection::UnknownItem { item })?;
-    let def = data.items.get(&id).ok_or(Rejection::UnknownItem { item })?;
+        held(data, &world.party.members[own].equipment, item).ok_or_else(|| not_in_kit(item))?;
+    let def = data.items.get(&id).ok_or_else(|| not_in_kit(item))?;
     let kind = match &def.use_effect {
         Some(UseEffect::Heal { dice }) => UseKind::Heal(*dice),
         Some(UseEffect::Sense(_)) if fight => return Err(Rejection::NotUsableHere),
@@ -378,10 +400,10 @@ pub(crate) fn validate_use(
     };
     let slot = match kind {
         UseKind::Heal(_) => {
-            let index = target.unwrap_or(u8::try_from(own).unwrap_or(u8::MAX));
-            let slot = member_index(world, index)?;
+            let member = target.unwrap_or(world.party.members[own].id);
+            let slot = member_index(world, member)?;
             if state::is_dead(&world.party.members[slot], data) {
-                return Err(Rejection::TargetDead { index });
+                return Err(Rejection::TargetDead { member });
             }
             slot
         }
@@ -414,8 +436,8 @@ pub(crate) fn use_item(
     let heals = matches!(plan.kind, UseKind::Heal(_));
     events.push(Event::ItemUsed {
         member: user.id,
-        item: plan.item,
-        target: heals.then_some(target),
+        item: id_of(&data.registry.items, plan.item),
+        receiver: heals.then_some(target),
         consumed: plan.consumable,
     });
     match &plan.kind {
@@ -451,16 +473,36 @@ pub fn count_of(list: &[(ItemId, u16)], item: ItemId) -> u16 {
         .fold(0u16, u16::saturating_add)
 }
 
+/// A counted list held too few of an item: the item and how many there were.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Short {
+    /// The item.
+    pub item: ItemId,
+    /// How many there were.
+    pub have: u16,
+}
+
+impl Short {
+    /// The refusal, naming the item by its string id.
+    #[must_use]
+    pub fn rejection(self, data: &Data) -> Rejection {
+        Rejection::NotEnough {
+            item: item_name(data, self.item),
+            have: self.have,
+        }
+    }
+}
+
 /// Remove `count` of an item from a counted list, dropping the entry at zero, or refuse
 /// without touching it.
 pub(crate) fn take_from(
     list: &mut Vec<(ItemId, u16)>,
     item: ItemId,
     count: u16,
-) -> Result<(), Rejection> {
+) -> Result<(), Short> {
     let have = count_of(list, item);
     if have < count {
-        return Err(Rejection::NotEnough { item, have });
+        return Err(Short { item, have });
     }
     let mut left = count;
     for (i, n) in list.iter_mut() {
@@ -483,12 +525,15 @@ pub fn has_all(party: &Party, needs: &[(ItemId, u16)]) -> bool {
 }
 
 /// Remove every `(item, count)` from the party's stores, or refuse without touching them.
-pub fn consume(party: &mut Party, needs: &[(ItemId, u16)]) -> Result<(), Rejection> {
+///
+/// # Errors
+/// The first item the stores hold too few of.
+pub fn consume(party: &mut Party, needs: &[(ItemId, u16)]) -> Result<(), Short> {
     if let Some((item, _)) = needs
         .iter()
         .find(|(item, count)| count_of(&party.inventory, *item) < *count)
     {
-        return Err(Rejection::NotEnough {
+        return Err(Short {
             item: *item,
             have: count_of(&party.inventory, *item),
         });

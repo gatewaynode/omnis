@@ -7,6 +7,7 @@
 #![deny(clippy::float_arithmetic)]
 #![warn(missing_docs)]
 
+pub mod action;
 pub mod character;
 pub mod condition;
 mod content;
@@ -18,6 +19,7 @@ pub mod loader;
 pub mod manifest;
 pub mod map;
 pub mod monster;
+pub mod region;
 pub mod registry;
 pub mod rest_event;
 pub mod ron_io;
@@ -29,6 +31,7 @@ pub mod terms;
 pub mod text;
 pub mod tileset;
 
+pub use action::{Cost, FeatureEffect, Recharge, Uses};
 pub use character::{Background, Casting, Class, ClassFeature, Effect, Feature, Race, SkillChoice};
 pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;
@@ -41,13 +44,14 @@ pub use item::{EquipSlot, Item, ItemKind, UseEffect};
 pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
-pub use monster::{Attack, Monster};
+pub use monster::{Attack, Monster, MonsterCasting};
 pub use omnis_expr;
+pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};
 pub use rules::{RulesFile, SlotDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
-pub use service::{ResolvedSite, ServiceDef, ServiceKind, Site};
+pub use service::{ResolvedSite, RumorDef, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
 pub use terms::{
     Ability, Alignment, ArmorKind, DamageType, SaveAgainst, School, Size, Skill, WeaponKind,

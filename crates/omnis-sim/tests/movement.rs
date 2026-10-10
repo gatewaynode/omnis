@@ -1,11 +1,14 @@
 //! Walking the test maps: steps, walls, doors, pillars, portals, time, and the automap.
 
-mod common;
+use crate::common;
 
 use common::{data, interact, step, turn, without_visible, world};
 use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_sim::world::layer;
-use omnis_sim::{BlockReason, Command, Event, MessageKey, PARTY, Settings, World, apply, query};
+use omnis_sim::{
+    BlockReason, Command, Event, MessageKey, Op, PARTY, Place, Reply, Settings, World, apply,
+    dispatch, query,
+};
 
 #[test]
 fn a_new_game_starts_in_town_and_the_gate_and_the_road_link_it_to_the_meadow() {
@@ -92,21 +95,21 @@ fn steps_take_terrain_time_and_fill_the_automap() {
         without_visible(events.clone()),
         [
             Event::Moved {
-                from: Position {
-                    map: meadow,
+                from: Place {
+                    map: "test:map:meadow".to_owned(),
                     x: 16,
                     y: 16,
                     facing: Facing::North
                 },
-                to: Position {
-                    map: meadow,
+                to: Place {
+                    map: "test:map:meadow".to_owned(),
                     x: 16,
                     y: 15,
                     facing: Facing::North
                 }
             },
             Event::TimeAdvanced {
-                holder: PARTY,
+                holder: "party:0".to_owned(),
                 minutes: 1,
                 day_rolled: false
             },
@@ -260,6 +263,27 @@ fn trees_are_opaque() {
 }
 
 #[test]
+fn a_step_through_a_portal_names_where_it_lands_as_every_view_does() {
+    let data = data();
+    let mut world = world(&data);
+    for _ in 0..10 {
+        step(&mut world, &data);
+    }
+    let events = step(&mut world, &data);
+    let Some(Event::Moved { to, .. }) = events.iter().rfind(|e| matches!(e, Event::Moved { .. }))
+    else {
+        panic!("no move: {events:?}")
+    };
+    assert_eq!(*to, Place::of(world.position, &data));
+    assert_eq!(to.map, "test:map:dungeon", "the map by its string id");
+    assert_eq!(query::here(&world, &data).position, *to);
+    let Reply::Status(status) = dispatch(&mut world, &data, &Op::GameStatus).unwrap() else {
+        panic!("not a status")
+    };
+    assert_eq!(status.position, *to);
+}
+
+#[test]
 fn portals_link_the_maps_both_ways() {
     let data = data();
     let mut world = world(&data);
@@ -270,18 +294,23 @@ fn portals_link_the_maps_both_ways() {
     }
     assert_eq!((world.position.x, world.position.y), (16, 6));
     let events = without_visible(step(&mut world, &data));
-    assert_eq!(events.len(), 3, "{events:?}");
+    assert_eq!(events.len(), 4, "{events:?}");
+    let meadow_region = data.maps[&meadow].region;
+    assert!(
+        matches!(&events[3], Event::Reconciled { b, .. } if b == "test:region:dungeon"),
+        "entering the dungeon's region reconciles it, not the meadow's {meadow_region:?}: {events:?}"
+    );
     assert_eq!(
         events[2],
         Event::Moved {
-            from: Position {
-                map: meadow,
+            from: Place {
+                map: "test:map:meadow".to_owned(),
                 x: 16,
                 y: 5,
                 facing: Facing::North
             },
-            to: Position {
-                map: dungeon,
+            to: Place {
+                map: "test:map:dungeon".to_owned(),
                 x: 1,
                 y: 0,
                 facing: Facing::South
@@ -403,14 +432,14 @@ fn doors_block_until_opened_and_pillars_always() {
         events,
         [
             Event::Door {
-                map: dungeon,
+                map: "test:map:dungeon".to_owned(),
                 x: 5,
                 y: 3,
                 facing: Facing::East,
                 open: true
             },
             Event::TimeAdvanced {
-                holder: PARTY,
+                holder: "party:0".to_owned(),
                 minutes: 1,
                 day_rolled: false
             }
@@ -436,7 +465,7 @@ fn doors_block_until_opened_and_pillars_always() {
     assert_eq!(
         events[0],
         Event::Door {
-            map: dungeon,
+            map: "test:map:dungeon".to_owned(),
             x: 6,
             y: 3,
             facing: Facing::West,
@@ -525,6 +554,7 @@ fn a_day_rolls_after_1440_minutes() {
     let data = data();
     let mut world = world(&data);
     world.clocks.get_mut(&PARTY).unwrap().elapsed = 1439;
+    world.party_time.date = 1439;
     let events = step(&mut world, &data);
     assert!(
         matches!(

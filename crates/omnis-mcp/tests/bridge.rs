@@ -96,7 +96,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}));
     let tools = reply["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 20);
+    assert_eq!(tools.len(), 24);
     assert!(
         tools
             .iter()
@@ -106,7 +106,7 @@ fn legacy_handshake_lists_tools_and_drives_the_headless_game() {
 
     let reply = server.tool(4, "game_status", json!({}));
     assert_eq!(
-        reply["result"]["structuredContent"]["map"],
+        reply["result"]["structuredContent"]["position"]["map"],
         json!("test:map:town")
     );
     assert_eq!(reply["result"]["content"][0]["type"], json!("text"));
@@ -165,14 +165,26 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let kit = member["equipment"].as_array().unwrap();
     let potion = kit
         .iter()
-        .find(|i| i["id"] == json!("base:item:potion_of_healing"))
+        .find(|i| i["item"] == json!("base:item:potion_of_healing"))
         .unwrap_or_else(|| panic!("{member}"));
     assert_eq!(potion["usable"], json!(true));
-    assert_eq!(member["equipped"][0][0], json!("MainHand"), "{member}");
+    assert_eq!(member["worn"][0][0], json!("MainHand"), "{member}");
+    let id = member["member"].clone();
+    assert!(
+        id.is_u64(),
+        "a member is named by its CharacterId: {member}"
+    );
+    let tactics = &member["tactics"];
+    assert_eq!(tactics["reactions_on"], json!(true), "{member}");
+    assert_eq!(
+        tactics["answers"],
+        json!([]),
+        "a fighter has nothing to declare yet (B2)"
+    );
     let reply = server.tool(
         12,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": 0, "item": potion["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": potion["item"], "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -190,13 +202,13 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap();
     assert!(
         !kit.iter()
-            .any(|i| i["id"] == json!("base:item:potion_of_healing")),
+            .any(|i| i["item"] == json!("base:item:potion_of_healing")),
         "spent"
     );
     let reply = server.tool(
         14,
         "sim_command",
-        json!({"command": {"Combat": {"Use": {"item": 0, "target": null}}}}),
+        json!({"command": {"Combat": {"Use": {"item": "base:item:potion_of_healing", "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
     assert_eq!(
@@ -208,7 +220,7 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
     let reply = server.tool(
         15,
         "sim_command",
-        json!({"command": {"Dev": {"GiveItem": {"member": 0, "item": "base:item:spyglass", "count": 1}}}}),
+        json!({"command": {"Dev": {"GiveItem": {"member": id, "item": "base:item:spyglass", "count": 1}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let reply = server.tool(16, "party_get", json!({}));
@@ -217,12 +229,12 @@ fn item_commands_go_through_the_pipe_and_party_get_shows_the_kit() {
         .unwrap();
     let glass = kit
         .iter()
-        .find(|i| i["id"] == json!("base:item:spyglass"))
+        .find(|i| i["item"] == json!("base:item:spyglass"))
         .unwrap();
     let reply = server.tool(
         17,
         "sim_command",
-        json!({"command": {"Item": {"Use": {"member": 0, "item": glass["index"], "target": null}}}}),
+        json!({"command": {"Item": {"Use": {"member": id, "item": glass["item"], "receiver": null}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let events = reply["result"]["structuredContent"]["events"]
@@ -246,6 +258,13 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(11, "party_get", json!({}));
     let member = &reply["result"]["structuredContent"]["party"]["members"][0];
     assert_eq!(member["name"], json!("Ilvara"));
+    let ilvara = member["member"].clone();
+    assert!(ilvara.is_u64(), "{member}");
+    let light = member["spells"][1].clone();
+    assert!(
+        light.is_string(),
+        "a spell is named by its string id: {member}"
+    );
     assert_eq!(member["spell_points_max"], json!(4), "{member}");
     let reply = server.tool(
         12,
@@ -304,7 +323,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(
         19,
         "sim_command",
-        json!({"command": {"Combat": {"Cast": {"spell": 0, "target": {"Stack": 0}}}}}),
+        json!({"command": {"Combat": {"Cast": {"spell": "base:spell:fire_bolt", "target": {"Stack": 0}}}}}),
     );
     assert_eq!(reply["result"]["isError"], json!(true), "no fight is on");
     assert_eq!(
@@ -315,7 +334,7 @@ fn the_party_and_the_rules_go_through_the_same_pipe() {
     let reply = server.tool(
         20,
         "sim_command",
-        json!({"command": {"Cast": {"caster": 0, "spell": 1, "target": {"Member": 0}}}}),
+        json!({"command": {"Cast": {"caster": ilvara, "spell": light, "target": {"Member": ilvara}}}}),
     );
     assert_eq!(
         reply["result"]["isError"],
@@ -340,10 +359,13 @@ fn service_get_reads_a_shop_and_screen_text_needs_the_window() {
     let reply = server.tool(4, "sim_command", json!({"command": "Interact"}));
     assert_eq!(reply["result"]["isError"], json!(false), "{reply}");
     let reply = server.tool(5, "service_get", json!({}));
-    let view = &reply["result"]["structuredContent"]["service"];
+    let view = &reply["result"]["structuredContent"]["view"];
     assert_eq!(view["service"], json!("base:service:smith"), "{reply}");
     let buy = &view["offers"][0];
-    assert_eq!(buy["command"], json!({"Buy": {"item": 0, "count": 1}}));
+    assert_eq!(
+        buy["command"],
+        json!({"Buy": {"item": "base:item:dagger", "count": 1}})
+    );
     assert_eq!(buy["refusal"]["CannotAfford"]["gold"], json!(0), "{reply}");
     let reply = server.tool(6, "game_status", json!({}));
     assert_eq!(
@@ -409,7 +431,7 @@ fn modern_requests_are_stateless_and_versioned() {
         &json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": meta()}}),
     );
     assert_eq!(reply["result"]["resultType"], json!("complete"));
-    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 20);
+    assert_eq!(reply["result"]["tools"].as_array().unwrap().len(), 24);
     let reply = server.call(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "game_status", "arguments": {}, "_meta": meta()}}));
     assert_eq!(reply["result"]["resultType"], json!("complete"));
     assert_eq!(reply["result"]["structuredContent"]["turn"], json!(0));

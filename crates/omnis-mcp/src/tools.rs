@@ -81,7 +81,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "game_status",
             "game.status",
-            "Mode, turn, party clock, position, map, packs, and the world fingerprint.",
+            "Mode, turn, party clock, position (its map by string id), packs, the world fingerprint, the service the party is inside, and the groups placed once on its map that are cleared out of how many.",
             &[],
         ),
         tool(
@@ -93,13 +93,13 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "sim_command",
             "sim.command",
-            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast, dodge, exchange, run), a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
+            "Apply one command to the game and return its events: steps and turns, Interact, party changes, encounter choices, fight actions (attack, cast with the action or the bonus action, use an item, dodge, exchange, run, a class feature, end the turn), tactics (switch a member's reactions, any time; declare or remove a reaction, outside a fight), rests and town services, a Cast outside a fight, or a Dev edit (items, hit points, points, gold in copper, conditions, flags, teleport, monster hit points) in a devtools world such as the headless driver.",
             &[Field::new::<Command>("command", true, "The command.")],
         ),
         tool(
             "sim_script",
             "sim.script",
-            "Apply commands in order, stopping at the first rejection; returns how many applied and every event.",
+            "Apply commands in order, stopping at the first rejection; returns how many applied and every event. A turn in a fight may take several commands: it ends when the budget has nothing left to pay for, or at EndTurn.",
             &[Field::new::<Vec<Command>>(
                 "commands",
                 true,
@@ -166,7 +166,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_get",
             "party.get",
-            "The party: members with race, class, level, hit and spell points, hit dice and those left, armor class, scores, row, conditions, spells, effects, the kit as rows (the numbers the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores as rows, party-wide effects, when the last long rest ended and the minutes before the next may begin.",
+            "The party: members with race, class, level, hit and spell points, hit dice and those left, whether a trainer would grant a level and the spell picks owed, armor class, scores, row, conditions, spells, effects with the caster and minutes left, the sheet (background, alignment, age in years, proficiency, the next level's experience, the hit die, saving throws and proficient skills with their bonus, the casting ability), the kit (each item's id, the `item` the Item commands take) and the worn slots, plus slots, gold and bank (in copper pieces, 100 to the gold piece), gems, food, the stores, party-wide effects, when the last long rest ended and the minutes before the next may begin; and each member's tactics: the reactions switch, the declared reactions with the `entry` PutReaction and RemoveReaction take (action, trigger, criteria, naming spells and items by string id), and the actions the member could declare with the triggers each answers.",
             &[],
         ),
         tool(
@@ -178,14 +178,42 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "combat_get",
             "combat.get",
-            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far. Fails while exploring.",
+            "The encounter or fight in progress: stacks with hit points, front flag, and reach, the initiative order, whose turn it is, the round, dodges, and loot so far; the acting member's turn budget (actions and bonus actions left), the spells cast this turn, each known spell by id (the `spell` Cast takes) with its reason it cannot be cast with the action and with the bonus action; reactions left by combatant; hidden members; each member's reactions switch and class features by name key (the `feature` Feature takes) with uses left and why each is blocked; each casting monster's points left per individual and the shields it has up; why the acting member cannot attack each stack; the bribe's price before the fight; the choices each feature takes. Fails while exploring.",
             &[],
         ),
         tool(
             "service_get",
             "service.get",
-            "The service the party is inside (an inn, tavern, temple, smith or bank in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
+            "The service the party is inside (an inn, tavern, temple, smith, bank, trainer or guild in town): gold, bank and food, and every offer as the exact Service command to send with sim_command, its price in copper (or what a sale pays), and the refusal the rules would give. Looking changes nothing. Fails outside a service.",
             &[],
+        ),
+        tool(
+            "rest_get",
+            "rest.get",
+            "The camp: each member's hit dice in all and left, how many a short rest may spend and why not, and why a long rest would be refused now. Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "cast_get",
+            "cast.get",
+            "The spells each member may cast outside a fight: the caster's id and the spell's id (the `caster` and `spell` a Cast command takes), its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "time_clocks",
+            "time.clocks",
+            "Subjective time: the party's age and shared time (minutes lived weighted by the company of each region), the date it believes (year, day, minute, night), every holder's clock (the party and each region met) and every contact (each side's clock when they last met). Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "time_reconcile",
+            "time.reconcile",
+            "Dev world only, outside a fight: the party meets a region as on entering it. The region catches up by the party's shared time (a settlement, which then sets the party's date) or lived time (a wild region), its coupled regions follow, and the Reconciled events come back. Sent as a dev command, so a replay holds it.",
+            &[Field::new::<String>(
+                "region",
+                true,
+                "Region id such as test:region:town.",
+            )],
         ),
         tool(
             "rules_list",
@@ -269,6 +297,10 @@ mod tests {
             ),
             ("combat_get", json!({})),
             ("service_get", json!({})),
+            ("rest_get", json!({})),
+            ("cast_get", json!({})),
+            ("time_clocks", json!({})),
+            ("time_reconcile", json!({"region": "test:region:town"})),
             ("screen_text", json!({})),
             ("rules_list", json!({})),
             ("rules_get", json!({"slot": "spell_points.pool"})),
@@ -305,6 +337,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 20);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 24);
     }
 }

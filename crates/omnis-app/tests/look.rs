@@ -1,7 +1,7 @@
 //! Remote sensing headless: LOOK and L are dim or say so with no spyglass in the party, and
 //! look through the first one carried once there is one, leaving a line in the log.
 
-mod common;
+use crate::common;
 
 use bevy::prelude::*;
 use common::{play_state, seen, ui_app_saving_to, world};
@@ -68,10 +68,11 @@ fn look_and_l_use_the_first_spyglass_carried_or_say_there_is_none() {
         "Nothing to look through"
     );
     // The autostarted game is a dev world: the debug command hands over a spyglass.
+    let first = world(&app).party.members[0].id;
     send(
         &mut app,
         Command::Dev(DevCommand::GiveItem {
-            member: Some(0),
+            member: Some(first),
             item: "base:item:spyglass".to_owned(),
             count: 1,
         }),

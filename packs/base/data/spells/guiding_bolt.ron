@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// Deviation: the advantage on the next attack against the target is dropped (no such effect
+// yet); the 4d6 is kept.
+(schema: 1, id: "base:spell:guiding_bolt", name: "base:text:spell.guiding_bolt.name", level: 1, school: Evocation, classes: ["base:class:cleric"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.guiding_bolt.description", effect: Some(Attack(dice: (count: 4, sides: 6, modifier: 0), damage_type: Radiant)), reach: One)

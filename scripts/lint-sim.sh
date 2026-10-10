@@ -8,9 +8,9 @@ cd "$(dirname "$0")/.."
 
 # Every simulation crate. A crate directory that does not exist yet is skipped; when a crate is
 # created it must already be in this list (CLAUDE.md).
-SIM_CRATES=(omnis-core omnis-expr omnis-data omnis-rules omnis-gen omnis-eco omnis-story omnis-sim)
+SIM_CRATES=(omnis-core omnis-bus omnis-expr omnis-data omnis-rules omnis-gen omnis-eco omnis-story omnis-sim)
 # Crates that must declare #![no_std]. omnis-data (file I/O) and omnis-expr (Rhai) are std.
-NO_STD_CRATES=(omnis-core omnis-rules omnis-gen omnis-eco omnis-story omnis-sim)
+NO_STD_CRATES=(omnis-core omnis-bus omnis-rules omnis-gen omnis-eco omnis-story omnis-sim)
 # Marker that exempts one line, for the rare documented case (e.g. a comment quoting a banned name).
 ALLOW='lint-sim: allow'
 

@@ -9,11 +9,13 @@ use crate::command::Rejection;
 use crate::effects;
 use crate::event::{ActorRef, CheckKind, Event};
 use crate::items::{consume, has_all};
+use crate::names::id_of;
 use crate::party;
 use crate::world::World;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId, Pcg32, SpellId};
-use omnis_data::{BuffOn, Data, Reach, Spell, SpellEffect};
+use omnis_data::{BuffOn, Cost, Data, Reach, Spell, SpellEffect};
 use omnis_rules::{
     ActiveEffect, EffectKind, Expiry, RollMode, RuleError, cantrip_dice, damage_roll, flags,
     heal_roll, monster_defenses, monster_save, needs_components, roll_bonus, save_dc, saved_damage,
@@ -26,8 +28,19 @@ use serde::{Deserialize, Serialize};
 pub enum Target {
     /// A stack, by its index in the encounter; the whole stack under `Reach::Stack`.
     Stack(u8),
+    /// A member, by identity.
+    Member(CharacterId),
+}
+
+/// A checked target: a member by slot once validation has found them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Aim {
+    /// A stack, by its index in the encounter.
+    Stack(u8),
     /// A member, by marching-order slot.
-    Member(u8),
+    Member(usize),
+    /// Nobody in particular (light).
+    Party,
 }
 
 /// A cast that passed every check.
@@ -40,37 +53,55 @@ pub(crate) struct CastPlan {
     /// Points it costs.
     pub cost: u32,
     /// Whom it goes to.
-    pub target: Target,
+    pub target: Aim,
 }
 
-/// The target-free half of validation: the spell a member knows at `index`, castable here
-/// (`fight` says whether a fight is on), affordable, its components in the stores. What a
-/// picker shows as the reason a row is grey.
+/// The spell a command names by its string id, refused as `UnknownSpell` with the id as asked
+/// when no pack defines it.
+pub(crate) fn spell_id(data: &Data, spell: &str) -> Result<SpellId, Rejection> {
+    data.registry
+        .spells
+        .get(spell)
+        .ok_or_else(|| Rejection::UnknownSpell {
+            spell: String::from(spell),
+        })
+}
+
+/// A spell's string id, the name its refusals carry.
+pub(crate) fn spell_name(data: &Data, spell: SpellId) -> String {
+    String::from(data.registry.spells.name(spell).unwrap_or("?"))
+}
+
+/// The target-free half of validation: a spell the member knows, castable here (`fight` says
+/// whether a fight is on), affordable, its components in the stores. What a picker shows as
+/// the reason a row is grey.
 pub fn check<'a>(
     world: &World,
     data: &'a Data,
     own: usize,
-    index: u8,
+    id: SpellId,
     fight: bool,
     rng: &mut Pcg32,
 ) -> Result<(SpellId, &'a Spell, u32), Rejection> {
     let member = world.party.members.get(own).ok_or(Rejection::NotYourTurn)?;
-    let id = *member
-        .known_spells
-        .get(usize::from(index))
-        .ok_or(Rejection::UnknownSpell { spell: index })?;
-    let spell = data
-        .spells
-        .get(&id)
-        .ok_or(Rejection::UnknownSpell { spell: index })?;
+    let unknown = || Rejection::UnknownSpell {
+        spell: spell_name(data, id),
+    };
+    if !member.known_spells.contains(&id) {
+        return Err(unknown());
+    }
+    let spell = data.spells.get(&id).ok_or_else(unknown)?;
     let castable = match &spell.effect {
-        // Reactions are cast by the simulation when the moment comes.
+        // Reactions are cast by the simulation when a declared reaction fires.
+        _ if spell.cost == Cost::Reaction => false,
         None | Some(SpellEffect::Reaction { .. }) => false,
         Some(SpellEffect::Utility(_)) => !fight,
         Some(effect) => fight || effect.explore_castable(),
     };
     if !castable {
-        return Err(Rejection::NotCastable { spell: index });
+        return Err(Rejection::NotCastable {
+            spell: spell_name(data, id),
+        });
     }
     let cost = spell_cost(spell, data, rng).map_err(Rejection::Rule)?;
     if member.spell_points < cost {
@@ -82,9 +113,29 @@ pub fn check<'a>(
     if (needs_components(spell, data) && spell.components.is_empty())
         || !has_all(&world.party, &component_ids(data, spell))
     {
-        return Err(Rejection::MissingComponents { spell: index });
+        return Err(Rejection::MissingComponents {
+            spell: spell_name(data, id),
+        });
     }
     Ok((id, spell, cost))
+}
+
+/// What a declared reaction's spell costs the member in slot `own`, when the points and the
+/// components are there; the cast-time checks a reaction skips are the turn's.
+pub(crate) fn reaction_cost(
+    world: &World,
+    data: &Data,
+    own: usize,
+    spell: SpellId,
+    rng: &mut Pcg32,
+) -> Result<Option<u32>, RuleError> {
+    let (Some(member), Some(def)) = (world.party.members.get(own), data.spells.get(&spell)) else {
+        return Ok(None);
+    };
+    let cost = spell_cost(def, data, rng)?;
+    let components = (!needs_components(def, data) || !def.components.is_empty())
+        && has_all(&world.party, &component_ids(data, def));
+    Ok((member.spell_points >= cost && components).then_some(cost))
 }
 
 /// The spell's component list as interned ids; an id no pack defines never matches the stores.
@@ -107,33 +158,29 @@ pub(crate) fn validate(
     world: &World,
     data: &Data,
     own: usize,
-    index: u8,
+    spell: SpellId,
     target: Target,
     rng: &mut Pcg32,
 ) -> Result<CastPlan, Rejection> {
-    let (spell, def, cost) = check(world, data, own, index, true, rng)?;
-    let effect = def
-        .effect
-        .as_ref()
-        .ok_or(Rejection::NotCastable { spell: index })?;
+    let (spell, def, cost) = check(world, data, own, spell, true, rng)?;
+    let effect = def.effect.as_ref().ok_or_else(|| Rejection::NotCastable {
+        spell: spell_name(data, spell),
+    })?;
     if matches!(effect, SpellEffect::Light { .. }) {
         return Ok(CastPlan {
             own,
             spell,
             cost,
-            target,
+            target: Aim::Party,
         });
     }
-    match (effect.targets_members(), target) {
-        (true, Target::Member(slot)) => {
-            let member = world
-                .party
-                .members
-                .get(usize::from(slot))
-                .ok_or(Rejection::NoSuchMember { index: slot })?;
-            if super::state::is_dead(member, data) {
-                return Err(Rejection::MemberDead { index: slot });
+    let aim = match (effect.targets_members(), target) {
+        (true, Target::Member(id)) => {
+            let slot = usize::from(world.party.slot_of(id)?);
+            if super::state::is_dead(&world.party.members[slot], data) {
+                return Err(Rejection::MemberDead { member: id });
             }
+            Aim::Member(slot)
         }
         (false, Target::Stack(stack)) => {
             let s = state
@@ -144,14 +191,15 @@ pub(crate) fn validate(
             if !s.alive() {
                 return Err(Rejection::StackDead { stack });
             }
+            Aim::Stack(stack)
         }
         _ => return Err(Rejection::WrongTarget),
-    }
+    };
     Ok(CastPlan {
         own,
         spell,
         cost,
-        target,
+        target: aim,
     })
 }
 
@@ -173,9 +221,12 @@ pub(crate) fn pay(
     member.spell_points = member.spell_points.saturating_sub(plan.cost);
     events.push(Event::SpellCast {
         caster: member.id,
-        spell: plan.spell,
+        spell: id_of(&data.registry.spells, plan.spell),
         points: plan.cost,
-        components_consumed: components,
+        components_consumed: components
+            .iter()
+            .map(|&(item, count)| (id_of(&data.registry.items, item), count))
+            .collect(),
     });
     Ok(member.id)
 }
@@ -197,7 +248,7 @@ pub(crate) fn resolve(
         return Ok(());
     };
     match (effect, plan.target) {
-        (SpellEffect::Attack { dice, damage_type }, Target::Stack(stack)) => {
+        (SpellEffect::Attack { dice, damage_type }, Aim::Stack(stack)) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             cast_attack(
                 world,
@@ -210,7 +261,7 @@ pub(crate) fn resolve(
                 events,
             )
         }
-        (SpellEffect::AutoHit { dice, damage_type }, Target::Stack(stack)) => {
+        (SpellEffect::AutoHit { dice, damage_type }, Aim::Stack(stack)) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             cast_auto(data, state, stack, (dice, *damage_type), roller, events)
         }
@@ -221,7 +272,7 @@ pub(crate) fn resolve(
                 damage_type,
                 half_on_save,
             },
-            Target::Stack(stack),
+            Aim::Stack(stack),
         ) => {
             let dice = scaled(world, data, plan, spell, *dice, roller)?;
             let save = SaveSpell {
@@ -233,7 +284,7 @@ pub(crate) fn resolve(
             };
             cast_save(world, data, state, plan, stack, &save, roller, events)
         }
-        (SpellEffect::Heal { dice, add_mod }, Target::Member(slot)) => {
+        (SpellEffect::Heal { dice, add_mod }, Aim::Member(slot)) => {
             let caster = &world.party.members[plan.own];
             let heal = heal_roll(
                 caster,
@@ -243,22 +294,15 @@ pub(crate) fn resolve(
                 &mut roller.rng,
                 &roller.stream,
             )?;
-            party::heal(
-                world,
-                data,
-                usize::from(slot),
-                heal.rolls,
-                heal.amount,
-                events,
-            );
+            party::heal(world, data, slot, heal.rolls, heal.amount, events);
             Ok(())
         }
-        (SpellEffect::Buff { .. }, Target::Member(slot)) => {
-            cast_buff(world, data, plan, usize::from(slot), events);
+        (SpellEffect::Buff { .. }, Aim::Member(slot)) => {
+            cast_buff(world, data, plan, slot, events);
             Ok(())
         }
         (SpellEffect::Light { depth, minutes }, _) => {
-            cast_light(world, plan, spell, *depth, *minutes, events);
+            cast_light(world, data, plan, spell, *depth, *minutes, events);
             Ok(())
         }
         _ => Ok(()),
@@ -268,6 +312,7 @@ pub(crate) fn resolve(
 /// A light on the whole party, ending the caster's previous concentration first.
 pub(crate) fn cast_light(
     world: &mut World,
+    data: &Data,
     plan: &CastPlan,
     spell: &Spell,
     depth: u8,
@@ -275,10 +320,11 @@ pub(crate) fn cast_light(
     events: &mut Vec<Event>,
 ) {
     let caster = world.party.members[plan.own].id;
-    effects::end_concentration(world, caster, events);
+    effects::end_concentration(world, data, caster, events);
     let until = Expiry::Minute(world.party_clock().elapsed + i64::from(minutes));
     effects::apply_to_party(
         world,
+        data,
         ActiveEffect {
             source: plan.spell,
             caster,
@@ -314,7 +360,7 @@ pub(crate) fn cast_buff(
     };
     let caster = world.party.members[plan.own].id;
     if spell.concentration {
-        effects::end_concentration(world, caster, events);
+        effects::end_concentration(world, data, caster, events);
     }
     let until = Expiry::Minute(world.party_clock().elapsed + i64::from(*minutes));
     let count = world.party.members.len();
@@ -329,6 +375,7 @@ pub(crate) fn cast_buff(
     for index in chosen {
         effects::apply_to_member(
             world,
+            data,
             index,
             ActiveEffect {
                 source: plan.spell,
@@ -388,6 +435,10 @@ fn cast_auto(
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let target = ActorRef::Monster { stack, index: 0 };
+    if super::monster_cast::shield_on_missile(data, state, (stack, 0), roller, events)? {
+        events.push(Event::ShieldStops { target });
+        return Ok(());
+    }
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let damage = damage_roll(
         data,
@@ -417,17 +468,17 @@ fn cast_attack(
     let target = ActorRef::Monster { stack, index: 0 };
     let monster = monster(data, &state.encounter.stacks[usize::from(stack)])?;
     let mode = RollMode::combine(
-        false,
+        state.reveal(caster.id),
         flags(&caster.conditions, data).own_attacks_disadvantage,
     );
-    let ac = i64::from(monster.ac);
+    let ac = i64::from(monster.ac) + super::monster_cast::shield_bonus(state, data, stack, 0);
     let extra = roll_bonus(
         &caster.effects,
         BuffOn::AttackRolls,
         &mut roller.rng,
         &roller.stream,
     )?;
-    let roll = spell_attack(
+    let mut roll = spell_attack(
         caster,
         data,
         ac,
@@ -436,8 +487,11 @@ fn cast_attack(
         &mut roller.rng,
         &roller.stream,
     )?;
+    let caster_id = caster.id;
+    let ac =
+        super::monster_cast::shield_on_hit(data, state, (stack, 0), &mut roll, roller, events)?;
     events.push(Event::AttackResolved {
-        attacker: ActorRef::Member(caster.id),
+        attacker: ActorRef::Member(caster_id),
         target,
         roll: roll.roll.clone(),
         ac,

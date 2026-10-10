@@ -4,7 +4,7 @@
 //! refusals show on the message line, leaving asks first, the tool pad's overlays come back to
 //! the panel, and the panel lies inside the map at both window sizes.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;
@@ -58,7 +58,11 @@ fn town(save: &str) -> App {
         draft.name = name.into();
         send(&mut app, Command::Party(PartyCommand::Create(draft)));
     }
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 1_000_000;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 1_000_000;
     settle(&mut app);
     assert_eq!(play_state(&app), PlayState::Explore);
     app
@@ -83,11 +87,11 @@ fn view(app: &App) -> ServiceView {
     service_view(world(app), data).expect("inside a service")
 }
 
-fn offer(app: &App, wanted: impl Fn(ServiceCommand) -> bool) -> usize {
+fn offer(app: &App, wanted: impl Fn(&ServiceCommand) -> bool) -> usize {
     view(app)
         .offers
         .iter()
-        .position(|o| wanted(o.command))
+        .position(|o| wanted(&o.command))
         .expect("on offer")
 }
 
@@ -137,8 +141,14 @@ fn every_service_opens_its_panel() {
             "{name}: a button per offer, and Leave"
         );
         control(&mut app, ServicePanelId::Leave);
-        if matches!(name, "trainer" | "guild") {
-            assert!(text.contains("(M7b)"), "{name}: {text}");
+        let lists: &[&str] = match name {
+            "trainer" => &["Levels", "Spell picks"],
+            "guild" => &["Spells"],
+            "temple" => &["On offer", "Spells"],
+            _ => &[],
+        };
+        for title in lists {
+            assert!(text.contains(&format!("\"{title}\"")), "{name}: {text}");
         }
         if name == "bank" {
             control(&mut app, ServicePanelId::Amount);
@@ -152,7 +162,7 @@ fn every_service_opens_its_panel() {
 fn every_offer_sends_what_the_view_promised() {
     let mut app = town("service-events.ron");
     enter(&mut app, "inn");
-    let room = offer(&app, |c| c == ServiceCommand::Room);
+    let room = offer(&app, |c| *c == ServiceCommand::Room);
     let price = view(&app).offers[room].price.unwrap();
     let before = gold(&app);
     activate(&mut app, ServicePanelId::Offer(room));
@@ -165,11 +175,11 @@ fn every_offer_sends_what_the_view_promised() {
     leave(&mut app);
 
     enter(&mut app, "tavern");
-    let rumor = offer(&app, |c| c == ServiceCommand::Rumor);
+    let rumor = offer(&app, |c| *c == ServiceCommand::Rumor);
     activate(&mut app, ServicePanelId::Offer(rumor));
     assert!(
-        logged(&app, "\""),
-        "the rumor is in the log: {:?}",
+        logged(&app, "\"Talk from today: the rats below"),
+        "the rumor is in the log, its age filled on the town's clock: {:?}",
         log(&app)
     );
     let food = world(&app).party.food;
@@ -180,7 +190,10 @@ fn every_offer_sends_what_the_view_promised() {
     leave(&mut app);
 
     enter(&mut app, "smith");
-    let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 0, .. }));
+    let buy = offer(
+        &app,
+        |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:dagger"),
+    );
     let price = view(&app).offers[buy].price.unwrap();
     let before = gold(&app);
     activate(&mut app, ServicePanelId::Offer(buy));
@@ -193,18 +206,30 @@ fn every_offer_sends_what_the_view_promised() {
     assert!(logged(&app, "Bought 1 ") && logged(&app, "Sold 1 "));
     leave(&mut app);
 
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[1].hp -= 3;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[1]
+        .hp -= 3;
     enter(&mut app, "temple");
-    let heal = offer(&app, |c| c == ServiceCommand::Heal { member: 1 });
+    let corin_id = world(&app).party.members[1].id;
+    let heal = offer(&app, |c| *c == ServiceCommand::Heal { member: corin_id });
     activate(&mut app, ServicePanelId::Offer(heal));
     let corin = &world(&app).party.members[1];
     assert_eq!(corin.hp, corin.hp_max);
     assert!(logged(&app, "Corin is treated for"));
-    let row = |app: &App, wanted: ServiceCommand| ServiceLabelId::Row(offer(app, |c| c == wanted));
+    let row = |app: &App, wanted: ServiceCommand| ServiceLabelId::Row(offer(app, |c| *c == wanted));
     for (command, label) in [
-        (ServiceCommand::Heal { member: 1 }, "Corin, 12 of 12 HP"),
-        (ServiceCommand::Cure { member: 1 }, "Corin, no conditions"),
-        (ServiceCommand::Raise { member: 1 }, "Corin, alive"),
+        (
+            ServiceCommand::Heal { member: corin_id },
+            "Corin, 12 of 12 HP",
+        ),
+        (
+            ServiceCommand::Cure { member: corin_id },
+            "Corin, no conditions",
+        ),
+        (ServiceCommand::Raise { member: corin_id }, "Corin, alive"),
     ] {
         let id = row(&app, command);
         assert_eq!(shown(&mut app, id), label);
@@ -229,12 +254,140 @@ fn every_offer_sends_what_the_view_promised() {
     );
 }
 
+/// A new game in town with Brenna (fighter) and Durin (cleric), plenty of gold, and Durin's
+/// experience at level 2's threshold.
+fn town_with_a_cleric(save: &str) -> App {
+    let mut app = feathers_app(save, true);
+    settle(&mut app);
+    let mut cleric = fighter_draft();
+    cleric.name = "Durin".into();
+    cleric.class = "base:class:cleric".into();
+    cleric.skills = vec![
+        omnis_sim::omnis_data::Skill::Medicine,
+        omnis_sim::omnis_data::Skill::History,
+    ];
+    for draft in [fighter_draft(), cleric] {
+        send(&mut app, Command::Party(PartyCommand::Create(draft)));
+    }
+    let world = app
+        .world_mut()
+        .resource_mut::<SimWorld>()
+        .into_inner()
+        .fixture_mut();
+    world.party.gold = 1_000_000;
+    world.party.members[1].xp = 300;
+    settle(&mut app);
+    app
+}
+
+fn dim(app: &mut App, id: ServicePanelId) -> bool {
+    let entity = control(app, id);
+    app.world().get::<InteractionDisabled>(entity).is_some()
+}
+
+#[test]
+fn the_trainer_grants_a_level_and_its_pick_and_the_temple_sells_a_spell() {
+    let mut app = town_with_a_cleric("service-trainer.ron");
+    enter(&mut app, "trainer");
+    let (brenna_id, durin_id) = (
+        world(&app).party.members[0].id,
+        world(&app).party.members[1].id,
+    );
+    let brenna = offer(&app, |c| *c == ServiceCommand::Train { member: brenna_id });
+    assert!(
+        dim(&mut app, ServicePanelId::Offer(brenna)),
+        "Brenna has no experience"
+    );
+    let durin = offer(&app, |c| *c == ServiceCommand::Train { member: durin_id });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(durin)),
+        "Durin, level 1 to 2"
+    );
+    let before = gold(&app);
+    let button = control(&mut app, ServicePanelId::Offer(durin));
+    click_node(&mut app, button);
+    assert_eq!(before - gold(&app), 2000);
+    assert_eq!(world(&app).party.members[1].level, 2);
+    assert!(logged(&app, "Durin reaches level 2: +"), "{:?}", log(&app));
+
+    // The level owes one pick: healing word, guiding bolt or inflict wounds now.
+    let pick = offer(&app, |c| {
+        *c == ServiceCommand::Choose {
+            member: durin_id,
+            spell: "base:spell:healing_word".to_owned(),
+        }
+    });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(pick)),
+        "Durin: Healing Word"
+    );
+    assert_eq!(shown(&mut app, ServiceLabelId::Note(pick)), "free");
+    let later = offer(&app, |c| {
+        *c == ServiceCommand::Choose {
+            member: durin_id,
+            spell: "base:spell:spiritual_weapon".to_owned(),
+        }
+    });
+    assert!(
+        dim(&mut app, ServicePanelId::Offer(later)),
+        "spiritual weapon at level 3"
+    );
+    activate(&mut app, ServicePanelId::Offer(pick));
+    assert!(
+        logged(&app, "Durin chooses Healing Word"),
+        "{:?}",
+        log(&app)
+    );
+    assert_eq!(world(&app).party.members[1].spell_picks, 0);
+    assert!(
+        view(&app)
+            .offers
+            .iter()
+            .all(|o| !matches!(o.command, ServiceCommand::Choose { .. })),
+        "no picks are left to offer"
+    );
+    leave(&mut app);
+
+    enter(&mut app, "temple");
+    let bolt = offer(&app, |c| {
+        *c == ServiceCommand::Learn {
+            member: durin_id,
+            spell: "base:spell:guiding_bolt".to_owned(),
+        }
+    });
+    assert_eq!(
+        shown(&mut app, ServiceLabelId::Row(bolt)),
+        "Durin: Guiding Bolt"
+    );
+    let before = gold(&app);
+    activate(&mut app, ServicePanelId::Offer(bolt));
+    assert_eq!(before - gold(&app), 5000);
+    assert!(
+        logged(&app, "Durin learns Guiding Bolt for 50 gp"),
+        "{:?}",
+        log(&app)
+    );
+    leave(&mut app);
+
+    enter(&mut app, "guild");
+    assert!(
+        view(&app)
+            .offers
+            .iter()
+            .all(|o| !matches!(o.command, ServiceCommand::Learn { .. })),
+        "the guild's spells are the wizard's"
+    );
+}
+
 #[test]
 fn buttons_are_clicked_and_a_refused_one_is_dim() {
     let mut app = town("service-pointer.ron");
     enter(&mut app, "smith");
     let stores = world(&app).party.inventory.len();
-    let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 0, .. }));
+    let buy = offer(
+        &app,
+        |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:dagger"),
+    );
     let price = view(&app).offers[buy].price.unwrap();
     let before = gold(&app);
     let button = control(&mut app, ServicePanelId::Offer(buy));
@@ -259,7 +412,11 @@ fn buttons_are_clicked_and_a_refused_one_is_dim() {
         "the panel was built again with the new row"
     );
 
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 1;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 1;
     settle(&mut app);
     let button = control(&mut app, ServicePanelId::Offer(buy));
     assert!(app.world().get::<InteractionDisabled>(button).is_some());
@@ -275,7 +432,11 @@ fn buttons_are_clicked_and_a_refused_one_is_dim() {
 
     // The bank's amount typed by hand: a withdrawal beyond the account is refused in full on
     // the message line, and the next thing done clears it.
-    app.world_mut().resource_mut::<SimWorld>().0.party.gold = 100_000;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .gold = 100_000;
     enter(&mut app, "bank");
     let amount = control(&mut app, ServicePanelId::Amount);
     let input = app
@@ -383,10 +544,18 @@ fn the_tool_bar_opens_over_the_panel_and_comes_back_to_it() {
 #[test]
 fn the_panels_lie_inside_the_map_at_both_window_sizes() {
     let mut app = town("service-layout.ron");
-    app.world_mut().resource_mut::<SimWorld>().0.party.members[0].hp -= 3;
+    app.world_mut()
+        .resource_mut::<SimWorld>()
+        .fixture_mut()
+        .party
+        .members[0]
+        .hp -= 3;
     enter(&mut app, "smith");
     for _ in 0..3 {
-        let buy = offer(&app, |c| matches!(c, ServiceCommand::Buy { item: 1, .. }));
+        let buy = offer(
+            &app,
+            |c| matches!(c, ServiceCommand::Buy { item, .. } if item == "base:item:handaxe"),
+        );
         activate(&mut app, ServicePanelId::Offer(buy));
     }
     // The smith's two lists each scroll on their own.

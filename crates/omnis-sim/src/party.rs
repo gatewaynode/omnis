@@ -3,10 +3,12 @@
 
 use crate::command::Rejection;
 use crate::event::{ActorRef, Event};
+use crate::names::id_of;
+use crate::tactics::{self, TacticsCommand};
 use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ConditionId, ItemId, Pcg32, RollTrace, StreamName, money};
-use omnis_data::{Data, SpellEffect};
+use omnis_data::Data;
 use omnis_rules::{ActiveEffect, Character, DeathSaves, Draft, condition_id, create};
 use serde::{Deserialize, Serialize};
 
@@ -44,25 +46,39 @@ pub struct Party {
     pub last_long_rest: Option<i64>,
 }
 
+impl Party {
+    /// The members' identities in marching order: what a script word's slots resolve against.
+    #[must_use]
+    pub fn ids(&self) -> Vec<CharacterId> {
+        self.members.iter().map(|m| m.id).collect()
+    }
+
+    /// The marching-order slot of the member with this identity; commands name members by id
+    /// (protocol 2), the party's own lists are in marching order.
+    ///
+    /// # Errors
+    /// [`Rejection::NoSuchMember`] when no member has the id.
+    pub fn slot_of(&self, member: CharacterId) -> Result<u8, Rejection> {
+        self.members
+            .iter()
+            .position(|m| m.id == member)
+            .and_then(|slot| u8::try_from(slot).ok())
+            .ok_or(Rejection::NoSuchMember { member })
+    }
+}
+
 /// A change to the party.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PartyCommand {
     /// Create a character from a draft and add it to the last free slot.
     Create(Draft),
-    /// Set the marching order: a permutation of the current member indices.
+    /// Set the marching order: every member, each once, front first.
     Reorder {
-        /// New order, old indices.
-        order: Vec<u8>,
+        /// The members in their new order.
+        order: Vec<CharacterId>,
     },
-    /// Whether a member casts a reaction spell (shield) on their own when the moment comes.
-    AutoCast {
-        /// The member's slot.
-        member: u8,
-        /// Index into the member's known spells; it must be a reaction.
-        spell: u8,
-        /// On or off.
-        on: bool,
-    },
+    /// A change to a member's tactics: the reactions switch, or a declared reaction.
+    Tactics(TacticsCommand),
 }
 
 /// How many members the rules allow.
@@ -94,50 +110,9 @@ pub(crate) fn apply(
     match command {
         PartyCommand::Create(draft) => create_member(world, data, draft)?,
         PartyCommand::Reorder { order } => reorder(world, order)?,
-        PartyCommand::AutoCast { member, spell, on } => {
-            return auto_cast(world, data, *member, *spell, *on, events);
-        }
+        PartyCommand::Tactics(command) => return tactics::apply(world, data, command, events),
     }
     events.push(Event::PartyChanged);
-    Ok(())
-}
-
-fn auto_cast(
-    world: &mut World,
-    data: &Data,
-    index: u8,
-    spell: u8,
-    on: bool,
-    events: &mut Vec<Event>,
-) -> Result<(), Rejection> {
-    let member = world
-        .party
-        .members
-        .get_mut(usize::from(index))
-        .ok_or(Rejection::NoSuchMember { index })?;
-    let id = *member
-        .known_spells
-        .get(usize::from(spell))
-        .ok_or(Rejection::UnknownSpell { spell })?;
-    let reaction = data
-        .spells
-        .get(&id)
-        .is_some_and(|s| matches!(s.effect, Some(SpellEffect::Reaction { .. })));
-    if !reaction {
-        return Err(Rejection::NotCastable { spell });
-    }
-    match (on, member.auto_cast.binary_search(&id)) {
-        (true, Err(at)) => member.auto_cast.insert(at, id),
-        (false, Ok(at)) => {
-            member.auto_cast.remove(at);
-        }
-        _ => {}
-    }
-    events.push(Event::AutoCast {
-        member: member.id,
-        spell: id,
-        on,
-    });
     Ok(())
 }
 
@@ -173,24 +148,27 @@ fn create_member(world: &mut World, data: &Data, draft: &Draft) -> Result<(), Re
     Ok(())
 }
 
-fn reorder(world: &mut World, order: &[u8]) -> Result<(), Rejection> {
+fn reorder(world: &mut World, order: &[CharacterId]) -> Result<(), Rejection> {
     let len = world.party.members.len();
-    let mut seen = alloc::vec![false; len];
     if order.len() != len {
         return Err(Rejection::BadOrder);
     }
-    for &index in order {
-        match seen.get_mut(usize::from(index)) {
-            Some(slot) if !*slot => *slot = true,
-            _ => return Err(Rejection::BadOrder),
+    let mut slots = Vec::with_capacity(len);
+    for &member in order {
+        let slot = usize::from(
+            world
+                .party
+                .slot_of(member)
+                .map_err(|_| Rejection::BadOrder)?,
+        );
+        if slots.contains(&slot) {
+            return Err(Rejection::BadOrder);
         }
+        slots.push(slot);
     }
     let old = core::mem::take(&mut world.party.members);
     let mut old: Vec<Option<Character>> = old.into_iter().map(Some).collect();
-    world.party.members = order
-        .iter()
-        .filter_map(|&i| old[usize::from(i)].take())
-        .collect();
+    world.party.members = slots.iter().filter_map(|&i| old[i].take()).collect();
     Ok(())
 }
 
@@ -203,13 +181,14 @@ pub(crate) fn set_condition(
     events: &mut Vec<Event>,
 ) {
     if let Some(condition) = condition_id(data, name) {
-        set_condition_id(member, condition, applied, events);
+        set_condition_id(member, data, condition, applied, events);
     }
 }
 
 /// Add or remove a condition by id, with the event; nothing when already so.
 pub(crate) fn set_condition_id(
     member: &mut Character,
+    data: &Data,
     condition: ConditionId,
     applied: bool,
     events: &mut Vec<Event>,
@@ -224,7 +203,7 @@ pub(crate) fn set_condition_id(
     }
     events.push(Event::Condition {
         target: ActorRef::Member(member.id),
-        condition,
+        condition: id_of(&data.registry.conditions, condition),
         applied,
     });
 }

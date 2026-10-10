@@ -1,17 +1,25 @@
-//! The fight (ARCHITECTURE.md §4.5): one member command resolves, then monster turns run
-//! until the next member who can act, or the end. Every command is validated in full before
-//! the first die, and the dice come from a copy of the `combat` stream written back only when
-//! the command went through, so a rejection leaves the world exactly as it was.
+//! The fight (ARCHITECTURE.md §4.5, §4.7): a member's turn takes commands until their budget
+//! has nothing left to pay for or `EndTurn`, then monster turns run until the next member who
+//! can act, or the end. Every command is validated in full, its cost against the budget
+//! included, before the first die, and the dice come from a copy of the `combat` stream
+//! written back only when the command went through, so a rejection leaves the world exactly as
+//! it was.
 
+mod budget;
 pub mod cast;
+pub mod feature;
+mod monster_cast;
+mod opportunity;
 mod reaction;
 mod resolve;
 pub mod state;
 mod turn;
 
 pub use cast::Target;
-pub use state::{CombatState, Initiative, monster_front_stacks};
+pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
+
+pub(crate) use monster_cast::points_of;
 
 use crate::command::Rejection;
 use crate::encounter::EncounterState;
@@ -19,44 +27,88 @@ use crate::event::{ActorRef, Event, Surprise};
 use crate::items;
 use crate::party;
 use crate::world::{Mode, World};
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, Pcg32, StreamName};
-use omnis_data::Data;
+use omnis_data::{Cost, Data};
 use omnis_rules::{RuleError, Weapon, best_weapon};
 use serde::{Deserialize, Serialize};
 
 /// One member's action on their turn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum CombatCommand {
     /// Attack a stack with the best weapon that reaches it.
     Attack {
         /// The stack, by its index in the encounter.
         stack: u8,
     },
-    /// Cast a known spell (by its index in the caster's list) at a stack or a member.
+    /// Cast a known spell at a stack or a member.
     Cast {
-        /// Index into the caster's known spells.
-        spell: u8,
+        /// The spell's id (`base:spell:magic_missile`); the caster must know it.
+        spell: String,
         /// Whom it goes to.
         target: Target,
+        /// What it is paid with: the action, or the bonus action when the spell allows it.
+        #[serde(default)]
+        pay: Pay,
     },
     /// Use a carried item as the turn's action: a potion on a member, or the user when no
     /// target is named. A sense item is not used from a fight.
     Use {
-        /// The row of the acting member's kit.
-        item: u8,
+        /// The item's id (`base:item:potion_of_healing`); the acting member's kit must hold it.
+        item: String,
         /// Whom a potion goes to; the user when `None`.
-        target: Option<u8>,
+        receiver: Option<CharacterId>,
     },
     /// Dodge until the round ends: attacks against the member have disadvantage.
     Dodge,
     /// Swap marching-order slots with another member.
     Exchange {
-        /// The other member's slot.
-        with: u8,
+        /// The other member.
+        with: CharacterId,
     },
     /// Try to get away; the whole party leaves on success.
     Run,
+    /// Use a class feature with effect, by its name key.
+    Feature {
+        /// The feature's name key (`base:text:class.fighter.second_wind`), as `FeatureView`
+        /// shows it.
+        feature: String,
+        /// What the feature is asked to do, for one that offers a choice.
+        #[serde(default)]
+        choice: FeatureChoice,
+    },
+    /// End the turn with budget left.
+    EndTurn,
+}
+
+/// What a spell is paid with.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum Pay {
+    /// The action.
+    #[default]
+    Action,
+    /// The bonus action (D24's `bonus_action_available`).
+    BonusAction,
+}
+
+/// What a feature with a choice is asked to do.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum FeatureChoice {
+    /// The feature does its one thing.
+    #[default]
+    None,
+    /// Cunning Action: swap with the member in this slot, provoking nothing.
+    Exchange {
+        /// The other member.
+        with: CharacterId,
+    },
+    /// Cunning Action: hide.
+    Hide,
 }
 
 /// The `combat` stream, taken out of the world and written back once a command has gone
@@ -75,7 +127,11 @@ impl Roller {
 
     /// A copy of any named stream; one stream per consumer (A14), created on first use.
     pub(crate) fn take_stream(world: &World, name: &str) -> Roller {
-        let stream = StreamName::new(name);
+        Roller::take_named(world, StreamName::new(name))
+    }
+
+    /// A copy of the stream `stream`, for names built at run time (`time:<a>:<b>`).
+    pub(crate) fn take_named(world: &World, stream: StreamName) -> Roller {
         let rng = world
             .rngs
             .get(&stream)
@@ -113,6 +169,10 @@ pub(crate) enum Plan {
     },
     /// A flight attempt.
     Run,
+    /// A class feature that passed every check.
+    Feature(feature::FeaturePlan),
+    /// The turn ends.
+    EndTurn,
 }
 
 /// Start a fight from an encounter: initiative, round one, and the monster turns up to the
@@ -144,8 +204,9 @@ pub(crate) fn apply(
     // Validation may draw (a pack's point-cost formula could roll): it draws from the copy,
     // which is stored only when the command went through.
     let mut roller = Roller::take(world);
-    let (actor, plan) = validate(state, world, data, command, &mut roller.rng)?;
-    turn::act(world, data, actor, plan, &mut roller, events).map_err(Rejection::Rule)?;
+    let (actor, plan, cost) = validate(state, world, data, command, &mut roller.rng)?;
+    budget::affordable(state.budget, cost)?;
+    turn::act(world, data, actor, plan, cost, &mut roller, events).map_err(Rejection::Rule)?;
     roller.store(world);
     Ok(())
 }
@@ -173,6 +234,31 @@ pub(crate) fn resume(
         world.mode = Mode::Combat(state);
     }
     Ok(())
+}
+
+/// A fight loaded from a save written before the turn budget (schema 5): every combatant gets
+/// its reactions and the member the fight waits on a fresh budget, as if the turn had just
+/// begun. The streams are read from copies and not moved; a rule that fails leaves the SRD's
+/// one of each.
+pub(crate) fn begin_after_load(world: &mut World, data: &Data) {
+    let Mode::Combat(mut state) = core::mem::replace(&mut world.mode, Mode::Explore) else {
+        return;
+    };
+    let mut roller = Roller::take(world);
+    for entry in state.order.clone() {
+        if budget::refresh_reactions(world, data, &mut state, entry.actor, &mut roller).is_err() {
+            state.set_reactions(entry.actor, 1);
+        }
+    }
+    if let Some(ActorRef::Member(id)) = state.current_actor()
+        && budget::begin_member_turn(world, data, &mut state, id, &mut roller).is_err()
+    {
+        state.budget = Budget {
+            actions: 1,
+            bonus_actions: 1,
+        };
+    }
+    world.mode = Mode::Combat(state);
 }
 
 /// The member whose turn it is: the fight parks only on a member who can act.
@@ -214,17 +300,56 @@ pub fn weapon_for(
     }
 }
 
+/// What paying for the spell `id` with `pay` costs, or why the spell cannot be paid that way.
+fn spell_cost(spell: &omnis_data::Spell, id: &str, pay: Pay) -> Result<Cost, Rejection> {
+    let spell_id = || alloc::string::String::from(id);
+    match pay {
+        Pay::Action => Ok(spell.cost),
+        Pay::BonusAction if !spell.bonus_action_available => {
+            Err(Rejection::NotABonusAction { spell: spell_id() })
+        }
+        Pay::BonusAction if spell.preparation_required_for_bonus_action => {
+            Err(Rejection::NeedsPreparation { spell: spell_id() })
+        }
+        Pay::BonusAction => Ok(Cost::BonusAction),
+    }
+}
+
+/// What paying for the spell `id` with `pay` costs this turn, or why it cannot be paid that
+/// way: the spell's own terms, then the budget. The command and the view (`combat.get`'s spell
+/// rows) both ask here.
+pub(crate) fn payable(
+    state: &CombatState,
+    spell: &omnis_data::Spell,
+    id: &str,
+    pay: Pay,
+) -> Result<Cost, Rejection> {
+    let cost = spell_cost(spell, id, pay)?;
+    budget::affordable(state.budget, cost)?;
+    Ok(cost)
+}
+
 fn validate(
     state: &CombatState,
     world: &World,
     data: &Data,
     command: CombatCommand,
     rng: &mut Pcg32,
-) -> Result<(CharacterId, Plan), Rejection> {
+) -> Result<(CharacterId, Plan, Cost), Rejection> {
     let (id, own) = acting_member(state, world)?;
+    let mut cost = Cost::Action;
     let plan = match command {
-        CombatCommand::Cast { spell, target } => {
-            Plan::Cast(cast::validate(state, world, data, own, spell, target, rng)?)
+        CombatCommand::Cast { spell, target, pay } => {
+            let id = cast::spell_id(data, &spell)?;
+            let plan = cast::validate(state, world, data, own, id, target, rng)?;
+            let def = data
+                .spells
+                .get(&plan.spell)
+                .ok_or(Rejection::UnknownSpell {
+                    spell: spell.clone(),
+                })?;
+            cost = payable(state, def, &spell, pay)?;
+            Plan::Cast(plan)
         }
         CombatCommand::Attack { stack } => {
             let target = state
@@ -240,21 +365,27 @@ fn validate(
                 weapon: weapon_for(state, world, data, own, stack)?,
             }
         }
-        CombatCommand::Use { item, target } => {
-            Plan::Use(items::validate_use(world, data, own, item, target, true)?)
-        }
+        CombatCommand::Use { item, receiver } => Plan::Use(items::validate_use(
+            world, data, own, &item, receiver, true,
+        )?),
         CombatCommand::Dodge => Plan::Dodge,
         CombatCommand::Exchange { with } => {
-            let index = usize::from(with);
-            if index >= world.party.members.len() {
-                return Err(Rejection::NoSuchMember { index: with });
-            }
+            let index = usize::from(world.party.slot_of(with)?);
             if index == own {
                 return Err(Rejection::SameMember);
             }
             Plan::Exchange { own, with: index }
         }
         CombatCommand::Run => Plan::Run,
+        CombatCommand::Feature { feature, choice } => {
+            let (plan, feature_cost) = feature::validate(world, data, own, &feature, choice)?;
+            cost = feature_cost;
+            Plan::Feature(plan)
+        }
+        CombatCommand::EndTurn => {
+            cost = Cost::Free;
+            Plan::EndTurn
+        }
     };
-    Ok((id, plan))
+    Ok((id, plan, cost))
 }

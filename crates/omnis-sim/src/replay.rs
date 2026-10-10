@@ -63,6 +63,8 @@ impl fmt::Display for ReplayError {
     }
 }
 
+impl core::error::Error for ReplayError {}
+
 impl Replay {
     /// Run `commands` on a fresh world and record the result.
     pub fn record(

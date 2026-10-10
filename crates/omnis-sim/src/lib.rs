@@ -13,7 +13,10 @@
 
 extern crate alloc;
 
+pub mod api;
 pub mod apply;
+pub mod bus;
+pub mod cast_view;
 mod casting;
 mod checks;
 pub mod combat;
@@ -24,17 +27,25 @@ pub mod encounter;
 pub mod event;
 pub mod items;
 mod migrate;
+pub mod names;
 pub mod ops;
 pub mod party;
+pub mod party_view;
 pub mod query;
 pub mod replay;
 pub mod rest;
+pub mod rest_view;
 mod sense;
 pub mod service;
+mod service_level;
 pub mod service_view;
+pub mod tactics;
+pub mod time;
+pub mod time_view;
 mod utility;
 pub mod view;
 pub mod visibility;
+pub mod word;
 pub mod world;
 
 // Clients depend on this crate alone (ARCHITECTURE.md §3); the types they need from the
@@ -44,30 +55,39 @@ pub use omnis_data;
 pub use omnis_rules;
 
 pub use apply::apply;
-pub use combat::{CombatCommand, CombatState, Initiative, Target};
-pub use command::{Command, Rejection, ScriptError};
+pub use cast_view::{CastView, cast_view};
+pub use combat::{Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, Target};
+pub use command::{Command, Rejection};
 pub use dev::DevCommand;
-pub use encounter::{EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost};
+pub use encounter::{
+    EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost, groups_cleared,
+};
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
     LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
+pub use names::Place;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
+pub use party_view::{
+    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+};
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
+pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
-pub use view::{CombatView, SpellView, StackView, combat_view};
+pub use view::{
+    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+};
+pub use word::{ScriptError, Word, parse_script};
 pub use world::{
     Automap, Known, LoadError, MapState, Mode, ModeKind, NewGameError, SaveRule, Settings, World,
 };
 
 use omnis_core::{HolderId, PartyId};
 
-/// Minutes in a day of the party's calendar. The calendar shape becomes data with M8.
-pub const MINUTES_PER_DAY: u32 = 1440;
 /// The single party of v1.
 pub const PARTY: HolderId = HolderId::Party(PartyId(0));
 /// Minutes opening or closing a door costs.

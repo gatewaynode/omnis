@@ -2,7 +2,7 @@
 //! Boot loads the real test pack, a key press becomes a command, the world moves, events are
 //! published, a save round-trips through the shell.
 
-mod common;
+use crate::common;
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
 use omnis_app::sim::{AppState, PlayerCommand, ShellCommand, SimEvent, SimPlugin, SimWorld};
@@ -35,7 +35,7 @@ fn boots_steps_and_saves_without_a_window() {
         *app.world().resource::<State<AppState>>().get(),
         AppState::Playing
     );
-    let start = app.world().resource::<SimWorld>().0.position;
+    let start = app.world().resource::<SimWorld>().fixture().position;
     assert_eq!((start.x, start.y, start.facing), (10, 2, Facing::West));
 
     // A command message moves the party and publishes events.
@@ -43,7 +43,7 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<Messages<PlayerCommand>>()
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
-    let after = app.world().resource::<SimWorld>().0.position;
+    let after = app.world().resource::<SimWorld>().fixture().position;
     assert_eq!((after.x, after.y), (9, 2));
     let events = app.world().resource::<Messages<SimEvent>>();
     let mut cursor = events.get_cursor();
@@ -60,7 +60,7 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<ButtonInput<KeyCode>>()
         .clear();
     assert_eq!(
-        app.world().resource::<SimWorld>().0.position.facing,
+        app.world().resource::<SimWorld>().fixture().position.facing,
         Facing::South
     );
 
@@ -69,13 +69,22 @@ fn boots_steps_and_saves_without_a_window() {
         .resource_mut::<Messages<ShellCommand>>()
         .write(ShellCommand::Save);
     app.update();
-    let saved_fingerprint = app.world().resource::<SimWorld>().0.fingerprint().unwrap();
+    let saved_fingerprint = app
+        .world()
+        .resource::<SimWorld>()
+        .fixture()
+        .fingerprint()
+        .unwrap();
     app.world_mut()
         .resource_mut::<Messages<PlayerCommand>>()
         .write(PlayerCommand(Command::Step(Direction::Forward)));
     app.update();
     assert_ne!(
-        app.world().resource::<SimWorld>().0.fingerprint().unwrap(),
+        app.world()
+            .resource::<SimWorld>()
+            .fixture()
+            .fingerprint()
+            .unwrap(),
         saved_fingerprint
     );
     app.world_mut()
@@ -83,7 +92,11 @@ fn boots_steps_and_saves_without_a_window() {
         .write(ShellCommand::Load);
     app.update();
     assert_eq!(
-        app.world().resource::<SimWorld>().0.fingerprint().unwrap(),
+        app.world()
+            .resource::<SimWorld>()
+            .fixture()
+            .fingerprint()
+            .unwrap(),
         saved_fingerprint
     );
     let notice = app.world().resource::<omnis_app::sim::Notice>();
@@ -207,13 +220,13 @@ fn the_menus_build_a_party_without_a_window() {
         AppState::Playing
     );
     assert_eq!(play_state(&app), PlayState::CreateParty);
-    let world = &app.world().resource::<SimWorld>().0;
+    let world = app.world().resource::<SimWorld>().fixture();
     assert_eq!(world.seed, 42);
     assert_eq!(world.settings.save_rule, omnis_sim::SaveRule::Relief);
     assert!(world.party.members.is_empty());
 
     common::add_fighter_by_command(&mut app);
-    let members = &app.world().resource::<SimWorld>().0.party.members;
+    let members = &app.world().resource::<SimWorld>().fixture().party.members;
     assert_eq!(members.len(), 1, "the draft became a member");
     assert_eq!(members[0].name, "Brenna");
     assert_eq!(members[0].hp_max, 12);
@@ -247,4 +260,40 @@ fn the_menus_build_a_party_without_a_window() {
     app.update();
     let notice = app.world().resource::<omnis_app::sim::Notice>();
     assert!(notice.0.contains("save rule"), "{}", notice.0);
+}
+
+/// A save is untrusted input (ARCHITECTURE.md §6.2): the app reads it with the pack loader's
+/// limits, as the headless host does, so a symlink or an oversized file is refused before it is
+/// parsed (B4).
+#[test]
+fn a_save_is_read_with_the_loader_s_limits() {
+    use omnis_app::sim::{load, save};
+    use omnis_sim::omnis_data::{limits::MAX_FILE_BYTES, load_packs};
+    use omnis_sim::{Settings, World};
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")]).unwrap();
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("load-limits");
+    std::fs::create_dir_all(&dir).unwrap();
+    let world = World::new(&data, 7, Settings::default()).unwrap();
+    let real = dir.join("real.ron");
+    save(&world, &real).unwrap();
+    assert!(load(&data, &real, false).is_ok());
+
+    let big = dir.join("big.ron");
+    std::fs::write(
+        &big,
+        vec![b' '; usize::try_from(MAX_FILE_BYTES).unwrap() + 1],
+    )
+    .unwrap();
+    let refused = load(&data, &big, false).unwrap_err();
+    assert!(refused.contains("limit"), "{refused}");
+
+    #[cfg(unix)]
+    {
+        let link = dir.join("link.ron");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let refused = load(&data, &link, false).unwrap_err();
+        assert!(refused.contains("symlink"), "{refused}");
+    }
 }

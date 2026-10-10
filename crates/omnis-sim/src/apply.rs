@@ -2,10 +2,12 @@
 
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
+use crate::names::{Place, id_of};
 use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
+use crate::time;
 use crate::world::{Known, Mode, World, door_key, layer};
-use crate::{INTERACT_MINUTES, MINUTES_PER_DAY, PARTY};
+use crate::{INTERACT_MINUTES, PARTY};
 use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, MapId, Position, Rotation};
@@ -22,12 +24,15 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             step_out(world, data, state, *direction, &mut events)?;
         }
         (&Mode::Town(state), Command::Service(command)) => {
-            service::apply(world, data, state, *command, &mut events)?;
+            service::apply(world, data, state, command, &mut events)?;
         }
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
         (Mode::Explore | Mode::Town(_), Command::Party(command))
-        | (Mode::Combat(_), Command::Party(command @ PartyCommand::AutoCast { .. })) => {
+        | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))
+            if !matches!(world.mode, Mode::Combat(_))
+                || matches!(command, PartyCommand::Tactics(c) if c.in_fight()) =>
+        {
             party::apply(world, data, command, &mut events)?;
         }
         (
@@ -37,9 +42,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
                 spell,
                 target,
             },
-        ) => casting::apply(world, data, *caster, *spell, *target, &mut events)?,
+        ) => casting::apply(world, data, *caster, spell, *target, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Item(command)) => {
-            items::apply(world, data, *command, &mut events)?;
+            items::apply(world, data, command, &mut events)?;
         }
         (Mode::Explore, Command::Rest(command)) => {
             rest::apply(world, data, command, &mut events)?;
@@ -48,7 +53,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             encounter::apply_choice(world, data, *choice, &mut events)?;
         }
         (Mode::Combat(_), Command::Combat(command)) => {
-            combat::apply(world, data, *command, &mut events)?;
+            combat::apply(world, data, command.clone(), &mut events)?;
         }
         _ => return Err(Rejection::WrongMode),
     }
@@ -58,15 +63,21 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     Ok(events)
 }
 
-pub(crate) fn advance(world: &mut World, minutes: u32, events: &mut Vec<Event>) {
+/// The party lives `minutes`: its age, its shared time at the company of where it is, and
+/// its date; a day rolls on the date.
+pub(crate) fn advance(world: &mut World, data: &Data, minutes: u32, events: &mut Vec<Event>) {
+    let calendar = data.calendar();
+    let day = calendar.day(world.party_time.date);
     let clock = world.clocks.entry(PARTY).or_insert_with(world_clock_origin);
-    let day_rolled = clock.advance(minutes, MINUTES_PER_DAY);
+    clock.advance(minutes, calendar.minutes_per_day);
+    time::live(world, data, minutes);
+    let day_rolled = calendar.day(world.party_time.date) != day;
     events.push(Event::TimeAdvanced {
-        holder: PARTY,
+        holder: crate::time_view::holder_name(PARTY, data),
         minutes,
         day_rolled,
     });
-    effects::prune(world, events);
+    effects::prune(world, data, events);
 }
 
 fn world_clock_origin() -> omnis_core::Clock {
@@ -106,7 +117,7 @@ fn step_out(
     events.insert(
         at,
         Event::ServiceLeft {
-            service: state.service,
+            service: id_of(&data.registry.services, state.service),
         },
     );
     world.mode = Mode::Explore;
@@ -209,19 +220,20 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
     };
     world.position = landing.to;
     events.push(Event::Moved {
-        from,
-        to: landing.to,
+        from: Place::of(from, data),
+        to: Place::of(landing.to, data),
     });
-    advance(world, landing.minutes, events);
+    advance(world, data, landing.minutes, events);
     visit(world, data);
     if let Some(dest) = landing.through {
         world.position = dest;
         events.push(Event::Moved {
-            from: landing.to,
-            to: dest,
+            from: Place::of(landing.to, data),
+            to: Place::of(dest, data),
         });
         visit(world, data);
         know_portals_beside(world, data);
+        time::moved(world, data, from.map, events);
     }
     true
 }
@@ -231,14 +243,18 @@ fn r#move(world: &mut World, data: &Data, direction: Direction, events: &mut Vec
 pub(crate) fn retreat(world: &mut World, data: &Data, to: Position, events: &mut Vec<Event>) {
     let from = world.position;
     world.position = to;
-    events.push(Event::Moved { from, to });
+    events.push(Event::Moved {
+        from: Place::of(from, data),
+        to: Place::of(to, data),
+    });
     let minutes = data
         .maps
         .get(&to.map)
         .and_then(|m| m.cell(to.x, to.y).map(|c| m.terrain(c).step_minutes))
         .unwrap_or(1);
-    advance(world, minutes, events);
+    advance(world, data, minutes, events);
     visit(world, data);
+    time::moved(world, data, from.map, events);
 }
 
 fn turn(world: &mut World, rotation: Rotation) {
@@ -262,13 +278,14 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         });
         return;
     }
-    toggle_door(world, pos.map, pos.x, pos.y, pos.facing, events);
-    advance(world, INTERACT_MINUTES, events);
+    toggle_door(world, data, pos.map, pos.x, pos.y, pos.facing, events);
+    advance(world, data, INTERACT_MINUTES, events);
 }
 
 /// Open a closed door or close an open one on the facing edge of a tile, with the event.
 pub(crate) fn toggle_door(
     world: &mut World,
+    data: &Data,
     map: MapId,
     x: u16,
     y: u16,
@@ -284,7 +301,7 @@ pub(crate) fn toggle_door(
         true
     };
     events.push(Event::Door {
-        map,
+        map: id_of(&data.registry.maps, map),
         x,
         y,
         facing,

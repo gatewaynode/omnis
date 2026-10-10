@@ -13,7 +13,7 @@
 
 use crate::confirm_panel::{self, Confirm, ConfirmId};
 use crate::cursor::UiSet;
-use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, SimWorld};
+use crate::sim::{PackData, PlayState, PlayerCommand, ShellCommand, SimSet, SimWorld, Views};
 use crate::ui::UiClick;
 use crate::widget::WidgetId;
 use bevy::prelude::*;
@@ -81,6 +81,7 @@ pub fn shell_for(key: KeyCode) -> Option<ShellCommand> {
         KeyCode::KeyP => ShellCommand::Sheet,
         KeyCode::KeyI => ShellCommand::Inventory,
         KeyCode::KeyL => ShellCommand::Look,
+        KeyCode::KeyR => ShellCommand::Camp,
         KeyCode::Escape => ShellCommand::Pause,
         _ => return None,
     })
@@ -99,6 +100,7 @@ pub struct ConfirmAnswer(pub ConfirmId);
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct Gate<'w> {
     world: Option<Res<'w, SimWorld>>,
+    views: Option<Res<'w, Views>>,
     data: Option<Res<'w, PackData>>,
     held: ResMut<'w, AskFirst>,
     next: ResMut<'w, NextState<PlayState>>,
@@ -112,11 +114,14 @@ impl Gate<'_> {
             // A second key in the frame that raised the question waits for the answer.
             return;
         }
-        let asked = self
-            .world
-            .as_ref()
-            .zip(self.data.as_ref())
-            .and_then(|(world, data)| confirm_panel::ask(&world.0, &data.0, &command));
+        let asked = match (&self.world, &self.views, &self.data) {
+            (Some(world), Some(views), Some(data)) => {
+                confirm_panel::ask(&views.here, &data.0, &command, |direction| {
+                    world.ahead(&data.0, direction)
+                })
+            }
+            _ => None,
+        };
         match asked {
             Some(confirm) => {
                 self.held.0 = Some(confirm);
@@ -172,7 +177,7 @@ fn answer_keys(keys: Res<ButtonInput<KeyCode>>, mut answers: MessageWriter<Confi
 fn settle_answers(
     mut answers: MessageReader<ConfirmAnswer>,
     mut held: ResMut<AskFirst>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut next: ResMut<NextState<PlayState>>,
     mut out: MessageWriter<PlayerCommand>,
 ) {
@@ -184,9 +189,9 @@ fn settle_answers(
             out.write(PlayerCommand(command));
         }
         next.set(
-            world
+            views
                 .as_ref()
-                .map_or(PlayState::Explore, |w| PlayState::for_mode(&w.0.mode)),
+                .map_or(PlayState::Explore, |v| PlayState::for_kind(v.here.mode)),
         );
     }
 }

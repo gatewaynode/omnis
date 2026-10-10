@@ -313,10 +313,28 @@ pub fn damage_roll(
         stream,
     )?;
     let raw = int_result("damage.total", raw.value)?;
-    let amount = data.rules.eval(
+    let (amount, adjust) = adjusted(data, raw, defenses, rng, stream)?;
+    Ok(DamageRoll {
+        rolls,
+        raw,
+        amount,
+        adjust,
+    })
+}
+
+/// `amount` after a target's defenses (the `damage.adjusted` slot), and which applied: for a
+/// damage roll shared by several targets with their own defenses.
+pub fn adjusted(
+    data: &Data,
+    amount: i64,
+    defenses: Defenses,
+    rng: &mut Pcg32,
+    stream: &StreamName,
+) -> Result<(i64, DamageAdjust), RuleError> {
+    let outcome = data.rules.eval(
         "damage.adjusted",
         &[
-            ("amount", Value::Int(raw)),
+            ("amount", Value::Int(amount)),
             ("resist", Value::Bool(defenses.resist)),
             ("vulnerable", Value::Bool(defenses.vulnerable)),
             ("immune", Value::Bool(defenses.immune)),
@@ -333,12 +351,7 @@ pub fn damage_roll(
     } else {
         DamageAdjust::None
     };
-    Ok(DamageRoll {
-        rolls,
-        raw,
-        amount: int_result("damage.adjusted", amount.value)?,
-        adjust,
-    })
+    Ok((int_result("damage.adjusted", outcome.value)?, adjust))
 }
 
 /// An initiative roll: the total from the `initiative` slot and the die behind it.

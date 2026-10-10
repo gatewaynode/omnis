@@ -1,6 +1,6 @@
 //! Known-bad packs are refused with the complete expected error list, never a panic.
 
-mod common;
+use crate::common;
 
 use omnis_data::load_packs;
 use std::path::Path;
@@ -110,6 +110,22 @@ fn every_error_in_a_broken_pack_is_reported() {
         "rest event 1 has chance 1001 per mille; at most 1000",
         "rest event 2 repeats terrain 'floor' for the same rest",
         "rest event 2 text key 'broken:text:rest.none' is not defined in any language",
+        // data/regions/bad.ron: shapes on load, then references at resolution
+        "company and stability are per mille, 0..=1000",
+        "map 'broken:map:refs' is listed twice",
+        "a region cannot couple to itself",
+        "name text key 'broken:text:none' is not defined in any language",
+        "rule 'time.none' is not a rules slot",
+        "coupling 'broken:region:gone' is not defined by any loaded pack",
+        "map 'broken:map:none' is not defined by any loaded pack",
+        "map 'broken:map:refs' already belongs to region 'broken:region:bad'",
+        // data/regions/twice.ron
+        "rule 'time.odd' declares input 'age'; a region's rule takes only lived, shared_time, stability",
+        // every map belongs to a region; glyph and refs do
+        "map 'broken:map:sites' belongs to no region",
+        // data/rules/time.ron: the calendar
+        "value 'days_per_year' is 0; it must be 1..=65535",
+        "value 'night_to' is 1440; it must be 0..=1439",
     ];
     assert_reports("broken", &expected);
 }
@@ -149,6 +165,11 @@ fn every_error_in_bad_content_is_reported() {
         "weapon 'badc:item:none' is not defined by any loaded pack",
         "spell 'badc:spell:none' is not defined by any loaded pack",
         "casting: spells_at_1 > 0 needs a spell list",
+        // warlord.ron's features: a cost without an effect; bad heal dice, a reaction, no uses
+        "badc:text:class.warlord.name: a cost or uses need an effect",
+        "feature heal dice must roll something",
+        "no class feature reacts yet: a feature costs an action, a bonus action or nothing",
+        "badc:text:class.warlord.name: uses must be at least 1",
         // data/backgrounds/twice.ron
         "skills are listed twice",
         "equipment counts must be at least 1",
@@ -172,7 +193,12 @@ fn every_error_in_bad_content_is_reported() {
         "spell effect dice need dice",
         "attack, heal, buff, reaction, light and utility spells reach one target",
         "level 5 spells need a component list (component_threshold 5)",
-        // data/monsters/blob.ron
+        // data/spells/rush.ron, free.ron: costs against D24's fields
+        "a Reaction effect costs a reaction",
+        "preparation_required_for_bonus_action needs bonus_action_available and preparation_available",
+        "a spell costs an action, a bonus action or a reaction",
+        "bonus_action_available is for a spell that costs an action",
+        // data/monsters/blob.ron, hush.ron
         "ac must be 1..=30",
         "hit_points needs dice",
         "abilities must be 1..=30",
@@ -181,13 +207,19 @@ fn every_error_in_bad_content_is_reported() {
         "gold needs dice",
         "damage type Fire appears in two of resistances, immunities, vulnerabilities",
         "damage type Cold appears in two of resistances, immunities, vulnerabilities",
+        // blob.ron's casting, and hush.ron, a caster with no spells
+        "casting save_dc must be 1..=30",
+        "casting caster_level must be 1..=20",
+        "spell 'badc:spell:none' is not defined by any loaded pack",
+        "spell 'badc:spell:rush': a monster casts only attack, auto-hit and save spells and an armor-bonus reaction",
+        "casting needs at least one spell",
         // data/rules/bad.ron: a structural check, then two compile errors with positions
         "slot 'a': input '1x' is not an identifier",
         "slot 'b': 1:9: unknown input 'bonus'",
         "slot 'c': 1:1: strings are not allowed in formulas",
         // data/services/shop.ron: stock the kind does not keep, a repeat, three unknown names
         "items are stocked only by kind Smith; this service is kind Inn",
-        "spells are stocked only by kind Guild; this service is kind Inn",
+        "spells are stocked only by kind Guild or Temple; this service is kind Inn",
         "rumors are stocked only by kind Tavern; this service is kind Inn",
         "item 'badc:item:blade' is listed twice",
         "item 'badc:item:gone' is not defined by any loaded pack",
@@ -239,7 +271,7 @@ fn dependencies_must_load_first() {
     );
     assert_eq!(
         data.maps.len(),
-        3,
+        4,
         "the mod adds nothing and removes nothing"
     );
     assert_eq!(

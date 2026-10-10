@@ -69,15 +69,27 @@
     ],
     portals: [
         (x: 0, y: 0, to_map: "test:map:meadow", to_x: 16, to_y: 6, to_facing: South, marker: Some("stairs.up")),
+        // The way down to the depths (M7b), in the far corner. The tileset has no stairs-down art
+        // yet, so the up stairs stand in (pixel art is placeholder, PRD D26).
+        (x: 23, y: 23, to_map: "test:map:depths", to_x: 1, to_y: 0, to_facing: South, marker: Some("stairs.up")),
     ],
     // Placed groups in the second row of rooms, rats only until the fight systems have been
     // played (owner, 2026-09-13): the pair the M4 acceptance clears (from the start: forward
     // x5, turn left, forward x2, turn right, use, forward x3), a wary one that comes back, and
-    // a friendly one. A small random table of rats on top.
+    // a friendly one. A small random table of rats on top. Goblins and skeletons in the lower
+    // two rows of rooms (M7b, measured by `clear_over_seeds` before the owner plays).
     encounters: [
         (x: 3, y: 8, stacks: [("test:monster:giant_rat", 2)], disposition: Hostile, once: true),
         (x: 9, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Wary),
         (x: 15, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Friendly, once: true),
+        (x: 3, y: 14, stacks: [("test:monster:goblin", 2)], disposition: Hostile, once: true),
+        (x: 15, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
+        (x: 9, y: 20, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (x: 21, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
+        (x: 9, y: 14, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (x: 21, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
+        (x: 3, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
+        (x: 15, y: 20, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 1)], disposition: Hostile, once: true),
     ],
     random: Some((
         chance_percent: 3,

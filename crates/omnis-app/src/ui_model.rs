@@ -10,8 +10,11 @@ pub enum Payload {
     Activate,
     /// A text input's content.
     Text(String),
-    /// A number input's value.
+    /// A number input's value, at every edit.
     Number(i64),
+    /// A number input's value when Enter or leaving the field commits it; reported after its
+    /// `Number`, for the panels that act once (the debug panel).
+    Commit(i64),
     /// A slider's value.
     Slide(f32),
     /// A checkbox's new state.

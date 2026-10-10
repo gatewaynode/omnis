@@ -10,7 +10,9 @@ use crate::service::{self, ServiceCommand};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
+use omnis_core::{CharacterId, SpellId};
 use omnis_data::{Data, ServiceDef, ServiceKind};
+use omnis_rules::{SpellRefusal, may_learn};
 use serde::{Deserialize, Serialize};
 
 /// The service as a client sees it.
@@ -37,16 +39,17 @@ pub struct ServiceView {
 pub struct OfferView {
     /// The command that asks for it, exactly as it is sent (counts are 1).
     pub command: ServiceCommand,
-    /// The row it names: the service's stock for a purchase, the stores for a sale.
-    pub row: Option<u8>,
-    /// The member it names, at the temple.
-    pub member: Option<u8>,
+    /// The member it names, at the temple and the trainer and for a spell.
+    pub member: Option<CharacterId>,
     /// Copper it costs (0 when free), unless it is a sale or refused before its price.
     pub price: Option<u32>,
     /// Copper a sale brings.
     pub pays: Option<u32>,
     /// Why the rules would refuse it, if they would.
     pub refusal: Option<Rejection>,
+    /// The id of the item or spell the command names, when it names one (M8 step 8).
+    #[serde(default)]
+    pub subject: Option<String>,
 }
 
 /// The service the party is inside, or `None` outside one.
@@ -56,17 +59,17 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
         return None;
     };
     let def = data.services.get(&state.service)?;
-    let mut offers: Vec<OfferView> = commands(world, def)
+    let mut offers: Vec<OfferView> = commands(world, data, def)
         .into_iter()
-        .map(|(command, row, member)| offer(world, data, def, command, row, member))
+        .map(|(command, member)| offer(world, data, def, command, member))
         .collect();
     offers.push(OfferView {
         command: ServiceCommand::Leave,
-        row: None,
         member: None,
         price: None,
         pays: None,
         refusal: None,
+        subject: None,
     });
     Some(ServiceView {
         service: def.id.clone(),
@@ -79,36 +82,125 @@ pub fn service_view(world: &World, data: &Data) -> Option<ServiceView> {
     })
 }
 
-type Ask = (ServiceCommand, Option<u8>, Option<u8>);
+type Ask = (ServiceCommand, Option<CharacterId>);
 
 /// What this kind of service offers the party now, but leaving.
-fn commands(world: &World, def: &ServiceDef) -> Vec<Ask> {
-    let rows = |len: usize| (0..len).filter_map(|i| u8::try_from(i).ok());
+fn commands(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
     match def.kind {
-        ServiceKind::Inn => alloc::vec![(ServiceCommand::Room, None, None)],
+        ServiceKind::Inn => alloc::vec![(ServiceCommand::Room, None)],
         ServiceKind::Tavern => alloc::vec![
-            (ServiceCommand::Rumor, None, None),
-            (ServiceCommand::BuyFood { count: 1 }, None, None),
+            (ServiceCommand::Rumor, None),
+            (ServiceCommand::BuyFood { count: 1 }, None),
         ],
         ServiceKind::Smith => {
-            let buy = rows(def.items.len())
-                .map(|item| (ServiceCommand::Buy { item, count: 1 }, Some(item), None));
-            let sell = rows(world.party.inventory.len())
-                .map(|item| (ServiceCommand::Sell { item, count: 1 }, Some(item), None));
-            buy.chain(sell).collect()
+            let mut asks: Vec<Ask> = Vec::new();
+            for item in &def.items {
+                let buy = ServiceCommand::Buy {
+                    item: item.clone(),
+                    count: 1,
+                };
+                if !asks.iter().any(|(c, _)| *c == buy) {
+                    asks.push((buy, None));
+                }
+            }
+            for (id, _) in &world.party.inventory {
+                let Some(item) = data.registry.items.name(*id) else {
+                    continue;
+                };
+                let sell = ServiceCommand::Sell {
+                    item: String::from(item),
+                    count: 1,
+                };
+                if !asks.iter().any(|(c, _)| *c == sell) {
+                    asks.push((sell, None));
+                }
+            }
+            asks
         }
-        ServiceKind::Temple => rows(world.party.members.len())
-            .flat_map(|member| {
-                [
-                    ServiceCommand::Heal { member },
-                    ServiceCommand::Cure { member },
-                    ServiceCommand::Raise { member },
-                ]
-                .map(|command| (command, None, Some(member)))
-            })
-            .collect(),
-        ServiceKind::Bank | ServiceKind::Trainer | ServiceKind::Guild => Vec::new(),
+        ServiceKind::Temple => {
+            let mut asks: Vec<Ask> = world
+                .party
+                .members
+                .iter()
+                .map(|m| m.id)
+                .flat_map(|member| {
+                    [
+                        ServiceCommand::Heal { member },
+                        ServiceCommand::Cure { member },
+                        ServiceCommand::Raise { member },
+                    ]
+                    .map(|command| (command, Some(member)))
+                })
+                .collect();
+            asks.extend(purchases(world, data, def));
+            asks
+        }
+        ServiceKind::Guild => purchases(world, data, def),
+        ServiceKind::Trainer => {
+            let mut asks: Vec<Ask> = world
+                .party
+                .members
+                .iter()
+                .map(|m| (ServiceCommand::Train { member: m.id }, Some(m.id)))
+                .collect();
+            asks.extend(picks(world, data));
+            asks
+        }
+        ServiceKind::Bank => Vec::new(),
     }
+}
+
+/// Whether a spell belongs among a member's offers: one they may add now, or one their level
+/// does not reach yet (shown with that refusal). Known spells, cantrips and spells off the
+/// member's list are left out.
+fn worth_offering(world: &World, data: &Data, member: usize, spell: Option<SpellId>) -> bool {
+    let Some(spell) = spell else {
+        return false;
+    };
+    matches!(
+        may_learn(&world.party.members[member], data, spell),
+        Ok(None | Some(SpellRefusal::TooHigh { .. }))
+    )
+}
+
+/// The trainer's picks: for each member owed some, each spell of their class list worth
+/// offering, in list order.
+fn picks(world: &World, data: &Data) -> Vec<Ask> {
+    let mut asks = Vec::new();
+    for (index, who) in world.party.members.iter().enumerate() {
+        let Some(list) = data
+            .classes
+            .get(&who.class)
+            .and_then(|c| c.casting.as_ref())
+            .filter(|_| who.spell_picks > 0)
+            .map(|c| &c.list)
+        else {
+            continue;
+        };
+        let member = who.id;
+        for spell in list {
+            if worth_offering(world, data, index, data.registry.spells.get(spell)) {
+                let spell = spell.clone();
+                asks.push((ServiceCommand::Choose { member, spell }, Some(member)));
+            }
+        }
+    }
+    asks
+}
+
+/// A guild's or temple's spells: for each member, each stocked spell worth offering them.
+fn purchases(world: &World, data: &Data, def: &ServiceDef) -> Vec<Ask> {
+    let mut asks = Vec::new();
+    for (index, who) in world.party.members.iter().enumerate() {
+        let member = who.id;
+        for spell in &def.spells {
+            if worth_offering(world, data, index, data.registry.spells.get(spell)) {
+                let spell = spell.clone();
+                asks.push((ServiceCommand::Learn { member, spell }, Some(member)));
+            }
+        }
+    }
+    asks
 }
 
 /// One offer, quoted on a fresh copy of the stream.
@@ -117,11 +209,10 @@ fn offer(
     data: &Data,
     def: &ServiceDef,
     command: ServiceCommand,
-    row: Option<u8>,
-    member: Option<u8>,
+    member: Option<CharacterId>,
 ) -> OfferView {
     let mut roller = Roller::take_stream(world, "town");
-    let (price, pays, refusal) = match service::quote(world, data, def, command, &mut roller) {
+    let (price, pays, refusal) = match service::quote(world, data, def, &command, &mut roller) {
         Ok(deal) => {
             let price = deal.paid().is_none().then_some(deal.cost());
             (price, deal.paid(), service::afford(world, &deal).err())
@@ -129,11 +220,22 @@ fn offer(
         Err(refusal) => (None, None, Some(refusal)),
     };
     OfferView {
+        subject: subject(&command),
         command,
-        row,
         member,
         price,
         pays,
         refusal,
+    }
+}
+
+/// The id of the item or spell an offer's command names.
+fn subject(command: &ServiceCommand) -> Option<String> {
+    match command {
+        ServiceCommand::Buy { item, .. } | ServiceCommand::Sell { item, .. } => Some(item.clone()),
+        ServiceCommand::Choose { spell, .. } | ServiceCommand::Learn { spell, .. } => {
+            Some(spell.clone())
+        }
+        _ => None,
     }
 }

@@ -151,6 +151,7 @@ mod tests {
         let long = "x".repeat(60);
         let rows: Vec<ItemRow> = (0..25)
             .map(|i| ItemRow {
+                item: format!("base:item:x{i}"),
                 name: format!("{long}{i}"),
                 count: 65535,
                 slot: Some(EquipSlot::MainHand),
@@ -161,6 +162,7 @@ mod tests {
         let view = InventoryView {
             panes: (0..7)
                 .map(|i| crate::inventory_menu::Pane {
+                    member: (i < 6).then_some(omnis_sim::omnis_core::CharacterId(i)),
                     title: format!("{long}{i}"),
                     summary: long.clone(),
                     rows: rows.clone(),

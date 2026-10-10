@@ -1,0 +1,1 @@
+(schema: 1, id: "badc:spell:free", name: "badc:text:spell.free.name", level: 1, school: Abjuration, classes: ["badc:class:warlord"], cost: Free, bonus_action_available: true, preparation_available: false, preparation_required_for_bonus_action: false, description: "badc:text:spell.free.description")

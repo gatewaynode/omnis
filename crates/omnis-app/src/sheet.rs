@@ -1,16 +1,20 @@
 //! `SheetPlugin`: the character sheet over the world, opened from the SHEET button, the P
-//! key, or the pause menu. Keys and clicks drive the state machine in `sheet_menu.rs`; the
-//! member shown and the band's selection keep in step both ways. Headless-capable.
+//! key, or the pause menu; its TACTICS button (or T) opens the tactics panel outside a
+//! fight, which comes back to the sheet. Keys and clicks drive the state machine in
+//! `sheet_menu.rs`; the member shown and the band's selection keep in step both ways.
+//! Headless-capable.
 
 use crate::cursor::UiSet;
 use crate::menu::MenuKey;
 use crate::menus::{Active, Screens, Where, menu_key};
 use crate::screen::{self, Target};
-use crate::sim::{PlayState, SimWorld};
+use crate::sheet_menu::SheetIntent;
+use crate::sim::{PlayState, Views};
 use crate::ui::{Selected, UiClick};
 use crate::widget::Hit;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
+use omnis_sim::api::ModeKind;
 
 /// The sheet plugin.
 pub struct SheetPlugin;
@@ -29,10 +33,10 @@ impl Plugin for SheetPlugin {
 /// The sheet opens on the band's selected member, or the first.
 fn open_sheet(
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut selected: ResMut<Selected>,
 ) {
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let members = views.as_ref().map_or(0, |v| v.party.members.len());
     screens.sheet.open(selected.0, members);
     if members > 0 {
         selected.0 = Some(screens.sheet.member);
@@ -45,7 +49,7 @@ fn sheet_keys(
     mut clicks: MessageReader<UiClick>,
     at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     mut selected: ResMut<Selected>,
     mut next: ResMut<NextState<PlayState>>,
 ) {
@@ -55,17 +59,21 @@ fn sheet_keys(
     if at.screen() != Active::Sheet {
         return;
     }
-    let Some(world) = world else {
+    let Some(views) = views else {
         return;
     };
-    let members = world.0.party.members.len();
+    let members = views.party.members.len();
     for hit in hits {
         pressed.extend(screen::click(Target::Sheet(&mut screens.sheet), hit));
     }
     let before = screens.sheet.member;
     for key in pressed {
-        if screens.sheet.key(key, members).is_some() {
-            next.set(PlayState::for_mode(&world.0.mode));
+        match screens.sheet.key(key, members) {
+            Some(SheetIntent::Close) => next.set(PlayState::for_kind(views.here.mode)),
+            Some(SheetIntent::Tactics) if members > 0 && !in_fight(views.here.mode) => {
+                next.set(PlayState::Tactics);
+            }
+            Some(SheetIntent::Tactics) | None => {}
         }
     }
     if screens.sheet.member != before {
@@ -73,17 +81,22 @@ fn sheet_keys(
     }
 }
 
+/// Declaring reactions is refused in a fight; the fight's React switches them.
+const fn in_fight(mode: ModeKind) -> bool {
+    matches!(mode, ModeKind::Encounter | ModeKind::Combat)
+}
+
 /// The sheet follows the band: a member clicked there is the member shown.
 fn sheet_model(
     at: Where,
     mut screens: ResMut<Screens>,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     selected: Res<Selected>,
 ) {
     if at.screen() != Active::Sheet {
         return;
     }
-    let members = world.as_ref().map_or(0, |w| w.0.party.members.len());
+    let members = views.as_ref().map_or(0, |v| v.party.members.len());
     if let Some(slot) = selected.0.filter(|s| *s < members) {
         screens.sheet.member = slot;
     }

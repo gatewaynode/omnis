@@ -1,6 +1,6 @@
 //! The rules of the crawl, SRD 5.1 structure with the PRD §8 adaptations: ability modifiers,
 //! proficiency, hit points, armor class, checks and saves with traced rolls, spell points
-//! (D12), leveling thresholds, character creation by point buy, and combat: weapons, attack
+//! (D12), leveling thresholds and level-ups at a trainer, character creation by point buy, and combat: weapons, attack
 //! and damage rolls, initiative, death saves, condition flags, and monster stat block reads.
 //! Constants the SRD defines once (the modifier formula, the d20) are Rust; everything expected
 //! to change is a rule slot or table in `data/rules` reached through `omnis-expr`.
@@ -17,14 +17,17 @@ mod character;
 mod condition;
 mod effect;
 mod equip;
+mod feature;
+mod level;
 mod monster;
 mod spell;
 mod stats;
+pub mod tactics;
 
 pub use attack::{
-    AttackBonus, AttackRoll, DamageAdjust, DamageRoll, DeathSaveResult, Weapon, attack_bonus,
-    attack_roll, attack_roll_with, best_weapon, damage_roll, death_save, initiative, rejudge,
-    weapons, wound_at_zero,
+    AttackBonus, AttackRoll, DamageAdjust, DamageRoll, DeathSaveResult, Weapon, adjusted,
+    attack_bonus, attack_roll, attack_roll_with, best_weapon, damage_roll, death_save, initiative,
+    rejudge, weapons, wound_at_zero,
 };
 pub use character::{Character, CreationError, DeathSaves, Draft, NAME_MAX_BYTES, create};
 pub use condition::{ConditionFlags, Defenses, condition_id, flags, member_defenses};
@@ -33,16 +36,25 @@ pub use effect::{
     roll_bonus,
 };
 pub use equip::{EquipRefusal, Equipped, auto_equip, can_equip, equip, equipped_item, unequip};
+pub use feature::{combat_features, recover_uses, spend_use, spent, uses_left};
+pub use level::{
+    Gains, MAX_LEVEL, SpellRefusal, eligible, level_up, max_spell_level, may_learn, next_threshold,
+    ready,
+};
 pub use monster::{
     choose_target, defenses as monster_defenses, hit_points as monster_hit_points, modifier_of,
     passive_perception, pick_attack,
 };
 pub use omnis_expr::RuleError;
 pub use spell::{
-    HealRoll, cantrip_dice, cast_modifier, casting_ability, concentration_dc, heal_roll,
-    monster_save, needs_components, save_dc, saved_damage, spell_attack,
+    HealRoll, cantrip_dice, cantrip_dice_at, cast_modifier, casting_ability, concentration_dc,
+    heal_roll, monster_save, needs_components, save_dc, saved_damage, spell_attack,
 };
 pub use stats::{
     Roll, RollMode, armor_class, check, kept_d20, level_for_xp, modifier, passive, point_cost,
     proficiency_bonus, save, skill_bonus, spell_cost, spell_point_pool,
+};
+pub use tactics::{
+    ActionRef, Cmp, Criteria, CriteriaSet, Facts, Ids, MemberFacts, Named, Names, Naming,
+    Predicate, Rename, Row, Runbook, Tactics, TacticsFault, Trigger, Who,
 };

@@ -4,7 +4,7 @@
 //! Bevy-free modules (`layout`, `canvas`, `plan`, `menu`, `creation_menu`, `creation_panel`, `ui_model`,
 //! `combat_menu`, `combat_text`, `combat_screen`,
 //! `actors`, `font`, `raster`, `widget`, `screen`, `screens`, `panels`, `spell_menu`, `debug_menu`,
-//! `debug_screen`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
+//! `debug_panel`, `sheet_menu`, `sheet_screen`) hold everything that can be unit-tested; the plugins
 //! hold only ECS wiring.
 //! `SimPlugin`, `InputPlugin`, `MenusPlugin`, `CombatPlugin`, `SheetPlugin`, `CursorPlugin`, and
 //! `UiPlugin` run headless under
@@ -17,6 +17,7 @@
 pub mod actors;
 pub mod assets;
 pub mod band;
+pub mod camp_panel;
 pub mod canvas;
 #[cfg(feature = "devtools")]
 pub mod capture;
@@ -28,16 +29,20 @@ pub mod confirm_panel;
 pub mod creation_menu;
 pub mod creation_panel;
 pub mod cursor;
-#[cfg(feature = "devtools")]
-pub mod debug;
 pub mod debug_menu;
-pub mod debug_screen;
+pub mod debug_panel;
+pub mod defs;
 #[cfg(feature = "devtools")]
 pub mod dev;
+pub mod encounter_menu;
+pub mod feathers_camp;
 pub mod feathers_confirm;
 pub mod feathers_creation;
+#[cfg(feature = "devtools")]
+pub mod feathers_debug;
 pub mod feathers_fonts;
 pub mod feathers_service;
+pub mod feathers_tactics;
 pub mod feathers_tools;
 pub mod feathers_ui;
 pub mod font;
@@ -54,6 +59,7 @@ pub mod panels;
 pub mod pixel;
 pub mod plan;
 pub mod raster;
+pub mod round_text;
 pub mod screen;
 pub mod screens;
 pub mod sense_text;
@@ -67,6 +73,8 @@ pub mod sim;
 pub mod socket;
 pub mod spell_menu;
 pub mod spell_text;
+pub mod tactics_draft;
+pub mod tactics_panel;
 pub mod text;
 pub mod tool_bar;
 pub mod ui;

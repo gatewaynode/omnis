@@ -1,15 +1,16 @@
 //! What the simulation says happened (ARCHITECTURE.md §4.2). Events carry keys, ids, numbers,
-//! and roll traces, never text: a client renders them and a test asserts on them.
+//! and roll traces, never text: a client renders them and a test asserts on them. A member is
+//! its `CharacterId`, a definition its string id, a place a [`Place`] (protocol 2, §4.9).
 
 use crate::dev::DevCommand;
 use crate::encounter::EncounterSource;
+use crate::names::Place;
+use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{
-    CharacterId, ConditionId, Facing, HolderId, ItemId, MapId, MonsterId, Position, RollTrace,
-    ServiceId, SpellId,
-};
+use omnis_core::{CharacterId, EraId, Facing, RollTrace};
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
-use omnis_rules::{DamageAdjust, DeathSaveResult, Roll};
+use omnis_rules::{ActionRef, Named, Trigger};
+use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
 use serde::{Deserialize, Serialize};
 
 /// Why a step did not happen. Not an error and not a rejection: the turn was taken.
@@ -173,19 +174,39 @@ pub enum Event {
     /// The party moved, possibly to another map through a portal.
     Moved {
         /// Where it was.
-        from: Position,
+        from: Place,
         /// Where it is.
-        to: Position,
+        to: Place,
     },
     /// A step did not happen.
     Blocked {
         /// Why.
         reason: BlockReason,
     },
+    /// Two holders met and their clocks reconciled (§4.4): `b` caught up by `delta_b` for the
+    /// `delta_a` that `a` lived since they last met.
+    Reconciled {
+        /// The holder that came (the party, or the region the party entered for a coupling):
+        /// `party:0`, or the region's string id.
+        a: String,
+        /// The holder that caught up, named the same way.
+        b: String,
+        /// What `a` lived since the last contact, in minutes.
+        delta_a: i64,
+        /// How far `b` caught up, in minutes.
+        delta_b: i64,
+        /// `b`'s era after.
+        era_b: EraId,
+    },
+    /// The signal bus dropped signals past its depth or its budget (§4.8).
+    SignalsDropped {
+        /// How many.
+        count: u32,
+    },
     /// A holder's clock advanced.
     TimeAdvanced {
-        /// Whose clock.
-        holder: HolderId,
+        /// Whose clock: `party:0`, or the region's string id.
+        holder: String,
         /// By how much.
         minutes: u32,
         /// Whether a day boundary was crossed.
@@ -198,8 +219,8 @@ pub enum Event {
     },
     /// A door changed state.
     Door {
-        /// The map.
-        map: MapId,
+        /// The map's string id.
+        map: String,
         /// The tile the party stands on.
         x: u16,
         /// The tile the party stands on.
@@ -229,8 +250,8 @@ pub enum Event {
     EncounterStarted {
         /// Where they came from.
         source: EncounterSource,
-        /// Monster and count per stack.
-        stacks: Vec<(MonsterId, u8)>,
+        /// Monster (string id) and count per stack.
+        stacks: Vec<(String, u8)>,
         /// How they feel about the party.
         disposition: Disposition,
         /// The count dice of a random encounter, one per stack.
@@ -292,12 +313,27 @@ pub enum Event {
         /// Who.
         actor: ActorRef,
     },
+    /// A class feature was used; its effect follows (`Healed`, a `Check`, `Exchanged`).
+    FeatureUsed {
+        /// Who.
+        member: CharacterId,
+        /// The feature's name key.
+        feature: String,
+    },
+    /// A front stack's lead individual swings at a member leaving the engagement; the attack
+    /// events follow.
+    OpportunityAttack {
+        /// The stack.
+        stack: u8,
+        /// The member.
+        member: CharacterId,
+    },
     /// Two members swapped marching-order slots.
     Exchanged {
-        /// The acting member's slot.
-        a: u8,
-        /// The other slot.
-        b: u8,
+        /// The acting member.
+        member: CharacterId,
+        /// The member they swapped with.
+        with: CharacterId,
     },
     /// An attack roll against an armor class.
     AttackResolved {
@@ -329,23 +365,36 @@ pub enum Event {
         /// Which defense applied.
         adjust: DamageAdjust,
     },
+    /// A monster cast a spell (M7c): on its turn, or Shield as its stack's reaction. What it did
+    /// follows.
+    MonsterCast {
+        /// The individual.
+        caster: ActorRef,
+        /// The spell.
+        spell: String,
+    },
+    /// Shield stopped a Magic Missile: the target takes nothing (SRD).
+    ShieldStops {
+        /// Who the missile was cast at.
+        target: ActorRef,
+    },
     /// A spell was cast: the points and components it took. What it did follows.
     SpellCast {
         /// Who cast it.
         caster: CharacterId,
         /// Which spell.
-        spell: SpellId,
+        spell: String,
         /// Points paid.
         points: u32,
         /// Components taken from the stores.
-        components_consumed: Vec<(ItemId, u16)>,
+        components_consumed: Vec<(String, u16)>,
     },
     /// A spell's effect settled on a member or the party.
     EffectApplied {
         /// On whom.
         target: EffectTarget,
         /// Which spell.
-        spell: SpellId,
+        spell: String,
         /// Who cast it.
         caster: CharacterId,
     },
@@ -354,7 +403,7 @@ pub enum Event {
         /// On whom it was.
         target: EffectTarget,
         /// Which spell.
-        spell: SpellId,
+        spell: String,
         /// Why.
         why: EffectEnd,
     },
@@ -363,18 +412,30 @@ pub enum Event {
         /// Who.
         caster: CharacterId,
         /// The spell let go.
-        spell: SpellId,
+        spell: String,
         /// Always true; the field is for readers.
         ended: bool,
     },
-    /// A member's reaction preference changed.
-    AutoCast {
+    /// A member's reactions were switched on or off.
+    ReactionsSwitched {
         /// Who.
         member: CharacterId,
-        /// Which reaction spell.
-        spell: SpellId,
         /// On or off.
         on: bool,
+    },
+    /// A member's declared reactions changed.
+    TacticsChanged {
+        /// Who.
+        member: CharacterId,
+    },
+    /// A declared reaction fired; its own events follow.
+    Reaction {
+        /// Who reacted.
+        actor: CharacterId,
+        /// The moment.
+        trigger: Trigger,
+        /// What they did.
+        action: ActionRef<Named>,
     },
     /// A member wore or wielded an item.
     Equipped {
@@ -383,7 +444,7 @@ pub enum Event {
         /// Where.
         slot: EquipSlot,
         /// Which item.
-        item: ItemId,
+        item: String,
     },
     /// A member took an item off, or it left the kit.
     Unequipped {
@@ -392,12 +453,12 @@ pub enum Event {
         /// Where it was.
         slot: EquipSlot,
         /// Which item.
-        item: ItemId,
+        item: String,
     },
     /// Items moved between kits and the stores.
     ItemMoved {
         /// Which item.
-        item: ItemId,
+        item: String,
         /// How many.
         count: u16,
         /// Where from.
@@ -410,9 +471,9 @@ pub enum Event {
         /// Who.
         member: CharacterId,
         /// Which item.
-        item: ItemId,
+        item: String,
         /// Whom it went to, when it went to someone.
-        target: Option<CharacterId>,
+        receiver: Option<CharacterId>,
         /// Whether a count was spent.
         consumed: bool,
     },
@@ -422,7 +483,7 @@ pub enum Event {
         /// Whose eyes.
         actor: CharacterId,
         /// What they looked through.
-        item: ItemId,
+        item: String,
         /// The checks, terrain first.
         checks: Vec<LayerCheck>,
         /// The tiles revealed, nearest first.
@@ -469,7 +530,7 @@ pub enum Event {
         /// Who.
         target: ActorRef,
         /// Which.
-        condition: ConditionId,
+        condition: String,
         /// Applied or removed.
         applied: bool,
     },
@@ -494,12 +555,12 @@ pub enum Event {
     /// The party went into the service on its tile.
     ServiceEntered {
         /// Which.
-        service: ServiceId,
+        service: String,
     },
     /// The party came out of a service, onto its tile or on the way off it.
     ServiceLeft {
         /// Which.
-        service: ServiceId,
+        service: String,
     },
     /// A night at the inn: a long rest; the restoration follows as `Healed` events.
     RoomTaken {
@@ -516,9 +577,11 @@ pub enum Event {
     /// A rumor heard at a tavern.
     Rumor {
         /// The tavern.
-        service: ServiceId,
-        /// The row of its rumors.
-        index: u16,
+        service: String,
+        /// The rumor: its row in the tavern's rumors, in file order.
+        rumor: u16,
+        /// How long ago it happened, in minutes on the region's clock (M8).
+        ago: i64,
     },
     /// A temple healed a member or cured their conditions; `Healed` and `Condition` follow.
     Treated {
@@ -537,7 +600,7 @@ pub enum Event {
     /// Items bought into the party's stores.
     Bought {
         /// The item.
-        item: ItemId,
+        item: String,
         /// How many.
         count: u16,
         /// Copper paid.
@@ -546,7 +609,7 @@ pub enum Event {
     /// Items sold out of the party's stores.
     Sold {
         /// The item.
-        item: ItemId,
+        item: String,
         /// How many.
         count: u16,
         /// Copper received.
@@ -558,6 +621,27 @@ pub enum Event {
         amount: u32,
         /// Into the bank, or out of it.
         deposit: bool,
+    },
+    /// A trainer granted a member their next level.
+    LevelUp {
+        /// Who.
+        member: CharacterId,
+        /// The new level.
+        level: u8,
+        /// Copper paid.
+        cost: u32,
+        /// What the level brought.
+        gains: Gains,
+    },
+    /// A spell went onto a member's list: a pick at a trainer (`cost` 0) or bought at a guild
+    /// or temple.
+    SpellLearned {
+        /// Who.
+        member: CharacterId,
+        /// The spell.
+        spell: String,
+        /// Copper paid.
+        cost: u32,
     },
     /// A rest ran its course; the restoration follows (`Healed`, `Condition`).
     Rested {
@@ -581,13 +665,13 @@ pub enum Event {
         /// Party-clock minutes that passed first.
         minutes: u32,
     },
-    /// Something happened while the party rested: entry `index` of the map's rest events. It
+    /// Something happened while the party rested: entry `entry` of the map's rest events. It
     /// changes nothing yet (owner, 2026-09-27: stubs for later ideas).
     RestEvent {
-        /// The map.
-        map: MapId,
-        /// The entry, in file order.
-        index: u16,
+        /// The map's string id.
+        map: String,
+        /// The entry: its row in the map's rest events, in file order.
+        entry: u16,
     },
     /// A debugging edit was applied; what it caused follows.
     Dev {

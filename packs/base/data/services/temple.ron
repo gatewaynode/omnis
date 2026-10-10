@@ -1,1 +1,13 @@
-(schema: 1, id: "base:service:temple", name: "base:text:service.temple.name", kind: Temple)
+// The temple heals, cures and raises, and sells the cleric's spells (PRD §8.2: guilds and
+// temples sell spells); cantrips come with the class.
+(
+    schema: 1,
+    id: "base:service:temple",
+    name: "base:text:service.temple.name",
+    kind: Temple,
+    spells: [
+        "base:spell:bless", "base:spell:cure_wounds", "base:spell:healing_word",
+        "base:spell:guiding_bolt", "base:spell:inflict_wounds", "base:spell:spiritual_weapon",
+        "base:spell:prayer_of_healing",
+    ],
+)

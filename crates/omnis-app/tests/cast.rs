@@ -1,7 +1,7 @@
 //! The cast menu while exploring, headless: C opens it, Enter casts a spell for the road,
 //! and Escape returns to the map.
 
-mod common;
+use crate::common;
 
 use bevy::input::keyboard::Key;
 use bevy::prelude::*;

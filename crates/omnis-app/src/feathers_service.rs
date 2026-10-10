@@ -11,16 +11,15 @@ use crate::menus::{Active, Where};
 use crate::service_panel::{
     self as model, OfferRow, ServiceAsk, ServiceForm, ServiceLabelId, ServicePanelId,
 };
-use crate::sim::{CommandRefused, PackData, SimEvent, SimWorld};
+use crate::sim::{CommandRefused, PackData, SimEvent, Views};
 use crate::ui_kit::{
     Control, PanelRoot, Shown, UiId, UiLabel, UiReport, UiScreen, button, message_line,
-    panel as panel_root, row, set_text,
+    panel as panel_root, row, scroll_column, set_text,
 };
 use bevy::feathers::constants::{fonts, size};
 use bevy::feathers::containers::flex_spacer;
 use bevy::feathers::controls::{
-    ButtonVariant, FeathersNumberInput, FeathersScrollbar, NumberFormat, NumberInputValue,
-    UpdateNumberInput,
+    ButtonVariant, FeathersNumberInput, NumberFormat, NumberInputValue, UpdateNumberInput,
 };
 use bevy::feathers::display::{label, label_dim};
 use bevy::feathers::theme::ThemeTextColor;
@@ -31,9 +30,8 @@ use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::FontSourceTemplate;
 use bevy::ui::InteractionDisabled;
-use bevy::ui_widgets::{ControlOrientation, ScrollArea};
 use omnis_sim::omnis_data::ServiceKind;
-use omnis_sim::{Command, Event, ServiceCommand, ServiceView, service_view};
+use omnis_sim::{Command, Event, ServiceCommand, ServiceView};
 
 /// The service as the panel last read it, and what the panel keeps.
 #[derive(Resource, Debug, Default)]
@@ -102,43 +100,14 @@ fn offer_list(title: &'static str, offers: Vec<(usize, &'static str)>) -> impl S
         }
         Children [
             label_dim(title),
-            (
+            scroll_column(bsn! {
                 Node {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Column,
-                    flex_grow: 1.0,
-                    min_height: px(0),
-                    padding: UiRect { right: px(10) },
+                    row_gap: px(4),
                 }
-                Children [
-                    (
-                        #offers
-                        Node {
-                            display: Display::Flex,
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(4),
-                            overflow: Overflow::scroll_y(),
-                            flex_grow: 1.0,
-                            min_height: px(0),
-                        }
-                        ScrollArea
-                        Children [ {rows} ]
-                    ),
-                    (
-                        @FeathersScrollbar {
-                            @target: #offers,
-                            @orientation: {ControlOrientation::Vertical}
-                        }
-                        Node {
-                            position_type: PositionType::Absolute,
-                            right: px(0),
-                            top: px(0),
-                            bottom: px(0),
-                            width: px(6),
-                        }
-                    ),
-                ]
-            ),
+                Children [ {rows} ]
+            }),
         ]
     }
 }
@@ -162,12 +131,12 @@ fn bank_row() -> impl Scene {
 
 /// The lists a kind of service shows, each a title and its offers by index.
 fn lists(view: &ServiceView, rows: &[OfferRow]) -> Vec<(&'static str, Vec<(usize, &'static str)>)> {
-    let pick = |wanted: fn(ServiceCommand) -> bool| -> Vec<(usize, &'static str)> {
+    let pick = |wanted: fn(&ServiceCommand) -> bool| -> Vec<(usize, &'static str)> {
         view.offers
             .iter()
             .zip(rows)
             .enumerate()
-            .filter(|(_, (offer, _))| wanted(offer.command))
+            .filter(|(_, (offer, _))| wanted(&offer.command))
             .map(|(index, (_, row))| (index, row.caption))
             .collect()
     };
@@ -182,10 +151,32 @@ fn lists(view: &ServiceView, rows: &[OfferRow]) -> Vec<(&'static str, Vec<(usize
                 pick(|c| matches!(c, ServiceCommand::Sell { .. })),
             ),
         ],
-        ServiceKind::Inn | ServiceKind::Tavern | ServiceKind::Temple => {
-            vec![("On offer", pick(|_| true))]
-        }
-        ServiceKind::Bank | ServiceKind::Trainer | ServiceKind::Guild => Vec::new(),
+        ServiceKind::Inn | ServiceKind::Tavern => vec![("On offer", pick(|_| true))],
+        ServiceKind::Temple => vec![
+            (
+                "On offer",
+                pick(|c| !matches!(c, ServiceCommand::Learn { .. })),
+            ),
+            (
+                "Spells",
+                pick(|c| matches!(c, ServiceCommand::Learn { .. })),
+            ),
+        ],
+        ServiceKind::Trainer => vec![
+            (
+                "Levels",
+                pick(|c| matches!(c, ServiceCommand::Train { .. })),
+            ),
+            (
+                "Spell picks",
+                pick(|c| matches!(c, ServiceCommand::Choose { .. })),
+            ),
+        ],
+        ServiceKind::Guild => vec![(
+            "Spells",
+            pick(|c| matches!(c, ServiceCommand::Learn { .. })),
+        )],
+        ServiceKind::Bank => Vec::new(),
     }
 }
 
@@ -199,7 +190,6 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
         .then(bank_row)
         .into_iter()
         .collect();
-    let note: Vec<_> = model::note_for(view.kind).map(label).into_iter().collect();
     bsn! {
         panel_root()
         Children [
@@ -214,10 +204,6 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
             (
                 Node { display: Display::Flex, flex_direction: FlexDirection::Column }
                 Children [ {bank} ]
-            ),
-            (
-                Node { display: Display::Flex, flex_direction: FlexDirection::Column }
-                Children [ {note} ]
             ),
             (
                 Node {
@@ -247,11 +233,11 @@ fn service_panel(view: &ServiceView, rows: &[OfferRow], name: String) -> impl Sc
 /// the panel is down.
 pub fn look(
     at: Where,
-    world: Option<Res<SimWorld>>,
+    views: Option<Res<Views>>,
     data: Option<Res<PackData>>,
     mut shown: ResMut<ServiceShown>,
 ) {
-    let (Some(world), Some(data)) = (world, data) else {
+    let (Some(views), Some(data)) = (views, data) else {
         return;
     };
     if at.screen() != Active::Service {
@@ -261,11 +247,11 @@ pub fn look(
         }
         return;
     }
-    if shown.view.is_none() || world.is_changed() {
-        let view = service_view(&world.0, &data.0);
+    if shown.view.is_none() || views.is_changed() {
+        let view = views.service.clone();
         shown.rows = view
             .as_ref()
-            .map_or_else(Vec::new, |v| model::offer_rows(v, &world.0, &data.0));
+            .map_or_else(Vec::new, |v| model::offer_rows(v, &views.party, &data.0));
         shown.view = view;
         shown.synced = false;
     }

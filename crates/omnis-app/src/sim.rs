@@ -2,10 +2,22 @@
 //! messages (ARCHITECTURE.md §8.1). Runs headless.
 
 use crate::AppConfig;
+use crate::confirm_panel::Ahead;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use omnis_sim::api::{
+    CastView, CombatView, Here, ModeKind, PartyView, RestView, ServiceView, cast_view, combat_view,
+    flags, here, party_view, rest_view, service_view,
+};
+use omnis_sim::api::{
+    Direction, Known, MapId, Op, OpError, Reply, Status, ViewportModel, automap, check_reload,
+    dispatch, save_text, site_ahead, status, step_lands, viewport,
+};
+use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::omnis_data::ron_io::read_text;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, Mode, Rejection, Settings, World, apply};
+use omnis_sim::{Command, Event, Rejection, Settings, Word, World, apply};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// Top-level app state (ARCHITECTURE.md §8.1).
@@ -60,6 +72,10 @@ pub enum PlayState {
     Confirm,
     /// Inside a town service: its panel (`feathers_service.rs`).
     Service,
+    /// The camp over the map: rests outside a service (`feathers_camp.rs`).
+    Camp,
+    /// A member's declared reactions, from the sheet (`feathers_tactics.rs`).
+    Tactics,
 }
 
 /// The settings a new game starts with: the player's choices, and `devtools` when this build
@@ -76,12 +92,12 @@ pub fn game_settings(base: Settings) -> Settings {
 impl PlayState {
     /// The play state the world's mode calls for.
     #[must_use]
-    pub const fn for_mode(mode: &Mode) -> PlayState {
+    pub const fn for_kind(mode: ModeKind) -> PlayState {
         match mode {
-            Mode::Explore => PlayState::Explore,
-            Mode::Town(_) => PlayState::Service,
-            Mode::Encounter(_) => PlayState::Encounter,
-            Mode::Combat(_) => PlayState::Combat,
+            ModeKind::Explore => PlayState::Explore,
+            ModeKind::Town => PlayState::Service,
+            ModeKind::Encounter => PlayState::Encounter,
+            ModeKind::Combat => PlayState::Combat,
         }
     }
 }
@@ -100,9 +116,183 @@ pub struct StartIn(pub PlayState);
 #[derive(Resource)]
 pub struct PackData(pub Data);
 
-/// The game state. Only `SimPlugin` systems mutate it.
+/// The game state. Only `SimPlugin` systems mutate it. The world itself stays private to this
+/// module: the app reaches it only through the engine's API (ARCHITECTURE.md §4.9), as the
+/// methods below, and reads it through [`Views`]. Tests reach it as a fixture.
 #[derive(Resource)]
-pub struct SimWorld(pub World);
+pub struct SimWorld(World);
+
+impl SimWorld {
+    /// A running game on `world`.
+    #[must_use]
+    pub fn new(world: World) -> SimWorld {
+        SimWorld(world)
+    }
+
+    /// Apply one command (`api::apply`).
+    pub fn apply(&mut self, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
+        apply(&mut self.0, data, command)
+    }
+
+    /// The command a script word means in the world now (`Word::command`): its slots and rows
+    /// resolved against the party and the packs; `None` when one is empty.
+    #[must_use]
+    pub fn word(&self, data: &Data, word: &Word) -> Option<Command> {
+        word.command(&self.0, data)
+    }
+
+    /// Answer one op of the JSON protocol (`api::dispatch`).
+    pub fn dispatch(&mut self, data: &Data, op: &Op) -> Result<Reply, OpError> {
+        dispatch(&mut self.0, data, op)
+    }
+
+    /// Every view of the world.
+    #[must_use]
+    pub fn views(&self, data: &Data) -> Views {
+        Views::of(&self.0, data)
+    }
+
+    /// The scene in front of the party (`api::viewport`).
+    #[must_use]
+    pub fn viewport(&self, data: &Data) -> Option<ViewportModel> {
+        viewport(&self.0, data)
+    }
+
+    /// What the party knows of a map (`api::automap`).
+    #[must_use]
+    pub fn automap(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
+        automap(&self.0, map)
+    }
+
+    /// What a step in `direction` would meet: whether it lands anywhere, and the service it
+    /// would go into (`api::step_lands`, `api::site_ahead`).
+    #[must_use]
+    pub fn ahead(&self, data: &Data, direction: Direction) -> Ahead {
+        Ahead {
+            lands: step_lands(&self.0, data, direction).is_some(),
+            site: site_ahead(&self.0, data, direction),
+        }
+    }
+
+    /// The save file's text, or why the save rule refuses it (`api::save_text`).
+    pub fn save_text(&self) -> Result<String, OpError> {
+        save_text(&self.0)
+    }
+
+    /// `game.status` (`api::status`).
+    pub fn status(&self, data: &Data) -> Result<Status, OpError> {
+        status(&self.0, data)
+    }
+
+    /// Whether freshly loaded packs can replace the current ones (`api::check_reload`).
+    pub fn check_reload(&self, fresh: &Data) -> Result<(), OpError> {
+        check_reload(&self.0, fresh)
+    }
+
+    /// Put a loaded world in place of this one.
+    pub fn replace(&mut self, world: World) {
+        self.0 = world;
+    }
+
+    /// The world itself, for tests that build or inspect a fixture.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    #[must_use]
+    pub fn fixture(&self) -> &World {
+        &self.0
+    }
+
+    /// The world itself, mutable, for tests that build a fixture.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn fixture_mut(&mut self) -> &mut World {
+        &mut self.0
+    }
+}
+
+/// What the app reads of the world: the engine's views (ARCHITECTURE.md §4.9), refreshed at the
+/// end of [`SimSet::Apply`] whenever the world or the packs changed. Presentation reads this,
+/// never the world's fields.
+#[derive(Resource, Debug, Clone, PartialEq)]
+pub struct Views {
+    /// Where the party is and what it is doing.
+    pub here: Here,
+    /// The party and every member's sheet.
+    pub party: PartyView,
+    /// The encounter or fight, if one is on.
+    pub combat: Option<CombatView>,
+    /// The service the party is inside, if any.
+    pub service: Option<ServiceView>,
+    /// The rests on offer.
+    pub rest: RestView,
+    /// The spells castable outside a fight.
+    pub casts: Vec<CastView>,
+    /// Every flag with its value, when the game carries dev tools; empty otherwise.
+    pub flags: Vec<(String, i64)>,
+}
+
+impl Views {
+    /// The id of the member standing in marching-order `slot` (the band's selection), which
+    /// the commands name members by.
+    #[must_use]
+    pub fn member_id(&self, slot: usize) -> Option<CharacterId> {
+        self.party.members.get(slot).map(|m| m.member)
+    }
+
+    /// Every view of `world`, read through the engine's API only.
+    #[must_use]
+    pub fn of(world: &World, data: &Data) -> Views {
+        let here = here(world, data);
+        let flags = if here.settings.devtools {
+            flags(world, data)
+        } else {
+            Vec::new()
+        };
+        Views {
+            here,
+            party: party_view(world, data),
+            combat: combat_view(world, data),
+            service: service_view(world, data),
+            rest: rest_view(world, data),
+            casts: cast_view(world, data),
+            flags,
+        }
+    }
+}
+
+/// Keep [`Views`] with the world: read again when the world or the packs changed or arrived,
+/// gone when the world is. Every change of the world marks the views changed.
+fn refresh_views(
+    mut commands: Commands,
+    world: Option<Res<SimWorld>>,
+    data: Option<Res<PackData>>,
+    views: Option<ResMut<Views>>,
+) {
+    let (Some(world), Some(data)) = (world, data) else {
+        if views.is_some() {
+            commands.remove_resource::<Views>();
+        }
+        return;
+    };
+    match views {
+        Some(mut views) if world.is_changed() || data.is_changed() => {
+            *views = Views::of(&world.0, &data.0);
+        }
+        Some(_) => {}
+        None => commands.insert_resource(Views::of(&world.0, &data.0)),
+    }
+}
+
+/// Start a game on `world`: the world and its views arrive together, so every system that
+/// runs once the game is up finds both.
+pub fn open_world(commands: &mut Commands, world: World, data: &Data) {
+    commands.insert_resource(Views::of(&world, data));
+    commands.insert_resource(SimWorld::new(world));
+}
+
+/// End the game: the world and its views go together.
+pub fn close_world(commands: &mut Commands) {
+    commands.remove_resource::<SimWorld>();
+    commands.remove_resource::<Views>();
+}
 
 /// A player action for the simulation.
 #[derive(Message, Debug, Clone, PartialEq, Eq)]
@@ -127,6 +317,8 @@ pub enum ShellCommand {
     Inventory,
     /// Look through the first sense item a member carries; a notice when there is none.
     Look,
+    /// Open the camp while exploring.
+    Camp,
     /// Exit the application.
     Quit,
 }
@@ -187,7 +379,8 @@ impl Plugin for SimPlugin {
                     .chain()
                     .in_set(SimSet::Apply)
                     .run_if(resource_exists::<SimWorld>),
-            );
+            )
+            .add_systems(Update, refresh_views.in_set(SimSet::Apply).after(shell));
     }
 }
 
@@ -220,7 +413,7 @@ fn boot(
                 data.packs.len(),
                 config.seed
             );
-            commands.insert_resource(SimWorld(world));
+            open_world(&mut commands, world, &data);
             commands.insert_resource(PackData(data));
             commands.insert_resource(StartIn(PlayState::Explore));
             next.set(AppState::Playing);
@@ -252,7 +445,7 @@ fn apply_commands(
     mut refused: MessageWriter<CommandRefused>,
 ) {
     for PlayerCommand(command) in incoming.read() {
-        match apply(&mut world.0, &data.0, command.clone()) {
+        match world.apply(&data.0, command.clone()) {
             Ok(produced) => {
                 for event in produced {
                     events.write(SimEvent(event));
@@ -304,12 +497,18 @@ fn shell(
             ShellCommand::Cast => out.next_play.set(PlayState::Cast),
             ShellCommand::Sheet => out.next_play.set(PlayState::Sheet),
             ShellCommand::Inventory => out.next_play.set(PlayState::Inventory),
-            ShellCommand::Look => match crate::look::look_command(&world.0, &data.0) {
-                Some(command) => {
-                    out.player.write(PlayerCommand(command));
+            ShellCommand::Camp if here(&world.0, &data.0).mode == ModeKind::Explore => {
+                out.next_play.set(PlayState::Camp);
+            }
+            ShellCommand::Camp => out.notice.0 = "No camp here".to_owned(),
+            ShellCommand::Look => {
+                match crate::look::look_command(&party_view(&world.0, &data.0), &data.0) {
+                    Some(command) => {
+                        out.player.write(PlayerCommand(command));
+                    }
+                    None => out.notice.0 = "Nothing to look through".to_owned(),
                 }
-                None => out.notice.0 = "Nothing to look through".to_owned(),
-            },
+            }
             ShellCommand::Quit => {
                 out.exit.write(AppExit::Success);
             }
@@ -320,26 +519,66 @@ fn shell(
 
 /// Write the world as RON to `path`, creating the directory.
 pub fn save(world: &World, path: &Path) -> Result<(), String> {
-    let text = world.to_ron().map_err(|e| e.to_string())?;
-    if let Some(parent) = path.parent() {
+    write_text(path, &world.to_ron().map_err(|e| e.to_string())?)
+}
+
+/// Write `text` to `path`, making its directory.
+pub fn write_text(path: &Path, text: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
-/// Read a world from `path`, checked against the loaded packs unless `force`.
+/// Read a world from `path`, checked against the loaded packs unless `force`. The file is read
+/// with the pack loader's limits (no symlink, at most `MAX_FILE_BYTES`), as the headless host
+/// reads it: a save is untrusted input (B4).
 pub fn load(data: &Data, path: &Path, force: bool) -> Result<World, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    World::from_ron(&text, data, force).map_err(|e| e.to_string())
+    let text = read_text(path, path).map_err(|e| e.to_string())?;
+    omnis_sim::ops::load_text(&text, data, force).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omnis_sim::omnis_core::Rotation;
+
+    #[test]
+    fn the_views_arrive_with_the_world_follow_it_and_leave_with_it() {
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let data = load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")]).unwrap();
+        let world = World::new(&data, 7, Settings::default()).unwrap();
+        let mut app = App::new();
+        app.add_systems(Update, refresh_views);
+        app.update();
+        assert!(
+            app.world().get_resource::<Views>().is_none(),
+            "no world, no views"
+        );
+        app.insert_resource(PackData(data.clone()))
+            .insert_resource(SimWorld(world.clone()));
+        app.update();
+        assert_eq!(*app.world().resource::<Views>(), Views::of(&world, &data));
+        let turned = {
+            let mut sim = app.world_mut().resource_mut::<SimWorld>();
+            apply(&mut sim.0, &data, Command::Turn(Rotation::Right)).unwrap();
+            sim.0.clone()
+        };
+        app.update();
+        let views = app.world().resource::<Views>();
+        assert_eq!(*views, Views::of(&turned, &data));
+        assert_ne!(views.here.position, Views::of(&world, &data).here.position);
+        app.world_mut().remove_resource::<SimWorld>();
+        app.update();
+        assert!(
+            app.world().get_resource::<Views>().is_none(),
+            "the views leave with the world"
+        );
+    }
 
     #[test]
     fn the_play_state_follows_the_mode_and_only_the_pause_stops_commands() {
-        assert_eq!(PlayState::for_mode(&Mode::Explore), PlayState::Explore);
+        assert_eq!(PlayState::for_kind(ModeKind::Explore), PlayState::Explore);
         let mut app = App::new();
         app.add_plugins(bevy::state::app::StatesPlugin)
             .init_state::<AppState>()

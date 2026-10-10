@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// The cube is the whole stack: one damage roll, one save per individual. Deviation: the push
+// and the boom are dropped (rows have no distance).
+(schema: 1, id: "base:spell:thunderwave", name: "base:text:spell.thunderwave.name", level: 1, school: Evocation, classes: ["base:class:wizard"], concentration: false, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.thunderwave.description", effect: Some(Save(ability: Constitution, dice: (count: 2, sides: 8, modifier: 0), damage_type: Thunder, half_on_save: true)), reach: Stack)
