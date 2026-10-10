@@ -284,7 +284,9 @@ most 100 lines, cyclomatic complexity of at most 25, no cycles.
 - **Output:** only the command log.
   - The default path is under `.omnis/`.
   - A `--log <path>` flag is accepted only for a relative path without `..` components, so a session cannot overwrite arbitrary files.
-- **No network, no dev socket, and no `Dev` commands** reachable from player input in Phase A. The agreement test uses `Dev` on a test-only devtools world.
+- **No network and no `Dev` commands** reachable from player input. The agreement test uses `Dev` on a test-only devtools world.
+- **The dev socket (parity P1, 2026-10-10)**, feature `devtools`, on by default and compiled out with `--no-default-features`: loopback only (a non-loopback `--dev-socket` address is refused), one client, 1 MiB per line, paths through `client_path` (relative, no `..`, the extension checked) under the working directory. Its host ops are `shell/host.rs`: commands go through the engine's `dispatch` and are then kept in the binder's log, so the session still replays; a loaded save, reloaded packs or a rule set mark the log as no longer replaying, and Save log says so. Not in `--screenshot` capture mode.
+- **The world is private** (P0, ARCH A17): `sim::SimWorld` keeps it and mirrors the engine's API; the shell reads `sim::Views`. The library is checked without the `test-fixtures` feature, so a field read does not compile.
 - **Inputs are bounded:** the mouse delta per frame is clamped, and the frame `dt` is clamped (0.1 s maximum) before integration, so a stall cannot teleport the pose across several cells. Sub-stepping handles the rest.
 
 ## 13. Decisions

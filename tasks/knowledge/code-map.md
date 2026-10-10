@@ -152,12 +152,20 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
 - Shell: `session.rs` (`Config` flags, `Session::start`, `order`, `save_log`), `movement.rs`, `controls.rs`
   (buttons for every action), `panel.rs` (the centre panel: the fallen party's notice, the town notice, the
   action menu), `town.rs` (inside a service: the name and Leave, a stopgap until parity P4), `combat.rs`
-  (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`, offscreen).
+  (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`, offscreen; the
+  socket's live capture).
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays.
-- Debt: the client reads `World` fields directly (`world.party`, `world.mode`, `world.position`, the automap;
-  30 sites in 13 files), where A17 says clients read views; `omnis-app` moved off them in M8 step 8d/8e.
-  Tracked in `tasks/TODO.md` ("Vector adoption").
+- The engine boundary (parity P0): `sim.rs` holds `SimWorld` with its world private (methods mirror
+  `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
+  `Views` (`here`, `position`, `party`, `combat`), which `Session::note` refreshes after every accepted
+  command; a test that writes a fixture calls `Session::refresh`. The library is clippy-checked without the
+  feature (`verify.sh`), so a field read does not compile.
+- Dev socket (parity P1, feature `devtools`): `shell/socket.rs` (`DevSocketPlugin`, framing copied from
+  `omnis-app`), `shell/host.rs` (host ops; commands through `dispatch`, then into the binder's log, the pose
+  snapped to the party when its place or facing changed; a load, a pack reload or `rules.set` set
+  `Session::unreplayable`), `shell/screen_text.rs` (every shown `Text`, `[button]` when pressable),
+  `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-app
 - The engine boundary (M8 step 8d, 8e): `sim.rs` holds `SimWorld` with its world private (methods mirror

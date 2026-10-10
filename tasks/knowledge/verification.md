@@ -19,7 +19,11 @@ before). The gate's log says it on one line: `tests passed 670 failed 0 ignored 
 The vector client: `cargo test -p omnis-vector` (seconds once built); `tests/agreement.rs` holds its
 collision mirror to the simulation on every map. An offscreen capture:
 `cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]` (paths must be
-relative, without `..`).
+relative, without `..`). The dev socket: `just run` writes `.omnis/dev.addr`; the loopback test is
+`tests/socket.rs` (headless, no renderer, so `screenshot` there answers "no window"). A window launched
+from an agent's shell gets no window-server connection ("Connection invalid … hiservices" in its log, in
+the sandbox and out of it on 2026-10-10) and runs no frames, for both clients, so a live `screenshot` needs
+the owner's session.
 
 The API reference `docs/api.md` is held to the code by `omnis-mcp/tests/api_doc.rs`: a new op, reply,
 `OpError` kind, command, dev command, event or rejection fails the build until it is named there and in
