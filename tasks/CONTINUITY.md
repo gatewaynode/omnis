@@ -1,16 +1,16 @@
 # Continuity notes
 
-Written 2026-10-10, mid P2d (paused so the owner can restart the terminal for the gate fix below). M8 is closed
+Written 2026-10-10, mid P2d (paused so the owner can push and restart the terminal for the gate fix below). M8 is closed
 (`8921c07`). Branch `m7a-b-tasks`. Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
-## FIRST: the P2d work is in a stash
-- `git stash list` shows **`P2d WIP: renames, vocabulary test, docs (not gated)`** (taken with `-u`, so it holds
-  the untracked files too). Restore with `git stash pop` on `m7a-b-tasks` before anything else. 52 paths.
+## FIRST: the P2d work is committed as WIP, not gated
+- Commit **"Protocol 2, step P2d (WIP, not gated): renames, vocabulary test, docs"**, just before this note's
+  commit. Owner, 2026-10-10: "Don't stash, we need to capture this work" (lesson written).
 - It has NOT passed the full gate. What has passed on it: `cargo check --workspace --all-targets`; `omnis-mcp`
   `vocabulary` and `schema_proof`; `omnis-sim` `api_views`; `cargo clippy -p omnis-sim --all-targets`. A full gate
   of the tree before the last round (the `receiver` renames, the row rule, the `#n` fix) was 581/1 with only the
-  vocabulary test failing, which is since fixed.
+  vocabulary test failing, which is since fixed. The next commit (the rest of P2d below) is the gated one.
 
 ## The gate is slow because of macOS, not the tests (measured 2026-10-10)
 - `scratchpad/measure_gate.py` (session scratchpad, gone after restart; the method: time each gate step, build
@@ -26,7 +26,7 @@ Written 2026-10-10, mid P2d (paused so the owner can restart the terminal for th
   expect a ~5 min gate. Still ~30 s: the sandbox may cause it (test once with the sandbox off), and the fallback
   is one test binary per crate (`tests/main.rs` with `mod`s, 72 → ~20 binaries). Report the number to the owner.
 
-## Protocol 2, P2d: what the stash holds
+## Protocol 2, P2d: what the WIP commit holds
 Owner, 2026-10-10: "Rename all 11" (the vocabulary test found field names with two JSON types beyond the plan's
 inventory; protocol 2 is unreleased, so no extra bump; no save change).
 - **Renames** (Rust field = wire name, no serde renames): `ItemCommand::Give {giver, receiver}`; `ItemCommand::Use`,
@@ -54,9 +54,10 @@ inventory; protocol 2 is unreleased, so no extra bump; no save change).
   agent (rejections table has a Fields column now); §14; changelog "Protocol 2 (2026-10-10)" with the old → new
   table and migration. Counts unchanged (11 commands, 13 dev, 62 events, 62 rejections, 10 errors, 24 ops).
 - `tasks/acceptance/protocol-2.md` (new): status, one cast named the same in command/event/view, reorder, window.
-- `tasks/LESSONS.md`: "A new wire name is checked against the whole vocabulary first".
+- `tasks/LESSONS.md`: "A new wire name is checked against the whole vocabulary first"; "Unfinished work is
+  committed, not stashed, before a restart" (the 2026-09 stash rule revised).
 
-## Left for P2d after `git stash pop`
+## Left for P2d
 1. Recapture `docs/api.md` §3's transcripts (still protocol 1: `"protocol":1`, `"map":3`, `"index"` in dice,
    `{"Party":0}`) from a `Headless` world on base+test, seed 1, with the same requests (game.status,
    party.create Wren, Turn Left + Step Forward, Encounter Attack rejected, combat.get NoEncounter, and an attack's
@@ -67,9 +68,8 @@ inventory; protocol 2 is unreleased, so no extra bump; no save change).
 4. TODO: P2d and the parent protocol-2 item checked with detail; plan `tasks/plans/protocol-2.md` marked closed
    (note the 12 extra renames and the as-built rule changes).
 5. `cargo fmt --all`, full gate (VERIFY-GREEN), replays unchanged, Sentrux (`git add` new files, scan
-   `/Users/john/code/omnis/crates`, `check_rules`), then commits staged by name. Suggested split: (a) the renames
-   + `#n` fix + vocabulary test + tests/common (code), (b) ARCH + docs/api.md + acceptance + BUGS + knowledge +
-   TODO + plan + LESSONS (docs). Or one P2d commit if the split is awkward; say which.
+   `/Users/john/code/omnis/crates`, `check_rules`), then one commit staged by name that completes P2d (and says the WIP
+   commit before it is now gated).
 6. Raise with the owner: the Socket re-audit of `rhai` 1.26.1 (due 2026-10-10).
 
 ## Pins (after P2c; P2d expected to move only the test count)
