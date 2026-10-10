@@ -1,6 +1,6 @@
 # Alt continuity notes (the 3D experiment)
 
-Written 2026-10-03, before a compact in the middle of Phase B (B6 done, B7 next: the rebase). Rewrite this
+Written 2026-10-10, before a terminal restart: Phase B done (B6 closed), the Bevy 0.20 migration planned, and `alt-PRD.md` v0.3 drafted and committed **under the owner's review**. Rewrite this
 file every time it is used; keep it to state, next step, pointers and gotchas. It is kept apart
 from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 `m6-closeout-tasks`).
@@ -8,9 +8,9 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 ## State
 - **Branch:** `gui-3d-experiment`, cut from `main` at `8e111d5`.
   - **The owner pushes:** the agent's sandbox has no GitHub access (memory `owner-pushes`).
-  - The owner pushed through `a171185` (B4). Local and unpushed: `305f801` (notes), `b143c70` (B5), `b71d4a0` (notes) and the B6 commit. Check with `git status -sb`; remind the owner to `git push`.
+  - The owner pushed through `a171185` (B4). Local and unpushed at writing: `305f801`, `b143c70` (B5), `b71d4a0`, `17dbc24` (B6), `2611eb7` (Bevy 0.20 plan), and the alt-PRD v0.3 + continuity commit. Check with `git status -sb`; remind the owner to `git push`.
 - **Clone:** `/Users/john/code/omnis-alt/omnis`. The main checkout is `/Users/john/code/omnis`.
-- **Gate:** green at 436 passed, 6 ignored after B5. Sentrux rules pass at signal 8902.
+- **Gate:** green at 436 passed, 6 ignored (unchanged since B5; everything after it is docs). Sentrux rules pass at signal 8902.
 - **Phase A is complete** (A0–A8; the report is in `tasks/alt-TODO.md`).
 - **Phase B, the 2D combat screen.** The plan, `~/.claude/plans/snug-munching-gray.md`, was approved 2026-10-03. **Read it first.**
   - **B0, B1, B1a, B2, B3, B4, B5, B6 done** (B6: the owner played; only the fight screen's scale stood out, deferred to the art update) (details in `tasks/alt-TODO.md`). **The owner tested B4 by hand (2026-10-03): "works as designed".**
@@ -69,9 +69,28 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
   - macOS's main display is an LS27A800U, 60 Hz, 4K scaled to 1920×1080.
 - **Don't repeat it:** a message in the first session looked like a password. It was not used or stored.
 
-## Next: B7
-- **B7:** before merging, rebase onto the mechanics branch's work; rerun the gate and the agreement test. Wait for the owner to say the mechanics work is ready.
-- **Deferred to the art update:** the fight screen's scale at 5120×1440. Knobs: `PAD`, `font(size)` in `shell/combat.rs`; bands, `MOST`, `person()`, `STATUS`/`BUTTONS` in `src/arena.rs`. Check with the fight capture recipe at `--size 5120x1440`.
+## Next: the owner's review of alt-PRD v0.3, then B7
+- **The direction changed (2026-10-10):** the owner adopted the experiment. The 3D vector presentation and free movement replace the 2D canvas UI; `omnis-vector` becomes the game client and `omnis-app` retires at parity. `alt-PRD.md` v0.3 records it as decisions X8–X22, from a 4-round Q&A:
+  - X9: alt-PRD is the presentation PRD; at the merge PRD.md's presentation sections (§5 non-goals, D2, §7.2, D16, D20, D26, R10/R13) and ARCH §8.1/§8.2/A11 are amended to point to it (§2 table).
+  - X10/X11: coarse terrain height in pack data plus client relief from seeded noise; cliffs (height difference over a step) block like walls, derived at load; the rest of height is visual. Data shape is mechanics-branch work.
+  - X12: structures shaped per terrain kind on cell-edge collision, plus authored set pieces (format open).
+  - X13: lines plus dark occluding fills (hidden-line removal); no textures.
+  - X15: every other screen is `bevy_ui` in the neon style. X16: references Tron + technical/blueprint.
+  - X17 (owner revision): **three depth levels** — 1 immediate/high detail, 2 intermediate/moderate–low, 3 distant/huge low-detail forms in the slowest parallax (a backdrop beyond the fog where there is a sky). Visibility depth still sets the fog.
+  - X18/X19: colour roles fixed, each biosphere maps them to its own palette; every role also has non-colour channels (line pattern, weight, glyphs, motion with reduced-motion; room for more).
+  - X20: performance floor: measure first. X21: faint grid following the relief. X22: blueprint-style automap; its sensing is open.
+- **The owner is still reviewing the draft.** Items I filled in that await their confirmation:
+  1. the first colour-role set (structure, ground, interactive, party, hostile, magic, danger, interface) and the illustrative pattern examples;
+  2. the proposed next-phase order in §11 (merge → occluding fills → style system → height/cliffs → shaped structures → interface parity);
+  3. dev tools (dev socket, MCP screenshot, debug menu) moving to `omnis-vector` as part of parity;
+  4. a colour-blind check (simulated deficiency) when reviewing screens and biospheres;
+  5. "biosphere" defined as a pack palette and style set (whether it also picks relief and shape generators is open);
+  6. from the X17 revision: shapes change depth level without a visible pop; level 3 does not exist underground.
+- **After the review:** apply the owner's corrections (any correction → `tasks/LESSONS.md`), bump the status line, commit with the gate and Sentrux. Then a matching pass on `alt-ARCHITECTURE.md`: its §1.4 "no edits to main crates" and the experiment framing are overturned by X10/X11/X14.
+- **B7:** before merging, rebase onto the mechanics work (`m7a-b-tasks` in `/Users/john/code/omnis`, M7c acceptance c in progress there); rerun the gate and the agreement test. Wait for the owner.
+- **Planned, not started:** the Bevy 0.20 migration, `tasks/plans/bevy-0.20-migration.md` (not before 2026-11-07; after B7 and the merge; re-audit `omnis-app` on the merged tree). Bevy is exempt from N−1 (PRD D9); the 30-day rule applies.
+- **Deferred to the art update:** the fight screen's scale at 5120×1440 (knobs: `PAD`, `font(size)` in `shell/combat.rs`; bands, `MOST`, `person()`, `STATUS`/`BUTTONS` in `src/arena.rs`).
+- **Mechanics feedback goes to the mechanics session**, not here (the owner pasted tactics-panel feedback here by mistake on 2026-10-04).
 
 ## Gotchas
 - **Builds need `export DEVELOPER_DIR=/Library/Developer/CommandLineTools`.** The Xcode licence is unaccepted.
@@ -102,7 +121,7 @@ from `tasks/CONTINUITY.md`, which belongs to the main build (stale; it describes
 - **Commit trailer:** `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Pointers
-- **Vision:** `alt-PRD.md` (Phase B in §6, X7, §10.3) and `alt-ARCHITECTURE.md` v0.3 (§5 core modules; §6 plugin table with `CinemaPlugin`, `CombatPlugin`, `CombatViewPlugin`; §8; §9 the fight screen as built).
+- **Vision:** `alt-PRD.md` v0.3 (the presentation PRD: §3 decisions X1–X22, §5 visual language, §6 world geometry and depth levels, §11 phases, §12 open questions) and `alt-ARCHITECTURE.md` v0.3 (still the experiment's architecture; §5 core modules, §6 plugins, §9 the fight screen as built). Bevy 0.20 plan: `tasks/plans/bevy-0.20-migration.md`.
 - **Plan and reviews:** `tasks/alt-TODO.md` (B items). The Phase B plan file is listed above.
 - **Core:** `crates/omnis-vector/src/{geom,grid,pose,collide,bind,geometry,minimap,party,raster,rolllog,cinema,trial,combat_menu,arena}.rs`.
 - **Shell:**
