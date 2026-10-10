@@ -1,5 +1,5 @@
 //! The minimap, top right: `minimap::paint` uploaded into an image shown as a UI node
-//! (alt-ARCHITECTURE.md §8). Repainted only when what it shows changes.
+//! (presentation-ARCHITECTURE.md §8). Repainted only when what it shows changes.
 
 use super::VectorSet;
 use super::session::Session;

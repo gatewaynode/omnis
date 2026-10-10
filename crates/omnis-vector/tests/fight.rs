@@ -1,4 +1,4 @@
-//! The fallen party's notice, headless (alt-ARCHITECTURE.md §9): a party that can no longer
+//! The fallen party's notice, headless (presentation-ARCHITECTURE.md §9): a party that can no longer
 //! fight does not walk on, and can start again. The fight itself is `tests/combat.rs`.
 
 use crate::common;

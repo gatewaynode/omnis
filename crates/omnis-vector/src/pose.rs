@@ -1,4 +1,4 @@
-//! The continuous pose and its integration (alt-ARCHITECTURE.md §5).
+//! The continuous pose and its integration (presentation-ARCHITECTURE.md §5).
 
 use crate::geom::{cell_centre, forward, right, wrap, yaw_of};
 use omnis_sim::omnis_core::Position;

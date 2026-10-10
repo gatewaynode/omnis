@@ -1,4 +1,4 @@
-//! The fight's picture window (alt-ARCHITECTURE.md §9): `cinema::paint` uploaded into an
+//! The fight's picture window (presentation-ARCHITECTURE.md §9): `cinema::paint` uploaded into an
 //! image on the fight screen's `Screen` node. Needs `Assets<Image>`, so a window or the offscreen
 //! capture; headless, the node keeps its space and stays blank.
 

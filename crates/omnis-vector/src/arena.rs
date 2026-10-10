@@ -1,4 +1,4 @@
-//! The fight screen's layout (alt-ARCHITECTURE.md §9): where the picture window, the action
+//! The fight screen's layout (presentation-ARCHITECTURE.md §9): where the picture window, the action
 //! column, the roll log and the figures sit in a window, the lines that draw the figures, and
 //! which figure a point is on. Bevy-free: logical pixels, x to the right and y down from the
 //! window's top left.

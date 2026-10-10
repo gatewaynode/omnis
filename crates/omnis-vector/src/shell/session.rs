@@ -1,4 +1,4 @@
-//! The session resource and the command line (alt-ARCHITECTURE.md §6, §12).
+//! The session resource and the command line (presentation-ARCHITECTURE.md §6, §12).
 
 use super::text::describe;
 use crate::bind::Binder;

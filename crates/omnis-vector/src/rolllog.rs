@@ -1,4 +1,4 @@
-//! The roll log: one short line per fight event (alt-ARCHITECTURE.md §9). Bevy-free.
+//! The roll log: one short line per fight event (presentation-ARCHITECTURE.md §9). Bevy-free.
 //!
 //! The simulation numbers a monster among its stack's living, so the second rat becomes the
 //! first when the first dies. [`Names`] gives each individual the number it was met with and

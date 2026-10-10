@@ -1,4 +1,4 @@
-//! The fixed party the viewer starts with (alt-ARCHITECTURE.md §9): four base-pack drafts,
+//! The fixed party the viewer starts with (presentation-ARCHITECTURE.md §9): four base-pack drafts,
 //! created through commands so the session log replays from a fresh world.
 
 use omnis_sim::omnis_data::{Alignment, Skill};

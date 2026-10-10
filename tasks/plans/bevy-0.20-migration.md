@@ -42,7 +42,7 @@ line against this branch's tree at `17dbc24`. The audit is static: 0.20 was not 
    - `ARCHITECTURE.md:400,406,413,424,510,520`: the verified-against line, 0.19 facts, the
      `bevy_egui` pin, the dependency rule, and the version table.
    - `PRD.md:78,289`: D9's "0.19.x" and the engine facts.
-   - `alt-PRD.md:167` and `alt-ARCHITECTURE.md:58`: the pinned version and the feature list read from
+   - `presentation-PRD.md:167` and `presentation-ARCHITECTURE.md:58`: the pinned version and the feature list read from
      the 0.19.1 manifest.
 
 ## 1. Manifests

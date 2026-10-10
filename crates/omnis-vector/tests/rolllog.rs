@@ -1,4 +1,4 @@
-//! The roll log, on a real fight (alt-ARCHITECTURE.md §9): meeting the dungeon's placed group
+//! The roll log, on a real fight (presentation-ARCHITECTURE.md §9): meeting the dungeon's placed group
 //! starts a fresh log, and every line of the fight, the last command's included, names who
 //! acted, though that command ends the fight and the stacks leave the world with it.
 

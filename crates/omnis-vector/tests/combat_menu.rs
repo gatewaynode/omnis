@@ -1,4 +1,4 @@
-//! The fight's choices on a real fight (alt-ARCHITECTURE.md §9): the dungeon's placed group,
+//! The fight's choices on a real fight (presentation-ARCHITECTURE.md §9): the dungeon's placed group,
 //! met by walking into it. Every command the menu offers is one the simulation accepts, the
 //! spell, item and swap steps reach their targets, clicks choose only offered targets, and a
 //! fight runs to its end from the menu alone.

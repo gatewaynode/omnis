@@ -1,4 +1,4 @@
-//! Omnis Vector: the 3D presentation experiment (`alt-PRD.md`, `alt-ARCHITECTURE.md`).
+//! Omnis Vector: the 3D presentation experiment (`presentation-PRD.md`, `presentation-ARCHITECTURE.md`).
 //!
 //! Free movement in a vector-line 3D view over the simulation's grid. Every cell the pose
 //! enters becomes a `Step` the simulation processes as in the 2D game, so the grid's rules

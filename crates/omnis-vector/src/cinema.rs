@@ -1,5 +1,5 @@
 //! The fight's picture window: a scene drawn in glowing vector lines above the choices
-//! (alt-ARCHITECTURE.md §9). Bevy-free; the shell uploads the pixels into an image.
+//! (presentation-ARCHITECTURE.md §9). Bevy-free; the shell uploads the pixels into an image.
 //!
 //! A stub for now. The window opens on the enemy, and every monster is drawn as the placeholder
 //! rat. Later, scenes for the fight's events (a swing, a hit landing, a spell, a death) are

@@ -1,4 +1,4 @@
-//! The fight's choices (alt-ARCHITECTURE.md §9): the encounter's four, then a member's turn
+//! The fight's choices (presentation-ARCHITECTURE.md §9): the encounter's four, then a member's turn
 //! (Attack, Cast, Use, Dodge, Swap, End turn, Flee) with the spell and item lists and the
 //! targets. Bevy-free.
 //!

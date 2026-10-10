@@ -1,4 +1,4 @@
-//! The predictive collision mirror (alt-ARCHITECTURE.md §5.4, VA3).
+//! The predictive collision mirror (presentation-ARCHITECTURE.md §5.4, VA3).
 //!
 //! `blocks` copies the refusal conditions of `omnis_sim::apply`'s private `move`, in the same
 //! order, so the pose slides along walls instead of walking into them. The simulation stays

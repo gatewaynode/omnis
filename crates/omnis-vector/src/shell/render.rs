@@ -1,5 +1,5 @@
 //! The 3D view: a `Camera3d` with HDR and bloom following the pose, and the map drawn as
-//! glowing gizmo lines that fade with distance (alt-ARCHITECTURE.md §7).
+//! glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7).
 
 use super::capture::Offscreen;
 use super::movement::{Intent, LookInput, look};

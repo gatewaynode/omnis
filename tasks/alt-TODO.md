@@ -1,6 +1,6 @@
 # Alt TODO: the 3D presentation experiment
 
-Branch `gui-3d-experiment`. Vision: `alt-PRD.md`; shape: `alt-ARCHITECTURE.md`. Kept apart from
+Branch `gui-3d-experiment`. Vision: `presentation-PRD.md`; shape: `presentation-ARCHITECTURE.md`. Kept apart from
 `tasks/TODO.md` so that merges from `main` never conflict here. The working agreements in
 `tasks/knowledge/agreements.md` apply: one commit per checked item, the gate run unpiped, a Sentrux
 check before every commit, and never push.
@@ -9,7 +9,7 @@ check before every commit, and never push.
 
 Target: a working viewer soon. Each step leaves a runnable or testable state.
 
-- [x] A0 Vision documents: `alt-PRD.md` v0.2 and `alt-ARCHITECTURE.md` v0.2
+- [x] A0 Vision documents: `presentation-PRD.md` v0.2 and `presentation-ARCHITECTURE.md` v0.2
 - [x] A1 Crate skeleton: `crates/omnis-vector` (library and `omnis-vector` binary), a member in the root `Cargo.toml`, Bevy features `2d png bevy_pbr ui`. Measure before and after: `Cargo.lock` package count, duplicates, gate time
 - [x] A2 The core's grid math (`geom.rs`, `grid.rs`) with unit tests: cells, facing hysteresis, relative directions, turns, ordered crossings
 - [x] A3 The collision mirror (`collide.rs`) and the agreement test against `omnis_sim::apply` on every cell, edge and door of the test maps
@@ -33,7 +33,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - Now a left click in the view toggles mouse look, and turning it off leaves the view where it looks.
   - Space, a right click and Esc release it too, the HUD says how while it is on, and a right click is a second action key (with Shift: the default action).
   - The decision is the pure `movement::look`, unit-tested. The right click is tested headless.
-- [x] A8 Report with numbers (alt-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
+- [x] A8 Report with numbers (presentation-PRD §7): the frame rate at 5120×1440 and 1920×1080, crates added, gate time, encounters per minute against the 2D game; the owner plays it
   - 2026-10-03, the owner's first reading (windowed, display not stated): 140–160 fps moving, 50–60 standing still. The HUD read one frame's rate, which is noisy. Standing still does less work (no steps, no minimap repaint, no panel rebuild), so pacing (vsync, variable refresh) is the first suspect, not cost.
   - Owner's second reading (2026-10-03, windowed 1600×900, 60 Hz monitor): **vsync off 280–310 fps, the same moving and still (about 3.3 ms a frame)**. So the drop when still was vsync's 60 Hz ceiling, not cost. Odd: with vsync on, moving read 140–160 fps, above the 60 Hz refresh, probably extra updates while keys are held. Harmless, since motion uses dt; note it in the A8 report. Still needed: fullscreen on the 5120×1440 panel.
   - Added: the HUD reads Bevy's smoothed fps and frame time, and `--no-vsync` presents without waiting for the refresh. Next reading, run fullscreen on the ultrawide, with and without `--no-vsync`, moving and still.
@@ -60,7 +60,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
   - the minimap in the dungeon, matching the 3D view (the west wall, the door in the south wall)
 - Not yet tried by a person: the button feel, the cursor handover when a notice opens, and the minimap's size on the 5120×1440 panel (192 logical pixels).
 
-### A8 report (2026-10-03, alt-PRD §7)
+### A8 report (2026-10-03, presentation-PRD §7)
 1. **Every test map renders and walks without passing a wall.** Yes. The agreement test covers 6,400 cell edges plus the doors, and the owner walked the meadow.
 2. **At rest, the camera's cell equals the simulation's position.** Yes: the binding tests (straight, strafe, diagonal, jitter, hedge, water, portal), 0 disagreements.
 3. **A placed encounter starts on entry, and the table rolls once per cell, never per frame.** Yes (binding tests).
@@ -86,7 +86,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
      - These are worked out from the numbers, not measured in play.
 
 ## Phase B — the 2D combat screen (after A reports)
-- [x] B0 Plan in plan mode (approved 2026-10-03; `~/.claude/plans/snug-munching-gray.md`). alt-PRD §10.3 decided: **write fresh**. Owner choices: glowing vector-line figures, every fight action with targets picked by clicking, a short roll log written fresh
+- [x] B0 Plan in plan mode (approved 2026-10-03; `~/.claude/plans/snug-munching-gray.md`). presentation-PRD §10.3 decided: **write fresh**. Owner choices: glowing vector-line figures, every fight action with targets picked by clicking, a short roll log written fresh
 - [x] B1 The roll log: `rolllog.rs` describes fight events; `Session` keeps a `fight_log`, cleared when an encounter starts. `Names` numbers each monster as it was met (the simulation renumbers the living after a death) and keeps members a fight buries; both mutation-checked
 - [x] B1a The picture window (owner, after playing the fight notice, 2026-10-03): a window on top of the fight's choices for scenes of the fight as it goes, opening on the enemy. Stubbed: `cinema.rs` (Bevy-free) draws a `Scene` in glowing vector lines, fitted and centred on an opaque ground; every monster is the placeholder rat; `shell/cinema.rs` paints the panel's `Screen` node where there is a window. `Raster` moved to `raster.rs` with a stroke for lines. Horizons: scenes queued from the fight's events (a swing, a hit landing, a spell, a death), stepped or animated; a drawing per monster
 - [x] B2 The action model: `combat_menu.rs` covers the encounter choices, then Attack, Cast, Use, Dodge, Swap and Flee, with the spell and item lists, targets, Back, and clicks (`pick`). Targets are found by trial on a copy of the world, so the menu holds no rules: Durin cannot swap with himself, Sacred Flame offers stacks, Cure Wounds members, and Light (accepted on either) is cast on the caster without asking. `trial.rs` holds `refusal` and `accepted` for the core and the shell. Tests on the seed-1 fight: every command offered on the cleric's turn accepted, a fight to its end from the menu alone with 0 refusals; the trial filter mutation-checked (4 tests fail without it)
@@ -124,7 +124,7 @@ Target: a working viewer soon. Each step leaves a runnable or testable state.
 - [x] B5 Retire the A7b fight notice; docs as built (2026-10-03)
   - `shell/fight.rs` keeps only `fallen` and the fallen party's notice (Start again). The encounter and combat choices, and `notice::choice` that only they used, are gone.
   - `Notice.scene` and the panel's picture child are gone. `Screen` moved to `shell/cinema.rs`, beside the system that paints it; `combat.rs` and `tests/combat.rs` import it from there, and `cinema.rs` no longer imports the panel.
-  - Docs: `alt-ARCHITECTURE.md` v0.3 (§5 the Phase B core modules; §6 `CombatPlugin`, `CombatViewPlugin` and the panel and cinema rows; §9 the action model, arena and fight screen as built; §14), `alt-PRD.md` §10.3 decided (written fresh).
+  - Docs: `presentation-ARCHITECTURE.md` v0.3 (§5 the Phase B core modules; §6 `CombatPlugin`, `CombatViewPlugin` and the panel and cinema rows; §9 the action model, arena and fight screen as built; §14), `presentation-PRD.md` §10.3 decided (written fresh).
   - Gate 436 passed, 6 ignored (no test removed: the old notice's tests had already moved in B4); Sentrux rules pass, signal 8902.
 - [x] B6 The owner plays a fight; fixes (2026-10-03)
   - The owner played fights by hand on the ultrawide. Nothing stood out but the fight screen's scale at 5120×1440. No fix in B6: the owner chose to do the scale with the art update, which touches the same layout and figures.

@@ -3,7 +3,7 @@
 **Approved by the owner 2026-10-10.** Progress is tracked in `tasks/TODO.md` ("Vector adoption").
 
 ## Context
-You played the 3D vector experiment (`origin/gui-3d-experiment`, crate `omnis-vector`) and decided to adopt it (alt-PRD X8). You have reviewed alt-PRD v0.3 and accepted it, and you chose to replace `omnis-app` **after parity**, as X14 says. The reason: today `omnis-vector` only walks, opens doors and fights. It has no character creation, saving or loading, pause screen, town services, inventory, rest or dev socket, so deleting `omnis-app` now would make the game unplayable and break window-mode MCP.
+You played the 3D vector experiment (`origin/gui-3d-experiment`, crate `omnis-vector`) and decided to adopt it (presentation-PRD X8). You have reviewed presentation-PRD v0.3 and accepted it, and you chose to replace `omnis-app` **after parity**, as X14 says. The reason: today `omnis-vector` only walks, opens doors and fights. It has no character creation, saving or loading, pause screen, town services, inventory, rest or dev socket, so deleting `omnis-app` now would make the game unplayable and break window-mode MCP.
 
 This plan covers the **adoption itself**: bring the crate onto `vector-adoption`, port it to protocol 2, make it the default client, and fold its documents into the main ones. Parity (rebuilding every screen) and retiring `omnis-app` come afterwards as a roadmap. Each screen gets its own plan in plan mode.
 
@@ -40,7 +40,7 @@ What I found:
 ### V1. Bring the crate in (merge commit)
 - Run `git merge origin/gui-3d-experiment` on `vector-adoption`. A merge keeps the experiment's 28 commits and their history. Resolve the conflicts:
   - Workspace `members`: keep both `omnis-bus` and `omnis-vector`.
-  - `Cargo.lock`: regenerate it, don't hand-merge it (alt-PRD §9). Check that no new external crate appears, only the `omnis-vector` entry, and that every checksum still matches.
+  - `Cargo.lock`: regenerate it, don't hand-merge it (presentation-PRD §9). Check that no new external crate appears, only the `omnis-vector` entry, and that every checksum still matches.
   - `tasks/LESSONS.md`: keep both sides' entries, in date order.
 - This commit will not compile `omnis-vector`: it is still on protocol 1. The commit message says so, and V2 follows straight after. I won't run the gate on this commit alone.
 
@@ -82,25 +82,25 @@ What I found:
 - `justfile`: `run` starts `omnis-vector`, and a new `run-app` keeps `omnis-app` (`cargo run -p omnis-app`).
 - `scripts/verify.sh` and CI:
   - `omnis-vector` is covered by the workspace clippy and test runs.
-  - Record the gate's run time with Bevy's 3D features unified across the workspace (alt-PRD §9, XR3). It was 222 s before.
+  - Record the gate's run time with Bevy's 3D features unified across the workspace (presentation-PRD §9, XR3). It was 222 s before.
 - `README.md`:
   - The run commands: vector is the game; `omnis-app` stays until parity.
   - Add the crate to the crate table.
 
 ### V4. Fold the documents (your approval of this plan is the CLAUDE.md "ask before editing" for these)
-- **`PRD.md`:** apply alt-PRD §2's amendment table:
+- **`PRD.md`:** apply presentation-PRD §2's amendment table:
   - Strike the §5 "3D rendering" non-goal.
-  - Amend D2, §1/§7.2, D16, D20/§11.1, D26/§14 and R10/R13, each pointing to alt-PRD.
-  - Add a decision line recording the adoption (X8, X14) and your acceptance of alt-PRD v0.3 on 2026-10-10.
+  - Amend D2, §1/§7.2, D16, D20/§11.1, D26/§14 and R10/R13, each pointing to presentation-PRD.
+  - Add a decision line recording the adoption (X8, X14) and your acceptance of presentation-PRD v0.3 on 2026-10-10.
 - **`ARCHITECTURE.md`:**
   - §2, §3: add the `omnis-vector` row; both clients may import Bevy.
   - §8.1: Bevy's 3D features for the client.
-  - §8.2/A11: `bevy_ui` in the neon style for the game; the editor's toolkit as alt-PRD §8 says.
+  - §8.2/A11: `bevy_ui` in the neon style for the game; the editor's toolkit as presentation-PRD §8 says.
   - §9: the dev socket's host moves to vector at parity.
   - §15: the layout.
-  - Each points to `alt-ARCHITECTURE.md`.
+  - Each points to `presentation-ARCHITECTURE.md`.
 - **Experiment docs:**
-  - `alt-PRD.md` and `alt-ARCHITECTURE.md` stay at the root as the presentation documents (X9).
+  - `presentation-PRD.md` and `presentation-ARCHITECTURE.md` stay at the root as the presentation documents (X9).
   - `tasks/alt-TODO.md`: its open items B7 and Bevy 0.20 go into `tasks/TODO.md`. The file stays as the experiment's history.
   - `tasks/alt-CONTINUITY.md` is deleted; there is one continuity file.
   - B7 is closed by V1–V2.
@@ -109,7 +109,7 @@ What I found:
   - `tasks/knowledge/code-map.md`: add an `omnis-vector` section.
   - `verification.md`: the vector test layout and the capture command.
   - Memory `modern-look-not-pixel-art`: it says Feathers is the UI going forward, which X15 replaces with `bevy_ui` neon. It needs updating.
-- **Decision for you at this step:** alt-PRD §8 says "the editor keeps `bevy_egui` (ARCH A11)". Our ARCH dropped `bevy_egui` for Feathers (D26). The editor plan is deferred, so I'll write it as "the editor's toolkit is decided when Editor v1 is planned" unless you say otherwise.
+- **Decision for you at this step:** presentation-PRD §8 says "the editor keeps `bevy_egui` (ARCH A11)". Our ARCH dropped `bevy_egui` for Feathers (D26). The editor plan is deferred, so I'll write it as "the editor's toolkit is decided when Editor v1 is planned" unless you say otherwise.
 
 ### V5. Close the adoption
 - Run the gate, replays, Sentrux and the acceptance script (below). Write `tasks/acceptance/vector-adoption.md`, add a review section in TODO, and rewrite CONTINUITY. Commit.
@@ -131,10 +131,10 @@ I recommend this order: tools first, so I can verify every later screen myself; 
   - The acceptance docs m7a, m7b, m7c, m8 and protocol-2 cite `omnis-app` tests as coverage. Point them at vector tests, or mark them historical.
   - The error string at `omnis-mcp/src/backend.rs:110`.
   - Then the rhai Socket re-audit (your call: after the migration).
-- alt-PRD §11's visual steps (occluding fills, the style system, height and cliffs, shaped structures) and Bevy 0.20 (not before 2026-11-07) run alongside or after the parity items; you set the order after V5.
+- presentation-PRD §11's visual steps (occluding fills, the style system, height and cliffs, shaped structures) and Bevy 0.20 (not before 2026-11-07) run alongside or after the parity items; you set the order after V5.
 
 ## Critical files
-- New in this tree (via the merge): `crates/omnis-vector/**`, `alt-PRD.md`, `alt-ARCHITECTURE.md`, `tasks/alt-TODO.md`, `tasks/plans/bevy-0.20-migration.md`.
+- New in this tree (via the merge): `crates/omnis-vector/**`, `presentation-PRD.md`, `presentation-ARCHITECTURE.md`, `tasks/alt-TODO.md`, `tasks/plans/bevy-0.20-migration.md`.
 - To edit in V2:
   - `crates/omnis-vector/src/{combat_menu,arena,rolllog,cinema}.rs`
   - `src/shell/{hud,combat,notice}.rs`

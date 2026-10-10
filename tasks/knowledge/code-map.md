@@ -139,7 +139,7 @@ old saves only).
   `boss.rs` `boss_over_seeds`). The replays leave town by a real `Step(Back)`.
 
 ## omnis-vector
-The game client since 2026-10-10 (ARCH A18; specified in `alt-ARCHITECTURE.md`). A Bevy-free core in `src/`
+The game client since 2026-10-10 (ARCH A18; specified in `presentation-ARCHITECTURE.md`). A Bevy-free core in `src/`
 and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`, `png`, `bevy_pbr`, `ui`).
 - Core: `grid.rs`/`geometry.rs`/`geom.rs` (the map as line segments, cell and yaw maths), `pose.rs` (the
   free pose), `bind.rs` (the binder: cell crossings become `Step`, cardinal yaws `Turn`, refusals and

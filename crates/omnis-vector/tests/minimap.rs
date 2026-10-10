@@ -1,4 +1,4 @@
-//! The minimap's pixels on the real test maps (alt-ARCHITECTURE.md §8): only what the automap
+//! The minimap's pixels on the real test maps (presentation-ARCHITECTURE.md §8): only what the automap
 //! knows is painted, the party is marked where the pose is, and walls appear once seen.
 
 use crate::common;

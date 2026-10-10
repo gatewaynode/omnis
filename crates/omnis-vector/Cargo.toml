@@ -20,5 +20,5 @@ path = "tests/main.rs"
 [dependencies]
 omnis-sim = { workspace = true }
 # `bevy_pbr` is the smallest addition that draws gizmos through a Camera3d; the full `3d` group
-# (glTF, ktx2, zstd, LUTs) is not used (alt-ARCHITECTURE.md §3, VA1). `ui` is for the HUD.
+# (glTF, ktx2, zstd, LUTs) is not used (presentation-ARCHITECTURE.md §3, VA1). `ui` is for the HUD.
 bevy = { workspace = true, features = ["2d", "png", "bevy_pbr", "ui"] }

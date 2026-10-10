@@ -1,5 +1,5 @@
 //! The on-screen buttons: every action has one, and the keys are shortcuts for them
-//! (alt-ARCHITECTURE.md §8). Headless-safe: the buttons are plain UI nodes whose `Interaction`
+//! (presentation-ARCHITECTURE.md §8). Headless-safe: the buttons are plain UI nodes whose `Interaction`
 //! a test can set.
 
 use super::VectorSet;

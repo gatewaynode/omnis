@@ -1,5 +1,5 @@
 //! The binder: continuous pose changes become simulation commands, applied and reconciled
-//! (alt-ARCHITECTURE.md §5.1–5.6). The simulation's position is authoritative throughout.
+//! (presentation-ARCHITECTURE.md §5.1–5.6). The simulation's position is authoritative throughout.
 
 use crate::collide::{blocks, clamp};
 use crate::grid::{crossings, facing_of, relative, rotation};

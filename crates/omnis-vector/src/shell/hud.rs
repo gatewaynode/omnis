@@ -1,4 +1,4 @@
-//! The HUD: a status block and the recent event lines (alt-ARCHITECTURE.md §8).
+//! The HUD: a status block and the recent event lines (presentation-ARCHITECTURE.md §8).
 
 use super::controls::GREEN;
 use super::movement::Intent;

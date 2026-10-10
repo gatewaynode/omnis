@@ -1,4 +1,4 @@
-//! The grid under free movement (alt-PRD §4, alt-ARCHITECTURE.md §10.3), driven headless on
+//! The grid under free movement (presentation-PRD §4, presentation-ARCHITECTURE.md §10.3), driven headless on
 //! the real test maps: at rest the camera's cell is the simulation's position; boundaries,
 //! corners, walls, a portal and a placed encounter behave; the log replays.
 

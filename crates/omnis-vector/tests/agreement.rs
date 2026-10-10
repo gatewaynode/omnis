@@ -1,5 +1,5 @@
 //! The collision mirror agrees with the simulation on every edge of every test map
-//! (alt-ARCHITECTURE.md §5.4, §10.2): for each cell and heading, `collide::blocks` names a
+//! (presentation-ARCHITECTURE.md §5.4, §10.2): for each cell and heading, `collide::blocks` names a
 //! reason exactly when `apply(Step)` reports `Blocked` with that reason, closed doors and open.
 
 use crate::common;

@@ -1,4 +1,4 @@
-//! The extended WASD keys and the action menu, headless (alt-ARCHITECTURE.md §8): E turns right,
+//! The extended WASD keys and the action menu, headless (presentation-ARCHITECTURE.md §8): E turns right,
 //! Space opens the square's actions, Shift+Space runs the default action or opens the menu, and
 //! the menu lists only what the simulation would accept.
 

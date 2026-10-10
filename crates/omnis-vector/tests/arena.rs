@@ -1,4 +1,4 @@
-//! The fight screen's layout on a real fight (alt-ARCHITECTURE.md §9): the dungeon's placed
+//! The fight screen's layout on a real fight (presentation-ARCHITECTURE.md §9): the dungeon's placed
 //! group of two giant rats, met by walking into it. The figures stand where the plan puts them
 //! at the owner's two window sizes, a click lands on the figure under it and nowhere else, and
 //! the marks frame whoever acts and whatever can be clicked.

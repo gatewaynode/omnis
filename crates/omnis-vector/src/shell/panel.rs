@@ -1,4 +1,4 @@
-//! The panel in the middle of the screen (alt-ARCHITECTURE.md §8, §9): the notice when the
+//! The panel in the middle of the screen (presentation-ARCHITECTURE.md §8, §9): the notice when the
 //! party has fallen, the town notice inside a service, otherwise the action menu when it is
 //! open. Its buttons and the number keys
 //! carry out the choices. The action key is Space or a right click.

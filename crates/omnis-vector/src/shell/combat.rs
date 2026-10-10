@@ -1,4 +1,4 @@
-//! The fight screen (alt-ARCHITECTURE.md §9): while monsters are met or fought, a 2D screen
+//! The fight screen (presentation-ARCHITECTURE.md §9): while monsters are met or fought, a 2D screen
 //! replaces the 3D view. `arena` lays it out and draws it, `combat_menu` says what can be done;
 //! this module only wires them. `CombatPlugin` is headless-safe: the state, the picture, title,
 //! action column, roll log and name labels as UI nodes, and the buttons, number keys, Esc and

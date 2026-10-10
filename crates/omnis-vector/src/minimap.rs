@@ -1,4 +1,4 @@
-//! The minimap as pixels (alt-ARCHITECTURE.md §8): what the party knows of the current map,
+//! The minimap as pixels (presentation-ARCHITECTURE.md §8): what the party knows of the current map,
 //! from `world.automap`, with the pose marked. No Bevy, so it is tested directly; the shell
 //! uploads the pixels into an image.
 

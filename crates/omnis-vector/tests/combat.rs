@@ -1,4 +1,4 @@
-//! The fight screen, headless (alt-ARCHITECTURE.md §9): walking into the placed group switches
+//! The fight screen, headless (presentation-ARCHITECTURE.md §9): walking into the placed group switches
 //! to it, with the encounter's choices as buttons and the 3D view's movement pad put away; a
 //! fight runs to its end from its buttons and clicks on the figures alone, every one accepted;
 //! and leaving puts the pose where the party is.

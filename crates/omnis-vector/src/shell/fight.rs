@@ -1,4 +1,4 @@
-//! The fallen party's notice (alt-ARCHITECTURE.md §9): when no member can fight, the panel
+//! The fallen party's notice (presentation-ARCHITECTURE.md §9): when no member can fight, the panel
 //! offers a restart, so the viewer never dead-ends. Monsters met or fought have the fight
 //! screen (`shell/combat.rs`). `shell/panel.rs` shows it.
 

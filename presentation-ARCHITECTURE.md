@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | Draft v0.3 (2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled), derived from `alt-PRD.md` v0.2 |
+| Status | Draft v0.3 (2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled), derived from `presentation-PRD.md` v0.2 |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10; `omnis-vector` is on protocol 2 since then (members by `CharacterId`, spells and items by string id, End turn, the town notice: `tasks/plans/vector-adoption.md` V2). §1.4's "no edits to main crates" held through the merge |
-| Parent documents | `alt-PRD.md`, and for everything not restated here `ARCHITECTURE.md` (v0.3) |
+| Parent documents | `presentation-PRD.md`, and for everything not restated here `ARCHITECTURE.md` (v0.3) |
 
-Section and decision numbers prefixed X refer to `alt-PRD.md`. Decisions made here are numbered
+Section and decision numbers prefixed X refer to `presentation-PRD.md`. Decisions made here are numbered
 VA1 onward (§13).
 
 ## 1. Principles
@@ -76,7 +76,7 @@ The ground is Bevy's X–Z plane. Y is up, and the camera's forward is −Z by d
 | Facing | The cardinal direction nearest the yaw. Yaw 0 looks north (−Z), and positive yaw turns counter-clockwise seen from above (Bevy's `rotation_y`), so +90° looks west |
 
 - One cell is 1.0 world unit.
-- The wall height is 1.0 (owner, 2026-10-02), read through `geom::wall_height`, so it can vary later. The eye height is 0.5, provisional (alt-PRD §10.1). Both live in `geom.rs`.
+- The wall height is 1.0 (owner, 2026-10-02), read through `geom::wall_height`, so it can vary later. The eye height is 0.5, provisional (presentation-PRD §10.1). Both live in `geom.rs`.
 
 ## 5. The Bevy-free core
 
@@ -100,10 +100,10 @@ As built, the command log is `Binder.log`, with `Binder::replay`; there is no se
 ### 5.1 Facing and turns
 - `facing_of` keeps the current cardinal facing until the yaw is more than 45° plus a hysteresis margin (5° provisional) away from it, so a yaw near a diagonal does not emit `Turn`s back and forth.
 - When the facing changes, the binder emits one `Turn(Left | Right)` per 90°. A 180° change emits two turns in the yaw's direction of travel.
-- Turns are always emitted before any step in the same frame (alt-PRD §4.1).
+- Turns are always emitted before any step in the same frame (presentation-PRD §4.1).
 
 ### 5.2 Cell entry
-- The binder's `logical` cell is the simulation's position. The pose's raw `cell_of` can differ from it while the pose is within `margin` (0.15 provisional) of a boundary: the hysteresis of alt-PRD §4.3.
+- The binder's `logical` cell is the simulation's position. The pose's raw `cell_of` can differ from it while the pose is within `margin` (0.15 provisional) of a boundary: the hysteresis of presentation-PRD §4.3.
 - A crossing is recognised when the pose leaves the logical cell's square expanded by `margin` on that side.
 - Each crossing becomes `Step(relative(abs, world.position.facing))`.
 
@@ -191,7 +191,7 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
 
 ### 7.3 Camera
 - First person at the eye height, with no pitch in Phase A: yaw only, for a direct mapping to facing. Mouse pitch is a later option.
-- The field of view is set horizontally and converted per aspect, so 32:9 and 16:9 show the same vertical extent (alt-PRD §10.1).
+- The field of view is set horizontally and converted per aspect, so 32:9 and 16:9 show the same vertical extent (presentation-PRD §10.1).
 
 ## 8. HUD and minimap
 
@@ -221,7 +221,7 @@ Segments are extracted again only when the map changes or `Event::Door` arrives.
   - `shell/cinema.rs` (`CinemaPlugin`, window or capture only) uploads the raster as the node's image, reusing it while the scene is the same.
   - Planned: scenes queued from the fight's events as they arrive (a swing, a hit landing, a spell, a death), and a drawing per monster.
 - **The roll log (as built, B1).** `rolllog::describe` gives one line per fight event; `Session::note` keeps the last 40 in `fight_log`, cleared when monsters are met. `rolllog::Names` numbers each monster as it was met, though the simulation renumbers the living after a death, and keeps the names of members a fight buries.
-- **The action model (as built, B2).** `combat_menu.rs` is written fresh (alt-PRD §10.3, decided). `CombatMenu.step` is `Top`, `Spells`, `Items` or `Target(Action)`.
+- **The action model (as built, B2).** `combat_menu.rs` is written fresh (presentation-PRD §10.3, decided). `CombatMenu.step` is `Top`, `Spells`, `Items` or `Target(Action)`.
   - In an encounter: Fight, Bribe (with the cost), Hide, Run. On a member's turn: Attack, Cast, Use, Dodge, Swap, Flee.
   - Cast opens the acting member's spells and Use the items with a use effect. Attack, a spell, an item or Swap then asks for a target: a stack or a member, clicked on the field (`clickable`, `pick`), or Back.
   - Every entry and target is tried on a clone of the world (`trial.rs`). A refused one is shown dim with the simulation's reason and never sent, so the binder's refusal count stays at zero.
@@ -258,17 +258,17 @@ with `Dev::Teleport` on a devtools world (or by setting the public `world.positi
 - Entering the portal cell snaps the pose.
 - Entering a placed encounter's cell puts the world into `Encounter` and freezes motion.
 - On a random-table map, the number of `EncounterCheck` events equals the number of cells entered, never the number of frames.
-- The log from each scripted session passes `Replay::check` and `replay::run`, reproducing the fingerprint (alt-PRD §7.4).
+- The log from each scripted session passes `Replay::check` and `replay::run`, reproducing the fingerprint (presentation-PRD §7.4).
 
 ### 10.4 Shell smoke test
 A `MinimalPlugins` app with `VectorSimPlugin`, `InputPlugin` and `MovePlugin`, and no render
 plugins (as `omnis-app` excludes its render stack), takes synthetic key input for N frames and
 checks that the world's position advanced. Rendering, the HUD and the frame rate are checked by
-running the binary on the owner's display (alt-PRD §7.5).
+running the binary on the owner's display (presentation-PRD §7.5).
 
 ## 11. Build impact and measurement
 
-Recorded before and after the crate lands, as alt-PRD §7 asks:
+Recorded before and after the crate lands, as presentation-PRD §7 asks:
 - the `Cargo.lock` package count, and the new packages by name
 - `scripts/check-duplicates.sh` output
 - `scripts/verify.sh` wall time
@@ -301,7 +301,7 @@ most 100 lines, cyclomatic complexity of at most 25, no cycles.
 
 ## 14. Open questions
 
-Carried from `alt-PRD.md` §10: the field of view and eye height, captures, the automap in 3D,
+Carried from `presentation-PRD.md` §10: the field of view and eye height, captures, the automap in 3D,
 and what comes after the proof. The combat screen's code was decided on 2026-10-03: written
 fresh (§9).
 

@@ -1,5 +1,5 @@
 //! What the panel shows: a heading, lines, and choices that become orders
-//! (alt-ARCHITECTURE.md §8, §9). Shared by the fallen party's notice and the action menu.
+//! (presentation-ARCHITECTURE.md §8, §9). Shared by the fallen party's notice and the action menu.
 
 use bevy::prelude::Component;
 use omnis_sim::Command;

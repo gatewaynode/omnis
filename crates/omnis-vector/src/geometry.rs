@@ -1,4 +1,4 @@
-//! Map data to vector line segments (alt-ARCHITECTURE.md §7.1).
+//! Map data to vector line segments (presentation-ARCHITECTURE.md §7.1).
 //!
 //! Every wall and door edge is emitted once, keyed by its canonical line: a horizontal edge at
 //! row line `z` from `x` to `x + 1`, or a vertical edge at column line `x` from `z` to `z + 1`.

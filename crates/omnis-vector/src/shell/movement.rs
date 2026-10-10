@@ -1,4 +1,4 @@
-//! Input to intent, and intent through the binder (alt-ARCHITECTURE.md §6).
+//! Input to intent, and intent through the binder (presentation-ARCHITECTURE.md §6).
 
 use super::VectorSet;
 use super::fight::fallen;

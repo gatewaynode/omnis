@@ -1,4 +1,4 @@
-//! The shell's headless half (alt-ARCHITECTURE.md §10.4): held keys and pressed buttons move
+//! The shell's headless half (presentation-ARCHITECTURE.md §10.4): held keys and pressed buttons move
 //! the world through the movement plugin with no window or GPU.
 
 use crate::common;

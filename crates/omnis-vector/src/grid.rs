@@ -1,5 +1,5 @@
 //! Pure grid math: which cell a point is in, which facing a yaw means, and which boundaries a
-//! movement crosses, in order (alt-ARCHITECTURE.md §5.1–5.3).
+//! movement crosses, in order (presentation-ARCHITECTURE.md §5.1–5.3).
 
 use crate::geom::{wrap, yaw_of};
 use core::f32::consts::FRAC_PI_4;

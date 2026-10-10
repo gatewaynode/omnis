@@ -1,4 +1,4 @@
-//! World-space constants and conversions (alt-ARCHITECTURE.md §4).
+//! World-space constants and conversions (presentation-ARCHITECTURE.md §4).
 //!
 //! The ground is the X–Z plane, Y is up. Cell `(x, y)` covers `x ≤ X < x+1`, `y ≤ Z < y+1`;
 //! north (−y) is −Z. Yaw 0 looks north and positive yaw turns counter-clockwise seen from above,

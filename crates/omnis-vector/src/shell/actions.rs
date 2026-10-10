@@ -1,4 +1,4 @@
-//! The action menu's content (alt-ARCHITECTURE.md §8): what the party can do on its square,
+//! The action menu's content (presentation-ARCHITECTURE.md §8): what the party can do on its square,
 //! facing the way it faces. Space opens the menu; Shift+Space runs the default action, the first
 //! one available, or opens the menu when there is none. An action is listed only when the
 //! simulation, tried on a copy of the world, would do something with it, so the mechanics decide
