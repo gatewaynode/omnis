@@ -5,6 +5,7 @@
 //! keeps it, and it keeps the names of members a fight's last command buries. The session
 //! shows it every event after describing it.
 
+use crate::labels;
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::{Data, Disposition};
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
@@ -31,15 +32,6 @@ pub struct Names {
     stacks: Vec<Stack>,
 }
 
-/// A monster's name from the string id an event carries.
-fn monster_name<'d>(data: &'d Data, id: &str) -> &'d str {
-    data.registry
-        .monsters
-        .get(id)
-        .and_then(|id| data.monsters.get(&id))
-        .map_or("?", |m| data.label("en", &m.name))
-}
-
 impl Names {
     /// Take in the party's members. Members are added, never removed.
     pub fn observe(&mut self, party: &PartyView) {
@@ -56,7 +48,7 @@ impl Names {
                 self.stacks = stacks
                     .iter()
                     .map(|(monster, count)| Stack {
-                        name: monster_name(data, monster).to_owned(),
+                        name: labels::monster(data, monster).to_owned(),
                         initial: *count,
                         living: (1..=*count).collect(),
                     })
@@ -114,15 +106,6 @@ impl Names {
     }
 }
 
-/// A spell's name from the string id an event carries.
-fn spell<'d>(data: &'d Data, id: &str) -> &'d str {
-    data.registry
-        .spells
-        .get(id)
-        .and_then(|id| data.spells.get(&id))
-        .map_or("a spell", |s| data.label("en", &s.name))
-}
-
 /// A line for a fight event, or `None` for the ones the screen shows another way (whose turn
 /// it is) and for events outside fights.
 #[must_use]
@@ -136,7 +119,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => {
             let met: Vec<String> = stacks
                 .iter()
-                .map(|(monster, count)| format!("{count} {}", monster_name(data, monster)))
+                .map(|(monster, count)| format!("{count} {}", labels::monster(data, monster)))
                 .collect();
             let mood = match disposition {
                 Disposition::Hostile => "hostile",
@@ -171,7 +154,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             let outcome = if *success { "success" } else { "failure" };
             format!("{} {what}:{rolled}, {outcome}", names.actor(*actor))
         }
-        Event::Bribed { cost } => format!("Paid {cost} gold; the monsters leave"),
+        Event::Bribed { cost } => format!("Paid {}; the monsters leave", labels::gold(*cost)),
         Event::CombatStarted { surprised } => match surprised {
             Surprise::None => "The fight begins",
             Surprise::Party => "The fight begins; the party is surprised",
@@ -239,28 +222,36 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             } else {
                 format!(" ({points} points)")
             };
-            format!("{} casts {}{cost}", names.member(*caster), spell(data, id))
+            format!(
+                "{} casts {}{cost}",
+                names.member(*caster),
+                labels::spell(data, id)
+            )
         }
         Event::EffectApplied {
             target, spell: id, ..
         } => {
             format!(
                 "{} takes hold on {}",
-                spell(data, id),
+                labels::spell(data, id),
                 names.effect(*target)
             )
         }
         Event::EffectEnded {
             target, spell: id, ..
         } => {
-            format!("{} on {} ends", spell(data, id), names.effect(*target))
+            format!(
+                "{} on {} ends",
+                labels::spell(data, id),
+                names.effect(*target)
+            )
         }
         Event::Concentration {
             caster, spell: id, ..
         } => format!(
             "{} stops concentrating on {}",
             names.member(*caster),
-            spell(data, id)
+            labels::spell(data, id)
         ),
         Event::ItemUsed {
             member,
@@ -268,12 +259,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             receiver,
             ..
         } => {
-            let item = data
-                .registry
-                .items
-                .get(item)
-                .and_then(|id| data.items.get(&id))
-                .map_or("an item", |i| data.label("en", &i.name));
+            let item = labels::item(data, item);
             let on = receiver.map_or_else(String::new, |t| format!(" on {}", names.member(t)));
             format!("{} uses {item}{on}", names.member(*member))
         }
@@ -300,12 +286,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             condition,
             applied,
         } => {
-            let condition = data
-                .registry
-                .conditions
-                .get(condition)
-                .and_then(|id| data.conditions.get(&id))
-                .map_or("a condition", |c| data.label("en", &c.name));
+            let condition = labels::condition(data, condition);
             let state = if *applied { "is now" } else { "is no longer" };
             format!("{} {state} {condition}", names.actor(*target))
         }
@@ -323,7 +304,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             fallen,
         } => {
             let line = match outcome {
-                CombatOutcome::Victory => format!("Victory: {xp} xp each, {gold} gold"),
+                CombatOutcome::Victory => format!("Victory: {xp} xp each, {}", labels::gold(*gold)),
                 CombatOutcome::Fled => "The party got away".to_owned(),
                 CombatOutcome::Defeat => "The party has fallen".to_owned(),
             };

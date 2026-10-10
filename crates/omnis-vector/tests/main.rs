@@ -10,6 +10,7 @@ mod combat;
 mod combat_menu;
 mod common;
 mod fight;
+mod labels;
 mod minimap;
 mod rolllog;
 mod shell;

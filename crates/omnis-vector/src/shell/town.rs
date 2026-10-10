@@ -12,12 +12,7 @@ use omnis_sim::{Command, ServiceCommand};
 #[must_use]
 pub fn notice(views: &Views, data: &Data) -> Option<Notice> {
     let service = views.here.service.as_ref()?;
-    let name = data
-        .registry
-        .services
-        .get(service)
-        .and_then(|id| data.services.get(&id))
-        .map_or("A service", |s| data.label("en", &s.name));
+    let name = crate::labels::service(data, service);
     Some(Notice {
         title: name.to_owned(),
         lines: vec![

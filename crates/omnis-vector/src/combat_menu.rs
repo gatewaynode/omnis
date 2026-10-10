@@ -11,6 +11,7 @@
 //! found the same way: a stack or member is offered for an action only when the simulation
 //! accepts that action on it, so the menu holds no rules of its own.
 
+use crate::labels;
 use crate::sim::SimWorld;
 use crate::trial::{accepted, refusal};
 use omnis_sim::omnis_core::CharacterId;
@@ -254,7 +255,7 @@ impl CombatMenu {
             Step::Target(Action::Attack) => format!("{who} attacks whom?"),
             Step::Target(Action::Cast(i)) => {
                 let spell = view.spells.get(usize::from(i));
-                let spell = spell.map_or("the spell", |s| data.label("en", &s.name));
+                let spell = spell.map_or("the spell", |s| labels::text(data, &s.name));
                 format!("{who} casts {spell} on whom?")
             }
             Step::Target(Action::Use(row)) => {
@@ -445,7 +446,7 @@ fn spells(world: &SimWorld, data: &Data, view: &CombatView, own: CharacterId) ->
         .zip(&view.spells)
         .map(|(row, s)| {
             let note = if s.bonus.is_none() { ", bonus" } else { "" };
-            let label = format!("{} ({} pt{note})", data.label("en", &s.name), s.cost);
+            let label = format!("{} ({} pt{note})", labels::text(data, &s.name), s.cost);
             if let Some(why) = s.bonus.as_ref().and(s.blocked.as_ref()) {
                 return Entry {
                     label,
@@ -477,7 +478,7 @@ fn item_name(world: &SimWorld, data: &Data, view: &CombatView, row: u8) -> Strin
         .and_then(|own| kit(world, data, own).into_iter().nth(usize::from(row)))
         .map_or_else(
             || "the item".to_owned(),
-            |i| data.label("en", &i.name).to_owned(),
+            |i| labels::text(data, &i.name).to_owned(),
         )
 }
 
@@ -492,7 +493,7 @@ fn items(world: &SimWorld, data: &Data, own: CharacterId) -> Vec<Entry> {
                 return None;
             }
             let row = u8::try_from(i).ok()?;
-            let label = format!("{} x{}", data.label("en", &item.name), item.count);
+            let label = format!("{} x{}", labels::text(data, &item.name), item.count);
             let blocked = if targets(world, data, Action::Use(row)).is_empty() {
                 let alone = Command::Combat(CombatCommand::Use {
                     item: item.item,
@@ -525,7 +526,7 @@ fn target_entries(world: &SimWorld, data: &Data, view: &CombatView, action: Acti
             let label = match pick {
                 Pick::Stack(i) => {
                     let s = view.stacks.iter().find(|s| s.stack == i)?;
-                    format!("{} x{}", data.label("en", &s.name), s.hps.len())
+                    format!("{} x{}", labels::text(data, &s.name), s.hps.len())
                 }
                 Pick::Member(m) => name_of(world, data, Some(m)),
             };

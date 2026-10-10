@@ -10,6 +10,7 @@
 
 use crate::cinema::{self, Drawing, Scene};
 use crate::combat_menu::Pick;
+use crate::labels;
 use crate::sim::Views;
 use omnis_sim::ActorRef;
 use omnis_sim::omnis_data::{Data, Size};
@@ -446,9 +447,9 @@ pub fn arena(
                 .map(|&hp| (share(hp, max), State::Standing))
                 .collect();
             let text = if stack.hps.len() > MOST {
-                format!("{} x{}", data.label("en", &stack.name), stack.hps.len())
+                format!("{} x{}", labels::text(data, &stack.name), stack.hps.len())
             } else {
-                data.label("en", &stack.name).to_owned()
+                labels::text(data, &stack.name).to_owned()
             };
             let kind = Kind {
                 drawing: cinema::drawing(Scene::Enemy(id)),

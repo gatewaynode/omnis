@@ -20,6 +20,7 @@ pub mod combat_menu;
 pub mod geom;
 pub mod geometry;
 pub mod grid;
+pub mod labels;
 pub mod minimap;
 pub mod party;
 pub mod pose;

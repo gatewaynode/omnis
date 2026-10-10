@@ -286,7 +286,11 @@ impl Session {
         }
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
-        for line in events.iter().filter_map(describe) {
+        let lines: Vec<String> = events
+            .iter()
+            .filter_map(|e| describe(e, &self.data))
+            .collect();
+        for line in lines {
             self.say(line);
         }
     }
