@@ -14,6 +14,7 @@
 use crate::sim::SimWorld;
 use crate::trial::{accepted, refusal};
 use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::omnis_core::money::gp_floor;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{
     ActorRef, Budget, CombatCommand, CombatView, Command, EncounterChoice, ItemView, ModeKind, Pay,
@@ -359,9 +360,11 @@ fn open(label: &str, step: Step, why: Option<&str>) -> Entry {
 }
 
 fn encounter(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Entry> {
-    let bribe = view
-        .bribe
-        .map_or_else(|| "Bribe".to_owned(), |cost| format!("Bribe ({cost} gold)"));
+    // The view's price is copper; the label says whole gold rounded down, as the other client.
+    let bribe = view.bribe.map_or_else(
+        || "Bribe".to_owned(),
+        |cost| format!("Bribe ({} gold)", gp_floor(cost)),
+    );
     [
         ("Fight".to_owned(), EncounterChoice::Attack),
         (bribe, EncounterChoice::Bribe),

@@ -36,9 +36,16 @@ fn the_encounter_offers_its_four_choices() {
     let entries = menu.entries(&session.world, &session.data);
     let shown = labels(&entries);
     assert_eq!(shown[0], "Fight");
-    assert!(
-        shown[1].starts_with("Bribe ("),
-        "the cost is shown: {shown:?}"
+    // The view prices the bribe in copper; the label is whole gold (a bug showed the copper).
+    let copper = session
+        .world
+        .combat(&session.data)
+        .and_then(|v| v.bribe)
+        .expect("these rats take a bribe");
+    assert_eq!(
+        shown[1],
+        format!("Bribe ({} gold)", copper / 100),
+        "{shown:?}"
     );
     assert_eq!(&shown[2..], ["Hide", "Run"]);
     assert_eq!(
