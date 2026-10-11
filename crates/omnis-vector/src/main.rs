@@ -1,11 +1,11 @@
-//! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions]`
-//! `[--windowed] [--no-vsync] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
+//! The `omnis` binary (package `omnis-vector`):
+//! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions]`
+//! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
 
 use bevy::app::ScheduleRunnerPlugin;
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::window::{ExitCondition, MonitorSelection, PresentMode, WindowMode, WindowResolution};
 use bevy::winit::WinitPlugin;
@@ -33,14 +33,14 @@ fn main() -> AppExit {
     let config = match parse(std::env::args().skip(1)) {
         Ok(config) => config,
         Err(e) => {
-            eprintln!("omnis-vector: {e}");
+            eprintln!("omnis: {e}");
             return AppExit::error();
         }
     };
     let packs = match Packs::load(&config) {
         Ok(packs) => packs,
         Err(e) => {
-            eprintln!("omnis-vector: {e}");
+            eprintln!("omnis: {e}");
             return AppExit::error();
         }
     };
@@ -55,7 +55,7 @@ fn main() -> AppExit {
         match Session::with_party(&packs, config.seed, settings, &drafts) {
             Ok(session) => Some(session),
             Err(e) => {
-                eprintln!("omnis-vector: {e}");
+                eprintln!("omnis: {e}");
                 return AppExit::error();
             }
         }
@@ -82,7 +82,7 @@ fn main() -> AppExit {
     } else {
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Omnis Vector".into(),
+                title: "Omnis".into(),
                 mode: if config.windowed {
                     WindowMode::Windowed
                 } else {
@@ -113,11 +113,14 @@ fn main() -> AppExit {
     }
     let (prefs, note) = omnis_vector::settings::read(std::path::Path::new("."), &config.settings);
     if let Some(note) = note {
-        eprintln!("omnis-vector: {note}; the defaults are used");
+        eprintln!("omnis: {note}; the defaults are used");
     }
     app.insert_resource(Current(prefs));
     if let Some(screen) = config.screen {
         app.insert_resource(screen);
+    }
+    if config.frame_stats {
+        app.add_plugins(LogDiagnosticsPlugin::default());
     }
     app.insert_resource(packs).add_plugins((
         FrameTimeDiagnosticsPlugin::default(),

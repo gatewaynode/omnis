@@ -239,6 +239,36 @@ fn the_interface_reads_back(app: &mut App, peer: &mut Peer) {
     );
 }
 
+/// The rules and the party through the same socket: a rule set changes what the views read and
+/// ends the log's replay, and a created member joins the party and the log.
+fn party_and_rules(app: &mut App, peer: &mut Peer) {
+    let before = session(app).views.party.members.len();
+    let reply = peer.send(
+        app,
+        r#"{"id": 7, "op": "rules.set", "args": {"slot": "spell_points.pool", "source": "level * 10"}}"#,
+    );
+    assert_eq!(
+        reply["result"]["rule"]["source"],
+        json!("level * 10"),
+        "{reply}"
+    );
+    let reply = peer.send(
+        app,
+        r#"{"id": 8, "op": "party.create", "args": {"character": {"name": "Wren", "race": "base:race:elf", "class": "base:class:wizard", "background": "base:background:acolyte", "alignment": "ChaoticGood", "scores": [8, 14, 13, 15, 12, 10], "skills": ["Arcana", "History"]}}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    let s = session(app);
+    let wren = s.views.party.members.last().expect("a member");
+    assert_eq!(s.views.party.members.len(), before + 1, "the member joins");
+    assert_eq!(
+        (wren.name.as_str(), wren.spell_points_max),
+        ("Wren", 10),
+        "the rule set reads in the views"
+    );
+    let why = s.save_log().expect_err("a rule set is not in the log");
+    assert!(why.contains("spell_points.pool"), "{why}");
+}
+
 fn saves_stop_the_log_replaying(app: &mut App, peer: &mut Peer, dir: &Path) {
     let reply = peer.send(
         app,
@@ -303,6 +333,7 @@ fn a_client_drives_the_vector_client_over_loopback() {
     refusals(&mut app, &mut peer);
     the_interface_reads_back(&mut app, &mut peer);
     saves_stop_the_log_replaying(&mut app, &mut peer, &dir);
+    party_and_rules(&mut app, &mut peer);
     second_client_and_flood(&mut app, &mut peer, addr);
 }
 

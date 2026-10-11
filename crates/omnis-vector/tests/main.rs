@@ -16,6 +16,7 @@ mod create_party;
 mod debug;
 mod fight;
 mod fight_screen;
+mod game_io;
 mod inventory;
 mod labels;
 mod message;

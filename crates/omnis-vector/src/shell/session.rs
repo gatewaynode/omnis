@@ -37,6 +37,9 @@ pub struct Config {
     pub monitor: Option<usize>,
     /// Wait for the display's refresh before presenting a frame (off measures the frame's cost).
     pub vsync: bool,
+    /// Log the frame times (`--frame-stats`), with vsync off: a frame time capped by the display
+    /// says nothing.
+    pub frame_stats: bool,
     /// Where the command log is written.
     pub log: PathBuf,
     /// Capture the window to this file and exit (a check of the view without a person).
@@ -60,6 +63,7 @@ impl Default for Config {
             settings: ".omnis/settings.ron".to_owned(),
             windowed: false,
             vsync: true,
+            frame_stats: false,
             monitor: None,
             log: PathBuf::from(".omnis/vector-session.ron"),
             screenshot: None,
@@ -112,7 +116,7 @@ impl Config {
 /// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
 /// `--settings <file>` (the player's settings, a relative `.ron` path),
 /// `--screen title|new-game|create-party|pause|actions` (open it at the start), `--windowed`,
-/// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
+/// `--no-vsync`, `--frame-stats` (log the frame times, vsync off), `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
 /// `--size WxH` (the offscreen capture's size), and with feature `devtools`
@@ -163,6 +167,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
             }
             "--windowed" => config.windowed = true,
             "--no-vsync" => config.vsync = false,
+            "--frame-stats" => {
+                config.frame_stats = true;
+                config.vsync = false;
+            }
             "--monitor" => {
                 let n: usize = value("--monitor")?
                     .parse()
@@ -600,6 +608,14 @@ mod tests {
         assert_eq!(config.monitor, Some(1));
         assert!(parse(args(&["--monitor", "x"])).is_err());
         assert!(parse(args(&["--monitor", "99"])).is_err());
+    }
+
+    #[test]
+    fn frame_stats_log_the_frame_times_with_vsync_off() {
+        let config = parse(args(&["--frame-stats"])).expect("valid");
+        assert_eq!((config.frame_stats, config.vsync), (true, false));
+        let config = parse(args(&["--windowed"])).expect("valid");
+        assert_eq!((config.frame_stats, config.vsync), (false, true));
     }
 
     #[test]

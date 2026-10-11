@@ -10,7 +10,7 @@ publish.workspace = true
 autotests = false
 
 [[bin]]
-name = "omnis-vector"
+name = "omnis"
 path = "src/main.rs"
 
 [[test]]
