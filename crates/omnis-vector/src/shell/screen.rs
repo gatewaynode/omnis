@@ -67,9 +67,12 @@ impl Screens {
 #[derive(Component)]
 struct ScreenRoot;
 
+/// The screens' layer stands over every other root of the interface.
+const SCREEN_Z: i32 = 1;
+
 /// Marks the window-sized layer the screen is centred in.
 #[derive(Component)]
-struct ScreenLayer;
+pub struct ScreenLayer;
 
 /// The room the party column takes at the right while a screen stands beside it (the inventory,
 /// the cast screen), in logical pixels; 0 otherwise. The column's paint writes it.
@@ -130,6 +133,8 @@ fn spawn(mut commands: Commands) {
     commands
         .spawn((
             ScreenLayer,
+            // Over the HUD, the column, the buttons and the fight screen, which carry none.
+            GlobalZIndex(SCREEN_Z),
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),

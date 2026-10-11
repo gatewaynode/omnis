@@ -1,18 +1,15 @@
 //! The 3D view: a `Camera3d` with HDR and bloom following the pose, and the map drawn as
 //! glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7).
 
+use super::VectorSet;
 use super::capture::Offscreen;
-use super::movement::{Intent, LookInput, look};
-use super::screen::Showing;
 use super::session::Session;
-use super::{VectorSet, ViewState};
 use crate::geom::EYE_HEIGHT;
 use crate::geometry::{SegKind, Segment, extract};
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use omnis_sim::omnis_core::MapId;
 
 /// Cells beyond the visibility depth before a line has faded out completely.
@@ -48,7 +45,7 @@ impl Lines {
 #[derive(Component)]
 pub struct ViewCamera;
 
-/// Camera, lines, cursor grab: everything that needs a window and a GPU.
+/// Camera and lines: everything that needs a window and a GPU.
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
@@ -56,7 +53,6 @@ impl Plugin for RenderPlugin {
         app.init_resource::<Lines>()
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, (spawn_camera, line_style))
-            .add_systems(Update, grab_cursor.in_set(VectorSet::Grab))
             .add_systems(
                 Update,
                 (rebuild, follow, draw).chain().in_set(VectorSet::Draw),
@@ -90,42 +86,6 @@ fn spawn_camera(mut commands: Commands, offscreen: Option<Res<Offscreen>>) {
 fn line_style(mut store: ResMut<GizmoConfigStore>) {
     let (config, _) = store.config_mut::<DefaultGizmoConfigGroup>();
     config.line.width = LINE_WIDTH;
-}
-
-/// A left click in the view turns mouse look on and another turns it off, leaving the view
-/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
-/// the panel opening and the fight screen (`movement::look`).
-fn grab_cursor(
-    mouse: Res<ButtonInput<MouseButton>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    interactions: Query<&Interaction>,
-    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    mut intent: ResMut<Intent>,
-    showing: Res<Showing>,
-    view: Option<Res<State<ViewState>>>,
-) {
-    let Ok(mut cursor) = cursor.single_mut() else {
-        return;
-    };
-    let next = look(
-        intent.looking,
-        LookInput {
-            left_click: mouse.just_pressed(MouseButton::Left),
-            over_button: interactions.iter().any(|i| *i != Interaction::None),
-            release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
-                || mouse.just_pressed(MouseButton::Right),
-            panel: showing.0 || view.is_some_and(|v| *v.get() == ViewState::Fight),
-        },
-    );
-    if next != intent.looking {
-        intent.looking = next;
-        cursor.grab_mode = if next {
-            CursorGrabMode::Locked
-        } else {
-            CursorGrabMode::None
-        };
-        cursor.visible = !next;
-    }
 }
 
 fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {

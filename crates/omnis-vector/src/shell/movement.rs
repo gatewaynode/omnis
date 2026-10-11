@@ -1,10 +1,12 @@
 //! Input to intent, and intent through the binder (presentation-ARCHITECTURE.md §6).
 
-use super::VectorSet;
+use super::screen::Showing;
 use super::session::Session;
+use super::{VectorSet, ViewState};
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use core::f32::consts::FRAC_PI_2;
 
 /// Cells a second on terrain that costs one minute a step; slower terrain is slower to cross.
@@ -61,14 +63,53 @@ pub fn look(looking: bool, input: LookInput) -> bool {
     looking
 }
 
-/// Input and movement, headless-safe: needs only `Time`, the input resources and a `Session`.
+/// Input, mouse look and movement, headless-safe: needs only `Time`, the input resources and a
+/// `Session` (the cursor is grabbed only when there is a window).
 pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Intent>()
+            .add_systems(Update, grab_cursor.in_set(VectorSet::Grab))
             .add_systems(Update, read_input.in_set(VectorSet::Input))
             .add_systems(Update, advance.in_set(VectorSet::Move));
+    }
+}
+
+/// A left click in the view turns mouse look on and another turns it off, leaving the view
+/// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
+/// the panel opening and the fight screen (`movement::look`).
+fn grab_cursor(
+    mouse: Res<ButtonInput<MouseButton>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    interactions: Query<&Interaction>,
+    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut intent: ResMut<Intent>,
+    showing: Option<Res<Showing>>,
+    view: Option<Res<State<ViewState>>>,
+) {
+    let Ok(mut cursor) = cursor.single_mut() else {
+        return;
+    };
+    let next = look(
+        intent.looking,
+        LookInput {
+            left_click: mouse.just_pressed(MouseButton::Left),
+            over_button: interactions.iter().any(|i| *i != Interaction::None),
+            release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
+                || mouse.just_pressed(MouseButton::Right),
+            panel: showing.is_some_and(|s| s.0)
+                || view.is_some_and(|v| *v.get() == ViewState::Fight),
+        },
+    );
+    if next != intent.looking {
+        intent.looking = next;
+        cursor.grab_mode = if next {
+            CursorGrabMode::Locked
+        } else {
+            CursorGrabMode::None
+        };
+        cursor.visible = !next;
     }
 }
 

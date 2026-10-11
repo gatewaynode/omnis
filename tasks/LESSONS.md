@@ -187,3 +187,12 @@
 - **Rule**: When a question to the owner turns on a defect, state it as shown versus actual for the player first
   ("the fight shows 1 pt, the cast takes 2"), say when it happens and when it does not, and put the code names
   after that.
+
+## 2026-10-11 — A capture checks the screen against a full HUD, and a key-opened screen against mouse look
+- **What happened**: P6's captures showed Camp, the sheet and Tactics with "no overlap", but the HUD had no
+  recent lines in them; in play, ten lines ran under the panel and drew over it. A screen opened by R while the
+  mouse looked left the cursor locked, because the grab system was gated off by the very pause the screen set.
+  The test shell had no render plugin, so nothing ran the grab.
+- **Rule**: A new screen's capture is taken with the HUD's recent lines filled and long. A new way to open a
+  screen (a key, a button) is tested with mouse look on. A system the shell gates on `playing` is checked for
+  whether it must also run while a screen holds the game.

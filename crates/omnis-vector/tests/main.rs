@@ -18,6 +18,7 @@ mod inventory;
 mod labels;
 mod message;
 mod minimap;
+mod overlay;
 mod rolllog;
 mod roster;
 mod screens;

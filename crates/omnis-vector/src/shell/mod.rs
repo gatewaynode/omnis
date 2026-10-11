@@ -66,9 +66,11 @@ impl Plugin for ShellPlugin {
                 .chain(),
         )
         // The game moves only while one runs and no screen holds it; it is drawn while one runs.
+        // The cursor is grabbed or released whatever holds the game, so a screen opened by a key
+        // while the mouse looks still gets the pointer back.
         .configure_sets(
             Update,
-            (VectorSet::Grab, VectorSet::Input, VectorSet::Move).run_if(screen::playing),
+            (VectorSet::Input, VectorSet::Move).run_if(screen::playing),
         )
         .configure_sets(
             Update,
