@@ -139,6 +139,16 @@ pub enum Kind {
         /// The current option.
         at: usize,
     },
+    /// A whole number from `min` to `max`, stepped left and right (a press steps right) or set
+    /// outright (a slider).
+    Number {
+        /// The number.
+        value: i64,
+        /// The lowest it may be.
+        min: i64,
+        /// The highest it may be.
+        max: i64,
+    },
     /// Typed text, at most `max` bytes.
     Text {
         /// The text.
@@ -174,13 +184,15 @@ impl Control {
     }
 }
 
-/// One line of a panel: text, then controls, side by side.
+/// One line of a panel: text, then controls, then text after them, side by side.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Row {
     /// The text.
     pub spans: Vec<Span>,
     /// The controls.
     pub controls: Vec<Control>,
+    /// Text after the controls (a score's bonus and cost).
+    pub after: Vec<Span>,
 }
 
 impl Row {
@@ -189,16 +201,24 @@ impl Row {
     pub fn text(span: Span) -> Row {
         Row {
             spans: vec![span],
-            controls: Vec::new(),
+            ..Row::default()
         }
+    }
+
+    /// Span `i` of the row, counting the spans after the controls on from the ones before.
+    #[must_use]
+    pub fn span(&self, i: usize) -> Option<&Span> {
+        self.spans
+            .get(i)
+            .or_else(|| self.after.get(i.checked_sub(self.spans.len())?))
     }
 
     /// A row of controls.
     #[must_use]
     pub fn controls(controls: Vec<Control>) -> Row {
         Row {
-            spans: Vec::new(),
             controls,
+            ..Row::default()
         }
     }
 }
@@ -260,6 +280,7 @@ impl Screen {
                 for c in &row.controls {
                     (c.id, core::mem::discriminant(&c.kind), c.why_not.is_some()).hash(&mut h);
                 }
+                row.after.len().hash(&mut h);
             }
         }
         h.0
@@ -292,6 +313,20 @@ pub enum Payload {
     Right,
     /// A text field's new text.
     Text(String),
+    /// A number set outright.
+    Set(i64),
+}
+
+/// The number a `Kind::Number` holds after `payload`: one step either way, held inside
+/// `min..=max`, or the number set. `apply` has refused a set outside the range already.
+#[must_use]
+pub fn stepped(value: i64, min: i64, max: i64, payload: &Payload) -> i64 {
+    match payload {
+        Payload::Left => value.saturating_sub(1).max(min),
+        Payload::Press | Payload::Right => value.saturating_add(1).min(max),
+        Payload::Set(n) => (*n).clamp(min, max),
+        Payload::Text(_) => value,
+    }
 }
 
 /// The client's own work a screen asks for: what is not a command to the simulation.
@@ -350,6 +385,8 @@ pub enum Refused {
     WrongPayload,
     /// The text is longer than the field takes; its limit in bytes.
     TooLong(usize),
+    /// The number is outside the control's range.
+    OutOfRange,
 }
 
 /// The game a screen looks at, when one is running.
@@ -434,7 +471,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
 ///
 /// # Errors
 /// [`Refused`] when the screen has no such control, the control is dim, it does not take the
-/// payload, or the text is too long; nothing is done.
+/// payload, the text is too long, or the number is outside its range; nothing is done.
 pub fn apply(
     id: ScreenId,
     ctx: &Ctx,
@@ -451,6 +488,12 @@ pub fn apply(
     match (&found.kind, payload) {
         (Kind::Button, Payload::Press)
         | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
+        (Kind::Number { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
+        (Kind::Number { min, max, .. }, Payload::Set(n)) => {
+            if n < min || n > max {
+                return Err(Refused::OutOfRange);
+            }
+        }
         (Kind::Text { max, .. }, Payload::Text(text)) => {
             if text.len() > *max {
                 return Err(Refused::TooLong(*max));

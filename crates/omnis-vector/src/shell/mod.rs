@@ -11,6 +11,7 @@ pub mod minimap;
 pub mod movement;
 pub mod render;
 pub mod screen;
+mod screen_draw;
 pub mod screen_text;
 pub mod session;
 #[cfg(feature = "devtools")]

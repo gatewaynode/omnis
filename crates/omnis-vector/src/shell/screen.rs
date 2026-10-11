@@ -12,6 +12,10 @@ use super::combat::{FightScreen, size};
 use super::controls::Corner;
 use super::hud::StatusText;
 use super::minimap::Minimap;
+pub use super::screen_draw::{Arrow, Pressable, SliderOf, colour, shade};
+use super::screen_draw::{
+    LabelOf, MessageText, SpanAt, TitleText, build, shown_label, text_field, thumbs, width,
+};
 use super::session::{Packs, Session, StartScreen};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
@@ -22,11 +26,11 @@ use crate::screen::{
     self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Refused,
     Screen, ScreenId, Slot, Span,
 };
-use crate::style::{Role, SHADES, Size, scaled};
+use crate::style::{Role, scaled};
 use bevy::ecs::system::SystemParam;
-use bevy::input_focus::AutoFocus;
 use bevy::prelude::*;
 use bevy::text::EditableText;
+use bevy::ui_widgets::{SliderValue, ValueChange};
 use bevy::window::PrimaryWindow;
 use omnis_sim::omnis_core::Position;
 use omnis_sim::omnis_core::rng::splitmix64;
@@ -53,29 +57,9 @@ pub struct Screens {
 #[derive(Component)]
 struct ScreenRoot;
 
-/// A control's node: pressing it, or typing in it, uses the control.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Pressable(pub ControlId);
-
-/// One of a choice's arrows: `true` steps right.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Arrow(pub ControlId, pub bool);
-
-/// The words of control `.0` (a choice's current option).
-#[derive(Component)]
-struct LabelOf(ControlId);
-
-/// The words of span `(panel, row, span)`.
-#[derive(Component)]
-struct SpanAt(usize, usize, usize);
-
-/// The heading's words.
-#[derive(Component)]
-struct TitleText;
-
-/// The outcome's words, under the panels.
-#[derive(Component)]
-struct MessageText;
+/// A slider moved since the router last looked: the number it now asks for.
+#[derive(Resource, Debug, Default)]
+struct Slid(Option<(ControlId, i64)>);
 
 /// The renderer and the router.
 pub struct ScreenPlugin;
@@ -84,26 +68,29 @@ impl Plugin for ScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Screens>()
             .init_resource::<Showing>()
+            .init_resource::<Slid>()
+            .add_observer(slid)
             .add_systems(Startup, (spawn, open_start))
             .add_systems(
                 Update,
-                (route, paint, chrome).chain().in_set(VectorSet::Screens),
+                (route, paint, thumbs, chrome)
+                    .chain()
+                    .in_set(VectorSet::Screens),
             );
     }
 }
 
-/// `role`'s colour.
-#[must_use]
-pub fn colour(role: Role) -> Color {
-    let [r, g, b] = role.rgb();
-    Color::srgb(r, g, b)
-}
-
-/// A control's background: at rest, hovered or pressed.
-#[must_use]
-pub fn shade(i: usize) -> Color {
-    let [r, g, b] = SHADES[i.min(2)];
-    Color::srgb(r, g, b)
+/// A slider reports a move: kept, rounded to a whole number, for the router's next look. A
+/// value that is not a number is dropped.
+fn slid(change: On<ValueChange<f32>>, sliders: Query<&SliderOf>, mut moved: ResMut<Slid>) {
+    let Ok(of) = sliders.get(change.source) else {
+        return;
+    };
+    if change.value.is_finite() {
+        #[allow(clippy::cast_possible_truncation)]
+        let n = change.value.round() as i64;
+        moved.0 = Some((of.0, n));
+    }
 }
 
 fn spawn(mut commands: Commands) {
@@ -216,12 +203,13 @@ struct Used<'w, 's> {
     fields: Query<'w, 's, (Entity, Ref<'static, EditableText>, &'static Pressable)>,
     keys: Res<'w, ButtonInput<KeyCode>>,
     mouse: Res<'w, ButtonInput<MouseButton>>,
+    slid: ResMut<'w, Slid>,
 }
 
 /// Esc, the square's action keys, a pressed control, a choice's arrow, typed text or a key,
 /// routed to the top screen; the effect carried out.
 fn route(
-    used: Used,
+    mut used: Used,
     mut host: Host,
     mut session: Option<ResMut<Session>>,
     mut screens: ResMut<Screens>,
@@ -250,28 +238,38 @@ fn route(
     if let Some(session) = session.as_deref_mut() {
         action_keys(&used.keys, &used.mouse, session, &mut screens.nav);
     }
+    let slid = used.slid.0.take();
     let Some(top) = screens.nav.top(session.as_deref().map(|s| &s.views)) else {
         return;
     };
     let effect = {
         let ctx = ctx_with(session.as_deref(), &host.packs);
-        applied(&used, &ctx, top, &mut screens.forms, &mut host.commands)
+        let input = Input { used: &used, slid };
+        applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
     };
     if let Some(effect) = effect {
         carry_out(effect, &mut host, &mut session, screens);
     }
 }
 
-/// The control used this frame on screen `top`, applied: a press, a choice's arrow, new text
+/// This frame's input: the nodes and keys, and a slider's move.
+struct Input<'a, 'w, 's> {
+    used: &'a Used<'w, 's>,
+    slid: Option<(ControlId, i64)>,
+}
+
+/// The control used this frame on screen `top`, applied: a press, an arrow, a slider, new text
 /// in a field, or a number key. Text a field cannot take is put back to what the form holds.
 fn applied(
-    used: &Used,
+    input: &Input,
     ctx: &Ctx,
     top: ScreenId,
     forms: &mut Forms,
     commands: &mut Commands,
 ) -> Option<Effect> {
+    let used = input.used;
     let screen = screen::content(top, ctx, forms);
+    let slid = || input.slid.map(|(id, n)| (id, Payload::Set(n)));
     let pressed = used
         .buttons
         .iter()
@@ -301,7 +299,11 @@ fn applied(
         let digit = u8::try_from(n + 1).ok()?;
         screen.key(Key::Digit(digit)).map(|id| (id, Payload::Press))
     };
-    let (id, payload) = pressed.or_else(stepped).or_else(typed).or_else(keyed)?;
+    let (id, payload) = pressed
+        .or_else(stepped)
+        .or_else(slid)
+        .or_else(typed)
+        .or_else(keyed)?;
     match screen::apply(top, ctx, forms, id, &payload, entropy()) {
         Ok(effect) => Some(effect),
         Err(Refused::TooLong(_)) => {
@@ -321,12 +323,6 @@ fn applied(
         }
         Err(_) => None,
     }
-}
-
-fn text_field(value: &str, max: usize) -> EditableText {
-    let mut field = EditableText::new(value);
-    field.max_characters = Some(max);
-    field
 }
 
 /// Space or a right click opens or closes the square's actions while exploring; with Shift it
@@ -469,163 +465,6 @@ fn host_op(
     }
 }
 
-/// A control's words as drawn: its number key first when it has one, its reason after when it
-/// is dim; a choice shows its current option.
-fn shown_label(screen: &Screen, control: &Control) -> String {
-    if let Kind::Choice { options, at } = &control.kind {
-        return options.get(*at).cloned().unwrap_or_default();
-    }
-    match &control.why_not {
-        Some(why) => format!("{}: {why}", control.label),
-        None => match screen.keys.iter().find(|(_, c)| *c == control.id) {
-            Some((Key::Digit(n), _)) => format!("{n}  {}", control.label),
-            None => control.label.clone(),
-        },
-    }
-}
-
-fn words(text: &str, role: Role, size: Size, height: f32) -> (Text, TextFont, TextColor) {
-    (
-        Text::new(text),
-        TextFont {
-            font_size: FontSize::Px(size.px(height)),
-            ..default()
-        },
-        TextColor(colour(role)),
-    )
-}
-
-/// A bordered box, as every control is drawn.
-fn boxed(role: Role, height: f32) -> impl Bundle {
-    (
-        Node {
-            min_width: Val::Px(scaled(150.0, height)),
-            height: Val::Px(scaled(34.0, height)),
-            padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
-            border: UiRect::all(Val::Px(1.0)),
-            column_gap: Val::Px(scaled(10.0, height)),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        BorderColor::all(colour(role)),
-        BackgroundColor(shade(0)),
-    )
-}
-
-/// A choice's arrow: a small pressable box.
-fn arrow(parent: &mut ChildSpawnerCommands, id: ControlId, right: bool, height: f32) {
-    parent
-        .spawn((
-            Arrow(id, right),
-            Button,
-            Node {
-                width: Val::Px(scaled(28.0, height)),
-                height: Val::Px(scaled(26.0, height)),
-                border: UiRect::all(Val::Px(1.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BorderColor::all(colour(Role::Interface)),
-            BackgroundColor(shade(0)),
-        ))
-        .with_children(|a| {
-            let glyph = if right { ">" } else { "<" };
-            a.spawn(words(glyph, Role::Interface, Size::Body, height));
-        });
-}
-
-/// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
-/// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
-/// current option between them. A text field is its name and an editable line.
-fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control, height: f32) {
-    let role = if c.why_not.is_some() {
-        Role::Dim
-    } else {
-        Role::Interface
-    };
-    match &c.kind {
-        Kind::Button => {
-            let mut entity = parent.spawn((Pressable(c.id), boxed(role, height)));
-            if c.why_not.is_none() {
-                entity.insert(Button);
-            }
-            entity.with_children(|b| {
-                b.spawn((
-                    LabelOf(c.id),
-                    words(&shown_label(screen, c), role, Size::Body, height),
-                ));
-            });
-        }
-        Kind::Choice { .. } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
-                arrow(b, c.id, false, height);
-                b.spawn((
-                    LabelOf(c.id),
-                    words(&shown_label(screen, c), role, Size::Body, height),
-                ));
-                arrow(b, c.id, true, height);
-            });
-        }
-        Kind::Text { value, max } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
-                b.spawn((
-                    Pressable(c.id),
-                    text_field(value, *max),
-                    AutoFocus,
-                    TextFont {
-                        font_size: FontSize::Px(Size::Body.px(height)),
-                        ..default()
-                    },
-                    TextColor(colour(Role::Interface)),
-                    // Underlined, so an empty field still shows where to type.
-                    Node {
-                        min_width: Val::Px(scaled(260.0, height)),
-                        border: UiRect::bottom(Val::Px(1.0)),
-                        ..default()
-                    },
-                    BorderColor::all(colour(Role::Dim)),
-                ));
-            });
-        }
-    }
-}
-
-/// Build the screen's nodes under the root.
-fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32) {
-    let t = &screen.title;
-    parent.spawn((TitleText, words(&t.text, t.role, t.size, height)));
-    for (p, panel) in screen.panels.iter().enumerate() {
-        for (r, row) in panel.rows.iter().enumerate() {
-            parent
-                .spawn(Node {
-                    flex_wrap: FlexWrap::Wrap,
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(scaled(6.0, height)),
-                    row_gap: Val::Px(scaled(6.0, height)),
-                    ..default()
-                })
-                .with_children(|line| {
-                    for (s, span) in row.spans.iter().enumerate() {
-                        line.spawn((
-                            SpanAt(p, r, s),
-                            words(&span.text, span.role, span.size, height),
-                        ));
-                    }
-                    for c in &row.controls {
-                        control_node(line, screen, c, height);
-                    }
-                });
-        }
-    }
-    if let Some(m) = &screen.message {
-        parent.spawn((MessageText, words(&m.text, m.role, m.size, height)));
-    }
-}
-
 /// A screen's words on screen: the heading, a span, a control's label or the outcome, by marker.
 type Placed = (
     &'static mut Text,
@@ -649,6 +488,7 @@ fn paint(
     capture: Option<Res<CaptureSize>>,
     mut root: Query<(Entity, &mut Node), With<ScreenRoot>>,
     mut placed: Query<Placed>,
+    sliders: Query<(Entity, &SliderOf, &SliderValue)>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -672,12 +512,16 @@ fn paint(
     };
     match &screens.drawn {
         Some((drawn, h)) if *drawn == screen && *h == bucket => return,
-        Some((drawn, h)) if same_shape(drawn) && *h == bucket => sync(&screen, &mut placed),
+        Some((drawn, h)) if same_shape(drawn) && *h == bucket => {
+            sync(&screen, &mut placed);
+            slide(&screen, &sliders, &mut commands);
+        }
         _ => {
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
-            node.width = Val::Px(scaled(560.0, height));
-            node.margin = UiRect::left(Val::Px(-scaled(280.0, height)));
+            let wide = width(&screen, height);
+            node.width = Val::Px(wide);
+            node.margin = UiRect::left(Val::Px(-wide / 2.0));
             node.padding = UiRect::all(Val::Px(scaled(14.0, height)));
             node.row_gap = Val::Px(scaled(8.0, height));
             commands
@@ -700,7 +544,7 @@ fn wanted(
         return Some((screen.title.text.clone(), screen.title.role));
     }
     if let Some(at) = span {
-        let span = screen.panels.get(at.0)?.rows.get(at.1)?.spans.get(at.2)?;
+        let span = screen.panels.get(at.0)?.rows.get(at.1)?.span(at.2)?;
         return Some((span.text.clone(), span.role));
     }
     if let Some(of) = label {
@@ -724,6 +568,30 @@ fn sync(screen: &Screen, placed: &mut Query<Placed>) {
                 text.0 = words;
             }
             tint.0 = colour(role);
+        }
+    }
+}
+
+/// Set each slider to the number its control holds, so a slider follows the arrows and a move
+/// the form refused springs back.
+#[allow(clippy::cast_precision_loss)]
+fn slide(
+    screen: &Screen,
+    sliders: &Query<(Entity, &SliderOf, &SliderValue)>,
+    commands: &mut Commands,
+) {
+    for (entity, of, value) in sliders {
+        if let Some(Control {
+            kind: Kind::Number { value: n, .. },
+            ..
+        }) = screen.control(of.0)
+        {
+            let want = *n as f32;
+            // The value is immutable: a new one is inserted, which moves the thumb.
+            #[allow(clippy::float_cmp)]
+            if value.0 != want {
+                commands.entity(entity).insert(SliderValue(want));
+            }
         }
     }
 }
