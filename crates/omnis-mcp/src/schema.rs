@@ -64,7 +64,7 @@ impl Schema for Draft {
             .map(|s| s as &dyn std::fmt::Debug)
             .collect();
         json!({
-            "description": "A character draft: ids as pack:type:name, six bought scores in SRD order (8..=15, 27 points), and the class's skill picks.",
+            "description": "A character draft: ids as pack:type:name, six bought scores in SRD order (the range and points creation_get gives), and the class's skill picks.",
             "type": "object",
             "properties": {
                 "name": {"type": "string", "minLength": 1, "maxLength": 32},

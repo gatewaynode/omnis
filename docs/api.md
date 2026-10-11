@@ -181,7 +181,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-24 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+25 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around the I/O-free rules in `ops.rs`
 (`save_text`, `load_text`, `check_reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
@@ -202,6 +202,7 @@ socket and the bridge (malformed request).
 | `service.get` | none | `service` | `NoService` | |
 | `rest.get` | none | `rest` | | |
 | `cast.get` | none | `casts` | | |
+| `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
 | `time.reconcile` | `region` (`pack:region:name`) | `events` | `Rejected` | dev only |
 | `rules.list` | none | `rules` | | |
@@ -245,10 +246,11 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
+| `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | nothing | `pack.reload` |
 
-`KnownTile` is `{"x", "y", "known": Known}` (see §7.9). `map.text` renders the map in the pack
+`KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
 `_` `'`, a portal `*`, the party `^` `>` `v` `<`.
 
@@ -269,6 +271,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
+| `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
 | `automap(&World, MapId)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId)` | `Option<String>` | `map.text` |
@@ -480,7 +483,26 @@ member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spel
 id, `Command::Cast`'s `spell`), `name` (text key), `cost` (points, 0 for a cantrip),
 `targets_members`, `refusal` (`Rejection` or null).
 
-### 7.9 `ViewportModel`, `ViewTile`, `EdgeView`, `Known`, `layer`
+### 7.9 `CreationView`, `RaceOption`, `ClassOption`, `BackgroundOption`
+
+What a `Draft` may be, read through the functions `party.create` checks it with, so a draft
+built from it is accepted. It depends on the loaded rules alone, not on the world.
+
+| Field | Meaning |
+|---|---|
+| `slots` | Members the party holds (`PartyView.slots`). |
+| `name_max` | The longest name in bytes, after trimming; a blank name is refused. |
+| `score_min`, `score_max` | The range of each bought score. |
+| `points` | What the six bought scores may cost together; spending less is allowed. |
+| `costs` | Each score's cost, from `score_min` to `score_max`. |
+| `races` | `[RaceOption]`: `id` (the draft's `race`), `name` (text key), `bonuses` (added to each bought score, SRD order), `grants` (`[Skill]` the race's traits give). |
+| `classes` | `[ClassOption]`: `id`, `name`, `choose` (how many skills a draft picks, exactly), `skill_list` (`[Skill]`, the list it picks from). |
+| `backgrounds` | `[BackgroundOption]`: `id`, `name`, `grants` (`[Skill]`). A draft may not pick a skill its race or background grants. |
+| `alignments` | The nine `Alignment`s, in SRD order. |
+
+Races, classes and backgrounds are in id order.
+
+### 7.10 `ViewportModel`, `ViewTile`, `EdgeView`, `Known`, `layer`
 
 `ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
@@ -834,8 +856,9 @@ As of protocol 2:
 - **No pack definitions or text over Tier 2.** No op exposes pack data or the `text/` tables.
   Commands, events and views name definitions by string id and carry text keys
   (`base:text:item.mace.name`), not display text, and no op turns an id or a key into a label or
-  a definition (the planned `data.*` ops). `ViewTile.terrain` indexes terrains no op lists. Only
-  Tier 1 has `Data`.
+  a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
+  backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
+  lists. Only Tier 1 has `Data`.
 - **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
@@ -857,6 +880,14 @@ As of protocol 2:
   proven against the `Command` type; replies have none beyond this document.
 
 ## Changelog
+
+### Additions within protocol 2
+
+Additive (§13), so `PROTOCOL` stays 2:
+
+- 2026-10-10: `door_open` (Tier 1) and `MemberView.can_fight` (parity P0a).
+- 2026-10-10: `creation.get` and `creation_view` (`CreationView`), bringing the ops to 25
+  (parity P3).
 
 ### Protocol 2 (2026-10-10)
 

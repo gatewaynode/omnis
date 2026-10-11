@@ -21,6 +21,7 @@ mod casting;
 mod checks;
 pub mod combat;
 pub mod command;
+pub mod creation_view;
 pub mod dev;
 pub mod effects;
 pub mod encounter;
@@ -58,6 +59,7 @@ pub use apply::apply;
 pub use cast_view::{CastView, cast_view};
 pub use combat::{Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, Target};
 pub use command::{Command, Rejection};
+pub use creation_view::{BackgroundOption, ClassOption, CreationView, RaceOption, creation_view};
 pub use dev::DevCommand;
 pub use encounter::{
     EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost, groups_cleared,

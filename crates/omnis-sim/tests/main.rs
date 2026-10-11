@@ -6,6 +6,7 @@ mod api_views;
 mod casting;
 mod combat;
 mod common;
+mod creation_view;
 mod dev;
 mod effects;
 mod encounter;

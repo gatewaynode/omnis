@@ -54,6 +54,9 @@ pub use crate::word::{ScriptError, Word, parse_script};
 
 // The views.
 pub use crate::cast_view::{CastView, cast_view};
+pub use crate::creation_view::{
+    BackgroundOption, ClassOption, CreationView, RaceOption, creation_view,
+};
 pub use crate::ops::status;
 pub use crate::party_view::{
     AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,

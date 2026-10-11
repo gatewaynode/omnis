@@ -172,7 +172,7 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "party_create",
             "party.create",
-            "Create a character from a draft and add it to the party; returns the events. Use rules_list for the point budget and party_get to see the result.",
+            "Create a character from a draft and add it to the party; returns the events. Use creation_get for what a draft may be (point buy, races, classes and their skill picks, backgrounds) and party_get to see the result.",
             &[Field::new::<Draft>("character", true, "The draft.")],
         ),
         tool(
@@ -197,6 +197,12 @@ fn party_tools() -> Vec<Tool> {
             "cast_get",
             "cast.get",
             "The spells each member may cast outside a fight: the caster's id and the spell's id (the `caster` and `spell` a Cast command takes), its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "creation_get",
+            "creation.get",
+            "What a party member's draft may be, as party_create checks it: the party's slots, the longest name in bytes, the score range and the points the six bought scores may cost with each score's cost, every race (its id, the bonus it adds to each score, the skills it grants), class (its id, how many skills a draft picks, `choose`, from its `skill_list`) and background (its id, the skills it grants, which a draft may not pick again), and the nine alignments. Looking changes nothing.",
             &[],
         ),
         tool(
@@ -299,6 +305,7 @@ mod tests {
             ("service_get", json!({})),
             ("rest_get", json!({})),
             ("cast_get", json!({})),
+            ("creation_get", json!({})),
             ("time_clocks", json!({})),
             ("time_reconcile", json!({"region": "test:region:town"})),
             ("screen_text", json!({})),
@@ -337,6 +344,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 24);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 25);
     }
 }
