@@ -196,9 +196,7 @@ pub fn content(data: &Data, game: Game, form: &CreateForm) -> Screen {
                     .iter()
                     .find(|(g, _)| g == s)
                     .map(|(_, from)| (*from).to_owned())
-                    .or_else(|| {
-                        (full && !picked).then(|| format!("This class picks {choose} skills"))
-                    });
+                    .or_else(|| (full && !picked).then(|| format!("{choose} picked")));
                 control
             })
             .collect()

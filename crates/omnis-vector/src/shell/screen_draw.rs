@@ -8,7 +8,7 @@ use crate::screen::{Control, ControlId, Key, Kind, Screen};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input_focus::AutoFocus;
 use bevy::prelude::*;
-use bevy::text::EditableText;
+use bevy::text::{EditableText, TextCursorStyle};
 use bevy::ui_widgets::{Slider, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick};
 
 /// A control's node: pressing it, or typing in it, uses the control.
@@ -60,6 +60,17 @@ pub(super) fn text_field(value: &str, max: usize) -> EditableText {
     field
 }
 
+/// A text field's cursor and selection, in the interface's colours.
+#[must_use]
+pub fn cursor_style() -> TextCursorStyle {
+    TextCursorStyle {
+        color: colour(Role::Interface),
+        selection_color: shade(1),
+        unfocused_selection_color: shade(0),
+        selected_text_color: None,
+    }
+}
+
 /// A control's words as drawn: its number key first when it has one, its reason after when it
 /// is dim; a choice shows its current option, a number its value.
 pub(super) fn shown_label(screen: &Screen, control: &Control) -> String {
@@ -99,7 +110,8 @@ fn boxed(role: Role, height: f32) -> impl Bundle {
     (
         Node {
             min_width: Val::Px(scaled(150.0, height)),
-            height: Val::Px(scaled(34.0, height)),
+            // At least this tall; a long reason wraps inside the box rather than out of it.
+            min_height: Val::Px(scaled(34.0, height)),
             padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
             border: UiRect::all(Val::Px(1.0)),
             column_gap: Val::Px(scaled(10.0, height)),
@@ -272,6 +284,8 @@ fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control,
                         ..default()
                     },
                     TextColor(colour(Role::Interface)),
+                    // Without a style no cursor is drawn; Bevy's default is too dark to see here.
+                    cursor_style(),
                     // Underlined, so an empty field still shows where to type.
                     Node {
                         min_width: Val::Px(scaled(260.0, height)),
@@ -306,8 +320,13 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
         .with_children(|columns| {
             for (p, panel) in screen.panels.iter().enumerate() {
                 columns
+                    // Panels share the width equally, so one panel's long rows never squeeze
+                    // the next into wrapping.
                     .spawn(Node {
                         flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        flex_basis: Val::Px(0.0),
+                        min_width: Val::Px(0.0),
                         row_gap: Val::Px(scaled(8.0, height)),
                         ..default()
                     })

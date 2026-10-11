@@ -193,7 +193,7 @@ fn picks_follow_the_class_and_what_the_race_and_background_grant() {
     // The fourth pick fills the count: the rest are dim with the count.
     assert_eq!(
         why(&session, &forms, skill(Skill::Athletics)).as_deref(),
-        Some("This class picks 4 skills")
+        Some("4 picked")
     );
     // A pick taken back frees the count.
     use_(

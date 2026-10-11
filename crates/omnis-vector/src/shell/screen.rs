@@ -93,21 +93,46 @@ fn slid(change: On<ValueChange<f32>>, sliders: Query<&SliderOf>, mut moved: ResM
     }
 }
 
+/// The window-sized layer the screen is centred in: a gap above it, 22% of the window, that gives
+/// way when the screen is taller than the rest, so the screen's foot stays in the window. Clicks
+/// pass through the layer and the gap.
 fn spawn(mut commands: Commands) {
-    commands.spawn((
-        ScreenRoot,
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Percent(22.0),
-            left: Val::Percent(50.0),
-            flex_direction: FlexDirection::Column,
-            border: UiRect::all(Val::Px(1.0)),
-            display: Display::None,
-            ..default()
-        },
-        BorderColor::all(colour(Role::Interface)),
-        BackgroundColor(shade(0)),
-    ));
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                padding: UiRect::bottom(Val::Vh(2.0)),
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|layer| {
+            layer.spawn((
+                Node {
+                    height: Val::Percent(22.0),
+                    min_height: Val::Vh(2.0),
+                    flex_shrink: 1.0,
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
+            layer.spawn((
+                ScreenRoot,
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    flex_shrink: 0.0,
+                    border: UiRect::all(Val::Px(1.0)),
+                    display: Display::None,
+                    ..default()
+                },
+                BorderColor::all(colour(Role::Interface)),
+                BackgroundColor(shade(0)),
+            ));
+        });
 }
 
 /// Open the screen the command line asked for (`--screen`).
@@ -533,9 +558,7 @@ fn paint(
         _ => {
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
-            let wide = width(&screen, height);
-            node.width = Val::Px(wide);
-            node.margin = UiRect::left(Val::Px(-wide / 2.0));
+            node.width = Val::Px(width(&screen, height));
             node.padding = UiRect::all(Val::Px(scaled(14.0, height)));
             node.row_gap = Val::Px(scaled(8.0, height));
             commands

@@ -23,10 +23,11 @@ use omnis_vector::screen::{
 };
 use omnis_vector::shell::combat::{Choose, FightScreen};
 use omnis_vector::shell::controls::{Action as Button_, Corner};
-use omnis_vector::shell::screen::{Arrow, Pressable, Screens, SliderOf, ctx};
+use omnis_vector::shell::screen::{Arrow, Pressable, Screens, SliderOf, colour, ctx};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Session;
 use omnis_vector::sim::{Views, game_settings};
+use omnis_vector::style::Role;
 
 fn tap(app: &mut App, code: KeyCode) {
     key(app, code, ButtonState::Pressed);
@@ -758,4 +759,82 @@ fn start_again_makes_the_same_party_and_after_a_load_the_save_s_game_anew() {
     assert_eq!(session(&app).views.here.seed, 99, "the save's game");
     assert!(session(&app).views.party.members.is_empty());
     assert_eq!(top(&app), Some(ScreenId::CreateParty));
+}
+
+/// The shell with the window's keyboard path to a text field: focus, its dispatch, the text
+/// input observers and the edits applied, so a test types as a player does.
+fn keyboard_shell(save: &str) -> (App, Entity) {
+    use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
+    let mut app = app_at_title(save);
+    app.add_plugins((
+        bevy::asset::AssetPlugin::default(),
+        InputFocusPlugin,
+        InputDispatchPlugin,
+        bevy::text::TextPlugin,
+        bevy::ui_widgets::EditableTextInputPlugin,
+    ))
+    .add_message::<bevy::window::Ime>()
+    .add_message::<bevy::picking::events::Pointer<bevy::picking::events::Release>>()
+    .init_resource::<bevy::ui::UiScale>();
+    let window = app
+        .world_mut()
+        .spawn((Window::default(), bevy::window::PrimaryWindow))
+        .id();
+    (app, window)
+}
+
+/// Type `text` on the keyboard, one key at a time, to whatever has focus.
+fn keyboard(app: &mut App, window: Entity, text: &str) {
+    use bevy::input::ButtonState;
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    for c in text.chars() {
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: KeyCode::KeyA,
+                logical_key: Key::Character(c.to_string().into()),
+                state,
+                text: Some(c.to_string().into()),
+                repeat: false,
+                window,
+            });
+            app.update();
+        }
+    }
+}
+
+#[test]
+fn the_name_field_draws_a_cursor_in_the_interface_colour() {
+    let save = Scratch::new("create-cursor");
+    let mut app = app_at_title(&save.0);
+    to_creation(&mut app, "42");
+    let world = app.world_mut();
+    let mut fields = world.query::<(&Pressable, Option<&bevy::text::TextCursorStyle>)>();
+    let style = fields
+        .iter(world)
+        .find(|(p, _)| p.0 == ControlId::Name)
+        .and_then(|(_, s)| s.copied());
+    // Without a style Bevy draws no cursor at all.
+    let style = style.expect("the name field has a cursor style");
+    assert_eq!(style.color, colour(Role::Interface));
+}
+
+#[test]
+fn the_second_member_is_named_on_the_keyboard_after_the_first_is_added() {
+    let save = Scratch::new("create-keys");
+    let (mut app, window) = keyboard_shell(&save.0);
+    to_creation(&mut app, "42");
+    let name = |app: &App| app.world().resource::<Screens>().forms.create.name.clone();
+    keyboard(&mut app, window, "Ash");
+    assert_eq!(name(&app), "Ash");
+    step_choice(&mut app, ControlId::Class);
+    press(&mut app, skill(Skill::Athletics));
+    app.update();
+    press(&mut app, skill(Skill::Perception));
+    app.update();
+    press(&mut app, ControlId::AddMember);
+    app.update();
+    assert_eq!(session(&app).views.party.members.len(), 1);
+    // The screen was drawn anew for the next member; its field has the keyboard.
+    keyboard(&mut app, window, "Bree");
+    assert_eq!(name(&app), "Bree");
 }
