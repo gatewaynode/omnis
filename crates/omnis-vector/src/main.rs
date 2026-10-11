@@ -1,5 +1,5 @@
 //! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--screen title|new-game|pause|actions]`
+//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--screen title|new-game|create-party|pause|actions]`
 //! `[--windowed] [--no-vsync] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
@@ -10,8 +10,9 @@ use bevy::prelude::*;
 use bevy::window::{ExitCondition, MonitorSelection, PresentMode, WindowMode, WindowResolution};
 use bevy::winit::WinitPlugin;
 use omnis_sim::Settings;
+use omnis_vector::party;
 use omnis_vector::shell::capture::{Capture, CapturePlugin, CaptureSize};
-use omnis_vector::shell::session::{Packs, Session, parse};
+use omnis_vector::shell::session::{Packs, Session, StartScreen, parse};
 use omnis_vector::shell::{
     ShellPlugin,
     cinema::CinemaPlugin,
@@ -42,7 +43,14 @@ fn main() -> AppExit {
         }
     };
     let session = if config.starts_in_game() {
-        match Session::new_game(&packs, config.seed, game_settings(Settings::default())) {
+        // Party creation starts with no one; every other start takes the fixed party.
+        let drafts = if config.screen == Some(StartScreen::CreateParty) {
+            Vec::new()
+        } else {
+            party::fixed()
+        };
+        let settings = game_settings(Settings::default());
+        match Session::with_party(&packs, config.seed, settings, &drafts) {
             Ok(session) => Some(session),
             Err(e) => {
                 eprintln!("omnis-vector: {e}");

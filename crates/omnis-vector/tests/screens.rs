@@ -6,20 +6,24 @@ use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
+use bevy::ui_widgets::ValueChange;
 use common::app::{app, app_at_title, app_in_game, key, met_with, set};
 use common::fight::met;
 use omnis_sim::omnis_core::rng::fnv1a64;
 use omnis_sim::omnis_core::{Direction, Facing};
+use omnis_sim::omnis_data::Skill;
 use omnis_sim::{Command, EncounterChoice, SaveRule, Settings};
 use omnis_vector::combat_menu::{Act, Action, Step};
-use omnis_vector::screen::nav::{Escape, Nav, base};
+use omnis_vector::party;
+use omnis_vector::screen::create_party::CreateForm;
+use omnis_vector::screen::nav::{Escape, Nav};
 use omnis_vector::screen::new_game::NewGameForm;
 use omnis_vector::screen::{
     self, ControlId, Ctx, Effect, Forms, HostOp, Payload, Refused, ScreenId, Slot,
 };
 use omnis_vector::shell::combat::{Choose, FightScreen};
 use omnis_vector::shell::controls::{Action as Button_, Corner};
-use omnis_vector::shell::screen::{Arrow, Pressable, Screens, ctx};
+use omnis_vector::shell::screen::{Arrow, Pressable, Screens, SliderOf, ctx};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Session;
 use omnis_vector::sim::{Views, game_settings};
@@ -133,13 +137,13 @@ fn overlays_follow_the_world() {
     assert!(!nav.is_open(ScreenId::NewGame));
     nav.open(ScreenId::Pause, None);
     assert!(!nav.is_open(ScreenId::Pause));
-    assert_eq!(base(None), Some(ScreenId::Title));
+    assert_eq!(nav.base(None), Some(ScreenId::Title));
     // A fallen party: its screen is the base, and nothing opens over it.
     for member in &mut session.world.party.members {
         member.hp = 0;
     }
     session.refresh();
-    assert_eq!(base(views(&session)), Some(ScreenId::Defeat));
+    assert_eq!(nav.base(views(&session)), Some(ScreenId::Defeat));
     for id in [ScreenId::Actions, ScreenId::Pause] {
         nav.open(id, views(&session));
         assert!(!nav.is_open(id), "{id:?}");
@@ -151,7 +155,11 @@ fn overlays_follow_the_world() {
 fn esc_closes_an_overlay_steps_a_fight_back_then_pauses() {
     let fight = met();
     let mut nav = Nav::default();
-    assert_eq!(base(views(&fight)), None, "the fight screen draws itself");
+    assert_eq!(
+        nav.base(views(&fight)),
+        None,
+        "the fight screen draws itself"
+    );
     nav.open(ScreenId::Actions, views(&fight));
     assert!(!nav.is_open(ScreenId::Actions), "not over a fight");
     assert_eq!(nav.escape(views(&fight), false), Escape::FightBack);
@@ -299,13 +307,18 @@ fn the_pause_tells_the_game_and_why_saving_is_refused() {
 
 /// Type `text` into the seed field, as the field's editing would leave it.
 fn type_seed(app: &mut App, text: &str) {
+    type_into(app, ControlId::Seed, text);
+}
+
+/// Type `text` into field `id`, as the field's editing would leave it.
+fn type_into(app: &mut App, id: ControlId, text: &str) {
     let world = app.world_mut();
     let mut fields = world.query::<(Entity, &Pressable, &bevy::text::EditableText)>();
     let field = fields
         .iter(world)
-        .find(|(_, p, _)| p.0 == ControlId::Seed)
+        .find(|(_, p, _)| p.0 == id)
         .map(|(e, _, _)| e)
-        .expect("the seed field");
+        .unwrap_or_else(|| panic!("the {id:?} field"));
     world
         .entity_mut(field)
         .insert(bevy::text::EditableText::new(text));
@@ -351,8 +364,8 @@ fn the_title_starts_a_game_from_the_form() {
     let s = session(&app);
     assert_eq!(s.views.here.seed, 42);
     assert_eq!(s.views.here.settings.save_rule, SaveRule::Relief);
-    assert_eq!(s.views.party.members.len(), 4, "the fixed party, until P3");
-    assert_eq!(top(&app), None, "the game's own view");
+    assert!(s.views.party.members.is_empty(), "the party is made next");
+    assert_eq!(top(&app), Some(ScreenId::CreateParty));
 }
 
 #[test]
@@ -575,4 +588,174 @@ fn new_words_are_written_in_place() {
     app.update();
     assert_eq!(button(&mut app), Some(before), "the same node");
     assert!(screen_text(app.world()).contains("\"1  Close the door\""));
+}
+
+fn skill(s: Skill) -> ControlId {
+    let at = Skill::ALL.iter().position(|k| *k == s).unwrap();
+    ControlId::Skill(u8::try_from(at).unwrap())
+}
+
+fn step_choice(app: &mut App, id: ControlId) {
+    set(app, &Arrow(id, true), Interaction::Pressed);
+    app.update();
+    set(app, &Arrow(id, true), Interaction::None);
+    app.update();
+}
+
+/// Drag a number's slider to `value`, as the widget reports it.
+fn slide(app: &mut App, id: ControlId, value: f32) {
+    let world = app.world_mut();
+    let mut sliders = world.query::<(Entity, &SliderOf)>();
+    let slider = sliders
+        .iter(world)
+        .find(|(_, s)| s.0 == id)
+        .map(|(e, _)| e)
+        .unwrap_or_else(|| panic!("the {id:?} slider"));
+    world.trigger(ValueChange {
+        source: slider,
+        value,
+        is_final: true,
+    });
+    app.update();
+    app.update();
+}
+
+/// Whether the game's corner buttons show (the test shell has no HUD; one system shows both).
+fn hud_shown(app: &mut App) -> bool {
+    let world = app.world_mut();
+    let mut corners = world.query_filtered::<&Visibility, With<Corner>>();
+    let seen: Vec<bool> = corners
+        .iter(world)
+        .map(|v| *v != Visibility::Hidden)
+        .collect();
+    assert!(!seen.is_empty(), "the corner buttons exist");
+    seen.iter().all(|s| *s)
+}
+
+/// From the title through the form to party creation, with `seed` typed.
+fn to_creation(app: &mut App, seed: &str) {
+    app.update();
+    press(app, ControlId::NewGame);
+    app.update();
+    type_seed(app, seed);
+    press(app, ControlId::Start);
+    app.update();
+    assert_eq!(top(app), Some(ScreenId::CreateParty));
+}
+
+#[test]
+fn a_party_is_made_through_the_screen_then_play_begins() {
+    let save = Scratch::new("create");
+    let mut app = app_at_title(&save.0);
+    to_creation(&mut app, "42");
+    assert!(!hud_shown(&mut app), "the game's HUD waits for the party");
+    let text = screen_text(app.world());
+    assert!(
+        text.contains("\"CREATE YOUR PARTY   0 of 6 members\""),
+        "{text}"
+    );
+    assert!(text.contains("[slider] 8 (8..15)"), "{text}");
+    type_into(&mut app, ControlId::Name, "Ash");
+    let form = |app: &App| app.world().resource::<Screens>().forms.create.clone();
+    assert_eq!(form(&app).name, "Ash");
+    step_choice(&mut app, ControlId::Class);
+    assert!(screen_text(app.world()).contains("\"Fighter\""));
+    // The slider asks for 14.6; the score is a whole 15, and the slider shows it.
+    slide(&mut app, ControlId::Score(0), 14.6);
+    assert_eq!(form(&app).scores[0], 15);
+    let text = screen_text(app.world());
+    assert!(text.contains("[slider] 15 (8..15)"), "{text}");
+    assert!(text.contains("\"cost 9\""), "{text}");
+    press(&mut app, skill(Skill::Athletics));
+    app.update();
+    press(&mut app, skill(Skill::Perception));
+    app.update();
+    press(&mut app, ControlId::AddMember);
+    app.update();
+    let members = &session(&app).views.party.members;
+    assert_eq!(members.len(), 1);
+    assert_eq!(
+        (members[0].name.as_str(), members[0].scores[0]),
+        ("Ash", 15)
+    );
+    assert_eq!(
+        form(&app),
+        CreateForm::default(),
+        "the next member starts blank"
+    );
+    assert!(screen_text(app.world()).contains("\"CREATE YOUR PARTY   1 of 6 members\""));
+    assert_eq!(top(&app), Some(ScreenId::CreateParty), "still creating");
+    press(&mut app, ControlId::Begin);
+    app.update();
+    assert_eq!(top(&app), None, "play begins");
+    assert!(hud_shown(&mut app));
+    // Esc now pauses, as in any game.
+    tap(&mut app, KeyCode::Escape);
+    assert_eq!(top(&app), Some(ScreenId::Pause));
+}
+
+#[test]
+fn esc_on_party_creation_returns_to_the_filled_form() {
+    let save = Scratch::new("create-esc");
+    let mut app = app_at_title(&save.0);
+    to_creation(&mut app, "dragon");
+    tap(&mut app, KeyCode::Escape);
+    app.update();
+    assert!(
+        app.world().get_resource::<Session>().is_none(),
+        "the world is dropped"
+    );
+    assert_eq!(top(&app), Some(ScreenId::NewGame));
+    assert_eq!(
+        app.world().resource::<Screens>().forms.new_game.seed_text,
+        "dragon"
+    );
+}
+
+#[test]
+fn start_again_makes_the_same_party_and_after_a_load_the_save_s_game_anew() {
+    let save = Scratch::new("again");
+    let mut app = app_in_game(&save.0);
+    app.update();
+    let names = |app: &App| -> Vec<String> {
+        session(app)
+            .views
+            .party
+            .members
+            .iter()
+            .map(|m| m.name.clone())
+            .collect()
+    };
+    let party = names(&app);
+    assert_eq!(party.len(), 4);
+    fall(&mut app);
+    press(&mut app, ControlId::StartAgain);
+    app.update();
+    assert_eq!(names(&app), party, "the same party again");
+    assert_eq!(top(&app), None);
+
+    // A save from another game (seed 99), loaded into this one: Start again starts the save's
+    // game, whose party this session never made, so it is made anew.
+    let packs = app
+        .world()
+        .resource::<omnis_vector::shell::session::Packs>()
+        .clone();
+    let other = Session::with_party(
+        &packs,
+        99,
+        game_settings(Settings::default()),
+        &party::fixed(),
+    )
+    .expect("a game");
+    omnis_vector::game_io::save(&other.world, std::path::Path::new("."), &save.0).expect("saved");
+    pause(&mut app);
+    press(&mut app, ControlId::Load);
+    app.update();
+    assert_eq!(session(&app).views.here.seed, 99);
+    fall(&mut app);
+    press(&mut app, ControlId::StartAgain);
+    app.update();
+    assert_eq!(session(&app).views.here.seed, 99, "the save's game");
+    assert!(session(&app).views.party.members.is_empty());
+    assert_eq!(top(&app), Some(ScreenId::CreateParty));
 }

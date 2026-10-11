@@ -117,11 +117,12 @@ fn open_start(
     mut screens: ResMut<Screens>,
 ) {
     let game = session.as_deref().map(|s| &s.views);
+    screens.nav.reset(game);
     match start.as_deref() {
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
         Some(StartScreen::Actions) => screens.nav.open(ScreenId::Actions, game),
-        Some(StartScreen::Title) | None => {}
+        Some(StartScreen::Title | StartScreen::CreateParty) | None => {}
     }
 }
 
@@ -216,6 +217,7 @@ fn route(
     fight: Option<ResMut<FightScreen>>,
 ) {
     let screens = &mut *screens;
+    let mut leave = false;
     {
         let game = session.as_deref().map(|s| &s.views);
         let here = game.map(|v| v.position);
@@ -231,9 +233,14 @@ fn route(
                     }
                 }
                 Escape::Closed | Escape::Paused => screens.forms.message = None,
+                Escape::Leave => leave = true,
                 Escape::Nothing => {}
             }
         }
+    }
+    if leave {
+        carry_out(Effect::ToNewGame, &mut host, &mut session, screens);
+        return;
     }
     if let Some(session) = session.as_deref_mut() {
         action_keys(&used.keys, &used.mouse, session, &mut screens.nav);
@@ -368,8 +375,10 @@ fn carry_out(
     match effect {
         Effect::None => {}
         Effect::Command { command, close } => {
-            if let Some(session) = session.as_deref_mut() {
-                session.order(command);
+            if let Some(session) = session.as_deref_mut()
+                && session.order(command.clone())
+            {
+                screens.forms.accepted(&command);
             }
             if close {
                 screens.nav.back();
@@ -382,10 +391,13 @@ fn carry_out(
         Effect::Quit => {
             host.exit.write(AppExit::Success);
         }
-        Effect::ToTitle => {
+        Effect::ToTitle | Effect::ToNewGame => {
             host.commands.remove_resource::<Session>();
             host.view.set(ViewState::Explore);
-            screens.nav.reset();
+            screens.nav.reset(None);
+            if effect == Effect::ToNewGame {
+                screens.nav.open(ScreenId::NewGame, None);
+            }
         }
         Effect::Host(op) => host_op(op, host, session, screens),
     }
@@ -411,8 +423,8 @@ fn host_op(
         HostOp::NewGame { seed, settings } => {
             match Session::new_game(&host.packs, seed, settings) {
                 Ok(fresh) => {
+                    screens.nav.reset(Some(&fresh.views));
                     host.commands.insert_resource(fresh);
-                    screens.nav.reset();
                 }
                 Err(e) => report(screens, Err(format!("Could not start: {e}"))),
             }
@@ -420,7 +432,7 @@ fn host_op(
         HostOp::Restart => {
             if let Some(session) = session.as_deref_mut() {
                 match session.restart() {
-                    Ok(()) => screens.nav.reset(),
+                    Ok(()) => screens.nav.reset(Some(&session.views)),
                     Err(e) => session.say(format!("Could not start again: {e}")),
                 }
             }
@@ -443,16 +455,18 @@ fn host_op(
                     if let Some(session) = session.as_deref_mut() {
                         session.replace(world, &why);
                         session.say(format!("Loaded {save}"));
+                        screens.nav.reset(Some(&session.views));
                     } else {
                         let mut fresh = Session::loaded(&host.packs, world, &why);
                         fresh.say(format!("Loaded {save}"));
+                        screens.nav.reset(Some(&fresh.views));
                         host.commands.insert_resource(fresh);
                     }
-                    screens.nav.reset();
                 }
                 Err(e) => report(screens, Err(format!("Load failed: {e}"))),
             }
         }
+        HostOp::Begin => screens.nav.begin(),
         HostOp::SaveLog => {
             if let Some(session) = session.as_deref() {
                 let outcome = session
@@ -599,9 +613,16 @@ fn slide(
 /// The game's own nodes: the HUD's status, the button groups and the minimap.
 type GameChrome = Or<(With<StatusText>, With<Corner>, With<Minimap>)>;
 
-/// The game's HUD, buttons and minimap show only while a game runs.
-fn chrome(session: Option<Res<Session>>, mut nodes: Query<&mut Visibility, GameChrome>) {
-    let want = if session.is_some() {
+/// The game's HUD, buttons and minimap show only while a game is played: not at the title, nor
+/// while its party is made.
+fn chrome(
+    session: Option<Res<Session>>,
+    screens: Res<Screens>,
+    mut nodes: Query<&mut Visibility, GameChrome>,
+) {
+    let played =
+        session.is_some_and(|s| screens.nav.base(Some(&s.views)) != Some(ScreenId::CreateParty));
+    let want = if played {
         Visibility::Inherited
     } else {
         Visibility::Hidden

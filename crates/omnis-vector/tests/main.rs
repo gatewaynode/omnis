@@ -9,6 +9,7 @@ mod binding;
 mod combat;
 mod combat_menu;
 mod common;
+mod create_party;
 mod fight;
 mod labels;
 mod minimap;

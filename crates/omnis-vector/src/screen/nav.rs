@@ -1,7 +1,8 @@
 //! Which screen is up (presentation-ARCHITECTURE §6.3): a base that follows the world, and the
 //! overlays the player opened on top of it. After every change the overlays are checked against
 //! the world, so one the world no longer allows closes (the party moved, a fight began, the game
-//! ended).
+//! ended). A new game is created member by member before it is played: until Begin, its base is
+//! party creation.
 
 use super::ScreenId;
 use crate::sim::Views;
@@ -15,6 +16,8 @@ pub enum Escape {
     FightBack,
     /// Opened the pause.
     Paused,
+    /// Leave party creation for the new game's form, as its Back does.
+    Leave,
     /// Nothing to do.
     Nothing,
 }
@@ -23,41 +26,61 @@ pub enum Escape {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Nav {
     stack: Vec<ScreenId>,
-}
-
-/// The screen the world calls for under any overlay: the title with no game, the fallen party's,
-/// a service's, or none (the 3D view, or the fight screen, which draws itself).
-#[must_use]
-pub fn base(game: Option<&Views>) -> Option<ScreenId> {
-    let Some(views) = game else {
-        return Some(ScreenId::Title);
-    };
-    if views.combat.is_some() {
-        None
-    } else if views.fallen() {
-        Some(ScreenId::Defeat)
-    } else if views.here.service.is_some() {
-        Some(ScreenId::Service)
-    } else {
-        None
-    }
-}
-
-/// Whether the world allows overlay `id` now.
-fn allowed(id: ScreenId, game: Option<&Views>) -> bool {
-    match (id, game) {
-        (ScreenId::NewGame, None) => true,
-        (ScreenId::Pause, Some(views)) => base(Some(views)) != Some(ScreenId::Defeat),
-        (ScreenId::Actions, Some(views)) => base(Some(views)).is_none() && views.exploring(),
-        _ => false,
-    }
+    /// The game is a new one whose party is being created; Begin ends it.
+    creating: bool,
 }
 
 impl Nav {
+    /// The screen the world calls for under any overlay: the title with no game, party creation
+    /// while the party is created or has no one (an empty party is not a fallen one), the
+    /// fallen party's, a service's, or none (the 3D view, or the fight screen, which draws
+    /// itself).
+    #[must_use]
+    pub fn base(&self, game: Option<&Views>) -> Option<ScreenId> {
+        let Some(views) = game else {
+            return Some(ScreenId::Title);
+        };
+        if views.combat.is_some() {
+            None
+        } else if self.creating || views.party.members.is_empty() {
+            Some(ScreenId::CreateParty)
+        } else if views.fallen() {
+            Some(ScreenId::Defeat)
+        } else if views.here.service.is_some() {
+            Some(ScreenId::Service)
+        } else {
+            None
+        }
+    }
+
+    /// Whether the world allows overlay `id` now.
+    fn allowed(&self, id: ScreenId, game: Option<&Views>) -> bool {
+        let base = self.base(game);
+        match (id, game) {
+            (ScreenId::NewGame, None) => true,
+            (ScreenId::Pause, Some(_)) => {
+                !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
+            }
+            (ScreenId::Actions, Some(views)) => base.is_none() && views.exploring(),
+            _ => false,
+        }
+    }
+
+    /// Whether the party is being created.
+    #[must_use]
+    pub fn creating(&self) -> bool {
+        self.creating
+    }
+
+    /// The party is made: play begins.
+    pub fn begin(&mut self) {
+        self.creating = false;
+    }
+
     /// The screen on top: the last overlay, else the base.
     #[must_use]
     pub fn top(&self, game: Option<&Views>) -> Option<ScreenId> {
-        self.stack.last().copied().or_else(|| base(game))
+        self.stack.last().copied().or_else(|| self.base(game))
     }
 
     /// Whether the game waits on the screen on top: nothing moves or acts under the pause or the
@@ -66,7 +89,13 @@ impl Nav {
     pub fn paused(&self, game: Option<&Views>) -> bool {
         matches!(
             self.top(game),
-            Some(ScreenId::Pause | ScreenId::Defeat | ScreenId::Title | ScreenId::NewGame)
+            Some(
+                ScreenId::Pause
+                    | ScreenId::Defeat
+                    | ScreenId::Title
+                    | ScreenId::NewGame
+                    | ScreenId::CreateParty
+            )
         )
     }
 
@@ -78,7 +107,7 @@ impl Nav {
 
     /// Open overlay `id` on top, when the world allows it and it is not open already.
     pub fn open(&mut self, id: ScreenId, game: Option<&Views>) {
-        if allowed(id, game) && !self.is_open(id) {
+        if self.allowed(id, game) && !self.is_open(id) {
             self.stack.push(id);
         }
     }
@@ -97,19 +126,25 @@ impl Nav {
         self.stack.pop().is_some()
     }
 
-    /// Close every overlay: a new game, a loaded save, the title.
-    pub fn reset(&mut self) {
+    /// Close every overlay for a game that has just begun, been loaded or ended (`None`): a
+    /// game with no party yet is created first.
+    pub fn reset(&mut self, game: Option<&Views>) {
         self.stack.clear();
+        self.creating = game.is_some_and(|v| v.party.members.is_empty());
     }
 
     /// Close what the world no longer allows, and the square's actions when the party `moved`.
     pub fn settle(&mut self, game: Option<&Views>, moved: bool) {
-        self.stack
-            .retain(|&id| allowed(id, game) && !(moved && id == ScreenId::Actions));
+        let stack = core::mem::take(&mut self.stack);
+        self.stack = stack
+            .into_iter()
+            .filter(|&id| self.allowed(id, game) && !(moved && id == ScreenId::Actions))
+            .collect();
     }
 
     /// Esc: close the top overlay; otherwise step a fight's menu back when it is not at its
-    /// first step (`fight_at_root` false); otherwise pause a running game.
+    /// first step (`fight_at_root` false); otherwise leave party creation, or pause a running
+    /// game.
     pub fn escape(&mut self, game: Option<&Views>, fight_at_root: bool) -> Escape {
         if self.back() {
             return Escape::Closed;
@@ -120,7 +155,10 @@ impl Nav {
         if views.combat.is_some() && !fight_at_root {
             return Escape::FightBack;
         }
-        if allowed(ScreenId::Pause, game) {
+        if self.base(game) == Some(ScreenId::CreateParty) {
+            return Escape::Leave;
+        }
+        if self.allowed(ScreenId::Pause, game) {
             self.stack.push(ScreenId::Pause);
             Escape::Paused
         } else {

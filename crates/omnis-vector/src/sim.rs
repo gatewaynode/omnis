@@ -5,10 +5,10 @@
 //! Bevy-free.
 
 use omnis_sim::api::{
-    CombatView, Command, Direction, Event, Facing, Here, Known, MapId, ModeKind, NewGameError, Op,
-    OpError, PartyView, Position, Rejection, Reply, Settings, Status, World, apply, automap,
-    check_reload, combat_view, dispatch, door_open, here, party_view, save_text, status,
-    step_lands,
+    CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId, ModeKind,
+    NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, Settings, Status, World,
+    apply, automap, check_reload, combat_view, creation_view, dispatch, door_open, here,
+    party_view, save_text, status, step_lands,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -197,6 +197,9 @@ pub struct Views {
     pub party: PartyView,
     /// The encounter or fight, if one is on.
     pub combat: Option<CombatView>,
+    /// What a new member's draft may be (the loaded rules', so a rule set over the dev socket
+    /// shows at the next refresh).
+    pub creation: CreationView,
 }
 
 impl Views {
@@ -216,6 +219,7 @@ impl Views {
             position,
             party: world.party(data),
             combat: world.combat(data),
+            creation: creation_view(data),
         }
     }
 

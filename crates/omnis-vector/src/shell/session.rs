@@ -8,6 +8,7 @@ use crate::pose::Pose;
 use crate::rolllog::{self, Names};
 use crate::sim::{SimWorld, Views, game_settings};
 use bevy::prelude::Resource;
+use omnis_sim::api::Draft;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
 use omnis_sim::{Command, Event, PartyCommand, Settings, World};
@@ -72,6 +73,8 @@ pub enum StartScreen {
     Title,
     /// The new-game form (no game).
     NewGame,
+    /// Party creation, in a new game with no party.
+    CreateParty,
     /// Pause, over a game.
     Pause,
     /// The square's actions, over a game.
@@ -82,7 +85,10 @@ impl StartScreen {
     /// Whether the screen is shown over a running game.
     #[must_use]
     pub const fn in_game(self) -> bool {
-        matches!(self, StartScreen::Pause | StartScreen::Actions)
+        matches!(
+            self,
+            StartScreen::Pause | StartScreen::Actions | StartScreen::CreateParty
+        )
     }
 }
 
@@ -100,7 +106,7 @@ impl Config {
 
 /// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>` (and start in the game
 /// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
-/// `--screen title|new-game|pause|actions` (open it at the start), `--windowed`,
+/// `--screen title|new-game|create-party|pause|actions` (open it at the start), `--windowed`,
 /// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
@@ -134,11 +140,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                 config.screen = Some(match value("--screen")?.as_str() {
                     "title" => StartScreen::Title,
                     "new-game" => StartScreen::NewGame,
+                    "create-party" => StartScreen::CreateParty,
                     "pause" => StartScreen::Pause,
                     "actions" => StartScreen::Actions,
                     other => {
                         return Err(format!(
-                            "--screen takes title, new-game, pause or actions, got {other}"
+                            "--screen takes title, new-game, create-party, pause or actions, got {other}"
                         ));
                     }
                 });
@@ -268,47 +275,81 @@ pub struct Session {
 
 impl Session {
     /// Load the packs and start a game with the command line's seed and the default settings
-    /// (with `Dev` commands in devtools builds): a game started without the title.
+    /// (with `Dev` commands in devtools builds) and the fixed party: a game started without the
+    /// title.
     ///
     /// # Errors
     /// A message for a pack that fails to load or a world that cannot start.
     pub fn start(config: &Config) -> Result<Session, String> {
         let packs = Packs::load(config)?;
-        Session::new_game(&packs, config.seed, game_settings(Settings::default()))
+        Session::with_party(
+            &packs,
+            config.seed,
+            game_settings(Settings::default()),
+            &party::fixed(),
+        )
     }
 
-    /// A new game from `packs` with `seed` and `settings`: a world, then the fixed party
-    /// created through the binder (character creation replaces it, parity P3).
+    /// A new game from `packs` with `seed` and `settings`, its party not yet made: party
+    /// creation comes first.
     ///
     /// # Errors
     /// A message for a world that cannot start.
     pub fn new_game(packs: &Packs, seed: u64, settings: Settings) -> Result<Session, String> {
+        Session::with_party(packs, seed, settings, &[])
+    }
+
+    /// A new game whose party is `drafts`, each created through the binder, so the log
+    /// replays them.
+    ///
+    /// # Errors
+    /// A message for a world that cannot start or a draft the rules refuse.
+    pub fn with_party(
+        packs: &Packs,
+        seed: u64,
+        settings: Settings,
+        drafts: &[Draft],
+    ) -> Result<Session, String> {
         Session::begin(
             Arc::clone(&packs.data),
             packs.config.clone(),
-            seed,
-            settings,
+            (seed, settings),
+            drafts,
         )
     }
 
     fn begin(
         data: Arc<Data>,
         config: Config,
-        seed: u64,
-        settings: Settings,
+        (seed, settings): (u64, Settings),
+        drafts: &[Draft],
     ) -> Result<Session, String> {
         let mut world = SimWorld::start(&data, seed, settings).map_err(|e| format!("{e:?}"))?;
         let mut binder = Binder::default();
-        for draft in party::fixed() {
+        for draft in drafts {
             binder
                 .apply(
                     &mut world,
                     &data,
-                    Command::Party(PartyCommand::Create(draft)),
+                    Command::Party(PartyCommand::Create(draft.clone())),
                 )
-                .map_err(|e| format!("party: {e:?}"))?;
+                .map_err(|e| format!("party: {e}"))?;
         }
         Ok(Session::around(data, config, world, binder, seed, settings))
+    }
+
+    /// The members this game's log created, in order: the party a restart makes again. Empty
+    /// for a loaded save, whose log starts empty.
+    #[must_use]
+    pub fn drafts(&self) -> Vec<Draft> {
+        self.binder
+            .log
+            .iter()
+            .filter_map(|c| match c {
+                Command::Party(PartyCommand::Create(draft)) => Some(draft.clone()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// A game from a loaded save: its log starts empty and does not replay, since a replay
@@ -379,14 +420,22 @@ impl Session {
         Ok(self.log_path.clone())
     }
 
-    /// Apply a command that is not movement (an encounter choice, a combat action) and report
-    /// what happened. The pose follows when the command moved the party, as a retreat does.
-    pub fn order(&mut self, command: Command) {
-        match self.binder.apply(&mut self.world, &self.data, command) {
-            Ok(events) => self.note(&events),
-            Err(rejection) => self.say(format!("Refused: {rejection}")),
-        }
+    /// Apply a command that is not movement (an encounter choice, a combat action, a new
+    /// member) and report what happened; `true` when it was accepted. The pose follows when the
+    /// command moved the party, as a retreat does.
+    pub fn order(&mut self, command: Command) -> bool {
+        let accepted = match self.binder.apply(&mut self.world, &self.data, command) {
+            Ok(events) => {
+                self.note(&events);
+                true
+            }
+            Err(rejection) => {
+                self.say(format!("Refused: {rejection}"));
+                false
+            }
+        };
         self.follow();
+        accepted
     }
 
     /// Snap the pose to the simulation's position when the party is no longer where the pose
@@ -399,20 +448,24 @@ impl Session {
         }
     }
 
-    /// Start the same game over: a fresh world and party with this game's seed and settings.
+    /// Start the same game over: a fresh world with this game's seed and settings, and the
+    /// same party made again from the log (none after a loaded save: it is created anew).
     ///
     /// # Errors
-    /// As [`Session::new_game`]; the old session is kept.
+    /// As [`Session::with_party`]; the old session is kept.
     pub fn restart(&mut self) -> Result<(), String> {
+        let drafts = self.drafts();
         *self = Session::begin(
             Arc::clone(&self.data),
             self.config.clone(),
-            self.seed,
-            self.settings,
+            (self.seed, self.settings),
+            &drafts,
         )?;
         // The doors are shut again.
         self.reshape = true;
-        self.say("A new party sets out".to_owned());
+        if !drafts.is_empty() {
+            self.say("A new party sets out".to_owned());
+        }
         Ok(())
     }
 
@@ -443,9 +496,14 @@ impl Session {
     }
 
     /// A world from outside the binder (a loaded save) takes this one's place: the views, the
-    /// pose and the names follow it, the lines are redrawn, and the log stops replaying.
+    /// pose and the names follow it, the lines are redrawn, and the log stops replaying. The
+    /// game is now the save's: its seed and settings, and none of this log's members, so a
+    /// restart starts the save's game and has its party made anew.
     pub fn replace(&mut self, world: omnis_sim::World, why: &str) {
         self.world.replace(world);
+        let here = self.world.here(&self.data);
+        (self.seed, self.settings) = (here.seed, here.settings);
+        self.binder.log.clear();
         self.refresh();
         self.pose = Pose::at(self.views.position);
         self.names.observe(&self.views.party);
@@ -518,6 +576,10 @@ mod tests {
         assert!(!start(&["--screenshot", "x.png", "--screen", "title"]));
         assert!(!start(&["--seed", "7", "--screen", "new-game"]));
         assert!(start(&["--screen", "pause"]), "the pause needs a game");
+        assert!(
+            start(&["--screen", "create-party"]),
+            "a new world to make a party in"
+        );
         assert!(parse(args(&["--screen", "sheet"])).is_err());
     }
 

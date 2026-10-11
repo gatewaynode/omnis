@@ -7,8 +7,9 @@
 //! `MessageKey`, which falls back to this client's own wording so a key never reaches the player.
 
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
-use omnis_sim::omnis_data::Data;
-use omnis_sim::{MessageKey, SaveRule};
+use omnis_sim::omnis_data::{Alignment, Data, Skill};
+use omnis_sim::omnis_rules::CreationError;
+use omnis_sim::{MessageKey, Rejection, SaveRule};
 
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
 #[must_use]
@@ -108,5 +109,54 @@ pub const fn save_rule(rule: SaveRule) -> &'static str {
         SaveRule::Anywhere => "Anywhere",
         SaveRule::Relief => "Inns, items, and spells",
         SaveRule::InnOnly => "Inns only",
+    }
+}
+
+/// A name the engine spells as one Rust word (`SleightOfHand`), as words: "Sleight of Hand".
+fn spaced(name: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in name.char_indices() {
+        if c.is_ascii_uppercase() && i > 0 {
+            out.push(' ');
+        }
+        out.push(c);
+    }
+    out.split(' ')
+        .enumerate()
+        .map(|(i, w)| match w {
+            "Of" | "The" if i > 0 => w.to_ascii_lowercase(),
+            _ => w.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// An alignment: "Lawful Good".
+#[must_use]
+pub fn alignment(a: Alignment) -> String {
+    spaced(&format!("{a:?}"))
+}
+
+/// A skill: "Sleight of Hand".
+#[must_use]
+pub fn skill(s: Skill) -> String {
+    spaced(&format!("{s:?}"))
+}
+
+/// Why a draft would not be added, in the words party creation uses: the party full, a name
+/// missing, points overspent, the wrong number of picks (`choose`); anything else in the
+/// engine's own words.
+#[must_use]
+pub fn creation_refusal(rejection: &Rejection, picks: usize, choose: u8) -> String {
+    match rejection {
+        Rejection::PartyFull => "The party is full".to_owned(),
+        Rejection::Character(CreationError::Name) => "Give the character a name".to_owned(),
+        Rejection::Character(CreationError::Points { spent, budget }) => {
+            format!("{spent} points spent of {budget}")
+        }
+        Rejection::Character(CreationError::Skills(_)) if picks != usize::from(choose) => {
+            format!("Pick {choose} skills")
+        }
+        other => other.to_string(),
     }
 }

@@ -9,6 +9,7 @@
 //! sees it, so the renderer and a test reach the same answer.
 
 pub mod actions;
+pub mod create_party;
 pub mod defeat;
 pub mod nav;
 pub mod new_game;
@@ -19,6 +20,7 @@ pub mod title;
 use crate::sim::{SimWorld, Views};
 use crate::style::{Role, Size};
 use core::hash::{Hash, Hasher};
+use create_party::CreateForm;
 use new_game::NewGameForm;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{Command, Settings};
@@ -30,6 +32,8 @@ pub enum ScreenId {
     Title,
     /// The new game's seed and settings.
     NewGame,
+    /// A new game's party, created member by member.
+    CreateParty,
     /// The game paused: save, load, leave.
     Pause,
     /// The square's actions (Space).
@@ -75,6 +79,24 @@ pub enum ControlId {
     QuitToTitle,
     /// Leave the program.
     Quit,
+    /// The draft's name.
+    Name,
+    /// The draft's race.
+    Race,
+    /// The draft's class.
+    Class,
+    /// The draft's background.
+    Background,
+    /// The draft's alignment.
+    Alignment,
+    /// One bought score, by ability index (SRD order).
+    Score(u8),
+    /// One skill pick, by index into `Skill::ALL`.
+    Skill(u8),
+    /// Add the draft to the party.
+    AddMember,
+    /// The party is made: play.
+    Begin,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -347,6 +369,8 @@ pub enum HostOp {
     Load,
     /// Write the command log as a replay.
     SaveLog,
+    /// The party is made: play begins.
+    Begin,
 }
 
 /// What the shell does after a control was used.
@@ -370,6 +394,8 @@ pub enum Effect {
     Open(ScreenId),
     /// End the game and go back to the title.
     ToTitle,
+    /// End a game not yet begun and reopen the new game's form, as it was left.
+    ToNewGame,
     /// Leave the program.
     Quit,
 }
@@ -435,8 +461,19 @@ pub struct Ctx<'a> {
 pub struct Forms {
     /// The new game's form; kept across Back, so it reopens as it was left.
     pub new_game: NewGameForm,
+    /// The next member's draft.
+    pub create: CreateForm,
     /// The last outcome to report (saved, failed to load); cleared when the screen changes.
     pub message: Option<Span>,
+}
+
+impl Forms {
+    /// A command was accepted: a member was created, so the draft starts over for the next.
+    pub fn accepted(&mut self, command: &Command) {
+        if matches!(command, Command::Party(omnis_sim::PartyCommand::Create(_))) {
+            self.create = CreateForm::default();
+        }
+    }
 }
 
 /// A screen with nothing on it, for one asked for without the game it needs.
@@ -460,6 +497,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
+        (ScreenId::CreateParty, Some(game)) => create_party::content(ctx.data, game, &forms.create),
         (id, None) => empty(id),
     };
     screen.message.clone_from(&forms.message);
@@ -508,6 +546,9 @@ pub fn apply(
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
         (ScreenId::Service, _) => service::apply(control),
         (ScreenId::Defeat, _) => defeat::apply(control),
-        (ScreenId::Actions, None) => Effect::None,
+        (ScreenId::CreateParty, Some(game)) => {
+            create_party::apply(&mut forms.create, game, control, payload)
+        }
+        (ScreenId::Actions | ScreenId::CreateParty, None) => Effect::None,
     })
 }

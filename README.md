@@ -59,18 +59,18 @@ dev socket, `Dev` commands, the debug panel); a release build turns it off.
 ```sh
 just run                                     # the vector client, the same as the next line; flags pass through
 cargo run -p omnis-vector                    # fullscreen, at the title; --windowed, --monitor N, --pack DIR
-cargo run -p omnis-vector -- --seed 7        # straight into a game; --save FILE names the quick save
+cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed party of four; --save FILE names the quick save
 just run-app                                 # the previous client (cargo run -p omnis-app); flags pass through
 cargo run -p omnis-app -- --window medium    # windowed: small, medium, large, huge
 cargo run -p omnis-app -- --pack packs/base --seed 7 --save .omnis/quick.ron
 cargo build -p omnis-app --release --no-default-features
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
-cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, pause, actions
+cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions
 ```
 
-The vector client is the game going forward (`presentation-PRD.md`, `presentation-ARCHITECTURE.md`). It walks,
-opens doors and fights; character creation, saves, town services, inventory and the dev socket
-are still in `omnis-app` until the vector client matches it screen by screen (`tasks/TODO.md`,
+The vector client is the game going forward (`presentation-PRD.md`, `presentation-ARCHITECTURE.md`). It starts
+at a title, makes a new game's party, walks, opens doors, fights, saves and loads, and has the dev
+socket; town services, inventory, sheets and spells are still in `omnis-app` until the vector client matches it screen by screen (`tasks/TODO.md`,
 "Vector adoption"). What follows describes `omnis-app`.
 
 Every action has a button or menu item; the keys are shortcuts. While exploring, the arrows or the

@@ -101,3 +101,33 @@ fn money_reads_by_coin_or_as_whole_gold() {
         "Inns, items, and spells"
     );
 }
+
+#[test]
+fn skills_and_alignments_read_as_words_and_creation_refusals_as_the_screen_says_them() {
+    use omnis_sim::Rejection;
+    use omnis_sim::omnis_data::{Alignment, Skill};
+    use omnis_sim::omnis_rules::CreationError;
+    assert_eq!(labels::skill(Skill::SleightOfHand), "Sleight of Hand");
+    assert_eq!(labels::skill(Skill::AnimalHandling), "Animal Handling");
+    assert_eq!(labels::alignment(Alignment::LawfulGood), "Lawful Good");
+    let refusal = |r: Rejection, picks| labels::creation_refusal(&r, picks, 2);
+    assert_eq!(refusal(Rejection::PartyFull, 2), "The party is full");
+    assert_eq!(
+        refusal(Rejection::Character(CreationError::Name), 2),
+        "Give the character a name"
+    );
+    assert_eq!(
+        refusal(
+            Rejection::Character(CreationError::Points {
+                spent: 28,
+                budget: 27
+            }),
+            2
+        ),
+        "28 points spent of 27"
+    );
+    let skills = || Rejection::Character(CreationError::Skills("x".into()));
+    assert_eq!(refusal(skills(), 1), "Pick 2 skills");
+    // The right count but another skill fault: the engine's own words, never a wrong count.
+    assert_eq!(refusal(skills(), 2), skills().to_string());
+}
