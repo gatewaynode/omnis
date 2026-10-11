@@ -67,14 +67,14 @@ pub(super) fn route(
     buttons: Query<(&Interaction, &Side), Changed<Interaction>>,
 ) {
     let Some(session) = session else {
-        screens.selected = None;
+        screens.forms.selected = None;
         return;
     };
     let ctx = ctx(&session);
     let Some(game) = ctx.game else {
         return;
     };
-    screens.selected = roster::settle(game, screens.selected);
+    screens.forms.selected = roster::settle(game, screens.forms.selected);
     if !shown(Some(&session), &screens, *showing) {
         return;
     }
@@ -85,9 +85,9 @@ pub(super) fn route(
     else {
         return;
     };
-    let mut selected = screens.selected;
+    let mut selected = screens.forms.selected;
     match roster::apply(ctx.data, game, &mut selected, id) {
-        Ok(RosterEffect::None) => screens.selected = selected,
+        Ok(RosterEffect::None) => screens.forms.selected = selected,
         // Every screen the column opens arrives with a later step; until then each is dim.
         Ok(RosterEffect::Open { .. }) | Err(_) => {}
     }
@@ -149,7 +149,7 @@ pub(super) fn paint(
     let Some(game) = ctx.game else {
         return;
     };
-    let panel = roster::content(ctx.data, game, screens.selected);
+    let panel = roster::content(ctx.data, game, screens.forms.selected);
     if drawn.0.as_ref() == Some(&(panel.clone(), place)) {
         return;
     }

@@ -9,7 +9,7 @@
 use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
 use omnis_sim::omnis_core::{Calendar, CharacterId};
-use omnis_sim::omnis_data::{Alignment, Data, Skill};
+use omnis_sim::omnis_data::{Alignment, Data, EquipSlot, Skill};
 use omnis_sim::omnis_rules::CreationError;
 use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
@@ -318,6 +318,58 @@ pub fn service_reason(refusal: &Rejection) -> String {
             minutes / 60,
             minutes % 60
         ),
+        other => other.to_string(),
+    }
+}
+
+/// An equipment slot's name (the other client's `sheet_menu::slot_label`).
+#[must_use]
+pub const fn slot(slot: EquipSlot) -> &'static str {
+    match slot {
+        EquipSlot::MainHand => "Main hand",
+        EquipSlot::OffHand => "Off hand",
+        EquipSlot::Ranged => "Ranged",
+        EquipSlot::Body => "Body",
+    }
+}
+
+/// An item's name with its count when there is more than one: "Rations x5" (ASCII; the font
+/// has no multiplication sign).
+#[must_use]
+pub fn count_label(name: &str, count: u16) -> String {
+    if count > 1 {
+        format!("{name} x{count}")
+    } else {
+        name.to_owned()
+    }
+}
+
+/// A member's name in `party`, or "someone" for one not in it.
+fn named(party: &PartyView, member: CharacterId) -> &str {
+    party
+        .members
+        .iter()
+        .find(|m| m.member == member)
+        .map_or("someone", |m| m.name.as_str())
+}
+
+/// An item's or a road cast's refusal in a few words, for a dim button (the other client's
+/// `blocked_note` and inventory messages): members by name where the engine's words give their
+/// number; anything else in the engine's own words.
+#[must_use]
+pub fn reason(party: &PartyView, refusal: &Rejection) -> String {
+    match refusal {
+        Rejection::MemberDead { member } | Rejection::TargetDead { member } => {
+            format!("{} is dead", named(party, *member))
+        }
+        Rejection::MemberDown { member } => format!("{} is down", named(party, *member)),
+        Rejection::NotEnoughPoints { need, .. } => format!("need {need} pt"),
+        Rejection::MissingComponents { .. } => "needs components".to_owned(),
+        Rejection::NotCastable { .. } => "not here".to_owned(),
+        Rejection::NotEquippable => "cannot be worn or wielded".to_owned(),
+        Rejection::HandsFull => "no hand free for a shield".to_owned(),
+        Rejection::NotUsable => "does nothing when used".to_owned(),
+        Rejection::NotUsableHere => "not from a fight".to_owned(),
         other => other.to_string(),
     }
 }

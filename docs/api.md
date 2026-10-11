@@ -480,8 +480,9 @@ met).
 
 One entry per spell a member may cast outside a fight, in marching order, then the order the
 member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spell` (the spell
-id, `Command::Cast`'s `spell`), `name` (text key), `cost` (points, 0 for a cantrip),
-`targets_members`, `refusal` (`Rejection` or null).
+id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast charges: the
+spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
+0 for a cantrip), `targets_members`, `refusal` (`Rejection` or null).
 
 ### 7.9 `CreationView`, `RaceOption`, `ClassOption`, `BackgroundOption`
 

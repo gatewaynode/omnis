@@ -5,14 +5,15 @@ use crate::labels;
 use crate::rolllog::Names;
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::EquipSlot;
 use omnis_sim::omnis_rules::Gains;
-use omnis_sim::{BlockReason, CombatOutcome, Event};
+use omnis_sim::{BlockReason, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace};
 
 /// A HUD line for the events worth showing; the per-step chatter is left out. Members are
 /// named through `names`, so a line still reads after its member has left the party.
 #[must_use]
 pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
-    if let Some(line) = town(event, names, data) {
+    if let Some(line) = town(event, names, data).or_else(|| kit_and_spells(event, names, data)) {
         return Some(line);
     }
     Some(match event {
@@ -43,6 +44,117 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             CombatOutcome::Defeat => "The party has fallen".to_owned(),
         },
         Event::Message { key } => labels::message(data, *key).to_owned(),
+        _ => return None,
+    })
+}
+
+/// A line for an item or a spell event (the other client's `item_text.rs` and `spell_text.rs`,
+/// the short form). An effect lapsing at a turn or with a fight is the fight log's alone.
+fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
+    let who = |m: &CharacterId| names.member(*m);
+    let item = |id: &str| labels::item(data, id).to_owned();
+    let spell = |id: &str| labels::spell(data, id).to_owned();
+    Some(match event {
+        Event::Equipped {
+            member,
+            slot,
+            item: it,
+        } => {
+            let verb = if *slot == EquipSlot::Body {
+                "wears"
+            } else {
+                "wields"
+            };
+            format!("{} {verb} {}", who(member), item(it))
+        }
+        Event::Unequipped {
+            member, item: it, ..
+        } => {
+            format!("{} takes off {}", who(member), item(it))
+        }
+        Event::ItemMoved {
+            item: it,
+            count,
+            from,
+            to,
+        } => {
+            let what = if *count == 1 {
+                item(it)
+            } else {
+                format!("{count} {}", item(it))
+            };
+            match (from, to) {
+                (ItemPlace::Member(f), ItemPlace::Member(t)) => {
+                    format!("{} gives {what} to {}", who(f), who(t))
+                }
+                (ItemPlace::Member(f), ItemPlace::Stores) => format!("{} stows {what}", who(f)),
+                (ItemPlace::Stores, ItemPlace::Member(t)) => format!("{} takes {what}", who(t)),
+                (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
+            }
+        }
+        // A look has no receiver; its `Sensed` line is the outcome.
+        Event::ItemUsed { receiver: None, .. } => return None,
+        Event::ItemUsed {
+            member,
+            item: it,
+            receiver: Some(r),
+            ..
+        } => {
+            if r == member {
+                format!("{} uses {}", who(member), item(it))
+            } else {
+                format!("{} uses {} on {}", who(member), item(it), who(r))
+            }
+        }
+        Event::SpellCast {
+            caster,
+            spell: s,
+            points,
+            components_consumed,
+        } => {
+            let cost = if *points == 0 {
+                "free".to_owned()
+            } else {
+                format!("{points} pt")
+            };
+            let parts = match components_consumed.len() {
+                0 => String::new(),
+                n => format!(", {n} component(s)"),
+            };
+            format!("{} casts {} ({cost}{parts})", who(caster), spell(s))
+        }
+        Event::Healed {
+            target, amount, hp, ..
+        } => {
+            format!("{} regains {amount} hp, now {hp}", who(target))
+        }
+        Event::EffectApplied {
+            target, spell: s, ..
+        } => match target {
+            EffectTarget::Member(m) => format!("{} settles on {}", spell(s), who(m)),
+            EffectTarget::Party => format!("{} lights the party's way", spell(s)),
+        },
+        Event::EffectEnded {
+            target,
+            spell: s,
+            why,
+        } => {
+            let whom = match target {
+                EffectTarget::Member(m) => who(m).to_owned(),
+                EffectTarget::Party => "the party".to_owned(),
+            };
+            match why {
+                EffectEnd::Expired => format!("{} fades from {whom}", spell(s)),
+                EffectEnd::Consumed => format!("{} is spent on {whom}", spell(s)),
+                EffectEnd::Concentration => format!("{} leaves {whom}", spell(s)),
+                EffectEnd::TurnBegan | EffectEnd::FightOver => return None,
+            }
+        }
+        Event::Concentration {
+            caster, spell: s, ..
+        } => {
+            format!("{} lets {} go", who(caster), spell(s))
+        }
         _ => return None,
     })
 }

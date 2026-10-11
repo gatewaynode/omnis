@@ -5,10 +5,10 @@
 //! Bevy-free.
 
 use omnis_sim::api::{
-    CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId, ModeKind,
-    NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, ServiceView, Settings,
-    Status, World, apply, automap, check_reload, combat_view, creation_view, dispatch, door_open,
-    here, party_view, save_text, service_view, status, step_lands,
+    CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId,
+    ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, ServiceView,
+    Settings, Status, World, apply, automap, cast_view, check_reload, combat_view, creation_view,
+    dispatch, door_open, here, party_view, save_text, service_view, status, step_lands,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -54,6 +54,12 @@ impl SimWorld {
     /// As `api::dispatch`; host ops answer `HostOnly`.
     pub fn dispatch(&mut self, data: &Data, op: &Op) -> Result<Reply, OpError> {
         dispatch(&mut self.0, data, op)
+    }
+
+    /// Every member's spells castable outside a fight (`api::cast_view`).
+    #[must_use]
+    pub fn casts(&self, data: &Data) -> Vec<CastView> {
+        cast_view(&self.0, data)
     }
 
     /// Where the party is and what it is doing (`api::here`).
@@ -205,6 +211,8 @@ pub struct Views {
     pub combat: Option<CombatView>,
     /// The service the party is inside: every offer with its command, price and refusal.
     pub service: Option<ServiceView>,
+    /// Every member's spells castable outside a fight, with cost and refusal.
+    pub casts: Vec<CastView>,
     /// What a new member's draft may be (the loaded rules', so a rule set over the dev socket
     /// shows at the next refresh).
     pub creation: CreationView,
@@ -228,6 +236,7 @@ impl Views {
             party: world.party(data),
             combat: world.combat(data),
             service: world.service(data),
+            casts: world.casts(data),
             creation: creation_view(data),
         }
     }

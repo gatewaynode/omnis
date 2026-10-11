@@ -33,8 +33,8 @@ use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{SliderValue, ValueChange};
 use bevy::window::PrimaryWindow;
+use omnis_sim::omnis_core::Position;
 use omnis_sim::omnis_core::rng::splitmix64;
-use omnis_sim::omnis_core::{CharacterId, Position};
 use omnis_sim::{Command, ServiceCommand};
 use std::path::Path;
 
@@ -53,15 +53,13 @@ pub struct Screens {
     drawn: Option<(Screen, u32)>,
     /// Where the party stood last frame, to close the square's actions when it moves.
     at: Option<Position>,
-    /// The member selected in the party column.
-    pub selected: Option<CharacterId>,
 }
 
 impl Screens {
     /// A new start: the base screen for `game`, no overlay, no member selected.
     pub fn reset(&mut self, game: Option<&Views>) {
         self.nav.reset(game);
-        self.selected = None;
+        self.forms.selected = None;
     }
 }
 

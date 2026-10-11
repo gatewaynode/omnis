@@ -482,6 +482,8 @@ pub struct Forms {
     pub message: Option<Span>,
     /// The bank's amount in whole gold, the digits as typed; cleared when a service is entered.
     pub bank: String,
+    /// The member selected in the party column: who receives a give, a potion or a spell.
+    pub selected: Option<omnis_sim::omnis_core::CharacterId>,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }

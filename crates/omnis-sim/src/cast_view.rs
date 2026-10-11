@@ -11,6 +11,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
 use omnis_data::Data;
+use omnis_rules::spell_cost;
 use serde::{Deserialize, Serialize};
 
 /// One spell a member could cast outside a fight.
@@ -22,7 +23,8 @@ pub struct CastView {
     pub spell: String,
     /// Text key of the spell's name.
     pub name: String,
-    /// Points it costs; 0 for a cantrip.
+    /// Points it costs, by the rules' `spell_points.cost` slot unless the spell names its own;
+    /// 0 for a cantrip.
     pub cost: u32,
     /// Aimed at a member rather than at the caster.
     pub targets_members: bool,
@@ -46,7 +48,9 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
                 caster: member.id,
                 spell: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
                 name: def.name.clone(),
-                cost: def.point_cost(),
+                // What the cast charges: the cost slot (a pack may price spells its own way), on
+                // a copy of the stream; a rule error is the refusal's to report.
+                cost: spell_cost(def, data, &mut fresh(world)).unwrap_or_else(|_| def.point_cost()),
                 targets_members: def.effect.as_ref().is_some_and(|e| e.targets_members()),
                 refusal: cast::check(world, data, own, *id, false, &mut fresh(world)).err(),
             });

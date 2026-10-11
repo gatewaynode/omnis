@@ -203,6 +203,31 @@ fn bless_is_cast_by_its_id_and_the_row_carries_that_id() {
     );
 }
 
+/// A row's cost is what the cast charges: the `spell_points.cost` slot, not the spell's level,
+/// so a pack (or `rules.set`) that prices spells its own way is shown that price (parity P5).
+#[test]
+fn a_cast_row_costs_what_the_cost_slot_charges() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let durin = world.party.members[DURIN].id;
+    let bless = |world: &World| {
+        cast_view(world, &data)
+            .into_iter()
+            .find(|r| r.caster == durin && r.spell == "base:spell:bless")
+            .expect("Durin's Bless")
+    };
+    assert_eq!(bless(&world).cost, 2, "a level 1 spell at twice its level");
+    world.party.members[DURIN].spell_points = 1;
+    assert_eq!(
+        bless(&world).refusal,
+        Some(Rejection::NotEnoughPoints { need: 2, have: 1 })
+    );
+}
+
 #[test]
 fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
     let data = data();

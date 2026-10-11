@@ -88,14 +88,14 @@ fn the_column_lists_the_party_and_a_member_opens_their_row() {
     assert!(!text.contains("Sheet"), "no row until a member is selected");
     press_side(&mut app, ControlId::Member(members[1].member));
     assert_eq!(
-        app.world().resource::<Screens>().selected,
+        app.world().resource::<Screens>().forms.selected,
         Some(members[1].member)
     );
     let text = screen_text(app.world());
     assert!(text.contains("Sheet: Not built yet (P6)"), "{text}");
     assert!(text.contains("Journal: No quests yet"), "{text}");
     press_side(&mut app, ControlId::Member(members[1].member));
-    assert_eq!(app.world().resource::<Screens>().selected, None);
+    assert_eq!(app.world().resource::<Screens>().forms.selected, None);
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn the_column_hides_at_the_title_on_creation_and_under_the_pause() {
     press(&mut app, ControlId::Save);
     press(&mut app, ControlId::Load);
     assert!(top_is_none(&app), "the save loaded and the pause closed");
-    assert_eq!(app.world().resource::<Screens>().selected, None);
+    assert_eq!(app.world().resource::<Screens>().forms.selected, None);
     let _ = std::fs::remove_file(&save.0);
 }
 
