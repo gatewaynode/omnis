@@ -25,3 +25,4 @@ mod service;
 mod sheet;
 mod shell;
 mod socket;
+mod tactics;

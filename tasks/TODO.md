@@ -373,7 +373,7 @@ Parity, then retirement (each item planned in plan mode when reached; tools firs
   - [x] P6a: the fight's `SpellView.cost` from the cost slot (engine bug, red test first); `MemberView.known_spells` with cost and `pay`; `api` re-exports `Row`; `Views.rest`; race, background, ability, pay and refusal words; the rest and tactics event lines (gate).
   - [x] P6b: Camp screen and the Camp button (lit by nav); `ScreenId::beside_column`.
   - [x] P6c: the character sheet (Stats, Magic, Gear), live from the column.
-  - [ ] P6d: the tactics screen and its form (gate).
+  - [x] P6d: the tactics screen and its form (gate).
   - [ ] P6e: presentation-ARCHITECTURE, `tasks/acceptance/p6.md`, the plan's as-built note, code-map, continuity.
 - [ ] P7. Fight-screen parity: features, React, the Use picker, the budget line. Engine first: `SpellView`'s action cost, the fight's usable items with refusals (§4.4); the fight's controls onto the screen kit (§6.5).
 - [ ] P8. Debug panel; settings (reduced motion, grid visibility, quality, font and scale).

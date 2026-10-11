@@ -20,6 +20,8 @@ pub mod pause;
 pub mod roster;
 pub mod service;
 pub mod sheet;
+pub mod tactics;
+pub mod tactics_draft;
 pub mod title;
 
 use crate::sim::{SimWorld, Views};
@@ -161,6 +163,8 @@ pub enum ControlId {
     Page,
     /// Open the member's tactics.
     Tactics,
+    /// A control of the tactics screen.
+    Tactic(tactics::TacticAct),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -542,6 +546,8 @@ pub struct Forms {
     pub dice: Vec<u8>,
     /// The sheet's page, kept between openings.
     pub page: sheet::Page,
+    /// The reaction the tactics screen is writing; a new one each time it opens.
+    pub tactics: tactics::TacticsForm,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -560,6 +566,7 @@ impl Forms {
         if top != self.seen.0 {
             self.message = None;
             self.dice.clear();
+            self.tactics = tactics::TacticsForm::default();
         }
         if base == Some(ScreenId::Service) && self.seen.1 != base {
             self.bank.clear();
@@ -592,7 +599,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
         (ScreenId::Camp, Some(game)) => camp::content(ctx.data, game, forms),
         (ScreenId::Sheet, Some(game)) => sheet::content(ctx.data, game, forms),
-        (ScreenId::Tactics, Some(_)) => empty(ScreenId::Tactics),
+        (ScreenId::Tactics, Some(game)) => tactics::content(ctx.data, game, forms),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
         (ScreenId::CreateParty, Some(game)) => create_party::content(ctx.data, game, &forms.create),
         (id, None) => empty(id),
@@ -647,6 +654,7 @@ pub fn apply(
         (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
         (ScreenId::Camp, Some(game)) => camp::apply(game, forms, control, payload),
         (ScreenId::Sheet, Some(game)) => sheet::apply(game, forms, control, payload),
+        (ScreenId::Tactics, Some(game)) => tactics::apply(ctx.data, game, forms, control, payload),
         (ScreenId::Defeat, _) => defeat::apply(control),
         (ScreenId::CreateParty, Some(game)) => {
             create_party::apply(&mut forms.create, game, control, payload)
@@ -658,9 +666,9 @@ pub fn apply(
             | ScreenId::Inventory
             | ScreenId::Cast
             | ScreenId::Camp
-            | ScreenId::Sheet,
+            | ScreenId::Sheet
+            | ScreenId::Tactics,
             None,
-        )
-        | (ScreenId::Tactics, _) => Effect::None,
+        ) => Effect::None,
     })
 }
