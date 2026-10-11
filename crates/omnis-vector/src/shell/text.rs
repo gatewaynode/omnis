@@ -42,7 +42,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         Event::CombatEnded {
             outcome, xp, gold, ..
         } => match outcome {
-            CombatOutcome::Victory => format!("Victory: {xp} xp each, {}", labels::gold(*gold)),
+            CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
             CombatOutcome::Fled => "The party got away".to_owned(),
             CombatOutcome::Defeat => "The party has fallen".to_owned(),
         },

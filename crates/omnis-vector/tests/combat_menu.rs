@@ -9,7 +9,7 @@ use common::fight::{acting, met, turn_of};
 use common::id;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{CombatCommand, Command, Event, Mode, Pay, Target, World, apply, combat_view};
-use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step};
+use omnis_vector::combat_menu::{Act, Action, CombatMenu, Entry, Pick, Step, budget_line};
 use omnis_vector::sim::SimWorld;
 
 fn labels(entries: &[Entry]) -> Vec<&str> {
@@ -50,7 +50,7 @@ fn the_encounter_offers_its_four_choices() {
     assert_eq!(&shown[2..], ["Hide", "Run"]);
     assert_eq!(
         menu.prompt(&session.world, &session.data),
-        "Monsters ahead (Hostile)"
+        "Monsters ahead: hostile"
     );
 }
 
@@ -116,7 +116,9 @@ fn a_rogue_who_knows_no_spells_is_told_so() {
     let entries = CombatMenu::default().entries(&session.world, &session.data);
     assert_eq!(
         labels(&entries),
-        ["Attack", "Cast", "Use", "Dodge", "Swap", "End turn", "Flee"]
+        [
+            "Attack", "Cast", "Features", "Use", "Dodge", "Swap", "End turn", "Flee"
+        ]
     );
     assert_eq!(
         entry(&entries, "Cast").blocked.as_deref(),
@@ -130,10 +132,7 @@ fn a_spell_at_a_stack_and_a_spell_on_a_member() {
     let session = turn_of("Durin");
     let (world, data) = (&session.world, &session.data);
     let mut menu = CombatMenu::default();
-    assert_eq!(
-        menu.prompt(world, data),
-        "Round 1: Durin's turn (1 action, 1 bonus action)"
-    );
+    assert_eq!(menu.prompt(world, data), "Round 1: Durin's turn");
     let top = menu.entries(world, data);
     assert_eq!(menu.choose(&entry(&top, "Cast").act), None);
     assert_eq!(menu.step, Step::Spells);
@@ -313,10 +312,10 @@ fn a_fight_runs_to_its_end_from_the_menu_alone() {
 fn end_turn_passes_the_turn_with_budget_left() {
     let mut session = turn_of("Durin");
     let menu = CombatMenu::default();
-    let prompt = menu.prompt(&session.world, &session.data);
-    assert!(
-        prompt.ends_with("(1 action, 1 bonus action)"),
-        "the budget is shown: {prompt}"
+    assert_eq!(
+        budget_line(&session.views).as_deref(),
+        Some("Action 1   Bonus 1   Reaction 1 (on)"),
+        "the budget is shown"
     );
     let entries = menu.entries(&session.world, &session.data);
     let end = entry(&entries, "End turn");
@@ -346,7 +345,8 @@ fn a_bonus_action_spell_is_paid_with_the_bonus_action_and_leaves_the_action() {
     let mut menu = CombatMenu { step: Step::Spells };
     let spells = menu.entries(&session.world, &session.data);
     let word = entry(&spells, "Healing Word");
-    assert!(word.label.contains("bonus"), "{word:?}");
+    assert_eq!(word.label, "Healing Word  1 pt");
+    assert_eq!(word.note.as_deref(), Some("bonus action"), "{word:?}");
     menu.choose(&word.act.clone());
     let targets = menu.entries(&session.world, &session.data);
     let Act::Command(cast) = entry(&targets, "Brenna").act.clone() else {

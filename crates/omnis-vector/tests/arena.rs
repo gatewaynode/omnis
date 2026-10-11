@@ -304,3 +304,22 @@ fn a_member_at_zero_is_drawn_down_with_an_empty_bar() {
             .all(|s| brenna.rect.contains(s.a) && brenna.rect.contains(s.b))
     );
 }
+
+/// The pickers' panel covers the picture, the action column and the title, stops above the roll
+/// log and short of the party column, at every size (P7).
+#[test]
+fn the_picker_covers_the_picture_column_and_title_and_stops_above_the_log() {
+    for (w, h) in [(1280.0, 720.0), (1600.0, 900.0), (2560.0, 1440.0)] {
+        let l = omnis_vector::arena::layout(w, h);
+        let p = omnis_vector::arena::picker(&l);
+        let inside = |r: &Rect| {
+            r.x >= p.x && r.y >= p.y && r.right() <= p.right() && r.bottom() <= p.bottom()
+        };
+        assert!(inside(&l.picture), "{w}x{h}: the picture");
+        assert!(inside(&l.actions), "{w}x{h}: the action column");
+        assert!(p.x <= l.title.x && p.y <= l.title.y, "{w}x{h}: the title");
+        assert!(p.bottom() <= l.log.y, "{w}x{h}: above the log");
+        assert!(p.right() < l.party.x, "{w}x{h}: short of the party column");
+        assert!(p.w > l.actions.w * 1.5, "{w}x{h}: wider than the column");
+    }
+}

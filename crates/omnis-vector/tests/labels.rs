@@ -32,7 +32,7 @@ fn the_hud_names_a_bribe_and_the_loot_in_gold_not_copper() {
     );
     assert_eq!(
         text::describe(&victory(), &Names::default(), &data).as_deref(),
-        Some("Victory: 40 xp each, 12 gold")
+        Some("Victory! 40 XP each, 12 gold")
     );
 }
 
@@ -47,7 +47,7 @@ fn the_roll_log_names_a_bribe_and_the_loot_in_gold_not_copper() {
     );
     assert_eq!(
         rolllog::describe(&victory(), &names, &data).as_deref(),
-        Some("Victory: 40 xp each, 12 gold")
+        Some("Victory! 40 XP each, 12 gold")
     );
 }
 

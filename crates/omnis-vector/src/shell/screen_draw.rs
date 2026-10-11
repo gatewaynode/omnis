@@ -28,6 +28,11 @@ pub struct Arrow(pub ControlId, pub bool);
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Side(pub ControlId);
 
+/// A control of the fight's screen: pressing it uses the fight's control, never the top
+/// screen's.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FightPress(pub ControlId);
+
 /// Which router a panel's controls go to, and so how its nodes are marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mark {
@@ -35,6 +40,8 @@ pub(super) enum Mark {
     Screen,
     /// The party column's: `Side`, redrawn whole when it changes.
     Side,
+    /// The fight's: `FightPress`, redrawn whole when it changes.
+    Fight,
 }
 
 /// A number's slider: moving it sets the number.
@@ -270,6 +277,7 @@ fn control_node(
             match mark {
                 Mark::Screen => entity.insert(Pressable(c.id)),
                 Mark::Side => entity.insert(Side(c.id)),
+                Mark::Fight => entity.insert(FightPress(c.id)),
             };
             if c.why_not.is_none() {
                 entity.insert(Button);
@@ -278,7 +286,7 @@ fn control_node(
                 let label = words(&shown_label(keys, c), role, Size::Body, height);
                 match mark {
                     Mark::Screen => b.spawn((LabelOf(c.id), label)),
-                    Mark::Side => b.spawn(label),
+                    Mark::Side | Mark::Fight => b.spawn(label),
                 };
             });
         }
@@ -286,10 +294,10 @@ fn control_node(
             parent.spawn(boxed(role, height)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
-                b.spawn((
-                    LabelOf(c.id),
-                    words(&shown_label(keys, c), role, Size::Body, height),
-                ));
+                let mut current = b.spawn(words(&shown_label(keys, c), role, Size::Body, height));
+                if mark == Mark::Screen {
+                    current.insert(LabelOf(c.id));
+                }
                 arrow(b, c.id, true, height);
             });
         }
@@ -298,14 +306,16 @@ fn control_node(
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
                 slider(b, c.id, *value, (*min, *max), height);
-                b.spawn((
-                    LabelOf(c.id),
+                let mut current = b.spawn((
                     words(&shown_label(keys, c), role, Size::Body, height),
                     Node {
                         min_width: Val::Px(scaled(22.0, height)),
                         ..default()
                     },
                 ));
+                if mark == Mark::Screen {
+                    current.insert(LabelOf(c.id));
+                }
                 arrow(b, c.id, true, height);
             });
         }
@@ -390,7 +400,7 @@ fn span_node(
     let text = words(&span.text, span.role, span.size, height);
     match mark {
         Mark::Screen => line.spawn((SpanAt(p, r, s), text)),
-        Mark::Side => line.spawn(text),
+        Mark::Side | Mark::Fight => line.spawn(text),
     };
 }
 
@@ -459,9 +469,13 @@ pub(super) fn bars(
 }
 
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
-pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32) {
+/// The top screen's words carry the markers they are rewritten in place by.
+pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32, mark: Mark) {
     let t = &screen.title;
-    parent.spawn((TitleText, words(&t.text, t.role, t.size, height)));
+    let mut title = parent.spawn(words(&t.text, t.role, t.size, height));
+    if mark == Mark::Screen {
+        title.insert(TitleText);
+    }
     parent
         .spawn(Node {
             column_gap: Val::Px(scaled(24.0, height)),
@@ -499,7 +513,7 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                                 RelativeCursorPosition::default(),
                             ))
                             .with_children(|column| {
-                                rows(column, p, panel, &screen.keys, height, Mark::Screen);
+                                rows(column, p, panel, &screen.keys, height, mark);
                             })
                             .id();
                         scrollbar(pane, rows_at, height);
@@ -507,6 +521,9 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
             }
         });
     if let Some(m) = &screen.message {
-        parent.spawn((MessageText, words(&m.text, m.role, m.size, height)));
+        let mut message = parent.spawn(words(&m.text, m.role, m.size, height));
+        if mark == Mark::Screen {
+            message.insert(MessageText);
+        }
     }
 }

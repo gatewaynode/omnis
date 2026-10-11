@@ -7,7 +7,8 @@ use crate::common;
 
 use bevy::input::ButtonState;
 use bevy::prelude::*;
-use common::app::{click, key, met_with, set};
+use common::app::{click, key, met_with};
+use common::fight::{enabled, step};
 use common::id;
 use omnis_sim::{Command, EncounterChoice, Mode};
 use omnis_vector::arena::Rect;
@@ -16,7 +17,7 @@ use omnis_vector::combat_menu::{Act, Action, Pick, Step};
 use omnis_vector::grid::cell_of;
 use omnis_vector::shell::ViewState;
 use omnis_vector::shell::cinema::Screen;
-use omnis_vector::shell::combat::{Choose, FightRoot, FightScreen};
+use omnis_vector::shell::combat::{FightRoot, FightScreen};
 use omnis_vector::shell::controls::Corner;
 use omnis_vector::shell::screen::Showing;
 use omnis_vector::shell::session::Session;
@@ -33,16 +34,8 @@ fn screen(app: &App) -> &FightScreen {
     app.world().resource::<FightScreen>()
 }
 
-/// What the action column's buttons that can be pressed do, top to bottom.
-fn enabled(app: &mut App) -> Vec<Act> {
-    let world = app.world_mut();
-    let mut query = world.query_filtered::<&Choose, With<Button>>();
-    query.iter(world).map(|c| c.0.clone()).collect()
-}
-
 fn press(app: &mut App, act: Act) {
-    set(app, &Choose(act), Interaction::Pressed);
-    app.update();
+    common::fight::press(app, &act);
 }
 
 fn encounter(choice: EncounterChoice) -> Act {
@@ -234,7 +227,7 @@ fn the_pointer_frames_a_target_and_a_click_attacks_it() {
 fn a_step_opens_from_its_button_and_esc_steps_back() {
     let mut app = fighting();
     press(&mut app, Act::Open(Step::Target(Action::Attack)));
-    assert_eq!(screen(&app).menu.step, Step::Target(Action::Attack));
+    assert_eq!(step(&app), Step::Target(Action::Attack));
     let acts = enabled(&mut app);
     assert_eq!(acts.last(), Some(&Act::Back), "a way back: {acts:?}");
     let world = app.world_mut();
@@ -245,6 +238,112 @@ fn a_step_opens_from_its_button_and_esc_steps_back() {
     );
     key(&mut app, KeyCode::Escape, ButtonState::Pressed);
     app.update();
-    assert_eq!(screen(&app).menu.step, Step::Top);
+    assert_eq!(step(&app), Step::Top);
     assert_eq!(session(&app).binder.refusals, 0);
+}
+
+/// A turn that passed elsewhere (a load, an order through the socket) takes the menu back to the
+/// turn's list: before the fix the step stayed on the last actor's target list, so the next
+/// actor was asked for a target for a choice never made (P7).
+#[test]
+fn a_turn_that_passed_elsewhere_takes_the_menu_back_to_the_top() {
+    let mut app = fighting();
+    press(&mut app, Act::Open(Step::Target(Action::Attack)));
+    assert_eq!(step(&app), Step::Target(Action::Attack));
+    let before = session(&app).views.combat.as_ref().and_then(|v| v.current);
+    // The turn passes without the screen: as the socket's orders do.
+    app.world_mut()
+        .resource_mut::<Session>()
+        .order(Command::Combat(omnis_sim::CombatCommand::Dodge));
+    app.update();
+    let after = session(&app).views.combat.as_ref().and_then(|v| v.current);
+    assert_ne!(after, before, "another acts");
+    assert_eq!(step(&app), Step::Top);
+}
+
+/// Cast opens the spells in the panel over the picture, which hides the picture; the budget line
+/// heads it; Esc closes it back to the action column with the picture (P7).
+#[test]
+fn cast_opens_the_picker_over_the_picture_and_esc_closes_it() {
+    let mut app = fighting();
+    for _ in 0..40 {
+        if common::fight::acting(session(&app)).as_deref() == Some("Durin") {
+            break;
+        }
+        press(
+            &mut app,
+            Act::Command(Command::Combat(omnis_sim::CombatCommand::Dodge)),
+        );
+    }
+    press(&mut app, Act::Open(Step::Spells));
+    assert_eq!(step(&app), Step::Spells);
+    let layout = screen(&app).arena.as_ref().expect("laid out").layout;
+    let panel = omnis_vector::arena::picker(&layout);
+    let world = app.world_mut();
+    let mut nodes = world.query_filtered::<&Node, With<ZIndex>>();
+    let placed: Vec<(Val, Val, Val)> = nodes
+        .iter(world)
+        .map(|n| (n.left, n.top, n.width))
+        .collect();
+    assert!(
+        placed.contains(&(Val::Px(panel.x), Val::Px(panel.y), Val::Px(panel.w))),
+        "the panel at the picker's rectangle: {placed:?}"
+    );
+    assert_eq!(
+        world.query::<&Screen>().iter(world).count(),
+        0,
+        "no picture"
+    );
+    let mut texts = world.query::<&Text>();
+    let texts: Vec<String> = texts.iter(world).map(|t| t.0.clone()).collect();
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.starts_with("SP 2/2   Action 1   Bonus 1   Reaction 1 (on)")),
+        "{texts:?}"
+    );
+    assert!(texts.iter().any(|t| t.contains("Bless  1 pt")), "{texts:?}");
+    key(&mut app, KeyCode::Escape, ButtonState::Pressed);
+    app.update();
+    assert_eq!(step(&app), Step::Top);
+    let world = app.world_mut();
+    assert_eq!(
+        world.query::<&Screen>().iter(world).count(),
+        1,
+        "the picture back"
+    );
+}
+
+/// The reactions switch in the column turns the acting member's reactions off, says so, and
+/// leaves the turn as it was (P7).
+#[test]
+fn the_reactions_switch_turns_them_off_and_the_turn_goes_on() {
+    let mut app = fighting();
+    let who = common::fight::acting(session(&app)).expect("a member acts");
+    let budget = session(&app).views.combat.as_ref().map(|v| v.budget);
+    let switch =
+        omnis_vector::screen::ControlId::Fight(omnis_vector::screen::fight::FightAct::Reactions);
+    common::app::set(
+        &mut app,
+        &omnis_vector::shell::screen::Arrow(switch, false),
+        Interaction::Pressed,
+    );
+    app.update();
+    let s = session(&app);
+    assert_eq!(common::fight::acting(s).as_deref(), Some(who.as_str()));
+    assert_eq!(s.views.combat.as_ref().map(|v| v.budget), budget, "free");
+    assert!(
+        s.views
+            .combat
+            .as_ref()
+            .is_some_and(|v| v.members.iter().any(|m| !m.reactions_on))
+    );
+    assert!(
+        s.lines
+            .iter()
+            .any(|l| *l == format!("{who}'s reactions are off")),
+        "{:?}",
+        s.lines
+    );
+    assert_eq!(s.binder.refusals, 0);
 }

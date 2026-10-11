@@ -7,7 +7,7 @@
 
 use crate::labels;
 use omnis_sim::omnis_core::CharacterId;
-use omnis_sim::omnis_data::{Data, Disposition};
+use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, PartyView, Surprise};
 use std::collections::BTreeMap;
@@ -123,12 +123,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 .iter()
                 .map(|(monster, count)| format!("{count} {}", labels::monster(data, monster)))
                 .collect();
-            let mood = match disposition {
-                Disposition::Hostile => "hostile",
-                Disposition::Wary => "wary",
-                Disposition::Neutral => "neutral",
-                Disposition::Friendly => "friendly",
-            };
+            let mood = labels::disposition(*disposition);
             let surprise = if *noticed {
                 ""
             } else {
@@ -306,7 +301,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             fallen,
         } => {
             let line = match outcome {
-                CombatOutcome::Victory => format!("Victory: {xp} xp each, {}", labels::gold(*gold)),
+                CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
                 CombatOutcome::Fled => "The party got away".to_owned(),
                 CombatOutcome::Defeat => "The party has fallen".to_owned(),
             };

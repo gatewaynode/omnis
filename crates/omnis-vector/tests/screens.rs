@@ -21,7 +21,6 @@ use omnis_vector::screen::new_game::NewGameForm;
 use omnis_vector::screen::{
     self, ControlId, Ctx, Effect, Forms, HostOp, Payload, Refused, ScreenId, Slot,
 };
-use omnis_vector::shell::combat::{Choose, FightScreen};
 use omnis_vector::shell::controls::{Action as Button_, Corner};
 use omnis_vector::shell::screen::{Arrow, Pressable, Screens, SliderOf, colour, ctx};
 use omnis_vector::shell::screen_text::screen_text;
@@ -498,23 +497,9 @@ fn a_fallen_party_loads_its_save_or_starts_again() {
 #[test]
 fn in_a_fight_esc_steps_back_first_and_the_pause_holds_the_fight() {
     let mut app = met_with(1);
-    let step = |app: &App| app.world().resource::<FightScreen>().menu.step;
-    let choose = |app: &mut App, act: Act| {
-        set(app, &Choose(act.clone()), Interaction::Pressed);
-        app.update();
-        let world = app.world_mut();
-        let mut buttons = world.query::<(&Choose, &mut Interaction)>();
-        for (c, mut i) in buttons.iter_mut(world) {
-            if c.0 == act {
-                *i = Interaction::None;
-            }
-        }
-    };
-    let offered = |app: &mut App, act: &Act| {
-        let world = app.world_mut();
-        let mut buttons = world.query_filtered::<&Choose, With<Button>>();
-        buttons.iter(world).any(|c| c.0 == *act)
-    };
+    let step = common::fight::step;
+    let choose = |app: &mut App, act: Act| common::fight::press(app, &act);
+    let offered = |app: &mut App, act: &Act| common::fight::enabled(app).contains(act);
     choose(
         &mut app,
         Act::Command(Command::Encounter(EncounterChoice::Attack)),

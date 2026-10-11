@@ -233,6 +233,19 @@ pub fn layout(width: f32, height: f32) -> Layout {
     }
 }
 
+/// The panel the fight's pickers stand in (spells, features, items): over the picture, the
+/// action column and the field, from the left margin to the party column and down to the roll
+/// log, which stays in view. A spell that wants a target closes it, so the field shows again.
+#[must_use]
+pub fn picker(l: &Layout) -> Rect {
+    Rect {
+        x: MARGIN,
+        y: MARGIN,
+        w: (l.party.x - 2.0 * MARGIN).max(0.0),
+        h: (l.log.y - 2.0 * MARGIN).max(0.0),
+    }
+}
+
 /// How a figure stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {

@@ -8,14 +8,16 @@
 //! Headless-safe.
 
 use super::capture::CaptureSize;
-use super::combat::{FightScreen, size};
+use super::combat::size;
 use super::controls::Corner;
 use super::hud::StatusText;
 use super::minimap::Minimap;
-pub use super::screen_draw::{Arrow, Pressable, Scrolls, Side, SliderOf, colour, shade};
+pub use super::screen_draw::{
+    Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
+};
 use super::screen_draw::{
-    LabelOf, MessageText, SpanAt, TitleText, bars, build, shown_label, text_field, thumbs, wheel,
-    width,
+    LabelOf, Mark, MessageText, SpanAt, TitleText, bars, build, shown_label, text_field, thumbs,
+    wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::{VectorSet, ViewState};
@@ -61,6 +63,7 @@ impl Screens {
     pub fn reset(&mut self, game: Option<&Views>) {
         self.nav.reset(game);
         self.forms.selected = None;
+        self.forms.fight = crate::screen::fight::FightForm::default();
     }
 }
 
@@ -287,7 +290,6 @@ fn route(
     mut host: Host,
     mut session: Option<ResMut<Session>>,
     mut screens: ResMut<Screens>,
-    fight: Option<ResMut<FightScreen>>,
 ) {
     let screens = &mut *screens;
     let mut escaped = None;
@@ -298,13 +300,9 @@ fn route(
         screens.at = here;
         screens.nav.settle(game, moved);
         if used.keys.just_pressed(KeyCode::Escape) {
-            let at_root = fight.as_ref().is_none_or(|f| f.menu.step == Step::Top);
+            let at_root = screens.forms.fight.menu.step == Step::Top;
             match screens.nav.escape(game, at_root) {
-                Escape::FightBack => {
-                    if let Some(mut fight) = fight {
-                        fight.menu.back();
-                    }
-                }
+                Escape::FightBack => screens.forms.fight.menu.back(),
                 Escape::Leave => escaped = Some(Effect::ToNewGame),
                 Escape::LeaveService => {
                     escaped = Some(Effect::Command {
@@ -640,7 +638,7 @@ fn paint(
             node.row_gap = Val::Px(scaled(8.0, height));
             commands
                 .entity(entity)
-                .with_children(|p| build(p, &screen, height));
+                .with_children(|p| build(p, &screen, height, Mark::Screen));
         }
     }
     screens.drawn = Some((screen, bucket));

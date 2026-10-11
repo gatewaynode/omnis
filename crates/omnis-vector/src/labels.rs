@@ -9,7 +9,7 @@
 use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
 use omnis_sim::omnis_core::{Calendar, CharacterId};
-use omnis_sim::omnis_data::{Ability, Alignment, Cost, Data, EquipSlot, Skill};
+use omnis_sim::omnis_data::{Ability, Alignment, Cost, Data, Disposition, EquipSlot, Skill};
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
 use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
@@ -179,6 +179,17 @@ pub fn ability(a: Ability) -> String {
 #[must_use]
 pub fn signed(n: i64) -> String {
     format!("{n:+}")
+}
+
+/// How monsters feel about the party: "hostile", "wary", "neutral", "friendly".
+#[must_use]
+pub const fn disposition(d: Disposition) -> &'static str {
+    match d {
+        Disposition::Hostile => "hostile",
+        Disposition::Wary => "wary",
+        Disposition::Neutral => "neutral",
+        Disposition::Friendly => "friendly",
+    }
 }
 
 /// What a spell spends of the turn: "action", "bonus action", "reaction", "free".
@@ -413,6 +424,8 @@ pub fn reason(party: &PartyView, refusal: &Rejection) -> String {
         Rejection::HandsFull => "no hand free for a shield".to_owned(),
         Rejection::NotUsable => "does nothing when used".to_owned(),
         Rejection::NotUsableHere => "not from a fight".to_owned(),
+        // The fight's features (the engine's words name the feature by its key).
+        Rejection::NoUsesLeft { .. } => "no uses left until a rest".to_owned(),
         // Rests (the other client's camp notes).
         Rejection::RestTooSoon { minutes } => format!(
             "rested too recently ({}h {:02}m)",

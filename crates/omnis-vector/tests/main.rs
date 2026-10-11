@@ -14,6 +14,7 @@ mod combat_menu;
 mod common;
 mod create_party;
 mod fight;
+mod fight_screen;
 mod inventory;
 mod labels;
 mod message;
