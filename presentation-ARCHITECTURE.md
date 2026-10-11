@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
@@ -135,12 +135,12 @@ place the party or plant a state. A new screen that needs another view or query 
 nothing else in the client reaches past it.
 
 ### 4.2 `Views` and the one refresh path (as built, P0)
-`Views { here, position, party, combat }` is built by `Views::of` after every change and kept in
+`Views { here, position, party, combat, creation, service }` is built by `Views::of` after every change and kept in
 `Session.views`. Every screen, the HUD, the renderer and the layouts read that copy; none calls a view
 function itself.
 
 - **One path.** `Session::refresh` rebuilds the views. It runs from `Session::note` (after every accepted command: the binder's, a screen's, the socket's), from `Session::replace` (a loaded save, reloaded packs) and from `Session::start`. A test, `the_views_are_the_world_s_after_every_frame`, compares `session.views` with `Views::of` after a walk, a door and a fight.
-- **Growth.** A parity step adds the views its screens read: `service` (`service_view`, P4), `rest` (`rest_view`, P6), `casts` (`cast_view`, P5), `flags` (P8), and `viewport` if the automap needs it (X22). A view used by one rarely open screen may instead be read when that screen's content is built, through a `SimWorld` method, so the per-command refresh stays cheap; the cost decides, measured.
+- **Growth.** A parity step adds the views its screens read: `service` (`service_view`, built in P4: `None` outside a service), `rest` (`rest_view`, P6), `casts` (`cast_view`, P5), `flags` (P8), and `viewport` if the automap needs it (X22). A view used by one rarely open screen may instead be read when that screen's content is built, through a `SimWorld` method, so the per-command refresh stays cheap; the cost decides, measured.
 - **Fixtures.** A test that writes the world through the fixture deref calls `session.refresh()` afterwards.
 
 ### 4.3 Labels (to build, P2)
@@ -259,7 +259,7 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 Every screen outside the 3D view and the fight's line drawing is `bevy_ui` in the neon style (X15), and is
 a **description**: plain data the core builds from the views, `Data` (labels) and the screens' own state,
 which one shell renderer draws. Built in P2 with the title, the new game's form, the pause, the fallen
-party's screen, the square's actions and the town stopgap; the old centre panel (`panel.rs`, `notice.rs`)
+party's screen, the square's actions and the town stopgap, which P4 replaced with the service panel; the old centre panel (`panel.rs`, `notice.rs`)
 is gone. The fight screen's controls move onto it in P7.
 
 ### 6.1 The description
@@ -274,14 +274,15 @@ pub struct Screen {
     pub message: Option<Span>,       // the last outcome (saved, failed to load), from Forms
 }
 pub struct Panel { pub rows: Vec<Row> }
-pub struct Row { pub spans: Vec<Span>, pub controls: Vec<Control> }
+pub struct Row { pub spans: Vec<Span>, pub controls: Vec<Control>, pub after: Vec<Span> }
 pub struct Span { pub text: String, pub role: Role, pub size: Size }      // §7
 pub struct Control { pub id: ControlId, pub label: String, pub kind: Kind, pub why_not: Option<String> }
-pub enum Kind { Button, Choice { options: Vec<String>, at: usize }, Text { value: String, max: usize } }
+pub enum Kind { Button, Choice { options: Vec<String>, at: usize }, Number { value: i64, min: i64, max: i64 },
+                Text { value: String, max: usize } }
 ```
 
 - **A control is enabled or says why not.** `why_not: Some(reason)` draws it dim as "label: reason" with no `Button`, so it takes no clicks, the way `omnis-app` shows "not enough money" beside a price. The reason comes from the engine (a view, a trial) worded by `labels`.
-- **`ControlId` is one enum** across screens (`Action(n)`, `Close`, `Leave`, `NewGame`, `Load`, `Save`, `Seed`, `Rule`, ...), so the router needs no per-screen code.
+- **`ControlId` is one enum** across screens (`Action(n)`, `Close`, `Leave`, `NewGame`, `Load`, `Save`, `Seed`, `Rule`, `Offer(n)`, `Amount`, `Deposit`, `Withdraw`, ...), so the router needs no per-screen code.
 - **Sizes and colours are roles**, never pixels or literals (§7). `Kind::Number { value, min, max }` (P3) is drawn as its name, arrows and a `bevy_ui_widgets` `Slider`; a slider's move reaches `apply` as `Payload::Set`, and the renderer sets the slider back from the model, so the screen's state stays the one source. A row may carry text after its controls (`Row::after`), and panels lay out side by side.
 - **Keys name controls**, so a key can do nothing a button cannot; the renderer prefixes a control's number key to its label.
 
@@ -290,7 +291,7 @@ pub enum Kind { Button, Choice { options: Vec<String>, at: usize }, Text { value
 `screen::apply(id, &Ctx, &mut Forms, ControlId, &Payload, entropy) -> Result<Effect, Refused>`. `Ctx` holds
 the `Data`, the running `Game` (world, views, the fight's log, why the log no longer replays) when there is
 one, and the quick save's `Slot` (path, whether it exists). `Forms` holds what screens keep between frames:
-the new game's form and the last outcome.
+the new game's form, the next member's draft, the bank's amount and the last outcome.
 
 ```rust
 pub enum Payload { Press, Left, Right, Text(String) }
@@ -298,7 +299,8 @@ pub enum Effect { None, Command { command, close }, Host(HostOp), Back, Open(Scr
 pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 ```
 
-- **`apply` refuses before any screen sees the input** (`Refused`): a control not on the screen, a dim one, a payload its kind does not take, text over its limit. A refused text is put back in the field.
+- **`apply` refuses before any screen sees the input** (`Refused`): a control not on the screen, a dim one, a payload its kind does not take, text over its limit, a number outside its range. A screen may refuse what was typed too (the bank's amount: `NotDigits`, or `OutOfRange` over `u32::MAX / 100` gold). Any refused text is put back in the field as the form holds it.
+- **The outcome.** A command from a screen reports on that screen (P4): the newest event line it added (`Session::ordered`) in the body role, or its refusal in the alert role. `Forms::shown` clears the outcome whenever the top screen changes, and the bank's amount whenever a service is entered.
 - A `Command` is offered only when a trial accepts it, so the binder's refusal count stays 0. The shell sends it through `Session::order`, which logs it; `close` says whether the screen closes after it (the square's actions do, an inventory will not).
 - `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule in `SimWorld::save_text`, the loader's limits, `load_text`), which the socket's `save.write` and `save.read` share. A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
 
@@ -311,21 +313,25 @@ pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 | Title | No game (`Session` absent) |
 | CreateParty | A new game until Begin (`Nav` keeps `creating`), or any game with no members; decided ahead of Defeat, since an empty party reads as fallen. Esc and Back drop the world and reopen the filled new-game form; pause is not offered. `--seed` starts keep the fixed party |
 | none: the 3D view | Exploring: the HUD and the controls |
-| Service | `here.service` is set: the town stopgap until P4 |
+| Service | `here.service` is set: the service panel (P4). Entering is the engine's (a step onto a site, or Interact) and is not asked; Leave and Esc leave at once |
 | none: the fight screen | `views.combat` is `Some` (§9) |
 | Defeat | No member can fight (`Views::fallen`): Load last save, Start again, Quit to title |
 
-Overlays: NewGame (over the title), Pause and the square's Actions (P2); Confirm (P4), Camp, Sheet, Tactics
+Overlays: NewGame (over the title), Pause and the square's Actions (P2); Camp, Sheet, Tactics
 (P6), Inventory, Cast (P5), Debug, Settings (P8) to come. `Nav::settle` runs every frame and closes what the
 world no longer allows: the actions when the party moves or a fight begins, the game's overlays when the game
 ends; a new game or a loaded save resets the stack. `Nav::escape` decides Esc: close the top overlay, else
-step the fight's menu back when it is not at its first step, else open Pause. `Nav::paused` is true under
+step the fight's menu back when it is not at its first step, else leave party creation or the service (as
+the other client's Esc does), else open Pause. In a service the pause is the Menu button's. There is no step
+confirmation overlay: the owner dropped it on 2026-10-11 (walking in enters at once, as the engine does). `Nav::paused` is true under
 Pause, Defeat and the title: the game's sets do not run (§6.4).
 
 ### 6.4 The renderer and the router (shell)
 - **The frame.** `VectorSet::Screens` runs after `Grab` and before `Input`, every frame: the router, the renderer, the chrome, the dev socket and the capture. `Grab`, `Input` and `Move` run only while a game runs and no screen holds it (`shell::screen::playing`); `Draw` whenever a game runs, so the scene stays drawn behind Pause.
 - **No world until there is one.** `Packs` (the loaded packs and the command line) is always a resource; `Session` exists only while a game runs. The title starts one (`Session::new_game`) or loads one (`Session::loaded`); Quit to title removes it. While none runs, `chrome` hides the HUD's status, the button groups and the minimap.
 - **Render.** `shell/screen.rs` draws the top screen under one `ScreenRoot`: a button is a bordered box; a choice its name, two arrow buttons and the current option; a text field its name and an underlined `EditableText` (`bevy_ui_widgets`, part of Bevy's `ui` feature, so no new crate) with `AutoFocus`. It rebuilds the nodes only when the screen's shape (`Screen::shape`: panels, rows, control ids and kinds, which are dim, whether a message shows) or the window height changes, and otherwise rewrites the words and colours in place, so a field keeps its cursor.
+- **Scroll.** Each panel is a column with `Overflow::scroll_y`; the mouse wheel scrolls the panel under the cursor (`RelativeCursorPosition`, `ScrollPosition`). The root's height is capped: 64% of the window while a game is played, so a screen sits between the HUD's lines and the button groups, and 95% otherwise (the title, the new game, party creation). A taller screen's panels scroll; nothing marks rows below the fold yet.
+- **Glyphs.** The interface font is ASCII only, so screen words use none of "·", "×" or typographic quotes: figures are two spaces apart, as the HUD's are, and counts read "Dagger x2".
 - **Route.** One system turns a pressed `Pressable(ControlId)`, a pressed `Arrow`, a changed `EditableText` or a number key into a `Payload`, calls `apply` and carries out the `Effect`. Space, a right click and Shift+Space open the square's actions or run the default one while exploring.
 - **Text for agents.** `screen.text` (§10.4) lists every text node, marks buttons and text fields (`[field]`), and shows a dim control as "label: reason", with no per-screen code.
 
@@ -339,8 +345,8 @@ whose controls apply through `CombatMenu` (`combat_menu.rs`), so they share the 
 The explore base is the 3D view plus descriptions:
 - **Status** (as built, `shell/hud.rs`): place, mode and clock, the counts, frame time, the event lines (§10.1).
 - **The party column** (built 2026-10-11, owner; the roster band of `omnis-app/src/band.rs`): `screen/roster.rs` describes it Bevy-free, `shell/roster.rs` draws it at the right, under the minimap in explore and at the arena's party rectangle in a fight (§9). Per member in marching order under "front" and "back": an entry button "name  Class level", then "HP h/max" (alert role below a quarter), "SP s/max  AC n", and "down", "dead", or the first condition or effect; the acting member is marked "> " in a fight. Pressing an entry selects the member (again clears it); the selection (`Screens.selected`) is dropped when the member leaves and on every reset (a new game, a load, the title), and is the target P4–P7 use for give and cast. Under the selected member: Sheet, Inventory, Spells, Journal, each opening its screen when that step lands (dim until then: "Not built yet (P5/P6)"; Journal "No quests yet" until quests); in a fight they open read-only (owner: look, don't act; the action column acts). The column's buttons carry `Side`, not `Pressable`, so the top screen's router never sees them; it shows only while a game is played and no screen is up.
-- **The message line**: the last event as a long line, refusals in the alert role, cleared on a move.
-- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. P4–P6 add the tool bar (Items, Spells, Sheet, Camp, Look, Map, Menu), each live by `omnis-app/src/tool_bar.rs`'s rules restated on views and trials.
+- **The message line**: the last event as a long line, refusals in the alert role, cleared on a move. A service's outcomes show on its panel (§6.2, P4); the explore message line stays with P5.
+- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. No tool bar (owner, 2026-10-11): Sheet, Inventory and Spells open from the party column; Camp, Look and Map join Actions and Menu at the bottom right when their steps land (P6, P8), each live by `omnis-app/src/tool_bar.rs`'s rules restated on views and trials.
 
 ### 6.7 The parity map
 What each screen reads, and the details `omnis-app` has that the vector screen must carry. The details are
@@ -352,8 +358,8 @@ the parity checklist for each step's plan.
 | Pause | P2 | `Here.seed`, `Here.settings`, `Here.may_save` | "Seed N", "Saving: … Permadeath: … Devtools: …"; Resume, Save, Load, Sheet, Debug (dim with the reason outside devtools), Quit to title and Quit set apart; "The save rule forbids saving here" / "Saved to …" |
 | Defeat | P2 | `party` | "The party has fallen", the last log lines, Load last save, Quit to title |
 | Party creation (built, P3) | P3 | names from `Data`, the creation view (§4.4), a trial of `PartyCommand::Create` for Add's reason | Name; race, class, background, alignment; six scores with the running cost "X points spent of Y"; class skill picks "This class picks N skills"; Add member, Begin, Back; "The party is full", "Give the character a name", "Add at least one member". Added in P3: the racial bonus beside each score, and a granted skill dim "from the background"/"from the race" (the other client let it through to the engine's refusal) |
-| Step confirmation | P4 | `step_lands`, `site_ahead`, `Here.service` | "Enter the X?" / "Leave the X?"; Go and Stay; no question for a step into a wall; the service's Leave goes through it |
-| Service panel | P4 | `service_view` (`OfferView`), `party` | The money line (purse, bank, food); a section per kind (smith: for sale and your stores; inn, tavern: on offer; temple: on offer and spells; trainer: levels and spell picks; guild: spells; bank: an amount with Deposit and Withdraw); each row's label, note (price, "free", "pays X", or the refusal dim, the price kept beside "not enough money") and caption; Leave |
+| Step confirmation | dropped | | Not built: the owner's decision of 2026-10-11. Walking onto a site enters at once and Leave leaves at once, without the other client's "Enter the X?" / "Leave the X?" |
+| Service panel (built, P4) | P4 | `Views.service` (`OfferView`), `party`, a trial for the bank | The money line "Gold X  Bank Y  Food N" with Leave beside it in the first row (a long list scrolls, so Leave is not last); a panel per list by kind (smith: for sale and your stores; inn, tavern: on offer; temple: on offer and spells; trainer: levels and spell picks; guild: spells), "Nothing to offer" for an empty one; each row's label, a captioned button dim with its reason, and the note (price, "free", "pays X"; a refused purchase keeps its price); the bank's "Gold pieces" field (digits only, at most 8, at most 42,949,672 gold, as its copper fits a `u32`) with Deposit and Withdraw, dim "Type an amount" or the trial's reason; Esc leaves; the outcome on the panel. Added in P4: short reasons where the engine's words name a member by number ("0 of 300 XP", "level 2 spell, up to level 1 now", "the bank holds X") |
 | Inventory | P5 | `party` (`ItemView`) | A tab per member and the stores; "wearing …"; rows with count, slot, worn or use mark; equip, use, stow, take, give, each dim when it does not apply; opened from the party column's Inventory (§6.6); the column's selection as the receiver; the messages ("Take it to a member first", …) |
 | Cast on the road | P5 | `cast_view` | Caster, spell, "N pt", the refusal dim; "Nobody knows a spell for the road."; opened from the party column's Spells (§6.6); the target is the column's selection or the caster |
 | Camp | P6 | `rest_view`, `party` | Per member HP and hit dice with a count capped at `spendable` and its note; short rest; long rest with the food it eats or its refusal; Close |
