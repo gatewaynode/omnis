@@ -1,18 +1,22 @@
 # Continuity notes
 
-Written 2026-10-11, after P5d. Rewrite this file every time it is used. Durable knowledge lives in
+Written 2026-10-11, after P5's acceptance and before the compact that precedes P6 planning. Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `vector-adoption`**, not pushed (the owner pushes).
-- **Accepted by the owner 2026-10-11:** P2, P3, the party column, P4.
-- **P5 (inventory, spells on the road, message line) is built and documented,** waiting on the owner's
-  acceptance with `tasks/acceptance/p5.md`. Commits: P5a `315b823`, P5b + P5c `3795b10`, P5d (docs: presentation-
-  ARCHITECTURE §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 "after P5"; the acceptance script; the plan's as-built note;
-  code-map; TODO review).
-- **Next:** the owner runs the P5 acceptance. On "ok", record it in TODO (as P4's line was). Then plan P6
-  (camp and rest, the character sheet, tactics; engine first: known spells with point and action cost, §4.4),
-  in plan mode.
+- **Accepted by the owner 2026-10-11:** P2, P3, the party column, P4, **P5** (manual test of
+  `tasks/acceptance/p5.md`: "looks to be working as designed").
+- P5 commits: P5a `315b823`, P5b + P5c `3795b10`, P5d `5c187c4` (docs), then the acceptance record.
+- **Next: plan P6 in plan mode** (TODO: "Camp and rest; character sheet; tactics panel. Engine first: known
+  spells with point and action cost (§4.4)"). Read cold first: presentation-ARCHITECTURE §4.4 (the known-spell
+  row), §6.3 (Camp, Sheet, Tactics overlays), §6.6 (Sheet opens from the party column, read-only in a fight;
+  Camp joins the bottom-right buttons), §6.7 (the Camp, Character sheet, Tactics rows: the parity checklist).
+  Old client to port from (`crates/omnis-app/src/`): `camp_panel.rs`, `feathers_camp.rs`; `sheet_menu.rs` (reads
+  `point_cost()` at :195, the §4.4 defect to move into the engine), `sheet.rs`, `sheet_screen.rs`;
+  `tactics_panel.rs`, `tactics_draft.rs`, `feathers_tactics.rs`; `tool_bar.rs` (Camp's live rule). Engine views:
+  `rest_view` (P6 adds `Views.rest`), `MemberView.tactics`. Ask the owner the layout questions before the plan,
+  as for P5.
 
 ## Facts
 - **The acceptance script** lowers HP and SP through MCP dev commands (`SetHp`, `SetSpellPoints`); every
