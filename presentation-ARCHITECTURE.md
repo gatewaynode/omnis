@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10: rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
@@ -180,7 +180,7 @@ read from `Data` is a defect.
 
 ### 4.5 Host operations and the dev socket (as built, P1)
 - `shell/host.rs` `handle(session, root, op)` serves the Tier 2 ops for the socket. Read ops go to `SimWorld::dispatch`. Mutating ops (`sim.command`, `sim.script`, `party.create`, `time.reconcile`) go through `dispatch` too, so the rules and replies stay the engine's; their accepted commands (the first `applied` of a script) are then appended to the binder's log, and the session notes the events and snaps the pose when the party's place or facing changed.
-- `save.write` and `save.read`, `pack.reload` and `rules.set` use the I/O-free rules in `ops.rs`. A load, a reload or a rule change sets `Session::unreplayable`, because a replay starts from `World::new`; Save log then refuses and says why.
+- `save.write` and `save.read` go through `game_io.rs`, the path the pause screen uses too; `pack.reload` and `rules.set` use the I/O-free rules in `ops.rs` and replace this game's copy of the packs only (`Session.data` is an `Arc` shared with `Packs` until then). With no game running (the title), every op but `screenshot` and `screen.text` answers "no game is running". A load, a reload or a rule change sets `Session::unreplayable`, because a replay starts from `World::new`; Save log then refuses and says why.
 - `screenshot` retargets both cameras to an image the window's size for `LIVE_SETTLE` (4) frames and saves it as an RGB PNG; both targets (`canvas`, `window`) capture what the window shows. `screen.text` walks the UI tree (§10.4).
 - `shell/socket.rs` (`devtools` only): loopback only, one client, `MAX_LINE` 1 MiB, newline JSON, `.omnis/dev.addr`; not in `--screenshot` mode. `omnis-app` writes the same address file until P9, so the client started last is the one the bridge finds.
 
@@ -254,70 +254,80 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 - **Cliffs block like walls.** They are derived in the engine when the pack loads (X11), so the step refuses with a cliff reason. The mirror gains the same condition, read through a `SimWorld` query rather than recomputed from heights, and the agreement test covers cliff edges.
 - **Relief never moves the walkable rule** (XR7): the pose walks the cell grid; the drawn ground only lifts the camera.
 
-## 6. The screen model (to build, P2 first; VA10)
+## 6. The screen model (as built, P2; VA10)
 
-Every screen outside the 3D view and the fight's line drawing is `bevy_ui` in the neon style (X15), and is a **description**: plain data the core
-builds from the views, `Data` (labels) and the screen's own state, which one shell renderer draws. The
-existing centre panel (`shell/panel.rs`, `notice.rs`, `actions.rs`, `town.rs`, `fight.rs`) and the fight
-screen's controls move onto it.
+Every screen outside the 3D view and the fight's line drawing is `bevy_ui` in the neon style (X15), and is
+a **description**: plain data the core builds from the views, `Data` (labels) and the screens' own state,
+which one shell renderer draws. Built in P2 with the title, the new game's form, the pause, the fallen
+party's screen, the square's actions and the town stopgap; the old centre panel (`panel.rs`, `notice.rs`)
+is gone. The fight screen's controls move onto it in P7.
 
 ### 6.1 The description
-Bevy-free, in `src/screen/` (the model) with one file per screen:
+Bevy-free, in `src/screen/` (`mod.rs` the types, one file per screen):
 
 ```rust
 pub struct Screen {
     pub id: ScreenId,
-    pub title: Option<Span>,
-    pub panels: Vec<Panel>,         // laid out by the renderer: centre, side, band
-    pub keys: Vec<(Key, ControlId)>, // shortcuts; each names a control on this screen
-    pub message: Option<Span>,      // the last refusal or notice, in the alert or interface role
+    pub title: Span,
+    pub panels: Vec<Panel>,          // top to bottom; placement beyond the centre comes with P4-P6
+    pub keys: Vec<(Key, ControlId)>, // shortcuts (number keys); each names a control on this screen
+    pub message: Option<Span>,       // the last outcome (saved, failed to load), from Forms
 }
-pub struct Panel { pub place: Place, pub tabs: Vec<Tab>, pub rows: Vec<Row> }
-pub struct Row { pub spans: Vec<Span>, pub control: Option<Control> }
+pub struct Panel { pub rows: Vec<Row> }
+pub struct Row { pub spans: Vec<Span>, pub controls: Vec<Control> }
 pub struct Span { pub text: String, pub role: Role, pub size: Size }      // §7
 pub struct Control { pub id: ControlId, pub label: String, pub kind: Kind, pub why_not: Option<String> }
-pub enum Kind { Button, Toggle(bool), Number { value: i64, min: i64, max: i64 }, Slider { .. }, Text { max: usize } }
+pub enum Kind { Button, Choice { options: Vec<String>, at: usize }, Text { value: String, max: usize } }
 ```
 
-- **A control is enabled or says why not.** `why_not: Some(reason)` draws it dim with the reason beside it and makes it unpressable, the way `omnis-app` shows "not enough money" beside a price. The reason comes from the engine (a view's refusal, a trial) worded by `labels`.
-- **Sizes and colours are roles**, never pixels or literals (§7).
-- **Keys name controls**, so a key can do nothing a button cannot, and a test checks every key maps to a control on the screen.
+- **A control is enabled or says why not.** `why_not: Some(reason)` draws it dim as "label: reason" with no `Button`, so it takes no clicks, the way `omnis-app` shows "not enough money" beside a price. The reason comes from the engine (a view, a trial) worded by `labels`.
+- **`ControlId` is one enum** across screens (`Action(n)`, `Close`, `Leave`, `NewGame`, `Load`, `Save`, `Seed`, `Rule`, ...), so the router needs no per-screen code.
+- **Sizes and colours are roles**, never pixels or literals (§7). A number field and a slider (`Kind::Number`, `Kind::Slider`) are added when P3, P4 and P6 need them.
+- **Keys name controls**, so a key can do nothing a button cannot; the renderer prefixes a control's number key to its label.
 
 ### 6.2 Apply
-Each screen has `content(&Views, &Data, &State) -> Screen` and
-`apply(&mut State, ControlId, Payload, &Views, &Data) -> Effect`:
+`screen::content(id, &Ctx, &Forms) -> Screen` and
+`screen::apply(id, &Ctx, &mut Forms, ControlId, &Payload, entropy) -> Result<Effect, Refused>`. `Ctx` holds
+the `Data`, the running `Game` (world, views, the fight's log, why the log no longer replays) when there is
+one, and the quick save's `Slot` (path, whether it exists). `Forms` holds what screens keep between frames:
+the new game's form and the last outcome.
 
 ```rust
-pub enum Effect { None, Command(Command), Host(HostOp), Go(ScreenId), Back, Restart, Quit }
+pub enum Payload { Press, Left, Right, Text(String) }
+pub enum Effect { None, Command { command, close }, Host(HostOp), Back, Open(ScreenId), ToTitle, Quit }
+pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 ```
 
-- `Payload` carries a control's value (a pressed button, a toggled flag, a number, text). `apply` clamps and refuses untrusted values, as `omnis-app/src/creation_panel.rs:149` does: a number outside its range, text over its length, a control not on the screen.
-- A `Command` is offered only when a trial accepts it, so the binder's refusal count stays 0 (as the fight's menu does today, §9). The shell sends it through `Session::order`, which logs it.
-- `HostOp` is the client's own I/O: save and load (P2), the command log, settings (§10.5). It reuses the rules in `ops.rs` (`save_text`, `load_text`, `client_path`) that the socket's host uses.
+- **`apply` refuses before any screen sees the input** (`Refused`): a control not on the screen, a dim one, a payload its kind does not take, text over its limit. A refused text is put back in the field.
+- A `Command` is offered only when a trial accepts it, so the binder's refusal count stays 0. The shell sends it through `Session::order`, which logs it; `close` says whether the screen closes after it (the square's actions do, an inventory will not).
+- `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule in `SimWorld::save_text`, the loader's limits, `load_text`), which the socket's `save.write` and `save.read` share. A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
 
 ### 6.3 Navigation
-A client-side stack of screens over a **base** that follows the world's mode, as `omnis-app`'s
-`PlayState::for_kind` does (`omnis-app/src/sim.rs:95`):
+`screen::nav::Nav` is a stack of overlays over a **base** that follows the world (`nav::base`), as
+`omnis-app`'s `PlayState::for_kind` does (`omnis-app/src/sim.rs:95`):
 
 | Base | When |
 |---|---|
-| Title, NewGame, Load | No world yet (P2) |
-| CreateParty | A new world with an empty party (P3) |
-| Explore | `ModeKind::Explore`: the 3D view, the HUD, the controls |
-| Service | `ModeKind::Town`: the service panel (P4; the V2 notice until then) |
-| Fight | `views.combat` is `Some`: the fight screen (§9) |
-| Defeat | Every member down after a fight: Load last save, Start again, Quit to title |
+| Title | No game (`Session` absent) |
+| CreateParty | A new world with an empty party (P3; new games take the fixed party until then) |
+| none: the 3D view | Exploring: the HUD and the controls |
+| Service | `here.service` is set: the town stopgap until P4 |
+| none: the fight screen | `views.combat` is `Some` (§9) |
+| Defeat | No member can fight (`Views::fallen`): Load last save, Start again, Quit to title |
 
-Overlays open over a base from a control: Pause (P2), Confirm (P4), Camp, Sheet, Tactics (P6), Inventory,
-Cast (P5), Debug, Settings (P8). After every refresh the stack is checked against the mode: an overlay the
-new mode does not allow closes (an ambush closes the camp; a fight closes the inventory), and a loaded save
-lands on the base its mode calls for. Esc goes back one level; from a base it opens Pause.
+Overlays: NewGame (over the title), Pause and the square's Actions (P2); Confirm (P4), Camp, Sheet, Tactics
+(P6), Inventory, Cast (P5), Debug, Settings (P8) to come. `Nav::settle` runs every frame and closes what the
+world no longer allows: the actions when the party moves or a fight begins, the game's overlays when the game
+ends; a new game or a loaded save resets the stack. `Nav::escape` decides Esc: close the top overlay, else
+step the fight's menu back when it is not at its first step, else open Pause. `Nav::paused` is true under
+Pause, Defeat and the title: the game's sets do not run (§6.4).
 
 ### 6.4 The renderer and the router (shell)
-- **Render.** `shell/screen.rs` spawns `bevy_ui` nodes for a `Screen` under one root per panel, with the style's tokens (§7). It keeps a hash of the screen's **shape** (panels, rows, control ids and kinds) and respawns only when it changes; otherwise it rewrites text, colours and values in place, so a slider being dragged keeps its node.
-- **Route.** One system reads `Interaction` on controls (tagged `Control(ControlId)`) and the key table, turns them into `Payload`s and calls the screen's `apply`; one more applies the `Effect`.
-- **Text for agents.** `screen.text` (§10.4) already lists every text node and marks buttons; with the renderer it also lists a dim control's reason and a field's value, with no per-screen code.
-- **Content is rebuilt** when the views change (the accepted-command count), the screen's state changes, or the window's size class changes.
+- **The frame.** `VectorSet::Screens` runs after `Grab` and before `Input`, every frame: the router, the renderer, the chrome, the dev socket and the capture. `Grab`, `Input` and `Move` run only while a game runs and no screen holds it (`shell::screen::playing`); `Draw` whenever a game runs, so the scene stays drawn behind Pause.
+- **No world until there is one.** `Packs` (the loaded packs and the command line) is always a resource; `Session` exists only while a game runs. The title starts one (`Session::new_game`) or loads one (`Session::loaded`); Quit to title removes it. While none runs, `chrome` hides the HUD's status, the button groups and the minimap.
+- **Render.** `shell/screen.rs` draws the top screen under one `ScreenRoot`: a button is a bordered box; a choice its name, two arrow buttons and the current option; a text field its name and an underlined `EditableText` (`bevy_ui_widgets`, part of Bevy's `ui` feature, so no new crate) with `AutoFocus`. It rebuilds the nodes only when the screen's shape (`Screen::shape`: panels, rows, control ids and kinds, which are dim, whether a message shows) or the window height changes, and otherwise rewrites the words and colours in place, so a field keeps its cursor.
+- **Route.** One system turns a pressed `Pressable(ControlId)`, a pressed `Arrow`, a changed `EditableText` or a number key into a `Payload`, calls `apply` and carries out the `Effect`. Space, a right click and Shift+Space open the square's actions or run the default one while exploring.
+- **Text for agents.** `screen.text` (§10.4) lists every text node, marks buttons and text fields (`[field]`), and shows a dim control as "label: reason", with no per-screen code.
 
 ### 6.5 The fight screen
 The arena's lines, figures and hit test stay custom (`arena.rs`, `shell/combat.rs`, §9): they are drawn, not
@@ -330,7 +340,7 @@ The explore base is the 3D view plus descriptions:
 - **Status** (as built, `shell/hud.rs`): place, mode and clock, the counts, frame time, the event lines (§10.1).
 - **The roster band** (P2–P4, from `omnis-app/src/band.rs`): per member front or back, name, class, level, HP, SP, AC and the first condition or effect; HP below a quarter in the alert role; the acting member marked; a member can be selected as a target for give and cast.
 - **The message line**: the last event as a long line, refusals in the alert role, cleared on a move.
-- **The controls** (as built, `shell/controls.rs`): the movement pad, and the action menu, Save log and Quit. P4–P6 add the tool bar (Items, Spells, Sheet, Camp, Look, Map, Menu), each live by `omnis-app/src/tool_bar.rs`'s rules restated on views and trials.
+- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. P4–P6 add the tool bar (Items, Spells, Sheet, Camp, Look, Map, Menu), each live by `omnis-app/src/tool_bar.rs`'s rules restated on views and trials.
 
 ### 6.7 The parity map
 What each screen reads, and the details `omnis-app` has that the vector screen must carry. The details are
@@ -440,7 +450,7 @@ A separate 2D screen in the vector style replaces the 3D view during a fight (X7
 
 - **The switch.** `ViewState { Explore, Fight }` (registered by `CombatPlugin`) follows `views.combat.is_some()`; the switch lands a frame later. On entering, `CombatViewPlugin` deactivates the `Camera3d` and activates the `Camera2d`, moving `IsDefaultUiCamera`; the movement pad, the actions button and the minimap hide; the HUD status shrinks to two lines bottom left. On leaving, the cameras swap back, the controls return, `FightRoot` (with `DespawnOnExit`) is despawned, and the pose is already on the party's cell (a retreat lands on the retreat cell).
 - **The action model** (`combat_menu.rs`, Bevy-free). `CombatMenu { step }` with `Step::{Top, Spells, Items, Target(Action)}`. In an encounter: Fight, Bribe (with the price in whole gold), Hide, Run. On a member's turn: Attack, Cast, Use, Dodge, Swap, Flee, End turn, with the turn's budget in the prompt. Every entry and target is tried on a copy; a refused one is shown dim with its reason and never sent.
-- **The arena** (`arena.rs`): `layout(w, h)` places the picture window, the action column, the HUD status, the roll log (24% of the width, 300 to 640 px) and the field; `arena(views, data, size, targets, hover)` lays out the figures (monsters in the field's top 55%, the party in two rows; one figure per living individual up to 8, then a count; hp bars); `segments` gives the lines and `pick` the stack or member under a point. Save log and Quit are the persistent right-hand controls.
+- **The arena** (`arena.rs`): `layout(w, h)` places the picture window, the action column, the HUD status, the roll log (24% of the width, 300 to 640 px) and the field; `arena(views, data, size, targets, hover)` lays out the figures (monsters in the field's top 55%, the party in two rows; one figure per living individual up to 8, then a count; hp bars); `segments` gives the lines and `pick` the stack or member under a point. The Menu button (the pause: save, load, the log, quitting) stays bottom right in a fight.
 - **The roll log** (`rolllog.rs`): one line per fight event, the last 40 in `Session.fight_log`, cleared when monsters are met; `Names` numbers monsters as they were met and keeps the names of members a fight buries.
 - **The picture window** (`cinema.rs`, a stub): 492×200, the first standing stack's drawing (every monster is the placeholder rat), fitted in a margin, a dim glow under a bright core.
 - **P7 adds:** the controls as a `Screen` (§6.5); React; the Use picker with features and items; the budget line; the spell notes; the additions of §4.4. The art update (animated figures, the screen's scale with the window) fits alongside the style step.
@@ -458,7 +468,8 @@ size; the mouse-look hint while it is on; and up to 8 recent event lines (`Sessi
 - **To build:** a blueprint-style map in the neon style with height as contour lines (X22), opened full-screen from the tool bar's Map. What it records stays the engine's (the cardinal cone); recording the camera's view needs an engine command (presentation-PRD §12.5).
 
 ### 10.3 Capture (as built)
-- **Offscreen:** `--screenshot PATH [--walk FRAMES] [--size WxH]` renders without a window (`ScheduleRunnerPlugin`), walks forward, settles 30 frames, saves and exits. P2 adds `--screen <id>` so any screen can be captured from a start state (§11), and §8.6 adds a timing mode.
+- **Offscreen:** `--screenshot PATH [--walk FRAMES] [--size WxH] [--screen title|new-game|pause|actions]` renders without a window (`ScheduleRunnerPlugin`), opens the screen asked for (the title and the form with no game), walks forward, settles 30 frames, saves and exits. §8.6 adds a timing mode.
+- **The start.** The window opens at the title; `--seed N`, a capture of the game view, or `--screen pause|actions` start in a game. `--save FILE` names the quick save (default `.omnis/quick.ron`).
 - **Live:** the socket's `screenshot` (§4.5).
 
 ### 10.4 `screen.text` (as built, P1)
@@ -497,8 +508,8 @@ step's acceptance script under `tasks/acceptance/`, with the capture beside them
 
 ## 12. Security
 
-- **Inputs.** Packs, through `omnis_data::load_packs`, which treats them as untrusted (ARCH §6.2). With `devtools`, saves and reloaded packs over the socket, through the same loaders. From P2, saves from the load screen and the client settings file (§10.5), each validated on read.
-- **Paths.** `--log` takes a relative path without `..` (`session.rs` `safe_relative`); every socket path goes through `client_path` (relative, no `..`, the extension checked) under the working directory. P2's save and load screen uses `client_path` too.
+- **Inputs.** Packs, through `omnis_data::load_packs`, which treats them as untrusted (ARCH §6.2). With `devtools`, saves and reloaded packs over the socket, through the same loaders. Saves from the title, the pause and the fallen party's screen (`game_io.rs`, the loader's limits and the engine's migration), and from P8 the client settings file (§10.5), each validated on read.
+- **Paths.** `--log` takes a relative path without `..` (`session.rs` `safe_relative`); every socket path goes through `client_path` (relative, no `..`, the extension checked) under the working directory. The quick save (`--save`) is checked by `client_path` when parsed and again on every save and load.
 - **The dev socket:** loopback only (a non-loopback `--dev-socket` is refused), one client, 1 MiB per line, compiled out without `devtools`, absent in capture mode (§4.5).
 - **Screens.** `apply` clamps and refuses every value a control reports (§6.2). Text fields are bounded.
 - **Bounded input.** The mouse delta per frame and the frame's `dt` (0.1 s at most) are clamped before integration, so a stall cannot carry the pose across cells.
@@ -539,7 +550,7 @@ glyphs (3), the set-piece format (4), the automap's sensing (5), the performance
 level (7), the camera (8).
 
 This document's own:
-1. **Fields in `bevy_ui` without Feathers.** Sliders, number fields and text input for creation (P3), camp (P6), the bank (P4) and the debug panel (P8). `bevy_ui` 0.19 has buttons and text; the rest is built on them in the renderer (a slider as a track and a draggable node, a number as minus, value and plus) or taken from Bevy's widgets if they land without Feathers. Decided in P2's plan, where the seed field is the first text input.
+1. ~~**Fields in `bevy_ui` without Feathers.**~~ Resolved in P2: Bevy's `ui` feature already compiles `bevy_ui_widgets` (unstyled `EditableText`, `Slider`, `Checkbox`, `ScrollArea`; no new crate). The seed field is an `EditableText`; P3, P4 and P6 use the slider and checkbox, styled by the renderer. `TabNavigationPlugin` is not in `DefaultPlugins`, so keyboard focus moves only by `AutoFocus` and clicks until a step adds it.
 2. **The font.** Bevy's default until a modern font is chosen with the style step; a font is a licensed asset in the repo.
 3. **The line technique** for §8.2 (unlit standard material with line lists, or a custom material for pixel-width lines), decided by measurement.
 4. **Where the client settings file lives** for a shipped build (§10.5): `.omnis/` is the development path; the platform's config directory arrives with packaging (M12).

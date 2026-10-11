@@ -12,14 +12,18 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 670 passed, 13 ignored (2026-10-10, after the vector adoption's V3; 583 of
-them before `omnis-vector` joined), in 268 s with Bevy's `bevy_pbr` unified across the workspace (222 s
-before). The gate's log says it on one line: `tests passed 670 failed 0 ignored 13`.
+Test count at the gate: 701 passed, 13 ignored (2026-10-10, after parity P2; 670 after the vector
+adoption's V3, 583 before `omnis-vector` joined). The gate's log says it on one line:
+`tests passed 701 failed 0 ignored 13`. Write each gate run to a new file name: `verify.sh` stops at the
+first failing step, so `cargo fmt --check && verify.sh > gate.txt` that fails at fmt leaves an older
+`gate.txt` in place, and reading it reports an old count as this run's (P2, 2026-10-10).
 
 The vector client: `cargo test -p omnis-vector` (seconds once built); `tests/agreement.rs` holds its
 collision mirror to the simulation on every map. An offscreen capture:
-`cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]` (paths must be
-relative, without `..`). The dev socket: `just run` writes `.omnis/dev.addr`; the loopback test is
+`cargo run -p omnis-vector -- --screenshot <relative path>.png --size 1600x900 [--walk N]
+[--screen title|new-game|pause|actions]` (paths must be relative, without `..`). The window starts at the
+title; tests that save name their own file under the crate's `.omnis/test-saves/` (the test config's
+quick save is `.omnis/test-saves/none.ron`, never the player's). The dev socket: `just run` writes `.omnis/dev.addr`; the loopback test is
 `tests/socket.rs` (headless, no renderer, so `screenshot` there answers "no window"). A window launched
 from an agent's shell gets no window-server connection ("Connection invalid … hiservices" in its log, in
 the sandbox and out of it on 2026-10-10) and runs no frames, for both clients, so a live `screenshot` needs

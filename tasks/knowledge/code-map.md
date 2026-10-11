@@ -149,11 +149,20 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `CharacterId`, spells and items as rows of the views turned into string ids by `resolve`; End turn; the
   budget in the prompt), `arena.rs` (the fight screen's layout and picks), `rolllog.rs` (the roll log,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
-- Shell: `session.rs` (`Config` flags, `Session::start`, `order`, `save_log`), `movement.rs`, `controls.rs`
-  (buttons for every action), `panel.rs` (the centre panel: the fallen party's notice, the town notice, the
-  action menu), `town.rs` (inside a service: the name and Leave, a stopgap until parity P4), `combat.rs`
-  (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`, offscreen; the
-  socket's live capture).
+- Shell: `session.rs` (`Config` flags incl. `--save`, `--screen`; `Packs`, always a resource; `Session`, only
+  while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `save_log`), `movement.rs`,
+  `controls.rs` (the pad; Actions and Menu bottom right), `screen.rs` (the screen renderer and router:
+  `Screens { nav, forms }`, `Pressable`, `Arrow`, `ctx`, `playing`, the chrome hidden with no game),
+  `combat.rs` (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
+  offscreen; the socket's live capture).
+- Screens (parity P2, presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
+  `Panel`, `Row`, `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Text}`, `Payload`, `Effect`,
+  `HostOp`, `Refused`, `Ctx`/`Game`/`Slot`, `Forms`, `content`, `apply`), `nav.rs` (`Nav`: overlays over the
+  world's base; `settle`, `escape`, `paused`), one file per screen (`title`, `new_game`, `pause`, `defeat`,
+  `actions`, `service`). `labels.rs` turns ids and text keys into words (the only `Data::label` caller);
+  `style.rs` the roles and the type scale; `game_io.rs` save and load (the pause and the socket share it).
+  `VectorSet::Screens` runs every frame; `Grab`/`Input`/`Move` only while `playing`, `Draw` while a game
+  runs.
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays.
 - The engine boundary (parity P0): `sim.rs` holds `SimWorld` with its world private (methods mirror
@@ -164,7 +173,8 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
 - Dev socket (parity P1, feature `devtools`): `shell/socket.rs` (`DevSocketPlugin`, framing copied from
   `omnis-app`), `shell/host.rs` (host ops; commands through `dispatch`, then into the binder's log, the pose
   snapped to the party when its place or facing changed; a load, a pack reload or `rules.set` set
-  `Session::unreplayable`), `shell/screen_text.rs` (every shown `Text`, `[button]` when pressable),
+  `Session::unreplayable`; with no game, every op but the screen's answers `NO_GAME`),
+  `shell/screen_text.rs` (every shown `Text`, `[button]` when pressable, `[field]` for an `EditableText`),
   `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-app
