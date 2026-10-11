@@ -424,18 +424,25 @@ impl Session {
     /// member) and report what happened; `true` when it was accepted. The pose follows when the
     /// command moved the party, as a retreat does.
     pub fn order(&mut self, command: Command) -> bool {
-        let accepted = match self.binder.apply(&mut self.world, &self.data, command) {
-            Ok(events) => {
-                self.note(&events);
-                true
-            }
+        self.ordered(command).is_ok()
+    }
+
+    /// [`Session::order`], with its outcome: the newest line it added when accepted (none when
+    /// nothing worth a line happened), or the refusal's line.
+    ///
+    /// # Errors
+    /// The refusal's line, also added to the lines, when the command was refused.
+    pub fn ordered(&mut self, command: Command) -> Result<Option<String>, String> {
+        let outcome = match self.binder.apply(&mut self.world, &self.data, command) {
+            Ok(events) => Ok(self.note(&events)),
             Err(rejection) => {
-                self.say(format!("Refused: {rejection}"));
-                false
+                let line = format!("Refused: {rejection}");
+                self.say(line.clone());
+                Err(line)
             }
         };
         self.follow();
-        accepted
+        outcome
     }
 
     /// Snap the pose to the simulation's position when the party is no longer where the pose
@@ -470,8 +477,9 @@ impl Session {
     }
 
     /// Take in a frame's events: HUD lines for the ones worth showing, the roll log (cleared
-    /// when monsters are met, the last 40 lines kept), and the reshape flag.
-    pub fn note(&mut self, events: &[Event]) {
+    /// when monsters are met, the last 40 lines kept), and the reshape flag. Answers the newest
+    /// line added.
+    pub fn note(&mut self, events: &[Event]) -> Option<String> {
         self.refresh();
         self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
         self.names.observe(&self.views.party);
@@ -490,9 +498,11 @@ impl Session {
             .iter()
             .filter_map(|e| describe(e, &self.names, &self.data))
             .collect();
+        let newest = lines.last().cloned();
         for line in lines {
             self.say(line);
         }
+        newest
     }
 
     /// A world from outside the binder (a loaded save) takes this one's place: the views, the

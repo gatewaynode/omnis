@@ -39,7 +39,7 @@ pub enum ScreenId {
     Pause,
     /// The square's actions (Space).
     Actions,
-    /// Inside a town service (the stopgap until P4).
+    /// Inside a town service.
     Service,
     /// The party has fallen.
     Defeat,
@@ -102,6 +102,14 @@ pub enum ControlId {
     Member(omnis_sim::omnis_core::CharacterId),
     /// Open one of the selected member's screens.
     Open(roster::Tool),
+    /// A service's offer, by index into its view's offers.
+    Offer(u16),
+    /// The bank's amount, in whole gold.
+    Amount,
+    /// Pay the amount into the bank.
+    Deposit,
+    /// Draw the amount from the bank.
+    Withdraw,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -418,6 +426,8 @@ pub enum Refused {
     TooLong(usize),
     /// The number is outside the control's range.
     OutOfRange,
+    /// The field takes only digits.
+    NotDigits,
 }
 
 /// The game a screen looks at, when one is running.
@@ -470,6 +480,10 @@ pub struct Forms {
     pub create: CreateForm,
     /// The last outcome to report (saved, failed to load); cleared when the screen changes.
     pub message: Option<Span>,
+    /// The bank's amount in whole gold, the digits as typed; cleared when a service is entered.
+    pub bank: String,
+    /// The top screen and the base as last shown, for [`Forms::shown`].
+    seen: (Option<ScreenId>, Option<ScreenId>),
 }
 
 impl Forms {
@@ -479,10 +493,22 @@ impl Forms {
             self.create = CreateForm::default();
         }
     }
+
+    /// The screens now shown: a new top screen clears the last outcome, and entering a service
+    /// clears the bank's amount.
+    pub fn shown(&mut self, top: Option<ScreenId>, base: Option<ScreenId>) {
+        if top != self.seen.0 {
+            self.message = None;
+        }
+        if base == Some(ScreenId::Service) && self.seen.1 != base {
+            self.bank.clear();
+        }
+        self.seen = (top, base);
+    }
 }
 
 /// A screen with nothing on it, for one asked for without the game it needs.
-fn empty(id: ScreenId) -> Screen {
+pub(crate) fn empty(id: ScreenId) -> Screen {
     Screen {
         id,
         title: Span::title(""),
@@ -500,7 +526,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
-        (ScreenId::Service, Some(game)) => service::content(ctx.data, game),
+        (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
         (ScreenId::CreateParty, Some(game)) => create_party::content(ctx.data, game, &forms.create),
         (id, None) => empty(id),
@@ -514,7 +540,8 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
 ///
 /// # Errors
 /// [`Refused`] when the screen has no such control, the control is dim, it does not take the
-/// payload, the text is too long, or the number is outside its range; nothing is done.
+/// payload, the text is too long, or the number is outside its range, or the screen refuses
+/// what was typed; nothing is done.
 pub fn apply(
     id: ScreenId,
     ctx: &Ctx,
@@ -549,11 +576,11 @@ pub fn apply(
         (ScreenId::NewGame, _) => new_game::apply(&mut forms.new_game, control, payload, entropy),
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
-        (ScreenId::Service, _) => service::apply(control),
+        (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Defeat, _) => defeat::apply(control),
         (ScreenId::CreateParty, Some(game)) => {
             create_party::apply(&mut forms.create, game, control, payload)
         }
-        (ScreenId::Actions | ScreenId::CreateParty, None) => Effect::None,
+        (ScreenId::Actions | ScreenId::CreateParty | ScreenId::Service, None) => Effect::None,
     })
 }

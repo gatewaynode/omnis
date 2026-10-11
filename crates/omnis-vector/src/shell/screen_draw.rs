@@ -6,9 +6,11 @@
 
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen};
 use crate::style::{Role, SHADES, Size, scaled};
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::input_focus::AutoFocus;
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle};
+use bevy::ui::RelativeCursorPosition;
 use bevy::ui_widgets::{Slider, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick};
 
 /// A control's node: pressing it, or typing in it, uses the control.
@@ -51,6 +53,13 @@ pub(super) struct TitleText;
 /// The outcome's words, under the panels.
 #[derive(Component)]
 pub(super) struct MessageText;
+
+/// A screen's panel: its rows scroll when the screen is taller than the window.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Scrolls;
+
+/// How far one line of a mouse wheel scrolls a panel, in logical pixels.
+const WHEEL_LINE: f32 = 40.0;
 
 /// `role`'s colour.
 #[must_use]
@@ -381,6 +390,26 @@ fn span_node(
     };
 }
 
+/// The mouse wheel scrolls the panel under the cursor; the layout holds it inside its rows.
+pub(super) fn wheel(
+    scroll: Res<AccumulatedMouseScroll>,
+    mut panels: Query<(&RelativeCursorPosition, &mut ScrollPosition), With<Scrolls>>,
+) {
+    let dy = match scroll.unit {
+        MouseScrollUnit::Line => scroll.delta.y * WHEEL_LINE,
+        MouseScrollUnit::Pixel => scroll.delta.y,
+    };
+    if dy == 0.0 {
+        return;
+    }
+    for (cursor, mut at) in &mut panels {
+        if cursor.cursor_over() {
+            // Wheel up (a positive delta) shows what is above.
+            at.0.y = (at.0.y - dy).max(0.0);
+        }
+    }
+}
+
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
 pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32) {
     let t = &screen.title;
@@ -388,6 +417,8 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
     parent
         .spawn(Node {
             column_gap: Val::Px(scaled(24.0, height)),
+            // Gives way to the root's height, so the panels scroll rather than overflow.
+            min_height: Val::Px(0.0),
             ..default()
         })
         .with_children(|columns| {
@@ -395,14 +426,21 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                 columns
                     // Panels share the width equally, so one panel's long rows never squeeze
                     // the next into wrapping.
-                    .spawn(Node {
-                        flex_direction: FlexDirection::Column,
-                        flex_grow: 1.0,
-                        flex_basis: Val::Px(0.0),
-                        min_width: Val::Px(0.0),
-                        row_gap: Val::Px(scaled(8.0, height)),
-                        ..default()
-                    })
+                    .spawn((
+                        Scrolls,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            flex_grow: 1.0,
+                            flex_basis: Val::Px(0.0),
+                            min_width: Val::Px(0.0),
+                            min_height: Val::Px(0.0),
+                            row_gap: Val::Px(scaled(8.0, height)),
+                            overflow: Overflow::scroll_y(),
+                            ..default()
+                        },
+                        ScrollPosition::default(),
+                        RelativeCursorPosition::default(),
+                    ))
                     .with_children(|column| {
                         rows(column, p, panel, &screen.keys, height, Mark::Screen)
                     });

@@ -18,6 +18,8 @@ pub enum Escape {
     Paused,
     /// Leave party creation for the new game's form, as its Back does.
     Leave,
+    /// Leave the service the party is in, as its Leave does.
+    LeaveService,
     /// Nothing to do.
     Nothing,
 }
@@ -143,8 +145,8 @@ impl Nav {
     }
 
     /// Esc: close the top overlay; otherwise step a fight's menu back when it is not at its
-    /// first step (`fight_at_root` false); otherwise leave party creation, or pause a running
-    /// game.
+    /// first step (`fight_at_root` false); otherwise leave party creation or the service, or
+    /// pause a running game.
     pub fn escape(&mut self, game: Option<&Views>, fight_at_root: bool) -> Escape {
         if self.back() {
             return Escape::Closed;
@@ -155,8 +157,10 @@ impl Nav {
         if views.combat.is_some() && !fight_at_root {
             return Escape::FightBack;
         }
-        if self.base(game) == Some(ScreenId::CreateParty) {
-            return Escape::Leave;
+        match self.base(game) {
+            Some(ScreenId::CreateParty) => return Escape::Leave,
+            Some(ScreenId::Service) => return Escape::LeaveService,
+            _ => {}
         }
         if self.allowed(ScreenId::Pause, game) {
             self.stack.push(ScreenId::Pause);

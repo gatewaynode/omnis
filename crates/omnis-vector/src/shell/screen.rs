@@ -12,9 +12,9 @@ use super::combat::{FightScreen, size};
 use super::controls::Corner;
 use super::hud::StatusText;
 use super::minimap::Minimap;
-pub use super::screen_draw::{Arrow, Pressable, Side, SliderOf, colour, shade};
+pub use super::screen_draw::{Arrow, Pressable, Scrolls, Side, SliderOf, colour, shade};
 use super::screen_draw::{
-    LabelOf, MessageText, SpanAt, TitleText, build, shown_label, text_field, thumbs, width,
+    LabelOf, MessageText, SpanAt, TitleText, build, shown_label, text_field, thumbs, wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::{VectorSet, ViewState};
@@ -23,8 +23,8 @@ use crate::game_io;
 use crate::screen::actions::default_action;
 use crate::screen::nav::{Escape, Nav};
 use crate::screen::{
-    self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Refused,
-    Screen, ScreenId, Slot, Span,
+    self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Screen,
+    ScreenId, Slot, Span,
 };
 use crate::sim::Views;
 use crate::style::{Role, scaled};
@@ -35,6 +35,7 @@ use bevy::ui_widgets::{SliderValue, ValueChange};
 use bevy::window::PrimaryWindow;
 use omnis_sim::omnis_core::rng::splitmix64;
 use omnis_sim::omnis_core::{CharacterId, Position};
+use omnis_sim::{Command, ServiceCommand};
 use std::path::Path;
 
 /// Whether a screen is up; the cursor is freed while it is.
@@ -91,6 +92,7 @@ impl Plugin for ScreenPlugin {
                     paint,
                     super::roster::paint,
                     thumbs,
+                    wheel,
                     chrome,
                 )
                     .chain()
@@ -261,7 +263,7 @@ fn route(
     fight: Option<ResMut<FightScreen>>,
 ) {
     let screens = &mut *screens;
-    let mut leave = false;
+    let mut escaped = None;
     {
         let game = session.as_deref().map(|s| &s.views);
         let here = game.map(|v| v.position);
@@ -276,18 +278,29 @@ fn route(
                         fight.menu.back();
                     }
                 }
-                Escape::Closed | Escape::Paused => screens.forms.message = None,
-                Escape::Leave => leave = true,
-                Escape::Nothing => {}
+                Escape::Leave => escaped = Some(Effect::ToNewGame),
+                Escape::LeaveService => {
+                    escaped = Some(Effect::Command {
+                        command: Command::Service(ServiceCommand::Leave),
+                        close: false,
+                    });
+                }
+                Escape::Closed | Escape::Paused | Escape::Nothing => {}
             }
         }
     }
-    if leave {
-        carry_out(Effect::ToNewGame, &mut host, &mut session, screens);
+    if let Some(effect) = escaped {
+        carry_out(effect, &mut host, &mut session, screens);
         return;
     }
     if let Some(session) = session.as_deref_mut() {
         action_keys(&used.keys, &used.mouse, session, &mut screens.nav);
+    }
+    {
+        let game = session.as_deref().map(|s| &s.views);
+        screens
+            .forms
+            .shown(screens.nav.top(game), screens.nav.base(game));
     }
     let slid = used.slid.0.take();
     let Some(top) = screens.nav.top(session.as_deref().map(|s| &s.views)) else {
@@ -357,8 +370,8 @@ fn applied(
         .or_else(keyed)?;
     match screen::apply(top, ctx, forms, id, &payload, entropy()) {
         Ok(effect) => Some(effect),
-        Err(Refused::TooLong(_)) => {
-            // The field shows what the form holds again.
+        Err(_) if matches!(payload, Payload::Text(_)) => {
+            // Text the form refused: the field shows what the form holds again.
             if let Some(Control {
                 kind: Kind::Text { value, max },
                 ..
@@ -405,8 +418,8 @@ fn action_keys(
     }
 }
 
-/// Carry out what a screen asked for. Every effect but `None` clears the last outcome; the
-/// host's work then reports its own.
+/// Carry out what a screen asked for. Every effect but `None` clears the last outcome; a
+/// command then reports its newest line, or its refusal, and the host's work its own.
 fn carry_out(
     effect: Effect,
     host: &mut Host,
@@ -419,10 +432,14 @@ fn carry_out(
     match effect {
         Effect::None => {}
         Effect::Command { command, close } => {
-            if let Some(session) = session.as_deref_mut()
-                && session.order(command.clone())
-            {
-                screens.forms.accepted(&command);
+            if let Some(session) = session.as_deref_mut() {
+                match session.ordered(command.clone()) {
+                    Ok(line) => {
+                        screens.forms.accepted(&command);
+                        screens.forms.message = line.map(Span::body);
+                    }
+                    Err(why) => screens.forms.message = Some(Span::alert(why)),
+                }
             }
             if close {
                 screens.nav.back();
@@ -553,6 +570,14 @@ fn paint(
     };
     let top = screens.nav.top(session.as_deref().map(|s| &s.views));
     showing.0 = top.is_some();
+    let room = Val::Vh(if played(session.as_deref(), &screens.nav) {
+        PLAYED_ROOM
+    } else {
+        ALONE_ROOM
+    });
+    if node.max_height != room {
+        node.max_height = room;
+    }
     let Some(top) = top else {
         if screens.drawn.take().is_some() {
             commands.entity(entity).despawn_related::<Children>();
@@ -652,6 +677,20 @@ fn slide(
     }
 }
 
+/// The most a screen's height takes, in percent of the window's, over a game being played: the
+/// room between the HUD's lines above and the button groups below. A taller screen's panels
+/// scroll.
+const PLAYED_ROOM: f32 = 64.0;
+
+/// The most a screen's height takes with no game chrome: the window less the gaps.
+const ALONE_ROOM: f32 = 95.0;
+
+/// Whether a game is being played, and so its HUD, buttons and minimap show: not at the title,
+/// nor while its party is made.
+fn played(session: Option<&Session>, nav: &Nav) -> bool {
+    session.is_some_and(|s| nav.base(Some(&s.views)) != Some(ScreenId::CreateParty))
+}
+
 /// The game's own nodes: the HUD's status, the button groups and the minimap.
 type GameChrome = Or<(With<StatusText>, With<Corner>, With<Minimap>)>;
 
@@ -662,9 +701,7 @@ fn chrome(
     screens: Res<Screens>,
     mut nodes: Query<&mut Visibility, GameChrome>,
 ) {
-    let played =
-        session.is_some_and(|s| screens.nav.base(Some(&s.views)) != Some(ScreenId::CreateParty));
-    let want = if played {
+    let want = if played(session.as_deref(), &screens.nav) {
         Visibility::Inherited
     } else {
         Visibility::Hidden

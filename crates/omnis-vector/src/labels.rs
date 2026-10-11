@@ -211,7 +211,7 @@ pub fn rumor(data: &Data, service: &str, row: u16, ago_minutes: i64) -> String {
 }
 
 /// An offer's row label in a service (the other client's `service_panel::row_label`): "A
-/// night's rest", "Longsword", "Dagger ×2", "Brenna, 5 of 12 HP", "Brenna, level 1 to 2",
+/// night's rest", "Longsword", "Dagger x2", "Brenna, 5 of 12 HP", "Brenna, level 1 to 2",
 /// "Ilvara: Shatter". Names come from the party view and the packs.
 #[must_use]
 pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String {
@@ -230,7 +230,7 @@ pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String 
                 .iter()
                 .find(|i| i.item == *item)
                 .map_or(0, |i| i.count);
-            format!("{} ×{count}", self::item(data, item))
+            format!("{} x{count}", self::item(data, item))
         }
         ServiceCommand::Heal { member: id }
         | ServiceCommand::Cure { member: id }
@@ -307,6 +307,12 @@ pub fn service_reason(refusal: &Rejection) -> String {
         Rejection::CannotAfford { .. } => "not enough money".to_owned(),
         Rejection::NothingToTreat { .. } => "nothing to treat".to_owned(),
         Rejection::NotDead { .. } => "not dead".to_owned(),
+        Rejection::BankShort { bank, .. } => format!("the bank holds {}", coins(*bank)),
+        // The row names the member; the engine's words name them by number.
+        Rejection::NotReady { xp, needed, .. } => format!("{xp} of {needed} XP"),
+        Rejection::SpellTooHigh { level, max } => {
+            format!("level {level} spell, up to level {max} now")
+        }
         Rejection::RestTooSoon { minutes } => format!(
             "rested too recently ({}h {:02}m)",
             minutes / 60,

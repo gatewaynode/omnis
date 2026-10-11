@@ -162,57 +162,6 @@ fn the_hud_reports_a_smoothed_frame_rate_and_frame_time() {
     assert!(status.contains("62 fps  16.0 ms"), "{status}");
 }
 
-#[test]
-fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
-    use omnis_sim::omnis_core::{Direction, Rotation};
-    use omnis_sim::{Command, Mode, ServiceCommand};
-    use omnis_vector::screen::{self, ControlId, Forms, ScreenId};
-    use omnis_vector::shell::screen::{Pressable, Screens, ctx};
-    // The game's start: the street at (10, 2) facing West, the guild's door to the north.
-    let mut app = common::app::app_with(".omnis/vector-session.ron".into(), 1);
-    app.update();
-    {
-        let mut session = app.world_mut().resource_mut::<Session>();
-        session.order(Command::Turn(Rotation::Right));
-        session.order(Command::Interact);
-        session.order(Command::Step(Direction::Forward));
-        assert!(matches!(session.world.mode, Mode::Town(_)), "in the guild");
-    }
-    app.update();
-    let top = |app: &App| {
-        let session = app.world().resource::<Session>();
-        app.world()
-            .resource::<Screens>()
-            .nav
-            .top(Some(&session.views))
-    };
-    assert_eq!(top(&app), Some(ScreenId::Service));
-    {
-        let session = app.world().resource::<Session>();
-        let shown = screen::content(ScreenId::Service, &ctx(session), &Forms::default());
-        let first = &shown.panels[0].rows[0].spans[0].text;
-        assert!(first.contains("not in this client yet"), "{shown:?}");
-        let ids: Vec<_> = shown.controls().map(|c| c.id).collect();
-        assert_eq!(ids, [ControlId::Leave]);
-    }
-    let _ = ServiceCommand::Leave;
-    set(&mut app, &Pressable(ControlId::Leave), Interaction::Pressed);
-    app.update();
-    let session = app.world().resource::<Session>();
-    assert!(
-        matches!(session.world.mode, Mode::Explore),
-        "back on the street"
-    );
-    assert_eq!(
-        app.world()
-            .resource::<Screens>()
-            .nav
-            .top(Some(&session.views)),
-        None,
-        "the notice closed"
-    );
-}
-
 /// The views the shell reads are the world's at the end of every frame: walking, a door, monsters
 /// met and a fight (A17: the shell reads views, so a stale one would show the wrong world).
 #[test]
