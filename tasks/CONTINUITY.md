@@ -1,12 +1,12 @@
 # Continuity notes
 
-Written 2026-10-11, after P7 was built, before the owner's acceptance run. Rewrite this file every time it
+Written 2026-10-11, after P7 was accepted, before a compact. Rewrite this file every time it
 is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `vector-adoption`**, not pushed (the owner pushes).
-- **Accepted by the owner:** P2, P3, the party column, P4, P5, P6 (all 2026-10-11; P6: "P6 accepted, move on
-  to planning P7").
+- **Accepted by the owner:** P2, P3, the party column, P4, P5, P6, P7 (all 2026-10-11; P7: "P7 accepted,
+  prepare for a compact").
 - **P7 built:** plan `tasks/plans/p7.md` (with "As built"), commits `5ed2b36` (plan), `ab06bed` (P7a engine),
   `340f8c3` (P7b, P7c), then the docs commit (P7d).
   - Owner answers: Features its own entry; React a choice "Reactions < on >" under the budget line; the
@@ -15,8 +15,10 @@ is used. Durable knowledge lives in `tasks/knowledge/`.
   - Client: `ScreenId::Fight` (`screen/fight.rs`), drawn and routed by `shell/combat.rs` (`FightPress`,
     `Mark::Fight`), never on the Nav stack; `Forms.fight` with `settle` (the red-first fix: a turn passed
     elsewhere took the menu back to the top); `arena::picker`.
-- **Next:** the owner runs `tasks/acceptance/p7.md`. On acceptance, tick P7 in TODO with their words (as P6's
-  line). Then P8 (debug panel; settings), planned in plan mode with layout questions first.
+- **Next:** P8 (TODO: "Debug panel; settings (reduced motion, grid visibility, quality, font and scale)"),
+  planned in plan mode: explore first (old client's debug panel and settings; presentation-ARCHITECTURE §6.7
+  Debug row, §10.5, §10.6, §7.5), then ask the owner the layout questions before writing the plan. P9 after:
+  retire `omnis-app`.
 
 ## Facts
 - **Fight words:** "Round R: X's turn"; "Action 1   Bonus 1   Reaction 1 (on)"; pickers add "SP s/max" for a
