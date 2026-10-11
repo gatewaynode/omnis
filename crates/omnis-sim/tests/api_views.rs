@@ -652,3 +652,175 @@ fn can_fight_is_up_alive_and_not_incapacitated() {
     let view = party_view(&world, &data);
     assert!(view.members[BRENNA].down && !view.members[DURIN].down && view.members[ILVARA].dead);
 }
+
+/// Each fight spell row says what it spends of the turn, from the definition: Shield is a
+/// reaction; Healing Word costs an action, its bonus-action way being the row's `bonus` (parity
+/// P7, the picker's notes; ARCHITECTURE §4.4).
+#[test]
+fn a_fight_spell_row_pays_its_definition_s_cost() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let learn = |world: &mut World, slot: usize, spell: &str| {
+        let id = data.registry.spells.get(spell).unwrap();
+        if !world.party.members[slot].known_spells.contains(&id) {
+            world.party.members[slot].known_spells.push(id);
+        }
+    };
+    learn(&mut world, ILVARA, "base:spell:shield");
+    learn(&mut world, DURIN, "base:spell:healing_word");
+    fight(&mut world, &data, &[("goblin", 1)]);
+    for (slot, spell, want) in [
+        (ILVARA, "base:spell:shield", omnis_data::Cost::Reaction),
+        (DURIN, "base:spell:healing_word", omnis_data::Cost::Action),
+    ] {
+        until_turn_of(&mut world, &data, slot);
+        let view = combat_view(&world, &data).expect("in a fight");
+        for row in &view.spells {
+            let def = data
+                .spells
+                .get(&data.registry.spells.get(&row.spell).unwrap())
+                .unwrap();
+            assert_eq!(row.pay, def.cost, "{}", row.spell);
+        }
+        let row = view.spells.iter().find(|s| s.spell == spell).unwrap();
+        assert_eq!(row.pay, want, "{spell}");
+        if slot == DURIN {
+            assert_eq!(row.bonus, None, "Healing Word may take the bonus action");
+        }
+    }
+}
+
+/// The fight's item rows are the acting member's kit rows with a use, each refused as the Use
+/// command would refuse it with no receiver: the spyglass is not used from a fight, a potion
+/// wants the turn's action (parity P7, the Use picker; ARCHITECTURE §4.4).
+#[test]
+fn the_fight_s_item_rows_answer_as_the_use_would() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let item = |name: &str| data.registry.items.get(name).unwrap();
+    let (potion, glass) = (
+        item("base:item:potion_of_healing"),
+        item("base:item:spyglass"),
+    );
+    world.party.members[DURIN].equipment.push((potion, 2));
+    world.party.members[DURIN].equipment.push((glass, 1));
+    fight(&mut world, &data, &[("goblin", 2)]);
+    let view = combat_view(&world, &data).unwrap();
+    assert_eq!(view.phase, omnis_sim::ModeKind::Combat);
+    until_turn_of(&mut world, &data, DURIN);
+    let rows = |world: &World| combat_view(world, &data).unwrap().items;
+    let use_of = |world: &World, item: &str| {
+        apply(
+            &mut world.clone(),
+            &data,
+            Command::Combat(CombatCommand::Use {
+                item: item.to_owned(),
+                receiver: None,
+            }),
+        )
+        .err()
+    };
+    let shown = rows(&world);
+    let usable: Vec<(String, u16)> = world.party.members[DURIN]
+        .equipment
+        .iter()
+        .filter(|(id, _)| data.items.get(id).is_some_and(|d| d.use_effect.is_some()))
+        .map(|(id, n)| (data.registry.items.name(*id).unwrap().to_owned(), *n))
+        .collect();
+    assert_eq!(
+        shown
+            .iter()
+            .map(|r| (r.item.clone(), r.count))
+            .collect::<Vec<_>>(),
+        usable,
+        "the kit's usable rows, in kit order, with their counts"
+    );
+    assert!(
+        usable.len() < world.party.members[DURIN].equipment.len(),
+        "a weapon is left out"
+    );
+    for row in &shown {
+        assert_eq!(row.blocked, use_of(&world, &row.item), "{}", row.item);
+        let def = data
+            .items
+            .get(&data.registry.items.get(&row.item).unwrap())
+            .unwrap();
+        assert_eq!(row.name, def.name);
+    }
+    let blocked = |world: &World, item: &str| {
+        rows(world)
+            .into_iter()
+            .find(|r| r.item == item)
+            .unwrap()
+            .blocked
+    };
+    assert_eq!(blocked(&world, "base:item:potion_of_healing"), None);
+    assert_eq!(
+        blocked(&world, "base:item:spyglass"),
+        Some(Rejection::NotUsableHere)
+    );
+    let Mode::Combat(c) = &mut world.mode else {
+        panic!("in a fight");
+    };
+    c.budget.actions = 0;
+    assert_eq!(
+        blocked(&world, "base:item:potion_of_healing"),
+        Some(Rejection::NoActionLeft)
+    );
+    assert_eq!(
+        use_of(&world, "base:item:potion_of_healing"),
+        Some(Rejection::NoActionLeft),
+        "the command agrees"
+    );
+}
+
+/// No member acts in the encounter or on a monster's turn, so no item rows there.
+#[test]
+fn the_fight_s_item_rows_are_only_on_a_member_s_turn() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let potion = data
+        .registry
+        .items
+        .get("base:item:potion_of_healing")
+        .unwrap();
+    for m in &mut world.party.members {
+        m.equipment.push((potion, 1));
+    }
+    let here = world.position;
+    world.mode = Mode::Encounter(encounter(
+        &data,
+        &[("goblin", 1)],
+        Disposition::Hostile,
+        here,
+    ));
+    assert!(
+        combat_view(&world, &data).unwrap().items.is_empty(),
+        "the encounter"
+    );
+    fight(&mut world, &data, &[("goblin", 1)]);
+    let Mode::Combat(c) = &mut world.mode else {
+        panic!("in a fight");
+    };
+    let monster = c
+        .order
+        .iter()
+        .position(|i| matches!(i.actor, ActorRef::Stack(_)))
+        .unwrap();
+    let was = c.current;
+    c.current = u8::try_from(monster).unwrap();
+    let view = combat_view(&world, &data).unwrap();
+    assert!(matches!(view.current, Some(ActorRef::Stack(_))));
+    assert!(view.items.is_empty(), "a monster's turn");
+    if let Mode::Combat(c) = &mut world.mode {
+        c.current = was;
+    }
+    until_turn_of(&mut world, &data, DURIN);
+    assert!(
+        !combat_view(&world, &data).unwrap().items.is_empty(),
+        "Durin's turn"
+    );
+}

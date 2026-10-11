@@ -393,7 +393,7 @@ answer).
 `Trigger` is one of `SpellCast`, `Attacked`, `MemberAttacked`, `MemberWounded`, `MemberDying`,
 `EnemyFlees`, `EnemyCasts`, `OwnTurn` (see §14 for which are live).
 
-### 7.4 `CombatView`, `StackView`, `SpellView`, `FeatureView`, `FighterView`, `ChoiceKind`
+### 7.4 `CombatView`, `StackView`, `SpellView`, `FightItemView`, `FeatureView`, `FighterView`, `ChoiceKind`
 
 `CombatView` (the encounter before the choice, or the fight):
 
@@ -416,6 +416,7 @@ answer).
 | `reactions` | `[[ActorRef, left]]` reactions left this round. |
 | `members` | `[FighterView]` in marching order; empty before the fight. |
 | `bribe` | Copper a bribe would cost, before the fight, when the monsters take one. |
+| `items` | The acting member's `[FightItemView]`, the kit rows that have a use; empty when no member acts. |
 
 `ActorRef` is `{"Member": CharacterId}`, `{"Stack": n}` or `{"Monster": {"stack", "index"}}`
 (`index` among the stack's living at that moment).
@@ -430,7 +431,13 @@ member would get attacking it, or null).
 `SpellView`: `spell` (the spell id, the `spell` that `Cast` takes), `name` (text key), `level`
 (0 cantrip), `cost` (the points the cast charges, as `CastView.cost`), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
 `blocked` (`Rejection` for paying with the action, or null), `bonus` (`Rejection` for paying
-with the bonus action, or null).
+with the bonus action, or null), `pay` (the definition's cost of the turn: `Action`,
+`BonusAction`, `Reaction`, `Free`, as `FeatureView.pay`; a `Reaction` spell is cast from the
+member's declared reactions, not by `Cast`).
+
+`FightItemView`: `item` (the item id, the `item` that `Use` takes), `name` (text key), `count`
+(how many the member carries), `blocked` (the `Rejection` that `Use` with no receiver would get
+now, or null: `NotUsableHere` for a sense item, `NotUsable`, then `NoActionLeft`).
 
 `FighterView`: `member` (`CharacterId`), `reactions_on`, `features` (`[FeatureView]`).
 
@@ -900,6 +907,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   no longer the spell's level (parity P5).
 - 2026-10-11: `MemberView.known_spells` (`KnownSpellView`: each known spell's point cost and
   `pay`); `SpellView.cost` from the cost slot as `CastView.cost` (parity P6).
+- 2026-10-11: `SpellView.pay` (the definition's cost of the turn); `CombatView.items`
+  (`FightItemView`: `item`, `name`, `count`, `blocked`, the acting member's usable kit rows with
+  the refusal `Use` would get) (parity P7).
 
 ### Protocol 2 (2026-10-10)
 

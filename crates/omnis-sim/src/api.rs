@@ -70,7 +70,8 @@ pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
 pub use crate::view::{
-    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+    ChoiceKind, CombatView, FeatureView, FightItemView, FighterView, SpellView, StackView,
+    combat_view,
 };
 
 // The JSON op protocol.

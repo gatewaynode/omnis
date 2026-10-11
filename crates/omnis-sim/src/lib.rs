@@ -82,7 +82,8 @@ pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
 pub use view::{
-    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+    ChoiceKind, CombatView, FeatureView, FightItemView, FighterView, SpellView, StackView,
+    combat_view,
 };
 pub use word::{ScriptError, Word, parse_script};
 pub use world::{
