@@ -134,5 +134,6 @@ pub fn ctx<'a>(
             exists: false,
         },
         prefs: omnis_vector::settings::Prefs::default(),
+        fits: omnis_vector::settings::SCALE_MAX,
     }
 }

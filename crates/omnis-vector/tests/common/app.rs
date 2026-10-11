@@ -13,6 +13,7 @@ use omnis_vector::pose::Pose;
 use omnis_vector::shell::ShellPlugin;
 use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
+use omnis_vector::shell::fonts::FontsPlugin;
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::screen::ScreenPlugin;
 use omnis_vector::shell::session::{Config, Packs, Session};
@@ -116,6 +117,7 @@ pub fn shell(config: Config, in_game: bool) -> App {
         ScreenPlugin,
         CombatPlugin,
         SettingsPlugin,
+        FontsPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,

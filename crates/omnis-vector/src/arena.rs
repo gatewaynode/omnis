@@ -35,6 +35,10 @@ pub const BUTTONS: f32 = 34.0;
 pub const ACTIONS: f32 = 300.0;
 /// The roll log's least height, about four lines; the actions come first in a short window.
 pub const LOG: f32 = 80.0;
+/// The field's least width beside the picture and the party column.
+pub const FIELD: f32 = 300.0;
+/// The party column's least width.
+pub const PARTY: f32 = 300.0;
 
 /// A rectangle: its top left corner and its size.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -231,6 +235,26 @@ pub fn layout(width: f32, height: f32) -> Layout {
         title,
         field,
     }
+}
+
+/// The largest scale the screen's least sizes fit a `width × height` window at: the picture, the
+/// party column and the field across, the picture, the actions, the log and the status lines
+/// down, with their margins.
+#[must_use]
+pub fn fit(width: f32, height: f32) -> f32 {
+    #[allow(clippy::cast_precision_loss)]
+    let (pw, ph) = (cinema::SIZE.0 as f32, cinema::SIZE.1 as f32);
+    let across = 4.0 * MARGIN + pw + PARTY + FIELD;
+    let down = 5.0 * MARGIN + ph + ACTIONS + LOG + STATUS;
+    (width / across).min(height / down)
+}
+
+/// The scale the fight is drawn at for the interface scale `scale`: the interface's, but no
+/// larger than fits the window ([`fit`]), and never below it at 100% or less, so a small window
+/// at the default draws as it always did.
+#[must_use]
+pub fn zoom(width: f32, height: f32, scale: f32) -> f32 {
+    scale.min(fit(width, height).max(1.0))
 }
 
 /// The panel the fight's pickers stand in (spells, features, items): over the picture, the

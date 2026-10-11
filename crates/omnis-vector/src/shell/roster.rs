@@ -9,7 +9,7 @@ use super::minimap::Minimap;
 use super::screen::{Beside, Screens, Showing, Side, colour, ctx, shade};
 use super::screen_draw::{Mark, rows};
 use super::session::Session;
-use crate::arena::{BUTTONS, MARGIN, layout};
+use crate::arena::{BUTTONS, MARGIN, layout, zoom};
 use crate::screen::roster::{self, RosterEffect};
 use crate::screen::{Panel, ScreenId};
 use crate::style::{Role, scaled};
@@ -24,13 +24,15 @@ pub struct RosterRoot;
 #[derive(Resource, Debug, Default)]
 pub(super) struct Drawn(Option<(Panel, Placement)>);
 
-/// Where the column stands, in logical pixels: its top, its width and its foot's distance from
-/// the window's bottom, and the height its type is scaled for.
+/// Where the column stands, in interface units (logical pixels over `UiScale`): its top, its
+/// width, its foot's distance from the window's bottom and the window's height, and the height
+/// its type is scaled for.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Placement {
     top: f32,
     width: f32,
     bottom: f32,
+    room: f32,
     height: f32,
 }
 
@@ -120,6 +122,7 @@ pub(super) fn paint(
     window: Query<&Window, With<PrimaryWindow>>,
     capture: Option<Res<CaptureSize>>,
     minimap: Query<&ComputedNode, With<Minimap>>,
+    ui: Option<Res<UiScale>>,
     mut root: Query<(Entity, &mut Node), With<RosterRoot>>,
     mut drawn: ResMut<Drawn>,
     mut room: ResMut<Beside>,
@@ -138,13 +141,18 @@ pub(super) fn paint(
     };
     let (w, h) = size(window.single().ok(), capture.as_deref());
     let in_fight = fight.is_some_and(|f| *f.get() == super::ViewState::Fight);
+    let scale = ui.map_or(1.0, |u| u.0);
     let place = if in_fight {
-        let party = layout(w, h).party;
+        // The arena's units to the interface's (`combat::FightScreen`).
+        let z = zoom(w, h, scale);
+        let r = z / scale;
+        let party = layout(w / z, h / z).party;
         Placement {
-            top: party.y,
-            width: party.w,
-            bottom: h - party.bottom(),
-            height: h,
+            top: party.y * r,
+            width: party.w * r,
+            bottom: (h / z - party.bottom()) * r,
+            room: h / scale,
+            height: h * r,
         }
     } else {
         // Under the minimap, whose size is its picture's (its side until it is laid out).
@@ -158,8 +166,9 @@ pub(super) fn paint(
             .unwrap_or(side);
         Placement {
             top: MARGIN + map + MARGIN,
-            width: (w * 0.24).clamp(300.0, 640.0),
+            width: (w / scale * 0.24).clamp(300.0, 640.0),
             bottom: MARGIN + BUTTONS + MARGIN,
+            room: h / scale,
             height: h,
         }
     };
@@ -180,7 +189,7 @@ pub(super) fn paint(
     node.display = Display::Flex;
     node.top = Val::Px(place.top);
     node.width = Val::Px(place.width);
-    node.max_height = Val::Px((h - place.top - place.bottom).max(0.0));
+    node.max_height = Val::Px((place.room - place.top - place.bottom).max(0.0));
     node.padding = UiRect::all(Val::Px(scaled(10.0, place.height)));
     node.row_gap = Val::Px(scaled(6.0, place.height));
     commands

@@ -20,7 +20,7 @@ use super::screen_draw::{
     wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
-use super::settings::Current;
+use super::settings::{Current, Fitted};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
@@ -95,6 +95,7 @@ impl Plugin for ScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Screens>()
             .init_resource::<Current>()
+            .init_resource::<Fitted>()
             .init_resource::<Showing>()
             .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
@@ -235,6 +236,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
         }),
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),
+        fits: crate::settings::SCALE_MAX,
     }
 }
 
@@ -251,6 +253,7 @@ pub fn ctx_with<'a>(
     session: Option<&'a Session>,
     packs: &'a Packs,
     prefs: crate::settings::Prefs,
+    fits: u16,
 ) -> Ctx<'a> {
     let ctx = session.map_or_else(
         || Ctx {
@@ -258,10 +261,11 @@ pub fn ctx_with<'a>(
             game: None,
             save: slot(&packs.config.save),
             prefs,
+            fits,
         },
         ctx,
     );
-    Ctx { prefs, ..ctx }
+    Ctx { prefs, fits, ..ctx }
 }
 
 /// A seed for a game whose seed was left blank: the clock's nanoseconds, mixed.
@@ -281,6 +285,7 @@ struct Host<'w, 's> {
     exit: MessageWriter<'w, AppExit>,
     view: ResMut<'w, NextState<ViewState>>,
     current: ResMut<'w, Current>,
+    fitted: Res<'w, Fitted>,
 }
 
 /// The top screen's input, from its nodes and the keys.
@@ -343,7 +348,12 @@ fn route(
         return;
     };
     let effect = {
-        let ctx = ctx_with(session.as_deref(), &host.packs, host.current.0);
+        let ctx = ctx_with(
+            session.as_deref(),
+            &host.packs,
+            host.current.0,
+            host.fitted.0,
+        );
         let input = Input { used: &used, slid };
         applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
     };
@@ -608,6 +618,7 @@ fn paint(
     session: Option<Res<Session>>,
     packs: Res<Packs>,
     current: Res<Current>,
+    fitted: Res<Fitted>,
     mut screens: ResMut<Screens>,
     mut showing: ResMut<Showing>,
     window: Query<&Window, With<PrimaryWindow>>,
@@ -636,7 +647,7 @@ fn paint(
         }
         return;
     };
-    let ctx = ctx_with(session.as_deref(), &packs, current.0);
+    let ctx = ctx_with(session.as_deref(), &packs, current.0, fitted.0);
     let screen = screen::content(top, &ctx, &screens.forms);
     let height = size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -654,6 +665,8 @@ fn paint(
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
             node.width = Val::Px(width(&screen, height));
+            // Never wider than the window, at any interface scale: the panels scroll instead.
+            node.max_width = Val::Percent(100.0);
             node.padding = UiRect::all(Val::Px(scaled(14.0, height)));
             node.row_gap = Val::Px(scaled(8.0, height));
             commands

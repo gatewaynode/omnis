@@ -1,12 +1,14 @@
 //! The settings (parity P8, presentation-ARCHITECTURE §10.5): the player's own choices, edited as a
 //! draft and kept only when Apply is pressed (owner, 2026-10-11); Close and Esc drop the draft.
-//! Opened from the title and from the pause. The settings are the client's: they never reach
+//! Opened from the title and from the pause. A scale larger than the window holds says how far it
+//! fits (`settings::fits`); the interface draws at that. The settings are the client's: they never reach
 //! the world or a save.
 
 use super::{
     Control, ControlId, Ctx, Effect, Forms, Kind, Panel, Payload, Row, Screen, ScreenId, Span,
 };
 use crate::settings::{Face, Prefs, Quality, SCALE_MAX, SCALE_MIN, SCALE_STEP};
+use crate::style::Role;
 
 /// One setting on the screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -85,12 +87,21 @@ pub fn content(ctx: &Ctx, forms: &Forms) -> Screen {
                     Face::ALL.iter().map(|f| f.label().to_owned()).collect(),
                     Face::ALL.iter().position(|f| *f == d.font).unwrap_or(0),
                 ),
-                choice(
-                    Field::Scale,
-                    "Interface scale",
-                    scales().map(|s| format!("{s}%")).collect(),
-                    scales().position(|s| s == d.scale).unwrap_or(0),
-                ),
+                Row {
+                    after: (d.scale > ctx.fits)
+                        .then(|| Span {
+                            role: Role::Dim,
+                            ..Span::body(format!("{}% fits this window", ctx.fits))
+                        })
+                        .into_iter()
+                        .collect(),
+                    ..choice(
+                        Field::Scale,
+                        "Interface scale",
+                        scales().map(|s| format!("{s}%")).collect(),
+                        scales().position(|s| s == d.scale).unwrap_or(0),
+                    )
+                },
                 Row::controls(vec![apply, Control::button(ControlId::Close, "Close")]),
             ],
         }],

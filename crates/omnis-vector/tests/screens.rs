@@ -200,6 +200,7 @@ fn title_ctx(data: &omnis_sim::omnis_data::Data, exists: bool) -> Ctx<'_> {
             exists,
         },
         prefs: omnis_vector::settings::Prefs::default(),
+        fits: omnis_vector::settings::SCALE_MAX,
     }
 }
 

@@ -134,6 +134,7 @@ fn title_ctx(data: &omnis_sim::omnis_data::Data, prefs: Prefs) -> screen::Ctx<'_
             exists: false,
         },
         prefs,
+        fits: omnis_vector::settings::SCALE_MAX,
     }
 }
 
@@ -356,6 +357,39 @@ fn quality_sets_the_bloom_on_every_camera() {
 }
 
 #[test]
+fn the_font_applied_dresses_every_text_and_text_that_comes_later() {
+    use bevy::text::FontSource;
+    use omnis_vector::shell::fonts::{INTER, handle};
+    let s = Scratch::new("font");
+    let mut app = at_title(&s);
+    app.update();
+    let faces = |app: &mut App| {
+        let world = app.world_mut();
+        let mut q = world.query::<&TextFont>();
+        q.iter(world).map(|f| f.font.clone()).collect::<Vec<_>>()
+    };
+    assert!(!faces(&mut app).is_empty(), "the title has text");
+    assert!(
+        faces(&mut app)
+            .iter()
+            .all(|f| *f == FontSource::Handle(handle(Face::BuiltIn)))
+    );
+    press_ui(&mut app, Pressable(ControlId::Settings));
+    press_ui(&mut app, Arrow(ControlId::Setting(Field::Font), true));
+    press_ui(&mut app, Pressable(ControlId::Apply));
+    assert_eq!(current(&app).font, Face::Inter);
+    // Close: the title's text is built again, after the change.
+    press_ui(&mut app, Pressable(ControlId::Close));
+    app.update();
+    let all = faces(&mut app);
+    assert!(all.len() > 3);
+    assert!(
+        all.iter().all(|f| *f == FontSource::Handle(INTER)),
+        "every text in Inter: {all:?}"
+    );
+}
+
+#[test]
 fn the_hidden_grid_drops_the_floor_and_ceiling_and_keeps_the_rest() {
     let session = Session::start(&config()).expect("a session");
     let map = session.views.position.map;
@@ -376,4 +410,36 @@ fn the_hidden_grid_drops_the_floor_and_ceiling_and_keeps_the_rest() {
         lines.iter().all(|l| l.kind.drawn(true)),
         "shown: everything"
     );
+}
+
+#[test]
+fn a_scale_larger_than_the_window_holds_says_how_far_it_fits() {
+    let data = common::data();
+    let mut ctx = title_ctx(&data, Prefs::default());
+    ctx.fits = 120;
+    let mut forms = Forms::default();
+    forms.settings = Some(Prefs {
+        scale: 150,
+        ..Prefs::default()
+    });
+    let note = |forms: &Forms| {
+        let shown = screen::content(ScreenId::Settings, &ctx, forms);
+        let row = shown.panels[0]
+            .rows
+            .iter()
+            .find(|r| {
+                r.controls
+                    .iter()
+                    .any(|c| c.id == ControlId::Setting(Field::Scale))
+            })
+            .expect("the scale's row")
+            .clone();
+        row.after.first().map(|s| s.text.clone())
+    };
+    assert_eq!(note(&forms), Some("120% fits this window".to_owned()));
+    forms.settings = Some(Prefs {
+        scale: 120,
+        ..Prefs::default()
+    });
+    assert_eq!(note(&forms), None);
 }

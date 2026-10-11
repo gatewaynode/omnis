@@ -224,6 +224,36 @@ fn the_pointer_frames_a_target_and_a_click_attacks_it() {
 }
 
 #[test]
+fn at_a_larger_scale_the_fight_zooms_with_the_interface_and_a_click_still_finds_its_target() {
+    let mut app = fighting();
+    assert_eq!(screen(&app).zoom, 1.0, "the default scale draws as before");
+    app.world_mut()
+        .resource_mut::<omnis_vector::shell::settings::Current>()
+        .0
+        .scale = 200;
+    app.update();
+    // 1600x900 holds the interface at 120%, and the fight as far as that.
+    assert_eq!(
+        app.world().resource::<bevy::ui::UiScale>().0,
+        1.2,
+        "the interface as far as the window holds it"
+    );
+    let z = omnis_vector::arena::zoom(1600.0, 900.0, 1.2);
+    assert!((z - 1.2).abs() < 1e-6, "{z}");
+    assert_eq!(screen(&app).zoom, z);
+    let laid = screen(&app).arena.as_ref().expect("laid out").layout.window;
+    assert!((laid.w * z - 1600.0).abs() < 0.01 && (laid.h * z - 900.0).abs() < 0.01);
+    // The rats where they are drawn, in the window's pixels.
+    let (x, y) = spot(&app, Pick::Stack(0));
+    let accepted = session(&app).binder.log.len();
+    click(&mut app, (x * z, y * z));
+    assert!(
+        session(&app).binder.log.len() > accepted,
+        "the attack was accepted"
+    );
+}
+
+#[test]
 fn a_step_opens_from_its_button_and_esc_steps_back() {
     let mut app = fighting();
     press(&mut app, Act::Open(Step::Target(Action::Attack)));

@@ -547,6 +547,8 @@ pub struct Ctx<'a> {
     pub save: Slot<'a>,
     /// The player's settings as applied.
     pub prefs: crate::settings::Prefs,
+    /// The largest interface scale the window holds, in percent.
+    pub fits: u16,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.

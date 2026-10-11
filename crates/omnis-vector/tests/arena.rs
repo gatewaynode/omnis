@@ -323,3 +323,47 @@ fn the_picker_covers_the_picture_column_and_title_and_stops_above_the_log() {
         assert!(p.w > l.actions.w * 1.5, "{w}x{h}: wider than the column");
     }
 }
+
+#[test]
+fn the_fight_draws_at_the_default_scale_as_before_and_fits_at_half_and_double() {
+    use omnis_vector::arena::{fit, layout, zoom};
+    for (w, h) in [
+        (1280.0, 720.0),
+        (1600.0, 900.0),
+        (2560.0, 1440.0),
+        (5120.0, 1440.0),
+    ] {
+        assert_eq!(zoom(w, h, 1.0), 1.0, "{w}x{h} at 100%");
+        assert!(fit(w, h) >= 1.0, "{w}x{h}: today's least sizes fit");
+        for scale in [0.5, 2.0] {
+            let z = zoom(w, h, scale);
+            assert!(z <= scale && z > 0.0);
+            let l = layout(w / z, h / z);
+            let parts = [
+                l.picture, l.actions, l.log, l.status, l.party, l.title, l.field,
+            ];
+            for (i, r) in parts.iter().enumerate() {
+                assert!(r.w > 0.0 && r.h > 0.0, "{w}x{h} at {scale}: part {i} empty");
+                assert!(
+                    r.x >= 0.0
+                        && r.y >= 0.0
+                        && r.right() * z <= w + 0.01
+                        && r.bottom() * z <= h + 0.01,
+                    "{w}x{h} at {scale}: part {i} {r:?} outside the window"
+                );
+            }
+            for left in [l.picture, l.actions, l.log, l.status] {
+                for right in [l.party, l.title, l.field] {
+                    assert!(
+                        !left.overlaps(&right),
+                        "{w}x{h} at {scale}: {left:?} on {right:?}"
+                    );
+                }
+            }
+            assert!(!l.title.overlaps(&l.party) && !l.field.overlaps(&l.party));
+        }
+    }
+    // The ultrawide and the 1440p window take the full double; 1280x720 stays near the default.
+    assert_eq!(zoom(2560.0, 1440.0, 2.0), 2.0);
+    assert!(zoom(1280.0, 720.0, 2.0) < 1.1);
+}

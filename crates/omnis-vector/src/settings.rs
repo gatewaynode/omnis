@@ -136,6 +136,20 @@ impl Prefs {
     }
 }
 
+/// The window the interface was laid out for, in logical pixels: at a larger scale the HUD, its
+/// buttons and the party column need a window this many interface units across and down.
+pub const DESIGN: (f32, f32) = (1280.0, 720.0);
+
+/// The largest interface scale, in percent, a `width × height` window holds the design at (at
+/// least 100, so the default is never reduced; at most `SCALE_MAX`), on the scale's steps.
+#[must_use]
+pub fn fits(width: f32, height: f32) -> u16 {
+    let most = (width / DESIGN.0).min(height / DESIGN.1) * 100.0;
+    #[allow(clippy::cast_possible_truncation)]
+    let floored = (most.max(100.0) as i64) / i64::from(SCALE_STEP) * i64::from(SCALE_STEP);
+    u16::try_from(floored.min(i64::from(SCALE_MAX))).unwrap_or(100)
+}
+
 /// A scale in percent held to the range and rounded to the nearest step (halves up).
 #[must_use]
 pub fn clamp_scale(percent: i64) -> u16 {
@@ -237,6 +251,15 @@ pub fn write(root: &Path, path: &str, prefs: Prefs) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_window_holds_the_design_up_to_a_step() {
+        assert_eq!(fits(1280.0, 720.0), 100);
+        assert_eq!(fits(1600.0, 900.0), 120);
+        assert_eq!(fits(2560.0, 1440.0), 200);
+        assert_eq!(fits(5120.0, 1440.0), 200);
+        assert_eq!(fits(800.0, 600.0), 100, "never below the default");
+    }
 
     #[test]
     fn the_scale_is_held_to_its_range_and_rounded_to_its_step() {

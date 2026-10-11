@@ -16,7 +16,7 @@ use super::screen::{Arrow, FightPress, Screens, ctx};
 use super::screen_draw::{Mark, build};
 use super::session::Session;
 use super::{VectorSet, ViewState};
-use crate::arena::{Arena, Rect, Tone, arena, pick, picker};
+use crate::arena::{Arena, Rect, Tone, arena, pick, picker, zoom};
 use crate::cinema::opening;
 use crate::combat_menu::{CombatMenu, Pick, Step};
 use crate::screen::fight::{self, Place};
@@ -43,11 +43,17 @@ type Laid = (
     Step,
     Option<Span>,
     (u32, u32),
+    u16,
 );
 
 /// The fight screen's state: where the pointer rests, and the screen and its controls as laid
 /// out for the world as it stands. The menu's step is the screens' (`Forms::fight`).
-#[derive(Resource, Debug, Default)]
+///
+/// The arena is laid out in the fight's own units: the window's logical pixels divided by
+/// `zoom` (`arena::zoom`), so at a larger interface scale every part and figure grows alike.
+/// Its UI nodes are placed at `zoom / UiScale` of those units, its lines drawn at `zoom`, and a
+/// click divided by `zoom` before it is picked.
+#[derive(Resource, Debug)]
 pub struct FightScreen {
     /// The clickable target under the pointer.
     pub hover: Option<Pick>,
@@ -59,6 +65,21 @@ pub struct FightScreen {
     pub controls: Option<Controls>,
     /// What the screen was laid out for.
     shown: Option<Laid>,
+    /// The window's logical pixels per fight unit.
+    pub zoom: f32,
+}
+
+impl Default for FightScreen {
+    fn default() -> FightScreen {
+        FightScreen {
+            hover: None,
+            targets: Vec::new(),
+            arena: None,
+            controls: None,
+            shown: None,
+            zoom: 1.0,
+        }
+    }
 }
 
 /// Marks the fight screen's UI; its children are rebuilt when the screen changes.
@@ -225,7 +246,10 @@ fn route(
                 .single()
                 .ok()
                 .and_then(Window::cursor_position)
-                .and_then(|point| screen.arena.as_ref().and_then(|a| pick(a, point.into())))
+                .and_then(|point| {
+                    let at = point / screen.zoom;
+                    screen.arena.as_ref().and_then(|a| pick(a, at.into()))
+                })
                 .and_then(|target| screens.forms.fight.menu.pick(game.world, ctx.data, target)),
             None => None,
         }
@@ -247,10 +271,15 @@ fn refresh(
     mut screen: ResMut<FightScreen>,
     window: Query<&Window, With<PrimaryWindow>>,
     capture: Option<Res<CaptureSize>>,
+    ui: Option<Res<UiScale>>,
     root: Query<Entity, With<FightRoot>>,
 ) {
     let (w, h) = size(window.single().ok(), capture.as_deref());
     let form = &screens.forms.fight;
+    let scale = ui.map_or(1.0, |u| u.0);
+    let z = zoom(w, h, scale);
+    // Fight units to interface units: the interface multiplies by its own scale.
+    let r = z / scale;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let key = (
         session.binder.log.len(),
@@ -258,6 +287,7 @@ fn refresh(
         form.menu.step,
         screens.forms.message.clone(),
         (w as u32, h as u32),
+        (scale * 100.0) as u16,
     );
     if screen.shown.as_ref() == Some(&key) {
         return;
@@ -269,7 +299,8 @@ fn refresh(
     let (world, data) = (&session.world, &session.data);
     screen.targets = form.menu.clickable(world, data);
     screen.hover = None;
-    screen.arena = arena(&session.views, data, (w, h), &screen.targets, None);
+    screen.zoom = z;
+    screen.arena = arena(&session.views, data, (w / z, h / z), &screen.targets, None);
     let controls = screen::content(ScreenId::Fight, &ctx(&session), &screens.forms);
     commands.entity(root).despawn_related::<Children>();
     let Some(laid) = &screen.arena else {
@@ -283,9 +314,14 @@ fn refresh(
     commands.entity(root).with_children(|p| {
         if !over {
             if let Some(scene) = opening(session.views.combat.as_ref(), data) {
-                p.spawn((Screen(scene), at(&l.picture)));
+                p.spawn((Screen(scene), at(&l.picture, r)));
             }
-            p.spawn((at(&l.title), Text::new(title), font(22.0), TextColor(GREEN)));
+            p.spawn((
+                at(&l.title, r),
+                Text::new(title),
+                font(22.0 * r),
+                TextColor(GREEN),
+            ));
         }
         let (rect, border) = if over {
             (&panel, 1.0)
@@ -295,27 +331,27 @@ fn refresh(
         p.spawn((
             Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                padding: UiRect::all(Val::Px(border * PAD)),
+                row_gap: Val::Px(6.0 * r),
+                padding: UiRect::all(Val::Px(border * PAD * r)),
                 border: UiRect::all(Val::Px(border)),
                 overflow: Overflow::clip(),
-                ..at(rect)
+                ..at(rect, r)
             },
             BorderColor::all(GREEN),
             BackgroundColor(SHADES[0]),
             ZIndex(1),
         ))
-        .with_children(|column| build(column, &controls, h, Mark::Fight));
+        .with_children(|column| build(column, &controls, h * r, Mark::Fight));
         p.spawn((
             // The newest line at the bottom; the oldest are clipped off the top.
             Node {
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::FlexEnd,
-                row_gap: Val::Px(4.0),
-                padding: UiRect::all(Val::Px(PAD)),
+                row_gap: Val::Px(4.0 * r),
+                padding: UiRect::all(Val::Px(PAD * r)),
                 border: UiRect::all(Val::Px(1.0)),
                 overflow: Overflow::clip(),
-                ..at(&l.log)
+                ..at(&l.log, r)
             },
             BorderColor::all(GREEN),
             BackgroundColor(SHADES[0]),
@@ -324,7 +360,7 @@ fn refresh(
             for line in &session.fight_log {
                 log.spawn((
                     Text::new(line.as_str()),
-                    font(15.0),
+                    font(15.0 * r),
                     TextColor(GREEN),
                     // Kept whole: a wrapped line grows rather than being squeezed.
                     Node {
@@ -341,12 +377,12 @@ fn refresh(
             p.spawn(Node {
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                ..at(&g.label.rect)
+                ..at(&g.label.rect, r)
             })
             .with_children(|label| {
                 label.spawn((
                     Text::new(g.label.text.as_str()),
-                    font(15.0),
+                    font(15.0 * r),
                     TextColor(GREEN),
                 ));
             });
@@ -365,7 +401,7 @@ fn hover(window: Query<&Window, With<PrimaryWindow>>, mut screen: ResMut<FightSc
         .single()
         .ok()
         .and_then(Window::cursor_position)
-        .and_then(|p| pick(laid, p.into()))
+        .and_then(|p| pick(laid, (p / screen.zoom).into()))
         .filter(|p| screen.targets.contains(p));
     if under != screen.hover {
         screen.hover = under;
@@ -373,14 +409,14 @@ fn hover(window: Query<&Window, With<PrimaryWindow>>, mut screen: ResMut<FightSc
     }
 }
 
-/// An absolutely placed node over `r`.
-fn at(r: &Rect) -> Node {
+/// An absolutely placed node over `r`, in fight units, `k` interface units each.
+fn at(r: &Rect, k: f32) -> Node {
     Node {
         position_type: PositionType::Absolute,
-        left: Val::Px(r.x),
-        top: Val::Px(r.y),
-        width: Val::Px(r.w),
-        height: Val::Px(r.h),
+        left: Val::Px(r.x * k),
+        top: Val::Px(r.y * k),
+        width: Val::Px(r.w * k),
+        height: Val::Px(r.h * k),
         ..default()
     }
 }
@@ -490,7 +526,8 @@ fn draw(screen: Res<FightScreen>, mut gizmos: Gizmos<CombatGizmos>) {
         return;
     };
     let (w, h) = (laid.layout.window.w, laid.layout.window.h);
-    let to = |(x, y): (f32, f32)| Vec2::new(x - w / 2.0, h / 2.0 - y);
+    let z = screen.zoom;
+    let to = |(x, y): (f32, f32)| Vec2::new(x - w / 2.0, h / 2.0 - y) * z;
     for s in crate::arena::segments(laid) {
         gizmos.line_2d(to(s.a), to(s.b), colour(s.tone));
     }
