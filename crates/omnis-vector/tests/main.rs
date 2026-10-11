@@ -13,6 +13,7 @@ mod combat;
 mod combat_menu;
 mod common;
 mod create_party;
+mod debug;
 mod fight;
 mod fight_screen;
 mod inventory;

@@ -12,6 +12,7 @@ pub mod actions;
 pub mod camp;
 pub mod cast;
 pub mod create_party;
+pub mod debug;
 pub mod defeat;
 pub mod fight;
 pub mod inventory;
@@ -66,6 +67,8 @@ pub enum ScreenId {
     Fight,
     /// The player's own settings, from the title or the pause.
     Settings,
+    /// A devtools world's edits, from the pause or backtick.
+    Debug,
 }
 
 impl ScreenId {
@@ -180,6 +183,10 @@ pub enum ControlId {
     Apply,
     /// Open the settings.
     Settings,
+    /// A control of the debug panel.
+    Debug(debug::DebugAct),
+    /// Open the debug panel.
+    OpenDebug,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -578,6 +585,8 @@ pub struct Forms {
     /// The settings being edited; none until one is changed, and dropped when the screen changes
     /// (Close and Esc discard it).
     pub settings: Option<crate::settings::Prefs>,
+    /// The debug panel's picks and what was typed; kept between openings, reset with the game.
+    pub debug: debug::DebugForm,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -585,8 +594,12 @@ pub struct Forms {
 impl Forms {
     /// A command was accepted: a member was created, so the draft starts over for the next.
     pub fn accepted(&mut self, command: &Command) {
-        if matches!(command, Command::Party(omnis_sim::PartyCommand::Create(_))) {
-            self.create = CreateForm::default();
+        match command {
+            Command::Party(omnis_sim::PartyCommand::Create(_)) => {
+                self.create = CreateForm::default();
+            }
+            Command::Dev(dev) => self.debug.accepted(dev),
+            _ => {}
         }
     }
 
@@ -624,6 +637,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Title, _) => title::content(ctx),
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Settings, _) => settings::content(ctx, forms),
+        (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
@@ -682,6 +696,9 @@ pub fn apply(
         (ScreenId::NewGame, _) => new_game::apply(&mut forms.new_game, control, payload, entropy),
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
+        (ScreenId::Debug, Some(game)) => {
+            debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
+        }
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
@@ -703,7 +720,8 @@ pub fn apply(
             | ScreenId::Camp
             | ScreenId::Sheet
             | ScreenId::Tactics
-            | ScreenId::Fight,
+            | ScreenId::Fight
+            | ScreenId::Debug,
             None,
         ) => Effect::None,
     })

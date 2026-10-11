@@ -1,6 +1,6 @@
 //! The game paused (presentation-ARCHITECTURE §6.3, §6.7, from the other client's pause): the
-//! game's seed and settings, then Resume, Save, Load, Save log, Settings and Quit to title, and Quit in its
-//! own row, set apart from the rest (PRD §7). A control that cannot be used now says why: the
+//! game's seed and settings, then Resume, Save, Load, Save log, Settings, Debug (dim outside a
+//! devtools world) and Quit to title, and Quit in its own row, set apart from the rest (PRD §7). A control that cannot be used now says why: the
 //! save rule forbids saving here, there is no save to load, the log no longer replays.
 
 use super::{Control, ControlId, Ctx, Effect, Game, HostOp, Panel, Row, Screen, ScreenId, Span};
@@ -41,6 +41,10 @@ pub fn content(ctx: &Ctx, game: Game) -> Screen {
                     load,
                     log,
                     Control::button(ControlId::Settings, "Settings"),
+                    Control {
+                        why_not: super::debug::unavailable(game.views),
+                        ..Control::button(ControlId::OpenDebug, "Debug")
+                    },
                 ]),
                 Row::controls(vec![Control::button(
                     ControlId::QuitToTitle,
@@ -63,6 +67,7 @@ pub fn apply(control: ControlId) -> Effect {
         ControlId::Load => Effect::Host(HostOp::Load),
         ControlId::SaveLog => Effect::Host(HostOp::SaveLog),
         ControlId::Settings => Effect::Open(ScreenId::Settings),
+        ControlId::OpenDebug => Effect::Open(ScreenId::Debug),
         ControlId::QuitToTitle => Effect::ToTitle,
         ControlId::Quit => Effect::Quit,
         _ => Effect::None,

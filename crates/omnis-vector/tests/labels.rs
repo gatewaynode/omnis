@@ -306,3 +306,109 @@ fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
         );
     }
 }
+
+/// A debugging edit leaves a line, as the other client's `debug_menu::describe` did, with the
+/// member by name and the item, condition and map by their labels (parity P8). Red before P8c:
+/// no line was shown.
+#[test]
+fn dev_edits_read_as_lines_with_names() {
+    use omnis_sim::DevCommand;
+    use omnis_sim::omnis_core::Facing;
+    use omnis_sim::omnis_data::Ability;
+    let data = common::data();
+    let (world, _) = common::town_session(&data);
+    let mut names = Names::default();
+    names.observe(&common::views(&world, &data).party);
+    let durin = common::id(&world, 1);
+    let cases = [
+        (
+            DevCommand::GiveItem {
+                member: Some(durin),
+                item: "base:item:spyglass".to_owned(),
+                count: 3,
+            },
+            "dev: Spyglass x3 to Durin",
+        ),
+        (
+            DevCommand::GiveItem {
+                member: None,
+                item: "base:item:spyglass".to_owned(),
+                count: 1,
+            },
+            "dev: Spyglass to the stores",
+        ),
+        (
+            DevCommand::SetHp {
+                member: durin,
+                hp: 40,
+            },
+            "dev: Durin hp 40",
+        ),
+        (
+            DevCommand::SetSpellPoints {
+                member: durin,
+                points: 3,
+            },
+            "dev: Durin sp 3",
+        ),
+        (
+            DevCommand::SetXp {
+                member: durin,
+                xp: 300,
+            },
+            "dev: Durin xp 300",
+        ),
+        (
+            DevCommand::SetScore {
+                member: durin,
+                ability: Ability::Strength,
+                score: 18,
+            },
+            "dev: Durin STR 18",
+        ),
+        (
+            DevCommand::SetGold { gold: 150 },
+            "dev: gold 1 gp 5 sp 0 cp",
+        ),
+        (DevCommand::SetFood { food: 40 }, "dev: food 40"),
+        (
+            DevCommand::SetFlag {
+                flag: "base:flag:seen".to_owned(),
+                value: 2,
+            },
+            "dev: base:flag:seen = 2",
+        ),
+        (
+            DevCommand::Teleport {
+                map: "test:map:town".to_owned(),
+                x: 3,
+                y: 4,
+                facing: Facing::North,
+            },
+            "dev: teleport to Test Town (3, 4) facing north",
+        ),
+        (
+            DevCommand::SetMonsterHp {
+                stack: 0,
+                index: 1,
+                hp: 4,
+            },
+            "dev: stack 1 #2 hp 4",
+        ),
+        (DevCommand::KillStack { stack: 1 }, "dev: stack 2 slain"),
+    ];
+    for (command, line) in cases {
+        assert_eq!(
+            text::describe(
+                &Event::Dev {
+                    command: command.clone()
+                },
+                &names,
+                &data
+            )
+            .as_deref(),
+            Some(line),
+            "{command:?}"
+        );
+    }
+}

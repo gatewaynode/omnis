@@ -7,7 +7,9 @@ use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::EquipSlot;
 use omnis_sim::omnis_rules::Gains;
-use omnis_sim::{BlockReason, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace};
+use omnis_sim::{
+    BlockReason, CombatOutcome, DevCommand, EffectEnd, EffectTarget, Event, ItemPlace,
+};
 
 /// A HUD line for the events worth showing; the per-step chatter is left out. Members are
 /// named through `names`, so a line still reads after its member has left the party.
@@ -18,6 +20,9 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         .or_else(|| camp(event, names))
     {
         return Some(line);
+    }
+    if let Event::Dev { command } = event {
+        return Some(dev(command, names, data));
     }
     Some(match event {
         Event::Moved { to, .. } => format!("Moved to ({}, {}) facing {:?}", to.x, to.y, to.facing),
@@ -254,6 +259,58 @@ fn camp(event: &Event, names: &Names) -> Option<String> {
         Event::TacticsChanged { member } => format!("{}'s tactics are set", names.member(*member)),
         _ => return None,
     })
+}
+
+/// A debugging edit, as the other client's debug panel logged it, with names for numbers.
+fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
+    let who = |m: &CharacterId| names.member(*m);
+    match command {
+        DevCommand::GiveItem {
+            member,
+            item,
+            count,
+        } => {
+            let what = labels::count_label(labels::item(data, item), *count);
+            match member {
+                Some(m) => format!("dev: {what} to {}", who(m)),
+                None => format!("dev: {what} to the stores"),
+            }
+        }
+        DevCommand::SetHp { member, hp } => format!("dev: {} hp {hp}", who(member)),
+        DevCommand::SetSpellPoints { member, points } => {
+            format!("dev: {} sp {points}", who(member))
+        }
+        DevCommand::SetXp { member, xp } => format!("dev: {} xp {xp}", who(member)),
+        DevCommand::SetScore {
+            member,
+            ability,
+            score,
+        } => format!("dev: {} {} {score}", who(member), ability.short()),
+        DevCommand::SetCondition {
+            member,
+            condition,
+            applied,
+        } => format!(
+            "dev: {} {} {}",
+            who(member),
+            labels::condition(data, condition),
+            if *applied { "on" } else { "off" }
+        ),
+        DevCommand::SetGold { gold } => format!("dev: gold {}", labels::coins(*gold)),
+        DevCommand::SetFood { food } => format!("dev: food {food}"),
+        DevCommand::SetFlag { flag, value } => format!("dev: {flag} = {value}"),
+        DevCommand::Teleport { map, x, y, facing } => format!(
+            "dev: teleport to {} ({x}, {y}) facing {facing}",
+            labels::map(data, map)
+        ),
+        DevCommand::SetMonsterHp { stack, index, hp } => format!(
+            "dev: stack {} #{} hp {hp}",
+            u16::from(*stack) + 1,
+            u16::from(*index) + 1
+        ),
+        DevCommand::KillStack { stack } => format!("dev: stack {} slain", u16::from(*stack) + 1),
+        DevCommand::Reconcile { region } => format!("dev: reconcile with {region}"),
+    }
 }
 
 /// A stretch of party-clock time: "an hour", "3 hours", "40 minutes".

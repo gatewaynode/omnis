@@ -66,6 +66,11 @@ impl Nav {
             (ScreenId::Settings, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
+            // Exploring, met, fighting or in a service, in a devtools world.
+            (ScreenId::Debug, Some(views)) => {
+                matches!(base, None | Some(ScreenId::Service))
+                    && super::debug::unavailable(views).is_none()
+            }
             (ScreenId::Pause, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
@@ -115,6 +120,7 @@ impl Nav {
                     | ScreenId::NewGame
                     | ScreenId::CreateParty
                     | ScreenId::Settings
+                    | ScreenId::Debug
             )
         )
     }

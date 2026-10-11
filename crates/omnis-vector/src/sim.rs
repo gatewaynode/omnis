@@ -100,6 +100,12 @@ impl SimWorld {
         party_view(&self.0, data)
     }
 
+    /// Every world flag and its value, 0 when unset, in registry order (`api::flags`).
+    #[must_use]
+    pub fn flags(&self, data: &Data) -> Vec<(String, i64)> {
+        omnis_sim::api::flags(&self.0, data)
+    }
+
     /// The encounter or fight, if one is on (`api::combat_view`).
     #[must_use]
     pub fn combat(&self, data: &Data) -> Option<CombatView> {
@@ -225,6 +231,9 @@ pub struct Views {
     /// What a new member's draft may be (the loaded rules', so a rule set over the dev socket
     /// shows at the next refresh).
     pub creation: CreationView,
+    /// Every world flag with its value, in registry order; only in a devtools world, for the
+    /// debug panel (the other client's rule).
+    pub flags: Vec<(String, i64)>,
 }
 
 impl Views {
@@ -232,6 +241,7 @@ impl Views {
     #[must_use]
     pub fn of(world: &SimWorld, data: &Data) -> Views {
         let here = world.here(data);
+        let here_devtools = here.settings.devtools;
         // A map no pack names (never the case for a loaded world) reads as one no pack holds.
         let position = position(data, &here).unwrap_or(Position {
             map: MapId(u32::MAX),
@@ -248,6 +258,11 @@ impl Views {
             casts: world.casts(data),
             rest: world.rest(data),
             creation: creation_view(data),
+            flags: if here_devtools {
+                world.flags(data)
+            } else {
+                Vec::new()
+            },
         }
     }
 

@@ -65,6 +65,7 @@ impl Screens {
         self.nav.reset(game);
         self.forms.selected = None;
         self.forms.fight = crate::screen::fight::FightForm::default();
+        self.forms.debug = crate::screen::debug::DebugForm::default();
     }
 }
 
@@ -328,6 +329,9 @@ fn route(
                 }
                 Escape::Closed | Escape::Paused | Escape::Nothing => {}
             }
+        } else if used.keys.just_pressed(KeyCode::Backquote) {
+            // The debug panel, as the other client's backtick: opened where it is allowed.
+            screens.nav.toggle(ScreenId::Debug, game);
         }
     }
     if let Some(effect) = escaped {
