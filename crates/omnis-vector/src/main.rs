@@ -1,5 +1,5 @@
 //! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--screen title|new-game|create-party|pause|actions]`
+//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions]`
 //! `[--windowed] [--no-vsync] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
@@ -23,6 +23,7 @@ use omnis_vector::shell::{
     movement::MovementPlugin,
     render::RenderPlugin,
     screen::ScreenPlugin,
+    settings::{Current, SettingsPlugin},
 };
 use omnis_vector::sim::game_settings;
 use std::time::Duration;
@@ -109,6 +110,11 @@ fn main() -> AppExit {
     if let Some(session) = session {
         app.insert_resource(session);
     }
+    let (prefs, note) = omnis_vector::settings::read(std::path::Path::new("."), &config.settings);
+    if let Some(note) = note {
+        eprintln!("omnis-vector: {note}; the defaults are used");
+    }
+    app.insert_resource(Current(prefs));
     if let Some(screen) = config.screen {
         app.insert_resource(screen);
     }
@@ -120,6 +126,7 @@ fn main() -> AppExit {
         HudPlugin,
         ControlsPlugin,
         ScreenPlugin,
+        SettingsPlugin,
         MinimapPlugin,
         CinemaPlugin,
         CombatPlugin,

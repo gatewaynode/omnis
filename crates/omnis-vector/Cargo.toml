@@ -28,6 +28,8 @@ test-fixtures = []
 
 [dependencies]
 omnis-sim = { workspace = true }
+# The client settings file's derive (presentation-ARCHITECTURE §10.5); already in the tree.
+serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 # `bevy_pbr` is the smallest addition that draws gizmos through a Camera3d; the full `3d` group
 # (glTF, ktx2, zstd, LUTs) is not used (presentation-ARCHITECTURE.md §3, VA1). `ui` is for the HUD.

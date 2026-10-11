@@ -4,6 +4,7 @@
 use super::VectorSet;
 use super::capture::Offscreen;
 use super::session::Session;
+use super::settings::Current;
 use crate::geom::EYE_HEIGHT;
 use crate::geometry::{SegKind, Segment, extract};
 use bevy::camera::{Hdr, RenderTarget};
@@ -51,6 +52,7 @@ pub struct RenderPlugin;
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Lines>()
+            .init_resource::<Current>()
             .insert_resource(ClearColor(Color::BLACK))
             .add_systems(Startup, (spawn_camera, line_style))
             .add_systems(
@@ -130,7 +132,7 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
     }
 }
 
-fn draw(session: Res<Session>, lines: Res<Lines>, mut gizmos: Gizmos) {
+fn draw(session: Res<Session>, lines: Res<Lines>, current: Res<Current>, mut gizmos: Gizmos) {
     let pose = session.pose;
     let depth = session
         .data
@@ -143,7 +145,8 @@ fn draw(session: Res<Session>, lines: Res<Lines>, mut gizmos: Gizmos) {
         .unwrap_or(6);
     let end = f32::from(depth) + FOG_EXTRA;
     let start = end * 0.5;
-    for segment in &lines.segments {
+    let grid = current.0.grid;
+    for segment in lines.segments.iter().filter(|s| s.kind.drawn(grid)) {
         let mid = (
             (segment.a[0] + segment.b[0]) * 0.5,
             (segment.a[2] + segment.b[2]) * 0.5,

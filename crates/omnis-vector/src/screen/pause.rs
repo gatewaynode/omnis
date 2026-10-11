@@ -1,5 +1,5 @@
 //! The game paused (presentation-ARCHITECTURE §6.3, §6.7, from the other client's pause): the
-//! game's seed and settings, then Resume, Save, Load, Save log and Quit to title, and Quit in its
+//! game's seed and settings, then Resume, Save, Load, Save log, Settings and Quit to title, and Quit in its
 //! own row, set apart from the rest (PRD §7). A control that cannot be used now says why: the
 //! save rule forbids saving here, there is no save to load, the log no longer replays.
 
@@ -40,6 +40,7 @@ pub fn content(ctx: &Ctx, game: Game) -> Screen {
                     save,
                     load,
                     log,
+                    Control::button(ControlId::Settings, "Settings"),
                 ]),
                 Row::controls(vec![Control::button(
                     ControlId::QuitToTitle,
@@ -61,6 +62,7 @@ pub fn apply(control: ControlId) -> Effect {
         ControlId::Save => Effect::Host(HostOp::Save),
         ControlId::Load => Effect::Host(HostOp::Load),
         ControlId::SaveLog => Effect::Host(HostOp::SaveLog),
+        ControlId::Settings => Effect::Open(ScreenId::Settings),
         ControlId::QuitToTitle => Effect::ToTitle,
         ControlId::Quit => Effect::Quit,
         _ => Effect::None,

@@ -28,6 +28,7 @@ pub mod pose;
 pub mod raster;
 pub mod rolllog;
 pub mod screen;
+pub mod settings;
 pub mod shell;
 pub mod sim;
 pub mod style;

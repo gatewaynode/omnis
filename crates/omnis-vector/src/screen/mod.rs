@@ -20,6 +20,7 @@ pub mod new_game;
 pub mod pause;
 pub mod roster;
 pub mod service;
+pub mod settings;
 pub mod sheet;
 pub mod tactics;
 pub mod tactics_draft;
@@ -63,6 +64,8 @@ pub enum ScreenId {
     /// The fight's controls: drawn by the fight screen at the arena's rectangles, never on the
     /// overlays' stack.
     Fight,
+    /// The player's own settings, from the title or the pause.
+    Settings,
 }
 
 impl ScreenId {
@@ -171,6 +174,12 @@ pub enum ControlId {
     Tactic(tactics::TacticAct),
     /// A control of the fight's screen.
     Fight(fight::FightAct),
+    /// One of the settings.
+    Setting(settings::Field),
+    /// Keep the settings as edited.
+    Apply,
+    /// Open the settings.
+    Settings,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -476,6 +485,8 @@ pub enum Effect {
     ToNewGame,
     /// Leave the program.
     Quit,
+    /// Apply the player's settings and keep them in the settings file.
+    Settings(crate::settings::Prefs),
 }
 
 /// Why [`apply`] did nothing.
@@ -534,6 +545,8 @@ pub struct Ctx<'a> {
     pub game: Option<Game<'a>>,
     /// The quick save.
     pub save: Slot<'a>,
+    /// The player's settings as applied.
+    pub prefs: crate::settings::Prefs,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -560,6 +573,9 @@ pub struct Forms {
     pub tactics: tactics::TacticsForm,
     /// The fight's menu step; reset when a fight starts or ends and when its turn passes.
     pub fight: fight::FightForm,
+    /// The settings being edited; none until one is changed, and dropped when the screen changes
+    /// (Close and Esc discard it).
+    pub settings: Option<crate::settings::Prefs>,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -579,6 +595,7 @@ impl Forms {
             self.message = None;
             self.dice.clear();
             self.tactics = tactics::TacticsForm::default();
+            self.settings = None;
         }
         if base == Some(ScreenId::Service) && self.seen.1 != base {
             self.bank.clear();
@@ -604,6 +621,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
     let mut screen = match (id, ctx.game) {
         (ScreenId::Title, _) => title::content(ctx),
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
+        (ScreenId::Settings, _) => settings::content(ctx, forms),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
@@ -661,6 +679,7 @@ pub fn apply(
         (ScreenId::Title, _) => title::apply(control),
         (ScreenId::NewGame, _) => new_game::apply(&mut forms.new_game, control, payload, entropy),
         (ScreenId::Pause, _) => pause::apply(control),
+        (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),

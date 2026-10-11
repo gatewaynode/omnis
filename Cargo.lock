@@ -3903,6 +3903,7 @@ dependencies = [
  "bevy",
  "omnis-sim",
  "omnis-vector",
+ "serde",
  "serde_json",
 ]
 

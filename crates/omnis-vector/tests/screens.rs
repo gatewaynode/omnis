@@ -199,6 +199,7 @@ fn title_ctx(data: &omnis_sim::omnis_data::Data, exists: bool) -> Ctx<'_> {
             path: "saves/q.ron",
             exists,
         },
+        prefs: omnis_vector::settings::Prefs::default(),
     }
 }
 

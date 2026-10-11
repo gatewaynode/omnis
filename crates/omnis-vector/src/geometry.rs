@@ -26,6 +26,15 @@ pub enum SegKind {
     Ceiling,
 }
 
+impl SegKind {
+    /// Whether a line of this kind is drawn with the floor grid `grid` shown or hidden: the floor
+    /// and ceiling grids are the setting's; walls, doors and terrain always show.
+    #[must_use]
+    pub const fn drawn(self, grid: bool) -> bool {
+        grid || !matches!(self, SegKind::Floor | SegKind::Ceiling)
+    }
+}
+
 /// One line in world space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Segment {

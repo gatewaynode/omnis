@@ -2,6 +2,7 @@
 
 use super::screen::Showing;
 use super::session::Session;
+use super::settings::Current;
 use super::{VectorSet, ViewState};
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
@@ -70,6 +71,7 @@ pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Intent>()
+            .init_resource::<Current>()
             .add_systems(Update, grab_cursor.in_set(VectorSet::Grab))
             .add_systems(Update, read_input.in_set(VectorSet::Input))
             .add_systems(Update, advance.in_set(VectorSet::Move));
@@ -151,9 +153,11 @@ fn read_input(
     }
 }
 
-/// The frame's yaw change: mouse, held turn, and a slice of any pending 90° turn.
-fn yaw_delta(intent: &mut Intent, dt: f32) -> f32 {
-    let slice = (TURN_SPEED * dt)
+/// The frame's yaw change: mouse, held turn, and a slice of any pending 90° turn, or all of it at
+/// once under reduced motion (`snap`).
+fn yaw_delta(intent: &mut Intent, dt: f32, snap: bool) -> f32 {
+    let most = if snap { f32::INFINITY } else { TURN_SPEED * dt };
+    let slice = most
         .min(intent.pending_turn.abs())
         .copysign(intent.pending_turn);
     intent.pending_turn -= slice;
@@ -163,8 +167,14 @@ fn yaw_delta(intent: &mut Intent, dt: f32) -> f32 {
     intent.mouse_yaw + intent.turn * TURN_SPEED * dt + slice
 }
 
-fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Intent>) {
+fn advance(
+    time: Res<Time>,
+    current: Res<Current>,
+    mut session: ResMut<Session>,
+    mut intent: ResMut<Intent>,
+) {
     let dt = time.delta_secs().min(MAX_DT);
+    let snap = current.0.reduced_motion;
     let session = &mut *session;
     let terrain_minutes = session
         .data
@@ -178,7 +188,7 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
         .max(1);
     #[allow(clippy::cast_precision_loss)]
     let speed = BASE_SPEED / terrain_minutes as f32;
-    let yaw = yaw_delta(&mut intent, dt);
+    let yaw = yaw_delta(&mut intent, dt, snap);
     if session.views.fallen() {
         // The notice offers a restart; a fallen party does not walk on.
         intent.motion = Motion::default();
@@ -194,6 +204,7 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
             pose,
             session.binder.settle(&session.world, &session.data, pose),
             dt,
+            snap,
         );
     }
     session.pose = pose;
@@ -205,12 +216,13 @@ fn advance(time: Res<Time>, mut session: ResMut<Session>, mut intent: ResMut<Int
     };
 }
 
-/// Move the pose toward the settled pose at walking pace, so a stop near a boundary eases in.
-fn ease(pose: Pose, target: Pose, dt: f32) -> Pose {
+/// Move the pose toward the settled pose at walking pace, so a stop near a boundary eases in; at
+/// once under reduced motion (`snap`).
+fn ease(pose: Pose, target: Pose, dt: f32, snap: bool) -> Pose {
     let (dx, dz) = (target.x - pose.x, target.z - pose.z);
     let len = dx.hypot(dz);
     let step = BASE_SPEED * 0.5 * dt;
-    if len <= step {
+    if snap || len <= step {
         return target;
     }
     Pose {
@@ -222,7 +234,46 @@ fn ease(pose: Pose, target: Pose, dt: f32) -> Pose {
 
 #[cfg(test)]
 mod tests {
-    use super::{LookInput, look};
+    use super::{FRAC_PI_2, Intent, LookInput, Pose, ease, look, yaw_delta};
+
+    #[test]
+    fn reduced_motion_turns_a_quarter_in_one_frame_and_the_eased_turn_does_not() {
+        let mut eased = Intent {
+            pending_turn: FRAC_PI_2,
+            ..Intent::default()
+        };
+        let first = yaw_delta(&mut eased, 1.0 / 60.0, false);
+        assert!(first < FRAC_PI_2 * 0.1, "a slice: {first}");
+        assert!(eased.pending_turn > 0.0, "the rest still to turn");
+        let mut snapped = Intent {
+            pending_turn: -FRAC_PI_2,
+            ..Intent::default()
+        };
+        let all = yaw_delta(&mut snapped, 1.0 / 60.0, true);
+        assert!((all + FRAC_PI_2).abs() < 1e-6, "the whole quarter: {all}");
+        assert_eq!(snapped.pending_turn, 0.0);
+    }
+
+    #[test]
+    fn reduced_motion_settles_onto_the_cell_at_once() {
+        let at = Pose {
+            x: 0.0,
+            z: 0.0,
+            yaw: 0.3,
+        };
+        let cell = Pose {
+            x: 0.4,
+            z: 0.0,
+            yaw: 0.3,
+        };
+        assert_eq!(ease(at, cell, 1.0 / 60.0, true), cell);
+        let eased = ease(at, cell, 1.0 / 60.0, false);
+        assert!(
+            eased.x > 0.0 && eased.x < 0.4,
+            "part of the way: {}",
+            eased.x
+        );
+    }
 
     fn click(over_button: bool) -> LookInput {
         LookInput {

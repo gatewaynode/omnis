@@ -16,6 +16,7 @@ use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::screen::ScreenPlugin;
 use omnis_vector::shell::session::{Config, Packs, Session};
+use omnis_vector::shell::settings::SettingsPlugin;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -95,6 +96,8 @@ pub fn config() -> Config {
         packs: vec![root.join("base"), root.join("test")],
         // Never the player's quick save: a test that saves names its own file.
         save: ".omnis/test-saves/none.ron".to_owned(),
+        // Never the player's settings: a test that applies names its own file.
+        settings: ".omnis/test-saves/settings-none.ron".to_owned(),
         ..Config::default()
     }
 }
@@ -112,6 +115,7 @@ pub fn shell(config: Config, in_game: bool) -> App {
         ControlsPlugin,
         ScreenPlugin,
         CombatPlugin,
+        SettingsPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,

@@ -29,6 +29,8 @@ pub struct Config {
     pub screen: Option<StartScreen>,
     /// The quick save, relative to the working directory.
     pub save: String,
+    /// The player's settings file, relative to the working directory.
+    pub settings: String,
     /// A window instead of borderless fullscreen.
     pub windowed: bool,
     /// The display to go fullscreen on, by index (0 is the first); the current one when `None`.
@@ -55,6 +57,7 @@ impl Default for Config {
             play: false,
             screen: None,
             save: ".omnis/quick.ron".to_owned(),
+            settings: ".omnis/settings.ron".to_owned(),
             windowed: false,
             vsync: true,
             monitor: None,
@@ -107,6 +110,7 @@ impl Config {
 
 /// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>` (and start in the game
 /// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
+/// `--settings <file>` (the player's settings, a relative `.ron` path),
 /// `--screen title|new-game|create-party|pause|actions` (open it at the start), `--windowed`,
 /// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
@@ -136,6 +140,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                 client_path(&path, &["ron"])
                     .map_err(|e| format!("--save takes a relative .ron path: {e}"))?;
                 config.save = path;
+            }
+            "--settings" => {
+                let path = value("--settings")?;
+                client_path(&path, &["ron"])
+                    .map_err(|e| format!("--settings takes a relative .ron path: {e}"))?;
+                config.settings = path;
             }
             "--screen" => {
                 config.screen = Some(match value("--screen")?.as_str() {

@@ -20,6 +20,7 @@ use super::screen_draw::{
     wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
+use super::settings::Current;
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
@@ -93,6 +94,7 @@ pub struct ScreenPlugin;
 impl Plugin for ScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Screens>()
+            .init_resource::<Current>()
             .init_resource::<Showing>()
             .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
@@ -219,7 +221,8 @@ fn root() -> &'static Path {
     Path::new(".")
 }
 
-/// The context of a running game, as its screens read it.
+/// The context of a running game, as its screens read it, with the default settings (the game's
+/// screens do not read them; the router passes the applied ones, `ctx_with`).
 #[must_use]
 pub fn ctx(session: &Session) -> Ctx<'_> {
     Ctx {
@@ -231,6 +234,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
             unreplayable: session.unreplayable.as_deref(),
         }),
         save: slot(&session.config.save),
+        prefs: crate::settings::Prefs::default(),
     }
 }
 
@@ -241,17 +245,23 @@ fn slot(path: &str) -> Slot<'_> {
     }
 }
 
-/// The context with or without a game.
+/// The context with or without a game, with the settings as applied.
 #[must_use]
-pub fn ctx_with<'a>(session: Option<&'a Session>, packs: &'a Packs) -> Ctx<'a> {
-    session.map_or_else(
+pub fn ctx_with<'a>(
+    session: Option<&'a Session>,
+    packs: &'a Packs,
+    prefs: crate::settings::Prefs,
+) -> Ctx<'a> {
+    let ctx = session.map_or_else(
         || Ctx {
             data: &packs.data,
             game: None,
             save: slot(&packs.config.save),
+            prefs,
         },
         ctx,
-    )
+    );
+    Ctx { prefs, ..ctx }
 }
 
 /// A seed for a game whose seed was left blank: the clock's nanoseconds, mixed.
@@ -270,6 +280,7 @@ struct Host<'w, 's> {
     packs: Res<'w, Packs>,
     exit: MessageWriter<'w, AppExit>,
     view: ResMut<'w, NextState<ViewState>>,
+    current: ResMut<'w, Current>,
 }
 
 /// The top screen's input, from its nodes and the keys.
@@ -332,7 +343,7 @@ fn route(
         return;
     };
     let effect = {
-        let ctx = ctx_with(session.as_deref(), &host.packs);
+        let ctx = ctx_with(session.as_deref(), &host.packs, host.current.0);
         let input = Input { used: &used, slid };
         applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
     };
@@ -492,6 +503,14 @@ fn carry_out(
             }
         }
         Effect::Host(op) => host_op(op, host, session, screens),
+        Effect::Settings(prefs) => {
+            host.current.0 = prefs;
+            let path = &host.packs.config.settings;
+            let outcome = crate::settings::write(root(), path, prefs)
+                .map(|()| format!("Settings saved to {path}"))
+                .map_err(|e| format!("Could not save settings: {e}"));
+            report(screens, outcome);
+        }
     }
 }
 
@@ -588,6 +607,7 @@ fn paint(
     mut commands: Commands,
     session: Option<Res<Session>>,
     packs: Res<Packs>,
+    current: Res<Current>,
     mut screens: ResMut<Screens>,
     mut showing: ResMut<Showing>,
     window: Query<&Window, With<PrimaryWindow>>,
@@ -616,7 +636,7 @@ fn paint(
         }
         return;
     };
-    let ctx = ctx_with(session.as_deref(), &packs);
+    let ctx = ctx_with(session.as_deref(), &packs, current.0);
     let screen = screen::content(top, &ctx, &screens.forms);
     let height = size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

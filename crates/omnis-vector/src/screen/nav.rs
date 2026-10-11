@@ -61,6 +61,11 @@ impl Nav {
         let base = self.base(game);
         match (id, game) {
             (ScreenId::NewGame, None) => true,
+            // From the title, or from the pause wherever it is allowed.
+            (ScreenId::Settings, None) => true,
+            (ScreenId::Settings, Some(_)) => {
+                !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
+            }
             (ScreenId::Pause, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
@@ -109,6 +114,7 @@ impl Nav {
                     | ScreenId::Title
                     | ScreenId::NewGame
                     | ScreenId::CreateParty
+                    | ScreenId::Settings
             )
         )
     }

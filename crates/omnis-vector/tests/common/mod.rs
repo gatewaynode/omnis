@@ -133,5 +133,6 @@ pub fn ctx<'a>(
             path: "saves/none.ron",
             exists: false,
         },
+        prefs: omnis_vector::settings::Prefs::default(),
     }
 }

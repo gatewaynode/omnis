@@ -24,6 +24,7 @@ mod rolllog;
 mod roster;
 mod screens;
 mod service;
+mod settings;
 mod sheet;
 mod shell;
 mod socket;

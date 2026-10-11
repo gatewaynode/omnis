@@ -16,6 +16,7 @@ pub mod screen;
 mod screen_draw;
 pub mod screen_text;
 pub mod session;
+pub mod settings;
 #[cfg(feature = "devtools")]
 pub mod socket;
 pub mod text;
