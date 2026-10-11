@@ -15,6 +15,7 @@ mod create_party;
 mod fight;
 mod inventory;
 mod labels;
+mod message;
 mod minimap;
 mod rolllog;
 mod roster;

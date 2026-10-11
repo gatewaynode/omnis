@@ -82,8 +82,9 @@ pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn)
-            .add_systems(Update, (press, shade).in_set(VectorSet::Input));
+        app.add_systems(Startup, (spawn, super::message::spawn))
+            .add_systems(Update, (press, shade).in_set(VectorSet::Input))
+            .add_systems(Update, super::message::paint.in_set(VectorSet::Screens));
     }
 }
 

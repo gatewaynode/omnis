@@ -41,14 +41,26 @@ impl Tool {
         }
     }
 
-    /// Why it cannot be opened yet. The sheet, inventory and spells arrive with their parity
-    /// steps; the journal with quests.
+    /// Why it cannot be opened for `member` now: the sheet arrives with its parity step, the
+    /// journal with quests, and Spells needs a spell for the road.
     #[must_use]
-    pub const fn why_not(self) -> Option<&'static str> {
+    pub fn why_not(self, game: Game, member: CharacterId) -> Option<&'static str> {
         match self {
             Tool::Sheet => Some("Not built yet (P6)"),
-            Tool::Inventory | Tool::Spells => Some("Not built yet (P5)"),
+            Tool::Inventory => None,
+            Tool::Spells => (!game.views.casts.iter().any(|c| c.caster == member))
+                .then_some("No spells for the road"),
             Tool::Journal => Some("No quests yet"),
+        }
+    }
+
+    /// The screen it opens, once built.
+    #[must_use]
+    pub const fn screen(self) -> Option<super::ScreenId> {
+        match self {
+            Tool::Inventory => Some(super::ScreenId::Inventory),
+            Tool::Spells => Some(super::ScreenId::Cast),
+            Tool::Sheet | Tool::Journal => None,
         }
     }
 }
@@ -151,7 +163,7 @@ pub fn content(data: &Data, game: Game, selected: Option<CharacterId>) -> Panel 
                 Tool::ALL
                     .iter()
                     .map(|t| Control {
-                        why_not: t.why_not().map(str::to_owned),
+                        why_not: t.why_not(game, m.member).map(str::to_owned),
                         ..Control::button(ControlId::Open(*t), t.label())
                     })
                     .collect(),

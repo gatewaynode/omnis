@@ -161,7 +161,7 @@ fn an_entry_selects_its_member_and_the_screens_open_under_them() {
 }
 
 #[test]
-fn each_screen_is_dim_with_its_reason_until_it_is_built() {
+fn each_screen_is_dim_with_its_reason_until_it_can_open() {
     let session = start();
     let g = game(&session, &session.views);
     let first = session.views.party.members[0].member;
@@ -178,8 +178,8 @@ fn each_screen_is_dim_with_its_reason_until_it_is_built() {
         reasons,
         [
             ("Sheet".into(), Some("Not built yet (P6)".into())),
-            ("Inventory".into(), Some("Not built yet (P5)".into())),
-            ("Spells".into(), Some("Not built yet (P5)".into())),
+            ("Inventory".into(), None),
+            ("Spells".into(), Some("No spells for the road".into())),
             ("Journal".into(), Some("No quests yet".into())),
         ]
     );
@@ -191,6 +191,30 @@ fn each_screen_is_dim_with_its_reason_until_it_is_built() {
             ControlId::Open(Tool::Journal)
         ),
         Err(Refused::Dim("No quests yet".into()))
+    );
+    assert_eq!(
+        roster::apply(
+            &session.data,
+            g,
+            &mut selected,
+            ControlId::Open(Tool::Inventory)
+        ),
+        Ok(RosterEffect::Open {
+            tool: Tool::Inventory,
+            member: first,
+            read_only: false
+        })
+    );
+    // The cleric has spells for the road.
+    let durin = session.views.party.members[1].member;
+    let mut cleric = Some(durin);
+    assert_eq!(
+        roster::apply(&session.data, g, &mut cleric, ControlId::Open(Tool::Spells)),
+        Ok(RosterEffect::Open {
+            tool: Tool::Spells,
+            member: durin,
+            read_only: false
+        })
     );
     // Nothing selected: no open row, so nothing to press.
     let mut none = None;

@@ -67,6 +67,15 @@ impl Screens {
 #[derive(Component)]
 struct ScreenRoot;
 
+/// Marks the window-sized layer the screen is centred in.
+#[derive(Component)]
+struct ScreenLayer;
+
+/// The room the party column takes at the right while a screen stands beside it (the inventory,
+/// the cast screen), in logical pixels; 0 otherwise. The column's paint writes it.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
+pub struct Beside(pub f32);
+
 /// A slider moved since the router last looked: the number it now asks for.
 #[derive(Resource, Debug, Default)]
 struct Slid(Option<(ControlId, i64)>);
@@ -80,6 +89,7 @@ impl Plugin for ScreenPlugin {
             .init_resource::<Showing>()
             .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
+            .init_resource::<Beside>()
             .add_observer(slid)
             .add_systems(Startup, (spawn, super::roster::spawn, open_start))
             .add_systems(
@@ -89,6 +99,7 @@ impl Plugin for ScreenPlugin {
                     super::roster::route,
                     paint,
                     super::roster::paint,
+                    make_room,
                     thumbs,
                     wheel,
                     chrome,
@@ -118,6 +129,7 @@ fn slid(change: On<ValueChange<f32>>, sliders: Query<&SliderOf>, mut moved: ResM
 fn spawn(mut commands: Commands) {
     commands
         .spawn((
+            ScreenLayer,
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
@@ -152,6 +164,16 @@ fn spawn(mut commands: Commands) {
                 BackgroundColor(shade(0)),
             ));
         });
+}
+
+/// Centre the screen in the room the party column leaves when it stands beside it.
+fn make_room(beside: Res<Beside>, mut layer: Query<&mut Node, With<ScreenLayer>>) {
+    let right = Val::Px(beside.0);
+    for mut node in &mut layer {
+        if node.padding.right != right {
+            node.padding.right = right;
+        }
+    }
 }
 
 /// Open the screen the command line asked for (`--screen`).

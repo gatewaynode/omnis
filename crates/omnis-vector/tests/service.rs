@@ -3,6 +3,7 @@
 //! test pack's town.
 
 use crate::common;
+use common::ctx;
 
 use bevy::input::ButtonState;
 use bevy::input::touch::TouchPhase;
@@ -14,9 +15,7 @@ use omnis_sim::{Command, Event, Mode, Rejection, ServiceCommand};
 use omnis_vector::labels;
 use omnis_vector::rolllog::Names;
 use omnis_vector::screen::nav::{Escape, Nav};
-use omnis_vector::screen::{
-    self, ControlId, Ctx, Effect, Forms, Game, Payload, Refused, Screen, ScreenId, Slot,
-};
+use omnis_vector::screen::{self, ControlId, Effect, Forms, Payload, Refused, Screen, ScreenId};
 use omnis_vector::shell::screen::{Pressable, Screens, Scrolls, ctx as shell_ctx};
 use omnis_vector::shell::session::Session;
 use omnis_vector::shell::text;
@@ -247,23 +246,6 @@ fn a_level_a_spell_and_the_bank_read_with_names_and_coins() {
 const INN: (u16, u16) = (1, 1);
 const GUILD: (u16, u16) = (10, 1);
 const BANK: (u16, u16) = (7, 3);
-
-/// The context of a game in `world`, for the screen model.
-fn ctx<'a>(data: &'a Data, world: &'a SimWorld, views: &'a Views) -> Ctx<'a> {
-    Ctx {
-        data,
-        game: Some(Game {
-            world,
-            views,
-            log: &[],
-            unreplayable: None,
-        }),
-        save: Slot {
-            path: "saves/none.ron",
-            exists: false,
-        },
-    }
-}
 
 /// Each panel's headings: the spans drawn in the title role.
 fn headings(shown: &Screen) -> Vec<Vec<String>> {

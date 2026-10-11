@@ -6,6 +6,7 @@ use crate::grid::cell_of;
 use crate::party;
 use crate::pose::Pose;
 use crate::rolllog::{self, Names};
+use crate::screen::Span;
 use crate::sim::{SimWorld, Views, game_settings};
 use bevy::prelude::Resource;
 use omnis_sim::api::Draft;
@@ -260,6 +261,9 @@ pub struct Session {
     pub log_path: PathBuf,
     /// Recent event lines for the HUD, newest last.
     pub lines: Vec<String>,
+    /// The explore message line: the last event worth a line, or the last refusal (alert);
+    /// cleared by a move that said nothing else.
+    pub message: Option<Span>,
     /// The current or last fight's roll log, newest last.
     pub fight_log: Vec<String>,
     /// Who is in the fight, for the roll log.
@@ -392,6 +396,7 @@ impl Session {
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
+            message: None,
             fight_log: Vec::new(),
             names,
             reshape: true,
@@ -438,6 +443,7 @@ impl Session {
             Err(rejection) => {
                 let line = format!("Refused: {rejection}");
                 self.say(line.clone());
+                self.message = Some(Span::alert(line.clone()));
                 Err(line)
             }
         };
@@ -494,12 +500,22 @@ impl Session {
         }
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
-        let lines: Vec<String> = events
+        // Each line, and whether a move said it: the message line takes the newest line but a
+        // move's, and a move that said nothing else clears it.
+        let lines: Vec<(bool, String)> = events
             .iter()
-            .filter_map(|e| describe(e, &self.names, &self.data))
+            .filter_map(|e| {
+                describe(e, &self.names, &self.data)
+                    .map(|line| (matches!(e, Event::Moved { .. }), line))
+            })
             .collect();
-        let newest = lines.last().cloned();
-        for line in lines {
+        if let Some((_, line)) = lines.iter().rev().find(|(moved, _)| !moved) {
+            self.message = Some(Span::body(line.clone()));
+        } else if events.iter().any(|e| matches!(e, Event::Moved { .. })) {
+            self.message = None;
+        }
+        let newest = lines.last().map(|(_, line)| line.clone());
+        for (_, line) in lines {
             self.say(line);
         }
         newest
@@ -519,6 +535,8 @@ impl Session {
         self.names.observe(&self.views.party);
         self.reshape = true;
         self.unreplayable = Some(why.to_owned());
+        // The old world's last event is not this one's.
+        self.message = None;
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`

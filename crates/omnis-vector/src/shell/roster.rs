@@ -6,7 +6,7 @@
 use super::capture::CaptureSize;
 use super::combat::size;
 use super::minimap::Minimap;
-use super::screen::{Screens, Showing, Side, colour, ctx, shade};
+use super::screen::{Beside, Screens, Showing, Side, colour, ctx, shade};
 use super::screen_draw::{Mark, rows};
 use super::session::Session;
 use crate::arena::{BUTTONS, MARGIN, layout};
@@ -52,14 +52,28 @@ pub(super) fn spawn(mut commands: Commands) {
 }
 
 /// Whether the column shows: a game is played (not while its party is made) and no screen is
-/// up.
+/// up but the column's own, the inventory and the cast screen, which it stands beside.
 fn shown(session: Option<&Session>, screens: &Screens, showing: Showing) -> bool {
     session.is_some_and(|s| {
-        !showing.0 && screens.nav.base(Some(&s.views)) != Some(ScreenId::CreateParty)
+        let views = Some(&s.views);
+        let beside = matches!(
+            screens.nav.top(views),
+            Some(ScreenId::Inventory | ScreenId::Cast)
+        );
+        (!showing.0 || beside) && screens.nav.base(views) != Some(ScreenId::CreateParty)
     })
 }
 
-/// A pressed button of the column, applied; an open request waits for its screen (P5, P6).
+/// Whether a screen stands beside the column: the inventory or the cast screen.
+fn beside(session: &Session, screens: &Screens) -> bool {
+    matches!(
+        screens.nav.top(Some(&session.views)),
+        Some(ScreenId::Inventory | ScreenId::Cast)
+    )
+}
+
+/// A pressed button of the column, applied: a member selected, or their kit or spells opened
+/// (the sheet waits for P6).
 pub(super) fn route(
     session: Option<Res<Session>>,
     mut screens: ResMut<Screens>,
@@ -88,8 +102,13 @@ pub(super) fn route(
     let mut selected = screens.forms.selected;
     match roster::apply(ctx.data, game, &mut selected, id) {
         Ok(RosterEffect::None) => screens.forms.selected = selected,
-        // Every screen the column opens arrives with a later step; until then each is dim.
-        Ok(RosterEffect::Open { .. }) | Err(_) => {}
+        Ok(RosterEffect::Open { tool, member, .. }) => {
+            if let Some(screen) = tool.screen() {
+                screens.forms.owner = Some(member);
+                screens.nav.show(screen, Some(&session.views));
+            }
+        }
+        Err(_) => {}
     }
 }
 
@@ -106,12 +125,14 @@ pub(super) fn paint(
     minimap: Query<&ComputedNode, With<Minimap>>,
     mut root: Query<(Entity, &mut Node), With<RosterRoot>>,
     mut drawn: ResMut<Drawn>,
+    mut room: ResMut<Beside>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
     };
     let session = session.as_deref();
     let Some(session) = session.filter(|s| shown(Some(s), &screens, *showing)) else {
+        room.set_if_neq(Beside(0.0));
         if drawn.0.take().is_some() {
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::None;
@@ -145,6 +166,11 @@ pub(super) fn paint(
             height: h,
         }
     };
+    room.set_if_neq(Beside(if beside(session, &screens) {
+        place.width + 2.0 * MARGIN
+    } else {
+        0.0
+    }));
     let ctx = ctx(session);
     let Some(game) = ctx.game else {
         return;

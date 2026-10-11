@@ -64,6 +64,8 @@ impl Nav {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
             (ScreenId::Actions, Some(views)) => base.is_none() && views.exploring(),
+            // From the party column, exploring or in a fight (to look); not over a service.
+            (ScreenId::Inventory | ScreenId::Cast, Some(_)) => base.is_none(),
             _ => false,
         }
     }
@@ -85,14 +87,16 @@ impl Nav {
         self.stack.last().copied().or_else(|| self.base(game))
     }
 
-    /// Whether the game waits on the screen on top: nothing moves or acts under the pause or the
-    /// fallen party's screen.
+    /// Whether the game waits on the screen on top: nothing moves or acts under the pause, the
+    /// fallen party's screen, or a member's kit or spells.
     #[must_use]
     pub fn paused(&self, game: Option<&Views>) -> bool {
         matches!(
             self.top(game),
             Some(
                 ScreenId::Pause
+                    | ScreenId::Inventory
+                    | ScreenId::Cast
                     | ScreenId::Defeat
                     | ScreenId::Title
                     | ScreenId::NewGame
@@ -121,6 +125,18 @@ impl Nav {
         } else {
             self.open(id, game);
         }
+    }
+
+    /// Show the column's screen `id` (the inventory or the cast screen) in place of the other, or
+    /// on top, when the world allows it.
+    pub fn show(&mut self, id: ScreenId, game: Option<&Views>) {
+        if matches!(
+            self.stack.last(),
+            Some(ScreenId::Inventory | ScreenId::Cast)
+        ) {
+            self.stack.pop();
+        }
+        self.open(id, game);
     }
 
     /// Close the top overlay; `false` when there is none.

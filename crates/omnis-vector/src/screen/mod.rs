@@ -9,8 +9,10 @@
 //! sees it, so the renderer and a test reach the same answer.
 
 pub mod actions;
+pub mod cast;
 pub mod create_party;
 pub mod defeat;
+pub mod inventory;
 pub mod nav;
 pub mod new_game;
 pub mod pause;
@@ -41,6 +43,10 @@ pub enum ScreenId {
     Actions,
     /// Inside a town service.
     Service,
+    /// A member's kit beside the party's stores.
+    Inventory,
+    /// A member's spells on the road.
+    Cast,
     /// The party has fallen.
     Defeat,
 }
@@ -110,6 +116,17 @@ pub enum ControlId {
     Deposit,
     /// Draw the amount from the bank.
     Withdraw,
+    /// Whose kit or spells a screen shows.
+    Owner,
+    /// A button of a kit's or the stores' row `at`.
+    Item {
+        /// The row: an index into the kit shown, or into the stores for Take.
+        at: u16,
+        /// What it does.
+        act: inventory::ItemAct,
+    },
+    /// Cast the road spell at index `.0` of the views' casts.
+    Cast(u16),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -484,6 +501,9 @@ pub struct Forms {
     pub bank: String,
     /// The member selected in the party column: who receives a give, a potion or a spell.
     pub selected: Option<omnis_sim::omnis_core::CharacterId>,
+    /// Whose kit or spells the inventory and the cast screen show; set when the column opens
+    /// one.
+    pub owner: Option<omnis_sim::omnis_core::CharacterId>,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -529,6 +549,8 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
+        (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
+        (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
         (ScreenId::CreateParty, Some(game)) => create_party::content(ctx.data, game, &forms.create),
         (id, None) => empty(id),
@@ -579,10 +601,19 @@ pub fn apply(
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
+        (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
+        (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
         (ScreenId::Defeat, _) => defeat::apply(control),
         (ScreenId::CreateParty, Some(game)) => {
             create_party::apply(&mut forms.create, game, control, payload)
         }
-        (ScreenId::Actions | ScreenId::CreateParty | ScreenId::Service, None) => Effect::None,
+        (
+            ScreenId::Actions
+            | ScreenId::CreateParty
+            | ScreenId::Service
+            | ScreenId::Inventory
+            | ScreenId::Cast,
+            None,
+        ) => Effect::None,
     })
 }

@@ -7,6 +7,7 @@ pub mod combat;
 pub mod controls;
 pub mod host;
 pub mod hud;
+pub mod message;
 pub mod minimap;
 pub mod movement;
 pub mod render;

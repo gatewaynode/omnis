@@ -114,3 +114,24 @@ pub fn steps(log: &[Command]) -> usize {
 pub fn views(world: &SimWorld, data: &Data) -> Views {
     Views::of(world, data)
 }
+
+/// The context of a game in `world`, for the screen model; no quick save.
+pub fn ctx<'a>(
+    data: &'a Data,
+    world: &'a SimWorld,
+    views: &'a Views,
+) -> omnis_vector::screen::Ctx<'a> {
+    omnis_vector::screen::Ctx {
+        data,
+        game: Some(omnis_vector::screen::Game {
+            world,
+            views,
+            log: &[],
+            unreplayable: None,
+        }),
+        save: omnis_vector::screen::Slot {
+            path: "saves/none.ron",
+            exists: false,
+        },
+    }
+}
