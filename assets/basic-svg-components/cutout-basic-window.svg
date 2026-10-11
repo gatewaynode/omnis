@@ -1,0 +1,30 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- Created using Krita: https://krita.org -->
+<svg xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:krita="http://krita.org/namespaces/svg/krita"
+    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+    width="595.2pt"
+    height="841.92pt"
+    viewBox="0 0 595.2 841.92">
+<defs>
+  <linearGradient id="gradient0" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#ffffff" offset="0" stop-opacity="1"/>
+   <stop stop-color="#6b6a7b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient1" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#ffffff" offset="0" stop-opacity="1"/>
+   <stop stop-color="#6b6a7b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient2" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#ffffff" offset="0" stop-opacity="1"/>
+   <stop stop-color="#6b6a7b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient3" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#ffffff" offset="0" stop-opacity="1"/>
+   <stop stop-color="#6b6a7b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+ </defs>
+<rect id="shape0" transform="translate(134.144, 122.54712195122)" fill="none" stroke="#000000" stroke-width="9.6" stroke-linecap="square" stroke-linejoin="bevel" width="345.6" height="604.32"/><path id="shape1" transform="translate(134.159609756098, 171.80643902439)" fill="none" stroke="#000000" stroke-width="9.6" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2" d="M0 0L344.982 0" sodipodi:nodetypes="cc"/><path id="shape2" transform="translate(134.159609756098, 689.279219512195)" fill="none" stroke="#000000" stroke-width="9.6" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2" d="M0 0L345.666 0" sodipodi:nodetypes="cc"/><path id="shape3" transform="translate(308.019512195122, 172.490926829268)" fill="none" stroke="#000000" stroke-width="9.6" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2" d="M0 0L5.68434e-14 516.8" sodipodi:nodetypes="cc"/><path id="shape4" transform="translate(135.528585365854, 433.965268292683)" fill="none" stroke="#000000" stroke-width="9.6" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="2" d="M0 1.13687e-13L342.25 0" sodipodi:nodetypes="cc"/><rect id="shape5" transform="translate(142.56, 183.6)" fill="url(#gradient0)" fill-rule="evenodd" stroke="#000000" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="bevel" width="154.8" height="240.48"/><rect id="shape01" transform="translate(317.440014285345, 183.448014285351)" fill="url(#gradient1)" fill-rule="evenodd" stroke="#000000" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="bevel" width="154.8" height="240.48"/><rect id="shape02" transform="translate(143.92001428535, 441.208014285343)" fill="url(#gradient2)" fill-rule="evenodd" stroke="#000000" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="bevel" width="154.8" height="240.48"/><rect id="shape03" transform="translate(317.440014285345, 441.928014285343)" fill="url(#gradient3)" fill-rule="evenodd" stroke="#000000" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="bevel" width="154.8" height="240.48"/>
+</svg>
