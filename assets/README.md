@@ -20,3 +20,22 @@ Rules:
   project's own upstream, from a release older than 30 days, with the hashes recorded here.
 - Every new set gets a row here and its licence file kept verbatim in its folder. CC0 and
   CC-BY sets may be committed; CC-BY sets also get a line in `ATTRIBUTION.md`.
+
+
+# SVG Importing
+
+A script can turn simple SVGs into the 3D world's line format. It fits the open question in presentation-PRD §12.4, which names SVG import as one candidate format for authored set pieces. It would likely be a subcommand of omnis-cli, like tileset bake. It would read the SVG, turn the shapes into line segments, and write a RON line model into the pack for the loader to check.
+
+A few conventions will make your files convert cleanly:
+- Shapes: use outlines made of path, line, polyline, polygon, rect, circle and ellipse. Curves are fine; they get flattened into short lines.
+- Text: convert it to paths. Skip filters, gradients, masks and embedded images; they have no line equivalent.
+- Fills: a closed shape with a fill could become a dark surface that hides what's behind it, so a statue can block the wall behind it. Unfilled shapes stay pure lines.
+- Size and ground: make the bottom of the canvas the ground. Let the width of the viewBox stand for one cell, or tell me the scale you'd prefer.
+- Krita: export plain SVG. The .kra file in assets/ is your Krita source, and the converter would only read the SVG.
+
+SVG is flat, so each file needs a rule for becoming 3D. There are three ways:
+- Standing cutout: an upright flat shape. Good for signs, statues and flat silhouettes.
+- Spun around a vertical axis: good for columns, towers and urns.
+- Extruded to a depth: good for arches, walls and machines.
+
+Tell me which kind each placeholder is, or name the files with a prefix such as spin- or cutout-, and the script can follow that.
