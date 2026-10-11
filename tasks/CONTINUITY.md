@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-10, after parity P2. Rewrite this file every time it is used. Durable knowledge lives in
+Written 2026-10-10, after parity P2, before a compact (owner: "prepare for a compact and then move on to P3 after the catchup"). Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
 ## Where we are
@@ -16,7 +16,12 @@ Written 2026-10-10, after parity P2. Rewrite this file every time it is used. Du
   `playing`. Text fields are `bevy_ui_widgets`' `EditableText` (in `ui`, no new crate).
 
 ## Next
-- Owner acceptance of P2, then P3 (character creation) in plan mode. P3 starts with the engine addition of
+- **P3 (character creation) in plan mode, right after the catchup.** P2's acceptance is still the owner's to
+  report (not yet said). Read cold for P3: presentation-ARCHITECTURE §4.4, §6 (all), §6.7's creation row;
+  `omnis-app/src/creation_menu.rs` (`Catalog`, point buy at :74-82), `creation_panel.rs`, `feathers_creation.rs`;
+  `docs/api.md` §7.2 and §8 (`PartyCommand::Create`, `Draft`); `crates/omnis-vector/src/screen/new_game.rs`
+  as the pattern for a form.
+- P3 itself: P3 starts with the engine addition of
   presentation-ARCHITECTURE §4.4: a point-buy view (budget, score range, cost table); the catalogue of
   races, classes, backgrounds comes from `Data` (labels/catalogue, VA9). P3 replaces `party::fixed()` in
   `Session::new_game` with the CreateParty base screen (§6.3). Needs `Kind::Number`/slider and probably
