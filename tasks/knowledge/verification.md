@@ -12,9 +12,9 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 701 passed, 13 ignored (2026-10-10, after parity P2; 670 after the vector
+Test count at the gate: 715 passed, 13 ignored (2026-10-10, after parity P3; 701 after P2, 670 after the vector
 adoption's V3, 583 before `omnis-vector` joined). The gate's log says it on one line:
-`tests passed 701 failed 0 ignored 13`. Write each gate run to a new file name: `verify.sh` stops at the
+`tests passed 715 failed 0 ignored 13`. Write each gate run to a new file name: `verify.sh` stops at the
 first failing step, so `cargo fmt --check && verify.sh > gate.txt` that fails at fmt leaves an older
 `gate.txt` in place, and reading it reports an old count as this run's (P2, 2026-10-10).
 
@@ -93,8 +93,9 @@ repository root (the root has no rules file).
   reads every key from the schema proof's command instances, a town service and both golden replays (with
   every view after each command); `the_vocabulary_catches_a_name_that_drifted` plants breaks and asserts
   each finding by message. Seconds to run: run it after any wire change, before the gate.
-- MCP: 24 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
-  `omnis-cli`'s schema dump, 24, in `omnis-cli/tests/headless.rs`); the hand-written
+- MCP: 25 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
+  `omnis-cli`'s schema dump, 25, in `omnis-cli/tests/headless.rs`: a hand list, so a new op is added to
+  `omnis-cli/src/schema.rs` by hand; the gate does not catch a missing one); the hand-written
   `Command` schema has `oneOf` 11, combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
   `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
 - The schema proof (`omnis-mcp/tests/schema_proof.rs`): 94 instances from the `next` chain of

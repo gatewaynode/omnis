@@ -155,11 +155,14 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `Screens { nav, forms }`, `Pressable`, `Arrow`, `ctx`, `playing`, the chrome hidden with no game),
   `combat.rs` (the fight screen), `hud.rs`, `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
   offscreen; the socket's live capture).
-- Screens (parity P2, presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
-  `Panel`, `Row`, `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Text}`, `Payload`, `Effect`,
-  `HostOp`, `Refused`, `Ctx`/`Game`/`Slot`, `Forms`, `content`, `apply`), `nav.rs` (`Nav`: overlays over the
-  world's base; `settle`, `escape`, `paused`), one file per screen (`title`, `new_game`, `pause`, `defeat`,
-  `actions`, `service`). `labels.rs` turns ids and text keys into words (the only `Data::label` caller);
+- Screens (parity P2, P3; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
+  `Panel`, `Row` (with `after`), `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Number, Text}`,
+  `Payload` (with `Set`), `stepped`, `Effect`, `HostOp`, `Refused`, `Ctx`/`Game`/`Slot`, `Forms` (with
+  `accepted`), `content`, `apply`), `nav.rs` (`Nav`: overlays over the world's base, `creating` until Begin;
+  `settle`, `escape`, `paused`), one file per screen (`title`, `new_game`, `create_party`, `pause`, `defeat`,
+  `actions`, `service`). `shell/screen.rs` routes and paints; `shell/screen_draw.rs` builds the nodes (the
+  slider and its thumb included). Party creation reads `Views.creation` (`omnis_sim::creation_view`).
+  `Session::{new_game (no party), with_party, start (the fixed four), drafts, restart}`. `labels.rs` turns ids and text keys into words (the only `Data::label` caller);
   `style.rs` the roles and the type scale; `game_io.rs` save and load (the pause and the socket share it).
   `VectorSet::Screens` runs every frame; `Grab`/`Input`/`Move` only while `playing`, `Draw` while a game
   runs.
@@ -280,7 +283,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `tests/tactics.rs` for the tactics panel.
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 24 tools, the hand-written `Command`
+`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 25 tools, the hand-written `Command`
 schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
 `omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant), `replies.rs`, `schema_proof.rs`,

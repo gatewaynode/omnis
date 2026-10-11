@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
@@ -164,7 +164,7 @@ drift test and the vocabulary test.
 
 | Rule | `omnis-app` today | Engine addition (shape decided in the step) | Step |
 |---|---|---|---|
-| Point buy: budget, score range, cost per score | `creation_menu.rs:74-82` reads `rules` values and the `point_cost` table | A creation view: the budget, the range and the cost table. Party slots are already `PartyView.slots`; the catalogue of races, classes and backgrounds is a catalogue, read from `Data` | P3 |
+| Point buy: budget, score range, cost per score | `creation_menu.rs:74-82` reads `rules` values and the `point_cost` table | **Built in P3:** `creation_view(&Data) -> CreationView`, op `creation.get` (docs/api.md §7.9): slots, `name_max`, the score range, `points` and each score's cost, and per race (bonuses, grants), class (`choose`, `skill_list`) and background (grants), read through the functions `party.create` checks with. The client reads it as `Views.creation`; only names come from `Data` | P3 |
 | A known spell's point cost and action cost, outside a fight | `sheet_menu.rs:195` reads `point_cost()` | The member's known spells with cost and action cost (`MemberView.spells` holds ids only) | P6 |
 | Whether a fight spell is a reaction or a bonus action | `combat_menu.rs:174` compares the spell's `Cost` | `SpellView` gains the action cost, as `FeatureView.pay` has | P7 |
 | Whether an item can be used in a fight | `use_menu.rs:103` matches `UseEffect::Sense` to "not here" | The fight's usable items with the engine's refusal, as `FeatureView.blocked` does for features | P7 |
@@ -282,7 +282,7 @@ pub enum Kind { Button, Choice { options: Vec<String>, at: usize }, Text { value
 
 - **A control is enabled or says why not.** `why_not: Some(reason)` draws it dim as "label: reason" with no `Button`, so it takes no clicks, the way `omnis-app` shows "not enough money" beside a price. The reason comes from the engine (a view, a trial) worded by `labels`.
 - **`ControlId` is one enum** across screens (`Action(n)`, `Close`, `Leave`, `NewGame`, `Load`, `Save`, `Seed`, `Rule`, ...), so the router needs no per-screen code.
-- **Sizes and colours are roles**, never pixels or literals (§7). A number field and a slider (`Kind::Number`, `Kind::Slider`) are added when P3, P4 and P6 need them.
+- **Sizes and colours are roles**, never pixels or literals (§7). `Kind::Number { value, min, max }` (P3) is drawn as its name, arrows and a `bevy_ui_widgets` `Slider`; a slider's move reaches `apply` as `Payload::Set`, and the renderer sets the slider back from the model, so the screen's state stays the one source. A row may carry text after its controls (`Row::after`), and panels lay out side by side.
 - **Keys name controls**, so a key can do nothing a button cannot; the renderer prefixes a control's number key to its label.
 
 ### 6.2 Apply
@@ -309,7 +309,7 @@ pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 | Base | When |
 |---|---|
 | Title | No game (`Session` absent) |
-| CreateParty | A new world with an empty party (P3; new games take the fixed party until then) |
+| CreateParty | A new game until Begin (`Nav` keeps `creating`), or any game with no members; decided ahead of Defeat, since an empty party reads as fallen. Esc and Back drop the world and reopen the filled new-game form; pause is not offered. `--seed` starts keep the fixed party |
 | none: the 3D view | Exploring: the HUD and the controls |
 | Service | `here.service` is set: the town stopgap until P4 |
 | none: the fight screen | `views.combat` is `Some` (§9) |
@@ -351,7 +351,7 @@ the parity checklist for each step's plan.
 | Title, New game, Load | P2 | `World::new`, `Here.seed`, `Here.settings` | Seed field (blank random, a number as typed, other text hashed, 32 characters); the save rule with its label; permadeath; "Load failed: …" |
 | Pause | P2 | `Here.seed`, `Here.settings`, `Here.may_save` | "Seed N", "Saving: … Permadeath: … Devtools: …"; Resume, Save, Load, Sheet, Debug (dim with the reason outside devtools), Quit to title and Quit set apart; "The save rule forbids saving here" / "Saved to …" |
 | Defeat | P2 | `party` | "The party has fallen", the last log lines, Load last save, Quit to title |
-| Party creation | P3 | catalogue from `Data`, the creation view (§4.4), `PartyView.slots` | Name; race, class, background, alignment; six scores with the running cost "X points spent of Y"; class skill picks "This class picks N skills"; Add member, Begin, Back; "The party is full", "Give the character a name", "Add at least one member" |
+| Party creation (built, P3) | P3 | names from `Data`, the creation view (§4.4), a trial of `PartyCommand::Create` for Add's reason | Name; race, class, background, alignment; six scores with the running cost "X points spent of Y"; class skill picks "This class picks N skills"; Add member, Begin, Back; "The party is full", "Give the character a name", "Add at least one member". Added in P3: the racial bonus beside each score, and a granted skill dim "from the background"/"from the race" (the other client let it through to the engine's refusal) |
 | Step confirmation | P4 | `step_lands`, `site_ahead`, `Here.service` | "Enter the X?" / "Leave the X?"; Go and Stay; no question for a step into a wall; the service's Leave goes through it |
 | Service panel | P4 | `service_view` (`OfferView`), `party` | The money line (purse, bank, food); a section per kind (smith: for sale and your stores; inn, tavern: on offer; temple: on offer and spells; trainer: levels and spell picks; guild: spells; bank: an amount with Deposit and Withdraw); each row's label, note (price, "free", "pays X", or the refusal dim, the price kept beside "not enough money") and caption; Leave |
 | Inventory | P5 | `party` (`ItemView`) | A tab per member and the stores; "wearing …"; rows with count, slot, worn or use mark; equip, use, stow, take, give, each dim when it does not apply; the band's selection as the receiver; the messages ("Take it to a member first", …) |
@@ -550,7 +550,7 @@ glyphs (3), the set-piece format (4), the automap's sensing (5), the performance
 level (7), the camera (8).
 
 This document's own:
-1. ~~**Fields in `bevy_ui` without Feathers.**~~ Resolved in P2: Bevy's `ui` feature already compiles `bevy_ui_widgets` (unstyled `EditableText`, `Slider`, `Checkbox`, `ScrollArea`; no new crate). The seed field is an `EditableText`; P3, P4 and P6 use the slider and checkbox, styled by the renderer. `TabNavigationPlugin` is not in `DefaultPlugins`, so keyboard focus moves only by `AutoFocus` and clicks until a step adds it.
+1. ~~**Fields in `bevy_ui` without Feathers.**~~ Resolved in P2: Bevy's `ui` feature already compiles `bevy_ui_widgets` (unstyled `EditableText`, `Slider`, `Checkbox`, `ScrollArea`; no new crate). The seed field is an `EditableText`; P3's scores use the slider (with arrows); P4 and P6 the checkbox, styled by the renderer. `TabNavigationPlugin` is not in `DefaultPlugins`, so keyboard focus moves only by `AutoFocus` and clicks until a step adds it.
 2. **The font.** Bevy's default until a modern font is chosen with the style step; a font is a licensed asset in the repo.
 3. **The line technique** for §8.2 (unlit standard material with line lists, or a custom material for pixel-width lines), decided by measurement.
 4. **Where the client settings file lives** for a shipped build (§10.5): `.omnis/` is the development path; the platform's config directory arrives with packaging (M12).
