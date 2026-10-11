@@ -5,12 +5,12 @@ knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `vector-adoption`**, not pushed (the owner pushes).
-- **Accepted by the owner 2026-10-11:** P2, P3 and the party column. P0–P1 and presentation-ARCHITECTURE
+- **Accepted by the owner 2026-10-11:** P2, P3, the party column and P4. P0–P1 and presentation-ARCHITECTURE
   v0.4 accepted earlier.
 - **P4 is built:** P4a `0e02b5c` (views and words), P4b `e813c59` (the screen), P4c (docs, this commit).
-  **Owner acceptance pending**, script `tasks/acceptance/p4.md`. The owner may find things to fix, as in P3.
-- **Next: P5** (inventory, give and use, spells outside a fight) once the owner accepts P4. P5 needs plan
-  mode and the owner's answers before code.
+  Accepted by the owner 2026-10-11 (manual test of `tasks/acceptance/p4.md`).
+- **Next: P5** (inventory, give and use, spells outside a fight). P5 needs plan mode and the owner's
+  answers before code.
 
 ## What P4 left for later steps
 - The screen kit now has: `ControlId::{Offer(u16), Amount, Deposit, Withdraw}`, `Refused::NotDigits`, a
