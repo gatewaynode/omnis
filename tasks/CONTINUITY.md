@@ -1,12 +1,13 @@
 # Continuity notes
 
-Written 2026-10-11, after P8 was built and before its acceptance. Rewrite this file every time it is used.
+Written 2026-10-11, after P8 was accepted, before a compact. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `vector-adoption`**, not pushed (the owner pushes).
-- **Accepted by the owner:** P2, P3, the party column, P4, P5, P6, P7 (all 2026-10-11).
-- **P8 built, awaiting acceptance** (`tasks/acceptance/p8.md`). Plan `tasks/plans/p8.md` with "As built".
+- **Accepted by the owner:** P2, P3, the party column, P4, P5, P6, P7, P8 (all 2026-10-11; P8: "P8 accepted,
+  prepare for a compact").
+- **P8 built and accepted** (`tasks/acceptance/p8.md`). Plan `tasks/plans/p8.md` with "As built".
   - Commits: `03b8000` (plan), `353e1ad` (P8a settings), `b3272aa` (P8b font and scale), `1773569` (P8c debug), then P8d (docs).
   - Owner answers:
     - Debug in pages: Member, Party, World, Fight.
@@ -18,8 +19,8 @@ Durable knowledge lives in `tasks/knowledge/`.
     - Debug opens from the pause and with backtick.
   - Beyond the plan: `UiScale`, held to what the window holds (`settings::fits`: 120% at 1600×900, 200% at 2560×1440), with "N% fits this window" on the screen. The fight is laid out at `arena::zoom` and its lines and clicks read at the zoom. The plan had said "no UiScale".
 - **Next:**
-  - The owner's acceptance of P8.
-  - Then P9: retire `omnis-app` (TODO line). Plan it in plan mode and ask first.
+  - P9: retire `omnis-app` (TODO line). Plan it in plan mode: explore first, then ask the owner before
+    writing the plan. Wait for the owner to say to move on.
   - Then the rhai Socket re-audit (the owner: after the migration).
 
 ## Facts
@@ -54,7 +55,7 @@ Durable knowledge lives in `tasks/knowledge/`.
 - The owner's asset work (`.gitignore`, `assets/`, two untracked `cutout-basic-*.svg`) is theirs. Never stage it.
 
 ## Pins
-- Gate `tests passed 827 failed 0 ignored 13`, VERIFY-GREEN at `1773569`. Vector 195 integration + 37 unit.
+- Gate `tests passed 827 failed 0 ignored 13`, VERIFY-GREEN at `1773569` (docs since: `fdd9529`, the acceptance commit). Vector 195 integration + 37 unit.
 - Walk replay `78e57e238dcb93c0`, fight `48d160014c6a627a`; `SAVE_SCHEMA` 7, `PROTOCOL` 2, 25 ops, MCP 25 tools.
 - Sentrux: scan `crates/`: rules pass, quality 8995.
 
