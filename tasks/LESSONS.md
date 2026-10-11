@@ -179,3 +179,11 @@
   subject says `WIP` and whose body says it has not passed the full gate and what has passed. The next commit
   completes it; nothing is squashed or amended once the owner may have pushed. Never stash work the owner has
   not seen committed.
+
+## 2026-10-11 — A defect is asked about in what the player sees, not in field names
+- **What happened**: Planning P6, I asked when to fix "the fight's SpellView.cost still uses point_cost()". The
+  owner answered "Describe this problem again please. Magic is supposed to have a point cost." The question read
+  as if spells should lose their cost; the defect was that the price shown could differ from the price charged.
+- **Rule**: When a question to the owner turns on a defect, state it as shown versus actual for the player first
+  ("the fight shows 1 pt, the cast takes 2"), say when it happens and when it does not, and put the code names
+  after that.

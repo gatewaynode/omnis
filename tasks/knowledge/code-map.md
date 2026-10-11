@@ -76,7 +76,7 @@ old saves only).
   `Known`, `layer::{TERRAIN 1, STRUCTURE 2, VISITED 4, REMOTE 8}`, layer-aware `record`),
   `party.rs` (`heal`, `bury`), `visibility.rs` (`depth`, `cone`, `ray`), `query.rs`, `view.rs`,
   `migrate.rs` (one function per schema step, `v4_to_v5` the copper purse), `replay.rs`,
-  `party_view.rs` (`PartyView`, `MemberView`, `ItemView`, `party_view`).
+  `party_view.rs` (`PartyView`, `MemberView`, `ItemView`, `KnownSpellView` (P6: each known spell's cost and `pay`), `party_view`); `cast_view::cost` is the one place a spell's shown cost is evaluated (road rows, known spells, the fight's `SpellView`).
 - Money (schema 5): `Party.gold` and `Party.bank` count copper; `omnis_core::money::{from_gp,
   gp_floor, Coins}`; pack data stays in gold (backgrounds, monster drops) and converts where it is
   read; every rule price is copper (`bribe.cost`, `services.ron`). The app shows `gp_floor` in
@@ -152,32 +152,32 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--screen`; `Packs`, always a resource; `Session`, only
   while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `message` (the explore message line: newest non-move line, refusals in alert), `save_log`), `movement.rs`,
-  `controls.rs` (the pad; Actions and Menu bottom right), `screen.rs` (the screen renderer and router:
+  `controls.rs` (the pad; Camp, Actions and Menu bottom right; P6: `light` lights Camp by `Nav::allowed`; R toggles it in `screen.rs::action_keys`), `screen.rs` (the screen renderer and router:
   `Screens { nav, forms }`, `Pressable`, `Arrow`, `ctx`, `playing`, the chrome hidden with no game; the root's
   height capped, `PLAYED_ROOM` 64% while played),
   `combat.rs` (the fight screen), `hud.rs`, `message.rs` (P5: the message line at the bottom centre, only exploring with no screen up), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
   offscreen; the socket's live capture).
-- Screens (parity P2–P5; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
+- Screens (parity P2–P6; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
   `Panel`, `Row` (with `after`), `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Number, Text}`,
   `Payload` (with `Set`), `stepped`, `Effect`, `HostOp`, `Refused` (with `NotDigits`), `Ctx`/`Game`/`Slot`,
-  `Forms` (with `bank`, `selected` (the column's selection, the target), `owner` (whose kit or spells), `accepted`, `shown`: the outcome cleared on a new top screen), `content`, `apply`),
+  `Forms` (with `bank`, `selected` (the column's selection, the target), `owner` (whose kit, spells, sheet or tactics), P6: `dice`, `page`, `tactics`, `accepted`, `shown`: the outcome cleared on a new top screen), `content`, `apply`),
   `nav.rs` (`Nav`: overlays over the world's base, `creating` until Begin; `settle`, `escape` (leaves a
-  service), `paused`, `show` (swaps Inventory and Cast)), one file per screen (`title`, `new_game`, `create_party`, `pause`, `defeat`,
-  `actions`, `service`: P4's panel, `lists` by kind, `offer_row`, `bank_row`, `AMOUNT_MAX_GP`; `inventory` (P5): `ItemAct`, `owner`, `owner_choice`, `command`, every button lit by a trial; `cast` (P5): road spells of `Forms.owner` on the selection), and `roster.rs` (the party column, a panel beside every base screen: entries,
+  service), `paused`, `show` (replaces whatever stands beside the column), `allowed` (public, P6); `ScreenId::beside_column`), one file per screen (`title`, `new_game`, `create_party`, `pause`, `defeat`,
+  `actions`, `service`: P4's panel, `lists` by kind, `offer_row`, `bank_row`, `AMOUNT_MAX_GP`; `inventory` (P5): `ItemAct`, `owner`, `owner_choice`, `command`, every button lit by a trial; `cast` (P5): road spells of `Forms.owner` on the selection; `camp` (P6): `counts` capped at `spendable`, both rests lit by the rest view then a trial; `sheet` (P6): `Page`, Stats/Magic/Gear; `tactics` (P6): `TacticAct`, `TacticsForm` (load, set, the lock), `LOCKED`; `tactics_draft` (P6): `Kind`, `Field`, `Draft`, `Choices`, `criteria_text`, a port of the other client's), and `roster.rs` (the party column, a panel beside every base screen: entries,
   `Tool` with `why_not` and `screen`, `RosterEffect::Open`, `settle`). `shell/screen.rs` routes and paints (`Screens::reset`; `ScreenLayer`, `Beside` and `make_room`: the screen centres left of the column standing beside it); `shell/screen_draw.rs` builds the nodes (the slider and its thumb included; `rows` with
-  `Mark::{Screen, Side}`; `Scrolls` panels and `wheel`); `shell/roster.rs` draws the column at the right and routes its `Side` buttons; it stays shown beside Inventory and Cast, and `Open` sets `Forms.owner` and calls `Nav::show`. Party creation reads `Views.creation` (`omnis_sim::creation_view`).
+  `Mark::{Screen, Side}`; `Scrolls` panels and `wheel`); `shell/roster.rs` draws the column at the right and routes its `Side` buttons; it stays shown beside the screens of `ScreenId::beside_column`, and `Open` sets `Forms.owner` and calls `Nav::show`. Party creation reads `Views.creation` (`omnis_sim::creation_view`).
   `Session::{new_game (no party), with_party, start (the fixed four), drafts, restart}`. `labels.rs` turns ids and text keys into words (the only `Data::label` caller; the service words:
-  `offer_label`, `offer_caption`, `offer_note`, `service_reason`, `rumor`, `ago`; P5: `slot`, `count_label`, `reason` for item and cast refusals); `shell/text.rs` the HUD's
-  event lines, the town's and the kit's and road spells' included;
+  `offer_label`, `offer_caption`, `offer_note`, `service_reason`, `rumor`, `ago`; P5: `slot`, `count_label`, `reason` for item and cast refusals; P6: `race`, `background`, `ability`, `signed`, `pay`, and rest and tactics refusals in `reason`); `shell/text.rs` the HUD's
+  event lines, the town's and the kit's and road spells' included, P6 the rest's and the tactics' (`camp`);
   `style.rs` the roles and the type scale; `game_io.rs` save and load (the pause and the socket share it).
   `VectorSet::Screens` runs every frame; `Grab`/`Input`/`Move` only while `playing`, `Draw` while a game
   runs.
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays. `tests/service.rs` (P4): `inside(data, site)`, the
-  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/message.rs` (P5).
+  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/message.rs` (P5); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6). `common::app::{press_ui, tap, top}` (P6).
 - The engine boundary (parity P0): `sim.rs` holds `SimWorld` with its world private (methods mirror
   `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
-  `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`)), which `Session::note` refreshes after every accepted
+  `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`), `rest` (`SimWorld::rest`, P6)), which `Session::note` refreshes after every accepted
   command; a test that writes a fixture calls `Session::refresh`. The library is clippy-checked without the
   feature (`verify.sh`), so a field read does not compile.
 - Dev socket (parity P1, feature `devtools`): `shell/socket.rs` (`DevSocketPlugin`, framing copied from
