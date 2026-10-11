@@ -41,8 +41,7 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-data` | The pack loader: RON data files, text, rules, tilesets; the only crate that reads files |
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
-| `omnis-vector` | The game client: Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
-| `omnis-app` | The previous client: a pixel canvas, menus, saves, town services, the dev socket; retired once `omnis-vector` matches it |
+| `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
 | `omnis-cli` | Headless subcommands: validate, replay, play, map text, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 
@@ -57,34 +56,35 @@ The toolchain is pinned by `rust-toolchain.toml`. Dev builds carry the `devtools
 dev socket, `Dev` commands, the debug panel); a release build turns it off.
 
 ```sh
-just run                                     # the vector client, the same as the next line; flags pass through
-cargo run -p omnis-vector                    # fullscreen, at the title; --windowed, --monitor N, --pack DIR
+just run                                     # the game, the same as the next line; flags pass through
+cargo run -p omnis-vector                    # the binary omnis: fullscreen, at the title; --windowed, --monitor N, --pack DIR
 cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed party of four; --save FILE names the quick save
-just run-app                                 # the previous client (cargo run -p omnis-app); flags pass through
-cargo run -p omnis-app -- --window medium    # windowed: small, medium, large, huge
-cargo run -p omnis-app -- --pack packs/base --seed 7 --save .omnis/quick.ron
-cargo build -p omnis-app --release --no-default-features
+cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
+cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
 cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions
 ```
 
-The vector client is the game going forward (`presentation-PRD.md`, `presentation-ARCHITECTURE.md`). It starts
-at a title, makes a new game's party, walks, opens doors, fights, saves and loads, and has the dev
-socket; town services, inventory, sheets and spells are still in `omnis-app` until the vector client matches it screen by screen (`tasks/TODO.md`,
-"Vector adoption"). What follows describes `omnis-app`.
+The client is described in `presentation-PRD.md` and `presentation-ARCHITECTURE.md`. It starts at a
+title (New game, Load quick save, Settings, Quit), makes a new game's party, walks a 3D view drawn
+in lines, opens doors, visits town services, fights on a 2D screen, rests, and saves and loads.
 
-Every action has a button or menu item; the keys are shortcuts. While exploring, the arrows or the
-pad move, and the tool pad offers ITEMS, SPELLS, SHEET, LOOK, MAP and MENU (keys I, C, P, L, M,
-Esc). In a fight, Up and Down pick the action, Left and Right the target, Enter confirms. The
-pause overlay (Esc) holds Resume, Save, Load, Character sheet, Debug menu, Quit to title and
-Quit. Saves are RON files; the quick save defaults to `.omnis/quick.ron`.
+Every action has a button; the keys are shortcuts. While exploring, W and S or the up and down
+arrows walk, A and D sidestep, the left and right arrows turn, Q and E turn a quarter, and a left
+click in the view turns mouse look on or off. Space or a right click opens the square's actions
+(Shift+Space runs the default one), R opens the camp, and Esc the pause: Resume, Save, Load, Save log,
+Settings, Debug (in a game with developer tools; also the backtick key), Quit to title and Quit.
+A member's sheet, inventory and spells open from the party column. In a fight, the buttons pick
+the action and a click on a figure the target; the number keys pick from a list. Saves are RON
+files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
+`.omnis/settings.ron`.
 
 ## Verification
 
 `scripts/verify.sh` is the gate every commit passes before it lands. It runs formatting, clippy
-on every target and on the release configuration of the app, every test, the simulation-crate
+on every target and on the client's library with and without developer tools, every test, the simulation-crate
 lint, the dependency-duplicate check, and pack validation, and it exits non-zero on any failure.
-CI runs the same steps, without the release-configuration clippy, plus the golden replays
+CI runs the same steps plus the golden replays
 through the CLI.
 
 ```sh

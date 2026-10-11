@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
@@ -23,7 +23,7 @@ presentation-PRD §11.
 | P6 camp and rest, sheet, tactics | §4.4, §6 |
 | P7 fight-screen parity | §4.4, §6.4, §6.5, §9 |
 | P8 debug panel, settings | §6, §7.5, §10 |
-| P9 retire `omnis-app` | §4.5, §13 |
+| P9 retire `omnis-app` (done 2026-10-11) | §4.5, §13 |
 | Occluding fills (X13, X20) | §8.2, §8.6, §13 |
 | Style system (X18, X19) | §7 |
 | Height and cliffs (X10, X11, X21) | §5.6, §8.4 |
@@ -88,7 +88,8 @@ flowchart LR
 ## 3. Crate, features and dependencies (as built)
 
 `crates/omnis-vector` (X2, X5) is a library (the core in `src/`, the shell in `src/shell/`) and a binary
-(`src/main.rs`).
+(`src/main.rs`) named `omnis` since P9 (`[[bin]] name = "omnis"`; `cargo run -p omnis-vector` and
+`just run` start it). `--frame-stats` (P9, from the retired client) logs the frame times with vsync off.
 
 ```toml
 [features]
@@ -184,7 +185,7 @@ read from `Data` is a defect.
 - `shell/host.rs` `handle(session, root, op)` serves the Tier 2 ops for the socket. Read ops go to `SimWorld::dispatch`. Mutating ops (`sim.command`, `sim.script`, `party.create`, `time.reconcile`) go through `dispatch` too, so the rules and replies stay the engine's; their accepted commands (the first `applied` of a script) are then appended to the binder's log, and the session notes the events and snaps the pose when the party's place or facing changed.
 - `save.write` and `save.read` go through `game_io.rs`, the path the pause screen uses too; `pack.reload` and `rules.set` use the I/O-free rules in `ops.rs` and replace this game's copy of the packs only (`Session.data` is an `Arc` shared with `Packs` until then). With no game running (the title), every op but `screenshot` and `screen.text` answers "no game is running". A load, a reload or a rule change sets `Session::unreplayable`, because a replay starts from `World::new`; Save log then refuses and says why.
 - `screenshot` retargets both cameras to an image the window's size for `LIVE_SETTLE` (4) frames and saves it as an RGB PNG; both targets (`canvas`, `window`) capture what the window shows. `screen.text` walks the UI tree (§10.4).
-- `shell/socket.rs` (`devtools` only): loopback only, one client, `MAX_LINE` 1 MiB, newline JSON, `.omnis/dev.addr`; not in `--screenshot` mode. `omnis-app` writes the same address file until P9, so the client started last is the one the bridge finds.
+- `shell/socket.rs` (`devtools` only): loopback only, one client, `MAX_LINE` 1 MiB, newline JSON, `.omnis/dev.addr`; not in `--screenshot` mode. Since P9 it is the only writer of the address file.
 
 ## 5. The grid binding (as built, Phase A; corrected)
 
@@ -360,11 +361,11 @@ The explore base is the 3D view plus descriptions:
 - **Status** (as built, `shell/hud.rs`): place, mode and clock, the counts, frame time, the event lines (§10.1).
 - **The party column** (built 2026-10-11, owner; the roster band of `omnis-app/src/band.rs`): `screen/roster.rs` describes it Bevy-free, `shell/roster.rs` draws it at the right, under the minimap in explore and at the arena's party rectangle in a fight (§9). Per member in marching order under "front" and "back": an entry button "name  Class level", then "HP h/max", "SP s/max  AC n", the entry (its button and this line) in the caution role (yellow) under half its hit points and the alert role (red) under a quarter, down members among them, and dim when dead (owner, 2026-10-11; `Row::tint` carries the role to the button), and "down", "dead", or the first condition or effect; the acting member is marked "> " in a fight. Pressing an entry selects the member (again clears it); the selection (`Forms.selected`) is dropped when the member leaves and on every reset (a new game, a load, the title), and is the target for give, a potion and a spell. Under the selected member: Sheet, Inventory, Spells, Journal, each opening its screen for that member (`Forms.owner`) when its step has landed: Sheet and Inventory always, Spells dim "No spells for the road" when the member has no `casts` row, Journal "No quests yet" until quests; in a fight they open read-only (owner: look, don't act; the action column acts). The column's buttons carry `Side`, not `Pressable`, so the top screen's router never sees them; it shows while a game is played and either no screen is up or the top screen stands beside it (Inventory, Cast, Camp, Sheet, Tactics; owner, P5 and P6) so its selection can be picked while they are open.
 - **The message line** (built, P5: `shell/message.rs`, `Session.message`): one centred line at the bottom between the movement pad and the right-hand buttons. `Session::note` sets it to the newest event line that is not a bare move, a refusal from `Session::ordered` sets it in the alert role, a batch that only moved clears it, and `replace` (a load) clears it. It has no timer. It shows only while exploring with no screen up: a screen shows its own outcome (§6.2) and the fight has its log. A refused step has no line, as the binder only counts refusals.
-- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. No tool bar (owner, 2026-10-11): Sheet, Inventory and Spells open from the party column. Camp ("Camp  R", built in P6) stands before Actions and Menu at the bottom right, lit every frame by `Nav::allowed(ScreenId::Camp)` (the other client's rule: exploring, not in a service) and dim otherwise, with no `Button` or `Interaction`, so it takes no clicks; R toggles it. Look and Map join them when P8 lands, each live by `omnis-app/src/tool_bar.rs`'s rules restated on views and trials.
+- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. No tool bar (owner, 2026-10-11): Sheet, Inventory and Spells open from the party column. Camp ("Camp  R", built in P6) stands before Actions and Menu at the bottom right, lit every frame by `Nav::allowed(ScreenId::Camp)` (the other client's rule: exploring, not in a service) and dim otherwise, with no `Button` or `Interaction`, so it takes no clicks; R toggles it. Look and Map are in the backlog (owner, P9): until then the spyglass is used from Inventory's Use, and the minimap shows the whole known map.
 
 ### 6.7 The parity map
-What each screen reads, and the details `omnis-app` has that the vector screen must carry. The details are
-the parity checklist for each step's plan.
+What each screen reads, and the details `omnis-app` had that the vector screen had to carry. The details were
+the parity checklist for each step's plan; `omnis-app` was retired at P9, so the file citations below are provenance.
 
 | Screen | Step | Reads | Details to carry over |
 |---|---|---|---|
@@ -546,8 +547,13 @@ Recorded in each step's review:
 - for renderer steps, the frame times of §8.6;
 - files over 1000 lines are split (`arena.rs` is at 772).
 
-At P9, `omnis-app` and its Feathers dependency leave the workspace; the lock shrinks and the two
-address-file writers become one.
+As built at P9 (2026-10-11): `omnis-app` left the workspace and the lock went from 544 to 534 packages:
+`omnis-app`, and nine that only its local `dev` feature brought in (`bevy_dylib`; `notify` and its
+`notify-debouncer-full`, `notify-types`, `file-id`, `fsevent-sys`, `kqueue`, `kqueue-sys`, `mio`).
+`bevy_feathers` is no longer compiled but stays listed in the lock as an optional dependency of
+`bevy_internal`. The two address-file writers became one. The gate went from 830 tests to 604 (the old
+crate's 227, one of them ignored). Sentrux quality 8929 (8995 before), all of it the equality score: 87
+files left, nothing was added.
 
 ## 14. Decisions
 

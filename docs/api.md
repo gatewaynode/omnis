@@ -70,7 +70,7 @@ let party: PartyView = party_view(&world, &data);
 
 | Transport | Where | Notes |
 |---|---|---|
-| Dev socket | The game client, feature `devtools` (on in debug builds, compiled out of release): `omnis-vector` (`just run`), and `omnis-app` (`just run-app`) until it is retired; both write the same address file, so the one started last answers | TCP on loopback (`127.0.0.1:0` by default, any free port). The bound address is written to `.omnis/dev.addr` in the working directory. Newline-delimited JSON: one request per line, one reply per line. A line longer than 1 MiB (`MAX_LINE`) drops the client. One client at a time; a second is told `another client is connected` and closed. No auth beyond loopback. |
+| Dev socket | The game client, feature `devtools` (on in debug builds, compiled out of release): `omnis-vector` (`just run`, the binary `omnis`) | TCP on loopback (`127.0.0.1:0` by default, any free port). The bound address is written to `.omnis/dev.addr` in the working directory. Newline-delimited JSON: one request per line, one reply per line. A line longer than 1 MiB (`MAX_LINE`) drops the client. One client at a time; a second is told `another client is connected` and closed. No auth beyond loopback. |
 | `omnis_cli::Headless` | In process, Rust | `Headless::new(packs, seed)` then `handle(&Op) -> Result<Reply, OpError>`. No window: `screenshot` and `screen.text` answer `Failed`. Its world has `devtools` on. |
 | MCP bridge `omnis-mcp` | stdio, JSON-RPC 2.0 | One MCP tool per op; the tool name is the op name with `_` for `.` (`game.status` is `game_status`). `omnis-mcp` talks to the running game through `.omnis/dev.addr`; `omnis-mcp --headless [--pack <dir>]... [--seed <n>]` runs a `Headless` world in process. Tool descriptions and input schemas: `crates/omnis-mcp/src/tools.rs`, `schema.rs`. |
 
@@ -211,8 +211,8 @@ socket and the bridge (malformed request).
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host |
 | `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save) | host |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
-| `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; in `omnis-vector` both capture what the window shows, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
-| `screen.text` | none | `text`: in `omnis-vector`, every text on screen, one per line with its rectangle and `[button]` when pressable; in `omnis-app`, the open panels | `Failed` (headless) | host, game only |
+| `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
+| `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
 
 Notes:
 
@@ -832,7 +832,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Limit | Value | Where |
 |---|---|---|
 | `MAX_SCRIPT` | 10,000 commands per `sim.script` | `omnis-sim/src/ops.rs` |
-| `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` (and `omnis-app/src/socket.rs`) |
+| `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` |
 | `omnis_data::limits::MAX_STRING_BYTES` | 4 KiB per string argument (`TooLong`) | `omnis-data/src/limits.rs` |
 | `MAX_FILE_BYTES` | 4 MiB per file read (saves included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
 | `LOG_CAPACITY` | 4096 events kept for `events.tail` | `omnis-sim/src/lib.rs` |

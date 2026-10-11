@@ -1,5 +1,7 @@
 # Acceptance: the vector client becomes the game (V1–V5)
 
+> **Historical (2026-10-11):** `omnis-app` was retired at parity P9. This script was accepted on it; the commands that start it (`cargo run -p omnis-app`, `just run-app`) and the coverage pointers that name its tests (`omnis-app/...`) no longer run. The game is now `just run` (`omnis-vector`, the binary `omnis`).
+
 The script for your acceptance of the vector adoption (`tasks/plans/vector-adoption.md`). It covers what
 changed when `omnis-vector` joined this tree: it runs on protocol 2, `just run` starts it, the town start
 does not trap the party, and the fight follows the turn budget. Everything the vector client does not

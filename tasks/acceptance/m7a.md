@@ -1,5 +1,7 @@
 # Acceptance a: M7a (town, services, rest)
 
+> **Historical (2026-10-11):** `omnis-app` was retired at parity P9. This script was accepted on it; the commands that start it (`cargo run -p omnis-app`, `just run-app`) and the coverage pointers that name its tests (`omnis-app/...`) no longer run. The game is now `just run` (`omnis-vector`, the binary `omnis`).
+
 The script for the owner's acceptance of M7a (`tasks/plans/m7-town.md` step 9). Each step says
 what you will see and names the automated test that already covers it, so a failure can be told
 apart from a gap. Play it in the window with a dev build (`cargo run -p omnis-app`).
@@ -76,7 +78,7 @@ with its price as the reason, and the debug menu's Gold row (MENU → Debug menu
 
 ## Part 4: one number (your machine only)
 
-12. Run `cargo run -p omnis-app -- --frame-stats`. Note the frame time on the map alone, then
+12. (Historical: the Feathers measurement went with `omnis-app` at P9. The game's frame times: `cargo run -p omnis-vector -- --frame-stats`.) Run `cargo run -p omnis-app -- --frame-stats`. Note the frame time on the map alone, then
     with a service panel open (the inn is fine). Paste both numbers back. They close the
     Feathers experiment's open measurement (`tasks/plans/feathers-experiment.md`). Agent-launched
     windows draw no frames, so this one is yours.

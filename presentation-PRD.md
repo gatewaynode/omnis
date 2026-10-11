@@ -71,7 +71,7 @@ branch decides how the rules use height beyond cliffs.
 | X11 | What height does in the rules, first | Cliffs block. An edge between two cells whose heights differ by more than a step is impassable, like a wall. The cliff is derived when the pack loads, so the simulation and the client agree and stay integer. Everything else about height is visual at first: the camera follows the ground | Visual only; cliffs plus a slope cost in step minutes | Owner decision (2026-10-10). Slopes, line of sight and falling are left to the mechanics branch. |
 | X12 | Structures | Walls and edges keep their cell-edge logic and collision, but are drawn as shaped line forms per terrain kind: jagged rock, broken ruin, rounded towers, organic trees. Packs can also place authored line-art set pieces (statues, arches, machines) on cells | Procedural shaping only; authored line models only | Owner decision (2026-10-10). Nothing should read as a grid of boxes. |
 | X13 | Look ceiling | Glowing lines are the whole look. Dark, solid surfaces occlude the lines behind them (hidden-line removal), so detail can get dense without becoming see-through noise. No textures | Pure see-through wireframe; lines first with shaded materials or textures later | Owner decision (2026-10-10). |
-| X14 | Client | `omnis-vector` grows into the game client: menus, party creation, sheets, town, saves. `omnis-app` stays until the new client reaches feature parity, then is retired. The canvas UI is replaced, not ported | Fold the 3D view into `omnis-app`; keep both clients | Owner decision (2026-10-10). |
+| X14 | Client | `omnis-vector` grows into the game client: menus, party creation, sheets, town, saves. `omnis-app` stays until the new client reaches feature parity, then is retired. The canvas UI is replaced, not ported. **Done 2026-10-11 (parity P9): `omnis-app` retired; `omnis-vector` builds the `omnis` binary** | Fold the 3D view into `omnis-app`; keep both clients | Owner decision (2026-10-10). |
 | X15 | Interface | Every screen beyond the 3D view and the fight screen (menus, character sheets, inventory, the tactics panel, town) is `bevy_ui` in the neon style of the HUD and fight screen, under one style guide (§7) | Feathers with a neon theme; panels drawn as vector line art | Owner decision (2026-10-10). |
 | X16 | References | Tron (1982 and *Legacy*): glowing edges on dark solids, strong colour coding, architectural scale. Technical drawing and blueprint: drafting-style line detail, hatching, contour lines, an annotated, engraved feel | Battlezone and Tempest; Rez and Thumper | Owner decision (2026-10-10). The arcade vector games were the experiment's starting point, not the goal. |
 | X17 | Depth levels (replaces PRD D16's two depths) | Three levels. **1, immediate:** high detail. **2, intermediate:** moderate to low detail. **3, distant:** huge objects in low detail, such as a mountain range or clouds, in the slowest parallax. Visibility depth stays a property of the world and sets the fog distance, as built (§6.3) | Two depths (detail and visibility, as in D16); visibility only, with full detail to the fog | Owner decision (2026-10-10): "3 depth levels is usually a better approach." The levels bound the line count while the performance floor is measured (X20). |
@@ -244,7 +244,7 @@ Three depth levels (X17):
 ## 8. The client
 
 - **`omnis-vector` becomes the game** (X14). It reaches feature parity with `omnis-app` screen by
-  screen. `omnis-app` is retired once nothing depends on it.
+  screen. `omnis-app` is retired once nothing depends on it (done 2026-10-11, parity P9).
 - **The architecture stays as built:** a Bevy-free core, tested headless on the real packs, and a
   thin Bevy shell (presentation-ARCHITECTURE §1). The simulation is authoritative and floats stop at its
   boundary.
@@ -277,7 +277,7 @@ Three depth levels (X17):
 | XR6 | Dense line detail, occluding fills and bloom are too slow | Measure first (X20). The depth levels (X17) bound the line count, and a quality setting can lower density, distance and bloom. |
 | XR7 | Shaped structures and relief disagree with grid collision, so the party walks into a visible rock or stops short of a drawn wall | Shapes stay within a margin of the cell edge, and relief never changes the walkable surface's rules. Measured in play. |
 | XR8 | Meaning depends on colour, or a biosphere's palette collapses two roles | Every role has a non-colour channel (X19). Palettes are checked for contrast and simulated colour deficiency. |
-| XR9 | Rebuilding every screen in `omnis-vector` takes longer than expected, and the two clients drift | `omnis-app` stays until parity (X14). Screens share Bevy-free models where possible, as the fight screen did. |
+| XR9 | Rebuilding every screen in `omnis-vector` takes longer than expected, and the two clients drift | `omnis-app` stays until parity (X14); retired at P9 (2026-10-11). Screens share Bevy-free models where possible, as the fight screen did. |
 | XR10 | Height in pack data conflicts with the mechanics branch's own plans for the map format | The need is stated here (X10, X11). The data shape is designed with the mechanics work, not in this branch. |
 
 ## 11. Phases
@@ -300,7 +300,7 @@ Three depth levels (X17):
 4. **Terrain height and cliffs** (X10, X11): the data shape with the mechanics work, then relief,
    the contour grid and the camera following the ground.
 5. **Shaped structures** (X12): shape generators per terrain kind, then the first authored set piece.
-6. **Interface parity** (X14, X15): the screens of §7, then retiring `omnis-app`.
+6. **Interface parity** (X14, X15): the screens of §7, then retiring `omnis-app` (done 2026-10-11, P0–P9; Look and Map in the backlog).
 
 The art update (animated figures, the fight screen's scale) fits alongside 3 and 6.
 

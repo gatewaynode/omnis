@@ -1,5 +1,7 @@
 # Acceptance c: M7c (the turn budget) — closes M7
 
+> **Historical (2026-10-11):** `omnis-app` was retired at parity P9. This script was accepted on it; the commands that start it (`cargo run -p omnis-app`, `just run-app`) and the coverage pointers that name its tests (`omnis-app/...`) no longer run. The game is now `just run` (`omnis-vector`, the binary `omnis`).
+
 The script for your acceptance of M7c (`tasks/plans/m7c-turn-budget.md`, step 8). It covers:
 - the turn budget;
 - the first class features with effect;

@@ -9,7 +9,7 @@ and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exi
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
 same steps, the release clippy included since M7 step 1, plus both golden replays through the CLI
 with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-default-features`)
-carries `bevy_ui` and Feathers like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
+carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
 Test count at the gate: 715 passed, 13 ignored (2026-10-10, after parity P3; 701 after P2, 670 after the vector
@@ -26,7 +26,7 @@ title; tests that save name their own file under the crate's `.omnis/test-saves/
 quick save is `.omnis/test-saves/none.ron`, never the player's). The dev socket: `just run` writes `.omnis/dev.addr`; the loopback test is
 `tests/socket.rs` (headless, no renderer, so `screenshot` there answers "no window"). A window launched
 from an agent's shell gets no window-server connection ("Connection invalid … hiservices" in its log, in
-the sandbox and out of it on 2026-10-10) and runs no frames, for both clients, so a live `screenshot` needs
+the sandbox and out of it on 2026-10-10) and runs no frames, so a live `screenshot` needs
 the owner's session.
 
 The API reference `docs/api.md` is held to the code by `omnis-mcp/tests/api_doc.rs`: a new op, reply,
@@ -44,9 +44,9 @@ linker: test it with a fresh target directory or a scratch worktree.
 Test binaries (2026-10-10): every crate with several test files builds them as one target,
 `integration` (`autotests = false`, `tests/main.rs` declares the files as modules; a file reaches
 the shared helpers with `use crate::common;`). Run one file's tests with
-`cargo test -p omnis-mcp --test integration vocabulary::`. Kept as their own binaries: `omnis-app`
-`socket` and `omnis-cli` `headless` (each changes the working directory, which is per process) and
-`omnis-sim` `measure`. A new test file is added to its crate's `tests/main.rs`;
+`cargo test -p omnis-mcp --test integration vocabulary::`. Kept as their own binaries: `omnis-cli`
+`headless` (it changes the working directory, which is per process) and `omnis-sim` `measure`
+(`omnis-app`'s `socket` went with the crate at P9). A new test file is added to its crate's `tests/main.rs`;
 `scripts/check-test-modules.sh` fails the gate on a file no target runs. Why: macOS holds every newly linked executable about 20 s on its first launch (the
 owner's log: the kernel refuses the linker's ad hoc signature, about 10 s pass before Gatekeeper's
 scan, then XProtect never answers and Gatekeeper cancels it after 10 s), and the Developer Tools
@@ -61,12 +61,10 @@ bytes are new (a touch can relink to identical bytes); if the wait returns, chec
 2026-09-27: two new files showed only after the commit), so a commit that adds files gets a
 `rescan` and `check_rules` again right after it. Rules: `max_fn_lines 100` including tests,
 `max_cc 25`, `max_cycles 0`. Near the caps (leave them alone or split first):
-`debug_menu::adjust` 93, `service::settle` 81 (a new deal arm goes in a helper), `debug_screen::row_text` 91, `combat_text::wound_line`
-89, `dump_screens` about 92, `tests/inventory.rs` first test 94; `screen.rs` 935 lines (the
-screen-dump test is the piece to move out next); `tactics_panel.rs` 771, `command.rs` 761, `combat_text.rs` 708, `combat_menu.rs` 707 (M7c); `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
-`party_tools`); `main.rs::parse_args` 100 (a new flag goes into `Look::take` or a helper); `loader::load_one` 92; `character::create` 84;
+`service::settle` 81 (a new deal arm goes in a helper); `command.rs` 761, vector's `combat_menu.rs` 719; `game_tools` near the cap (`screenshot_tool` was moved out of it; new MCP tools go in
+`party_tools`); `loader::load_one` 92; `character::create` 84;
 `omnis-sim/src/ops.rs` 606 lines since M7c step 6a moved the party view to `party_view.rs` (a new view goes in its own file);
-`tests/service.rs::the_panels_lie_inside_the_map_at_both_window_sizes` 89; `ui.rs` 593 lines (after 8a moved the tools out).
+(The `omnis-app` entries left with the crate at P9.)
 Sentrux's rules are `crates/.sentrux/rules.toml`: scan `/Users/john/code/omnis/crates`, not the
 repository root (the root has no rules file).
 
@@ -106,28 +104,12 @@ repository root (the root has no rules file).
   same commands by design.
 
 ## Tools and commands
-- `bevy_ui` screens (every build): the headless harness is `tests/common/mod.rs::feathers_app`
-  (`DefaultPlugins` without winit and logging, no render backend: real layout, picking, focus, no
-  GPU); helpers in `tests/common/feathers.rs` (`layout_faults` over the one `PanelRoot`,
-  `bar_faults` over the tool bar, `controls` (the panels' only), `text_tree`, `click_node`,
-  `drag_node`, `keys`, `tab`, `resize`, `ultrawide`; ids are `impl Into<UiId>`, and the layout check
-  is structural: menu items under a `MenuPopup` are left out, what sits under a `ScrollArea` counts
-  as far as its clip shows it). An app under `MinimalPlugins` has no panel:
-  its tests get their party from `tests/common/mod.rs::party_by_command` (`CreationAsk`, what the
-  panel itself sends), and press the tool bar with `common::tool` (a `ToolPressed`, gated as the
-  bar's own) and read it with `tool_live` (the `ToolStates` resource); real pointer clicks on the
-  bar are `tests/tool_bar.rs`'s, as is the bar's fit: every word on one line inside its button
-  at both window sizes, at the fitted scale and the cap, in all three fonts (2026-10-02: the
-  widest, "Spells", 50 of 70 px at 1x and the cap, 100 of 141 at 2x and the cap). A PPM dump cannot show them; the text tree
-  (`creation_feathers.txt` under `OMNIS_DUMP_SCREENS`) stands in. A picture needs the running
-  game: `--script "party,create" --settle 60 --screenshot-composed <file.png>`, or the
-  `screenshot` op with `target: "window"`. An agent-launched window is on no screen: plain window
-  captures are black, frame times mean nothing, and `--window medium` is clamped to 2560×1378
-  (canvas 1×), so such a capture never shows the ultrawide's 2× layout.
-- Screen dumps as PNGs: `OMNIS_DUMP_SCREENS=<dir> cargo test -p omnis-app --lib dump_screens -- --ignored`
-  (entries include `explore`, `pause`, `inventory`, `combat_use`, the sheet pages). Since M7 step
-  8a the tool bar is `bevy_ui`, so the dumps show its strip empty; `tool_bar.txt` (the bar's text
-  tree) is written by `tests/tool_bar.rs` under `OMNIS_DUMP_SCREENS`.
+- Client screens (`omnis-vector`): a screen is a Bevy-free description tested on the real packs
+  (`tests/common/mod.rs::ctx`, `views`); the shell runs under `MinimalPlugins` (`tests/common/app.rs`:
+  `shell`, `press_ui`, `tap`, `click`, `top`). A picture is the offscreen capture
+  (`cargo run -p omnis-vector -- --screenshot <png> [--screen title|new-game|create-party|pause|actions]
+  [--walk N] [--size WxH]`), or the `screenshot` op in the owner's session. The `omnis-app` harness
+  (`feathers_app`, `OMNIS_DUMP_SCREENS`) went with the crate at P9.
 - Encounter measurement over seeds: `cargo test -p omnis-sim --test measure -- --ignored --nocapture`
   (300 seeds, parties of 2 and 6, attack-only vs cast-every-turn; integers, tenths and hundredths).
   `ambush_over_seeds` measures resting in the dungeon: wipes of a spent party per ambush, per
@@ -141,9 +123,8 @@ repository root (the root has no rules file).
   against parties of 2, 4, 6 at levels 1–3). Run one with `--release` and its name as the filter.
 - MCP: `.mcp.json` runs `target/debug/omnis-mcp` against the game's `.omnis/dev.addr`; restart the
   server after a new build. `omnis-mcp --headless --pack … --seed n` hosts its own world.
-- Game flags: `--pack`, `--seed`, `--save` (default `.omnis/quick.ron`), `--autostart`, `--window
-  small|medium|large|huge`; with devtools `--script`, `--screenshot`, `--settle`, `--dev-socket`,
-  `--no-dev-socket`, `--screenshot-canvas`, `--screenshot-composed`; in every build `--font 0|1|2`,
-  `--ui-scale <hundredths>` (held to what the window holds: 1.25 per canvas pixel,
-  `creation_panel::scale_cap`), `--frame-stats` (vertical sync off).
+- Game flags (`omnis-vector/src/shell/session.rs::parse`): `--pack`, `--seed`, `--save` (default
+  `.omnis/quick.ron`), `--settings` (default `.omnis/settings.ron`), `--screen`, `--windowed`,
+  `--no-vsync`, `--frame-stats` (log the frame times, vsync off), `--monitor`, `--log`, `--screenshot`,
+  `--walk`, `--size`; with devtools `--dev-socket`, `--no-dev-socket`.
 - CLI: `validate`, `schema dump`, `map text`, `play --script`, `replay`, `tileset bake`.

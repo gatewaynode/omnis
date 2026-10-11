@@ -1,5 +1,7 @@
 # Acceptance: protocol 2 (one meaning per field name)
 
+> **Historical (2026-10-11):** `omnis-app` was retired at parity P9. This script was accepted on it; the commands that start it (`cargo run -p omnis-app`, `just run-app`) and the coverage pointers that name its tests (`omnis-app/...`) no longer run. The game is now `just run` (`omnis-vector`, the binary `omnis`).
+
 The script for your acceptance of protocol 2 (`tasks/plans/protocol-2.md`). It covers the engine's API only:
 every field name on the wire has one meaning. A member is its `CharacterId`, a definition its string id
 (`pack:kind:name`), a place a `Place` with the map's string id, and the rest positions in named lists
