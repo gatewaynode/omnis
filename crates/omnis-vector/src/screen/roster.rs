@@ -41,13 +41,12 @@ impl Tool {
         }
     }
 
-    /// Why it cannot be opened for `member` now: the sheet arrives with its parity step, the
-    /// journal with quests, and Spells needs a spell for the road.
+    /// Why it cannot be opened for `member` now: the journal arrives with quests, and Spells
+    /// needs a spell for the road.
     #[must_use]
     pub fn why_not(self, game: Game, member: CharacterId) -> Option<&'static str> {
         match self {
-            Tool::Sheet => Some("Not built yet (P6)"),
-            Tool::Inventory => None,
+            Tool::Sheet | Tool::Inventory => None,
             Tool::Spells => (!game.views.casts.iter().any(|c| c.caster == member))
                 .then_some("No spells for the road"),
             Tool::Journal => Some("No quests yet"),
@@ -60,7 +59,8 @@ impl Tool {
         match self {
             Tool::Inventory => Some(super::ScreenId::Inventory),
             Tool::Spells => Some(super::ScreenId::Cast),
-            Tool::Sheet | Tool::Journal => None,
+            Tool::Sheet => Some(super::ScreenId::Sheet),
+            Tool::Journal => None,
         }
     }
 }

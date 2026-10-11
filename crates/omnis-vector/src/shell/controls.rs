@@ -26,6 +26,8 @@ pub enum Action {
     TurnLeft,
     /// Turn a quarter to the right.
     TurnRight,
+    /// Open or close the camp: rest on the road.
+    Camp,
     /// Open or close the action menu for the square.
     Actions,
     /// Open the pause: save, load, the log, leave.
@@ -43,6 +45,7 @@ impl Action {
             Action::StrafeRight => "Right  D",
             Action::TurnLeft => "Turn left  Q",
             Action::TurnRight => "Turn right  E",
+            Action::Camp => "Camp  R",
             Action::Actions => "Actions  Space",
             Action::Menu => "Menu  Esc",
         }
@@ -64,9 +67,9 @@ const PAD: [&[Action]; 2] = [
     &[Action::StrafeLeft, Action::Back, Action::StrafeRight],
 ];
 
-/// The other actions, bottom right, away from the pad: the square's actions, and the menu (the
-/// pause, which holds save, load, the log and quitting).
-const SIDE: [&[Action]; 1] = [&[Action::Actions, Action::Menu]];
+/// The other actions, bottom right, away from the pad: the camp, the square's actions, and the
+/// menu (the pause, which holds save, load, the log and quitting).
+const SIDE: [&[Action]; 1] = [&[Action::Camp, Action::Actions, Action::Menu]];
 
 /// The interface role's colour (`style::Role::Interface`).
 pub const GREEN: Color = srgb(Role::Interface.rgb());
@@ -84,7 +87,10 @@ impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, (spawn, super::message::spawn))
             .add_systems(Update, (press, shade).in_set(VectorSet::Input))
-            .add_systems(Update, super::message::paint.in_set(VectorSet::Screens));
+            .add_systems(
+                Update,
+                (super::message::paint, light).in_set(VectorSet::Screens),
+            );
     }
 }
 
@@ -200,9 +206,45 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
+            Action::Camp => screens.nav.toggle(ScreenId::Camp, Some(&session.views)),
             Action::Actions => screens.nav.toggle(ScreenId::Actions, Some(&session.views)),
             Action::Menu => screens.nav.open(ScreenId::Pause, Some(&session.views)),
             _ => {}
+        }
+    }
+}
+
+/// Light the Camp button while the world allows a camp (exploring, outside a service and a
+/// fight; the other client's tool bar), and dim it otherwise: a dim button takes no clicks.
+fn light(
+    mut commands: Commands,
+    session: Option<Res<Session>>,
+    screens: Res<Screens>,
+    buttons: Query<(Entity, &Action, Has<Button>, &Children)>,
+    mut borders: Query<&mut BorderColor>,
+    mut texts: Query<&mut TextColor>,
+) {
+    let views = session.as_deref().map(|s| &s.views);
+    let live = views.is_some() && screens.nav.allowed(ScreenId::Camp, views);
+    for (entity, &action, lit, children) in &buttons {
+        if action != Action::Camp || lit == live {
+            continue;
+        }
+        let colour = if live { GREEN } else { DIM };
+        if live {
+            commands.entity(entity).insert(Button);
+        } else {
+            // No `Interaction` either, so the pointer cannot press it (`button` draws a disabled
+            // one the same way).
+            commands.entity(entity).remove::<(Button, Interaction)>();
+        }
+        if let Ok(mut border) = borders.get_mut(entity) {
+            *border = BorderColor::all(colour);
+        }
+        for &child in children {
+            if let Ok(mut text) = texts.get_mut(child) {
+                text.0 = colour;
+            }
         }
     }
 }

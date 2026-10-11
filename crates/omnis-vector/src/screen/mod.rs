@@ -9,6 +9,7 @@
 //! sees it, so the renderer and a test reach the same answer.
 
 pub mod actions;
+pub mod camp;
 pub mod cast;
 pub mod create_party;
 pub mod defeat;
@@ -18,6 +19,7 @@ pub mod new_game;
 pub mod pause;
 pub mod roster;
 pub mod service;
+pub mod sheet;
 pub mod title;
 
 use crate::sim::{SimWorld, Views};
@@ -47,8 +49,30 @@ pub enum ScreenId {
     Inventory,
     /// A member's spells on the road.
     Cast,
+    /// The party's rest on the road: hit dice, a short or a long rest.
+    Camp,
+    /// A member's character sheet: stats, magic, gear.
+    Sheet,
+    /// A member's declared reactions, opened from the sheet.
+    Tactics,
     /// The party has fallen.
     Defeat,
+}
+
+impl ScreenId {
+    /// Whether the party column stands beside this screen, so its selection can be picked
+    /// while it is open (owner, P5 and P6).
+    #[must_use]
+    pub const fn beside_column(self) -> bool {
+        matches!(
+            self,
+            ScreenId::Inventory
+                | ScreenId::Cast
+                | ScreenId::Camp
+                | ScreenId::Sheet
+                | ScreenId::Tactics
+        )
+    }
 }
 
 /// A control, the same on every screen that has one.
@@ -127,6 +151,16 @@ pub enum ControlId {
     },
     /// Cast the road spell at index `.0` of the views' casts.
     Cast(u16),
+    /// The hit dice a member spends on a short rest, by index into the rest view's members.
+    Dice(u8),
+    /// Take a short rest.
+    ShortRest,
+    /// Take a long rest.
+    LongRest,
+    /// The sheet's page.
+    Page,
+    /// Open the member's tactics.
+    Tactics,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -501,9 +535,13 @@ pub struct Forms {
     pub bank: String,
     /// The member selected in the party column: who receives a give, a potion or a spell.
     pub selected: Option<omnis_sim::omnis_core::CharacterId>,
-    /// Whose kit or spells the inventory and the cast screen show; set when the column opens
-    /// one.
+    /// Whose kit, spells or sheet a screen shows; set when the column opens one.
     pub owner: Option<omnis_sim::omnis_core::CharacterId>,
+    /// The hit dice each member is to spend at camp, by index into the rest view's members;
+    /// cleared when the screen changes and after a short rest.
+    pub dice: Vec<u8>,
+    /// The sheet's page, kept between openings.
+    pub page: sheet::Page,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -521,6 +559,7 @@ impl Forms {
     pub fn shown(&mut self, top: Option<ScreenId>, base: Option<ScreenId>) {
         if top != self.seen.0 {
             self.message = None;
+            self.dice.clear();
         }
         if base == Some(ScreenId::Service) && self.seen.1 != base {
             self.bank.clear();
@@ -551,6 +590,9 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
         (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
+        (ScreenId::Camp, Some(game)) => camp::content(ctx.data, game, forms),
+        (ScreenId::Sheet, Some(game)) => sheet::content(ctx.data, game, forms),
+        (ScreenId::Tactics, Some(_)) => empty(ScreenId::Tactics),
         (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
         (ScreenId::CreateParty, Some(game)) => create_party::content(ctx.data, game, &forms.create),
         (id, None) => empty(id),
@@ -603,6 +645,8 @@ pub fn apply(
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
         (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
+        (ScreenId::Camp, Some(game)) => camp::apply(game, forms, control, payload),
+        (ScreenId::Sheet, Some(game)) => sheet::apply(game, forms, control, payload),
         (ScreenId::Defeat, _) => defeat::apply(control),
         (ScreenId::CreateParty, Some(game)) => {
             create_party::apply(&mut forms.create, game, control, payload)
@@ -612,8 +656,11 @@ pub fn apply(
             | ScreenId::CreateParty
             | ScreenId::Service
             | ScreenId::Inventory
-            | ScreenId::Cast,
+            | ScreenId::Cast
+            | ScreenId::Camp
+            | ScreenId::Sheet,
             None,
-        ) => Effect::None,
+        )
+        | (ScreenId::Tactics, _) => Effect::None,
     })
 }

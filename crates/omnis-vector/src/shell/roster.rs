@@ -52,28 +52,25 @@ pub(super) fn spawn(mut commands: Commands) {
 }
 
 /// Whether the column shows: a game is played (not while its party is made) and no screen is
-/// up but the column's own, the inventory and the cast screen, which it stands beside.
+/// up but the column's own and the screens it stands beside (`ScreenId::beside_column`).
 fn shown(session: Option<&Session>, screens: &Screens, showing: Showing) -> bool {
     session.is_some_and(|s| {
         let views = Some(&s.views);
-        let beside = matches!(
-            screens.nav.top(views),
-            Some(ScreenId::Inventory | ScreenId::Cast)
-        );
+        let beside = screens.nav.top(views).is_some_and(ScreenId::beside_column);
         (!showing.0 || beside) && screens.nav.base(views) != Some(ScreenId::CreateParty)
     })
 }
 
-/// Whether a screen stands beside the column: the inventory or the cast screen.
+/// Whether a screen stands beside the column.
 fn beside(session: &Session, screens: &Screens) -> bool {
-    matches!(
-        screens.nav.top(Some(&session.views)),
-        Some(ScreenId::Inventory | ScreenId::Cast)
-    )
+    screens
+        .nav
+        .top(Some(&session.views))
+        .is_some_and(ScreenId::beside_column)
 }
 
-/// A pressed button of the column, applied: a member selected, or their kit or spells opened
-/// (the sheet waits for P6).
+/// A pressed button of the column, applied: a member selected, or their sheet, kit or spells
+/// opened.
 pub(super) fn route(
     session: Option<Res<Session>>,
     mut screens: ResMut<Screens>,

@@ -55,8 +55,9 @@ impl Nav {
         }
     }
 
-    /// Whether the world allows overlay `id` now.
-    fn allowed(&self, id: ScreenId, game: Option<&Views>) -> bool {
+    /// Whether the world allows overlay `id` now (the Camp button is lit by it).
+    #[must_use]
+    pub fn allowed(&self, id: ScreenId, game: Option<&Views>) -> bool {
         let base = self.base(game);
         match (id, game) {
             (ScreenId::NewGame, None) => true,
@@ -65,7 +66,11 @@ impl Nav {
             }
             (ScreenId::Actions, Some(views)) => base.is_none() && views.exploring(),
             // From the party column, exploring or in a fight (to look); not over a service.
-            (ScreenId::Inventory | ScreenId::Cast, Some(_)) => base.is_none(),
+            (ScreenId::Inventory | ScreenId::Cast | ScreenId::Sheet, Some(_)) => base.is_none(),
+            // Resting is the map's: not in a service (the room is the rest indoors) or a fight.
+            (ScreenId::Camp, Some(views)) => base.is_none() && views.exploring(),
+            // Tactics are written outside a fight (the fight's React switch is its own).
+            (ScreenId::Tactics, Some(views)) => base.is_none() && views.combat.is_none(),
             _ => false,
         }
     }
@@ -88,7 +93,7 @@ impl Nav {
     }
 
     /// Whether the game waits on the screen on top: nothing moves or acts under the pause, the
-    /// fallen party's screen, or a member's kit or spells.
+    /// fallen party's screen, or one of the screens beside the party column.
     #[must_use]
     pub fn paused(&self, game: Option<&Views>) -> bool {
         matches!(
@@ -97,6 +102,9 @@ impl Nav {
                 ScreenId::Pause
                     | ScreenId::Inventory
                     | ScreenId::Cast
+                    | ScreenId::Camp
+                    | ScreenId::Sheet
+                    | ScreenId::Tactics
                     | ScreenId::Defeat
                     | ScreenId::Title
                     | ScreenId::NewGame
@@ -127,13 +135,10 @@ impl Nav {
         }
     }
 
-    /// Show the column's screen `id` (the inventory or the cast screen) in place of the other, or
-    /// on top, when the world allows it.
+    /// Show the column's screen `id` (the inventory, the cast screen or the sheet) in place of
+    /// whatever stands beside the column, or on top, when the world allows it.
     pub fn show(&mut self, id: ScreenId, game: Option<&Views>) {
-        if matches!(
-            self.stack.last(),
-            Some(ScreenId::Inventory | ScreenId::Cast)
-        ) {
+        while self.stack.last().is_some_and(|top| top.beside_column()) {
             self.stack.pop();
         }
         self.open(id, game);

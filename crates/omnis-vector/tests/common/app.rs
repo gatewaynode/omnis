@@ -192,3 +192,34 @@ pub fn met_with(seed: u64) -> App {
     ));
     app
 }
+
+/// Press a button carrying `marker`, then let it go, a frame each.
+pub fn press_ui<C: Component + PartialEq + core::fmt::Debug + Copy>(app: &mut App, marker: C) {
+    set(app, &marker, Interaction::Pressed);
+    app.update();
+    let world = app.world_mut();
+    let mut query = world.query::<(&C, &mut Interaction)>();
+    for (c, mut i) in query.iter_mut(world) {
+        if *c == marker {
+            *i = Interaction::None;
+        }
+    }
+    app.update();
+}
+
+/// Tap a key: pressed for a frame, then released for one.
+pub fn tap(app: &mut App, code: KeyCode) {
+    key(app, code, ButtonState::Pressed);
+    app.update();
+    key(app, code, ButtonState::Released);
+    app.update();
+}
+
+/// The screen on top of a running game.
+pub fn top(app: &App) -> Option<omnis_vector::screen::ScreenId> {
+    let session = app.world().resource::<Session>();
+    app.world()
+        .resource::<omnis_vector::shell::screen::Screens>()
+        .nav
+        .top(Some(&session.views))
+}

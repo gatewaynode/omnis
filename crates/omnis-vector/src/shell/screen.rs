@@ -410,7 +410,7 @@ fn applied(
 }
 
 /// Space or a right click opens or closes the square's actions while exploring; with Shift it
-/// runs the default action, or opens them when there is none.
+/// runs the default action, or opens them when there is none. R opens or closes the camp.
 fn action_keys(
     keys: &ButtonInput<KeyCode>,
     mouse: &ButtonInput<MouseButton>,
@@ -422,6 +422,12 @@ fn action_keys(
         nav.top(Some(&session.views)),
         None | Some(ScreenId::Actions)
     );
+    // R opens the camp, or closes it, as its button does.
+    if keys.just_pressed(KeyCode::KeyR)
+        && matches!(nav.top(Some(&session.views)), None | Some(ScreenId::Camp))
+    {
+        nav.toggle(ScreenId::Camp, Some(&session.views));
+    }
     if !action || !free || !session.views.exploring() || session.views.combat.is_some() {
         return;
     }

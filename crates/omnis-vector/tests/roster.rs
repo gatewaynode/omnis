@@ -177,7 +177,7 @@ fn each_screen_is_dim_with_its_reason_until_it_can_open() {
     assert_eq!(
         reasons,
         [
-            ("Sheet".into(), Some("Not built yet (P6)".into())),
+            ("Sheet".into(), None),
             ("Inventory".into(), None),
             ("Spells".into(), Some("No spells for the road".into())),
             ("Journal".into(), Some("No quests yet".into())),

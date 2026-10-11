@@ -92,7 +92,10 @@ fn the_column_lists_the_party_and_a_member_opens_their_row() {
         Some(members[1].member)
     );
     let text = screen_text(app.world());
-    assert!(text.contains("Sheet: Not built yet (P6)"), "{text}");
+    assert!(
+        text.contains("Sheet") && !text.contains("Sheet:"),
+        "the sheet is live: {text}"
+    );
     assert!(text.contains("Journal: No quests yet"), "{text}");
     press_side(&mut app, ControlId::Member(members[1].member));
     assert_eq!(app.world().resource::<Screens>().forms.selected, None);
