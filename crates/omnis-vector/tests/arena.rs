@@ -15,7 +15,7 @@ use omnis_vector::shell::session::Session;
 use omnis_vector::sim::SimWorld;
 
 /// The owner's main display and ultrawide, in logical pixels.
-const SIZES: [(f32, f32); 2] = [(1600.0, 900.0), (5120.0, 1440.0)];
+const SIZES: [(f32, f32); 3] = [(1280.0, 720.0), (1600.0, 900.0), (5120.0, 1440.0)];
 
 fn laid_out(session: &Session, size: (f32, f32)) -> Arena {
     arena(
@@ -179,7 +179,7 @@ fn everything_stays_in_the_field_clear_of_the_picture_and_log() {
         for g in arena.groups() {
             assert!(field.encloses(&g.slot) && g.slot.encloses(&g.label.rect));
             for r in [&g.slot, &g.label.rect] {
-                for part in [l.picture, l.actions, l.status, l.log, l.buttons, l.title] {
+                for part in [l.picture, l.actions, l.log, l.status, l.party, l.title] {
                     assert!(!r.overlaps(&part), "{r:?} clear of {part:?}");
                 }
             }
@@ -219,7 +219,12 @@ fn a_click_lands_on_the_figure_under_it_and_nowhere_else() {
             &group(&arena, Pick::Member(id(&session.world, 1))).figures[0].rect,
         );
         assert_eq!(pick(&arena, ((a.right() + b.x) / 2.0, centre(a).1)), None);
-        for part in [arena.layout.picture, arena.layout.log, arena.layout.title] {
+        for part in [
+            arena.layout.picture,
+            arena.layout.log,
+            arena.layout.party,
+            arena.layout.title,
+        ] {
             assert_eq!(pick(&arena, centre(&part)), None);
         }
     }

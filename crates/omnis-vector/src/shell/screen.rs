@@ -12,7 +12,7 @@ use super::combat::{FightScreen, size};
 use super::controls::Corner;
 use super::hud::StatusText;
 use super::minimap::Minimap;
-pub use super::screen_draw::{Arrow, Pressable, SliderOf, colour, shade};
+pub use super::screen_draw::{Arrow, Pressable, Side, SliderOf, colour, shade};
 use super::screen_draw::{
     LabelOf, MessageText, SpanAt, TitleText, build, shown_label, text_field, thumbs, width,
 };
@@ -26,14 +26,15 @@ use crate::screen::{
     self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Refused,
     Screen, ScreenId, Slot, Span,
 };
+use crate::sim::Views;
 use crate::style::{Role, scaled};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{SliderValue, ValueChange};
 use bevy::window::PrimaryWindow;
-use omnis_sim::omnis_core::Position;
 use omnis_sim::omnis_core::rng::splitmix64;
+use omnis_sim::omnis_core::{CharacterId, Position};
 use std::path::Path;
 
 /// Whether a screen is up; the cursor is freed while it is.
@@ -51,6 +52,16 @@ pub struct Screens {
     drawn: Option<(Screen, u32)>,
     /// Where the party stood last frame, to close the square's actions when it moves.
     at: Option<Position>,
+    /// The member selected in the party column.
+    pub selected: Option<CharacterId>,
+}
+
+impl Screens {
+    /// A new start: the base screen for `game`, no overlay, no member selected.
+    pub fn reset(&mut self, game: Option<&Views>) {
+        self.nav.reset(game);
+        self.selected = None;
+    }
 }
 
 /// Marks the node every screen is drawn under.
@@ -68,12 +79,20 @@ impl Plugin for ScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Screens>()
             .init_resource::<Showing>()
+            .init_resource::<super::roster::Drawn>()
             .init_resource::<Slid>()
             .add_observer(slid)
-            .add_systems(Startup, (spawn, open_start))
+            .add_systems(Startup, (spawn, super::roster::spawn, open_start))
             .add_systems(
                 Update,
-                (route, paint, thumbs, chrome)
+                (
+                    route,
+                    super::roster::route,
+                    paint,
+                    super::roster::paint,
+                    thumbs,
+                    chrome,
+                )
                     .chain()
                     .in_set(VectorSet::Screens),
             );
@@ -142,7 +161,7 @@ fn open_start(
     mut screens: ResMut<Screens>,
 ) {
     let game = session.as_deref().map(|s| &s.views);
-    screens.nav.reset(game);
+    screens.reset(game);
     match start.as_deref() {
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
@@ -419,7 +438,7 @@ fn carry_out(
         Effect::ToTitle | Effect::ToNewGame => {
             host.commands.remove_resource::<Session>();
             host.view.set(ViewState::Explore);
-            screens.nav.reset(None);
+            screens.reset(None);
             if effect == Effect::ToNewGame {
                 screens.nav.open(ScreenId::NewGame, None);
             }
@@ -448,7 +467,7 @@ fn host_op(
         HostOp::NewGame { seed, settings } => {
             match Session::new_game(&host.packs, seed, settings) {
                 Ok(fresh) => {
-                    screens.nav.reset(Some(&fresh.views));
+                    screens.reset(Some(&fresh.views));
                     host.commands.insert_resource(fresh);
                 }
                 Err(e) => report(screens, Err(format!("Could not start: {e}"))),
@@ -457,7 +476,7 @@ fn host_op(
         HostOp::Restart => {
             if let Some(session) = session.as_deref_mut() {
                 match session.restart() {
-                    Ok(()) => screens.nav.reset(Some(&session.views)),
+                    Ok(()) => screens.reset(Some(&session.views)),
                     Err(e) => session.say(format!("Could not start again: {e}")),
                 }
             }
@@ -480,11 +499,11 @@ fn host_op(
                     if let Some(session) = session.as_deref_mut() {
                         session.replace(world, &why);
                         session.say(format!("Loaded {save}"));
-                        screens.nav.reset(Some(&session.views));
+                        screens.reset(Some(&session.views));
                     } else {
                         let mut fresh = Session::loaded(&host.packs, world, &why);
                         fresh.say(format!("Loaded {save}"));
-                        screens.nav.reset(Some(&fresh.views));
+                        screens.reset(Some(&fresh.views));
                         host.commands.insert_resource(fresh);
                     }
                 }
@@ -591,7 +610,7 @@ fn wanted(
         } else {
             Role::Interface
         };
-        return Some((shown_label(screen, c), role));
+        return Some((shown_label(&screen.keys, c), role));
     }
     message?;
     screen.message.as_ref().map(|m| (m.text.clone(), m.role))

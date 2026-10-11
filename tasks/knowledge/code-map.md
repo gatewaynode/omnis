@@ -147,7 +147,8 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   to `apply(Step)` by `tests/agreement.rs` on every map), `minimap.rs`, `party.rs` (the fixed party of four),
   `trial.rs` (`refusal`/`accepted` on a world clone), `combat_menu.rs` (the fight's choices; members by
   `CharacterId`, spells and items as rows of the views turned into string ids by `resolve`; End turn; the
-  budget in the prompt), `arena.rs` (the fight screen's layout and picks), `rolllog.rs` (the roll log,
+  budget in the prompt), `arena.rs` (the fight screen's layout and picks: the left column of picture,
+  actions, log and status; the `party` rectangle at the right), `rolllog.rs` (the roll log,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--screen`; `Packs`, always a resource; `Session`, only
   while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `save_log`), `movement.rs`,
@@ -160,8 +161,10 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `Payload` (with `Set`), `stepped`, `Effect`, `HostOp`, `Refused`, `Ctx`/`Game`/`Slot`, `Forms` (with
   `accepted`), `content`, `apply`), `nav.rs` (`Nav`: overlays over the world's base, `creating` until Begin;
   `settle`, `escape`, `paused`), one file per screen (`title`, `new_game`, `create_party`, `pause`, `defeat`,
-  `actions`, `service`). `shell/screen.rs` routes and paints; `shell/screen_draw.rs` builds the nodes (the
-  slider and its thumb included). Party creation reads `Views.creation` (`omnis_sim::creation_view`).
+  `actions`, `service`), and `roster.rs` (the party column, a panel beside every base screen: entries,
+  `Tool`, `RosterEffect::Open`, `settle`). `shell/screen.rs` routes and paints (`Screens.selected`,
+  `Screens::reset`); `shell/screen_draw.rs` builds the nodes (the slider and its thumb included; `rows` with
+  `Mark::{Screen, Side}`); `shell/roster.rs` draws the column at the right and routes its `Side` buttons. Party creation reads `Views.creation` (`omnis_sim::creation_view`).
   `Session::{new_game (no party), with_party, start (the fixed four), drafts, restart}`. `labels.rs` turns ids and text keys into words (the only `Data::label` caller);
   `style.rs` the roles and the type scale; `game_io.rs` save and load (the pause and the socket share it).
   `VectorSet::Screens` runs every frame; `Grab`/`Input`/`Move` only while `playing`, `Draw` while a game

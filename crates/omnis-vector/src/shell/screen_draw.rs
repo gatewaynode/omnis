@@ -4,7 +4,7 @@
 //! slider; a text field an underlined editable line. The markers here let the router find what
 //! was used and the renderer rewrite words in place. Headless-safe.
 
-use crate::screen::{Control, ControlId, Key, Kind, Screen};
+use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input_focus::AutoFocus;
 use bevy::prelude::*;
@@ -18,6 +18,19 @@ pub struct Pressable(pub ControlId);
 /// One of a choice's or a number's arrows: `true` steps right.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Arrow(pub ControlId, pub bool);
+
+/// A button of the party column: pressing it uses the column's control, never the top screen's.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Side(pub ControlId);
+
+/// Which router a panel's controls go to, and so how its nodes are marked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Mark {
+    /// The top screen's: `Pressable`, and the markers its words are rewritten in place by.
+    Screen,
+    /// The party column's: `Side`, redrawn whole when it changes.
+    Side,
+}
 
 /// A number's slider: moving it sets the number.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +86,7 @@ pub fn cursor_style() -> TextCursorStyle {
 
 /// A control's words as drawn: its number key first when it has one, its reason after when it
 /// is dim; a choice shows its current option, a number its value.
-pub(super) fn shown_label(screen: &Screen, control: &Control) -> String {
+pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> String {
     match &control.kind {
         Kind::Choice { options, at } => return options.get(*at).cloned().unwrap_or_default(),
         Kind::Number { value, .. } => return value.to_string(),
@@ -81,7 +94,7 @@ pub(super) fn shown_label(screen: &Screen, control: &Control) -> String {
     }
     match &control.why_not {
         Some(why) => format!("{}: {why}", control.label),
-        None => match screen.keys.iter().find(|(_, c)| *c == control.id) {
+        None => match keys.iter().find(|(_, c)| *c == control.id) {
             Some((Key::Digit(n), _)) => format!("{n}  {}", control.label),
             None => control.label.clone(),
         },
@@ -226,7 +239,13 @@ pub(super) fn thumbs(
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
 /// editable line.
-fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control, height: f32) {
+fn control_node(
+    parent: &mut ChildSpawnerCommands,
+    keys: &[(Key, ControlId)],
+    c: &Control,
+    height: f32,
+    mark: Mark,
+) {
     let role = if c.why_not.is_some() {
         Role::Dim
     } else {
@@ -234,15 +253,20 @@ fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control,
     };
     match &c.kind {
         Kind::Button => {
-            let mut entity = parent.spawn((Pressable(c.id), boxed(role, height)));
+            let mut entity = parent.spawn(boxed(role, height));
+            match mark {
+                Mark::Screen => entity.insert(Pressable(c.id)),
+                Mark::Side => entity.insert(Side(c.id)),
+            };
             if c.why_not.is_none() {
                 entity.insert(Button);
             }
             entity.with_children(|b| {
-                b.spawn((
-                    LabelOf(c.id),
-                    words(&shown_label(screen, c), role, Size::Body, height),
-                ));
+                let label = words(&shown_label(keys, c), role, Size::Body, height);
+                match mark {
+                    Mark::Screen => b.spawn((LabelOf(c.id), label)),
+                    Mark::Side => b.spawn(label),
+                };
             });
         }
         Kind::Choice { .. } => {
@@ -251,7 +275,7 @@ fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control,
                 arrow(b, c.id, false, height);
                 b.spawn((
                     LabelOf(c.id),
-                    words(&shown_label(screen, c), role, Size::Body, height),
+                    words(&shown_label(keys, c), role, Size::Body, height),
                 ));
                 arrow(b, c.id, true, height);
             });
@@ -263,7 +287,7 @@ fn control_node(parent: &mut ChildSpawnerCommands, screen: &Screen, c: &Control,
                 slider(b, c.id, *value, (*min, *max), height);
                 b.spawn((
                     LabelOf(c.id),
-                    words(&shown_label(screen, c), role, Size::Body, height),
+                    words(&shown_label(keys, c), role, Size::Body, height),
                     Node {
                         min_width: Val::Px(scaled(22.0, height)),
                         ..default()
@@ -307,11 +331,60 @@ pub(super) fn width(screen: &Screen, height: f32) -> f32 {
     scaled(560.0 + 460.0 * beside, height)
 }
 
+/// A panel's rows under `column`, one line each: its text, its controls, the text after them.
+/// The top screen's spans carry `SpanAt` so their words can be rewritten in place.
+pub(super) fn rows(
+    column: &mut ChildSpawnerCommands,
+    p: usize,
+    panel: &Panel,
+    keys: &[(Key, ControlId)],
+    height: f32,
+    mark: Mark,
+) {
+    let gap = Val::Px(scaled(6.0, height));
+    for (r, row) in panel.rows.iter().enumerate() {
+        column
+            .spawn(Node {
+                flex_wrap: FlexWrap::Wrap,
+                align_items: AlignItems::Center,
+                column_gap: gap,
+                row_gap: gap,
+                ..default()
+            })
+            .with_children(|line| {
+                let before = row.spans.len();
+                for (s, span) in row.spans.iter().enumerate() {
+                    span_node(line, (p, r, s), span, height, mark);
+                }
+                for c in &row.controls {
+                    control_node(line, keys, c, height, mark);
+                }
+                for (s, span) in row.after.iter().enumerate() {
+                    span_node(line, (p, r, before + s), span, height, mark);
+                }
+            });
+    }
+}
+
+/// A span's words; the top screen's carry where they are, to be rewritten in place.
+fn span_node(
+    line: &mut ChildSpawnerCommands,
+    (p, r, s): (usize, usize, usize),
+    span: &crate::screen::Span,
+    height: f32,
+    mark: Mark,
+) {
+    let text = words(&span.text, span.role, span.size, height);
+    match mark {
+        Mark::Screen => line.spawn((SpanAt(p, r, s), text)),
+        Mark::Side => line.spawn(text),
+    };
+}
+
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
 pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32) {
     let t = &screen.title;
     parent.spawn((TitleText, words(&t.text, t.role, t.size, height)));
-    let gap = Val::Px(scaled(6.0, height));
     parent
         .spawn(Node {
             column_gap: Val::Px(scaled(24.0, height)),
@@ -331,34 +404,7 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                         ..default()
                     })
                     .with_children(|column| {
-                        for (r, row) in panel.rows.iter().enumerate() {
-                            column
-                                .spawn(Node {
-                                    flex_wrap: FlexWrap::Wrap,
-                                    align_items: AlignItems::Center,
-                                    column_gap: gap,
-                                    row_gap: gap,
-                                    ..default()
-                                })
-                                .with_children(|line| {
-                                    let before = row.spans.len();
-                                    for (s, span) in row.spans.iter().enumerate() {
-                                        line.spawn((
-                                            SpanAt(p, r, s),
-                                            words(&span.text, span.role, span.size, height),
-                                        ));
-                                    }
-                                    for c in &row.controls {
-                                        control_node(line, screen, c, height);
-                                    }
-                                    for (s, span) in row.after.iter().enumerate() {
-                                        line.spawn((
-                                            SpanAt(p, r, before + s),
-                                            words(&span.text, span.role, span.size, height),
-                                        ));
-                                    }
-                                });
-                        }
+                        rows(column, p, panel, &screen.keys, height, Mark::Screen)
                     });
             }
         });

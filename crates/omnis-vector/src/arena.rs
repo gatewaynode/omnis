@@ -29,8 +29,12 @@ pub const GAP: f32 = 4.0;
 pub const MOST: usize = 8;
 /// The height kept under the action column for the status lines.
 pub const STATUS: f32 = 48.0;
-/// The height kept under the roll log for the Save log and Quit buttons.
+/// The height kept under the party column for the Menu button's row.
 pub const BUTTONS: f32 = 34.0;
+/// The action column's least height: the turn's seven actions and the prompt.
+pub const ACTIONS: f32 = 300.0;
+/// The roll log's least height, about four lines; the actions come first in a short window.
+pub const LOG: f32 = 80.0;
 
 /// A rectangle: its top left corner and its size.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -152,12 +156,12 @@ pub struct Layout {
     pub picture: Rect,
     /// The action column, under the picture window.
     pub actions: Rect,
-    /// The status lines, under the action column at the bottom left.
-    pub status: Rect,
-    /// The roll log, down the right side.
+    /// The roll log, under the action column: what the actions did.
     pub log: Rect,
-    /// Save log and Quit, under the roll log at the bottom right.
-    pub buttons: Rect,
+    /// The status lines, under the roll log at the bottom left.
+    pub status: Rect,
+    /// The party column, down the right side above the Menu button.
+    pub party: Rect,
     /// The title line, above the field.
     pub title: Rect,
     /// The field the figures stand in.
@@ -175,9 +179,17 @@ pub fn layout(width: f32, height: f32) -> Layout {
         w: pw,
         h: ph,
     };
+    // Under the picture: the actions, then the log, then the status lines.
+    let under = (height - ph - STATUS - 5.0 * MARGIN).max(0.0);
+    let actions_h = (under * 0.6).max(ACTIONS).min((under - LOG).max(0.0));
     let actions = Rect {
         y: picture.bottom() + MARGIN,
-        h: (height - ph - STATUS - 4.0 * MARGIN).max(0.0),
+        h: actions_h,
+        ..picture
+    };
+    let log = Rect {
+        y: actions.bottom() + MARGIN,
+        h: (under - actions_h).max(0.0),
         ..picture
     };
     let status = Rect {
@@ -185,23 +197,18 @@ pub fn layout(width: f32, height: f32) -> Layout {
         h: STATUS,
         ..picture
     };
-    let log_w = (width * 0.24).clamp(300.0, 640.0);
-    let log = Rect {
-        x: width - MARGIN - log_w,
+    let party_w = (width * 0.24).clamp(300.0, 640.0);
+    let party = Rect {
+        x: width - MARGIN - party_w,
         y: MARGIN,
-        w: log_w,
+        w: party_w,
         h: (height - BUTTONS - 3.0 * MARGIN).max(0.0),
-    };
-    let buttons = Rect {
-        y: height - MARGIN - BUTTONS,
-        h: BUTTONS,
-        ..log
     };
     let left = picture.right() + MARGIN;
     let title = Rect {
         x: left,
         y: MARGIN,
-        w: (log.x - MARGIN - left).max(0.0),
+        w: (party.x - MARGIN - left).max(0.0),
         h: TITLE,
     };
     let field = Rect {
@@ -218,9 +225,9 @@ pub fn layout(width: f32, height: f32) -> Layout {
         },
         picture,
         actions,
-        status,
         log,
-        buttons,
+        status,
+        party,
         title,
         field,
     }
@@ -696,10 +703,15 @@ mod tests {
 
     #[test]
     fn the_parts_lie_apart_inside_the_window() {
-        for (w, h) in [(1600.0, 900.0), (5120.0, 1440.0), (1920.0, 1080.0)] {
+        for (w, h) in [
+            (1280.0, 720.0),
+            (1600.0, 900.0),
+            (5120.0, 1440.0),
+            (1920.0, 1080.0),
+        ] {
             let l = layout(w, h);
             let parts = [
-                l.picture, l.actions, l.status, l.log, l.buttons, l.title, l.field,
+                l.picture, l.actions, l.log, l.status, l.party, l.title, l.field,
             ];
             for (i, a) in parts.iter().enumerate() {
                 assert!(l.window.encloses(a), "{a:?} inside {w}×{h}");
@@ -710,6 +722,14 @@ mod tests {
             }
             assert!(l.picture.y < l.actions.y, "the picture over the actions");
             assert_eq!(l.picture.x, l.actions.x);
+            // The log is under the actions in the left column, the status lines under it.
+            assert_eq!(l.log.x, l.actions.x);
+            assert!(l.actions.bottom() < l.log.y && l.log.bottom() < l.status.y);
+            assert!(l.actions.h >= ACTIONS, "the turn's actions fit at {w}×{h}");
+            assert!(l.log.h >= LOG, "the log has room at {w}×{h}");
+            // The party column is at the right, above the Menu button's row.
+            assert_eq!(l.party.right(), w - MARGIN);
+            assert!(l.party.bottom() <= h - MARGIN - BUTTONS - MARGIN + 0.01);
         }
     }
 

@@ -17,6 +17,16 @@ pub fn text<'d>(data: &'d Data, key: &'d str) -> &'d str {
     data.label("en", key)
 }
 
+/// A class's name from its string id.
+#[must_use]
+pub fn class<'d>(data: &'d Data, id: &'d str) -> &'d str {
+    data.registry
+        .classes
+        .get(id)
+        .and_then(|n| data.classes.get(&n))
+        .map_or(id, |d| text(data, &d.name))
+}
+
 /// An item's name from its string id.
 #[must_use]
 pub fn item<'d>(data: &'d Data, id: &'d str) -> &'d str {

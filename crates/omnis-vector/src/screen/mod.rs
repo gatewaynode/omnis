@@ -14,6 +14,7 @@ pub mod defeat;
 pub mod nav;
 pub mod new_game;
 pub mod pause;
+pub mod roster;
 pub mod service;
 pub mod title;
 
@@ -97,6 +98,10 @@ pub enum ControlId {
     AddMember,
     /// The party is made: play.
     Begin,
+    /// A member's entry in the party column: selects or clears them.
+    Member(omnis_sim::omnis_core::CharacterId),
+    /// Open one of the selected member's screens.
+    Open(roster::Tool),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.

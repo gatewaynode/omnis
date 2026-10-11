@@ -186,7 +186,8 @@ pub fn targets(world: &SimWorld, data: &Data, action: Action) -> Vec<Pick> {
 }
 
 /// The acting member, on a member's turn.
-fn acting(view: &CombatView) -> Option<CharacterId> {
+#[must_use]
+pub fn acting(view: &CombatView) -> Option<CharacterId> {
     match view.current {
         Some(ActorRef::Member(id)) => Some(id),
         _ => None,

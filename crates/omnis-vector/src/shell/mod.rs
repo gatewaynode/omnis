@@ -10,6 +10,7 @@ pub mod hud;
 pub mod minimap;
 pub mod movement;
 pub mod render;
+pub mod roster;
 pub mod screen;
 mod screen_draw;
 pub mod screen_text;
