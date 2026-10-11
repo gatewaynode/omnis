@@ -13,10 +13,10 @@ Written 2026-10-11, after the party column. Rewrite this file every time it is u
 - **2026-10-11:** P3 fixes from the owner's test (`93fa570`: a visible cursor, the form fits the window; the
   second name confirmed fixed by the owner). Then the party column and the log at the left (owner's
   request): `screen/roster.rs`, `shell/roster.rs`, `arena::layout`'s left column and `party` rectangle;
-  acceptance `tasks/acceptance/party-column.md`. Gate 726/0/13. The column's Sheet/Inventory/Spells
+  acceptance `tasks/acceptance/party-column.md` (accepted 2026-10-11). Gate 726/0/13. The column's Sheet/Inventory/Spells
   open nothing yet: P5 and P6 handle `RosterEffect::Open { tool, member, read_only }` (read-only in a
   fight, owner).
-- **Waiting on the owner:** acceptance of P2 (`tasks/acceptance/p2.md`), P3 (`tasks/acceptance/p3.md`) and the party column.
+- **Waiting on the owner:** acceptance of P2 (`tasks/acceptance/p2.md`), and P3 (`tasks/acceptance/p3.md`).
 - Owner answers for P3 (2026-10-10): the view in Tier 1 + op + MCP tool; Start again = the same party;
   scores by slider plus arrows.
 
