@@ -488,7 +488,7 @@ impl Session {
         self.fight_log.drain(..excess);
         let lines: Vec<String> = events
             .iter()
-            .filter_map(|e| describe(e, &self.data))
+            .filter_map(|e| describe(e, &self.names, &self.data))
             .collect();
         for line in lines {
             self.say(line);

@@ -27,11 +27,11 @@ fn victory() -> Event {
 fn the_hud_names_a_bribe_and_the_loot_in_gold_not_copper() {
     let data = common::data();
     assert_eq!(
-        text::describe(&bribed(), &data).as_deref(),
+        text::describe(&bribed(), &Names::default(), &data).as_deref(),
         Some("Paid 50 gold; the monsters leave")
     );
     assert_eq!(
-        text::describe(&victory(), &data).as_deref(),
+        text::describe(&victory(), &Names::default(), &data).as_deref(),
         Some("Victory: 40 xp each, 12 gold")
     );
 }
@@ -59,6 +59,7 @@ fn a_message_reads_as_words() {
         &Event::Message {
             key: MessageKey::NothingHere,
         },
+        &Names::default(),
         &data,
     )
     .expect("a message is shown");

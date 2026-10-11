@@ -6,9 +6,9 @@
 
 use omnis_sim::api::{
     CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId, ModeKind,
-    NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, Settings, Status, World,
-    apply, automap, check_reload, combat_view, creation_view, dispatch, door_open, here,
-    party_view, save_text, status, step_lands,
+    NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, ServiceView, Settings,
+    Status, World, apply, automap, check_reload, combat_view, creation_view, dispatch, door_open,
+    here, party_view, save_text, service_view, status, step_lands,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -91,6 +91,12 @@ impl SimWorld {
     #[must_use]
     pub fn combat(&self, data: &Data) -> Option<CombatView> {
         combat_view(&self.0, data)
+    }
+
+    /// The service the party is inside, if any (`api::service_view`).
+    #[must_use]
+    pub fn service(&self, data: &Data) -> Option<ServiceView> {
+        service_view(&self.0, data)
     }
 
     /// What the party knows of a map (`api::automap`).
@@ -197,6 +203,8 @@ pub struct Views {
     pub party: PartyView,
     /// The encounter or fight, if one is on.
     pub combat: Option<CombatView>,
+    /// The service the party is inside: every offer with its command, price and refusal.
+    pub service: Option<ServiceView>,
     /// What a new member's draft may be (the loaded rules', so a rule set over the dev socket
     /// shows at the next refresh).
     pub creation: CreationView,
@@ -219,6 +227,7 @@ impl Views {
             position,
             party: world.party(data),
             combat: world.combat(data),
+            service: world.service(data),
             creation: creation_view(data),
         }
     }

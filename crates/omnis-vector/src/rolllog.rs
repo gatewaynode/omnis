@@ -68,7 +68,9 @@ impl Names {
         }
     }
 
-    fn member(&self, id: CharacterId) -> String {
+    /// A member's name, kept after they leave the party; "someone" for one never seen.
+    #[must_use]
+    pub fn member(&self, id: CharacterId) -> String {
         self.members
             .get(&id)
             .cloned()

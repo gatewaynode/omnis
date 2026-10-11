@@ -17,5 +17,6 @@ mod minimap;
 mod rolllog;
 mod roster;
 mod screens;
+mod service;
 mod shell;
 mod socket;

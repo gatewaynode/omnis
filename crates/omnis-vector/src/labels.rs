@@ -6,10 +6,12 @@
 //! rather than vanishing; a text key no pack defines reads as the key (`Data::label`), except a
 //! `MessageKey`, which falls back to this client's own wording so a key never reaches the player.
 
+use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
+use omnis_sim::omnis_core::{Calendar, CharacterId};
 use omnis_sim::omnis_data::{Alignment, Data, Skill};
 use omnis_sim::omnis_rules::CreationError;
-use omnis_sim::{MessageKey, Rejection, SaveRule};
+use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
 #[must_use]
@@ -167,6 +169,149 @@ pub fn creation_refusal(rejection: &Rejection, picks: usize, choose: u8) -> Stri
         Rejection::Character(CreationError::Skills(_)) if picks != usize::from(choose) => {
             format!("Pick {choose} skills")
         }
+        other => other.to_string(),
+    }
+}
+
+/// How long ago something happened, as a rumor tells it: "today", "yesterday", "3 days ago",
+/// "a month ago", "2 years ago" (the other client's `ago_text`).
+#[must_use]
+pub fn ago(minutes: i64, calendar: Calendar) -> String {
+    let days = calendar.day(minutes.max(0));
+    let per_year = i64::from(calendar.days_per_year.max(1));
+    let count = |n: i64, one: &str, many: &str| {
+        if n == 1 {
+            format!("a {one} ago")
+        } else {
+            format!("{n} {many} ago")
+        }
+    };
+    match days {
+        0 => "today".to_owned(),
+        1 => "yesterday".to_owned(),
+        d if d < 30 => format!("{d} days ago"),
+        d if d < per_year => count(d / 30, "month", "months"),
+        d => count(d / per_year, "year", "years"),
+    }
+}
+
+/// One of a service's rumors, by its row in the service's file, told `ago` minutes after it
+/// happened; "?" for a row or service no pack holds.
+#[must_use]
+pub fn rumor(data: &Data, service: &str, row: u16, ago_minutes: i64) -> String {
+    let said = data
+        .registry
+        .services
+        .get(service)
+        .and_then(|n| data.services.get(&n))
+        .and_then(|s| s.rumors.get(usize::from(row)))
+        .map_or("?", |r| text(data, &r.text));
+    let when = ago(ago_minutes, data.calendar());
+    omnis_sim::omnis_data::text::fill(said, &[("ago", &when)])
+}
+
+/// An offer's row label in a service (the other client's `service_panel::row_label`): "A
+/// night's rest", "Longsword", "Dagger ×2", "Brenna, 5 of 12 HP", "Brenna, level 1 to 2",
+/// "Ilvara: Shatter". Names come from the party view and the packs.
+#[must_use]
+pub fn offer_label(data: &Data, party: &PartyView, offer: &OfferView) -> String {
+    let member = |id: CharacterId| party.members.iter().find(|m| m.member == id);
+    let named = |id: CharacterId, line: &dyn Fn(&MemberView) -> String| {
+        member(id).map_or_else(|| "?".to_owned(), line)
+    };
+    match &offer.command {
+        ServiceCommand::Room => "A night's rest".to_owned(),
+        ServiceCommand::Rumor => "A rumor".to_owned(),
+        ServiceCommand::BuyFood { count } => format!("Food for {count} day"),
+        ServiceCommand::Buy { item, .. } => self::item(data, item).to_owned(),
+        ServiceCommand::Sell { item, .. } => {
+            let count = party
+                .inventory
+                .iter()
+                .find(|i| i.item == *item)
+                .map_or(0, |i| i.count);
+            format!("{} ×{count}", self::item(data, item))
+        }
+        ServiceCommand::Heal { member: id }
+        | ServiceCommand::Cure { member: id }
+        | ServiceCommand::Raise { member: id } => named(*id, &|m| treated_label(data, offer, m)),
+        ServiceCommand::Train { member: id } => named(*id, &|m| {
+            format!("{}, level {} to {}", m.name, m.level, m.level + 1)
+        }),
+        ServiceCommand::Choose { member: id, spell }
+        | ServiceCommand::Learn { member: id, spell } => named(*id, &|m| {
+            format!("{}: {}", m.name, self::spell(data, spell))
+        }),
+        ServiceCommand::Leave
+        | ServiceCommand::Deposit { .. }
+        | ServiceCommand::Withdraw { .. } => String::new(),
+    }
+}
+
+/// A temple row names what it treats: hit points, conditions, or death.
+fn treated_label(data: &Data, offer: &OfferView, m: &MemberView) -> String {
+    let name = &m.name;
+    match offer.command {
+        ServiceCommand::Cure { .. } if m.conditions.is_empty() => format!("{name}, no conditions"),
+        ServiceCommand::Cure { .. } => {
+            let names: Vec<&str> = m.conditions.iter().map(|c| condition(data, c)).collect();
+            format!("{name}: {}", names.join(", "))
+        }
+        ServiceCommand::Raise { .. }
+            if matches!(offer.refusal, Some(Rejection::NotDead { .. })) =>
+        {
+            format!("{name}, alive")
+        }
+        ServiceCommand::Raise { .. } => format!("{name}, dead"),
+        _ => format!("{name}, {} of {} HP", m.hp.max(0), m.hp_max),
+    }
+}
+
+/// The button's caption for an offer.
+#[must_use]
+pub const fn offer_caption(command: &ServiceCommand) -> &'static str {
+    match command {
+        ServiceCommand::Room => "Take a room",
+        ServiceCommand::Rumor => "Listen",
+        ServiceCommand::BuyFood { .. } | ServiceCommand::Buy { .. } => "Buy",
+        ServiceCommand::Sell { .. } => "Sell",
+        ServiceCommand::Heal { .. } => "Heal",
+        ServiceCommand::Cure { .. } => "Cure",
+        ServiceCommand::Raise { .. } => "Raise",
+        ServiceCommand::Deposit { .. } => "Deposit",
+        ServiceCommand::Withdraw { .. } => "Withdraw",
+        ServiceCommand::Train { .. } => "Train",
+        ServiceCommand::Choose { .. } => "Choose",
+        ServiceCommand::Learn { .. } => "Learn",
+        ServiceCommand::Leave => "Leave",
+    }
+}
+
+/// An offer's price ("free" at no cost) or what a sale pays. A refused purchase keeps its
+/// price: the reason shows on its button.
+#[must_use]
+pub fn offer_note(offer: &OfferView) -> String {
+    match (offer.price, offer.pays) {
+        (Some(0), _) => "free".to_owned(),
+        (Some(price), _) => coins(price),
+        (None, Some(pays)) => format!("pays {}", coins(pays)),
+        (None, None) => String::new(),
+    }
+}
+
+/// A service's refusal in a few words, for a dim button (the other client's
+/// `service_panel::reason`); anything else in the engine's own words.
+#[must_use]
+pub fn service_reason(refusal: &Rejection) -> String {
+    match refusal {
+        Rejection::CannotAfford { .. } => "not enough money".to_owned(),
+        Rejection::NothingToTreat { .. } => "nothing to treat".to_owned(),
+        Rejection::NotDead { .. } => "not dead".to_owned(),
+        Rejection::RestTooSoon { minutes } => format!(
+            "rested too recently ({}h {:02}m)",
+            minutes / 60,
+            minutes % 60
+        ),
         other => other.to_string(),
     }
 }
