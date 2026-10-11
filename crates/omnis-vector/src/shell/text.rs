@@ -13,7 +13,10 @@ use omnis_sim::{BlockReason, CombatOutcome, EffectEnd, EffectTarget, Event, Item
 /// named through `names`, so a line still reads after its member has left the party.
 #[must_use]
 pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
-    if let Some(line) = town(event, names, data).or_else(|| kit_and_spells(event, names, data)) {
+    if let Some(line) = town(event, names, data)
+        .or_else(|| kit_and_spells(event, names, data))
+        .or_else(|| camp(event, names))
+    {
         return Some(line);
     }
     Some(match event {
@@ -227,6 +230,39 @@ fn town(event: &Event, names: &Names, data: &Data) -> Option<String> {
         ),
         _ => return None,
     })
+}
+
+/// A line for a rest or a change of tactics (the other client's `service_text.rs` and
+/// `spell_text.rs`).
+fn camp(event: &Event, names: &Names) -> Option<String> {
+    Some(match event {
+        Event::Rested {
+            long: true, food, ..
+        } => format!("The party rests for the night and eats {food} food"),
+        Event::Rested { minutes, .. } => format!("The party rests for {}", span(*minutes)),
+        Event::HitDiceSpent { member, dice } => format!(
+            "{} spends {dice} hit {}",
+            names.member(*member),
+            if *dice == 1 { "die" } else { "dice" }
+        ),
+        Event::RestInterrupted { minutes } => format!("Ambushed after {}!", span(*minutes)),
+        Event::ReactionsSwitched { member, on } => format!(
+            "{}'s reactions are {}",
+            names.member(*member),
+            if *on { "on" } else { "off" }
+        ),
+        Event::TacticsChanged { member } => format!("{}'s tactics are set", names.member(*member)),
+        _ => return None,
+    })
+}
+
+/// A stretch of party-clock time: "an hour", "3 hours", "40 minutes".
+fn span(minutes: u32) -> String {
+    match minutes {
+        60 => "an hour".to_owned(),
+        m if m % 60 == 0 => format!("{} hours", m / 60),
+        m => format!("{m} minutes"),
+    }
 }
 
 /// A level gained and what it brought: "Brenna reaches level 2: +8 HP, Action Surge". The

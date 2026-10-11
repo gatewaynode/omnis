@@ -228,6 +228,98 @@ fn a_cast_row_costs_what_the_cost_slot_charges() {
     );
 }
 
+/// The fight's spell rows cost what the cast charges too: the `spell_points.cost` slot, not the
+/// spell's level (parity P6; the road rows were fixed in P5).
+#[test]
+fn a_fight_spell_row_costs_what_the_cost_slot_charges() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    fight(&mut world, &data, &[("goblin", 1)]);
+    until_turn_of(&mut world, &data, DURIN);
+    let view = combat_view(&world, &data).expect("in a fight");
+    let bless = view
+        .spells
+        .iter()
+        .find(|s| s.spell == "base:spell:bless")
+        .expect("Durin's Bless");
+    assert_eq!(bless.cost, 2, "a level 1 spell at twice its level");
+}
+
+/// Each member's known spells carry what a cast charges, from the cost slot, and what it spends
+/// of the turn, from the definition (parity P6, the sheet's Magic page; ARCHITECTURE §4.4).
+#[test]
+fn a_known_spell_costs_what_a_cast_charges_and_pays_its_definition_s_cost() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    if !world.party.members[ILVARA].known_spells.contains(&shield) {
+        world.party.members[ILVARA].known_spells.push(shield);
+    }
+    let view = party_view(&world, &data);
+    for (member, shown) in world.party.members.iter().zip(&view.members) {
+        let ids: Vec<&str> = shown
+            .known_spells
+            .iter()
+            .map(|k| k.spell.as_str())
+            .collect();
+        let spells: Vec<&str> = shown.spells.iter().map(String::as_str).collect();
+        assert_eq!(
+            ids, spells,
+            "{}: one row per known spell, in order",
+            member.name
+        );
+        for row in &shown.known_spells {
+            let def = data
+                .spells
+                .get(&data.registry.spells.get(&row.spell).unwrap())
+                .unwrap();
+            let want = def.points.unwrap_or(u32::from(def.level) * 2);
+            assert_eq!(row.cost, want, "{}", row.spell);
+            assert_eq!(row.pay, def.cost, "{}", row.spell);
+            assert_eq!(row.level, def.level, "{}", row.spell);
+        }
+    }
+    assert!(
+        view.members[DURIN].known_spells.iter().any(|k| k.cost == 0),
+        "a cantrip is free"
+    );
+    let shield = view.members[ILVARA]
+        .known_spells
+        .iter()
+        .find(|k| k.spell == "base:spell:shield")
+        .expect("Ilvara knows Shield");
+    assert_eq!(
+        shield.pay,
+        omnis_data::Cost::Reaction,
+        "Shield answers an attack"
+    );
+
+    // The price shown is the price paid.
+    let durin = world.party.members[DURIN].id;
+    let bless = view.members[DURIN]
+        .known_spells
+        .iter()
+        .find(|k| k.spell == "base:spell:bless")
+        .expect("Durin knows Bless")
+        .cost;
+    let before = world.party.members[DURIN].spell_points;
+    let command = Command::Cast {
+        caster: durin,
+        spell: "base:spell:bless".to_owned(),
+        target: Target::Member(durin),
+    };
+    apply(&mut world, &data, command).unwrap();
+    assert_eq!(before - world.party.members[DURIN].spell_points, bless);
+}
+
 #[test]
 fn a_cast_row_s_refusal_is_the_command_s_and_its_effect_shows_its_time_left() {
     let data = data();

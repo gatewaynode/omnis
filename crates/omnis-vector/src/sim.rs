@@ -6,9 +6,10 @@
 
 use omnis_sim::api::{
     CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId,
-    ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, ServiceView,
-    Settings, Status, World, apply, automap, cast_view, check_reload, combat_view, creation_view,
-    dispatch, door_open, here, party_view, save_text, service_view, status, step_lands,
+    ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
+    ServiceView, Settings, Status, World, apply, automap, cast_view, check_reload, combat_view,
+    creation_view, dispatch, door_open, here, party_view, rest_view, save_text, service_view,
+    status, step_lands,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -60,6 +61,12 @@ impl SimWorld {
     #[must_use]
     pub fn casts(&self, data: &Data) -> Vec<CastView> {
         cast_view(&self.0, data)
+    }
+
+    /// What a rest would do for each member, and why either rest is refused (`api::rest_view`).
+    #[must_use]
+    pub fn rest(&self, data: &Data) -> RestView {
+        rest_view(&self.0, data)
     }
 
     /// Where the party is and what it is doing (`api::here`).
@@ -213,6 +220,8 @@ pub struct Views {
     pub service: Option<ServiceView>,
     /// Every member's spells castable outside a fight, with cost and refusal.
     pub casts: Vec<CastView>,
+    /// What a short or a long rest would do now, and why either is refused.
+    pub rest: RestView,
     /// What a new member's draft may be (the loaded rules', so a rule set over the dev socket
     /// shows at the next refresh).
     pub creation: CreationView,
@@ -237,6 +246,7 @@ impl Views {
             combat: world.combat(data),
             service: world.service(data),
             casts: world.casts(data),
+            rest: world.rest(data),
             creation: creation_view(data),
         }
     }

@@ -308,7 +308,7 @@ fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> V
                 spell: name.clone(),
                 name: spell.name.clone(),
                 level: spell.level,
-                cost: spell.point_cost(),
+                cost: crate::cast_view::cost(spell, data, rng),
                 reach: spell.reach,
                 targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
                 blocked: pays(Pay::Action),

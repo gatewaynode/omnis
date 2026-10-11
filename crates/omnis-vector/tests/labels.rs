@@ -132,3 +132,177 @@ fn skills_and_alignments_read_as_words_and_creation_refusals_as_the_screen_says_
     // The right count but another skill fault: the engine's own words, never a wrong count.
     assert_eq!(refusal(skills(), 2), skills().to_string());
 }
+
+/// The sheet's words (parity P6): race and background names from the packs, abilities, signed
+/// bonuses, and what a spell spends of the turn.
+#[test]
+fn the_sheet_s_words_come_from_the_packs_and_read_as_the_other_client_s() {
+    use omnis_sim::omnis_data::{Ability, Cost};
+    let data = common::data();
+    assert_eq!(labels::race(&data, "base:race:dwarf"), "Dwarf (hill dwarf)");
+    assert_eq!(
+        labels::background(&data, "base:background:acolyte"),
+        "Acolyte"
+    );
+    assert_eq!(labels::race(&data, "mod:race:nothing"), "mod:race:nothing");
+    assert_eq!(
+        labels::background(&data, "mod:background:x"),
+        "mod:background:x"
+    );
+    assert_eq!(labels::ability(Ability::Wisdom), "Wisdom");
+    assert_eq!(
+        [3, -1, 0].map(labels::signed),
+        ["+3".to_owned(), "-1".to_owned(), "+0".to_owned()]
+    );
+    assert_eq!(
+        [Cost::Action, Cost::BonusAction, Cost::Reaction, Cost::Free].map(labels::pay),
+        ["action", "bonus action", "reaction", "free"]
+    );
+}
+
+/// A rest's and a tactic's refusals in a few words, members by name (parity P6).
+#[test]
+fn rest_and_tactics_refusals_read_short_with_names() {
+    use omnis_sim::Rejection;
+    use omnis_sim::omnis_rules::TacticsFault;
+    let data = common::data();
+    let (world, _) = common::town_session(&data);
+    let party = common::views(&world, &data).party;
+    let durin = party.members[1].member;
+    let cases = [
+        (
+            Rejection::RestTooSoon { minutes: 605 },
+            "rested too recently (10h 05m)",
+        ),
+        (
+            Rejection::NoFood { need: 4, have: 1 },
+            "the rest eats 4 food; the stores hold 1",
+        ),
+        (
+            Rejection::NothingToTreat { member: durin },
+            "Durin is unhurt",
+        ),
+        (
+            Rejection::NoHitDice {
+                member: durin,
+                left: 0,
+            },
+            "Durin has no hit dice left",
+        ),
+        (Rejection::CannotReact, "cannot answer that"),
+        (Rejection::NoSuchEntry { entry: 3 }, "no such entry"),
+        (
+            Rejection::Tactics(TacticsFault::Name),
+            "the name does not fit",
+        ),
+        (
+            Rejection::Tactics(TacticsFault::TooDeep),
+            "too many conditions",
+        ),
+        (
+            Rejection::Tactics(TacticsFault::TooMany),
+            "no room for another",
+        ),
+        (
+            Rejection::Tactics(TacticsFault::Percent),
+            "a percent over 100",
+        ),
+        (
+            Rejection::UnknownId {
+                id: "mod:monster:x".to_owned(),
+            },
+            "not loaded: mod:monster:x",
+        ),
+    ];
+    for (refusal, words) in cases {
+        assert_eq!(labels::reason(&party, &refusal), words, "{refusal:?}");
+    }
+}
+
+/// The rest's and the tactics' events read as the other client's lines (`service_text.rs`,
+/// `spell_text.rs`; parity P6).
+#[test]
+fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
+    let data = common::data();
+    let (world, _) = common::town_session(&data);
+    let mut names = Names::default();
+    names.observe(&common::views(&world, &data).party);
+    let durin = common::id(&world, 1);
+    let cases = [
+        (
+            Event::Rested {
+                long: true,
+                minutes: 480,
+                food: 4,
+            },
+            "The party rests for the night and eats 4 food",
+        ),
+        (
+            Event::Rested {
+                long: false,
+                minutes: 60,
+                food: 0,
+            },
+            "The party rests for an hour",
+        ),
+        (
+            Event::Rested {
+                long: false,
+                minutes: 120,
+                food: 0,
+            },
+            "The party rests for 2 hours",
+        ),
+        (
+            Event::Rested {
+                long: false,
+                minutes: 40,
+                food: 0,
+            },
+            "The party rests for 40 minutes",
+        ),
+        (
+            Event::HitDiceSpent {
+                member: durin,
+                dice: 1,
+            },
+            "Durin spends 1 hit die",
+        ),
+        (
+            Event::HitDiceSpent {
+                member: durin,
+                dice: 2,
+            },
+            "Durin spends 2 hit dice",
+        ),
+        (
+            Event::RestInterrupted { minutes: 60 },
+            "Ambushed after an hour!",
+        ),
+        (
+            Event::ReactionsSwitched {
+                member: durin,
+                on: false,
+            },
+            "Durin's reactions are off",
+        ),
+        (
+            Event::ReactionsSwitched {
+                member: durin,
+                on: true,
+            },
+            "Durin's reactions are on",
+        ),
+        (
+            Event::TacticsChanged { member: durin },
+            "Durin's tactics are set",
+        ),
+    ];
+    for (event, line) in cases {
+        assert_eq!(
+            text::describe(&event, &names, &data).as_deref(),
+            Some(line),
+            "{event:?}"
+        );
+    }
+}

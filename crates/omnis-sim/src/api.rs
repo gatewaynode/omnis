@@ -48,7 +48,7 @@ pub use crate::tactics::TacticsCommand;
 pub use omnis_core::{CharacterId, Direction, Facing, MapId, Position, Rotation};
 pub use omnis_rules::Draft;
 // A declared reaction as `PutReaction` carries it and `ReactionView` shows it: by string ids.
-pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Trigger, Who};
+pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Row, Trigger, Who};
 // Script words, a typing aid: they name members by slot and resolve against the party.
 pub use crate::word::{ScriptError, Word, parse_script};
 
@@ -59,7 +59,8 @@ pub use crate::creation_view::{
 };
 pub use crate::ops::status;
 pub use crate::party_view::{
-    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+    AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
+    TacticsView, party_view,
 };
 pub use crate::query::{
     EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,

@@ -73,7 +73,8 @@ pub use names::Place;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{
-    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+    AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
+    TacticsView, party_view,
 };
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;

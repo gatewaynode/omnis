@@ -9,8 +9,8 @@
 use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
 use omnis_sim::omnis_core::{Calendar, CharacterId};
-use omnis_sim::omnis_data::{Alignment, Data, EquipSlot, Skill};
-use omnis_sim::omnis_rules::CreationError;
+use omnis_sim::omnis_data::{Ability, Alignment, Cost, Data, EquipSlot, Skill};
+use omnis_sim::omnis_rules::{CreationError, TacticsFault};
 use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
@@ -26,6 +26,26 @@ pub fn class<'d>(data: &'d Data, id: &'d str) -> &'d str {
         .classes
         .get(id)
         .and_then(|n| data.classes.get(&n))
+        .map_or(id, |d| text(data, &d.name))
+}
+
+/// A race's name from its string id.
+#[must_use]
+pub fn race<'d>(data: &'d Data, id: &'d str) -> &'d str {
+    data.registry
+        .races
+        .get(id)
+        .and_then(|n| data.races.get(&n))
+        .map_or(id, |d| text(data, &d.name))
+}
+
+/// A background's name from its string id.
+#[must_use]
+pub fn background<'d>(data: &'d Data, id: &'d str) -> &'d str {
+    data.registry
+        .backgrounds
+        .get(id)
+        .and_then(|n| data.backgrounds.get(&n))
         .map_or(id, |d| text(data, &d.name))
 }
 
@@ -147,6 +167,29 @@ fn spaced(name: &str) -> String {
 #[must_use]
 pub fn alignment(a: Alignment) -> String {
     spaced(&format!("{a:?}"))
+}
+
+/// An ability: "Wisdom".
+#[must_use]
+pub fn ability(a: Ability) -> String {
+    format!("{a:?}")
+}
+
+/// A bonus with its sign: "+3", "-1", "+0".
+#[must_use]
+pub fn signed(n: i64) -> String {
+    format!("{n:+}")
+}
+
+/// What a spell spends of the turn: "action", "bonus action", "reaction", "free".
+#[must_use]
+pub const fn pay(cost: Cost) -> &'static str {
+    match cost {
+        Cost::Action => "action",
+        Cost::BonusAction => "bonus action",
+        Cost::Reaction => "reaction",
+        Cost::Free => "free",
+    }
 }
 
 /// A skill: "Sleight of Hand".
@@ -353,7 +396,7 @@ fn named(party: &PartyView, member: CharacterId) -> &str {
         .map_or("someone", |m| m.name.as_str())
 }
 
-/// An item's or a road cast's refusal in a few words, for a dim button (the other client's
+/// An item's, a road cast's, a rest's or a tactic's refusal in a few words, for a dim button (the other client's
 /// `blocked_note` and inventory messages): members by name where the engine's words give their
 /// number; anything else in the engine's own words.
 #[must_use]
@@ -370,6 +413,31 @@ pub fn reason(party: &PartyView, refusal: &Rejection) -> String {
         Rejection::HandsFull => "no hand free for a shield".to_owned(),
         Rejection::NotUsable => "does nothing when used".to_owned(),
         Rejection::NotUsableHere => "not from a fight".to_owned(),
+        // Rests (the other client's camp notes).
+        Rejection::RestTooSoon { minutes } => format!(
+            "rested too recently ({}h {:02}m)",
+            minutes / 60,
+            minutes % 60
+        ),
+        Rejection::NoFood { need, have } => {
+            format!("the rest eats {need} food; the stores hold {have}")
+        }
+        Rejection::NothingToTreat { member } => format!("{} is unhurt", named(party, *member)),
+        Rejection::NoHitDice { member, .. } => {
+            format!("{} has no hit dice left", named(party, *member))
+        }
+        // Tactics.
+        Rejection::CannotReact => "cannot answer that".to_owned(),
+        Rejection::NoSuchEntry { .. } => "no such entry".to_owned(),
+        Rejection::Tactics(fault) => match fault {
+            TacticsFault::Name => "the name does not fit",
+            TacticsFault::TooDeep => "too many conditions",
+            TacticsFault::TooMany => "no room for another",
+            TacticsFault::Percent => "a percent over 100",
+            TacticsFault::NoSuchSet | TacticsFault::NoDefault => "the tactics do not fit together",
+        }
+        .to_owned(),
+        Rejection::UnknownId { id } => format!("not loaded: {id}"),
         other => other.to_string(),
     }
 }

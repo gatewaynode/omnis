@@ -353,6 +353,7 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `spell_picks` | Spells owed by levels, chosen at a trainer. |
 | `tactics` | `TacticsView`. |
 | `age_years` | Age at creation plus the years the party has lived since. |
+| `known_spells` | `[KnownSpellView]`, one per entry of `spells`, in the same order. |
 
 `ItemView` (one item kind in a kit or the stores): `item` (the item id, the `item` the item and
 service commands take), `name` (text key), `count`, `slot` (`EquipSlot` or null), `usable` (Use
@@ -361,6 +362,12 @@ owner; always false in the stores).
 
 `EffectView`: `spell` (id), `caster` (`CharacterId`), `minutes_left` (party-clock minutes, or
 null when it ends at the bearer's next turn).
+
+`KnownSpellView` (a known spell's price, in or out of a fight): `spell` (id), `name` (text key),
+`level` (0 cantrip), `cost` (the points a cast charges: the spell's own `points`, else the
+rules' `spell_points.cost` slot, as `CastView.cost`), `pay` (`Cost`: `Action`, `BonusAction`,
+`Reaction` or `Free`, what a cast spends of the turn; the spell's definition, as
+`FeatureView.pay`).
 
 ### 7.3 `TacticsView`, `ReactionView`, `AnswerView`
 
@@ -421,7 +428,7 @@ living whose Shield is up, by their place among the living), `refusal` (`Rejecti
 member would get attacking it, or null).
 
 `SpellView`: `spell` (the spell id, the `spell` that `Cast` takes), `name` (text key), `level`
-(0 cantrip), `cost` (points), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
+(0 cantrip), `cost` (the points the cast charges, as `CastView.cost`), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
 `blocked` (`Rejection` for paying with the action, or null), `bonus` (`Rejection` for paying
 with the bonus action, or null).
 
@@ -889,6 +896,10 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-10: `door_open` (Tier 1) and `MemberView.can_fight` (parity P0a).
 - 2026-10-10: `creation.get` and `creation_view` (`CreationView`), bringing the ops to 25
   (parity P3).
+- 2026-10-11: `CastView.cost` is the points the cast charges, from the `spell_points.cost` slot,
+  no longer the spell's level (parity P5).
+- 2026-10-11: `MemberView.known_spells` (`KnownSpellView`: each known spell's point cost and
+  `pay`); `SpellView.cost` from the cost slot as `CastView.cost` (parity P6).
 
 ### Protocol 2 (2026-10-10)
 

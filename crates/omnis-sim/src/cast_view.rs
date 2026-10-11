@@ -48,9 +48,7 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
                 caster: member.id,
                 spell: data.registry.spells.name(*id).unwrap_or("?").to_owned(),
                 name: def.name.clone(),
-                // What the cast charges: the cost slot (a pack may price spells its own way), on
-                // a copy of the stream; a rule error is the refusal's to report.
-                cost: spell_cost(def, data, &mut fresh(world)).unwrap_or_else(|_| def.point_cost()),
+                cost: cost(def, data, fresh(world)),
                 targets_members: def.effect.as_ref().is_some_and(|e| e.targets_members()),
                 refusal: cast::check(world, data, own, *id, false, &mut fresh(world)).err(),
             });
@@ -59,6 +57,13 @@ pub fn cast_view(world: &World, data: &Data) -> Vec<CastView> {
     rows
 }
 
-fn fresh(world: &World) -> omnis_core::Pcg32 {
+/// What a cast of `def` charges: the cost slot (a pack may price spells its own way), evaluated
+/// on `rng`, a copy of the stream the cast would draw from; a rule error is the refusal's to
+/// report, so the row falls back to the spell's own points.
+pub(crate) fn cost(def: &omnis_data::Spell, data: &Data, mut rng: omnis_core::Pcg32) -> u32 {
+    spell_cost(def, data, &mut rng).unwrap_or_else(|_| def.point_cost())
+}
+
+pub(crate) fn fresh(world: &World) -> omnis_core::Pcg32 {
     Roller::take_stream(world, "cast").rng
 }
