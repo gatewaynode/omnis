@@ -1,6 +1,6 @@
 //! The party column (presentation-ARCHITECTURE §6.6): each member in marching order under the
-//! front and back words, their numbers from the views, the hit points in the alert role under a
-//! quarter, the acting member marked in a fight, a member selected by their entry, and the row
+//! front and back words, their numbers from the views, the entry yellow under half its hit
+//! points and red under a quarter, the acting member marked in a fight, a member selected by their entry, and the row
 //! of screens under the selected member, each dim with its reason until it is built. Model
 //! tests on the real packs, no window; the app's column is in `screens.rs`.
 
@@ -83,34 +83,49 @@ fn each_member_shows_in_marching_order_with_their_numbers() {
 }
 
 #[test]
-fn hit_points_under_a_quarter_are_an_alert_and_a_down_member_says_so() {
+fn an_entry_is_yellow_under_half_its_hit_points_and_red_under_a_quarter() {
     let session = start();
     let mut views = session.views.clone();
-    let m = &mut views.party.members[0];
-    m.hp = (m.hp_max - 1) / 4;
-    let quarter = m.hp_max / 4;
-    let name = m.name.clone();
-    let hp_role = |views: &Views| {
+    let name = views.party.members[0].name.clone();
+    // Brenna: 12 hit points, so under half is 5 or fewer and under a quarter 2 or fewer.
+    assert_eq!(views.party.members[0].hp_max, 12);
+    // The entry's name box and every span of its numbers line, but the condition word.
+    let entry = |views: &Views| {
         let panel = roster::content(&session.data, game(&session, views), None);
         let at = lines(&panel)
             .iter()
             .position(|l| l.starts_with(&name))
             .unwrap();
-        panel.rows[at + 1].spans.clone()
+        (panel.rows[at].tint, panel.rows[at + 1].spans.clone())
     };
-    assert_eq!(hp_role(&views)[0].role, Role::Alert, "under a quarter");
-    views.party.members[0].hp = quarter.max(1) + 1;
-    assert_eq!(
-        hp_role(&views)[0].role,
-        Role::Interface,
-        "at a quarter or more"
-    );
+    for (hp, role) in [
+        (12, Role::Interface),
+        (6, Role::Interface),
+        (5, Role::Caution),
+        (3, Role::Caution),
+        (2, Role::Alert),
+        (1, Role::Alert),
+    ] {
+        views.party.members[0].hp = hp;
+        let (tint, spans) = entry(&views);
+        assert_eq!(tint, Some(role), "the name box at {hp} hp");
+        assert_eq!(spans[0].role, role, "HP at {hp} hp");
+        assert_eq!(spans[1].role, role, "SP and AC at {hp} hp");
+    }
     let m = &mut views.party.members[0];
     m.hp = 0;
     m.down = true;
-    let spans = hp_role(&views);
-    assert_eq!(spans[0].role, Role::Dim, "a down member is dim");
+    let (tint, spans) = entry(&views);
+    assert_eq!(tint, Some(Role::Alert), "a down member is red");
+    assert_eq!(spans[0].role, Role::Alert);
     assert_eq!(spans.last().unwrap().text, "down");
+    let m = &mut views.party.members[0];
+    m.down = false;
+    m.dead = true;
+    let (tint, spans) = entry(&views);
+    assert_eq!(tint, Some(Role::Dim), "a dead member is dim");
+    assert_eq!(spans[0].role, Role::Dim);
+    assert_eq!(spans.last().unwrap().text, "dead");
 }
 
 #[test]

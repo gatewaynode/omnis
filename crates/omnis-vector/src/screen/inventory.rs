@@ -210,6 +210,7 @@ fn item_row(
         .collect();
     let looking = game.views.combat.is_some();
     Row {
+        tint: None,
         spans: vec![Span::body(labels::count_label(
             labels::item(data, &item.item),
             item.count,

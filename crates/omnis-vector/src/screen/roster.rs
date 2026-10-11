@@ -90,26 +90,35 @@ fn note(text: impl Into<String>) -> Span {
     }
 }
 
-/// The member's second line: hit points (alert under a quarter), spell points, armour class,
+/// How the member's entry is drawn: red under a quarter of their hit points (down among them),
+/// yellow under half, dim when dead.
+fn health(m: &MemberView) -> Role {
+    if m.dead {
+        Role::Dim
+    } else if m.hp * 4 < m.hp_max {
+        Role::Alert
+    } else if m.hp * 2 < m.hp_max {
+        Role::Caution
+    } else {
+        Role::Interface
+    }
+}
+
+/// The member's second line, in their health's role: hit points, spell points, armour class,
 /// then how they stand, or else the first condition or effect.
 fn numbers(data: &Data, m: &MemberView) -> Row {
-    let low = m.hp * 4 < m.hp_max;
+    let role = health(m);
     let out = m.dead || m.down;
-    let role = |alert: bool| match (out, alert) {
-        (true, _) => Role::Dim,
-        (false, true) => Role::Alert,
-        (false, false) => Role::Interface,
-    };
     let span = |text: String, role: Role| Span {
         text,
         role,
         size: Size::Small,
     };
     let mut spans = vec![
-        span(format!("HP {}/{}", m.hp, m.hp_max), role(low)),
+        span(format!("HP {}/{}", m.hp, m.hp_max), role),
         span(
             format!("SP {}/{}  AC {}", m.spell_points, m.spell_points_max, m.ac),
-            role(false),
+            role,
         ),
     ];
     let state = if m.dead {
@@ -148,15 +157,18 @@ pub fn content(data: &Data, game: Game, selected: Option<CharacterId>) -> Panel 
             rows.push(Row::text(note(if m.in_front { "front" } else { "back" })));
         }
         let mark = if actor == Some(m.member) { "> " } else { "" };
-        rows.push(Row::controls(vec![Control::button(
-            ControlId::Member(m.member),
-            format!(
-                "{mark}{}  {} {}",
-                m.name,
-                labels::class(data, &m.class),
-                m.level
-            ),
-        )]));
+        rows.push(Row {
+            tint: Some(health(m)),
+            ..Row::controls(vec![Control::button(
+                ControlId::Member(m.member),
+                format!(
+                    "{mark}{}  {} {}",
+                    m.name,
+                    labels::class(data, &m.class),
+                    m.level
+                ),
+            )])
+        });
         rows.push(numbers(data, m));
         if selected == Some(m.member) {
             rows.push(Row::controls(

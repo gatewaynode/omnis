@@ -14,6 +14,8 @@ pub enum Role {
     Title,
     /// Something that cannot be done now; drawn with its reason.
     Dim,
+    /// A warning short of danger: a member under half their hit points.
+    Caution,
     /// A refusal, a failure, a danger to the party.
     Alert,
 }
@@ -25,6 +27,7 @@ impl Role {
         match self {
             Role::Interface | Role::Title => [0.55, 1.0, 0.65],
             Role::Dim => [0.25, 0.4, 0.3],
+            Role::Caution => [1.0, 0.85, 0.3],
             Role::Alert => [1.0, 0.45, 0.35],
         }
     }

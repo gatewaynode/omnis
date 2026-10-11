@@ -283,6 +283,9 @@ pub struct Row {
     pub controls: Vec<Control>,
     /// Text after the controls (a score's bonus and cost).
     pub after: Vec<Span>,
+    /// The role the row's live controls are drawn in (a member's health in the party column);
+    /// none draws them as interface.
+    pub tint: Option<Role>,
 }
 
 impl Row {
@@ -371,6 +374,7 @@ impl Screen {
                     (c.id, core::mem::discriminant(&c.kind), c.why_not.is_some()).hash(&mut h);
                 }
                 row.after.len().hash(&mut h);
+                row.tint.hash(&mut h);
             }
         }
         h.0

@@ -14,7 +14,8 @@ use super::hud::StatusText;
 use super::minimap::Minimap;
 pub use super::screen_draw::{Arrow, Pressable, Scrolls, Side, SliderOf, colour, shade};
 use super::screen_draw::{
-    LabelOf, MessageText, SpanAt, TitleText, build, shown_label, text_field, thumbs, wheel, width,
+    LabelOf, MessageText, SpanAt, TitleText, bars, build, shown_label, text_field, thumbs, wheel,
+    width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::{VectorSet, ViewState};
@@ -104,6 +105,7 @@ impl Plugin for ScreenPlugin {
                     super::roster::paint,
                     make_room,
                     thumbs,
+                    bars,
                     wheel,
                     chrome,
                 )

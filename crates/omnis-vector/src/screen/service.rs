@@ -73,6 +73,7 @@ fn offer_row(data: &Data, game: Game, view: &ServiceView, index: usize) -> Optio
     let offer = view.offers.get(index)?;
     let note = labels::offer_note(offer);
     Some(Row {
+        tint: None,
         spans: vec![Span::body(labels::offer_label(
             data,
             &game.views.party,
@@ -152,6 +153,7 @@ pub fn content(data: &Data, game: Game, bank: &str) -> Screen {
         view.food
     );
     let top = Row {
+        tint: None,
         spans: vec![Span::body(money)],
         controls: vec![Control::button(ControlId::Leave, "Leave")],
         after: Vec::new(),

@@ -38,8 +38,8 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   RUSTSEC-2026-0192.
 - Editor's toolkit: open until Editor v1 is planned. Bevy 0.20 not before 2026-11-07.
 - Backlog: removing or editing a party member. Unscheduled: `DevCommand::Pass`; the `data.*` ops;
-  `scripts/mcp-probe.py`. Small: nothing marks rows below a panel's fold (now felt on Tactics at 1280); pack
-  text not checked for non-ASCII.
+  `scripts/mcp-probe.py`. Small: pack text not checked for
+  non-ASCII.
 - The owner's asset work (`.gitignore`, `assets/`, two untracked `cutout-basic-*.svg`) is theirs. Never stage
   it; commit only named paths (`git commit -- <paths>`, after `git add` for new files).
 

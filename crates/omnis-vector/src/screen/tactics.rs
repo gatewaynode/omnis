@@ -265,6 +265,7 @@ fn list(data: &Data, game: Game, m: &MemberView, choices: &Choices) -> Vec<Row> 
             entry: entry.entry,
         });
         rows.push(Row {
+            tint: None,
             spans: vec![Span::body(entry_line(data, view, i, choices))],
             controls: vec![
                 button(TacticAct::Edit(at), "Edit", None),
@@ -342,6 +343,7 @@ fn form_rows(
     }
     match view.answers.get(form.action) {
         None => rows.push(Row {
+            tint: None,
             spans: vec![Span::body("Action")],
             controls: Vec::new(),
             after: vec![note("nothing to declare yet")],
@@ -374,6 +376,7 @@ fn form_rows(
         (form.conditions.len() >= CONDITIONS_MAX).then(|| "Fifteen conditions at most".to_owned())
     });
     rows.push(Row {
+        tint: None,
         spans: Vec::new(),
         controls: vec![
             choice(

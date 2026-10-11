@@ -67,6 +67,7 @@ fn spell_row(data: &Data, game: Game, forms: &Forms, at: u16, row: &CastView) ->
         after.push_str(&format!("  on {}", name(game, to)));
     }
     Row {
+        tint: None,
         spans: vec![Span::body(labels::spell(data, &row.spell))],
         controls: if game.views.combat.is_some() {
             Vec::new()

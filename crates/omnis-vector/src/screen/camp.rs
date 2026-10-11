@@ -76,6 +76,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
     let rest = &game.views.rest;
     let counts = counts(game, forms);
     let mut rows = vec![Row {
+        tint: None,
         spans: vec![Span::body(format!(
             "The night eats {} food; the stores hold {}",
             rest.long_food, rest.food
@@ -105,6 +106,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
             Vec::new()
         };
         rows.push(Row {
+            tint: None,
             spans: vec![Span::body(format!(
                 "{}  HP {}/{}  Hit dice {}/{} d{}",
                 shown.name,
@@ -124,6 +126,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
         refused(data, game, rest.refusal.as_ref(), &short(game, &counts))
     };
     rows.push(Row {
+        tint: None,
         spans: Vec::new(),
         controls: vec![Control {
             why_not: short_why,
@@ -133,6 +136,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
     });
     let long = Command::Rest(RestCommand::Long);
     rows.push(Row {
+        tint: None,
         spans: Vec::new(),
         controls: vec![Control {
             why_not: refused(data, game, rest.long_refusal.as_ref(), &long),

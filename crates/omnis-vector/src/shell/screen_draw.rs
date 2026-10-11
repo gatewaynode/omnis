@@ -11,7 +11,10 @@ use bevy::input_focus::AutoFocus;
 use bevy::prelude::*;
 use bevy::text::{EditableText, TextCursorStyle};
 use bevy::ui::RelativeCursorPosition;
-use bevy::ui_widgets::{Slider, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick};
+use bevy::ui_widgets::{
+    ControlOrientation, Scrollbar, ScrollbarThumb, Slider, SliderRange, SliderStep, SliderThumb,
+    SliderValue, TrackClick,
+};
 
 /// A control's node: pressing it, or typing in it, uses the control.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
@@ -252,13 +255,14 @@ fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
     c: &Control,
+    tint: Option<Role>,
     height: f32,
     mark: Mark,
 ) {
     let role = if c.why_not.is_some() {
         Role::Dim
     } else {
-        Role::Interface
+        tint.unwrap_or(Role::Interface)
     };
     match &c.kind {
         Kind::Button => {
@@ -366,7 +370,7 @@ pub(super) fn rows(
                     span_node(line, (p, r, s), span, height, mark);
                 }
                 for c in &row.controls {
-                    control_node(line, keys, c, height, mark);
+                    control_node(line, keys, c, row.tint, height, mark);
                 }
                 for (s, span) in row.after.iter().enumerate() {
                     span_node(line, (p, r, before + s), span, height, mark);
@@ -410,6 +414,50 @@ pub(super) fn wheel(
     }
 }
 
+/// The scrollbar's width, at the reference height.
+const BAR: f32 = 6.0;
+
+/// A panel's scrollbar: a dim track beside the rows and a thumb whose length is the share of
+/// them in view. Drawn only while the rows run past the panel's foot ([`bars`]); its gutter is
+/// kept either way, so showing it never moves the rows.
+fn scrollbar(pane: &mut ChildSpawnerCommands, rows_at: Entity, height: f32) {
+    pane.spawn((
+        Scrollbar::new(rows_at, ControlOrientation::Vertical, scaled(24.0, height)),
+        Node {
+            width: Val::Px(scaled(BAR, height).max(3.0)),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BackgroundColor(shade(1)),
+        Visibility::Hidden,
+    ))
+    .with_children(|bar| {
+        bar.spawn((
+            ScrollbarThumb::default(),
+            BackgroundColor(colour(Role::Interface)),
+        ));
+    });
+}
+
+/// Show each panel's scrollbar while its rows run past its foot, hide it when they fit.
+pub(super) fn bars(
+    areas: Query<&ComputedNode, With<Scrolls>>,
+    mut scrollbars: Query<(&Scrollbar, &mut Visibility)>,
+) {
+    for (bar, mut shown) in &mut scrollbars {
+        let Ok(area) = areas.get(bar.target) else {
+            continue;
+        };
+        // Half a pixel of slack, so rounding never shows a bar with nothing to scroll.
+        let over = area.content_size().y > area.size().y + 0.5;
+        shown.set_if_neq(if over {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        });
+    }
+}
+
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
 pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32) {
     let t = &screen.title;
@@ -426,23 +474,35 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                 columns
                     // Panels share the width equally, so one panel's long rows never squeeze
                     // the next into wrapping.
-                    .spawn((
-                        Scrolls,
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            flex_grow: 1.0,
-                            flex_basis: Val::Px(0.0),
-                            min_width: Val::Px(0.0),
-                            min_height: Val::Px(0.0),
-                            row_gap: Val::Px(scaled(8.0, height)),
-                            overflow: Overflow::scroll_y(),
-                            ..default()
-                        },
-                        ScrollPosition::default(),
-                        RelativeCursorPosition::default(),
-                    ))
-                    .with_children(|column| {
-                        rows(column, p, panel, &screen.keys, height, Mark::Screen)
+                    .spawn(Node {
+                        flex_grow: 1.0,
+                        flex_basis: Val::Px(0.0),
+                        min_width: Val::Px(0.0),
+                        min_height: Val::Px(0.0),
+                        column_gap: Val::Px(scaled(6.0, height)),
+                        ..default()
+                    })
+                    .with_children(|pane| {
+                        let rows_at = pane
+                            .spawn((
+                                Scrolls,
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_grow: 1.0,
+                                    min_width: Val::Px(0.0),
+                                    min_height: Val::Px(0.0),
+                                    row_gap: Val::Px(scaled(8.0, height)),
+                                    overflow: Overflow::scroll_y(),
+                                    ..default()
+                                },
+                                ScrollPosition::default(),
+                                RelativeCursorPosition::default(),
+                            ))
+                            .with_children(|column| {
+                                rows(column, p, panel, &screen.keys, height, Mark::Screen);
+                            })
+                            .id();
+                        scrollbar(pane, rows_at, height);
                     });
             }
         });

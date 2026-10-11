@@ -175,6 +175,7 @@ fn magic(data: &Data, game: Game, m: &MemberView) -> Vec<Row> {
             format!("{} pt", k.cost)
         };
         rows.push(Row {
+            tint: None,
             spans: vec![Span::body(labels::spell(data, &k.spell))],
             controls: Vec::new(),
             after: vec![note(format!("{cost}  {}", labels::pay(k.pay)))],
@@ -187,6 +188,7 @@ fn magic(data: &Data, game: Game, m: &MemberView) -> Vec<Row> {
     }
     for e in effects {
         rows.push(Row {
+            tint: None,
             spans: vec![Span::body(labels::spell(data, &e.spell))],
             controls: Vec::new(),
             after: vec![note(left(e))],
@@ -227,6 +229,7 @@ pub fn content(data: &Data, game: Game, forms: &Forms) -> Screen {
         .unwrap_or(0);
     let mut rows = vec![
         Row {
+            tint: None,
             spans: Vec::new(),
             controls: vec![
                 owner_choice(game, m.member, "Member"),
