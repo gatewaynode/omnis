@@ -1,4 +1,4 @@
-//! The explore message line (presentation-ARCHITECTURE §6.6; the other client's band message):
+//! The explore message line (presentation-ARCHITECTURE §6.6; the retired client's band message):
 //! the last event worth a line, or the last refusal in the alert role, at the bottom centre
 //! between the movement pad and the right-hand buttons. It shows only while the party explores
 //! with no screen up: a screen reports its own outcome, and a fight keeps its own log. It has

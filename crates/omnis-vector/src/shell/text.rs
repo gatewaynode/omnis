@@ -1,4 +1,4 @@
-//! HUD text for simulation events. Town lines are the other client's (`service_text.rs`), in
+//! HUD text for simulation events. Town lines are the retired client's (`service_text.rs`), in
 //! their long form, with prices in every coin.
 
 use crate::labels;
@@ -56,7 +56,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
     })
 }
 
-/// A line for an item or a spell event (the other client's `item_text.rs` and `spell_text.rs`,
+/// A line for an item or a spell event (the retired client's `item_text.rs` and `spell_text.rs`,
 /// the short form). An effect lapsing at a turn or with a fight is the fight log's alone.
 fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
     let who = |m: &CharacterId| names.member(*m);
@@ -237,7 +237,7 @@ fn town(event: &Event, names: &Names, data: &Data) -> Option<String> {
     })
 }
 
-/// A line for a rest or a change of tactics (the other client's `service_text.rs` and
+/// A line for a rest or a change of tactics (the retired client's `service_text.rs` and
 /// `spell_text.rs`).
 fn camp(event: &Event, names: &Names) -> Option<String> {
     Some(match event {
@@ -261,7 +261,7 @@ fn camp(event: &Event, names: &Names) -> Option<String> {
     })
 }
 
-/// A debugging edit, as the other client's debug panel logged it, with names for numbers.
+/// A debugging edit, as the retired client's debug panel logged it, with names for numbers.
 fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
     let who = |m: &CharacterId| names.member(*m);
     match command {

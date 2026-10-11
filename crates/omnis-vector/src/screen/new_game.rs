@@ -1,4 +1,4 @@
-//! The new game's form (presentation-ARCHITECTURE §6.7, from the other client's `NewGameForm`):
+//! The new game's form (presentation-ARCHITECTURE §6.7, from the retired client's `NewGameForm`):
 //! the seed, the save rule and permadeath, then Start or Back. A blank seed is drawn from the
 //! clock, a number is the seed as typed, and any other text is hashed, so a word names a world.
 

@@ -40,29 +40,33 @@ pub fn tools() -> Vec<Tool> {
     all
 }
 
-/// The screenshot tool: the canvas, or everything the window shows.
+/// The screenshot tool: what the game's window shows.
 fn screenshot_tool() -> Tool {
     tool(
         "screenshot",
         "screenshot",
-        "Save a PNG of the game and return it as an image (game mode only): the canvas at its internal resolution, or the window, which is the canvas as it is scaled with the window-space interface (the Feathers panels) over it.",
+        "Save a PNG of the game and return it as an image (game mode only): what the window shows, the view or the fight with every open panel over it.",
         &[
             Field::new::<Option<String>>(
                 "path",
                 false,
                 "A relative .png path; default .omnis/screenshot.png.",
             ),
-            Field::new::<Option<ShotTarget>>("target", false, "canvas (the default) or window."),
+            Field::new::<Option<ShotTarget>>(
+                "target",
+                false,
+                "canvas (the default) or window; the game captures what its window shows for either.",
+            ),
         ],
     )
 }
 
-/// The screen text tool: every open panel as text.
+/// The screen text tool: the text on screen.
 fn screen_text_tool() -> Tool {
     tool(
         "screen_text",
         "screen.text",
-        "The text of every open interface panel (game mode only), one line per control, label or text with its rectangle in window pixels: read a panel such as party creation or the enter/leave confirmation without a picture. The canvas screens (the view, the map, the sheet) are not panels; use screenshot for those.",
+        "The text on the game's screen (game mode only), one line per control, label or text with its rectangle in window pixels: read a panel such as party creation or a town service without a picture. The view's lines and the minimap are not text; use screenshot for those.",
         &[],
     )
 }

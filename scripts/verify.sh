@@ -5,7 +5,6 @@ set -e
 cd "$(dirname "$0")/.."
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo clippy -p omnis-app --no-default-features --lib --locked -- -D warnings
 cargo clippy -p omnis-vector --lib --locked -- -D warnings
 cargo clippy -p omnis-vector --no-default-features --lib --locked -- -D warnings
 cargo test --workspace --locked --no-fail-fast 2>&1 \

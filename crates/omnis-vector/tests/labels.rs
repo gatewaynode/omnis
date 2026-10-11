@@ -22,7 +22,7 @@ fn victory() -> Event {
 }
 
 /// A bribe's cost and the victory's loot are copper on the wire (docs/api.md §9); the lines
-/// name whole gold, as the other client does. They printed the copper as gold (bug, P2a).
+/// name whole gold, as the retired client did. They printed the copper as gold (bug, P2a).
 #[test]
 fn the_hud_names_a_bribe_and_the_loot_in_gold_not_copper() {
     let data = common::data();
@@ -219,7 +219,7 @@ fn rest_and_tactics_refusals_read_short_with_names() {
     }
 }
 
-/// The rest's and the tactics' events read as the other client's lines (`service_text.rs`,
+/// The rest's and the tactics' events read as the retired client's lines (`service_text.rs`,
 /// `spell_text.rs`; parity P6).
 #[test]
 fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
@@ -307,7 +307,7 @@ fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
     }
 }
 
-/// A debugging edit leaves a line, as the other client's `debug_menu::describe` did, with the
+/// A debugging edit leaves a line, as the retired client's `debug_menu::describe` did, with the
 /// member by name and the item, condition and map by their labels (parity P8). Red before P8c:
 /// no line was shown.
 #[test]

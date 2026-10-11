@@ -1,8 +1,8 @@
-//! A member's kit beside the party's stores (parity P5; the other client's `inventory_menu`).
+//! A member's kit beside the party's stores (parity P5; the retired client's `inventory_menu`).
 //! Each row offers what applies to it by the view's own facts (a slot to wear it in, a use), and
 //! every button is lit by a trial of its exact command, so a dim one carries the engine's
 //! reason. The member selected in the party column, which stands beside this screen, receives a
-//! give or a potion; Take fills the kit shown. Counts move one at a time, as in the other client.
+//! give or a potion; Take fills the kit shown. Counts move one at a time, as in the retired client.
 
 use super::{Control, ControlId, Effect, Forms, Game, Kind, Panel, Payload, Row, Screen};
 use super::{ScreenId, Span};

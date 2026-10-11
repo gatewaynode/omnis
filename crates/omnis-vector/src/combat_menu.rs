@@ -415,7 +415,7 @@ fn open(label: &str, step: Step, why: Option<&str>) -> Entry {
 
 fn encounter(world: &SimWorld, data: &Data, view: &CombatView) -> Vec<Entry> {
     let party = world.party(data);
-    // The view's price is copper; the label says whole gold rounded down, as the other client.
+    // The view's price is copper; the label says whole gold rounded down, as the retired client.
     let bribe = view.bribe.map_or_else(
         || "Bribe".to_owned(),
         |cost| format!("Bribe ({} gold)", gp_floor(cost)),

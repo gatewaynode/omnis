@@ -70,7 +70,7 @@ fn the_views_hold_the_service_inside_and_none_outside() {
 }
 
 /// A purchase the party cannot pay keeps its price beside the reason, and a sale names the
-/// stores' count (the other client's `service_panel` words).
+/// stores' count (the retired client's `service_panel` words).
 #[test]
 fn the_smith_s_rows_name_the_item_its_price_and_why_not() {
     let data = common::data();
@@ -152,7 +152,7 @@ fn a_rest_refused_too_soon_says_how_long_to_wait() {
     );
 }
 
-/// The HUD's lines for a tavern visit, from the door to the price (the other client's
+/// The HUD's lines for a tavern visit, from the door to the price (the retired client's
 /// `a_night_at_the_inn_reads_from_the_door_to_the_price`).
 #[test]
 fn a_tavern_visit_reads_from_the_door_to_the_rumor() {
@@ -303,7 +303,7 @@ fn each_service_opens_with_its_money_leave_and_lists_in_the_other_client_s_order
 }
 
 /// Every offer but leaving is a button that sends exactly the view's command, and the engine
-/// takes every live one; a refused one is dim with the other client's reason (the other
+/// takes every live one; a refused one is dim with the retired client's reason (the other
 /// client's `every_offer_sends_what_the_view_promised`).
 #[test]
 fn every_offer_sends_what_the_view_promised_and_nothing_it_refuses() {

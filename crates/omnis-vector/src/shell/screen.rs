@@ -330,7 +330,7 @@ fn route(
                 Escape::Closed | Escape::Paused | Escape::Nothing => {}
             }
         } else if used.keys.just_pressed(KeyCode::Backquote) {
-            // The debug panel, as the other client's backtick: opened where it is allowed.
+            // The debug panel, as the retired client's backtick: opened where it is allowed.
             screens.nav.toggle(ScreenId::Debug, game);
         }
     }

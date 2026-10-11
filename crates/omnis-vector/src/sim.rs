@@ -200,7 +200,7 @@ fn position(data: &Data, here: &Here) -> Option<Position> {
 }
 
 /// The settings a game starts with: the player's choices, and `Dev` commands accepted in builds
-/// with the developer tools (as the other client's `game_settings`), so the dev socket's
+/// with the developer tools (as the retired client's `game_settings`), so the dev socket's
 /// `time.reconcile` and the debug tools work there. A save says what it was started with.
 #[must_use]
 pub fn game_settings(base: Settings) -> Settings {
@@ -232,7 +232,7 @@ pub struct Views {
     /// shows at the next refresh).
     pub creation: CreationView,
     /// Every world flag with its value, in registry order; only in a devtools world, for the
-    /// debug panel (the other client's rule).
+    /// debug panel (the retired client's rule).
     pub flags: Vec<(String, i64)>,
 }
 

@@ -1,4 +1,4 @@
-//! Tactics (parity P6; the other client's tactics panel): one member's declared reactions, in
+//! Tactics (parity P6; the retired client's tactics panel): one member's declared reactions, in
 //! the order they are considered, with Edit and Remove; the reactions switch; and a form that
 //! writes a reaction: an action the member could declare (`TacticsView.answers`), the trigger
 //! it answers, and conditions joined by all or any. Opened over the sheet outside a fight, the

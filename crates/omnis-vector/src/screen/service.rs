@@ -1,5 +1,5 @@
 //! Inside a town service (parity P4): the party's money, the service's lists of offers by kind
-//! as the other client shows them, and Leave. Each offer is a row: what it names, a button with
+//! as the retired client shows them, and Leave. Each offer is a row: what it names, a button with
 //! its caption, dim with the rules' reason when they would refuse it, and its price or what it
 //! pays. The bank has no list; it takes an amount of whole gold to pay in or draw out. Every
 //! offer, price and refusal is the engine's (`service_view`); this module only words and
@@ -37,7 +37,7 @@ fn dim(text: impl Into<String>, size: Size) -> Span {
 }
 
 /// The lists a kind of service shows, each a heading and its offers by index into the view's
-/// offers (the other client's `feathers_service::lists`). Leaving is never in a list.
+/// offers (the retired client's `feathers_service::lists`). Leaving is never in a list.
 fn lists(view: &ServiceView) -> Vec<(&'static str, Vec<usize>)> {
     let pick = |wanted: fn(&ServiceCommand) -> bool| -> Vec<usize> {
         view.offers

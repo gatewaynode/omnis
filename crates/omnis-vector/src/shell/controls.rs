@@ -215,7 +215,7 @@ fn press(
 }
 
 /// Light the Camp button while the world allows a camp (exploring, outside a service and a
-/// fight; the other client's tool bar), and dim it otherwise: a dim button takes no clicks.
+/// fight; the retired client's tool bar), and dim it otherwise: a dim button takes no clicks.
 fn light(
     mut commands: Commands,
     session: Option<Res<Session>>,

@@ -1,4 +1,4 @@
-//! The game paused (presentation-ARCHITECTURE §6.3, §6.7, from the other client's pause): the
+//! The game paused (presentation-ARCHITECTURE §6.3, §6.7, from the retired client's pause): the
 //! game's seed and settings, then Resume, Save, Load, Save log, Settings, Debug (dim outside a
 //! devtools world) and Quit to title, and Quit in its own row, set apart from the rest (PRD §7). A control that cannot be used now says why: the
 //! save rule forbids saving here, there is no save to load, the log no longer replays.

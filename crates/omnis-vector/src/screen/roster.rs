@@ -1,4 +1,4 @@
-//! The party column (presentation-ARCHITECTURE §6.6; from the other client's roster band): each
+//! The party column (presentation-ARCHITECTURE §6.6; from the retired client's roster band): each
 //! member in marching order under a "front" or "back" word, with their class and level, hit
 //! points, spell points, armour class and the first condition or effect. A member is selected
 //! by pressing their entry; the selected member's screens open from the row under it. The

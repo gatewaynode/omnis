@@ -1,8 +1,8 @@
-//! The debug panel (parity P8, presentation-ARCHITECTURE §10.6; the other client's debug panel):
+//! The debug panel (parity P8, presentation-ARCHITECTURE §10.6; the retired client's debug panel):
 //! a devtools world's edits on four pages, switched like the sheet's (owner, 2026-10-11): a
 //! member's numbers and conditions; the party's money, food and items; the world's flags and a
 //! teleport; the fight's stacks. Numbers are typed (digits only) and sent by the button beside
-//! them, saturated to the command's type with no game limit, as the other client did. Every
+//! them, saturated to the command's type with no game limit, as the retired client did. Every
 //! button is lit by a trial of the command it sends, so the engine's refusal stands where the
 //! other client had its own greys ("no teleport in a fight"). A field shows what was typed, or
 //! else the world's value; an accepted edit clears what was typed, so the field reads the world.

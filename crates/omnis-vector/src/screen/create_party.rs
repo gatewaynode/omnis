@@ -1,4 +1,4 @@
-//! Party creation (presentation-ARCHITECTURE §6.3, §6.7; from the other client's creation
+//! Party creation (presentation-ARCHITECTURE §6.3, §6.7; from the retired client's creation
 //! panel): a new game's party is made one member at a time. The draft's name, race, class,
 //! background and alignment on the left, with the class's skill picks; the six bought scores on
 //! the right with their cost, the points spent and the party so far; then Add member, Begin and

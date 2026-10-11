@@ -1,4 +1,4 @@
-//! The character sheet (parity P6; the other client's sheet): one member's numbers on three
+//! The character sheet (parity P6; the retired client's sheet): one member's numbers on three
 //! pages, Stats, Magic and Gear, picked from a choice under the member's. Opened from the party
 //! column's Sheet, which stands beside it; in a fight it only looks, and its Tactics button,
 //! which opens the member's declared reactions over it, is dim. Every figure is the member

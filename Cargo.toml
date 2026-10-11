@@ -9,7 +9,6 @@ members = [
     "crates/omnis-data",
     "crates/omnis-rules",
     "crates/omnis-sim",
-    "crates/omnis-app",
     "crates/omnis-cli",
     "crates/omnis-mcp",
     # The game client (presentation-PRD.md, ARCHITECTURE A18); not a simulation crate.

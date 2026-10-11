@@ -121,7 +121,7 @@ pub fn message(data: &Data, key: MessageKey) -> &str {
     }
 }
 
-/// A purse or price in copper by coin, largest first: `15 gp 3 sp 7 cp` (as the other client
+/// A purse or price in copper by coin, largest first: `15 gp 3 sp 7 cp` (as the retired client
 /// shows town prices and purses).
 #[must_use]
 pub fn coins(cp: u32) -> String {
@@ -228,7 +228,7 @@ pub fn creation_refusal(rejection: &Rejection, picks: usize, choose: u8) -> Stri
 }
 
 /// How long ago something happened, as a rumor tells it: "today", "yesterday", "3 days ago",
-/// "a month ago", "2 years ago" (the other client's `ago_text`).
+/// "a month ago", "2 years ago" (the retired client's `ago_text`).
 #[must_use]
 pub fn ago(minutes: i64, calendar: Calendar) -> String {
     let days = calendar.day(minutes.max(0));
@@ -264,7 +264,7 @@ pub fn rumor(data: &Data, service: &str, row: u16, ago_minutes: i64) -> String {
     omnis_sim::omnis_data::text::fill(said, &[("ago", &when)])
 }
 
-/// An offer's row label in a service (the other client's `service_panel::row_label`): "A
+/// An offer's row label in a service (the retired client's `service_panel::row_label`): "A
 /// night's rest", "Longsword", "Dagger x2", "Brenna, 5 of 12 HP", "Brenna, level 1 to 2",
 /// "Ilvara: Shatter". Names come from the party view and the packs.
 #[must_use]
@@ -353,7 +353,7 @@ pub fn offer_note(offer: &OfferView) -> String {
     }
 }
 
-/// A service's refusal in a few words, for a dim button (the other client's
+/// A service's refusal in a few words, for a dim button (the retired client's
 /// `service_panel::reason`); anything else in the engine's own words.
 #[must_use]
 pub fn service_reason(refusal: &Rejection) -> String {
@@ -376,7 +376,7 @@ pub fn service_reason(refusal: &Rejection) -> String {
     }
 }
 
-/// An equipment slot's name (the other client's `sheet_menu::slot_label`).
+/// An equipment slot's name (the retired client's `sheet_menu::slot_label`).
 #[must_use]
 pub const fn slot(slot: EquipSlot) -> &'static str {
     match slot {
@@ -407,7 +407,7 @@ fn named(party: &PartyView, member: CharacterId) -> &str {
         .map_or("someone", |m| m.name.as_str())
 }
 
-/// An item's, a road cast's, a rest's or a tactic's refusal in a few words, for a dim button (the other client's
+/// An item's, a road cast's, a rest's or a tactic's refusal in a few words, for a dim button (the retired client's
 /// `blocked_note` and inventory messages): members by name where the engine's words give their
 /// number; anything else in the engine's own words.
 #[must_use]
@@ -426,7 +426,7 @@ pub fn reason(party: &PartyView, refusal: &Rejection) -> String {
         Rejection::NotUsableHere => "not from a fight".to_owned(),
         // The fight's features (the engine's words name the feature by its key).
         Rejection::NoUsesLeft { .. } => "no uses left until a rest".to_owned(),
-        // Rests (the other client's camp notes).
+        // Rests (the retired client's camp notes).
         Rejection::RestTooSoon { minutes } => format!(
             "rested too recently ({}h {:02}m)",
             minutes / 60,

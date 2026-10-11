@@ -1,6 +1,6 @@
 //! `DevSocketPlugin` (feature `devtools`): the loopback listener the MCP bridge and scripts talk
-//! to (ARCHITECTURE.md §9.1), the same address file, transport and ops `omnis-app` serves, so
-//! `omnis-mcp` does not change. Newline-delimited JSON: one request per line,
+//! to (ARCHITECTURE.md §9.1): the address file `omnis-mcp` reads, the transport and the ops of
+//! `docs/api.md`. Newline-delimited JSON: one request per line,
 //! `{"id": .., "op": "<name>", "args": {..}}`, one reply per line,
 //! `{"id": .., "ok": true, "result": ..}` or `{"id": .., "ok": false, "error": {"kind": ..}}`.
 //!
@@ -10,9 +10,6 @@
 //! that holds the whole world (`shell/screen_text.rs`). One client at a time, loopback only.
 //! Every line is untrusted (§6.2): longer than `MAX_LINE` bytes and the client is told so and
 //! dropped.
-//!
-//! The framing (`parse_request`, `encode`, the client buffers) is `omnis-app`'s, copied: that
-//! copy goes when `omnis-app` is retired (tasks/TODO.md, parity P9).
 
 use super::VectorSet;
 use super::capture::{ShotRequest, ShotSaved};

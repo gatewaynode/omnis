@@ -1,4 +1,4 @@
-//! Spells on the road (parity P5; the other client's road cast menu): the shown member's spells
+//! Spells on the road (parity P5; the retired client's road cast menu): the shown member's spells
 //! castable outside a fight, each with its cost and a Cast button dim with the reason the view
 //! or a trial of the exact command gives. A spell aimed at a member goes to the one selected in
 //! the party column, which stands beside this screen, or else to the caster. The screen stays

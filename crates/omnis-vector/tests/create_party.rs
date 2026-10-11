@@ -1,6 +1,6 @@
 //! Party creation (parity P3, presentation-ARCHITECTURE §6.7): the screen offers what the
 //! engine's creation view allows, shows the running cost and the picks, says why Add or Begin
-//! cannot be used in the engine's order and the old client's words, and adds the draft the form
+//! cannot be used in the engine's order and the retired client's words, and adds the draft the form
 //! describes. Model tests, no window; the app's run through it is in `screens.rs`.
 
 use crate::common;

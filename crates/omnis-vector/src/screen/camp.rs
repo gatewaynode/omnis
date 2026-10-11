@@ -1,4 +1,4 @@
-//! Camp (parity P6; the other client's camp panel): each member's hit points and hit dice with
+//! Camp (parity P6; the retired client's camp panel): each member's hit points and hit dice with
 //! how many to spend, a short rest that spends them, and a long rest with the food it eats or
 //! why it cannot be taken. Opened from the Camp button while exploring; the party column
 //! stands beside it. Every button is lit by the rest view's refusal, then a trial of its exact
@@ -60,7 +60,7 @@ fn refused(data: &Data, game: Game, view: Option<&Rejection>, command: &Command)
         .map(|r| labels::reason(&game.views.party, &r))
 }
 
-/// Why a member spends no dice (the other client's `dice_note`), or how many.
+/// Why a member spends no dice (the retired client's `dice_note`), or how many.
 fn dice_note(member: &CampMember, count: u8) -> String {
     match member.spendable {
         0 if member.hit_dice_left == 0 => "no hit dice left".to_owned(),
