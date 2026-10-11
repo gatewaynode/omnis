@@ -9,12 +9,13 @@
 //! the roll log, the reshape flag and the pose.
 
 use super::session::Session;
+use crate::game_io;
 use crate::pose::Pose;
 use omnis_sim::omnis_data::load_packs;
-use omnis_sim::omnis_data::ron_io::read_text;
-use omnis_sim::ops::{client_path, load_text, rules_set};
+use omnis_sim::ops::rules_set;
 use omnis_sim::{Command, DevCommand, Op, OpError, PartyCommand, Reply};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Answer one op. Relative paths in it (saves) are taken under `root`, the directory the
 /// bridge reads them from.
@@ -24,18 +25,11 @@ use std::path::{Path, PathBuf};
 pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpError> {
     match op {
         Op::SaveWrite { path } => {
-            let file = root.join(client_path(path, &["ron"])?);
-            let text = session.world.save_text()?;
-            if let Some(parent) = file.parent() {
-                std::fs::create_dir_all(parent).map_err(OpError::failed)?;
-            }
-            std::fs::write(&file, text).map_err(OpError::failed)?;
+            game_io::save(&session.world, root, path)?;
             Ok(Reply::Written { path: path.clone() })
         }
         Op::SaveRead { path, force } => {
-            let file = root.join(client_path(path, &["ron"])?);
-            let text = read_text(&file, Path::new(path)).map_err(OpError::failed)?;
-            let world = load_text(&text, &session.data, *force)?;
+            let world = game_io::load(&session.data, root, path, *force)?;
             session.replace(world, &format!("the save {path} was loaded"));
             session.world.status(&session.data).map(Reply::Status)
         }
@@ -43,14 +37,14 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
             let roots: Vec<&Path> = session.config.packs.iter().map(PathBuf::as_path).collect();
             let fresh = load_packs(&roots).map_err(OpError::failed)?;
             session.world.check_reload(&fresh)?;
-            session.data = fresh;
+            session.data = Arc::new(fresh);
             session.refresh();
             session.reshape = true;
             session.unreplayable = Some("the packs were reloaded".to_owned());
             Ok(Reply::Done {})
         }
         Op::RulesSet { slot, source } => {
-            let reply = rules_set(&mut session.data, slot, source)?;
+            let reply = rules_set(Arc::make_mut(&mut session.data), slot, source)?;
             session.refresh();
             session.unreplayable = Some(format!("the rule {slot} was set"));
             Ok(reply)

@@ -15,7 +15,7 @@ use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::screen::ScreenPlugin;
-use omnis_vector::shell::session::{Config, Session};
+use omnis_vector::shell::session::{Config, Packs, Session};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -78,13 +78,30 @@ pub fn app_logging_to(log: PathBuf) -> App {
 }
 
 pub fn app_with(log: PathBuf, seed: u64) -> App {
+    shell(
+        Config {
+            log,
+            seed,
+            ..config()
+        },
+        true,
+    )
+}
+
+/// The command line the tests run with: the shipped packs.
+pub fn config() -> Config {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
-    let config = Config {
+    Config {
         packs: vec![root.join("base"), root.join("test")],
-        log,
-        seed,
+        // Never the player's quick save: a test that saves names its own file.
+        save: ".omnis/test-saves/none.ron".to_owned(),
         ..Config::default()
-    };
+    }
+}
+
+/// The headless shell with the packs from `config`, in a game started from it when `in_game`,
+/// otherwise at the title.
+pub fn shell(config: Config, in_game: bool) -> App {
     let mut app = App::new();
     app.add_plugins((
         MinimalPlugins,
@@ -99,8 +116,33 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,
     )))
-    .insert_resource(Session::start(&config).expect("the shipped packs start a session"));
+    .insert_resource(Packs::load(&config).expect("the shipped packs load"));
+    if in_game {
+        app.insert_resource(Session::start(&config).expect("the shipped packs start a session"));
+    }
     app
+}
+
+/// The shell at the title: the packs loaded, no game yet; saves go to `save`.
+pub fn app_at_title(save: &str) -> App {
+    shell(
+        Config {
+            save: save.to_owned(),
+            ..config()
+        },
+        false,
+    )
+}
+
+/// The shell in a game at the town's start, saving to `save`.
+pub fn app_in_game(save: &str) -> App {
+    shell(
+        Config {
+            save: save.to_owned(),
+            ..config()
+        },
+        true,
+    )
 }
 
 /// Set the interaction of every button carrying `marker`, as the UI's picking would.

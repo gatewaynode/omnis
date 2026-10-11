@@ -37,7 +37,9 @@ fn a_fallen_party_is_offered_a_fresh_start() {
     }
     app.update();
     let start_again = Pressable(ControlId::StartAgain);
-    assert_eq!(enabled(&mut app), vec![start_again]);
+    let to_title = Pressable(ControlId::QuitToTitle);
+    // Load last save is dim: these tests save nowhere.
+    assert_eq!(enabled(&mut app), vec![start_again, to_title]);
     // A fallen party does not walk.
     set(&mut app, &Action::Forward, Interaction::Pressed);
     for _ in 0..30 {

@@ -11,17 +11,27 @@
 pub mod actions;
 pub mod defeat;
 pub mod nav;
+pub mod new_game;
+pub mod pause;
 pub mod service;
+pub mod title;
 
 use crate::sim::{SimWorld, Views};
 use crate::style::{Role, Size};
 use core::hash::{Hash, Hasher};
-use omnis_sim::Command;
+use new_game::NewGameForm;
 use omnis_sim::omnis_data::Data;
+use omnis_sim::{Command, Settings};
 
 /// Which screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScreenId {
+    /// The title: no game yet.
+    Title,
+    /// The new game's seed and settings.
+    NewGame,
+    /// The game paused: save, load, leave.
+    Pause,
     /// The square's actions (Space).
     Actions,
     /// Inside a town service (the stopgap until P4).
@@ -41,6 +51,30 @@ pub enum ControlId {
     Leave,
     /// Start the same game again.
     StartAgain,
+    /// Start a new game: open the form, or start it from the form.
+    NewGame,
+    /// Start the game the form describes.
+    Start,
+    /// The seed field.
+    Seed,
+    /// The save rule.
+    Rule,
+    /// Permadeath on or off.
+    Permadeath,
+    /// Back to the screen before.
+    Back,
+    /// Close the pause.
+    Resume,
+    /// Save to the quick save.
+    Save,
+    /// Load the quick save.
+    Load,
+    /// Write the command log as a replay.
+    SaveLog,
+    /// End the game and go back to the title.
+    QuitToTitle,
+    /// Leave the program.
+    Quit,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -98,6 +132,20 @@ impl Span {
 pub enum Kind {
     /// Pressed.
     Button,
+    /// One of `options`, stepped left and right (a press steps right); `at` is the current one.
+    Choice {
+        /// The options' words.
+        options: Vec<String>,
+        /// The current option.
+        at: usize,
+    },
+    /// Typed text, at most `max` bytes.
+    Text {
+        /// The text.
+        value: String,
+        /// The most bytes it takes.
+        max: usize,
+    },
 }
 
 /// A control: what it is, what it says, and why it cannot be used now, if it cannot.
@@ -173,6 +221,8 @@ pub struct Screen {
     pub panels: Vec<Panel>,
     /// Shortcuts: each names a control on this screen.
     pub keys: Vec<(Key, ControlId)>,
+    /// The last outcome to report (saved, failed to load), under the panels.
+    pub message: Option<Span>,
 }
 
 impl Screen {
@@ -236,6 +286,12 @@ impl Hasher for Fnv {
 pub enum Payload {
     /// Pressed, or its key.
     Press,
+    /// A choice stepped left.
+    Left,
+    /// A choice stepped right.
+    Right,
+    /// A text field's new text.
+    Text(String),
 }
 
 /// The client's own work a screen asks for: what is not a command to the simulation.
@@ -243,6 +299,19 @@ pub enum Payload {
 pub enum HostOp {
     /// Start the same game again.
     Restart,
+    /// Start a new game.
+    NewGame {
+        /// Its seed.
+        seed: u64,
+        /// Its settings.
+        settings: Settings,
+    },
+    /// Save to the quick save.
+    Save,
+    /// Load the quick save.
+    Load,
+    /// Write the command log as a replay.
+    SaveLog,
 }
 
 /// What the shell does after a control was used.
@@ -262,6 +331,12 @@ pub enum Effect {
     Host(HostOp),
     /// Close the top screen.
     Back,
+    /// Open a screen over this one.
+    Open(ScreenId),
+    /// End the game and go back to the title.
+    ToTitle,
+    /// Leave the program.
+    Quit,
 }
 
 /// Why [`apply`] did nothing.
@@ -273,6 +348,8 @@ pub enum Refused {
     Dim(String),
     /// The control does not take that payload.
     WrongPayload,
+    /// The text is longer than the field takes; its limit in bytes.
+    TooLong(usize),
 }
 
 /// The game a screen looks at, when one is running.
@@ -282,6 +359,27 @@ pub struct Game<'a> {
     pub world: &'a SimWorld,
     /// The views, as of the last change.
     pub views: &'a Views,
+    /// The current or last fight's roll log.
+    pub log: &'a [String],
+    /// Why the command log no longer replays, if it does not.
+    pub unreplayable: Option<&'a str>,
+}
+
+/// The quick save: where it is, and whether there is one to load.
+#[derive(Debug, Clone, Copy)]
+pub struct Slot<'a> {
+    /// Its path, relative to the working directory.
+    pub path: &'a str,
+    /// Whether the file is there.
+    pub exists: bool,
+}
+
+impl Slot<'_> {
+    /// Why Load cannot be used, when there is nothing to load.
+    #[must_use]
+    pub fn missing(&self) -> Option<String> {
+        (!self.exists).then(|| format!("no save at {}", self.path))
+    }
 }
 
 /// What every screen may read.
@@ -289,42 +387,84 @@ pub struct Game<'a> {
 pub struct Ctx<'a> {
     /// The packs, for labels and catalogues only (VA9).
     pub data: &'a Data,
-    /// The running game.
-    pub game: Game<'a>,
+    /// The running game, if one is.
+    pub game: Option<Game<'a>>,
+    /// The quick save.
+    pub save: Slot<'a>,
+}
+
+/// What screens keep between frames: the forms being filled, and the last outcome to report.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Forms {
+    /// The new game's form; kept across Back, so it reopens as it was left.
+    pub new_game: NewGameForm,
+    /// The last outcome to report (saved, failed to load); cleared when the screen changes.
+    pub message: Option<Span>,
+}
+
+/// A screen with nothing on it, for one asked for without the game it needs.
+fn empty(id: ScreenId) -> Screen {
+    Screen {
+        id,
+        title: Span::title(""),
+        panels: Vec::new(),
+        keys: Vec::new(),
+        message: None,
+    }
 }
 
 /// The screen `id` as it stands.
 #[must_use]
-pub fn content(id: ScreenId, ctx: &Ctx) -> Screen {
-    match id {
-        ScreenId::Actions => actions::content(ctx),
-        ScreenId::Service => service::content(ctx),
-        ScreenId::Defeat => defeat::content(),
-    }
+pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
+    let mut screen = match (id, ctx.game) {
+        (ScreenId::Title, _) => title::content(ctx),
+        (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
+        (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
+        (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
+        (ScreenId::Service, Some(game)) => service::content(ctx.data, game),
+        (ScreenId::Defeat, Some(game)) => defeat::content(ctx, game),
+        (id, None) => empty(id),
+    };
+    screen.message.clone_from(&forms.message);
+    screen
 }
 
-/// Use control `control` of screen `id` with `payload`.
+/// Use control `control` of screen `id` with `payload`. `entropy` seeds a game whose seed was
+/// left blank; the shell passes the clock's, a test a fixed number.
 ///
 /// # Errors
-/// [`Refused`] when the screen has no such control, the control is dim, or it does not take the
-/// payload; nothing is done.
+/// [`Refused`] when the screen has no such control, the control is dim, it does not take the
+/// payload, or the text is too long; nothing is done.
 pub fn apply(
     id: ScreenId,
     ctx: &Ctx,
+    forms: &mut Forms,
     control: ControlId,
     payload: &Payload,
+    entropy: u64,
 ) -> Result<Effect, Refused> {
-    let screen = content(id, ctx);
+    let screen = content(id, ctx, forms);
     let found = screen.control(control).ok_or(Refused::NotHere)?;
     if let Some(why) = &found.why_not {
         return Err(Refused::Dim(why.clone()));
     }
     match (&found.kind, payload) {
-        (Kind::Button, Payload::Press) => {}
+        (Kind::Button, Payload::Press)
+        | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
+        (Kind::Text { max, .. }, Payload::Text(text)) => {
+            if text.len() > *max {
+                return Err(Refused::TooLong(*max));
+            }
+        }
+        _ => return Err(Refused::WrongPayload),
     }
-    Ok(match id {
-        ScreenId::Actions => actions::apply(ctx, control),
-        ScreenId::Service => service::apply(control),
-        ScreenId::Defeat => defeat::apply(control),
+    Ok(match (id, ctx.game) {
+        (ScreenId::Title, _) => title::apply(control),
+        (ScreenId::NewGame, _) => new_game::apply(&mut forms.new_game, control, payload, entropy),
+        (ScreenId::Pause, _) => pause::apply(control),
+        (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
+        (ScreenId::Service, _) => service::apply(control),
+        (ScreenId::Defeat, _) => defeat::apply(control),
+        (ScreenId::Actions, None) => Effect::None,
     })
 }

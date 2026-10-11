@@ -226,7 +226,7 @@ fn the_interface_reads_back(app: &mut App, peer: &mut Peer) {
     let reply = peer.send(app, r#"{"id": 10, "op": "screen.text"}"#);
     assert_eq!(reply["id"], json!(10), "{reply}");
     let text = reply["result"]["text"].as_str().unwrap();
-    for label in ["Forward  W", "Actions  Space", "Save log"] {
+    for label in ["Forward  W", "Actions  Space", "Menu  Esc"] {
         assert!(
             text.lines()
                 .any(|l| l.contains("[button]") && l.contains(label)),
@@ -304,4 +304,40 @@ fn a_client_drives_the_vector_client_over_loopback() {
     the_interface_reads_back(&mut app, &mut peer);
     saves_stop_the_log_replaying(&mut app, &mut peer, &dir);
     second_client_and_flood(&mut app, &mut peer, addr);
+}
+
+/// At the title there is no game: every op but the screen's says so, and the screen reads back.
+#[test]
+fn at_the_title_the_socket_says_no_game_runs_and_reads_the_screen() {
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("vector-socket-title");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let addr_file = dir.join("dev.addr");
+    let mut app = crate::common::app::app_at_title(".omnis/test-saves/none.ron");
+    app.add_plugins((
+        CapturePlugin,
+        DevSocketPlugin {
+            addr: "127.0.0.1:0".into(),
+            addr_file: addr_file.clone(),
+            root: dir.clone(),
+        },
+    ));
+    app.update();
+    let addr: SocketAddr = std::fs::read_to_string(&addr_file)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let mut peer = Peer::connect(addr);
+    let reply = peer.send(&mut app, r#"{"id": 1, "op": "game.status"}"#);
+    assert_eq!(reply["ok"], json!(false), "{reply}");
+    assert_eq!(
+        reply["error"]["message"],
+        json!(omnis_vector::shell::socket::NO_GAME)
+    );
+    let reply = peer.send(&mut app, r#"{"id": 2, "op": "screen.text"}"#);
+    let text = reply["result"]["text"].as_str().unwrap();
+    assert!(text.contains("\"OMNIS\""), "{text}");
+    assert!(text.contains("[button] \"New game\""), "{text}");
+    let _ = std::fs::remove_dir_all(&dir);
 }

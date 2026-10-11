@@ -86,8 +86,24 @@ fn the_save_button_writes_a_log_that_replays() {
         app.update();
     }
     set(&mut app, &Action::Forward, Interaction::None);
-    set(&mut app, &Action::SaveLog, Interaction::Pressed);
+    // The log is saved from the pause, which the Menu button opens.
+    set(&mut app, &Action::Menu, Interaction::Pressed);
     app.update();
+    app.update();
+    set(
+        &mut app,
+        &omnis_vector::shell::screen::Pressable(omnis_vector::screen::ControlId::SaveLog),
+        Interaction::Pressed,
+    );
+    app.update();
+    let message = app
+        .world()
+        .resource::<omnis_vector::shell::screen::Screens>()
+        .forms
+        .message
+        .clone()
+        .expect("an outcome");
+    assert!(message.text.starts_with("Log saved"), "{message:?}");
     let session = app.world().resource::<Session>();
     let saved: omnis_sim::Replay =
         omnis_sim::omnis_data::ron_io::read_ron(&path, &path).expect("the log was written");
@@ -96,7 +112,6 @@ fn the_save_button_writes_a_log_that_replays() {
         saved.fingerprint,
         session.world.fingerprint().expect("a fingerprint")
     );
-    assert!(session.lines.iter().any(|l| l.starts_with("Log saved")));
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -115,13 +130,13 @@ fn corner_of(app: &mut App, action: Action) -> Corner {
 }
 
 #[test]
-fn quit_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
+fn the_menu_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
     let mut app = app();
     app.update();
     for action in [Action::Forward, Action::Back, Action::TurnLeft] {
         assert_eq!(corner_of(&mut app, action), Corner::Left, "{action:?}");
     }
-    for action in [Action::Quit, Action::SaveLog, Action::Actions] {
+    for action in [Action::Menu, Action::Actions] {
         assert_eq!(corner_of(&mut app, action), Corner::Right, "{action:?}");
     }
     let world = app.world_mut();
@@ -151,7 +166,7 @@ fn the_hud_reports_a_smoothed_frame_rate_and_frame_time() {
 fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
     use omnis_sim::omnis_core::{Direction, Rotation};
     use omnis_sim::{Command, Mode, ServiceCommand};
-    use omnis_vector::screen::{self, ControlId, ScreenId};
+    use omnis_vector::screen::{self, ControlId, Forms, ScreenId};
     use omnis_vector::shell::screen::{Pressable, Screens, ctx};
     // The game's start: the street at (10, 2) facing West, the guild's door to the north.
     let mut app = common::app::app_with(".omnis/vector-session.ron".into(), 1);
@@ -166,12 +181,15 @@ fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
     app.update();
     let top = |app: &App| {
         let session = app.world().resource::<Session>();
-        app.world().resource::<Screens>().nav.top(&session.views)
+        app.world()
+            .resource::<Screens>()
+            .nav
+            .top(Some(&session.views))
     };
     assert_eq!(top(&app), Some(ScreenId::Service));
     {
         let session = app.world().resource::<Session>();
-        let shown = screen::content(ScreenId::Service, &ctx(session));
+        let shown = screen::content(ScreenId::Service, &ctx(session), &Forms::default());
         let first = &shown.panels[0].rows[0].spans[0].text;
         assert!(first.contains("not in this client yet"), "{shown:?}");
         let ids: Vec<_> = shown.controls().map(|c| c.id).collect();
@@ -186,7 +204,10 @@ fn a_service_shows_the_town_notice_and_leave_steps_back_out() {
         "back on the street"
     );
     assert_eq!(
-        app.world().resource::<Screens>().nav.top(&session.views),
+        app.world()
+            .resource::<Screens>()
+            .nav
+            .top(Some(&session.views)),
         None,
         "the notice closed"
     );

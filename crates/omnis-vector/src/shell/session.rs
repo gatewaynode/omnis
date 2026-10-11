@@ -6,19 +6,27 @@ use crate::grid::cell_of;
 use crate::party;
 use crate::pose::Pose;
 use crate::rolllog::{self, Names};
-use crate::sim::{SimWorld, Views};
+use crate::sim::{SimWorld, Views, game_settings};
 use bevy::prelude::Resource;
 use omnis_sim::omnis_data::{Data, load_packs};
-use omnis_sim::{Command, Event, PartyCommand, Settings};
+use omnis_sim::ops::client_path;
+use omnis_sim::{Command, Event, PartyCommand, Settings, World};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
 /// What the command line asked for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     /// Pack roots, loaded in order.
     pub packs: Vec<PathBuf>,
-    /// The world seed.
+    /// The world seed for a game started from the command line.
     pub seed: u64,
+    /// Start in a game at once (`--seed`), not at the title.
+    pub play: bool,
+    /// The screen to open at the start (`--screen`), for captures and checks.
+    pub screen: Option<StartScreen>,
+    /// The quick save, relative to the working directory.
+    pub save: String,
     /// A window instead of borderless fullscreen.
     pub windowed: bool,
     /// The display to go fullscreen on, by index (0 is the first); the current one when `None`.
@@ -42,6 +50,9 @@ impl Default for Config {
         Config {
             packs: vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")],
             seed: 1,
+            play: false,
+            screen: None,
+            save: ".omnis/quick.ron".to_owned(),
             windowed: false,
             vsync: true,
             monitor: None,
@@ -54,7 +65,42 @@ impl Default for Config {
     }
 }
 
-/// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>`, `--windowed`,
+/// A screen the command line can open at the start.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartScreen {
+    /// The title (no game).
+    Title,
+    /// The new-game form (no game).
+    NewGame,
+    /// Pause, over a game.
+    Pause,
+    /// The square's actions, over a game.
+    Actions,
+}
+
+impl StartScreen {
+    /// Whether the screen is shown over a running game.
+    #[must_use]
+    pub const fn in_game(self) -> bool {
+        matches!(self, StartScreen::Pause | StartScreen::Actions)
+    }
+}
+
+impl Config {
+    /// Whether to start in a game rather than at the title: `--seed`, a screen shown over a game,
+    /// or a capture of the game view.
+    #[must_use]
+    pub fn starts_in_game(&self) -> bool {
+        match self.screen {
+            Some(screen) => screen.in_game(),
+            None => self.play || self.screenshot.is_some(),
+        }
+    }
+}
+
+/// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>` (and start in the game
+/// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
+/// `--screen title|new-game|pause|actions` (open it at the start), `--windowed`,
 /// `--no-vsync`, `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
@@ -75,7 +121,27 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
             "--seed" => {
                 config.seed = value("--seed")?
                     .parse()
-                    .map_err(|_| "--seed takes a number".to_owned())?
+                    .map_err(|_| "--seed takes a number".to_owned())?;
+                config.play = true;
+            }
+            "--save" => {
+                let path = value("--save")?;
+                client_path(&path, &["ron"])
+                    .map_err(|e| format!("--save takes a relative .ron path: {e}"))?;
+                config.save = path;
+            }
+            "--screen" => {
+                config.screen = Some(match value("--screen")?.as_str() {
+                    "title" => StartScreen::Title,
+                    "new-game" => StartScreen::NewGame,
+                    "pause" => StartScreen::Pause,
+                    "actions" => StartScreen::Actions,
+                    other => {
+                        return Err(format!(
+                            "--screen takes title, new-game, pause or actions, got {other}"
+                        ));
+                    }
+                });
             }
             "--windowed" => config.windowed = true,
             "--no-vsync" => config.vsync = false,
@@ -139,12 +205,38 @@ fn safe_relative(path: &Path) -> bool {
         && path.components().next().is_some()
 }
 
+/// The loaded packs and the command line, there from the start whether or not a game runs: the
+/// title starts games from them.
+#[derive(Resource, Debug, Clone)]
+pub struct Packs {
+    /// The packs, shared with the running game.
+    pub data: Arc<Data>,
+    /// The command line.
+    pub config: Config,
+}
+
+impl Packs {
+    /// Load the packs the command line names.
+    ///
+    /// # Errors
+    /// The loader's report for packs that fail to load.
+    pub fn load(config: &Config) -> Result<Packs, String> {
+        let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
+        let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
+        Ok(Packs {
+            data: Arc::new(data),
+            config: config.clone(),
+        })
+    }
+}
+
 /// The simulation and everything the binder keeps, in one resource so a system can borrow the
-/// world, the data and the binder together.
+/// world, the data and the binder together. It exists only while a game runs.
 #[derive(Resource)]
 pub struct Session {
-    /// The loaded packs.
-    pub data: Data,
+    /// The loaded packs (a pack reload or a rule set over the dev socket replaces this game's
+    /// copy only).
+    pub data: Arc<Data>,
     /// The authoritative world, reached only through the engine's API.
     pub world: SimWorld,
     /// What the shell reads of the world, refreshed after every accepted command.
@@ -175,16 +267,37 @@ pub struct Session {
 }
 
 impl Session {
-    /// Load the packs, start a world, and create the fixed party through the binder.
+    /// Load the packs and start a game with the command line's seed and the default settings
+    /// (with `Dev` commands in devtools builds): a game started without the title.
     ///
     /// # Errors
     /// A message for a pack that fails to load or a world that cannot start.
     pub fn start(config: &Config) -> Result<Session, String> {
-        let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
-        let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
-        let settings = Settings::default();
-        let mut world =
-            SimWorld::start(&data, config.seed, settings).map_err(|e| format!("{e:?}"))?;
+        let packs = Packs::load(config)?;
+        Session::new_game(&packs, config.seed, game_settings(Settings::default()))
+    }
+
+    /// A new game from `packs` with `seed` and `settings`: a world, then the fixed party
+    /// created through the binder (character creation replaces it, parity P3).
+    ///
+    /// # Errors
+    /// A message for a world that cannot start.
+    pub fn new_game(packs: &Packs, seed: u64, settings: Settings) -> Result<Session, String> {
+        Session::begin(
+            Arc::clone(&packs.data),
+            packs.config.clone(),
+            seed,
+            settings,
+        )
+    }
+
+    fn begin(
+        data: Arc<Data>,
+        config: Config,
+        seed: u64,
+        settings: Settings,
+    ) -> Result<Session, String> {
+        let mut world = SimWorld::start(&data, seed, settings).map_err(|e| format!("{e:?}"))?;
         let mut binder = Binder::default();
         for draft in party::fixed() {
             binder
@@ -195,26 +308,55 @@ impl Session {
                 )
                 .map_err(|e| format!("party: {e:?}"))?;
         }
+        Ok(Session::around(data, config, world, binder, seed, settings))
+    }
+
+    /// A game from a loaded save: its log starts empty and does not replay, since a replay
+    /// starts from a new world.
+    #[must_use]
+    pub fn loaded(packs: &Packs, world: World, why: &str) -> Session {
+        let world = SimWorld::new(world);
+        let here = world.here(&packs.data);
+        let mut session = Session::around(
+            Arc::clone(&packs.data),
+            packs.config.clone(),
+            world,
+            Binder::default(),
+            here.seed,
+            here.settings,
+        );
+        session.unreplayable = Some(why.to_owned());
+        session
+    }
+
+    fn around(
+        data: Arc<Data>,
+        config: Config,
+        world: SimWorld,
+        binder: Binder,
+        seed: u64,
+        settings: Settings,
+    ) -> Session {
         let views = world.views(&data);
         let pose = Pose::at(views.position);
         let mut names = Names::default();
         names.observe(&views.party);
-        Ok(Session {
+        Session {
             data,
             world,
             views,
             binder,
             pose,
-            seed: config.seed,
+            seed,
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
             fight_log: Vec::new(),
             names,
-            reshape: false,
-            config: config.clone(),
+            reshape: true,
+            config,
             unreplayable: None,
-        })
+        }
     }
 
     /// Record the session as a replay at `log_path`.
@@ -257,12 +399,17 @@ impl Session {
         }
     }
 
-    /// Start over with a fresh world and party from the same command line.
+    /// Start the same game over: a fresh world and party with this game's seed and settings.
     ///
     /// # Errors
-    /// As [`Session::start`]; the old session is kept.
+    /// As [`Session::new_game`]; the old session is kept.
     pub fn restart(&mut self) -> Result<(), String> {
-        *self = Session::start(&self.config)?;
+        *self = Session::begin(
+            Arc::clone(&self.data),
+            self.config.clone(),
+            self.seed,
+            self.settings,
+        )?;
         // The doors are shut again.
         self.reshape = true;
         self.say("A new party sets out".to_owned());
@@ -357,6 +504,30 @@ mod tests {
         assert_eq!(config.monitor, Some(1));
         assert!(parse(args(&["--monitor", "x"])).is_err());
         assert!(parse(args(&["--monitor", "99"])).is_err());
+    }
+
+    #[test]
+    fn the_title_is_the_start_unless_a_game_is_asked_for() {
+        let start = |list: &[&str]| parse(args(list)).expect("valid").starts_in_game();
+        assert!(!start(&[]), "the title");
+        assert!(start(&["--seed", "7"]), "a seed starts a game");
+        assert!(
+            start(&["--screenshot", "x.png"]),
+            "a capture of the game view"
+        );
+        assert!(!start(&["--screenshot", "x.png", "--screen", "title"]));
+        assert!(!start(&["--seed", "7", "--screen", "new-game"]));
+        assert!(start(&["--screen", "pause"]), "the pause needs a game");
+        assert!(parse(args(&["--screen", "sheet"])).is_err());
+    }
+
+    #[test]
+    fn the_quick_save_is_a_relative_ron_file() {
+        let config = parse(args(&["--save", "saves/a.ron"])).expect("valid");
+        assert_eq!(config.save, "saves/a.ron");
+        for bad in ["../a.ron", "/tmp/a.ron", "saves/a.txt"] {
+            assert!(parse(args(&["--save", bad])).is_err(), "{bad}");
+        }
     }
 
     #[test]

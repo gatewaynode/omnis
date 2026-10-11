@@ -5,7 +5,7 @@
 //! mechanics decide what appears; this module only names them. Today the simulation's one
 //! square action is `Interact` (a door on the faced edge of the party's cell).
 
-use super::{Control, ControlId, Ctx, Effect, Key, Panel, Row, Screen, ScreenId, Span};
+use super::{Control, ControlId, Effect, Game, Key, Panel, Row, Screen, ScreenId, Span};
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Data;
@@ -82,9 +82,9 @@ pub fn default_action(world: &SimWorld, data: &Data) -> Option<Command> {
 
 /// The screen: the square, its actions, and Close last.
 #[must_use]
-pub fn content(ctx: &Ctx) -> Screen {
-    let (world, data) = (ctx.game.world, ctx.data);
-    let p = &ctx.game.views.here.position;
+pub fn content(data: &Data, game: Game) -> Screen {
+    let world = game.world;
+    let p = &game.views.here.position;
     let offers = available(world, data);
     let mut rows = Vec::new();
     if offers.is_empty() {
@@ -110,14 +110,15 @@ pub fn content(ctx: &Ctx) -> Screen {
         )),
         panels: vec![Panel { rows }],
         keys,
+        message: None,
     }
 }
 
 /// An action sends its command and closes the screen; Close only closes it.
 #[must_use]
-pub fn apply(ctx: &Ctx, control: ControlId) -> Effect {
+pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
     match control {
-        ControlId::Action(i) => available(ctx.game.world, ctx.data)
+        ControlId::Action(i) => available(game.world, data)
             .into_iter()
             .nth(usize::from(i))
             .map_or(Effect::None, |o| Effect::Command {

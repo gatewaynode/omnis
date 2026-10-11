@@ -86,13 +86,13 @@ impl Plugin for CapturePlugin {
         app.add_message::<ShotRequest>()
             .add_message::<ShotSaved>()
             .init_resource::<Live>()
-            .add_systems(Update, live.in_set(VectorSet::Draw))
+            .add_systems(Update, live.in_set(VectorSet::Screens))
             .add_systems(PreStartup, offscreen.run_if(resource_exists::<CaptureSize>))
             .add_systems(
                 Update,
                 drive
                     .run_if(resource_exists::<Capture>)
-                    .in_set(VectorSet::Input),
+                    .in_set(VectorSet::Screens),
             );
     }
 }

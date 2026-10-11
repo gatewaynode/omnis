@@ -174,6 +174,17 @@ fn position(data: &Data, here: &Here) -> Option<Position> {
     })
 }
 
+/// The settings a game starts with: the player's choices, and `Dev` commands accepted in builds
+/// with the developer tools (as the other client's `game_settings`), so the dev socket's
+/// `time.reconcile` and the debug tools work there. A save says what it was started with.
+#[must_use]
+pub fn game_settings(base: Settings) -> Settings {
+    Settings {
+        devtools: cfg!(feature = "devtools"),
+        ..base
+    }
+}
+
 /// What the shell reads of the world each frame: the engine's views, refreshed by the session
 /// after every accepted command and every new world.
 #[derive(Debug, Clone, PartialEq)]

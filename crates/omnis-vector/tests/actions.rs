@@ -11,7 +11,7 @@ use common::map;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_vector::pose::Pose;
 use omnis_vector::screen::actions::available;
-use omnis_vector::screen::{self, ControlId, ScreenId};
+use omnis_vector::screen::{self, ControlId, Forms, ScreenId};
 use omnis_vector::shell::controls::Action;
 use omnis_vector::shell::screen::{Pressable, Screens, Showing, ctx};
 use omnis_vector::shell::session::Session;
@@ -68,7 +68,7 @@ fn labels(app: &App) -> Vec<String> {
         return Vec::new();
     }
     let session = app.world().resource::<Session>();
-    screen::content(ScreenId::Actions, &ctx(session))
+    screen::content(ScreenId::Actions, &ctx(session), &Forms::default())
         .controls()
         .map(|c| c.label.clone())
         .collect()
@@ -121,7 +121,7 @@ fn shift_space_with_nothing_to_do_opens_the_menu_saying_so() {
     {
         let session = app.world().resource::<Session>();
         assert!(available(&session.world, &session.data).is_empty());
-        let shown = screen::content(ScreenId::Actions, &ctx(session));
+        let shown = screen::content(ScreenId::Actions, &ctx(session), &Forms::default());
         assert_eq!(shown.panels[0].rows[0].spans[0].text, "Nothing to do here");
     }
     shift_space(&mut app);

@@ -61,6 +61,15 @@ impl Plugin for ShellPlugin {
                 VectorSet::Draw,
             )
                 .chain(),
+        )
+        // The game moves only while one runs and no screen holds it; it is drawn while one runs.
+        .configure_sets(
+            Update,
+            (VectorSet::Grab, VectorSet::Input, VectorSet::Move).run_if(screen::playing),
+        )
+        .configure_sets(
+            Update,
+            VectorSet::Draw.run_if(resource_exists::<session::Session>),
         );
     }
 }

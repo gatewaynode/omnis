@@ -73,13 +73,17 @@ impl Plugin for DevSocketPlugin {
         }
         app.add_systems(
             Update,
+            // With the screens, so the socket answers at the title and under the pause.
             (serve, answer_screen_text)
                 .chain()
-                .in_set(VectorSet::Input)
+                .in_set(VectorSet::Screens)
                 .run_if(resource_exists::<DevSocket>),
         );
     }
 }
+
+/// The answer to every op but the screen's while no game runs.
+pub const NO_GAME: &str = "no game is running; start one from the title";
 
 /// The listener and its one client.
 #[derive(Resource)]
@@ -281,7 +285,7 @@ impl Client {
 
 fn serve(
     mut socket: ResMut<DevSocket>,
-    mut session: ResMut<Session>,
+    mut session: Option<ResMut<Session>>,
     mut shots: MessageWriter<ShotRequest>,
     mut saved: MessageReader<ShotSaved>,
 ) {
@@ -319,7 +323,10 @@ fn serve(
             Op::ScreenText => socket.wants_text.push(id),
             _ => {
                 let root = socket.root.clone();
-                let result = host::handle(&mut session, &root, &op);
+                let result = match session.as_deref_mut() {
+                    Some(session) => host::handle(session, &root, &op),
+                    None => Err(OpError::failed(NO_GAME)),
+                };
                 socket.queue(&id, &result);
             }
         }

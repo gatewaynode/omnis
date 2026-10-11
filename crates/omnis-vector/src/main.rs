@@ -1,15 +1,17 @@
 //! The `omnis-vector` binary:
-//! `omnis-vector [--pack DIR]... [--seed N] [--windowed] [--no-vsync] [--monitor N] [--log PATH]`
-//! `[--screenshot PATH [--walk N] [--size WxH]]`, and with feature `devtools`
-//! `[--dev-socket IP:PORT | --no-dev-socket]`.
+//! `omnis-vector [--pack DIR]... [--seed N] [--save FILE] [--screen title|new-game|pause|actions]`
+//! `[--windowed] [--no-vsync] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
+//! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
+//! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
 
 use bevy::app::ScheduleRunnerPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
 use bevy::window::{ExitCondition, MonitorSelection, PresentMode, WindowMode, WindowResolution};
 use bevy::winit::WinitPlugin;
+use omnis_sim::Settings;
 use omnis_vector::shell::capture::{Capture, CapturePlugin, CaptureSize};
-use omnis_vector::shell::session::{Session, parse};
+use omnis_vector::shell::session::{Packs, Session, parse};
 use omnis_vector::shell::{
     ShellPlugin,
     cinema::CinemaPlugin,
@@ -21,6 +23,7 @@ use omnis_vector::shell::{
     render::RenderPlugin,
     screen::ScreenPlugin,
 };
+use omnis_vector::sim::game_settings;
 use std::time::Duration;
 
 fn main() -> AppExit {
@@ -31,12 +34,23 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
-    let session = match Session::start(&config) {
-        Ok(session) => session,
+    let packs = match Packs::load(&config) {
+        Ok(packs) => packs,
         Err(e) => {
             eprintln!("omnis-vector: {e}");
             return AppExit::error();
         }
+    };
+    let session = if config.starts_in_game() {
+        match Session::new_game(&packs, config.seed, game_settings(Settings::default())) {
+            Ok(session) => Some(session),
+            Err(e) => {
+                eprintln!("omnis-vector: {e}");
+                return AppExit::error();
+            }
+        }
+    } else {
+        None
     };
     let mut app = App::new();
     if let Some(path) = config.screenshot.clone() {
@@ -84,7 +98,13 @@ fn main() -> AppExit {
     if let (Some(addr), None) = (config.dev_socket.clone(), &config.screenshot) {
         app.add_plugins(omnis_vector::shell::socket::DevSocketPlugin { addr, ..default() });
     }
-    app.insert_resource(session).add_plugins((
+    if let Some(session) = session {
+        app.insert_resource(session);
+    }
+    if let Some(screen) = config.screen {
+        app.insert_resource(screen);
+    }
+    app.insert_resource(packs).add_plugins((
         FrameTimeDiagnosticsPlugin::default(),
         ShellPlugin,
         MovementPlugin,

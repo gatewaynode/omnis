@@ -1,11 +1,12 @@
 //! What the interface shows, as text: the dev socket's `screen.text` (ARCHITECTURE.md §9.3) and
 //! a check for the headless tests. One line per text on screen, in tree order under each root
 //! node, indented by its depth among such lines: its rectangle in window pixels once layout has
-//! run, `[button]` when a click on it does something, and the text. What is not shown (a node
+//! run, `[button]` when a click on it does something, `[field]` for a text field, and the text. What is not shown (a node
 //! with `Display::None`, or hidden) is left out, so the answer is the screen, for any screen,
 //! with no code per screen.
 
 use bevy::prelude::*;
+use bevy::text::EditableText;
 use bevy::ui::UiGlobalTransform;
 
 /// What `screen.text` answers when no text is shown.
@@ -61,7 +62,11 @@ fn shown(world: &World, entity: Entity) -> bool {
 }
 
 fn line(world: &World, entity: Entity, depth: usize) -> Option<String> {
-    let text = world.get::<Text>(entity)?;
+    let (field, text) = match (world.get::<Text>(entity), world.get::<EditableText>(entity)) {
+        (Some(text), _) => (false, text.0.clone()),
+        (None, Some(field)) => (true, field.value().to_string()),
+        (None, None) => return None,
+    };
     let mut line = "  ".repeat(depth);
     if let (Some(node), Some(at)) = (
         world.get::<ComputedNode>(entity),
@@ -82,7 +87,10 @@ fn line(world: &World, entity: Entity, depth: usize) -> Option<String> {
     if pressable {
         line.push_str("[button] ");
     }
+    if field {
+        line.push_str("[field] ");
+    }
     // Debug quoting keeps a text of several lines on one line.
-    line.push_str(&format!("{:?}", text.0));
+    line.push_str(&format!("{text:?}"));
     Some(line)
 }

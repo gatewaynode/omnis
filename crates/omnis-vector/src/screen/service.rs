@@ -2,20 +2,20 @@
 //! Stepping onto a service's site puts the party in the service; this client has no screen for
 //! it yet, so it names the service and offers Leave, and the party is never stuck inside.
 
-use super::{Control, ControlId, Ctx, Effect, Panel, Row, Screen, ScreenId, Span};
+use super::{Control, ControlId, Effect, Game, Panel, Row, Screen, ScreenId, Span};
 use crate::labels;
+use omnis_sim::omnis_data::Data;
 use omnis_sim::{Command, ServiceCommand};
 
 /// The screen; the service's name, or "A service" outside one (the shell shows it only inside).
 #[must_use]
-pub fn content(ctx: &Ctx) -> Screen {
-    let name = ctx
-        .game
+pub fn content(data: &Data, game: Game) -> Screen {
+    let name = game
         .views
         .here
         .service
         .as_deref()
-        .map_or("A service", |id| labels::service(ctx.data, id));
+        .map_or("A service", |id| labels::service(data, id));
     Screen {
         id: ScreenId::Service,
         title: Span::title(name),
@@ -27,6 +27,7 @@ pub fn content(ctx: &Ctx) -> Screen {
             ],
         }],
         keys: Vec::new(),
+        message: None,
     }
 }
 

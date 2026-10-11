@@ -58,12 +58,14 @@ dev socket, `Dev` commands, the debug panel); a release build turns it off.
 
 ```sh
 just run                                     # the vector client, the same as the next line; flags pass through
-cargo run -p omnis-vector                    # fullscreen; --windowed, --monitor N, --seed 7, --pack DIR
+cargo run -p omnis-vector                    # fullscreen, at the title; --windowed, --monitor N, --pack DIR
+cargo run -p omnis-vector -- --seed 7        # straight into a game; --save FILE names the quick save
 just run-app                                 # the previous client (cargo run -p omnis-app); flags pass through
 cargo run -p omnis-app -- --window medium    # windowed: small, medium, large, huge
 cargo run -p omnis-app -- --pack packs/base --seed 7 --save .omnis/quick.ron
 cargo build -p omnis-app --release --no-default-features
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
+cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, pause, actions
 ```
 
 The vector client is the game going forward (`presentation-PRD.md`, `presentation-ARCHITECTURE.md`). It walks,

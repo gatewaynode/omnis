@@ -28,10 +28,8 @@ pub enum Action {
     TurnRight,
     /// Open or close the action menu for the square.
     Actions,
-    /// Write the command log as a replay.
-    SaveLog,
-    /// Leave.
-    Quit,
+    /// Open the pause: save, load, the log, leave.
+    Menu,
 }
 
 impl Action {
@@ -46,8 +44,7 @@ impl Action {
             Action::TurnLeft => "Turn left  Q",
             Action::TurnRight => "Turn right  E",
             Action::Actions => "Actions  Space",
-            Action::SaveLog => "Save log",
-            Action::Quit => "Quit",
+            Action::Menu => "Menu  Esc",
         }
     }
 
@@ -67,8 +64,9 @@ const PAD: [&[Action]; 2] = [
     &[Action::StrafeLeft, Action::Back, Action::StrafeRight],
 ];
 
-/// The other actions, bottom right, away from the pad so a slip off Back cannot quit.
-const SIDE: [&[Action]; 1] = [&[Action::Actions, Action::SaveLog, Action::Quit]];
+/// The other actions, bottom right, away from the pad: the square's actions, and the menu (the
+/// pause, which holds save, load, the log and quitting).
+const SIDE: [&[Action]; 1] = [&[Action::Actions, Action::Menu]];
 
 /// The interface role's colour (`style::Role::Interface`).
 pub const GREEN: Color = srgb(Role::Interface.rgb());
@@ -178,9 +176,8 @@ fn group(commands: &mut Commands, corner: Corner, rows: &[&[Action]]) {
 fn press(
     buttons: Query<(Ref<Interaction>, &Action)>,
     mut intent: ResMut<Intent>,
-    mut session: ResMut<Session>,
+    session: Res<Session>,
     mut screens: ResMut<Screens>,
-    mut exit: MessageWriter<AppExit>,
 ) {
     for (interaction, &action) in &buttons {
         if *interaction != Interaction::Pressed {
@@ -202,17 +199,8 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
-            Action::Actions => screens.nav.toggle(ScreenId::Actions, &session.views),
-            Action::SaveLog => {
-                let line = match session.save_log() {
-                    Ok(path) => format!("Log saved to {}", path.display()),
-                    Err(e) => format!("Log not saved: {e}"),
-                };
-                session.say(line);
-            }
-            Action::Quit => {
-                exit.write(AppExit::Success);
-            }
+            Action::Actions => screens.nav.toggle(ScreenId::Actions, Some(&session.views)),
+            Action::Menu => screens.nav.open(ScreenId::Pause, Some(&session.views)),
             _ => {}
         }
     }

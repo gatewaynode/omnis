@@ -1,6 +1,7 @@
 //! Which screen is up (presentation-ARCHITECTURE §6.3): a base that follows the world, and the
 //! overlays the player opened on top of it. After every change the overlays are checked against
-//! the world, so one the world no longer allows closes (the party moved, a fight began).
+//! the world, so one the world no longer allows closes (the party moved, a fight began, the game
+//! ended).
 
 use super::ScreenId;
 use crate::sim::Views;
@@ -10,8 +11,10 @@ use crate::sim::Views;
 pub enum Escape {
     /// Closed the top overlay.
     Closed,
-    /// Nothing to close: the fight's menu steps back, when the fight screen is up.
+    /// The fight's menu steps back: it was not at its first step.
     FightBack,
+    /// Opened the pause.
+    Paused,
     /// Nothing to do.
     Nothing,
 }
@@ -22,10 +25,13 @@ pub struct Nav {
     stack: Vec<ScreenId>,
 }
 
-/// The screen the world calls for under any overlay: the fallen party's, a service's, or none
-/// (the 3D view, or the fight screen, which draws itself).
+/// The screen the world calls for under any overlay: the title with no game, the fallen party's,
+/// a service's, or none (the 3D view, or the fight screen, which draws itself).
 #[must_use]
-pub fn base(views: &Views) -> Option<ScreenId> {
+pub fn base(game: Option<&Views>) -> Option<ScreenId> {
+    let Some(views) = game else {
+        return Some(ScreenId::Title);
+    };
     if views.combat.is_some() {
         None
     } else if views.fallen() {
@@ -38,18 +44,30 @@ pub fn base(views: &Views) -> Option<ScreenId> {
 }
 
 /// Whether the world allows overlay `id` now.
-fn allowed(id: ScreenId, views: &Views) -> bool {
-    match id {
-        ScreenId::Actions => base(views).is_none() && views.exploring(),
-        ScreenId::Service | ScreenId::Defeat => false,
+fn allowed(id: ScreenId, game: Option<&Views>) -> bool {
+    match (id, game) {
+        (ScreenId::NewGame, None) => true,
+        (ScreenId::Pause, Some(views)) => base(Some(views)) != Some(ScreenId::Defeat),
+        (ScreenId::Actions, Some(views)) => base(Some(views)).is_none() && views.exploring(),
+        _ => false,
     }
 }
 
 impl Nav {
     /// The screen on top: the last overlay, else the base.
     #[must_use]
-    pub fn top(&self, views: &Views) -> Option<ScreenId> {
-        self.stack.last().copied().or_else(|| base(views))
+    pub fn top(&self, game: Option<&Views>) -> Option<ScreenId> {
+        self.stack.last().copied().or_else(|| base(game))
+    }
+
+    /// Whether the game waits on the screen on top: nothing moves or acts under the pause or the
+    /// fallen party's screen.
+    #[must_use]
+    pub fn paused(&self, game: Option<&Views>) -> bool {
+        matches!(
+            self.top(game),
+            Some(ScreenId::Pause | ScreenId::Defeat | ScreenId::Title | ScreenId::NewGame)
+        )
     }
 
     /// Whether `id` is open as an overlay.
@@ -59,18 +77,18 @@ impl Nav {
     }
 
     /// Open overlay `id` on top, when the world allows it and it is not open already.
-    pub fn open(&mut self, id: ScreenId, views: &Views) {
-        if allowed(id, views) && !self.is_open(id) {
+    pub fn open(&mut self, id: ScreenId, game: Option<&Views>) {
+        if allowed(id, game) && !self.is_open(id) {
             self.stack.push(id);
         }
     }
 
     /// Open overlay `id`, or close it when it is on top.
-    pub fn toggle(&mut self, id: ScreenId, views: &Views) {
+    pub fn toggle(&mut self, id: ScreenId, game: Option<&Views>) {
         if self.stack.last() == Some(&id) {
             self.stack.pop();
         } else {
-            self.open(id, views);
+            self.open(id, game);
         }
     }
 
@@ -79,18 +97,32 @@ impl Nav {
         self.stack.pop().is_some()
     }
 
-    /// Close what the world no longer allows, and the square's actions when the party `moved`.
-    pub fn settle(&mut self, views: &Views, moved: bool) {
-        self.stack
-            .retain(|&id| allowed(id, views) && !(moved && id == ScreenId::Actions));
+    /// Close every overlay: a new game, a loaded save, the title.
+    pub fn reset(&mut self) {
+        self.stack.clear();
     }
 
-    /// Esc: close the top overlay; otherwise, in a fight, step the fight's menu back.
-    pub fn escape(&mut self, views: &Views) -> Escape {
+    /// Close what the world no longer allows, and the square's actions when the party `moved`.
+    pub fn settle(&mut self, game: Option<&Views>, moved: bool) {
+        self.stack
+            .retain(|&id| allowed(id, game) && !(moved && id == ScreenId::Actions));
+    }
+
+    /// Esc: close the top overlay; otherwise step a fight's menu back when it is not at its
+    /// first step (`fight_at_root` false); otherwise pause a running game.
+    pub fn escape(&mut self, game: Option<&Views>, fight_at_root: bool) -> Escape {
         if self.back() {
-            Escape::Closed
-        } else if views.combat.is_some() {
-            Escape::FightBack
+            return Escape::Closed;
+        }
+        let Some(views) = game else {
+            return Escape::Nothing;
+        };
+        if views.combat.is_some() && !fight_at_root {
+            return Escape::FightBack;
+        }
+        if allowed(ScreenId::Pause, game) {
+            self.stack.push(ScreenId::Pause);
+            Escape::Paused
         } else {
             Escape::Nothing
         }
