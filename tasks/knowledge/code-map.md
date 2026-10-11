@@ -145,27 +145,31 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   free pose), `bind.rs` (the binder: cell crossings become `Step`, cardinal yaws `Turn`, refusals and
   disagreements counted; it keeps the command log that replays), `collide.rs` (the collision mirror, held
   to `apply(Step)` by `tests/agreement.rs` on every map), `minimap.rs`, `party.rs` (the fixed party of four),
-  `trial.rs` (`refusal`/`accepted` on a world clone), `combat_menu.rs` (the fight's choices; members by
-  `CharacterId`, spells and items as rows of the views turned into string ids by `resolve`; End turn; the
-  budget in the prompt), `arena.rs` (the fight screen's layout and picks: the left column of picture,
-  actions, log and status; the `party` rectangle at the right), `rolllog.rs` (the roll log,
+  `trial.rs` (`why`/`accepted` on a world clone; `why` words the refusal by `labels::reason`), `combat_menu.rs`
+  (the fight's choices; members by `CharacterId`, spells, features and items as rows of the views turned into
+  string ids by `resolve`; P7: `Step::Features`, `Action::Feature` (Cunning Action's swap), `Entry.note`, item
+  rows from `CombatView.items`, the spell notes, `budget_line`, `points`, `picking`), `arena.rs` (the fight
+  screen's layout and picks: the left column of picture, actions, log and status; the `party` rectangle at the
+  right; P7: `picker`, the pickers' panel), `rolllog.rs` (the roll log,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--screen`; `Packs`, always a resource; `Session`, only
   while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `message` (the explore message line: newest non-move line, refusals in alert), `save_log`), `movement.rs`,
   `controls.rs` (the pad; Camp, Actions and Menu bottom right; P6: `light` lights Camp by `Nav::allowed`; R toggles it in `screen.rs::action_keys`), `screen.rs` (the screen renderer and router:
   `Screens { nav, forms }`, `Pressable`, `Arrow`, `ctx`, `playing`, the chrome hidden with no game; the root's
   height capped, `PLAYED_ROOM` 64% while played),
-  `combat.rs` (the fight screen), `hud.rs`, `message.rs` (P5: the message line at the bottom centre, only exploring with no screen up), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
+  `combat.rs` (the fight screen; P7: draws `ScreenId::Fight` with `screen_draw::build(.., Mark::Fight)` in the
+  action column or the picker panel and routes `FightPress`, its arrows and number keys through `screen::apply`;
+  `FightScreen.controls`), `hud.rs`, `message.rs` (P5: the message line at the bottom centre, only exploring with no screen up), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
   offscreen; the socket's live capture).
 - Screens (parity P2–P6; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
   `Panel`, `Row` (with `after`), `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Number, Text}`,
   `Payload` (with `Set`), `stepped`, `Effect`, `HostOp`, `Refused` (with `NotDigits`), `Ctx`/`Game`/`Slot`,
-  `Forms` (with `bank`, `selected` (the column's selection, the target), `owner` (whose kit, spells, sheet or tactics), P6: `dice`, `page`, `tactics`, `accepted`, `shown`: the outcome cleared on a new top screen), `content`, `apply`),
+  `Forms` (with `bank`, `selected` (the column's selection, the target), `owner` (whose kit, spells, sheet or tactics), P6: `dice`, `page`, `tactics`, P7: `fight` (`FightForm`), `accepted`, `shown`: the outcome cleared on a new top screen), `content`, `apply`),
   `nav.rs` (`Nav`: overlays over the world's base, `creating` until Begin; `settle`, `escape` (leaves a
   service), `paused`, `show` (replaces whatever stands beside the column), `allowed` (public, P6); `ScreenId::beside_column`), one file per screen (`title`, `new_game`, `create_party`, `pause`, `defeat`,
-  `actions`, `service`: P4's panel, `lists` by kind, `offer_row`, `bank_row`, `AMOUNT_MAX_GP`; `inventory` (P5): `ItemAct`, `owner`, `owner_choice`, `command`, every button lit by a trial; `cast` (P5): road spells of `Forms.owner` on the selection; `camp` (P6): `counts` capped at `spendable`, both rests lit by the rest view then a trial; `sheet` (P6): `Page`, Stats/Magic/Gear; `tactics` (P6): `TacticAct`, `TacticsForm` (load, set, the lock), `LOCKED`; `tactics_draft` (P6): `Kind`, `Field`, `Draft`, `Choices`, `criteria_text`, a port of the other client's), and `roster.rs` (the party column, a panel beside every base screen: entries,
+  `actions`, `service`: P4's panel, `lists` by kind, `offer_row`, `bank_row`, `AMOUNT_MAX_GP`; `inventory` (P5): `ItemAct`, `owner`, `owner_choice`, `command`, every button lit by a trial; `cast` (P5): road spells of `Forms.owner` on the selection; `camp` (P6): `counts` capped at `spendable`, both rests lit by the rest view then a trial; `sheet` (P6): `Page`, Stats/Magic/Gear; `tactics` (P6): `TacticAct`, `TacticsForm` (load, set, the lock), `LOCKED`; `tactics_draft` (P6): `Kind`, `Field`, `Draft`, `Choices`, `criteria_text`, a port of the other client's; `fight` (P7): `FightAct`, `FightForm`, `Place`, `place`, `settle`, the fight's controls, never on the Nav stack), and `roster.rs` (the party column, a panel beside every base screen: entries,
   `Tool` with `why_not` and `screen`, `RosterEffect::Open`, `settle`). `shell/screen.rs` routes and paints (`Screens::reset`; `ScreenLayer`, `Beside` and `make_room`: the screen centres left of the column standing beside it); `shell/screen_draw.rs` builds the nodes (the slider and its thumb included; `rows` with
-  `Mark::{Screen, Side}`; `Scrolls` panels and `wheel`); `shell/roster.rs` draws the column at the right and routes its `Side` buttons; it stays shown beside the screens of `ScreenId::beside_column`, and `Open` sets `Forms.owner` and calls `Nav::show`. Party creation reads `Views.creation` (`omnis_sim::creation_view`).
+  `Mark::{Screen, Side, Fight}`, `FightPress`; the in-place word markers only under `Mark::Screen`; `Scrolls` panels and `wheel`); `shell/roster.rs` draws the column at the right and routes its `Side` buttons; it stays shown beside the screens of `ScreenId::beside_column`, and `Open` sets `Forms.owner` and calls `Nav::show`. Party creation reads `Views.creation` (`omnis_sim::creation_view`).
   `Session::{new_game (no party), with_party, start (the fixed four), drafts, restart}`. `labels.rs` turns ids and text keys into words (the only `Data::label` caller; the service words:
   `offer_label`, `offer_caption`, `offer_note`, `service_reason`, `rumor`, `ago`; P5: `slot`, `count_label`, `reason` for item and cast refusals; P6: `race`, `background`, `ability`, `signed`, `pay`, and rest and tactics refusals in `reason`); `shell/text.rs` the HUD's
   event lines, the town's and the kit's and road spells' included, P6 the rest's and the tactics' (`camp`);
