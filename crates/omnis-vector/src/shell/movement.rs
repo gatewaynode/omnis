@@ -4,11 +4,13 @@ use super::screen::Showing;
 use super::session::Session;
 use super::settings::Current;
 use super::{VectorSet, ViewState};
+use crate::look::{level, wrap_pitch, yaw_sign};
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use core::f32::consts::FRAC_PI_2;
+use omnis_sim::omnis_core::MapId;
 use omnis_sim::{BlockReason, Event};
 
 /// Cells a second on terrain that costs one minute a step; slower terrain is slower to cross.
@@ -19,7 +21,7 @@ pub const TURN_SPEED: f32 = 2.5;
 pub const MOUSE_SENSITIVITY: f32 = 0.003;
 /// The longest frame integrated, so a stall cannot carry the pose across several cells.
 pub const MAX_DT: f32 = 0.1;
-/// The most yaw one frame of mouse motion may add.
+/// The most yaw, or pitch, one frame of mouse motion may add.
 pub const MAX_MOUSE_YAW: f32 = 0.5;
 
 /// What the player asks for this frame, from keys, the mouse and the HUD buttons.
@@ -35,6 +37,25 @@ pub struct Intent {
     pub pending_turn: f32,
     /// Whether the mouse looks (the cursor is grabbed).
     pub looking: bool,
+    /// Mouse pitch this frame, radians (positive looks up).
+    pub mouse_pitch: f32,
+    /// Held tilting, `-1.0..=1.0` (positive looks up).
+    pub tilt: f32,
+    /// Return the view to level now (Home, the Level button).
+    pub level: bool,
+}
+
+/// Where the head looks, up or down, beside the pose and never in it (`look`, M8.5 step 4b):
+/// the binder and the simulation never see it.
+#[derive(Resource, Debug, Default)]
+pub struct View {
+    /// Radians, `(-π, π]`, positive up; past ±π/2 the view has turned over.
+    pub pitch: f32,
+    /// Easing back to level after a step.
+    pub levelling: bool,
+    /// The map and pose the last frame left, so a jump made elsewhere (a load, a new game, a
+    /// teleport from the debug panel) starts the view level.
+    seen: Option<(MapId, Pose)>,
 }
 
 /// What the mouse-look decision sees in a frame.
@@ -72,6 +93,7 @@ pub struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Intent>()
+            .init_resource::<View>()
             .init_resource::<Current>()
             .add_systems(Update, grab_cursor.in_set(VectorSet::Grab))
             .add_systems(Update, read_input.in_set(VectorSet::Input))
@@ -146,11 +168,19 @@ fn read_input(
     if keys.just_pressed(KeyCode::KeyE) {
         intent.pending_turn -= FRAC_PI_2;
     }
+    let tilt = axis(&keys, &[KeyCode::PageUp], &[KeyCode::PageDown]);
+    if tilt != 0.0 {
+        intent.tilt = tilt;
+    }
+    if keys.just_pressed(KeyCode::Home) {
+        intent.level = true;
+    }
     if intent.looking
         && let Some(mouse) = mouse
     {
-        intent.mouse_yaw =
-            (-mouse.delta.x * MOUSE_SENSITIVITY).clamp(-MAX_MOUSE_YAW, MAX_MOUSE_YAW);
+        let most = |v: f32| (v * MOUSE_SENSITIVITY).clamp(-MAX_MOUSE_YAW, MAX_MOUSE_YAW);
+        intent.mouse_yaw = most(-mouse.delta.x);
+        intent.mouse_pitch = most(-mouse.delta.y);
     }
 }
 
@@ -168,15 +198,40 @@ fn yaw_delta(intent: &mut Intent, dt: f32, snap: bool) -> f32 {
     intent.mouse_yaw + intent.turn * TURN_SPEED * dt + slice
 }
 
+/// The frame's pitch: the player's tilt first (it stops a return to level), then Home or the
+/// Level button, then the return to level a step began, eased, or at once under reduced motion.
+fn pitch(view: &mut View, intent: &Intent, dt: f32, snap: bool) {
+    let tilt = intent.mouse_pitch + intent.tilt * TURN_SPEED * dt;
+    if tilt != 0.0 {
+        view.pitch = wrap_pitch(view.pitch + tilt);
+        view.levelling = false;
+    }
+    if intent.level {
+        view.pitch = 0.0;
+        view.levelling = false;
+    }
+    if view.levelling {
+        view.pitch = level(view.pitch, dt, snap);
+        view.levelling = view.pitch != 0.0;
+    }
+}
+
 fn advance(
     time: Res<Time>,
     current: Res<Current>,
     mut session: ResMut<Session>,
     mut intent: ResMut<Intent>,
+    mut view: ResMut<View>,
 ) {
     let dt = time.delta_secs().min(MAX_DT);
     let snap = current.0.reduced_motion;
     let session = &mut *session;
+    if view.seen != Some((session.views.position.map, session.pose)) {
+        view.pitch = 0.0;
+        view.levelling = false;
+    }
+    // Upside down, the mouse turns the other way, so the picture turns the way it moves.
+    intent.mouse_yaw *= yaw_sign(view.pitch);
     let terrain_minutes = session
         .data
         .maps
@@ -210,8 +265,14 @@ fn advance(
     }
     session.pose = pose;
     session.note(&out.events);
-    // Walls, doors and impassable ground are drawn; a cliff is not yet (M8.5 step 4), so its
-    // hold is named with the line a step into it would give.
+    let stepped = out.events.iter().any(|e| matches!(e, Event::Moved { .. }));
+    if stepped && current.0.level_on_step.levels(intent.looking) {
+        view.levelling = true;
+    }
+    pitch(&mut view, &intent, dt, snap);
+    view.seen = Some((session.views.position.map, session.pose));
+    // The mirror holds the pose at a cliff before the engine hears of a step, so the hold is
+    // named with the line a step into it would give.
     if let Some(reason) = out.bumped.filter(|&r| r == BlockReason::Cliff) {
         session.note(&[Event::Blocked { reason }]);
     }

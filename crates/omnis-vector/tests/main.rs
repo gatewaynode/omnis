@@ -21,6 +21,7 @@ mod geometry;
 mod ground;
 mod inventory;
 mod labels;
+mod look;
 mod message;
 mod minimap;
 mod overlay;

@@ -1,10 +1,11 @@
 //! The player's own settings (presentation-ARCHITECTURE §10.5): reduced motion, the floor grid,
-//! the quality preset, the font and the interface scale. They are the client's, never the
-//! world's: kept in a small RON file under `.omnis/`, never in a save, never seen by the
-//! simulation. The file is read leniently, since a person may edit it: unknown keys are ignored,
-//! an unknown word or a number out of range falls back or is clamped, and a file that cannot be
-//! read at all gives the defaults with a note. Bevy-free.
+//! the quality preset, the font, the interface scale, and when a step levels the view. They are
+//! the client's, never the world's: kept in a small RON file under `.omnis/`, never in a save,
+//! never seen by the simulation. The file is read leniently, since a person may edit it: unknown
+//! keys are ignored, an unknown word or a number out of range falls back or is clamped, and a
+//! file that cannot be read at all gives the defaults with a note. Bevy-free.
 
+use crate::look::LevelOnStep;
 use omnis_sim::omnis_data::ron_io::{parse, read_text, write_ron};
 use omnis_sim::ops::client_path;
 use serde::{Deserialize, Serialize};
@@ -104,7 +105,7 @@ impl Face {
 /// The settings as applied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Prefs {
-    /// The 90-degree turns and the drift back onto the cell happen at once.
+    /// The 90-degree turns, the drift back onto the cell and the return to level happen at once.
     pub reduced_motion: bool,
     /// The floor and ceiling grids are drawn.
     pub grid: bool,
@@ -114,6 +115,8 @@ pub struct Prefs {
     pub font: Face,
     /// The interface scale in percent, `SCALE_MIN..=SCALE_MAX` in steps of `SCALE_STEP`.
     pub scale: u16,
+    /// When a step returns the view to level.
+    pub level_on_step: LevelOnStep,
 }
 
 impl Default for Prefs {
@@ -124,6 +127,7 @@ impl Default for Prefs {
             quality: Quality::High,
             font: Face::BuiltIn,
             scale: 100,
+            level_on_step: LevelOnStep::Unlocked,
         }
     }
 }
@@ -168,6 +172,7 @@ struct File {
     quality: String,
     font: String,
     scale: i64,
+    level_on_step: String,
 }
 
 impl Default for File {
@@ -184,6 +189,7 @@ impl From<Prefs> for File {
             quality: p.quality.word().to_owned(),
             font: p.font.word().to_owned(),
             scale: i64::from(p.scale),
+            level_on_step: p.level_on_step.word().to_owned(),
         }
     }
 }
@@ -203,6 +209,10 @@ impl From<File> for Prefs {
                 .find(|x| x.word() == f.font)
                 .unwrap_or(d.font),
             scale: clamp_scale(f.scale),
+            level_on_step: LevelOnStep::ALL
+                .into_iter()
+                .find(|l| l.word() == f.level_on_step)
+                .unwrap_or(d.level_on_step),
         }
     }
 }
@@ -279,6 +289,7 @@ mod tests {
             quality: "ultra".to_owned(),
             font: "inter".to_owned(),
             scale: 150,
+            level_on_step: "never".to_owned(),
         });
         assert_eq!(
             p,
@@ -288,6 +299,7 @@ mod tests {
                 quality: Quality::High,
                 font: Face::Inter,
                 scale: 150,
+                level_on_step: LevelOnStep::Never,
             }
         );
     }

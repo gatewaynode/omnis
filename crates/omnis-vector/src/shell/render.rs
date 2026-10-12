@@ -3,6 +3,7 @@
 
 use super::VectorSet;
 use super::capture::Offscreen;
+use super::movement::View;
 use super::session::Session;
 use super::settings::Current;
 use crate::geometry::{SegKind, Segment, extract};
@@ -112,6 +113,7 @@ fn follow(
     current: Res<Current>,
     session: Res<Session>,
     lines: Res<Lines>,
+    view: Res<View>,
     mut camera: Query<&mut Transform, With<ViewCamera>>,
 ) {
     let Ok(mut transform) = camera.single_mut() else {
@@ -125,7 +127,13 @@ fn follow(
         current.0.reduced_motion,
     );
     *transform =
-        Transform::from_xyz(pose.x, y, pose.z).with_rotation(Quat::from_rotation_y(pose.yaw));
+        Transform::from_xyz(pose.x, y, pose.z).with_rotation(rotation(pose.yaw, view.pitch));
+}
+
+/// The camera's turn: the body's yaw, then the head's pitch (positive looks up).
+#[must_use]
+pub fn rotation(yaw: f32, pitch: f32) -> Quat {
+    Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)
 }
 
 /// Line colour by kind: walls bright green, doors amber, solid and impassable terrain in the

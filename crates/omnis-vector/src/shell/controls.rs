@@ -26,6 +26,8 @@ pub enum Action {
     TurnLeft,
     /// Turn a quarter to the right.
     TurnRight,
+    /// Return the view to level (M8.5 step 4b).
+    Level,
     /// Open or close the camp: rest on the road.
     Camp,
     /// Open or close the action menu for the square.
@@ -45,6 +47,7 @@ impl Action {
             Action::StrafeRight => "Right  D",
             Action::TurnLeft => "Turn left  Q",
             Action::TurnRight => "Turn right  E",
+            Action::Level => "Level  Home",
             Action::Camp => "Camp  R",
             Action::Actions => "Actions  Space",
             Action::Menu => "Menu  Esc",
@@ -67,9 +70,9 @@ const PAD: [&[Action]; 2] = [
     &[Action::StrafeLeft, Action::Back, Action::StrafeRight],
 ];
 
-/// The other actions, bottom right, away from the pad: the camp, the square's actions, and the
+/// The other actions, bottom right, away from the pad: levelling the view, the camp, the square's actions, and the
 /// menu (the pause, which holds save, load, the log and quitting).
-const SIDE: [&[Action]; 1] = [&[Action::Camp, Action::Actions, Action::Menu]];
+const SIDE: [&[Action]; 1] = [&[Action::Level, Action::Camp, Action::Actions, Action::Menu]];
 
 /// The interface role's colour (`style::Role::Interface`).
 pub const GREEN: Color = srgb(Role::Interface.rgb());
@@ -206,6 +209,7 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
+            Action::Level => intent.level = true,
             Action::Camp => screens.nav.toggle(ScreenId::Camp, Some(&session.views)),
             Action::Actions => screens.nav.toggle(ScreenId::Actions, Some(&session.views)),
             Action::Menu => screens.nav.open(ScreenId::Pause, Some(&session.views)),
