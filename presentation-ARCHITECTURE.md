@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired; §5.6, §8.4 after M8.5 step 1a; §5.2, §5.6, §8.1, §8.4, §10.2 after M8.5 step 4, height drawn): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
@@ -212,7 +212,8 @@ One cell is 1.0 unit. `geom::wall_height(&Terrain)` returns 1.0 and `EYE_HEIGHT`
 | `grid.rs` | Pure grid maths | `cell_of(x, z)`, `facing_of(yaw, current, margin)`, `nearest`, `relative(heading, facing)`, `rotation(from, to)`, `crossings(from, to, cell, margin)` |
 | `pose.rs` | The continuous pose | `Pose { x, z, yaw }`, `Pose::at(Position)`, `Motion { forward, strafe }`, `integrate` |
 | `collide.rs` | The collision mirror | `blocks(data, world, map, x, y, facing)`, `clamp(point, cell, radius, blocked)` |
-| `bind.rs` | Pose changes to commands, the command log | `Tuning`, `Outcome { pose, events, snapped, frozen }`, `Binder { tuning, log, refusals, disagreements }`: `apply`, `advance(world, data, from, to)`, `settle`, `interact`, `replay` |
+| `ground.rs` | The ground under the view (§8.4) | `Ground::from_map`, `patch`, `height(x, z)`, `joined`, `eye(ground, pose)`, `ease_eye` |
+| `bind.rs` | Pose changes to commands, the command log | `Tuning`, `Outcome { pose, events, snapped, frozen, bumped, pressed }` (`bumped`: the side that first holds the pose, once per contact, so the shell can name a cliff's hold), `Binder { tuning, log, refusals, disagreements }`: `apply`, `advance(world, data, from, to)`, `settle`, `interact`, `replay` |
 | `trial.rs` | A command tried on a copy | `refusal`, `accepted` |
 
 `Tuning` holds the margins: cell-entry hysteresis 0.15, body radius 0.2, yaw hysteresis 5°, sub-step 0.25
@@ -252,8 +253,9 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 (default `.omnis/vector-session.ron`), and `omnis-cli replay` reproduces the session's fingerprint
 (presentation-PRD §4.4).
 
-### 5.6 Height and cliffs (rules built in M8.5 step 1a; drawing to build, X10, X11)
-- **The pose stays `x, z, yaw`.** The camera's height never reaches the simulation, which knows the cells' heights only. The camera's y is `ground.height(x, z) + EYE_HEIGHT`, from the ground sampler (§8.4, M8.5 step 4).
+### 5.6 Height and cliffs (rules built in M8.5 step 1a, drawing in step 4; X10, X11)
+- **The pose stays `x, z, yaw`.** The camera's height never reaches the simulation, which knows the cells' heights only. The camera's y eases toward `ground::eye` (the ground under the pose plus `EYE_HEIGHT`; §8.4, built).
+- **A cliff's hold is named** (built): the mirror holds the pose before the simulation hears of the step, so the binder reports the first contact (`Outcome.bumped`) and the shell shows the engine's own "Blocked: too steep" line, once per contact.
 - **Cliffs block like walls** (built). `omnis-data` derives them when the pack loads (`Cell.cliffs`: the difference is more than the entered terrain's `climb` and the edge is no ramp), so the step refuses with `BlockReason::Cliff`. The mirror reads the same `Cell.cliffs` rather than recomputing from heights, and the agreement test covers cliff edges on the engine's elevation fixture.
 - **The fog follows the engine's sight** (built): `Views.sight` is the viewport's `visibility_depth`, which counts a light and the party's height (before M8.5 the fog read the floor's depth and ignored a light).
 - **Relief never moves the walkable rule** (XR7): the pose walks the cell grid; the drawn ground only lifts the camera.
@@ -427,9 +429,10 @@ pulsing controls in the UI. As built (P8), the only motion is the movement's: un
 A `Camera3d` with perspective (X3). The whole map is drawn in every direction out to the fog (X6), not
 only the simulation's forward cone; the automap still records the cone (§10.2).
 
-`geometry::extract(map, map_id, world)` turns one map into `Segment`s of a `SegKind`:
-- **Edges** are deduplicated per line (north and south sides share a row key, east and west a column key), a door on either side winning over a wall. A wall is a rectangle `wall_height` high. A door is a lintel and posts (drawn as wall) and an inner frame, crossed by two diagonals while closed (`SimWorld::door_open`).
-- **Cells:** floor lines on each cell's north and west sides; ceiling lines where the terrain has one; a 12-edge box inset 0.1 for a block; a floor cross for impassable ground (`Barrier`).
+`geometry::extract(map, map_id, world, ground)` turns one map into `Segment`s of a `SegKind`, standing on the `Ground` (§8.4). On a flat map every segment is where it was before height was drawn (a copy of the old extractor is the test's reference).
+- **Edges** are deduplicated per line (north and south sides share a row key, east and west a column key), a door on either side winning over a wall. A wall stands from the lower ground at each end to `wall_height` above the higher cell's centre, the engine's sight rule (top = higher floor + 8). A door is a lintel and posts (drawn as wall) and an inner frame, crossed by two diagonals while closed (`SimWorld::door_open`).
+- **Cells:** floor lines on each cell's north and west sides between its corners, and its south or east side too where the neighbour meets it at other heights (both rims of a split); ceiling lines `wall_height` above the cell; a 12-edge box inset 0.1 for a block, on the cell's height; a floor cross for impassable ground (`Barrier`).
+- **Height** (M8.5 step 4): `Cliff`, verticals every quarter cell between the two rims of a cliff edge; `Ramp`, four treads along a ramp edge lying on the ground. Both are always drawn (the grid setting hides only `Floor` and `Ceiling`); their colours are provisional until the roles (§7.1).
 - Segments are rebuilt when the map changes or `Session.reshape` is set (a door moved, a world replaced).
 
 ### 8.2 From gizmos to meshes with occluding fills (to build, X13)
@@ -449,11 +452,13 @@ The design fixes the seams; the technique is measured in its step (X20):
 - **Level 3** is a backdrop: huge, low-detail forms on a separate camera layer or far plane, moving with the slowest parallax, drawn outdoors only. Where its content comes from is open (presentation-PRD §12.7).
 - **Visibility depth** from the terrain still sets the fog end, as built.
 
-### 8.4 Terrain (to build, X10, X21)
-- **`Ground`** is a core sampler: `height(x, z) -> f32` = the authored coarse height from the map data (`Cell.height` in eighths of a cell, so a wall's 1.0 is 8) plus relief from a seeded noise chosen by terrain kind. The noise is the client's own small function (no dependency), seeded from the map and cell, so the same ground draws the same way every visit.
-- **The floor grid** follows the ground like contour lines (X21), in the ground role, hidden by a setting.
-- **The camera's y** is the ground's height under the pose plus the eye height (§5.6), smoothed so a step up is not a jolt.
-- **Cliffs** are drawn as rock faces in the structure role and block through the engine (§5.6).
+### 8.4 Terrain (built in M8.5 step 4, X10, X21; relief with step 5)
+- **`Ground`** (`ground.rs`, Bevy-free) is the core sampler. Each cell's centre is at its authored height (`Cell.height` in eighths, so a wall's 1.0 is 8). Its corners are shared with the cells it is joined to: across an edge that is neither a wall nor a cliff from either side (doors and ramps join), the cells around a corner take their group's mean. So the ground runs smooth where the party can walk and splits where it cannot (owner, 2026-10-12: "smooth where walkable"). A cell's surface is four triangles from its centre to each side's corners; `height(x, z)` samples it.
+- **Relief** (to build, M8.5 step 5): a seeded noise per terrain kind added to `height`, the client's own small function (no dependency), seeded from the map and cell. Which noise a terrain uses is pack data with the biosphere palettes (presentation-PRD §12.2).
+- **The floor grid** lies on the ground (X21), hidden by a setting. Contour lines on the ground and the minimap come later.
+- **The camera's y** eases toward `eye` (the ground under the pose plus `EYE_HEIGHT`) with a 0.1 s time constant; at once under reduced motion and for a jump of more than a wall (a portal, a teleport).
+- **Cliffs** are hatched rock faces (`SegKind::Cliff`) and block through the engine (§5.6). The minimap draws a known cliff along its edge and ticks a ramp (§10.2).
+- **Lines only until M8.5 step 3:** without fills a hill is see-through; the fills (§8.2) are built on the same segments and `Ground`.
 
 ### 8.5 Shaped structures (to build, X12)
 - **Generators per terrain kind** (jagged rock, broken masonry, rounded towers, trunks and canopies) turn a wall edge or a block cell into segments and fills. They are seeded per cell, so the world is stable between visits.
@@ -486,7 +491,7 @@ size; the mouse-look hint while it is on; and up to 8 recent event lines (`Sessi
 `shell/text.rs`). It becomes the status panel of the explore screen (§6.6).
 
 ### 10.2 The minimap (as built) and the automap (to build, X22)
-- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map, the command count, the marker's pixel or its heading changes.
+- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then the known tiles' cliffs (along the edge) and ramps (a tick across it), read from their map cells (M8.5 step 4), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map, the command count, the marker's pixel or its heading changes.
 - **To build:** a blueprint-style map in the neon style with height as contour lines (X22), opened full-screen from the tool bar's Map. What it records stays the engine's (the cardinal cone); recording the camera's view needs an engine command (presentation-PRD §12.5).
 
 ### 10.3 Capture (as built)
