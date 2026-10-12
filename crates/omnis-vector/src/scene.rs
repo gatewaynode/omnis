@@ -1,8 +1,11 @@
 //! What the view draws of a map (presentation-ARCHITECTURE.md §8.4, M8.5 step 1b): the party's
 //! level on its ground, and the levels just above and below it, drawn dimmer at their own
 //! heights, so a bridge shows over the road and the cellar through a hole. The rules stay per
-//! level; only the drawing crosses. Bevy-free, so it is tested directly.
+//! level; only the drawing crosses. Each level brings its fills (M8.5 step 3), so the party's
+//! floors and ceilings hide its neighbours except through open air, holes and shafts.
+//! Bevy-free, so it is tested directly.
 
+use crate::fill::{Tri, fills};
 use crate::geometry::{SegKind, Segment, extract};
 use crate::ground::Ground;
 use crate::sim::SimWorld;
@@ -22,6 +25,8 @@ pub struct Scene {
     pub own: Vec<Segment>,
     /// The levels just above and below, drawn at [`NEIGHBOUR_DIM`].
     pub neighbours: Vec<Segment>,
+    /// The solid surfaces of the party's level and its neighbours.
+    pub fills: Vec<Tri>,
 }
 
 impl Scene {
@@ -30,18 +35,21 @@ impl Scene {
     pub fn build(map: &MapData, map_id: MapId, level: Level, world: &SimWorld) -> Scene {
         let ground = Ground::from_map(map, level);
         let own = lines(map, map_id, level, world, &ground);
-        let neighbours = [false, true]
+        let mut all = fills(map, map_id, level, world, &ground);
+        let mut neighbours = Vec::new();
+        for near in [false, true]
             .into_iter()
             .filter_map(|up| map.beyond(level, up))
-            .flat_map(|near| {
-                let ground = Ground::from_map(map, near);
-                lines(map, map_id, near, world, &ground)
-            })
-            .collect();
+        {
+            let ground = Ground::from_map(map, near);
+            neighbours.extend(lines(map, map_id, near, world, &ground));
+            all.extend(fills(map, map_id, near, world, &ground));
+        }
         Scene {
             ground,
             own,
             neighbours,
+            fills: all,
         }
     }
 

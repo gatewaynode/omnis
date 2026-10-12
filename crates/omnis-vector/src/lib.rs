@@ -17,6 +17,7 @@ pub mod bind;
 pub mod cinema;
 pub mod collide;
 pub mod combat_menu;
+pub mod fill;
 pub mod game_io;
 pub mod geom;
 pub mod geometry;

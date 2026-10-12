@@ -1,16 +1,20 @@
 //! The 3D view: a `Camera3d` with HDR and bloom following the pose over the ground, and the map
-//! drawn as glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7, §8.4).
+//! drawn as glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7, §8.4)
+//! over dark solid fills that hide what lies behind them (§8.2, M8.5 step 3).
 
 use super::VectorSet;
 use super::capture::Offscreen;
 use super::movement::View;
 use super::session::Session;
 use super::settings::Current;
+use crate::fill::Tri;
 use crate::geometry::{SegKind, Segment};
 use crate::ground::{ease_eye, eye};
 use crate::scene::Scene;
+use bevy::asset::RenderAssetUsages;
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use omnis_sim::omnis_core::{Level, MapId};
@@ -19,6 +23,10 @@ use omnis_sim::omnis_core::{Level, MapId};
 const FOG_EXTRA: f32 = 2.0;
 /// Line width in logical pixels.
 const LINE_WIDTH: f32 = 2.0;
+/// How far the lines are drawn toward the camera, so a wall's own edges and the floor grid are
+/// not hidden by the face they lie on: the gizmos' bias, a power of the depth (presentation-
+/// ARCHITECTURE.md §8.2). Tuned on the captures.
+const LINE_DEPTH_BIAS: f32 = -0.002;
 /// Vertical field of view, radians: about 55°, which gives roughly 90° across 16:9 and 128°
 /// across 32:9.
 const FOV: f32 = 0.96;
@@ -55,6 +63,35 @@ impl Lines {
 #[derive(Component)]
 pub struct ViewCamera;
 
+/// Marks the entity that holds the scene's fills.
+#[derive(Component)]
+pub struct Fills;
+
+/// The fills as a mesh: a triangle list, each triangle its own three vertices with its face's
+/// normal (the material is unlit, so the normals only keep the vertex layout whole).
+#[must_use]
+pub fn mesh(fills: &[Tri]) -> Mesh {
+    let positions: Vec<[f32; 3]> = fills.iter().flatten().copied().collect();
+    let normals: Vec<[f32; 3]> = fills
+        .iter()
+        .flat_map(|[a, b, c]| {
+            let (a, b, c) = (Vec3::from(*a), Vec3::from(*b), Vec3::from(*c));
+            let n = (b - a).cross(c - a).normalize_or(Vec3::Y).to_array();
+            [n; 3]
+        })
+        .collect();
+    // A scene's vertex count is far below u32's range.
+    #[allow(clippy::cast_possible_truncation)]
+    let indices = (0..positions.len() as u32).collect();
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_indices(Indices::U32(indices))
+}
+
 /// Camera and lines: everything that needs a window and a GPU.
 pub struct RenderPlugin;
 
@@ -63,7 +100,7 @@ impl Plugin for RenderPlugin {
         app.init_resource::<Lines>()
             .init_resource::<Current>()
             .insert_resource(ClearColor(Color::BLACK))
-            .add_systems(Startup, (spawn_camera, line_style))
+            .add_systems(Startup, (spawn_camera, spawn_fills, line_style))
             .add_systems(
                 Update,
                 (rebuild, follow, draw).chain().in_set(VectorSet::Draw),
@@ -94,12 +131,32 @@ fn spawn_camera(mut commands: Commands, offscreen: Option<Res<Offscreen>>) {
     }
 }
 
+/// The fills' entity, unlit in the clear colour and drawn from both sides; its mesh comes with
+/// the first scene.
+fn spawn_fills(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>) {
+    let material = materials.add(StandardMaterial {
+        base_color: Color::BLACK,
+        unlit: true,
+        cull_mode: None,
+        double_sided: true,
+        ..default()
+    });
+    commands.spawn((Fills, MeshMaterial3d(material), Transform::default()));
+}
+
 fn line_style(mut store: ResMut<GizmoConfigStore>) {
     let (config, _) = store.config_mut::<DefaultGizmoConfigGroup>();
     config.line.width = LINE_WIDTH;
+    config.depth_bias = LINE_DEPTH_BIAS;
 }
 
-fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
+fn rebuild(
+    mut commands: Commands,
+    mut session: ResMut<Session>,
+    mut lines: ResMut<Lines>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    fills: Query<Entity, With<Fills>>,
+) {
     let (map, level) = (session.views.position.map, session.views.position.level);
     if lines.map == Some((map, level)) && !session.reshape {
         return;
@@ -108,6 +165,10 @@ fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
     if let Some(data) = session.data.maps.get(&map) {
         lines.scene = Scene::build(data, map, level, &session.world);
         lines.map = Some((map, level));
+        for entity in &fills {
+            let handle = meshes.add(mesh(&lines.scene.fills));
+            commands.entity(entity).insert(Mesh3d(handle));
+        }
     }
 }
 

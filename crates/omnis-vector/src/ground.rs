@@ -49,6 +49,8 @@ pub struct Ground {
     width: u16,
     height: u16,
     patches: Vec<Patch>,
+    /// Whether each tile has ground on the level; one without has no patch.
+    present: Vec<bool>,
 }
 
 /// A height in eighths of a cell, in cells.
@@ -82,8 +84,8 @@ pub fn joined(map: &MapData, level: Level, x: u16, y: u16, facing: Facing) -> bo
 }
 
 impl Ground {
-    /// The ground of a level of `map`; a tile with no ground there sits at 0 and is never
-    /// drawn.
+    /// The ground of a level of `map`; a tile with no ground there has no patch, so nothing
+    /// stands on it and no wall beside it reaches down to it.
     #[must_use]
     pub fn from_map(map: &MapData, level: Level) -> Ground {
         let (width, height) = (map.def.width, map.def.height);
@@ -102,10 +104,15 @@ impl Ground {
                 Self::corner(map, level, &mut patches, cx, cy);
             }
         }
+        let present = (0..height)
+            .flat_map(|y| (0..width).map(move |x| (x, y)))
+            .map(|(x, y)| map.cell(level, x, y).is_some())
+            .collect();
         Ground {
             width,
             height,
             patches,
+            present,
         }
     }
 
@@ -165,15 +172,19 @@ impl Ground {
         }
     }
 
-    /// The surface of cell `(x, y)`, if it is on the map.
+    /// The surface of cell `(x, y)`, if it is on the map and has ground on the level.
     #[must_use]
     pub fn patch(&self, x: u16, y: u16) -> Option<Patch> {
         if x >= self.width || y >= self.height {
             return None;
         }
-        self.patches
-            .get(usize::from(y) * usize::from(self.width) + usize::from(x))
+        let i = usize::from(y) * usize::from(self.width) + usize::from(x);
+        self.present
+            .get(i)
             .copied()
+            .unwrap_or(false)
+            .then(|| self.patches.get(i).copied())
+            .flatten()
     }
 
     /// The ground's height at the point `(x, z)`; off the map, the nearest cell's surface.

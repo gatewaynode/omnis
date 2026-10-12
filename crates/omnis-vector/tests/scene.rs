@@ -215,3 +215,36 @@ fn the_neighbours_are_stroked_dimmer_than_the_party_s_level() {
         "the grid setting hides the neighbours' grids too"
     );
 }
+
+#[test]
+fn a_wall_beside_no_ground_stands_on_the_floor_it_bounds() {
+    let data = levels_data();
+    let upper = scene(&data, UPPER);
+    // The bridge's west wall, between no ground at (3, 2) and the bridge at (4, 2): from the
+    // bridge's floor (base 8) a wall high, not down to the ground under the bridge.
+    let wall: Vec<Segment> = upper
+        .own
+        .iter()
+        .filter(|s| s.kind == SegKind::Wall && s.a[0] == 4.0 && s.b[0] == 4.0)
+        .filter(|s| (2.0..=3.0).contains(&s.a[2]) && (2.0..=3.0).contains(&s.b[2]))
+        .copied()
+        .collect();
+    assert!(!wall.is_empty(), "the bridge's west wall");
+    assert_eq!(heights(&wall), (1.0, 2.0), "{wall:?}");
+}
+
+#[test]
+fn a_stair_pair_draws_one_flight_from_either_end() {
+    let data = levels_data();
+    let key = |s: &Segment| (s.a.map(f32::to_bits), s.b.map(f32::to_bits));
+    let flight = |level: Level| {
+        let mut lines: Vec<_> = within(&scene(&data, level).own, SegKind::Stair, 4.0, 3.0)
+            .iter()
+            .map(key)
+            .collect();
+        lines.sort_unstable();
+        lines
+    };
+    // The courtyard's stair up and the bridge's stair down are the same flight.
+    assert_eq!(flight(Level::GROUND), flight(UPPER));
+}

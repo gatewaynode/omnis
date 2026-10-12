@@ -63,10 +63,10 @@ pub struct Segment {
 }
 
 /// A canonical edge: `(horizontal, column, row)` of its lower-left corner.
-type EdgeKey = (bool, u16, u16);
+pub(crate) type EdgeKey = (bool, u16, u16);
 
 /// What stands on an edge: its kind, whether a door is open, the terrain colour, the height.
-type EdgeLook = (SegKind, bool, (u8, u8, u8), f32);
+pub(crate) type EdgeLook = (SegKind, bool, (u8, u8, u8), f32);
 
 /// Quarter cells: where a cliff is hatched along its edge.
 const HATCH: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
@@ -85,7 +85,6 @@ pub fn extract(
     ground: &Ground,
 ) -> Vec<Segment> {
     let mut out = Vec::new();
-    let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
     for y in 0..map.def.height {
         for x in 0..map.def.width {
             let Some(cell) = map.cell(level, x, y) else {
@@ -115,6 +114,43 @@ pub fn extract(
                 };
                 joins(&mut out, (x, y), patch, join, beyond, terrain.color);
             }
+        }
+    }
+    for (&(horizontal, col, row), &(kind, open, rgb, h)) in &edges(map, map_id, level, world) {
+        let (x0, z0) = (f32::from(col), f32::from(row));
+        let (x1, z1) = if horizontal {
+            (x0 + 1.0, z0)
+        } else {
+            (x0, z0 + 1.0)
+        };
+        let (feet, top) = span(ground, (horizontal, col, row), h);
+        edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, feet, top);
+    }
+    for (edge, split, rgb) in splits(map, level) {
+        match split {
+            Split::Cliff => cliff(&mut out, ground, edge, rgb),
+            Split::Ramp => treads(&mut out, ground, edge, rgb),
+        }
+    }
+    out
+}
+
+/// Every wall and door edge of a level, once: a door on either side wins over a wall on the
+/// other, and an open door is as `world` has it.
+pub(crate) fn edges(
+    map: &MapData,
+    map_id: MapId,
+    level: Level,
+    world: &SimWorld,
+) -> BTreeMap<EdgeKey, EdgeLook> {
+    let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
+    for y in 0..map.def.height {
+        for x in 0..map.def.width {
+            let Some(cell) = map.cell(level, x, y) else {
+                continue;
+            };
+            let terrain = map.terrain(cell);
+            let h = wall_height(terrain);
             for facing in Facing::ALL {
                 let kind = if cell.doors.has(facing) {
                     SegKind::Door
@@ -135,18 +171,7 @@ pub fn extract(
             }
         }
     }
-    for (&(horizontal, col, row), &(kind, open, rgb, h)) in &edges {
-        let (x0, z0) = (f32::from(col), f32::from(row));
-        let (x1, z1) = if horizontal {
-            (x0 + 1.0, z0)
-        } else {
-            (x0, z0 + 1.0)
-        };
-        let (feet, top) = span(ground, (horizontal, col, row), h);
-        edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, feet, top);
-    }
-    heights(&mut out, map, level, ground);
-    out
+    edges
 }
 
 /// A height in eighths of a cell, in cells.
@@ -155,12 +180,18 @@ fn cells_high(eighths: i16) -> f32 {
 }
 
 /// How far in from the cell's sides a stair's treads and a hole's opening sit.
-const JOIN_INSET: f32 = 0.15;
+pub(crate) const JOIN_INSET: f32 = 0.15;
+
+/// A stair's foot and head between its `floor` and the floor it leads `to`: the flight always
+/// climbs north to south, so a stair up and its stair down above draw the same flight.
+fn flight(floor: f32, to: f32) -> [f32; 2] {
+    [floor.min(to), floor.max(to)]
+}
 
 /// A join's marks on cell `(x, y)`, from its floor `p` toward the floor of the next level up
 /// or down (`beyond(up)`), a wall's height when that level has none there:
-/// - a stair: four treads across the cell, climbing (or falling) north to south, on two
-///   stringers;
+/// - a stair: four treads across the cell, climbing north to south from the lower floor to the
+///   higher, on two stringers;
 /// - a ladder: two ladders crossed in the cell's middle, rails and a rung every quarter cell;
 /// - a hole: the opening, a square in from the sides, with its corners hatched to the cell's.
 fn joins(
@@ -178,14 +209,15 @@ fn joins(
         Join::Up | Join::Down => {
             let up = join == Join::Up;
             let to = beyond(up).unwrap_or(if up { floor + 1.0 } else { floor - 1.0 });
+            let [lo, hi] = flight(floor, to);
             let (l, r) = (x0 + JOIN_INSET, x1 - JOIN_INSET);
             for k in 1u8..=4 {
                 let t = f32::from(k) / 4.0;
-                let (h, z) = (floor + (to - floor) * t, z0 + t - 0.125);
+                let (h, z) = (lo + (hi - lo) * t, z0 + t - 0.125);
                 line(out, [l, h, z], [r, h, z], SegKind::Stair, rgb);
             }
             for side in [l, r] {
-                line(out, [side, floor, z0], [side, to, z1], SegKind::Stair, rgb);
+                line(out, [side, lo, z0], [side, hi, z1], SegKind::Stair, rgb);
             }
         }
         Join::Ladder => {
@@ -239,7 +271,7 @@ fn joins(
     }
 }
 
-fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
+pub(crate) fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
     match facing {
         Facing::North => (true, x, y),
         Facing::South => (true, x, y + 1),
@@ -250,7 +282,7 @@ fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
 
 /// The surfaces on either side of an edge: north then south, or west then east, with the side of
 /// each that lies on the edge.
-fn sides(ground: &Ground, (horizontal, col, row): EdgeKey) -> [Option<[f32; 2]>; 2] {
+pub(crate) fn sides(ground: &Ground, (horizontal, col, row): EdgeKey) -> [Option<[f32; 2]>; 2] {
     let (before, after, toward) = if horizontal {
         (
             row.checked_sub(1).and_then(|r| ground.patch(col, r)),
@@ -272,7 +304,7 @@ fn sides(ground: &Ground, (horizontal, col, row): EdgeKey) -> [Option<[f32; 2]>;
 
 /// A wall's feet at each end (the lower ground there) and its top (a wall above the higher
 /// cell, as the engine's sight has it).
-fn span(ground: &Ground, edge: EdgeKey, h: f32) -> ([f32; 2], f32) {
+pub(crate) fn span(ground: &Ground, edge: EdgeKey, h: f32) -> ([f32; 2], f32) {
     let (horizontal, col, row) = edge;
     let centres = if horizontal {
         [
@@ -351,8 +383,19 @@ fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, r
     }
 }
 
-/// Cliff faces and ramp treads, once per edge: each cell's east and south sides.
-fn heights(out: &mut Vec<Segment>, map: &MapData, level: Level, ground: &Ground) {
+/// What lies on an open edge between two heights.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Split {
+    /// A rock face between the two rims.
+    Cliff,
+    /// A ramp, walked across.
+    Ramp,
+}
+
+/// The cliffs and ramps of a level, once per edge (each cell's east and south sides), with the
+/// colour of the higher cell's terrain.
+pub(crate) fn splits(map: &MapData, level: Level) -> Vec<(EdgeKey, Split, (u8, u8, u8))> {
+    let mut out = Vec::new();
     for y in 0..map.def.height {
         for x in 0..map.def.width {
             let Some(cell) = map.cell(level, x, y) else {
@@ -379,17 +422,18 @@ fn heights(out: &mut Vec<Segment>, map: &MapData, level: Level, ground: &Ground)
                     map.terrain(cell).color
                 };
                 if !closed && !joined(map, level, x, y, facing) {
-                    cliff(out, ground, edge, rgb);
+                    out.push((edge, Split::Cliff, rgb));
                 } else if cell.ramps.has(facing) || next.ramps.has(back) {
-                    treads(out, ground, edge, rgb);
+                    out.push((edge, Split::Ramp, rgb));
                 }
             }
         }
     }
+    out
 }
 
 /// The ends of a canonical edge on the ground plane.
-fn ends((horizontal, col, row): EdgeKey) -> ([f32; 2], [f32; 2]) {
+pub(crate) fn ends((horizontal, col, row): EdgeKey) -> ([f32; 2], [f32; 2]) {
     let (x0, z0) = (f32::from(col), f32::from(row));
     let far = if horizontal {
         [x0 + 1.0, z0]
@@ -473,6 +517,15 @@ fn boxed(
     }
 }
 
+/// Where a door's opening lies along its edge.
+pub(crate) const DOOR: [f32; 2] = [0.2, 0.8];
+
+/// The height of a door's head: 85% of the way from its higher foot to the wall's top.
+pub(crate) fn door_head(feet: [f32; 2], top: f32) -> f32 {
+    let high = feet[0].max(feet[1]);
+    high + (top - high) * 0.85
+}
+
 /// A wall's outline from its `feet` at each end up to `top`, or a door: the lintel over a frame,
 /// crossed while closed.
 #[allow(clippy::too_many_arguments)]
@@ -490,8 +543,7 @@ fn edge(
     let foot = |t: f32| feet[0] + (feet[1] - feet[0]) * t;
     match kind {
         SegKind::Door => {
-            let high = feet[0].max(feet[1]);
-            let (l, r, head) = (0.2, 0.8, high + (top - high) * 0.85);
+            let ([l, r], head) = (DOOR, door_head(feet, top));
             line(out, at(0.0, top), at(1.0, top), SegKind::Wall, rgb);
             line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, rgb);
             line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, rgb);

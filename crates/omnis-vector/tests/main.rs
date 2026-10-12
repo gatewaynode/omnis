@@ -16,6 +16,7 @@ mod create_party;
 mod debug;
 mod fight;
 mod fight_screen;
+mod fill;
 mod game_io;
 mod geometry;
 mod ground;
