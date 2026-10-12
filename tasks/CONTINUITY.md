@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-12, after M8.5 step 3 (solid occlusion) was built, waiting for the owner's acceptance. Rewrite this
+Written 2026-10-12, after M8.5 step 3 (solid occlusion) was accepted by the owner. Rewrite this
 file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -8,7 +8,8 @@ file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **M8.5 build order:** 1a, 4, 4b, 1b, 3, 2, 5, 6. The owner moved 3 before 2 on 2026-10-12.
   - Accepted: 1a, 4, 4b, 1b. 1b's acceptance was provisional: its stair and ladder walk is repeated in step 3's
     script.
-  - Step 3 is built and waiting for the owner to walk `tasks/acceptance/m8.5-3.md`.
+  - Step 3 accepted 2026-10-12 ("tasks/acceptance/m8.5-3.md accepted"), with 1b's walk in it. No window fps
+    reading was recorded.
 - **Step 3 commits:**
   - `a86204e`, the plan;
   - `b46a54a`, `--timing`;
@@ -41,8 +42,7 @@ file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   presentation-ARCHITECTURE §15.3 stays open. The offscreen numbers may understate the GPU's share.
 
 ## Next
-1. **The owner walks `tasks/acceptance/m8.5-3.md`.** That includes the window fps reading at 5120×1440 on the hills.
-   Fix whatever they find, each fix with a test written red first.
+1. (Done: step 3 accepted.)
 2. **Ask the owner** whether a stair should get a direction in the map format (data, engine views, client). Today a
    flight always climbs north to south, and the slab fill was dropped because of it.
 3. **Then step 2** (layout within a square), planned in plan mode with the owner's questions first. It brings forward
