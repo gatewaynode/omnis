@@ -44,7 +44,7 @@
     levels: [
         (
             level: -1,
-            name: "Cellar",
+            name: "levels:text:map.tower.cellar",
             base: -8,
             layout: [
                 "+-+-+-+-+-+-+-+",
@@ -62,7 +62,7 @@
         ),
         (
             level: 1,
-            name: "Upper floor",
+            name: "levels:text:map.tower.upper",
             base: 8,
             layout: [
                 "+-+-+-+-+-+-+-+",
@@ -80,7 +80,7 @@
         ),
         (
             level: 2,
-            name: "Roof",
+            name: "levels:text:map.tower.roof",
             base: 16,
             layout: [
                 "+-+-+-+-+-+-+-+",

@@ -23,7 +23,7 @@ pub const NO_GROUND: char = '_';
 pub struct LevelDef {
     /// Its number: above the ground is positive, below negative; never 0 (the map's own).
     pub level: i8,
-    /// Its name, for the interface ("Cellar", "Roof").
+    /// Its name's text key, for the interface (`pack:text:map.tower.roof`).
     pub name: String,
     /// The height added to every tile, in eighths of a cell.
     #[serde(default)]
@@ -40,7 +40,7 @@ pub struct LevelDef {
 pub struct LevelData {
     /// Its number.
     pub level: Level,
-    /// Its name; empty for the map's own level.
+    /// Its name's text key; empty for the map's own level, whose name is the map's.
     pub name: String,
     /// Row-major cells, `width × height`; `None` where there is no ground.
     pub cells: Vec<Option<Cell>>,

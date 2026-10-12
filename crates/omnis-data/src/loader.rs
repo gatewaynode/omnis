@@ -678,6 +678,17 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 TextKey(0)
             }
         };
+        for level in levels.iter().filter(|l| !l.name.is_empty()) {
+            if data.registry.text.get(&level.name).is_none() {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "level {} name text key '{}' is not defined in any language",
+                        level.level, level.name
+                    ),
+                ));
+            }
+        }
         let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
         let (encounters, random) = encounter::resolve(
             &def.encounters,

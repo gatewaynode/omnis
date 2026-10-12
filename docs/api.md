@@ -523,7 +523,7 @@ Races, classes and backgrounds are in id order.
 `ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
 `visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
-(that level's name, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
+(that level's name as a text key, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
 the party's level).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),

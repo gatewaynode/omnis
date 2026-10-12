@@ -136,6 +136,8 @@ fn every_error_in_a_broken_pack_is_reported() {
         // every map belongs to a region; glyph and refs do
         "map 'broken:map:heights' belongs to no region",
         "map 'broken:map:sites' belongs to no region",
+        // data/maps/sites.ron's upper level (M8.5 step 1b)
+        "level 1 name text key 'broken:text:level.none' is not defined in any language",
         // data/rules/time.ron: the calendar
         "value 'days_per_year' is 0; it must be 1..=65535",
         "value 'night_to' is 1440; it must be 0..=1439",

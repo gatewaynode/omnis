@@ -83,10 +83,10 @@ fn the_tower_has_its_four_levels_lowest_first() {
     assert_eq!(
         levels,
         [
-            (CELLAR, "Cellar"),
+            (CELLAR, "levels:text:map.tower.cellar"),
             (Level::GROUND, ""),
-            (UPPER, "Upper floor"),
-            (ROOF, "Roof"),
+            (UPPER, "levels:text:map.tower.upper"),
+            (ROOF, "levels:text:map.tower.roof"),
         ]
     );
 }

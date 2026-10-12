@@ -61,7 +61,7 @@ pub struct ViewportModel {
     /// The party's level of the map (M8.5 step 1b); unwritten when it is the ground.
     #[serde(default, skip_serializing_if = "Level::is_ground")]
     pub level: Level,
-    /// The level's name; empty for the map's own level.
+    /// The level's name as a text key; empty for the map's own level.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub level_name: String,
     /// Its tileset's string id.

@@ -18,6 +18,9 @@
         "|. . . #|",
         "+-+-+-+-+",
     ],
+    levels: [
+        (level: 1, name: "broken:text:level.none", layout: ["+-+-+-+-+", "|. . . .|", "+-+-+-+-+"]),
+    ],
     portals: [
         (x: 0, y: 0, to_map: "broken:map:sites", to_x: 1, to_y: 0, to_facing: East),
     ],
