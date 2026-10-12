@@ -1,11 +1,11 @@
 # Continuity notes
 
-Written 2026-10-11, after P9 was built, before the owner's acceptance. Rewrite this file every time it is used.
+Written 2026-10-11, after P9 was accepted, before a compact. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `vector-adoption`**, not pushed (the owner pushes).
-- **Accepted by the owner:** P2 to P8 (all 2026-10-11). **P9 is built and awaits acceptance** (`tasks/acceptance/p9.md`).
+- **Accepted by the owner:** P2 to P9 (all 2026-10-11; P9: "P9 accepted, prepare for a compact"). Parity is complete: `omnis-vector` is the only client.
 - **P9: `omnis-app` retired.** Plan `tasks/plans/p9.md`, with "As built".
   - Commits: `d165940` (plan), `736558c` (P9a), `1c017db` (P9b), then P9c (docs).
   - Owner answers:
@@ -25,8 +25,7 @@ Durable knowledge lives in `tasks/knowledge/`.
     presentation-PRD and presentation-ARCHITECTURE; README; api.md; knowledge; ATTRIBUTION's fonts), historical notes
     on six acceptance scripts, and the P9 acceptance script.
 - **Next:**
-  - The owner's P9 acceptance.
-  - Then the rhai Socket re-audit (TODO).
+  - The rhai Socket re-audit (TODO; the owner: after the migration). Wait for the owner to say to move on.
   - Then the owner sets the order of: Look and Map, the clock line's date, the presentation-PRD §11 visual steps,
     and Bevy 0.20 (not before 2026-11-07).
 
