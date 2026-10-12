@@ -56,11 +56,16 @@ fn every_error_in_a_broken_pack_is_reported() {
         // data/maps/glyph.ron
         "terrain glyph '.' is used twice",
         "terrain glyph '-' is reserved for edges and portals",
+        "terrain glyph '/' is reserved for edges and portals",
         "terrain 'floor' visibility_depth must be 1..=32",
         "start (2, 0) is outside the map",
         "portal at (5, 5) is outside the map",
         "portal at (5, 5) has no marker; every portal must be visible",
+        "tile (1, 0) height 'x' must be a whole number within -4096..=4096",
+        "heights row 1 has 3 numbers; a 2-tile-wide map needs 2",
         "tile (1, 0) has unknown glyph '?'",
+        // data/maps/heights.ron
+        "tile (1, 0) west ramp joins heights 24 and 0, more than 16 apart",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
         "encounter 0 stack count must be at least 1",
@@ -122,6 +127,7 @@ fn every_error_in_a_broken_pack_is_reported() {
         // data/regions/twice.ron
         "rule 'time.odd' declares input 'age'; a region's rule takes only lived, shared_time, stability",
         // every map belongs to a region; glyph and refs do
+        "map 'broken:map:heights' belongs to no region",
         "map 'broken:map:sites' belongs to no region",
         // data/rules/time.ron: the calendar
         "value 'days_per_year' is 0; it must be 1..=65535",

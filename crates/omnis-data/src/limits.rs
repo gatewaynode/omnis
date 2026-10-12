@@ -19,6 +19,10 @@ pub const RON_RECURSION_LIMIT: usize = 64;
 pub const MAX_DETAIL_DEPTH: u8 = 8;
 /// Largest visibility depth a tile may declare (PRD §7.2: an open plain reaches 20).
 pub const MAX_VISIBILITY_DEPTH: u8 = 32;
+/// Highest and lowest cell height, in eighths of a cell (a wall is 8): 512 wall heights each way.
+pub const MAX_HEIGHT: i16 = 4096;
+/// The most a ramp edge may join, in eighths of a cell: two wall heights.
+pub const MAX_RAMP: i32 = 16;
 /// Stacks an encounter may hold: the combat screen lists four.
 pub const MAX_STACKS: usize = 4;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).

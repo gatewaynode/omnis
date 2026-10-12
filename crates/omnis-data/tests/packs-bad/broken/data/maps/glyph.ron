@@ -13,6 +13,7 @@
         (glyph: '.', name: "floor", floor: "floor", ceiling: Some("sky"), passable: true, visibility_depth: 0, step_minutes: 1),
         (glyph: '.', name: "again", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
         (glyph: '-', name: "reserved", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+        (glyph: '/', name: "ramp", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
     ],
     layout: [
         "+-+-+",
@@ -21,6 +22,7 @@
         "|. .|",
         "+-+-+",
     ],
+    heights: ["0 x", "0 4097 1"],
     portals: [
         (x: 5, y: 5, to_map: "broken:map:glyph", to_x: 0, to_y: 0, to_facing: North),
     ],

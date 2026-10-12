@@ -16,10 +16,20 @@
 //! `=` (door), or space (open). Vertical edges are `|` (wall), `:` (door), or space (open).
 //! Corners are `+` and are ignored. Because an edge character sits between two tiles, both
 //! tiles agree on it by construction; the outer boundary is always treated as a wall.
+//! An inner edge may also be `/`, a ramp or stair: open, and walkable across any height
+//! difference up to [`MAX_RAMP`].
+//!
+//! Height is per tile, in eighths of a cell (a wall is 8 tall), written in `heights` as
+//! `height` rows of `width` whitespace-separated integers; no `heights` means every tile is at
+//! 0. A step is refused as a cliff when the two tiles differ by more than the entered
+//! terrain's `climb`, up or down, unless the edge is a ramp. Cliffs are worked out here, once,
+//! so the simulation and the client read the same answer.
 
 use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
-use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::limits::{
+    MAX_COLLECTION, MAX_HEIGHT, MAX_MAP_SIDE, MAX_RAMP, MAX_VISIBILITY_DEPTH, string_fits,
+};
 use crate::rest_event::RestEventDef;
 use crate::service::{self, Site};
 use omnis_core::{Edges, Facing};
@@ -67,10 +77,18 @@ pub struct Terrain {
     pub visibility_depth: u8,
     /// Minutes one step onto this terrain costs the party's clock.
     pub step_minutes: u32,
+    /// The largest height difference, up or down, a step onto this terrain may cross, in
+    /// eighths of a cell. More is a cliff.
+    #[serde(default = "quarter_wall")]
+    pub climb: u16,
 }
 
 fn grey() -> (u8, u8, u8) {
     (128, 128, 128)
+}
+
+fn quarter_wall() -> u16 {
+    2
 }
 
 /// A tile trigger that moves the party to another map or tile when stepped on.
@@ -135,6 +153,9 @@ pub struct MapDef {
     pub terrains: Vec<Terrain>,
     /// The grid as text; see the module documentation.
     pub layout: Vec<String>,
+    /// Tile heights in eighths of a cell, one row of numbers per tile row; empty is all 0.
+    #[serde(default)]
+    pub heights: Vec<String>,
     /// Tile triggers.
     #[serde(default)]
     pub portals: Vec<Portal>,
@@ -161,6 +182,13 @@ pub struct Cell {
     pub walls: Edges,
     /// Edges with a door.
     pub doors: Edges,
+    /// Floor height in eighths of a cell.
+    pub height: i16,
+    /// Edges with a ramp or stair.
+    pub ramps: Edges,
+    /// Edges a step may not cross because the height difference is more than the terrain
+    /// beyond allows (derived; set whatever else is on the edge).
+    pub cliffs: Edges,
 }
 
 impl MapDef {
@@ -207,6 +235,10 @@ impl MapDef {
         if errors.len() > before {
             return None;
         }
+        // A bad `heights` is reported and read as flat, so the tiles are still checked.
+        let heights = self
+            .heights(file, errors)
+            .unwrap_or_else(|| vec![0; width * height]);
         let mut cells = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
@@ -220,6 +252,7 @@ impl MapDef {
                 };
                 let mut walls = Edges::NONE;
                 let mut doors = Edges::NONE;
+                let mut ramps = Edges::NONE;
                 let edges = [
                     (Facing::North, rows[2 * y][2 * x + 1], true),
                     (Facing::South, rows[2 * y + 2][2 * x + 1], true),
@@ -236,6 +269,7 @@ impl MapDef {
                     match (c, horizontal) {
                         ('-', true) | ('|', false) => walls = walls.with(facing),
                         ('=', true) | (':', false) => doors = doors.with(facing),
+                        ('/', _) => ramps = ramps.with(facing),
                         (' ', _) => {}
                         _ => errors.push(DataError::new(
                             file,
@@ -253,10 +287,109 @@ impl MapDef {
                     terrain,
                     walls,
                     doors,
+                    height: heights[y * width + x],
+                    ramps,
+                    cliffs: Edges::NONE,
                 });
             }
         }
+        if errors.len() > before {
+            return None;
+        }
+        self.derive_cliffs(&mut cells, file, errors);
         (errors.len() == before).then_some(cells)
+    }
+
+    /// Parse `heights`: none is all 0; otherwise one row per tile row, one integer per tile.
+    fn heights(&self, file: &Path, errors: &mut Vec<DataError>) -> Option<Vec<i16>> {
+        let width = usize::from(self.width);
+        let height = usize::from(self.height);
+        if self.heights.is_empty() {
+            return Some(vec![0; width * height]);
+        }
+        if self.heights.len() != height {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "heights has {} rows; a {height}-tile-high map needs {height}",
+                    self.heights.len()
+                ),
+            ));
+            return None;
+        }
+        let before = errors.len();
+        let mut out = Vec::with_capacity(width * height);
+        for (y, row) in self.heights.iter().enumerate() {
+            let words: Vec<&str> = row.split_whitespace().collect();
+            if words.len() != width {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "heights row {y} has {} numbers; a {width}-tile-wide map needs {width}",
+                        words.len()
+                    ),
+                ));
+                continue;
+            }
+            for (x, word) in words.into_iter().enumerate() {
+                match word.parse::<i16>() {
+                    Ok(h) if (-MAX_HEIGHT..=MAX_HEIGHT).contains(&h) => out.push(h),
+                    _ => errors.push(DataError::new(
+                        file,
+                        format!(
+                            "tile ({x}, {y}) height '{word}' must be a whole number within \
+                             -{MAX_HEIGHT}..={MAX_HEIGHT}"
+                        ),
+                    )),
+                }
+            }
+        }
+        (errors.len() == before).then_some(out)
+    }
+
+    /// Mark each side a step may not cross for height, and refuse a ramp that joins more than
+    /// [`MAX_RAMP`]. A ramp is reported once, from its north or west tile.
+    fn derive_cliffs(&self, cells: &mut [Cell], file: &Path, errors: &mut Vec<DataError>) {
+        let width = usize::from(self.width);
+        let height = usize::from(self.height);
+        for y in 0..height {
+            for x in 0..width {
+                let here = cells[y * width + x];
+                for facing in [Facing::North, Facing::South, Facing::West, Facing::East] {
+                    let beside = match facing {
+                        Facing::North => y.checked_sub(1).map(|y| (x, y)),
+                        Facing::South => (y + 1 < height).then_some((x, y + 1)),
+                        Facing::West => x.checked_sub(1).map(|x| (x, y)),
+                        Facing::East => (x + 1 < width).then_some((x + 1, y)),
+                    };
+                    let Some((bx, by)) = beside else {
+                        continue;
+                    };
+                    let there = cells[by * width + bx];
+                    let rise = (i32::from(there.height) - i32::from(here.height)).abs();
+                    if here.ramps.has(facing) {
+                        if rise > MAX_RAMP && matches!(facing, Facing::North | Facing::West) {
+                            errors.push(DataError::new(
+                                file,
+                                format!(
+                                    "tile ({x}, {y}) {facing} ramp joins heights {} and {}, \
+                                     more than {MAX_RAMP} apart",
+                                    here.height, there.height
+                                ),
+                            ));
+                        }
+                        continue;
+                    }
+                    let climb = self
+                        .terrains
+                        .get(usize::from(there.terrain))
+                        .map_or(0, |t| i32::from(t.climb));
+                    if rise > climb {
+                        cells[y * width + x].cliffs = cells[y * width + x].cliffs.with(facing);
+                    }
+                }
+            }
+        }
     }
 
     /// Checks that need no other file: sizes, glyphs, start tile, portal, encounter, and site
@@ -289,7 +422,7 @@ impl MapDef {
                     format!("terrain glyph '{}' is used twice", terrain.glyph),
                 ));
             }
-            if matches!(terrain.glyph, '-' | '=' | '|' | ':' | '+' | ' ' | '*') {
+            if matches!(terrain.glyph, '-' | '=' | '|' | ':' | '/' | '+' | ' ' | '*') {
                 errors.push(DataError::new(
                     file,
                     format!(
@@ -387,8 +520,10 @@ mod tests {
                 color: (128, 128, 128),
                 visibility_depth: 4,
                 step_minutes: 1,
+                climb: 2,
             }],
             layout: layout.iter().map(|s| (*s).to_owned()).collect(),
+            heights: vec![],
             portals: vec![],
             encounters: vec![],
             random: None,
@@ -444,6 +579,136 @@ mod tests {
         assert_eq!(
             errors[0].message,
             "layout has 3 rows; a 2-tile-high map needs 5"
+        );
+    }
+
+    /// A 3x1 strip with the given terrains' climbs, layout middle row and heights.
+    fn strip(climbs: [u16; 3], tiles: &str, heights: &str) -> MapDef {
+        let mut map = tiny(&["+-+-+-+", tiles, "+-+-+-+"]);
+        map.width = 3;
+        map.height = 1;
+        let floor = map.terrains[0].clone();
+        map.terrains = ['a', 'b', 'c']
+            .into_iter()
+            .zip(climbs)
+            .map(|(glyph, climb)| Terrain {
+                glyph,
+                climb,
+                ..floor.clone()
+            })
+            .collect();
+        map.heights = vec![heights.to_owned()];
+        map
+    }
+
+    fn cells_of(map: &MapDef) -> Vec<Cell> {
+        let mut errors = vec![];
+        let cells = map.cells(Path::new("m"), &mut errors);
+        assert!(errors.is_empty(), "{errors:?}");
+        cells.expect("valid")
+    }
+
+    #[test]
+    fn no_heights_is_flat_and_without_cliffs() {
+        let map = tiny(&["+-+-+", "|. .|", "+ + +", "|. .|", "+-+-+"]);
+        for cell in cells_of(&map) {
+            assert_eq!(
+                (cell.height, cell.cliffs, cell.ramps),
+                (0, Edges::NONE, Edges::NONE)
+            );
+        }
+    }
+
+    #[test]
+    fn the_terrain_entered_sets_the_climb_up_and_down() {
+        let (e, w) = (Facing::East, Facing::West);
+        // a (climb 1) at 0, b (climb 4) at 3, c (climb 2) at 5.
+        let cells = cells_of(&strip([1, 4, 2], "|a b c|", "0 3 5"));
+        assert_eq!(
+            cells.iter().map(|c| c.height).collect::<Vec<_>>(),
+            [0, 3, 5]
+        );
+        assert!(
+            !cells[0].cliffs.has(e),
+            "into b, which allows 4: 3 is a climb"
+        );
+        assert!(
+            cells[1].cliffs.has(w),
+            "back into a, which allows 1: 3 is a cliff"
+        );
+        assert!(
+            !cells[1].cliffs.has(e),
+            "into c, which allows 2: 2 is a climb"
+        );
+        assert!(
+            !cells[2].cliffs.has(w),
+            "into b, which allows 4: 2 is a drop"
+        );
+        let steep = cells_of(&strip([1, 4, 2], "|a b c|", "0 3 6"));
+        assert!(
+            steep[1].cliffs.has(e),
+            "into c, which allows 2: 3 is a cliff"
+        );
+        assert!(
+            !steep[2].cliffs.has(w),
+            "and the drop of 3 into b is within its 4"
+        );
+    }
+
+    #[test]
+    fn a_ramp_crosses_up_to_two_walls_and_no_more() {
+        let (e, w) = (Facing::East, Facing::West);
+        let cells = cells_of(&strip([0, 0, 0], "|a/b c|", "0 16 16"));
+        assert_eq!(cells[0].ramps, Edges::NONE.with(e));
+        assert_eq!(cells[1].ramps, Edges::NONE.with(w));
+        assert!(
+            !cells[0].cliffs.has(e) && !cells[1].cliffs.has(w),
+            "16 on a ramp walks"
+        );
+        let over = strip([0, 0, 0], "|a/b c|", "0 17 17");
+        let mut errors = vec![];
+        assert_eq!(over.cells(Path::new("m"), &mut errors), None);
+        let messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
+        assert_eq!(
+            messages,
+            ["tile (1, 0) west ramp joins heights 17 and 0, more than 16 apart"],
+            "reported once"
+        );
+    }
+
+    #[test]
+    fn heights_problems_are_all_reported() {
+        let mut map = strip([2, 2, 2], "|a b c|", "0 1");
+        let mut errors = vec![];
+        assert_eq!(map.cells(Path::new("m"), &mut errors), None);
+        assert_eq!(
+            errors[0].message,
+            "heights row 0 has 2 numbers; a 3-tile-wide map needs 3"
+        );
+        map.heights = vec!["0 x 4097".into()];
+        let mut errors = vec![];
+        assert_eq!(map.cells(Path::new("m"), &mut errors), None);
+        let messages: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
+        assert_eq!(
+            messages,
+            [
+                "tile (1, 0) height 'x' must be a whole number within -4096..=4096",
+                "tile (2, 0) height '4097' must be a whole number within -4096..=4096",
+            ]
+        );
+        map.heights = vec!["0 0 0".into(), "0 0 0".into()];
+        let mut errors = vec![];
+        assert_eq!(map.cells(Path::new("m"), &mut errors), None);
+        assert_eq!(
+            errors[0].message,
+            "heights has 2 rows; a 1-tile-high map needs 1"
+        );
+        let ramp_out = strip([2, 2, 2], "/a b c|", "0 0 0");
+        let mut errors = vec![];
+        assert_eq!(ramp_out.cells(Path::new("m"), &mut errors), None);
+        assert_eq!(
+            errors[0].message,
+            "tile (0, 0) west edge is on the map boundary and must be a wall"
         );
     }
 }
