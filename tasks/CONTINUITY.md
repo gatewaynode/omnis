@@ -1,13 +1,13 @@
 # Continuity notes
 
-Written 2026-10-12, after the owner accepted M8.5 step 4b (camera pitch). 1a's formal acceptance is open. Rewrite
+Written 2026-10-12, after the owner accepted M8.5 step 4b (camera pitch). 1a accepted too; 1b is being planned. Rewrite
 this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). `vector-adoption` was merged into `main` on 2026-10-12.
 - **M8.5 build order (owner, 2026-10-12): 1a, 4, 4b, 1b, 2, 3, 5, 6.** 4b, camera pitch, was added at step 4's acceptance (the owner may move it). The step numbers are kept. Step 4 moved forward
   after the owner walked the 1a fixture and met cliffs they could not see.
-- **1a, elevation in the rules:** built. Acceptance `tasks/acceptance/m8.5-1a.md`.
+- **1a, elevation in the rules:** accepted 2026-10-12. Acceptance `tasks/acceptance/m8.5-1a.md`.
   - **Fix after the owner's walk (`fc5b0e4`):** the window held the party at a cliff in silence. Now
     `Outcome.bumped` produces "Blocked: too steep", once per contact.
 - **4, elevation drawn:** accepted 2026-10-12 ("rough as expected"; no vertical pan makes the hills hard to navigate). Plan `tasks/plans/m8.5-elevation-drawn.md` (with "As built"), acceptance
@@ -22,7 +22,7 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   `tasks/acceptance/m8.5-4b.md`. Pitch in `shell::movement::View` (never in `Pose`), `look.rs` pure, `render::rotation`,
   setting `level_on_step`, Level button, PageUp/PageDown/Home.
 - **Next:**
-  - The owner accepts 1a formally. Eye height and FOV: the owner raised no change at 4b's acceptance (§12.8 stays open).
+  - Eye height and FOV: the owner raised no change at 4b's acceptance (§12.8 stays open).
   - Then plan **1b, the Z axis**, with the owner: levels above and below, how they join, and overlaps.
   - The rhai Socket re-audit is still first in the open list; ask the owner when.
 
