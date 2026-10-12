@@ -147,7 +147,7 @@ impl Ground {
             }
         }
         let index = |(x, y): (u16, u16)| usize::from(y) * width + usize::from(x);
-        for i in 0..4 {
+        for (i, &(_, which)) in around.iter().enumerate() {
             let Some(cell) = at(i) else { continue };
             let r = root(&group, i);
             let (mut sum, mut n) = (0.0, 0.0);
@@ -159,7 +159,7 @@ impl Ground {
                     n += 1.0;
                 }
             }
-            patches[index(cell)].corners[around[i].1] = sum / n;
+            patches[index(cell)].corners[which] = sum / n;
         }
     }
 

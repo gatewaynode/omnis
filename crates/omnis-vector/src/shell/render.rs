@@ -1,12 +1,12 @@
-//! The 3D view: a `Camera3d` with HDR and bloom following the pose, and the map drawn as
-//! glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7).
+//! The 3D view: a `Camera3d` with HDR and bloom following the pose over the ground, and the map
+//! drawn as glowing gizmo lines that fade with distance (presentation-ARCHITECTURE.md §7, §8.4).
 
 use super::VectorSet;
 use super::capture::Offscreen;
 use super::session::Session;
 use super::settings::Current;
-use crate::geom::EYE_HEIGHT;
 use crate::geometry::{SegKind, Segment, extract};
+use crate::ground::{Ground, ease_eye, eye};
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
@@ -21,10 +21,11 @@ const LINE_WIDTH: f32 = 2.0;
 /// across 32:9.
 const FOV: f32 = 0.96;
 
-/// The current map's segments, rebuilt when the map changes or a door moves.
+/// The current map's ground and segments, rebuilt when the map changes or a door moves.
 #[derive(Resource, Default)]
 pub struct Lines {
     map: Option<MapId>,
+    ground: Ground,
     segments: Vec<Segment>,
 }
 
@@ -97,18 +98,34 @@ fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
     }
     session.reshape = false;
     if let Some(data) = session.data.maps.get(&map) {
-        lines.segments = extract(data, map, &session.world);
+        if lines.map != Some(map) {
+            lines.ground = Ground::from_map(data);
+        }
+        lines.segments = extract(data, map, &session.world, &lines.ground);
         lines.map = Some(map);
     }
 }
 
-fn follow(session: Res<Session>, mut camera: Query<&mut Transform, With<ViewCamera>>) {
+/// The camera at the pose, its height eased toward the eye over the ground.
+fn follow(
+    time: Res<Time>,
+    current: Res<Current>,
+    session: Res<Session>,
+    lines: Res<Lines>,
+    mut camera: Query<&mut Transform, With<ViewCamera>>,
+) {
     let Ok(mut transform) = camera.single_mut() else {
         return;
     };
     let pose = session.pose;
-    *transform = Transform::from_xyz(pose.x, EYE_HEIGHT, pose.z)
-        .with_rotation(Quat::from_rotation_y(pose.yaw));
+    let y = ease_eye(
+        transform.translation.y,
+        eye(&lines.ground, pose),
+        time.delta_secs(),
+        current.0.reduced_motion,
+    );
+    *transform =
+        Transform::from_xyz(pose.x, y, pose.z).with_rotation(Quat::from_rotation_y(pose.yaw));
 }
 
 /// Line colour by kind: walls bright green, doors amber, solid and impassable terrain in the
@@ -129,6 +146,9 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
         SegKind::Barrier => t(2.5),
         SegKind::Floor => t(0.6),
         SegKind::Ceiling => t(0.3),
+        // Provisional until the colour roles (M8.5 step 5): rock warm, ramps pale.
+        SegKind::Cliff => (2.2, 1.4, 0.6),
+        SegKind::Ramp => (0.9, 1.8, 2.2),
     }
 }
 

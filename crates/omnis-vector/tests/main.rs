@@ -17,6 +17,7 @@ mod debug;
 mod fight;
 mod fight_screen;
 mod game_io;
+mod geometry;
 mod ground;
 mod inventory;
 mod labels;

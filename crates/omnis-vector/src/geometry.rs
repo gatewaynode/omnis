@@ -1,9 +1,12 @@
-//! Map data to vector line segments (presentation-ARCHITECTURE.md §7.1).
+//! Map data to vector line segments (presentation-ARCHITECTURE.md §7.1), standing on the
+//! [`Ground`] (§8.4).
 //!
 //! Every wall and door edge is emitted once, keyed by its canonical line: a horizontal edge at
 //! row line `z` from `x` to `x + 1`, or a vertical edge at column line `x` from `z` to `z + 1`.
+//! On a flat map every line is where it was before height was drawn (M8.5 step 4).
 
 use crate::geom::wall_height;
+use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, MapId};
 use omnis_sim::omnis_data::MapData;
@@ -24,11 +27,15 @@ pub enum SegKind {
     Barrier,
     /// The ceiling grid.
     Ceiling,
+    /// A cliff's rock face: hatching between the two rims.
+    Cliff,
+    /// A ramp's treads, lying on the ground across its edge.
+    Ramp,
 }
 
 impl SegKind {
     /// Whether a line of this kind is drawn with the floor grid `grid` shown or hidden: the floor
-    /// and ceiling grids are the setting's; walls, doors and terrain always show.
+    /// and ceiling grids are the setting's; walls, doors, terrain, cliffs and ramps always show.
     #[must_use]
     pub const fn drawn(self, grid: bool) -> bool {
         grid || !matches!(self, SegKind::Floor | SegKind::Ceiling)
@@ -54,9 +61,15 @@ type EdgeKey = (bool, u16, u16);
 /// What stands on an edge: its kind, whether a door is open, the terrain colour, the height.
 type EdgeLook = (SegKind, bool, (u8, u8, u8), f32);
 
-/// The segments for `map`, with doors drawn open or closed as `world` has them.
+/// Quarter cells: where a cliff is hatched along its edge.
+const HATCH: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
+
+/// How far a ramp's treads lie from its edge, into each cell.
+const TREADS: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
+
+/// The segments for `map` on `ground`, with doors drawn open or closed as `world` has them.
 #[must_use]
-pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld) -> Vec<Segment> {
+pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld, ground: &Ground) -> Vec<Segment> {
     let mut out = Vec::new();
     let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
     for y in 0..map.def.height {
@@ -64,16 +77,20 @@ pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld) -> Vec<Segment> {
             let Some(cell) = map.cell(x, y) else { continue };
             let terrain = map.terrain(cell);
             let h = wall_height(terrain);
+            let patch = ground.patch(x, y).unwrap_or_default();
             cells(
                 &mut out,
-                x,
-                y,
+                (x, y),
+                patch,
                 terrain.color,
-                terrain.passable,
-                terrain.block.is_some(),
-                terrain.ceiling.is_some(),
+                (
+                    terrain.passable,
+                    terrain.block.is_some(),
+                    terrain.ceiling.is_some(),
+                ),
                 h,
             );
+            rims(&mut out, ground, (x, y), patch, terrain.color);
             for facing in Facing::ALL {
                 let kind = if cell.doors.has(facing) {
                     SegKind::Door
@@ -101,8 +118,10 @@ pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld) -> Vec<Segment> {
         } else {
             (x0, z0 + 1.0)
         };
-        edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, h);
+        let (feet, top) = span(ground, (horizontal, col, row), h);
+        edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, feet, top);
     }
+    heights(&mut out, map, ground);
     out
 }
 
@@ -115,43 +134,197 @@ fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
     }
 }
 
+/// The surfaces on either side of an edge: north then south, or west then east, with the side of
+/// each that lies on the edge.
+fn sides(ground: &Ground, (horizontal, col, row): EdgeKey) -> [Option<[f32; 2]>; 2] {
+    let (before, after, toward) = if horizontal {
+        (
+            row.checked_sub(1).and_then(|r| ground.patch(col, r)),
+            ground.patch(col, row),
+            Facing::South,
+        )
+    } else {
+        (
+            col.checked_sub(1).and_then(|c| ground.patch(c, row)),
+            ground.patch(col, row),
+            Facing::East,
+        )
+    };
+    [
+        before.map(|p| p.side(toward)),
+        after.map(|p| p.side(toward.opposite())),
+    ]
+}
+
+/// A wall's feet at each end (the lower ground there) and its top (a wall above the higher
+/// cell, as the engine's sight has it).
+fn span(ground: &Ground, edge: EdgeKey, h: f32) -> ([f32; 2], f32) {
+    let (horizontal, col, row) = edge;
+    let centres = if horizontal {
+        [
+            row.checked_sub(1).and_then(|r| ground.patch(col, r)),
+            ground.patch(col, row),
+        ]
+    } else {
+        [
+            col.checked_sub(1).and_then(|c| ground.patch(c, row)),
+            ground.patch(col, row),
+        ]
+    }
+    .map(|p| p.map(|p| p.centre));
+    let top = centres.into_iter().flatten().fold(f32::MIN, f32::max);
+    let mut feet = [f32::MAX; 2];
+    for side in sides(ground, edge).into_iter().flatten() {
+        feet = [feet[0].min(side[0]), feet[1].min(side[1])];
+    }
+    if top == f32::MIN {
+        return ([0.0; 2], h);
+    }
+    (feet, top + h)
+}
+
 fn line(out: &mut Vec<Segment>, a: [f32; 3], b: [f32; 3], kind: SegKind, rgb: (u8, u8, u8)) {
     out.push(Segment { a, b, kind, rgb });
 }
 
 /// The per-cell lines: the floor grid's north and west sides (the far sides come from the
 /// neighbours, or from the walls that close the map), a block's box, a barrier's cross, and the
-/// ceiling grid.
-#[allow(clippy::too_many_arguments)]
+/// ceiling grid. `(passable, block, ceiling)` are the terrain's.
 fn cells(
     out: &mut Vec<Segment>,
-    x: u16,
-    y: u16,
+    (x, y): (u16, u16),
+    p: Patch,
     rgb: (u8, u8, u8),
-    passable: bool,
-    block: bool,
-    ceiling: bool,
+    (passable, block, ceiling): (bool, bool, bool),
     h: f32,
 ) {
     let (x0, z0) = (f32::from(x), f32::from(y));
     let (x1, z1) = (x0 + 1.0, z0 + 1.0);
-    line(out, [x0, 0.0, z0], [x1, 0.0, z0], SegKind::Floor, rgb);
-    line(out, [x0, 0.0, z0], [x0, 0.0, z1], SegKind::Floor, rgb);
+    let c = p.corners;
+    line(out, [x0, c[NW], z0], [x1, c[NE], z0], SegKind::Floor, rgb);
+    line(out, [x0, c[NW], z0], [x0, c[SW], z1], SegKind::Floor, rgb);
+    let roof = p.centre + h;
     if ceiling && !block {
-        line(out, [x0, h, z0], [x1, h, z0], SegKind::Ceiling, rgb);
-        line(out, [x0, h, z0], [x0, h, z1], SegKind::Ceiling, rgb);
+        line(out, [x0, roof, z0], [x1, roof, z0], SegKind::Ceiling, rgb);
+        line(out, [x0, roof, z0], [x0, roof, z1], SegKind::Ceiling, rgb);
     }
     if block {
         let i = 0.1;
-        boxed(out, [x0 + i, z0 + i], [x1 - i, z1 - i], h, rgb);
+        boxed(out, [x0 + i, z0 + i], [x1 - i, z1 - i], p.centre, roof, rgb);
     } else if !passable {
-        line(out, [x0, 0.0, z0], [x1, 0.0, z1], SegKind::Barrier, rgb);
-        line(out, [x1, 0.0, z0], [x0, 0.0, z1], SegKind::Barrier, rgb);
+        line(out, [x0, c[NW], z0], [x1, c[SE], z1], SegKind::Barrier, rgb);
+        line(out, [x1, c[NE], z0], [x0, c[SW], z1], SegKind::Barrier, rgb);
     }
 }
 
-/// The twelve edges of a box over the ground rectangle `lo..hi`.
-fn boxed(out: &mut Vec<Segment>, lo: [f32; 2], hi: [f32; 2], h: f32, rgb: (u8, u8, u8)) {
+/// The south and east sides of a cell whose neighbour there meets it at other heights: the
+/// neighbour draws its own north or west side, so both rims of a split show.
+fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    let (x1, z1) = (x0 + 1.0, z0 + 1.0);
+    let c = p.corners;
+    if ground
+        .patch(x, y + 1)
+        .is_some_and(|n| n.side(Facing::North) != p.side(Facing::South))
+    {
+        line(out, [x0, c[SW], z1], [x1, c[SE], z1], SegKind::Floor, rgb);
+    }
+    if ground
+        .patch(x + 1, y)
+        .is_some_and(|n| n.side(Facing::West) != p.side(Facing::East))
+    {
+        line(out, [x1, c[NE], z0], [x1, c[SE], z1], SegKind::Floor, rgb);
+    }
+}
+
+/// Cliff faces and ramp treads, once per edge: each cell's east and south sides.
+fn heights(out: &mut Vec<Segment>, map: &MapData, ground: &Ground) {
+    for y in 0..map.def.height {
+        for x in 0..map.def.width {
+            let Some(cell) = map.cell(x, y) else { continue };
+            for facing in [Facing::East, Facing::South] {
+                let (nx, ny) = if facing == Facing::East {
+                    (x + 1, y)
+                } else {
+                    (x, y + 1)
+                };
+                let Some(next) = map.cell(nx, ny) else {
+                    continue;
+                };
+                let back = facing.opposite();
+                let closed = cell.walls.has(facing)
+                    || next.walls.has(back)
+                    || cell.doors.has(facing)
+                    || next.doors.has(back);
+                let edge = key(x, y, facing);
+                let rgb = if next.height > cell.height {
+                    map.terrain(next).color
+                } else {
+                    map.terrain(cell).color
+                };
+                if !closed && !joined(map, x, y, facing) {
+                    cliff(out, ground, edge, rgb);
+                } else if cell.ramps.has(facing) || next.ramps.has(back) {
+                    treads(out, ground, edge, rgb);
+                }
+            }
+        }
+    }
+}
+
+/// The ends of a canonical edge on the ground plane.
+fn ends((horizontal, col, row): EdgeKey) -> ([f32; 2], [f32; 2]) {
+    let (x0, z0) = (f32::from(col), f32::from(row));
+    let far = if horizontal {
+        [x0 + 1.0, z0]
+    } else {
+        [x0, z0 + 1.0]
+    };
+    ([x0, z0], far)
+}
+
+/// A rock face: verticals every quarter cell between the two rims.
+fn cliff(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, u8)) {
+    let [Some(near), Some(far)] = sides(ground, edge) else {
+        return;
+    };
+    let (a, b) = ends(edge);
+    let lerp = |s: [f32; 2], t: f32| s[0] + (s[1] - s[0]) * t;
+    for t in HATCH {
+        let (lo, hi) = (lerp(near, t), lerp(far, t));
+        if (hi - lo).abs() < 1e-4 {
+            continue;
+        }
+        let (px, pz) = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+        line(out, [px, lo, pz], [px, hi, pz], SegKind::Cliff, rgb);
+    }
+}
+
+/// A ramp's treads: lines along the edge, a quarter cell apart, lying on the ground.
+fn treads(out: &mut Vec<Segment>, ground: &Ground, edge: EdgeKey, rgb: (u8, u8, u8)) {
+    let (a, b) = ends(edge);
+    let normal = if edge.0 { [0.0, 1.0] } else { [1.0, 0.0] };
+    for d in TREADS {
+        let at = |t: f32| {
+            let x = a[0] + (b[0] - a[0]) * t + normal[0] * d;
+            let z = a[1] + (b[1] - a[1]) * t + normal[1] * d;
+            [x, ground.height(x, z), z]
+        };
+        for t in [0.0, 0.25, 0.5, 0.75] {
+            line(out, at(t), at(t + 0.25), SegKind::Ramp, rgb);
+        }
+    }
+}
+
+/// The twelve edges of a box over the ground rectangle `lo..hi`, from `base` to `top`.
+fn boxed(
+    out: &mut Vec<Segment>,
+    lo: [f32; 2],
+    hi: [f32; 2],
+    base: f32,
+    top: f32,
+    rgb: (u8, u8, u8),
+) {
     let corners = [
         [lo[0], lo[1]],
         [hi[0], lo[1]],
@@ -162,17 +335,31 @@ fn boxed(out: &mut Vec<Segment>, lo: [f32; 2], hi: [f32; 2], h: f32, rgb: (u8, u
         let (p, q) = (corners[i], corners[(i + 1) % 4]);
         line(
             out,
-            [p[0], 0.0, p[1]],
-            [q[0], 0.0, q[1]],
+            [p[0], base, p[1]],
+            [q[0], base, q[1]],
             SegKind::Block,
             rgb,
         );
-        line(out, [p[0], h, p[1]], [q[0], h, q[1]], SegKind::Block, rgb);
-        line(out, [p[0], 0.0, p[1]], [p[0], h, p[1]], SegKind::Block, rgb);
+        line(
+            out,
+            [p[0], top, p[1]],
+            [q[0], top, q[1]],
+            SegKind::Block,
+            rgb,
+        );
+        line(
+            out,
+            [p[0], base, p[1]],
+            [p[0], top, p[1]],
+            SegKind::Block,
+            rgb,
+        );
     }
 }
 
-/// A wall's rectangle, or a door: the lintel over a frame, crossed while closed.
+/// A wall's outline from its `feet` at each end up to `top`, or a door: the lintel over a frame,
+/// crossed while closed.
+#[allow(clippy::too_many_arguments)]
 fn edge(
     out: &mut Vec<Segment>,
     a: [f32; 2],
@@ -180,28 +367,31 @@ fn edge(
     kind: SegKind,
     open: bool,
     rgb: (u8, u8, u8),
-    h: f32,
+    feet: [f32; 2],
+    top: f32,
 ) {
     let at = |t: f32, y: f32| [a[0] + (b[0] - a[0]) * t, y, a[1] + (b[1] - a[1]) * t];
+    let foot = |t: f32| feet[0] + (feet[1] - feet[0]) * t;
     match kind {
         SegKind::Door => {
-            let (l, r, top) = (0.2, 0.8, h * 0.85);
-            line(out, at(0.0, h), at(1.0, h), SegKind::Wall, rgb);
-            line(out, at(0.0, 0.0), at(0.0, h), SegKind::Wall, rgb);
-            line(out, at(1.0, 0.0), at(1.0, h), SegKind::Wall, rgb);
-            line(out, at(l, 0.0), at(l, top), kind, rgb);
-            line(out, at(r, 0.0), at(r, top), kind, rgb);
-            line(out, at(l, top), at(r, top), kind, rgb);
+            let high = feet[0].max(feet[1]);
+            let (l, r, head) = (0.2, 0.8, high + (top - high) * 0.85);
+            line(out, at(0.0, top), at(1.0, top), SegKind::Wall, rgb);
+            line(out, at(0.0, feet[0]), at(0.0, top), SegKind::Wall, rgb);
+            line(out, at(1.0, feet[1]), at(1.0, top), SegKind::Wall, rgb);
+            line(out, at(l, foot(l)), at(l, head), kind, rgb);
+            line(out, at(r, foot(r)), at(r, head), kind, rgb);
+            line(out, at(l, head), at(r, head), kind, rgb);
             if !open {
-                line(out, at(l, 0.0), at(r, top), kind, rgb);
-                line(out, at(r, 0.0), at(l, top), kind, rgb);
+                line(out, at(l, foot(l)), at(r, head), kind, rgb);
+                line(out, at(r, foot(r)), at(l, head), kind, rgb);
             }
         }
         _ => {
-            line(out, at(0.0, 0.0), at(1.0, 0.0), kind, rgb);
-            line(out, at(0.0, h), at(1.0, h), kind, rgb);
-            line(out, at(0.0, 0.0), at(0.0, h), kind, rgb);
-            line(out, at(1.0, 0.0), at(1.0, h), kind, rgb);
+            line(out, at(0.0, feet[0]), at(1.0, feet[1]), kind, rgb);
+            line(out, at(0.0, top), at(1.0, top), kind, rgb);
+            line(out, at(0.0, feet[0]), at(0.0, top), kind, rgb);
+            line(out, at(1.0, feet[1]), at(1.0, top), kind, rgb);
         }
     }
 }
@@ -227,6 +417,7 @@ mod tests {
             SegKind::Door,
             false,
             (0, 0, 0),
+            [0.0; 2],
             1.0,
         );
         let mut open = Vec::new();
@@ -237,6 +428,7 @@ mod tests {
             SegKind::Door,
             true,
             (0, 0, 0),
+            [0.0; 2],
             1.0,
         );
         assert_eq!(closed.len(), open.len() + 2);
@@ -245,7 +437,7 @@ mod tests {
     #[test]
     fn a_box_has_twelve_edges() {
         let mut out = Vec::new();
-        boxed(&mut out, [0.0, 0.0], [1.0, 1.0], 1.0, (0, 0, 0));
+        boxed(&mut out, [0.0, 0.0], [1.0, 1.0], 0.0, 1.0, (0, 0, 0));
         assert_eq!(out.len(), 12);
     }
 }
