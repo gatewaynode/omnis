@@ -110,6 +110,15 @@ pub enum Direction {
     Right,
 }
 
+/// Up or down a level of a map, as a ladder is climbed (M8.5 step 1b).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Vertical {
+    /// To the level above.
+    Up,
+    /// To the level below.
+    Down,
+}
+
 /// A level of a map (M8.5 step 1b): 0 is the map's own layout, below the ground is negative,
 /// above it positive. Not a character's level.
 #[derive(

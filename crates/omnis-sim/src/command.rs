@@ -11,7 +11,7 @@ use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::String;
 use core::fmt;
-use omnis_core::{CharacterId, Coins, Direction, Rotation};
+use omnis_core::{CharacterId, Coins, Direction, Rotation, Vertical};
 use omnis_data::EquipSlot;
 use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,8 @@ pub enum Command {
     Turn(Rotation),
     /// Use whatever is on the facing edge or tile: a door in M1.
     Interact,
+    /// Climb a ladder or shaft one level up or down, to the same tile (M8.5 step 1b).
+    Climb(Vertical),
     /// Build or reorder the party.
     Party(PartyCommand),
     /// Choose what to do about the monsters ahead.
@@ -64,6 +66,8 @@ impl Command {
             Command::Turn(Rotation::Right) => "turn-right",
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
+            Command::Climb(Vertical::Up) => "climb-up",
+            Command::Climb(Vertical::Down) => "climb-down",
             Command::Party(_) => "party",
             Command::Encounter(EncounterChoice::Attack) => "fight",
             Command::Encounter(EncounterChoice::Bribe) => "bribe",
@@ -320,6 +324,8 @@ pub enum Rejection {
         /// The member asked for.
         member: CharacterId,
     },
+    /// No ladder joins the party's tile to a level that way, or nothing to stand on there.
+    NoLadder,
     /// The turn's action is spent (ARCHITECTURE.md §4.7).
     NoActionLeft,
     /// The turn's bonus action is spent.
@@ -414,6 +420,7 @@ impl Rejection {
             Rejection::MemberDown {
                 member: CharacterId(member),
             } => write!(f, "the member {member} is down"),
+            Rejection::NoLadder => f.write_str("there is no ladder that way"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

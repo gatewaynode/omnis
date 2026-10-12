@@ -123,10 +123,11 @@ pub struct World {
 As built through M8 (`omnis-sim/src/command.rs`, `event.rs`); every field, with its wire form, is in `docs/api.md`.
 
 ```rust
-pub enum Command {                  // 11 variants
+pub enum Command {                  // 12 variants
     Step(Direction),                // forward, back, left, right
     Turn(Rotation),                 // left, right, around
     Interact,                       // door, sign, site on the facing tile
+    Climb(Vertical),                // up, down: a ladder or shaft, one level (M8.5 1b, §7.1)
     Party(PartyCommand),            // create, reorder; tactics (M7c: SetReactions, PutReaction, RemoveReaction, §4.7)
     Encounter(EncounterChoice),     // attack, bribe, hide, run (M4)
     Combat(CombatCommand),          // per actor: attack, cast, use, dodge, exchange, run (M4, M6); end_turn, feature (M7c)

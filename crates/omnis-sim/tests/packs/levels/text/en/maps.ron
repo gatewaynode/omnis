@@ -1,0 +1,7 @@
+(
+    schema: 1,
+    entries: {
+        "levels:text:map.tower.name": "Test Tower",
+        "levels:text:region.tower.name": "Test Tower",
+    },
+)

@@ -137,8 +137,8 @@ rejections alike (ARCHITECTURE.md §4.9):
    `SetMonsterHp`), `entry` (a runbook entry; a map's rest event), `rumor` (a tavern's rumor).
    There is no other `index` field, and `row` names only the front or back row (`Predicate::Row`).
    Lists in views are in marching or list order.
-4. **A place on a map is a `Place`**, `{"map": "<string id>", "x", "y", "facing"}`, in events,
-   views and `Status`.
+4. **A place on a map is a `Place`**, `{"map": "<string id>", "level", "x", "y", "facing"}`, in
+   events, views and `Status`; `level` is left out on the map's own level (0).
 5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
    `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
    `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
@@ -164,7 +164,7 @@ Common value types:
 
 | Type | Wire | Meaning |
 |---|---|---|
-| `Place` | `{"map": "<string id>", "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). |
+| `Place` | `{"map": "<string id>", "level", "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). `level` (an integer: 0 is the map's own layout, below the ground negative, above it positive) is left out when 0. |
 | String id | `"pack:kind:name"`, e.g. `"base:spell:bless"` | A definition in the loaded packs; `#n` for a number no pack names. Tier 1 maps ids to registry numbers through `Data::registry`. |
 | `CharacterId` | number | A member's stable identity, `MemberView.member`; kept through reorders, deaths and saves. |
 | Holder | `"party:0"` or a region's string id | Who owns a clock, in events and `TimeView`. |
@@ -194,8 +194,8 @@ socket and the bridge (malformed request).
 | `sim.script` | `commands` (`[Command]`, at most `MAX_SCRIPT`) | `script` | `TooMany` | |
 | `events.tail` | `count` (default 32, capped at 4096) | `events` | | |
 | `viewport.get` | none | `viewport` | `UnknownMap` | |
-| `map.text` | `map` (optional id; the party's map when absent) | `text` | `TooLong`, `UnknownMap` | |
-| `automap.get` | `map` (optional id) | `automap` | `TooLong`, `UnknownMap` | |
+| `map.text` | `map` (optional id; the party's map when absent), `level` (optional; the party's level on its own map, else 0) | `text` | `TooLong`, `UnknownMap` | |
+| `automap.get` | `map` (optional id), `level` (optional, as `map.text`) | `automap` | `TooLong`, `UnknownMap` | |
 | `party.get` | none | `party` | | |
 | `party.create` | `character` (`Draft`) | `events` | `Rejected` | |
 | `combat.get` | none | `combat` | `NoEncounter` | |
@@ -235,7 +235,7 @@ Notes:
 | `viewport` | `Reply::Viewport(ViewportModel)` | `ViewportModel`'s fields, flattened | `viewport.get` |
 | `script` | `Reply::Script` | `applied` (count), `events` (`[Event]`), `rejected` (`Rejection` or null) | `sim.script` |
 | `events` | `Reply::Events` | `events` (`[Event]`) | `sim.command`, `party.create`, `time.reconcile`, `events.tail` |
-| `automap` | `Reply::Automap` | `map` (string id), `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
+| `automap` | `Reply::Automap` | `map` (string id), `level`, `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
 | `text` | `Reply::Text` | `text` (string) | `map.text`, `screen.text` |
 | `written` | `Reply::Written` | `path` (string) | `save.write`, `screenshot` |
 | `party` | `Reply::Party` | `party` (`PartyView`) | `party.get` |
@@ -252,7 +252,8 @@ Notes:
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
-`_` `'`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`.
+`_` `'`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`, and `_` for a tile with no ground on
+that level. One level is drawn; the party is marked only on its own level.
 
 ## 7. Views
 
@@ -273,12 +274,12 @@ and places by `Place` (§4); lists are in marching or list order.
 | `cast_view` | `Vec<CastView>` | `cast.get` |
 | `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
-| `automap(&World, MapId)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
-| `map_text(&World, &Data, MapId)` | `Option<String>` | `map.text` |
+| `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
+| `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
-| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end); a Tier 1 `Position` with its `MapId` | none |
+| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
-| `door_open(&World, MapId, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
+| `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
 
 `automap`, `map_text`, `door_open`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
@@ -521,7 +522,9 @@ Races, classes and backgrounds are in id order.
 
 `ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
-`visibility_depth` (rows visible at all), `tiles` (`[ViewTile]`, nearest first).
+`visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
+(that level's name, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
+the party's level).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
 `x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
@@ -537,7 +540,7 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (11 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (12 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -547,6 +550,7 @@ means the same thing after a reorder or a change to a list.
 | `Step` | `Direction` | Move one tile relative to the facing, without turning. |
 | `Turn` | `Rotation` | Turn in place. |
 | `Interact` | | Use the facing edge or tile: a door, a site (enters its service). |
+| `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
@@ -613,7 +617,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 | `SetScore` | `member`, `ability`, `score` | One ability score, any `u8` (Con and mental scores recompute their pools). |
 | `SetCondition` | `member`, `condition` (id), `applied` | A condition on or off, raw. |
 | `SetFlag` | `flag` (id), `value` | A world flag. |
-| `Teleport` | `map` (id), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
+| `Teleport` | `map` (id), `level` (optional, 0 when absent), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
 | `SetMonsterHp` | `stack`, `index` (among the stack's living, as in `ActorRef::Monster`), `hp` | Fights only; 0 removes it without gold. |
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
 | `Reconcile` | `region` (id) | Outside a fight: meet a region as on entering it (`time.reconcile`). |
@@ -649,10 +653,10 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. |
-| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. |
+| `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. A portal, a stair or a hole gives two: onto the tile, then to its far end. |
+| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
-| `Door` | `map` (id), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
+| `Door` | `map` (id), `level` (left out when 0), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
 | `PartyChanged` | | Members or their order changed. |
 | `TimeAdvanced` | `holder` (`"party:0"` or a region id), `minutes`, `day_rolled` | A clock advanced. |
@@ -744,7 +748,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (62 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (63 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -802,6 +806,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `CantripNotLearned` | | Cantrips come with the class; none is picked or bought. |
 | `SpellTooHigh` | `level`, `max` | Above the highest level the member may learn. |
 | `AlreadyKnown` | `member` | The spell is already on the member's list. |
+| `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -916,6 +921,12 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-12: elevation (M8.5 step 1a): `ViewTile.height`, `EdgeView::Ramp`,
   `BlockReason::Cliff`, `/` in `map.text`; sight follows height, and `visibility_depth` adds
   height (rule value `sight_rise_per_tile`). Flat maps see and play as before.
+- 2026-10-12: levels in one map (M8.5 step 1b): `Place.level` and `Event::Door.level` (left out
+  on level 0, so level-0 traffic is byte-identical); `ViewportModel.level` and `level_name`;
+  `level` on `map.text`, `automap.get` and `Reply::Automap`; `DevCommand::Teleport.level`;
+  `Command::Climb(Vertical)` and `Rejection::NoLadder`; `BlockReason::NoGround`; a stair or a
+  hole gives a second `Moved`, as a portal does; `_` for no ground in `map.text`. Tier 1's
+  `automap`, `map_text` and `door_open` take a `Level`.
 
 ### Protocol 2 (2026-10-10)
 

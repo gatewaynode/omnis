@@ -17,7 +17,7 @@ use crate::world::{Mode, World};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{CharacterId, Direction, ItemId, Rotation};
+use omnis_core::{CharacterId, Direction, ItemId, Rotation, Vertical};
 use omnis_data::Data;
 use omnis_rules::{Character, combat_features};
 
@@ -192,6 +192,8 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
         "turn-right" => Command::Turn(Rotation::Right),
         "around" => Command::Turn(Rotation::Around),
         "use" => Command::Interact,
+        "climb-up" => Command::Climb(Vertical::Up),
+        "climb-down" => Command::Climb(Vertical::Down),
         "fight" => Command::Encounter(EncounterChoice::Attack),
         "bribe" => Command::Encounter(EncounterChoice::Bribe),
         "hide" => Command::Encounter(EncounterChoice::Hide),

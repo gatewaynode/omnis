@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "levels:region:tower",
+    name: "levels:text:region.tower.name",
+    kind: Wild,
+    company: 100,
+    stability: 800,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["levels:map:tower"],
+)

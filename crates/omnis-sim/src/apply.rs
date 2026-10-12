@@ -10,8 +10,8 @@ use crate::world::{Known, Mode, World, layer};
 use crate::{INTERACT_MINUTES, PARTY};
 use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
-use omnis_core::{Direction, Facing, Position, Rotation};
-use omnis_data::Data;
+use omnis_core::{Direction, Facing, Position, Rotation, Vertical};
+use omnis_data::{Data, Join, MapData};
 
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
 /// appends the events to the log, and ends with what the party now sees.
@@ -28,6 +28,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         }
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
+        (Mode::Explore, Command::Climb(way)) => climb(world, data, *way, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Party(command))
         | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))
             if !matches!(world.mode, Mode::Combat(_))
@@ -139,14 +140,16 @@ fn arrive(
     encounter::trigger(world, data, from, facing, events).map_err(Rejection::Rule)
 }
 
-/// Where a step lands: the tile, its minutes, and a portal's far end when the tile has one.
+/// Where a step lands: the tile, its minutes, and the far end of a portal or a join (a stair, a
+/// hole) when the tile has one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Landing {
     /// The tile stepped onto.
     pub to: Position,
     /// Its terrain's minutes.
     pub minutes: u32,
-    /// Where a portal on it leads, when the far end is on a loaded map.
+    /// Where a portal or a join on it leads, when the far end is ground on a loaded map. Only a
+    /// step fires it, so the party arriving there does not go on.
     pub through: Option<Position>,
 }
 
@@ -202,6 +205,7 @@ pub(crate) fn landing(
             y: portal.to_y,
             facing: portal.to_facing,
         })
+        .or_else(|| joined(map, pos.at(x, y), terrain.join?))
         .filter(|dest| {
             data.maps
                 .get(&dest.map)
@@ -212,6 +216,61 @@ pub(crate) fn landing(
         minutes: terrain.step_minutes,
         through,
     })
+}
+
+/// Where a stair or a hole at `at` leads: the same tile of the next level up or down, the facing
+/// kept. A ladder leads nowhere by a step; it is climbed.
+fn joined(map: &MapData, at: Position, join: Join) -> Option<Position> {
+    let up = match join {
+        Join::Up => true,
+        Join::Down | Join::Hole => false,
+        Join::Ladder => return None,
+    };
+    Some(Position {
+        level: map.beyond(at.level, up)?,
+        ..at
+    })
+}
+
+/// Climb from the party's tile to the same tile of the next level `way`: a ladder at either end
+/// joins them (the top of a ladder stands on the floor above it), and the far end is ground the
+/// party may enter. It costs that terrain's minutes.
+fn climb(
+    world: &mut World,
+    data: &Data,
+    way: Vertical,
+    events: &mut Vec<Event>,
+) -> Result<(), Rejection> {
+    let from = world.position;
+    let to = climb_to(data, from, way).ok_or(Rejection::NoLadder)?;
+    let minutes = data
+        .maps
+        .get(&to.map)
+        .and_then(|m| {
+            m.cell(to.level, to.x, to.y)
+                .map(|c| m.terrain(c).step_minutes)
+        })
+        .unwrap_or(1);
+    world.position = to;
+    events.push(Event::Moved {
+        from: Place::of(from, data),
+        to: Place::of(to, data),
+    });
+    advance(world, data, minutes, events);
+    visit(world, data);
+    arrive(world, data, from, from.facing, events)
+}
+
+/// Where a climb `way` from `from` lands, if a ladder joins the two tiles and the far one can be
+/// entered. Nothing changes; the queries share it.
+pub(crate) fn climb_to(data: &Data, from: Position, way: Vertical) -> Option<Position> {
+    let map = data.maps.get(&from.map)?;
+    let level = map.beyond(from.level, way == Vertical::Up)?;
+    let to = Position { level, ..from };
+    let here = map.cell(from.level, from.x, from.y)?;
+    let there = map.cell(to.level, to.x, to.y)?;
+    let ladder = |cell| map.terrain(cell).join == Some(Join::Ladder);
+    (map.terrain(there).passable && (ladder(here) || ladder(there))).then_some(to)
 }
 
 /// The move itself: the landing, its minutes, the visits, a portal. Whether the party ended up

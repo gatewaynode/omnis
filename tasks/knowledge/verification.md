@@ -94,11 +94,11 @@ repository root (the root has no rules file).
 - MCP: 25 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
   `omnis-cli`'s schema dump, 25, in `omnis-cli/tests/headless.rs`: a hand list, so a new op is added to
   `omnis-cli/src/schema.rs` by hand; the gate does not catch a missing one); the hand-written
-  `Command` schema has `oneOf` 11, combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
+  `Command` schema has `oneOf` 12 (M8.5 1b: `Climb`), combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
   `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
-- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 94 instances from the `next` chain of
-  exhaustive matches (M8: `Reconcile`), 142 offered `oneOf` branches and `enum` values, all used; the drift test's
-  padded branch is `/oneOf/11`. A new `Command`
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 96 instances from the `next` chain of
+  exhaustive matches (M8.5 1b: `Climb`), 145 offered `oneOf` branches and `enum` values, all used; the drift test's
+  padded branch is `/oneOf/12`. A new `Command`
   variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the
   same commands by design.

@@ -1,0 +1,100 @@
+// A tower in a courtyard, 7 by 5, four levels (`_` is no ground). Heights in eighths of a cell.
+// Ground (0): grass, a road along row 2, the tower at x 1-2, y 0-1 (open to the south at (2, 1)):
+//   a stair up at (1, 0), a ladder at (1, 1); a stair up at (4, 3) in the courtyard.
+// Cellar (-1, base -8): under the tower only; the ladder's foot at (1, 1).
+// Upper floor (1, base 8): the tower's floor with the stair down at (1, 0) and the ladder at
+//   (1, 1); a bridge east from the tower and south over the road (column 4, rows 1-3), a hole
+//   beside it over the road at (5, 2), and the bridge's stair down at (4, 3).
+// Roof (2, base 16): the tower's top, where the ladder ends at (1, 1).
+(
+    schema: 1,
+    id: "levels:map:tower",
+    name: "levels:text:map.tower.name",
+    kind: Outdoor,
+    tileset: "test:tileset:outdoor",
+    width: 7,
+    height: 5,
+    start: (0, 2, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"),
+    door: "gate",
+    door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+        (glyph: 'r', name: "road", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1),
+        (glyph: 'f', name: "stone floor", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1),
+        (glyph: 'b', name: "bridge", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1),
+        (glyph: 'u', name: "stair up", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 3, join: Some(Up)),
+        (glyph: 'd', name: "stair down", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 3, join: Some(Down)),
+        (glyph: 'l', name: "ladder", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 5, join: Some(Ladder)),
+        (glyph: 'h', name: "hole", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, join: Some(Hole)),
+    ],
+    layout: [
+        "+-+-+-+-+-+-+-+",
+        "|g|u f|g g g g|",
+        "+ + + + + + + +",
+        "|g|l f|g g g g|",
+        "+ +-+ + + + + +",
+        "|r r r r r r r|",
+        "+ + + + + + + +",
+        "|g g g g u g g|",
+        "+ + + + + + + +",
+        "|g g g g g g g|",
+        "+-+-+-+-+-+-+-+",
+    ],
+    levels: [
+        (
+            level: -1,
+            name: "Cellar",
+            base: -8,
+            layout: [
+                "+-+-+-+-+-+-+-+",
+                "|_|f f|_ _ _ _|",
+                "+ + + + + + + +",
+                "|_|l f|_ _ _ _|",
+                "+ +-+-+ + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+-+-+-+-+-+-+-+",
+            ],
+        ),
+        (
+            level: 1,
+            name: "Upper floor",
+            base: 8,
+            layout: [
+                "+-+-+-+-+-+-+-+",
+                "|_|d f|_ _ _ _|",
+                "+ + + +-+ + + +",
+                "|_|l f b b|_ _|",
+                "+ +-+-+-+ + + +",
+                "|_ _ _ _|b h|_|",
+                "+ + + + + +-+ +",
+                "|_ _ _ _|d|_ _|",
+                "+ + + + +-+ + +",
+                "|_ _ _ _ _ _ _|",
+                "+-+-+-+-+-+-+-+",
+            ],
+        ),
+        (
+            level: 2,
+            name: "Roof",
+            base: 16,
+            layout: [
+                "+-+-+-+-+-+-+-+",
+                "|_|f f|_ _ _ _|",
+                "+ + + + + + + +",
+                "|_|f f|_ _ _ _|",
+                "+ +-+-+ + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+-+-+-+-+-+-+-+",
+            ],
+        ),
+    ],
+)

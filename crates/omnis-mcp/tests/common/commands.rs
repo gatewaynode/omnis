@@ -3,7 +3,7 @@
 //! instance against the hand-written schema; the vocabulary test reads every key they carry.
 
 use omnis_cli::omnis_sim::omnis_core::CharacterId;
-use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
+use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation, Vertical};
 use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
 use omnis_cli::omnis_sim::omnis_rules::{
     ActionRef, Cmp, Criteria, CriteriaSet, Draft, Named, Predicate, Trigger, Who,
@@ -347,7 +347,11 @@ fn next(command: &Command) -> Option<Command> {
     Some(match command {
         Command::Step(direction) => next_step(*direction),
         Command::Turn(rotation) => next_turn(*rotation),
-        Command::Interact => Command::Party(PartyCommand::Create(draft(Alignment::ALL[0]))),
+        Command::Interact => Command::Climb(Vertical::Up),
+        Command::Climb(Vertical::Up) => Command::Climb(Vertical::Down),
+        Command::Climb(Vertical::Down) => {
+            Command::Party(PartyCommand::Create(draft(Alignment::ALL[0])))
+        }
         Command::Party(party) => {
             next_party(party).map_or(Command::Encounter(EncounterChoice::Attack), Command::Party)
         }

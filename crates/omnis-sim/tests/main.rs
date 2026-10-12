@@ -12,6 +12,7 @@ mod effects;
 mod elevation;
 mod encounter;
 mod items;
+mod levels;
 mod monster_cast;
 mod movement;
 mod ops;
