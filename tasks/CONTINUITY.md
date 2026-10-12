@@ -1,16 +1,16 @@
 # Continuity notes
 
-Written 2026-10-12, after M8.5 step 4 was built. Acceptance of both 1a and 4 is waiting for the owner. Rewrite
+Written 2026-10-12, after the owner accepted M8.5 step 4. 1a's acceptance is still open. Rewrite
 this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). `vector-adoption` was merged into `main` on 2026-10-12.
-- **M8.5 build order (owner, 2026-10-12): 1a, 4, 1b, 2, 3, 5, 6.** The step numbers are kept. Step 4 moved forward
+- **M8.5 build order (owner, 2026-10-12): 1a, 4, 4b, 1b, 2, 3, 5, 6.** 4b, camera pitch, was added at step 4's acceptance (the owner may move it). The step numbers are kept. Step 4 moved forward
   after the owner walked the 1a fixture and met cliffs they could not see.
 - **1a, elevation in the rules:** built. Acceptance `tasks/acceptance/m8.5-1a.md`.
   - **Fix after the owner's walk (`fc5b0e4`):** the window held the party at a cliff in silence. Now
     `Outcome.bumped` produces "Blocked: too steep", once per contact.
-- **4, elevation drawn:** built. Plan `tasks/plans/m8.5-elevation-drawn.md` (with "As built"), acceptance
+- **4, elevation drawn:** accepted 2026-10-12 ("rough as expected"; no vertical pan makes the hills hard to navigate). Plan `tasks/plans/m8.5-elevation-drawn.md` (with "As built"), acceptance
   `tasks/acceptance/m8.5-4.md`.
   - Owner answers:
     - lines now, with fills in step 3;
@@ -19,8 +19,10 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
     - the minimap shows cliffs and ramps.
   - Commits: `6cf5055`, `5c0a015`, `9e860f3`, `3a57aad`, then docs.
 - **Next:**
-  - The owner accepts 1a and 4. They may want eye height and FOV revisited (presentation-PRD §12.8) once they have
-    walked it.
+  - Plan **4b, camera pitch**, with the owner in plan mode, together with eye height and FOV (presentation-PRD §12.8).
+    Today the camera has yaw only (`geom.rs`). Questions: input (mouse first), limits, reset or follow on a step,
+    reduced motion.
+  - The owner still has to accept 1a formally.
   - Then plan **1b, the Z axis**, with the owner: levels above and below, how they join, and overlaps.
   - The rhai Socket re-audit is still first in the open list; ask the owner when.
 
