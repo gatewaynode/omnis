@@ -415,6 +415,12 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
 - [ ] 1. **The 3D map format** (owner's 3): X, Y and Z; height within a level (presentation-PRD X10, with cliffs derived when the pack loads, X11); levels underground and above the ground, and how they join (stairs, ramps, shafts; today maps join only by portals); room for objects above the ground. Everything after builds on it.
   - Open for the owner (presentation-PRD §12.1): height per cell or per corner, its range and units, the cliff threshold, how the editor authors it.
   - Touches: `omnis-data` (schema, loader limits, the bad-pack corpus); map state in the save (`SAVE_SCHEMA` 7, a migration if it moves); the views (`ViewportModel`, the automap by level); the client's collision mirror and its agreement test (presentation-PRD §4.3); M9's generated maps. The golden replays move only if the test maps do.
+  - [ ] 1a. Elevation (plan `tasks/plans/m8.5-elevation.md`; owner answers 2026-10-12): height per cell in eighths of a cell (a wall is 8), ramp edges (`/`, up to 16), a climb allowance per terrain set by the terrain entered and limiting drops too, cliffs derived at load (`Cell.cliffs`), `Blocked { Cliff }`; sight with height (hills hide) and reach from height (`sight.reach`). The client's mirror and fog only; drawing height is step 4. `SAVE_SCHEMA` 7, protocol 2 additive.
+    - [ ] Data: `MapDef.heights`, `Terrain.climb`, ramps, cliffs, limits, the bad-pack corpus.
+    - [ ] Sim: the cliff refusal, sight with height, reach, the views and the JSON tier.
+    - [ ] Client: the mirror's cliff check; the fog from the viewport's depth.
+    - [ ] Docs, acceptance, continuity.
+  - [ ] 1b. The Z axis: levels underground and above the ground and how they join. Planned with the owner after 1a.
 - [ ] 2. **Layout within a square: scenery, items and beings** (owner's 7). A position inside a cell for what stands in it.
   - Pulls forward the object schema from `tasks/plans/editor-v1.md` §E, reviewed with the editor plan and never built: kinds in `data/objects`, placements with stable ids and an offset inside the tile, `MapDef.objects`, per-tile and per-map limits, `MapState.objects` in the save. Each kind says whether it blocks movement and sight.
   - Items on the ground and beings (monsters, people) use the same offset. Authored set pieces (presentation-PRD §6.2; format open, §12.4) are scenery kinds.
