@@ -239,6 +239,10 @@ playtest from (3, 8) facing South, quit to editor. MCP: restart the server on th
 `editor_open` → `editor_paint` → `editor_status` (dirty, no errors) → `editor_save` headless and live.
 
 ## Risks and horizons
+- Levels (M8.5 step 1b): a map may hold `levels`, each a layout and heights at the map's size with a
+  `base` and a name key, `_` for no ground, and joins as terrain (`join`). The editor paints one level at a
+  time with a level chooser, and placements carry a `level`; the writer keeps level 0 as the map's own
+  `layout`.
 - egui invisible to captures (owner's run is the visual acceptance; `render_egui_to_image` is a horizon).
 - Rewritten maps lose comments; a compact map-only writer is a horizon; `PrettyConfig` is frozen.
 - Window drags and zoom untouched (zoom 1.0; egui uses the true scale factor).

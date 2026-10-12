@@ -259,6 +259,7 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 - **Cliffs block like walls** (built). `omnis-data` derives them when the pack loads (`Cell.cliffs`: the difference is more than the entered terrain's `climb` and the edge is no ramp), so the step refuses with `BlockReason::Cliff`. The mirror reads the same `Cell.cliffs` rather than recomputing from heights, and the agreement test covers cliff edges on the engine's elevation fixture.
 - **The fog follows the engine's sight** (built): `Views.sight` is the viewport's `visibility_depth`, which counts a light and the party's height (before M8.5 the fog read the floor's depth and ignored a light).
 - **Relief never moves the walkable rule** (XR7): the pose walks the cell grid; the drawn ground only lifts the camera.
+- **Levels** (built, M8.5 step 1b): the client reads the party's level from the engine (`sim::position` from `Here`), and the mirror reads that level's cells, refusing a step into no ground as the engine does (`BlockReason::NoGround`). A stair or a hole moves the party on the same cell, so the pose stays and only the drawn level and the camera's height change; the agreement test runs on every level of every map, the engine's tower fixture among them.
 
 ## 6. The screen model (as built, P2; VA10)
 
@@ -458,6 +459,7 @@ The design fixes the seams; the technique is measured in its step (X20):
 - **The floor grid** lies on the ground (X21), hidden by a setting. Contour lines on the ground and the minimap come later.
 - **The camera's y** eases toward `eye` (the ground under the pose plus `EYE_HEIGHT`) with a 0.1 s time constant; at once under reduced motion and for a jump of more than a wall (a portal, a teleport).
 - **Cliffs** are hatched rock faces (`SegKind::Cliff`) and block through the engine (§5.6). The minimap draws a known cliff along its edge and ticks a ramp (§10.2).
+- **Levels** (built, M8.5 step 1b; `scene.rs`, Bevy-free): `Scene::build` gives the party's level on its `Ground` and the levels just above and below on theirs, at their real heights; `Scene::strokes` draws the neighbours at `NEIGHBOUR_DIM` (0.2, provisional until step 5's colour roles). A level's ceiling grid is not drawn under ground of the level above. Joins are drawn so they can be seen: `SegKind::Stair` (four treads north to south on two stringers, up or down to the floor beyond), `Ladder` (two ladders crossed, so one reads face-on from any side, up to the floor above) and `Hole` (the opening hatched to the cell's corners). The `Lines` resource is rebuilt when the map, the level or a door changes.
 - **Lines only until M8.5 step 3:** without fills a hill is see-through; the fills (§8.2) are built on the same segments and `Ground`.
 
 ### 8.5 Shaped structures (to build, X12)
@@ -486,13 +488,13 @@ A separate 2D screen in the vector style replaces the 3D view during a fight (X7
 ## 10. The HUD, the minimap and the developer tools
 
 ### 10.1 The HUD (as built)
-`shell/hud.rs` rewrites one status text each frame: the map, cell and facing; the mode and the clock; the
+`shell/hud.rs` rewrites one status text each frame: the map, its level on a map of several (`hud::place`, "Roof (2)"), cell and facing; the mode and the clock; the
 accepted commands, refusals and mirror disagreements; frame rate, frame time and the window's physical
 size; the mouse-look hint while it is on; and up to 8 recent event lines (`Session.lines`, worded by
 `shell/text.rs`). It becomes the status panel of the explore screen (§6.6).
 
 ### 10.2 The minimap (as built) and the automap (to build, X22)
-- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then the known tiles' cliffs (along the edge) and ramps (a tick across it), read from their map cells (M8.5 step 4), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map, the command count, the marker's pixel or its heading changes.
+- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then the known tiles' cliffs (along the edge) and ramps (a tick across it), read from their map cells (M8.5 step 4), the party's level only, with its stairs, ladders and holes marked like glyphs (chevrons, rungs, a cross; step 1b), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map or level, the command count, the marker's pixel or its heading changes. On a map of several levels the level's name stands left of the picture (`labels::level`), clear of the party panel under it.
 - **To build:** a blueprint-style map in the neon style with height as contour lines (X22), opened full-screen from the tool bar's Map. What it records stays the engine's (the cardinal cone); recording the camera's view needs an engine command (presentation-PRD §12.5).
 
 ### 10.3 Capture (as built)
@@ -514,7 +516,7 @@ dim controls' reasons and field values.
 - The simulation's `Settings` (save rule, permadeath, devtools) are world rules, chosen on the new-game screen (P2) and kept in the save. P2 also gives vector a devtools world in debug builds, as `omnis-app`'s `game_settings` does, so `time.reconcile` and `Dev` commands work over the socket.
 
 ### 10.6 The debug panel (as built, P8)
-A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags and a teleport, and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
+A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags and a teleport (with a Level choice, M8.5 step 1b), and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
 
 ## 11. The test and capture contract
 
@@ -527,7 +529,7 @@ Every test runs under `scripts/verify.sh` against the real packs. None is a mock
 4. **A capture path:** `--screenshot` with `--screen <id>`, so the owner's and agents' captures need no clicking.
 
 **Standing tests:**
-- `tests/agreement.rs`, the collision mirror against the step (cliffs too, §5.6).
+- `tests/agreement.rs`, the collision mirror against the step (cliffs too, §5.6; every level, step 1b).
 - `tests/binding.rs`, the binder on the real maps, with the replay proof.
 - `the_views_are_the_world_s_after_every_frame`, the one refresh path.
 - `tests/socket.rs`, the dev socket over loopback.
