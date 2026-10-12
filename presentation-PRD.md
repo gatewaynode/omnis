@@ -58,7 +58,7 @@ branch decides how the rules use height beyond cliffs.
 
 | # | Topic | Decision | Alternatives considered | Rationale |
 |---|---|---|---|---|
-| X1 | Movement model | Free movement and mouse look in 3D. The grid cell is computed continuously from the pose. Each cell boundary crossed emits `Command::Step`, and the simulation processes everything that cell entry triggers. A yaw that snaps to a new cardinal direction emits `Command::Turn` | Discrete steps with tweening (a smaller proof); discrete now and free later | Owner decision (2026-10-02). It tests the stronger claim: the grid rules survive a presentation that does not look like a grid. Proven in Phase A. |
+| X1 | Movement model | Free movement and mouse look in 3D (both axes since M8.5 step 4b, unlimited; the pitch is the head's and never reaches the grid). The grid cell is computed continuously from the pose. Each cell boundary crossed emits `Command::Step`, and the simulation processes everything that cell entry triggers. A yaw that snaps to a new cardinal direction emits `Command::Turn` | Discrete steps with tweening (a smaller proof); discrete now and free later | Owner decision (2026-10-02). It tests the stronger claim: the grid rules survive a presentation that does not look like a grid. Proven in Phase A. |
 | X2 | File space | A crate in the main workspace, `crates/omnis-vector` | A separate Cargo workspace under `alt/`; a separate repository | Owner decision (2026-10-02). It shares the lock, `verify.sh` and the dependency policy. |
 | X3 | Rendering | Bevy `Camera3d` with perspective. Geometry drawn as lines (gizmos in the proof) | Lines hand-projected onto the existing `2d` features | Owner decision (2026-10-02). It is the real 3D path and can grow into meshes. |
 | X4 | Scope of the binary | During the proof, a standalone viewer driving `omnis-sim` directly. Superseded by X14 | Reuse `omnis-app`'s canvas UI, menus and combat | Owner decision (2026-10-02). |
@@ -325,4 +325,6 @@ The art update (animated figures, the fight screen's scale) fits alongside 3 and
    generated from the region's terrain, or both); whether weather and darkness dim or hide it; and
    how a distant landmark relates to the real place when the party travels toward it.
 8. **Camera:** eye height, and a field of view suited to 32:9 and 16:9, revisited once the ground
-   has height.
+   has height. Pitch is decided (M8.5 step 4b, owner 2026-10-12: mouse first, unlimited, a step
+   levels the view unless the mouse looks, configurable); eye height and field of view are
+   reviewed after the owner walks with it.

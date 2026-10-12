@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-12, after the owner accepted M8.5 step 4. 1a's acceptance is still open. Rewrite
+Written 2026-10-12, after M8.5 step 4b (camera pitch) was built. 1a's and 4b's acceptance are open. Rewrite
 this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -18,11 +18,11 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
     - relief with step 5;
     - the minimap shows cliffs and ramps.
   - Commits: `6cf5055`, `5c0a015`, `9e860f3`, `3a57aad`, then docs.
+- **4b, camera pitch:** built. Plan `tasks/plans/m8.5-camera-pitch.md` (with "As built"), acceptance
+  `tasks/acceptance/m8.5-4b.md`. Pitch in `shell::movement::View` (never in `Pose`), `look.rs` pure, `render::rotation`,
+  setting `level_on_step`, Level button, PageUp/PageDown/Home.
 - **Next:**
-  - Plan **4b, camera pitch**, with the owner in plan mode, together with eye height and FOV (presentation-PRD §12.8).
-    Today the camera has yaw only (`geom.rs`). Questions: input (mouse first), limits, reset or follow on a step,
-    reduced motion.
-  - The owner still has to accept 1a formally.
+  - The owner accepts 4b (and 1a formally). Eye height and FOV are reviewed after they walk with pitch (§12.8).
   - Then plan **1b, the Z axis**, with the owner: levels above and below, how they join, and overlaps.
   - The rhai Socket re-audit is still first in the open list; ask the owner when.
 
@@ -65,9 +65,9 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **The owner's asset work** (`.gitignore`, `assets/`) is theirs. Never stage it.
 
 ## Pins
-- Gate `tests passed 634 failed 0 ignored 12`, VERIFY-GREEN, at `3a57aad`.
+- Gate `tests passed 647 failed 0 ignored 12`, VERIFY-GREEN, at `eeafac7`.
 - Walk replay `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`. `SAVE_SCHEMA` 7, `PROTOCOL` 2, 25 ops.
-- Sentrux (scan `crates/`): rules pass, quality 8941.
+- Sentrux (scan `crates/`): rules pass, quality 8944.
 
 ## Process
 - **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, with `cargo fmt --all` first. Run vector clippy
