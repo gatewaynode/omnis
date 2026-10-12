@@ -145,3 +145,53 @@ fn an_edge_recorded_on_one_side_is_drawn_once_known() {
     // The west side of (5, 5) has no wall.
     assert_ne!(raster.pixel(5 * s, 5 * s + 1), Some(WALL));
 }
+
+/// Every tile of `map` known and visited, as the automap would hold it.
+fn all_known(
+    map: &omnis_sim::omnis_data::MapData,
+) -> std::collections::BTreeMap<(u16, u16), omnis_sim::Known> {
+    let mut known = std::collections::BTreeMap::new();
+    for y in 0..map.def.height {
+        for x in 0..map.def.width {
+            let cell = map.cell(x, y).expect("a cell");
+            known.insert(
+                (x, y),
+                omnis_sim::Known {
+                    terrain: cell.terrain,
+                    walls: cell.walls,
+                    doors: cell.doors,
+                    layers: omnis_sim::world::layer::VISITED,
+                    seen_at: 0,
+                },
+            );
+        }
+    }
+    known
+}
+
+/// M8.5 step 4: a cliff is drawn along its edge and a ramp ticked across its middle.
+#[test]
+fn cliffs_and_ramps_show_on_the_elevation_fixture() {
+    use omnis_vector::minimap::{CLIFF, RAMP};
+    let data = common::heights_data();
+    let map = &data.maps[&common::map(&data, "heights:map:hills")];
+    let known = all_known(map);
+    let pose = Pose {
+        x: 8.5,
+        z: 4.5,
+        yaw: 0.0,
+    };
+    let raster = paint(map, Some(&known), pose);
+    let s = raster.scale;
+    // The cliff at x 3 on row 0, from the slope up to 12: its column of pixels (the first is
+    // the map's north wall, which wins).
+    for i in 1..s {
+        assert_eq!(raster.pixel(3 * s, i), Some(CLIFF), "row {i}");
+    }
+    // The ramp at x 1 on row 2: a tick across the middle of its edge.
+    assert_eq!(raster.pixel(s, 2 * s + s / 2), Some(RAMP));
+    assert_eq!(raster.pixel(s - s / 4, 2 * s + s / 2), Some(RAMP));
+    // The slope between x 0 and 1 on row 0 is neither.
+    let mid = raster.pixel(s, s / 2);
+    assert!(mid != Some(CLIFF) && mid != Some(RAMP), "{mid:?}");
+}

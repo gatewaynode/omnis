@@ -22,6 +22,10 @@ pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
 pub const WALL: [u8; 4] = [60, 255, 120, 255];
 /// A known door.
 pub const DOOR: [u8; 4] = [255, 170, 40, 255];
+/// A known cliff edge (provisional until the colour roles, M8.5 step 5).
+pub const CLIFF: [u8; 4] = [230, 150, 60, 255];
+/// A known ramp edge's tick.
+pub const RAMP: [u8; 4] = [120, 220, 255, 255];
 /// The party.
 pub const MARKER: [u8; 4] = [255, 255, 255, 255];
 
@@ -65,6 +69,58 @@ fn edges(known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, bool> {
     out
 }
 
+/// What height puts on an edge: a cliff, or a ramp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Rise {
+    Cliff,
+    Ramp,
+}
+
+/// The cliff and ramp edges of the known tiles, each once, read from the map's cells: a cliff
+/// facing either way, seen from the known side.
+fn rises(map: &MapData, known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, Rise> {
+    let mut out = BTreeMap::new();
+    for &(x, y) in known.keys() {
+        let Some(cell) = map.cell(x, y) else { continue };
+        for facing in Facing::ALL {
+            let (dx, dy) = facing.delta();
+            let beyond = u16::try_from(i32::from(x) + dx)
+                .ok()
+                .zip(u16::try_from(i32::from(y) + dy).ok())
+                .and_then(|(nx, ny)| map.cell(nx, ny));
+            let back = facing.opposite();
+            let rise = if cell.cliffs.has(facing) || beyond.is_some_and(|b| b.cliffs.has(back)) {
+                Rise::Cliff
+            } else if cell.ramps.has(facing) {
+                Rise::Ramp
+            } else {
+                continue;
+            };
+            out.insert(key(x, y, facing), rise);
+        }
+    }
+    out
+}
+
+/// The pixels of a tick across the middle of an edge, half a cell long.
+fn tick_pixels(raster: &Raster, (horizontal, col, row): EdgeKey) -> Vec<(i64, i64)> {
+    let s = i64::from(raster.scale);
+    let (mx, my) = if horizontal {
+        (col * s + s / 2, row * s)
+    } else {
+        (col * s, row * s + s / 2)
+    };
+    (-s / 4..=s / 4)
+        .map(|i| {
+            if horizontal {
+                (mx, my + i)
+            } else {
+                (mx + i, my)
+            }
+        })
+        .collect()
+}
+
 /// The pixels of an edge, `inset` pixels in from each end. An edge on the map's far side is
 /// drawn on the last pixel row or column.
 fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> Vec<(i64, i64)> {
@@ -84,8 +140,8 @@ fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> 
         .collect()
 }
 
-/// Paint the known tiles of `map` (visited ones brighter than ones only seen), their walls and
-/// doors, then the party as a triangle pointing along the yaw.
+/// Paint the known tiles of `map` (visited ones brighter than ones only seen), their cliffs and
+/// ramps (M8.5 step 4), their walls and doors over those, then the party as a triangle pointing along the yaw.
 #[must_use]
 pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: Pose) -> Raster {
     let scale = scale_for(map.def.width, map.def.height);
@@ -112,6 +168,15 @@ pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: P
             for dx in 0..s {
                 out.put(i64::from(x) * s + dx, i64::from(y) * s + dy, fill);
             }
+        }
+    }
+    for (edge, rise) in rises(map, known) {
+        let (pixels, colour) = match rise {
+            Rise::Cliff => (edge_pixels(&out, edge, 0), CLIFF),
+            Rise::Ramp => (tick_pixels(&out, edge), RAMP),
+        };
+        for (px, py) in pixels {
+            out.put(px, py, colour);
         }
     }
     for (edge, door) in edges(known) {
