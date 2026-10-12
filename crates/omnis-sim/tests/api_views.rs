@@ -8,10 +8,11 @@ use crate::common;
 
 use common::{act, data, encounter, inside, new_world, party_of, world};
 use omnis_data::{Ability, Data, Disposition, EquipSlot, ServiceKind, Skill};
+use omnis_sim::omnis_core::{Facing, MapId, Position};
 use omnis_sim::omnis_rules::Expiry;
-use omnis_sim::query::{flags, here};
+use omnis_sim::query::{door_open, flags, here, map_text};
 use omnis_sim::{
-    ActorRef, ChoiceKind, CombatCommand, Command, EncounterChoice, Mode, PARTY, Rejection,
+    ActorRef, ChoiceKind, CombatCommand, Command, EncounterChoice, Event, Mode, PARTY, Rejection,
     SaveRule, ServiceCommand, Settings, Surprise, Target, World, apply, cast_view, combat,
     combat_view, ops, party_view, service_view,
 };
@@ -200,6 +201,123 @@ fn bless_is_cast_by_its_id_and_the_row_carries_that_id() {
             .any(|e| e.spell == bless),
         "Brenna is blessed"
     );
+}
+
+/// A row's cost is what the cast charges: the `spell_points.cost` slot, not the spell's level,
+/// so a pack (or `rules.set`) that prices spells its own way is shown that price (parity P5).
+#[test]
+fn a_cast_row_costs_what_the_cost_slot_charges() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let durin = world.party.members[DURIN].id;
+    let bless = |world: &World| {
+        cast_view(world, &data)
+            .into_iter()
+            .find(|r| r.caster == durin && r.spell == "base:spell:bless")
+            .expect("Durin's Bless")
+    };
+    assert_eq!(bless(&world).cost, 2, "a level 1 spell at twice its level");
+    world.party.members[DURIN].spell_points = 1;
+    assert_eq!(
+        bless(&world).refusal,
+        Some(Rejection::NotEnoughPoints { need: 2, have: 1 })
+    );
+}
+
+/// The fight's spell rows cost what the cast charges too: the `spell_points.cost` slot, not the
+/// spell's level (parity P6; the road rows were fixed in P5).
+#[test]
+fn a_fight_spell_row_costs_what_the_cost_slot_charges() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    fight(&mut world, &data, &[("goblin", 1)]);
+    until_turn_of(&mut world, &data, DURIN);
+    let view = combat_view(&world, &data).expect("in a fight");
+    let bless = view
+        .spells
+        .iter()
+        .find(|s| s.spell == "base:spell:bless")
+        .expect("Durin's Bless");
+    assert_eq!(bless.cost, 2, "a level 1 spell at twice its level");
+}
+
+/// Each member's known spells carry what a cast charges, from the cost slot, and what it spends
+/// of the turn, from the definition (parity P6, the sheet's Magic page; ARCHITECTURE §4.4).
+#[test]
+fn a_known_spell_costs_what_a_cast_charges_and_pays_its_definition_s_cost() {
+    let mut data = data();
+    data.rules
+        .set_slot("spell_points.cost", "spell_level * 2")
+        .unwrap();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let shield = data.registry.spells.get("base:spell:shield").unwrap();
+    if !world.party.members[ILVARA].known_spells.contains(&shield) {
+        world.party.members[ILVARA].known_spells.push(shield);
+    }
+    let view = party_view(&world, &data);
+    for (member, shown) in world.party.members.iter().zip(&view.members) {
+        let ids: Vec<&str> = shown
+            .known_spells
+            .iter()
+            .map(|k| k.spell.as_str())
+            .collect();
+        let spells: Vec<&str> = shown.spells.iter().map(String::as_str).collect();
+        assert_eq!(
+            ids, spells,
+            "{}: one row per known spell, in order",
+            member.name
+        );
+        for row in &shown.known_spells {
+            let def = data
+                .spells
+                .get(&data.registry.spells.get(&row.spell).unwrap())
+                .unwrap();
+            let want = def.points.unwrap_or(u32::from(def.level) * 2);
+            assert_eq!(row.cost, want, "{}", row.spell);
+            assert_eq!(row.pay, def.cost, "{}", row.spell);
+            assert_eq!(row.level, def.level, "{}", row.spell);
+        }
+    }
+    assert!(
+        view.members[DURIN].known_spells.iter().any(|k| k.cost == 0),
+        "a cantrip is free"
+    );
+    let shield = view.members[ILVARA]
+        .known_spells
+        .iter()
+        .find(|k| k.spell == "base:spell:shield")
+        .expect("Ilvara knows Shield");
+    assert_eq!(
+        shield.pay,
+        omnis_data::Cost::Reaction,
+        "Shield answers an attack"
+    );
+
+    // The price shown is the price paid.
+    let durin = world.party.members[DURIN].id;
+    let bless = view.members[DURIN]
+        .known_spells
+        .iter()
+        .find(|k| k.spell == "base:spell:bless")
+        .expect("Durin knows Bless")
+        .cost;
+    let before = world.party.members[DURIN].spell_points;
+    let command = Command::Cast {
+        caster: durin,
+        spell: "base:spell:bless".to_owned(),
+        target: Target::Member(durin),
+    };
+    apply(&mut world, &data, command).unwrap();
+    assert_eq!(before - world.party.members[DURIN].spell_points, bless);
 }
 
 #[test]
@@ -432,5 +550,277 @@ fn a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere() {
     assert_eq!(
         view.members[0].spells.last().map(String::as_str),
         Some("#999")
+    );
+}
+
+/// Whether `text` (a `map_text` layout) shows the door on `facing` of `(x, y)` open.
+fn drawn_open(text: &str, x: u16, y: u16, facing: Facing) -> bool {
+    let (row, col) = (2 * usize::from(y) + 1, 2 * usize::from(x) + 1);
+    let (row, col) = match facing {
+        Facing::North => (row - 1, col),
+        Facing::South => (row + 1, col),
+        Facing::West => (row, col - 1),
+        Facing::East => (row, col + 1),
+    };
+    let line = text.lines().nth(row).expect("row");
+    matches!(line.chars().nth(col), Some('_' | '\''))
+}
+
+#[test]
+fn door_open_is_the_world_s_door_on_every_edge_of_every_map() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 1);
+    // Open the first door Interact opens, standing on each door's tile in turn.
+    let mut opened = None;
+    'find: for (&map, map_data) in &data.maps {
+        for y in 0..map_data.def.height {
+            for x in 0..map_data.def.width {
+                for facing in Facing::ALL {
+                    if !map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                        continue;
+                    }
+                    let mut trial = world.clone();
+                    trial.position = Position { map, x, y, facing };
+                    let events = apply(&mut trial, &data, Command::Interact).unwrap_or_default();
+                    if events.iter().any(|e| matches!(e, Event::Door { .. })) {
+                        world = trial;
+                        opened = Some((map, x, y, facing));
+                        break 'find;
+                    }
+                }
+            }
+        }
+    }
+    let (map, x, y, facing) = opened.expect("some door opens");
+    assert!(
+        door_open(&world, map, x, y, facing),
+        "the opened door reads open"
+    );
+    let mut doors = 0;
+    for (&map, map_data) in &data.maps {
+        let text = map_text(&world, &data, map).expect("map text");
+        for y in 0..map_data.def.height {
+            for x in 0..map_data.def.width {
+                for facing in Facing::ALL {
+                    if map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                        doors += 1;
+                        assert_eq!(
+                            door_open(&world, map, x, y, facing),
+                            drawn_open(&text, x, y, facing),
+                            "map {map:?} ({x}, {y}) {facing:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(doors > 1, "the test pack has doors");
+    assert!(
+        !door_open(&world, MapId(u32::MAX), 0, 0, Facing::North),
+        "an unknown map"
+    );
+}
+
+#[test]
+fn can_fight_is_up_alive_and_not_incapacitated() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let fit = |world: &World| -> Vec<bool> {
+        party_view(world, &data)
+            .members
+            .iter()
+            .map(|m| m.can_fight)
+            .collect()
+    };
+    assert_eq!(fit(&world), [true, true, true, true]);
+    world.party.members[BRENNA].hp = 0;
+    let incapacitated = data
+        .registry
+        .conditions
+        .get("base:condition:incapacitated")
+        .expect("incapacitated");
+    world.party.members[DURIN].conditions.push(incapacitated);
+    let dead = data
+        .registry
+        .conditions
+        .get("base:condition:dead")
+        .expect("dead");
+    world.party.members[ILVARA].conditions.push(dead);
+    assert_eq!(fit(&world), [false, false, false, true]);
+    let view = party_view(&world, &data);
+    assert!(view.members[BRENNA].down && !view.members[DURIN].down && view.members[ILVARA].dead);
+}
+
+/// Each fight spell row says what it spends of the turn, from the definition: Shield is a
+/// reaction; Healing Word costs an action, its bonus-action way being the row's `bonus` (parity
+/// P7, the picker's notes; ARCHITECTURE §4.4).
+#[test]
+fn a_fight_spell_row_pays_its_definition_s_cost() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let learn = |world: &mut World, slot: usize, spell: &str| {
+        let id = data.registry.spells.get(spell).unwrap();
+        if !world.party.members[slot].known_spells.contains(&id) {
+            world.party.members[slot].known_spells.push(id);
+        }
+    };
+    learn(&mut world, ILVARA, "base:spell:shield");
+    learn(&mut world, DURIN, "base:spell:healing_word");
+    fight(&mut world, &data, &[("goblin", 1)]);
+    for (slot, spell, want) in [
+        (ILVARA, "base:spell:shield", omnis_data::Cost::Reaction),
+        (DURIN, "base:spell:healing_word", omnis_data::Cost::Action),
+    ] {
+        until_turn_of(&mut world, &data, slot);
+        let view = combat_view(&world, &data).expect("in a fight");
+        for row in &view.spells {
+            let def = data
+                .spells
+                .get(&data.registry.spells.get(&row.spell).unwrap())
+                .unwrap();
+            assert_eq!(row.pay, def.cost, "{}", row.spell);
+        }
+        let row = view.spells.iter().find(|s| s.spell == spell).unwrap();
+        assert_eq!(row.pay, want, "{spell}");
+        if slot == DURIN {
+            assert_eq!(row.bonus, None, "Healing Word may take the bonus action");
+        }
+    }
+}
+
+/// The fight's item rows are the acting member's kit rows with a use, each refused as the Use
+/// command would refuse it with no receiver: the spyglass is not used from a fight, a potion
+/// wants the turn's action (parity P7, the Use picker; ARCHITECTURE §4.4).
+#[test]
+fn the_fight_s_item_rows_answer_as_the_use_would() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let item = |name: &str| data.registry.items.get(name).unwrap();
+    let (potion, glass) = (
+        item("base:item:potion_of_healing"),
+        item("base:item:spyglass"),
+    );
+    world.party.members[DURIN].equipment.push((potion, 2));
+    world.party.members[DURIN].equipment.push((glass, 1));
+    fight(&mut world, &data, &[("goblin", 2)]);
+    let view = combat_view(&world, &data).unwrap();
+    assert_eq!(view.phase, omnis_sim::ModeKind::Combat);
+    until_turn_of(&mut world, &data, DURIN);
+    let rows = |world: &World| combat_view(world, &data).unwrap().items;
+    let use_of = |world: &World, item: &str| {
+        apply(
+            &mut world.clone(),
+            &data,
+            Command::Combat(CombatCommand::Use {
+                item: item.to_owned(),
+                receiver: None,
+            }),
+        )
+        .err()
+    };
+    let shown = rows(&world);
+    let usable: Vec<(String, u16)> = world.party.members[DURIN]
+        .equipment
+        .iter()
+        .filter(|(id, _)| data.items.get(id).is_some_and(|d| d.use_effect.is_some()))
+        .map(|(id, n)| (data.registry.items.name(*id).unwrap().to_owned(), *n))
+        .collect();
+    assert_eq!(
+        shown
+            .iter()
+            .map(|r| (r.item.clone(), r.count))
+            .collect::<Vec<_>>(),
+        usable,
+        "the kit's usable rows, in kit order, with their counts"
+    );
+    assert!(
+        usable.len() < world.party.members[DURIN].equipment.len(),
+        "a weapon is left out"
+    );
+    for row in &shown {
+        assert_eq!(row.blocked, use_of(&world, &row.item), "{}", row.item);
+        let def = data
+            .items
+            .get(&data.registry.items.get(&row.item).unwrap())
+            .unwrap();
+        assert_eq!(row.name, def.name);
+    }
+    let blocked = |world: &World, item: &str| {
+        rows(world)
+            .into_iter()
+            .find(|r| r.item == item)
+            .unwrap()
+            .blocked
+    };
+    assert_eq!(blocked(&world, "base:item:potion_of_healing"), None);
+    assert_eq!(
+        blocked(&world, "base:item:spyglass"),
+        Some(Rejection::NotUsableHere)
+    );
+    let Mode::Combat(c) = &mut world.mode else {
+        panic!("in a fight");
+    };
+    c.budget.actions = 0;
+    assert_eq!(
+        blocked(&world, "base:item:potion_of_healing"),
+        Some(Rejection::NoActionLeft)
+    );
+    assert_eq!(
+        use_of(&world, "base:item:potion_of_healing"),
+        Some(Rejection::NoActionLeft),
+        "the command agrees"
+    );
+}
+
+/// No member acts in the encounter or on a monster's turn, so no item rows there.
+#[test]
+fn the_fight_s_item_rows_are_only_on_a_member_s_turn() {
+    let data = data();
+    let mut world = world(&data);
+    party_of(&mut world, &data, 4);
+    let potion = data
+        .registry
+        .items
+        .get("base:item:potion_of_healing")
+        .unwrap();
+    for m in &mut world.party.members {
+        m.equipment.push((potion, 1));
+    }
+    let here = world.position;
+    world.mode = Mode::Encounter(encounter(
+        &data,
+        &[("goblin", 1)],
+        Disposition::Hostile,
+        here,
+    ));
+    assert!(
+        combat_view(&world, &data).unwrap().items.is_empty(),
+        "the encounter"
+    );
+    fight(&mut world, &data, &[("goblin", 1)]);
+    let Mode::Combat(c) = &mut world.mode else {
+        panic!("in a fight");
+    };
+    let monster = c
+        .order
+        .iter()
+        .position(|i| matches!(i.actor, ActorRef::Stack(_)))
+        .unwrap();
+    let was = c.current;
+    c.current = u8::try_from(monster).unwrap();
+    let view = combat_view(&world, &data).unwrap();
+    assert!(matches!(view.current, Some(ActorRef::Stack(_))));
+    assert!(view.items.is_empty(), "a monster's turn");
+    if let Mode::Combat(c) = &mut world.mode {
+        c.current = was;
+    }
+    until_turn_of(&mut world, &data, DURIN);
+    assert!(
+        !combat_view(&world, &data).unwrap().items.is_empty(),
+        "Durin's turn"
     );
 }

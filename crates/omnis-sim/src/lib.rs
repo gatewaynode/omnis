@@ -21,6 +21,7 @@ mod casting;
 mod checks;
 pub mod combat;
 pub mod command;
+pub mod creation_view;
 pub mod dev;
 pub mod effects;
 pub mod encounter;
@@ -58,6 +59,7 @@ pub use apply::apply;
 pub use cast_view::{CastView, cast_view};
 pub use combat::{Budget, CombatCommand, CombatState, FeatureChoice, Initiative, Pay, Target};
 pub use command::{Command, Rejection};
+pub use creation_view::{BackgroundOption, ClassOption, CreationView, RaceOption, creation_view};
 pub use dev::DevCommand;
 pub use encounter::{
     EncounterChoice, EncounterSource, EncounterState, Stack, bribe_cost, groups_cleared,
@@ -71,7 +73,8 @@ pub use names::Place;
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{
-    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+    AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
+    TacticsView, party_view,
 };
 pub use replay::{Replay, ReplayError};
 pub use rest::RestCommand;
@@ -79,7 +82,8 @@ pub use rest_view::{CampMember, RestView, rest_view};
 pub use service::{ServiceCommand, ServiceState};
 pub use service_view::{OfferView, ServiceView, service_view};
 pub use view::{
-    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+    ChoiceKind, CombatView, FeatureView, FightItemView, FighterView, SpellView, StackView,
+    combat_view,
 };
 pub use word::{ScriptError, Word, parse_script};
 pub use world::{

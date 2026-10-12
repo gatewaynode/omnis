@@ -117,6 +117,9 @@ geometries other than a ray, skills and divination as sources, cover and conceal
 inputs, the reach drawn on the automap, a look from a fight, `RevealMap` as a dev command.
 
 ## Modern presentation (PRD D26, owner 2026-09-20)
+> Superseded (2026-10-10, A18, X15): the game's interface is `omnis-vector`'s `bevy_ui` in the neon
+> style; Feathers left the workspace with `omnis-app` at P9 (2026-10-11). Kept as history.
+
 **The Feathers experiment is done and a success by the owner's word (2026-09-20): "committing to
 moving the rest of the play UI over bit by bit."** Inter; interface scale 1.1 at canvas 1×, 1.5
 on the ultrawide. The report, the pattern for the next screen, the debts (name limit in bytes

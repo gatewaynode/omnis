@@ -70,7 +70,7 @@ let party: PartyView = party_view(&world, &data);
 
 | Transport | Where | Notes |
 |---|---|---|
-| Dev socket | The game binary, feature `devtools` (on in debug builds, compiled out of release) | TCP on loopback (`127.0.0.1:0` by default, any free port). The bound address is written to `.omnis/dev.addr` in the working directory. Newline-delimited JSON: one request per line, one reply per line. A line longer than 1 MiB (`MAX_LINE`) drops the client. One client at a time; a second is told `another client is connected` and closed. No auth beyond loopback. |
+| Dev socket | The game client, feature `devtools` (on in debug builds, compiled out of release): `omnis-vector` (`just run`, the binary `omnis`) | TCP on loopback (`127.0.0.1:0` by default, any free port). The bound address is written to `.omnis/dev.addr` in the working directory. Newline-delimited JSON: one request per line, one reply per line. A line longer than 1 MiB (`MAX_LINE`) drops the client. One client at a time; a second is told `another client is connected` and closed. No auth beyond loopback. |
 | `omnis_cli::Headless` | In process, Rust | `Headless::new(packs, seed)` then `handle(&Op) -> Result<Reply, OpError>`. No window: `screenshot` and `screen.text` answer `Failed`. Its world has `devtools` on. |
 | MCP bridge `omnis-mcp` | stdio, JSON-RPC 2.0 | One MCP tool per op; the tool name is the op name with `_` for `.` (`game.status` is `game_status`). `omnis-mcp` talks to the running game through `.omnis/dev.addr`; `omnis-mcp --headless [--pack <dir>]... [--seed <n>]` runs a `Headless` world in process. Tool descriptions and input schemas: `crates/omnis-mcp/src/tools.rs`, `schema.rs`. |
 
@@ -142,7 +142,7 @@ rejections alike (ARCHITECTURE.md §4.9):
 5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
    `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
    `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
-   world), and Tier 1's `automap` and `map_text` (which take a `MapId`), `step_lands` (a
+   world), and Tier 1's `automap`, `map_text` and `door_open` (which take a `MapId`), `step_lands` (a
    `Position`) and `site_ahead` (a `ServiceId`). The `World`'s own fields keep
    registry numbers; they are not API.
 
@@ -181,7 +181,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-24 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+25 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around the I/O-free rules in `ops.rs`
 (`save_text`, `load_text`, `check_reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
@@ -202,6 +202,7 @@ socket and the bridge (malformed request).
 | `service.get` | none | `service` | `NoService` | |
 | `rest.get` | none | `rest` | | |
 | `cast.get` | none | `casts` | | |
+| `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
 | `time.reconcile` | `region` (`pack:region:name`) | `events` | `Rejected` | dev only |
 | `rules.list` | none | `rules` | | |
@@ -210,8 +211,8 @@ socket and the bridge (malformed request).
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host |
 | `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save) | host |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
-| `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`) | `written` | `TooLong`, `Failed` (headless, bad path) | host, game only |
-| `screen.text` | none | `text` | `Failed` (headless) | host, game only |
+| `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
+| `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
 
 Notes:
 
@@ -245,10 +246,11 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
+| `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | nothing | `pack.reload` |
 
-`KnownTile` is `{"x", "y", "known": Known}` (see §7.9). `map.text` renders the map in the pack
+`KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
 `_` `'`, a portal `*`, the party `^` `>` `v` `<`.
 
@@ -269,14 +271,16 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
+| `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
 | `automap(&World, MapId)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
+| `door_open(&World, MapId, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
 
-`automap`, `map_text`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+`automap`, `map_text`, `door_open`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
 
 ### 7.1 `Here` and `Status`
@@ -339,6 +343,7 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `in_front` | In the front row. |
 | `conditions` | Condition ids in effect. |
 | `down`, `dead` | At zero hit points; dead (carries the pack's `dead` condition). |
+| `can_fight` | Can still take part in a fight: up, alive and not incapacitated (any condition with `incapacitated`). |
 | `death_saves` | `{"successes", "failures", "stable"}`. |
 | `spells` | Known spell ids, in the order the member learned them; the `spell` that `Cast` takes. |
 | `equipment` | The kit, `[ItemView]`, in the order it was filled. |
@@ -348,6 +353,7 @@ as 16 hex digits; serializes the world, so not a per-frame read), `service`, `gr
 | `spell_picks` | Spells owed by levels, chosen at a trainer. |
 | `tactics` | `TacticsView`. |
 | `age_years` | Age at creation plus the years the party has lived since. |
+| `known_spells` | `[KnownSpellView]`, one per entry of `spells`, in the same order. |
 
 `ItemView` (one item kind in a kit or the stores): `item` (the item id, the `item` the item and
 service commands take), `name` (text key), `count`, `slot` (`EquipSlot` or null), `usable` (Use
@@ -356,6 +362,12 @@ owner; always false in the stores).
 
 `EffectView`: `spell` (id), `caster` (`CharacterId`), `minutes_left` (party-clock minutes, or
 null when it ends at the bearer's next turn).
+
+`KnownSpellView` (a known spell's price, in or out of a fight): `spell` (id), `name` (text key),
+`level` (0 cantrip), `cost` (the points a cast charges: the spell's own `points`, else the
+rules' `spell_points.cost` slot, as `CastView.cost`), `pay` (`Cost`: `Action`, `BonusAction`,
+`Reaction` or `Free`, what a cast spends of the turn; the spell's definition, as
+`FeatureView.pay`).
 
 ### 7.3 `TacticsView`, `ReactionView`, `AnswerView`
 
@@ -381,7 +393,7 @@ answer).
 `Trigger` is one of `SpellCast`, `Attacked`, `MemberAttacked`, `MemberWounded`, `MemberDying`,
 `EnemyFlees`, `EnemyCasts`, `OwnTurn` (see §14 for which are live).
 
-### 7.4 `CombatView`, `StackView`, `SpellView`, `FeatureView`, `FighterView`, `ChoiceKind`
+### 7.4 `CombatView`, `StackView`, `SpellView`, `FightItemView`, `FeatureView`, `FighterView`, `ChoiceKind`
 
 `CombatView` (the encounter before the choice, or the fight):
 
@@ -404,6 +416,7 @@ answer).
 | `reactions` | `[[ActorRef, left]]` reactions left this round. |
 | `members` | `[FighterView]` in marching order; empty before the fight. |
 | `bribe` | Copper a bribe would cost, before the fight, when the monsters take one. |
+| `items` | The acting member's `[FightItemView]`, the kit rows that have a use; empty when no member acts. |
 
 `ActorRef` is `{"Member": CharacterId}`, `{"Stack": n}` or `{"Monster": {"stack", "index"}}`
 (`index` among the stack's living at that moment).
@@ -416,9 +429,15 @@ living whose Shield is up, by their place among the living), `refusal` (`Rejecti
 member would get attacking it, or null).
 
 `SpellView`: `spell` (the spell id, the `spell` that `Cast` takes), `name` (text key), `level`
-(0 cantrip), `cost` (points), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
+(0 cantrip), `cost` (the points the cast charges, as `CastView.cost`), `reach` (`One`, `Stack`, `AllStacks`), `targets_members`,
 `blocked` (`Rejection` for paying with the action, or null), `bonus` (`Rejection` for paying
-with the bonus action, or null).
+with the bonus action, or null), `pay` (the definition's cost of the turn: `Action`,
+`BonusAction`, `Reaction`, `Free`, as `FeatureView.pay`; a `Reaction` spell is cast from the
+member's declared reactions, not by `Cast`).
+
+`FightItemView`: `item` (the item id, the `item` that `Use` takes), `name` (text key), `count`
+(how many the member carries), `blocked` (the `Rejection` that `Use` with no receiver would get
+now, or null: `NotUsableHere` for a sense item, `NotUsable`, then `NoActionLeft`).
 
 `FighterView`: `member` (`CharacterId`), `reactions_on`, `features` (`[FeatureView]`).
 
@@ -475,10 +494,30 @@ met).
 
 One entry per spell a member may cast outside a fight, in marching order, then the order the
 member learned them: `caster` (`CharacterId`, `Command::Cast`'s `caster`), `spell` (the spell
-id, `Command::Cast`'s `spell`), `name` (text key), `cost` (points, 0 for a cantrip),
-`targets_members`, `refusal` (`Rejection` or null).
+id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast charges: the
+spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
+0 for a cantrip), `targets_members`, `refusal` (`Rejection` or null).
 
-### 7.9 `ViewportModel`, `ViewTile`, `EdgeView`, `Known`, `layer`
+### 7.9 `CreationView`, `RaceOption`, `ClassOption`, `BackgroundOption`
+
+What a `Draft` may be, read through the functions `party.create` checks it with, so a draft
+built from it is accepted. It depends on the loaded rules alone, not on the world.
+
+| Field | Meaning |
+|---|---|
+| `slots` | Members the party holds (`PartyView.slots`). |
+| `name_max` | The longest name in bytes, after trimming; a blank name is refused. |
+| `score_min`, `score_max` | The range of each bought score. |
+| `points` | What the six bought scores may cost together; spending less is allowed. |
+| `costs` | Each score's cost, from `score_min` to `score_max`. |
+| `races` | `[RaceOption]`: `id` (the draft's `race`), `name` (text key), `bonuses` (added to each bought score, SRD order), `grants` (`[Skill]` the race's traits give). |
+| `classes` | `[ClassOption]`: `id`, `name`, `choose` (how many skills a draft picks, exactly), `skill_list` (`[Skill]`, the list it picks from). |
+| `backgrounds` | `[BackgroundOption]`: `id`, `name`, `grants` (`[Skill]`). A draft may not pick a skill its race or background grants. |
+| `alignments` | The nine `Alignment`s, in SRD order. |
+
+Races, classes and backgrounds are in id order.
+
+### 7.10 `ViewportModel`, `ViewTile`, `EdgeView`, `Known`, `layer`
 
 `ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
@@ -793,7 +832,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Limit | Value | Where |
 |---|---|---|
 | `MAX_SCRIPT` | 10,000 commands per `sim.script` | `omnis-sim/src/ops.rs` |
-| `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-app/src/socket.rs` |
+| `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` |
 | `omnis_data::limits::MAX_STRING_BYTES` | 4 KiB per string argument (`TooLong`) | `omnis-data/src/limits.rs` |
 | `MAX_FILE_BYTES` | 4 MiB per file read (saves included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
 | `LOG_CAPACITY` | 4096 events kept for `events.tail` | `omnis-sim/src/lib.rs` |
@@ -832,9 +871,10 @@ As of protocol 2:
 - **No pack definitions or text over Tier 2.** No op exposes pack data or the `text/` tables.
   Commands, events and views name definitions by string id and carry text keys
   (`base:text:item.mace.name`), not display text, and no op turns an id or a key into a label or
-  a definition (the planned `data.*` ops). `ViewTile.terrain` indexes terrains no op lists. Only
-  Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`. `here` is reachable only
+  a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
+  backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
+  lists. Only Tier 1 has `Data`.
+- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -855,6 +895,21 @@ As of protocol 2:
   proven against the `Command` type; replies have none beyond this document.
 
 ## Changelog
+
+### Additions within protocol 2
+
+Additive (§13), so `PROTOCOL` stays 2:
+
+- 2026-10-10: `door_open` (Tier 1) and `MemberView.can_fight` (parity P0a).
+- 2026-10-10: `creation.get` and `creation_view` (`CreationView`), bringing the ops to 25
+  (parity P3).
+- 2026-10-11: `CastView.cost` is the points the cast charges, from the `spell_points.cost` slot,
+  no longer the spell's level (parity P5).
+- 2026-10-11: `MemberView.known_spells` (`KnownSpellView`: each known spell's point cost and
+  `pay`); `SpellView.cost` from the cost slot as `CastView.cost` (parity P6).
+- 2026-10-11: `SpellView.pay` (the definition's cost of the turn); `CombatView.items`
+  (`FightItemView`: `item`, `name`, `count`, `blocked`, the acting member's usable kit rows with
+  the refusal `Use` would get) (parity P7).
 
 ### Protocol 2 (2026-10-10)
 

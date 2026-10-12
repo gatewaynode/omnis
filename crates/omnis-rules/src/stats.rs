@@ -41,22 +41,41 @@ pub fn level_for_xp(xp: u32, data: &Data) -> Result<u8, RuleError> {
     Ok(u8::try_from(reached.max(1)).unwrap_or(u8::MAX))
 }
 
-/// Points spent on six bought scores, or why they are not allowed. Costs come from the
-/// `point_cost` table indexed by `score - score_min`.
-pub fn point_cost(scores: [u8; 6], data: &Data) -> Result<i64, CreationError> {
-    let min = u8::try_from(data.rules.value("score_min").unwrap_or(8)).unwrap_or(8);
-    let max = u8::try_from(data.rules.value("score_max").unwrap_or(15)).unwrap_or(15);
+/// The lowest and highest score point buy allows, from `score_min` and `score_max`.
+#[must_use]
+pub fn score_range(data: &Data) -> (u8, u8) {
+    let value = |key, default| {
+        data.rules
+            .value(key)
+            .and_then(|v| u8::try_from(v).ok())
+            .unwrap_or(default)
+    };
+    (value("score_min", 8), value("score_max", 15))
+}
+
+/// The points point buy may spend, from `point_budget`.
+#[must_use]
+pub fn point_budget(data: &Data) -> i64 {
+    data.rules.value("point_budget").unwrap_or(27)
+}
+
+/// What one bought score costs, from the `point_cost` table indexed by `score - score_min`,
+/// or why it is not allowed.
+pub fn score_cost(score: u8, data: &Data) -> Result<i64, CreationError> {
+    let (min, max) = score_range(data);
+    let out = CreationError::ScoreRange { score, min, max };
+    if score < min || score > max {
+        return Err(out);
+    }
     let costs = table(data, "point_cost").map_err(CreationError::Rule)?;
+    costs.get(usize::from(score - min)).copied().ok_or(out)
+}
+
+/// Points spent on six bought scores, or why they are not allowed.
+pub fn point_cost(scores: [u8; 6], data: &Data) -> Result<i64, CreationError> {
     let mut spent = 0;
     for score in scores {
-        if score < min || score > max {
-            return Err(CreationError::ScoreRange { score, min, max });
-        }
-        let cost = costs
-            .get(usize::from(score - min))
-            .copied()
-            .ok_or(CreationError::ScoreRange { score, min, max })?;
-        spent += cost;
+        spent += score_cost(score, data)?;
     }
     Ok(spent)
 }

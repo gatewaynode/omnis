@@ -40,7 +40,7 @@ const DEFINITION_KEYS: [&str; 8] = [
 const BANNED_KEYS: [&str; 2] = ["caster_id", "at"];
 
 /// The view ops asked after every command.
-const VIEWS: [Op; 8] = [
+const VIEWS: [Op; 9] = [
     Op::GameStatus,
     Op::ViewportGet,
     Op::PartyGet,
@@ -49,6 +49,7 @@ const VIEWS: [Op; 8] = [
     Op::TimeClocks,
     Op::RestGet,
     Op::CastGet,
+    Op::CreationGet,
 ];
 
 fn repo() -> PathBuf {

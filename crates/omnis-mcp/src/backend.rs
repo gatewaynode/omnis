@@ -107,7 +107,7 @@ impl GameLink {
 fn read_addr(file: &Path) -> Result<SocketAddr, String> {
     let text = std::fs::read_to_string(file).map_err(|e| {
         format!(
-            "{}: {e}; start the game (`cargo run -p omnis-app`) so it writes its dev socket address there",
+            "{}: {e}; start the game (`just run`) so it writes its dev socket address there",
             file.display()
         )
     })?;

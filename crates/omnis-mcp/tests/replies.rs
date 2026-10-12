@@ -35,12 +35,13 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Time { .. } => "time",
         Reply::Rest { .. } => "rest",
         Reply::Casts { .. } => "casts",
+        Reply::Creation { .. } => "creation",
         Reply::Value { .. } => "value",
         Reply::Done {} => "done",
     }
 }
 
-const EVERY: usize = 17;
+const EVERY: usize = 18;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
@@ -70,6 +71,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         ask(&mut game, Op::TimeClocks),
         ask(&mut game, Op::RestGet),
         ask(&mut game, Op::CastGet),
+        ask(&mut game, Op::CreationGet),
         ask(
             &mut game,
             Op::WorldQuery {

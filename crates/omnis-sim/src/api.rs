@@ -48,25 +48,30 @@ pub use crate::tactics::TacticsCommand;
 pub use omnis_core::{CharacterId, Direction, Facing, MapId, Position, Rotation};
 pub use omnis_rules::Draft;
 // A declared reaction as `PutReaction` carries it and `ReactionView` shows it: by string ids.
-pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Trigger, Who};
+pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Row, Trigger, Who};
 // Script words, a typing aid: they name members by slot and resolve against the party.
 pub use crate::word::{ScriptError, Word, parse_script};
 
 // The views.
 pub use crate::cast_view::{CastView, cast_view};
+pub use crate::creation_view::{
+    BackgroundOption, ClassOption, CreationView, RaceOption, creation_view,
+};
 pub use crate::ops::status;
 pub use crate::party_view::{
-    AnswerView, EffectView, ItemView, MemberView, PartyView, ReactionView, TacticsView, party_view,
+    AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
+    TacticsView, party_view,
 };
 pub use crate::query::{
-    EdgeView, Here, ViewTile, ViewportModel, automap, flags, here, map_text, site_ahead,
+    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
     step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
 pub use crate::view::{
-    ChoiceKind, CombatView, FeatureView, FighterView, SpellView, StackView, combat_view,
+    ChoiceKind, CombatView, FeatureView, FightItemView, FighterView, SpellView, StackView,
+    combat_view,
 };
 
 // The JSON op protocol.

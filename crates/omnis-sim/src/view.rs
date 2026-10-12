@@ -2,13 +2,14 @@
 
 use crate::combat::feature::refusal;
 use crate::combat::{
-    Budget, CombatState, FeatureChoice, Pay, Roller, cast, monster_front_stacks, payable,
-    points_of, weapon_for,
+    Budget, CombatState, FeatureChoice, Pay, Roller, affordable, cast, monster_front_stacks,
+    payable, points_of, weapon_for,
 };
 use crate::command::Rejection;
 use crate::encounter::{EncounterSource, Stack, bribe_cost};
 use crate::event::{ActorRef, Surprise};
-use crate::names::Place;
+use crate::items::validate_use;
+use crate::names::{Place, id_of};
 use crate::party;
 use crate::world::{Mode, ModeKind, World};
 use alloc::borrow::ToOwned;
@@ -73,6 +74,24 @@ pub struct SpellView {
     /// Why it cannot be cast with the bonus action now, if it cannot.
     #[serde(default)]
     pub bonus: Option<Rejection>,
+    /// What it spends of the turn: the definition's cost (a reaction is cast only when its
+    /// trigger comes, from the member's declared reactions).
+    #[serde(default)]
+    pub pay: Cost,
+}
+
+/// One item in the acting member's kit that has a use, as the fight's Use picker shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FightItemView {
+    /// Item id, the `item` that `Use` takes.
+    pub item: String,
+    /// Text key of the item's name.
+    pub name: String,
+    /// How many the member carries.
+    pub count: u16,
+    /// Why `Use` with no receiver would be refused now, if it would: the item's own checks
+    /// (a sense item is not used from a fight), then the turn's action.
+    pub blocked: Option<Rejection>,
 }
 
 /// One class feature with an effect, as the Feature command names it.
@@ -161,6 +180,9 @@ pub struct CombatView {
     /// Copper a bribe would cost, before the fight when the monsters take one.
     #[serde(default)]
     pub bribe: Option<u32>,
+    /// The acting member's items that have a use; empty when no member acts.
+    #[serde(default)]
+    pub items: Vec<FightItemView>,
 }
 
 /// The view, or `None` while exploring.
@@ -242,6 +264,10 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
             .is_none()
             .then(|| bribe_cost(world, data).ok())
             .flatten(),
+        items: match (fight, acting) {
+            (Some(c), Some(own)) => item_views(c, world, data, own),
+            _ => Vec::new(),
+        },
     })
 }
 
@@ -308,11 +334,37 @@ fn spell_views(state: &CombatState, world: &World, data: &Data, own: usize) -> V
                 spell: name.clone(),
                 name: spell.name.clone(),
                 level: spell.level,
-                cost: spell.point_cost(),
+                cost: crate::cast_view::cost(spell, data, rng),
                 reach: spell.reach,
                 targets_members: spell.effect.as_ref().is_some_and(|e| e.targets_members()),
                 blocked: pays(Pay::Action),
                 bonus: pays(Pay::BonusAction),
+                pay: spell.cost,
+            })
+        })
+        .collect()
+}
+
+/// The acting member's kit rows that have a use, each refused as `Use` with no receiver would
+/// be, in the command's order: the item's checks, then the turn's action.
+fn item_views(state: &CombatState, world: &World, data: &Data, own: usize) -> Vec<FightItemView> {
+    let Some(member) = world.party.members.get(own) else {
+        return Vec::new();
+    };
+    member
+        .equipment
+        .iter()
+        .filter_map(|(id, count)| {
+            let def = data.items.get(id).filter(|d| d.use_effect.is_some())?;
+            let item = id_of(&data.registry.items, *id);
+            let blocked = validate_use(world, data, own, &item, None, true)
+                .err()
+                .or_else(|| affordable(state.budget, Cost::Action).err());
+            Some(FightItemView {
+                item,
+                name: def.name.clone(),
+                count: *count,
+                blocked,
             })
         })
         .collect()

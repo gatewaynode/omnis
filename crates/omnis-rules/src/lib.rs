@@ -29,7 +29,9 @@ pub use attack::{
     attack_bonus, attack_roll, attack_roll_with, best_weapon, damage_roll, death_save, initiative,
     rejudge, weapons, wound_at_zero,
 };
-pub use character::{Character, CreationError, DeathSaves, Draft, NAME_MAX_BYTES, create};
+pub use character::{
+    Character, CreationError, DeathSaves, Draft, NAME_MAX_BYTES, create, race_grants,
+};
 pub use condition::{ConditionFlags, Defenses, condition_id, flags, member_defenses};
 pub use effect::{
     ActiveEffect, EffectKind, Expiry, armor_bonus, bonus_dice, consumable_index, light_depth,
@@ -51,8 +53,9 @@ pub use spell::{
     heal_roll, monster_save, needs_components, save_dc, saved_damage, spell_attack,
 };
 pub use stats::{
-    Roll, RollMode, armor_class, check, kept_d20, level_for_xp, modifier, passive, point_cost,
-    proficiency_bonus, save, skill_bonus, spell_cost, spell_point_pool,
+    Roll, RollMode, armor_class, check, kept_d20, level_for_xp, modifier, passive, point_budget,
+    point_cost, proficiency_bonus, save, score_cost, score_range, skill_bonus, spell_cost,
+    spell_point_pool,
 };
 pub use tactics::{
     ActionRef, Cmp, Criteria, CriteriaSet, Facts, Ids, MemberFacts, Named, Names, Naming,

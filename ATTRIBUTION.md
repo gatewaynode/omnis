@@ -29,10 +29,12 @@ committed, and never ships inside a pack (`assets/README.md`).
 - Alegreya Sans (`assets/fonts/alegreya-sans/`): Copyright 2013 The Alegreya Sans Project Authors
   (https://github.com/huertatipografica/Alegreya-Sans), SIL Open Font License 1.1, text in `OFL.txt`
   beside the files.
-- Fira Sans and Fira Mono are embedded by `bevy_feathers` (SIL Open Font License 1.1).
+- Fira Mono (a subset) is Bevy's built-in font, embedded by Bevy's `default_font` feature
+  (`bevy_text`'s `FiraMono-subset.ttf`, SIL Open Font License 1.1).
 
-All three are candidates of the Feathers experiment and are compiled only into builds with the
-`feathers` feature; the shipped build carries none of them until the owner picks one.
+Every build of the game, the shipped one included, compiles in all three (`omnis-vector`,
+`shell/fonts.rs`, since parity P8). The player picks one in Settings, and the built-in font is the
+default. Fira Sans, which `bevy_feathers` embedded, left with `omnis-app` at P9.
 
 ## Might and Magic
 

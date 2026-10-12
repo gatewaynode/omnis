@@ -1,0 +1,63 @@
+//! The fallen party's notice, headless (presentation-ARCHITECTURE.md §9): a party that can no longer
+//! fight does not walk on, and can start again. The fight itself is `tests/combat.rs`.
+
+use crate::common;
+
+use bevy::prelude::*;
+use common::app::{app, set};
+use omnis_vector::screen::ControlId;
+use omnis_vector::shell::controls::Action;
+use omnis_vector::shell::screen::Pressable;
+use omnis_vector::shell::session::Session;
+
+/// The orders of the notice's buttons that can be pressed, in screen order.
+fn enabled(app: &mut App) -> Vec<Pressable> {
+    let world = app.world_mut();
+    let mut query = world.query_filtered::<&Pressable, With<Button>>();
+    query.iter(world).copied().collect()
+}
+
+fn press(app: &mut App, control: &Pressable) {
+    set(app, control, Interaction::Pressed);
+    app.update();
+}
+
+#[test]
+fn a_fallen_party_is_offered_a_fresh_start() {
+    let mut app = app();
+    app.update();
+    let start = app.world().resource::<Session>().world.position;
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        for member in &mut session.world.party.members {
+            member.hp = 0;
+        }
+        session.refresh();
+        assert!(session.views.fallen());
+    }
+    app.update();
+    let start_again = Pressable(ControlId::StartAgain);
+    let to_title = Pressable(ControlId::QuitToTitle);
+    // Load last save is dim: these tests save nowhere.
+    assert_eq!(enabled(&mut app), vec![start_again, to_title]);
+    // A fallen party does not walk.
+    set(&mut app, &Action::Forward, Interaction::Pressed);
+    for _ in 0..30 {
+        app.update();
+    }
+    set(&mut app, &Action::Forward, Interaction::None);
+    assert_eq!(app.world().resource::<Session>().world.position, start);
+    press(&mut app, &start_again);
+    app.update();
+    let session = app.world().resource::<Session>();
+    assert!(!session.views.fallen());
+    let town = common::map(&session.data, "test:map:town");
+    let (p, facing) = (session.world.position, omnis_sim::omnis_core::Facing::West);
+    assert_eq!(
+        (p.map, p.x, p.y, p.facing),
+        (town, 10, 2, facing),
+        "the game's start"
+    );
+    assert_eq!(session.binder.log.len(), 4, "only the party's creation");
+    assert!(enabled(&mut app).is_empty(), "the notice closed");
+}

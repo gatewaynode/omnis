@@ -1,5 +1,7 @@
 # Acceptance b: M7b (progression) — the done-when
 
+> **Historical (2026-10-11):** `omnis-app` was retired at parity P9. This script was accepted on it; the commands that start it (`cargo run -p omnis-app`, `just run-app`) and the coverage pointers that name its tests (`omnis-app/...`) no longer run. The game is now `just run` (`omnis-vector`, the binary `omnis`).
+
 The script for the owner's acceptance of M7b (`tasks/plans/m7b-progression.md` step 13), which
 is M7's done-when from PRD §13: **create a party, clear the dungeon, return to town, level up.**
 Each step says what you will see and names the automated test that already covers it, so a

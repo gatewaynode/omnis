@@ -1,0 +1,534 @@
+//! The fight screen (presentation-ARCHITECTURE.md §9): while monsters are met or fought, a 2D screen
+//! replaces the 3D view. `arena` lays it out and draws it; the fight's controls are a screen
+//! (`screen::fight`, over `combat_menu`) drawn with the screens' renderer at the arena's
+//! rectangles: the turn's list in the action column, a picker in the panel over the picture.
+//! This module wires them and routes their input. `CombatPlugin` is headless-safe: the state,
+//! the picture, title, controls, roll log and name labels as UI nodes, and the buttons, number
+//! keys and clicks (Esc goes through the screens' router). `CombatViewPlugin` needs a window or
+//! the capture: the 2D camera and the lines.
+
+use super::capture::{CaptureSize, Offscreen};
+use super::cinema::Screen;
+use super::controls::{Action, Corner, GREEN, SHADES};
+use super::minimap::Minimap;
+use super::render::ViewCamera;
+use super::screen::{Arrow, FightPress, Screens, ctx};
+use super::screen_draw::{Mark, build};
+use super::session::Session;
+use super::{VectorSet, ViewState};
+use crate::arena::{Arena, Rect, Tone, arena, pick, picker, zoom};
+use crate::cinema::opening;
+use crate::combat_menu::{CombatMenu, Pick, Step};
+use crate::screen::fight::{self, Place};
+use crate::screen::{self, ControlId, Key, Payload, Screen as Controls, ScreenId, Span};
+use bevy::camera::visibility::RenderLayers;
+use bevy::camera::{Hdr, RenderTarget};
+use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::post_process::bloom::Bloom;
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
+
+/// The window size used when there is neither a window nor a capture: a headless test's.
+const HEADLESS: (f32, f32) = (1600.0, 900.0);
+/// The roll log's padding.
+const PAD: f32 = 10.0;
+/// The render layer the fight's camera and lines are on; the 3D view's are on layer 0.
+const LAYER: usize = 1;
+
+/// What the fight screen was last laid out for: accepted commands, the fight as the views show
+/// it, the menu's step, the outcome line and the size.
+type Laid = (
+    usize,
+    Option<omnis_sim::CombatView>,
+    Step,
+    Option<Span>,
+    (u32, u32),
+    u16,
+);
+
+/// The fight screen's state: where the pointer rests, and the screen and its controls as laid
+/// out for the world as it stands. The menu's step is the screens' (`Forms::fight`).
+///
+/// The arena is laid out in the fight's own units: the window's logical pixels divided by
+/// `zoom` (`arena::zoom`), so at a larger interface scale every part and figure grows alike.
+/// Its UI nodes are placed at `zoom / UiScale` of those units, its lines drawn at `zoom`, and a
+/// click divided by `zoom` before it is picked.
+#[derive(Resource, Debug)]
+pub struct FightScreen {
+    /// The clickable target under the pointer.
+    pub hover: Option<Pick>,
+    /// What a click can choose now.
+    pub targets: Vec<Pick>,
+    /// The screen as last laid out; `None` outside a fight.
+    pub arena: Option<Arena>,
+    /// The controls as last drawn.
+    pub controls: Option<Controls>,
+    /// What the screen was laid out for.
+    shown: Option<Laid>,
+    /// The window's logical pixels per fight unit.
+    pub zoom: f32,
+}
+
+impl Default for FightScreen {
+    fn default() -> FightScreen {
+        FightScreen {
+            hover: None,
+            targets: Vec::new(),
+            arena: None,
+            controls: None,
+            shown: None,
+            zoom: 1.0,
+        }
+    }
+}
+
+/// Marks the fight screen's UI; its children are rebuilt when the screen changes.
+#[derive(Component)]
+pub struct FightRoot;
+
+/// The state, the screen's UI and its input.
+pub struct CombatPlugin;
+
+impl Plugin for CombatPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_state::<ViewState>()
+            .init_resource::<FightScreen>()
+            .add_systems(OnEnter(ViewState::Fight), (enter, give_way::<true>))
+            .add_systems(OnExit(ViewState::Fight), (leave, give_way::<false>))
+            // After the frame's orders, so the switch follows the order that caused it.
+            .add_systems(Update, track.in_set(VectorSet::Move))
+            .add_systems(
+                Update,
+                (route, refresh, hover)
+                    .chain()
+                    .in_set(VectorSet::Input)
+                    .run_if(in_state(ViewState::Fight)),
+            );
+    }
+}
+
+/// The view follows the simulation: the fight screen while monsters are met or fought.
+fn track(
+    session: Res<Session>,
+    state: Res<State<ViewState>>,
+    mut next: ResMut<NextState<ViewState>>,
+) {
+    let want = if session.views.combat.is_some() {
+        ViewState::Fight
+    } else {
+        ViewState::Explore
+    };
+    if *state.get() != want {
+        next.set(want);
+    }
+}
+
+fn enter(
+    mut commands: Commands,
+    mut screen: ResMut<FightScreen>,
+    screens: Option<ResMut<Screens>>,
+) {
+    *screen = FightScreen::default();
+    if let Some(mut screens) = screens {
+        screens.forms.fight = fight::FightForm::default();
+    }
+    commands.spawn((
+        FightRoot,
+        DespawnOnExit(ViewState::Fight),
+        Node {
+            position_type: PositionType::Absolute,
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+    ));
+}
+
+/// Back to exploring. The pose is already where the party is: every order follows it
+/// (`Session::order`), a retreat's too.
+fn leave(mut screen: ResMut<FightScreen>, screens: Option<ResMut<Screens>>) {
+    *screen = FightScreen::default();
+    if let Some(mut screens) = screens {
+        screens.forms.fight = fight::FightForm::default();
+    }
+}
+
+/// The nodes that give way to the fight screen.
+type GivesWay = Or<(With<Corner>, With<Action>, With<Minimap>)>;
+
+/// In a fight the movement pad, the action menu's button and the minimap give way; they come
+/// back after it.
+fn give_way<const FIGHT: bool>(
+    mut nodes: Query<(&mut Node, Option<&Corner>, Option<&Action>), GivesWay>,
+) {
+    let to = if FIGHT { Display::None } else { Display::Flex };
+    for (mut node, corner, action) in &mut nodes {
+        let away = match (corner, action) {
+            (Some(corner), _) => *corner == Corner::Left,
+            (None, Some(action)) => *action == Action::Actions,
+            (None, None) => true,
+        };
+        if away {
+            node.display = to;
+        }
+    }
+}
+
+/// The window's size in logical pixels: the window's, the capture's, or a headless default.
+pub(super) fn size(window: Option<&Window>, capture: Option<&CaptureSize>) -> (f32, f32) {
+    #[allow(clippy::cast_precision_loss)]
+    match (window, capture) {
+        (Some(w), _) => (w.width(), w.height()),
+        (None, Some(c)) => (c.0 as f32, c.1 as f32),
+        (None, None) => HEADLESS,
+    }
+}
+
+const DIGITS: [KeyCode; 9] = [
+    KeyCode::Digit1,
+    KeyCode::Digit2,
+    KeyCode::Digit3,
+    KeyCode::Digit4,
+    KeyCode::Digit5,
+    KeyCode::Digit6,
+    KeyCode::Digit7,
+    KeyCode::Digit8,
+    KeyCode::Digit9,
+];
+
+/// The fight's input: a pressed control, a choice's arrow or a number key applied to the fight's
+/// screen, else a left click on a clickable figure as the target. A command goes through the
+/// session; a refusal is shown under the controls, an accepted one clears it (the roll log
+/// says what happened). The menu goes back to the turn's list first when the turn passed.
+#[allow(clippy::too_many_arguments)]
+fn route(
+    buttons: Query<(&Interaction, &FightPress), Changed<Interaction>>,
+    arrows: Query<(&Interaction, &Arrow), Changed<Interaction>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    mut session: ResMut<Session>,
+    mut screens: ResMut<Screens>,
+    screen: Res<FightScreen>,
+) {
+    let screens = &mut *screens;
+    let command = {
+        let ctx = ctx(&session);
+        let Some(game) = ctx.game else {
+            return;
+        };
+        fight::settle(game, &mut screens.forms.fight);
+        let pressed = buttons
+            .iter()
+            .find(|(i, _)| **i == Interaction::Pressed)
+            .map(|(_, p)| (p.0, Payload::Press));
+        let stepped = || {
+            arrows
+                .iter()
+                .find(|(i, a)| **i == Interaction::Pressed && matches!(a.0, ControlId::Fight(_)))
+                .map(|(_, a)| (a.0, if a.1 { Payload::Right } else { Payload::Left }))
+        };
+        let keyed = || {
+            let n = DIGITS.iter().position(|k| keys.just_pressed(*k))?;
+            let digit = u8::try_from(n + 1).ok()?;
+            let id = screen.controls.as_ref()?.key(Key::Digit(digit))?;
+            Some((id, Payload::Press))
+        };
+        let used = pressed.or_else(stepped).or_else(keyed);
+        let was_used = used.is_some();
+        let applied = used.and_then(|(id, payload)| {
+            screen::apply(ScreenId::Fight, &ctx, &mut screens.forms, id, &payload, 0).ok()
+        });
+        match applied {
+            Some(screen::Effect::Command { command, .. }) => Some(command),
+            Some(_) => None,
+            None if !was_used && mouse.just_pressed(MouseButton::Left) => window
+                .single()
+                .ok()
+                .and_then(Window::cursor_position)
+                .and_then(|point| {
+                    let at = point / screen.zoom;
+                    screen.arena.as_ref().and_then(|a| pick(a, at.into()))
+                })
+                .and_then(|target| screens.forms.fight.menu.pick(game.world, ctx.data, target)),
+            None => None,
+        }
+    };
+    if let Some(command) = command {
+        screens.forms.message = session.ordered(command).err().map(Span::alert);
+    }
+}
+
+/// Lay the screen out again and rebuild its UI when a command was accepted, the fight changed,
+/// the menu moved, the outcome changed or the window changed size. The controls stand in the
+/// action column, or a picker in the panel over the picture, which then hides the picture and
+/// the title and the labels under it.
+#[allow(clippy::too_many_arguments)]
+fn refresh(
+    mut commands: Commands,
+    session: Res<Session>,
+    screens: Res<Screens>,
+    mut screen: ResMut<FightScreen>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    capture: Option<Res<CaptureSize>>,
+    ui: Option<Res<UiScale>>,
+    root: Query<Entity, With<FightRoot>>,
+) {
+    let (w, h) = size(window.single().ok(), capture.as_deref());
+    let form = &screens.forms.fight;
+    let scale = ui.map_or(1.0, |u| u.0);
+    let z = zoom(w, h, scale);
+    // Fight units to interface units: the interface multiplies by its own scale.
+    let r = z / scale;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let key = (
+        session.binder.log.len(),
+        session.views.combat.clone(),
+        form.menu.step,
+        screens.forms.message.clone(),
+        (w as u32, h as u32),
+        (scale * 100.0) as u16,
+    );
+    if screen.shown.as_ref() == Some(&key) {
+        return;
+    }
+    let Ok(root) = root.single() else {
+        return;
+    };
+    screen.shown = Some(key);
+    let (world, data) = (&session.world, &session.data);
+    screen.targets = form.menu.clickable(world, data);
+    screen.hover = None;
+    screen.zoom = z;
+    screen.arena = arena(&session.views, data, (w / z, h / z), &screen.targets, None);
+    let controls = screen::content(ScreenId::Fight, &ctx(&session), &screens.forms);
+    commands.entity(root).despawn_related::<Children>();
+    let Some(laid) = &screen.arena else {
+        screen.controls = Some(controls);
+        return;
+    };
+    let l = laid.layout;
+    let over = fight::place(form) == Place::Over;
+    let panel = picker(&l);
+    let title = CombatMenu::default().prompt(world, data);
+    commands.entity(root).with_children(|p| {
+        if !over {
+            if let Some(scene) = opening(session.views.combat.as_ref(), data) {
+                p.spawn((Screen(scene), at(&l.picture, r)));
+            }
+            p.spawn((
+                at(&l.title, r),
+                Text::new(title),
+                font(22.0 * r),
+                TextColor(GREEN),
+            ));
+        }
+        let (rect, border) = if over {
+            (&panel, 1.0)
+        } else {
+            (&l.actions, 0.0)
+        };
+        p.spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(6.0 * r),
+                padding: UiRect::all(Val::Px(border * PAD * r)),
+                border: UiRect::all(Val::Px(border)),
+                overflow: Overflow::clip(),
+                ..at(rect, r)
+            },
+            BorderColor::all(GREEN),
+            BackgroundColor(SHADES[0]),
+            ZIndex(1),
+        ))
+        .with_children(|column| build(column, &controls, h * r, Mark::Fight));
+        p.spawn((
+            // The newest line at the bottom; the oldest are clipped off the top.
+            Node {
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::FlexEnd,
+                row_gap: Val::Px(4.0 * r),
+                padding: UiRect::all(Val::Px(PAD * r)),
+                border: UiRect::all(Val::Px(1.0)),
+                overflow: Overflow::clip(),
+                ..at(&l.log, r)
+            },
+            BorderColor::all(GREEN),
+            BackgroundColor(SHADES[0]),
+        ))
+        .with_children(|log| {
+            for line in &session.fight_log {
+                log.spawn((
+                    Text::new(line.as_str()),
+                    font(15.0 * r),
+                    TextColor(GREEN),
+                    // Kept whole: a wrapped line grows rather than being squeezed.
+                    Node {
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                ));
+            }
+        });
+        for g in laid
+            .groups()
+            .filter(|g| !(over && g.label.rect.overlaps(&panel)))
+        {
+            p.spawn(Node {
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..at(&g.label.rect, r)
+            })
+            .with_children(|label| {
+                label.spawn((
+                    Text::new(g.label.text.as_str()),
+                    font(15.0 * r),
+                    TextColor(GREEN),
+                ));
+            });
+        }
+    });
+    screen.controls = Some(controls);
+}
+
+/// The clickable target under the pointer, framed brighter than the others.
+fn hover(window: Query<&Window, With<PrimaryWindow>>, mut screen: ResMut<FightScreen>) {
+    let screen = &mut *screen;
+    let Some(laid) = screen.arena.as_mut() else {
+        return;
+    };
+    let under = window
+        .single()
+        .ok()
+        .and_then(Window::cursor_position)
+        .and_then(|p| pick(laid, (p / screen.zoom).into()))
+        .filter(|p| screen.targets.contains(p));
+    if under != screen.hover {
+        screen.hover = under;
+        laid.marks.hover = under;
+    }
+}
+
+/// An absolutely placed node over `r`, in fight units, `k` interface units each.
+fn at(r: &Rect, k: f32) -> Node {
+    Node {
+        position_type: PositionType::Absolute,
+        left: Val::Px(r.x * k),
+        top: Val::Px(r.y * k),
+        width: Val::Px(r.w * k),
+        height: Val::Px(r.h * k),
+        ..default()
+    }
+}
+
+fn font(size: f32) -> TextFont {
+    TextFont {
+        font_size: FontSize::Px(size),
+        ..default()
+    }
+}
+
+/// The fight's lines.
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub struct CombatGizmos;
+
+/// Marks the fight's camera.
+#[derive(Component)]
+pub struct FightCamera;
+
+/// The fight's 2D camera and its lines. Needs a window or the capture.
+pub struct CombatViewPlugin;
+
+impl Plugin for CombatViewPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_gizmo_group::<CombatGizmos>()
+            .add_systems(Startup, (spawn_camera, line_style))
+            .add_systems(OnEnter(ViewState::Fight), cameras::<true>)
+            .add_systems(OnExit(ViewState::Fight), cameras::<false>)
+            .add_systems(
+                Update,
+                draw.in_set(VectorSet::Draw)
+                    .run_if(in_state(ViewState::Fight)),
+            );
+    }
+}
+
+/// The 2D camera, off until a fight. Like the 3D view's it has HDR and bloom, so the lines
+/// glow the same; it sees only the fight's layer.
+fn spawn_camera(mut commands: Commands, offscreen: Option<Res<Offscreen>>) {
+    let mut camera = commands.spawn((
+        FightCamera,
+        Camera2d,
+        Camera {
+            is_active: false,
+            ..default()
+        },
+        Hdr,
+        Tonemapping::None,
+        Bloom {
+            intensity: 0.25,
+            ..Bloom::NATURAL
+        },
+        RenderLayers::layer(LAYER),
+    ));
+    if let Some(target) = offscreen {
+        camera.insert(RenderTarget::Image(target.0.clone().into()));
+    }
+}
+
+fn line_style(mut store: ResMut<GizmoConfigStore>) {
+    let (config, _) = store.config_mut::<CombatGizmos>();
+    config.line.width = 2.0;
+    config.render_layers = RenderLayers::layer(LAYER);
+}
+
+/// The 3D view's camera, apart from the fight's.
+type ViewOnly = (With<ViewCamera>, Without<FightCamera>);
+
+/// Swap the cameras: the 2D one on and drawing the UI in a fight, the 3D one otherwise.
+fn cameras<const FIGHT: bool>(
+    mut commands: Commands,
+    mut view: Query<(Entity, &mut Camera), ViewOnly>,
+    mut fight: Query<(Entity, &mut Camera), With<FightCamera>>,
+) {
+    let (Ok((view, mut view_camera)), Ok((fight, mut fight_camera))) =
+        (view.single_mut(), fight.single_mut())
+    else {
+        return;
+    };
+    view_camera.is_active = !FIGHT;
+    fight_camera.is_active = FIGHT;
+    let (on, off) = if FIGHT { (fight, view) } else { (view, fight) };
+    commands.entity(off).remove::<IsDefaultUiCamera>();
+    commands.entity(on).insert(IsDefaultUiCamera);
+}
+
+/// The colour of each kind of line: figures bright green, the fallen dim, the dead red, the one
+/// acting amber, targets cyan, the hovered target white. Values above 1.0 bloom.
+fn colour(tone: Tone) -> LinearRgba {
+    let (r, g, b) = match tone {
+        Tone::Figure => (0.15, 3.0, 0.5),
+        Tone::Down => (0.05, 0.7, 0.15),
+        Tone::Dead => (2.6, 0.2, 0.15),
+        Tone::Bar => (0.08, 0.9, 0.25),
+        Tone::Health => (0.2, 2.2, 0.4),
+        Tone::Acting => (3.2, 1.6, 0.2),
+        Tone::Target => (0.2, 1.8, 3.0),
+        Tone::Hover => (3.0, 3.0, 3.0),
+    };
+    LinearRgba::rgb(r, g, b)
+}
+
+/// Draw the screen's lines. The layout's y runs down from the top left; the camera's runs up
+/// from the centre.
+fn draw(screen: Res<FightScreen>, mut gizmos: Gizmos<CombatGizmos>) {
+    let Some(laid) = &screen.arena else {
+        return;
+    };
+    let (w, h) = (laid.layout.window.w, laid.layout.window.h);
+    let z = screen.zoom;
+    let to = |(x, y): (f32, f32)| Vec2::new(x - w / 2.0, h / 2.0 - y) * z;
+    for s in crate::arena::segments(laid) {
+        gizmos.line_2d(to(s.a), to(s.b), colour(s.tone));
+    }
+}

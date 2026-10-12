@@ -54,7 +54,7 @@ for crate in "${NO_STD_CRATES[@]}"; do
   fi
 done
 
-# No Bevy edge below omnis-app: check the resolved dependency graph, not just source text.
+# No Bevy edge below the client: check the resolved dependency graph, not just source text.
 if command -v cargo >/dev/null; then
   for crate in "${SIM_CRATES[@]}"; do
     [ -d "crates/$crate" ] || continue

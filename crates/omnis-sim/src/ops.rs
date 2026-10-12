@@ -9,6 +9,7 @@ use crate::LOG_CAPACITY;
 use crate::apply::apply;
 use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
+use crate::creation_view::{CreationView, creation_view};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::names::Place;
@@ -173,6 +174,9 @@ pub enum Op {
     /// The spells each member may cast outside a fight, with cost and refusal (M8 step 8).
     #[serde(rename = "cast.get")]
     CastGet,
+    /// What a party member's draft may be: point buy, races, classes, backgrounds (parity P3).
+    #[serde(rename = "creation.get")]
+    CreationGet,
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -366,6 +370,11 @@ pub enum Reply {
         /// Every member's spells castable outside a fight.
         casts: Vec<CastView>,
     },
+    /// `creation.get`.
+    Creation {
+        /// What a draft may be.
+        creation: CreationView,
+    },
     /// `world.query`: `None` when the path does not exist.
     Value {
         /// The value as text.
@@ -533,6 +542,9 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         }),
         Op::CastGet => Ok(Reply::Casts {
             casts: cast_view(world, data),
+        }),
+        Op::CreationGet => Ok(Reply::Creation {
+            creation: creation_view(data),
         }),
         Op::TimeClocks => Ok(Reply::Time {
             time: time_view(world, data),

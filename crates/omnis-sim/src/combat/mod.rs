@@ -19,6 +19,7 @@ pub use cast::Target;
 pub use state::{Budget, CombatState, Initiative, monster_front_stacks};
 pub use turn::run_dc;
 
+pub(crate) use budget::affordable;
 pub(crate) use monster_cast::points_of;
 
 use crate::command::Rejection;

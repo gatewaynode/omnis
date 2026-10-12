@@ -3,7 +3,7 @@
 
 use crate::effect::ActiveEffect;
 use crate::equip::{Equipped, auto_equip};
-use crate::stats::{int_result, modifier, point_cost, spell_point_pool};
+use crate::stats::{int_result, modifier, point_budget, point_cost, spell_point_pool};
 use crate::tactics::Tactics;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -211,7 +211,7 @@ pub fn create(
     )
     .ok_or_else(|| CreationError::UnknownBackground(draft.background.clone()))?;
     let spent = point_cost(draft.scores, data)?;
-    let budget = data.rules.value("point_budget").unwrap_or(27);
+    let budget = point_budget(data);
     if spent > budget {
         return Err(CreationError::Points { spent, budget });
     }
@@ -313,6 +313,18 @@ fn with_bonuses(bought: [u8; 6], race: &Race) -> [u8; 6] {
     scores
 }
 
+/// The skills a race's traits make a member proficient in.
+#[must_use]
+pub fn race_grants(race: &Race) -> Vec<Skill> {
+    race.features
+        .iter()
+        .filter_map(|f| match f.effect {
+            Effect::SkillProficiency(skill) => Some(skill),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Background and racial proficiencies, then the class picks: the right number, on the list,
 /// and not already held.
 fn chosen_skills(
@@ -329,10 +341,7 @@ fn chosen_skills(
         )));
     }
     let mut skills: Vec<Skill> = background.skills.clone();
-    skills.extend(race.features.iter().filter_map(|f| match f.effect {
-        Effect::SkillProficiency(skill) => Some(skill),
-        _ => None,
-    }));
+    skills.extend(race_grants(race));
     for skill in &draft.skills {
         if !class.skills.from.contains(skill) {
             return Err(CreationError::Skills(format!(

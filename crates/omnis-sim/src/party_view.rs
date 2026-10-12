@@ -11,7 +11,7 @@ use alloc::borrow::ToOwned;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, ItemId};
-use omnis_data::{Ability, Alignment, Data, EquipSlot, Skill};
+use omnis_data::{Ability, Alignment, Cost, Data, EquipSlot, Skill};
 use omnis_rules::{
     ActionRef, ActiveEffect, Character, Criteria, DeathSaves, Equipped, Expiry, Ids, Named, Naming,
     Trigger, casting_ability, condition_id, modifier, proficiency_bonus, skill_bonus,
@@ -54,6 +54,9 @@ pub struct MemberView {
     pub down: bool,
     /// Dead: carries the pack's `dead` condition.
     pub dead: bool,
+    /// Can still take part in a fight: up, alive and not incapacitated.
+    #[serde(default)]
+    pub can_fight: bool,
     /// Death saving throws in progress.
     pub death_saves: DeathSaves,
     /// Spell ids known, in the order the caster learned them.
@@ -112,6 +115,24 @@ pub struct MemberView {
     /// Each score's modifier, in score order (M8 step 8d).
     #[serde(default)]
     pub modifiers: [i64; 6],
+    /// The known spells with what each costs, in `spells` order (parity P6).
+    #[serde(default)]
+    pub known_spells: Vec<KnownSpellView>,
+}
+
+/// A known spell as the sheet shows it: its price in points and in the turn's budget.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KnownSpellView {
+    /// The spell's id.
+    pub spell: String,
+    /// Text key of the spell's name.
+    pub name: String,
+    /// Spell level; 0 is a cantrip.
+    pub level: u8,
+    /// Spell points a cast charges: the `spell_points.cost` slot, as the cast evaluates it.
+    pub cost: u32,
+    /// What a cast spends of the turn: an action, a bonus action, a reaction, or nothing.
+    pub pay: Cost,
 }
 
 /// One effect in force.
@@ -228,7 +249,7 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
         .members
         .iter()
         .enumerate()
-        .map(|(index, member)| member_view(data, now, member, index < front_row))
+        .map(|(index, member)| member_view(world, data, now, member, index < front_row))
         .collect();
     PartyView {
         members,
@@ -248,7 +269,13 @@ pub fn party_view(world: &World, data: &Data) -> PartyView {
     }
 }
 
-fn member_view(data: &Data, now: i64, member: &Character, in_front: bool) -> MemberView {
+fn member_view(
+    world: &World,
+    data: &Data,
+    now: i64,
+    member: &Character,
+    in_front: bool,
+) -> MemberView {
     let dead = condition_id(data, "dead");
     let class = data.classes.get(&member.class);
     let proficiency = proficiency_bonus(member.level, data).unwrap_or(2);
@@ -276,6 +303,7 @@ fn member_view(data: &Data, now: i64, member: &Character, in_front: bool) -> Mem
             .collect(),
         down: member.is_down(),
         dead: dead.is_some_and(|d| member.conditions.contains(&d)),
+        can_fight: crate::combat::state::can_fight(member, data),
         death_saves: member.death_saves,
         spells: member
             .known_spells
@@ -316,7 +344,27 @@ fn member_view(data: &Data, now: i64, member: &Character, in_front: bool) -> Mem
             .collect(),
         casting: casting_ability(member, data),
         modifiers: member.scores.map(modifier),
+        known_spells: known_spells(world, data, member),
     }
+}
+
+/// Each known spell with what a cast charges, worked out on a copy of the cast stream as the
+/// road's rows are, so looking draws nothing.
+fn known_spells(world: &World, data: &Data, member: &Character) -> Vec<KnownSpellView> {
+    member
+        .known_spells
+        .iter()
+        .filter_map(|id| {
+            let def = data.spells.get(id)?;
+            Some(KnownSpellView {
+                spell: id_of(&data.registry.spells, *id),
+                name: def.name.clone(),
+                level: def.level,
+                cost: crate::cast_view::cost(def, data, crate::cast_view::fresh(world)),
+                pay: def.cost,
+            })
+        })
+        .collect()
 }
 
 /// The default runbook's entries and the actions that could answer a trigger: the weapon and

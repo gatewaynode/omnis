@@ -381,6 +381,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         Op::ServiceGet,
         Op::RestGet,
         Op::CastGet,
+        Op::CreationGet,
         Op::TimeClocks,
         Op::TimeReconcile {
             region: "example:region:vale".into(),
