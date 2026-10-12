@@ -1,13 +1,15 @@
 # Continuity notes
 
-Written 2026-10-12, at the end of M8.5 step 1b's build. 1b waits on the owner's acceptance
-(`tasks/acceptance/m8.5-1b.md`). Rewrite this file every time it is used. Durable knowledge lives in
+Written 2026-10-12, after M8.5 step 1b was accepted (provisionally: the owner will walk the stairs and ladders
+once step 3's occlusion exists). Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes).
-- **M8.5 build order:** 1a, 4, 4b, 1b, 2, 3, 5, 6. Accepted: 1a, 4, 4b (2026-10-12). 1b built, awaiting acceptance;
-  its TODO line stays `[ ]` until then.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 2, 3, 5, 6. Accepted: 1a, 4, 4b, 1b (all 2026-10-12). 1b's acceptance:
+  "We are going to have to finish the occluding terrain before I can really test the ladders and stairs. Let's
+  consider it working well enough to move on." The script was not walked; step 3's acceptance repeats its stair and
+  ladder walk.
 - **1b commits:** `5e0042f` (levels in data and every read), `f1e0cf5` (joins and `Command::Climb`), `1757521` (level
   names as text keys, owner's yes), `0d5d1f4` (the client), then the docs commit.
 - **Owner, 2026-10-12:** "game masters book of" was world building in parallel; ignore it.
@@ -25,9 +27,10 @@ Written 2026-10-12, at the end of M8.5 step 1b's build. 1b waits on the owner's 
 - **Fixture:** `crates/omnis-sim/tests/packs/levels` (`levels:map:tower`); the hole is at (5, 2) beside the bridge.
 
 ## Next
-1. The owner walks `tasks/acceptance/m8.5-1b.md`. Fixes from it get a test, red first.
-2. Then step 2 (layout within a square: scenery, items and beings), planned in plan mode with the owner's questions
-   first. It needs 1b's level for an object.
+1. **Ask the owner first:** step 2 (layout within a square) or step 3 (occlusion) next? The order says 2, but the
+   owner needs 3 to test the stairs and ladders. Do not assume.
+2. Plan the chosen step in plan mode, the owner's questions before the plan. Step 2 needs 1b's level for an object;
+   step 3 builds its fills under step 4's segments and `Ground` and now `scene.rs` (neighbour levels need fills too).
 
 ## Facts
 - **Height:** `MapDef.heights`, `Terrain.climb` (default 2), `/` ramps, `MAX_HEIGHT` 4096, `MAX_RAMP` 16. Sight uses
