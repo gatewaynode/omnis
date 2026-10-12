@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-12, after M8.5 step 4b (camera pitch) was built. 1a's and 4b's acceptance are open. Rewrite
+Written 2026-10-12, after the owner accepted M8.5 step 4b (camera pitch). 1a's formal acceptance is open. Rewrite
 this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -18,11 +18,11 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
     - relief with step 5;
     - the minimap shows cliffs and ramps.
   - Commits: `6cf5055`, `5c0a015`, `9e860f3`, `3a57aad`, then docs.
-- **4b, camera pitch:** built. Plan `tasks/plans/m8.5-camera-pitch.md` (with "As built"), acceptance
+- **4b, camera pitch:** accepted 2026-10-12. Plan `tasks/plans/m8.5-camera-pitch.md` (with "As built"), acceptance
   `tasks/acceptance/m8.5-4b.md`. Pitch in `shell::movement::View` (never in `Pose`), `look.rs` pure, `render::rotation`,
   setting `level_on_step`, Level button, PageUp/PageDown/Home.
 - **Next:**
-  - The owner accepts 4b (and 1a formally). Eye height and FOV are reviewed after they walk with pitch (§12.8).
+  - The owner accepts 1a formally. Eye height and FOV: the owner raised no change at 4b's acceptance (§12.8 stays open).
   - Then plan **1b, the Z axis**, with the owner: levels above and below, how they join, and overlaps.
   - The rhai Socket re-audit is still first in the open list; ask the owner when.
 
