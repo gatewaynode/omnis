@@ -19,9 +19,6 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
   - The column keeps a quarter of the window, so long entries break over two lines at the largest scale.
 - **The picture window draws every monster as the rat** (P7).
   - Whatever the fight is against, the picture shows the rat.
-- **The health colours are not checked for colour deficiency** (P6).
-  - presentation-PRD XR8 asks for simulated colour-deficiency checks of the palettes. Nothing checks the HUD's
-    health colours.
 - **Two of P6's calls are unconfirmed by the owner:**
   - down members show in red;
   - dead members stay dim, with "dead" in red.
