@@ -2,6 +2,10 @@
 
 Saved 2026-09-19. Planned on 2026-09-13 as M5 and deferred by the owner on 2026-09-19 ("the editor can wait"); it now sits in the TODO's Phases 2–5 block ahead of the procgen panel that extends it. Dates and version numbers below are as of the planning day; re-check the dependency table (30-day rule, Socket scores) and the code facts (function lengths, file lines, `Title::ITEMS`) before starting.
 
+**Since 2026-10-12 (M8.5 step 1a):** maps carry heights (`heights` rows, eighths of a cell), a `climb`
+per terrain and ramp edges (`/`); the editor must author all three, and show the cliffs the loader derives
+(`tasks/plans/m8.5-elevation.md`). The Z axis (step 1b) may add more.
+
 ## Context
 M0–M4 are merged and the wide canvas is accepted on branch `m5-tasks` (pushed at `024772c`; CI runs on
 pull requests only, so the branch's run starts with the PR; main is green). M5 is the first milestone of the

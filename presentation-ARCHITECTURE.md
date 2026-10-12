@@ -252,9 +252,10 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 (default `.omnis/vector-session.ron`), and `omnis-cli replay` reproduces the session's fingerprint
 (presentation-PRD §4.4).
 
-### 5.6 Height and cliffs (to build, X10, X11)
-- **The pose stays `x, z, yaw`.** Height never reaches the simulation. The camera's y is `ground.height(x, z) + EYE_HEIGHT`, from the ground sampler (§8.4).
-- **Cliffs block like walls.** They are derived in the engine when the pack loads (X11), so the step refuses with a cliff reason. The mirror gains the same condition, read through a `SimWorld` query rather than recomputed from heights, and the agreement test covers cliff edges.
+### 5.6 Height and cliffs (rules built in M8.5 step 1a; drawing to build, X10, X11)
+- **The pose stays `x, z, yaw`.** The camera's height never reaches the simulation, which knows the cells' heights only. The camera's y is `ground.height(x, z) + EYE_HEIGHT`, from the ground sampler (§8.4, M8.5 step 4).
+- **Cliffs block like walls** (built). `omnis-data` derives them when the pack loads (`Cell.cliffs`: the difference is more than the entered terrain's `climb` and the edge is no ramp), so the step refuses with `BlockReason::Cliff`. The mirror reads the same `Cell.cliffs` rather than recomputing from heights, and the agreement test covers cliff edges on the engine's elevation fixture.
+- **The fog follows the engine's sight** (built): `Views.sight` is the viewport's `visibility_depth`, which counts a light and the party's height (before M8.5 the fog read the floor's depth and ignored a light).
 - **Relief never moves the walkable rule** (XR7): the pose walks the cell grid; the drawn ground only lifts the camera.
 
 ## 6. The screen model (as built, P2; VA10)
@@ -449,7 +450,7 @@ The design fixes the seams; the technique is measured in its step (X20):
 - **Visibility depth** from the terrain still sets the fog end, as built.
 
 ### 8.4 Terrain (to build, X10, X21)
-- **`Ground`** is a core sampler: `height(x, z) -> f32` = the authored coarse height from the map data (the shape is designed with the mechanics work, presentation-PRD §12.1) plus relief from a seeded noise chosen by terrain kind. The noise is the client's own small function (no dependency), seeded from the map and cell, so the same ground draws the same way every visit.
+- **`Ground`** is a core sampler: `height(x, z) -> f32` = the authored coarse height from the map data (`Cell.height` in eighths of a cell, so a wall's 1.0 is 8) plus relief from a seeded noise chosen by terrain kind. The noise is the client's own small function (no dependency), seeded from the map and cell, so the same ground draws the same way every visit.
 - **The floor grid** follows the ground like contour lines (X21), in the ground role, hidden by a setting.
 - **The camera's y** is the ground's height under the pose plus the eye height (§5.6), smoothed so a step up is not a jolt.
 - **Cliffs** are drawn as rock faces in the structure role and block through the engine (§5.6).

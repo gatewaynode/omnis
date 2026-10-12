@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
+| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10 (branch `vector-adoption`; `tasks/plans/vector-adoption.md`) |
 | Parent documents | `PRD.md` (v0.8), `ARCHITECTURE.md` (v0.8, A18); companion `presentation-ARCHITECTURE.md` (v0.4) |
 | Owner | gatewaynode |
@@ -67,8 +67,8 @@ branch decides how the rules use height beyond cliffs.
 | X7 | Combat | A fight replaces the 3D view with a separate 2D combat screen in the same vector style. It uses static figures for now, and animated line figures and art later. The fight is `omnis-sim`'s combat state machine, unchanged | Combat in the 3D scene; a frozen notice | Owner decision (2026-10-02). Built in Phase B and kept by the owner on 2026-10-10 after playing it. |
 | X8 | Adoption | The 3D vector presentation with free movement replaces the 2D canvas UI as the game's presentation direction | Keep the experiment separate; fold only the 3D view into the canvas UI | Owner decision (2026-10-10), after playing Phases A and B: the line style is "leading somewhere interesting" and free movement is "definitely more engaging". |
 | X9 | This document's role | The presentation PRD. At the merge, PRD.md's presentation sections are amended to point here (§2) | Fold this content into PRD.md and retire it; keep the experiment framing | Owner decision (2026-10-10). |
-| X10 | Terrain height | Maps carry a coarse authored height in pack data, available to the rules. The client adds fine relief from a seeded noise per terrain kind, which never changes the rules | Client-only relief (height could never matter to the rules); authored height only, with no relief | Owner decision (2026-10-10). The ground should never read as flat, and the rules can use height later (line of sight, climbing, falling). |
-| X11 | What height does in the rules, first | Cliffs block. An edge between two cells whose heights differ by more than a step is impassable, like a wall. The cliff is derived when the pack loads, so the simulation and the client agree and stay integer. Everything else about height is visual at first: the camera follows the ground | Visual only; cliffs plus a slope cost in step minutes | Owner decision (2026-10-10). Slopes, line of sight and falling are left to the mechanics branch. |
+| X10 | Terrain height | Maps carry a coarse authored height in pack data, available to the rules. The client adds fine relief from a seeded noise per terrain kind, which never changes the rules | Client-only relief (height could never matter to the rules); authored height only, with no relief | Owner decision (2026-10-10). The ground should never read as flat, and the rules can use height later (line of sight, climbing, falling). **Amended 2026-10-12 (M8.5 step 1a, owner):** height is per cell, a whole number of eighths of a cell (a wall is 8 tall), a signed value so maps can sit above or below a shared level; an inner edge may be a ramp or stair (`/`), walkable across up to two walls. |
+| X11 | What height does in the rules, first | Cliffs block. An edge between two cells whose heights differ by more than a step is impassable, like a wall. The cliff is derived when the pack loads, so the simulation and the client agree and stay integer. Everything else about height is visual at first: the camera follows the ground | Visual only; cliffs plus a slope cost in step minutes | Owner decision (2026-10-10). Slopes, line of sight and falling are left to the mechanics branch. **Amended 2026-10-12 (M8.5 step 1a, owner):** the threshold is per terrain (`climb`), set by the terrain entered, and limits drops as much as climbs, so an edge between two terrains can be walkable one way only; a ramp edge crosses any difference up to two walls. Sight is no longer deferred: higher ground, walls and opaque tiles hide what lies below the sight line, and standing above the tiles around adds to the visibility depth (rule value `sight_rise_per_tile`). Slopes as a cost and falling stay later. |
 | X12 | Structures | Walls and edges keep their cell-edge logic and collision, but are drawn as shaped line forms per terrain kind: jagged rock, broken ruin, rounded towers, organic trees. Packs can also place authored line-art set pieces (statues, arches, machines) on cells | Procedural shaping only; authored line models only | Owner decision (2026-10-10). Nothing should read as a grid of boxes. |
 | X13 | Look ceiling | Glowing lines are the whole look. Dark, solid surfaces occlude the lines behind them (hidden-line removal), so detail can get dense without becoming see-through noise. No textures | Pure see-through wireframe; lines first with shaded materials or textures later | Owner decision (2026-10-10). |
 | X14 | Client | `omnis-vector` grows into the game client: menus, party creation, sheets, town, saves. `omnis-app` stays until the new client reaches feature parity, then is retired. The canvas UI is replaced, not ported. **Done 2026-10-11 (parity P9): `omnis-app` retired; `omnis-vector` builds the `omnis` binary** | Fold the 3D view into `omnis-app`; keep both clients | Owner decision (2026-10-10). |
@@ -186,13 +186,14 @@ same way that a monster marker on the map does.
 
 ### 6.1 Terrain
 
-- **Height** (X10). Maps carry a coarse height in pack data. Whether it is stored per cell or per
-  corner is open (§12). The client draws the ground at that height, and the camera follows it.
+- **Height** (X10). Maps carry a coarse height in pack data: one per cell, in eighths of a cell
+  (decided 2026-10-12). The client draws the ground at that height, and the camera follows it.
 - **Relief.** On top of the authored height, the client adds fine relief from a seeded noise
   chosen by terrain kind: rolling grass, broken rock, rippled sand, uneven cave floor. Relief is
   presentation only. It never changes a rule, and the same seed always draws the same ground.
-- **Cliffs** (X11). An edge whose two cells differ in height by more than a step is a cliff. It is
-  drawn as a rock face and blocks like a wall. The step threshold is pack data.
+- **Cliffs** (X11). An edge whose two cells differ in height by more than the step is a cliff. It is
+  drawn as a rock face and blocks like a wall. The step threshold is pack data: each terrain's
+  `climb`, read for the terrain entered. A ramp or stair edge crosses up to two walls.
 - **The grid** (X21) is drawn faintly on the ground and follows the relief, like contour lines.
 
 ### 6.2 Structures
@@ -306,8 +307,9 @@ The art update (animated figures, the fight screen's scale) fits alongside 3 and
 
 ## 12. Open questions
 
-1. **Height's data shape:** per cell or per corner; its range and units; the cliff threshold; how
-   the editor authors it. Designed with the mechanics work (X10, XR10).
+1. **Height's data shape:** resolved 2026-10-12 (M8.5 step 1a, `tasks/plans/m8.5-elevation.md`):
+   per cell, eighths of a cell, within ±4096; a `climb` per terrain for the terrain entered; ramp
+   edges up to 16. How the editor authors it is left to the editor plan.
 2. **Biosphere assignment:** per region, per map or per terrain; whether a biosphere also selects
    relief noise and shape generators, or only the palette.
 3. **The role set:** the final list of colour roles and their non-colour channels (§5.2, §5.3), and
