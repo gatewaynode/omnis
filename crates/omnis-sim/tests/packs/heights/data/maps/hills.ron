@@ -1,0 +1,43 @@
+// Heights in eighths of a cell (a wall is 8). Grass allows 2 up or down, scree 1, stairs 4.
+// Row 0: a slope 0, 2, 4, then a cliff up to 12.
+// Row 1: scree at 0 beside stairs at 3: one way only (into the stairs, never back).
+// Row 2: a ramp `/` from 0 up a terrace at 16.
+// Rows 3 and 4: a hill of 16 at (2, 4), the rest at 0, and a wall between (3, 4) and (4, 4).
+(
+    schema: 1,
+    id: "heights:map:hills",
+    name: "heights:text:map.hills.name",
+    kind: Outdoor,
+    tileset: "test:tileset:outdoor",
+    width: 9,
+    height: 5,
+    start: (0, 4, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"),
+    door: "gate",
+    door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+        (glyph: 's', name: "scree", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2, climb: 1),
+        (glyph: 't', name: "stairs", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1, climb: 4),
+    ],
+    layout: [
+        "+-+-+-+-+-+-+-+-+-+",
+        "|g g g g g g g g g|",
+        "+ + + + + + + + + +",
+        "|s t g g g g g g g|",
+        "+ + + + + + + + + +",
+        "|g/g g g g g g g g|",
+        "+ + + + + + + + + +",
+        "|g g g g g g g g g|",
+        "+ + + + + + + + + +",
+        "|g g g g|g g g g g|",
+        "+-+-+-+-+-+-+-+-+-+",
+    ],
+    heights: [
+        "0  2  4 12 12 12 12 12 12",
+        "0  3  3  3  3  3  3  3  3",
+        "0 16 16 16 16 16 16 16 16",
+        "0  0  0  0  0  0  0  0  0",
+        "0  0 16  0  0  0  0  0  0",
+    ],
+)

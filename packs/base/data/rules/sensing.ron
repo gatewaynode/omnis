@@ -4,9 +4,14 @@
 // 4 creatures. Tiles the eye already reaches are DC 10; each tile past the visibility depth adds
 // one; each layer above terrain adds two. Cover and concealment become inputs with objects and
 // monsters.
+//
+// Sight from a height (M8.5): `sight_rise_per_tile` is how far, in eighths of a cell (a wall is
+// 8), the party must stand above the lowest tile around it to see one tile farther; 0 turns it
+// off. Hills hiding what lies behind them is not a rule: it is the geometry.
 (
     schema: 1,
     id: "base:rules:sensing",
+    values: {"sight_rise_per_tile": 8},
     slots: {
         "sense.dc": (inputs: ["distance", "visibility", "layer"], expr: "10 + max(0, distance - visibility) + (layer - 1) * 2"),
     },

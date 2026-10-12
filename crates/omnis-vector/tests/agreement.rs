@@ -20,13 +20,25 @@ fn simulated(world: &World, data: &omnis_sim::omnis_data::Data) -> Option<BlockR
     })
 }
 
-#[test]
-fn the_mirror_agrees_with_the_simulation_everywhere() {
-    let data = data();
-    let base = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
-    let mut checked = 0;
-    let mut doors = 0;
-    let mut services = 0;
+/// What `agree` met: every heading checked, doors opened, service doors, cliffs.
+#[derive(Default)]
+struct Met {
+    checked: usize,
+    doors: usize,
+    services: usize,
+    cliffs: usize,
+}
+
+/// Every map, cell and heading of `data`: the mirror names the simulation's reason.
+fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
+    let base = SimWorld::start(data, SEED, Settings::default()).expect("an entry map");
+    let mut met = Met::default();
+    let Met {
+        checked,
+        doors,
+        services,
+        cliffs,
+    } = &mut met;
     for (&map_id, map) in &data.maps {
         for y in 0..map.def.height {
             for x in 0..map.def.width {
@@ -38,34 +50,37 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
                         y,
                         facing,
                     };
-                    let mirror = blocks(&data, &world, map_id, x, y, facing);
+                    let mirror = blocks(data, &world, map_id, x, y, facing);
                     assert_eq!(
                         mirror,
-                        simulated(&world, &data),
+                        simulated(&world, data),
                         "{} ({x}, {y}) {facing:?}",
                         map.def.id
                     );
-                    checked += 1;
+                    *checked += 1;
+                    if mirror == Some(BlockReason::Cliff) {
+                        *cliffs += 1;
+                    }
                     if mirror == Some(BlockReason::ClosedDoor) {
-                        let events = apply(&mut world, &data, Command::Interact)
+                        let events = apply(&mut world, data, Command::Interact)
                             .expect("explore accepts interact");
                         // On a service's site Interact enters the service, not the door.
                         if events
                             .iter()
                             .any(|e| matches!(e, Event::ServiceEntered { .. }))
                         {
-                            services += 1;
+                            *services += 1;
                             continue;
                         }
-                        let opened = blocks(&data, &world, map_id, x, y, facing);
+                        let opened = blocks(data, &world, map_id, x, y, facing);
                         assert_ne!(opened, Some(BlockReason::ClosedDoor), "the door opened");
                         assert_eq!(
                             opened,
-                            simulated(&world, &data),
+                            simulated(&world, data),
                             "open door {} ({x}, {y}) {facing:?}",
                             map.def.id
                         );
-                        doors += 1;
+                        *doors += 1;
                     }
                 }
             }
@@ -77,7 +92,27 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
         .values()
         .map(|m| usize::from(m.def.width) * usize::from(m.def.height))
         .sum();
-    assert_eq!(checked, 4 * cells);
-    assert!(doors > 0, "the dungeon's doors were exercised");
-    assert!(services > 0, "the town's service doors were met");
+    assert_eq!(*checked, 4 * cells);
+    met
+}
+
+#[test]
+fn the_mirror_agrees_with_the_simulation_everywhere() {
+    let met = agree(&data());
+    assert!(met.doors > 0, "the dungeon's doors were exercised");
+    assert!(met.services > 0, "the town's service doors were met");
+}
+
+/// The engine's elevation fixture (M8.5 step 1a): slopes, cliffs, a one-way edge and a ramp.
+#[test]
+fn the_mirror_agrees_on_cliffs_and_ramps() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let data = omnis_sim::omnis_data::load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/heights"),
+    ])
+    .expect("the fixture loads");
+    let met = agree(&data);
+    assert!(met.cliffs > 10, "{} cliffs met", met.cliffs);
 }

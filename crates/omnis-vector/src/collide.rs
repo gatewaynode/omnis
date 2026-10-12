@@ -47,6 +47,9 @@ pub fn blocks(
     if !map_data.terrain(target).passable {
         return Some(BlockReason::Impassable);
     }
+    if cell.cliffs.has(heading) {
+        return Some(BlockReason::Cliff);
+    }
     None
 }
 

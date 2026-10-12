@@ -252,7 +252,7 @@ Notes:
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
-`_` `'`, a portal `*`, the party `^` `>` `v` `<`.
+`_` `'`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`.
 
 ## 7. Views
 
@@ -524,8 +524,11 @@ Races, classes and backgrounds are in id order.
 `visibility_depth` (rows visible at all), `tiles` (`[ViewTile]`, nearest first).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
-`x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `front`, `left`, `right`
-(`EdgeView`: `"Open"`, `"Wall"`, `{"Door": {"open": bool}}`, as seen from the party).
+`x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
+eighths of a cell; a wall is 8 tall), `front`, `left`, `right` (`EdgeView`: `"Open"`, `"Wall"`,
+`{"Door": {"open": bool}}`, `"Ramp"` (open, and walkable across up to 16), as seen from the
+party). `visibility_depth` counts the terrain, a light, and the party's height above the tiles
+around it; a tile behind higher ground is not in `tiles`.
 
 `Known` (one automap tile): `terrain`, `walls` and `doors` (`Edges` bits), `layers` (`layer`
 bits), `seen_at` (party clock when last seen; the automap shows what was seen and when, not what
@@ -647,7 +650,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Event | Fields | Meaning |
 |---|---|---|
 | `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. |
-| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`) | A step did not happen; the turn was taken. |
+| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
 | `Door` | `map` (id), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
@@ -910,6 +913,9 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-11: `SpellView.pay` (the definition's cost of the turn); `CombatView.items`
   (`FightItemView`: `item`, `name`, `count`, `blocked`, the acting member's usable kit rows with
   the refusal `Use` would get) (parity P7).
+- 2026-10-12: elevation (M8.5 step 1a): `ViewTile.height`, `EdgeView::Ramp`,
+  `BlockReason::Cliff`, `/` in `map.text`; sight follows height, and `visibility_depth` adds
+  height (rule value `sight_rise_per_tile`). Flat maps see and play as before.
 
 ### Protocol 2 (2026-10-10)
 

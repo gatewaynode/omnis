@@ -78,6 +78,7 @@ fn the_meadow_start_sees_six_clear_rows() {
             x: 16,
             y: 16,
             terrain: 1,
+            height: 0,
             front: query::EdgeView::Open,
             left: query::EdgeView::Open,
             right: query::EdgeView::Open

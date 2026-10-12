@@ -9,6 +9,7 @@ mod common;
 mod creation_view;
 mod dev;
 mod effects;
+mod elevation;
 mod encounter;
 mod items;
 mod monster_cast;

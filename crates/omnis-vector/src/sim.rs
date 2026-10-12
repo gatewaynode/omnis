@@ -9,7 +9,7 @@ use omnis_sim::api::{
     ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
     ServiceView, Settings, Status, World, apply, automap, cast_view, check_reload, combat_view,
     creation_view, dispatch, door_open, here, party_view, rest_view, save_text, service_view,
-    status, step_lands,
+    status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -92,6 +92,13 @@ impl SimWorld {
         } else {
             None
         }
+    }
+
+    /// How many tiles the party sees (`api::viewport`'s `visibility_depth`); 6 when its map
+    /// is not loaded.
+    #[must_use]
+    pub fn sight(&self, data: &Data) -> u8 {
+        viewport(&self.0, data).map_or(6, |v| v.visibility_depth)
     }
 
     /// The party and every member's sheet (`api::party_view`).
@@ -234,6 +241,9 @@ pub struct Views {
     /// Every world flag with its value, in registry order; only in a devtools world, for the
     /// debug panel (the retired client's rule).
     pub flags: Vec<(String, i64)>,
+    /// How many tiles the party sees from where it stands, as the engine counts them (the
+    /// terrain, a light, height), for the fog.
+    pub sight: u8,
 }
 
 impl Views {
@@ -263,6 +273,7 @@ impl Views {
             } else {
                 Vec::new()
             },
+            sight: world.sight(data),
         }
     }
 

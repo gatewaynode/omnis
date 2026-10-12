@@ -24,6 +24,9 @@ pub enum BlockReason {
     Impassable,
     /// The target is off the map or the map is unknown.
     MapEdge,
+    /// The height difference is more than the target terrain allows, up or down, and the
+    /// edge is not a ramp.
+    Cliff,
 }
 
 /// A message for the player, named so packs can localize it under `sim:message:<name>`.

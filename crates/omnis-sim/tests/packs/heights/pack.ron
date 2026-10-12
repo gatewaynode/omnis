@@ -1,0 +1,12 @@
+// Fixture pack for elevation (M8.5 step 1a): one map of heights, ramps and a hill, loaded after
+// base and test (it draws with the test pack's outdoor tileset). Not shipped.
+(
+    schema: 1,
+    id: "heights",
+    version: "0.1.0",
+    name: "Omnis elevation fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test"],
+    entry: None,
+)

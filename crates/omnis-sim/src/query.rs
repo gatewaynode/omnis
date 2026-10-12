@@ -26,6 +26,8 @@ pub enum EdgeView {
         /// Whether it stands open.
         open: bool,
     },
+    /// A ramp or stair: open, and walkable across a height difference up to two walls.
+    Ramp,
 }
 
 /// One tile in the viewport, oriented to the party's facing.
@@ -41,6 +43,8 @@ pub struct ViewTile {
     pub y: u16,
     /// Terrain index into the map's terrains.
     pub terrain: u8,
+    /// Floor height in eighths of a cell (a wall is 8 tall).
+    pub height: i16,
     /// The edge away from the party.
     pub front: EdgeView,
     /// The edge on the party's left.
@@ -149,6 +153,8 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
             EdgeView::Door {
                 open: state.is_some_and(|s| s.door_open(x, y, facing)),
             }
+        } else if cell.ramps.has(facing) {
+            EdgeView::Ramp
         } else {
             EdgeView::Open
         }
@@ -163,6 +169,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
                 x: t.x,
                 y: t.y,
                 terrain: cell.terrain,
+                height: cell.height,
                 front: edge(t.x, t.y, pos.facing),
                 left: edge(t.x, t.y, pos.facing.left()),
                 right: edge(t.x, t.y, pos.facing.right()),
@@ -177,7 +184,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
             .tilesets
             .get(&map.tileset)
             .map_or(0, |t| t.detail_depth),
-        visibility_depth: visibility::depth(world, map),
+        visibility_depth: visibility::depth(world, data, map),
         tiles,
     })
 }
@@ -190,8 +197,8 @@ pub fn automap(world: &World, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>
 
 /// A map as text in the layout format of `omnis_data::map` (`2h+1` rows of `2w+1`
 /// characters), with the world's door state and the party: walls `-` and `|`, closed doors
-/// `=` and `:`, open doors `_` and `'`, a portal as `*` on its tile (a glyph no terrain may
-/// use), and the party as `^`, `>`, `v`, or `<` on its tile, over a portal.
+/// `=` and `:`, open doors `_` and `'`, ramps `/`, a portal as `*` on its tile (a glyph no
+/// terrain may use), and the party as `^`, `>`, `v`, or `<` on its tile, over a portal.
 /// `None` when the map is not loaded.
 #[must_use]
 pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
@@ -210,6 +217,8 @@ pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
             } else {
                 glyphs[1]
             }
+        } else if cell.ramps.has(facing) {
+            '/'
         } else {
             ' '
         }

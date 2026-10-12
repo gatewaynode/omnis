@@ -158,7 +158,7 @@ impl Landing {
 }
 
 /// Where a step in `direction` would land, or why it would not: walls, doors, terrain, the
-/// map's edge. Nothing changes; `r#move` and the queries share it.
+/// map's edge, a cliff. Nothing changes; `r#move` and the queries share it.
 pub(crate) fn landing(
     world: &World,
     data: &Data,
@@ -186,6 +186,9 @@ pub(crate) fn landing(
     let terrain = map.terrain(target_cell);
     if !terrain.passable {
         return Err(BlockReason::Impassable);
+    }
+    if cell.cliffs.has(facing) {
+        return Err(BlockReason::Cliff);
     }
     let through = map
         .portal_at(x, y)

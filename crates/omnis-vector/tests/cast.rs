@@ -256,3 +256,38 @@ fn a_cast_from_the_column_keeps_the_screen_open_and_reports() {
         .unwrap_or_default();
     assert!(text.ends_with("lights the party's way"), "{text}");
 }
+
+/// The fog is drawn at the depth the engine sees to, so a light in the dungeon lifts it as it
+/// lifts what the automap records (a bug: the fog stayed at the floor's depth).
+#[test]
+fn a_light_lifts_the_fog_with_the_engine_s_sight() {
+    let data = common::data();
+    let (mut world, _) = common::town_session(&data);
+    let dungeon = common::map(&data, "test:map:dungeon");
+    common::place(
+        &mut world,
+        dungeon,
+        1,
+        1,
+        omnis_sim::omnis_core::Facing::South,
+    );
+    let before = common::views(&world, &data);
+    assert_eq!(before.sight, 6, "the dungeon floor's depth");
+    let ilvara = common::id(&world, 2);
+    world
+        .apply(
+            &data,
+            Command::Cast {
+                caster: ilvara,
+                spell: "base:spell:light".into(),
+                target: Target::Member(ilvara),
+            },
+        )
+        .expect("cast");
+    let lit = common::views(&world, &data);
+    let engine = omnis_sim::api::viewport(&world, &data)
+        .expect("viewport")
+        .visibility_depth;
+    assert_eq!(engine, 8, "Light reaches 8");
+    assert_eq!(lit.sight, engine, "the fog follows the engine");
+}

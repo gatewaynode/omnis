@@ -98,7 +98,7 @@ pub(crate) fn resolve(
     };
     let Geometry::Ray { range } = source.geometry;
     let ray = visibility::ray(map, world.maps.get(&pos.map), pos, range);
-    let visibility = visibility::depth(world, map);
+    let visibility = visibility::depth(world, data, map);
     let mut checks = Vec::new();
     // A layer reaches no farther than the one below it: failing a layer stops the ladder
     // there (PRD §7.2, D18), so a wall's shape is never known where its ground is not.

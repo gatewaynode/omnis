@@ -134,15 +134,7 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
 
 fn draw(session: Res<Session>, lines: Res<Lines>, current: Res<Current>, mut gizmos: Gizmos) {
     let pose = session.pose;
-    let depth = session
-        .data
-        .maps
-        .get(&session.views.position.map)
-        .and_then(|m| {
-            m.cell(session.views.position.x, session.views.position.y)
-                .map(|c| m.terrain(c).visibility_depth)
-        })
-        .unwrap_or(6);
+    let depth = session.views.sight;
     let end = f32::from(depth) + FOG_EXTRA;
     let start = end * 0.5;
     let grid = current.0.grid;
