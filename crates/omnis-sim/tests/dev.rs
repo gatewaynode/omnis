@@ -61,6 +61,7 @@ fn every_edit() -> Vec<DevCommand> {
         },
         DevCommand::Teleport {
             map: "test:map:dungeon".into(),
+            level: omnis_core::Level::GROUND,
             x: 3,
             y: 8,
             facing: Facing::South,
@@ -503,6 +504,7 @@ fn teleport_moves_the_party_without_a_trigger_and_only_while_exploring() {
             &data,
             Command::Dev(DevCommand::Teleport {
                 map: map.into(),
+                level: omnis_core::Level::GROUND,
                 x,
                 y,
                 facing: Facing::South,
@@ -515,6 +517,7 @@ fn teleport_moves_the_party_without_a_trigger_and_only_while_exploring() {
         world.position,
         Position {
             map: dungeon,
+            level: omnis_core::Level::GROUND,
             x: 3,
             y: 8,
             facing: Facing::South

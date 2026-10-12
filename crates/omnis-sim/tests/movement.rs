@@ -16,7 +16,13 @@ fn a_new_game_starts_in_town_and_the_gate_and_the_road_link_it_to_the_meadow() {
     let mut world = World::new(&data, 1, Settings::default()).unwrap();
     let town = data.registry.maps.get("test:map:town").unwrap();
     let meadow = data.registry.maps.get("test:map:meadow").unwrap();
-    let at = |map, x, y, facing| Position { map, x, y, facing };
+    let at = |map, x, y, facing| Position {
+        map,
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    };
     assert_eq!(world.position, at(town, 10, 2, Facing::West));
     assert_eq!(world.party_clock().elapsed, 0);
     apply(&mut world, &data, Command::Step(Direction::Back)).unwrap();
@@ -43,6 +49,7 @@ fn the_meadow_start_sees_six_clear_rows() {
         world.position,
         Position {
             map: meadow,
+            level: omnis_core::Level::GROUND,
             x: 16,
             y: 16,
             facing: Facing::North
@@ -98,12 +105,14 @@ fn steps_take_terrain_time_and_fill_the_automap() {
             Event::Moved {
                 from: Place {
                     map: "test:map:meadow".to_owned(),
+                    level: omnis_core::Level::GROUND,
                     x: 16,
                     y: 16,
                     facing: Facing::North
                 },
                 to: Place {
                     map: "test:map:meadow".to_owned(),
+                    level: omnis_core::Level::GROUND,
                     x: 16,
                     y: 15,
                     facing: Facing::North
@@ -120,7 +129,7 @@ fn steps_take_terrain_time_and_fill_the_automap() {
         panic!("every command ends with Visible")
     };
     assert_eq!(tiles[0].depth, 0);
-    let known = query::automap(&world, meadow).unwrap();
+    let known = query::automap(&world, meadow, omnis_core::Level::GROUND).unwrap();
     assert_eq!(
         known[&(16, 15)].layers,
         layer::VISITED | layer::TERRAIN | layer::STRUCTURE
@@ -159,6 +168,7 @@ fn water_blocks_movement_but_not_sight_and_the_hedge_blocks_both() {
     // Pond occupies x 6..=10, y 20..=24. Stand at (11, 22) facing west.
     world.position = Position {
         map: meadow,
+        level: omnis_core::Level::GROUND,
         x: 11,
         y: 22,
         facing: Facing::West,
@@ -170,7 +180,7 @@ fn water_blocks_movement_but_not_sight_and_the_hedge_blocks_both() {
             reason: BlockReason::Impassable
         }]
     );
-    let known = query::automap(&world, meadow).unwrap();
+    let known = query::automap(&world, meadow, omnis_core::Level::GROUND).unwrap();
     assert!(
         known.contains_key(&(5, 22)),
         "the far shore is visible across the water"
@@ -178,6 +188,7 @@ fn water_blocks_movement_but_not_sight_and_the_hedge_blocks_both() {
     // The hedge: at (0, 22) facing west there is nothing to step into.
     world.position = Position {
         map: meadow,
+        level: omnis_core::Level::GROUND,
         x: 0,
         y: 22,
         facing: Facing::West,
@@ -222,6 +233,7 @@ fn the_party_sees_the_tiles_beside_it() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 0,
         facing: Facing::North,
@@ -243,6 +255,7 @@ fn trees_are_opaque() {
     // The clump around (24, 10) with radius 3 lies to the north-east of (20, 15).
     world.position = Position {
         map: meadow,
+        level: omnis_core::Level::GROUND,
         x: 20,
         y: 15,
         facing: Facing::North,
@@ -306,12 +319,14 @@ fn portals_link_the_maps_both_ways() {
         Event::Moved {
             from: Place {
                 map: "test:map:meadow".to_owned(),
+                level: omnis_core::Level::GROUND,
                 x: 16,
                 y: 5,
                 facing: Facing::North
             },
             to: Place {
                 map: "test:map:dungeon".to_owned(),
+                level: omnis_core::Level::GROUND,
                 x: 1,
                 y: 0,
                 facing: Facing::South
@@ -321,12 +336,12 @@ fn portals_link_the_maps_both_ways() {
     assert_eq!(world.position.map, dungeon);
     assert_eq!(world.party_clock().elapsed, 11, "eleven road steps");
     assert!(
-        query::automap(&world, dungeon)
+        query::automap(&world, dungeon, omnis_core::Level::GROUND)
             .unwrap()
             .contains_key(&(1, 0))
     );
     assert!(
-        query::automap(&world, meadow)
+        query::automap(&world, meadow, omnis_core::Level::GROUND)
             .unwrap()
             .contains_key(&(16, 5)),
         "the portal tile was visited too"
@@ -335,6 +350,7 @@ fn portals_link_the_maps_both_ways() {
     // Back out: the exit is the dungeon's (0, 0).
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 1,
         y: 0,
         facing: Facing::West,
@@ -344,6 +360,7 @@ fn portals_link_the_maps_both_ways() {
         world.position,
         Position {
             map: meadow,
+            level: omnis_core::Level::GROUND,
             x: 16,
             y: 6,
             facing: Facing::South
@@ -371,7 +388,7 @@ fn coming_through_a_portal_the_party_knows_the_way_back() {
         !in_sight(&events, 16, 31),
         "the signpost is behind the party"
     );
-    let known = query::automap(&world, meadow).unwrap();
+    let known = query::automap(&world, meadow, omnis_core::Level::GROUND).unwrap();
     let home = known
         .get(&(16, 31))
         .expect("the road home is on the automap");
@@ -391,6 +408,7 @@ fn coming_through_a_portal_the_party_knows_the_way_back() {
     world.automap.maps.clear();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 1,
         y: 0,
         facing: Facing::West,
@@ -399,7 +417,7 @@ fn coming_through_a_portal_the_party_knows_the_way_back() {
     assert_eq!((world.position.x, world.position.y), (16, 6));
     assert!(!in_sight(&events, 16, 5));
     assert_eq!(
-        query::automap(&world, meadow).unwrap()[&(16, 5)].layers,
+        query::automap(&world, meadow, omnis_core::Level::GROUND).unwrap()[&(16, 5)].layers,
         layer::TERRAIN | layer::STRUCTURE
     );
 }
@@ -411,6 +429,7 @@ fn doors_block_until_opened_and_pillars_always() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
@@ -434,6 +453,7 @@ fn doors_block_until_opened_and_pillars_always() {
         [
             Event::Door {
                 map: "test:map:dungeon".to_owned(),
+                level: omnis_core::Level::GROUND,
                 x: 5,
                 y: 3,
                 facing: Facing::East,
@@ -467,6 +487,7 @@ fn doors_block_until_opened_and_pillars_always() {
         events[0],
         Event::Door {
             map: "test:map:dungeon".to_owned(),
+            level: omnis_core::Level::GROUND,
             x: 6,
             y: 3,
             facing: Facing::West,
@@ -489,6 +510,7 @@ fn sealed_walls_pillars_and_empty_edges() {
     // A sealed room wall and a pillar.
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 11,
         y: 3,
         facing: Facing::East,
@@ -501,6 +523,7 @@ fn sealed_walls_pillars_and_empty_edges() {
     );
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 2,
         y: 3,
         facing: Facing::East,
@@ -533,6 +556,7 @@ fn sealed_walls_pillars_and_empty_edges() {
     // Interacting with a plain wall says so.
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 2,
         y: 2,
         facing: Facing::West,

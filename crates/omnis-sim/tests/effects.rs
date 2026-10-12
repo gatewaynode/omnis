@@ -101,6 +101,7 @@ fn teleport(world: &mut World, data: &Data, x: u16, y: u16, facing: Facing) {
         data,
         Command::Dev(DevCommand::Teleport {
             map: "test:map:dungeon".into(),
+            level: omnis_core::Level::GROUND,
             x,
             y,
             facing,
@@ -607,7 +608,7 @@ fn mage_hand_toggles_the_first_door_ahead() {
         )),
         "{events:?}"
     );
-    assert!(world.maps[&dungeon].door_open(9, 5, Facing::South));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 9, 5, Facing::South));
     assert!(
         events
             .iter()

@@ -102,8 +102,14 @@ fn every_op() -> Vec<Op> {
         },
         Op::EventsTail { count: 1 },
         Op::ViewportGet,
-        Op::MapText { map: None },
-        Op::AutomapGet { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
+        Op::AutomapGet {
+            map: None,
+            level: None,
+        },
         Op::SaveWrite { path: text() },
         Op::SaveRead {
             path: text(),

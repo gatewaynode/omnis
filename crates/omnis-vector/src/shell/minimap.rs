@@ -8,7 +8,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use omnis_sim::omnis_core::MapId;
+use omnis_sim::omnis_core::{Level, MapId};
 
 /// Marks the minimap's node.
 #[derive(Component)]
@@ -16,7 +16,7 @@ pub struct Minimap;
 
 /// What the picture last showed: the map, the accepted-command count (the automap only changes
 /// when a command is accepted), and the marker's pixel and heading.
-type Shown = (MapId, usize, (i64, i64), i64);
+type Shown = ((MapId, Level), usize, (i64, i64), i64);
 
 /// The minimap. Needs `Assets<Image>`, so a window or the offscreen capture.
 pub struct MinimapPlugin;
@@ -84,7 +84,7 @@ fn repaint(
     // A sixteenth of a turn is as fine as the heading line can show.
     #[allow(clippy::cast_possible_truncation)]
     let shown = (
-        p.map,
+        (p.map, p.level),
         session.binder.log.len(),
         ((pose.x * scale) as i64, (pose.z * scale) as i64),
         (pose.yaw * 8.0 / core::f32::consts::PI).round() as i64,
@@ -93,7 +93,7 @@ fn repaint(
         return;
     }
     *last = Some(shown);
-    let raster = paint(map, session.world.automap(p.map), pose);
+    let raster = paint(map, p.level, session.world.automap(p.map, p.level), pose);
     #[allow(clippy::cast_precision_loss)]
     let (w, h) = (raster.width as f32, raster.height as f32);
     layout.width = Val::Px(w);

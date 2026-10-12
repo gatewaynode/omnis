@@ -46,11 +46,20 @@ fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
                     let mut world = base.clone();
                     world.position = Position {
                         map: map_id,
+                        level: omnis_sim::omnis_core::Level::GROUND,
                         x,
                         y,
                         facing,
                     };
-                    let mirror = blocks(data, &world, map_id, x, y, facing);
+                    let mirror = blocks(
+                        data,
+                        &world,
+                        map_id,
+                        omnis_sim::omnis_core::Level::GROUND,
+                        x,
+                        y,
+                        facing,
+                    );
                     assert_eq!(
                         mirror,
                         simulated(&world, data),
@@ -72,7 +81,15 @@ fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
                             *services += 1;
                             continue;
                         }
-                        let opened = blocks(data, &world, map_id, x, y, facing);
+                        let opened = blocks(
+                            data,
+                            &world,
+                            map_id,
+                            omnis_sim::omnis_core::Level::GROUND,
+                            x,
+                            y,
+                            facing,
+                        );
                         assert_ne!(opened, Some(BlockReason::ClosedDoor), "the door opened");
                         assert_eq!(
                             opened,

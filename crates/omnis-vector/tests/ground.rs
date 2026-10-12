@@ -11,7 +11,10 @@ use omnis_vector::pose::Pose;
 
 fn hills() -> (omnis_sim::omnis_data::Data, Ground) {
     let data = heights_data();
-    let ground = Ground::from_map(&data.maps[&map(&data, "heights:map:hills")]);
+    let ground = Ground::from_map(
+        &data.maps[&map(&data, "heights:map:hills")],
+        omnis_sim::omnis_core::Level::GROUND,
+    );
     (data, ground)
 }
 
@@ -23,7 +26,7 @@ fn patch(ground: &Ground, x: u16, y: u16) -> omnis_vector::ground::Patch {
 fn the_shipped_maps_are_flat() {
     let data = data();
     for m in data.maps.values() {
-        let ground = Ground::from_map(m);
+        let ground = Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND);
         for y in 0..m.def.height {
             for x in 0..m.def.width {
                 let p = patch(&ground, x, y);
@@ -57,14 +60,56 @@ fn a_slope_shares_its_corners_and_a_cliff_splits_them() {
 fn a_ramp_joins_and_a_one_way_edge_and_a_wall_do_not() {
     let (data, ground) = hills();
     let hills = &data.maps[&map(&data, "heights:map:hills")];
-    assert!(joined(hills, 0, 2, Facing::East), "the ramp");
     assert!(
-        !joined(hills, 0, 1, Facing::East),
+        joined(
+            hills,
+            omnis_sim::omnis_core::Level::GROUND,
+            0,
+            2,
+            Facing::East
+        ),
+        "the ramp"
+    );
+    assert!(
+        !joined(
+            hills,
+            omnis_sim::omnis_core::Level::GROUND,
+            0,
+            1,
+            Facing::East
+        ),
         "scree to stairs goes one way"
     );
-    assert!(!joined(hills, 1, 1, Facing::West), "and not back");
-    assert!(!joined(hills, 3, 4, Facing::East), "the wall");
-    assert!(!joined(hills, 8, 0, Facing::East), "the map's edge");
+    assert!(
+        !joined(
+            hills,
+            omnis_sim::omnis_core::Level::GROUND,
+            1,
+            1,
+            Facing::West
+        ),
+        "and not back"
+    );
+    assert!(
+        !joined(
+            hills,
+            omnis_sim::omnis_core::Level::GROUND,
+            3,
+            4,
+            Facing::East
+        ),
+        "the wall"
+    );
+    assert!(
+        !joined(
+            hills,
+            omnis_sim::omnis_core::Level::GROUND,
+            8,
+            0,
+            Facing::East
+        ),
+        "the map's edge"
+    );
     let (low, high) = (patch(&ground, 0, 2), patch(&ground, 1, 2));
     assert_eq!(
         low.corners[NE], high.corners[NW],

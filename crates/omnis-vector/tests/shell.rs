@@ -186,6 +186,7 @@ fn the_views_are_the_world_s_after_every_frame() {
         let dungeon = common::map(&session.data, "test:map:dungeon");
         session.world.position = Position {
             map: dungeon,
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: 3,
             y: 5,
             facing: Facing::South,

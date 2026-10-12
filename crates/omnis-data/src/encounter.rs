@@ -5,7 +5,7 @@
 use crate::error::DataError;
 use crate::limits::{MAX_COLLECTION, MAX_STACKS};
 use crate::registry::Interner;
-use omnis_core::{Dice, MonsterId};
+use omnis_core::{Dice, Level, MonsterId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -45,6 +45,9 @@ impl Disposition {
 /// A group placed on a tile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FixedEncounter {
+    /// Trigger level (M8.5 step 1b).
+    #[serde(default)]
+    pub level: Level,
     /// Trigger column.
     pub x: u16,
     /// Trigger row.
@@ -83,6 +86,8 @@ pub struct RandomEncounters {
 /// A fixed encounter with interned monsters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEncounter {
+    /// Trigger level.
+    pub level: Level,
     /// Trigger column.
     pub x: u16,
     /// Trigger row.
@@ -145,7 +150,7 @@ pub fn validate(
         }
         if let Some(k) = encounters[..i]
             .iter()
-            .position(|o| o.x == e.x && o.y == e.y)
+            .position(|o| o.level == e.level && o.x == e.x && o.y == e.y)
         {
             errors.push(DataError::new(
                 file,
@@ -241,6 +246,7 @@ pub(crate) fn resolve(
         .iter()
         .enumerate()
         .map(|(i, e)| ResolvedEncounter {
+            level: e.level,
             x: e.x,
             y: e.y,
             stacks: e
@@ -295,6 +301,7 @@ mod tests {
         let def = parts(
             vec![
                 FixedEncounter {
+                    level: Level::GROUND,
                     x: 2,
                     y: 0,
                     stacks: vec![("t:monster:a".into(), 0)],
@@ -302,6 +309,7 @@ mod tests {
                     once: true,
                 },
                 FixedEncounter {
+                    level: Level::GROUND,
                     x: 1,
                     y: 1,
                     stacks: vec![],
@@ -309,6 +317,7 @@ mod tests {
                     once: false,
                 },
                 FixedEncounter {
+                    level: Level::GROUND,
                     x: 1,
                     y: 1,
                     stacks: vec![("t:monster:a".into(), 1); 5],
@@ -359,6 +368,7 @@ mod tests {
         let rat = monsters.intern("t:monster:rat");
         let def = parts(
             vec![FixedEncounter {
+                level: Level::GROUND,
                 x: 0,
                 y: 1,
                 stacks: vec![("t:monster:rat".into(), 3), ("t:monster:none".into(), 1)],

@@ -314,7 +314,7 @@ fn rest_events(
     let Some(map) = data.maps.get(&pos.map) else {
         return Ok(Vec::new());
     };
-    let Some(cell) = map.cell(pos.x, pos.y) else {
+    let Some(cell) = map.cell(pos.level, pos.x, pos.y) else {
         return Ok(Vec::new());
     };
     let mut hits = Vec::new();

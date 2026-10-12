@@ -35,6 +35,7 @@ fn at(data: &Data, seed: u64, members: usize, name: &str, x: u16, y: u16) -> Wor
     );
     world.position = Position {
         map: map(data, name),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing: Facing::North,

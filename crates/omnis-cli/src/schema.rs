@@ -317,6 +317,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         bus: Default::default(),
         position: Position {
             map: MapId(0),
+            level: omnis_core::Level::GROUND,
             x: 0,
             y: 0,
             facing: Facing::East,
@@ -350,8 +351,14 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::EventsTail { count: 32 },
         Op::ViewportGet,
-        Op::MapText { map: None },
-        Op::AutomapGet { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
+        Op::AutomapGet {
+            map: None,
+            level: None,
+        },
         Op::SaveWrite {
             path: ".omnis/quick.ron".into(),
         },

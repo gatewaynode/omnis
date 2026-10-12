@@ -348,6 +348,7 @@ impl<'a> Look<'a> {
             },
             DebugAct::Go => DevCommand::Teleport {
                 map: self.maps()[self.map()].to_owned(),
+                level: omnis_sim::omnis_core::Level::GROUND,
                 x: self.number(Num::X).ok_or(typed.clone())?,
                 y: self.number(Num::Y).ok_or(typed)?,
                 facing: self.facing(),

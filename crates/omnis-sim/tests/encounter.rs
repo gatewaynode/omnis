@@ -30,12 +30,14 @@ fn facing_encounter(
     let placement = &data.maps[&dungeon(data)].encounters[usize::from(index)];
     world.position = Position {
         map: dungeon(data),
+        level: omnis_core::Level::GROUND,
         x: placement.x,
         y: placement.y,
         facing: Facing::South,
     };
     let retreat = Position {
         map: dungeon(data),
+        level: omnis_core::Level::GROUND,
         x: placement.x,
         y: placement.y - 1,
         facing: Facing::North,
@@ -131,6 +133,7 @@ fn with_the_surprise_value_on_an_unnoticed_party_starts_the_fight_surprised() {
         let placement = &data.maps[&dungeon(&data)].encounters[0];
         world.position = Position {
             map: dungeon(&data),
+            level: omnis_core::Level::GROUND,
             x: placement.x,
             y: placement.y - 1,
             facing: Facing::South,

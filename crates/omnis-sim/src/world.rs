@@ -15,8 +15,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{
-    Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, MapId, Pcg32, Position, StreamName,
-    fnv1a64,
+    Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, Level, MapId, Pcg32, Position,
+    StreamName, fnv1a64,
 };
 use omnis_data::{Data, DataError, PackFingerprint, ServiceKind};
 use serde::{Deserialize, Serialize};
@@ -30,8 +30,12 @@ pub const SAVE_SCHEMA: u32 = 7;
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapState {
-    /// Open doors by canonical edge (see `door_key`).
+    /// Open doors on the map's own level by canonical edge (see `door_key`).
     pub open_doors: BTreeSet<(u16, u16, Facing)>,
+    /// Open doors on its other levels (M8.5 step 1b), by level and canonical edge; unwritten
+    /// when none, so a save of a map of one level reads as before.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub level_doors: BTreeSet<(Level, u16, u16, Facing)>,
     /// Fixed encounters cleared for good, by their index in the map file.
     #[serde(default)]
     pub cleared: BTreeSet<u16>,
@@ -48,10 +52,27 @@ pub fn door_key(x: u16, y: u16, facing: Facing) -> (u16, u16, Facing) {
 }
 
 impl MapState {
-    /// Whether the door on `facing` of tile `(x, y)` is open.
+    /// Whether the door on `facing` of tile `(x, y)` of `level` is open.
     #[must_use]
-    pub fn door_open(&self, x: u16, y: u16, facing: Facing) -> bool {
-        self.open_doors.contains(&door_key(x, y, facing))
+    pub fn door_open(&self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        let (x, y, facing) = door_key(x, y, facing);
+        if level.is_ground() {
+            self.open_doors.contains(&(x, y, facing))
+        } else {
+            self.level_doors.contains(&(level, x, y, facing))
+        }
+    }
+
+    /// Open the door if closed, close it if open; whether it is open now.
+    pub fn toggle_door(&mut self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        let (x, y, facing) = door_key(x, y, facing);
+        if level.is_ground() {
+            let key = (x, y, facing);
+            !self.open_doors.remove(&key) && self.open_doors.insert(key)
+        } else {
+            let key = (level, x, y, facing);
+            !self.level_doors.remove(&key) && self.level_doors.insert(key)
+        }
     }
 }
 
@@ -86,27 +107,31 @@ pub struct Known {
 /// The party's persistent record of the world (PRD §7.2).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Automap {
-    /// Per map, per tile.
+    /// Per map, per tile of the map's own level.
     pub maps: BTreeMap<MapId, BTreeMap<(u16, u16), Known>>,
+    /// Per map and level, per tile, for the other levels (M8.5 step 1b); unwritten when none,
+    /// so a save that never left level 0 reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub levels: BTreeMap<(MapId, Level), BTreeMap<(u16, u16), Known>>,
 }
 
 impl Automap {
     /// Record a tile: the terrain when `TERRAIN` is carried, the walls and doors when
     /// `STRUCTURE` is, layers merged (`VISITED` sticks), the time the newest. `REMOTE` is set
     /// by a remote recording and cleared by a direct one.
-    pub fn record(&mut self, map: MapId, x: u16, y: u16, known: Known) {
-        let entry = self
-            .maps
-            .entry(map)
-            .or_default()
-            .entry((x, y))
-            .or_insert(Known {
-                terrain: known.terrain,
-                walls: Edges::default(),
-                doors: Edges::default(),
-                layers: 0,
-                seen_at: known.seen_at,
-            });
+    pub fn record(&mut self, map: MapId, level: Level, x: u16, y: u16, known: Known) {
+        let tiles = if level.is_ground() {
+            self.maps.entry(map).or_default()
+        } else {
+            self.levels.entry((map, level)).or_default()
+        };
+        let entry = tiles.entry((x, y)).or_insert(Known {
+            terrain: known.terrain,
+            walls: Edges::default(),
+            doors: Edges::default(),
+            layers: 0,
+            seen_at: known.seen_at,
+        });
         if known.layers & layer::TERRAIN != 0 {
             entry.terrain = known.terrain;
         }
@@ -121,10 +146,14 @@ impl Automap {
         entry.seen_at = known.seen_at;
     }
 
-    /// Known tiles of a map.
+    /// Known tiles of a level of a map.
     #[must_use]
-    pub fn map(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
-        self.maps.get(&map)
+    pub fn tiles(&self, map: MapId, level: Level) -> Option<&BTreeMap<(u16, u16), Known>> {
+        if level.is_ground() {
+            self.maps.get(&map)
+        } else {
+            self.levels.get(&(map, level))
+        }
     }
 }
 
@@ -318,7 +347,13 @@ impl World {
             contacts: BTreeMap::new(),
             party_time: PartyTime::default(),
             bus: crate::time::subscriptions(data),
-            position: Position { map, x, y, facing },
+            position: Position {
+                map,
+                level: omnis_core::Level::GROUND,
+                x,
+                y,
+                facing,
+            },
             maps: BTreeMap::new(),
             automap: Automap::default(),
             mode: Mode::Explore,
@@ -438,7 +473,7 @@ impl World {
         if !data
             .maps
             .get(&p.map)
-            .is_some_and(|map| map.cell(p.x, p.y).is_some())
+            .is_some_and(|map| map.cell(p.level, p.x, p.y).is_some())
         {
             return Err(LoadError::BadPosition(p));
         }
@@ -470,7 +505,10 @@ impl World {
             Mode::Explore => return Ok(()),
             Mode::Town(state) => {
                 let p = self.position;
-                let here = data.maps.get(&p.map).and_then(|m| m.site_at(p.x, p.y));
+                let here = data
+                    .maps
+                    .get(&p.map)
+                    .and_then(|m| m.site_at(p.level, p.x, p.y));
                 let kind = data.services.get(&state.service).map(|s| s.kind);
                 return if here == Some(state.service) && kind == Some(state.kind) {
                     Ok(())

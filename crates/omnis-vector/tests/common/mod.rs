@@ -87,7 +87,13 @@ pub fn town_session_seeded(data: &Data, seed: u64) -> (SimWorld, Binder) {
 
 /// Put the party somewhere directly (tests that do not replay).
 pub fn place(world: &mut SimWorld, map: MapId, x: u16, y: u16, facing: Facing) -> Pose {
-    world.position = Position { map, x, y, facing };
+    world.position = Position {
+        map,
+        level: omnis_sim::omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    };
     Pose::at(world.position)
 }
 

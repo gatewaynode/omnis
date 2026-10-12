@@ -27,7 +27,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{EraId, MapId};
+use omnis_core::{EraId, Level, MapId};
 use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
@@ -88,19 +88,26 @@ pub enum Op {
     /// The viewport model.
     #[serde(rename = "viewport.get")]
     ViewportGet,
-    /// A map as text with the party marker; the party's map when `map` is absent.
+    /// A level of a map as text with the party marker; the party's map when `map` is absent,
+    /// the party's level of it (else the ground) when `level` is.
     #[serde(rename = "map.text")]
     MapText {
         /// Map id such as `test:map:dungeon`.
         #[serde(default)]
         map: Option<String>,
+        /// Level (M8.5 step 1b).
+        #[serde(default)]
+        level: Option<Level>,
     },
-    /// Known tiles of a map; the party's map when `map` is absent.
+    /// Known tiles of a level of a map; the party's map and level when absent, as `map.text`.
     #[serde(rename = "automap.get")]
     AutomapGet {
         /// Map id.
         #[serde(default)]
         map: Option<String>,
+        /// Level (M8.5 step 1b).
+        #[serde(default)]
+        level: Option<Level>,
     },
     /// Host: write the save to a path.
     #[serde(rename = "save.write")]
@@ -317,6 +324,9 @@ pub enum Reply {
     Automap {
         /// The map id.
         map: String,
+        /// The level (M8.5 step 1b); unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// Known tiles, column by column (`x`, then `y`).
         tiles: Vec<KnownTile>,
     },
@@ -498,17 +508,19 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::ViewportGet => query::viewport(world, data)
             .map(Reply::Viewport)
             .ok_or_else(|| unknown(world.position.map, data)),
-        Op::MapText { map } => {
+        Op::MapText { map, level } => {
             let id = resolve_map(world, data, map.as_deref())?;
-            query::map_text(world, data, id)
+            let level = level_of(world, id, *level);
+            query::map_text(world, data, id, level)
                 .map(|text| Reply::Text { text })
                 .ok_or_else(|| unknown(id, data))
         }
-        Op::AutomapGet { map } => {
+        Op::AutomapGet { map, level } => {
             let id = resolve_map(world, data, map.as_deref())?;
+            let level = level_of(world, id, *level);
             let tiles = world
                 .automap
-                .map(id)
+                .tiles(id, level)
                 .map(|known| {
                     known
                         .iter()
@@ -518,6 +530,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
                 .unwrap_or_default();
             Ok(Reply::Automap {
                 map: map_name(id, data),
+                level,
                 tiles,
             })
         }
@@ -650,7 +663,7 @@ pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
     if fresh
         .maps
         .get(&p.map)
-        .and_then(|m| m.cell(p.x, p.y))
+        .and_then(|m| m.cell(p.level, p.x, p.y))
         .is_none()
     {
         return Err(OpError::failed(format!(
@@ -706,6 +719,15 @@ pub fn bounded(s: &str) -> Result<(), OpError> {
             limit: omnis_data::limits::MAX_STRING_BYTES,
         })
     }
+}
+
+/// The level asked for, else the party's level when it is on `map`, else the ground.
+fn level_of(world: &World, map: MapId, asked: Option<Level>) -> Level {
+    asked.unwrap_or(if world.position.map == map {
+        world.position.level
+    } else {
+        Level::GROUND
+    })
 }
 
 fn resolve_map(world: &World, data: &Data, name: Option<&str>) -> Result<MapId, OpError> {

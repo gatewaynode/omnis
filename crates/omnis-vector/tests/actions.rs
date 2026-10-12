@@ -46,6 +46,7 @@ fn at_the_door() -> App {
         let dungeon = map(&session.data, "test:map:dungeon");
         session.world.position = Position {
             map: dungeon,
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: 3,
             y: 5,
             facing: Facing::South,
@@ -60,7 +61,7 @@ fn at_the_door() -> App {
 fn door_open(app: &App) -> bool {
     let session = app.world().resource::<Session>();
     let p = session.world.position;
-    session.world.maps[&p.map].door_open(p.x, p.y, p.facing)
+    session.world.maps[&p.map].door_open(omnis_sim::omnis_core::Level::GROUND, p.x, p.y, p.facing)
 }
 
 fn labels(app: &App) -> Vec<String> {

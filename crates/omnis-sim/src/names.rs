@@ -3,7 +3,7 @@
 //! events and views convert here, so the save and the fingerprint never see a name.
 
 use alloc::string::String;
-use omnis_core::{Facing, Position};
+use omnis_core::{Facing, Level, Position};
 use omnis_data::Data;
 use omnis_data::registry::Interner;
 use omnis_rules::{ActionRef, Named};
@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 pub struct Place {
     /// `pack:map:name`, or `#n` for a map no pack names.
     pub map: String,
+    /// The level of the map (M8.5 step 1b); unwritten when it is the ground.
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub level: Level,
     /// Column, growing east.
     pub x: u16,
     /// Row, growing south.
@@ -28,6 +31,7 @@ impl Place {
     pub fn of(position: Position, data: &Data) -> Self {
         Place {
             map: id_of(&data.registry.maps, position.map),
+            level: position.level,
             x: position.x,
             y: position.y,
             facing: position.facing,

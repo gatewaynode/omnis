@@ -237,8 +237,8 @@ fn advance(
         .maps
         .get(&session.views.position.map)
         .and_then(|m| {
-            m.cell(session.views.position.x, session.views.position.y)
-                .map(|c| m.terrain(c).step_minutes)
+            let p = session.views.position;
+            m.cell(p.level, p.x, p.y).map(|c| m.terrain(c).step_minutes)
         })
         .unwrap_or(1)
         .max(1);

@@ -212,6 +212,7 @@ fn next_facing(facing: Facing) -> Option<Facing> {
 fn teleport(facing: Facing) -> DevCommand {
     DevCommand::Teleport {
         map: "test:map:dungeon".into(),
+        level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
         x: 3,
         y: 4,
         facing,

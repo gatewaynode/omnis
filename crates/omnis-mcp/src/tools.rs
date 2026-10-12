@@ -80,6 +80,13 @@ fn game_tools() -> Vec<Tool> {
             "Map id such as test:map:dungeon; the party's map when absent.",
         )
     };
+    let level = || {
+        Field::new::<Option<omnis_cli::omnis_sim::omnis_core::Level>>(
+            "level",
+            false,
+            "Level of the map (0 the ground, below negative, above positive); the party's level on its map, else 0, when absent.",
+        )
+    };
     let path = |what: &'static str| Field::new::<String>("path", true, what);
     vec![
         tool(
@@ -129,14 +136,14 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "map_text",
             "map.text",
-            "A map as text: walls - |, closed doors = :, open doors _ ', the party as ^ > v <.",
-            &[map()],
+            "A level of a map as text: walls - |, closed doors = :, open doors _ ', ramps /, portals *, no ground _ on a tile, the party as ^ > v <.",
+            &[map(), level()],
         ),
         tool(
             "automap_get",
             "automap.get",
-            "What the party knows of a map: tiles with terrain, walls, doors, layers, and when they were seen.",
-            &[map()],
+            "What the party knows of a level of a map: tiles with terrain, walls, doors, layers, and when they were seen.",
+            &[map(), level()],
         ),
         tool(
             "save_write",

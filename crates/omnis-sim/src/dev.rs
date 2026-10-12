@@ -14,7 +14,7 @@ use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Facing, Position};
+use omnis_core::{CharacterId, Facing, Level, Position};
 use omnis_data::{Ability, Data};
 use omnis_rules::{DeathSaves, level_up, modifier, ready, spell_point_pool};
 use serde::{Deserialize, Serialize};
@@ -96,6 +96,9 @@ pub enum DevCommand {
     Teleport {
         /// `pack:map:name`.
         map: String,
+        /// The level (M8.5 step 1b); the ground when left out.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// Column.
         x: u16,
         /// Row.
@@ -184,8 +187,14 @@ pub(crate) fn apply(
                 .ok_or_else(|| Rejection::UnknownId { id: flag.clone() })?;
             world.flags.insert(id, *value);
         }
-        DevCommand::Teleport { map, x, y, facing } => {
-            teleport(world, data, map, *x, *y, *facing, &mut caused)?;
+        DevCommand::Teleport {
+            map,
+            level,
+            x,
+            y,
+            facing,
+        } => {
+            teleport(world, data, map, *level, (*x, *y), *facing, &mut caused)?;
         }
         DevCommand::Reconcile { region } => {
             if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
@@ -380,8 +389,8 @@ fn teleport(
     world: &mut World,
     data: &Data,
     map: &str,
-    x: u16,
-    y: u16,
+    level: Level,
+    (x, y): (u16, u16),
     facing: Facing,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -396,12 +405,13 @@ fn teleport(
         .ok_or_else(|| Rejection::UnknownId {
             id: String::from(map),
         })?;
-    if data.maps[&id].cell(x, y).is_none() {
+    if data.maps[&id].cell(level, x, y).is_none() {
         return Err(Rejection::OffMap { x, y });
     }
     let from = world.position;
     let to = Position {
         map: id,
+        level,
         x,
         y,
         facing,

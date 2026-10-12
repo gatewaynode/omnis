@@ -26,6 +26,7 @@ fn to(data: &Data, map: &str) -> Command {
     let (x, y, facing) = data.maps[&id].def.start;
     Command::Dev(DevCommand::Teleport {
         map: map.into(),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing,

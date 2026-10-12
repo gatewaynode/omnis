@@ -31,7 +31,14 @@ fn a_fresh_party_sees_only_its_surroundings_and_is_marked() {
     let p = world.position;
     let map = &data.maps[&p.map];
     let pose = Pose::at(p);
-    let raster = paint(map, world.automap.map(p.map), pose);
+    let raster = paint(
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(p.map, omnis_sim::omnis_core::Level::GROUND),
+        pose,
+    );
     let s = raster.scale;
     assert_eq!(raster.width, u32::from(map.def.width) * s);
     assert_eq!(raster.height, u32::from(map.def.height) * s);
@@ -54,7 +61,10 @@ fn walking_reveals_more_and_the_dungeon_walls_show() {
     let start = world.position;
     let before = paint(
         &data.maps[&start.map],
-        world.automap.map(start.map),
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(start.map, omnis_sim::omnis_core::Level::GROUND),
         Pose::at(start),
     );
     // North up the road and through the portal into the dungeon.
@@ -69,13 +79,23 @@ fn walking_reveals_more_and_the_dungeon_walls_show() {
     );
     let meadow = paint(
         &data.maps[&start.map],
-        world.automap.map(start.map),
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(start.map, omnis_sim::omnis_core::Level::GROUND),
         Pose::at(start),
     );
     assert!(painted(&meadow) > painted(&before), "the road was seen");
     let here = world.position;
     assert_ne!(here.map, start.map, "in the dungeon");
-    let dungeon = paint(&data.maps[&here.map], world.automap.map(here.map), pose);
+    let dungeon = paint(
+        &data.maps[&here.map],
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(here.map, omnis_sim::omnis_core::Level::GROUND),
+        pose,
+    );
     assert!(
         dungeon.rgba.as_chunks::<4>().0.contains(&WALL),
         "the dungeon's walls are drawn once seen"
@@ -90,7 +110,7 @@ fn the_marker_points_along_the_yaw() {
     let map = &data.maps[&p.map];
     for facing in omnis_sim::omnis_core::Facing::ALL {
         let pose = Pose::at(omnis_sim::omnis_core::Position { facing, ..p });
-        let raster = paint(map, None, pose);
+        let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, None, pose);
         let s = raster.scale as f32;
         let (fx, fz) = omnis_vector::geom::forward(pose.yaw);
         // How far ahead of the pose, in cells, each marker pixel lies.
@@ -137,7 +157,7 @@ fn an_edge_recorded_on_one_side_is_drawn_once_known() {
         z: 20.5,
         yaw: 0.0,
     };
-    let raster = paint(map, Some(&known), far);
+    let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, Some(&known), far);
     let s = raster.scale;
     for dy in 0..s {
         assert_eq!(raster.pixel(6 * s, 5 * s + dy), Some(WALL));
@@ -153,7 +173,9 @@ fn all_known(
     let mut known = std::collections::BTreeMap::new();
     for y in 0..map.def.height {
         for x in 0..map.def.width {
-            let cell = map.cell(x, y).expect("a cell");
+            let cell = map
+                .cell(omnis_sim::omnis_core::Level::GROUND, x, y)
+                .expect("a cell");
             known.insert(
                 (x, y),
                 omnis_sim::Known {
@@ -181,7 +203,12 @@ fn cliffs_and_ramps_show_on_the_elevation_fixture() {
         z: 4.5,
         yaw: 0.0,
     };
-    let raster = paint(map, Some(&known), pose);
+    let raster = paint(
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        Some(&known),
+        pose,
+    );
     let s = raster.scale;
     // The cliff at x 3 on row 0, from the slope up to 12: its column of pixels (the first is
     // the map's north wall, which wins).

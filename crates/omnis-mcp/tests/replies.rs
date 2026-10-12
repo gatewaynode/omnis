@@ -58,8 +58,20 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
             },
         ),
         ask(&mut game, Op::EventsTail { count: 4 }),
-        ask(&mut game, Op::AutomapGet { map: None }),
-        ask(&mut game, Op::MapText { map: None }),
+        ask(
+            &mut game,
+            Op::AutomapGet {
+                map: None,
+                level: None,
+            },
+        ),
+        ask(
+            &mut game,
+            Op::MapText {
+                map: None,
+                level: None,
+            },
+        ),
         ask(&mut game, Op::PartyGet),
         ask(&mut game, Op::RulesList),
         ask(
@@ -94,6 +106,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
     let town = game.data.registry.maps.get("test:map:town").unwrap();
     game.world.position = Position {
         map: town,
+        level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
         x: 1,
         y: 1,
         facing: Facing::North,

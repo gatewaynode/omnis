@@ -577,11 +577,20 @@ fn door_open_is_the_world_s_door_on_every_edge_of_every_map() {
         for y in 0..map_data.def.height {
             for x in 0..map_data.def.width {
                 for facing in Facing::ALL {
-                    if !map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                    if !map_data
+                        .cell(omnis_core::Level::GROUND, x, y)
+                        .is_some_and(|c| c.doors.has(facing))
+                    {
                         continue;
                     }
                     let mut trial = world.clone();
-                    trial.position = Position { map, x, y, facing };
+                    trial.position = Position {
+                        map,
+                        level: omnis_core::Level::GROUND,
+                        x,
+                        y,
+                        facing,
+                    };
                     let events = apply(&mut trial, &data, Command::Interact).unwrap_or_default();
                     if events.iter().any(|e| matches!(e, Event::Door { .. })) {
                         world = trial;
@@ -594,19 +603,22 @@ fn door_open_is_the_world_s_door_on_every_edge_of_every_map() {
     }
     let (map, x, y, facing) = opened.expect("some door opens");
     assert!(
-        door_open(&world, map, x, y, facing),
+        door_open(&world, map, omnis_core::Level::GROUND, x, y, facing),
         "the opened door reads open"
     );
     let mut doors = 0;
     for (&map, map_data) in &data.maps {
-        let text = map_text(&world, &data, map).expect("map text");
+        let text = map_text(&world, &data, map, omnis_core::Level::GROUND).expect("map text");
         for y in 0..map_data.def.height {
             for x in 0..map_data.def.width {
                 for facing in Facing::ALL {
-                    if map_data.cell(x, y).is_some_and(|c| c.doors.has(facing)) {
+                    if map_data
+                        .cell(omnis_core::Level::GROUND, x, y)
+                        .is_some_and(|c| c.doors.has(facing))
+                    {
                         doors += 1;
                         assert_eq!(
-                            door_open(&world, map, x, y, facing),
+                            door_open(&world, map, omnis_core::Level::GROUND, x, y, facing),
                             drawn_open(&text, x, y, facing),
                             "map {map:?} ({x}, {y}) {facing:?}"
                         );
@@ -617,7 +629,14 @@ fn door_open_is_the_world_s_door_on_every_edge_of_every_map() {
     }
     assert!(doors > 1, "the test pack has doors");
     assert!(
-        !door_open(&world, MapId(u32::MAX), 0, 0, Facing::North),
+        !door_open(
+            &world,
+            MapId(u32::MAX),
+            omnis_core::Level::GROUND,
+            0,
+            0,
+            Facing::North
+        ),
         "an unknown map"
     );
 }

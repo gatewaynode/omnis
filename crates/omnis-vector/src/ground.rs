@@ -8,7 +8,7 @@
 
 use crate::geom::EYE_HEIGHT;
 use crate::pose::Pose;
-use omnis_sim::omnis_core::Facing;
+use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::MapData;
 
 /// The corners of a cell, in the order of [`Patch::corners`].
@@ -56,11 +56,12 @@ fn cells(eighths: i16) -> f32 {
     f32::from(eighths) / 8.0
 }
 
-/// Whether the ground runs on from `(x, y)` across its side toward `facing`: there is a cell
-/// beyond, and the edge is no wall and no cliff from either side. Doors and ramps join.
+/// Whether the ground of `level` runs on from `(x, y)` across its side toward `facing`: there
+/// is a cell beyond, and the edge is no wall and no cliff from either side. Doors and ramps
+/// join.
 #[must_use]
-pub fn joined(map: &MapData, x: u16, y: u16, facing: Facing) -> bool {
-    let Some(here) = map.cell(x, y) else {
+pub fn joined(map: &MapData, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+    let Some(here) = map.cell(level, x, y) else {
         return false;
     };
     let (dx, dy) = facing.delta();
@@ -70,7 +71,7 @@ pub fn joined(map: &MapData, x: u16, y: u16, facing: Facing) -> bool {
     ) else {
         return false;
     };
-    let Some(there) = map.cell(nx, ny) else {
+    let Some(there) = map.cell(level, nx, ny) else {
         return false;
     };
     let back = facing.opposite();
@@ -81,14 +82,15 @@ pub fn joined(map: &MapData, x: u16, y: u16, facing: Facing) -> bool {
 }
 
 impl Ground {
-    /// The ground of `map`.
+    /// The ground of a level of `map`; a tile with no ground there sits at 0 and is never
+    /// drawn.
     #[must_use]
-    pub fn from_map(map: &MapData) -> Ground {
+    pub fn from_map(map: &MapData, level: Level) -> Ground {
         let (width, height) = (map.def.width, map.def.height);
         let mut patches: Vec<Patch> = (0..height)
             .flat_map(|y| (0..width).map(move |x| (x, y)))
             .map(|(x, y)| {
-                let h = map.cell(x, y).map_or(0.0, |c| cells(c.height));
+                let h = map.cell(level, x, y).map_or(0.0, |c| cells(c.height));
                 Patch {
                     centre: h,
                     corners: [h; 4],
@@ -97,7 +99,7 @@ impl Ground {
             .collect();
         for cy in 0..=height {
             for cx in 0..=width {
-                Self::corner(map, &mut patches, cx, cy);
+                Self::corner(map, level, &mut patches, cx, cy);
             }
         }
         Ground {
@@ -109,7 +111,7 @@ impl Ground {
 
     /// Settle the grid corner `(cx, cy)`: the cells around it, grouped by the edges that join
     /// them, each take their group's mean height there.
-    fn corner(map: &MapData, patches: &mut [Patch], cx: u16, cy: u16) {
+    fn corner(map: &MapData, level: Level, patches: &mut [Patch], cx: u16, cy: u16) {
         let width = usize::from(map.def.width);
         // The four cells around the corner and which of their corners it is: north-west,
         // north-east, south-east, south-west of the point.
@@ -140,7 +142,7 @@ impl Ground {
         };
         for (a, b, facing) in links {
             if let (Some((x, y)), Some(_)) = (at(a), at(b))
-                && joined(map, x, y, facing)
+                && joined(map, level, x, y, facing)
             {
                 let (ra, rb) = (root(&group, a), root(&group, b));
                 group[ra.max(rb)] = ra.min(rb);

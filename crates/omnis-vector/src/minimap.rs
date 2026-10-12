@@ -4,7 +4,7 @@
 
 use crate::pose::Pose;
 use omnis_sim::Known;
-use omnis_sim::omnis_core::Facing;
+use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::MapData;
 use omnis_sim::world::layer;
 use std::collections::BTreeMap;
@@ -78,16 +78,22 @@ enum Rise {
 
 /// The cliff and ramp edges of the known tiles, each once, read from the map's cells: a cliff
 /// facing either way, seen from the known side.
-fn rises(map: &MapData, known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, Rise> {
+fn rises(
+    map: &MapData,
+    level: Level,
+    known: &BTreeMap<(u16, u16), Known>,
+) -> BTreeMap<EdgeKey, Rise> {
     let mut out = BTreeMap::new();
     for &(x, y) in known.keys() {
-        let Some(cell) = map.cell(x, y) else { continue };
+        let Some(cell) = map.cell(level, x, y) else {
+            continue;
+        };
         for facing in Facing::ALL {
             let (dx, dy) = facing.delta();
             let beyond = u16::try_from(i32::from(x) + dx)
                 .ok()
                 .zip(u16::try_from(i32::from(y) + dy).ok())
-                .and_then(|(nx, ny)| map.cell(nx, ny));
+                .and_then(|(nx, ny)| map.cell(level, nx, ny));
             let back = facing.opposite();
             let rise = if cell.cliffs.has(facing) || beyond.is_some_and(|b| b.cliffs.has(back)) {
                 Rise::Cliff
@@ -143,7 +149,12 @@ fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> 
 /// Paint the known tiles of `map` (visited ones brighter than ones only seen), their cliffs and
 /// ramps (M8.5 step 4), their walls and doors over those, then the party as a triangle pointing along the yaw.
 #[must_use]
-pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: Pose) -> Raster {
+pub fn paint(
+    map: &MapData,
+    level: Level,
+    known: Option<&BTreeMap<(u16, u16), Known>>,
+    pose: Pose,
+) -> Raster {
     let scale = scale_for(map.def.width, map.def.height);
     let mut out = Raster::filled(
         u32::from(map.def.width) * scale,
@@ -170,7 +181,7 @@ pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: P
             }
         }
     }
-    for (edge, rise) in rises(map, known) {
+    for (edge, rise) in rises(map, level, known) {
         let (pixels, colour) = match rise {
             Rise::Cliff => (edge_pixels(&out, edge, 0), CLIFF),
             Rise::Ramp => (tick_pixels(&out, edge), RAMP),

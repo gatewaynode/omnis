@@ -20,17 +20,17 @@ pub(crate) fn open_door_ahead(world: &mut World, data: &Data, range: u8, events:
         let Some((x, y)) = project(pos, k, 0) else {
             break;
         };
-        let Some(cell) = map.cell(x, y) else {
+        let Some(cell) = map.cell(pos.level, x, y) else {
             break;
         };
         if k > 0 && map.terrain(cell).opaque {
             break;
         }
         if cell.doors.has(pos.facing) {
-            toggle_door(world, data, pos.map, x, y, pos.facing, events);
+            toggle_door(world, data, pos.at(x, y), events);
             return;
         }
-        if !edge_open(map, state, x, y, pos.facing) {
+        if !edge_open(map, state, pos.level, x, y, pos.facing) {
             break;
         }
     }

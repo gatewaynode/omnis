@@ -7,7 +7,7 @@ use crate::encounter::EncounterSource;
 use crate::names::Place;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, EraId, Facing, RollTrace};
+use omnis_core::{CharacterId, EraId, Facing, Level, RollTrace};
 use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
 use omnis_rules::{ActionRef, Named, Trigger};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
@@ -27,6 +27,8 @@ pub enum BlockReason {
     /// The height difference is more than the target terrain allows, up or down, and the
     /// edge is not a ramp.
     Cliff,
+    /// There is no ground there on the party's level (M8.5 step 1b): air or rock.
+    NoGround,
 }
 
 /// A message for the player, named so packs can localize it under `sim:message:<name>`.
@@ -224,6 +226,9 @@ pub enum Event {
     Door {
         /// The map's string id.
         map: String,
+        /// The level (M8.5 step 1b); unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// The tile the party stands on.
         x: u16,
         /// The tile the party stands on.

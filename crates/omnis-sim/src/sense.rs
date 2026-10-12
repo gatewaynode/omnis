@@ -137,11 +137,12 @@ pub(crate) fn resolve(
             .zip(LAYERS)
             .filter(|(check, _)| check.reach >= distance)
             .fold(0u8, |bits, (_, (_, bit))| bits | bit);
-        let Some(cell) = map.cell(*x, *y).filter(|_| layers != 0) else {
+        let Some(cell) = map.cell(pos.level, *x, *y).filter(|_| layers != 0) else {
             continue;
         };
         world.automap.record(
             pos.map,
+            pos.level,
             *x,
             *y,
             Known {

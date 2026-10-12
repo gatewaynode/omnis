@@ -515,6 +515,7 @@ fn flight_takes_the_party_back_or_costs_the_turn() {
     party_of(&mut world, &data, 3);
     let retreat = Position {
         map: world.position.map,
+        level: omnis_core::Level::GROUND,
         x: 16,
         y: 17,
         facing: Facing::South,

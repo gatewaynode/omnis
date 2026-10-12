@@ -107,6 +107,7 @@ pub(crate) fn trigger(
     };
     let retreat = Position {
         map: from.map,
+        level: omnis_core::Level::GROUND,
         x: from.x,
         y: from.y,
         facing: move_facing.opposite(),
@@ -117,7 +118,9 @@ pub(crate) fn trigger(
             .get(&pos.map)
             .is_some_and(|s| s.cleared.contains(i))
     };
-    let placed = map.encounter_at(pos.x, pos.y).filter(|(i, _)| !cleared(i));
+    let placed = map
+        .encounter_at(pos.level, pos.x, pos.y)
+        .filter(|(i, _)| !cleared(i));
     let (source, stacks, disposition, counts) = if let Some((i, e)) = placed {
         (
             EncounterSource::Fixed(i),

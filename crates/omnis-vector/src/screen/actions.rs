@@ -25,10 +25,10 @@ pub struct Offer {
 fn faced_door(world: &SimWorld, data: &Data) -> Option<bool> {
     let p = world.position(data)?;
     let map = data.maps.get(&p.map)?;
-    if !map.cell(p.x, p.y)?.doors.has(p.facing) {
+    if !map.cell(p.level, p.x, p.y)?.doors.has(p.facing) {
         return None;
     }
-    Some(world.door_open(p.map, p.x, p.y, p.facing))
+    Some(world.door_open(p.map, p.level, p.x, p.y, p.facing))
 }
 
 /// Whether the simulation would do something with `command` here: it accepts it, and does not

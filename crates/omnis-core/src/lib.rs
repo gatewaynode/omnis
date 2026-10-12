@@ -21,7 +21,7 @@ pub mod time;
 pub use alloc::collections::{BTreeMap, BTreeSet};
 pub use error::Error;
 pub use fixed::Fixed;
-pub use geom::{Direction, Edges, Facing, Position, Rotation};
+pub use geom::{Direction, Edges, Facing, Level, Position, Rotation};
 pub use id::{
     ActorId, BackgroundId, CharacterId, ClassId, ConditionId, EraId, FlagId, HolderId, ItemId,
     MapId, MonsterId, PartyId, ProjectId, QuestId, RaceId, RegionId, ServiceId, SpellId,

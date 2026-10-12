@@ -1,0 +1,28 @@
+(
+    schema: 1,
+    id: "broken:map:levels",
+    name: "broken:text:map.glyph.name",
+    kind: Dungeon,
+    tileset: "broken:tileset:bad",
+    width: 2,
+    height: 1,
+    start: (0, 0, East),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+        (glyph: '_', name: "nothing", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+    ],
+    layout: [
+        "+-+-+",
+        "|. .|",
+        "+-+-+",
+    ],
+    levels: [
+        (level: 0, name: "again", layout: ["+-+-+", "|. .|", "+-+-+"]),
+        (level: 2, name: "short", layout: ["|. .|"]),
+    ],
+    sites: [
+        (level: 5, x: 0, y: 0, service: "broken:service:none"),
+    ],
+)

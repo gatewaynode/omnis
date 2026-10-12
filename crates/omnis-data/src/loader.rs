@@ -9,6 +9,7 @@ use crate::content::{Content, Files, RawContent, resolve_content};
 use crate::encounter::{self, ResolvedEncounter, ResolvedRandom};
 use crate::error::{DataError, LoadReport};
 use crate::item::Item;
+use crate::levels::{self, LevelData};
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::{Cell, MapDef, Terrain};
@@ -23,7 +24,7 @@ use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId,
+    BackgroundId, Calendar, ClassId, ConditionId, Facing, ItemId, Level, MapId, MonsterId, RaceId,
     RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
@@ -46,12 +47,16 @@ pub struct PackFingerprint {
 /// A portal with its destination resolved to an interned map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedPortal {
+    /// Trigger level.
+    pub level: Level,
     /// Trigger column.
     pub x: u16,
     /// Trigger row.
     pub y: u16,
     /// Destination map.
     pub to_map: MapId,
+    /// Destination level.
+    pub to_level: Level,
     /// Destination column.
     pub to_x: u16,
     /// Destination row.
@@ -65,8 +70,9 @@ pub struct ResolvedPortal {
 pub struct MapData {
     /// The file as written.
     pub def: MapDef,
-    /// Row-major cells, `width × height`.
-    pub cells: Vec<Cell>,
+    /// Every level, lowest first, the map's own (level 0) among them; each row-major,
+    /// `width × height`, `None` where there is no ground.
+    pub levels: Vec<LevelData>,
     /// The interned tileset.
     pub tileset: TilesetId,
     /// The interned display-name key.
@@ -86,14 +92,34 @@ pub struct MapData {
 }
 
 impl MapData {
-    /// The cell at a coordinate, if inside the map.
+    /// The cell at a coordinate of a level, if inside the map, on a level it has, with ground.
     #[must_use]
-    pub fn cell(&self, x: u16, y: u16) -> Option<&Cell> {
-        if x >= self.def.width || y >= self.def.height {
+    pub fn cell(&self, level: Level, x: u16, y: u16) -> Option<&Cell> {
+        if !self.inside(x, y) {
             return None;
         }
-        self.cells
-            .get(usize::from(y) * usize::from(self.def.width) + usize::from(x))
+        self.level(level)?
+            .cells
+            .get(usize::from(y) * usize::from(self.def.width) + usize::from(x))?
+            .as_ref()
+    }
+
+    /// Whether a coordinate is inside the map.
+    #[must_use]
+    pub const fn inside(&self, x: u16, y: u16) -> bool {
+        x < self.def.width && y < self.def.height
+    }
+
+    /// A level of the map, if it has it.
+    #[must_use]
+    pub fn level(&self, level: Level) -> Option<&LevelData> {
+        self.levels.iter().find(|l| l.level == level)
+    }
+
+    /// The next level up (`up`) or down from `level`, if the map has one.
+    #[must_use]
+    pub fn beyond(&self, level: Level, up: bool) -> Option<Level> {
+        levels::beyond(&self.levels, level, up).map(|l| l.level)
     }
 
     /// The terrain of a cell.
@@ -104,37 +130,39 @@ impl MapData {
 
     /// The portal on a tile, if any.
     #[must_use]
-    pub fn portal_at(&self, x: u16, y: u16) -> Option<&ResolvedPortal> {
-        self.portals.iter().find(|p| p.x == x && p.y == y)
+    pub fn portal_at(&self, level: Level, x: u16, y: u16) -> Option<&ResolvedPortal> {
+        self.portals
+            .iter()
+            .find(|p| p.level == level && p.x == x && p.y == y)
     }
 
     /// The fixed encounter on a tile with its index (the key a cleared encounter is remembered
     /// by), if any.
     #[must_use]
-    pub fn encounter_at(&self, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
+    pub fn encounter_at(&self, level: Level, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
         self.encounters
             .iter()
             .enumerate()
-            .find(|(_, e)| e.x == x && e.y == y)
+            .find(|(_, e)| e.level == level && e.x == x && e.y == y)
             .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
     }
 
     /// The `Object` surface marking the portal on a tile, if any.
     #[must_use]
-    pub fn marker_at(&self, x: u16, y: u16) -> Option<&str> {
+    pub fn marker_at(&self, level: Level, x: u16, y: u16) -> Option<&str> {
         self.def
             .portals
             .iter()
-            .find(|p| p.x == x && p.y == y)
+            .find(|p| p.level == level && p.x == x && p.y == y)
             .and_then(|p| p.marker.as_deref())
     }
 
     /// The service placed on a tile, if any.
     #[must_use]
-    pub fn site_at(&self, x: u16, y: u16) -> Option<ServiceId> {
+    pub fn site_at(&self, level: Level, x: u16, y: u16) -> Option<ServiceId> {
         self.sites
             .iter()
-            .find(|s| s.x == x && s.y == y)
+            .find(|s| s.level == level && s.x == x && s.y == y)
             .map(|s| s.service)
     }
 }
@@ -222,7 +250,7 @@ impl Data {
 #[derive(Default)]
 struct Raw {
     tilesets: Files<Tileset>,
-    maps: BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
+    maps: BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
     text: BTreeMap<String, BTreeMap<String, String>>,
     content: RawContent,
 }
@@ -290,8 +318,8 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
         let file = root.join(&rel);
         check_id(&map.id, "map", &file, errors);
         map.validate(&file, errors);
-        let cells = map.cells(&file, errors).unwrap_or_default();
-        raw.maps.insert(map.id.clone(), (file, map, cells));
+        let levels = levels::parse(&map, &file, errors).unwrap_or_default();
+        raw.maps.insert(map.id.clone(), (file, map, levels));
     }
     gather_content(root, &mut hasher, errors, &mut raw.content);
     for lang in list_dirs(root, Path::new("text"), errors) {
@@ -625,7 +653,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     );
     data.regions = regions;
     check_calendar(&data.rules, errors);
-    for (id, (file, def, cells)) in &raw.maps {
+    for (id, (file, def, levels)) in &raw.maps {
         let Some(tileset_id) = data.registry.tilesets.get(&def.tileset) else {
             errors.push(DataError::new(
                 file,
@@ -658,7 +686,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             &data.registry.monsters,
             errors,
         );
-        let sites = service::resolve_sites(def, cells, &data.registry.services, file, errors);
+        let sites = service::resolve_sites(def, levels, &data.registry.services, file, errors);
         let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
         let region = owners.get(&map_ids[id.as_str()]).copied();
         if region.is_none() {
@@ -672,7 +700,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 map_ids[id.as_str()],
                 MapData {
                     def: def.clone(),
-                    cells: cells.clone(),
+                    levels: levels.clone(),
                     tileset: tileset_id,
                     name,
                     portals,
@@ -767,7 +795,7 @@ fn resolve_portals(
     def: &MapDef,
     file: &Path,
     map_ids: &BTreeMap<&str, MapId>,
-    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
+    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
     errors: &mut Vec<DataError>,
 ) -> Vec<ResolvedPortal> {
     let mut portals = Vec::with_capacity(def.portals.len());
@@ -783,6 +811,20 @@ fn resolve_portals(
             continue;
         };
         let (_, target, _) = &maps[&portal.to_map];
+        let has_level = portal.to_level.is_ground()
+            || target
+                .levels
+                .iter()
+                .any(|l| Level(l.level) == portal.to_level);
+        if !has_level {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "portal at ({}, {}) lands on level {}, which map '{}' does not have",
+                    portal.x, portal.y, portal.to_level, portal.to_map
+                ),
+            ));
+        }
         if portal.to_x >= target.width || portal.to_y >= target.height {
             errors.push(DataError::new(
                 file,
@@ -793,9 +835,11 @@ fn resolve_portals(
             ));
         }
         portals.push(ResolvedPortal {
+            level: portal.level,
             x: portal.x,
             y: portal.y,
             to_map,
+            to_level: portal.to_level,
             to_x: portal.to_x,
             to_y: portal.to_y,
             to_facing: portal.to_facing,

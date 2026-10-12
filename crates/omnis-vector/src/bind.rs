@@ -208,7 +208,7 @@ impl Binder {
         let Some(p) = world.position(data) else {
             return (point, None);
         };
-        let reason = |f| blocks(data, world, p.map, p.x, p.y, f);
+        let reason = |f| blocks(data, world, p.map, p.level, p.x, p.y, f);
         let cell = (p.x, p.y);
         let radius = self.tuning.radius;
         let pressed = Facing::ALL

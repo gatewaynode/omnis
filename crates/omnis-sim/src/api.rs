@@ -45,7 +45,7 @@ pub use crate::party::PartyCommand;
 pub use crate::rest::{HitDiceSpend, RestCommand};
 pub use crate::service::ServiceCommand;
 pub use crate::tactics::TacticsCommand;
-pub use omnis_core::{CharacterId, Direction, Facing, MapId, Position, Rotation};
+pub use omnis_core::{CharacterId, Direction, Facing, Level, MapId, Position, Rotation};
 pub use omnis_rules::Draft;
 // A declared reaction as `PutReaction` carries it and `ReactionView` shows it: by string ids.
 pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Row, Trigger, Who};

@@ -179,6 +179,7 @@ pub fn met_with(seed: u64) -> App {
         let dungeon = super::map(&session.data, "test:map:dungeon");
         session.world.position = Position {
             map: dungeon,
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: 3,
             y: 6,
             facing: Facing::South,

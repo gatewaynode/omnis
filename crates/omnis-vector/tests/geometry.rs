@@ -35,7 +35,9 @@ mod flat {
         let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
         for y in 0..map.def.height {
             for x in 0..map.def.width {
-                let Some(cell) = map.cell(x, y) else { continue };
+                let Some(cell) = map.cell(omnis_sim::omnis_core::Level::GROUND, x, y) else {
+                    continue;
+                };
                 let terrain = map.terrain(cell);
                 let h = wall_height(terrain);
                 cells(
@@ -56,7 +58,8 @@ mod flat {
                     } else {
                         continue;
                     };
-                    let open = world.door_open(map_id, x, y, facing);
+                    let open =
+                        world.door_open(map_id, omnis_sim::omnis_core::Level::GROUND, x, y, facing);
                     let entry =
                         edges
                             .entry(key(x, y, facing))
@@ -190,7 +193,13 @@ fn on_the_flat_maps_the_lines_are_what_they_were() {
     let data = data();
     let world = world(&data);
     for (&id, m) in &data.maps {
-        let now = extract(m, id, &world, &Ground::from_map(m));
+        let now = extract(
+            m,
+            id,
+            omnis_sim::omnis_core::Level::GROUND,
+            &world,
+            &Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND),
+        );
         assert_eq!(now, flat::extract_flat(m, id, &world), "{}", m.def.id);
     }
 }
@@ -199,7 +208,13 @@ fn hills() -> (Data, Vec<Segment>) {
     let data = heights_data();
     let id = map(&data, "heights:map:hills");
     let m = &data.maps[&id];
-    let lines = extract(m, id, &world(&data), &Ground::from_map(m));
+    let lines = extract(
+        m,
+        id,
+        omnis_sim::omnis_core::Level::GROUND,
+        &world(&data),
+        &Ground::from_map(m, omnis_sim::omnis_core::Level::GROUND),
+    );
     (data, lines)
 }
 
@@ -213,11 +228,13 @@ fn cliff_edges(data: &Data) -> Vec<(bool, u16, u16)> {
                 (Facing::East, (false, x + 1, y)),
                 (Facing::South, (true, x, y + 1)),
             ] {
-                let cell = m.cell(x, y).expect("a cell");
+                let cell = m
+                    .cell(omnis_sim::omnis_core::Level::GROUND, x, y)
+                    .expect("a cell");
                 let Some(next) = (if facing == Facing::East {
-                    m.cell(x + 1, y)
+                    m.cell(omnis_sim::omnis_core::Level::GROUND, x + 1, y)
                 } else {
-                    m.cell(x, y + 1)
+                    m.cell(omnis_sim::omnis_core::Level::GROUND, x, y + 1)
                 }) else {
                     continue;
                 };

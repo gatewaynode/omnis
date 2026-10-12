@@ -230,7 +230,11 @@ impl Deal {
 /// Go into the service on the party's tile, if there is one. Whether the party went in.
 pub(crate) fn enter_here(world: &mut World, data: &Data, events: &mut Vec<Event>) -> bool {
     let p = world.position;
-    let Some(service) = data.maps.get(&p.map).and_then(|m| m.site_at(p.x, p.y)) else {
+    let Some(service) = data
+        .maps
+        .get(&p.map)
+        .and_then(|m| m.site_at(p.level, p.x, p.y))
+    else {
         return false;
     };
     let Some(def) = data.services.get(&service) else {

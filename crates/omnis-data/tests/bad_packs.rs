@@ -66,6 +66,13 @@ fn every_error_in_a_broken_pack_is_reported() {
         "tile (1, 0) has unknown glyph '?'",
         // data/maps/heights.ron
         "tile (1, 0) west ramp joins heights 24 and 0, more than 16 apart",
+        // data/maps/levels.ron (M8.5 step 1b): shapes on load, then the site at resolution
+        "terrain glyph '_' is reserved for no ground",
+        "site at (0, 0) is on level 5, which the map does not have",
+        "level 0 is the map's own layout; another level needs another number",
+        "level 2: layout has 1 rows; a 1-tile-high map needs 3",
+        "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "map 'broken:map:levels' belongs to no region",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
         "encounter 0 stack count must be at least 1",

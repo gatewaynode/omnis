@@ -23,7 +23,7 @@
 use crate::event::SeenTile;
 use crate::world::{MapState, World};
 use alloc::vec::Vec;
-use omnis_core::{Facing, Position};
+use omnis_core::{Facing, Level, Position};
 use omnis_data::limits::MAX_VISIBILITY_DEPTH;
 use omnis_data::{Data, MapData};
 use omnis_rules::light_depth;
@@ -35,11 +35,21 @@ pub const EYE: i64 = 4;
 
 /// Whether the edge on `facing` of `(x, y)` lets sight and movement through.
 #[must_use]
-pub fn edge_open(map: &MapData, state: Option<&MapState>, x: u16, y: u16, facing: Facing) -> bool {
-    match map.cell(x, y) {
-        None => false,
+pub fn edge_open(
+    map: &MapData,
+    state: Option<&MapState>,
+    level: Level,
+    x: u16,
+    y: u16,
+    facing: Facing,
+) -> bool {
+    match map.cell(level, x, y) {
+        // No ground on this level: nothing there to stop sight; off the map: the edge.
+        None => map.inside(x, y),
         Some(cell) if cell.walls.has(facing) => false,
-        Some(cell) if cell.doors.has(facing) => state.is_some_and(|s| s.door_open(x, y, facing)),
+        Some(cell) if cell.doors.has(facing) => {
+            state.is_some_and(|s| s.door_open(level, x, y, facing))
+        }
         Some(_) => true,
     }
 }
@@ -57,7 +67,7 @@ pub fn project(pos: Position, depth: u8, offset: i8) -> Option<(u16, u16)> {
 /// The visibility depth from the party's tile: the terrain's.
 #[must_use]
 pub fn depth_from(map: &MapData, pos: Position) -> u8 {
-    map.cell(pos.x, pos.y)
+    map.cell(pos.level, pos.x, pos.y)
         .map_or(0, |c| map.terrain(c).visibility_depth)
 }
 
@@ -82,7 +92,7 @@ pub fn depth(world: &World, data: &Data, map: &MapData) -> u8 {
 /// 0 when none is lower.
 #[must_use]
 pub fn above(map: &MapData, pos: Position) -> i64 {
-    let Some(here) = map.cell(pos.x, pos.y) else {
+    let Some(here) = map.cell(pos.level, pos.x, pos.y) else {
         return 0;
     };
     let mut lowest = i64::from(here.height);
@@ -90,7 +100,7 @@ pub fn above(map: &MapData, pos: Position) -> i64 {
         for dx in -1..=1_i32 {
             let x = u16::try_from(i32::from(pos.x) + dx).ok();
             let y = u16::try_from(i32::from(pos.y) + dy).ok();
-            if let Some(cell) = x.zip(y).and_then(|(x, y)| map.cell(x, y)) {
+            if let Some(cell) = x.zip(y).and_then(|(x, y)| map.cell(pos.level, x, y)) {
                 lowest = lowest.min(i64::from(cell.height));
             }
         }
@@ -105,9 +115,11 @@ pub fn above(map: &MapData, pos: Position) -> i64 {
 pub fn line_of_sight(
     map: &MapData,
     state: Option<&MapState>,
+    level: Level,
     from: (u16, u16),
     to: (u16, u16),
 ) -> bool {
+    let sheet = Sheet { map, state, level };
     let start = (2 * i32::from(from.0) + 1, 2 * i32::from(from.1) + 1);
     let (tx, ty) = (2 * i32::from(to.0), 2 * i32::from(to.1));
     let ends = [
@@ -118,8 +130,7 @@ pub fn line_of_sight(
         (tx + 2, ty + 2),
     ];
     ends.iter().any(|&end| {
-        walk(map, state, from, to, start, end, true)
-            || walk(map, state, from, to, start, end, false)
+        walk(&sheet, from, to, start, end, true) || walk(&sheet, from, to, start, end, false)
     })
 }
 
@@ -137,8 +148,31 @@ impl Sight {
     }
 }
 
-fn floor_of(map: &MapData, x: u16, y: u16) -> i64 {
-    map.cell(x, y).map_or(0, |c| i64::from(c.height))
+/// The level a sight line is walked on.
+struct Sheet<'a> {
+    map: &'a MapData,
+    state: Option<&'a MapState>,
+    level: Level,
+}
+
+/// Below any floor: what a tile with no ground on the level counts as, so the line passes
+/// over it.
+/// Far below any height (`±MAX_HEIGHT`), and small enough that the sight arithmetic cannot
+/// overflow.
+const NO_FLOOR: i64 = -(1 << 40);
+
+impl Sheet<'_> {
+    fn cell(&self, x: u16, y: u16) -> Option<&omnis_data::Cell> {
+        self.map.cell(self.level, x, y)
+    }
+
+    fn floor(&self, x: u16, y: u16) -> i64 {
+        self.cell(x, y).map_or(NO_FLOOR, |c| i64::from(c.height))
+    }
+
+    fn open(&self, x: u16, y: u16, facing: Facing) -> bool {
+        edge_open(self.map, self.state, self.level, x, y, facing)
+    }
 }
 
 /// One supercover walk from the point `start` (a tile centre) to the point `end`, in half-tile
@@ -148,8 +182,7 @@ fn floor_of(map: &MapData, x: u16, y: u16) -> i64 {
 /// `target`, or on arriving at `end` (a point on the target's boundary) unblocked. Height is
 /// checked at every crossing, as the module documentation says.
 fn walk(
-    map: &MapData,
-    state: Option<&MapState>,
+    sheet: &Sheet<'_>,
     from: (u16, u16),
     target: (u16, u16),
     start: (i32, i32),
@@ -168,8 +201,8 @@ fn walk(
         return true;
     }
     let sight = Sight {
-        eye: floor_of(map, from.0, from.1) + EYE,
-        floor: floor_of(map, target.0, target.1),
+        eye: sheet.floor(from.0, from.1) + EYE,
+        floor: sheet.floor(target.0, target.1),
     };
     // Where the walk entered the current tile, as a fraction of the way along.
     let mut entered = (0_i64, 1_i64);
@@ -185,9 +218,11 @@ fn walk(
             iy += 1;
             (step_y, (i64::from(2 * iy - 1), i64::from(ny)))
         };
-        let floor = floor_of(map, x, y);
+        let floor = sheet.floor(x, y);
         if (x, y) != from
-            && map.cell(x, y).is_some_and(|c| map.terrain(c).opaque)
+            && sheet
+                .cell(x, y)
+                .is_some_and(|c| sheet.map.terrain(c).opaque)
             && (sight.below(floor + WALL, entered) || sight.below(floor + WALL, at))
         {
             return false;
@@ -200,20 +235,20 @@ fn walk(
             u16::try_from(i32::from(x) + fx).unwrap_or(u16::MAX),
             u16::try_from(i32::from(y) + fy).unwrap_or(u16::MAX),
         );
-        if !edge_open(map, state, x, y, facing) {
-            let top = floor.max(floor_of(map, bx, by)) + WALL;
-            if map.cell(bx, by).is_none() || sight.below(top, at) {
+        if !sheet.open(x, y, facing) {
+            let top = floor.max(sheet.floor(bx, by)) + WALL;
+            if !sheet.map.inside(bx, by) || sight.below(top, at) {
                 return false;
             }
         }
         (x, y) = (bx, by);
-        if map.cell(x, y).is_none() {
+        if !sheet.map.inside(x, y) {
             return false;
         }
         if (x, y) == target {
             return true;
         }
-        if sight.below(floor_of(map, x, y), at) {
+        if sight.below(sheet.floor(x, y), at) {
             return false;
         }
         entered = at;
@@ -229,16 +264,16 @@ pub fn ray(map: &MapData, state: Option<&MapState>, pos: Position, range: u8) ->
     let mut tiles = Vec::new();
     let (mut x, mut y) = (pos.x, pos.y);
     for _ in 0..range {
-        if !edge_open(map, state, x, y, pos.facing) {
+        if !edge_open(map, state, pos.level, x, y, pos.facing) {
             break;
         }
         let Some((nx, ny)) = (Position { x, y, ..pos }).neighbour(pos.facing) else {
             break;
         };
-        let Some(cell) = map.cell(nx, ny) else {
+        let Some(cell) = map.cell(pos.level, nx, ny) else {
             break;
         };
-        if !line_of_sight(map, state, (pos.x, pos.y), (nx, ny)) {
+        if !line_of_sight(map, state, pos.level, (pos.x, pos.y), (nx, ny)) {
             break;
         }
         tiles.push((nx, ny));
@@ -272,10 +307,10 @@ pub fn cone(world: &World, data: &Data) -> Vec<SeenTile> {
             let Some((x, y)) = project(pos, depth, offset) else {
                 continue;
             };
-            if map.cell(x, y).is_none() {
+            if map.cell(pos.level, x, y).is_none() {
                 continue;
             }
-            if line_of_sight(map, state, (pos.x, pos.y), (x, y)) {
+            if line_of_sight(map, state, pos.level, (pos.x, pos.y), (x, y)) {
                 seen.push(SeenTile {
                     x,
                     y,

@@ -87,6 +87,7 @@ fn map_text(args: Args) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     match game.handle(&Op::MapText {
         map: Some(map.clone()),
+        level: None,
     }) {
         Ok(Reply::Text { text }) => {
             print!("{text}");

@@ -110,11 +110,41 @@ pub enum Direction {
     Right,
 }
 
+/// A level of a map (M8.5 step 1b): 0 is the map's own layout, below the ground is negative,
+/// above it positive. Not a character's level.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
+#[serde(transparent)]
+pub struct Level(pub i8);
+
+impl Level {
+    /// The map's own layout.
+    pub const GROUND: Level = Level(0);
+
+    /// Whether this is the map's own layout (level 0), which a save leaves unwritten.
+    #[must_use]
+    #[allow(clippy::trivially_copy_pass_by_ref)] // serde's `skip_serializing_if` passes a reference
+    pub const fn is_ground(&self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Where the party stands and which way it faces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Position {
     /// The map.
     pub map: MapId,
+    /// The level of the map; unwritten when it is the ground, so a save on level 0 reads as
+    /// before.
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub level: Level,
     /// Column, growing east.
     pub x: u16,
     /// Row, growing south.
@@ -152,11 +182,19 @@ impl Position {
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} ({}, {}) facing {}",
-            self.map, self.x, self.y, self.facing
-        )
+        if self.level.is_ground() {
+            write!(
+                f,
+                "{} ({}, {}) facing {}",
+                self.map, self.x, self.y, self.facing
+            )
+        } else {
+            write!(
+                f,
+                "{} level {} ({}, {}) facing {}",
+                self.map, self.level, self.x, self.y, self.facing
+            )
+        }
     }
 }
 
@@ -235,6 +273,7 @@ mod tests {
     fn neighbour_refuses_negative_coordinates() {
         let origin = Position {
             map: MapId(0),
+            level: Level::GROUND,
             x: 0,
             y: 0,
             facing: Facing::North,

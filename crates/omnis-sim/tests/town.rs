@@ -18,7 +18,13 @@ fn service(data: &Data, name: &str) -> ServiceId {
 
 fn town(data: &Data, x: u16, y: u16, facing: Facing) -> Position {
     let map = data.registry.maps.get("test:map:town").unwrap();
-    Position { map, x, y, facing }
+    Position {
+        map,
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    }
 }
 
 /// From the new game's start, down the street to the inn's door, through it, and inside.
@@ -276,6 +282,7 @@ fn the_queries_say_where_a_step_lands_and_which_service_it_goes_into() {
         query::step_lands(&world, &data, Direction::Back),
         Some(Position {
             map: meadow,
+            level: omnis_core::Level::GROUND,
             x: 16,
             y: 30,
             facing: Facing::North

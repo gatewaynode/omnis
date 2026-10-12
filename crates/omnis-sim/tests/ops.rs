@@ -83,6 +83,7 @@ fn text(world: &mut omnis_sim::World, data: &omnis_data::Data, map: Option<&str>
         data,
         &Op::MapText {
             map: map.map(str::to_owned),
+            level: None,
         },
     ) {
         Ok(Reply::Text { text }) => text,
@@ -115,6 +116,7 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
 
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
@@ -135,7 +137,8 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
             &mut world,
             &data,
             &Op::MapText {
-                map: Some("nope".into())
+                map: Some("nope".into()),
+                level: None,
             }
         )
         .unwrap_err(),
@@ -155,9 +158,15 @@ fn automap_get_lists_known_tiles_of_the_named_map() {
         },
     )
     .unwrap();
-    let Reply::Automap { map, tiles } =
-        dispatch(&mut world, &data, &Op::AutomapGet { map: None }).unwrap()
-    else {
+    let Reply::Automap { map, tiles, .. } = dispatch(
+        &mut world,
+        &data,
+        &Op::AutomapGet {
+            map: None,
+            level: None,
+        },
+    )
+    .unwrap() else {
         panic!("not an automap")
     };
     assert_eq!(map, "test:map:meadow");
@@ -168,6 +177,7 @@ fn automap_get_lists_known_tiles_of_the_named_map() {
         &data,
         &Op::AutomapGet {
             map: Some("test:map:dungeon".into()),
+            level: None,
         },
     )
     .unwrap() else {
@@ -238,9 +248,13 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         },
         Op::EventsTail { count: 5 },
         Op::ViewportGet,
-        Op::MapText { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
         Op::AutomapGet {
             map: Some("m".into()),
+            level: None,
         },
         Op::SaveWrite {
             path: "s.ron".into(),

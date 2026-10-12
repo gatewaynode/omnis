@@ -20,7 +20,13 @@ fn hills() -> Data {
 fn at(data: &Data, x: u16, y: u16, facing: Facing) -> World {
     let mut world = World::new(data, 7, Settings::default()).expect("entry map");
     let map = data.registry.maps.get("heights:map:hills").expect("hills");
-    world.position = Position { map, x, y, facing };
+    world.position = Position {
+        map,
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    };
     world
 }
 
@@ -159,6 +165,7 @@ fn standing_high_sees_farther_by_the_rule_s_rise() {
     let map = &data.maps[&data.registry.maps.get("heights:map:hills").expect("hills")];
     let place = |x, y| Position {
         map: data.registry.maps.get("heights:map:hills").expect("hills"),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing: Facing::East,
@@ -191,7 +198,8 @@ fn the_spyglass_stops_where_the_hill_hides_the_ground() {
 fn map_text_draws_a_ramp() {
     let data = hills();
     let world = at(&data, 0, 4, Facing::East);
-    let text = query::map_text(&world, &data, world.position.map).expect("text");
+    let text = query::map_text(&world, &data, world.position.map, omnis_core::Level::GROUND)
+        .expect("text");
     assert_eq!(text.lines().nth(5), Some("|g/g g g g g g g g|"));
 }
 
@@ -252,16 +260,20 @@ mod flat {
                 iy += 1;
                 step_y
             };
-            if (x, y) != from && map.cell(x, y).is_some_and(|c| map.terrain(c).opaque) {
+            if (x, y) != from
+                && map
+                    .cell(omnis_core::Level::GROUND, x, y)
+                    .is_some_and(|c| map.terrain(c).opaque)
+            {
                 return false;
             }
-            if !edge_open(map, state, x, y, facing) {
+            if !edge_open(map, state, omnis_core::Level::GROUND, x, y, facing) {
                 return false;
             }
             let (fx, fy) = facing.delta();
             x = u16::try_from(i32::from(x) + fx).unwrap_or(u16::MAX);
             y = u16::try_from(i32::from(y) + fy).unwrap_or(u16::MAX);
-            if map.cell(x, y).is_none() {
+            if map.cell(omnis_core::Level::GROUND, x, y).is_none() {
                 return false;
             }
             if (x, y) == target {
@@ -279,7 +291,11 @@ fn on_the_flat_maps_sight_is_what_it_was_for_every_pair_of_tiles() {
     for map in data.maps.values() {
         let (w, h) = (map.def.width, map.def.height);
         assert!(
-            map.cells.iter().all(|c| c.height == 0),
+            map.levels
+                .iter()
+                .flat_map(|l| &l.cells)
+                .flatten()
+                .all(|c| c.height == 0),
             "a shipped map is flat"
         );
         for fy in 0..h {
@@ -287,7 +303,7 @@ fn on_the_flat_maps_sight_is_what_it_was_for_every_pair_of_tiles() {
                 for ty in fy.saturating_sub(8)..h.min(fy + 9) {
                     for tx in fx.saturating_sub(8)..w.min(fx + 9) {
                         assert_eq!(
-                            line_of_sight(map, None, (fx, fy), (tx, ty)),
+                            line_of_sight(map, None, omnis_core::Level::GROUND, (fx, fy), (tx, ty)),
                             flat::line_of_sight(map, None, (fx, fy), (tx, ty)),
                             "{} from ({fx}, {fy}) to ({tx}, {ty})",
                             map.def.id

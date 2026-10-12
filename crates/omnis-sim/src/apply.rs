@@ -6,11 +6,11 @@ use crate::names::{Place, id_of};
 use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
 use crate::time;
-use crate::world::{Known, Mode, World, door_key, layer};
+use crate::world::{Known, Mode, World, layer};
 use crate::{INTERACT_MINUTES, PARTY};
 use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
 use alloc::vec::Vec;
-use omnis_core::{Direction, Facing, MapId, Position, Rotation};
+use omnis_core::{Direction, Facing, Position, Rotation};
 use omnis_data::Data;
 
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
@@ -167,7 +167,9 @@ pub(crate) fn landing(
     let pos = world.position;
     let facing = pos.facing.toward(direction);
     let map = data.maps.get(&pos.map).ok_or(BlockReason::MapEdge)?;
-    let cell = map.cell(pos.x, pos.y).ok_or(BlockReason::MapEdge)?;
+    let cell = map
+        .cell(pos.level, pos.x, pos.y)
+        .ok_or(BlockReason::MapEdge)?;
     if cell.walls.has(facing) {
         return Err(BlockReason::Wall);
     }
@@ -175,14 +177,15 @@ pub(crate) fn landing(
         && !world
             .maps
             .get(&pos.map)
-            .is_some_and(|s| s.door_open(pos.x, pos.y, facing))
+            .is_some_and(|s| s.door_open(pos.level, pos.x, pos.y, facing))
     {
         return Err(BlockReason::ClosedDoor);
     }
-    let (x, y, target_cell) = pos
+    let (x, y) = pos
         .neighbour(facing)
-        .and_then(|(x, y)| map.cell(x, y).map(|c| (x, y, c)))
+        .filter(|&(x, y)| map.inside(x, y))
         .ok_or(BlockReason::MapEdge)?;
+    let target_cell = map.cell(pos.level, x, y).ok_or(BlockReason::NoGround)?;
     let terrain = map.terrain(target_cell);
     if !terrain.passable {
         return Err(BlockReason::Impassable);
@@ -191,9 +194,10 @@ pub(crate) fn landing(
         return Err(BlockReason::Cliff);
     }
     let through = map
-        .portal_at(x, y)
+        .portal_at(pos.level, x, y)
         .map(|portal| Position {
             map: portal.to_map,
+            level: portal.to_level,
             x: portal.to_x,
             y: portal.to_y,
             facing: portal.to_facing,
@@ -201,7 +205,7 @@ pub(crate) fn landing(
         .filter(|dest| {
             data.maps
                 .get(&dest.map)
-                .is_some_and(|m| m.cell(dest.x, dest.y).is_some())
+                .is_some_and(|m| m.cell(dest.level, dest.x, dest.y).is_some())
         });
     Ok(Landing {
         to: pos.at(x, y),
@@ -253,7 +257,10 @@ pub(crate) fn retreat(world: &mut World, data: &Data, to: Position, events: &mut
     let minutes = data
         .maps
         .get(&to.map)
-        .and_then(|m| m.cell(to.x, to.y).map(|c| m.terrain(c).step_minutes))
+        .and_then(|m| {
+            m.cell(to.level, to.x, to.y)
+                .map(|c| m.terrain(c).step_minutes)
+        })
         .unwrap_or(1);
     advance(world, data, minutes, events);
     visit(world, data);
@@ -273,7 +280,7 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
     let has_door = data
         .maps
         .get(&pos.map)
-        .and_then(|m| m.cell(pos.x, pos.y))
+        .and_then(|m| m.cell(pos.level, pos.x, pos.y))
         .is_some_and(|c| c.doors.has(pos.facing));
     if !has_door {
         events.push(Event::Message {
@@ -281,30 +288,23 @@ fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
         });
         return;
     }
-    toggle_door(world, data, pos.map, pos.x, pos.y, pos.facing, events);
+    toggle_door(world, data, pos, events);
     advance(world, data, INTERACT_MINUTES, events);
 }
 
-/// Open a closed door or close an open one on the facing edge of a tile, with the event.
-pub(crate) fn toggle_door(
-    world: &mut World,
-    data: &Data,
-    map: MapId,
-    x: u16,
-    y: u16,
-    facing: Facing,
-    events: &mut Vec<Event>,
-) {
-    let key = door_key(x, y, facing);
-    let state = world.map_state(map);
-    let open = if state.open_doors.remove(&key) {
-        false
-    } else {
-        state.open_doors.insert(key);
-        true
-    };
+/// Open a closed door or close an open one on the edge of the tile `at` faces, with the event.
+pub(crate) fn toggle_door(world: &mut World, data: &Data, at: Position, events: &mut Vec<Event>) {
+    let Position {
+        map,
+        level,
+        x,
+        y,
+        facing,
+    } = at;
+    let open = world.map_state(map).toggle_door(level, x, y, facing);
     events.push(Event::Door {
         map: id_of(&data.registry.maps, map),
+        level,
         x,
         y,
         facing,
@@ -315,12 +315,17 @@ pub(crate) fn toggle_door(
 /// Record the party's own tile as visited.
 pub(crate) fn visit(world: &mut World, data: &Data) {
     let pos = world.position;
-    let Some(cell) = data.maps.get(&pos.map).and_then(|m| m.cell(pos.x, pos.y)) else {
+    let Some(cell) = data
+        .maps
+        .get(&pos.map)
+        .and_then(|m| m.cell(pos.level, pos.x, pos.y))
+    else {
         return;
     };
     let seen_at = world.party_clock().elapsed;
     world.automap.record(
         pos.map,
+        pos.level,
         pos.x,
         pos.y,
         Known {
@@ -346,11 +351,15 @@ fn know_portals_beside(world: &mut World, data: &Data) {
         let Some((x, y)) = pos.neighbour(facing) else {
             continue;
         };
-        let Some(cell) = map.cell(x, y).filter(|_| map.portal_at(x, y).is_some()) else {
+        let Some(cell) = map
+            .cell(pos.level, x, y)
+            .filter(|_| map.portal_at(pos.level, x, y).is_some())
+        else {
             continue;
         };
         world.automap.record(
             pos.map,
+            pos.level,
             x,
             y,
             Known {
@@ -367,13 +376,14 @@ fn know_portals_beside(world: &mut World, data: &Data) {
 /// Perceive the cone, record it, and emit `Visible`.
 fn look(world: &mut World, data: &Data, events: &mut Vec<Event>) {
     let tiles = visibility::cone(world, data);
-    let map_id = world.position.map;
+    let (map_id, level) = (world.position.map, world.position.level);
     let seen_at = world.party_clock().elapsed;
     if let Some(map) = data.maps.get(&map_id) {
         for tile in &tiles {
-            if let Some(cell) = map.cell(tile.x, tile.y) {
+            if let Some(cell) = map.cell(level, tile.x, tile.y) {
                 world.automap.record(
                     map_id,
+                    level,
                     tile.x,
                     tile.y,
                     Known {

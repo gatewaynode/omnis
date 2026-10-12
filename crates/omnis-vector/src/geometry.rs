@@ -8,7 +8,7 @@
 use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::sim::SimWorld;
-use omnis_sim::omnis_core::{Facing, MapId};
+use omnis_sim::omnis_core::{Facing, Level, MapId};
 use omnis_sim::omnis_data::MapData;
 use std::collections::BTreeMap;
 
@@ -67,14 +67,23 @@ const HATCH: [f32; 5] = [0.0, 0.25, 0.5, 0.75, 1.0];
 /// How far a ramp's treads lie from its edge, into each cell.
 const TREADS: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
 
-/// The segments for `map` on `ground`, with doors drawn open or closed as `world` has them.
+/// The segments for a level of `map` on its `ground`, with doors drawn open or closed as
+/// `world` has them. Tiles with no ground on the level draw nothing.
 #[must_use]
-pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld, ground: &Ground) -> Vec<Segment> {
+pub fn extract(
+    map: &MapData,
+    map_id: MapId,
+    level: Level,
+    world: &SimWorld,
+    ground: &Ground,
+) -> Vec<Segment> {
     let mut out = Vec::new();
     let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
     for y in 0..map.def.height {
         for x in 0..map.def.width {
-            let Some(cell) = map.cell(x, y) else { continue };
+            let Some(cell) = map.cell(level, x, y) else {
+                continue;
+            };
             let terrain = map.terrain(cell);
             let h = wall_height(terrain);
             let patch = ground.patch(x, y).unwrap_or_default();
@@ -99,7 +108,7 @@ pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld, ground: &Ground) 
                 } else {
                     continue;
                 };
-                let open = world.door_open(map_id, x, y, facing);
+                let open = world.door_open(map_id, level, x, y, facing);
                 let entry =
                     edges
                         .entry(key(x, y, facing))
@@ -121,7 +130,7 @@ pub fn extract(map: &MapData, map_id: MapId, world: &SimWorld, ground: &Ground) 
         let (feet, top) = span(ground, (horizontal, col, row), h);
         edge(&mut out, [x0, z0], [x1, z1], kind, open, rgb, feet, top);
     }
-    heights(&mut out, map, ground);
+    heights(&mut out, map, level, ground);
     out
 }
 
@@ -238,17 +247,19 @@ fn rims(out: &mut Vec<Segment>, ground: &Ground, (x, y): (u16, u16), p: Patch, r
 }
 
 /// Cliff faces and ramp treads, once per edge: each cell's east and south sides.
-fn heights(out: &mut Vec<Segment>, map: &MapData, ground: &Ground) {
+fn heights(out: &mut Vec<Segment>, map: &MapData, level: Level, ground: &Ground) {
     for y in 0..map.def.height {
         for x in 0..map.def.width {
-            let Some(cell) = map.cell(x, y) else { continue };
+            let Some(cell) = map.cell(level, x, y) else {
+                continue;
+            };
             for facing in [Facing::East, Facing::South] {
                 let (nx, ny) = if facing == Facing::East {
                     (x + 1, y)
                 } else {
                     (x, y + 1)
                 };
-                let Some(next) = map.cell(nx, ny) else {
+                let Some(next) = map.cell(level, nx, ny) else {
                     continue;
                 };
                 let back = facing.opposite();
@@ -262,7 +273,7 @@ fn heights(out: &mut Vec<Segment>, map: &MapData, ground: &Ground) {
                 } else {
                     map.terrain(cell).color
                 };
-                if !closed && !joined(map, x, y, facing) {
+                if !closed && !joined(map, level, x, y, facing) {
                     cliff(out, ground, edge, rgb);
                 } else if cell.ramps.has(facing) || next.ramps.has(back) {
                     treads(out, ground, edge, rgb);

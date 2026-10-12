@@ -219,6 +219,7 @@ fn everything() -> Seen {
     let smith = [
         Command::Dev(DevCommand::Teleport {
             map: "test:map:town".into(),
+            level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
             x: 1,
             y: 1,
             facing: Facing::North,

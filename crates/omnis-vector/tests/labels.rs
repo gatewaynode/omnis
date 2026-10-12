@@ -381,6 +381,7 @@ fn dev_edits_read_as_lines_with_names() {
         (
             DevCommand::Teleport {
                 map: "test:map:town".to_owned(),
+                level: omnis_sim::omnis_core::Level::GROUND,
                 x: 3,
                 y: 4,
                 facing: Facing::North,

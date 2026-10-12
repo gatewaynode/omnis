@@ -8,7 +8,7 @@ use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Direction, Facing, MapId, Position, ServiceId};
+use omnis_core::{Direction, Facing, Level, MapId, Position, ServiceId};
 use omnis_data::Data;
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +58,12 @@ pub struct ViewTile {
 pub struct ViewportModel {
     /// The map's string id.
     pub map: String,
+    /// The party's level of the map (M8.5 step 1b); unwritten when it is the ground.
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub level: Level,
+    /// The level's name; empty for the map's own level.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub level_name: String,
     /// Its tileset's string id.
     pub tileset: String,
     /// Which way the party looks.
@@ -144,14 +150,14 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
     let map = data.maps.get(&pos.map)?;
     let state = world.maps.get(&pos.map);
     let edge = |x: u16, y: u16, facing: Facing| {
-        let Some(cell) = map.cell(x, y) else {
+        let Some(cell) = map.cell(pos.level, x, y) else {
             return EdgeView::Open;
         };
         if cell.walls.has(facing) {
             EdgeView::Wall
         } else if cell.doors.has(facing) {
             EdgeView::Door {
-                open: state.is_some_and(|s| s.door_open(x, y, facing)),
+                open: state.is_some_and(|s| s.door_open(pos.level, x, y, facing)),
             }
         } else if cell.ramps.has(facing) {
             EdgeView::Ramp
@@ -162,7 +168,7 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
     let tiles = visibility::cone(world, data)
         .into_iter()
         .filter_map(|t| {
-            let cell = map.cell(t.x, t.y)?;
+            let cell = map.cell(pos.level, t.x, t.y)?;
             Some(ViewTile {
                 depth: t.depth,
                 offset: t.offset,
@@ -178,6 +184,11 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
         .collect();
     Some(ViewportModel {
         map: id_of(&data.registry.maps, pos.map),
+        level: pos.level,
+        level_name: map
+            .level(pos.level)
+            .map(|l| l.name.clone())
+            .unwrap_or_default(),
         tileset: id_of(&data.registry.tilesets, map.tileset),
         facing: pos.facing,
         detail_depth: data
@@ -189,30 +200,32 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
     })
 }
 
-/// The party's knowledge of a map.
+/// The party's knowledge of a level of a map.
 #[must_use]
-pub fn automap(world: &World, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
-    world.automap.map(map)
+pub fn automap(world: &World, map: MapId, level: Level) -> Option<&BTreeMap<(u16, u16), Known>> {
+    world.automap.tiles(map, level)
 }
 
 /// A map as text in the layout format of `omnis_data::map` (`2h+1` rows of `2w+1`
 /// characters), with the world's door state and the party: walls `-` and `|`, closed doors
 /// `=` and `:`, open doors `_` and `'`, ramps `/`, a portal as `*` on its tile (a glyph no
-/// terrain may use), and the party as `^`, `>`, `v`, or `<` on its tile, over a portal.
-/// `None` when the map is not loaded.
+/// terrain may use), no ground as `_` (M8.5 step 1b), and the party as `^`, `>`, `v`, or `<`
+/// on its tile, over a portal. One level at a time. `None` when the map is not loaded or has
+/// no such level.
 #[must_use]
-pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
+pub fn map_text(world: &World, data: &Data, map_id: MapId, level: Level) -> Option<String> {
     let map = data.maps.get(&map_id)?;
+    map.level(level)?;
     let state = world.maps.get(&map_id);
     let (w, h) = (map.def.width, map.def.height);
     let edge = |x: u16, y: u16, facing: Facing, glyphs: [char; 3]| -> char {
-        let Some(cell) = map.cell(x, y) else {
+        let Some(cell) = map.cell(level, x, y) else {
             return ' ';
         };
         if cell.walls.has(facing) {
             glyphs[0]
         } else if cell.doors.has(facing) {
-            if state.is_some_and(|s| s.door_open(x, y, facing)) {
+            if state.is_some_and(|s| s.door_open(level, x, y, facing)) {
                 glyphs[2]
             } else {
                 glyphs[1]
@@ -235,17 +248,18 @@ pub fn map_text(world: &World, data: &Data, map_id: MapId) -> Option<String> {
         out.push_str("+\n");
         for x in 0..w {
             out.push(edge(x, y, Facing::West, column_edge));
-            let glyph = if party.map == map_id && (party.x, party.y) == (x, y) {
+            let glyph = if (party.map, party.level, party.x, party.y) == (map_id, level, x, y) {
                 match party.facing {
                     Facing::North => '^',
                     Facing::East => '>',
                     Facing::South => 'v',
                     Facing::West => '<',
                 }
-            } else if map.portal_at(x, y).is_some() {
+            } else if map.portal_at(level, x, y).is_some() {
                 '*'
             } else {
-                map.cell(x, y).map_or('?', |c| map.terrain(c).glyph)
+                map.cell(level, x, y)
+                    .map_or(omnis_data::levels::NO_GROUND, |c| map.terrain(c).glyph)
             };
             out.push(glyph);
         }
@@ -279,20 +293,20 @@ pub fn step_lands(world: &World, data: &Data, direction: Direction) -> Option<Po
         .map(crate::apply::Landing::end)
 }
 
-/// Whether the door on `facing` of tile `(x, y)` of `map` is open: the world's state, not the
-/// party's knowledge (a client drawing the map or predicting a step asks this). `false` for a
-/// door never opened, an edge without a door, or a map not loaded.
+/// Whether the door on `facing` of tile `(x, y)` of a level of `map` is open: the world's
+/// state, not the party's knowledge (a client drawing the map or predicting a step asks this).
+/// `false` for a door never opened, an edge without a door, or a map not loaded.
 #[must_use]
-pub fn door_open(world: &World, map: MapId, x: u16, y: u16, facing: Facing) -> bool {
+pub fn door_open(world: &World, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
     world
         .maps
         .get(&map)
-        .is_some_and(|state| state.door_open(x, y, facing))
+        .is_some_and(|state| state.door_open(level, x, y, facing))
 }
 
 /// The service a step in `direction` would go into, if it lands on a site.
 #[must_use]
 pub fn site_ahead(world: &World, data: &Data, direction: Direction) -> Option<ServiceId> {
     let at = step_lands(world, data, direction)?;
-    data.maps.get(&at.map)?.site_at(at.x, at.y)
+    data.maps.get(&at.map)?.site_at(at.level, at.x, at.y)
 }

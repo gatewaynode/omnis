@@ -140,6 +140,7 @@ pub(crate) fn placed(
     let def = &data.maps[&map].encounters[index];
     world.position = Position {
         map,
+        level: omnis_core::Level::GROUND,
         x: def.x,
         y: def.y,
         facing: Facing::North,

@@ -442,8 +442,14 @@ fn the_hidden_grid_drops_the_floor_and_ceiling_and_keeps_the_rest() {
     let session = Session::start(&config()).expect("a session");
     let map = session.views.position.map;
     let data = &session.data.maps[&map];
-    let ground = omnis_vector::ground::Ground::from_map(data);
-    let lines = extract(data, map, &session.world, &ground);
+    let ground = omnis_vector::ground::Ground::from_map(data, omnis_sim::omnis_core::Level::GROUND);
+    let lines = extract(
+        data,
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        &session.world,
+        &ground,
+    );
     let grid = |k: SegKind| matches!(k, SegKind::Floor | SegKind::Ceiling);
     assert!(
         lines.iter().any(|l| grid(l.kind)),

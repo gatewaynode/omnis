@@ -12,7 +12,7 @@ use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
-use omnis_sim::omnis_core::MapId;
+use omnis_sim::omnis_core::{Level, MapId};
 
 /// Cells beyond the visibility depth before a line has faded out completely.
 const FOG_EXTRA: f32 = 2.0;
@@ -25,7 +25,7 @@ const FOV: f32 = 0.96;
 /// The current map's ground and segments, rebuilt when the map changes or a door moves.
 #[derive(Resource, Default)]
 pub struct Lines {
-    map: Option<MapId>,
+    map: Option<(MapId, Level)>,
     ground: Ground,
     segments: Vec<Segment>,
 }
@@ -93,17 +93,17 @@ fn line_style(mut store: ResMut<GizmoConfigStore>) {
 }
 
 fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
-    let map = session.views.position.map;
-    if lines.map == Some(map) && !session.reshape {
+    let (map, level) = (session.views.position.map, session.views.position.level);
+    if lines.map == Some((map, level)) && !session.reshape {
         return;
     }
     session.reshape = false;
     if let Some(data) = session.data.maps.get(&map) {
-        if lines.map != Some(map) {
-            lines.ground = Ground::from_map(data);
+        if lines.map != Some((map, level)) {
+            lines.ground = Ground::from_map(data, level);
         }
-        lines.segments = extract(data, map, &session.world, &lines.ground);
-        lines.map = Some(map);
+        lines.segments = extract(data, map, level, &session.world, &lines.ground);
+        lines.map = Some((map, level));
     }
 }
 

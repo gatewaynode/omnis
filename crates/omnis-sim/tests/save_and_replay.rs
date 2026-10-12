@@ -128,6 +128,7 @@ fn loads_are_checked() {
     let mut lost = world.clone();
     lost.position = Position {
         map: omnis_core::MapId(99),
+        level: omnis_core::Level::GROUND,
         x: 0,
         y: 0,
         facing: Facing::North,
@@ -233,7 +234,7 @@ fn a_schema_2_save_migrates() {
         world.party.members[0].equipped
     );
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
     assert_eq!(text.matches("schema: 7").count(), 1);
@@ -276,7 +277,7 @@ fn a_schema_3_save_migrates() {
     assert!(world.party.effects.is_empty());
     assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
     assert_eq!(text.matches("schema: 7").count(), 1);
     assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
@@ -314,7 +315,7 @@ fn a_schema_4_save_migrates() {
     assert!(!text.contains("spell_picks"));
     assert!(world.party.members.iter().all(|m| m.spell_picks == 0));
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
     assert_eq!(text.matches("schema: 7").count(), 1);
     assert_eq!(
@@ -616,12 +617,13 @@ fn capture_schema_2_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!(world.schema, 2);
     write_ron(&save_path("v2"), &world).unwrap();
 }
@@ -652,12 +654,13 @@ fn capture_schema_3_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!(world.schema, 3);
     write_ron(&save_path("v3"), &world).unwrap();
 }
@@ -688,12 +691,13 @@ fn capture_schema_4_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!((world.schema, world.party.gold), (4, 15));
     write_ron(&save_path("v4"), &world).unwrap();
 }

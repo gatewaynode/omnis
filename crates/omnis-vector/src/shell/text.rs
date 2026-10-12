@@ -34,6 +34,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 BlockReason::Impassable => "impassable ground",
                 BlockReason::MapEdge => "the map edge",
                 BlockReason::Cliff => "too steep",
+                BlockReason::NoGround => "no ground",
             }
         ),
         Event::Door { open, .. } => if *open {
@@ -300,9 +301,20 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
         DevCommand::SetGold { gold } => format!("dev: gold {}", labels::coins(*gold)),
         DevCommand::SetFood { food } => format!("dev: food {food}"),
         DevCommand::SetFlag { flag, value } => format!("dev: {flag} = {value}"),
-        DevCommand::Teleport { map, x, y, facing } => format!(
-            "dev: teleport to {} ({x}, {y}) facing {facing}",
-            labels::map(data, map)
+        DevCommand::Teleport {
+            map,
+            level,
+            x,
+            y,
+            facing,
+        } => format!(
+            "dev: teleport to {}{} ({x}, {y}) facing {facing}",
+            labels::map(data, map),
+            if level.is_ground() {
+                String::new()
+            } else {
+                format!(" level {level}")
+            }
         ),
         DevCommand::SetMonsterHp { stack, index, hp } => format!(
             "dev: stack {} #{} hp {hp}",

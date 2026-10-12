@@ -23,6 +23,8 @@ pub const MAX_VISIBILITY_DEPTH: u8 = 32;
 pub const MAX_HEIGHT: i16 = 4096;
 /// The most a ramp edge may join, in eighths of a cell: two wall heights.
 pub const MAX_RAMP: i32 = 16;
+/// Levels a map may have, its own among them (M8.5 step 1b).
+pub const MAX_LEVELS: usize = 16;
 /// Stacks an encounter may hold: the combat screen lists four.
 pub const MAX_STACKS: usize = 4;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).

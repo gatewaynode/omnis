@@ -5,8 +5,8 @@
 //! Bevy-free.
 
 use omnis_sim::api::{
-    CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId,
-    ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
+    CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, Level,
+    MapId, ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
     ServiceView, Settings, Status, World, apply, automap, cast_view, check_reload, combat_view,
     creation_view, dispatch, door_open, here, party_view, rest_view, save_text, service_view,
     status, step_lands, viewport,
@@ -125,16 +125,16 @@ impl SimWorld {
         service_view(&self.0, data)
     }
 
-    /// What the party knows of a map (`api::automap`).
+    /// What the party knows of a level of a map (`api::automap`).
     #[must_use]
-    pub fn automap(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
-        automap(&self.0, map)
+    pub fn automap(&self, map: MapId, level: Level) -> Option<&BTreeMap<(u16, u16), Known>> {
+        automap(&self.0, map, level)
     }
 
     /// Whether a door is open in the world (`api::door_open`).
     #[must_use]
-    pub fn door_open(&self, map: MapId, x: u16, y: u16, facing: Facing) -> bool {
-        door_open(&self.0, map, x, y, facing)
+    pub fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        door_open(&self.0, map, level, x, y, facing)
     }
 
     /// Where a step in `direction` would leave the party (`api::step_lands`).
@@ -200,6 +200,7 @@ impl core::ops::DerefMut for SimWorld {
 fn position(data: &Data, here: &Here) -> Option<Position> {
     Some(Position {
         map: data.registry.maps.get(&here.position.map)?,
+        level: omnis_sim::omnis_core::Level::GROUND,
         x: here.position.x,
         y: here.position.y,
         facing: here.position.facing,
@@ -255,6 +256,7 @@ impl Views {
         // A map no pack names (never the case for a loaded world) reads as one no pack holds.
         let position = position(data, &here).unwrap_or(Position {
             map: MapId(u32::MAX),
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: here.position.x,
             y: here.position.y,
             facing: here.position.facing,

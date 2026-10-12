@@ -38,6 +38,12 @@ impl Schema for omnis_cli::omnis_sim::ops::ShotTarget {
     }
 }
 
+impl Schema for omnis_cli::omnis_sim::omnis_core::Level {
+    fn schema() -> Value {
+        json!({"type": "integer", "minimum": -128, "maximum": 127})
+    }
+}
+
 impl<T: Schema> Schema for Option<T> {
     fn schema() -> Value {
         T::schema()
@@ -120,6 +126,22 @@ fn variant(name: &str, fields: &[(&str, Value)]) -> Value {
     json!({"type": "object", "properties": {name: {"type": "object", "properties": properties, "required": required, "additionalProperties": false}}, "required": [name], "additionalProperties": false})
 }
 
+/// `Teleport`: every field required but `level` (the ground when left out, M8.5 step 1b).
+fn teleport(facing: Value) -> Value {
+    let mut v = variant(
+        "Teleport",
+        &[
+            ("map", String::schema()),
+            ("level", omnis_cli::omnis_sim::omnis_core::Level::schema()),
+            ("x", index()),
+            ("y", index()),
+            ("facing", facing),
+        ],
+    );
+    v["properties"]["Teleport"]["required"] = json!(["map", "x", "y", "facing"]);
+    v
+}
+
 /// The `Dev` command's variants: debugging edits, accepted only in a devtools world.
 fn dev_schema() -> Value {
     let member = ("member", member_id());
@@ -135,7 +157,7 @@ fn dev_schema() -> Value {
         variant("SetScore", &[member.clone(), ("ability", abilities), ("score", index())]),
         variant("SetCondition", &[member.clone(), ("condition", String::schema()), ("applied", bool::schema())]),
         variant("SetFlag", &[("flag", String::schema()), ("value", json!({"type": "integer"}))]),
-        variant("Teleport", &[("map", String::schema()), ("x", index()), ("y", index()), ("facing", facing)]),
+        teleport(facing),
         variant("SetMonsterHp", &[("stack", index()), ("index", index()), ("hp", json!({"type": "integer"}))]),
         variant("KillStack", &[("stack", index())]),
         variant("Reconcile", &[("region", String::schema())])

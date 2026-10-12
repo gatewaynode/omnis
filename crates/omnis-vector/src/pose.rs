@@ -83,6 +83,7 @@ mod tests {
     fn forward_from_a_south_facing_start_increases_z() {
         let start = Pose::at(Position {
             map: MapId(0),
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: 1,
             y: 0,
             facing: Facing::South,
