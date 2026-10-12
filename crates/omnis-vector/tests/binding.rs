@@ -4,10 +4,10 @@
 
 use crate::common;
 
-use common::{data, drive, map, place, session, steps, town_session_seeded};
+use common::{data, drive, heights_data, map, place, session, steps, town_session_seeded};
 use core::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use omnis_sim::omnis_core::{Direction, Facing};
-use omnis_sim::{Command, Event, Mode, Settings};
+use omnis_sim::{BlockReason, Command, Event, Mode, Settings};
 use omnis_vector::geom::yaw_of;
 use omnis_vector::grid::cell_of;
 use omnis_vector::pose::Pose;
@@ -140,6 +140,27 @@ fn water_is_impassable_and_the_pose_slides_along_it() {
     assert_eq!(world.position.y, 25);
     assert!(world.position.x > 10);
     assert_eq!(binder.disagreements, 0);
+}
+
+/// A cliff is drawn flat until M8.5 step 4, so the mirror's hold is all the player meets: the
+/// binder names it once when the pose first presses on it, not every frame it stays pressed.
+#[test]
+fn pressing_on_a_cliff_names_it_once_per_contact() {
+    let data = heights_data();
+    let (mut world, mut binder) = session(&data);
+    let hills = map(&data, "heights:map:hills");
+    let start = place(&mut world, hills, 0, 0, Facing::East);
+    let east = yaw_of(Facing::East);
+    let (pose, _, outs) = drive(&mut binder, &mut world, &data, start, (STEP, 0.0), east, 80);
+    assert_eq!(position(&world), (2, 0), "the slope walks, the cliff holds");
+    let bumps: Vec<_> = outs.iter().filter_map(|o| o.bumped).collect();
+    assert_eq!(bumps, [BlockReason::Cliff]);
+    assert_eq!((binder.refusals, binder.disagreements), (0, 0));
+    // Letting go and pressing again is a new contact.
+    let (pose, _, _) = drive(&mut binder, &mut world, &data, pose, (0.0, 0.0), east, 5);
+    let (_, _, outs) = drive(&mut binder, &mut world, &data, pose, (STEP, 0.0), east, 10);
+    let bumps: Vec<_> = outs.iter().filter_map(|o| o.bumped).collect();
+    assert_eq!(bumps, [BlockReason::Cliff]);
 }
 
 #[test]

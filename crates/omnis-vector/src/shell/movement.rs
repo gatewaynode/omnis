@@ -9,6 +9,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use core::f32::consts::FRAC_PI_2;
+use omnis_sim::{BlockReason, Event};
 
 /// Cells a second on terrain that costs one minute a step; slower terrain is slower to cross.
 pub const BASE_SPEED: f32 = 3.0;
@@ -209,6 +210,11 @@ fn advance(
     }
     session.pose = pose;
     session.note(&out.events);
+    // Walls, doors and impassable ground are drawn; a cliff is not yet (M8.5 step 4), so its
+    // hold is named with the line a step into it would give.
+    if let Some(reason) = out.bumped.filter(|&r| r == BlockReason::Cliff) {
+        session.note(&[Event::Blocked { reason }]);
+    }
     *intent = Intent {
         pending_turn: intent.pending_turn,
         looking: intent.looking,

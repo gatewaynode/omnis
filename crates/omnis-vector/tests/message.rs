@@ -68,3 +68,53 @@ fn the_line_shows_the_last_event_a_refusal_in_alert_and_clears_on_a_move() {
     app.update();
     assert_eq!(drawn(&mut app), None, "hidden under a screen");
 }
+
+/// The window draws a cliff flat until M8.5 step 4, and the mirror holds the pose before the
+/// simulation hears of the step: the line says why, once, where a step into it would.
+#[test]
+fn walking_into_a_cliff_says_it_is_too_steep_once() {
+    use bevy::input::ButtonState;
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut config = common::app::config();
+    config
+        .packs
+        .push(root.join("crates/omnis-sim/tests/packs/heights"));
+    let mut app = common::app::shell(config, true);
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let session = &mut *session;
+        let hills = common::map(&session.data, "heights:map:hills");
+        session.pose = common::place(
+            &mut session.world,
+            hills,
+            0,
+            0,
+            omnis_sim::omnis_core::Facing::East,
+        );
+        session.refresh();
+    }
+    app.update();
+    common::app::key(&mut app, KeyCode::KeyW, ButtonState::Pressed);
+    for _ in 0..120 {
+        app.update();
+    }
+    common::app::key(&mut app, KeyCode::KeyW, ButtonState::Released);
+    app.update();
+    let session = app.world().resource::<Session>();
+    assert_eq!(
+        (session.views.position.x, session.views.position.y),
+        (2, 0),
+        "the slope walks, the cliff holds"
+    );
+    let said: Vec<_> = session
+        .lines
+        .iter()
+        .filter(|l| l.as_str() == "Blocked: too steep")
+        .collect();
+    assert_eq!(said.len(), 1, "{:?}", session.lines);
+    let (text, tint) = drawn(&mut app).expect("the line");
+    assert_eq!(
+        (text.as_str(), tint),
+        ("Blocked: too steep", colour(Role::Interface))
+    );
+}

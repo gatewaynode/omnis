@@ -4,7 +4,7 @@
 
 use crate::common;
 
-use common::{SEED, data};
+use common::{SEED, data, heights_data};
 use omnis_sim::omnis_core::{Direction, Facing, Position};
 use omnis_sim::{BlockReason, Command, Event, Settings, World, apply};
 use omnis_vector::collide::blocks;
@@ -106,13 +106,6 @@ fn the_mirror_agrees_with_the_simulation_everywhere() {
 /// The engine's elevation fixture (M8.5 step 1a): slopes, cliffs, a one-way edge and a ramp.
 #[test]
 fn the_mirror_agrees_on_cliffs_and_ramps() {
-    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let data = omnis_sim::omnis_data::load_packs(&[
-        &root.join("packs/base"),
-        &root.join("packs/test"),
-        &root.join("crates/omnis-sim/tests/packs/heights"),
-    ])
-    .expect("the fixture loads");
-    let met = agree(&data);
+    let met = agree(&heights_data());
     assert!(met.cliffs > 10, "{} cliffs met", met.cliffs);
 }

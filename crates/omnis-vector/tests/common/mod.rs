@@ -30,6 +30,18 @@ pub fn data() -> Data {
     load_packs(&[base.as_path(), test.as_path()]).expect("the shipped packs load")
 }
 
+/// The shipped packs and the engine's elevation fixture (M8.5 step 1a): slopes, cliffs, a
+/// one-way edge and a ramp, on `heights:map:hills`.
+pub fn heights_data() -> Data {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/heights"),
+    ])
+    .expect("the fixture loads")
+}
+
 /// The member at marching-order `slot`, by identity.
 pub fn id(world: &SimWorld, slot: u8) -> CharacterId {
     world.party.members[usize::from(slot)].id
