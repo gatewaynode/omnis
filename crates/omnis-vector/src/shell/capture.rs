@@ -1,6 +1,7 @@
 //! `--screenshot`: hold forward for `--walk` frames, settle, capture, exit. The capture renders
 //! offscreen (no window: the camera targets an image), so it works where no window server
-//! drives frames, such as an agent's shell or CI.
+//! drives frames, such as an agent's shell or CI. With `--timing` the loop runs uncapped and
+//! the frame times from the walk to the capture are reported (presentation-ARCHITECTURE §8.6).
 //!
 //! [`ShotRequest`]: what the running window shows, for the dev socket's `screenshot`. Both
 //! cameras render into an image the window's size for a few frames (a plain window capture is
@@ -48,6 +49,9 @@ const SETTLE: u32 = 30;
 /// Frames after the capture before exiting, so the file is written.
 const WRITE: u32 = 20;
 
+/// Frames left out of the timing at the start, while pipelines compile and assets load.
+const WARM: u32 = 10;
+
 /// The capture plan.
 #[derive(Resource)]
 pub struct Capture {
@@ -55,6 +59,8 @@ pub struct Capture {
     pub path: PathBuf,
     /// Frames to hold forward first.
     pub walk: u32,
+    /// The frame times, when they are reported.
+    pub timing: Option<FrameTimes>,
     frame: u32,
 }
 
@@ -65,7 +71,49 @@ impl Capture {
         Capture {
             path,
             walk,
+            timing: None,
             frame: 0,
+        }
+    }
+
+    /// The same plan, reporting its frame times.
+    #[must_use]
+    pub fn timed(self) -> Capture {
+        Capture {
+            timing: Some(FrameTimes::default()),
+            ..self
+        }
+    }
+}
+
+/// Frame times, in seconds, in the order they came.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct FrameTimes(pub Vec<f32>);
+
+impl FrameTimes {
+    /// The frame count, and the mean and worst frame time in milliseconds; `None` with no frames.
+    #[must_use]
+    pub fn summary(&self) -> Option<(usize, f32, f32)> {
+        let n = self.0.len();
+        if n == 0 {
+            return None;
+        }
+        // A capture's frame count is far below f32's exact integers.
+        #[allow(clippy::cast_precision_loss)]
+        let mean = self.0.iter().sum::<f32>() / n as f32;
+        let worst = self.0.iter().copied().fold(0.0, f32::max);
+        Some((n, mean * 1000.0, worst * 1000.0))
+    }
+
+    /// The report: a line to read and a JSON line to parse.
+    #[must_use]
+    pub fn report(&self) -> String {
+        match self.summary() {
+            Some((n, mean, worst)) => format!(
+                "timing: {n} frames, mean {mean:.2} ms, worst {worst:.2} ms\n\
+                 {{\"frames\":{n},\"mean_ms\":{mean:.3},\"worst_ms\":{worst:.3}}}"
+            ),
+            None => "timing: no frames (the walk was shorter than the warm-up)".to_owned(),
         }
     }
 }
@@ -107,10 +155,17 @@ fn drive(
     mut capture: ResMut<Capture>,
     mut intent: ResMut<Intent>,
     target: Option<Res<Offscreen>>,
+    time: Res<Time<Real>>,
     mut exit: MessageWriter<AppExit>,
 ) {
     capture.frame += 1;
     let frame = capture.frame;
+    let shot = capture.walk + SETTLE;
+    if (WARM < frame && frame <= shot)
+        && let Some(times) = capture.timing.as_mut()
+    {
+        times.0.push(time.delta_secs());
+    }
     if frame <= capture.walk {
         intent.motion = Motion {
             forward: 1.0,
@@ -124,6 +179,9 @@ fn drive(
             .spawn(shot)
             .observe(save_to_disk(capture.path.clone()));
     } else if frame >= capture.walk + SETTLE + WRITE {
+        if let Some(times) = &capture.timing {
+            println!("{}", times.report());
+        }
         exit.write(AppExit::Success);
     }
 }
@@ -211,5 +269,27 @@ fn live(
                 },
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FrameTimes;
+
+    #[test]
+    fn the_frame_times_report_their_mean_and_worst_in_milliseconds() {
+        let times = FrameTimes(vec![0.010, 0.020, 0.030]);
+        let (n, mean, worst) = times.summary().expect("frames");
+        assert_eq!(n, 3);
+        assert!((mean - 20.0).abs() < 1e-3, "{mean}");
+        assert!((worst - 30.0).abs() < 1e-3, "{worst}");
+        assert!(
+            times
+                .report()
+                .contains(r#"{"frames":3,"mean_ms":20.000,"worst_ms":30.000}"#),
+            "{}",
+            times.report()
+        );
+        assert_eq!(FrameTimes::default().summary(), None);
     }
 }

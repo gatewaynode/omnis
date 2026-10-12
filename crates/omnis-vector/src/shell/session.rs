@@ -48,6 +48,8 @@ pub struct Config {
     pub walk: u32,
     /// The capture's size in pixels.
     pub size: (u32, u32),
+    /// Run the capture uncapped and report its frame times (`--timing`).
+    pub timing: bool,
     /// The dev socket's loopback address (feature `devtools`); `None` with `--no-dev-socket`.
     pub dev_socket: Option<String>,
 }
@@ -69,6 +71,7 @@ impl Default for Config {
             screenshot: None,
             walk: 0,
             size: (1600, 900),
+            timing: false,
             dev_socket: Some("127.0.0.1:0".to_owned()),
         }
     }
@@ -119,7 +122,8 @@ impl Config {
 /// `--no-vsync`, `--frame-stats` (log the frame times, vsync off), `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
-/// `--size WxH` (the offscreen capture's size), and with feature `devtools`
+/// `--size WxH` (the offscreen capture's size), `--timing` (with `--screenshot`: run uncapped and
+/// report the frame times), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
 /// `--no-dev-socket`.
 ///
@@ -200,6 +204,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     .parse()
                     .map_err(|_| "--walk takes a frame count".to_owned())?
             }
+            "--timing" => config.timing = true,
             "--dev-socket" if cfg!(feature = "devtools") => {
                 config.dev_socket = Some(value("--dev-socket")?);
             }
@@ -209,6 +214,9 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
     }
     if !packs.is_empty() {
         config.packs = packs;
+    }
+    if config.timing && config.screenshot.is_none() {
+        return Err("--timing times a capture: it needs --screenshot".to_owned());
     }
     Ok(config)
 }
@@ -616,6 +624,18 @@ mod tests {
         assert_eq!((config.frame_stats, config.vsync), (true, false));
         let config = parse(args(&["--windowed"])).expect("valid");
         assert_eq!((config.frame_stats, config.vsync), (false, true));
+    }
+
+    #[test]
+    fn timing_needs_a_capture() {
+        let config = parse(args(&["--screenshot", "x.png", "--timing"])).expect("valid");
+        assert!(config.timing);
+        assert!(
+            !parse(args(&["--screenshot", "x.png"]))
+                .expect("valid")
+                .timing
+        );
+        assert!(parse(args(&["--timing"])).is_err());
     }
 
     #[test]
