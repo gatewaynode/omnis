@@ -56,10 +56,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   - Bevy 0.20 not before 2026-11-07.
 - **Assets no client uses since P9** (the owner's, report only): `Inter-Bold.ttf`, `AlegreyaSans-Bold.ttf`, and the
   baked tileset PNGs (the tileset data is still loaded and validated).
-- **Backlog:**
+- **Small findings and unused assets:** `tasks/BACKLOG.md` (owner, 2026-10-11).
+- **Backlog in TODO:**
   - Look and Map.
-  - The clock line's date.
-  - The screenshot directory.
   - Removing or editing a party member.
   - Unscheduled: `DevCommand::Pass`; the `data.*` ops; `scripts/mcp-probe.py`.
 - **Small:**
