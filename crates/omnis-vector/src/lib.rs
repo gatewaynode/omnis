@@ -29,6 +29,7 @@ pub mod party;
 pub mod pose;
 pub mod raster;
 pub mod rolllog;
+pub mod scene;
 pub mod screen;
 pub mod settings;
 pub mod shell;

@@ -8,6 +8,8 @@ use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin}
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use omnis_sim::ModeKind;
+use omnis_sim::api::Here;
+use omnis_sim::omnis_data::Data;
 
 /// Marks the status text.
 #[derive(Component)]
@@ -48,6 +50,24 @@ pub fn clock(elapsed: i64) -> String {
     let day = elapsed.div_euclid(1440) + 1;
     let minute = elapsed.rem_euclid(1440);
     format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
+}
+
+/// Where the party is, for the status block: the map, its level when the map has several
+/// (M8.5 step 1b), the cell and the facing.
+#[must_use]
+pub fn place(data: &Data, here: &Here) -> String {
+    let p = &here.position;
+    let level = data
+        .registry
+        .maps
+        .get(&p.map)
+        .and_then(|id| data.maps.get(&id))
+        .and_then(|map| crate::labels::level(data, map, p.level))
+        .map_or_else(String::new, |l| format!("{l}  "));
+    format!(
+        "{}  {level}cell ({}, {}) facing {:?}",
+        p.map, p.x, p.y, p.facing
+    )
 }
 
 fn mode_name(mode: ModeKind) -> &'static str {
@@ -101,7 +121,6 @@ fn status(
         font.font_size = FontSize::Px(if fight { 14.0 } else { 18.0 });
     }
     let here = &session.views.here;
-    let (map, p) = (&here.position.map, &here.position);
     let mut rate = rate(diagnostics.as_deref(), &time);
     if let Ok(window) = window.single() {
         // Physical pixels: what the frame rate was measured at.
@@ -124,10 +143,7 @@ fn status(
         text.0 = out;
         return;
     }
-    out = format!(
-        "{map}  cell ({}, {}) facing {:?}\n{out}\n",
-        p.x, p.y, p.facing
-    );
+    out = format!("{}\n{out}\n", place(&session.data, here));
     if intent.looking {
         out.push_str("Mouse look on: click, Space or Esc gives the pointer back\n");
     }

@@ -2,12 +2,13 @@
 //! square, facing the way it faces. Space opens the screen; Shift+Space runs the default action,
 //! the first one available, or opens the screen when there is none. An action is listed only
 //! when the simulation, tried on a copy of the world, would do something with it, so the
-//! mechanics decide what appears; this module only names them. Today the simulation's one
-//! square action is `Interact` (a door on the faced edge of the party's cell).
+//! mechanics decide what appears; this module only names them. The square's actions are
+//! `Interact` (a door on the faced edge of the party's cell) and `Climb` up or down a ladder
+//! (M8.5 step 1b).
 
 use super::{Control, ControlId, Effect, Game, Key, Panel, Row, Screen, ScreenId, Span};
 use crate::sim::SimWorld;
-use omnis_sim::omnis_core::Facing;
+use omnis_sim::omnis_core::{Facing, Vertical};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{Command, Event, MessageKey};
 
@@ -56,22 +57,33 @@ const fn facing_name(facing: Facing) -> &'static str {
     }
 }
 
-/// The actions the simulation would accept here, in menu order.
+/// The actions the simulation would accept here, in menu order: the faced door or site, then
+/// a ladder up and down.
 #[must_use]
 pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
+    let mut offers = Vec::new();
     let interact = Command::Interact;
-    if !does_something(world, data, &interact) {
-        return Vec::new();
+    if does_something(world, data, &interact) {
+        let label = match faced_door(world, data) {
+            Some(false) => "Open the door",
+            Some(true) => "Close the door",
+            None => "Use",
+        };
+        offers.push(Offer {
+            label: label.to_owned(),
+            command: interact,
+        });
     }
-    let label = match faced_door(world, data) {
-        Some(false) => "Open the door",
-        Some(true) => "Close the door",
-        None => "Use",
-    };
-    vec![Offer {
-        label: label.to_owned(),
-        command: interact,
-    }]
+    for (way, label) in [(Vertical::Up, "Climb up"), (Vertical::Down, "Climb down")] {
+        let climb = Command::Climb(way);
+        if does_something(world, data, &climb) {
+            offers.push(Offer {
+                label: label.to_owned(),
+                command: climb,
+            });
+        }
+    }
+    offers
 }
 
 /// The command Shift+Space runs, if there is one: the first available action.

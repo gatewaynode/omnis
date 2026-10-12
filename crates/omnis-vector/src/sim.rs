@@ -200,7 +200,7 @@ impl core::ops::DerefMut for SimWorld {
 fn position(data: &Data, here: &Here) -> Option<Position> {
     Some(Position {
         map: data.registry.maps.get(&here.position.map)?,
-        level: omnis_sim::omnis_core::Level::GROUND,
+        level: here.position.level,
         x: here.position.x,
         y: here.position.y,
         facing: here.position.facing,
@@ -256,7 +256,7 @@ impl Views {
         // A map no pack names (never the case for a loaded world) reads as one no pack holds.
         let position = position(data, &here).unwrap_or(Position {
             map: MapId(u32::MAX),
-            level: omnis_sim::omnis_core::Level::GROUND,
+            level: here.position.level,
             x: here.position.x,
             y: here.position.y,
             facing: here.position.facing,

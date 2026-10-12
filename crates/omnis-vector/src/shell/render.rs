@@ -6,8 +6,9 @@ use super::capture::Offscreen;
 use super::movement::View;
 use super::session::Session;
 use super::settings::Current;
-use crate::geometry::{SegKind, Segment, extract};
-use crate::ground::{Ground, ease_eye, eye};
+use crate::geometry::{SegKind, Segment};
+use crate::ground::{ease_eye, eye};
+use crate::scene::Scene;
 use bevy::camera::{Hdr, RenderTarget};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::Bloom;
@@ -22,25 +23,31 @@ const LINE_WIDTH: f32 = 2.0;
 /// across 32:9.
 const FOV: f32 = 0.96;
 
-/// The current map's ground and segments, rebuilt when the map changes or a door moves.
+/// The party's level of the current map with its neighbours, rebuilt when the map or the level
+/// changes or a door moves.
 #[derive(Resource, Default)]
 pub struct Lines {
     map: Option<(MapId, Level)>,
-    ground: Ground,
-    segments: Vec<Segment>,
+    scene: Scene,
 }
 
 impl Lines {
-    /// How many segments are loaded.
+    /// How many segments of the party's level are loaded.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.segments.len()
+        self.scene.own.len()
     }
 
     /// Whether none are.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.segments.is_empty()
+        self.scene.own.is_empty()
+    }
+
+    /// How many segments of the levels above and below are loaded.
+    #[must_use]
+    pub fn neighbours(&self) -> usize {
+        self.scene.neighbours.len()
     }
 }
 
@@ -99,10 +106,7 @@ fn rebuild(mut session: ResMut<Session>, mut lines: ResMut<Lines>) {
     }
     session.reshape = false;
     if let Some(data) = session.data.maps.get(&map) {
-        if lines.map != Some((map, level)) {
-            lines.ground = Ground::from_map(data, level);
-        }
-        lines.segments = extract(data, map, level, &session.world, &lines.ground);
+        lines.scene = Scene::build(data, map, level, &session.world);
         lines.map = Some((map, level));
     }
 }
@@ -122,7 +126,7 @@ fn follow(
     let pose = session.pose;
     let y = ease_eye(
         transform.translation.y,
-        eye(&lines.ground, pose),
+        eye(&lines.scene.ground, pose),
         time.delta_secs(),
         current.0.reduced_motion,
     );
@@ -157,6 +161,10 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
         // Provisional until the colour roles (M8.5 step 5): rock warm, ramps pale.
         SegKind::Cliff => (2.2, 1.4, 0.6),
         SegKind::Ramp => (0.9, 1.8, 2.2),
+        // Joins (M8.5 step 1b), provisional as cliffs and ramps: stairs and ladders pale gold,
+        // a hole a warning red.
+        SegKind::Stair | SegKind::Ladder => (2.4, 2.1, 0.8),
+        SegKind::Hole => (2.6, 0.5, 0.4),
     }
 }
 
@@ -166,7 +174,7 @@ fn draw(session: Res<Session>, lines: Res<Lines>, current: Res<Current>, mut giz
     let end = f32::from(depth) + FOG_EXTRA;
     let start = end * 0.5;
     let grid = current.0.grid;
-    for segment in lines.segments.iter().filter(|s| s.kind.drawn(grid)) {
+    for (segment, dim) in lines.scene.strokes(grid) {
         let mid = (
             (segment.a[0] + segment.b[0]) * 0.5,
             (segment.a[2] + segment.b[2]) * 0.5,
@@ -181,10 +189,11 @@ fn draw(session: Res<Session>, lines: Res<Lines>, current: Res<Current>, mut giz
             1.0 - (distance - start) / (end - start)
         };
         let (r, g, b) = colour(segment);
+        let k = fade * dim;
         gizmos.line(
             Vec3::from_array(segment.a),
             Vec3::from_array(segment.b),
-            LinearRgba::new(r * fade, g * fade, b * fade, fade),
+            LinearRgba::new(r * k, g * k, b * k, fade),
         );
     }
 }

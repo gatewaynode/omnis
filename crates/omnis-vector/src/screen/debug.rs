@@ -14,7 +14,7 @@ use crate::labels;
 use crate::style::Role;
 use crate::trial;
 use omnis_sim::api::{MemberView, StackView};
-use omnis_sim::omnis_core::{CharacterId, Facing};
+use omnis_sim::omnis_core::{CharacterId, Facing, Level};
 use omnis_sim::omnis_data::{Ability, Data};
 use omnis_sim::{Command, DevCommand};
 use std::collections::BTreeMap;
@@ -119,6 +119,8 @@ pub enum DebugAct {
     Flag,
     /// Which map to teleport to.
     Map,
+    /// Which level of it (M8.5 step 1b).
+    Level,
     /// Which way to face there.
     Facing,
     /// Teleport.
@@ -144,6 +146,8 @@ pub struct DebugForm {
     flag: usize,
     /// The teleport's map, by registry order; the party's map when unset.
     map: Option<usize>,
+    /// The teleport's level; the party's when it stays on its map, else the ground, when unset.
+    level: Option<Level>,
     facing: Option<Facing>,
     stack: usize,
     /// What was typed, by field; a field without an edit shows the world's value.
@@ -164,6 +168,7 @@ impl DebugForm {
             DevCommand::SetMonsterHp { .. } => Num::Lead,
             DevCommand::Teleport { .. } => {
                 self.map = None;
+                self.level = None;
                 self.facing = None;
                 self.edits.remove(&Num::X);
                 self.edits.remove(&Num::Y);
@@ -224,6 +229,35 @@ impl<'a> Look<'a> {
         self.form
             .map
             .unwrap_or_else(|| self.maps().iter().position(|m| m == here).unwrap_or(0))
+    }
+
+    /// The levels of the teleport's map, lowest first; the ground alone for a map not loaded.
+    fn levels(&self) -> Vec<Level> {
+        self.loaded(self.maps()[self.map()]).map_or_else(
+            || vec![Level::GROUND],
+            |m| m.levels.iter().map(|l| l.level).collect(),
+        )
+    }
+
+    /// The teleport's level: the one picked, else the party's on its own map, else the ground.
+    fn level(&self) -> Level {
+        let here = &self.game.views.here.position;
+        self.form.level.unwrap_or_else(|| {
+            if self.maps()[self.map()] == here.map {
+                here.level
+            } else {
+                Level::GROUND
+            }
+        })
+    }
+
+    /// A loaded map by its string id.
+    fn loaded(&self, id: &str) -> Option<&'a omnis_sim::omnis_data::MapData> {
+        self.data
+            .registry
+            .maps
+            .get(id)
+            .and_then(|m| self.data.maps.get(&m))
     }
 
     /// A map's size in cells.
@@ -348,7 +382,7 @@ impl<'a> Look<'a> {
             },
             DebugAct::Go => DevCommand::Teleport {
                 map: self.maps()[self.map()].to_owned(),
-                level: omnis_sim::omnis_core::Level::GROUND,
+                level: self.level(),
                 x: self.number(Num::X).ok_or(typed.clone())?,
                 y: self.number(Num::Y).ok_or(typed)?,
                 facing: self.facing(),
@@ -541,6 +575,21 @@ fn world_rows(look: &Look) -> Vec<Row> {
             .collect(),
         look.map(),
     )]));
+    let levels = look.levels();
+    let level = look.level();
+    let map = look.loaded(maps[look.map()]);
+    rows.push(Row::controls(vec![choice(
+        DebugAct::Level,
+        "Level",
+        levels
+            .iter()
+            .map(|&l| {
+                map.and_then(|m| crate::labels::level(look.data, m, l))
+                    .unwrap_or_else(|| l.to_string())
+            })
+            .collect(),
+        levels.iter().position(|&l| l == level).unwrap_or(0),
+    )]));
     rows.push(Row::controls(vec![
         look.field(Num::X, "x"),
         look.field(Num::Y, "y"),
@@ -702,8 +751,14 @@ pub fn apply(
             };
             let (x, y) = (held(Num::X, w), held(Num::Y, h));
             form.map = Some(at);
+            form.level = None;
             form.edits.insert(Num::X, x);
             form.edits.insert(Num::Y, y);
+        }
+        DebugAct::Level => {
+            let levels = look.levels();
+            let at = levels.iter().position(|&l| l == look.level()).unwrap_or(0);
+            form.level = levels.get(step(at, levels.len(), payload)).copied();
         }
         DebugAct::Facing => {
             let at = FACINGS

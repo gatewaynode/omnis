@@ -25,7 +25,21 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         return Some(dev(command, names, data));
     }
     Some(match event {
-        Event::Moved { to, .. } => format!("Moved to ({}, {}) facing {:?}", to.x, to.y, to.facing),
+        Event::Moved { from, to } => {
+            // A change of level is named (M8.5 step 1b): a stair, a hole, a ladder.
+            let level = data
+                .registry
+                .maps
+                .get(&to.map)
+                .and_then(|id| data.maps.get(&id))
+                .filter(|_| from.level != to.level)
+                .and_then(|map| crate::labels::level(data, map, to.level))
+                .map_or_else(String::new, |l| format!(" on {l}"));
+            format!(
+                "Moved to ({}, {}){level} facing {:?}",
+                to.x, to.y, to.facing
+            )
+        }
         Event::Blocked { reason } => format!(
             "Blocked: {}",
             match reason {

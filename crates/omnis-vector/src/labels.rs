@@ -8,8 +8,10 @@
 
 use omnis_sim::api::{MemberView, PartyView};
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
-use omnis_sim::omnis_core::{Calendar, CharacterId};
-use omnis_sim::omnis_data::{Ability, Alignment, Cost, Data, Disposition, EquipSlot, Skill};
+use omnis_sim::omnis_core::{Calendar, CharacterId, Level};
+use omnis_sim::omnis_data::{
+    Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill,
+};
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
 use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
@@ -17,6 +19,26 @@ use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 #[must_use]
 pub fn text<'d>(data: &'d Data, key: &'d str) -> &'d str {
     data.label("en", key)
+}
+
+/// A level of a map as the player reads it (M8.5 step 1b), with its number: `Roof (2)`. The
+/// map's own level is named by the map (`Test Tower (0)`). `None` for a map of one level, where
+/// a level says nothing.
+#[must_use]
+pub fn level(data: &Data, map: &MapData, level: Level) -> Option<String> {
+    if map.levels.len() < 2 {
+        return None;
+    }
+    let key = map.level(level).map_or("", |l| l.name.as_str());
+    let name = if key.is_empty() {
+        data.registry
+            .text
+            .name(map.name)
+            .map_or("", |k| text(data, k))
+    } else {
+        text(data, key)
+    };
+    Some(format!("{name} ({level})"))
 }
 
 /// A class's name from its string id.

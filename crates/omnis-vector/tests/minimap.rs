@@ -222,3 +222,77 @@ fn cliffs_and_ramps_show_on_the_elevation_fixture() {
     let mid = raster.pixel(s, s / 2);
     assert!(mid != Some(CLIFF) && mid != Some(RAMP), "{mid:?}");
 }
+
+/// The cell's pixels of `colour` on `raster`.
+fn in_cell(raster: &Raster, (x, y): (u32, u32), colour: [u8; 4]) -> usize {
+    let s = raster.scale;
+    (y * s..(y + 1) * s)
+        .flat_map(|py| (x * s..(x + 1) * s).map(move |px| (px, py)))
+        .filter(|&(px, py)| raster.pixel(px, py) == Some(colour))
+        .count()
+}
+
+#[test]
+fn the_minimap_marks_the_joins_the_party_has_seen_on_its_level() {
+    use omnis_sim::omnis_core::{Facing, Level, Position, Rotation};
+    use omnis_vector::minimap::{HOLE, JOIN};
+    let data = common::levels_data();
+    let id = common::map(&data, "levels:map:tower");
+    let mut world =
+        omnis_vector::sim::SimWorld::start(&data, common::SEED, omnis_sim::Settings::default())
+            .expect("an entry map");
+    world.position = Position {
+        map: id,
+        level: Level(1),
+        x: 4,
+        y: 1,
+        facing: Facing::East,
+    };
+    world
+        .apply(&data, omnis_sim::Command::Turn(Rotation::Right))
+        .expect("a turn");
+    let map = &data.maps[&id];
+    let pose = Pose::at(world.position);
+    let upper = paint(map, Level(1), world.automap(id, Level(1)), pose);
+    assert!(
+        in_cell(&upper, (5, 2), HOLE) > 0,
+        "the hole beside the bridge"
+    );
+    assert!(
+        in_cell(&upper, (4, 3), JOIN) > 0,
+        "the stair at the bridge's end"
+    );
+    assert_eq!(
+        in_cell(&upper, (4, 2), JOIN),
+        0,
+        "the bridge itself is no join"
+    );
+    let ground = paint(map, Level::GROUND, world.automap(id, Level::GROUND), pose);
+    assert_eq!(
+        in_cell(&ground, (5, 2), HOLE),
+        0,
+        "the road below is not the upper floor"
+    );
+}
+
+#[test]
+fn a_map_of_several_levels_names_the_party_s_level_and_a_map_of_one_does_not() {
+    use omnis_sim::omnis_core::Level;
+    let data = common::levels_data();
+    let tower = &data.maps[&common::map(&data, "levels:map:tower")];
+    assert_eq!(
+        omnis_vector::labels::level(&data, tower, Level(2)).as_deref(),
+        Some("Roof (2)")
+    );
+    assert_eq!(
+        omnis_vector::labels::level(&data, tower, Level::GROUND).as_deref(),
+        Some("Test Tower (0)")
+    );
+    let shipped = common::data();
+    for map in shipped.maps.values() {
+        assert_eq!(
+            omnis_vector::labels::level(&shipped, map, Level::GROUND),
+            None
+        );
+    }
+}

@@ -9,7 +9,7 @@ use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
-use omnis_sim::omnis_data::MapData;
+use omnis_sim::omnis_data::{Join, MapData};
 use std::collections::BTreeMap;
 
 /// What a segment belongs to; the renderer picks the colour from it.
@@ -31,11 +31,18 @@ pub enum SegKind {
     Cliff,
     /// A ramp's treads, lying on the ground across its edge.
     Ramp,
+    /// A stair to the level above or below: treads climbing across its cell (M8.5 step 1b).
+    Stair,
+    /// A ladder or shaft: two rails and rungs up to the level above.
+    Ladder,
+    /// A hole: the cell's opening, hatched inward.
+    Hole,
 }
 
 impl SegKind {
     /// Whether a line of this kind is drawn with the floor grid `grid` shown or hidden: the floor
-    /// and ceiling grids are the setting's; walls, doors, terrain, cliffs and ramps always show.
+    /// and ceiling grids are the setting's; walls, doors, terrain, cliffs, ramps and joins always
+    /// show.
     #[must_use]
     pub const fn drawn(self, grid: bool) -> bool {
         grid || !matches!(self, SegKind::Floor | SegKind::Ceiling)
@@ -100,6 +107,14 @@ pub fn extract(
                 h,
             );
             rims(&mut out, ground, (x, y), patch, terrain.color);
+            if let Some(join) = terrain.join {
+                let beyond = |up: bool| {
+                    map.beyond(level, up)
+                        .and_then(|l| map.cell(l, x, y))
+                        .map(|c| cells_high(c.height))
+                };
+                joins(&mut out, (x, y), patch, join, beyond, terrain.color);
+            }
             for facing in Facing::ALL {
                 let kind = if cell.doors.has(facing) {
                     SegKind::Door
@@ -132,6 +147,96 @@ pub fn extract(
     }
     heights(&mut out, map, level, ground);
     out
+}
+
+/// A height in eighths of a cell, in cells.
+fn cells_high(eighths: i16) -> f32 {
+    f32::from(eighths) / 8.0
+}
+
+/// How far in from the cell's sides a stair's treads and a hole's opening sit.
+const JOIN_INSET: f32 = 0.15;
+
+/// A join's marks on cell `(x, y)`, from its floor `p` toward the floor of the next level up
+/// or down (`beyond(up)`), a wall's height when that level has none there:
+/// - a stair: four treads across the cell, climbing (or falling) north to south, on two
+///   stringers;
+/// - a ladder: two ladders crossed in the cell's middle, rails and a rung every quarter cell;
+/// - a hole: the opening, a square in from the sides, with its corners hatched to the cell's.
+fn joins(
+    out: &mut Vec<Segment>,
+    (x, y): (u16, u16),
+    p: Patch,
+    join: Join,
+    beyond: impl Fn(bool) -> Option<f32>,
+    rgb: (u8, u8, u8),
+) {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    let (x1, z1) = (x0 + 1.0, z0 + 1.0);
+    let floor = p.centre;
+    match join {
+        Join::Up | Join::Down => {
+            let up = join == Join::Up;
+            let to = beyond(up).unwrap_or(if up { floor + 1.0 } else { floor - 1.0 });
+            let (l, r) = (x0 + JOIN_INSET, x1 - JOIN_INSET);
+            for k in 1u8..=4 {
+                let t = f32::from(k) / 4.0;
+                let (h, z) = (floor + (to - floor) * t, z0 + t - 0.125);
+                line(out, [l, h, z], [r, h, z], SegKind::Stair, rgb);
+            }
+            for side in [l, r] {
+                line(out, [side, floor, z0], [side, to, z1], SegKind::Stair, rgb);
+            }
+        }
+        Join::Ladder => {
+            // Two ladders crossed, so one reads face-on from any side.
+            let top = beyond(true).unwrap_or(floor + 1.0).max(floor + 0.25);
+            let (cx, cz) = (x0 + 0.5, z0 + 0.5);
+            for ((ax, az), (bx, bz)) in [
+                ((cx - 0.15, cz), (cx + 0.15, cz)),
+                ((cx, cz - 0.15), (cx, cz + 0.15)),
+            ] {
+                line(out, [ax, floor, az], [ax, top, az], SegKind::Ladder, rgb);
+                line(out, [bx, floor, bz], [bx, top, bz], SegKind::Ladder, rgb);
+                let mut h = floor + 0.25;
+                while h < top - 1e-3 {
+                    line(out, [ax, h, az], [bx, h, bz], SegKind::Ladder, rgb);
+                    h += 0.25;
+                }
+            }
+        }
+        Join::Hole => {
+            let (lo, hi) = (
+                [x0 + JOIN_INSET, z0 + JOIN_INSET],
+                [x1 - JOIN_INSET, z1 - JOIN_INSET],
+            );
+            let inner = [
+                [lo[0], lo[1]],
+                [hi[0], lo[1]],
+                [hi[0], hi[1]],
+                [lo[0], hi[1]],
+            ];
+            let outer = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+            for i in 0..4 {
+                let (a, b) = (inner[i], inner[(i + 1) % 4]);
+                line(
+                    out,
+                    [a[0], floor, a[1]],
+                    [b[0], floor, b[1]],
+                    SegKind::Hole,
+                    rgb,
+                );
+                let o = outer[i];
+                line(
+                    out,
+                    [o[0], floor, o[1]],
+                    [a[0], floor, a[1]],
+                    SegKind::Hole,
+                    rgb,
+                );
+            }
+        }
+    }
 }
 
 fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
