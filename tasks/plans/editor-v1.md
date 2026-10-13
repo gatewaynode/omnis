@@ -243,6 +243,9 @@ playtest from (3, 8) facing South, quit to editor. MCP: restart the server on th
   `base` and a name key, `_` for no ground, and joins as terrain (`join`). The editor paints one level at a
   time with a level chooser, and placements carry a `level`; the writer keeps level 0 as the map's own
   `layout`.
+- Stairs (M8.5 step 1c): every stair up or down needs an entry in `stairs` (`level`, `x`, `y`, `rise`).
+  Painting a stair asks for its rise (or turns it with a key), and erasing one drops its entry, so the
+  file always loads; the editor shows the loader's foot, head and pair refusals as it does the others.
 - egui invisible to captures (owner's run is the visual acceptance; `render_egui_to_image` is a horizon).
 - Rewritten maps lose comments; a compact map-only writer is a horizon; `PrettyConfig` is frozen.
 - Window drags and zoom untouched (zoom 1.0; egui uses the true scale factor).

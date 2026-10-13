@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-12, after M8.5 step 3 (solid occlusion) was accepted by the owner. Rewrite this
+Written 2026-10-12, after M8.5 step 1c (a stair's direction) was built, waiting for the owner's acceptance. Step 3 is accepted. Rewrite this
 file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -42,11 +42,25 @@ file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   presentation-ARCHITECTURE §15.3 stays open. The offscreen numbers may understate the GPU's share.
 
 ## Next
-1. (Done: step 3 accepted.)
-2. **Ask the owner** whether a stair should get a direction in the map format (data, engine views, client). Today a
-   flight always climbs north to south, and the slab fill was dropped because of it.
-3. **Then step 2** (layout within a square), planned in plan mode with the owner's questions first. It brings forward
+1. **The owner walks `tasks/acceptance/m8.5-1c.md`** (a stair's direction). Fix whatever they find, each fix with a
+   test written red first.
+2. **Then step 2** (layout within a square), planned in plan mode with the owner's questions first. It brings forward
    the object schema from `tasks/plans/editor-v1.md` §E. Objects that block sight may need fills (`fill.rs`).
+
+## 1c as built
+- **Data:**
+  - `MapDef.stairs: Vec<StairDef { level, x, y, rise }>`;
+  - `omnis-data/src/stairs.rs`: `check` fills `LevelData.rises`;
+  - `MapData::rise(level, x, y)` reads it.
+  - A stair error discards the levels, as a join error does, so the corpus has its own `stairs.ron`.
+- **Engine:** `apply::joined(map, at, join, heading)`: Up fires when `heading == rise`, Down when
+  `heading == rise.opposite()`.
+- **Client:**
+  - `geometry::stair_at(rise, cell, t, s)` gives the treads and the slab;
+  - `fill::stair` draws the slab;
+  - the minimap's chevron is turned to the rise, and a stair down has a bar at its foot.
+- **Fixture:** the tower's stair is at (2, 0), rising west, its foot (3, 0) through an east opening; the courtyard
+  stair rises north.
 
 ## Facts
 - **Height:** `MapDef.heights`; `Terrain.climb` (default 2); `/` ramps; `MAX_HEIGHT` 4096; `MAX_RAMP` 16. Sight uses
@@ -57,7 +71,7 @@ file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   - `shotl.sh name x y facing walk` puts the party on the tower, level 0 only;
   - `shot.sh` puts it on the hills;
   - `time.sh label` runs the release timings.
-- **Mutation runners** (scratchpad): `mutate3.py` (step 3), `mutate1bc.py` (client), `mutate1b.py` (engine).
+- **Mutation runners** (scratchpad): `mutate1c.py` (1c, three crates), `mutate3.py` (step 3), `mutate1bc.py` (client), `mutate1b.py` (engine).
 
 ## Open, carried over
 - **The editor's toolkit is undecided:** A11 says Feathers, presentation-PRD §8 says `bevy_egui`.
@@ -71,10 +85,10 @@ file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **The owner's asset work** (`.gitignore`, `assets/`) is theirs. Never stage it.
 
 ## Pins
-- Gate `tests passed 697 failed 0 ignored 12`, VERIFY-GREEN, at `3e9e1e6`.
+- Gate `tests passed 708 failed 0 ignored 12`, VERIFY-GREEN, at `c679eb1`.
 - Replays unmoved: walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`.
 - `SAVE_SCHEMA` 7, `PROTOCOL` 2. MCP command schema `oneOf` 12; schema proof 96 instances, 145 offered.
-- Sentrux quality 8955.
+- Sentrux quality 8957.
 
 ## Process
 - **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, with `cargo fmt --all` first. Workspace clippy
