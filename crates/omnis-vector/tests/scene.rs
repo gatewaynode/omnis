@@ -248,3 +248,28 @@ fn a_stair_pair_draws_one_flight_from_either_end() {
     // The courtyard's stair up and the bridge's stair down are the same flight.
     assert_eq!(flight(Level::GROUND), flight(UPPER));
 }
+
+#[test]
+fn a_stair_s_treads_climb_the_way_it_rises() {
+    let data = levels_data();
+    let treads = |level: Level, x: f32, y: f32| -> Vec<Segment> {
+        within(&scene(&data, level).own, SegKind::Stair, x, y)
+            .into_iter()
+            .filter(|s| s.a[1] == s.b[1])
+            .collect()
+    };
+    // The tower's stair rises west: each tread runs north to south, higher to the west.
+    let west = treads(Level::GROUND, 2.0, 0.0);
+    assert_eq!(west.len(), 4);
+    assert!(west.iter().all(|s| s.a[0] == s.b[0]), "{west:?}");
+    let mut by_x: Vec<(f32, f32)> = west.iter().map(|s| (s.a[0], s.a[1])).collect();
+    by_x.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert!(by_x.windows(2).all(|w| w[0].1 > w[1].1), "{by_x:?}");
+    // The courtyard's rises north: each tread runs west to east, higher to the north.
+    let north = treads(Level::GROUND, 4.0, 3.0);
+    assert_eq!(north.len(), 4);
+    assert!(north.iter().all(|s| s.a[2] == s.b[2]), "{north:?}");
+    let mut by_z: Vec<(f32, f32)> = north.iter().map(|s| (s.a[2], s.a[1])).collect();
+    by_z.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert!(by_z.windows(2).all(|w| w[0].1 > w[1].1), "{by_z:?}");
+}

@@ -112,7 +112,8 @@ pub fn extract(
                         .and_then(|l| map.cell(l, x, y))
                         .map(|c| cells_high(c.height))
                 };
-                joins(&mut out, (x, y), patch, join, beyond, terrain.color);
+                let rise = map.rise(level, x, y).unwrap_or(Facing::South);
+                joins(&mut out, (x, y), patch, (join, rise), beyond, terrain.color);
             }
         }
     }
@@ -175,30 +176,44 @@ pub(crate) fn edges(
 }
 
 /// A height in eighths of a cell, in cells.
-fn cells_high(eighths: i16) -> f32 {
+pub(crate) fn cells_high(eighths: i16) -> f32 {
     f32::from(eighths) / 8.0
 }
 
 /// How far in from the cell's sides a stair's treads and a hole's opening sit.
 pub(crate) const JOIN_INSET: f32 = 0.15;
 
-/// A stair's foot and head between its `floor` and the floor it leads `to`: the flight always
-/// climbs north to south, so a stair up and its stair down above draw the same flight.
-fn flight(floor: f32, to: f32) -> [f32; 2] {
+/// A stair's foot and head between its `floor` and the floor it leads `to`: the flight climbs
+/// from the lower to the higher the way it rises, so a stair up and its stair down above draw
+/// the same flight.
+pub(crate) fn flight(floor: f32, to: f32) -> [f32; 2] {
     [floor.min(to), floor.max(to)]
+}
+
+/// The point of cell `(x, y)` a fraction `t` of the way from a stair's foot to its head (rising
+/// `rise`) and a fraction `s` across it. The flight is the same from either side, so which side
+/// `s` starts from does not matter.
+pub(crate) fn stair_at(rise: Facing, (x, y): (u16, u16), t: f32, s: f32) -> [f32; 2] {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    match rise {
+        Facing::South => [x0 + s, z0 + t],
+        Facing::North => [x0 + s, z0 + 1.0 - t],
+        Facing::East => [x0 + t, z0 + s],
+        Facing::West => [x0 + 1.0 - t, z0 + s],
+    }
 }
 
 /// A join's marks on cell `(x, y)`, from its floor `p` toward the floor of the next level up
 /// or down (`beyond(up)`), a wall's height when that level has none there:
-/// - a stair: four treads across the cell, climbing north to south from the lower floor to the
-///   higher, on two stringers;
+/// - a stair: four treads across the cell, climbing the way it rises from the lower floor at its
+///   foot to the higher at its head, on two stringers;
 /// - a ladder: two ladders crossed in the cell's middle, rails and a rung every quarter cell;
 /// - a hole: the opening, a square in from the sides, with its corners hatched to the cell's.
 fn joins(
     out: &mut Vec<Segment>,
     (x, y): (u16, u16),
     p: Patch,
-    join: Join,
+    (join, rise): (Join, Facing),
     beyond: impl Fn(bool) -> Option<f32>,
     rgb: (u8, u8, u8),
 ) {
@@ -210,14 +225,30 @@ fn joins(
             let up = join == Join::Up;
             let to = beyond(up).unwrap_or(if up { floor + 1.0 } else { floor - 1.0 });
             let [lo, hi] = flight(floor, to);
-            let (l, r) = (x0 + JOIN_INSET, x1 - JOIN_INSET);
+            let (l, r) = (JOIN_INSET, 1.0 - JOIN_INSET);
+            let at = |t: f32, s: f32, h: f32| {
+                let [px, pz] = stair_at(rise, (x, y), t, s);
+                [px, h, pz]
+            };
             for k in 1u8..=4 {
                 let t = f32::from(k) / 4.0;
-                let (h, z) = (lo + (hi - lo) * t, z0 + t - 0.125);
-                line(out, [l, h, z], [r, h, z], SegKind::Stair, rgb);
+                let h = lo + (hi - lo) * t;
+                line(
+                    out,
+                    at(t - 0.125, l, h),
+                    at(t - 0.125, r, h),
+                    SegKind::Stair,
+                    rgb,
+                );
             }
             for side in [l, r] {
-                line(out, [side, lo, z0], [side, hi, z1], SegKind::Stair, rgb);
+                line(
+                    out,
+                    at(0.0, side, lo),
+                    at(1.0, side, hi),
+                    SegKind::Stair,
+                    rgb,
+                );
             }
         }
         Join::Ladder => {

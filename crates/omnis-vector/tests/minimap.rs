@@ -296,3 +296,32 @@ fn a_map_of_several_levels_names_the_party_s_level_and_a_map_of_one_does_not() {
         );
     }
 }
+
+#[test]
+fn a_stair_s_mark_points_the_way_it_rises() {
+    use omnis_sim::omnis_core::Level;
+    use omnis_vector::minimap::JOIN;
+    let data = common::levels_data();
+    let map = &data.maps[&common::map(&data, "levels:map:tower")];
+    let pose = Pose {
+        x: 0.5,
+        z: 4.5,
+        yaw: 0.0,
+    };
+    let raster = paint(map, Level::GROUND, Some(&all_known(map)), pose);
+    let s = raster.scale;
+    // A point of cell (x, y) in eighths of the cell.
+    let at = |(x, y): (u32, u32), (fx, fy): (u32, u32)| {
+        raster.pixel(x * s + s * fx / 8, y * s + s * fy / 8)
+    };
+    // The tower's stair rises west: a chevron pointing west, its arms ending at the east.
+    assert_eq!(at((2, 0), (5, 6)), Some(JOIN));
+    assert_ne!(
+        at((2, 0), (6, 5)),
+        Some(JOIN),
+        "not a chevron pointing north"
+    );
+    // The courtyard's rises north: a chevron pointing north.
+    assert_eq!(at((4, 3), (6, 5)), Some(JOIN));
+    assert_ne!(at((4, 3), (5, 6)), Some(JOIN));
+}

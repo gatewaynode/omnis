@@ -488,3 +488,28 @@ fn the_mesh_holds_every_fill_as_its_own_three_vertices() {
         Some(expected.len())
     );
 }
+
+#[test]
+fn a_stair_is_a_solid_slab_from_its_foot_up_to_its_head_and_its_treads_show_from_the_foot() {
+    let data = levels_data();
+    let world = world(&data);
+    let ground = level_fills(&data, &world, "levels:map:tower", Level::GROUND);
+    // The tower's stair at (2, 0) rises west from the ground at 0 to the upper floor at 1.
+    assert!(solid(&ground, [2.875, 0.125, 0.5]), "low by the foot");
+    assert!(solid(&ground, [2.125, 0.875, 0.5]), "high by the head");
+    assert!(
+        !solid(&ground, [2.875, 0.875, 0.5]),
+        "nothing over the foot"
+    );
+    let (at, scene) = eye(&data, Level::GROUND, 3.5, 0.5);
+    let treads: Vec<_> = scene
+        .own
+        .iter()
+        .filter(|s| s.kind == SegKind::Stair && s.a[1] == s.b[1] && s.a[0] > 2.0 && s.a[0] < 3.0)
+        .collect();
+    assert_eq!(treads.len(), 4);
+    for s in treads {
+        let middle = [0, 1, 2].map(|k| (s.a[k] + s.b[k]) / 2.0);
+        assert!(!hidden(&scene.fills, at, middle), "{s:?}");
+    }
+}

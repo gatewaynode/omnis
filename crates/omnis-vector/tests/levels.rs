@@ -63,6 +63,17 @@ fn a_stair_taken_puts_the_views_on_the_level_above_and_the_pose_stays_on_its_cel
 }
 
 #[test]
+fn a_stair_stepped_onto_from_its_side_is_floor_in_the_shell_too() {
+    let mut session = tower();
+    // The tower's stair rises west; from the south it is a plain step.
+    put(&mut session, Level::GROUND, 2, 1, Facing::North);
+    assert!(session.order(Command::Step(Direction::Forward)));
+    let p = session.views.position;
+    assert_eq!((p.level, p.x, p.y), (Level::GROUND, 2, 0));
+    assert_eq!(session.pose, Pose::at(p));
+}
+
+#[test]
 fn the_hud_names_the_level_on_a_map_of_several_and_nothing_on_a_map_of_one() {
     let mut session = tower();
     let town = place(&session.data, &session.views.here);

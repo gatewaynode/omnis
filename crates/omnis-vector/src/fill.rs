@@ -5,16 +5,17 @@
 //!
 //! Where a level joins the next, the fills open: a stair or ladder up has no ceiling, a stair
 //! or ladder down no floor, and a hole's middle is open, so the way through can be seen.
-//! Stairs and ladders stay lines: a stair's flight has no direction in the map yet, so a solid
-//! slab would face half its walkers with its underside.
+//! A stair is a slab under its treads, climbing the way the map says it rises (M8.5 step 1c); a
+//! ladder stays lines.
 
 use crate::geom::wall_height;
 use crate::geometry::{
-    DOOR, EdgeKey, JOIN_INSET, SegKind, Split, door_head, edges, ends, sides, span, splits,
+    DOOR, EdgeKey, JOIN_INSET, SegKind, Split, cells_high, door_head, edges, ends, flight, sides,
+    span, splits, stair_at,
 };
 use crate::ground::{Ground, NE, NW, Patch, SE, SW};
 use crate::sim::SimWorld;
-use omnis_sim::omnis_core::{Level, MapId};
+use omnis_sim::omnis_core::{Facing, Level, MapId};
 use omnis_sim::omnis_data::{Join, MapData};
 
 /// One triangle in world space.
@@ -51,6 +52,16 @@ pub fn fills(
                 Some(Join::Hole) => ring(&mut out, (x, y), p.centre),
                 _ if !down => floor(&mut out, (x, y), p),
                 _ => {}
+            }
+            if let Some(Join::Up | Join::Down) = terrain.join {
+                let to = map
+                    .beyond(level, up)
+                    .and_then(|l| map.cell(l, x, y))
+                    .map_or(p.centre + if up { 1.0 } else { -1.0 }, |c| {
+                        cells_high(c.height)
+                    });
+                let rise = map.rise(level, x, y).unwrap_or(Facing::South);
+                stair(&mut out, (x, y), rise, flight(p.centre, to));
             }
             let roof = p.centre + wall_height(terrain);
             let (x0, z0) = (f32::from(x), f32::from(y));
@@ -122,6 +133,25 @@ fn ring(out: &mut Vec<Tri>, (x, y): (u16, u16), floor: f32) {
         let n = (k + 1) % 4;
         quad(out, [outer[k], outer[n], inner[n], inner[k]]);
     }
+}
+
+/// A stair's slab under its treads, from the lower floor at its foot up to the higher at its
+/// head, between its stringers.
+fn stair(out: &mut Vec<Tri>, cell: (u16, u16), rise: Facing, [lo, hi]: [f32; 2]) {
+    let at = |t: f32, s: f32, h: f32| {
+        let [px, pz] = stair_at(rise, cell, t, s);
+        [px, h, pz]
+    };
+    let (l, r) = (JOIN_INSET, 1.0 - JOIN_INSET);
+    quad(
+        out,
+        [
+            at(0.0, l, lo),
+            at(0.0, r, lo),
+            at(1.0, r, hi),
+            at(1.0, l, hi),
+        ],
+    );
 }
 
 /// A block's four sides and its top over the ground rectangle `lo..hi`, from `base` to `top`.

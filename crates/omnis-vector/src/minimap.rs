@@ -139,15 +139,24 @@ fn line_pixels(a: (i64, i64), b: (i64, i64)) -> Vec<(i64, i64)> {
         .collect()
 }
 
-/// The pixels of a join's mark on cell `(x, y)`, drawn like its glyph: a chevron up for a stair
-/// up, down for a stair down, a ladder's rails and rungs, a hole's cross.
-fn join_pixels(raster: &Raster, (x, y): (u16, u16), join: Join) -> Vec<(i64, i64)> {
+/// The pixels of a join's mark on cell `(x, y)`, drawn like its glyph: a chevron pointing the
+/// way a stair rises (`rise`), with a bar across the foot for a stair down; a ladder's rails and
+/// rungs; a hole's cross.
+fn join_pixels(raster: &Raster, (x, y): (u16, u16), join: Join, rise: Facing) -> Vec<(i64, i64)> {
     let s = i64::from(raster.scale);
     let (x0, y0) = (i64::from(x) * s, i64::from(y) * s);
     let at = |fx: i64, fy: i64| (x0 + s * fx / 8, y0 + s * fy / 8);
+    // A stair's strokes are written rising north, then turned to its rise.
+    let turned = |fx: i64, fy: i64| match rise {
+        Facing::North => at(fx, fy),
+        Facing::East => at(8 - fy, fx),
+        Facing::South => at(8 - fx, 8 - fy),
+        Facing::West => at(fy, 8 - fx),
+    };
+    let chevron = [(turned(2, 5), turned(4, 3)), (turned(4, 3), turned(6, 5))];
     let strokes = match join {
-        Join::Up => vec![(at(2, 5), at(4, 3)), (at(4, 3), at(6, 5))],
-        Join::Down => vec![(at(2, 3), at(4, 5)), (at(4, 5), at(6, 3))],
+        Join::Up => chevron.to_vec(),
+        Join::Down => [chevron.as_slice(), &[(turned(2, 6), turned(6, 6))]].concat(),
         Join::Ladder => vec![
             (at(3, 1), at(3, 7)),
             (at(5, 1), at(5, 7)),
@@ -237,7 +246,8 @@ pub fn paint(
             continue;
         };
         let colour = if join == Join::Hole { HOLE } else { JOIN };
-        for (px, py) in join_pixels(&out, (x, y), join) {
+        let rise = map.rise(level, x, y).unwrap_or(Facing::South);
+        for (px, py) in join_pixels(&out, (x, y), join, rise) {
             out.put(px, py, colour);
         }
     }
