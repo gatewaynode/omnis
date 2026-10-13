@@ -35,6 +35,7 @@ use crate::levels::{LevelDef, NO_GROUND};
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
 use crate::rest_event::RestEventDef;
 use crate::service::{self, Site};
+use crate::stairs::StairDef;
 use omnis_core::{Edges, Facing, Level};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -188,6 +189,9 @@ pub struct MapDef {
     /// Levels above and below this one (M8.5 step 1b); none is a map of one level.
     #[serde(default)]
     pub levels: Vec<LevelDef>,
+    /// Which way each stair climbs (M8.5 step 1c); every stair up or down is listed.
+    #[serde(default)]
+    pub stairs: Vec<StairDef>,
     /// Tile triggers.
     #[serde(default)]
     pub portals: Vec<Portal>,
@@ -386,6 +390,7 @@ mod tests {
             layout: layout.iter().map(|s| (*s).to_owned()).collect(),
             heights: vec![],
             levels: vec![],
+            stairs: vec![],
             portals: vec![],
             encounters: vec![],
             random: None,

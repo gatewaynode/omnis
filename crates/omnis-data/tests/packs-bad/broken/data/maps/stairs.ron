@@ -1,0 +1,28 @@
+// M8.5 step 1c: a stair up with no entry saying which way it rises, and an entry on a floor.
+(
+    schema: 1,
+    id: "broken:map:stairs",
+    name: "broken:text:map.glyph.name",
+    kind: Dungeon,
+    tileset: "broken:tileset:bad",
+    width: 2,
+    height: 1,
+    start: (0, 0, East),
+    wall: (front: "wall", left: "wall.left", right: "wall.right"),
+    door: "door",
+    terrains: [
+        (glyph: '.', name: "floor", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1),
+        (glyph: 'u', name: "stair up", floor: "floor", ceiling: None, passable: true, visibility_depth: 4, step_minutes: 1, join: Some(Up)),
+    ],
+    layout: [
+        "+-+-+",
+        "|u .|",
+        "+-+-+",
+    ],
+    levels: [
+        (level: 1, name: "broken:text:map.glyph.name", base: 8, layout: ["+-+-+", "|. .|", "+-+-+"]),
+    ],
+    stairs: [
+        (x: 1, y: 0, rise: West),
+    ],
+)

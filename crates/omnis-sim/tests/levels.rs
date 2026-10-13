@@ -94,31 +94,73 @@ fn the_tower_has_its_four_levels_lowest_first() {
 #[test]
 fn a_stair_goes_up_and_the_stair_at_the_top_does_not_send_the_party_back() {
     let data = tower();
-    let mut world = at(&data, Level::GROUND, 2, 0, Facing::West);
+    // The tower's stair rises west; its foot is the grass east of it.
+    let mut world = at(&data, Level::GROUND, 3, 0, Facing::West);
     let events = step(&mut world, &data);
     assert_eq!(
         moves(&events),
-        [(Level::GROUND, 1, 0), (UPPER, 1, 0)],
+        [(Level::GROUND, 2, 0), (UPPER, 2, 0)],
         "onto the stair, then up it"
     );
-    assert_eq!(place(&world), (UPPER, 1, 0));
+    assert_eq!(place(&world), (UPPER, 2, 0));
     assert_eq!(world.position.facing, Facing::West, "the facing is kept");
-    // Standing on the stair down does nothing until the party steps onto it again.
-    turn(&mut world, &data, Rotation::Around);
-    assert_eq!(moves(&step(&mut world, &data)), [(UPPER, 2, 0)]);
+    // Standing on the stair down does nothing; off its head, then back onto it, goes down.
+    assert_eq!(moves(&step(&mut world, &data)), [(UPPER, 1, 0)]);
     turn(&mut world, &data, Rotation::Around);
     assert_eq!(
         moves(&step(&mut world, &data)),
-        [(UPPER, 1, 0), (Level::GROUND, 1, 0)],
+        [(UPPER, 2, 0), (Level::GROUND, 2, 0)],
         "and back down"
     );
-    assert_eq!(place(&world), (Level::GROUND, 1, 0));
+    assert_eq!(place(&world), (Level::GROUND, 2, 0));
+}
+
+#[test]
+fn a_stair_up_is_taken_only_from_its_foot() {
+    let data = tower();
+    // From the side (south) and from the head (west), the stair is floor.
+    for (x, y, facing) in [(2, 1, Facing::North), (1, 0, Facing::East)] {
+        let mut world = at(&data, Level::GROUND, x, y, facing);
+        assert_eq!(
+            moves(&step(&mut world, &data)),
+            [(Level::GROUND, 2, 0)],
+            "from ({x}, {y})"
+        );
+        assert_eq!(place(&world), (Level::GROUND, 2, 0));
+    }
+}
+
+#[test]
+fn a_stair_down_is_taken_only_from_its_head() {
+    let data = tower();
+    // From the side (south, the tower floor at (2, 1)) the stair down is floor.
+    let mut world = at(&data, UPPER, 2, 1, Facing::North);
+    assert_eq!(moves(&step(&mut world, &data)), [(UPPER, 2, 0)]);
+    // The bridge's stair down rises north: from its head, the bridge at (4, 2), it goes down.
+    let mut world = at(&data, UPPER, 4, 2, Facing::South);
+    assert_eq!(
+        moves(&step(&mut world, &data)),
+        [(UPPER, 4, 3), (Level::GROUND, 4, 3)]
+    );
+}
+
+#[test]
+fn a_step_takes_a_stair_by_the_way_it_moves_not_the_way_the_party_faces() {
+    let data = tower();
+    // Backing west onto the stair from its foot, facing east, takes it.
+    let mut world = at(&data, Level::GROUND, 3, 0, Facing::East);
+    let events = apply(&mut world, &data, Command::Step(Direction::Back)).expect("a step");
+    assert_eq!(moves(&events), [(Level::GROUND, 2, 0), (UPPER, 2, 0)]);
+    // Sidestepping north onto the courtyard stair from (4, 4), facing west, takes it too.
+    let mut world = at(&data, Level::GROUND, 4, 4, Facing::West);
+    let events = apply(&mut world, &data, Command::Step(Direction::Right)).expect("a step");
+    assert_eq!(moves(&events), [(Level::GROUND, 4, 3), (UPPER, 4, 3)]);
 }
 
 #[test]
 fn a_stair_costs_its_own_minutes_once() {
     let data = tower();
-    let mut world = at(&data, Level::GROUND, 2, 0, Facing::West);
+    let mut world = at(&data, Level::GROUND, 3, 0, Facing::West);
     let before = world.party_clock().elapsed;
     step(&mut world, &data);
     assert_eq!(world.party_clock().elapsed - before, 3, "the stair's 3");
@@ -127,9 +169,16 @@ fn a_stair_costs_its_own_minutes_once() {
 #[test]
 fn the_query_a_client_mirrors_predicts_where_a_stair_leaves_the_party() {
     let data = tower();
-    let world = at(&data, Level::GROUND, 2, 0, Facing::West);
+    let world = at(&data, Level::GROUND, 3, 0, Facing::West);
     let lands = query::step_lands(&world, &data, Direction::Forward).expect("lands");
-    assert_eq!((lands.level, lands.x, lands.y), (UPPER, 1, 0));
+    assert_eq!((lands.level, lands.x, lands.y), (UPPER, 2, 0));
+    let side = at(&data, Level::GROUND, 2, 1, Facing::North);
+    let lands = query::step_lands(&side, &data, Direction::Forward).expect("lands");
+    assert_eq!(
+        (lands.level, lands.x, lands.y),
+        (Level::GROUND, 2, 0),
+        "from the side"
+    );
 }
 
 #[test]

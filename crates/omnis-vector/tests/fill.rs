@@ -293,11 +293,11 @@ fn stairwells_and_ladder_shafts_are_open_through_the_floors_they_join() {
     let fills = |level| level_fills(&data, &world, "levels:map:tower", level);
     let (cellar, ground, upper) = (fills(CELLAR), fills(Level::GROUND), fills(UPPER));
     assert!(
-        !solid(&upper, mid(1, 0, 1.0)),
+        !solid(&upper, mid(2, 0, 1.0)),
         "the stair down's floor is open"
     );
     assert!(
-        solid(&ground, mid(1, 0, 0.0)),
+        solid(&ground, mid(2, 0, 0.0)),
         "the stair up stands on its floor"
     );
     assert!(
@@ -334,9 +334,9 @@ fn a_stair_or_ladder_up_has_no_ceiling() {
         )
     };
     let (cellar, ground) = (all(CELLAR), all(Level::GROUND));
-    assert!(!solid(&ground, mid(1, 0, 1.0)), "over the stair up");
+    assert!(!solid(&ground, mid(2, 0, 1.0)), "over the stair up");
     assert!(!solid(&ground, mid(1, 1, 1.0)), "over the ladder");
-    assert!(solid(&ground, mid(2, 0, 1.0)), "over the floor beside it");
+    assert!(solid(&ground, mid(1, 0, 1.0)), "over the floor beside it");
     assert!(!solid(&cellar, mid(1, 1, 0.0)), "over the cellar's ladder");
 }
 

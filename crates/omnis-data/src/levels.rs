@@ -44,6 +44,8 @@ pub struct LevelData {
     pub name: String,
     /// Row-major cells, `width × height`; `None` where there is no ground.
     pub cells: Vec<Option<Cell>>,
+    /// The way each stair on the level rises, by column and row (M8.5 step 1c).
+    pub rises: BTreeMap<(u16, u16), Facing>,
 }
 
 /// The grid of one level, borrowed from the file.
@@ -90,6 +92,7 @@ pub fn parse(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) -> Option<V
                 level: *level,
                 name: name.clone(),
                 cells,
+                rises: BTreeMap::new(),
             });
         }
     }
@@ -97,6 +100,9 @@ pub fn parse(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) -> Option<V
         return None;
     }
     check_joins(def, &levels, file, errors);
+    if errors.len() == before {
+        crate::stairs::check(def, &mut levels, file, errors);
+    }
     (errors.len() == before).then_some(levels)
 }
 
@@ -464,16 +470,19 @@ mod tests {
         }
     }
 
-    /// A 2x1 map: `.` floor, `#` rock, `u` stair up, `d` stair down, `l` ladder, `h` hole.
+    /// A one-row map as wide as `ground` is written (`|. .|` is two tiles): `.` floor, `#` rock,
+    /// `u` stair up, `d` stair down, `l` ladder, `h` hole.
     fn map(ground: &str, levels: &[(i8, i16, &str)]) -> MapDef {
-        let row = |tiles: &str| vec!["+-+-+".to_owned(), tiles.to_owned(), "+-+-+".to_owned()];
+        let width = u16::try_from(ground.len() / 2).expect("a narrow map");
+        let edge = format!("+{}", "-+".repeat(usize::from(width)));
+        let row = |tiles: &str| vec![edge.clone(), tiles.to_owned(), edge.clone()];
         MapDef {
             schema: 1,
             id: "t:map:tower".into(),
             name: "t:text:tower".into(),
             kind: MapKind::Dungeon,
             tileset: "t:tileset:d".into(),
-            width: 2,
+            width,
             height: 1,
             start: (0, 0, Facing::East),
             wall: WallSurfaces {
@@ -503,6 +512,7 @@ mod tests {
                     heights: vec![],
                 })
                 .collect(),
+            stairs: vec![],
             portals: vec![],
             encounters: vec![],
             random: None,
@@ -520,7 +530,7 @@ mod tests {
 
     #[test]
     fn levels_sit_at_their_base_lowest_first_with_no_ground_where_written() {
-        let def = map("|u .|", &[(1, 8, "|d _|"), (-1, -8, "|. .|")]);
+        let def = map("|. .|", &[(1, 8, "|. _|"), (-1, -8, "|. .|")]);
         let mut errors = vec![];
         let levels = parse(&def, Path::new("m"), &mut errors).expect("valid");
         assert!(errors.is_empty(), "{errors:?}");
@@ -591,6 +601,106 @@ mod tests {
         assert_eq!(
             errors_of(&map("|. .|", &many)),
             ["a map may have at most 16 levels, its own among them"]
+        );
+    }
+
+    /// `def` with these stairs: `(level, x, y, rise)`.
+    fn stairs(mut def: MapDef, list: &[(i8, u16, u16, Facing)]) -> MapDef {
+        def.stairs = list
+            .iter()
+            .map(|&(level, x, y, rise)| crate::stairs::StairDef { level, x, y, rise })
+            .collect();
+        def
+    }
+
+    #[test]
+    fn a_stair_pair_rising_one_way_is_listed_on_its_levels() {
+        let def = stairs(
+            map("|. u .|", &[(1, 8, "|. d .|")]),
+            &[(0, 1, 0, Facing::East), (1, 1, 0, Facing::East)],
+        );
+        let mut errors = vec![];
+        let levels = parse(&def, Path::new("m"), &mut errors).expect("valid");
+        let rise = |l: i8| {
+            levels
+                .iter()
+                .find(|d| d.level == Level(l))
+                .map(|d| d.rises.clone())
+        };
+        assert_eq!(rise(0), Some(BTreeMap::from([((1, 0), Facing::East)])));
+        assert_eq!(rise(1), Some(BTreeMap::from([((1, 0), Facing::East)])));
+    }
+
+    #[test]
+    fn every_stair_is_listed_once_and_every_entry_is_a_stair() {
+        let pair = |list: &[(i8, u16, u16, Facing)]| {
+            errors_of(&stairs(map("|. u .|", &[(1, 8, "|. d .|")]), list))
+        };
+        let (up, down) = ((0, 1, 0, Facing::East), (1, 1, 0, Facing::East));
+        assert_eq!(
+            pair(&[up]),
+            [
+                "level 1: the stair down at (1, 0) has no entry in `stairs` saying which way it rises"
+            ]
+        );
+        assert_eq!(
+            pair(&[up, down, (0, 0, 0, Facing::East)]),
+            ["the stair entry at (0, 0) is not on a stair"]
+        );
+        assert_eq!(
+            pair(&[up, down, up]),
+            ["the stair entry at (1, 0) is written twice"]
+        );
+        assert_eq!(
+            pair(&[up, down, (5, 1, 0, Facing::East)]),
+            ["level 5: the stair entry at (1, 0) is on a level the map does not have"]
+        );
+        assert_eq!(
+            pair(&[up, down, (0, 9, 0, Facing::East)]),
+            ["the stair entry at (9, 0) is outside the map"]
+        );
+    }
+
+    #[test]
+    fn a_stair_up_is_reached_from_its_foot_and_a_stair_down_from_its_head() {
+        let west = |ground: &str, upper: &str| {
+            errors_of(&stairs(
+                map(ground, &[(1, 8, upper)]),
+                &[(0, 1, 0, Facing::West), (1, 1, 0, Facing::West)],
+            ))
+        };
+        assert_eq!(
+            west("|. u #|", "|. d .|"),
+            ["the stair up at (1, 0) rises West, but its foot is a tile the party cannot enter"]
+        );
+        assert_eq!(
+            west("|. u|.|", "|. d .|"),
+            ["the stair up at (1, 0) rises West, but its foot is behind a wall or a door"]
+        );
+        assert_eq!(
+            west("|. u .|", "|_ d .|"),
+            ["level 1: the stair down at (1, 0) rises West, but its head is no ground"]
+        );
+        assert_eq!(
+            errors_of(&stairs(
+                map("|u . .|", &[(1, 8, "|d . .|")]),
+                &[(0, 0, 0, Facing::East), (1, 0, 0, Facing::East)],
+            )),
+            ["the stair up at (0, 0) rises East, but its foot is off the map"]
+        );
+    }
+
+    #[test]
+    fn a_stair_pair_is_one_flight() {
+        assert_eq!(
+            errors_of(&stairs(
+                map("|. u .|", &[(1, 8, "|. d .|")]),
+                &[(0, 1, 0, Facing::East), (1, 1, 0, Facing::West)],
+            )),
+            [
+                "the stair up at (1, 0) rises East, but the stair it joins on level 1 rises West; \
+                 they are one flight"
+            ]
         );
     }
 }

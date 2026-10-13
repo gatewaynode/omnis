@@ -100,7 +100,7 @@ fn the_top_level_has_only_the_level_below_beside_it() {
 #[test]
 fn a_stair_climbs_its_cell_to_the_floor_above_and_down_to_the_floor_below() {
     let data = levels_data();
-    let up = within(&scene(&data, Level::GROUND).own, SegKind::Stair, 1.0, 0.0);
+    let up = within(&scene(&data, Level::GROUND).own, SegKind::Stair, 2.0, 0.0);
     assert_eq!(heights(&up), (0.0, 1.0), "{up:?}");
     assert_eq!(up.len(), 6, "four treads on two stringers");
     let mut treads: Vec<f32> = up

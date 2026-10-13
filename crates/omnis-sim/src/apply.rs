@@ -205,7 +205,7 @@ pub(crate) fn landing(
             y: portal.to_y,
             facing: portal.to_facing,
         })
-        .or_else(|| joined(map, pos.at(x, y), terrain.join?))
+        .or_else(|| joined(map, pos.at(x, y), terrain.join?, facing))
         .filter(|dest| {
             data.maps
                 .get(&dest.map)
@@ -218,13 +218,17 @@ pub(crate) fn landing(
     })
 }
 
-/// Where a stair or a hole at `at` leads: the same tile of the next level up or down, the facing
-/// kept. A ladder leads nowhere by a step; it is climbed.
-fn joined(map: &MapData, at: Position, join: Join) -> Option<Position> {
+/// Where a stair or a hole at `at` leads, for a step onto it moving `heading`: the same tile of
+/// the next level up or down, the facing kept. A stair up is taken only from its foot (moving the
+/// way it rises), a stair down only from its head (moving against it); from any other side the
+/// step lands on the stair as on a floor. A ladder leads nowhere by a step; it is climbed.
+fn joined(map: &MapData, at: Position, join: Join, heading: Facing) -> Option<Position> {
+    let rise = || map.rise(at.level, at.x, at.y);
     let up = match join {
-        Join::Up => true,
-        Join::Down | Join::Hole => false,
-        Join::Ladder => return None,
+        Join::Up if rise() == Some(heading) => true,
+        Join::Down if rise() == Some(heading.opposite()) => false,
+        Join::Hole => false,
+        Join::Up | Join::Down | Join::Ladder => return None,
     };
     Some(Position {
         level: map.beyond(at.level, up)?,

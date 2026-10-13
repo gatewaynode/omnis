@@ -47,16 +47,16 @@ fn command(effect: Effect) -> Command {
 #[test]
 fn a_stair_taken_puts_the_views_on_the_level_above_and_the_pose_stays_on_its_cell() {
     let mut session = tower();
-    put(&mut session, Level::GROUND, 2, 0, Facing::West);
+    put(&mut session, Level::GROUND, 3, 0, Facing::West);
     assert!(session.order(Command::Step(Direction::Forward)));
     let p = session.views.position;
-    assert_eq!((p.level, p.x, p.y), (Level(1), 1, 0));
+    assert_eq!((p.level, p.x, p.y), (Level(1), 2, 0));
     assert_eq!(session.pose, Pose::at(p), "on the stair's cell, facing on");
     assert!(
         session
             .lines
             .iter()
-            .any(|l| l == "Moved to (1, 0) on Upper floor (1) facing West"),
+            .any(|l| l == "Moved to (2, 0) on Upper floor (1) facing West"),
         "{:?}",
         session.lines
     );

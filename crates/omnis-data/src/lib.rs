@@ -28,6 +28,7 @@ pub mod rules;
 pub mod sense;
 pub mod service;
 pub mod spell;
+pub mod stairs;
 pub mod terms;
 pub mod text;
 pub mod tileset;

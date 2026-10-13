@@ -116,6 +116,12 @@ impl MapData {
         self.levels.iter().find(|l| l.level == level)
     }
 
+    /// The way the stair at `(x, y)` of `level` rises, if there is one (M8.5 step 1c).
+    #[must_use]
+    pub fn rise(&self, level: Level, x: u16, y: u16) -> Option<Facing> {
+        self.level(level)?.rises.get(&(x, y)).copied()
+    }
+
     /// The next level up (`up`) or down from `level`, if the map has one.
     #[must_use]
     pub fn beyond(&self, level: Level, up: bool) -> Option<Level> {

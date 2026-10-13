@@ -547,7 +547,7 @@ means the same thing after a reorder or a change to a list.
 
 | Variant | Fields | Meaning |
 |---|---|---|
-| `Step` | `Direction` | Move one tile relative to the facing, without turning. |
+| `Step` | `Direction` | Move one tile relative to the facing, without turning. A stair up is taken only by a step onto it from its foot (moving the way the map's `stairs` list says it rises), a stair down only from its head (moving against it); a step from any other side lands on the stair as on a floor. The step's direction counts, not the facing, so backing or sidestepping onto a stair from its foot takes it. |
 | `Turn` | `Rotation` | Turn in place. |
 | `Interact` | | Use the facing edge or tile: a door, a site (enters its service). |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
@@ -927,6 +927,10 @@ Additive (§13), so `PROTOCOL` stays 2:
   `Command::Climb(Vertical)` and `Rejection::NoLadder`; `BlockReason::NoGround`; a stair or a
   hole gives a second `Moved`, as a portal does; `_` for no ground in `map.text`. Tier 1's
   `automap`, `map_text` and `door_open` take a `Level`.
+- 2026-10-12: a stair's direction (M8.5 step 1c): a map lists every stair with the way it rises
+  (`stairs`), and a `Step` takes a stair up only from its foot and a stair down only from its
+  head; from a side it is a plain step (one `Moved`). No type changes; no shipped map has stairs,
+  so shipped play and the replays are unchanged.
 
 ### Protocol 2 (2026-10-10)
 

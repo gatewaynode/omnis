@@ -73,6 +73,10 @@ fn every_error_in_a_broken_pack_is_reported() {
         "level 2: layout has 1 rows; a 1-tile-high map needs 3",
         "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
         "map 'broken:map:levels' belongs to no region",
+        // data/maps/stairs.ron (M8.5 step 1c)
+        "the stair entry at (1, 0) is not on a stair",
+        "the stair up at (0, 0) has no entry in `stairs` saying which way it rises",
+        "map 'broken:map:stairs' belongs to no region",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
         "encounter 0 stack count must be at least 1",
