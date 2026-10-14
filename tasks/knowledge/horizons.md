@@ -118,7 +118,8 @@ inputs, the reach drawn on the automap, a look from a fight, `RevealMap` as a de
 
 ## Modern presentation (PRD D26, owner 2026-09-20)
 > Superseded (2026-10-10, A18, X15): the game's interface is `omnis-vector`'s `bevy_ui` in the neon
-> style; Feathers left the workspace with `omnis-app` at P9 (2026-10-11). Kept as history.
+> style; Feathers left the workspace with `omnis-app` at P9 (2026-10-11). The editor follows: `bevy_ui`
+> (owner, 2026-10-14). Kept as history.
 
 **The Feathers experiment is done and a success by the owner's word (2026-09-20): "committing to
 moving the rest of the play UI over bit by bit."** Inter; interface scale 1.1 at canvas 1×, 1.5
@@ -162,6 +163,14 @@ name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 tw
 three-byte letters of the input's 24 characters; 96 bytes would hold 24 of any script, a rules
 change for the owner to call).
 
+## The editor (owner, 2026-10-14)
+Chosen: `bevy_ui`, a top-down plan with a 3D preview, maps plus a RON text editor, a `notes` text, objects
+defined first in M8.5 step 2. Not chosen for v1, each waiting for the editor's later steps or a content need:
+- editing in the 3D view (picking cells and edges in first person or an orbit camera);
+- form-based editors for the data tables (PRD §10's data table view);
+- a map writer that keeps `//` comments in place (the `notes` text stands in);
+- the editor before objects, authoring them from the start (objects are hand-written RON until the editor).
+
 ## Later phases
-The editor (M5, deferred; `tasks/plans/editor-v1.md`), GFDL backgrounds as their own pack,
+The editor (M5, after M8.5 step 2; the plan is written then), GFDL backgrounds as their own pack,
 procedural generation (M9), the ecosystem (M10), the story engine (M11), packaging (M12).

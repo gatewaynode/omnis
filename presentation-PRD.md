@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
+| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10 (branch `vector-adoption`; `tasks/plans/vector-adoption.md`) |
 | Parent documents | `PRD.md` (v0.8), `ARCHITECTURE.md` (v0.8, A18); companion `presentation-ARCHITECTURE.md` (v0.4) |
 | Owner | gatewaynode |
@@ -48,7 +48,7 @@ owner has merged it. At the merge, the main PRD is amended to point here (X9):
 | PRD D26, §14 | "Modern" undecided; possibly reopening 3D | Decided: the 3D vector presentation of this document |
 | PRD R10, R13 | Sprite-tileset art pipeline and its risks | Replaced by procedural and authored line art (X12) and §10's risks |
 | ARCH §8.1 | "The `3d` group (pbr, gltf) is never enabled" | Bevy 3D features enabled for the client |
-| ARCH §8.2, A11 | Canvas sprites for the HUD and menus | `bevy_ui` in the neon style (X13); `bevy_egui` stays the editor's choice until revisited |
+| ARCH §8.2, A11 | Canvas sprites for the HUD and menus | `bevy_ui` in the neon style (X13); the editor too (owner, 2026-10-14) |
 
 Height (X10) and cliffs (X11) need pack-data and rules support that belongs to the mechanics work
 (`omnis-data`, `omnis-sim`). This document states what the presentation needs. The mechanics
@@ -254,7 +254,7 @@ Three depth levels (X17):
   boundary.
 - **Developer tools** (the dev socket, MCP screenshot, the debug menu) move to the new client as
   part of parity, so agents and the owner keep their capture and inspection paths.
-- **The editor** keeps `bevy_egui` (ARCH A11) until its toolkit is revisited.
+- **The editor** is `bevy_ui` in the neon style under X15's style guide (owner, 2026-10-14; ARCH §8.2).
 
 ## 9. Constraints
 

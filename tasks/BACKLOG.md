@@ -36,7 +36,7 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
     checked, so a pack could show glyphs the fonts lack.
 
 ## Docs and wording
-- **The editor's toolkit is contradicted** (found at P9).
+- **The editor's toolkit is contradicted** (found at P9). **Resolved 2026-10-14: the owner chose `bevy_ui`; the docs agree.**
   - ARCHITECTURE A11 chose `bevy_ui` with Feathers for the editor; presentation-PRD §8 says the editor keeps
     `bevy_egui` until revisited. Feathers left the workspace with `omnis-app`.
   - ARCHITECTURE §8.2 marks it open. Decide it when the editor is planned (`tasks/plans/editor-v1.md`).

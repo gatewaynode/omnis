@@ -1,35 +1,32 @@
 # Continuity notes
 
-Written 2026-10-14, before a hard restart for an OS upgrade. Rewrite this file every time it is used. Durable
-knowledge lives in `tasks/knowledge/`.
+Written 2026-10-14, after the OS upgrade and the editor's direction was settled. Rewrite this file every time it
+is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `M8.5-tasks`**, clean, not pushed (the owner pushes).
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 2, 5, 6, with 1c added before 2.
-  - Accepted: 1a, 4, 4b, 1b, 3.
-  - **1c (a stair's direction) accepted 2026-10-14:** "Manually tested stair, hills and ladders, acceptable
-    functionality" (`f7f55be`).
-- **The hills' crests, fixed and confirmed (2026-10-14):**
-  - The finding: a rise's top had no line, so the black ground against the black sky read as a void.
-  - The fix (`60e8b05`): `Ground::crests(eye, reach)` in `omnis-vector/src/ground.rs` returns each edge of the
-    ground's triangles between one that faces the eye and one that faces away. That covers diagonals inside a cell,
-    and sides only where the ground runs on (both cells carry the side at the same heights).
-  - `render::draw` draws them each frame from the camera's `Transform`, in a provisional pale `CREST` colour,
-    whether or not the grid is shown.
-  - Tests in `tests/ground.rs`: none on flat ground; the terrace's lip from above and below; one along a side; none
-    along a split. Mutations 4 of 4 caught.
-  - The owner confirmed it fixed in the window.
-- **Gate:** `tests passed 712 failed 0 ignored 12`, VERIFY-GREEN, at `60e8b05`. Sentrux rules pass, quality 8960.
+- **Branch `M8.5-tasks`**, not pushed (the owner pushes).
+- **After the OS upgrade (Darwin 27):** the toolchain builds and links (both binaries relinked), and the gate is
+  `tests passed 712 failed 0 ignored 12`, VERIFY-GREEN.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, 2, **editor (M5)**, 5, 6.
+  - Accepted: 1a, 4, 4b, 1b, 3, 1c. The hills' crest line is confirmed fixed (`60e8b05`).
+- **The editor, settled by the owner 2026-10-14** (`tasks/TODO.md`, "Reassess the editor", checked; M5):
+  - `bevy_ui` in the neon style;
+  - objects first in step 2 (data and engine, hand-written RON), then the editor, before steps 5 and 6;
+  - D4 kept (test pack and fixture maps round-trip and are re-authored in it);
+  - a top-down plan of one level with a 3D preview and Playtest;
+  - maps plus a raw RON text editor for the other data files, checked by the loader before save;
+  - an optional `notes` text on maps and levels (the RON writer drops `//` comments);
+  - the build plan is written after step 2; `tasks/plans/editor-v1.md` is superseded for planning (§A and
+    §E's kinds, placements, ids, limits and blocking are reusable).
+  - Docs amended: PRD D26, §10, §11.1; ARCHITECTURE §8.2, §13, A11; presentation-PRD §2, §8; horizons; BACKLOG.
 
 ## Next
-1. **Held: reassess the editor** before step 2. The owner (2026-10-14): "We should stop and reassess the editor
-   decisions and directions before we commit to that path", then "hold the editor decisions for later".
-   - The review's findings and the three open options are in `tasks/TODO.md`, under "Open, outside the milestones",
-     in the item "Reassess the editor".
-   - Ask the owner when to take it up. Do not plan step 2 until it is done.
-2. **Then step 2** (layout within a square), planned in plan mode with the owner's questions first.
-   - It would take the parts of the editor plan's §E that still fit.
-   - Objects that block sight may need fills (`fill.rs`) and crests.
+1. **Plan step 2** (layout within a square: scenery, items and beings) in plan mode, with the owner's
+   questions first: kinds in `data/objects`, placements with stable ids, an offset inside the cell and a
+   `level`; limits; `MapState.objects` in the save (`SAVE_SCHEMA` 7 → 8 with a migration, or fields left out
+   when empty); blocking movement and sight; the automap; how the client draws them (fills, crests); what the
+   editor will need from the schema.
+2. Then Editor v1 (M5): write its plan against the finished format.
 
 ## Built in M8.5 so far (for orientation)
 - **Height (1a, 4):** heights per cell in eighths, ramps `/`, cliffs derived at load, and the ground drawn smooth
@@ -58,8 +55,6 @@ knowledge lives in `tasks/knowledge/`.
   - MCP command schema `oneOf` 12; schema proof 96 instances, 145 offered.
 
 ## Open, carried over
-- **The editor reassessment** (above), including its toolkit (A11 says Feathers, presentation-PRD §8 says
-  `bevy_egui`).
 - **`assets/README.md` font rows:** the owner's file; report only, never edit.
 - **P6 colours:** unconfirmed. Step 5 revisits the colour roles: joins, fills, the crest line.
 - **The automap** still records the forward cone (presentation-PRD §12.5).
@@ -69,13 +64,6 @@ knowledge lives in `tasks/knowledge/`.
   - `ttf-parser` RUSTSEC-2026-0192;
   - Bevy 0.20, not before 2026-11-07.
 - **The owner's asset work** (`.gitignore`, `assets/`) is theirs. Never stage it.
-
-## After the OS upgrade
-- **Check the toolchain still builds:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools cargo build`.
-  - Command Line Tools may need reinstalling (`xcode-select --install`).
-  - Then run the gate once to confirm 712 tests.
-- **The scratchpad** (gate logs, mutation runners, capture scripts) is temporary and may be gone. Nothing in it is
-  needed; rebuild the capture script from the Facts above.
 
 ## Process
 - **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, with `cargo fmt --all` first. Workspace clippy
