@@ -6,13 +6,14 @@ use crate::combat::{CombatCommand, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
+use crate::objects::Refusal;
 use crate::party::PartyCommand;
 use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::String;
 use core::fmt;
 use omnis_core::{CharacterId, Coins, Direction, Rotation, Vertical};
-use omnis_data::EquipSlot;
+use omnis_data::{EquipSlot, Verb};
 use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
 
@@ -50,6 +51,17 @@ pub enum Command {
     Rest(RestCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
+    /// Do something to an object in reach (M8.5 step 2): the kind's interaction of `verb` that
+    /// it offers in the state it is in now, the `option`th when it offers more than one.
+    Act {
+        /// The placement's id in the map (`chest_1`).
+        object: String,
+        /// What to do.
+        verb: Verb,
+        /// Which of the verb's offered interactions, counted from 0.
+        #[serde(default)]
+        option: u8,
+    },
 }
 
 impl Command {
@@ -100,6 +112,7 @@ impl Command {
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
+            Command::Act { .. } => "act",
         }
     }
 }
@@ -368,6 +381,17 @@ pub enum Rejection {
     },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
+    /// No object of that id is in reach: none in the map, or hidden, taken away, or not in the
+    /// party's cell or the one it faces.
+    NoSuchObject {
+        /// The id asked for.
+        object: String,
+    },
+    /// The object does not allow that now.
+    VerbRefused {
+        /// Why.
+        reason: Refusal,
+    },
 }
 
 impl core::fmt::Display for Rejection {
@@ -421,6 +445,8 @@ impl Rejection {
                 member: CharacterId(member),
             } => write!(f, "the member {member} is down"),
             Rejection::NoLadder => f.write_str("there is no ladder that way"),
+            Rejection::NoSuchObject { object } => write!(f, "no object '{object}' is in reach"),
+            Rejection::VerbRefused { reason } => write!(f, "{reason}"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

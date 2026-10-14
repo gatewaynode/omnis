@@ -14,11 +14,12 @@ use crate::rest::{HitDiceSpend, RestCommand};
 use crate::service::ServiceCommand;
 use crate::tactics::TacticsCommand;
 use crate::world::{Mode, World};
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{CharacterId, Direction, ItemId, Rotation, Vertical};
-use omnis_data::Data;
+use omnis_data::{Data, Verb};
 use omnis_rules::{Character, combat_features};
 
 /// One checked script word.
@@ -228,6 +229,9 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
             if let Some(rest) = word.strip_prefix("cast-") {
                 return parse_cast(rest, scope).map(Command::Combat);
             }
+            if let Some(rest) = word.strip_prefix("act-") {
+                return parse_act(rest);
+            }
             if let Some(rest) = word.strip_prefix("use-item-") {
                 return parse_use(rest, scope).map(Command::Combat);
             }
@@ -281,6 +285,29 @@ fn parse_feature(rest: &str, scope: &Scope<'_>) -> Option<CombatCommand> {
     Some(CombatCommand::Feature {
         feature: scope.feature(feature)?,
         choice,
+    })
+}
+
+/// `O-V` does verb `V` (`open`, `examine`, …) to the object `O` (its id in the map, which has
+/// no `-`); `O-V-N` the verb's `N`th interaction the object offers.
+fn parse_act(rest: &str) -> Option<Command> {
+    let mut parts = rest.split('-');
+    let object = parts.next().filter(|o| !o.is_empty())?;
+    let verb = parts.next()?;
+    let verb = *Verb::ALL
+        .iter()
+        .find(|v| format!("{v:?}").eq_ignore_ascii_case(verb))?;
+    let option = match parts.next() {
+        Some(n) => n.parse().ok()?,
+        None => 0,
+    };
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(Command::Act {
+        object: object.into(),
+        verb,
+        option,
     })
 }
 
@@ -394,7 +421,8 @@ impl core::error::Error for ScriptError {}
 /// (Cunning Action's exchange with slot `W`), `feature-F-hide`, `end` (ends the turn), at any
 /// time `react-M-on` and `react-M-off` (member `M`'s reactions switch), inside a service
 /// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
-/// outside one `rest`, `short-rest` and `short-rest-A-B-…`, separated by whitespace or commas;
+/// outside one `rest`, `short-rest` and `short-rest-A-B-…`, exploring `act-O-V[-N]` (verb `V` on
+/// the object `O`), separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line. Members are named by marching-order
 /// slot and definitions by their row in the list on screen; [`Word::command`] turns each into
 /// a command against the world it is applied to.
@@ -437,6 +465,8 @@ mod tests {
             "sell-0",
             "choose-1-3",
             "learn-0-2",
+            "act-crate_1-examine",
+            "act-chest_1-open-1",
         ] {
             assert!(Word::parse(word).is_some(), "{word}");
         }
@@ -447,9 +477,22 @@ mod tests {
             "buy-1-x",
             "choose-1",
             "fly",
+            "act-crate_1",
+            "act-crate_1-fly",
+            "act--open",
+            "act-chest_1-open-x",
+            "act-chest_1-open-1-2",
         ] {
             assert!(Word::parse(word).is_none(), "{word}");
         }
+        assert_eq!(
+            command("act-chest_1-open-1", &Scope::Any),
+            Some(Command::Act {
+                object: "chest_1".into(),
+                verb: Verb::Open,
+                option: 1,
+            })
+        );
         assert_eq!(
             command("heal-3", &Scope::Any),
             Some(Command::Service(ServiceCommand::Heal {

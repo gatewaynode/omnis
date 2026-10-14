@@ -146,12 +146,12 @@ fn the_pack_rat_names_its_hoard_and_the_hoard_loads() {
     );
 }
 
-fn yard(data: &Data) -> MapId {
+pub fn yard(data: &Data) -> MapId {
     data.registry.maps.get("objects:map:yard").expect("yard")
 }
 
 /// A party of one in the yard at `(x, y)` of `level`, facing `facing`.
-fn in_yard(data: &Data, level: i8, x: u16, y: u16, facing: Facing) -> World {
+pub fn in_yard(data: &Data, level: i8, x: u16, y: u16, facing: Facing) -> World {
     let mut world = World::new(data, 11, Settings::default()).expect("entry map");
     party_of(&mut world, data, 1);
     world.position = Position {

@@ -540,7 +540,7 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (12 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (13 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -559,6 +559,7 @@ means the same thing after a reorder or a change to a list.
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
+| `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -639,13 +640,14 @@ slot `W`) `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a serv
 `room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` (stock item `R`) `sell-R[-N]`
 (stores item `R`) `deposit-N` `withdraw-N` (copper) `train-M` `choose-M-R` (class-list spell
 `R`) `learn-M-R` (the service's spell `R`); outside one `rest` `short-rest`
-`short-rest-A-B-…` (hit dice per member in marching order). Party creation, items, `Cast`
+`short-rest-A-B-…` (hit dice per member in marching order); exploring `act-O-V` and `act-O-V-N`
+(verb `V`, lower case, on object `O`, its `N`th interaction). Party creation, items, `Cast`
 outside a fight and `Dev` have no words. `Command::word` (`command.rs`) gives a command's bare
 verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their own).
 
 ## 9. Events
 
-`Event` has 62 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 69 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -669,7 +671,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `EncounterCheck` | `roll` (d100 `RollTrace`), `chance`, `fired` | A step rolled for a random encounter. |
 | `EncounterStarted` | `source`, `stacks` (`[[monster id, count]]`), `disposition`, `counts` (`[RollTrace]`), `stealth` (`Roll` or null), `perception`, `noticed` | Monsters stand before the party; unnoticed means the party is surprised. |
-| `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
+| `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`, `{"Skill": Skill}`, `{"Ability": Ability}`, the last two from `Act`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
 | `Bribed` | `cost` (copper) | The monsters took the money and left. |
 
 ### Fights
@@ -719,6 +721,18 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
+### Objects
+
+| Event | Fields | Meaning |
+|---|---|---|
+| `ObjectUsed` | `object` (placement id in the party's map), `verb`, `success` | `Act` went through; its checks (`Check`) come before it, its effects after it on success, the kind's failure text on a failed check. |
+| `ObjectState` | `object`, `state` | The object moved to a state. |
+| `ObjectRemoved` | `object` | The object was taken away for good. |
+| `ObjectMessage` | `object`, `key` (a text key) | Text for the player. |
+| `GoldFound` | `amount` (copper) | Coin went to the party. |
+| `ItemFound` | `item`, `count` | Items went into the stores from the world. |
+| `ItemSpent` | `item`, `count`, `from` (`{"Member": CharacterId}` or `"Stores"`) | Items were used up. |
+
 ### Town, rest and progression
 
 | Event | Fields | Meaning |
@@ -748,7 +762,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (63 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (65 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -807,6 +821,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `SpellTooHigh` | `level`, `max` | Above the highest level the member may learn. |
 | `AlreadyKnown` | `member` | The spell is already on the member's list. |
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
+| `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
+| `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`) | `Act`: the object does not allow that now; nothing changed. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -937,6 +953,12 @@ Additive (§13), so `PROTOCOL` stays 2:
   blocks sight rises above the line, except in the cell it stands in. No shipped map places
   objects, so shipped play,
   saves and the replays are unchanged.
+- 2026-10-14: `Command::Act { object, verb, option }` (M8.5 step 2, item 9), the word
+  `act-O-V[-N]`; events `ObjectUsed`, `ObjectState`, `ObjectRemoved`, `ObjectMessage`,
+  `GoldFound`, `ItemFound`, `ItemSpent`; `CheckKind::Skill` and `CheckKind::Ability`;
+  rejections `NoSuchObject` and `VerbRefused` (`Refusal`); `Verb::ALL`. An object's rules slot
+  gets `party_level` (the mean level of members who can act, rounded down) and `party_size`
+  (how many can act).
 
 ### Protocol 2 (2026-10-10)
 

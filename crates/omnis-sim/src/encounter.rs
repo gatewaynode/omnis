@@ -12,13 +12,12 @@ use crate::names::id_of;
 use crate::world::{Mode, World};
 use alloc::format;
 use alloc::vec::Vec;
-use core::cmp::Reverse;
 use omnis_core::{Dice, Facing, MapId, MonsterId, Position, RollTrace, StreamName};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Ability, Data, Disposition, ResolvedRandom, Skill};
 use omnis_rules::{
-    Character, Roll, RollMode, RuleError, kept_d20, modifier_of, monster_hit_points, passive,
-    passive_perception, skill_bonus,
+    Roll, RollMode, RuleError, kept_d20, modifier_of, monster_hit_points, passive,
+    passive_perception,
 };
 use serde::{Deserialize, Serialize};
 
@@ -494,22 +493,9 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
     Ok(())
 }
 
-/// The member who rolls for the group: the best at `bonus`, the first in marching order on
-/// ties.
-fn best_member(
-    world: &World,
-    data: &Data,
-    bonus: impl Fn(&Character) -> i64,
-) -> Result<usize, RuleError> {
-    world
-        .party
-        .members
-        .iter()
-        .enumerate()
-        .filter(|(_, m)| can_fight(m, data))
-        .min_by_key(|(_, m)| Reverse(bonus(m)))
-        .map(|(i, _)| i)
-        .ok_or_else(|| RuleError::new("encounter", "no member can act"))
+/// The member who rolls for the group.
+fn roller_for(world: &World, data: &Data, spec: CheckSpec) -> Result<usize, RuleError> {
+    checks::best(world, data, spec).ok_or_else(|| RuleError::new("encounter", "no member can act"))
 }
 
 /// Hide: Stealth against the monsters' best passive Perception; they stay where they are.
@@ -525,14 +511,12 @@ fn hide(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), R
         .max()
         .unwrap_or(10);
     let friendly = state.disposition == Disposition::Friendly;
-    let member = best_member(world, data, |m| {
-        skill_bonus(m, data, Skill::Stealth).unwrap_or(0)
-    })?;
     let spec = CheckSpec {
         skill: Some(Skill::Stealth),
         ability: Ability::Dexterity,
         mode: RollMode::Normal,
     };
+    let member = roller_for(world, data, spec)?;
     let success = checked(
         world,
         data,
@@ -592,14 +576,12 @@ fn run(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Ru
     };
     let dc = run_dc(data, state.disposition);
     let friendly = state.disposition == Disposition::Friendly;
-    let member = best_member(world, data, |m| {
-        omnis_rules::modifier(m.scores[Ability::Dexterity.index()])
-    })?;
     let spec = CheckSpec {
         skill: None,
         ability: Ability::Dexterity,
         mode: RollMode::Normal,
     };
+    let member = roller_for(world, data, spec)?;
     let success = checked(
         world,
         data,

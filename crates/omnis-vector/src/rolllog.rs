@@ -144,6 +144,8 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 CheckKind::Run => "Run".to_owned(),
                 CheckKind::Flee => "Flee".to_owned(),
                 CheckKind::Save(ability) => format!("{ability:?} save"),
+                CheckKind::Skill(skill) => labels::skill(*skill),
+                CheckKind::Ability(ability) => format!("{ability:?}"),
             };
             let rolled = roll
                 .as_ref()

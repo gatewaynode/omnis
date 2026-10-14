@@ -39,6 +39,25 @@ pub enum Verb {
     Extinguish,
 }
 
+impl Verb {
+    /// Every verb, in declaration order.
+    pub const ALL: [Verb; 13] = [
+        Verb::Use,
+        Verb::Open,
+        Verb::Close,
+        Verb::Search,
+        Verb::Examine,
+        Verb::Take,
+        Verb::Push,
+        Verb::Pull,
+        Verb::Break,
+        Verb::Read,
+        Verb::Drink,
+        Verb::Light,
+        Verb::Extinguish,
+    ];
+}
+
 /// The shape primitive an object is drawn as (M8.5 step 2b draws them).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Shape {

@@ -29,7 +29,7 @@ macro_rules! variants {
 }
 
 variants!(Command, COMMANDS, command_name:
-    Step Turn Interact Climb Party Encounter Combat Cast Item Service Rest Dev);
+    Step Turn Interact Climb Party Encounter Combat Cast Item Service Rest Dev Act);
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
@@ -42,7 +42,8 @@ variants!(Event, EVENTS, event_name:
     SpellCast EffectApplied EffectEnded Concentration ReactionsSwitched TacticsChanged Reaction
     Equipped Unequipped ItemMoved ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
-    Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev);
+    Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
+    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -53,7 +54,7 @@ variants!(Rejection, REJECTIONS, rejection_name:
     RestTooSoon NoFood NoHitDice NotReady MaxLevel NoPicks NoSuchSpell NotOnList
     CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
     NotABonusAction NeedsPreparation NoSuchFeature NoUsesLeft WrongChoice Tactics CannotReact
-    NoSuchEntry Rule);
+    NoSuchEntry Rule NoSuchObject VerbRefused);
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
@@ -221,10 +222,10 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     );
     // The counts the document states are the types' counts.
     for (count, what) in [
-        (COMMANDS.len(), "`Command` (12 variants)"),
+        (COMMANDS.len(), "`Command` (13 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
-        (EVENTS.len(), "`Event` has 62 variants"),
-        (REJECTIONS.len(), "`Rejection` (63 variants)"),
+        (EVENTS.len(), "`Event` has 69 variants"),
+        (REJECTIONS.len(), "`Rejection` (65 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "25 ops."),
     ] {

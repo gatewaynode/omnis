@@ -1,0 +1,8 @@
+// The fixture's rules slot for an object (M8.5 step 2): a wish at the fountain needs company.
+(
+    schema: 1,
+    id: "objects:rules:objects",
+    slots: {
+        "objects.crowd": (inputs: ["party_size"], expr: "party_size >= 2"),
+    },
+)

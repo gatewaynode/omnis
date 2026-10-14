@@ -28,6 +28,14 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         }
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
+        (
+            Mode::Explore,
+            Command::Act {
+                object,
+                verb,
+                option,
+            },
+        ) => objects::act(world, data, object, *verb, *option, &mut events)?,
         (Mode::Explore, Command::Climb(way)) => climb(world, data, *way, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Party(command))
         | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))

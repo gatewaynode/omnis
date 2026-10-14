@@ -451,7 +451,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - [x] Data: loot tables and `Monster.loot`.
     - [x] Engine: object state and step blocking (`BlockReason::Object`).
     - [x] Engine: sight through footprints.
-    - [ ] Engine: `Command::Act`.
+    - [x] Engine: `Command::Act` (2026-10-14): `objects/act.rs` (reach, offered interactions, refusals), `objects/outcome.rs` (requirements, checks on the `object` stream, items used up, effects); `checks::best` shared with the encounter; `Command::Act { object, verb, option }` and the word `act-O-V[-N]`; seven events, `CheckKind::Skill/Ability`, `NoSuchObject`, `VerbRefused(Refusal)`; MCP `oneOf` 12 → 13, proof 96/145 → 109/159; fixture: the fountain's wish and `objects.crowd`. Mutations 13 of 13 caught. Gate 746 passed.
     - [ ] Engine: Interact routing and `ChooseVerb`.
     - [ ] Engine: ground piles and containers.
     - [ ] Engine: loot on victory.

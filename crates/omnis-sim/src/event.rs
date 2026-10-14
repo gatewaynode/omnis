@@ -8,7 +8,7 @@ use crate::names::Place;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{CharacterId, EraId, Facing, Level, RollTrace};
-use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
+use omnis_data::{Ability, DamageType, Disposition, EquipSlot, Skill, Verb};
 use omnis_rules::{ActionRef, Named, Trigger};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
 use serde::{Deserialize, Serialize};
@@ -118,6 +118,10 @@ pub enum CheckKind {
     Flee,
     /// A saving throw against a spell.
     Save(Ability),
+    /// A skill check an object asks for (M8.5 step 2).
+    Skill(Skill),
+    /// An ability check an object asks for.
+    Ability(Ability),
 }
 
 /// Whom an effect is on.
@@ -550,6 +554,55 @@ pub enum Event {
         target: ActorRef,
         /// The whole gold pieces a monster dropped, as rolled; looted as copper.
         gold: Option<RollTrace>,
+    },
+    /// The party did something to an object; on success its effects follow (M8.5 step 2).
+    ObjectUsed {
+        /// The placement's id in the party's map.
+        object: String,
+        /// What it did.
+        verb: Verb,
+        /// Whether every requirement held.
+        success: bool,
+    },
+    /// An object moved to another state.
+    ObjectState {
+        /// The placement's id in the party's map.
+        object: String,
+        /// The state it is in now.
+        state: String,
+    },
+    /// An object was taken away for good.
+    ObjectRemoved {
+        /// The placement's id in the party's map.
+        object: String,
+    },
+    /// An object's text for the player.
+    ObjectMessage {
+        /// The placement's id in the party's map.
+        object: String,
+        /// The text key.
+        key: String,
+    },
+    /// The party found coin.
+    GoldFound {
+        /// Copper.
+        amount: u32,
+    },
+    /// Items went into the stores from the world.
+    ItemFound {
+        /// Which item.
+        item: String,
+        /// How many.
+        count: u16,
+    },
+    /// Items were used up.
+    ItemSpent {
+        /// Which item.
+        item: String,
+        /// How many.
+        count: u16,
+        /// Whose they were.
+        from: ItemPlace,
     },
     /// The fight is over.
     CombatEnded {
