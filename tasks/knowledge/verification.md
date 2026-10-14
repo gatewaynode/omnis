@@ -12,9 +12,9 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 697 passed, 12 ignored (2026-10-12, after M8.5 step 3; 678 after 1b; 715 and 13
+Test count at the gate: 712 passed, 12 ignored (2026-10-14, after M8.5 1c and the hills' crests; 708 after 1c; 697 after step 3; 678 after 1b; 715 and 13
 ignored after parity P3, before `omnis-app` retired; 583 before `omnis-vector` joined). The gate's log says it
-on one line: `tests passed 697 failed 0 ignored 12`. Write each gate run to a new file name: `verify.sh` stops at the
+on one line: `tests passed 712 failed 0 ignored 12`. Write each gate run to a new file name: `verify.sh` stops at the
 first failing step, so `cargo fmt --check && verify.sh > gate.txt` that fails at fmt leaves an older
 `gate.txt` in place, and reading it reports an old count as this run's (P2, 2026-10-10).
 
