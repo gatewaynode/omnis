@@ -20,21 +20,18 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 736 failed 0 ignored 12`, VERIFY-GREEN at `9f0fd7b`. Sentrux rules pass, quality 8966.
+- **Gate:** `tests passed 746 failed 0 ignored 12`, VERIFY-GREEN at `ef0b77c`. Sentrux rules pass, quality 8967.
 
-## Next: 2a item 9, `Command::Act`
-- New `omnis-sim/src/objects/act.rs` (eligibility, refusals) and `objects/outcome.rs` (requirements,
-  effects). Read the plan file's "Save and protocol" and "Build" sections first.
-- Checks roll for the best member who can act on a copy of an `object` RNG stream written back only on
-  success; a failed check spends the minutes but not `once`; `Item{consume}` only on success; minutes
-  from `Interaction.minutes`, else `INTERACT_MINUTES`.
-- Wire names first: grep the wire types and run the vocabulary test (`cargo test -p omnis-mcp --test
-  integration vocabulary::`) before naming (lesson 2026-10-10). Watch `kind` (use `object_kind`), `gold`,
-  `state`, `loot`.
-- Each new command, event or rejection also moves: `docs/api.md`, the MCP command schema `oneOf` 12 → 13 and
-  the schema proof's numbers, `api_doc.rs`, and the client's exhaustive matches (`shell/text.rs`).
-- Then items 10 to 16 as listed in the plan (Interact routing, ground and containers, loot on victory,
-  hidden objects, Detect Magic, views and `objects.get`, docs and acceptance).
+## Next: 2a item 10, Interact routing and `ChooseVerb`
+- Item 9 done `ef0b77c`: `objects/act.rs` (`in_reach`, `offered`, `act`), `objects/outcome.rs`;
+  `Command::Act { object, verb, option }`, word `act-O-V[-N]`; `Refusal` in `objects/mod.rs`; `edit`
+  drops entries back at defaults; `checks::best`. Decisions recorded in the plan's "Decided by me".
+- Item 10: a service on the tile wins; else candidates are the faced door plus every offered
+  interaction of reachable objects (`act::in_reach`/`offered`); one runs at once, none is NothingHere,
+  several give `Rejection::ChooseVerb` and change nothing. Replays must not move (a door alone as before).
+- Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`), MCP
+  schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit test, `rolllog.rs`.
+- Then items 11 to 16 as listed in the plan.
 
 ## Facts
 - **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
@@ -44,8 +41,10 @@ knowledge lives in `tasks/knowledge/`.
 - **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
   `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
 - **Pins:** replays unmoved (walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  MCP command schema `oneOf` 12; schema proof 96 instances, 145 offered; MCP tools 25.
-- **Departure so far:** a spill across a cliff is refused too (commit `1e740f4`).
+  MCP command schema `oneOf` 13; schema proof 109 instances, 159 offered; MCP tools 25; `Event` 69,
+  `Rejection` 65, `Command` 13.
+- **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
+  `ItemSpent` (`ef0b77c`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
