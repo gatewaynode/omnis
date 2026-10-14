@@ -57,7 +57,10 @@ old saves only).
   `event.rs` (ids and roll traces only; `ItemPlace`, `LayerCheck`, `SensedTile`).
 - Objects (M8.5 step 2): `objects/mod.rs` (`ObjectState` in `MapState.objects` by placement id,
   written only once changed; `state_of`, `removed`, `blocks_step`, checked by `apply::landing` after
-  `Cliff` as `BlockReason::Object`; re-exported as `api::object_blocks` for the client's mirror).
+  `Cliff` as `BlockReason::Object`; re-exported as `api::object_blocks` for the client's mirror;
+  `state_in`/`removed_in` from a `MapState` for `visibility::Sheet::object_hides`, which tests each
+  walked cell's sight-blocking footprints with `Footprint::ray_span`; `line_of_sight` and `ray` take
+  the kinds, `visibility::Kinds`).
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
   `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
   couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,

@@ -189,7 +189,7 @@ fn the_spyglass_stops_where_the_hill_hides_the_ground() {
     let world = at(&data, 0, 4, Facing::East);
     let map = &data.maps[&world.position.map];
     assert_eq!(
-        visibility::ray(map, None, world.position, 8),
+        visibility::ray(map, &data.objects, None, world.position, 8),
         [(1, 4), (2, 4)]
     );
 }
@@ -303,7 +303,14 @@ fn on_the_flat_maps_sight_is_what_it_was_for_every_pair_of_tiles() {
                 for ty in fy.saturating_sub(8)..h.min(fy + 9) {
                     for tx in fx.saturating_sub(8)..w.min(fx + 9) {
                         assert_eq!(
-                            line_of_sight(map, None, omnis_core::Level::GROUND, (fx, fy), (tx, ty)),
+                            line_of_sight(
+                                map,
+                                &data.objects,
+                                None,
+                                omnis_core::Level::GROUND,
+                                (fx, fy),
+                                (tx, ty)
+                            ),
                             flat::line_of_sight(map, None, (fx, fy), (tx, ty)),
                             "{} from ({fx}, {fy}) to ({tx}, {ty})",
                             map.def.id

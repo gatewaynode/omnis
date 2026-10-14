@@ -19,13 +19,23 @@
 //! opaque tile ([`WALL`] above its floor). On a flat map every wall and opaque tile rises
 //! above every sight line and no ground does, so the cone is the flat one. Standing above the
 //! ground around extends how far the party sees (rule value `sight_rise_per_tile`).
+//!
+//! Objects (M8.5 step 2) whose kind blocks sight in their state now are a third test: where the
+//! line passes over an object's footprint, it is blocked if the object's top (its height above
+//! the floor of the cell it stands in) rises above the line where it enters or leaves the
+//! footprint. An object does not hide the cell it stands in.
 
 use crate::event::SeenTile;
+use crate::objects;
 use crate::world::{MapState, World};
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
+use omnis_core::ObjectKindId;
 use omnis_core::{Facing, Level, Position};
+use omnis_data::footprint::Footprint;
 use omnis_data::limits::MAX_VISIBILITY_DEPTH;
-use omnis_data::{Data, MapData};
+use omnis_data::placement::in_state;
+use omnis_data::{Data, MapData, ObjectKind};
 use omnis_rules::light_depth;
 
 /// A wall's height, and an opaque tile's, in eighths of a cell.
@@ -114,12 +124,18 @@ pub fn above(map: &MapData, pos: Position) -> i64 {
 #[must_use]
 pub fn line_of_sight(
     map: &MapData,
+    kinds: &Kinds,
     state: Option<&MapState>,
     level: Level,
     from: (u16, u16),
     to: (u16, u16),
 ) -> bool {
-    let sheet = Sheet { map, state, level };
+    let sheet = Sheet {
+        map,
+        kinds,
+        state,
+        level,
+    };
     let start = (2 * i32::from(from.0) + 1, 2 * i32::from(from.1) + 1);
     let (tx, ty) = (2 * i32::from(to.0), 2 * i32::from(to.1));
     let ends = [
@@ -148,9 +164,13 @@ impl Sight {
     }
 }
 
+/// Object kinds by id, as `Data::objects` holds them.
+pub type Kinds = BTreeMap<ObjectKindId, ObjectKind>;
+
 /// The level a sight line is walked on.
 struct Sheet<'a> {
     map: &'a MapData,
+    kinds: &'a Kinds,
     state: Option<&'a MapState>,
     level: Level,
 }
@@ -172,6 +192,36 @@ impl Sheet<'_> {
 
     fn open(&self, x: u16, y: u16, facing: Facing) -> bool {
         edge_open(self.map, self.state, self.level, x, y, facing)
+    }
+
+    /// Whether an object listed at `(x, y)`, other than one standing in `target`, hides the
+    /// line from `start` to `end` (sixteenths of a cell).
+    fn object_hides(
+        &self,
+        (x, y): (u16, u16),
+        target: (u16, u16),
+        sight: Sight,
+        start: (i64, i64),
+        end: (i64, i64),
+    ) -> bool {
+        self.map.objects_at(self.level, x, y).any(|(_, p)| {
+            if (p.x, p.y) == target || objects::removed_in(self.state, p) {
+                return false;
+            }
+            let Some(kind) = self.kinds.get(&p.kind) else {
+                return false;
+            };
+            let (look, _, blocks) = in_state(kind, objects::state_in(self.state, p));
+            let footprint: Footprint = p.footprint(look);
+            blocks
+                && footprint
+                    .ray_span(start, end)
+                    .is_some_and(|(enter, leave)| {
+                        let top = self.floor(p.x, p.y) + i64::from(look.height);
+                        sight.below(top, (enter.num, enter.den))
+                            || sight.below(top, (leave.num, leave.den))
+                    })
+        })
     }
 }
 
@@ -204,6 +254,12 @@ fn walk(
         eye: sheet.floor(from.0, from.1) + EYE,
         floor: sheet.floor(target.0, target.1),
     };
+    // The ray in sixteenths of a cell, for the objects' footprints.
+    let s16 = (8 * i64::from(start.0), 8 * i64::from(start.1));
+    let e16 = (8 * i64::from(end.0), 8 * i64::from(end.1));
+    if sheet.object_hides(from, target, sight, s16, e16) {
+        return false;
+    }
     // Where the walk entered the current tile, as a fraction of the way along.
     let mut entered = (0_i64, 1_i64);
     while ix < crossings_x || iy < crossings_y {
@@ -248,7 +304,8 @@ fn walk(
         if (x, y) == target {
             return true;
         }
-        if sight.below(sheet.floor(x, y), at) {
+        if sight.below(sheet.floor(x, y), at) || sheet.object_hides((x, y), target, sight, s16, e16)
+        {
             return false;
         }
         entered = at;
@@ -260,7 +317,13 @@ fn walk(
 /// before a wall or a closed door, after an opaque tile (seen, not seen through), at the map's
 /// edge, and at the first tile the ground or a height hides. What a spyglass looks along.
 #[must_use]
-pub fn ray(map: &MapData, state: Option<&MapState>, pos: Position, range: u8) -> Vec<(u16, u16)> {
+pub fn ray(
+    map: &MapData,
+    kinds: &Kinds,
+    state: Option<&MapState>,
+    pos: Position,
+    range: u8,
+) -> Vec<(u16, u16)> {
     let mut tiles = Vec::new();
     let (mut x, mut y) = (pos.x, pos.y);
     for _ in 0..range {
@@ -273,7 +336,7 @@ pub fn ray(map: &MapData, state: Option<&MapState>, pos: Position, range: u8) ->
         let Some(cell) = map.cell(pos.level, nx, ny) else {
             break;
         };
-        if !line_of_sight(map, state, pos.level, (pos.x, pos.y), (nx, ny)) {
+        if !line_of_sight(map, kinds, state, pos.level, (pos.x, pos.y), (nx, ny)) {
             break;
         }
         tiles.push((nx, ny));
@@ -310,7 +373,7 @@ pub fn cone(world: &World, data: &Data) -> Vec<SeenTile> {
             if map.cell(pos.level, x, y).is_none() {
                 continue;
             }
-            if line_of_sight(map, state, pos.level, (pos.x, pos.y), (x, y)) {
+            if line_of_sight(map, &data.objects, state, pos.level, (pos.x, pos.y), (x, y)) {
                 seen.push(SeenTile {
                     x,
                     y,

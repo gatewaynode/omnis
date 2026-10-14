@@ -933,7 +933,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   so shipped play and the replays are unchanged.
 - 2026-10-14: objects in cells (M8.5 step 2, in progress): `BlockReason::Object`; Tier 1's
   `object_blocks` (the step check a client's mirror shares) and `ObjectState` (what a save keeps
-  of a placement, written only once it changes). No shipped map places objects, so shipped play,
+  of a placement, written only once it changes). Sight is blocked where an object whose kind
+  blocks sight rises above the line, except in the cell it stands in. No shipped map places
+  objects, so shipped play,
   saves and the replays are unchanged.
 
 ### Protocol 2 (2026-10-10)

@@ -299,3 +299,104 @@ fn object_state_is_saved_only_once_something_changes_and_round_trips() {
     );
     assert_eq!(back.fingerprint(), world.fingerprint());
 }
+
+/// Whether `to` is in sight from `from` on the yard's ground, objects as `world` has them.
+fn sees(data: &Data, world: &World, from: (u16, u16), to: (u16, u16)) -> bool {
+    let map = &data.maps[&yard(data)];
+    omnis_sim::visibility::line_of_sight(
+        map,
+        &data.objects,
+        world.maps.get(&yard(data)),
+        Level::GROUND,
+        from,
+        to,
+    )
+}
+
+#[test]
+fn a_tall_object_hides_what_lies_squarely_behind_it_but_not_its_own_cell() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 1, 0, Facing::East);
+    assert!(sees(&data, &world, (1, 0), (3, 0)), "the statue's own cell");
+    assert!(
+        sees(&data, &world, (1, 0), (5, 0)),
+        "a corner of (5, 0) shows past the statue"
+    );
+    assert!(!sees(&data, &world, (1, 0), (6, 0)), "squarely behind it");
+    let map = &data.maps[&yard(&data)];
+    assert_eq!(
+        omnis_sim::visibility::ray(map, &data.objects, None, world.position, 8),
+        [(2, 0), (3, 0), (4, 0), (5, 0)],
+        "the spyglass stops where the statue hides the rest"
+    );
+    world.maps.entry(yard(&data)).or_default().objects.insert(
+        "statue_1".into(),
+        ObjectState {
+            removed: true,
+            ..ObjectState::default()
+        },
+    );
+    assert!(sees(&data, &world, (1, 0), (6, 0)), "the statue gone");
+}
+
+#[test]
+fn an_object_hides_only_where_its_top_rises_above_the_line_of_sight() {
+    let mut data = objects();
+    let world = in_yard(&data, 0, 0, 1, Facing::East);
+    assert!(
+        !sees(&data, &world, (0, 1), (6, 1)),
+        "the crate, six eighths tall, rises above the eye at four"
+    );
+    let crate_kind = data.registry.objects.get("objects:object:crate").unwrap();
+    data.objects.get_mut(&crate_kind).unwrap().look.height = 2;
+    assert!(
+        sees(&data, &world, (0, 1), (6, 1)),
+        "two eighths tall and close to the eye, the line passes over it"
+    );
+    data.objects
+        .get_mut(&crate_kind)
+        .unwrap()
+        .attributes
+        .blocks_sight = false;
+    data.objects.get_mut(&crate_kind).unwrap().look.height = 6;
+    assert!(
+        sees(&data, &world, (0, 1), (6, 1)),
+        "a kind that does not block sight hides nothing"
+    );
+}
+
+#[test]
+fn the_top_is_tested_where_the_line_leaves_the_footprint_too() {
+    let mut data = objects();
+    let world = in_yard(&data, 0, 0, 1, Facing::East);
+    let crate_kind = data.registry.objects.get("objects:object:crate").unwrap();
+    data.objects.get_mut(&crate_kind).unwrap().look.height = 3;
+    assert!(
+        !sees(&data, &world, (0, 1), (3, 1)),
+        "three eighths tall: under the line where it enters, above it where it leaves"
+    );
+}
+
+#[test]
+fn an_object_in_the_viewer_s_own_cell_can_hide_what_lies_beyond() {
+    let data = objects();
+    let world = in_yard(&data, 0, 1, 1, Facing::East);
+    assert!(
+        !sees(&data, &world, (1, 1), (6, 1)),
+        "looking out from inside the crate's cell"
+    );
+}
+
+#[test]
+fn an_object_spilling_into_a_cell_does_not_hide_its_own_cell_behind_the_spill() {
+    let mut data = objects();
+    let gate = data.registry.objects.get("objects:object:gate").unwrap();
+    data.objects.get_mut(&gate).unwrap().attributes.blocks_sight = true;
+    let world = in_yard(&data, 0, 3, 1, Facing::South);
+    assert!(sees(&data, &world, (3, 1), (3, 2)), "the gate's cell");
+    assert!(!sees(&data, &world, (3, 1), (3, 4)), "beyond the gate");
+    assert!(
+        sees(&data, &world, (3, 4), (3, 2)),
+        "from the south, through the cell its spill reaches, the gate's own cell is seen"
+    );
+}

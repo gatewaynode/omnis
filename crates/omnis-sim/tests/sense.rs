@@ -57,7 +57,13 @@ fn the_ray_stops_before_a_closed_door_after_a_pillar_and_at_a_wall() {
     };
     let state = |world: &World| world.maps.get(&dungeon(&data)).cloned();
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 16),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            16
+        ),
         [(3, 5)],
         "the door below (3, 5) is closed"
     );
@@ -66,27 +72,39 @@ fn the_ray_stops_before_a_closed_door_after_a_pillar_and_at_a_wall() {
     apply(&mut world, &data, Command::Interact).unwrap();
     let through: Vec<(u16, u16)> = (5..=11).map(|y| (3, y)).collect();
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 16),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            16
+        ),
         through,
         "through the open door to the next closed one"
     );
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 3),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            3
+        ),
         &through[..3],
         "the range caps it"
     );
     assert_eq!(
-        ray(map, None, at(3, 0, Facing::South), 16),
+        ray(map, &data.objects, None, at(3, 0, Facing::South), 16),
         [(3, 1), (3, 2), (3, 3)],
         "the pillar at (3, 3) is seen, not seen through"
     );
     assert_eq!(
-        ray(map, None, at(1, 0, Facing::South), 16).len(),
+        ray(map, &data.objects, None, at(1, 0, Facing::South), 16).len(),
         5,
         "the wall under the first room"
     );
     assert!(
-        ray(map, None, at(1, 0, Facing::North), 16).is_empty(),
+        ray(map, &data.objects, None, at(1, 0, Facing::North), 16).is_empty(),
         "the map's edge"
     );
 }

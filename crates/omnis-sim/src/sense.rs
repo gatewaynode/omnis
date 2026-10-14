@@ -97,7 +97,7 @@ pub(crate) fn resolve(
         return Err(RuleError::new("sense", "the party's map is not loaded"));
     };
     let Geometry::Ray { range } = source.geometry;
-    let ray = visibility::ray(map, world.maps.get(&pos.map), pos, range);
+    let ray = visibility::ray(map, &data.objects, world.maps.get(&pos.map), pos, range);
     let visibility = visibility::depth(world, data, map);
     let mut checks = Vec::new();
     // A layer reaches no farther than the one below it: failing a layer stops the ladder

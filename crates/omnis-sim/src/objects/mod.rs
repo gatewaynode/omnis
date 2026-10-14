@@ -2,7 +2,7 @@
 //! it is in now, and whether its footprint blocks a step. Placements and kinds come from data
 //! (`omnis_data::placement`); a map whose objects were never touched saves nothing new.
 
-use crate::world::World;
+use crate::world::{MapState, World};
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -41,6 +41,23 @@ pub struct ObjectState {
 #[must_use]
 pub fn saved<'w>(world: &'w World, map: MapId, id: &str) -> Option<&'w ObjectState> {
     world.maps.get(&map).and_then(|s| s.objects.get(id))
+}
+
+/// The state a placement is in now, read from its map's saved state.
+#[must_use]
+pub fn state_in<'a>(state: Option<&'a MapState>, p: &'a ResolvedPlacement) -> &'a str {
+    state
+        .and_then(|s| s.objects.get(&p.id))
+        .and_then(|s| s.state.as_deref())
+        .unwrap_or(&p.state)
+}
+
+/// Whether a placement has been taken away, read from its map's saved state.
+#[must_use]
+pub fn removed_in(state: Option<&MapState>, p: &ResolvedPlacement) -> bool {
+    state
+        .and_then(|s| s.objects.get(&p.id))
+        .is_some_and(|s| s.removed)
 }
 
 /// The state a placement is in now: the saved one, else the one it started in.
