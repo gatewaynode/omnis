@@ -1,76 +1,65 @@
 # Continuity notes
 
-Written 2026-10-14, after the OS upgrade and the editor's direction was settled. Rewrite this file every time it
-is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-14, mid M8.5 step 2a, before a compact. Rewrite this file every time it is used. Durable
+knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `M8.5-tasks`**, not pushed (the owner pushes).
-- **After the OS upgrade (Darwin 27):** the toolchain builds and links (both binaries relinked), and the gate is
-  `tests passed 712 failed 0 ignored 12`, VERIFY-GREEN.
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, 2, **editor (M5)**, 5, 6.
-  - Accepted: 1a, 4, 4b, 1b, 3, 1c. The hills' crest line is confirmed fixed (`60e8b05`).
-- **The editor, settled by the owner 2026-10-14** (`tasks/TODO.md`, "Reassess the editor", checked; M5):
-  - `bevy_ui` in the neon style;
-  - objects first in step 2 (data and engine, hand-written RON), then the editor, before steps 5 and 6;
-  - D4 kept (test pack and fixture maps round-trip and are re-authored in it);
-  - a top-down plan of one level with a 3D preview and Playtest;
-  - maps plus a raw RON text editor for the other data files, checked by the loader before save;
-  - an optional `notes` text on maps and levels (the RON writer drops `//` comments);
-  - the build plan is written after step 2; `tasks/plans/editor-v1.md` is superseded for planning (§A and
-    §E's kinds, placements, ids, limits and blocking are reusable).
-  - Docs amended: PRD D26, §10, §11.1; ARCHITECTURE §8.2, §13, A11; presentation-PRD §2, §8; horizons; BACKLOG.
+- **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked `assets/*.kra` are the owner's; never stage.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (in progress)**, editor (M5), 5, 6.
+- **Step 2 plan:** `tasks/plans/m8.5-objects.md` (owner answers 2026-10-14; the design, the item list, the
+  mutation targets). TODO items under M8.5 step 2 (2a, 2b, 2c).
+- **2a done (one commit each, every gate VERIFY-GREEN, replays unmoved):**
+  - plan saved `d302e24`; B7 retreat keeps its level `7f6fe15`; `MapData` into `map_data.rs` `6c4722f`;
+  - object kinds `93b2829` (`omnis-data/src/object.rs`, `object/check.rs`; fixture pack
+    `crates/omnis-sim/tests/packs/objects`, ten kinds);
+  - `footprint.rs` `9e86c9b` (sixteenths of a cell; `of`, `path`, `overlaps`, `cells`, `ray_span`);
+  - placements and piles `1e740f4` (`placement.rs`; the yard map `objects:map:yard`; bad pack
+    `crates/omnis-data/tests/packs-bad/bad-objects`, loaded over base and test);
+  - loot tables `467be18` (`loot.rs`, `Monster.loot`; fixture `objects:monster:pack_rat`, `objects:loot:hoard`);
+  - step blocking `468e134` (`omnis-sim/src/objects/mod.rs`: `ObjectState` in `MapState.objects`,
+    skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
+    `api::object_blocks`);
+  - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
+- **Gate:** `tests passed 736 failed 0 ignored 12`, VERIFY-GREEN at `9f0fd7b`. Sentrux rules pass, quality 8966.
 
-## Next
-1. **Plan step 2** (layout within a square: scenery, items and beings) in plan mode, with the owner's
-   questions first: kinds in `data/objects`, placements with stable ids, an offset inside the cell and a
-   `level`; limits; `MapState.objects` in the save (`SAVE_SCHEMA` 7 → 8 with a migration, or fields left out
-   when empty); blocking movement and sight; the automap; how the client draws them (fills, crests); what the
-   editor will need from the schema.
-2. Then Editor v1 (M5): write its plan against the finished format.
-
-## Built in M8.5 so far (for orientation)
-- **Height (1a, 4):** heights per cell in eighths, ramps `/`, cliffs derived at load, and the ground drawn smooth
-  where walkable (`ground.rs`), with cliffs hatched.
-- **Levels (1b):** `MapDef.levels`, `_` for no ground, and joins (stairs, ladders, holes).
-- **Solid fills (3):** `fill.rs`, drawn under the gizmo lines.
-- **A stair's direction (1c):**
-  - `MapDef.stairs: [(level, x, y, rise)]`, required for every stair (`omnis-data/src/stairs.rs`);
-  - a stair up is taken from its foot, a stair down from its head; from the side it is an ordinary step
-    (`apply::joined`).
-- **Camera pitch (4b):** kept in `shell::movement::View`.
+## Next: 2a item 9, `Command::Act`
+- New `omnis-sim/src/objects/act.rs` (eligibility, refusals) and `objects/outcome.rs` (requirements,
+  effects). Read the plan file's "Save and protocol" and "Build" sections first.
+- Checks roll for the best member who can act on a copy of an `object` RNG stream written back only on
+  success; a failed check spends the minutes but not `once`; `Item{consume}` only on success; minutes
+  from `Interaction.minutes`, else `INTERACT_MINUTES`.
+- Wire names first: grep the wire types and run the vocabulary test (`cargo test -p omnis-mcp --test
+  integration vocabulary::`) before naming (lesson 2026-10-10). Watch `kind` (use `object_kind`), `gold`,
+  `state`, `loot`.
+- Each new command, event or rejection also moves: `docs/api.md`, the MCP command schema `oneOf` 12 → 13 and
+  the schema proof's numbers, `api_doc.rs`, and the client's exhaustive matches (`shell/text.rs`).
+- Then items 10 to 16 as listed in the plan (Interact routing, ground and containers, loot on victory,
+  hidden objects, Detect Magic, views and `objects.get`, docs and acceptance).
 
 ## Facts
-- **Fixtures:**
-  - heights: `crates/omnis-sim/tests/packs/heights` (`heights:map:hills`);
-  - levels: `crates/omnis-sim/tests/packs/levels` (`levels:map:tower`; its stair is at (2, 0) rising west,
-    and the courtyard stair at (4, 3) rises north).
-- **Captures:** scripts in the session scratchpad, which an OS restart may wipe. Output goes to `.omnis/m85/`.
-  - To rebuild them: copy a fixture pack, set `entry: Some("<map>")` in its `pack.ron` and the map's `start`.
-  - Then run `target/debug/omnis --seed 1 --pack packs/base --pack packs/test --pack <copy> --screenshot
-    <png> --walk 0`. `--walk` needs a frame count.
-  - `--timing` (with `--screenshot`) reports frame times.
-- **Pins:**
-  - replays unmoved: walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`;
-  - `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  - MCP command schema `oneOf` 12; schema proof 96 instances, 145 offered.
+- **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
+  over (5, 0)–(6, 0), ladder at (6, 1)): crate (1, 1), statue (3, 0), hidden lever (0, 0), stone (0, 2), plaque
+  on the edge of (4, 1)/(4, 2), gate across (3, 2)/(3, 3), fountain (1, 3), chest (5, 3) against its north side
+  with a dagger, hidden rune with an aura (2, 4), torch (6, 4), loft crate (5, 0) level 1, arrows pile (2, 2).
+- **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
+  `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
+- **Pins:** replays unmoved (walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
+  MCP command schema `oneOf` 12; schema proof 96 instances, 145 offered; MCP tools 25.
+- **Departure so far:** a spill across a cliff is refused too (commit `1e740f4`).
 
 ## Open, carried over
-- **`assets/README.md` font rows:** the owner's file; report only, never edit.
-- **P6 colours:** unconfirmed. Step 5 revisits the colour roles: joins, fills, the crest line.
-- **The automap** still records the forward cone (presentation-PRD §12.5).
-- **Dependencies:**
-  - the rhai Socket re-audit (ask the owner when);
-  - `smartstring` RUSTSEC-2026-0249;
-  - `ttf-parser` RUSTSEC-2026-0192;
-  - Bevy 0.20, not before 2026-11-07.
-- **The owner's asset work** (`.gitignore`, `assets/`) is theirs. Never stage it.
+- `assets/README.md` font rows: the owner's file; report only, never edit.
+- P6 colours unconfirmed; step 5 revisits colour roles (joins, fills, crest, objects).
+- The automap still records the forward cone (§12.5); no objects on it (owner, 2026-10-14).
+- Dependencies: the rhai Socket re-audit (ask when); `smartstring` RUSTSEC-2026-0249; `ttf-parser`
+  RUSTSEC-2026-0192; Bevy 0.20 not before 2026-11-07.
 
 ## Process
-- **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, with `cargo fmt --all` first. Workspace clippy
-  with `--all-targets --features omnis-vector/test-fixtures -- -D warnings` before every commit. Test targets are
-  `--test integration`.
-- **Gate:** `scripts/verify.sh > <scratchpad>/gate-<step>.txt 2>&1` in the background, with no edits while it runs.
-- **Mutations:** `python3 -u` to a file (or a sed loop with a backup), never under `timeout`. Check that the sources
-  are restored.
-- **Commits:** stage by name (`git add` new files, then `git commit -- <paths>`), never `.claude/`. Unfinished
-  work before a compact or a restart is committed as `WIP`, never stashed.
+- **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, `cargo fmt --all` first and again after any
+  appended test (the gate fails on format). Workspace clippy with `--all-targets --features
+  omnis-vector/test-fixtures -- -D warnings` before every commit. Test targets are `--test integration`.
+- **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, no edits while it runs.
+- **Mutations:** a Python runner in the scratchpad (anchor checked, source restored in `finally`), run with
+  `python3 -u`.
+- **Commits:** stage new files by name, then `git commit -F - -- <paths>` (zsh does not split `$VAR` into
+  paths). Never `.claude/` or the owner's assets. Unfinished work before a compact is committed as `WIP`.
