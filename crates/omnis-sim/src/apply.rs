@@ -8,7 +8,7 @@ use crate::service::{self, ServiceState};
 use crate::time;
 use crate::world::{Known, Mode, World, layer};
 use crate::{INTERACT_MINUTES, PARTY};
-use crate::{casting, combat, dev, effects, encounter, items, rest, visibility};
+use crate::{casting, combat, dev, effects, encounter, items, objects, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, Position, Rotation, Vertical};
 use omnis_data::{Data, Join, MapData};
@@ -195,6 +195,9 @@ pub(crate) fn landing(
     }
     if cell.cliffs.has(facing) {
         return Err(BlockReason::Cliff);
+    }
+    if objects::blocks_step(world, data, pos.map, pos.level, (pos.x, pos.y), facing) {
+        return Err(BlockReason::Object);
     }
     let through = map
         .portal_at(pos.level, x, y)

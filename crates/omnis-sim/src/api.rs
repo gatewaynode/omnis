@@ -62,6 +62,8 @@ pub use crate::party_view::{
     AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
     TacticsView, party_view,
 };
+// Objects in cells (M8.5 step 2): whether a footprint blocks a step, for a client's mirror.
+pub use crate::objects::{ObjectState, blocks_step as object_blocks};
 pub use crate::query::{
     EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
     step_lands, viewport,

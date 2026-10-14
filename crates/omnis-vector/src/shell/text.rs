@@ -49,6 +49,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 BlockReason::MapEdge => "the map edge",
                 BlockReason::Cliff => "too steep",
                 BlockReason::NoGround => "no ground",
+                BlockReason::Object => "something in the way",
             }
         ),
         Event::Door { open, .. } => if *open {

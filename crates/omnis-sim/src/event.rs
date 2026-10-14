@@ -29,6 +29,8 @@ pub enum BlockReason {
     Cliff,
     /// There is no ground there on the party's level (M8.5 step 1b): air or rock.
     NoGround,
+    /// An object's footprint stands in the step's path (M8.5 step 2).
+    Object,
 }
 
 /// A message for the player, named so packs can localize it under `sim:message:<name>`.

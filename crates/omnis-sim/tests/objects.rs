@@ -1,8 +1,11 @@
 //! Objects in cells (M8.5 step 2): kinds of every shape and interaction, played on the fixture
 //! pack `tests/packs/objects`, loaded after the base and test packs.
 
-use crate::common::{base_pack, test_pack};
+use crate::common::{base_pack, party_of, test_pack};
+use omnis_core::{Direction, Facing, Level, MapId, Position};
 use omnis_data::{Data, ObjectEffect, Requirement, Shape, Verb, load_packs};
+use omnis_sim::objects::ObjectState;
+use omnis_sim::{BlockReason, Command, Event, Settings, World, apply, query};
 use std::path::PathBuf;
 
 /// The base and test packs with the object fixtures on top.
@@ -141,4 +144,158 @@ fn the_pack_rat_names_its_hoard_and_the_hoard_loads() {
         base.loot.is_empty() && base.monsters.values().all(|m| m.loot.is_none()),
         "the shipped monsters drop gold only"
     );
+}
+
+fn yard(data: &Data) -> MapId {
+    data.registry.maps.get("objects:map:yard").expect("yard")
+}
+
+/// A party of one in the yard at `(x, y)` of `level`, facing `facing`.
+fn in_yard(data: &Data, level: i8, x: u16, y: u16, facing: Facing) -> World {
+    let mut world = World::new(data, 11, Settings::default()).expect("entry map");
+    party_of(&mut world, data, 1);
+    world.position = Position {
+        map: yard(data),
+        level: Level(level),
+        x,
+        y,
+        facing,
+    };
+    world
+}
+
+/// Where a step forward ends, or why it did not happen.
+fn step_result(world: &mut World, data: &Data) -> Result<(u16, u16), BlockReason> {
+    let events = apply(world, data, Command::Step(Direction::Forward)).expect("explore");
+    events
+        .iter()
+        .find_map(|e| match e {
+            Event::Blocked { reason } => Some(Err(*reason)),
+            _ => None,
+        })
+        .unwrap_or(Ok((world.position.x, world.position.y)))
+}
+
+#[test]
+fn a_footprint_in_the_path_blocks_a_step_into_or_out_of_its_cell() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 0, 1, Facing::East);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Err(BlockReason::Object),
+        "the crate fills the middle of (1, 1)"
+    );
+    assert_eq!(query::step_lands(&world, &data, Direction::Forward), None);
+    let mut world = in_yard(&data, 0, 5, 4, Facing::North);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Ok((5, 3)),
+        "the chest stands against the north side, clear of the path from the south"
+    );
+    world.position.facing = Facing::East;
+    assert_eq!(
+        step_result(&mut world, &data),
+        Err(BlockReason::Object),
+        "but it reaches across the path east"
+    );
+}
+
+#[test]
+fn a_footprint_beside_the_path_lets_the_party_pass() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 0, 0, Facing::East);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Ok((1, 0)),
+        "north of the crate"
+    );
+    assert_eq!(step_result(&mut world, &data), Ok((2, 0)));
+    assert_eq!(
+        step_result(&mut world, &data),
+        Err(BlockReason::Object),
+        "the statue"
+    );
+}
+
+#[test]
+fn the_gate_across_the_gap_blocks_from_both_sides_and_its_spill_counts() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 3, 1, Facing::South);
+    assert_eq!(step_result(&mut world, &data), Ok((3, 2)), "up to the gate");
+    assert_eq!(step_result(&mut world, &data), Err(BlockReason::Object));
+    let mut world = in_yard(&data, 0, 3, 4, Facing::North);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Ok((3, 3)),
+        "into the cell the gate spills into"
+    );
+    assert_eq!(step_result(&mut world, &data), Err(BlockReason::Object));
+}
+
+#[test]
+fn a_state_that_does_not_block_or_a_removed_object_lets_the_party_through() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 3, 2, Facing::South);
+    world.maps.entry(yard(&data)).or_default().objects.insert(
+        "gate_1".into(),
+        ObjectState {
+            state: Some("open".into()),
+            ..ObjectState::default()
+        },
+    );
+    assert_eq!(step_result(&mut world, &data), Ok((3, 3)), "the gate open");
+    let mut world = in_yard(&data, 0, 0, 1, Facing::East);
+    world.maps.entry(yard(&data)).or_default().objects.insert(
+        "crate_1".into(),
+        ObjectState {
+            removed: true,
+            ..ObjectState::default()
+        },
+    );
+    assert_eq!(step_result(&mut world, &data), Ok((1, 1)), "the crate gone");
+}
+
+#[test]
+fn an_object_on_another_level_does_not_block() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 4, 0, Facing::East);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Ok((5, 0)),
+        "under the loft's crate"
+    );
+    let mut world = in_yard(&data, 1, 6, 0, Facing::West);
+    assert_eq!(
+        step_result(&mut world, &data),
+        Err(BlockReason::Object),
+        "on the loft, its crate is in the way"
+    );
+}
+
+#[test]
+fn object_state_is_saved_only_once_something_changes_and_round_trips() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 0, 0, Facing::East);
+    step_result(&mut world, &data).expect("a step");
+    let plain = world.to_ron().expect("save");
+    assert!(
+        !plain.contains("objects: {"),
+        "no map writes an objects field until one changes: {plain}"
+    );
+    world.maps.entry(yard(&data)).or_default().objects.insert(
+        "torch_1".into(),
+        ObjectState {
+            state: Some("out".into()),
+            used: [0].into(),
+            ..ObjectState::default()
+        },
+    );
+    let text = world.to_ron().expect("save");
+    assert!(text.contains("objects: {"), "{text}");
+    let back = World::from_ron(&text, &data, false).expect("loads");
+    assert_eq!(
+        back.maps[&yard(&data)].objects,
+        world.maps[&yard(&data)].objects
+    );
+    assert_eq!(back.fingerprint(), world.fingerprint());
 }

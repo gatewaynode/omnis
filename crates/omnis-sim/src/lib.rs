@@ -29,6 +29,7 @@ pub mod event;
 pub mod items;
 mod migrate;
 pub mod names;
+pub mod objects;
 pub mod ops;
 pub mod party;
 pub mod party_view;

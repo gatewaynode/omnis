@@ -654,7 +654,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Event | Fields | Meaning |
 |---|---|---|
 | `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. A portal, a stair or a hole gives two: onto the tile, then to its far end. |
-| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. |
+| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`, `Object`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. `Object`: an object's footprint stands in the step's path (centre to centre, half a cell wide), in either cell. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
 | `Door` | `map` (id), `level` (left out when 0), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
@@ -931,6 +931,10 @@ Additive (§13), so `PROTOCOL` stays 2:
   (`stairs`), and a `Step` takes a stair up only from its foot and a stair down only from its
   head; from a side it is a plain step (one `Moved`). No type changes; no shipped map has stairs,
   so shipped play and the replays are unchanged.
+- 2026-10-14: objects in cells (M8.5 step 2, in progress): `BlockReason::Object`; Tier 1's
+  `object_blocks` (the step check a client's mirror shares) and `ObjectState` (what a save keeps
+  of a placement, written only once it changes). No shipped map places objects, so shipped play,
+  saves and the replays are unchanged.
 
 ### Protocol 2 (2026-10-10)
 

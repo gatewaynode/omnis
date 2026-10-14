@@ -6,6 +6,7 @@ use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
 use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7};
+use crate::objects::ObjectState;
 use crate::party::Party;
 use crate::service::ServiceState;
 use crate::time::PartyTime;
@@ -39,6 +40,10 @@ pub struct MapState {
     /// Fixed encounters cleared for good, by their index in the map file.
     #[serde(default)]
     pub cleared: BTreeSet<u16>,
+    /// What has changed of the map's objects, by placement id (M8.5 step 2); unwritten when
+    /// nothing has, so a save with no objects reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub objects: BTreeMap<String, ObjectState>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
