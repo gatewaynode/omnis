@@ -1,0 +1,26 @@
+// Reference faults (M8.5 step 2): an initial state with no states, an unknown item to require
+// and to give, flags not named pack:flag:name, an unknown rules slot and one with a foreign
+// input, and text keys no language defines.
+(
+    schema: 1,
+    id: "badc:object:refs",
+    name: "badc:text:object.refs",
+    look: (shape: Heap, width: 2, depth: 2, height: 1),
+    initial_state: "x",
+    interactions: [
+        (
+            verb: Use,
+            requires: [
+                Item(id: "badc:item:none"),
+                Flag(name: "badc:item:blade", min: 1),
+                Rule(slot: "objects.none"),
+                Rule(slot: "objects.age"),
+            ],
+            effects: [
+                GiveItem(id: "badc:item:gone", count: 1),
+                SetFlag(name: "notaflag", value: 1),
+                Message("badc:text:object.none"),
+            ],
+        ),
+    ],
+)

@@ -27,6 +27,22 @@ pub const MAX_RAMP: i32 = 16;
 pub const MAX_LEVELS: usize = 16;
 /// Stacks an encounter may hold: the combat screen lists four.
 pub const MAX_STACKS: usize = 4;
+/// States an object kind may have (M8.5 step 2).
+pub const MAX_STATES: usize = 16;
+/// Interactions an object kind may offer.
+pub const MAX_INTERACTIONS: usize = 16;
+/// Requirements on one interaction.
+pub const MAX_REQUIREMENTS: usize = 8;
+/// Effects of one interaction.
+pub const MAX_EFFECTS: usize = 16;
+/// Tags on one object kind.
+pub const MAX_TAGS: usize = 32;
+/// Tallest object, in eighths of a cell: four wall heights.
+pub const MAX_OBJECT_HEIGHT: u8 = 32;
+/// Item stacks a container may hold.
+pub const MAX_CAPACITY: u16 = 64;
+/// Highest difficulty an object's check may set (the SRD's nearly impossible).
+pub const MAX_CHECK_DC: u8 = 30;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).
 pub const MAX_SENSE_RANGE: u8 = 64;
 /// Image extensions a pack may reference.

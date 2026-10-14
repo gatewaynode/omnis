@@ -21,6 +21,7 @@ pub mod manifest;
 pub mod map;
 pub mod map_data;
 pub mod monster;
+pub mod object;
 pub mod region;
 pub mod registry;
 pub mod rest_event;
@@ -50,6 +51,10 @@ pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, Join, MapDef, MapKind, Portal, Terrain, WallSurfaces};
 pub use map_data::{MapData, ResolvedPortal};
 pub use monster::{Attack, Monster, MonsterCasting};
+pub use object::{
+    Attributes, Effect as ObjectEffect, Interaction, Look, Material, ObjectKind, Requirement,
+    Shape, StateDef, Verb,
+};
 pub use omnis_expr;
 pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;

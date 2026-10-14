@@ -1,0 +1,10 @@
+(
+    schema: 1,
+    id: "objects:object:stone",
+    name: "objects:text:stone.name",
+    look: (shape: Heap, width: 2, depth: 2, height: 1),
+    attributes: (material: Some(Stone)),
+    interactions: [
+        (verb: Take, effects: [GiveItem(id: "base:item:gem", count: 1), Message("objects:text:stone.taken"), Remove], once: true),
+    ],
+)

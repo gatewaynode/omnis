@@ -15,6 +15,7 @@ use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::MapDef;
 use crate::map_data::{MapData, ResolvedPortal};
 use crate::monster::Monster;
+use crate::object::ObjectKind;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
 use crate::rest_event;
@@ -25,8 +26,8 @@ use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, MapId, MonsterId, RaceId,
-    RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
+    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, MapId, MonsterId, ObjectKindId,
+    RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -82,6 +83,8 @@ pub struct Data {
     pub rules: Rules,
     /// Regions by id.
     pub regions: BTreeMap<RegionId, Region>,
+    /// Object kinds by id.
+    pub objects: BTreeMap<ObjectKindId, ObjectKind>,
 }
 
 impl Data {
@@ -414,6 +417,14 @@ fn gather_content(
         errors,
         &mut content.regions,
     );
+    gather(
+        root,
+        "data/objects",
+        "object",
+        hasher,
+        errors,
+        &mut content.objects,
+    );
 }
 
 trait HasSchema {
@@ -443,6 +454,7 @@ has_schema!(
     RulesFile,
     ServiceDef,
     RegionDef,
+    ObjectKind,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {

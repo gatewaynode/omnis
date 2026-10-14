@@ -1,0 +1,19 @@
+(
+    schema: 1,
+    id: "objects:object:lever",
+    name: "objects:text:lever.name",
+    look: (shape: Post, width: 1, depth: 1, height: 4),
+    initial_state: "up",
+    states: {
+        "up": (),
+        "down": (look: Some((shape: Post, width: 1, depth: 2, height: 2))),
+    },
+    attributes: (material: Some(Metal)),
+    interactions: [
+        (
+            verb: Pull,
+            when_state: Some("up"),
+            effects: [SetState("down"), SetFlag(name: "objects:flag:lever", value: 1), Message("objects:text:lever.pulled")],
+        ),
+    ],
+)

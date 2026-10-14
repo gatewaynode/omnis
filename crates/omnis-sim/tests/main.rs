@@ -15,6 +15,7 @@ mod items;
 mod levels;
 mod monster_cast;
 mod movement;
+mod objects;
 mod ops;
 mod party;
 mod reactions;

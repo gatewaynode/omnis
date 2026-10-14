@@ -78,6 +78,8 @@ define_id! {
     BackgroundId,
     /// A condition a creature can be under.
     ConditionId,
+    /// A kind of object that stands in a cell (M8.5 step 2).
+    ObjectKindId,
     /// A town service: an inn, temple, trainer, smith, tavern, bank, or guild.
     ServiceId,
 }

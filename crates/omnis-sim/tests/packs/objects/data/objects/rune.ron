@@ -1,0 +1,15 @@
+(
+    schema: 1,
+    id: "objects:object:rune",
+    name: "objects:text:rune.name",
+    look: (shape: Slab, width: 4, depth: 4, height: 1),
+    attributes: (material: Some(Stone), aura: Some(Abjuration)),
+    interactions: [
+        (
+            verb: Read,
+            requires: [School(Abjuration)],
+            effects: [Message("objects:text:rune.read")],
+            failure: Some("objects:text:rune.unreadable"),
+        ),
+    ],
+)

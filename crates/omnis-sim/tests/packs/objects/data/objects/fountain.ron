@@ -1,0 +1,10 @@
+(
+    schema: 1,
+    id: "objects:object:fountain",
+    name: "objects:text:fountain.name",
+    look: (shape: Slab, width: 6, depth: 6, height: 3),
+    attributes: (blocks_movement: true, material: Some(Stone)),
+    interactions: [
+        (verb: Drink, effects: [Message("objects:text:fountain.drink")], minutes: Some(5)),
+    ],
+)

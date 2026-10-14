@@ -1,0 +1,12 @@
+// Fixture pack for objects in cells (M8.5 step 2): kinds of every shape and interaction, loaded
+// after base and test. Not shipped.
+(
+    schema: 1,
+    id: "objects",
+    version: "0.1.0",
+    name: "Omnis object fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test"],
+    entry: None,
+)

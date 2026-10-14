@@ -244,6 +244,28 @@ fn every_error_in_bad_content_is_reported() {
         "item 'badc:item:gone' is not defined by any loaded pack",
         "spell 'badc:spell:gone' is not defined by any loaded pack",
         "text key 'badc:text:rumor.none' is not defined in any language",
+        // data/objects/bad.ron (M8.5 step 2): shapes on load, then its name at resolution
+        "look width and depth must be 1..=8 eighths",
+        "look height must be 1..=32 eighths",
+        "state 'a' look height must be 1..=32 eighths",
+        "initial_state 'gone' is not one of the states",
+        "capacity must be 0..=64",
+        "interaction 0 is offered in state 'nope', which the kind does not have",
+        "interaction 0 check dc must be 1..=30",
+        "interaction 0 sets state 'nowhere', which the kind does not have",
+        "interaction 0 gives an item count of 0",
+        "interaction 1 needs at least one effect",
+        "text key 'badc:text:object.bad' is not defined in any language",
+        // data/objects/refs.ron: shapes on load, then references at resolution
+        "initial_state 'x' needs states",
+        "text key 'badc:text:object.refs' is not defined in any language",
+        "text key 'badc:text:object.none' is not defined in any language",
+        "item 'badc:item:none' is not defined by any loaded pack",
+        "flag 'badc:item:blade' is not of the form pack:flag:name",
+        "rule 'objects.none' is not a rules slot",
+        "rule 'objects.age' declares input 'age'; an object's rule takes only party_level, party_size",
+        "item 'badc:item:gone' is not defined by any loaded pack",
+        "flag 'notaflag' is not of the form pack:flag:name",
     ];
     assert_reports("bad-content", &expected);
 }

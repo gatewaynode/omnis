@@ -8,6 +8,7 @@ use crate::error::DataError;
 use crate::item::Item;
 use crate::loader::Data;
 use crate::monster::Monster;
+use crate::object::{ObjectKind, check_objects};
 use crate::region::RegionDef;
 use crate::registry::Interner;
 use crate::rules::RulesFile;
@@ -37,7 +38,8 @@ macro_rules! content {
     )*};
 }
 content!(
-    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef
+    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef,
+    ObjectKind
 );
 
 impl Content for Condition {
@@ -63,6 +65,7 @@ pub(crate) struct RawContent {
     pub rules: Files<RulesFile>,
     pub services: Files<ServiceDef>,
     pub regions: Files<RegionDef>,
+    pub objects: Files<ObjectKind>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -72,6 +75,7 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     check_text_keys(&raw, data, errors);
     data.rules = build_rules(&raw.rules, errors);
     check_component_threshold(&raw.spells, &data.rules, errors);
+    check_objects(&raw.objects, &raw.items, data, errors);
     data.races = intern(raw.races, &mut data.registry.races);
     data.classes = intern(raw.classes, &mut data.registry.classes);
     data.backgrounds = intern(raw.backgrounds, &mut data.registry.backgrounds);
@@ -80,6 +84,7 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     data.spells = intern(raw.spells, &mut data.registry.spells);
     data.monsters = intern(raw.monsters, &mut data.registry.monsters);
     data.services = intern(raw.services, &mut data.registry.services);
+    data.objects = intern(raw.objects, &mut data.registry.objects);
 }
 
 fn intern<I: Copy + Ord + From<u32> + Into<u32>, T>(
