@@ -229,32 +229,48 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
     }
 }
 
-fn draw(session: Res<Session>, lines: Res<Lines>, current: Res<Current>, mut gizmos: Gizmos) {
+/// A crest's line, where the ground turns away from the eye. Provisional until the colour roles
+/// (M8.5 step 5): brighter than the floor grid, so a rise's top shows against the sky.
+const CREST: (f32, f32, f32) = (1.1, 1.1, 1.1);
+
+fn draw(
+    session: Res<Session>,
+    lines: Res<Lines>,
+    current: Res<Current>,
+    camera: Query<&Transform, With<ViewCamera>>,
+    mut gizmos: Gizmos,
+) {
     let pose = session.pose;
     let depth = session.views.sight;
     let end = f32::from(depth) + FOG_EXTRA;
     let start = end * 0.5;
     let grid = current.0.grid;
-    for (segment, dim) in lines.scene.strokes(grid) {
-        let mid = (
-            (segment.a[0] + segment.b[0]) * 0.5,
-            (segment.a[2] + segment.b[2]) * 0.5,
-        );
+    let fade = |a: [f32; 3], b: [f32; 3]| {
+        let mid = ((a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5);
         let distance = (mid.0 - pose.x).hypot(mid.1 - pose.z);
         if distance >= end {
-            continue;
-        }
-        let fade = if distance <= start {
-            1.0
+            None
+        } else if distance <= start {
+            Some(1.0)
         } else {
-            1.0 - (distance - start) / (end - start)
-        };
-        let (r, g, b) = colour(segment);
+            Some(1.0 - (distance - start) / (end - start))
+        }
+    };
+    let mut line = |a: [f32; 3], b: [f32; 3], (r, g, b_): (f32, f32, f32), dim: f32| {
+        let Some(fade) = fade(a, b) else { return };
         let k = fade * dim;
         gizmos.line(
-            Vec3::from_array(segment.a),
-            Vec3::from_array(segment.b),
-            LinearRgba::new(r * k, g * k, b * k, fade),
+            Vec3::from_array(a),
+            Vec3::from_array(b),
+            LinearRgba::new(r * k, g * k, b_ * k, fade),
         );
+    };
+    for (segment, dim) in lines.scene.strokes(grid) {
+        line(segment.a, segment.b, colour(segment), dim);
+    }
+    if let Ok(eye) = camera.single() {
+        for (a, b) in lines.scene.ground.crests(eye.translation.to_array(), end) {
+            line(a, b, CREST, 1.0);
+        }
     }
 }

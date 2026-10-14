@@ -187,6 +187,58 @@ impl Ground {
             .flatten()
     }
 
+    /// The ground's crests seen from `eye`: each edge of its triangles where the surface turns
+    /// from facing the eye to facing away, within `reach` of it across the ground.
+    #[must_use]
+    pub fn crests(&self, eye: [f32; 3], reach: f32) -> Vec<([f32; 3], [f32; 3])> {
+        let mut out = Vec::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let Some(p) = self.patch(x, y) else { continue };
+                let (fx, fz) = (f32::from(x), f32::from(y));
+                if (fx + 0.5 - eye[0]).hypot(fz + 0.5 - eye[2]) > reach {
+                    continue;
+                }
+                let at = |(u, v): (f32, f32), h: f32| [fx + u, h, fz + v];
+                let c = at((0.5, 0.5), p.centre);
+                let k = CORNERS.map(|(uv, i)| at(uv, p.corners[i]));
+                // The triangles toward north, east, south and west, each from the centre.
+                let faces = |i: usize| facing(c, k[(i + 3) % 4], k[i], eye);
+                let sides = [0, 1, 2, 3].map(|i| faces((i + 1) % 4));
+                // A diagonal from the centre to a corner lies between the triangles either side.
+                for i in 0..4 {
+                    if sides[(i + 3) % 4] != sides[i] {
+                        out.push((c, k[i]));
+                    }
+                }
+                // A side shared with the next cell east or south, where the ground runs on.
+                for (dir, (a, b), there) in [
+                    (Facing::East, (NE, SE), Facing::West),
+                    (Facing::South, (SE, SW), Facing::North),
+                ] {
+                    let (nx, ny) = if dir == Facing::East {
+                        (x + 1, y)
+                    } else {
+                        (x, y + 1)
+                    };
+                    let Some(q) = self.patch(nx, ny) else {
+                        continue;
+                    };
+                    if p.side(dir) != q.side(there) {
+                        continue;
+                    }
+                    let mine = sides[dir as usize];
+                    let (gx, gz) = (f32::from(nx), f32::from(ny));
+                    let theirs = facing([gx + 0.5, q.centre, gz + 0.5], k[a], k[b], eye);
+                    if mine != theirs {
+                        out.push((k[a], k[b]));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// The ground's height at the point `(x, z)`; off the map, the nearest cell's surface.
     #[must_use]
     pub fn height(&self, x: f32, z: f32) -> f32 {
@@ -215,6 +267,34 @@ impl Ground {
         };
         barycentric((u, v), (0.5, 0.5), a, b, (p.centre, ha, hb))
     }
+}
+
+/// A cell's corners in order, north-west, north-east, south-east, south-west: where each lies
+/// in the cell and its index in [`Patch::corners`].
+const CORNERS: [((f32, f32), usize); 4] = [
+    ((0.0, 0.0), NW),
+    ((1.0, 0.0), NE),
+    ((1.0, 1.0), SE),
+    ((0.0, 1.0), SW),
+];
+
+/// Whether the triangle `o, a, b`'s upper side faces `eye`.
+fn facing(o: [f32; 3], a: [f32; 3], b: [f32; 3], eye: [f32; 3]) -> bool {
+    let (u, v) = (sub(a, o), sub(b, o));
+    let mut n = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
+    if n[1] < 0.0 {
+        n = n.map(|c| -c);
+    }
+    let e = sub(eye, o);
+    n[0] * e[0] + n[1] * e[1] + n[2] * e[2] > 0.0
+}
+
+fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
 /// The height at `p` in the triangle `o, a, b` with heights `h`.
