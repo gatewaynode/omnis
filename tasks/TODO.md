@@ -443,7 +443,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
   - **Plan `tasks/plans/m8.5-objects.md`** (owner answers 2026-10-14): scenery, ground items and visible beings; the full editor-v1 §E schema (states, 13 verbs, requirements, effects, hidden); shape primitives in eighths; offsets −4..=4 eighths that may spill into the next cell; blocking per footprint against a path 4 eighths wide, and sight tested against footprints with height; ground items placed, dropped, in containers and from loot tables; Use lists the verbs when several apply; no objects on the automap yet; hidden objects found by passive Perception, Search and Detect Magic (lasting); fixture content only. Cut into 2a, 2b, 2c, each accepted.
   - [ ] 2a. Data and engine.
     - [x] Plan saved and the items listed.
-    - [ ] Fix: a retreat from an encounter keeps its level (`encounter.rs`, built on `Level::GROUND`).
+    - [x] Fix: a retreat from an encounter keeps its level (`encounter.rs`, built on `Level::GROUND`).
     - [ ] Refactor: `MapData` into `map_data.rs`.
     - [ ] Data: object kinds, the fixture pack `objects`, bad-pack rows.
     - [ ] Data: `footprint.rs`.

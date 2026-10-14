@@ -107,7 +107,7 @@ pub(crate) fn trigger(
     };
     let retreat = Position {
         map: from.map,
-        level: omnis_core::Level::GROUND,
+        level: from.level,
         x: from.x,
         y: from.y,
         facing: move_facing.opposite(),

@@ -5,9 +5,11 @@
 
 use crate::common::{base_pack, step, test_pack, turn};
 use omnis_core::{Direction, Facing, Level, Position, Rotation, Vertical};
-use omnis_data::{Data, load_packs};
+use omnis_data::{Data, Disposition, ResolvedEncounter, load_packs};
 use omnis_sim::ops::{Op, Reply, dispatch};
-use omnis_sim::{BlockReason, Command, Event, Rejection, Settings, World, apply, query};
+use omnis_sim::{
+    BlockReason, Command, EncounterChoice, Event, Mode, Rejection, Settings, World, apply, query,
+};
 use std::path::PathBuf;
 
 const CELLAR: Level = Level(-1);
@@ -365,4 +367,41 @@ fn script_words_climb() {
         crate::common::script(&world, &data, "climb-up climb-down"),
         [Command::Climb(Vertical::Up), Command::Climb(Vertical::Down)]
     );
+}
+
+#[test]
+fn running_from_a_group_off_the_ground_keeps_the_party_on_its_level() {
+    let mut data = tower();
+    let map = data.registry.maps.get("levels:map:tower").expect("tower");
+    let rat = data
+        .registry
+        .monsters
+        .get("base:monster:giant_rat")
+        .expect("rat");
+    data.maps
+        .get_mut(&map)
+        .expect("tower")
+        .encounters
+        .push(ResolvedEncounter {
+            level: UPPER,
+            x: 4,
+            y: 1,
+            stacks: vec![(rat, 1)],
+            disposition: Disposition::Friendly,
+            once: false,
+        });
+    let mut world = at(&data, UPPER, 3, 1, Facing::East);
+    crate::common::party_of(&mut world, &data, 1);
+    step(&mut world, &data);
+    let Mode::Encounter(state) = &world.mode else {
+        panic!("the group on the bridge meets the party: {:?}", world.mode)
+    };
+    assert_eq!(
+        (state.retreat.level, state.retreat.x, state.retreat.y),
+        (UPPER, 3, 1),
+        "the way back is the bridge the party came from"
+    );
+    apply(&mut world, &data, Command::Encounter(EncounterChoice::Run)).expect("runs");
+    assert_eq!(world.mode, Mode::Explore);
+    assert_eq!(place(&world), (UPPER, 3, 1));
 }
