@@ -446,7 +446,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - [x] Fix: a retreat from an encounter keeps its level (`encounter.rs`, built on `Level::GROUND`).
     - [x] Refactor: `MapData` into `map_data.rs`.
     - [x] Data: object kinds, the fixture pack `objects`, bad-pack rows.
-    - [ ] Data: `footprint.rs`.
+    - [x] Data: `footprint.rs`.
     - [ ] Data: placements and placed piles, the yard map.
     - [ ] Data: loot tables and `Monster.loot`.
     - [ ] Engine: object state and step blocking (`BlockReason::Object`).

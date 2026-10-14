@@ -13,6 +13,7 @@ pub mod condition;
 mod content;
 pub mod encounter;
 pub mod error;
+pub mod footprint;
 pub mod item;
 pub mod levels;
 pub mod limits;
