@@ -440,6 +440,27 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
   - Pulls forward the object schema from `tasks/plans/editor-v1.md` §E, reviewed with the editor plan and never built: kinds in `data/objects`, placements with stable ids and an offset inside the tile, `MapDef.objects`, per-tile and per-map limits, `MapState.objects` in the save. Each kind says whether it blocks movement and sight.
   - Items on the ground and beings (monsters, people) use the same offset. Authored set pieces (presentation-PRD §6.2; format open, §12.4) are scenery kinds.
   - Needs 1 for an object's height and level.
+  - **Plan `tasks/plans/m8.5-objects.md`** (owner answers 2026-10-14): scenery, ground items and visible beings; the full editor-v1 §E schema (states, 13 verbs, requirements, effects, hidden); shape primitives in eighths; offsets −4..=4 eighths that may spill into the next cell; blocking per footprint against a path 4 eighths wide, and sight tested against footprints with height; ground items placed, dropped, in containers and from loot tables; Use lists the verbs when several apply; no objects on the automap yet; hidden objects found by passive Perception, Search and Detect Magic (lasting); fixture content only. Cut into 2a, 2b, 2c, each accepted.
+  - [ ] 2a. Data and engine.
+    - [x] Plan saved and the items listed.
+    - [ ] Fix: a retreat from an encounter keeps its level (`encounter.rs`, built on `Level::GROUND`).
+    - [ ] Refactor: `MapData` into `map_data.rs`.
+    - [ ] Data: object kinds, the fixture pack `objects`, bad-pack rows.
+    - [ ] Data: `footprint.rs`.
+    - [ ] Data: placements and placed piles, the yard map.
+    - [ ] Data: loot tables and `Monster.loot`.
+    - [ ] Engine: object state and step blocking (`BlockReason::Object`).
+    - [ ] Engine: sight through footprints.
+    - [ ] Engine: `Command::Act`.
+    - [ ] Engine: Interact routing and `ChooseVerb`.
+    - [ ] Engine: ground piles and containers.
+    - [ ] Engine: loot on victory.
+    - [ ] Engine: hidden objects (passive notice, Search, Reveal).
+    - [ ] Base pack: Detect Magic.
+    - [ ] Views, `objects.get`, the MCP tool.
+    - [ ] Docs, acceptance, continuity.
+  - [ ] 2b. The client: shapes, the mirror, the verbs screen, inventory, docs and acceptance.
+  - [ ] 2c. Visible beings: data, engine, client, docs and acceptance.
 - [x] 3. **Solid object and terrain occlusion** (owner's 1; presentation-PRD §11 step 2, X13). Dark solid fills hide what is behind them; the lines move from gizmos to line meshes; measured against the performance floor (X20, §12.6).
   - The owner needs it to test 1b's stairs and ladders (2026-10-12); its acceptance repeats `tasks/acceptance/m8.5-1b.md`'s stair and ladder walk. Owner, 2026-10-12: step 3 goes before step 2.
   - After 4 (owner, 2026-10-12): the fills are built under step 4's segments and its `Ground`, which stay the input.
