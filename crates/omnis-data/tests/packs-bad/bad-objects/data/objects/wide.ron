@@ -1,0 +1,1 @@
+(schema: 1, id: "bado:object:wide", name: "bado:text:thing", look: (shape: Slab, width: 8, depth: 8, height: 2))

@@ -518,6 +518,8 @@ mod tests {
             random: None,
             sites: vec![],
             rest_events: vec![],
+            objects: vec![],
+            ground: vec![],
         }
     }
 

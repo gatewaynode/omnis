@@ -1,0 +1,1 @@
+(schema: 1, id: "bado:object:box", name: "bado:text:thing", look: (shape: Box, width: 4, depth: 4, height: 4), attributes: (blocks_movement: true))

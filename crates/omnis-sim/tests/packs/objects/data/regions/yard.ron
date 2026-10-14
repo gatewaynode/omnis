@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "objects:region:yard",
+    name: "objects:text:region.yard.name",
+    kind: Wild,
+    company: 100,
+    stability: 800,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["objects:map:yard"],
+)

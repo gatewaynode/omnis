@@ -16,6 +16,7 @@ use crate::map::MapDef;
 use crate::map_data::{MapData, ResolvedPortal};
 use crate::monster::Monster;
 use crate::object::ObjectKind;
+use crate::placement;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
 use crate::rest_event;
@@ -543,6 +544,8 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     );
     data.regions = regions;
     check_calendar(&data.rules, errors);
+    let mut centres = BTreeMap::new();
+    let mut landings = Vec::new();
     for (id, (file, def, levels)) in &raw.maps {
         let Some(tileset_id) = data.registry.tilesets.get(&def.tileset) else {
             errors.push(DataError::new(
@@ -589,6 +592,16 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         );
         let sites = service::resolve_sites(def, levels, &data.registry.services, file, errors);
         let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
+        let lookup = placement::Lookup {
+            registry: &data.registry,
+            kinds: &data.objects,
+        };
+        let placed = placement::resolve(def, levels, &lookup, file, errors);
+        centres.insert(
+            map_ids[id.as_str()],
+            placement::blocked_centres(&placed, &data.objects),
+        );
+        landings.push((file.clone(), portals.clone()));
         let region = owners.get(&map_ids[id.as_str()]).copied();
         if region.is_none() {
             errors.push(DataError::new(
@@ -610,10 +623,14 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     sites,
                     region: region.unwrap_or(RegionId(0)),
                     rest_events,
+                    objects: placed.objects,
+                    object_cells: placed.object_cells,
+                    ground: placed.ground,
                 },
             );
         }
     }
+    check_landings(&landings, &centres, errors);
     if let Some(entry) = data.packs.iter().rev().find_map(|p| p.entry.as_deref()) {
         match data.registry.maps.get(entry) {
             Some(id) => data.entry = Some(id),
@@ -625,6 +642,28 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     }
     if errors.len() > before {
         data.maps.clear();
+    }
+}
+
+/// No portal lands the party where an object stands across the centre of the cell.
+fn check_landings(
+    portals: &[(PathBuf, Vec<ResolvedPortal>)],
+    centres: &BTreeMap<MapId, BTreeMap<(Level, u16, u16), String>>,
+    errors: &mut Vec<DataError>,
+) {
+    for (file, list) in portals {
+        for portal in list {
+            let at = (portal.to_level, portal.to_x, portal.to_y);
+            if let Some(object) = centres.get(&portal.to_map).and_then(|c| c.get(&at)) {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "portal at ({}, {}) lands on ({}, {}), where object '{object}' blocks the centre",
+                        portal.x, portal.y, at.1, at.2
+                    ),
+                ));
+            }
+        }
     }
 }
 

@@ -447,7 +447,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - [x] Refactor: `MapData` into `map_data.rs`.
     - [x] Data: object kinds, the fixture pack `objects`, bad-pack rows.
     - [x] Data: `footprint.rs`.
-    - [ ] Data: placements and placed piles, the yard map.
+    - [x] Data: placements and placed piles, the yard map.
     - [ ] Data: loot tables and `Monster.loot`.
     - [ ] Engine: object state and step blocking (`BlockReason::Object`).
     - [ ] Engine: sight through footprints.

@@ -41,6 +41,12 @@ pub const MAX_TAGS: usize = 32;
 pub const MAX_OBJECT_HEIGHT: u8 = 32;
 /// Item stacks a container may hold.
 pub const MAX_CAPACITY: u16 = 64;
+/// Objects one cell may hold, spills from its neighbours included.
+pub const MAX_OBJECTS_PER_CELL: usize = 16;
+/// Objects one map may place.
+pub const MAX_OBJECTS_PER_MAP: usize = 4096;
+/// Item stacks in one pile on the ground.
+pub const MAX_PILE_STACKS: usize = 32;
 /// Highest difficulty an object's check may set (the SRD's nearly impossible).
 pub const MAX_CHECK_DC: u8 = 30;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).

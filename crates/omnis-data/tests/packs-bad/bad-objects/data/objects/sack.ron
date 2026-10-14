@@ -1,0 +1,1 @@
+(schema: 1, id: "bado:object:sack", name: "bado:text:thing", look: (shape: Heap, width: 2, depth: 2, height: 2), attributes: (capacity: 1))

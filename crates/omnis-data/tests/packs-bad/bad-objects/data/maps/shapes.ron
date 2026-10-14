@@ -1,0 +1,25 @@
+// Shapes checked with the map: an id, a repeat, outside, an offset, a dc, a count; piles outside,
+// sharing a cell, off centre, empty.
+(
+    schema: 1, id: "bado:map:shapes", name: "bado:text:map", kind: Outdoor, tileset: "test:tileset:outdoor",
+    width: 3, height: 1, start: (0, 0, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"), door: "gate", door_open: Some("gate.open"),
+    terrains: [(glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2)],
+    layout: ["+-+-+-+", "|g g g|", "+-+-+-+"],
+    objects: [
+        (id: "Bad-Id", kind: "bado:object:pebble", x: 0, y: 0),
+        (id: "twice", kind: "bado:object:pebble", x: 1, y: 0),
+        (id: "twice", kind: "bado:object:pebble", x: 2, y: 0),
+        (id: "far", kind: "bado:object:pebble", x: 9, y: 0),
+        (id: "drift", kind: "bado:object:pebble", x: 1, y: 0, pos: (5, 0)),
+        (id: "deep", kind: "bado:object:pebble", x: 2, y: 0, hidden: Some(31)),
+        (id: "empty", kind: "bado:object:sack", x: 2, y: 0, contents: [("base:item:dagger", 0)]),
+    ],
+    ground: [
+        (x: 9, y: 0, items: [("base:item:arrows", 1)]),
+        (x: 0, y: 0, items: [("base:item:arrows", 1)]),
+        (x: 0, y: 0, items: [("base:item:arrows", 2)]),
+        (x: 1, y: 0, pos: (-5, 0), items: [("base:item:arrows", 1)]),
+        (x: 2, y: 0, items: []),
+    ],
+)

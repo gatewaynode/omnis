@@ -33,6 +33,7 @@ use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::levels::{LevelDef, NO_GROUND};
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::placement::{self, GroundDef, Placement};
 use crate::rest_event::RestEventDef;
 use crate::service::{self, Site};
 use crate::stairs::StairDef;
@@ -207,6 +208,12 @@ pub struct MapDef {
     /// What may happen while the party rests here, by terrain.
     #[serde(default)]
     pub rest_events: Vec<RestEventDef>,
+    /// Objects standing in cells (M8.5 step 2).
+    #[serde(default)]
+    pub objects: Vec<Placement>,
+    /// Items lying on the ground, one pile a cell.
+    #[serde(default)]
+    pub ground: Vec<GroundDef>,
 }
 
 /// One tile after the layout is parsed.
@@ -349,6 +356,7 @@ impl MapDef {
             errors,
         );
         service::validate_sites(self, file, errors);
+        placement::validate(self, file, errors);
     }
 }
 
@@ -396,6 +404,8 @@ mod tests {
             random: None,
             sites: vec![],
             rest_events: vec![],
+            objects: vec![],
+            ground: vec![],
         }
     }
 

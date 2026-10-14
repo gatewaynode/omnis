@@ -151,7 +151,11 @@ fn every_error_in_a_broken_pack_is_reported() {
 
 /// The pack's report is exactly `expected`, each message once, in any order.
 fn assert_reports(name: &str, expected: &[&str]) {
-    let got = messages(name);
+    assert_same(&messages(name), expected);
+}
+
+/// `got` is exactly `expected`, each message as often, in any order.
+fn assert_same(got: &[String], expected: &[&str]) {
     let missing: Vec<&&str> = expected
         .iter()
         .filter(|e| !got.contains(&(**e).to_owned()))
@@ -332,4 +336,49 @@ fn dependencies_must_load_first() {
         report.messages(),
         ["entry map 'mod:map:none' is not defined by any loaded pack"]
     );
+}
+
+#[test]
+fn every_placement_error_is_reported() {
+    let [base, test] = common::test_packs();
+    let got = match load_packs(&[&base, &test, &common::bad_pack("bad-objects")]) {
+        Ok(_) => panic!("bad-objects loaded"),
+        Err(report) => report.messages(),
+    };
+    let expected = [
+        // data/maps/shapes.ron (M8.5 step 2): shapes on load
+        "object id 'Bad-Id' is not [a-z0-9_]{1,32}",
+        "object 'twice' is placed twice",
+        "object 'far' at (9, 0) is outside the map",
+        "object 'drift' pos must be within -4..=4 eighths",
+        "object 'deep' hidden dc must be 1..=30",
+        "object 'empty' contents need counts of at least 1, at most 64 stacks",
+        "pile at (9, 0) is outside the map",
+        "pile at (0, 0) shares its cell with another pile",
+        "pile at (1, 0) pos must be within -4..=4 eighths",
+        "pile at (2, 0) needs 1..=32 stacks of at least 1",
+        // data/maps/refs.ron at resolution: kinds, levels, states, names, contents, hiding,
+        // spills, the start's centre, a crowded cell, the piles
+        "object 'ghost' kind 'bado:object:none' is not defined by any loaded pack",
+        "object 'upstairs' is on level 3, which the map does not have",
+        "object 'moody' state 'angry' is not one of its kind's states",
+        "text key 'bado:text:none' is not defined in any language",
+        "object 'stuffed' holds items but its kind is not a container",
+        "object 'full' holds 2 stacks; its kind holds 1",
+        "item 'bado:item:none' is not defined by any loaded pack",
+        "object 'secret' is hidden but blocks",
+        "object 'edge' reaches into (4, 2), which has no ground",
+        "object 'walled' reaches across the East edge of (2, 0)",
+        "object 'squat' blocks the centre of (0, 0), where the party arrives",
+        "cell (4, 0) on level 0 holds more than 16 objects",
+        "item 'bado:item:none' is not defined by any loaded pack",
+        "pile at (4, 2) has no ground",
+        // shapes.ron at resolution: what lies outside the map has no ground either
+        "object 'far' at (9, 0) has no ground",
+        "object 'far' reaches into (9, 0), which has no ground",
+        "pile at (9, 0) has no ground",
+        // data/maps/land.ron: a portal onto the blocked start
+        "portal at (0, 0) lands on (0, 0), where object 'squat' blocks the centre",
+    ];
+    assert_same(&got, &expected);
 }

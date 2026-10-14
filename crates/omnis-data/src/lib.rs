@@ -23,6 +23,7 @@ pub mod map;
 pub mod map_data;
 pub mod monster;
 pub mod object;
+pub mod placement;
 pub mod region;
 pub mod registry;
 pub mod rest_event;
@@ -57,6 +58,7 @@ pub use object::{
     Shape, StateDef, Verb,
 };
 pub use omnis_expr;
+pub use placement::{GroundDef, Pile, Placement, ResolvedPlacement};
 pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};

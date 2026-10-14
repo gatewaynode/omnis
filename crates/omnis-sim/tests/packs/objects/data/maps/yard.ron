@@ -1,0 +1,75 @@
+// A yard, 7 by 5, split by a hedge along the south of row 2 with one gap at (3, 2), and a loft
+// (level 1, base 8) over (5, 0) and (6, 0) reached by a ladder at (6, 1).
+// North of the hedge: a crate (1, 1) that blocks; a statue (3, 0) that blocks sight; a hidden
+// lever (0, 0) that opens the gate; a loose stone (0, 2); a plaque on the edge between (4, 1) and
+// (4, 2); a pile of arrows (2, 2). The gate stands across the gap, half in (3, 2) and half in
+// (3, 3), shut until the lever is pulled. South of the hedge: a fountain (1, 3) that blocks, a
+// chest (5, 3) against its north side holding a dagger, a hidden rune with an aura (2, 4) and a
+// torch (6, 4). On the loft: another crate (5, 0).
+(
+    schema: 1,
+    id: "objects:map:yard",
+    name: "objects:text:map.yard.name",
+    kind: Outdoor,
+    tileset: "test:tileset:outdoor",
+    width: 7,
+    height: 5,
+    start: (0, 2, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"),
+    door: "gate",
+    door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+        (glyph: 'f', name: "loft floor", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 1),
+        (glyph: 'l', name: "ladder", floor: "road", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 5, join: Some(Ladder)),
+    ],
+    layout: [
+        "+-+-+-+-+-+-+-+",
+        "|g g g g g g g|",
+        "+ + + + + + + +",
+        "|g g g g g g l|",
+        "+ + + + + + + +",
+        "|g g g g g g g|",
+        "+-+-+-+ +-+-+-+",
+        "|g g g g g g g|",
+        "+ + + + + + + +",
+        "|g g g g g g g|",
+        "+-+-+-+-+-+-+-+",
+    ],
+    levels: [
+        (
+            level: 1,
+            name: "objects:text:map.yard.loft",
+            base: 8,
+            layout: [
+                "+-+-+-+-+-+-+-+",
+                "|_ _ _ _ _ f f|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ l|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+ + + + + + + +",
+                "|_ _ _ _ _ _ _|",
+                "+-+-+-+-+-+-+-+",
+            ],
+        ),
+    ],
+    objects: [
+        (id: "crate_1", kind: "objects:object:crate", x: 1, y: 1),
+        (id: "statue_1", kind: "objects:object:statue", x: 3, y: 0),
+        (id: "lever_1", kind: "objects:object:lever", x: 0, y: 0, pos: (-3, -3), hidden: Some(12)),
+        (id: "stone_1", kind: "objects:object:stone", x: 0, y: 2, pos: (2, -2)),
+        (id: "plaque_1", kind: "objects:object:plaque", x: 4, y: 2, pos: (0, -4), facing: South),
+        (id: "gate_1", kind: "objects:object:gate", x: 3, y: 2, pos: (0, 4)),
+        (id: "fountain_1", kind: "objects:object:fountain", x: 1, y: 3),
+        (id: "chest_1", kind: "objects:object:chest", x: 5, y: 3, pos: (0, -2), facing: South, contents: [("base:item:dagger", 1)]),
+        (id: "rune_1", kind: "objects:object:rune", x: 2, y: 4, hidden: Some(25)),
+        (id: "torch_1", kind: "objects:object:torch", x: 6, y: 4, pos: (3, 3)),
+        (id: "crate_2", kind: "objects:object:crate", level: 1, x: 5, y: 0),
+    ],
+    ground: [
+        (x: 2, y: 2, pos: (1, 1), items: [("base:item:arrows", 10)]),
+    ],
+)

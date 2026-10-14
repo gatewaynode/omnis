@@ -4,9 +4,11 @@
 use crate::encounter::{ResolvedEncounter, ResolvedRandom};
 use crate::levels::{self, LevelData};
 use crate::map::{Cell, MapDef, Terrain};
+use crate::placement::{Pile, ResolvedPlacement};
 use crate::rest_event::ResolvedRestEvent;
 use crate::service::ResolvedSite;
 use omnis_core::{Facing, Level, MapId, RegionId, ServiceId, TextKey, TilesetId};
+use std::collections::BTreeMap;
 
 /// A portal with its destination resolved to an interned map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +55,12 @@ pub struct MapData {
     pub region: RegionId,
     /// What may happen while resting here, in file order.
     pub rest_events: Vec<ResolvedRestEvent>,
+    /// Objects placed in the map, in file order (M8.5 step 2).
+    pub objects: Vec<ResolvedPlacement>,
+    /// For each cell any of an object's looks reaches into, the objects' indices.
+    pub object_cells: BTreeMap<(Level, u16, u16), Vec<u16>>,
+    /// Piles placed on the ground, by cell.
+    pub ground: BTreeMap<(Level, u16, u16), Pile>,
 }
 
 impl MapData {
@@ -125,6 +133,20 @@ impl MapData {
             .iter()
             .find(|p| p.level == level && p.x == x && p.y == y)
             .and_then(|p| p.marker.as_deref())
+    }
+
+    /// The objects whose footprints reach into a cell, with their indices, in file order.
+    pub fn objects_at(
+        &self,
+        level: Level,
+        x: u16,
+        y: u16,
+    ) -> impl Iterator<Item = (u16, &ResolvedPlacement)> {
+        self.object_cells
+            .get(&(level, x, y))
+            .into_iter()
+            .flatten()
+            .filter_map(|&i| self.objects.get(usize::from(i)).map(|p| (i, p)))
     }
 
     /// The service placed on a tile, if any.
