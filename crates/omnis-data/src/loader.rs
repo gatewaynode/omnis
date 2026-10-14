@@ -6,25 +6,26 @@ use crate::SCHEMA;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
-use crate::encounter::{self, ResolvedEncounter, ResolvedRandom};
+use crate::encounter;
 use crate::error::{DataError, LoadReport};
 use crate::item::Item;
 use crate::levels::{self, LevelData};
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
-use crate::map::{Cell, MapDef, Terrain};
+use crate::map::MapDef;
+use crate::map_data::{MapData, ResolvedPortal};
 use crate::monster::Monster;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
-use crate::rest_event::{self, ResolvedRestEvent};
+use crate::rest_event;
 use crate::ron_io::{from_str, read_text};
 use crate::rules::RulesFile;
-use crate::service::{self, ResolvedSite, ServiceDef};
+use crate::service::{self, ServiceDef};
 use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, Facing, ItemId, Level, MapId, MonsterId, RaceId,
+    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, MapId, MonsterId, RaceId,
     RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
@@ -42,135 +43,6 @@ pub struct PackFingerprint {
     pub version: String,
     /// FNV-1a 64 over every data and text file, in path order.
     pub hash: u64,
-}
-
-/// A portal with its destination resolved to an interned map.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResolvedPortal {
-    /// Trigger level.
-    pub level: Level,
-    /// Trigger column.
-    pub x: u16,
-    /// Trigger row.
-    pub y: u16,
-    /// Destination map.
-    pub to_map: MapId,
-    /// Destination level.
-    pub to_level: Level,
-    /// Destination column.
-    pub to_x: u16,
-    /// Destination row.
-    pub to_y: u16,
-    /// Facing on arrival.
-    pub to_facing: Facing,
-}
-
-/// A map ready for the simulation: parsed cells and resolved references.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MapData {
-    /// The file as written.
-    pub def: MapDef,
-    /// Every level, lowest first, the map's own (level 0) among them; each row-major,
-    /// `width × height`, `None` where there is no ground.
-    pub levels: Vec<LevelData>,
-    /// The interned tileset.
-    pub tileset: TilesetId,
-    /// The interned display-name key.
-    pub name: TextKey,
-    /// Portals with interned destinations.
-    pub portals: Vec<ResolvedPortal>,
-    /// Fixed encounters with interned monsters, in file order.
-    pub encounters: Vec<ResolvedEncounter>,
-    /// The random table with interned monsters, if the map has one.
-    pub random: Option<ResolvedRandom>,
-    /// Services placed on tiles, in file order.
-    pub sites: Vec<ResolvedSite>,
-    /// The region that owns the map.
-    pub region: RegionId,
-    /// What may happen while resting here, in file order.
-    pub rest_events: Vec<ResolvedRestEvent>,
-}
-
-impl MapData {
-    /// The cell at a coordinate of a level, if inside the map, on a level it has, with ground.
-    #[must_use]
-    pub fn cell(&self, level: Level, x: u16, y: u16) -> Option<&Cell> {
-        if !self.inside(x, y) {
-            return None;
-        }
-        self.level(level)?
-            .cells
-            .get(usize::from(y) * usize::from(self.def.width) + usize::from(x))?
-            .as_ref()
-    }
-
-    /// Whether a coordinate is inside the map.
-    #[must_use]
-    pub const fn inside(&self, x: u16, y: u16) -> bool {
-        x < self.def.width && y < self.def.height
-    }
-
-    /// A level of the map, if it has it.
-    #[must_use]
-    pub fn level(&self, level: Level) -> Option<&LevelData> {
-        self.levels.iter().find(|l| l.level == level)
-    }
-
-    /// The way the stair at `(x, y)` of `level` rises, if there is one (M8.5 step 1c).
-    #[must_use]
-    pub fn rise(&self, level: Level, x: u16, y: u16) -> Option<Facing> {
-        self.level(level)?.rises.get(&(x, y)).copied()
-    }
-
-    /// The next level up (`up`) or down from `level`, if the map has one.
-    #[must_use]
-    pub fn beyond(&self, level: Level, up: bool) -> Option<Level> {
-        levels::beyond(&self.levels, level, up).map(|l| l.level)
-    }
-
-    /// The terrain of a cell.
-    #[must_use]
-    pub fn terrain(&self, cell: &Cell) -> &Terrain {
-        &self.def.terrains[usize::from(cell.terrain)]
-    }
-
-    /// The portal on a tile, if any.
-    #[must_use]
-    pub fn portal_at(&self, level: Level, x: u16, y: u16) -> Option<&ResolvedPortal> {
-        self.portals
-            .iter()
-            .find(|p| p.level == level && p.x == x && p.y == y)
-    }
-
-    /// The fixed encounter on a tile with its index (the key a cleared encounter is remembered
-    /// by), if any.
-    #[must_use]
-    pub fn encounter_at(&self, level: Level, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
-        self.encounters
-            .iter()
-            .enumerate()
-            .find(|(_, e)| e.level == level && e.x == x && e.y == y)
-            .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
-    }
-
-    /// The `Object` surface marking the portal on a tile, if any.
-    #[must_use]
-    pub fn marker_at(&self, level: Level, x: u16, y: u16) -> Option<&str> {
-        self.def
-            .portals
-            .iter()
-            .find(|p| p.level == level && p.x == x && p.y == y)
-            .and_then(|p| p.marker.as_deref())
-    }
-
-    /// The service placed on a tile, if any.
-    #[must_use]
-    pub fn site_at(&self, level: Level, x: u16, y: u16) -> Option<ServiceId> {
-        self.sites
-            .iter()
-            .find(|s| s.level == level && s.x == x && s.y == y)
-            .map(|s| s.service)
-    }
 }
 
 /// Everything loaded from a set of packs.
