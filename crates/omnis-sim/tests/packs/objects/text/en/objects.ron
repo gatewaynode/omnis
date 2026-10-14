@@ -4,6 +4,8 @@
         "objects:text:map.yard.name": "Test Yard",
         "objects:text:map.yard.loft": "Loft",
         "objects:text:region.yard.name": "Test Yard",
+        "objects:text:monster.pack_rat.name": "Pack rat",
+        "objects:text:monster.pack_rat.bite": "Bite",
         "objects:text:crate.name": "Crate",
         "objects:text:crate.examine": "A crate of rough planks, nailed shut.",
         "objects:text:chest.name": "Chest",

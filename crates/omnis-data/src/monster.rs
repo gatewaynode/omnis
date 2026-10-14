@@ -81,6 +81,9 @@ pub struct Monster {
     /// Spells it casts, if any.
     #[serde(default)]
     pub casting: Option<MonsterCasting>,
+    /// `pack:loot:name`: the table its items are drawn from when it dies (M8.5 step 2).
+    #[serde(default)]
+    pub loot: Option<String>,
 }
 
 impl Monster {

@@ -4,8 +4,8 @@
 //! cannot silently renumber.
 
 use omnis_core::{
-    BackgroundId, ClassId, ConditionId, FlagId, ItemId, MapId, MonsterId, ObjectKindId, RaceId,
-    RegionId, ServiceId, SpellId, TextKey, TilesetId,
+    BackgroundId, ClassId, ConditionId, FlagId, ItemId, LootTableId, MapId, MonsterId,
+    ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId,
 };
 use std::collections::BTreeMap;
 
@@ -99,6 +99,8 @@ pub struct Registry {
     pub regions: Interner<RegionId>,
     /// Object kinds.
     pub objects: Interner<ObjectKindId>,
+    /// Loot tables.
+    pub loot: Interner<LootTableId>,
 }
 
 #[cfg(test)]

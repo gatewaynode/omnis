@@ -80,6 +80,8 @@ define_id! {
     ConditionId,
     /// A kind of object that stands in a cell (M8.5 step 2).
     ObjectKindId,
+    /// A table of items monsters drop (M8.5 step 2).
+    LootTableId,
     /// A town service: an inn, temple, trainer, smith, tavern, bank, or guild.
     ServiceId,
 }

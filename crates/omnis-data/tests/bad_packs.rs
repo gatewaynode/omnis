@@ -270,6 +270,15 @@ fn every_error_in_bad_content_is_reported() {
         "rule 'objects.age' declares input 'age'; an object's rule takes only party_level, party_size",
         "item 'badc:item:gone' is not defined by any loaded pack",
         "flag 'notaflag' is not of the form pack:flag:name",
+        // data/loot/heap.ron, bare.ron (M8.5 step 2): shapes on load, then the item
+        "picks must be 1..=8",
+        "loot entry 0 count needs dice",
+        "loot entry 0 weight must be at least 1",
+        "loot entry 0 chance_percent must be 1..=100",
+        "a loot table needs 1..=64 entries",
+        "item 'badc:item:none' is not defined by any loaded pack",
+        // hush.ron names a table no pack defines
+        "loot table 'badc:loot:gone' is not defined by any loaded pack",
     ];
     assert_reports("bad-content", &expected);
 }

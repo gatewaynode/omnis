@@ -11,6 +11,7 @@ use crate::error::{DataError, LoadReport};
 use crate::item::Item;
 use crate::levels::{self, LevelData};
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
+use crate::loot::LootTable;
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::MapDef;
 use crate::map_data::{MapData, ResolvedPortal};
@@ -27,8 +28,8 @@ use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, MapId, MonsterId, ObjectKindId,
-    RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
+    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, LootTableId, MapId, MonsterId,
+    ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -86,6 +87,8 @@ pub struct Data {
     pub regions: BTreeMap<RegionId, Region>,
     /// Object kinds by id.
     pub objects: BTreeMap<ObjectKindId, ObjectKind>,
+    /// Loot tables by id.
+    pub loot: BTreeMap<LootTableId, LootTable>,
 }
 
 impl Data {
@@ -426,6 +429,7 @@ fn gather_content(
         errors,
         &mut content.objects,
     );
+    gather(root, "data/loot", "loot", hasher, errors, &mut content.loot);
 }
 
 trait HasSchema {
@@ -456,6 +460,7 @@ has_schema!(
     ServiceDef,
     RegionDef,
     ObjectKind,
+    LootTable,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {

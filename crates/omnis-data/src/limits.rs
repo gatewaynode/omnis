@@ -47,6 +47,10 @@ pub const MAX_OBJECTS_PER_CELL: usize = 16;
 pub const MAX_OBJECTS_PER_MAP: usize = 4096;
 /// Item stacks in one pile on the ground.
 pub const MAX_PILE_STACKS: usize = 32;
+/// Entries in one loot table.
+pub const MAX_LOOT_ENTRIES: usize = 64;
+/// Draws a loot table makes for one individual.
+pub const MAX_LOOT_PICKS: u8 = 8;
 /// Highest difficulty an object's check may set (the SRD's nearly impossible).
 pub const MAX_CHECK_DC: u8 = 30;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).

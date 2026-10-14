@@ -24,8 +24,8 @@ pub use fixed::Fixed;
 pub use geom::{Direction, Edges, Facing, Level, Position, Rotation, Vertical};
 pub use id::{
     ActorId, BackgroundId, CharacterId, ClassId, ConditionId, EraId, FlagId, HolderId, ItemId,
-    MapId, MonsterId, ObjectKindId, PartyId, ProjectId, QuestId, RaceId, RegionId, ServiceId,
-    SpellId, StreamName, TextKey, TilesetId,
+    LootTableId, MapId, MonsterId, ObjectKindId, PartyId, ProjectId, QuestId, RaceId, RegionId,
+    ServiceId, SpellId, StreamName, TextKey, TilesetId,
 };
 pub use money::{CP_PER_GP, CP_PER_SP, Coins};
 pub use rng::{Dice, DieRoll, Pcg32, RollTrace, fnv1a64, splitmix64};

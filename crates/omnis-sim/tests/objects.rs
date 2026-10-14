@@ -118,3 +118,27 @@ fn the_shipped_maps_place_nothing() {
         assert!(map.objects.is_empty() && map.object_cells.is_empty() && map.ground.is_empty());
     }
 }
+
+#[test]
+fn the_pack_rat_names_its_hoard_and_the_hoard_loads() {
+    let data = objects();
+    let rat = &data.monsters[&data
+        .registry
+        .monsters
+        .get("objects:monster:pack_rat")
+        .unwrap()];
+    assert_eq!(rat.loot.as_deref(), Some("objects:loot:hoard"));
+    let hoard = &data.loot[&data.registry.loot.get("objects:loot:hoard").unwrap()];
+    assert_eq!(hoard.picks, 1);
+    let weights: Vec<(u16, u8)> = hoard
+        .entries
+        .iter()
+        .map(|e| (e.weight, e.chance_percent))
+        .collect();
+    assert_eq!(weights, [(3, 100), (1, 50)]);
+    let base = crate::common::data();
+    assert!(
+        base.loot.is_empty() && base.monsters.values().all(|m| m.loot.is_none()),
+        "the shipped monsters drop gold only"
+    );
+}

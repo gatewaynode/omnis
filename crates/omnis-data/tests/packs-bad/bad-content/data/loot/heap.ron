@@ -1,0 +1,10 @@
+// Loot faults (M8.5 step 2): picks out of range, an entry with no dice, no weight, a chance of 0,
+// and an item no pack defines.
+(
+    schema: 1,
+    id: "badc:loot:heap",
+    picks: 9,
+    entries: [
+        (item: "badc:item:none", count: (count: 0, sides: 6, modifier: 0), weight: 0, chance_percent: 0),
+    ],
+)
