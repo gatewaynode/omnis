@@ -98,10 +98,19 @@ Lands with the first system that reads a tool (Cartography's map detail, M7 at t
 paper and ink as charges; fast-travel modifiers wait for sectors (Phase 2); Mining, Assaying,
 Refining are Omnis tools for the Prospector.
 
+## Objects (M8.5 step 2a)
+Stored and doing nothing yet: an object's size, material, weight, light, noise, smell, value and tags. Not
+built: Detect Magic's barriers (stone, metal, lead) and naming an aura's school; casting a ritual; the
+guild selling Detect Magic; more inputs for an object's rules slot than `party_level` and `party_size`;
+objects and piles on the automap (owner, 2026-10-14: not yet); a pile's position chosen by the party;
+sight through the corner of a gap in a wall (a ray that only touches the gap's corner sees through, so a
+cell behind a hedge beside a gap is seen: found at the 2a test in the yard, 2026-10-15, as recorded for
+corners in 1a). No saving mid-fight is the owner's rule (2026-10-15), built in M8.5 step 7.
+
 ## Combat and magic
 `Reach::AllStacks`, upcasting, counterspell (monster spellcasting came with Bob the Rat King, M7c), torches,
-`Surprise::Monsters`, finesse weapons, loot and encounter budgets
-(M9), floating damage numbers, MAP in a fight, saving from the pause overlay mid-fight,
+`Surprise::Monsters`, finesse weapons, encounter budgets (M9) and loot tables for the base monsters
+(the mechanism came in M8.5 step 2a), floating damage numbers, MAP in a fight,
 `turn::act` restoring `party` as well as `state` on a `RuleError`.
 
 ## Items and the sheet

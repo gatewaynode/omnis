@@ -60,7 +60,15 @@ old saves only).
   `Cliff` as `BlockReason::Object`; re-exported as `api::object_blocks` for the client's mirror;
   `state_in`/`removed_in` from a `MapState` for `visibility::Sheet::object_hides`, which tests each
   walked cell's sight-blocking footprints with `Footprint::ray_span`; `line_of_sight` and `ray` take
-  the kinds, `visibility::Kinds`).
+  the kinds, `visibility::Kinds`). `objects/act.rs` (`act`, `admit`: the refusals before any die, shared
+  with the view; `offered`, `choices` for Use's `ChooseVerb`, `reachable`, `reach`), `objects/outcome.rs`
+  (`resolve`: checks on the `object` stream, items used up, effects; `gate`, `check_of`),
+  `objects/container.rs` (`contents`, `TakeOut`, `PutIn`), `objects/notice.rs` (`look` after each look,
+  `search`); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot); `combat/loot.rs` (`of`, `draw`);
+  `items.rs` (`from_kit`, `from_list`, `out_of_kit`, `actor`); `objects_view.rs` (`objects_view` for
+  `objects.get`, `in_sight` for `ViewportModel.objects`/`.piles`). Fixture pack
+  `crates/omnis-sim/tests/packs/objects` (the yard); tests `objects.rs`, `object_act.rs`, `object_use.rs`,
+  `ground.rs`, `loot.rs`, `notice.rs`, `objects_view.rs`.
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
   `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
   couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,
@@ -73,7 +81,7 @@ old saves only).
   `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
   `save_text`, `load_text`, `check_reload`, `rules_set`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
-  `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
+  `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
   `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and
