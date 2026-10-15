@@ -184,8 +184,8 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
             _ => None,
         })
         .collect();
-    // Healing word, guiding bolt, inflict wounds now; spiritual weapon and prayer of healing at
-    // level 3.
+    // Healing word, guiding bolt, inflict wounds and detect magic now; spiritual weapon and
+    // prayer of healing at level 3.
     assert_eq!(
         rows,
         [
@@ -193,7 +193,8 @@ fn the_trainer_offers_levels_and_picks_and_the_sellers_their_spells() {
             ("base:spell:guiding_bolt", true),
             ("base:spell:inflict_wounds", true),
             ("base:spell:spiritual_weapon", false),
-            ("base:spell:prayer_of_healing", false)
+            ("base:spell:prayer_of_healing", false),
+            ("base:spell:detect_magic", true)
         ]
     );
     assert_eq!(

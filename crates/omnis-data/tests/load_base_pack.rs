@@ -35,7 +35,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
             data.rules.slot_names().count(),
             data.services.len(),
         ),
-        (4, 4, 3, 24, 16, 18, 3, 36, 7)
+        (4, 4, 3, 24, 16, 19, 3, 36, 7)
     );
 
     let dwarf = &data.races[&data.registry.races.get("base:race:dwarf").unwrap()];
@@ -56,7 +56,7 @@ fn the_base_pack_loads_with_the_srd_subset() {
     let casting = wizard.casting.as_ref().unwrap();
     assert_eq!(
         (wizard.hit_die, casting.ability, casting.list.len()),
-        (6, Ability::Intelligence, 9)
+        (6, Ability::Intelligence, 10)
     );
     assert!(
         casting

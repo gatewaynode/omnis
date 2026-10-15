@@ -4,7 +4,7 @@
 use crate::common::six;
 use crate::objects::{in_yard, objects, yard};
 use omnis_core::{Facing, Rotation};
-use omnis_data::{Ability, Data};
+use omnis_data::{Ability, Data, School, SpellEffect, Utility};
 use omnis_sim::event::Notice;
 use omnis_sim::objects::Refusal;
 use omnis_sim::{Command, Event, PartyCommand, Rejection, Target, World, apply};
@@ -182,11 +182,11 @@ fn nobody_who_can_act_cannot_search() {
     assert_eq!(world, before);
 }
 
-#[test]
-fn a_reveal_finds_the_rune_by_its_aura_through_the_hedge_but_not_the_lever() {
+/// The yard at `(x, y)` facing `facing`, Brenna with a dull eye and Ilvara the wizard as made,
+/// knowing `spell` as well; the events of her casting it on herself.
+fn reveal(x: u16, y: u16, facing: Facing, spell: &str) -> (World, Vec<Event>, Data) {
     let data = objects();
-    // Facing the hedge, the lever behind: no eye finds it, so only the spell is in play.
-    let mut world = eyed(&data, 2, 1, Facing::South, 1);
+    let mut world = eyed(&data, x, y, facing, 1);
     let wizard = six().swap_remove(2);
     apply(
         &mut world,
@@ -195,24 +195,64 @@ fn a_reveal_finds_the_rune_by_its_aura_through_the_hedge_but_not_the_lever() {
     )
     .expect("a wizard");
     let ilvara = world.party.members[1].id;
-    let spell = data
-        .registry
-        .spells
-        .get("objects:spell:sense_magic")
-        .expect("the fixture's reveal");
-    world.party.members[1].known_spells.push(spell);
+    let known = data.registry.spells.get(spell).expect("a reveal");
+    if !world.party.members[1].known_spells.contains(&known) {
+        world.party.members[1].known_spells.push(known);
+    }
     let cast = Command::Cast {
         caster: ilvara,
-        spell: "objects:spell:sense_magic".into(),
+        spell: spell.into(),
         target: Target::Member(ilvara),
     };
     let events = apply(&mut world, &data, cast).expect("cast");
+    (world, events, data)
+}
+
+#[test]
+fn a_reveal_finds_the_rune_by_its_aura_through_the_hedge_but_not_the_lever() {
+    // Facing the hedge, the lever behind: no eye finds it, so only the spell is in play.
+    let (world, events, data) = reveal(2, 1, Facing::South, "objects:spell:sense_magic");
     assert_eq!(
         noticed(&events),
         [("rune_1".to_owned(), Notice::Spell)],
         "three cells off, the spell's range exactly, unseen, with an aura; the lever has none"
     );
     assert!(!found(&world, &data, "lever_1"));
+}
+
+#[test]
+fn detect_magic_is_the_base_pack_s_reveal_six_cells_deep() {
+    let far = (6, 0, Facing::North);
+    let (_, short, _) = reveal(far.0, far.1, far.2, "objects:spell:sense_magic");
+    assert!(
+        noticed(&short).is_empty(),
+        "four cells: past the fixture's three"
+    );
+    let (world, events, data) = reveal(far.0, far.1, far.2, "base:spell:detect_magic");
+    assert_eq!(noticed(&events), [("rune_1".to_owned(), Notice::Spell)]);
+    let detect = data.registry.spells.get("base:spell:detect_magic");
+    let spell = detect
+        .and_then(|id| data.spells.get(&id))
+        .expect("in the base pack");
+    assert_eq!(
+        spell.effect,
+        Some(SpellEffect::Utility(Utility::Reveal {
+            range_tiles: 6,
+            minutes: 10
+        })),
+        "30 feet, 10 minutes"
+    );
+    assert!(spell.concentration && spell.ritual && spell.level == 1);
+    assert_eq!(spell.school, School::Divination);
+    assert!(
+        world.party.members[1]
+            .known_spells
+            .iter()
+            .any(|s| Some(*s) == detect),
+        "a new wizard knows it from the class list"
+    );
+    assert_eq!(data.rules.value("notice_tiles"), Some(2));
+    assert_eq!(data.rules.value("search_minutes"), Some(10));
 }
 
 #[test]

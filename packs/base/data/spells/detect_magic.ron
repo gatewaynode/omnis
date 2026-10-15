@@ -1,0 +1,7 @@
+// SRD 5.1 spell (docs/dnd.srd.5.1/07_Spells). Points default to the level; cantrips are free.
+// Non-consumed SRD components are dropped (PRD §8.3); consumed ones go in `components`.
+// `effect` is the shape of what the spell does; the numbers are rule slots in data/rules/casting.ron.
+// Durations are party-clock minutes: a fight round is one minute, so the SRD's "1 minute" is 10.
+// 30 feet is six tiles: while it lasts, hidden objects bearing magic that near are found, seen or
+// not (M8.5 step 2). The SRD's barriers of stone, metal and lead are not modelled yet.
+(schema: 1, id: "base:spell:detect_magic", name: "base:text:spell.detect_magic.name", level: 1, school: Divination, classes: ["base:class:cleric", "base:class:wizard"], concentration: true, ritual: true, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "base:text:spell.detect_magic.description", effect: Some(Utility(Reveal(range_tiles: 6, minutes: 10))), reach: One)

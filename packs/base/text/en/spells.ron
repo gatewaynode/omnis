@@ -10,6 +10,8 @@
         "base:text:spell.burning_hands.name": "Burning Hands",
         "base:text:spell.cure_wounds.description": "A touched creature regains 1d8 + your casting modifier hit points; +1d8 per level above 1st.",
         "base:text:spell.cure_wounds.name": "Cure Wounds",
+        "base:text:spell.detect_magic.description": "For up to 10 minutes, with concentration, you sense magic within 30 feet; hidden things that bear it are found, seen or not.",
+        "base:text:spell.detect_magic.name": "Detect Magic",
         "base:text:spell.fire_bolt.description": "A ranged spell attack for 1d10 fire damage; 2d10 at level 5, 3d10 at 11, 4d10 at 17.",
         "base:text:spell.fire_bolt.name": "Fire Bolt",
         "base:text:spell.guidance.description": "A willing creature adds 1d4 to one ability check within the next minute.",

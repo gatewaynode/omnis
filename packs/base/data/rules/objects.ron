@@ -1,0 +1,12 @@
+// Finding hidden objects (M8.5 step 2). A sharp eye: after each look while exploring, the party's
+// best passive Perception finds a hidden object whose cell is in sight within `notice_tiles`
+// cells (as a king moves). A search: one Investigation roll against hidden objects in the party's
+// cell and the one it faces, taking `search_minutes` whether or not anything is there.
+(
+    schema: 1,
+    id: "base:rules:objects",
+    values: {
+        "notice_tiles": 2,
+        "search_minutes": 10,
+    },
+)
