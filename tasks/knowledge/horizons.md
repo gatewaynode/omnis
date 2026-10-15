@@ -20,7 +20,7 @@ full spell effects where M7b's spells simplify them (named in each spell file). 
 owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
-items; string ids in saves before much more content arrives (ids are interned `u32`s in file
+items; string ids in saves before much more content arrives (planned as M8.5 step 7, owner 2026-10-15: `tasks/plans/m8.5-saves-by-name.md`; ids are interned `u32`s in file
 order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files renumbered
 the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
 own value.
