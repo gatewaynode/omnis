@@ -487,16 +487,18 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
   - **The biosphere is split.** In presentation-PRD §5.2 a biosphere is a palette and style set in pack data, and that part is here. Living things and resources (flora, fauna, populations) stay in M10's ecosystem. To confirm with the owner.
   - Open for the owner: the role set and glyph vocabulary (§12.3); how a biosphere is assigned, per region, per map or per terrain, and whether it also picks the relief noise and shape generators (§12.2).
 - [ ] 6. **Magic and mana data in the map packs** (owner's 6). New: neither the PRD nor ARCHITECTURE has mana in a place (members have spell points). Needs the owner's intent before a plan: what a place's mana does (spell power, recovery, wild or dead zones), whether it is per cell, per map or per region, and whether it changes over time (a link to M10). Shown in the magic colour role from 5. Last because it needs that design and nothing else waits on it.
-- [ ] 7. **Saves by name, validated on load, migrations offered** (owner, 2026-10-15; plan `tasks/plans/m8.5-saves-by-name.md`, open questions to answer before building). After step 2, before the editor (M5), which will change packs constantly. Option A: the save carries a name table and is remapped by name on load, so new content no longer refuses older saves (PRD §7.7). Every load request is validated into a report (`save.check`); when the packs changed and something no longer resolves, the packs' declarative migrations are offered, not refusal outright. Fixed encounters get ids; `pack.reload` goes through the same remap (it silently renumbers today, to be proven red first). `SAVE_SCHEMA` 8; replays still require identical packs.
+- [ ] 7. **Saves by name, validated on load, migrations offered** (owner, 2026-10-15; plan `tasks/plans/m8.5-saves-by-name.md`, owner's answers 2026-10-15 written in). After step 2, before the editor (M5), which will change packs constantly. Option A: the save carries a name table and is remapped by name on load, so new content no longer refuses older saves (PRD §7.7). Every load request is validated into a report (`save.check`); when the packs changed and something no longer resolves, the packs' declarative migrations are offered, not refusal outright. Fixed encounters get ids; `pack.reload` goes through the same remap (it silently renumbers today, to be proven red first). `SAVE_SCHEMA` 8; replays still require identical packs.
   - [x] 0. Plan saved, TODO items (2026-10-15).
-  - [ ] 1. Capture `tests/saves/v7.ron`.
-  - [ ] 2. Fixed encounters by id; `SAVE_SCHEMA` 8, `v7_to_v8`.
-  - [ ] 3. The name table and the remap; the overlay fixture and the every-view proof.
-  - [ ] 4. Validation: `LoadReport`, verdicts, `save.check`.
-  - [ ] 5. Pack migrations: format, checks, applying; CLI `migration draft` and `save check`; versions pinned to hashes.
-  - [ ] 6. `pack.reload` by name (red test first).
-  - [ ] 7. MCP and the client's load screen.
-  - [ ] 8. Docs, acceptance, continuity.
+  - [ ] 1. No saving mid-fight (encounter or fight; owner 2026-10-15).
+  - [ ] 2. Pack metadata: `hash` in every `pack.ron`, checked at load; `omnis-cli pack seal`.
+  - [ ] 3. Capture `tests/saves/v7.ron` (exploring).
+  - [ ] 4. Fixed encounters by id; `SAVE_SCHEMA` 8, `v7_to_v8`.
+  - [ ] 5. The name table and the remap; the overlay fixture and the every-view proof.
+  - [ ] 6. Validation: `LoadReport`, verdicts, `save.check`; nothing dropped without a migration.
+  - [ ] 7. Migrations, numbered and chained like database migrations, recorded in the save; CLI `migration draft` and `save check`.
+  - [ ] 8. `pack.reload` by name (red test first).
+  - [ ] 9. MCP and the client's load screen.
+  - [ ] 10. Docs, acceptance, continuity.
 
 ### Open, outside the milestones (the owner sets the order)
 - [x] **Reassess the editor** (owner, 2026-10-14; held for later, before step 2). **Settled the same day by the owner:** toolkit `bevy_ui` (neon); objects first, in step 2, then the editor (M5) before steps 5 and 6; D4 kept (the test pack and fixture maps load, save and reload unchanged and are re-authored in it); a top-down plan of one level with a 3D preview and Playtest; maps plus a raw RON text editor for every other data file, checked by the loader before save; an optional `notes` text on maps and levels, into which today's `//` comments move once; the build plan is written after step 2. Docs: PRD D26, §10, §11.1; ARCHITECTURE §8.2, §13, A11; presentation-PRD §2, §8; `tasks/knowledge/horizons.md`. Findings of the review that day (no editor code exists):
