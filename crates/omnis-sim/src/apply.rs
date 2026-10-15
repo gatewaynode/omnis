@@ -3,6 +3,7 @@
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
 use crate::names::{Place, id_of};
+use crate::objects::Choice;
 use crate::party::{self, PartyCommand};
 use crate::service::{self, ServiceState};
 use crate::time;
@@ -27,7 +28,8 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             service::apply(world, data, state, command, &mut events)?;
         }
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
-        (Mode::Explore, Command::Interact) => interact(world, data, &mut events),
+        (Mode::Explore, Command::Interact) => interact(world, data, &mut events)?,
+        (Mode::Explore, Command::Door) => door(world, data, &mut events)?,
         (
             Mode::Explore,
             Command::Act {
@@ -346,24 +348,50 @@ fn turn(world: &mut World, rotation: Rotation) {
 }
 
 /// Go into the service on the party's tile, or else open or close the door ahead.
-fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) {
+/// Use: a service on the party's tile, else the one door or object interaction in reach. None
+/// is "nothing here"; several are refused with the list, and the world is unchanged.
+fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
     if service::enter_here(world, data, events) {
-        return;
+        return Ok(());
     }
+    let mut choices = objects::choices(world, data);
+    if faced_door(world, data) {
+        choices.insert(0, Choice::Door);
+    }
+    match choices.as_slice() {
+        [] => events.push(Event::Message {
+            key: MessageKey::NothingHere,
+        }),
+        [Choice::Door] => door(world, data, events)?,
+        [
+            Choice::Object {
+                object,
+                verb,
+                option,
+            },
+        ] => objects::act(world, data, object, *verb, *option, events)?,
+        _ => return Err(Rejection::ChooseVerb { choices }),
+    }
+    Ok(())
+}
+
+/// Whether a door stands on the edge the party faces.
+fn faced_door(world: &World, data: &Data) -> bool {
     let pos = world.position;
-    let has_door = data
-        .maps
+    data.maps
         .get(&pos.map)
         .and_then(|m| m.cell(pos.level, pos.x, pos.y))
-        .is_some_and(|c| c.doors.has(pos.facing));
-    if !has_door {
-        events.push(Event::Message {
-            key: MessageKey::NothingHere,
-        });
-        return;
+        .is_some_and(|c| c.doors.has(pos.facing))
+}
+
+/// Open or close the door on the faced edge.
+fn door(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
+    if !faced_door(world, data) {
+        return Err(Rejection::NoDoor);
     }
-    toggle_door(world, data, pos, events);
+    toggle_door(world, data, world.position, events);
     advance(world, data, INTERACT_MINUTES, events);
+    Ok(())
 }
 
 /// Open a closed door or close an open one on the edge of the tile `at` faces, with the event.

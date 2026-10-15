@@ -452,7 +452,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - [x] Engine: object state and step blocking (`BlockReason::Object`).
     - [x] Engine: sight through footprints.
     - [x] Engine: `Command::Act` (2026-10-14): `objects/act.rs` (reach, offered interactions, refusals), `objects/outcome.rs` (requirements, checks on the `object` stream, items used up, effects); `checks::best` shared with the encounter; `Command::Act { object, verb, option }` and the word `act-O-V[-N]`; seven events, `CheckKind::Skill/Ability`, `NoSuchObject`, `VerbRefused(Refusal)`; MCP `oneOf` 12 → 13, proof 96/145 → 109/159; fixture: the fountain's wish and `objects.crowd`. Mutations 13 of 13 caught. Gate 746 passed.
-    - [ ] Engine: Interact routing and `ChooseVerb`.
+    - [x] Engine: Interact routing and `ChooseVerb` (2026-10-15): `apply::interact` keeps a service first, then lists the faced door and every interaction offered by objects in reach (`objects::choices`, a spent `once` left out, an object in both cells once); one is done at once, none is `NothingHere`, several are `Rejection::ChooseVerb { choices: Vec<Choice> }` with nothing changed. `Command::Door` (word `door`, `NoDoor`) opens or closes the faced door when Use has a choice; it is an enum value beside `Interact` in the MCP schema, so `oneOf` stays 13, proof 109/159 → 110/160. Fixture: a door on the north edge of the torch cell (6, 4). Mutations 11 of 11 caught. Gate 754 passed; replays unmoved.
     - [ ] Engine: ground piles and containers.
     - [ ] Engine: loot on victory.
     - [ ] Engine: hidden objects (passive notice, Search, Reveal).

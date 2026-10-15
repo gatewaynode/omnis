@@ -174,8 +174,8 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        109,
-        "4 steps, 3 turns, interact, 13 acts (one per verb), 2 climbs, 20 party, 4 encounter, \
+        110,
+        "4 steps, 3 turns, interact, door, 13 acts (one per verb), 2 climbs, 20 party, 4 encounter, \
          12 combat, 2 casts, 10 item, 14 service, 2 rest, 22 dev"
     );
     let mut used = Used::new();
@@ -191,7 +191,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 159, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 160, "oneOf branches and enum values offered");
 }
 
 #[test]

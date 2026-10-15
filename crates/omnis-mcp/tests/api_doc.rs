@@ -29,7 +29,7 @@ macro_rules! variants {
 }
 
 variants!(Command, COMMANDS, command_name:
-    Step Turn Interact Climb Party Encounter Combat Cast Item Service Rest Dev Act);
+    Step Turn Interact Door Climb Party Encounter Combat Cast Item Service Rest Dev Act);
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
@@ -54,7 +54,7 @@ variants!(Rejection, REJECTIONS, rejection_name:
     RestTooSoon NoFood NoHitDice NotReady MaxLevel NoPicks NoSuchSpell NotOnList
     CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
     NotABonusAction NeedsPreparation NoSuchFeature NoUsesLeft WrongChoice Tactics CannotReact
-    NoSuchEntry Rule NoSuchObject VerbRefused);
+    NoSuchEntry Rule NoSuchObject VerbRefused ChooseVerb NoDoor);
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
@@ -222,10 +222,10 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     );
     // The counts the document states are the types' counts.
     for (count, what) in [
-        (COMMANDS.len(), "`Command` (13 variants)"),
+        (COMMANDS.len(), "`Command` (14 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
         (EVENTS.len(), "`Event` has 69 variants"),
-        (REJECTIONS.len(), "`Rejection` (65 variants)"),
+        (REJECTIONS.len(), "`Rejection` (67 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "25 ops."),
     ] {

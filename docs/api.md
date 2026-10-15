@@ -540,7 +540,7 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (13 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (14 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -549,7 +549,8 @@ means the same thing after a reorder or a change to a list.
 |---|---|---|
 | `Step` | `Direction` | Move one tile relative to the facing, without turning. A stair up is taken only by a step onto it from its foot (moving the way the map's `stairs` list says it rises), a stair down only from its head (moving against it); a step from any other side lands on the stair as on a floor. The step's direction counts, not the facing, so backing or sidestepping onto a stair from its foot takes it. |
 | `Turn` | `Rotation` | Turn in place. |
-| `Interact` | | Use the facing edge or tile: a door, a site (enters its service). |
+| `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
+| `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. Costs 1 minute. Exploring only. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
@@ -640,7 +641,7 @@ slot `W`) `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a serv
 `room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` (stock item `R`) `sell-R[-N]`
 (stores item `R`) `deposit-N` `withdraw-N` (copper) `train-M` `choose-M-R` (class-list spell
 `R`) `learn-M-R` (the service's spell `R`); outside one `rest` `short-rest`
-`short-rest-A-B-…` (hit dice per member in marching order); exploring `act-O-V` and `act-O-V-N`
+`short-rest-A-B-…` (hit dice per member in marching order); exploring `door`, `act-O-V` and `act-O-V-N`
 (verb `V`, lower case, on object `O`, its `N`th interaction). Party creation, items, `Cast`
 outside a fight and `Dev` have no words. `Command::word` (`command.rs`) gives a command's bare
 verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their own).
@@ -762,7 +763,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (65 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (67 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -823,6 +824,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`) | `Act`: the object does not allow that now; nothing changed. |
+| `ChooseVerb` | `choices` (`Choice`: `Door`, or `{"Object": {object, verb, option}}`, each the `Door` or `Act` command that does it; the door first, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
+| `NoDoor` | | `Door`: no door on the faced edge. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -959,6 +962,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   rejections `NoSuchObject` and `VerbRefused` (`Refusal`); `Verb::ALL`. An object's rules slot
   gets `party_level` (the mean level of members who can act, rounded down) and `party_size`
   (how many can act).
+- 2026-10-15: `Command::Door` and its word `door` (M8.5 step 2, item 10); `Interact` chooses
+  among the faced door and the interactions of objects in reach; rejections `ChooseVerb`
+  (`Choice`) and `NoDoor`. A door alone is used as before.
 
 ### Protocol 2 (2026-10-10)
 

@@ -5,7 +5,7 @@
 // (4, 2); a pile of arrows (2, 2). The gate stands across the gap, half in (3, 2) and half in
 // (3, 3), shut until the lever is pulled. South of the hedge: a fountain (1, 3) that blocks, a
 // chest (5, 3) against its north side holding a dagger, a hidden rune with an aura (2, 4) and a
-// torch (6, 4). On the loft: another crate (5, 0).
+// torch (6, 4) behind a door on its north edge. On the loft: another crate (5, 0).
 (
     schema: 1,
     id: "objects:map:yard",
@@ -32,7 +32,7 @@
         "|g g g g g g g|",
         "+-+-+-+ +-+-+-+",
         "|g g g g g g g|",
-        "+ + + + + + + +",
+        "+ + + + + + +=+",
         "|g g g g g g g|",
         "+-+-+-+-+-+-+-+",
     ],

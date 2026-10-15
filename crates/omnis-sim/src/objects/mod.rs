@@ -5,7 +5,7 @@
 mod act;
 mod outcome;
 
-pub(crate) use act::act;
+pub(crate) use act::{act, choices};
 
 use crate::world::{MapState, World};
 use alloc::collections::BTreeSet;
@@ -15,7 +15,7 @@ use core::fmt;
 use omnis_core::{Facing, ItemId, Level, MapId};
 use omnis_data::footprint::Footprint;
 use omnis_data::placement::{ResolvedPlacement, in_state};
-use omnis_data::{Data, School};
+use omnis_data::{Data, School, Verb};
 use serde::{Deserialize, Serialize};
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -73,6 +73,22 @@ pub enum Refusal {
     },
     /// Nobody in the party can act.
     NoneCanAct,
+}
+
+/// One thing Use could mean when there is more than one; each names the command that does it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Choice {
+    /// Open or close the door on the faced edge: `Command::Door`.
+    Door,
+    /// An interaction of an object in reach: `Command::Act` with these fields.
+    Object {
+        /// The placement's id in the map.
+        object: String,
+        /// The verb.
+        verb: Verb,
+        /// Which of the verb's offered interactions, counted from 0.
+        option: u8,
+    },
 }
 
 impl fmt::Display for Refusal {

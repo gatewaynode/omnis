@@ -6,11 +6,12 @@ use crate::combat::{CombatCommand, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
-use crate::objects::Refusal;
+use crate::objects::{Choice, Refusal};
 use crate::party::PartyCommand;
 use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{CharacterId, Coins, Direction, Rotation, Vertical};
 use omnis_data::{EquipSlot, Verb};
@@ -24,8 +25,11 @@ pub enum Command {
     Step(Direction),
     /// Turn in place.
     Turn(Rotation),
-    /// Use whatever is on the facing edge or tile: a door in M1.
+    /// Use whatever is on the faced edge or in reach: a service on the party's tile, else the
+    /// one door or object interaction there is; several are refused with the list to choose from.
     Interact,
+    /// Open or close the door on the faced edge (M8.5 step 2), when Use has more than one choice.
+    Door,
     /// Climb a ladder or shaft one level up or down, to the same tile (M8.5 step 1b).
     Climb(Vertical),
     /// Build or reorder the party.
@@ -78,6 +82,7 @@ impl Command {
             Command::Turn(Rotation::Right) => "turn-right",
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
+            Command::Door => "door",
             Command::Climb(Vertical::Up) => "climb-up",
             Command::Climb(Vertical::Down) => "climb-down",
             Command::Party(_) => "party",
@@ -392,6 +397,13 @@ pub enum Rejection {
         /// Why.
         reason: Refusal,
     },
+    /// Use has more than one thing it could do; nothing was done.
+    ChooseVerb {
+        /// What it could do, each as the command that does it.
+        choices: Vec<Choice>,
+    },
+    /// There is no door on the faced edge.
+    NoDoor,
 }
 
 impl core::fmt::Display for Rejection {
@@ -447,6 +459,14 @@ impl Rejection {
             Rejection::NoLadder => f.write_str("there is no ladder that way"),
             Rejection::NoSuchObject { object } => write!(f, "no object '{object}' is in reach"),
             Rejection::VerbRefused { reason } => write!(f, "{reason}"),
+            Rejection::ChooseVerb { choices } => {
+                write!(
+                    f,
+                    "there are {} things to do here; choose one",
+                    choices.len()
+                )
+            }
+            Rejection::NoDoor => f.write_str("there is no door that way"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

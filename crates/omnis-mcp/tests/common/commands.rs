@@ -347,7 +347,8 @@ fn next(command: &Command) -> Option<Command> {
     Some(match command {
         Command::Step(direction) => next_step(*direction),
         Command::Turn(rotation) => next_turn(*rotation),
-        Command::Interact => Command::Act {
+        Command::Interact => Command::Door,
+        Command::Door => Command::Act {
             object: "chest_1".into(),
             verb: Verb::ALL[0],
             option: 0,

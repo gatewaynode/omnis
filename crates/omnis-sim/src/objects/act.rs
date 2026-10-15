@@ -2,11 +2,12 @@
 //! interactions the command names, and why one is refused before anything happens. What a
 //! named interaction does is `outcome.rs`.
 
-use super::{Refusal, found_in, outcome, removed_in, saved, state_of};
+use super::{Choice, Refusal, found_in, outcome, removed_in, saved, state_of};
 use crate::combat::state::can_fight;
 use crate::command::Rejection;
 use crate::event::Event;
 use crate::world::World;
+use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::Position;
@@ -60,21 +61,65 @@ pub(crate) fn offered<'k>(
         .filter_map(|(i, it)| u8::try_from(i).ok().map(|i| (i, it)))
 }
 
-/// The placement `id` if the party can reach it: on its level, its footprint in the party's
-/// cell or in the one it faces across an open edge, not hidden and not taken away.
+/// What Use could do to objects in reach: every interaction offered now and not already spent,
+/// in the order the objects are reached and the kind lists them.
+pub(crate) fn choices(world: &World, data: &Data) -> Vec<Choice> {
+    let map = world.position.map;
+    let mut choices = Vec::new();
+    for placement in reachable(world, data) {
+        let Some(kind) = data.objects.get(&placement.kind) else {
+            continue;
+        };
+        let used = saved(world, map, &placement.id).map(|s| &s.used);
+        let mut verbs = Vec::new();
+        for (index, interaction) in offered(kind, state_of(world, map, placement)) {
+            let verb = interaction.verb;
+            let earlier = verbs.iter().filter(|v| **v == verb).count();
+            let option = u8::try_from(earlier).unwrap_or(u8::MAX);
+            verbs.push(verb);
+            if interaction.once && used.is_some_and(|u| u.contains(&index)) {
+                continue;
+            }
+            choices.push(Choice::Object {
+                object: placement.id.clone(),
+                verb,
+                option,
+            });
+        }
+    }
+    choices
+}
+
+/// The placement `id` if the party can reach it.
 pub(crate) fn in_reach<'d>(
     world: &World,
     data: &'d Data,
     id: &str,
 ) -> Option<&'d ResolvedPlacement> {
+    reachable(world, data).find(|p| p.id == id)
+}
+
+/// The placements the party can reach: on its level, their footprints in the party's cell or in
+/// the one it faces across an open edge, not hidden and not taken away. One spanning both cells
+/// is reached once.
+fn reachable<'w, 'd>(
+    world: &'w World,
+    data: &'d Data,
+) -> impl Iterator<Item = &'d ResolvedPlacement> + use<'w, 'd> {
     let pos = world.position;
-    let map = data.maps.get(&pos.map)?;
+    let map = data.maps.get(&pos.map);
     let state = world.maps.get(&pos.map);
-    reach(world, map, pos)
+    let cells = map.map(|m| reach(world, m, pos)).unwrap_or_default();
+    let mut seen = BTreeSet::new();
+    cells
         .into_iter()
-        .flat_map(|(x, y)| map.objects_at(pos.level, x, y))
+        .flat_map(move |(x, y)| {
+            map.into_iter()
+                .flat_map(move |m| m.objects_at(pos.level, x, y))
+        })
         .map(|(_, p)| p)
-        .find(|p| p.id == id && !removed_in(state, p) && found_in(state, p))
+        .filter(move |p| !removed_in(state, p) && found_in(state, p))
+        .filter(move |p| seen.insert(p.id.as_str()))
 }
 
 /// The cells the party reaches into: its own, and the one it faces when no wall, closed door

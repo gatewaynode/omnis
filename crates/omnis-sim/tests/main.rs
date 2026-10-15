@@ -16,6 +16,7 @@ mod levels;
 mod monster_cast;
 mod movement;
 mod object_act;
+mod object_use;
 mod objects;
 mod ops;
 mod party;

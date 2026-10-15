@@ -193,6 +193,7 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
         "turn-right" => Command::Turn(Rotation::Right),
         "around" => Command::Turn(Rotation::Around),
         "use" => Command::Interact,
+        "door" => Command::Door,
         "climb-up" => Command::Climb(Vertical::Up),
         "climb-down" => Command::Climb(Vertical::Down),
         "fight" => Command::Encounter(EncounterChoice::Attack),
