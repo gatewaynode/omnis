@@ -702,8 +702,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Wounded` | `member`, `failures` | Damage at 0 hit points: a failed death save (two on a crit). |
 | `DeathSave` | `member`, `roll` (`RollTrace`), `result` (`Success`, `Failure`, `Stable`, `Revived`, `Died`), `successes`, `failures` | A death saving throw at the end of a round. |
 | `Condition` | `target` (`ActorRef`), `condition` (id), `applied` | A condition came or went. |
-| `Death` | `target` (`ActorRef`), `gold` (`RollTrace` of whole gold pieces, or null) | A combatant died; the gold is looted as copper. |
-| `CombatEnded` | `outcome` (`Victory`, `Fled`, `Defeat`), `xp` (each survivor), `gold` (copper), `fallen` (`[CharacterId]` removed by permadeath) | The fight is over. |
+| `Death` | `target` (`ActorRef`), `gold` (`RollTrace` of whole gold pieces, or null), `loot` (`[Loot]`, each `{item, count}`; left out when empty) | A combatant died; the gold is looted as copper. A monster whose kind names a loot table drops items: the table is drawn `picks` times by weight on the `combat` stream, and each drawn entry rolls a d100 against its `chance_percent`, then its count. The fight holds them until it ends. |
+| `CombatEnded` | `outcome` (`Victory`, `Fled`, `Defeat`), `xp` (each survivor), `gold` (copper), `fallen` (`[CharacterId]` removed by permadeath), `loot` (`[Loot]` laid on the ground; left out when empty) | The fight is over. On victory what the dead dropped lies on the ground of the party's cell (`PickUp`), joining a pile already there; a flight or a defeat leaves it behind for good. |
 | `FeatureUsed` | `member`, `feature` (name key) | A class feature was used; its effect follows. |
 | `OpportunityAttack` | `stack`, `member` | A front stack swings at a member leaving; attack events follow. |
 | `MonsterCast` | `caster` (`ActorRef`), `spell` (id) | A monster cast; what it did follows. |
@@ -982,6 +982,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   `ItemPlace::Ground` and `ItemPlace::Object` (so `ItemPlace` is no longer `Copy` in Rust);
   `Refusal::Closed` and `Refusal::Full`; rejections `NotOnGround`, `NotInObject`, `PileFull`.
   The save's map state gains `ground`, written only when a pile differs from the map's.
+- 2026-10-15: loot (M8.5 step 2, item 12): `Death.loot` and `CombatEnded.loot` (`[Loot]`, left
+  out when empty, so a fight without loot reads as before); the fight's saved state gains `loot`,
+  written only when something has dropped. Base monsters carry no loot table.
 
 ### Protocol 2 (2026-10-10)
 

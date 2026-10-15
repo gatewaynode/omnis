@@ -96,6 +96,23 @@ pub(crate) fn pick_up(
     Ok(())
 }
 
+/// Lay items on the ground of the party's cell, where a pile already lies or at its centre: the
+/// spoils of a fight won there.
+pub(crate) fn lay(world: &mut World, data: &Data, items: &[(ItemId, u16)]) {
+    if items.is_empty() {
+        return;
+    }
+    let pos = world.position;
+    let cell = (pos.level, pos.x, pos.y);
+    let mut pile = pile_at(world, data, pos.map, cell)
+        .cloned()
+        .unwrap_or_default();
+    for &(item, count) in items {
+        add_to(&mut pile.items, item, count);
+    }
+    keep(world, data, pos.map, cell, pile);
+}
+
 /// The party's map and cell, while exploring.
 fn here(world: &World) -> Result<(MapId, (Level, u16, u16)), Rejection> {
     if !matches!(world.mode, Mode::Explore) {

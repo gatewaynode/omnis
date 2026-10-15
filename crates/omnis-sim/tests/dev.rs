@@ -645,7 +645,8 @@ fn stack_edits_need_a_fight_and_a_kill_of_the_last_stack_is_a_victory() {
         e,
         Event::Death {
             target: omnis_sim::ActorRef::Monster { stack: 0, index: 1 },
-            gold: None
+            gold: None,
+            ..
         }
     )));
     let Mode::Combat(state) = &world.mode else {

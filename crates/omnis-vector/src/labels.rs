@@ -73,6 +73,19 @@ pub fn background<'d>(data: &'d Data, id: &'d str) -> &'d str {
 
 /// An item's name from its string id.
 #[must_use]
+/// Items a monster dropped, by name: "2 Gems, Dagger".
+pub fn loot(data: &Data, loot: &[omnis_sim::Loot]) -> String {
+    let named: Vec<String> = loot
+        .iter()
+        .map(|l| match l.count {
+            1 => item(data, &l.item).to_owned(),
+            n => format!("{n} {}", item(data, &l.item)),
+        })
+        .collect();
+    named.join(", ")
+}
+
+/// An item's name from its string id.
 pub fn item<'d>(data: &'d Data, id: &'d str) -> &'d str {
     data.registry
         .items

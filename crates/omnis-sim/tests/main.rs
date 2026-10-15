@@ -14,6 +14,7 @@ mod encounter;
 mod ground;
 mod items;
 mod levels;
+mod loot;
 mod monster_cast;
 mod movement;
 mod object_act;

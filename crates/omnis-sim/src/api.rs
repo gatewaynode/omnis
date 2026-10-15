@@ -37,7 +37,7 @@ pub use crate::dev::DevCommand;
 pub use crate::encounter::{EncounterChoice, EncounterSource};
 pub use crate::event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
-    LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
+    LayerCheck, Loot, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use crate::items::ItemCommand;
 pub use crate::names::Place;

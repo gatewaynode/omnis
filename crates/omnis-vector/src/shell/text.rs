@@ -62,8 +62,17 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         Event::Bribed { cost } => format!("Paid {}; the monsters leave", labels::gold(*cost)),
         Event::CombatStarted { .. } => "The fight begins".to_owned(),
         Event::CombatEnded {
-            outcome, xp, gold, ..
+            outcome,
+            xp,
+            gold,
+            loot,
+            ..
         } => match outcome {
+            CombatOutcome::Victory if !loot.is_empty() => format!(
+                "Victory! {xp} XP each, {}; on the ground: {}",
+                labels::gold(*gold),
+                labels::loot(data, loot)
+            ),
             CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
             CombatOutcome::Fled => "The party got away".to_owned(),
             CombatOutcome::Defeat => "The party has fallen".to_owned(),

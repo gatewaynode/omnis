@@ -18,6 +18,7 @@ fn victory() -> Event {
         xp: 40,
         gold: 1234,
         fallen: Vec::new(),
+        loot: Vec::new(),
     }
 }
 
@@ -454,4 +455,51 @@ fn the_hud_names_items_on_the_ground_and_in_a_container() {
         };
         assert_eq!(text::describe(&moved, &names, &data), Some(line));
     }
+}
+
+/// What the dead dropped, on the death and the victory lines (M8.5 step 2a, item 12).
+#[test]
+fn the_lines_name_the_loot() {
+    let data = common::data();
+    let names = Names::default();
+    let loot = vec![
+        omnis_sim::Loot {
+            item: "base:item:gem".into(),
+            count: 2,
+        },
+        omnis_sim::Loot {
+            item: "base:item:dagger".into(),
+            count: 1,
+        },
+    ];
+    let (gem, dagger) = (
+        labels::item(&data, "base:item:gem"),
+        labels::item(&data, "base:item:dagger"),
+    );
+    let won = Event::CombatEnded {
+        outcome: CombatOutcome::Victory,
+        xp: 40,
+        gold: 1234,
+        fallen: Vec::new(),
+        loot: loot.clone(),
+    };
+    assert_eq!(
+        text::describe(&won, &names, &data),
+        Some(format!(
+            "Victory! 40 XP each, 12 gold; on the ground: 2 {gem}, {dagger}"
+        ))
+    );
+    let rat = omnis_sim::ActorRef::Monster { stack: 0, index: 0 };
+    let died = Event::Death {
+        target: rat,
+        gold: None,
+        loot,
+    };
+    assert_eq!(
+        rolllog::describe(&died, &names, &data),
+        Some(format!(
+            "{} dies, dropping 2 {gem}, {dagger}",
+            names.actor(rat)
+        ))
+    );
 }

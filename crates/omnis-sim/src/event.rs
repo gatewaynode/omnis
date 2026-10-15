@@ -170,6 +170,29 @@ pub struct SensedTile {
     pub layers: u8,
 }
 
+/// Items of one kind a monster dropped (M8.5 step 2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Loot {
+    /// The item's id.
+    pub item: String,
+    /// How many.
+    pub count: u16,
+}
+
+impl Loot {
+    /// A counted list of items as loot, by string id.
+    #[must_use]
+    pub fn of(data: &omnis_data::Data, items: &[(omnis_core::ItemId, u16)]) -> Vec<Loot> {
+        items
+            .iter()
+            .map(|&(item, count)| Loot {
+                item: crate::names::id_of(&data.registry.items, item),
+                count,
+            })
+            .collect()
+    }
+}
+
 /// Where an item was or went.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ItemPlace {
@@ -558,6 +581,9 @@ pub enum Event {
         target: ActorRef,
         /// The whole gold pieces a monster dropped, as rolled; looted as copper.
         gold: Option<RollTrace>,
+        /// The items a monster dropped, drawn from its loot table; left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        loot: Vec<Loot>,
     },
     /// The party did something to an object; on success its effects follow (M8.5 step 2).
     ObjectUsed {
@@ -618,6 +644,9 @@ pub enum Event {
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+        /// The items laid on the fight's cell on victory; left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        loot: Vec<Loot>,
     },
     /// The party went into the service on its tile.
     ServiceEntered {

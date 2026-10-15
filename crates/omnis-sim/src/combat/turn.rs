@@ -9,9 +9,9 @@ use crate::bus::{Subscriber, Topic};
 use crate::checks::{self, CheckSpec};
 use crate::effects;
 use crate::encounter::{EncounterState, clear_once};
-use crate::event::{ActorRef, CheckKind, CombatOutcome, EffectEnd, Event, Surprise};
-use crate::items;
+use crate::event::{ActorRef, CheckKind, CombatOutcome, EffectEnd, Event, Loot, Surprise};
 use crate::world::{Mode, World};
+use crate::{ground, items};
 use alloc::vec::Vec;
 use core::cmp::Reverse;
 use omnis_core::{CharacterId, RollTrace};
@@ -43,6 +43,7 @@ pub(crate) fn start(
         surprised,
         dodging: Vec::new(),
         gold: 0,
+        loot: Vec::new(),
         budget: super::state::Budget::default(),
         reactions: Vec::new(),
         hidden: Vec::new(),
@@ -399,12 +400,14 @@ fn finish(
     outcome: CombatOutcome,
     events: &mut Vec<Event>,
 ) {
-    let (mut xp, mut gold) = (0, 0);
+    let (mut xp, mut gold, mut loot) = (0, 0, Vec::new());
     match outcome {
         CombatOutcome::Victory => {
             xp = award_xp(world, data, state);
             gold = state.gold;
             world.party.gold = world.party.gold.saturating_add(gold);
+            ground::lay(world, data, &state.loot);
+            loot = Loot::of(data, &state.loot);
             clear_once(world, data, state.encounter.source);
         }
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
@@ -417,6 +420,7 @@ fn finish(
         xp,
         gold,
         fallen,
+        loot,
     });
     world.bus.unsubscribe(Topic::Battle, Subscriber::Reactions);
     world.mode = Mode::Explore;

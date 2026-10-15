@@ -4,7 +4,7 @@ use crate::encounter::EncounterState;
 use crate::event::{ActorRef, CombatOutcome, Surprise};
 use crate::party::Party;
 use alloc::vec::Vec;
-use omnis_core::CharacterId;
+use omnis_core::{CharacterId, ItemId};
 use omnis_data::Data;
 use omnis_rules::{Character, condition_id, flags};
 use serde::{Deserialize, Serialize};
@@ -49,6 +49,10 @@ pub struct CombatState {
     pub dodging: Vec<CharacterId>,
     /// Copper looted so far, paid out on victory.
     pub gold: u32,
+    /// Items the dead dropped so far, laid on the fight's cell on victory (M8.5 step 2);
+    /// unwritten when none, so a save of a fight without loot reads as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub loot: Vec<(ItemId, u16)>,
     /// What the actor whose turn it is has left to spend (PRD D21, ARCHITECTURE.md §4.7).
     #[serde(default)]
     pub budget: Budget,

@@ -289,20 +289,35 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             let state = if *applied { "is now" } else { "is no longer" };
             format!("{} {state} {condition}", names.actor(*target))
         }
-        Event::Death { target, gold } => {
-            let gold = gold
-                .as_ref()
+        Event::Death { target, gold, loot } => {
+            let mut dropped: Vec<String> = gold
+                .iter()
                 .filter(|g| g.total > 0)
-                .map_or_else(String::new, |g| format!(", dropping {} gold", g.total));
-            format!("{} dies{gold}", names.actor(*target))
+                .map(|g| format!("{} gold", g.total))
+                .collect();
+            if !loot.is_empty() {
+                dropped.push(labels::loot(data, loot));
+            }
+            let dropped = if dropped.is_empty() {
+                String::new()
+            } else {
+                format!(", dropping {}", dropped.join(", "))
+            };
+            format!("{} dies{dropped}", names.actor(*target))
         }
         Event::CombatEnded {
             outcome,
             xp,
             gold,
             fallen,
+            loot,
         } => {
             let line = match outcome {
+                CombatOutcome::Victory if !loot.is_empty() => format!(
+                    "Victory! {xp} XP each, {}; on the ground: {}",
+                    labels::gold(*gold),
+                    labels::loot(data, loot)
+                ),
                 CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
                 CombatOutcome::Fled => "The party got away".to_owned(),
                 CombatOutcome::Defeat => "The party has fallen".to_owned(),

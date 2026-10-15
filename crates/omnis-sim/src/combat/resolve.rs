@@ -3,10 +3,10 @@
 
 use super::Roller;
 use super::state::{CombatState, is_dead};
-use super::{monster_cast, reaction};
+use super::{loot, monster_cast, reaction};
 use crate::effects;
 use crate::encounter::Stack;
-use crate::event::{ActorRef, CheckKind, Event};
+use crate::event::{ActorRef, CheckKind, Event, Loot};
 use crate::items::add_to;
 use crate::party::{self, set_condition};
 use crate::world::World;
@@ -130,7 +130,8 @@ pub(crate) fn hurt_individual(
     }
     monster_cast::forget(&mut state.monster_shields, stack, index);
     let s = &state.encounter.stacks[usize::from(stack)];
-    let gold = match monster(data, s)?.gold {
+    let kind = monster(data, s)?;
+    let gold = match kind.gold {
         Some(dice) => {
             let trace = dice
                 .roll(&mut roller.rng, &roller.stream)
@@ -142,12 +143,17 @@ pub(crate) fn hurt_individual(
         }
         None => None,
     };
+    let dropped = loot::of(data, kind, &mut roller.rng, &roller.stream)?;
+    for &(item, count) in &dropped {
+        add_to(&mut state.loot, item, count);
+    }
     events.push(Event::Death {
         target: ActorRef::Monster {
             stack,
             index: u8::try_from(index).unwrap_or(u8::MAX),
         },
         gold,
+        loot: Loot::of(data, &dropped),
     });
     Ok(())
 }
@@ -458,6 +464,7 @@ fn die(member: &mut Character, data: &Data, events: &mut Vec<Event>) {
     events.push(Event::Death {
         target: ActorRef::Member(member.id),
         gold: None,
+        loot: Vec::new(),
     });
 }
 

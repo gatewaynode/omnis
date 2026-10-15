@@ -245,6 +245,7 @@ fn set_monster_hp(
         events.push(Event::Death {
             target: ActorRef::Monster { stack, index },
             gold: None,
+            loot: Vec::new(),
         });
     }
     Ok(())
@@ -262,6 +263,7 @@ fn kill_stack(world: &mut World, stack: u8, events: &mut Vec<Event>) -> Result<(
                 index: u8::try_from(index).unwrap_or(u8::MAX),
             },
             gold: None,
+            loot: Vec::new(),
         });
     }
     s.hp.clear();

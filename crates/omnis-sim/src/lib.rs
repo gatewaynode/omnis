@@ -68,7 +68,7 @@ pub use encounter::{
 };
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
-    LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
+    LayerCheck, Loot, MessageKey, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
 pub use names::Place;
