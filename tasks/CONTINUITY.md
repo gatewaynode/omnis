@@ -20,18 +20,23 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 779 failed 0 ignored 12`, VERIFY-GREEN at `53d765a`. Sentrux rules pass, quality 8971.
+- **Gate:** `tests passed 780 failed 0 ignored 12`, VERIFY-GREEN at `88faba2`. Sentrux rules pass, quality 8973.
 
-## Next: 2a item 14, Detect Magic in the base pack
-- Items 10 to 13 done: Use routing `01385b9`; ground and containers `61f0904`; loot `c02fae0`; hidden objects
-  `53d765a` (`objects/notice.rs`: `look` after each look while exploring, reveal first then the passive eye;
-  `search`; `Command::Search`; events `Noticed { object, how: Notice }`, `Searched { member, roll }`;
-  `Utility::Reveal { range_tiles, minutes }`, `EffectKind::Reveal { range }`, `cast_lasting`). Fixture spell
-  `objects:spell:sense_magic` (range 3). Tests `object_use.rs`, `ground.rs`, `loot.rs`, `notice.rs`.
-- Item 14 (plan): base `data/spells/detect_magic.ron`: level 1, Divination, ritual, concentration, reveal 6
-  cells, cleric and wizard (SRD: 10 minutes); text keys; `rules/objects.ron` in the base pack with
-  `notice_tiles` 2 and `search_minutes` 10 (code defaults stay as fallbacks). Both replays rebaseline for the
-  pack hash only: prove it by restoring the old fingerprints as in 1a. Guild does not sell it yet.
+## Next: 2a item 15, views and the `objects.get` op
+- Items 10 to 14 done: Use routing `01385b9`; ground and containers `61f0904`; loot `c02fae0`; hidden objects
+  `53d765a` (`objects/notice.rs`; `Command::Search`; `Noticed`, `Searched`; `Utility::Reveal`,
+  `EffectKind::Reveal`, `cast_lasting`; fixture spell `objects:spell:sense_magic`, range 3); Detect Magic
+  `88faba2` (base `spells/detect_magic.ron`, reveal 6 cells, appended to the cleric and wizard lists, so a new
+  wizard knows it; base `rules/objects.ron` with `notice_tiles` 2, `search_minutes` 10).
+- Item 15 (plan): new `objects_view.rs` with `ObjectsView` and `VerbView { verb, label, refusal, check }`;
+  `ViewportModel.objects` and `.piles`; the `objects.get` op and MCP tool `objects_get` (tools 25 → 26);
+  vocabulary pins (check each new key against the vocabulary test first: `kind` → `object_kind`, `gold`,
+  `state`, `loot`).
+- Item 16: docs (ARCHITECTURE sections, api.md, code-map, horizons) and `tasks/acceptance/m8.5-2a.md` with
+  drop, pick-up and container round trips through MCP and the CLI.
+- **Saves keep definitions as interned numbers** (sorted ids per kind): any new base-pack id shifts later
+  numbers. The v5/v6 save fixtures were renumbered in `88faba2` (spells from 4 up, by one). Raised to the owner:
+  string ids in saves would end it (a save-schema change, theirs to decide).
 - Owner wants to test drop and pick-up by hand: through MCP now, or the 2a acceptance (item 16); in the window
   after 2b items 1 (piles drawn) and 4 (inventory buttons). Item 15's `objects.get` shows piles.
 - Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`, including the
@@ -49,11 +54,11 @@ knowledge lives in `tasks/knowledge/`.
   with a dagger, hidden rune with an aura (2, 4), torch (6, 4) behind a door on its north edge, loft crate (5, 0) level 1, arrows pile (2, 2).
 - **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
   `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
-- **Pins:** replays unmoved (walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
+- **Pins:** replays walk `8d880647a25097b2`, fight `d06fa80460a947ef` (rebaselined in `88faba2`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
   MCP command schema `oneOf` 13; schema proof 115 instances, 165 offered; item `oneOf` 10; MCP tools 25; `Event` 71,
   `Rejection` 70, `Command` 15.
 - **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
-  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`); pick-up own cell only, ground and container moves free, `PileFull` (`61f0904`); loot on the `combat` stream, may exceed 32 kinds (`c02fae0`); Search an enum value (oneOf stays 13), reveal needs no sight (`53d765a`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
+  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`); pick-up own cell only, ground and container moves free, `PileFull` (`61f0904`); loot on the `combat` stream, may exceed 32 kinds (`c02fae0`); Search an enum value (oneOf stays 13), reveal needs no sight (`53d765a`); Detect Magic on both class lists, a new wizard knows it (`88faba2`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
@@ -70,4 +75,4 @@ knowledge lives in `tasks/knowledge/`.
 - **Mutations:** a Python runner in the scratchpad (anchor checked, source restored in `finally`), run with
   `python3 -u`.
 - **Commits:** stage new files by name, then `git commit -F - -- <paths>` (zsh does not split `$VAR` into
-  paths). Never `.claude/` or the owner's assets. Unfinished work before a compact is committed as `WIP`.
+  paths; `--pathspec-from-file=<scratchpad file>` works). Never `.claude/` or the owner's assets. Unfinished work before a compact is committed as `WIP`.
