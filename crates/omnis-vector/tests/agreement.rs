@@ -4,9 +4,10 @@
 
 use crate::common;
 
-use common::{SEED, data, heights_data, levels_data};
+use common::{SEED, data, heights_data, levels_data, map, objects_data};
+use omnis_sim::api::ObjectState;
 use omnis_sim::omnis_core::{Direction, Facing, Position};
-use omnis_sim::{BlockReason, Command, Event, Settings, World, apply};
+use omnis_sim::{BlockReason, Command, Event, Rejection, Settings, World, apply};
 use omnis_vector::collide::blocks;
 use omnis_vector::sim::SimWorld;
 
@@ -29,11 +30,19 @@ struct Met {
     services: usize,
     cliffs: usize,
     no_ground: usize,
+    objects: usize,
 }
 
 /// Every map, level, cell and heading of `data`: the mirror names the simulation's reason.
 fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
-    let base = SimWorld::start(data, SEED, Settings::default()).expect("an entry map");
+    agree_in(
+        data,
+        &SimWorld::start(data, SEED, Settings::default()).expect("an entry map"),
+    )
+}
+
+/// `agree` from the world `base`, its maps' state as it has them.
+fn agree_in(data: &omnis_sim::omnis_data::Data, base: &SimWorld) -> Met {
     let mut met = Met::default();
     let Met {
         checked,
@@ -41,6 +50,7 @@ fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
         services,
         cliffs,
         no_ground,
+        objects,
     } = &mut met;
     for (&map_id, map) in &data.maps {
         for level in map.levels.iter().map(|l| l.level) {
@@ -69,9 +79,17 @@ fn agree(data: &omnis_sim::omnis_data::Data) -> Met {
                         if mirror == Some(BlockReason::NoGround) {
                             *no_ground += 1;
                         }
+                        if mirror == Some(BlockReason::Object) {
+                            *objects += 1;
+                        }
                         if mirror == Some(BlockReason::ClosedDoor) {
-                            let events = apply(&mut world, data, Command::Interact)
-                                .expect("explore accepts interact");
+                            // Where an object is in reach too, Use asks which: the door.
+                            let events = match apply(&mut world, data, Command::Interact) {
+                                Err(Rejection::ChooseVerb { .. }) => {
+                                    apply(&mut world, data, Command::Door).expect("the door")
+                                }
+                                other => other.expect("explore accepts interact"),
+                            };
                             // On a service's site Interact enters the service, not the door.
                             if events
                                 .iter()
@@ -129,4 +147,37 @@ fn the_mirror_agrees_on_every_level() {
         "{} edges onto no ground met",
         met.no_ground
     );
+}
+
+/// The engine's objects fixture (M8.5 step 2): the yard's footprints block as the engine's do,
+/// the shut gate across the hedge's gap among them, and once the gate is open it no longer does.
+#[test]
+fn the_mirror_agrees_on_the_yard_s_objects() {
+    let data = objects_data();
+    let mut world = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
+    let shut = agree_in(&data, &world);
+    assert!(shut.objects > 10, "{} steps into objects met", shut.objects);
+    let yard = map(&data, "objects:map:yard");
+    let gap = |w: &SimWorld| {
+        blocks(
+            &data,
+            w,
+            yard,
+            omnis_sim::omnis_core::Level::GROUND,
+            3,
+            2,
+            Facing::South,
+        )
+    };
+    assert_eq!(gap(&world), Some(BlockReason::Object), "the shut gate");
+    world.map_state(yard).objects.insert(
+        "gate_1".into(),
+        ObjectState {
+            state: Some("open".into()),
+            ..ObjectState::default()
+        },
+    );
+    let open = agree_in(&data, &world);
+    assert_eq!(gap(&world), None, "through the open gate");
+    assert!(open.objects < shut.objects);
 }

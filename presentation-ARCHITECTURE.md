@@ -226,13 +226,17 @@ of a cell.
 
 ### 5.4 The collision mirror
 `collide::blocks` reproduces the step's refusal conditions in `omnis_sim::apply::move`'s order: the map edge,
-a wall, a closed door (`SimWorld::door_open`), a missing cell, impassable terrain. `clamp` keeps the pose a
-body radius inside a blocking edge.
+a wall, a closed door (`SimWorld::door_open`), a missing cell, impassable terrain, a cliff, and since M8.5
+step 2b an object's footprint across the step's path (`SimWorld::object_blocks`, the engine's own check,
+`api::object_blocks`, so the footprint geometry is never copied). `clamp` keeps the pose a body radius inside
+a blocking edge: a footprint holds the pose at its cell's side, not at the footprint's own edge.
 
 The agreement test (`tests/agreement.rs`) places the party on every cell and heading of every loaded map
 through the fixture deref, applies `Step` and asserts that `blocks` agrees with `Event::Blocked` or `Moved`,
-reason included; door edges are checked closed, then opened with `Interact`, and the test asserts that
-service doors were met. A change to the step's rules fails it.
+reason included; door edges are checked closed, then opened with `Interact` (with `Door` where an object in
+reach makes Use ask which), and the test asserts that service doors were met. On the objects fixture's yard
+it runs with the gate shut and again open (`tests/binding.rs` walks into the crate and through the gap too).
+A change to the step's rules fails it.
 
 ### 5.5 Reconcile and the log
 After each `apply`, the first matching rule:
@@ -482,6 +486,7 @@ only the simulation's forward cone; the automap still records the cone (§10.2).
 - **`shapes::shapes`** (Bevy-free) turns each look into `SegKind::Object` lines and fills in the segments' world space. Width runs across the facing and depth along it, so the plan is the engine's footprint (`omnis_data::footprint`) at every facing; the shape stands on its home cell's floor (the engine's sight test stands it there) and rises `height` eighths. Box, post and slab are boxes; an arch is two legs and a lintel, its opening crossed and filled while it blocks a step (`SeenObject.blocks`), as a shut door is; a sign is a board on a post; a heap a frustum. A pile is a small heap (`PILE_LOOK`, `SegKind::Pile`). Colours are provisional until the roles (step 5).
 - **`Scene::build(data, map, level, world)`** adds each level's shapes to its lines and fills; the neighbours' are dimmed with the rest of their level.
 - **Redrawn** when `session::reshapes` says so: a door, an object's state, an object removed or found, items laid on or taken from the ground, and `CombatEnded` (loot).
+- **Collision:** the mirror refuses a step through a footprint as the engine does (§5.4).
 - **Known:** an object flush against a wall (the yard's chest) shows the outline of its touching face through the wall, since the lines are biased toward the camera (§8.2). The client does not push the pose out of a footprint in its own cell (visual only, later).
 
 ## 9. The fight screen (as built, Phase B and V2; corrected)

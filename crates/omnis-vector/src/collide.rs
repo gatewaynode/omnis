@@ -1,7 +1,8 @@
 //! The predictive collision mirror (presentation-ARCHITECTURE.md §5.4, VA3).
 //!
 //! `blocks` copies the refusal conditions of `omnis_sim::apply`'s private `move`, in the same
-//! order, so the pose slides along walls instead of walking into them. The simulation stays
+//! order, so the pose slides along walls and objects' footprints instead of walking into them
+//! (objects since M8.5 step 2b, through the engine's own check, `api::object_blocks`). The simulation stays
 //! authoritative; `tests/agreement.rs` holds the copy to it on every edge of the test maps.
 
 use crate::sim::SimWorld;
@@ -54,6 +55,9 @@ pub fn blocks(
     }
     if cell.cliffs.has(heading) {
         return Some(BlockReason::Cliff);
+    }
+    if world.object_blocks(data, map, level, (x, y), heading) {
+        return Some(BlockReason::Object);
     }
     None
 }

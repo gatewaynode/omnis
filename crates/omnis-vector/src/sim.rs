@@ -8,8 +8,8 @@ use omnis_sim::api::{
     CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, Level,
     MapId, ModeKind, NewGameError, Op, OpError, PartyView, PileView, Position, Rejection, Reply,
     RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap, cast_view,
-    check_reload, combat_view, creation_view, dispatch, door_open, here, objects_on_level,
-    party_view, rest_view, save_text, service_view, status, step_lands, viewport,
+    check_reload, combat_view, creation_view, dispatch, door_open, here, object_blocks,
+    objects_on_level, party_view, rest_view, save_text, service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -135,6 +135,20 @@ impl SimWorld {
     #[must_use]
     pub fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
         door_open(&self.0, map, level, x, y, facing)
+    }
+
+    /// Whether an object's footprint stops a step out of `(x, y)` toward `heading`
+    /// (`api::object_blocks`), as the engine's step checks it.
+    #[must_use]
+    pub fn object_blocks(
+        &self,
+        data: &Data,
+        map: MapId,
+        level: Level,
+        cell: (u16, u16),
+        heading: Facing,
+    ) -> bool {
+        object_blocks(&self.0, data, map, level, cell, heading)
     }
 
     /// Every object and pile on a level of a map as the party would see them drawn
