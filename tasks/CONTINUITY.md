@@ -20,16 +20,17 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 791 failed 0 ignored 12`, VERIFY-GREEN at `19aacfb`. Sentrux rules pass, quality 8973.
+- **Gate:** `tests passed 791 failed 0 ignored 12`, VERIFY-GREEN at `35fa6e7`. Sentrux rules pass, quality 8973.
 
-## Next: 2a item 16, docs and the 2a acceptance
-- Items 10 to 15 done: Use routing `01385b9`; ground and containers `61f0904`; loot `c02fae0`; hidden objects
-  `53d765a`; Detect Magic `88faba2`; views `19aacfb` (`objects_view.rs`: `objects_view`, `ObjectView`,
-  `VerbView`, `CheckView`, `ItemCount`, `SeenObject`, `PileView`; `objects::admit` shared by `Act` and the view;
-  `ViewportModel.objects`/`.piles`; op `objects.get`, MCP `objects_get`). The MCP server must be restarted on
-  the new build to offer `objects_get`.
-- Item 16: docs (ARCHITECTURE sections, api.md, code-map, horizons) and `tasks/acceptance/m8.5-2a.md` with
-  drop, pick-up and container round trips through MCP and the CLI.
+## Next: the owner walks `tasks/acceptance/m8.5-2a.md`, then 2b
+- 2a is built: items 0-16, the last `35fa6e7` (docs, acceptance). Views `19aacfb`; Detect Magic `88faba2`;
+  hidden objects `53d765a`; loot `c02fae0`; ground and containers `61f0904`; Use routing `01385b9`.
+- The walk runs through MCP in the window (launch with `--pack crates/omnis-sim/tests/packs/objects`, devtools
+  on, add a wizard with `party_create`). This session has no omnis MCP tools attached; drive the bridge with
+  the scratchpad scripts (`mcp_drive.py` for single calls, `mcp_accept.py` for the headless walk) or after a
+  restart. A headless save writes into the project root: delete it afterwards.
+- 2b (client): shapes, the mirror, the verbs screen, inventory (Drop, the ground, containers), HUD lines for
+  object events and `Noticed`/`Searched`, docs and acceptance. Plan items in `tasks/plans/m8.5-objects.md`.
 - **Step 7 planned** (`tasks/plans/m8.5-saves-by-name.md`, `31576c3`, owner answers `4d80c52`): after 2b/2c,
   before the editor. Owner: DB-style numbered migrations per pack, nothing dropped without one, no refunds,
   version and hash in every `pack.ron`, no saving in an encounter or fight.
