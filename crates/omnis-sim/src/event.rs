@@ -171,12 +171,16 @@ pub struct SensedTile {
 }
 
 /// Where an item was or went.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ItemPlace {
     /// A member's kit.
     Member(CharacterId),
     /// The party's stores.
     Stores,
+    /// The ground of the party's cell (M8.5 step 2).
+    Ground,
+    /// A container, by its placement id in the party's map.
+    Object(String),
 }
 
 /// What happened.

@@ -404,6 +404,18 @@ pub enum Rejection {
     },
     /// There is no door on the faced edge.
     NoDoor,
+    /// The ground of the party's cell holds no item of that id.
+    NotOnGround {
+        /// The id asked for.
+        item: String,
+    },
+    /// The container holds no item of that id.
+    NotInObject {
+        /// The id asked for.
+        item: String,
+    },
+    /// The ground of the party's cell has no room for another kind of item.
+    PileFull,
 }
 
 impl core::fmt::Display for Rejection {
@@ -467,6 +479,9 @@ impl Rejection {
                 )
             }
             Rejection::NoDoor => f.write_str("there is no door that way"),
+            Rejection::NotOnGround { item } => write!(f, "there is no {item} on the ground"),
+            Rejection::NotInObject { item } => write!(f, "there is no {item} in it"),
+            Rejection::PileFull => f.write_str("there is no room on the ground here"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

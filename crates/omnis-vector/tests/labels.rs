@@ -3,7 +3,7 @@
 
 use crate::common;
 
-use omnis_sim::{CombatOutcome, Event, MessageKey, SaveRule};
+use omnis_sim::{CombatOutcome, Event, ItemPlace, MessageKey, SaveRule};
 use omnis_vector::labels;
 use omnis_vector::rolllog::{self, Names};
 use omnis_vector::shell::text;
@@ -411,5 +411,47 @@ fn dev_edits_read_as_lines_with_names() {
             Some(line),
             "{command:?}"
         );
+    }
+}
+
+/// Items laid down, picked up, and moved in and out of a container (M8.5 step 2a, item 11).
+#[test]
+fn the_hud_names_items_on_the_ground_and_in_a_container() {
+    let data = common::data();
+    let names = Names::default();
+    let member = omnis_sim::omnis_core::CharacterId(0);
+    let who = names.member(member);
+    let dagger = labels::item(&data, "base:item:dagger");
+    let chest = || ItemPlace::Object("chest_1".into());
+    let lines = [
+        (
+            ItemPlace::Member(member),
+            ItemPlace::Ground,
+            format!("{who} drops {dagger}"),
+        ),
+        (
+            ItemPlace::Ground,
+            ItemPlace::Member(member),
+            format!("{who} picks up {dagger}"),
+        ),
+        (
+            ItemPlace::Member(member),
+            chest(),
+            format!("{who} puts {dagger} in"),
+        ),
+        (
+            chest(),
+            ItemPlace::Member(member),
+            format!("{who} takes {dagger} out"),
+        ),
+    ];
+    for (from, to, line) in lines {
+        let moved = Event::ItemMoved {
+            item: "base:item:dagger".into(),
+            count: 1,
+            from,
+            to,
+        };
+        assert_eq!(text::describe(&moved, &names, &data), Some(line));
     }
 }

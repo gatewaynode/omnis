@@ -170,14 +170,19 @@ fn item_schema() -> Value {
     let member = ("member", member_id());
     let item = ("item", String::schema());
     let count = ("count", json!({"type": "integer", "minimum": 1}));
+    let object = ("object", String::schema());
     let slot = json!({"type": "string", "enum": ["MainHand", "OffHand", "Ranged", "Body"]});
     json!({"oneOf": [
         variant("Equip", &[member.clone(), item.clone()]),
         variant("Unequip", &[member.clone(), ("slot", slot)]),
         variant("Give", &[("giver", member_id()), ("receiver", member_id()), item.clone(), count.clone()]),
         variant("Stow", &[member.clone(), item.clone(), count.clone()]),
-        variant("Take", &[member.clone(), item.clone(), count]),
-        variant("Use", &[member, item, ("receiver", member_or_null())])
+        variant("Take", &[member.clone(), item.clone(), count.clone()]),
+        variant("Use", &[member.clone(), item.clone(), ("receiver", member_or_null())]),
+        variant("Drop", &[member.clone(), item.clone(), count.clone()]),
+        variant("PickUp", &[member.clone(), item.clone(), count.clone()]),
+        variant("TakeOut", &[member.clone(), object.clone(), item.clone(), count.clone()]),
+        variant("PutIn", &[member, object, item, count])
     ]})
 }
 
@@ -257,7 +262,7 @@ impl Schema for Command {
     fn schema() -> Value {
         let verbs: Vec<String> = Verb::ALL.iter().map(|v| format!("{v:?}")).collect();
         json!({
-            "description": "One player action: a step relative to the facing, a turn in place, Interact (use what is in reach: a service on the tile, else the one door or object interaction; several are refused with ChooseVerb listing them), Door (open or close the door on the faced edge), Climb a ladder or shaft up or down one level to the same tile, a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by its string id at a stack or a member by id with the action or the bonus action, use a carried item by its string id on a member, dodge, exchange with a member, run, a class feature by its name key with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; items by string id as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), a Dev edit in a devtools world, or Act on an object in the party's cell or the one it faces (a verb, and which of the verb's interactions when the object offers more than one). A step onto a service's tile goes inside it; a step off leaves.",
+            "description": "One player action: a step relative to the facing, a turn in place, Interact (use what is in reach: a service on the tile, else the one door or object interaction; several are refused with ChooseVerb listing them), Door (open or close the door on the faced edge), Climb a ladder or shaft up or down one level to the same tile, a party change (create, reorder, or Tactics: a member's reactions switch, any time, and declared reactions, outside a fight), an Encounter choice before a fight, a Combat action on the acting member's turn, which takes commands until its budget has nothing left to pay for or EndTurn (attack, cast a known spell by its string id at a stack or a member by id with the action or the bonus action, use a carried item by its string id on a member, dodge, exchange with a member, run, a class feature by its name key with its choice, end the turn), a Cast outside a fight (healing, a buff, light, mage hand), an Item command outside a fight (equip, unequip, give, stow, take, use; drop on the ground of the party's cell and pick up from it; take out of and put into an open container in reach, by its placement id; items by string id as party_get lists them), a Service command inside a town service (leave, a room at the inn, food and rumors at the tavern, healing, curing and raising at the temple, buying from the smith's stock and selling from the stores, banking copper, a level at the trainer and the spell picks it owes, spells bought at a guild or a temple), a Rest outside a service (Short spends hit dice per named member for an hour, Long is the night for food, once a day; either may be ambushed), a Dev edit in a devtools world, or Act on an object in the party's cell or the one it faces (a verb, and which of the verb's interactions when the object offers more than one). A step onto a service's tile goes inside it; a step off leaves.",
             "oneOf": [
                 {"type": "object", "properties": {"Step": {"type": "string", "enum": ["Forward", "Back", "Left", "Right"]}}, "required": ["Step"], "additionalProperties": false},
                 {"type": "object", "properties": {"Turn": {"type": "string", "enum": ["Left", "Right", "Around"]}}, "required": ["Turn"], "additionalProperties": false},
@@ -371,7 +376,7 @@ mod tests {
         assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 13);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
         assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
-        assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 6);
+        assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 10);
         let combat =
             &schema["properties"]["commands"]["items"]["oneOf"][6]["properties"]["Combat"]["oneOf"];
         assert_eq!(combat.as_array().unwrap().len(), 6);

@@ -196,7 +196,29 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
             item,
             receiver: None,
         },
-        ItemCommand::Use { receiver: None, .. } => return None,
+        ItemCommand::Use { receiver: None, .. } => ItemCommand::Drop {
+            member,
+            item,
+            count,
+        },
+        ItemCommand::Drop { .. } => ItemCommand::PickUp {
+            member,
+            item,
+            count,
+        },
+        ItemCommand::PickUp { .. } => ItemCommand::TakeOut {
+            member,
+            object: "chest_1".into(),
+            item,
+            count,
+        },
+        ItemCommand::TakeOut { .. } => ItemCommand::PutIn {
+            member,
+            object: "chest_1".into(),
+            item,
+            count,
+        },
+        ItemCommand::PutIn { .. } => return None,
     })
 }
 

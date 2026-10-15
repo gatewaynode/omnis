@@ -3,9 +3,12 @@
 //! (`omnis_data::placement`); a map whose objects were never touched saves nothing new.
 
 mod act;
+mod container;
 mod outcome;
 
 pub(crate) use act::{act, choices};
+pub use container::contents;
+pub(crate) use container::{put_in, take_out};
 
 use crate::world::{MapState, World};
 use alloc::collections::BTreeSet;
@@ -73,6 +76,10 @@ pub enum Refusal {
     },
     /// Nobody in the party can act.
     NoneCanAct,
+    /// A container that is shut.
+    Closed,
+    /// A container with no room for another kind of item.
+    Full,
 }
 
 /// One thing Use could mean when there is more than one; each names the command that does it.
@@ -103,6 +110,8 @@ impl fmt::Display for Refusal {
             }
             Refusal::Rule { rule } => write!(f, "{rule} does not allow that"),
             Refusal::NoneCanAct => f.write_str("nobody in the party can act"),
+            Refusal::Closed => f.write_str("it is closed"),
+            Refusal::Full => f.write_str("there is no room in it"),
         }
     }
 }

@@ -228,6 +228,8 @@ fn spend(world: &mut World, data: &Data, requires: &[Requirement], events: &mut 
                 Some(m) => &mut m.equipment,
                 None => continue,
             },
+            // `source` names only what the party carries.
+            ItemPlace::Ground | ItemPlace::Object(_) => continue,
         };
         if take_from(list, item, 1).is_ok() {
             events.push(Event::ItemSpent {

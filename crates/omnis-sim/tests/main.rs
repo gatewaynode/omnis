@@ -11,6 +11,7 @@ mod dev;
 mod effects;
 mod elevation;
 mod encounter;
+mod ground;
 mod items;
 mod levels;
 mod monster_cast;

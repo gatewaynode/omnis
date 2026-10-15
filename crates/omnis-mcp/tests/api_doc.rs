@@ -54,7 +54,7 @@ variants!(Rejection, REJECTIONS, rejection_name:
     RestTooSoon NoFood NoHitDice NotReady MaxLevel NoPicks NoSuchSpell NotOnList
     CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
     NotABonusAction NeedsPreparation NoSuchFeature NoUsesLeft WrongChoice Tactics CannotReact
-    NoSuchEntry Rule NoSuchObject VerbRefused ChooseVerb NoDoor);
+    NoSuchEntry Rule NoSuchObject VerbRefused ChooseVerb NoDoor NotOnGround NotInObject PileFull);
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
@@ -225,7 +225,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (COMMANDS.len(), "`Command` (14 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
         (EVENTS.len(), "`Event` has 69 variants"),
-        (REJECTIONS.len(), "`Rejection` (67 variants)"),
+        (REJECTIONS.len(), "`Rejection` (70 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "25 ops."),
     ] {

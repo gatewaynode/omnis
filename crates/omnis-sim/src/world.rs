@@ -19,6 +19,7 @@ use omnis_core::{
     Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, Level, MapId, Pcg32, Position,
     StreamName, fnv1a64,
 };
+use omnis_data::placement::Pile;
 use omnis_data::{Data, DataError, PackFingerprint, ServiceKind};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +45,10 @@ pub struct MapState {
     /// nothing has, so a save with no objects reads as before.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub objects: BTreeMap<String, ObjectState>,
+    /// The piles on the ground that differ from the map's, by level and cell; an emptied
+    /// placed pile is kept with no items. Unwritten when none, so a save reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ground: BTreeMap<(Level, u16, u16), Pile>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.

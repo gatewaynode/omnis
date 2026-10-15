@@ -26,6 +26,7 @@ pub mod dev;
 pub mod effects;
 pub mod encounter;
 pub mod event;
+pub mod ground;
 pub mod items;
 mod migrate;
 pub mod names;

@@ -114,7 +114,17 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 }
                 (ItemPlace::Member(f), ItemPlace::Stores) => format!("{} stows {what}", who(f)),
                 (ItemPlace::Stores, ItemPlace::Member(t)) => format!("{} takes {what}", who(t)),
+                (ItemPlace::Member(f), ItemPlace::Ground) => format!("{} drops {what}", who(f)),
+                (ItemPlace::Ground, ItemPlace::Member(t)) => format!("{} picks up {what}", who(t)),
+                (ItemPlace::Member(f), ItemPlace::Object(_)) => {
+                    format!("{} puts {what} in", who(f))
+                }
+                (ItemPlace::Object(_), ItemPlace::Member(t)) => {
+                    format!("{} takes {what} out", who(t))
+                }
                 (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
+                // The engine moves nothing else between these.
+                _ => format!("{what} is moved"),
             }
         }
         // A look has no receiver; its `Sensed` line is the outcome.

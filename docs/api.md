@@ -556,7 +556,7 @@ means the same thing after a reorder or a change to a list.
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
 | `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast). `target` is ignored by light and mage hand. |
-| `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight. |
+| `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
@@ -591,7 +591,17 @@ the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn
 the stores count by kind): `Equip { member, item }`,
 `Unequip { member, slot }` (`EquipSlot`), `Give { giver, receiver, item, count }` (kit to kit),
 `Stow { member, item, count }` (kit to stores), `Take { member, item, count }` (stores to kit),
-`Use { member, item, receiver }` (`receiver` null for the user).
+`Use { member, item, receiver }` (`receiver` null for the user). While exploring only, by a
+member who can act, and taking no time: `Drop { member, item, count }` (kit to the ground of the
+party's cell; a new pile lies 2 eighths ahead of the party, one already there takes it where it
+lies; a pile holds 32 kinds, else `PileFull`), `PickUp { member, item, count }` (the ground of
+the party's cell to kit, else `NotOnGround`), `TakeOut { member, object, item, count }` and
+`PutIn { member, object, item, count }` (an open container in reach, as `Act` reaches it, by its
+placement id, to kit and back; a kind with a capacity is a container, open in a state marked
+`open` or always when it has no states; its capacity counts kinds of item; refusals
+`NoSuchObject`, `VerbRefused` with `NotOffered` (not a container), `Closed` or `Full`, and
+`NotInObject`). The save keeps a pile or a container's contents only once they differ from the
+map's.
 
 `ServiceCommand` (`member` a `CharacterId`; `item` and `spell` string ids): `Leave` (any),
 `Room` (inn: a long rest), `Rumor` (tavern), `BuyFood { count }` (tavern), `Heal { member }`,
@@ -718,7 +728,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
-| `ItemMoved` | `item`, `count`, `from`, `to` (`{"Member": CharacterId}` or `"Stores"`) | Items moved. |
+| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell) or `{"Object": placement id}`) | Items moved. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
 
@@ -763,7 +773,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (67 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (70 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -823,9 +833,12 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `AlreadyKnown` | `member` | The spell is already on the member's list. |
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
-| `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`) | `Act`: the object does not allow that now; nothing changed. |
+| `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
 | `ChooseVerb` | `choices` (`Choice`: `Door`, or `{"Object": {object, verb, option}}`, each the `Door` or `Act` command that does it; the door first, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. |
+| `NotOnGround` | `item` | `PickUp`: the ground of the party's cell holds none of it. |
+| `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
+| `PileFull` | | `Drop`: the cell's pile holds 32 kinds, none of them this one. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -965,6 +978,10 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-15: `Command::Door` and its word `door` (M8.5 step 2, item 10); `Interact` chooses
   among the faced door and the interactions of objects in reach; rejections `ChooseVerb`
   (`Choice`) and `NoDoor`. A door alone is used as before.
+- 2026-10-15: `ItemCommand::{Drop, PickUp, TakeOut, PutIn}` (M8.5 step 2, item 11);
+  `ItemPlace::Ground` and `ItemPlace::Object` (so `ItemPlace` is no longer `Copy` in Rust);
+  `Refusal::Closed` and `Refusal::Full`; rejections `NotOnGround`, `NotInObject`, `PileFull`.
+  The save's map state gains `ground`, written only when a pile differs from the map's.
 
 ### Protocol 2 (2026-10-10)
 
