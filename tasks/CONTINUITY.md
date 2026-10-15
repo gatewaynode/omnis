@@ -20,22 +20,28 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 755 failed 0 ignored 12`, VERIFY-GREEN at `01385b9`. Sentrux rules pass, quality 8972.
+- **Gate:** `tests passed 764 failed 0 ignored 12`, VERIFY-GREEN at `61f0904`. Sentrux rules pass, quality 8971.
 
-## Next: 2a item 11, ground piles and containers
+## Next: 2a item 12, loot on victory
 - Item 10 done `01385b9`: `apply::interact` (service first, then `Choice::Door` + `objects::choices`; one runs,
-  none NothingHere, several `Rejection::ChooseVerb { choices }`); `Command::Door` (word `door`, `NoDoor`),
-  an enum value beside `Interact` in the MCP schema. `act::reachable` dedupes an object in both cells.
-  Tests `crates/omnis-sim/tests/object_use.rs`. Fixture yard gained a door on the north edge of (6, 4).
-- Item 11 (plan): new `ground.rs`; `ItemCommand::{Drop, PickUp, TakeOut, PutIn}`; capacity; closed or full
-  containers refused; save round trip; a dropped pile lies 2 eighths ahead. `ItemPlace` gains `Ground` and
-  `Object` (decide on `Copy`). Item MCP schema `oneOf` 6 grows; proof numbers move.
+  none NothingHere, several `Rejection::ChooseVerb { choices }`); `Command::Door` (word `door`, `NoDoor`).
+- Item 11 done `61f0904`: `ground.rs` (`pile_at`, `drop`, `pick_up`, `moved`; `MapState.ground`) and
+  `objects/container.rs` (`contents`, `take_out`, `put_in`); `ItemCommand::{Drop, PickUp, TakeOut, PutIn}`;
+  `ItemPlace::{Ground, Object(id)}` (not `Copy`); `Refusal::{Closed, Full}`; `NotOnGround`, `NotInObject`,
+  `PileFull`; `items::{from_kit, from_list, out_of_kit, actor}` shared. Tests `tests/ground.rs`.
+- Item 12 (plan): new `combat/loot.rs`; rolled per individual at death from `Monster.loot`
+  (`omnis-data/src/loot.rs`: `picks` entries by weight, then each entry's chance); held in
+  `CombatState.loot`; laid on the fight's cell on victory (a pile, via `ground.rs`); lost on a flight. Loot
+  goes on `Death` and on `CombatEnded` (wire change: check names against the vocabulary). Measured over seeds
+  on the fixture (`objects:monster:pack_rat`, `objects:loot:hoard`). Base monsters have no loot, so the fight
+  replay must not move.
 - Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`), MCP
-  schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit test, `rolllog.rs`.
-- Then items 12 to 16 as listed in the plan.
-- The window shows `ChooseVerb` only as its refusal text until 2b item 3 (the verbs screen). The mutation
-  runners `mut9.py`/`mut10.py` lived in the session scratchpad: a list of (name, file, anchor, break), each
-  anchor checked unique, `cargo test -p omnis-sim --test integration <filter>`, source restored in `finally`.
+  schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit test, `rolllog.rs`, client
+  `shell/text.rs`.
+- Then items 13 to 16 as listed in the plan.
+- The window shows `ChooseVerb` only as its refusal text until 2b item 3. Mutation runners: a list of
+  (name, file, anchor, break), each anchor checked unique, `cargo test -p omnis-sim --test integration
+  <filter>`, source restored in `finally`, run with `python3 -u` to a file.
 
 ## Facts
 - **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
@@ -45,10 +51,10 @@ knowledge lives in `tasks/knowledge/`.
 - **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
   `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
 - **Pins:** replays unmoved (walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  MCP command schema `oneOf` 13; schema proof 110 instances, 160 offered; MCP tools 25; `Event` 69,
-  `Rejection` 67, `Command` 14.
+  MCP command schema `oneOf` 13; schema proof 114 instances, 164 offered; item `oneOf` 10; MCP tools 25; `Event` 69,
+  `Rejection` 70, `Command` 14.
 - **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
-  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
+  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`); pick-up own cell only, ground and container moves free, `PileFull` (`61f0904`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
