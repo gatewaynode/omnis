@@ -181,7 +181,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-25 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+26 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around the I/O-free rules in `ops.rs`
 (`save_text`, `load_text`, `check_reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
@@ -202,6 +202,7 @@ socket and the bridge (malformed request).
 | `service.get` | none | `service` | `NoService` | |
 | `rest.get` | none | `rest` | | |
 | `cast.get` | none | `casts` | | |
+| `objects.get` | none | `objects` | | |
 | `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
 | `time.reconcile` | `region` (`pack:region:name`) | `events` | `Rejected` | dev only |
@@ -246,6 +247,7 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
+| `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`) | `objects.get` |
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | nothing | `pack.reload` |
@@ -272,6 +274,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
+| `objects_view` | `ObjectsView` (`objects`, `ground`) | `objects.get` |
 | `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
@@ -499,6 +502,27 @@ id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast c
 spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
 0 for a cantrip), `targets_members`, `refusal` (`Rejection` or null).
 
+### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
+
+What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
+them (its own cell, then the one it faces across an open edge; an object spanning both once; a
+hidden one only once found; a removed one never), and `ground`, the pile on the party's cell
+(`[ItemCount]`, what `PickUp` takes from; empty when there is none).
+
+`ObjectView`: `object` (the placement's id, `Act`'s `object`), `object_kind` (the kind's id),
+`name` (text key: the placement's own, else the kind's), `state` (empty when the kind has none),
+`capacity` (kinds of item it holds; 0 when not a container), `contents` (`[ItemCount]` when an
+open container, else null), `verbs` (`[VerbView]`).
+
+`VerbView`, one per interaction the kind offers in that state, in the kind's order: `verb` and
+`option` (which of the verb's offered interactions, from 0: `Act`'s `verb` and `option`), `label`
+(text key or null), `checks` (`[CheckView]`: `kind`, a `CheckKind`, and `dc`, rolled in order by
+the member best at each), `minutes` (an attempt's time, success or not), `refusal` (`Rejection`
+or null). The refusal is the one `Act` gives, from the same checks: `WrongMode` outside
+exploring, then `VerbRefused` with `Spent` (a `once` done; still listed), `NoneCanAct`, `Lacks`,
+`Flag`, `School` or `Rule`. A rules slot is evaluated on a copy of the `object` stream, so looking
+draws nothing. `ItemCount`: `item` (item id), `count`.
+
 ### 7.9 `CreationView`, `RaceOption`, `ClassOption`, `BackgroundOption`
 
 What a `Draft` may be, read through the functions `party.create` checks it with, so a draft
@@ -524,7 +548,15 @@ Races, classes and backgrounds are in id order.
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
 `visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
 (that level's name as a text key, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
-the party's level).
+the party's level), `objects` (`[SeenObject]`, the objects on those tiles, nearest first; left out
+when none) and `piles` (`[PileView]`, the piles on them; left out when none).
+
+`SeenObject` (M8.5 step 2): `object` (placement id), `object_kind`, `x`, `y` (its home cell),
+`pos` (`[east, south]` offset from the cell's centre in eighths, −4..=4), `facing` (its look's
+width runs across it), `state`, `look` (`shape`: `Box`, `Post`, `Slab`, `Arch`, `Sign`, `Heap`;
+`width`, `depth`, `height` in eighths, in the state it is in). An object whose footprint spills
+onto a seen tile is listed once; a hidden one only once found; a removed one never.
+`PileView`: `x`, `y`, `pos`, `items` (`[ItemCount]`, in the order laid down).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
 `x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
@@ -991,7 +1023,12 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-15: hidden objects (M8.5 step 2, item 13): `Command::Search` and its word `search`;
   events `Noticed` (`Notice`: `Passive`, `Search`, `Spell`) and `Searched`; a spell effect
   `Utility::Reveal { range_tiles, minutes }` (pack data), a lasting effect like `Light`. The
-  rules values `notice_tiles` (2) and `search_minutes` (10) default in code.
+  rules values `notice_tiles` (2) and `search_minutes` (10) default in code; the base pack sets
+  them (item 14) and gains `base:spell:detect_magic`.
+- 2026-10-15: `objects.get` and `objects_view` (`ObjectView`, `VerbView`, `CheckView`,
+  `ItemCount`), bringing the ops to 26 (M8.5 step 2, item 15); `ViewportModel.objects`
+  (`[SeenObject]`) and `ViewportModel.piles` (`[PileView]`), left out when empty, so a viewport
+  with no objects reads as before.
 
 ### Protocol 2 (2026-10-10)
 

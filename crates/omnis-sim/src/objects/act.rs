@@ -3,6 +3,7 @@
 //! named interaction does is `outcome.rs`.
 
 use super::{Choice, Refusal, found_in, outcome, removed_in, saved, state_of};
+use crate::combat::Roller;
 use crate::combat::state::can_fight;
 use crate::command::Rejection;
 use crate::event::Event;
@@ -38,6 +39,24 @@ pub(crate) fn act(
         .filter(|(_, it)| it.verb == verb)
         .nth(usize::from(option))
         .ok_or(refused(Refusal::NotOffered))?;
+    let mut roller = Roller::take_stream(world, "object");
+    admit(world, data, placement, index, interaction, &mut roller)?;
+    outcome::resolve(world, data, placement, index, interaction, roller, events)
+}
+
+/// Whether an offered interaction may be tried now, before any die: not a `once` already spent,
+/// someone able to act, and every requirement that needs no die holding. `roller` is a copy of
+/// the `object` stream, since a pack's rule slot may roll. The command and the view both ask
+/// here, so they cannot disagree.
+pub(crate) fn admit(
+    world: &World,
+    data: &Data,
+    placement: &ResolvedPlacement,
+    index: u8,
+    interaction: &Interaction,
+    roller: &mut Roller,
+) -> Result<(), Rejection> {
+    let refused = |reason| Rejection::VerbRefused { reason };
     let spent =
         saved(world, world.position.map, &placement.id).is_some_and(|s| s.used.contains(&index));
     if interaction.once && spent {
@@ -46,7 +65,10 @@ pub(crate) fn act(
     if !world.party.members.iter().any(|m| can_fight(m, data)) {
         return Err(refused(Refusal::NoneCanAct));
     }
-    outcome::resolve(world, data, placement, index, interaction, events)
+    for requirement in &interaction.requires {
+        outcome::gate(world, data, requirement, roller)?;
+    }
+    Ok(())
 }
 
 /// The interactions a kind offers in `state`, with their indices in the kind.
@@ -102,7 +124,7 @@ pub(crate) fn in_reach<'d>(
 /// The placements the party can reach: on its level, their footprints in the party's cell or in
 /// the one it faces across an open edge, not hidden and not taken away. One spanning both cells
 /// is reached once.
-fn reachable<'w, 'd>(
+pub(crate) fn reachable<'w, 'd>(
     world: &'w World,
     data: &'d Data,
 ) -> impl Iterator<Item = &'d ResolvedPlacement> + use<'w, 'd> {

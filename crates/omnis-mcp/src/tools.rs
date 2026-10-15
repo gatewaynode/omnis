@@ -211,6 +211,12 @@ fn party_tools() -> Vec<Tool> {
             &[],
         ),
         tool(
+            "objects_get",
+            "objects.get",
+            "The objects the party reaches (its own cell, and the one it faces across an open edge), each with its id (the `object` an Act command takes), kind, name key, state, capacity and, when it is an open container, its contents; and every interaction its kind offers in that state as the `verb` and `option` Act takes, with its label key, the checks it rolls (skill or ability and difficulty), the minutes an attempt takes and the refusal the rules would give now (a spent one-time interaction stays listed, refused). Also the pile on the party's cell, what PickUp takes from. Hidden objects appear once found. Looking changes nothing.",
+            &[],
+        ),
+        tool(
             "creation_get",
             "creation.get",
             "What a party member's draft may be, as party_create checks it: the party's slots, the longest name in bytes, the score range and the points the six bought scores may cost with each score's cost, every race (its id, the bonus it adds to each score, the skills it grants), class (its id, how many skills a draft picks, `choose`, from its `skill_list`) and background (its id, the skills it grants, which a draft may not pick again), and the nine alignments. Looking changes nothing.",
@@ -316,6 +322,7 @@ mod tests {
             ("service_get", json!({})),
             ("rest_get", json!({})),
             ("cast_get", json!({})),
+            ("objects_get", json!({})),
             ("creation_get", json!({})),
             ("time_clocks", json!({})),
             ("time_reconcile", json!({"region": "test:region:town"})),
@@ -355,6 +362,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 25);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 26);
     }
 }

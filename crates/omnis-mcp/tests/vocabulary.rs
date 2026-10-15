@@ -13,7 +13,11 @@ use common::commands::instances;
 use omnis_cli::Headless;
 use omnis_cli::omnis_sim::omnis_core::Facing;
 use omnis_cli::omnis_sim::omnis_data::ron_io::read_ron;
-use omnis_cli::omnis_sim::{Command, DevCommand, Op, Replay, ServiceCommand, World};
+use omnis_cli::omnis_sim::omnis_data::{Alignment, Skill, Verb};
+use omnis_cli::omnis_sim::omnis_rules::Draft;
+use omnis_cli::omnis_sim::{
+    Command, DevCommand, ItemCommand, Op, PartyCommand, Replay, ServiceCommand, World,
+};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -24,7 +28,7 @@ const MEMBER_KEYS: [&str; 8] = [
 ];
 
 /// Keys that name a definition, by its string id wherever they appear.
-const DEFINITION_KEYS: [&str; 8] = [
+const DEFINITION_KEYS: [&str; 9] = [
     "spell",
     "item",
     "monster",
@@ -33,6 +37,7 @@ const DEFINITION_KEYS: [&str; 8] = [
     "condition",
     "class",
     "feature",
+    "object_kind",
 ];
 
 /// Keys protocol 1 used for a position in some list; protocol 2 names the list instead. A `row`
@@ -40,7 +45,7 @@ const DEFINITION_KEYS: [&str; 8] = [
 const BANNED_KEYS: [&str; 2] = ["caster_id", "at"];
 
 /// The view ops asked after every command.
-const VIEWS: [Op; 9] = [
+const VIEWS: [Op; 10] = [
     Op::GameStatus,
     Op::ViewportGet,
     Op::PartyGet,
@@ -49,6 +54,7 @@ const VIEWS: [Op; 9] = [
     Op::TimeClocks,
     Op::RestGet,
     Op::CastGet,
+    Op::ObjectsGet,
     Op::CreationGet,
 ];
 
@@ -230,6 +236,64 @@ fn everything() -> Seen {
     for (n, command) in smith.into_iter().enumerate() {
         play(&mut game, &format!("town {n}"), command, &mut seen);
     }
+    // Round the objects fixture's yard: the shut chest, the fountain, the arrows underfoot, a
+    // search, and the chest forced, so the objects, their verbs and the piles are read.
+    let mut game = Headless::new(
+        vec![
+            repo().join("packs/base"),
+            repo().join("packs/test"),
+            repo().join("crates/omnis-sim/tests/packs/objects"),
+        ],
+        1,
+    )
+    .unwrap();
+    let yard = |x, y, facing| {
+        Command::Dev(DevCommand::Teleport {
+            map: "objects:map:yard".into(),
+            level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
+            x,
+            y,
+            facing,
+        })
+    };
+    let member = |game: &Headless| {
+        game.world
+            .party
+            .members
+            .first()
+            .expect("the yard's party was created")
+            .id
+    };
+    play(
+        &mut game,
+        "yard 0",
+        Command::Party(PartyCommand::Create(Draft {
+            skills: vec![Skill::History, Skill::Medicine],
+            ..common::commands::draft(Alignment::ALL[0])
+        })),
+        &mut seen,
+    );
+    let walk = [
+        yard(5, 4, Facing::North),
+        Command::Act {
+            object: "chest_1".into(),
+            verb: Verb::Open,
+            option: 0,
+        },
+        yard(1, 4, Facing::North),
+        Command::Interact,
+        yard(2, 2, Facing::North),
+        Command::Search,
+    ];
+    for (n, command) in walk.into_iter().enumerate() {
+        play(&mut game, &format!("yard {}", n + 1), command, &mut seen);
+    }
+    let pick = Command::Item(ItemCommand::PickUp {
+        member: member(&game),
+        item: "base:item:arrows".into(),
+        count: 10,
+    });
+    play(&mut game, "yard pick", pick, &mut seen);
     for name in ["walk", "fight"] {
         let path = repo().join(format!("crates/omnis-sim/tests/replays/{name}.ron"));
         let replay: Replay = read_ron(&path, &path).unwrap();

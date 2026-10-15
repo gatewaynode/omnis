@@ -31,6 +31,7 @@ pub mod items;
 mod migrate;
 pub mod names;
 pub mod objects;
+pub mod objects_view;
 pub mod ops;
 pub mod party;
 pub mod party_view;
@@ -72,6 +73,7 @@ pub use event::{
 };
 pub use items::ItemCommand;
 pub use names::Place;
+pub use objects_view::{ObjectsView, objects_view};
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{

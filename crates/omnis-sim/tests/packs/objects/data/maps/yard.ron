@@ -58,7 +58,7 @@
     ],
     objects: [
         (id: "crate_1", kind: "objects:object:crate", x: 1, y: 1),
-        (id: "statue_1", kind: "objects:object:statue", x: 3, y: 0),
+        (id: "statue_1", kind: "objects:object:statue", x: 3, y: 0, name: Some("objects:text:statue.knight")),
         (id: "lever_1", kind: "objects:object:lever", x: 0, y: 0, pos: (-3, -3), hidden: Some(12)),
         (id: "stone_1", kind: "objects:object:stone", x: 0, y: 2, pos: (2, -2)),
         (id: "plaque_1", kind: "objects:object:plaque", x: 4, y: 2, pos: (0, -4), facing: South),

@@ -13,6 +13,7 @@ use crate::creation_view::{CreationView, creation_view};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::names::Place;
+use crate::objects_view::{ItemCount, ObjectView, ObjectsView, objects_view};
 use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
@@ -184,6 +185,10 @@ pub enum Op {
     /// What a party member's draft may be: point buy, races, classes, backgrounds (parity P3).
     #[serde(rename = "creation.get")]
     CreationGet,
+    /// The objects in reach with every verb they offer and why each would be refused, and the
+    /// pile underfoot (M8.5 step 2).
+    #[serde(rename = "objects.get")]
+    ObjectsGet,
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -380,6 +385,13 @@ pub enum Reply {
         /// Every member's spells castable outside a fight.
         casts: Vec<CastView>,
     },
+    /// `objects.get`.
+    Objects {
+        /// The objects in reach, the party's cell first.
+        objects: Vec<ObjectView>,
+        /// The pile on the party's cell.
+        ground: Vec<ItemCount>,
+    },
     /// `creation.get`.
     Creation {
         /// What a draft may be.
@@ -556,6 +568,10 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::CastGet => Ok(Reply::Casts {
             casts: cast_view(world, data),
         }),
+        Op::ObjectsGet => {
+            let ObjectsView { objects, ground } = objects_view(world, data);
+            Ok(Reply::Objects { objects, ground })
+        }
         Op::CreationGet => Ok(Reply::Creation {
             creation: creation_view(data),
         }),

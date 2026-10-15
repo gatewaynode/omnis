@@ -62,7 +62,7 @@ variants!(OpError, ERROR_KINDS, error_kind:
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Creation Value Done);
+    Casts Objects Creation Value Done);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
 macro_rules! ops {
@@ -86,7 +86,7 @@ ops! {
     CombatGet => "combat.get", ServiceGet => "service.get", RulesList => "rules.list",
     RulesGet => "rules.get", TimeClocks => "time.clocks", TimeReconcile => "time.reconcile",
     RestGet => "rest.get", CastGet => "cast.get", CreationGet => "creation.get",
-    RulesSet => "rules.set",
+    RulesSet => "rules.set", ObjectsGet => "objects.get",
 }
 
 /// One op of every kind, to read its wire name from serde.
@@ -142,6 +142,7 @@ fn every_op() -> Vec<Op> {
         Op::TimeReconcile { region: text() },
         Op::RestGet,
         Op::CastGet,
+        Op::ObjectsGet,
         Op::CreationGet,
         Op::RulesSet {
             slot: text(),
@@ -227,7 +228,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (EVENTS.len(), "`Event` has 71 variants"),
         (REJECTIONS.len(), "`Rejection` (70 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
-        (OPS.len(), "25 ops."),
+        (OPS.len(), "26 ops."),
     ] {
         let stated: usize = what
             .chars()

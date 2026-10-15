@@ -22,19 +22,17 @@ use omnis_data::placement::ResolvedPlacement;
 use omnis_data::{Data, Interaction, ObjectEffect, Requirement};
 use omnis_rules::{Character, RollMode, RuleError};
 
-/// Resolve interaction `index` of the placement's kind, already found to be offered.
+/// Resolve interaction `index` of the placement's kind, already found to be offered and
+/// admitted (`act::admit`) on `roller`, the copy of the `object` stream the checks go on.
 pub(super) fn resolve(
     world: &mut World,
     data: &Data,
     placement: &ResolvedPlacement,
     index: u8,
     interaction: &Interaction,
+    mut roller: Roller,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    let mut roller = Roller::take_stream(world, "object");
-    for requirement in &interaction.requires {
-        gate(world, data, requirement, &mut roller)?;
-    }
     let mut success = true;
     for requirement in &interaction.requires {
         let Some((spec, kind, dc)) = check_of(requirement) else {
@@ -91,7 +89,7 @@ pub(super) fn resolve(
 }
 
 /// A requirement that needs no die: refuse when it does not hold.
-fn gate(
+pub(super) fn gate(
     world: &World,
     data: &Data,
     requirement: &Requirement,
@@ -164,7 +162,7 @@ fn gate(
 }
 
 /// The check a requirement rolls, its kind in the event, and its difficulty.
-fn check_of(requirement: &Requirement) -> Option<(CheckSpec, CheckKind, i64)> {
+pub(crate) fn check_of(requirement: &Requirement) -> Option<(CheckSpec, CheckKind, i64)> {
     let mode = RollMode::Normal;
     match *requirement {
         Requirement::Skill { skill, dc } => Some((

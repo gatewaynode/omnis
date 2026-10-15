@@ -7,10 +7,11 @@ mod container;
 pub(crate) mod notice;
 mod outcome;
 
-pub(crate) use act::{act, choices};
+pub(crate) use act::{act, admit, choices, offered, reachable};
 pub use container::contents;
 pub(crate) use container::{put_in, take_out};
 pub(crate) use notice::search;
+pub(crate) use outcome::check_of;
 
 use crate::world::{MapState, World};
 use alloc::collections::BTreeSet;

@@ -1,6 +1,7 @@
 //! Read-only views for clients (ARCHITECTURE.md §4.3). Queries never mutate and never roll.
 
 use crate::names::{Place, id_of};
+use crate::objects_view::{PileView, SeenObject, in_sight};
 use crate::time_view::{DateView, party_date};
 use crate::visibility;
 use crate::world::{Known, Mode, ModeKind, Settings, World};
@@ -74,6 +75,13 @@ pub struct ViewportModel {
     pub visibility_depth: u8,
     /// Visible tiles, nearest first.
     pub tiles: Vec<ViewTile>,
+    /// Objects on the visible tiles of the party's level, nearest first (M8.5 step 2); a hidden
+    /// one only once found. Unwritten when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub objects: Vec<SeenObject>,
+    /// Piles on the visible tiles, nearest first. Unwritten when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub piles: Vec<PileView>,
 }
 
 /// Where the party is and what it is doing: the cheap read a client makes every frame (M8 step 8).
@@ -181,7 +189,9 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
                 right: edge(t.x, t.y, pos.facing.right()),
             })
         })
-        .collect();
+        .collect::<Vec<ViewTile>>();
+    let cells: Vec<(u16, u16)> = tiles.iter().map(|t| (t.x, t.y)).collect();
+    let (objects, piles) = in_sight(world, data, &cells);
     Some(ViewportModel {
         map: id_of(&data.registry.maps, pos.map),
         level: pos.level,
@@ -197,6 +207,8 @@ pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
             .map_or(0, |t| t.detail_depth),
         visibility_depth: visibility::depth(world, data, map),
         tiles,
+        objects,
+        piles,
     })
 }
 

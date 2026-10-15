@@ -21,6 +21,7 @@ mod notice;
 mod object_act;
 mod object_use;
 mod objects;
+mod objects_view;
 mod ops;
 mod party;
 mod reactions;

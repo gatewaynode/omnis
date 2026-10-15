@@ -18,6 +18,7 @@
         "objects:text:lever.pulled": "Something grinds beyond the wall.",
         "objects:text:statue.name": "Statue",
         "objects:text:statue.examine": "A knight in weathered stone.",
+        "objects:text:statue.knight": "The knight",
         "objects:text:rune.name": "Rune",
         "objects:text:rune.read": "A ward against what walks at night.",
         "objects:text:rune.unreadable": "The marks mean nothing to you.",
