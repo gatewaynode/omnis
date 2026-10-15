@@ -1,64 +1,84 @@
 # Continuity notes
 
-Written 2026-10-15, mid M8.5 step 2a, before a compact. Rewrite this file every time it is used. Durable
-knowledge lives in `tasks/knowledge/`.
+Written 2026-10-15, after M8.5 step 2a was built and before 2b starts, ahead of a compact. Rewrite this file
+every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked files under `assets/` are the owner's; never stage.
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (in progress)**, editor (M5), 5, 6.
-- **Step 2 plan:** `tasks/plans/m8.5-objects.md` (owner answers 2026-10-14; the design, the item list, the
-  mutation targets). TODO items under M8.5 step 2 (2a, 2b, 2c).
-- **2a done (one commit each, every gate VERIFY-GREEN, replays unmoved):**
-  - plan saved `d302e24`; B7 retreat keeps its level `7f6fe15`; `MapData` into `map_data.rs` `6c4722f`;
-  - object kinds `93b2829` (`omnis-data/src/object.rs`, `object/check.rs`; fixture pack
-    `crates/omnis-sim/tests/packs/objects`, ten kinds);
-  - `footprint.rs` `9e86c9b` (sixteenths of a cell; `of`, `path`, `overlaps`, `cells`, `ray_span`);
-  - placements and piles `1e740f4` (`placement.rs`; the yard map `objects:map:yard`; bad pack
-    `crates/omnis-data/tests/packs-bad/bad-objects`, loaded over base and test);
-  - loot tables `467be18` (`loot.rs`, `Monster.loot`; fixture `objects:monster:pack_rat`, `objects:loot:hoard`);
-  - step blocking `468e134` (`omnis-sim/src/objects/mod.rs`: `ObjectState` in `MapState.objects`,
-    skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
-    `api::object_blocks`);
-  - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
+- **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked files under `assets/` are the owner's
+  (four now: `Resdie_graph_map.jpg`, `Resdie_map_cleaned_up.png`, `extrude-stairs-down.svg.kra`, `window.kra`);
+  never stage them.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (in progress: 2a built, 2b next)**, 7 (saves by
+  name, planned), editor (M5), 5, 6.
+- **Step 2 plan:** `tasks/plans/m8.5-objects.md` (owner answers 2026-10-14; design, items, "Decided by me",
+  mutation targets). TODO items under M8.5 step 2.
+- **2a is built** (items 0–16, each its own commit, every gate VERIFY-GREEN): the last are views `19aacfb`, docs and
+  acceptance `35fa6e7`. The owner moved straight to 2b (2026-10-15) without walking
+  `tasks/acceptance/m8.5-2a.md`; it stays open in TODO ("awaiting the owner's walk") and can be walked any time.
+  The owner already watched drop, pick-up and the chest round trip run live in the window through MCP.
 - **Gate:** `tests passed 791 failed 0 ignored 12`, VERIFY-GREEN at `35fa6e7`. Sentrux rules pass, quality 8973.
 
-## Next: the owner walks `tasks/acceptance/m8.5-2a.md`, then 2b
-- 2a is built: items 0-16, the last `35fa6e7` (docs, acceptance). Views `19aacfb`; Detect Magic `88faba2`;
-  hidden objects `53d765a`; loot `c02fae0`; ground and containers `61f0904`; Use routing `01385b9`.
-- The walk runs through MCP in the window (launch with `--pack crates/omnis-sim/tests/packs/objects`, devtools
-  on, add a wizard with `party_create`). This session has no omnis MCP tools attached; drive the bridge with
-  the scratchpad scripts (`mcp_drive.py` for single calls, `mcp_accept.py` for the headless walk) or after a
-  restart. A headless save writes into the project root: delete it afterwards.
-- 2b (client): shapes, the mirror, the verbs screen, inventory (Drop, the ground, containers), HUD lines for
-  object events and `Noticed`/`Searched`, docs and acceptance. Plan items in `tasks/plans/m8.5-objects.md`.
-- **Step 7 planned** (`tasks/plans/m8.5-saves-by-name.md`, `31576c3`, owner answers `4d80c52`): after 2b/2c,
-  before the editor. Owner: DB-style numbered migrations per pack, nothing dropped without one, no refunds,
-  version and hash in every `pack.ron`, no saving in an encounter or fight.
-- **Saves keep definitions as interned numbers** (sorted ids per kind): any new base-pack id shifts later
-  numbers. The v5/v6 save fixtures were renumbered in `88faba2` (spells from 4 up, by one). Step 7 ends it
-  (a name table in the save, option A, chosen by the owner).
-- Owner wants to test drop and pick-up by hand: through MCP now, or the 2a acceptance (item 16); in the window
-  after 2b items 1 (piles drawn) and 4 (inventory buttons). Item 15's `objects.get` shows piles.
-- Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`, including the
-  `Command` (N variants) line), MCP schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit
-  test, `rolllog.rs`, client `shell/text.rs`.
-- Commit path lists: build them from `git status --short | grep -v "^??"`; the owner adds files under
-  `assets/` at any time (a `.jpg` appeared during item 13).
-- Mutation runners: a list of (name, file, anchor, break), each anchor checked unique, `cargo test -p
-  omnis-sim --test integration <filter>`, source restored in `finally`, run with `python3 -u` to a file.
+## Next: 2b, the client (`omnis-vector`), so the owner can test by hand
+The owner's aim (2026-10-15): "start putting the things in the game that I can test manually". Each 2b item
+should end with something visible or clickable in the window, and the report should say how to try it.
+Plan items (`tasks/plans/m8.5-objects.md`, "2b — client"):
+1. **Shapes:** new `shapes.rs` (segments and fills from the integer `Look`, turned by facing, set on
+   `ground::height`); `SegKind::Object`, provisional colour; `Scene` draws `ViewportModel.objects` and `.piles`;
+   reshape on object, ground and `CombatEnded` events. Tests: a shape's base equals the engine's footprint
+   (`omnis_data::footprint`); hidden and removed objects not drawn; fills present. Captures to
+   `.omnis/m85/s2b-*`.
+2. **Mirror:** `collide::blocks` checks footprints (`api::object_blocks`); `tests/agreement.rs` on the yard,
+   also after the gate is pushed open.
+3. **Verbs screen:** `ScreenId::Verbs` (`screen/verbs.rs`) from Use in Actions (button first, key as shortcut):
+   one button per `VerbView` from `objects.get`, dimmed with its refusal; a `ChooseVerb` refusal opens it;
+   "Search here" in Actions.
+4. **Inventory:** Drop; an "On the ground" list with Take (PickUp); an open container's contents with Take out
+   and Put in.
+5. **Text, docs, acceptance:** HUD lines for the object events, `Noticed`, `Searched` (names now available
+   through `ObjectView.name` / kind names); presentation-ARCHITECTURE §5.4, §6, §10.1, new §8.7; presentation-PRD
+   §4.2, §4.3, §6.2, §12.5; `tasks/acceptance/m8.5-2b.md`.
+- Before item 1, read presentation-ARCHITECTURE §8 (the 3D view, segments, fills, `Scene`) and the client part
+  of `tasks/knowledge/code-map.md`. Known plan notes for 2b: the mirror ignores an object's state and a shape's
+  base not turned by facing were listed as mutation targets; the client does not push the pose out of a
+  footprint in its own cell (visual only, later).
+- Manual testing setup: `just run --windowed --pack packs/base --pack packs/test --pack
+  crates/omnis-sim/tests/packs/objects`, New game, devtools on; the debug panel (Esc, Debug, "World" page)
+  teleports to `objects:map:yard`.
 
-## Facts
-- **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
-  over (5, 0)–(6, 0), ladder at (6, 1)): crate (1, 1), statue (3, 0), hidden lever (0, 0), stone (0, 2), plaque
-  on the edge of (4, 1)/(4, 2), gate across (3, 2)/(3, 3), fountain (1, 3), chest (5, 3) against its north side
-  with a dagger, hidden rune with an aura (2, 4), torch (6, 4) behind a door on its north edge, loft crate (5, 0) level 1, arrows pile (2, 2).
-- **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
-  `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
-- **Pins:** replays walk `8d880647a25097b2`, fight `d06fa80460a947ef` (rebaselined in `88faba2`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  MCP command schema `oneOf` 13; schema proof 115 instances, 165 offered; item `oneOf` 10; MCP tools 26, ops 26; `Event` 71,
-  `Rejection` 70, `Command` 15.
-- **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
-  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`); pick-up own cell only, ground and container moves free, `PileFull` (`61f0904`); loot on the `combat` stream, may exceed 32 kinds (`c02fae0`); Search an enum value (oneOf stays 13), reveal needs no sight (`53d765a`); Detect Magic on both class lists, a new wizard knows it (`88faba2`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
+## Engine facts 2b builds on (2a)
+- **Views:** `objects.get` → `Reply::Objects { objects: [ObjectView], ground: [ItemCount] }`; `ObjectView
+  { object, object_kind, name, state, capacity, contents, verbs: [VerbView { verb, option, label, checks:
+  [CheckView { kind, dc }], minutes, refusal }] }`. `ViewportModel.objects: [SeenObject { object, object_kind,
+  x, y, pos, facing, state, look }]` and `.piles: [PileView { x, y, pos, items }]`, both skip-if-empty. Tier 1:
+  `omnis_sim::objects_view`, `query::viewport`.
+- **Refusals** come from `objects::admit`, shared by `Act` and the view (agreement proven across the yard).
+- **Commands:** `Act { object, verb, option }`, `Door`, `Search`, `Interact` (→ `ChooseVerb { choices }` when
+  several), `ItemCommand::{Drop, PickUp, TakeOut, PutIn}` (exploring only, no time; pick-up own cell; a new pile
+  lies 2 eighths ahead).
+- **Events:** `ObjectUsed`, `ObjectState`, `ObjectRemoved`, `ObjectMessage`, `GoldFound`, `ItemFound`,
+  `ItemSpent`, `Noticed { object, how }`, `Searched { member, roll }`, `ItemMoved` with `ItemPlace::{Ground,
+  Object}`, `Death.loot`, `CombatEnded.loot`. The client already has HUD lines for the four item moves and the
+  loot lines; object events and Noticed/Searched have none yet.
+- **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at x 3, loft on level 1
+  over (5, 0)–(6, 0), ladder at (6, 1)): crate (1, 1); statue (3, 0), named "The knight"; hidden lever (0, 0),
+  DC 12; stone (0, 2); plaque on the edge of (4, 1)/(4, 2); gate across (3, 2)/(3, 3), opened by the lever's
+  flag; fountain (1, 3); chest (5, 3) with a dagger; hidden rune (2, 4) with an Abjuration aura, DC 25; torch
+  (6, 4) behind a door on its north edge; loft crate (5, 0) level 1; arrows pile (2, 2).
+- **Finding to remember:** sight passes through the corner of a gap in a wall (from (2, 1) facing South the party
+  sees (2, 3), (4, 3), (5, 3), (5, 4) behind the hedge). Recorded in `horizons.md`; not changed.
+
+## Step 7, planned (saves by name)
+`tasks/plans/m8.5-saves-by-name.md` (`31576c3`, owner answers `4d80c52`): after step 2 (2b, 2c), before the
+editor. A name table in the save and a remap on load; `save.check` and a `LoadReport`; DB-style numbered
+migrations per pack, offered, nothing dropped without one; no refunds; version and hash in every `pack.ron`
+(`omnis-cli pack seal`); no saving in an encounter or a fight (its first item); `pack.reload` by name (it
+renumbers silently today). Saves still keep interned numbers until then: a new base-pack id renumbers later ids
+(item 14 renumbered the v5/v6 fixtures' spells).
+
+## Pins
+- Replays: walk `8d880647a25097b2`, fight `d06fa80460a947ef` (rebaselined at item 14 for the pack hash and the
+  wizard's Detect Magic, proven). `SAVE_SCHEMA` 7, `PROTOCOL` 2.
+- MCP: command `oneOf` 13, item `oneOf` 10, schema proof 115/165, tools 26, ops 26. `Command` 15, `Event` 71,
+  `Rejection` 70. Base pack: 19 spells (Detect Magic appended to the cleric and wizard lists).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
@@ -68,11 +88,24 @@ knowledge lives in `tasks/knowledge/`.
   RUSTSEC-2026-0192; Bevy 0.20 not before 2026-11-07.
 
 ## Process
-- **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`, `cargo fmt --all` first and again after any
-  appended test (the gate fails on format). Workspace clippy with `--all-targets --features
-  omnis-vector/test-fixtures -- -D warnings` before every commit. Test targets are `--test integration`.
-- **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, no edits while it runs.
-- **Mutations:** a Python runner in the scratchpad (anchor checked, source restored in `finally`), run with
-  `python3 -u`.
-- **Commits:** stage new files by name, then `git commit -F - -- <paths>` (zsh does not split `$VAR` into
-  paths; `--pathspec-from-file=<scratchpad file>` works). Never `.claude/` or the owner's assets. Unfinished work before a compact is committed as `WIP`.
+- **Cargo:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools`; `cargo fmt --all` first and again after any
+  appended test. Workspace clippy with `--all-targets --features omnis-vector/test-fixtures -- -D warnings`
+  before every commit. Sim tests: `cargo test -p omnis-sim --test integration <filter>`; MCP the same with
+  `-p omnis-mcp`. A `cargo test -p a -p b` run stops at the first failing package, so read every result.
+- **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, VERIFY-GREEN, no edits while it runs. Then
+  Sentrux `rescan` and `check_rules` (load with ToolSearch `select:mcp__plugin_sentrux_sentrux__rescan,
+  mcp__plugin_sentrux_sentrux__check_rules`).
+- **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
+  in `finally`, `python3 -u` to a file), then `git status` to confirm the sources are clean.
+- **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, `api_doc.rs` pins,
+  the MCP schema and proof, `common/commands.rs`, `schema.rs` unit test, client `shell/text.rs` and `rolllog.rs`.
+  A new op also moves `replies.rs` (`EVERY`), `api_doc.rs` (`ops!`, `every_op`, "N ops."), `tools.rs` (tool,
+  example, count), `bridge.rs` counts, `omnis-cli/src/schema.rs` and `tests/headless.rs`, and the vocabulary's
+  `VIEWS`.
+- **Commits:** stage new files by name; build the path list from `git status --short | grep -v "^??"` without
+  `assets/` or `.claude/`, write it to a scratchpad file, `git commit --pathspec-from-file=<file> -F -` (zsh does
+  not split `$VAR`). Messages end with the Co-Authored-By and Claude-Session lines. Never push.
+- **MCP from this session:** the omnis MCP tools are not attached here; drive `target/debug/omnis-mcp` with the
+  scratchpad scripts (`mcp_drive.py '[["tool",{args}]]'` for the window, `mcp_accept.py` headless). Never pipe a
+  live run through `head`. A headless `save_write` lands in the project root: delete it.
+- **Context:** pause and recommend a compact past 350K.
