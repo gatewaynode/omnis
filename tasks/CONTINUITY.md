@@ -33,6 +33,9 @@ knowledge lives in `tasks/knowledge/`.
 - Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`), MCP
   schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit test, `rolllog.rs`.
 - Then items 12 to 16 as listed in the plan.
+- The window shows `ChooseVerb` only as its refusal text until 2b item 3 (the verbs screen). The mutation
+  runners `mut9.py`/`mut10.py` lived in the session scratchpad: a list of (name, file, anchor, break), each
+  anchor checked unique, `cargo test -p omnis-sim --test integration <filter>`, source restored in `finally`.
 
 ## Facts
 - **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
