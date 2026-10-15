@@ -540,7 +540,7 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (14 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (15 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -551,6 +551,7 @@ means the same thing after a reorder or a change to a list.
 | `Turn` | `Rotation` | Turn in place. |
 | `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
 | `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. Costs 1 minute. Exploring only. |
+| `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
@@ -651,14 +652,14 @@ slot `W`) `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a serv
 `room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` (stock item `R`) `sell-R[-N]`
 (stores item `R`) `deposit-N` `withdraw-N` (copper) `train-M` `choose-M-R` (class-list spell
 `R`) `learn-M-R` (the service's spell `R`); outside one `rest` `short-rest`
-`short-rest-A-B-…` (hit dice per member in marching order); exploring `door`, `act-O-V` and `act-O-V-N`
+`short-rest-A-B-…` (hit dice per member in marching order); exploring `door`, `search`, `act-O-V` and `act-O-V-N`
 (verb `V`, lower case, on object `O`, its `N`th interaction). Party creation, items, `Cast`
 outside a fight and `Dev` have no words. `Command::word` (`command.rs`) gives a command's bare
 verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their own).
 
 ## 9. Events
 
-`Event` has 69 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 71 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -736,6 +737,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 | Event | Fields | Meaning |
 |---|---|---|
+| `Noticed` | `object` (placement id in the party's map), `how` (`Passive`, `Search`, `Spell`) | A hidden object was found and is in reach from now on. `Passive`: after a look while exploring, the party's best passive Perception (members who can act) met its difficulty, its cell in sight within `notice_tiles` (2) cells; `Spell`: a reveal in force (`Utility::Reveal`, a lasting effect like light) reached it within its range on the party's level, seen or not, and it has an aura; `Search`: after `Searched`. Comes before `Visible`. |
+| `Searched` | `member` (`CharacterId`), `roll` (`Roll`) | `Search`: who searched and the Investigation roll; each object found follows as `Noticed`. |
 | `ObjectUsed` | `object` (placement id in the party's map), `verb`, `success` | `Act` went through; its checks (`Check`) come before it, its effects after it on success, the kind's failure text on a failed check. |
 | `ObjectState` | `object`, `state` | The object moved to a state. |
 | `ObjectRemoved` | `object` | The object was taken away for good. |
@@ -985,6 +988,10 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-15: loot (M8.5 step 2, item 12): `Death.loot` and `CombatEnded.loot` (`[Loot]`, left
   out when empty, so a fight without loot reads as before); the fight's saved state gains `loot`,
   written only when something has dropped. Base monsters carry no loot table.
+- 2026-10-15: hidden objects (M8.5 step 2, item 13): `Command::Search` and its word `search`;
+  events `Noticed` (`Notice`: `Passive`, `Search`, `Spell`) and `Searched`; a spell effect
+  `Utility::Reveal { range_tiles, minutes }` (pack data), a lasting effect like `Light`. The
+  rules values `notice_tiles` (2) and `search_minutes` (10) default in code.
 
 ### Protocol 2 (2026-10-10)
 

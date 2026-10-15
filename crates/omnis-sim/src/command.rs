@@ -30,6 +30,8 @@ pub enum Command {
     Interact,
     /// Open or close the door on the faced edge (M8.5 step 2), when Use has more than one choice.
     Door,
+    /// Search the party's cell and the one it faces for hidden objects (M8.5 step 2).
+    Search,
     /// Climb a ladder or shaft one level up or down, to the same tile (M8.5 step 1b).
     Climb(Vertical),
     /// Build or reorder the party.
@@ -83,6 +85,7 @@ impl Command {
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
             Command::Door => "door",
+            Command::Search => "search",
             Command::Climb(Vertical::Up) => "climb-up",
             Command::Climb(Vertical::Down) => "climb-down",
             Command::Party(_) => "party",

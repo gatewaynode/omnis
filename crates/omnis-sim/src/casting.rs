@@ -12,7 +12,7 @@ use crate::world::World;
 use alloc::vec::Vec;
 use omnis_core::CharacterId;
 use omnis_data::{Data, SpellEffect, Utility};
-use omnis_rules::heal_roll;
+use omnis_rules::{EffectKind, heal_roll};
 
 /// Minutes a cast costs when the rules do not say.
 const DEFAULT_CAST_MINUTES: u32 = 1;
@@ -72,10 +72,21 @@ pub(crate) fn apply(
             cast::cast_buff(world, data, &plan, slot, events);
         }
         (SpellEffect::Light { depth, minutes }, _) => {
-            cast::cast_light(world, data, &plan, def, depth, minutes, events);
+            let light = EffectKind::Light { depth };
+            cast::cast_lasting(world, data, &plan, def, light, minutes, events);
         }
         (SpellEffect::Utility(Utility::OpenDoor { range_tiles }), _) => {
             open_door_ahead(world, data, range_tiles, events);
+        }
+        (
+            SpellEffect::Utility(Utility::Reveal {
+                range_tiles,
+                minutes,
+            }),
+            _,
+        ) => {
+            let reveal = EffectKind::Reveal { range: range_tiles };
+            cast::cast_lasting(world, data, &plan, def, reveal, minutes, events);
         }
         _ => {}
     }

@@ -17,6 +17,7 @@ mod levels;
 mod loot;
 mod monster_cast;
 mod movement;
+mod notice;
 mod object_act;
 mod object_use;
 mod objects;

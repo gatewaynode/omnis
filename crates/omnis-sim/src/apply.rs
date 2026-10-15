@@ -30,6 +30,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         (Mode::Explore | Mode::Town(_), Command::Turn(rotation)) => turn(world, *rotation),
         (Mode::Explore, Command::Interact) => interact(world, data, &mut events)?,
         (Mode::Explore, Command::Door) => door(world, data, &mut events)?,
+        (Mode::Explore, Command::Search) => objects::search(world, data, &mut events)?,
         (
             Mode::Explore,
             Command::Act {
@@ -499,5 +500,6 @@ fn look(world: &mut World, data: &Data, events: &mut Vec<Event>) {
             }
         }
     }
+    objects::notice::look(world, data, &tiles, events);
     events.push(Event::Visible { tiles });
 }

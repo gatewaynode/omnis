@@ -35,7 +35,7 @@ pub use character::{
 pub use condition::{ConditionFlags, Defenses, condition_id, flags, member_defenses};
 pub use effect::{
     ActiveEffect, EffectKind, Expiry, armor_bonus, bonus_dice, consumable_index, light_depth,
-    roll_bonus,
+    reveal_range, roll_bonus,
 };
 pub use equip::{EquipRefusal, Equipped, auto_equip, can_equip, equip, equipped_item, unequip};
 pub use feature::{combat_features, recover_uses, spend_use, spent, uses_left};

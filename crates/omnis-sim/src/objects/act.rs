@@ -124,7 +124,7 @@ fn reachable<'w, 'd>(
 
 /// The cells the party reaches into: its own, and the one it faces when no wall, closed door
 /// or cliff stands on the edge between.
-fn reach(world: &World, map: &MapData, pos: Position) -> Vec<(u16, u16)> {
+pub(super) fn reach(world: &World, map: &MapData, pos: Position) -> Vec<(u16, u16)> {
     let mut cells = Vec::from([(pos.x, pos.y)]);
     let Some(cell) = map.cell(pos.level, pos.x, pos.y) else {
         return cells;

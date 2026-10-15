@@ -34,5 +34,7 @@
         "objects:text:torch.name": "Torch",
         "objects:text:stone.name": "Loose stone",
         "objects:text:stone.taken": "Under the stone lies a gem.",
+        "objects:text:spell.sense_magic.name": "Sense Magic",
+        "objects:text:spell.sense_magic.description": "Hidden things with a magical aura nearby are found while it lasts.",
     },
 )

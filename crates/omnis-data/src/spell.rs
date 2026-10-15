@@ -42,6 +42,14 @@ pub enum Utility {
         /// Tiles ahead the hand reaches.
         range_tiles: u8,
     },
+    /// While it lasts, hidden objects with a magical aura within `range_tiles` of the party, on
+    /// its level, are found (detect magic, M8.5 step 2). A lasting effect, as light is.
+    Reveal {
+        /// Cells from the party, counted as a king moves.
+        range_tiles: u8,
+        /// Party-clock minutes it lasts.
+        minutes: u32,
+    },
 }
 
 /// What a spell does when it lands. The shape is data; the numbers are rule slots.
@@ -192,6 +200,17 @@ impl SpellEffect {
             }
             SpellEffect::Utility(Utility::OpenDoor { range_tiles }) if *range_tiles == 0 => {
                 errors.push(DataError::new(file, "open door range must be at least 1"));
+            }
+            SpellEffect::Utility(Utility::Reveal {
+                range_tiles,
+                minutes,
+            }) if *range_tiles == 0 || *range_tiles > MAX_VISIBILITY_DEPTH || *minutes == 0 => {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "reveal range must be 1..={MAX_VISIBILITY_DEPTH} for at least one minute"
+                    ),
+                ));
             }
             _ => {}
         }
@@ -363,6 +382,10 @@ mod tests {
                 minutes: 60,
             },
             SpellEffect::Utility(Utility::OpenDoor { range_tiles: 6 }),
+            SpellEffect::Utility(Utility::Reveal {
+                range_tiles: 6,
+                minutes: 10,
+            }),
         ];
         for effect in effects {
             let reach = if effect.needs_one_target() {
@@ -468,6 +491,17 @@ mod tests {
             problems(&spell(Some(hand), Reach::One)),
             ["open door range must be at least 1"]
         );
+        for (range_tiles, minutes) in [(0, 10), (33, 10), (6, 0)] {
+            let reveal = SpellEffect::Utility(Utility::Reveal {
+                range_tiles,
+                minutes,
+            });
+            assert_eq!(
+                problems(&spell(Some(reveal), Reach::One)).len(),
+                1,
+                "{range_tiles} cells for {minutes} minutes"
+            );
+        }
         let area = SpellEffect::Save {
             ability: Ability::Dexterity,
             dice: Dice::new(3, 6),

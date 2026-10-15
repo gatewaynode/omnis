@@ -1,0 +1,3 @@
+// A reveal on the Light pattern (M8.5 step 2): while it lasts, hidden objects with an aura within
+// three cells are found. The base pack's Detect Magic comes in item 14.
+(schema: 1, id: "objects:spell:sense_magic", name: "objects:text:spell.sense_magic.name", level: 1, school: Divination, classes: ["base:class:cleric", "base:class:wizard"], concentration: true, ritual: false, cost: Action, bonus_action_available: false, preparation_available: false, preparation_required_for_bonus_action: false, description: "objects:text:spell.sense_magic.description", effect: Some(Utility(Reveal(range_tiles: 3, minutes: 10))), reach: One)

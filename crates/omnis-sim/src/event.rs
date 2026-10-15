@@ -170,6 +170,17 @@ pub struct SensedTile {
     pub layers: u8,
 }
 
+/// How a hidden object was found (M8.5 step 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Notice {
+    /// A sharp eye: the party's best passive Perception, in sight and near.
+    Passive,
+    /// `Command::Search`.
+    Search,
+    /// A reveal in force, sensing the object's aura.
+    Spell,
+}
+
 /// Items of one kind a monster dropped (M8.5 step 2).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Loot {
@@ -584,6 +595,21 @@ pub enum Event {
         /// The items a monster dropped, drawn from its loot table; left out when none.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         loot: Vec<Loot>,
+    },
+    /// The party found a hidden object (M8.5 step 2).
+    Noticed {
+        /// The placement's id in the party's map.
+        object: String,
+        /// How.
+        how: Notice,
+    },
+    /// A member searched the party's cell and the one it faces; each object found follows as
+    /// `Noticed`.
+    Searched {
+        /// Who searched: the member best at Investigation who can act.
+        member: CharacterId,
+        /// The Investigation roll.
+        roll: Roll,
     },
     /// The party did something to an object; on success its effects follow (M8.5 step 2).
     ObjectUsed {
