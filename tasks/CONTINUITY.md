@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-14, mid M8.5 step 2a, before a compact. Rewrite this file every time it is used. Durable
+Written 2026-10-15, mid M8.5 step 2a, before a compact. Rewrite this file every time it is used. Durable
 knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -20,31 +20,32 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 746 failed 0 ignored 12`, VERIFY-GREEN at `ef0b77c`. Sentrux rules pass, quality 8967.
+- **Gate:** `tests passed 755 failed 0 ignored 12`, VERIFY-GREEN at `01385b9`. Sentrux rules pass, quality 8972.
 
-## Next: 2a item 10, Interact routing and `ChooseVerb`
-- Item 9 done `ef0b77c`: `objects/act.rs` (`in_reach`, `offered`, `act`), `objects/outcome.rs`;
-  `Command::Act { object, verb, option }`, word `act-O-V[-N]`; `Refusal` in `objects/mod.rs`; `edit`
-  drops entries back at defaults; `checks::best`. Decisions recorded in the plan's "Decided by me".
-- Item 10: a service on the tile wins; else candidates are the faced door plus every offered
-  interaction of reachable objects (`act::in_reach`/`offered`); one runs at once, none is NothingHere,
-  several give `Rejection::ChooseVerb` and change nothing. Replays must not move (a door alone as before).
+## Next: 2a item 11, ground piles and containers
+- Item 10 done `01385b9`: `apply::interact` (service first, then `Choice::Door` + `objects::choices`; one runs,
+  none NothingHere, several `Rejection::ChooseVerb { choices }`); `Command::Door` (word `door`, `NoDoor`),
+  an enum value beside `Interact` in the MCP schema. `act::reachable` dedupes an object in both cells.
+  Tests `crates/omnis-sim/tests/object_use.rs`. Fixture yard gained a door on the north edge of (6, 4).
+- Item 11 (plan): new `ground.rs`; `ItemCommand::{Drop, PickUp, TakeOut, PutIn}`; capacity; closed or full
+  containers refused; save round trip; a dropped pile lies 2 eighths ahead. `ItemPlace` gains `Ground` and
+  `Object` (decide on `Copy`). Item MCP schema `oneOf` 6 grows; proof numbers move.
 - Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`), MCP
   schema and proof numbers, `common/commands.rs` chain, `schema.rs` unit test, `rolllog.rs`.
-- Then items 11 to 16 as listed in the plan.
+- Then items 12 to 16 as listed in the plan.
 
 ## Facts
 - **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at (3, 2), loft on level 1
   over (5, 0)–(6, 0), ladder at (6, 1)): crate (1, 1), statue (3, 0), hidden lever (0, 0), stone (0, 2), plaque
   on the edge of (4, 1)/(4, 2), gate across (3, 2)/(3, 3), fountain (1, 3), chest (5, 3) against its north side
-  with a dagger, hidden rune with an aura (2, 4), torch (6, 4), loft crate (5, 0) level 1, arrows pile (2, 2).
+  with a dagger, hidden rune with an aura (2, 4), torch (6, 4) behind a door on its north edge, loft crate (5, 0) level 1, arrows pile (2, 2).
 - **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
   `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
 - **Pins:** replays unmoved (walk `b0220a6eefc5e6e3`, fight `f130927d1f09f19f`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  MCP command schema `oneOf` 13; schema proof 109 instances, 159 offered; MCP tools 25; `Event` 69,
-  `Rejection` 65, `Command` 13.
+  MCP command schema `oneOf` 13; schema proof 110 instances, 160 offered; MCP tools 25; `Event` 69,
+  `Rejection` 67, `Command` 14.
 - **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
-  `ItemSpent` (`ef0b77c`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
+  `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
