@@ -20,23 +20,22 @@ knowledge lives in `tasks/knowledge/`.
     skip-if-empty; `blocks_step` in `apply::landing` after `Cliff`; `BlockReason::Object`;
     `api::object_blocks`);
   - sight `9f0fd7b` (`visibility::Sheet::object_hides`; `line_of_sight`/`ray` take `visibility::Kinds`).
-- **Gate:** `tests passed 780 failed 0 ignored 12`, VERIFY-GREEN at `88faba2`. Sentrux rules pass, quality 8973.
+- **Gate:** `tests passed 791 failed 0 ignored 12`, VERIFY-GREEN at `19aacfb`. Sentrux rules pass, quality 8973.
 
-## Next: 2a item 15, views and the `objects.get` op
-- Items 10 to 14 done: Use routing `01385b9`; ground and containers `61f0904`; loot `c02fae0`; hidden objects
-  `53d765a` (`objects/notice.rs`; `Command::Search`; `Noticed`, `Searched`; `Utility::Reveal`,
-  `EffectKind::Reveal`, `cast_lasting`; fixture spell `objects:spell:sense_magic`, range 3); Detect Magic
-  `88faba2` (base `spells/detect_magic.ron`, reveal 6 cells, appended to the cleric and wizard lists, so a new
-  wizard knows it; base `rules/objects.ron` with `notice_tiles` 2, `search_minutes` 10).
-- Item 15 (plan): new `objects_view.rs` with `ObjectsView` and `VerbView { verb, label, refusal, check }`;
-  `ViewportModel.objects` and `.piles`; the `objects.get` op and MCP tool `objects_get` (tools 25 → 26);
-  vocabulary pins (check each new key against the vocabulary test first: `kind` → `object_kind`, `gold`,
-  `state`, `loot`).
+## Next: 2a item 16, docs and the 2a acceptance
+- Items 10 to 15 done: Use routing `01385b9`; ground and containers `61f0904`; loot `c02fae0`; hidden objects
+  `53d765a`; Detect Magic `88faba2`; views `19aacfb` (`objects_view.rs`: `objects_view`, `ObjectView`,
+  `VerbView`, `CheckView`, `ItemCount`, `SeenObject`, `PileView`; `objects::admit` shared by `Act` and the view;
+  `ViewportModel.objects`/`.piles`; op `objects.get`, MCP `objects_get`). The MCP server must be restarted on
+  the new build to offer `objects_get`.
 - Item 16: docs (ARCHITECTURE sections, api.md, code-map, horizons) and `tasks/acceptance/m8.5-2a.md` with
   drop, pick-up and container round trips through MCP and the CLI.
+- **Step 7 planned** (`tasks/plans/m8.5-saves-by-name.md`, `31576c3`, owner answers `4d80c52`): after 2b/2c,
+  before the editor. Owner: DB-style numbered migrations per pack, nothing dropped without one, no refunds,
+  version and hash in every `pack.ron`, no saving in an encounter or fight.
 - **Saves keep definitions as interned numbers** (sorted ids per kind): any new base-pack id shifts later
-  numbers. The v5/v6 save fixtures were renumbered in `88faba2` (spells from 4 up, by one). Raised to the owner:
-  string ids in saves would end it (a save-schema change, theirs to decide).
+  numbers. The v5/v6 save fixtures were renumbered in `88faba2` (spells from 4 up, by one). Step 7 ends it
+  (a name table in the save, option A, chosen by the owner).
 - Owner wants to test drop and pick-up by hand: through MCP now, or the 2a acceptance (item 16); in the window
   after 2b items 1 (piles drawn) and 4 (inventory buttons). Item 15's `objects.get` shows piles.
 - Each new command, event or rejection also moves: `docs/api.md` (+ count pins in `api_doc.rs`, including the
@@ -55,7 +54,7 @@ knowledge lives in `tasks/knowledge/`.
 - **Tests:** `crates/omnis-sim/tests/objects.rs` (helpers `objects()`, `in_yard`, `step_result`, `sees`);
   `crates/omnis-data/tests/footprint.rs`; bad packs in `crates/omnis-data/tests/bad_packs.rs`.
 - **Pins:** replays walk `8d880647a25097b2`, fight `d06fa80460a947ef` (rebaselined in `88faba2`); `SAVE_SCHEMA` 7, `PROTOCOL` 2;
-  MCP command schema `oneOf` 13; schema proof 115 instances, 165 offered; item `oneOf` 10; MCP tools 25; `Event` 71,
+  MCP command schema `oneOf` 13; schema proof 115 instances, 165 offered; item `oneOf` 10; MCP tools 26, ops 26; `Event` 71,
   `Rejection` 70, `Command` 15.
 - **Departures so far:** a spill across a cliff is refused too (`1e740f4`); `Act.option`, `ItemFound`,
   `ItemSpent` (`ef0b77c`); `Command::Door`, `ChooseVerb.choices` (`01385b9`); pick-up own cell only, ground and container moves free, `PileFull` (`61f0904`); loot on the `combat` stream, may exceed 32 kinds (`c02fae0`); Search an enum value (oneOf stays 13), reveal needs no sight (`53d765a`); Detect Magic on both class lists, a new wizard knows it (`88faba2`). Fixture: the fountain's wish and `data/rules/objects.ron` (`objects.crowd`).
