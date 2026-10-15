@@ -14,11 +14,11 @@ use crate::names::id_of;
 use crate::objects::{
     admit, check_of, contents, found_in, offered, reachable, removed_in, state_in, state_of,
 };
-use crate::world::{Mode, World};
+use crate::world::{MapState, Mode, World};
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{Facing, ItemId};
+use omnis_core::{Facing, ItemId, Level, MapId};
 use omnis_data::placement::{ResolvedPlacement, in_state};
 use omnis_data::{Data, Look, ObjectKind, Verb};
 use serde::{Deserialize, Serialize};
@@ -106,6 +106,8 @@ pub struct SeenObject {
     pub state: String,
     /// How it looks in that state.
     pub look: Look,
+    /// Whether it blocks a step in that state; a client draws a shut arch closed.
+    pub blocks: bool,
 }
 
 /// A pile in sight.
@@ -183,45 +185,89 @@ pub(crate) fn in_sight(
     tiles: &[(u16, u16)],
 ) -> (Vec<SeenObject>, Vec<PileView>) {
     let pos = world.position;
-    let (Some(map), state) = (data.maps.get(&pos.map), world.maps.get(&pos.map)) else {
+    let Some(map) = data.maps.get(&pos.map) else {
         return (Vec::new(), Vec::new());
     };
+    let state = world.maps.get(&pos.map);
     let mut seen = BTreeSet::new();
-    let mut objects = Vec::new();
-    for &(x, y) in tiles {
-        for (_, p) in map.objects_at(pos.level, x, y) {
-            if removed_in(state, p) || !found_in(state, p) || !seen.insert(p.id.as_str()) {
-                continue;
-            }
-            let Some(kind) = data.objects.get(&p.kind) else {
-                continue;
-            };
-            let now = state_in(state, p);
-            objects.push(SeenObject {
-                object: p.id.clone(),
-                object_kind: id_of(&data.registry.objects, p.kind),
-                x: p.x,
-                y: p.y,
-                pos: p.pos,
-                facing: p.facing,
-                state: String::from(now),
-                look: *in_state(kind, now).0,
-            });
-        }
-    }
+    let objects = tiles
+        .iter()
+        .flat_map(|&(x, y)| map.objects_at(pos.level, x, y))
+        .filter(|(_, p)| seen.insert(p.id.as_str()))
+        .filter_map(|(_, p)| drawn(state, data, p))
+        .collect();
     let piles = tiles
         .iter()
-        .filter_map(|&(x, y)| {
-            let pile = pile_at(world, data, pos.map, (pos.level, x, y))?;
-            Some(PileView {
-                x,
-                y,
-                pos: pile.pos,
-                items: counted(data, &pile.items),
-            })
-        })
+        .filter_map(|&(x, y)| pile(world, data, pos.map, (pos.level, x, y)))
         .collect();
     (objects, piles)
+}
+
+/// Every object and pile on `level` of `map` as the party would see them, wherever it stands:
+/// for a client that draws the whole level, not only what is in sight. Removed objects are
+/// left out, and hidden ones until found, as in the viewport. Objects in file order, piles
+/// north to south, then west to east.
+#[must_use]
+pub fn on_level(
+    world: &World,
+    data: &Data,
+    map: MapId,
+    level: Level,
+) -> (Vec<SeenObject>, Vec<PileView>) {
+    let Some(def) = data.maps.get(&map) else {
+        return (Vec::new(), Vec::new());
+    };
+    let state = world.maps.get(&map);
+    let objects = def
+        .objects
+        .iter()
+        .filter(|p| p.level == level)
+        .filter_map(|p| drawn(state, data, p))
+        .collect();
+    let saved = state.into_iter().flat_map(|s| s.ground.keys());
+    let cells: BTreeSet<(u16, u16)> = def
+        .ground
+        .keys()
+        .chain(saved)
+        .filter(|&&(l, _, _)| l == level)
+        .map(|&(_, x, y)| (y, x))
+        .collect();
+    let piles = cells
+        .into_iter()
+        .filter_map(|(y, x)| pile(world, data, map, (level, x, y)))
+        .collect();
+    (objects, piles)
+}
+
+/// A placement as drawn, unless removed or still hidden.
+fn drawn(state: Option<&MapState>, data: &Data, p: &ResolvedPlacement) -> Option<SeenObject> {
+    if removed_in(state, p) || !found_in(state, p) {
+        return None;
+    }
+    let kind = data.objects.get(&p.kind)?;
+    let now = state_in(state, p);
+    let (look, blocks, _) = in_state(kind, now);
+    Some(SeenObject {
+        object: p.id.clone(),
+        object_kind: id_of(&data.registry.objects, p.kind),
+        x: p.x,
+        y: p.y,
+        pos: p.pos,
+        facing: p.facing,
+        state: String::from(now),
+        look: *look,
+        blocks,
+    })
+}
+
+fn pile(world: &World, data: &Data, map: MapId, cell: (Level, u16, u16)) -> Option<PileView> {
+    let pile = pile_at(world, data, map, cell)?;
+    Some(PileView {
+        x: cell.1,
+        y: cell.2,
+        pos: pile.pos,
+        items: counted(data, &pile.items),
+    })
 }
 
 fn counted(data: &Data, items: &[(ItemId, u16)]) -> Vec<ItemCount> {

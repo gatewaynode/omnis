@@ -12,7 +12,7 @@ use bevy::prelude::Resource;
 use omnis_sim::api::Draft;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
-use omnis_sim::{Command, Event, PartyCommand, Settings, World};
+use omnis_sim::{Command, Event, ItemPlace, PartyCommand, Settings, World};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -513,7 +513,7 @@ impl Session {
     /// line added.
     pub fn note(&mut self, events: &[Event]) -> Option<String> {
         self.refresh();
-        self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
+        self.reshape |= events.iter().any(reshapes);
         self.names.observe(&self.views.party);
         for event in events {
             if matches!(event, Event::EncounterStarted { .. }) {
@@ -576,6 +576,23 @@ impl Session {
         self.lines.push(line);
         let excess = self.lines.len().saturating_sub(8);
         self.lines.drain(..excess);
+    }
+}
+
+/// Whether an event changes what the view draws of the map: a door, an object's state, an
+/// object taken away or found, items laid on or taken from the ground, or loot left by a fight.
+#[must_use]
+pub fn reshapes(event: &Event) -> bool {
+    match event {
+        Event::Door { .. }
+        | Event::ObjectState { .. }
+        | Event::ObjectRemoved { .. }
+        | Event::Noticed { .. }
+        | Event::CombatEnded { .. } => true,
+        Event::ItemMoved { from, to, .. } => {
+            [from, to].iter().any(|p| matches!(p, ItemPlace::Ground))
+        }
+        _ => false,
     }
 }
 
@@ -655,6 +672,61 @@ mod tests {
             "a new world to make a party in"
         );
         assert!(parse(args(&["--screen", "sheet"])).is_err());
+    }
+
+    #[test]
+    fn the_view_is_redrawn_for_doors_objects_found_items_on_the_ground_and_loot() {
+        use omnis_sim::api::{CombatOutcome, Place};
+        use omnis_sim::event::Notice;
+        let place = Place {
+            map: "test:map:town".into(),
+            level: omnis_sim::api::Level::GROUND,
+            x: 0,
+            y: 0,
+            facing: omnis_sim::api::Facing::North,
+        };
+        let moved = |from, to| Event::ItemMoved {
+            item: "base:item:arrows".into(),
+            count: 1,
+            from,
+            to,
+        };
+        let member = ItemPlace::Member(omnis_sim::api::CharacterId(1));
+        let object = |o: &str| o.to_owned();
+        for yes in [
+            Event::ObjectState {
+                object: object("gate_1"),
+                state: "open".into(),
+            },
+            Event::ObjectRemoved {
+                object: object("stone_1"),
+            },
+            Event::Noticed {
+                object: object("lever_1"),
+                how: Notice::Passive,
+            },
+            moved(member.clone(), ItemPlace::Ground),
+            moved(ItemPlace::Ground, member.clone()),
+            Event::CombatEnded {
+                outcome: CombatOutcome::Victory,
+                xp: 0,
+                gold: 0,
+                fallen: Vec::new(),
+                loot: Vec::new(),
+            },
+        ] {
+            assert!(reshapes(&yes), "{yes:?}");
+        }
+        for no in [
+            moved(member.clone(), ItemPlace::Stores),
+            moved(member, ItemPlace::Object(object("chest_1"))),
+            Event::Moved {
+                from: place.clone(),
+                to: place,
+            },
+        ] {
+            assert!(!reshapes(&no), "{no:?}");
+        }
     }
 
     #[test]

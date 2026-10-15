@@ -283,8 +283,9 @@ and places by `Place` (§4); lists are in marching or list order.
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
 | `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
+| `objects_on_level(&World, &Data, MapId, Level)` | `(Vec<SeenObject>, Vec<PileView>)`: every object and pile on that level as the viewport would show them from anywhere (removed objects left out, hidden ones until found); objects in file order, piles north to south. For a client that draws a whole level | none |
 
-`automap`, `map_text`, `door_open`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+`automap`, `map_text`, `door_open`, `objects_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
 
 ### 7.1 `Here` and `Status`
@@ -554,7 +555,8 @@ when none) and `piles` (`[PileView]`, the piles on them; left out when none).
 `SeenObject` (M8.5 step 2): `object` (placement id), `object_kind`, `x`, `y` (its home cell),
 `pos` (`[east, south]` offset from the cell's centre in eighths, −4..=4), `facing` (its look's
 width runs across it), `state`, `look` (`shape`: `Box`, `Post`, `Slab`, `Arch`, `Sign`, `Heap`;
-`width`, `depth`, `height` in eighths, in the state it is in). An object whose footprint spills
+`width`, `depth`, `height` in eighths, in the state it is in), `blocks` (whether it blocks a step in
+that state, so a client can draw a shut gate shut). An object whose footprint spills
 onto a seen tile is listed once; a hidden one only once found; a removed one never.
 `PileView`: `x`, `y`, `pos`, `items` (`[ItemCount]`, in the order laid down).
 
@@ -949,7 +951,7 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -1029,6 +1031,8 @@ Additive (§13), so `PROTOCOL` stays 2:
   `ItemCount`), bringing the ops to 26 (M8.5 step 2, item 15); `ViewportModel.objects`
   (`[SeenObject]`) and `ViewportModel.piles` (`[PileView]`), left out when empty, so a viewport
   with no objects reads as before.
+- 2026-10-15: `SeenObject.blocks` and Tier 1's `objects_on_level` (M8.5 step 2b, item 1), for a
+  client that draws every object on a level, not only those in sight.
 
 ### Protocol 2 (2026-10-10)
 

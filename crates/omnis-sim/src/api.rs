@@ -64,6 +64,11 @@ pub use crate::party_view::{
 };
 // Objects in cells (M8.5 step 2): whether a footprint blocks a step, for a client's mirror.
 pub use crate::objects::{ObjectState, blocks_step as object_blocks};
+// What a client reads of objects: `objects.get`'s view, and what it draws of a whole level.
+pub use crate::objects_view::{
+    CheckView, ItemCount, ObjectView, ObjectsView, PileView, SeenObject, VerbView, objects_view,
+    on_level as objects_on_level,
+};
 pub use crate::query::{
     EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
     step_lands, viewport,

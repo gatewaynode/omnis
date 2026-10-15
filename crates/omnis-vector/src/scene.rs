@@ -2,15 +2,17 @@
 //! level on its ground, and the levels just above and below it, drawn dimmer at their own
 //! heights, so a bridge shows over the road and the cellar through a hole. The rules stay per
 //! level; only the drawing crosses. Each level brings its fills (M8.5 step 3), so the party's
-//! floors and ceilings hide its neighbours except through open air, holes and shafts.
+//! floors and ceilings hide its neighbours except through open air, holes and shafts. Each
+//! level's objects and piles stand on its ground (M8.5 step 2b, `shapes`).
 //! Bevy-free, so it is tested directly.
 
 use crate::fill::{Tri, fills};
 use crate::geometry::{SegKind, Segment, extract};
 use crate::ground::Ground;
+use crate::shapes::shapes;
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Level, MapId};
-use omnis_sim::omnis_data::MapData;
+use omnis_sim::omnis_data::{Data, MapData};
 
 /// How bright a neighbouring level's lines are against the party's own (provisional until the
 /// colour roles, M8.5 step 5).
@@ -30,20 +32,24 @@ pub struct Scene {
 }
 
 impl Scene {
-    /// `level` of `map` and the levels beside it, doors as `world` has them.
+    /// `level` of map `map_id` and the levels beside it, doors and objects as `world` has
+    /// them; empty when no pack holds the map.
     #[must_use]
-    pub fn build(map: &MapData, map_id: MapId, level: Level, world: &SimWorld) -> Scene {
+    pub fn build(data: &Data, map_id: MapId, level: Level, world: &SimWorld) -> Scene {
+        let Some(map) = data.maps.get(&map_id) else {
+            return Scene::default();
+        };
         let ground = Ground::from_map(map, level);
-        let own = lines(map, map_id, level, world, &ground);
-        let mut all = fills(map, map_id, level, world, &ground);
+        let (own, mut all) = level_of(data, map, (map_id, level), world, &ground);
         let mut neighbours = Vec::new();
         for near in [false, true]
             .into_iter()
             .filter_map(|up| map.beyond(level, up))
         {
             let ground = Ground::from_map(map, near);
-            neighbours.extend(lines(map, map_id, near, world, &ground));
-            all.extend(fills(map, map_id, near, world, &ground));
+            let (lines, fills) = level_of(data, map, (map_id, near), world, &ground);
+            neighbours.extend(lines);
+            all.extend(fills);
         }
         Scene {
             ground,
@@ -62,19 +68,28 @@ impl Scene {
     }
 }
 
-/// A level's lines, without its ceiling grid where the level above has ground on the cell: that
-/// floor is drawn instead.
-fn lines(
+/// A level's lines and fills, its objects and piles among them, without its ceiling grid where
+/// the level above has ground on the cell: that floor is drawn instead.
+fn level_of(
+    data: &Data,
     map: &MapData,
-    map_id: MapId,
-    level: Level,
+    (map_id, level): (MapId, Level),
     world: &SimWorld,
     ground: &Ground,
-) -> Vec<Segment> {
-    let above = map.beyond(level, true);
-    let mut out = extract(map, map_id, level, world, ground);
-    out.retain(|s| !(s.kind == SegKind::Ceiling && above.is_some_and(|a| covered(map, a, s))));
-    out
+) -> (Vec<Segment>, Vec<Tri>) {
+    let mut lines = extract(map, map_id, level, world, ground);
+    lines.retain(|s| !hidden_ceiling(map, level, s));
+    let mut tris = fills(map, map_id, level, world, ground);
+    let (objects, piles) = world.objects_on(data, map_id, level);
+    let (shape_lines, shape_fills) = shapes(&objects, &piles, ground);
+    lines.extend(shape_lines);
+    tris.extend(shape_fills);
+    (lines, tris)
+}
+
+/// Whether a ceiling line of `level` lies under ground of the level above.
+fn hidden_ceiling(map: &MapData, level: Level, s: &Segment) -> bool {
+    s.kind == SegKind::Ceiling && map.beyond(level, true).is_some_and(|a| covered(map, a, s))
 }
 
 /// Whether a ceiling line lies under ground of level `above`. A cell's ceiling lines both start

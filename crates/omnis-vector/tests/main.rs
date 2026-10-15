@@ -33,6 +33,7 @@ mod scene;
 mod screens;
 mod service;
 mod settings;
+mod shapes;
 mod sheet;
 mod shell;
 mod socket;

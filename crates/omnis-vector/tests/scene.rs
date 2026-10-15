@@ -20,7 +20,7 @@ const ROOF: Level = Level(2);
 fn scene(data: &Data, level: Level) -> Scene {
     let world = SimWorld::start(data, SEED, Settings::default()).expect("an entry map");
     let id = map(data, "levels:map:tower");
-    Scene::build(&data.maps[&id], id, level, &world)
+    Scene::build(data, id, level, &world)
 }
 
 /// Whether `lines` hold a floor-grid line starting at the north-west corner of `(x, y)` at
@@ -181,7 +181,7 @@ fn a_map_without_levels_draws_its_extract_and_nothing_beside_it() {
     let data = data();
     let world = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
     for (&id, m) in &data.maps {
-        let scene = Scene::build(m, id, Level::GROUND, &world);
+        let scene = Scene::build(&data, id, Level::GROUND, &world);
         let ground = Ground::from_map(m, Level::GROUND);
         assert_eq!(
             scene.own,

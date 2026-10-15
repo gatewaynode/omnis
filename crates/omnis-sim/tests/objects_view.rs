@@ -8,8 +8,10 @@ use omnis_core::{Facing, Level};
 use omnis_data::{Ability, Data, Shape, Skill, Verb};
 use omnis_sim::event::CheckKind;
 use omnis_sim::objects::{ObjectState, Refusal};
-use omnis_sim::objects_view::{CheckView, ItemCount, VerbView, objects_view};
-use omnis_sim::{Command, Rejection, World, apply, query};
+use omnis_sim::objects_view::{
+    CheckView, ItemCount, PileView, SeenObject, VerbView, objects_view, on_level,
+};
+use omnis_sim::{Command, ItemCommand, Rejection, World, apply, query};
 
 fn set_state(world: &mut World, data: &Data, id: &str, state: &str) {
     world.map_state(yard(data)).objects.insert(
@@ -400,4 +402,141 @@ fn the_look_is_the_state_s_own() {
         (lever.state.as_str(), lever.look.depth, lever.look.height),
         ("down", 2, 2)
     );
+}
+
+fn ids(objects: &[SeenObject]) -> Vec<&str> {
+    objects.iter().map(|o| o.object.as_str()).collect()
+}
+
+#[test]
+fn a_level_lists_every_object_and_pile_wherever_the_party_stands() {
+    let data = objects();
+    let here = in_yard(&data, 0, 0, 0, Facing::North);
+    let there = in_yard(&data, 1, 6, 0, Facing::South);
+    for world in [&here, &there] {
+        let (objects, piles) = on_level(world, &data, yard(&data), Level(0));
+        assert_eq!(
+            ids(&objects),
+            [
+                "crate_1",
+                "statue_1",
+                "stone_1",
+                "plaque_1",
+                "gate_1",
+                "fountain_1",
+                "chest_1",
+                "torch_1"
+            ],
+            "file order; the lever and the rune hidden, the loft crate on level 1"
+        );
+        assert_eq!(
+            piles,
+            [PileView {
+                x: 2,
+                y: 2,
+                pos: (1, 1),
+                items: vec![ItemCount {
+                    item: "base:item:arrows".into(),
+                    count: 10
+                }],
+            }]
+        );
+        let (loft, piles) = on_level(world, &data, yard(&data), Level(1));
+        assert_eq!(ids(&loft), ["crate_2"]);
+        assert!(piles.is_empty());
+    }
+    let elsewhere = data.registry.maps.get("test:map:meadow").expect("meadow");
+    assert_eq!(
+        on_level(&here, &data, elsewhere, Level(0)),
+        (vec![], vec![])
+    );
+}
+
+#[test]
+fn finding_taking_and_moving_items_change_what_a_level_lists() {
+    let data = objects();
+    let level = |w: &World| on_level(w, &data, yard(&data), Level(0));
+    let mut world = in_yard(&data, 0, 0, 2, Facing::North);
+    world
+        .map_state(yard(&data))
+        .objects
+        .entry("lever_1".into())
+        .or_default()
+        .noticed = true;
+    assert!(ids(&level(&world).0).contains(&"lever_1"), "found");
+    let take = Command::Act {
+        object: "stone_1".into(),
+        verb: Verb::Take,
+        option: 0,
+    };
+    apply(&mut world, &data, take).expect("taken");
+    assert!(!ids(&level(&world).0).contains(&"stone_1"), "taken away");
+
+    world.position.x = 2;
+    let member = world.party.members[0].id;
+    let item = |command| Command::Item(command);
+    apply(
+        &mut world,
+        &data,
+        item(ItemCommand::PickUp {
+            member,
+            item: "base:item:arrows".into(),
+            count: 10,
+        }),
+    )
+    .expect("picked up");
+    assert!(level(&world).1.is_empty(), "the pile is gone");
+    world.position.y = 3;
+    world.position.facing = Facing::West;
+    apply(
+        &mut world,
+        &data,
+        item(ItemCommand::Drop {
+            member,
+            item: "base:item:arrows".into(),
+            count: 4,
+        }),
+    )
+    .expect("dropped");
+    let piles = level(&world).1;
+    assert_eq!(
+        piles.iter().map(|p| (p.x, p.y, p.pos)).collect::<Vec<_>>(),
+        [(2, 3, (-2, 0))],
+        "two eighths ahead, to the west"
+    );
+}
+
+#[test]
+fn a_shut_gate_blocks_and_an_open_one_does_not() {
+    let data = objects();
+    let mut world = in_yard(&data, 0, 0, 0, Facing::North);
+    let blocks = |w: &World, id: &str| {
+        on_level(w, &data, yard(&data), Level(0))
+            .0
+            .into_iter()
+            .find(|o| o.object == id)
+            .map(|o| o.blocks)
+    };
+    assert_eq!(blocks(&world, "gate_1"), Some(true));
+    assert_eq!(blocks(&world, "crate_1"), Some(true));
+    assert_eq!(blocks(&world, "plaque_1"), Some(false));
+    set_state(&mut world, &data, "gate_1", "open");
+    assert_eq!(blocks(&world, "gate_1"), Some(false));
+}
+
+#[test]
+fn what_the_viewport_shows_is_what_the_level_lists() {
+    let data = objects();
+    let mut compared = 0;
+    for world in worlds(&data) {
+        let Some(viewport) = query::viewport(&world, &data) else {
+            continue;
+        };
+        let (all, _) = on_level(&world, &data, yard(&data), viewport.level);
+        for seen in &viewport.objects {
+            assert_eq!(all.iter().find(|o| o.object == seen.object), Some(seen));
+            compared += 1;
+        }
+    }
+    assert!(compared > 100, "{compared} objects compared");
 }

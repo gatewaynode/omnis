@@ -162,8 +162,8 @@ fn rebuild(
         return;
     }
     session.reshape = false;
-    if let Some(data) = session.data.maps.get(&map) {
-        lines.scene = Scene::build(data, map, level, &session.world);
+    if session.data.maps.contains_key(&map) {
+        lines.scene = Scene::build(&session.data, map, level, &session.world);
         lines.map = Some((map, level));
         for entity in &fills {
             let handle = meshes.add(mesh(&lines.scene.fills));
@@ -226,6 +226,9 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
         // a hole a warning red.
         SegKind::Stair | SegKind::Ladder => (2.4, 2.1, 0.8),
         SegKind::Hole => (2.6, 0.5, 0.4),
+        // Objects and piles (M8.5 step 2b), provisional: objects violet, piles rose.
+        SegKind::Object => (1.9, 0.9, 2.8),
+        SegKind::Pile => (2.8, 1.1, 1.7),
     }
 }
 

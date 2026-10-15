@@ -343,7 +343,7 @@ fn a_stair_or_ladder_up_has_no_ceiling() {
 /// The eye on `level` of the tower at `(x, z)`, a standing height over its ground.
 fn eye(data: &Data, level: Level, x: f32, z: f32) -> ([f32; 3], Scene) {
     let id = map(data, "levels:map:tower");
-    let scene = Scene::build(&data.maps[&id], id, level, &world(data));
+    let scene = Scene::build(data, id, level, &world(data));
     let y = omnis_vector::ground::eye(&scene.ground, omnis_vector::pose::Pose { x, z, yaw: 0.0 });
     ([x, y, z], scene)
 }
@@ -397,7 +397,7 @@ fn a_hill_hides_what_lies_behind_it() {
     let world = world(&data);
     let id = map(&data, "heights:map:hills");
     let m = &data.maps[&id];
-    let scene = Scene::build(m, id, Level::GROUND, &world);
+    let scene = Scene::build(&data, id, Level::GROUND, &world);
     let ground = &scene.ground;
     // From every cell, at standing height, the ground of some other cell is hidden by the
     // hills between them.
@@ -430,7 +430,7 @@ fn on_a_flat_map_no_floor_line_is_buried_under_the_ground() {
     let world = world(&data);
     let id = map(&data, "test:map:town");
     let m = &data.maps[&id];
-    let scene = Scene::build(m, id, Level::GROUND, &world);
+    let scene = Scene::build(&data, id, Level::GROUND, &world);
     let start = m.def.start;
     let eye = [f32::from(start.0) + 0.5, 0.5, f32::from(start.1) + 0.5];
     // The floor lines round the cell the eye stands on: nothing but that floor is near them.
@@ -453,15 +453,14 @@ fn the_scene_holds_its_neighbours_fills_and_a_map_of_one_level_its_own() {
     let data = levels_data();
     let world = world(&data);
     let id = map(&data, "levels:map:tower");
-    let m = &data.maps[&id];
     let own = |level| level_fills(&data, &world, "levels:map:tower", level).len();
-    let scene = Scene::build(m, id, Level::GROUND, &world);
+    let scene = Scene::build(&data, id, Level::GROUND, &world);
     assert_eq!(
         scene.fills.len(),
         own(Level::GROUND) + own(CELLAR) + own(UPPER)
     );
     let town = map(&data, "test:map:town");
-    let scene = Scene::build(&data.maps[&town], town, Level::GROUND, &world);
+    let scene = Scene::build(&data, town, Level::GROUND, &world);
     assert_eq!(
         scene.fills.len(),
         level_fills(&data, &world, "test:map:town", Level::GROUND).len()
@@ -474,7 +473,7 @@ fn the_mesh_holds_every_fill_as_its_own_three_vertices() {
     let data = levels_data();
     let world = world(&data);
     let id = map(&data, "levels:map:tower");
-    let scene = Scene::build(&data.maps[&id], id, Level::GROUND, &world);
+    let scene = Scene::build(&data, id, Level::GROUND, &world);
     let mesh = omnis_vector::shell::render::mesh(&scene.fills);
     let Some(VertexAttributeValues::Float32x3(positions)) =
         mesh.attribute(Mesh::ATTRIBUTE_POSITION)

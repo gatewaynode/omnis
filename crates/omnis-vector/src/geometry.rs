@@ -37,6 +37,10 @@ pub enum SegKind {
     Ladder,
     /// A hole: the cell's opening, hatched inward.
     Hole,
+    /// An object standing in a cell (M8.5 step 2b).
+    Object,
+    /// A pile of items on the ground.
+    Pile,
 }
 
 impl SegKind {

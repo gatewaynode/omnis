@@ -477,6 +477,13 @@ only the simulation's forward cone; the automap still records the cone (§10.2).
 - **Measurement.** The offscreen capture's timing mode (`--timing`, §10.3) runs the loop uncapped and reports the mean and worst frame time from frame 11 to the shot, as a line and as JSON. Run in release before and after each renderer step, on the hills fixture and the town at 1920×1080 and 5120×1440, three runs each; the numbers go in its review, and the floor is set from them (X20, presentation-PRD §12.6).
   - M8.5 step 3 (the owner's Mac, offscreen, release, 300-frame walk): gizmos alone 1.92 to 2.20 ms mean, 2.45 to 4.12 ms worst; fills under the gizmos 1.89 to 2.06 ms mean, 2.29 to 2.97 ms worst. No difference at either size. A capture at 8192×8192 takes about 1.4 ms more than one at 320×200, so the offscreen numbers may understate the GPU's share; the window's frame time (`--frame-stats`) is read in acceptance.
 
+### 8.7 Objects and piles (built in M8.5 step 2b)
+- **What is drawn.** The view draws the whole level, so it reads every object and pile on the party's level and the levels beside it through Tier 1's `objects_on_level` (`SimWorld::objects_on`), not the viewport's forward cone: removed objects never, hidden ones only once found, each in its state's look. The automap and minimap show no objects (presentation-PRD §12.5; owner, 2026-10-14).
+- **`shapes::shapes`** (Bevy-free) turns each look into `SegKind::Object` lines and fills in the segments' world space. Width runs across the facing and depth along it, so the plan is the engine's footprint (`omnis_data::footprint`) at every facing; the shape stands on its home cell's floor (the engine's sight test stands it there) and rises `height` eighths. Box, post and slab are boxes; an arch is two legs and a lintel, its opening crossed and filled while it blocks a step (`SeenObject.blocks`), as a shut door is; a sign is a board on a post; a heap a frustum. A pile is a small heap (`PILE_LOOK`, `SegKind::Pile`). Colours are provisional until the roles (step 5).
+- **`Scene::build(data, map, level, world)`** adds each level's shapes to its lines and fills; the neighbours' are dimmed with the rest of their level.
+- **Redrawn** when `session::reshapes` says so: a door, an object's state, an object removed or found, items laid on or taken from the ground, and `CombatEnded` (loot).
+- **Known:** an object flush against a wall (the yard's chest) shows the outline of its touching face through the wall, since the lines are biased toward the camera (§8.2). The client does not push the pose out of a footprint in its own cell (visual only, later).
+
 ## 9. The fight screen (as built, Phase B and V2; corrected)
 
 A separate 2D screen in the vector style replaces the 3D view during a fight (X7).

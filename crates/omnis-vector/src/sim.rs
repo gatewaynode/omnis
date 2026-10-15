@@ -6,10 +6,10 @@
 
 use omnis_sim::api::{
     CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, Level,
-    MapId, ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
-    ServiceView, Settings, Status, World, apply, automap, cast_view, check_reload, combat_view,
-    creation_view, dispatch, door_open, here, party_view, rest_view, save_text, service_view,
-    status, step_lands, viewport,
+    MapId, ModeKind, NewGameError, Op, OpError, PartyView, PileView, Position, Rejection, Reply,
+    RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap, cast_view,
+    check_reload, combat_view, creation_view, dispatch, door_open, here, objects_on_level,
+    party_view, rest_view, save_text, service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -135,6 +135,18 @@ impl SimWorld {
     #[must_use]
     pub fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
         door_open(&self.0, map, level, x, y, facing)
+    }
+
+    /// Every object and pile on a level of a map as the party would see them drawn
+    /// (`api::objects_on_level`).
+    #[must_use]
+    pub fn objects_on(
+        &self,
+        data: &Data,
+        map: MapId,
+        level: Level,
+    ) -> (Vec<SeenObject>, Vec<PileView>) {
+        objects_on_level(&self.0, data, map, level)
     }
 
     /// Where a step in `direction` would leave the party (`api::step_lands`).

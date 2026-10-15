@@ -5,7 +5,7 @@
 //! (time, the automap, portals, encounters) are the simulation's, never this crate's.
 //!
 //! Bevy-free core: `geom`, `grid`, `ground`, `look`, `pose`, `collide`, `bind`, `geometry`, `minimap`, `party`,
-//! `raster`, `rolllog`, `cinema`, `trial`, `combat_menu`, `arena`, and `sim`, which keeps the
+//! `raster`, `rolllog`, `shapes`, `cinema`, `trial`, `combat_menu`, `arena`, and `sim`, which keeps the
 //! world private and reads it through the engine's views (ARCHITECTURE.md A17).
 //! The Bevy shell lives in `shell` and holds only wiring.
 
@@ -33,6 +33,7 @@ pub mod rolllog;
 pub mod scene;
 pub mod screen;
 pub mod settings;
+pub mod shapes;
 pub mod shell;
 pub mod sim;
 pub mod style;

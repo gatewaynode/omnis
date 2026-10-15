@@ -167,6 +167,11 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   right; P7: `picker`, the pickers' panel; P8: `fit`, `zoom`, the fight's units at the interface scale), `settings.rs` (P8: `Prefs`,
   `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `rolllog.rs` (the roll log,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
+- Objects (M8.5 step 2b): `shapes.rs` (`Body`, `shapes`: a look as lines and fills on its footprint, turned by facing,
+  on the home floor; a shut arch crossed; `PILE_LOOK`); `scene.rs` `Scene::build(data, ..)` adds each level's
+  objects and piles from `SimWorld::objects_on` (`api::objects_on_level`); `SegKind::{Object, Pile}`; the
+  shell redraws on `session::reshapes` (doors, object state, removal, notice, ground moves, `CombatEnded`).
+  Tests `tests/shapes.rs`.
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--settings`, `--screen`; `Packs`, always a resource; `Session`, only
   while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `message` (the explore message line: newest non-move line, refusals in alert), `save_log`), `movement.rs`,
   `controls.rs` (the pad; Camp, Actions and Menu bottom right; P6: `light` lights Camp by `Nav::allowed`; R toggles it in `screen.rs::action_keys`), `screen.rs` (the screen renderer and router:

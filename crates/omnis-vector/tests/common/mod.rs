@@ -42,6 +42,17 @@ pub fn heights_data() -> Data {
     .expect("the fixture loads")
 }
 
+/// The shipped packs and the engine's objects fixture (M8.5 step 2): the yard.
+pub fn objects_data() -> Data {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/objects"),
+    ])
+    .expect("the fixture loads")
+}
+
 /// The shipped packs and the engine's levels fixture (M8.5 step 1b): a tower of four levels
 /// joined by stairs, a ladder and a hole, on `levels:map:tower`.
 pub fn levels_data() -> Data {
