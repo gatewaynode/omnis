@@ -26,6 +26,7 @@ mod levels;
 mod look;
 mod minimap;
 mod notice;
+mod object_lines;
 mod overlay;
 mod piles;
 mod rolllog;

@@ -6,7 +6,7 @@
 //! shows it every event after describing it.
 
 use crate::labels;
-use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::omnis_core::{CharacterId, MapId};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, PartyView, Surprise};
@@ -30,6 +30,8 @@ pub struct Names {
     members: BTreeMap<CharacterId, String>,
     /// The stacks of the current or last encounter.
     stacks: Vec<Stack>,
+    /// The map the party stands on, whose placements object events name.
+    map: Option<MapId>,
 }
 
 impl Names {
@@ -38,6 +40,28 @@ impl Names {
         for m in &party.members {
             self.members.insert(m.member, m.name.clone());
         }
+    }
+
+    /// Take in the map the party stands on.
+    pub fn locate(&mut self, map: MapId) {
+        self.map = Some(map);
+    }
+
+    /// An object of the party's map by its placement id: the placement's own name, else its
+    /// kind's; "Something" for one the map does not hold.
+    #[must_use]
+    pub fn object(&self, data: &Data, object: &str) -> String {
+        self.map
+            .and_then(|map| data.maps.get(&map))
+            .and_then(|map| map.objects.iter().find(|p| p.id == object))
+            .and_then(|p| match p.name {
+                Some(key) => data.registry.text.name(key),
+                None => data.objects.get(&p.kind).map(|k| k.name.as_str()),
+            })
+            .map_or_else(
+                || "Something".to_owned(),
+                |key| labels::text(data, key).to_owned(),
+            )
     }
 
     /// Follow an event already described: meeting monsters numbers them afresh, and a death

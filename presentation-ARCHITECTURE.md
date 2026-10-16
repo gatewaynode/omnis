@@ -509,6 +509,17 @@ accepted commands, refusals and mirror disagreements; frame rate, frame time and
 size; the mouse-look hint while it is on; and up to 8 recent event lines (`Session.lines`, worded by
 `shell/text.rs`). It becomes the status panel of the explore screen (§6.6).
 
+Object lines (M8.5 step 2b): an object's skill or ability check as the roll log words it ("Pip Sleight of
+Hand: 14 against 10, success"); a failed use ("Chest: Open failed", then the kind's failure text); a new
+state ("Torch is now out"); a removal ("Loose stone is gone"); an object's own text; found coin and items
+("Found 1 gp 0 sp 0 cp", "Found Gem; into the stores"); an item used up ("Pip uses up Thieves' tools", or
+"… from the stores is used up"); a search ("Pip searches: Investigation 12"); and a hidden thing noticed
+("Spotted: Rune" by a sharp eye, "Found: Rune" by a search, "Sensed by magic: Rune"). A use that worked says
+nothing of its own; its effects do. Objects are named by `Names::object`: the placement's own name, else its
+kind's, on the map the party stands on (`Names::locate`, set with each batch of events), "Something" for an
+id the map does not hold. Items moved to and from the ground and containers say "drops", "picks up",
+"puts … in" and "takes … out". A chosen command's lines are also its outcome notice (§6.6).
+
 ### 10.2 The minimap (as built) and the automap (to build, X22)
 - **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then the known tiles' cliffs (along the edge) and ramps (a tick across it), read from their map cells (M8.5 step 4), the party's level only, with its stairs, ladders and holes marked like glyphs (chevrons, rungs, a cross; step 1b), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map or level, the command count, the marker's pixel or its heading changes. On a map of several levels the level's name stands left of the picture (`labels::level`), clear of the party panel under it.
 - **To build:** a blueprint-style map in the neon style with height as contour lines (X22), opened full-screen from the tool bar's Map. What it records stays the engine's (the cardinal cone); recording the camera's view needs an engine command (presentation-PRD §12.5).

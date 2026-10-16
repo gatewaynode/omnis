@@ -551,6 +551,7 @@ impl Session {
         self.refresh();
         self.reshape |= events.iter().any(reshapes);
         self.names.observe(&self.views.party);
+        self.names.locate(self.views.position.map);
         for event in events {
             if matches!(event, Event::EncounterStarted { .. }) {
                 self.fight_log.clear();

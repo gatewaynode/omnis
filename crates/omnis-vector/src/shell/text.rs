@@ -8,7 +8,8 @@ use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::EquipSlot;
 use omnis_sim::omnis_rules::Gains;
 use omnis_sim::{
-    BlockReason, CombatOutcome, DevCommand, EffectEnd, EffectTarget, Event, ItemPlace,
+    BlockReason, CheckKind, CombatOutcome, DevCommand, EffectEnd, EffectTarget, Event, ItemPlace,
+    Notice,
 };
 
 /// A HUD line for the events worth showing; the per-step chatter is left out. Members are
@@ -18,6 +19,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
     if let Some(line) = town(event, names, data)
         .or_else(|| kit_and_spells(event, names, data))
         .or_else(|| camp(event, names))
+        .or_else(|| objects(event, names, data))
     {
         return Some(line);
     }
@@ -201,6 +203,60 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => {
             format!("{} lets {} go", who(caster), spell(s))
         }
+        _ => return None,
+    })
+}
+
+/// A line for what the party does with objects and finds in the world (M8.5 step 2b), each
+/// object by its name in the pack. A use that worked says nothing of its own: its effects do.
+fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
+    let object = |id: &str| names.object(data, id);
+    let counted = |item: &str, count: u16| {
+        let name = labels::item(data, item);
+        if count == 1 {
+            name.to_owned()
+        } else {
+            format!("{count} {name}")
+        }
+    };
+    Some(match event {
+        // An object's checks: the only skill and ability checks the engine rolls.
+        Event::Check {
+            kind: CheckKind::Skill(_) | CheckKind::Ability(_),
+            ..
+        } => return crate::rolllog::describe(event, names, data),
+        Event::ObjectUsed {
+            object: id,
+            verb,
+            success: false,
+        } => format!("{}: {} failed", object(id), labels::verb(*verb)),
+        Event::ObjectState { object: id, state } => format!("{} is now {state}", object(id)),
+        Event::ObjectRemoved { object: id } => format!("{} is gone", object(id)),
+        Event::Searched { member, roll } => {
+            format!(
+                "{} searches: Investigation {}",
+                names.member(*member),
+                roll.total
+            )
+        }
+        Event::Noticed { object: id, how } => {
+            let how = match how {
+                Notice::Passive => "Spotted",
+                Notice::Search => "Found",
+                Notice::Spell => "Sensed by magic",
+            };
+            format!("{how}: {}", object(id))
+        }
+        Event::GoldFound { amount } => format!("Found {}", labels::coins(*amount)),
+        Event::ItemFound { item, count } => {
+            format!("Found {}; into the stores", counted(item, *count))
+        }
+        Event::ItemSpent { item, count, from } => match from {
+            ItemPlace::Member(m) => {
+                format!("{} uses up {}", names.member(*m), counted(item, *count))
+            }
+            _ => format!("{} from the stores is used up", counted(item, *count)),
+        },
         _ => return None,
     })
 }

@@ -103,7 +103,7 @@ and applies it.
 
 What a step does (`crates/omnis-sim/src/apply.rs`, `step`, then `move`, then `encounter::trigger`):
 
-1. It refuses on a wall, a closed door, impassable terrain or the map edge, with an `Event::Blocked` reason. A cliff edge (X11) refuses the same way.
+1. It refuses on a wall, a closed door, impassable terrain or the map edge, with an `Event::Blocked` reason. A cliff edge (X11) refuses the same way, and so does an object whose footprint lies across the step's path (M8.5 step 2).
 2. It moves the party and emits `Event::Moved`.
 3. It advances the party clock by the terrain's `step_minutes`.
 4. It records the cell as visited on the automap.
@@ -114,7 +114,9 @@ Every successful command then ends in `look`, which records the cardinal cone to
 emits `Event::Visible`. `Turn` only rotates the position, so free look costs no game time.
 
 Traps and passive perception checks arrive from the mechanics work on this same cell-entry path,
-and the client receives them without change.
+and the client receives them without change. Passive notice of hidden objects is built (M8.5 step 2):
+`look` rolls nothing; it compares the party's best passive Perception with each hidden object in
+sight within `notice_tiles` cells, and the client draws a found object and says "Spotted: …".
 
 ### 4.3 Feasibility issues and the rule for each
 
@@ -127,7 +129,8 @@ and the client receives them without change.
 | An encounter starts mid-motion | Input freezes, the pose settles in the entered cell, and the fight screen replaces the 3D view (X7). |
 | Run or flight retreats the party | The pose snaps to the retreat cell when exploration resumes. |
 | Time | Game time advances per cell crossed, by `step_minutes`, never per frame. |
-| Doors | Opened by `Command::Interact` on the faced edge, from the action menu or its key. |
+| Doors | Opened by `Command::Interact` on the faced edge, from the action menu or its key. With an object in reach as well, Use lists every choice on the verbs screen, the door first. |
+| Objects (M8.5 step 2) | Drawn as shapes in their cells, offset and turned. A blocking footprint across the step's path refuses the step; the mirror asks the engine (`api::object_blocks`), so the footprint geometry is never copied, and the agreement test covers it. The pose is not pushed out of a footprint in its own cell (visual only, later). |
 | Shaped structures (X12) | The drawn shape is decoration. Collision follows the cell edges, so a jagged rock face is walked against as a straight edge. Shapes are kept close enough to the edge that this reads as natural; how close is measured (§10, XR7). |
 
 ### 4.4 Proof of binding
@@ -205,6 +208,9 @@ same way that a monster marker on the map does.
   and collision, but each terrain kind has a shape generator: jagged rock for caves, broken masonry
   for ruins, rounded towers, organic trunks and canopies for forests. Generators are seeded per
   cell, so the world is stable between visits and sessions.
+- **Objects** (built in M8.5 step 2). Packs place objects in cells, offset in eighths and turned by
+  facing, each drawn from its kind's shape primitive (box, post, slab, arch, sign, heap) with a width,
+  depth and height in eighths, as lines over a dark fill; piles of items as small heaps.
 - **Authored set pieces.** Packs can place line-art models on cells or edges: statues, arches,
   machines, landmarks. The format is open (§12).
 - **Doors stay readable.** Whatever the shape, a door carries the interactive role's channels
@@ -322,7 +328,8 @@ The art update (animated figures, the fight screen's scale) fits alongside 3 and
    tool. Decided when the first set piece is built.
 5. **The automap's sensing** (X22): whether it should record what the 3D camera sees, using a
    frustum test, rather than the cardinal cone. That needs a simulation command, so it belongs to
-   the mechanics work.
+   the mechanics work. Objects and piles are not drawn on the automap or the minimap yet (owner,
+   2026-10-14); when they are is decided with the automap.
 6. **Performance floor** (X20): set after measuring occluding fills, relief and detail. Fills measured at M8.5 step 3 (presentation-ARCHITECTURE §8.6): about 2 ms a frame offscreen in release at 1920×1080 and 5120×1440, with or without them. Relief and detail are still to measure.
 7. **The distant level** (X17): where its content comes from (pack data per region or biosphere,
    generated from the region's terrain, or both); whether weather and darkness dim or hide it; and

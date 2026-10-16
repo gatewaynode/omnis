@@ -1033,6 +1033,8 @@ Additive (§13), so `PROTOCOL` stays 2:
   with no objects reads as before.
 - 2026-10-15: `SeenObject.blocks` and Tier 1's `objects_on_level` (M8.5 step 2b, item 1), for a
   client that draws every object on a level, not only those in sight.
+- 2026-10-16: Tier 1 re-exports `Notice` (`Event::Noticed`'s `how`) beside the other event types
+  (M8.5 step 2b, item 5), so a client can word each way of noticing. The wire form is unchanged.
 
 ### Protocol 2 (2026-10-10)
 
