@@ -203,6 +203,7 @@ fn open_start(
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
         Some(StartScreen::Actions) => screens.nav.open(ScreenId::Actions, game),
         Some(StartScreen::Verbs) => screens.nav.open(ScreenId::Verbs, game),
+        Some(StartScreen::Inventory) => screens.nav.show(ScreenId::Inventory, game),
         Some(StartScreen::Title | StartScreen::CreateParty) | None => {}
     }
 }

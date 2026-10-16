@@ -1,5 +1,5 @@
 //! The `omnis` binary (package `omnis-vector`):
-//! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions|verbs]`
+//! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions|verbs|inventory]`
 //! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH] [--timing]]`,
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.

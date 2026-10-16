@@ -96,6 +96,8 @@ pub enum StartScreen {
     Actions,
     /// The verbs of what is in reach, over a game.
     Verbs,
+    /// The first member's kit beside the party column, over a game.
+    Inventory,
 }
 
 impl StartScreen {
@@ -107,6 +109,7 @@ impl StartScreen {
             StartScreen::Pause
                 | StartScreen::Actions
                 | StartScreen::Verbs
+                | StartScreen::Inventory
                 | StartScreen::CreateParty
         )
     }
@@ -172,9 +175,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     "pause" => StartScreen::Pause,
                     "actions" => StartScreen::Actions,
                     "verbs" => StartScreen::Verbs,
+                    "inventory" => StartScreen::Inventory,
                     other => {
                         return Err(format!(
-                            "--screen takes title, new-game, create-party, pause, actions or verbs, got {other}"
+                            "--screen takes title, new-game, create-party, pause, actions, verbs or inventory, got {other}"
                         ));
                     }
                 });

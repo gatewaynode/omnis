@@ -62,7 +62,7 @@ cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed
 cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
 cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
-cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions, verbs
+cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions, verbs, inventory
 ```
 
 The client is described in `presentation-PRD.md` and `presentation-ARCHITECTURE.md`. It starts at a

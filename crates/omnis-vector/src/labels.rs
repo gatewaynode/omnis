@@ -256,6 +256,15 @@ pub fn check(kind: CheckKind, dc: i64) -> String {
     format!("{name} DC {dc}")
 }
 
+/// Any refusal worded short: an object's by [`object_refusal`], the rest by [`reason`].
+#[must_use]
+pub fn refused(data: &Data, party: &PartyView, refusal: &Rejection) -> String {
+    match refusal {
+        Rejection::VerbRefused { reason } => object_refusal(data, reason),
+        other => reason(party, other),
+    }
+}
+
 /// Why an object will not do something now, in a few words for a dim button (M8.5 step 2b):
 /// the item it needs by name. A flag is not named: it is the pack's bookkeeping, and the player
 /// learns what opens the gate by finding it.

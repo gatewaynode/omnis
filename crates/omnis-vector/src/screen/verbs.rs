@@ -35,10 +35,7 @@ fn why_not(data: &Data, game: Game, view: Option<&Rejection>, command: &Command)
     let refusal = view
         .cloned()
         .or_else(|| game.world.trial(data, command).err())?;
-    Some(match &refusal {
-        Rejection::VerbRefused { reason } => labels::object_refusal(data, reason),
-        other => labels::reason(&game.views.party, other),
-    })
+    Some(labels::refused(data, &game.views.party, &refusal))
 }
 
 /// The faced door's button, when the party faces one.

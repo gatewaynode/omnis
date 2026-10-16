@@ -27,6 +27,7 @@ mod look;
 mod minimap;
 mod notice;
 mod overlay;
+mod piles;
 mod rolllog;
 mod roster;
 mod scene;
