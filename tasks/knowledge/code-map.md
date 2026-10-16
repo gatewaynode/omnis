@@ -174,7 +174,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   Tests `tests/shapes.rs`. `collide::blocks` refuses a step through a footprint via `SimWorld::object_blocks`
   (the engine's `api::object_blocks`); `tests/agreement.rs` covers the yard, gate shut and open.
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--settings`, `--screen`; `Packs`, always a resource; `Session`, only
-  while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `message` (the explore message line: newest non-move line, refusals in alert), `save_log`), `movement.rs`,
+  while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `notice` (the outcome notice: the lines an `ordered` command said but a move's, or its refusal in alert, with where it was done; `take_in` under `note`), `save_log`), `movement.rs`,
   `controls.rs` (the pad; Camp, Actions and Menu bottom right; P6: `light` lights Camp by `Nav::allowed`; R toggles it in `screen.rs::action_keys`), `screen.rs` (the screen renderer and router:
   `Screens { nav, forms }`, `Pressable`, `Arrow`, `ctx`, `playing`, the chrome hidden with no game; the root's
   height capped, `PLAYED_ROOM` 64% while played),
@@ -182,7 +182,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   action column or the picker panel and routes `FightPress`, its arrows and number keys through `screen::apply`;
   `FightScreen.controls`; P8: `FightScreen.zoom`), `settings.rs` (P8: `Current`, `Fitted`, `SettingsPlugin`:
   `apply_quality` on the HDR cameras and gizmo groups, `apply_scale` to `UiScale`), `fonts.rs` (P8: `INTER`,
-  `ALEGREYA` at fixed handles, `FontsPlugin`, `wear`), `hud.rs`, `message.rs` (P5: the message line at the bottom centre, only exploring with no screen up), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
+  `ALEGREYA` at fixed handles, `FontsPlugin`, `wear`), `hud.rs`, `notice.rs` (2026-10-16: the outcome notice centred where the screens stand, faded by `crate::notice::alpha` and dropped out of range; it replaced P5's bottom message line), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
   offscreen; the socket's live capture).
 - Screens (parity P2–P6; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
   `Panel`, `Row` (with `after`), `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Number, Text}`,
@@ -201,7 +201,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   runs.
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays. `tests/service.rs` (P4): `inside(data, site)`, the
-  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/message.rs` (P5); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
+  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
 - The engine boundary (parity P0): `sim.rs` holds `SimWorld` with its world private (methods mirror
   `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
   `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`), `rest` (`SimWorld::rest`, P6), `flags` (`SimWorld::flags`, only in a devtools world, P8)), which `Session::note` refreshes after every accepted

@@ -196,3 +196,14 @@
 - **Rule**: A new screen's capture is taken with the HUD's recent lines filled and long. A new way to open a
   screen (a key, a button) is tested with mouse look on. A system the shell gates on `playing` is checked for
   whether it must also run while a screen holds the game.
+
+## 2026-10-16 — A layout constant sized for one set of buttons goes stale when the set grows; outcomes of chosen acts stand front and centre
+- **What happened**: The explore message line reserved room for two right-hand buttons (`message.rs` `RIGHT`);
+  Camp (P6) and Level (step 4b) joined them and nobody re-measured, so long lines ran under four buttons. The
+  owner, hand-testing 2b's verbs, found a plaque's words cut off, and asked that the result of anything started
+  on purpose stand centred where the actions panel stands, be repeated in the log, and fade as the party walks
+  away from where it was done (owner, 2026-10-16: only the result fades; gone by 1.5 cells; the bottom line
+  retired).
+- **Rule**: A node placed beside another group is placed from that group's own measure, or a test checks the two
+  never overlap at the sizes the window allows; when a group gains a button, grep for the constants that sized it.
+  A result the player asked for is shown where they were looking (the screens' centre), not in a band at the edge.

@@ -3,11 +3,12 @@
 use super::text::describe;
 use crate::bind::Binder;
 use crate::grid::cell_of;
+use crate::notice::Notice;
 use crate::party;
 use crate::pose::Pose;
 use crate::rolllog::{self, Names};
-use crate::screen::Span;
 use crate::sim::{SimWorld, Views, game_settings};
+use crate::style::Role;
 use bevy::prelude::Resource;
 use omnis_sim::api::Draft;
 use omnis_sim::omnis_data::{Data, load_packs};
@@ -76,6 +77,9 @@ impl Default for Config {
         }
     }
 }
+
+/// The most lines a notice keeps: a command's newest.
+const NOTICE_LINES: usize = 6;
 
 /// A screen the command line can open at the start.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -293,9 +297,9 @@ pub struct Session {
     pub log_path: PathBuf,
     /// Recent event lines for the HUD, newest last.
     pub lines: Vec<String>,
-    /// The explore message line: the last event worth a line, or the last refusal (alert);
-    /// cleared by a move that said nothing else.
-    pub message: Option<Span>,
+    /// What the last command the player started said, or its refusal, and where it was done:
+    /// shown centred while exploring, fading as the party walks away (`crate::notice`).
+    pub notice: Option<Notice>,
     /// The current or last fight's roll log, newest last.
     pub fight_log: Vec<String>,
     /// Who is in the fight, for the roll log.
@@ -428,7 +432,7 @@ impl Session {
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
-            message: None,
+            notice: None,
             fight_log: Vec::new(),
             names,
             reshape: true,
@@ -470,16 +474,33 @@ impl Session {
     /// # Errors
     /// The refusal's line, also added to the lines, when the command was refused.
     pub fn ordered(&mut self, command: Command) -> Result<Option<String>, String> {
-        let outcome = match self.binder.apply(&mut self.world, &self.data, command) {
-            Ok(events) => Ok(self.note(&events)),
+        let (outcome, said, role) = match self.binder.apply(&mut self.world, &self.data, command) {
+            Ok(events) => {
+                let lines = self.take_in(&events);
+                let newest = lines.last().map(|(_, line)| line.clone());
+                let said = lines
+                    .into_iter()
+                    .filter(|(moved, _)| !moved)
+                    .map(|(_, l)| l);
+                (Ok(newest), said.collect(), Role::Interface)
+            }
             Err(rejection) => {
                 let line = format!("Refused: {rejection}");
                 self.say(line.clone());
-                self.message = Some(Span::alert(line.clone()));
-                Err(line)
+                (Err(line.clone()), vec![line], Role::Alert)
             }
         };
         self.follow();
+        // A command that only moved the party leaves the last notice to fade where it was.
+        if !said.is_empty() && self.views.exploring() {
+            let keep = said.len().saturating_sub(NOTICE_LINES);
+            self.notice = Some(Notice::new(
+                said[keep..].to_vec(),
+                role,
+                self.views.position,
+                self.pose,
+            ));
+        }
         outcome
     }
 
@@ -518,6 +539,11 @@ impl Session {
     /// when monsters are met, the last 40 lines kept), and the reshape flag. Answers the newest
     /// line added.
     pub fn note(&mut self, events: &[Event]) -> Option<String> {
+        self.take_in(events).pop().map(|(_, line)| line)
+    }
+
+    /// [`Session::note`], answering every line added and whether a move said it.
+    fn take_in(&mut self, events: &[Event]) -> Vec<(bool, String)> {
         self.refresh();
         self.reshape |= events.iter().any(reshapes);
         self.names.observe(&self.views.party);
@@ -532,8 +558,7 @@ impl Session {
         }
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
-        // Each line, and whether a move said it: the message line takes the newest line but a
-        // move's, and a move that said nothing else clears it.
+        // Each line, and whether a move said it: a notice leaves out a move's.
         let lines: Vec<(bool, String)> = events
             .iter()
             .filter_map(|e| {
@@ -541,16 +566,10 @@ impl Session {
                     .map(|line| (matches!(e, Event::Moved { .. }), line))
             })
             .collect();
-        if let Some((_, line)) = lines.iter().rev().find(|(moved, _)| !moved) {
-            self.message = Some(Span::body(line.clone()));
-        } else if events.iter().any(|e| matches!(e, Event::Moved { .. })) {
-            self.message = None;
+        for (_, line) in &lines {
+            self.say(line.clone());
         }
-        let newest = lines.last().map(|(_, line)| line.clone());
-        for (_, line) in lines {
-            self.say(line);
-        }
-        newest
+        lines
     }
 
     /// A world from outside the binder (a loaded save) takes this one's place: the views, the
@@ -568,7 +587,7 @@ impl Session {
         self.reshape = true;
         self.unreplayable = Some(why.to_owned());
         // The old world's last event is not this one's.
-        self.message = None;
+        self.notice = None;
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`

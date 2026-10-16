@@ -26,6 +26,7 @@ pub mod ground;
 pub mod labels;
 pub mod look;
 pub mod minimap;
+pub mod notice;
 pub mod party;
 pub mod pose;
 pub mod raster;
