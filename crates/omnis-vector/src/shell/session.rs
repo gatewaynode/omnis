@@ -90,6 +90,8 @@ pub enum StartScreen {
     Pause,
     /// The square's actions, over a game.
     Actions,
+    /// The verbs of what is in reach, over a game.
+    Verbs,
 }
 
 impl StartScreen {
@@ -98,7 +100,10 @@ impl StartScreen {
     pub const fn in_game(self) -> bool {
         matches!(
             self,
-            StartScreen::Pause | StartScreen::Actions | StartScreen::CreateParty
+            StartScreen::Pause
+                | StartScreen::Actions
+                | StartScreen::Verbs
+                | StartScreen::CreateParty
         )
     }
 }
@@ -118,7 +123,7 @@ impl Config {
 /// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>` (and start in the game
 /// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
 /// `--settings <file>` (the player's settings, a relative `.ron` path),
-/// `--screen title|new-game|create-party|pause|actions` (open it at the start), `--windowed`,
+/// `--screen title|new-game|create-party|pause|actions|verbs` (open it at the start), `--windowed`,
 /// `--no-vsync`, `--frame-stats` (log the frame times, vsync off), `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
@@ -162,9 +167,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     "create-party" => StartScreen::CreateParty,
                     "pause" => StartScreen::Pause,
                     "actions" => StartScreen::Actions,
+                    "verbs" => StartScreen::Verbs,
                     other => {
                         return Err(format!(
-                            "--screen takes title, new-game, create-party, pause or actions, got {other}"
+                            "--screen takes title, new-game, create-party, pause, actions or verbs, got {other}"
                         ));
                     }
                 });

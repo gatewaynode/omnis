@@ -543,7 +543,8 @@ fn the_screen_text_lists_the_open_screens_controls_with_their_keys() {
     for line in [
         "\"Here: (3, 5) facing south\"",
         "[button] \"1  Open the door\"",
-        "[button] \"2  Close\"",
+        "[button] \"2  Search here\"",
+        "[button] \"3  Close\"",
     ] {
         assert!(text.contains(line), "{line} in:\n{text}");
     }

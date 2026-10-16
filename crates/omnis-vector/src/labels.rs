@@ -7,13 +7,14 @@
 //! `MessageKey`, which falls back to this client's own wording so a key never reaches the player.
 
 use omnis_sim::api::{MemberView, PartyView};
+use omnis_sim::objects::Refusal;
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
 use omnis_sim::omnis_core::{Calendar, CharacterId, Level};
 use omnis_sim::omnis_data::{
-    Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill,
+    Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill, Verb,
 };
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
-use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
+use omnis_sim::{CheckKind, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
 #[must_use]
@@ -235,6 +236,41 @@ pub const fn pay(cost: Cost) -> &'static str {
         Cost::BonusAction => "bonus action",
         Cost::Reaction => "reaction",
         Cost::Free => "free",
+    }
+}
+
+/// A verb, as a button says it when the kind gives no label: "Examine", "Extinguish".
+#[must_use]
+pub fn verb(v: Verb) -> String {
+    format!("{v:?}")
+}
+
+/// A check an object asks for: "Athletics DC 15", "Strength DC 12".
+#[must_use]
+pub fn check(kind: CheckKind, dc: i64) -> String {
+    let name = match kind {
+        CheckKind::Skill(s) => skill(s),
+        CheckKind::Ability(a) => ability(a),
+        other => spaced(&format!("{other:?}")),
+    };
+    format!("{name} DC {dc}")
+}
+
+/// Why an object will not do something now, in a few words for a dim button (M8.5 step 2b):
+/// the item it needs by name. A flag is not named: it is the pack's bookkeeping, and the player
+/// learns what opens the gate by finding it.
+#[must_use]
+pub fn object_refusal(data: &Data, refusal: &Refusal) -> String {
+    match refusal {
+        Refusal::NotOffered => "not now".to_owned(),
+        Refusal::Spent => "done already".to_owned(),
+        Refusal::Lacks { item: id } => format!("needs {}", item(data, id)),
+        Refusal::Flag { .. } => "something else must be done first".to_owned(),
+        Refusal::School { school } => format!("needs someone who knows {school:?} magic"),
+        Refusal::Rule { .. } => "not allowed now".to_owned(),
+        Refusal::NoneCanAct => "nobody can act".to_owned(),
+        Refusal::Closed => "it is shut".to_owned(),
+        Refusal::Full => "it is full".to_owned(),
     }
 }
 

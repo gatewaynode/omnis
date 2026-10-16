@@ -93,7 +93,7 @@ fn the_actions_menu_climbs_a_ladder_and_offers_no_climb_off_one() {
         .into_iter()
         .map(|o| o.label)
         .collect();
-    assert_eq!(labels, ["Climb up", "Climb down"]);
+    assert_eq!(labels, ["Climb up", "Climb down", "Search here"]);
     let mut forms = Forms::default();
     let up = screen::apply(
         ScreenId::Actions,
@@ -108,7 +108,12 @@ fn the_actions_menu_climbs_a_ladder_and_offers_no_climb_off_one() {
     assert!(session.order(command(up)));
     assert_eq!(session.views.position.level, Level(1));
     put(&mut session, Level::GROUND, 2, 1, Facing::North);
-    assert!(screen::actions::available(&session.world, &session.data).is_empty());
+    // Off the ladder, no climb: only the search.
+    let left: Vec<String> = screen::actions::available(&session.world, &session.data)
+        .into_iter()
+        .map(|o| o.label)
+        .collect();
+    assert_eq!(left, ["Search here"]);
 }
 
 #[test]

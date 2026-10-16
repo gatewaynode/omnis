@@ -6,10 +6,11 @@
 
 use omnis_sim::api::{
     CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, Level,
-    MapId, ModeKind, NewGameError, Op, OpError, PartyView, PileView, Position, Rejection, Reply,
-    RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap, cast_view,
-    check_reload, combat_view, creation_view, dispatch, door_open, here, object_blocks,
-    objects_on_level, party_view, rest_view, save_text, service_view, status, step_lands, viewport,
+    MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
+    Rejection, Reply, RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap,
+    cast_view, check_reload, combat_view, creation_view, dispatch, door_open, here, object_blocks,
+    objects_on_level, objects_view, party_view, rest_view, save_text, service_view, status,
+    step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -151,6 +152,13 @@ impl SimWorld {
         object_blocks(&self.0, data, map, level, cell, heading)
     }
 
+    /// The objects in the party's reach, with what each offers and why not, and the pile on its
+    /// cell (`api::objects_view`).
+    #[must_use]
+    pub fn objects(&self, data: &Data) -> ObjectsView {
+        objects_view(&self.0, data)
+    }
+
     /// Every object and pile on a level of a map as the party would see them drawn
     /// (`api::objects_on_level`).
     #[must_use]
@@ -271,6 +279,9 @@ pub struct Views {
     /// How many tiles the party sees from where it stands, as the engine counts them (the
     /// terrain, a light, height), for the fog.
     pub sight: u8,
+    /// The objects in reach with their interactions, and the pile on the party's cell (M8.5
+    /// step 2b).
+    pub objects: ObjectsView,
 }
 
 impl Views {
@@ -302,6 +313,7 @@ impl Views {
                 Vec::new()
             },
             sight: world.sight(data),
+            objects: world.objects(data),
         }
     }
 

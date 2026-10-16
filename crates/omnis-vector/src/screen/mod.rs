@@ -26,6 +26,7 @@ pub mod sheet;
 pub mod tactics;
 pub mod tactics_draft;
 pub mod title;
+pub mod verbs;
 
 use crate::sim::{SimWorld, Views};
 use crate::style::{Role, Size};
@@ -69,6 +70,8 @@ pub enum ScreenId {
     Settings,
     /// A devtools world's edits, from the pause or backtick.
     Debug,
+    /// What the party can do with what is in reach, from the square's Use (M8.5 step 2b).
+    Verbs,
 }
 
 impl ScreenId {
@@ -187,6 +190,8 @@ pub enum ControlId {
     Debug(debug::DebugAct),
     /// Open the debug panel.
     OpenDebug,
+    /// The verbs screen's nth button: the faced door, then each object's interactions.
+    Verb(u8),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -640,6 +645,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
+        (ScreenId::Verbs, Some(game)) => verbs::content(ctx.data, game),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
         (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
@@ -700,6 +706,7 @@ pub fn apply(
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
+        (ScreenId::Verbs, Some(game)) => verbs::apply(ctx.data, game, control),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
         (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),
@@ -713,6 +720,7 @@ pub fn apply(
         }
         (
             ScreenId::Actions
+            | ScreenId::Verbs
             | ScreenId::CreateParty
             | ScreenId::Service
             | ScreenId::Inventory

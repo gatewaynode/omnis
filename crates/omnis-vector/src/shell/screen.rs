@@ -24,7 +24,7 @@ use super::settings::{Current, Fitted};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
-use crate::screen::actions::default_action;
+use crate::screen::actions::{Does, default_action};
 use crate::screen::nav::{Escape, Nav};
 use crate::screen::{
     self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Screen,
@@ -202,6 +202,7 @@ fn open_start(
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
         Some(StartScreen::Actions) => screens.nav.open(ScreenId::Actions, game),
+        Some(StartScreen::Verbs) => screens.nav.open(ScreenId::Verbs, game),
         Some(StartScreen::Title | StartScreen::CreateParty) | None => {}
     }
 }
@@ -463,10 +464,11 @@ fn action_keys(
     }
     if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
         match default_action(&session.world, &session.data) {
-            Some(command) => {
+            Some(Does::Command(command)) => {
                 session.order(command);
                 nav.settle(Some(&session.views), true);
             }
+            Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
             None => nav.open(ScreenId::Actions, Some(&session.views)),
         }
     } else {

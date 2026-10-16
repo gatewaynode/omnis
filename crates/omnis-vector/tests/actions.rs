@@ -10,7 +10,7 @@ use common::app::{app, key, set};
 use common::map;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_vector::pose::Pose;
-use omnis_vector::screen::actions::available;
+use omnis_vector::screen::actions::{available, default_action};
 use omnis_vector::screen::{self, ControlId, Forms, ScreenId};
 use omnis_vector::shell::controls::Action;
 use omnis_vector::shell::screen::{Pressable, Screens, Showing, ctx};
@@ -93,13 +93,13 @@ fn space_opens_the_squares_actions_and_a_choice_runs_and_closes_it() {
     tap(&mut app, KeyCode::Space);
     assert!(open(&app));
     assert!(app.world().resource::<Showing>().0, "the panel is up");
-    assert_eq!(labels(&app), ["Open the door", "Close"]);
+    assert_eq!(labels(&app), ["Open the door", "Search here", "Close"]);
     tap(&mut app, KeyCode::Digit1);
     assert!(door_open(&app), "the door opened");
     assert!(!open(&app), "choosing closes the menu");
     // Opened again, the same door offers to close.
     tap(&mut app, KeyCode::Space);
-    assert_eq!(labels(&app), ["Close the door", "Close"]);
+    assert_eq!(labels(&app), ["Close the door", "Search here", "Close"]);
     // Space again closes the menu without acting.
     tap(&mut app, KeyCode::Space);
     assert!(!open(&app));
@@ -116,18 +116,20 @@ fn shift_space_runs_the_default_action_when_there_is_one() {
 }
 
 #[test]
-fn shift_space_with_nothing_to_do_opens_the_menu_saying_so() {
+fn shift_space_with_only_a_search_opens_the_menu() {
     let mut app = app();
     app.update();
     {
         let session = app.world().resource::<Session>();
-        assert!(available(&session.world, &session.data).is_empty());
-        let shown = screen::content(ScreenId::Actions, &ctx(session), &Forms::default());
-        assert_eq!(shown.panels[0].rows[0].spans[0].text, "Nothing to do here");
+        // Search is always there, and never the default: it spends ten minutes.
+        let offers = available(&session.world, &session.data);
+        assert_eq!(offers.len(), 1);
+        assert_eq!(offers[0].label, "Search here");
+        assert_eq!(default_action(&session.world, &session.data), None);
     }
     shift_space(&mut app);
     assert!(open(&app));
-    assert_eq!(labels(&app), ["Close"]);
+    assert_eq!(labels(&app), ["Search here", "Close"]);
     // The Close button closes it.
     set(&mut app, &Pressable(ControlId::Close), Interaction::Pressed);
     app.update();
@@ -179,7 +181,7 @@ fn a_right_click_is_the_action_key() {
     let mut app = at_the_door();
     right_click(&mut app);
     assert!(open(&app), "a right click opens the menu");
-    assert_eq!(labels(&app), ["Open the door", "Close"]);
+    assert_eq!(labels(&app), ["Open the door", "Search here", "Close"]);
     right_click(&mut app);
     assert!(!open(&app), "and closes it");
     // With Shift it runs the default action.

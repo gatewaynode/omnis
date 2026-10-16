@@ -136,6 +136,8 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 _ => format!("{what} is moved"),
             }
         }
+        // An object's own words: what a verb did, or why it failed (M8.5 step 2b).
+        Event::ObjectMessage { key, .. } => labels::text(data, key).to_owned(),
         // A look has no receiver; its `Sensed` line is the outcome.
         Event::ItemUsed { receiver: None, .. } => return None,
         Event::ItemUsed {

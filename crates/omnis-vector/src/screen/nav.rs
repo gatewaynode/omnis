@@ -74,7 +74,9 @@ impl Nav {
             (ScreenId::Pause, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
-            (ScreenId::Actions, Some(views)) => base.is_none() && views.exploring(),
+            (ScreenId::Actions | ScreenId::Verbs, Some(views)) => {
+                base.is_none() && views.exploring()
+            }
             // From the party column, exploring or in a fight (to look); not over a service.
             (ScreenId::Inventory | ScreenId::Cast | ScreenId::Sheet, Some(_)) => base.is_none(),
             // Resting is the map's: not in a service (the room is the rest indoors) or a fight.
@@ -168,12 +170,16 @@ impl Nav {
         self.creating = game.is_some_and(|v| v.party.members.is_empty());
     }
 
-    /// Close what the world no longer allows, and the square's actions when the party `moved`.
+    /// Close what the world no longer allows, and the square's actions and verbs when the party
+    /// `moved`.
     pub fn settle(&mut self, game: Option<&Views>, moved: bool) {
         let stack = core::mem::take(&mut self.stack);
         self.stack = stack
             .into_iter()
-            .filter(|&id| self.allowed(id, game) && !(moved && id == ScreenId::Actions))
+            .filter(|&id| {
+                self.allowed(id, game)
+                    && !(moved && matches!(id, ScreenId::Actions | ScreenId::Verbs))
+            })
             .collect();
     }
 

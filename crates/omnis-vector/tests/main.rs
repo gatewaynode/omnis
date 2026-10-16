@@ -38,3 +38,4 @@ mod sheet;
 mod shell;
 mod socket;
 mod tactics;
+mod verbs;

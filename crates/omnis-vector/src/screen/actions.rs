@@ -4,21 +4,32 @@
 //! when the simulation, tried on a copy of the world, would do something with it, so the
 //! mechanics decide what appears; this module only names them. The square's actions are
 //! `Interact` (a door on the faced edge of the party's cell) and `Climb` up or down a ladder
-//! (M8.5 step 1b).
+//! (M8.5 step 1b), and `Search` (step 2b). Where `Interact` would ask which thing to use
+//! (`ChooseVerb`) or refuse the one thing there is, Use opens the verbs screen instead, so the
+//! choice or the reason shows and nothing refused is sent.
 
 use super::{Control, ControlId, Effect, Game, Key, Panel, Row, Screen, ScreenId, Span};
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Vertical};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, MessageKey};
+use omnis_sim::{Command, Event, MessageKey, Rejection};
+
+/// What an action does.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Does {
+    /// Sends a command.
+    Command(Command),
+    /// Opens the verbs screen: the engine would ask which thing to use, or refuse the one there is.
+    Choose,
+}
 
 /// One action the square offers.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Offer {
     /// Its label.
     pub label: String,
-    /// What it sends.
-    pub command: Command,
+    /// What it does.
+    pub does: Does,
 }
 
 /// Whether the faced edge of the party's cell holds a door, as the simulation's `Interact`
@@ -57,8 +68,8 @@ const fn facing_name(facing: Facing) -> &'static str {
     }
 }
 
-/// The actions the simulation would accept here, in menu order: the faced door or site, then
-/// a ladder up and down.
+/// The actions the simulation would accept here, in menu order: the faced door, site or object
+/// (or the verbs, to choose among several), a ladder up and down, then Search.
 #[must_use]
 pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     let mut offers = Vec::new();
@@ -71,25 +82,42 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
         };
         offers.push(Offer {
             label: label.to_owned(),
-            command: interact,
+            does: Does::Command(interact),
+        });
+    } else if matches!(
+        world.trial(data, &interact),
+        Err(Rejection::ChooseVerb { .. } | Rejection::VerbRefused { .. })
+    ) {
+        offers.push(Offer {
+            label: "Use...".to_owned(),
+            does: Does::Choose,
         });
     }
-    for (way, label) in [(Vertical::Up, "Climb up"), (Vertical::Down, "Climb down")] {
-        let climb = Command::Climb(way);
-        if does_something(world, data, &climb) {
+    let search = Command::Search;
+    let mut commands: Vec<(Command, &str)> =
+        [(Vertical::Up, "Climb up"), (Vertical::Down, "Climb down")]
+            .map(|(way, label)| (Command::Climb(way), label))
+            .into();
+    commands.push((search, "Search here"));
+    for (command, label) in commands {
+        if does_something(world, data, &command) {
             offers.push(Offer {
                 label: label.to_owned(),
-                command: climb,
+                does: Does::Command(command),
             });
         }
     }
     offers
 }
 
-/// The command Shift+Space runs, if there is one: the first available action.
+/// What Shift+Space does, if anything: the first available action, never a search (it spends
+/// ten minutes, so it is asked for by name).
 #[must_use]
-pub fn default_action(world: &SimWorld, data: &Data) -> Option<Command> {
-    available(world, data).into_iter().next().map(|o| o.command)
+pub fn default_action(world: &SimWorld, data: &Data) -> Option<Does> {
+    available(world, data)
+        .into_iter()
+        .map(|o| o.does)
+        .find(|d| *d != Does::Command(Command::Search))
 }
 
 /// The screen: the square, its actions, and Close last.
@@ -126,16 +154,20 @@ pub fn content(data: &Data, game: Game) -> Screen {
     }
 }
 
-/// An action sends its command and closes the screen; Close only closes it.
+/// An action sends its command and closes the screen, or opens the verbs over it; Close only
+/// closes it.
 #[must_use]
 pub fn apply(data: &Data, game: Game, control: ControlId) -> Effect {
     match control {
         ControlId::Action(i) => available(game.world, data)
             .into_iter()
             .nth(usize::from(i))
-            .map_or(Effect::None, |o| Effect::Command {
-                command: o.command,
-                close: true,
+            .map_or(Effect::None, |o| match o.does {
+                Does::Command(command) => Effect::Command {
+                    command,
+                    close: true,
+                },
+                Does::Choose => Effect::Open(ScreenId::Verbs),
             }),
         _ => Effect::Back,
     }
