@@ -1,70 +1,57 @@
 # Continuity notes
 
-Written 2026-10-15, after M8.5 step 2a was built and before 2b starts, ahead of a compact. Rewrite this file
-every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-16, after M8.5 step 2b was built (all five items and the outcome notice), ahead of the owner's
+2b walk and 2c. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked files under `assets/` are the owner's
-  (four now: `Resdie_graph_map.jpg`, `Resdie_map_cleaned_up.png`, `extrude-stairs-down.svg.kra`, `window.kra`);
-  never stage them.
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (in progress: 2a built, 2b next)**, 7 (saves by
+  (`Resdie_graph_map.jpg`, `Resdie_map_cleaned_up.png`, `extrude-stairs-down.svg.kra`, `window.kra`); never
+  stage them.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (2a and 2b built; 2c next)**, 7 (saves by
   name, planned), editor (M5), 5, 6.
-- **Step 2 plan:** `tasks/plans/m8.5-objects.md` (owner answers 2026-10-14; design, items, "Decided by me",
-  mutation targets). TODO items under M8.5 step 2.
-- **2a is built** (items 0–16, each its own commit, every gate VERIFY-GREEN): the last are views `19aacfb`, docs and
-  acceptance `35fa6e7`. The owner moved straight to 2b (2026-10-15) without walking
-  `tasks/acceptance/m8.5-2a.md`; it stays open in TODO ("awaiting the owner's walk") and can be walked any time.
-  The owner already watched drop, pick-up and the chest round trip run live in the window through MCP.
-- **Gate:** `tests passed 791 failed 0 ignored 12`, VERIFY-GREEN at `35fa6e7`. Sentrux rules pass, quality 8973.
+- **Step 2 plan:** `tasks/plans/m8.5-objects.md` (design, items, "Decided by me", mutation targets).
+- **2b is built**, one commit per item, the owner hand-testing each as it landed ("Manually tested" for every
+  item): shapes `22b2ce8`, mirror `a2e7677`, verbs `1ab07ea`, the outcome notice `fb2a757` (owner's request,
+  replaced the bottom message line), inventory `e5dcf1e`, lines/docs/acceptance `f1c37d0`.
+- **Open acceptance walks:** `tasks/acceptance/m8.5-2a.md` (never walked; the owner moved on) and
+  `tasks/acceptance/m8.5-2b.md` (written at `f1c37d0`, offered to the owner). Both stay open in TODO.
+- **Gate:** `tests passed 830 failed 0 ignored 12`, VERIFY-GREEN at `f1c37d0`. Sentrux rules pass, quality 8988.
 
-## Next: 2b, the client (`omnis-vector`), so the owner can test by hand
-The owner's aim (2026-10-15): "start putting the things in the game that I can test manually". Each 2b item
-should end with something visible or clickable in the window, and the report should say how to try it.
-Plan items (`tasks/plans/m8.5-objects.md`, "2b — client"):
-1. **Shapes:** new `shapes.rs` (segments and fills from the integer `Look`, turned by facing, set on
-   `ground::height`); `SegKind::Object`, provisional colour; `Scene` draws `ViewportModel.objects` and `.piles`;
-   reshape on object, ground and `CombatEnded` events. Tests: a shape's base equals the engine's footprint
-   (`omnis_data::footprint`); hidden and removed objects not drawn; fills present. Captures to
-   `.omnis/m85/s2b-*`.
-2. **Mirror:** `collide::blocks` checks footprints (`api::object_blocks`); `tests/agreement.rs` on the yard,
-   also after the gate is pushed open.
-3. **Verbs screen:** `ScreenId::Verbs` (`screen/verbs.rs`) from Use in Actions (button first, key as shortcut):
-   one button per `VerbView` from `objects.get`, dimmed with its refusal; a `ChooseVerb` refusal opens it;
-   "Search here" in Actions.
-4. **Inventory:** Drop; an "On the ground" list with Take (PickUp); an open container's contents with Take out
-   and Put in.
-5. **Text, docs, acceptance:** HUD lines for the object events, `Noticed`, `Searched` (names now available
-   through `ObjectView.name` / kind names); presentation-ARCHITECTURE §5.4, §6, §10.1, new §8.7; presentation-PRD
-   §4.2, §4.3, §6.2, §12.5; `tasks/acceptance/m8.5-2b.md`.
-- Before item 1, read presentation-ARCHITECTURE §8 (the 3D view, segments, fills, `Scene`) and the client part
-  of `tasks/knowledge/code-map.md`. Known plan notes for 2b: the mirror ignores an object's state and a shape's
-  base not turned by facing were listed as mutation targets; the client does not push the pose out of a
-  footprint in its own cell (visual only, later).
-- Manual testing setup: `just run --windowed --pack packs/base --pack packs/test --pack
-  crates/omnis-sim/tests/packs/objects`, New game, devtools on; the debug panel (Esc, Debug, "World" page)
-  teleports to `objects:map:yard`.
+## The owner's way of working on 2b (keep for 2c)
+- Each item ends with something visible or clickable in the window, and the report says how to try it
+  (numbered steps: where to stand, what to press, what appears). The owner tests by hand and replies
+  "Manually tested", then asks for the next item.
+- Launch for hand tests: `just run --windowed --pack packs/base --pack packs/test --pack
+  crates/omnis-sim/tests/packs/objects`, New game, devtools on, a party with a rogue and a wizard; teleport
+  with Esc, Debug, the World page, to `objects:map:yard`.
+- Offscreen captures: `scratchpad/yardshot.sh name x y facing walk [--screen title|new-game|create-party|pause|
+  actions|verbs|inventory]` (copies the fixture pack with the yard as entry). A capture cannot run a command
+  first, so an opened chest or a notice needs the owner's eye.
 
-## Engine facts 2b builds on (2a)
-- **Views:** `objects.get` → `Reply::Objects { objects: [ObjectView], ground: [ItemCount] }`; `ObjectView
-  { object, object_kind, name, state, capacity, contents, verbs: [VerbView { verb, option, label, checks:
-  [CheckView { kind, dc }], minutes, refusal }] }`. `ViewportModel.objects: [SeenObject { object, object_kind,
-  x, y, pos, facing, state, look }]` and `.piles: [PileView { x, y, pos, items }]`, both skip-if-empty. Tier 1:
-  `omnis_sim::objects_view`, `query::viewport`.
-- **Refusals** come from `objects::admit`, shared by `Act` and the view (agreement proven across the yard).
-- **Commands:** `Act { object, verb, option }`, `Door`, `Search`, `Interact` (→ `ChooseVerb { choices }` when
-  several), `ItemCommand::{Drop, PickUp, TakeOut, PutIn}` (exploring only, no time; pick-up own cell; a new pile
-  lies 2 eighths ahead).
-- **Events:** `ObjectUsed`, `ObjectState`, `ObjectRemoved`, `ObjectMessage`, `GoldFound`, `ItemFound`,
-  `ItemSpent`, `Noticed { object, how }`, `Searched { member, roll }`, `ItemMoved` with `ItemPlace::{Ground,
-  Object}`, `Death.loot`, `CombatEnded.loot`. The client already has HUD lines for the four item moves and the
-  loot lines; object events and Noticed/Searched have none yet.
-- **Yard fixture** (`objects:map:yard`, 7×5, hedge along the south of row 2 with a gap at x 3, loft on level 1
-  over (5, 0)–(6, 0), ladder at (6, 1)): crate (1, 1); statue (3, 0), named "The knight"; hidden lever (0, 0),
-  DC 12; stone (0, 2); plaque on the edge of (4, 1)/(4, 2); gate across (3, 2)/(3, 3), opened by the lever's
-  flag; fountain (1, 3); chest (5, 3) with a dagger; hidden rune (2, 4) with an Abjuration aura, DC 25; torch
-  (6, 4) behind a door on its north edge; loft crate (5, 0) level 1; arrows pile (2, 2).
-- **Finding to remember:** sight passes through the corner of a gap in a wall (from (2, 1) facing South the party
-  sees (2, 3), (4, 3), (5, 3), (5, 4) behind the hedge). Recorded in `horizons.md`; not changed.
+## Next: 2c, visible beings (plan "2c — visible beings")
+1. **Data:** `FixedEncounter.stand: Option<{pos, facing}>`; `Monster.look`, defaulting by size; `Shape::Figure`;
+   checks and bad-pack rows.
+2. **Engine:** without `stand`, encounters behave as today; `ViewportModel.beings`; entering the cell starts
+   it as today; Use on a being in the faced cell starts it with the retreat at the party's own cell; a cleared
+   `once` group is no longer shown.
+3. **Client:** figures drawn; reshape on encounter and combat events; captures.
+4. **Docs and acceptance** (`tasks/acceptance/m8.5-2c.md`).
+Plan 2c in plan mode first if the owner asks; the plan's 2c section is short, so expect owner questions
+(what a figure looks like, Use on a being vs Interact routing with `ChooseVerb`, whether the fixture gets a
+standing pack rat).
+
+## Client facts from 2b
+- **Screens:** `ScreenId::Verbs` (`screen/verbs.rs`), over Actions; Actions offer "Use..." (`Does::Choose`)
+  when a trial of `Interact` answers `ChooseVerb` or `VerbRefused`, and "Search here". The inventory has
+  `ItemAct::{Drop, PickUp, TakeOut(k), PutIn(k)}`, `k` an open container's place in `Views.objects.objects`;
+  the pile and open containers stand under the stores. `labels::refused` words any refusal short.
+- **Notice:** `crate::notice` (Bevy-free fade: whole within 0.5 cells, gone at 1.5) and `shell/notice.rs`;
+  `Session.notice`, set in `Session::ordered` from a chosen command's non-move lines (at most 6) or its
+  refusal (alert role); shown only while exploring with no screen up.
+- **Lines:** `text::objects` (checks, failed use, states, removals, finds, spent items, searches, notices);
+  `Names::object` names a placement on the map `Names::locate` sets in `Session::take_in`.
+- **Views:** `Views.objects` (`SimWorld::objects`, `api::objects_view`); `SimWorld::objects_on` for drawing;
+  `SimWorld::object_blocks` for the mirror.
 
 ## Step 7, planned (saves by name)
 `tasks/plans/m8.5-saves-by-name.md` (`31576c3`, owner answers `4d80c52`): after step 2 (2b, 2c), before the
