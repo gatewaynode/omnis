@@ -1,6 +1,6 @@
 //! The session resource and the command line (presentation-ARCHITECTURE.md §6, §12).
 
-use super::text::describe;
+use super::text::{describe, searched};
 use crate::bind::Binder;
 use crate::grid::cell_of;
 use crate::notice::Notice;
@@ -564,13 +564,18 @@ impl Session {
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
         // Each line, and whether a move said it: a notice leaves out a move's.
-        let lines: Vec<(bool, String)> = events
+        let mut lines: Vec<(bool, String)> = events
             .iter()
             .filter_map(|e| {
                 describe(e, &self.names, &self.data)
                     .map(|line| (matches!(e, Event::Moved { .. }), line))
             })
             .collect();
+        lines.extend(
+            searched(events, &self.views, &self.data)
+                .into_iter()
+                .map(|line| (false, line)),
+        );
         for (_, line) in &lines {
             self.say(line.clone());
         }

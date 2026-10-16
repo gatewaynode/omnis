@@ -207,3 +207,11 @@
 - **Rule**: A node placed beside another group is placed from that group's own measure, or a test checks the two
   never overlap at the sizes the window allows; when a group gains a button, grep for the constants that sized it.
   A result the player asked for is shown where they were looking (the screens' centre), not in a band at the edge.
+
+## 2026-10-16 — A command the player starts always answers, even when it changed nothing
+- **What happened**: 2b's Search said only "{name} searches: Investigation n". The engine's `Searched` event
+  reports the roll, and a find follows as `Noticed`; with nothing hidden there, nothing else followed. The owner,
+  hand-testing, searched a cell with a pile of arrows and saw no word of what was there.
+- **Rule**: For each command the player can start, list what its outcome lines say in the empty case ("nothing
+  hidden here") and what the player would expect it to mention (what lies in the cell), and test both. A line
+  that reports only the dice is not an outcome.

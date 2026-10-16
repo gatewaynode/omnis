@@ -257,3 +257,83 @@ fn in_the_window_a_search_s_line_stands_in_the_log_and_the_notice() {
         s.lines
     );
 }
+
+/// A session on the yard at `(x, y)` facing `facing`.
+fn yard_session(x: u16, y: u16, facing: Facing) -> bevy::prelude::App {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut packs = common::app::config().packs;
+    packs.push(root.join("crates/omnis-sim/tests/packs/objects"));
+    let mut app = common::app::shell(
+        Config {
+            packs,
+            ..common::app::config()
+        },
+        true,
+    );
+    app.update();
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let session = &mut *session;
+        let map = common::map(&session.data, "objects:map:yard");
+        session.pose = place(&mut session.world, map, x, y, facing);
+        session.refresh();
+    }
+    app.update();
+    app
+}
+
+/// Search, and answer the notice's lines.
+fn search(app: &mut bevy::prelude::App) -> Vec<String> {
+    let mut session = app.world_mut().resource_mut::<Session>();
+    session.ordered(Command::Search).expect("searched");
+    session.notice.as_ref().expect("a notice").lines.clone()
+}
+
+#[test]
+fn a_search_says_what_lies_here_and_that_nothing_hidden_turned_up() {
+    // On the arrow pile, far enough from the lever and the rune.
+    let mut app = yard_session(2, 2, Facing::North);
+    let arrows = {
+        let s = app.world().resource::<Session>();
+        labels::item(&s.data, "base:item:arrows").to_owned()
+    };
+    let said = search(&mut app);
+    assert!(said[0].contains(" searches: Investigation "), "{said:?}");
+    assert_eq!(
+        said[1..],
+        [
+            format!("On the ground: {arrows} x10"),
+            "Nothing hidden here".to_owned(),
+        ]
+    );
+    let s = app.world().resource::<Session>();
+    assert!(
+        s.lines.iter().any(|l| l == "Nothing hidden here"),
+        "in the log too"
+    );
+    // Where nothing lies, only that nothing hidden turned up.
+    let mut app = yard_session(5, 1, Facing::North);
+    let said = search(&mut app);
+    assert_eq!(said[1..], ["Nothing hidden here".to_owned()]);
+}
+
+#[test]
+fn a_search_that_finds_something_does_not_say_nothing_is_hidden() {
+    // By the hidden lever (DC 12): search until it is found, by the search or a sharp eye.
+    let mut app = yard_session(0, 1, Facing::North);
+    for _ in 0..50 {
+        let said = search(&mut app);
+        let found = said
+            .iter()
+            .any(|l| l == "Found: Lever" || l == "Spotted: Lever");
+        assert_eq!(
+            said.iter().any(|l| l == "Nothing hidden here"),
+            !found,
+            "{said:?}"
+        );
+        if found {
+            return;
+        }
+    }
+    panic!("the lever was never found");
+}

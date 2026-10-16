@@ -3,6 +3,7 @@
 
 use crate::labels;
 use crate::rolllog::Names;
+use crate::sim::Views;
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::EquipSlot;
@@ -205,6 +206,29 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
         }
         _ => return None,
     })
+}
+
+/// What a search turned up, after its own lines (owner, 2026-10-16): the pile on the party's
+/// cell, and "Nothing hidden here" when nothing hidden was noticed. Empty for events with no
+/// search; `views` are read after the events.
+#[must_use]
+pub fn searched(events: &[Event], views: &Views, data: &Data) -> Vec<String> {
+    if !events.iter().any(|e| matches!(e, Event::Searched { .. })) {
+        return Vec::new();
+    }
+    let mut lines = Vec::new();
+    let ground = &views.objects.ground;
+    if !ground.is_empty() {
+        let items: Vec<String> = ground
+            .iter()
+            .map(|i| labels::count_label(labels::item(data, &i.item), i.count))
+            .collect();
+        lines.push(format!("On the ground: {}", items.join(", ")));
+    }
+    if !events.iter().any(|e| matches!(e, Event::Noticed { .. })) {
+        lines.push("Nothing hidden here".to_owned());
+    }
+    lines
 }
 
 /// A line for what the party does with objects and finds in the world (M8.5 step 2b), each
