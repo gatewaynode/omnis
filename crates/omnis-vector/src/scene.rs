@@ -9,7 +9,7 @@
 use crate::fill::{Tri, fills};
 use crate::geometry::{SegKind, Segment, extract};
 use crate::ground::Ground;
-use crate::shapes::shapes;
+use crate::shapes::{figures, shapes};
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Level, MapId};
 use omnis_sim::omnis_data::{Data, MapData};
@@ -84,6 +84,9 @@ fn level_of(
     let (shape_lines, shape_fills) = shapes(&objects, &piles, ground);
     lines.extend(shape_lines);
     tris.extend(shape_fills);
+    let (figure_lines, figure_fills) = figures(&world.beings_on(data, map_id, level), ground);
+    lines.extend(figure_lines);
+    tris.extend(figure_fills);
     (lines, tris)
 }
 

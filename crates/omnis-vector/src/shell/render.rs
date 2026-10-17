@@ -229,6 +229,8 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
         // Objects and piles (M8.5 step 2b), provisional: objects violet, piles rose.
         SegKind::Object => (1.9, 0.9, 2.8),
         SegKind::Pile => (2.8, 1.1, 1.7),
+        // Beings (M8.5 step 2c), provisional: an alarm orange, apart from objects and holes.
+        SegKind::Being => (3.0, 0.9, 0.15),
     }
 }
 

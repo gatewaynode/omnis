@@ -209,7 +209,8 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
 }
 
 /// What a search turned up, after its own lines (owner, 2026-10-16): what is within reach (the
-/// faced door, `door` open or not, then each object by name and state), the pile on the party's
+/// faced door, `door` open or not, each standing group by its front monster's name and count,
+/// then each object by name and state), the pile on the party's
 /// cell, and "Nothing hidden here" when nothing hidden was noticed and no lore was told. Empty for
 /// events with no search; `views` are read after the events.
 #[must_use]
@@ -219,8 +220,14 @@ pub fn searched(events: &[Event], views: &Views, data: &Data, door: Option<bool>
     }
     let mut lines = Vec::new();
     let door = door.map(|open| format!("Door ({})", if open { "open" } else { "shut" }));
+    let beings = views
+        .objects
+        .beings
+        .iter()
+        .map(|b| labels::count_label(labels::monster(data, &b.monster), b.count));
     let reach: Vec<String> = door
         .into_iter()
+        .chain(beings)
         .chain(views.objects.objects.iter().map(|o| {
             let name = labels::text(data, &o.name);
             if o.state.is_empty() {

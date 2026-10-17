@@ -11,7 +11,7 @@
 use crate::fill::Tri;
 use crate::geometry::{SegKind, Segment};
 use crate::ground::Ground;
-use omnis_sim::api::{PileView, SeenObject};
+use omnis_sim::api::{BeingView, PileView, SeenObject};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::{Look, Shape};
 
@@ -124,6 +124,22 @@ pub fn shapes(
         let body = Body::of(p.x, p.y, p.pos, Facing::North, &PILE_LOOK, ground);
         out.kind = SegKind::Pile;
         out.look(&body, PILE_LOOK.shape, false);
+    }
+    (out.lines, out.fills)
+}
+
+/// The lines and fills of every standing group given, each its front monster's figure, on
+/// `ground` (M8.5 step 2c).
+#[must_use]
+pub fn figures(beings: &[BeingView], ground: &Ground) -> (Vec<Segment>, Vec<Tri>) {
+    let mut out = Out {
+        kind: SegKind::Being,
+        lines: Vec::new(),
+        fills: Vec::new(),
+    };
+    for b in beings {
+        let body = Body::of(b.x, b.y, b.pos, b.facing, &b.look, ground);
+        out.look(&body, b.look.shape, false);
     }
     (out.lines, out.fills)
 }

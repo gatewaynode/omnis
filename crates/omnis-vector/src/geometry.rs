@@ -41,6 +41,8 @@ pub enum SegKind {
     Object,
     /// A pile of items on the ground.
     Pile,
+    /// A group standing in view, as its front monster's figure (M8.5 step 2c).
+    Being,
 }
 
 impl SegKind {

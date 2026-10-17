@@ -115,9 +115,9 @@ pub fn on_level(world: &World, data: &Data, map: MapId, level: Level) -> Vec<Bei
         .collect()
 }
 
-/// The ids of the groups standing in reach: in the party's cell or the one it faces across an
-/// open edge, on its level, in file order.
-pub(crate) fn in_reach(world: &World, data: &Data) -> Vec<String> {
+/// The groups standing in reach: in the party's cell or the one it faces across an open edge,
+/// on its level, in file order.
+pub(crate) fn reached(world: &World, data: &Data) -> Vec<BeingView> {
     let pos = world.position;
     let Some(map) = data.maps.get(&pos.map) else {
         return Vec::new();
@@ -125,8 +125,13 @@ pub(crate) fn in_reach(world: &World, data: &Data) -> Vec<String> {
     let cells = reach(world, map, pos);
     standing(world, data, pos.map)
         .filter(|(_, e, _)| e.level == pos.level && cells.contains(&(e.x, e.y)))
-        .map(|(_, _, stand)| stand.id.clone())
+        .filter_map(|(_, e, stand)| view(data, e, stand))
         .collect()
+}
+
+/// The ids of the groups standing in reach.
+pub(crate) fn in_reach(world: &World, data: &Data) -> Vec<String> {
+    reached(world, data).into_iter().map(|b| b.being).collect()
 }
 
 /// Meet the group `being` in reach: as stepping into its cell does, but the party stays where

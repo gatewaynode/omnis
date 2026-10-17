@@ -6,7 +6,7 @@ use crate::common::{party_of, settle};
 use crate::objects::{objects, yard};
 use omnis_core::{Facing, Level, Position};
 use omnis_data::{Data, Look, Shape};
-use omnis_sim::api::{BeingView, beings_on_level};
+use omnis_sim::api::{BeingView, Op, Reply, beings_on_level, dispatch, objects_view};
 use omnis_sim::encounter::EncounterSource;
 use omnis_sim::objects::Choice;
 use omnis_sim::world::Mode;
@@ -255,5 +255,22 @@ fn stepping_into_their_cell_meets_them_as_an_unseen_group_is_met() {
         (state.retreat.x, state.retreat.y),
         (4, 1),
         "the cell it came from"
+    );
+}
+
+#[test]
+fn objects_get_names_the_groups_standing_in_reach() {
+    let data = objects();
+    let world = four_at(&data, 4, 1, Facing::East);
+    assert_eq!(objects_view(&world, &data).beings, [rats()]);
+    let mut asked = world.clone();
+    let Ok(Reply::Objects { beings, .. }) = dispatch(&mut asked, &data, &Op::ObjectsGet) else {
+        panic!("objects");
+    };
+    assert_eq!(beings, [rats()], "over the op protocol too");
+    let world = four_at(&data, 3, 1, Facing::East);
+    assert!(
+        objects_view(&world, &data).beings.is_empty(),
+        "two cells off"
     );
 }

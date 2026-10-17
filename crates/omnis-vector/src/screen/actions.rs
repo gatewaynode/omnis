@@ -9,6 +9,7 @@
 //! choice or the reason shows and nothing refused is sent.
 
 use super::{Control, ControlId, Effect, Game, Key, Panel, Row, Screen, ScreenId, Span};
+use crate::labels;
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Vertical};
 use omnis_sim::omnis_data::Data;
@@ -59,6 +60,16 @@ fn does_something(world: &SimWorld, data: &Data, command: &Command) -> bool {
     })
 }
 
+/// "Approach: Pack rat x2" for a Use that does something with a group standing in reach (M8.5
+/// step 2c): with anything else in reach Use would ask which, so the group is the one thing. By
+/// its front monster's name and how many stand there.
+fn approached(world: &SimWorld, data: &Data) -> Option<String> {
+    let objects = world.objects(data);
+    let being = objects.beings.first()?;
+    let name = labels::count_label(labels::monster(data, &being.monster), being.count);
+    Some(format!("Approach: {name}"))
+}
+
 const fn facing_name(facing: Facing) -> &'static str {
     match facing {
         Facing::North => "north",
@@ -76,12 +87,12 @@ pub fn available(world: &SimWorld, data: &Data) -> Vec<Offer> {
     let interact = Command::Interact;
     if does_something(world, data, &interact) {
         let label = match faced_door(world, data) {
-            Some(false) => "Open the door",
-            Some(true) => "Close the door",
-            None => "Use",
+            Some(false) => "Open the door".to_owned(),
+            Some(true) => "Close the door".to_owned(),
+            None => approached(world, data).unwrap_or_else(|| "Use".to_owned()),
         };
         offers.push(Offer {
-            label: label.to_owned(),
+            label,
             does: Does::Command(interact),
         });
     } else if matches!(

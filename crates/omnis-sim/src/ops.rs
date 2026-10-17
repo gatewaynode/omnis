@@ -7,6 +7,7 @@
 
 use crate::LOG_CAPACITY;
 use crate::apply::apply;
+use crate::beings::BeingView;
 use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::creation_view::{CreationView, creation_view};
@@ -391,6 +392,9 @@ pub enum Reply {
         objects: Vec<ObjectView>,
         /// The pile on the party's cell.
         ground: Vec<ItemCount>,
+        /// The groups standing in reach (M8.5 step 2c); left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        beings: Vec<BeingView>,
     },
     /// `creation.get`.
     Creation {
@@ -569,8 +573,16 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
             casts: cast_view(world, data),
         }),
         Op::ObjectsGet => {
-            let ObjectsView { objects, ground } = objects_view(world, data);
-            Ok(Reply::Objects { objects, ground })
+            let ObjectsView {
+                objects,
+                ground,
+                beings,
+            } = objects_view(world, data);
+            Ok(Reply::Objects {
+                objects,
+                ground,
+                beings,
+            })
         }
         Op::CreationGet => Ok(Reply::Creation {
             creation: creation_view(data),

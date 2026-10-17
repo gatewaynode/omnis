@@ -269,6 +269,7 @@ pub fn check(kind: CheckKind, dc: i64) -> String {
 pub fn refused(data: &Data, party: &PartyView, refusal: &Rejection) -> String {
     match refusal {
         Rejection::VerbRefused { reason } => object_refusal(data, reason),
+        Rejection::NoSuchBeing { .. } => "no one there to approach".to_owned(),
         other => reason(party, other),
     }
 }

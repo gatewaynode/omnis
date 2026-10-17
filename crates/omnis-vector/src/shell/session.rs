@@ -15,7 +15,7 @@ use bevy::prelude::Resource;
 use omnis_sim::api::Draft;
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
-use omnis_sim::{Command, Event, ItemPlace, PartyCommand, Settings, World};
+use omnis_sim::{CheckKind, Command, Event, ItemPlace, PartyCommand, Settings, World};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -646,7 +646,8 @@ impl Session {
 }
 
 /// Whether an event changes what the view draws of the map: a door, an object's state, an
-/// object taken away or found, items laid on or taken from the ground, or loot left by a fight.
+/// object taken away or found, items laid on or taken from the ground, loot left by a fight, or
+/// a standing group met, bought off, hidden from or run from (M8.5 step 2c).
 #[must_use]
 pub fn reshapes(event: &Event) -> bool {
     match event {
@@ -654,6 +655,12 @@ pub fn reshapes(event: &Event) -> bool {
         | Event::ObjectState { .. }
         | Event::ObjectRemoved { .. }
         | Event::Noticed { .. }
+        | Event::EncounterStarted { .. }
+        | Event::Bribed { .. }
+        | Event::Check {
+            kind: CheckKind::Hide | CheckKind::Run,
+            ..
+        }
         | Event::CombatEnded { .. } => true,
         Event::ItemMoved { from, to, .. } => {
             [from, to].iter().any(|p| matches!(p, ItemPlace::Ground))

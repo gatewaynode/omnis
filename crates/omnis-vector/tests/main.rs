@@ -5,6 +5,7 @@
 mod actions;
 mod agreement;
 mod arena;
+mod beings;
 mod binding;
 mod camp;
 mod cast;

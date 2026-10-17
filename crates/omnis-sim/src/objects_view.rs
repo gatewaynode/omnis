@@ -6,6 +6,7 @@
 //! and piles on the visible tiles, to be drawn.
 
 use crate::INTERACT_MINUTES;
+use crate::beings::{self, BeingView};
 use crate::combat::Roller;
 use crate::command::Rejection;
 use crate::event::CheckKind;
@@ -85,6 +86,9 @@ pub struct ObjectsView {
     pub objects: Vec<ObjectView>,
     /// The pile on the party's cell, what `PickUp` takes from.
     pub ground: Vec<ItemCount>,
+    /// The groups standing in reach, which `Approach` meets (M8.5 step 2c).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub beings: Vec<BeingView>,
 }
 
 /// An object in sight, as the viewport carries it to be drawn.
@@ -134,7 +138,11 @@ pub fn objects_view(world: &World, data: &Data) -> ObjectsView {
     let ground = pile_at(world, data, pos.map, (pos.level, pos.x, pos.y))
         .map(|pile| counted(data, &pile.items))
         .unwrap_or_default();
-    ObjectsView { objects, ground }
+    ObjectsView {
+        objects,
+        ground,
+        beings: beings::reached(world, data),
+    }
 }
 
 fn object(world: &World, data: &Data, p: &ResolvedPlacement, kind: &ObjectKind) -> ObjectView {

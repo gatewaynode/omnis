@@ -5,12 +5,12 @@
 //! Bevy-free.
 
 use omnis_sim::api::{
-    CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, Level,
-    MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
+    BeingView, CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known,
+    Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
     Rejection, Reply, RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap,
-    cast_view, check_reload, combat_view, creation_view, dispatch, door_open, here, object_blocks,
-    objects_on_level, objects_view, party_view, rest_view, save_text, service_view, status,
-    step_lands, viewport,
+    beings_on_level, cast_view, check_reload, combat_view, creation_view, dispatch, door_open,
+    here, object_blocks, objects_on_level, objects_view, party_view, rest_view, save_text,
+    service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -180,6 +180,13 @@ impl SimWorld {
         level: Level,
     ) -> (Vec<SeenObject>, Vec<PileView>) {
         objects_on_level(&self.0, data, map, level)
+    }
+
+    /// Every group standing on a level of a map, as the party would see it drawn
+    /// (`api::beings_on_level`, M8.5 step 2c).
+    #[must_use]
+    pub fn beings_on(&self, data: &Data, map: MapId, level: Level) -> Vec<BeingView> {
+        beings_on_level(&self.0, data, map, level)
     }
 
     /// Where a step in `direction` would leave the party (`api::step_lands`).

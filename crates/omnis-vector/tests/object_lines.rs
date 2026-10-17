@@ -314,8 +314,9 @@ fn a_search_tells_the_lore_and_what_lies_here_and_nothing_hidden_only_when_nothi
             .any(|l| l == "Old bootprints in the mud lead toward the gap."),
         "in the log too"
     );
-    // Where nothing lies and nothing is told, only that nothing hidden turned up.
-    let mut app = yard_session(5, 1, Facing::North);
+    // Where nothing lies and nothing is told, only that nothing hidden turned up (the corner
+    // under the loft: the rats stand at (5, 1) since M8.5 step 2c).
+    let mut app = yard_session(6, 0, Facing::North);
     let said = search(&mut app);
     assert_eq!(said[1..], ["Nothing hidden here".to_owned()]);
     let s = app.world().resource::<Session>();

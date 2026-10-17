@@ -247,7 +247,7 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
-| `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`) | `objects.get` |
+| `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`), `beings` (`[BeingView]`, left out when none) | `objects.get` |
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | nothing | `pack.reload` |
@@ -274,7 +274,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
-| `objects_view` | `ObjectsView` (`objects`, `ground`) | `objects.get` |
+| `objects_view` | `ObjectsView` (`objects`, `ground`, `beings`) | `objects.get` |
 | `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
@@ -509,7 +509,9 @@ spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set`
 What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
 them (its own cell, then the one it faces across an open edge; an object spanning both once; a
 hidden one only once found; a removed one never), and `ground`, the pile on the party's cell
-(`[ItemCount]`, what `PickUp` takes from; empty when there is none).
+(`[ItemCount]`, what `PickUp` takes from; empty when there is none), and `beings` (`[BeingView]`,
+§7.10: the groups standing in the party's cell or the one it faces, on its level, which `Approach`
+meets; left out when none, M8.5 step 2c).
 
 `ObjectView`: `object` (the placement's id, `Act`'s `object`), `object_kind` (the kind's id),
 `name` (text key: the placement's own, else the kind's), `state` (empty when the kind has none),
@@ -1050,7 +1052,8 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: `Event::Lore { key, object }` (72 events), told by `Search` after its finds; the
   save's `MapState.lore_told` and `ObjectState.told`, left out when empty (M8.5 step 2b, lore).
 - 2026-10-17: groups that stand in view (M8.5 step 2c): `ViewportModel.beings` (`[BeingView]`,
-  left out when empty) and Tier 1's `beings_on_level`; `Command::Approach { being }` (16
+  left out when empty), `ObjectsView.beings` and `Reply::Objects.beings` (those in reach, left out
+  when empty) and Tier 1's `beings_on_level`; `Command::Approach { being }` (16
   commands), the word `approach-B`; `Choice::Being`; `Rejection::NoSuchBeing` (71 rejections);
   `Shape::Figure`. A fixed encounter stands only when its map gives it a `stand`, and no shipped map
   does, so shipped play, saves and the replays are unchanged.
