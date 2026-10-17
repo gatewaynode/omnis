@@ -108,7 +108,7 @@ What a step does (`crates/omnis-sim/src/apply.rs`, `step`, then `move`, then `en
 3. It advances the party clock by the terrain's `step_minutes`.
 4. It records the cell as visited on the automap.
 5. It follows a portal on the target cell (a teleport).
-6. It starts an encounter: a placed group on the cell that is not cleared, or else a roll on the map's random table.
+6. It starts an encounter: a placed group on the cell that is not cleared, or else a roll on the map's random table. A placed group may stand in view (M8.5 step 2c), drawn as a figure; Use from the next cell meets it too, and Run then returns the party to where it stood.
 
 Every successful command then ends in `look`, which records the cardinal cone to the automap and
 emits `Event::Visible`. `Turn` only rotates the position, so free look costs no game time.

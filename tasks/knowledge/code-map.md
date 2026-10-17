@@ -66,9 +66,11 @@ old saves only).
   `objects/container.rs` (`contents`, `TakeOut`, `PutIn`), `objects/notice.rs` (`look` after each look,
   `search`, `tell` for lore); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot); `combat/loot.rs` (`of`, `draw`);
   `items.rs` (`from_kit`, `from_list`, `out_of_kit`, `actor`); `objects_view.rs` (`objects_view` for
-  `objects.get`, `in_sight` for `ViewportModel.objects`/`.piles`). Fixture pack
+  `objects.get`, `in_sight` for `ViewportModel.objects`/`.piles`); `beings.rs` (M8.5 2c: `BeingView`,
+  `in_sight` for `ViewportModel.beings`, `on_level`, `reached` for `ObjectsView.beings`, `approach` for
+  `Command::Approach`; `encounter::meet`). Fixture pack
   `crates/omnis-sim/tests/packs/objects` (the yard); tests `objects.rs`, `object_act.rs`, `object_use.rs`,
-  `ground.rs`, `loot.rs`, `notice.rs`, `objects_view.rs`.
+  `ground.rs`, `loot.rs`, `notice.rs`, `objects_view.rs`, `beings.rs` (the yard's two pack rats at (5, 1)).
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
   `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
   couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,
@@ -171,7 +173,9 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   on the home floor; a shut arch crossed; `PILE_LOOK`); `scene.rs` `Scene::build(data, ..)` adds each level's
   objects and piles from `SimWorld::objects_on` (`api::objects_on_level`); `SegKind::{Object, Pile}`; the
   shell redraws on `session::reshapes` (doors, object state, removal, notice, ground moves, `CombatEnded`).
-  Tests `tests/shapes.rs`. `collide::blocks` refuses a step through a footprint via `SimWorld::object_blocks`
+  Tests `tests/shapes.rs`. Beings (M8.5 2c): `shapes::figures` on `SegKind::Being`, `SimWorld::beings_on`,
+  Approach in `screen/verbs.rs` and `screen/actions.rs` (`approached`); tests `tests/beings.rs`.
+  `collide::blocks` refuses a step through a footprint via `SimWorld::object_blocks`
   (the engine's `api::object_blocks`); `tests/agreement.rs` covers the yard, gate shut and open.
 - Shell: `session.rs` (`Config` flags incl. `--save`, `--settings`, `--screen`; `Packs`, always a resource; `Session`, only
   while a game runs: `start`, `new_game`, `loaded`, `restart`, `order`, `ordered` (the newest line or the refusal), `notice` (the outcome notice: the lines an `ordered` command said but a move's, or its refusal in alert, with where it was done; `take_in` under `note`), `save_log`), `movement.rs`,
