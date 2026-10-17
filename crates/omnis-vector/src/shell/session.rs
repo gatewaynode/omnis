@@ -572,9 +572,14 @@ impl Session {
             })
             .collect();
         lines.extend(
-            searched(events, &self.views, &self.data)
-                .into_iter()
-                .map(|line| (false, line)),
+            searched(
+                events,
+                &self.views,
+                &self.data,
+                self.world.faced_door(&self.data),
+            )
+            .into_iter()
+            .map(|line| (false, line)),
         );
         for (_, line) in &lines {
             self.say(line.clone());

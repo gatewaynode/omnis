@@ -290,8 +290,8 @@ fn search(app: &mut bevy::prelude::App) -> Vec<String> {
 }
 
 #[test]
-fn a_search_says_what_lies_here_and_that_nothing_hidden_turned_up() {
-    // On the arrow pile, far enough from the lever and the rune.
+fn a_search_tells_the_lore_and_what_lies_here_and_nothing_hidden_only_when_nothing_was() {
+    // On the arrow pile with its bootprints, far enough from the lever and the rune.
     let mut app = yard_session(2, 2, Facing::North);
     let arrows = {
         let s = app.world().resource::<Session>();
@@ -302,19 +302,54 @@ fn a_search_says_what_lies_here_and_that_nothing_hidden_turned_up() {
     assert_eq!(
         said[1..],
         [
+            "Old bootprints in the mud lead toward the gap.".to_owned(),
             format!("On the ground: {arrows} x10"),
-            "Nothing hidden here".to_owned(),
-        ]
+        ],
+        "lore is something: no \"Nothing hidden here\""
     );
     let s = app.world().resource::<Session>();
     assert!(
-        s.lines.iter().any(|l| l == "Nothing hidden here"),
+        s.lines
+            .iter()
+            .any(|l| l == "Old bootprints in the mud lead toward the gap."),
         "in the log too"
     );
-    // Where nothing lies, only that nothing hidden turned up.
+    // Where nothing lies and nothing is told, only that nothing hidden turned up.
     let mut app = yard_session(5, 1, Facing::North);
     let said = search(&mut app);
     assert_eq!(said[1..], ["Nothing hidden here".to_owned()]);
+    let s = app.world().resource::<Session>();
+    assert!(s.lines.iter().any(|l| l == "Nothing hidden here"));
+}
+
+#[test]
+fn a_search_lists_what_is_within_reach_by_name_and_state() {
+    // The crate in the faced cell, with its kind's lore; the lever two cells off may be spotted
+    // as the search's minutes pass, between the two, but is not within reach.
+    let mut app = yard_session(1, 2, Facing::North);
+    let said = search(&mut app);
+    assert_eq!(said[1], "Stencilled on a slat: LOFT STORES.");
+    assert_eq!(said.last().map(String::as_str), Some("Within reach: Crate"));
+    // The chest, with its state.
+    let mut app = yard_session(5, 4, Facing::North);
+    let said = search(&mut app);
+    assert_eq!(
+        said[1..],
+        [
+            "Within reach: Chest (closed)".to_owned(),
+            "Nothing hidden here".to_owned(),
+        ]
+    );
+    // A shut door, then open with the torch beyond it.
+    let mut app = yard_session(6, 3, Facing::South);
+    let said = search(&mut app);
+    assert_eq!(said[1], "Within reach: Door (shut)");
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        session.ordered(Command::Door).expect("opens");
+    }
+    let said = search(&mut app);
+    assert_eq!(said[1], "Within reach: Door (open), Torch (lit)");
 }
 
 #[test]

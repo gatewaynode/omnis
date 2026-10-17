@@ -208,15 +208,31 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
     })
 }
 
-/// What a search turned up, after its own lines (owner, 2026-10-16): the pile on the party's
-/// cell, and "Nothing hidden here" when nothing hidden was noticed. Empty for events with no
-/// search; `views` are read after the events.
+/// What a search turned up, after its own lines (owner, 2026-10-16): what is within reach (the
+/// faced door, `door` open or not, then each object by name and state), the pile on the party's
+/// cell, and "Nothing hidden here" when nothing hidden was noticed and no lore was told. Empty for
+/// events with no search; `views` are read after the events.
 #[must_use]
-pub fn searched(events: &[Event], views: &Views, data: &Data) -> Vec<String> {
+pub fn searched(events: &[Event], views: &Views, data: &Data, door: Option<bool>) -> Vec<String> {
     if !events.iter().any(|e| matches!(e, Event::Searched { .. })) {
         return Vec::new();
     }
     let mut lines = Vec::new();
+    let door = door.map(|open| format!("Door ({})", if open { "open" } else { "shut" }));
+    let reach: Vec<String> = door
+        .into_iter()
+        .chain(views.objects.objects.iter().map(|o| {
+            let name = labels::text(data, &o.name);
+            if o.state.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{name} ({})", o.state)
+            }
+        }))
+        .collect();
+    if !reach.is_empty() {
+        lines.push(format!("Within reach: {}", reach.join(", ")));
+    }
     let ground = &views.objects.ground;
     if !ground.is_empty() {
         let items: Vec<String> = ground
@@ -225,7 +241,10 @@ pub fn searched(events: &[Event], views: &Views, data: &Data) -> Vec<String> {
             .collect();
         lines.push(format!("On the ground: {}", items.join(", ")));
     }
-    if !events.iter().any(|e| matches!(e, Event::Noticed { .. })) {
+    if !events
+        .iter()
+        .any(|e| matches!(e, Event::Noticed { .. } | Event::Lore { .. }))
+    {
         lines.push("Nothing hidden here".to_owned());
     }
     lines
@@ -256,6 +275,8 @@ fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => format!("{}: {} failed", object(id), labels::verb(*verb)),
         Event::ObjectState { object: id, state } => format!("{} is now {state}", object(id)),
         Event::ObjectRemoved { object: id } => format!("{} is gone", object(id)),
+        // A search's lore: its text, as the pack writes it.
+        Event::Lore { key, .. } => labels::text(data, key).to_owned(),
         Event::Searched { member, roll } => {
             format!(
                 "{} searches: Investigation {}",

@@ -17,7 +17,7 @@ only `omnis-sim` imports it, and its vocabulary is `omnis-sim/src/bus.rs`.
 `spell.rs` (`SpellEffect`, `Reach`), `item.rs` (`ItemKind`, `Slot`, `UseEffect::{Heal, Sense}`,
 `consumable`, `description`), `sense.rs` (`SenseSource { geometry: Geometry::Ray, fidelity, check,
 persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `content.rs`
-(cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `map_data.rs` (`MapData` and its lookups by tile, M8.5 step 2), `object.rs` (`ObjectKind`, `Look`, `Verb`, `Requirement`, `Effect`, `Interaction`; cross-file checks and flag interning in `object/check.rs`; M8.5 step 2), `footprint.rs` (`Footprint::{of, path, overlaps, cells, ray_span}` in sixteenths of a cell, shared by the engine and the client's mirror), `placement.rs` (`Placement`, `GroundDef`, `Pile`, `ResolvedPlacement`; shapes checked with the map, kinds, ground, spills and arrival centres at resolution; `in_state`, `looks`, `covers_centre`; `MapData::{objects, object_cells, ground, objects_at}`), `loot.rs` (`LootTable { picks, entries }`, `LootEntry { item, count, weight, chance_percent }`; `Monster.loot` names one), `registry.rs`,
+(cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `map_data.rs` (`MapData` and its lookups by tile, M8.5 step 2), `object.rs` (`ObjectKind`, `Look`, `Verb`, `Requirement`, `Effect`, `Interaction`; cross-file checks and flag interning in `object/check.rs`; M8.5 step 2), `footprint.rs` (`Footprint::{of, path, overlaps, cells, ray_span}` in sixteenths of a cell, shared by the engine and the client's mirror), `lore.rs` (`Lore` on kinds and placements, `CellLore` in `MapDef.lore`, `MapData.lore` by cell; owner 2026-10-16), `placement.rs` (`Placement`, `GroundDef`, `Pile`, `ResolvedPlacement`; shapes checked with the map, kinds, ground, spills and arrival centres at resolution; `in_state`, `looks`, `covers_centre`; `MapData::{objects, object_cells, ground, objects_at}`), `loot.rs` (`LootTable { picks, entries }`, `LootEntry { item, count, weight, chance_percent }`; `Monster.loot` names one), `registry.rs`,
 `service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kinds,
 spells on a guild or a temple;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
@@ -64,7 +64,7 @@ old saves only).
   with the view; `offered`, `choices` for Use's `ChooseVerb`, `reachable`, `reach`), `objects/outcome.rs`
   (`resolve`: checks on the `object` stream, items used up, effects; `gate`, `check_of`),
   `objects/container.rs` (`contents`, `TakeOut`, `PutIn`), `objects/notice.rs` (`look` after each look,
-  `search`); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot); `combat/loot.rs` (`of`, `draw`);
+  `search`, `tell` for lore); `ground.rs` (`pile_at`, `Drop`, `PickUp`, `lay` for loot); `combat/loot.rs` (`of`, `draw`);
   `items.rs` (`from_kit`, `from_list`, `out_of_kit`, `actor`); `objects_view.rs` (`objects_view` for
   `objects.get`, `in_sight` for `ViewportModel.objects`/`.piles`). Fixture pack
   `crates/omnis-sim/tests/packs/objects` (the yard); tests `objects.rs`, `object_act.rs`, `object_use.rs`,
@@ -202,7 +202,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays. `tests/service.rs` (P4): `inside(data, site)`, the
   seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/piles.rs` (the inventory's ground and containers, 2026-10-16); `tests/object_lines.rs` (the objects' HUD lines, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
-- The engine boundary (parity P0): `sim.rs` holds `SimWorld` with its world private (methods mirror
+- The engine boundary (parity P0): `sim.rs` holds `SimWorld` (`faced_door` since M8.5 2b lore) with its world private (methods mirror
   `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
   `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`), `rest` (`SimWorld::rest`, P6), `flags` (`SimWorld::flags`, only in a devtools world, P8)), which `Session::note` refreshes after every accepted
   command; a test that writes a fixture calls `Session::refresh`. The library is clippy-checked without the

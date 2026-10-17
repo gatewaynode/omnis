@@ -40,12 +40,7 @@ fn why_not(data: &Data, game: Game, view: Option<&Rejection>, command: &Command)
 
 /// The faced door's button, when the party faces one.
 fn door(data: &Data, game: Game) -> Option<Entry> {
-    let p = game.world.position(data)?;
-    let map = data.maps.get(&p.map)?;
-    if !map.cell(p.level, p.x, p.y)?.doors.has(p.facing) {
-        return None;
-    }
-    let open = game.world.door_open(p.map, p.level, p.x, p.y, p.facing);
+    let open = game.world.faced_door(data)?;
     let command = Command::Door;
     Some(Entry {
         label: if open {

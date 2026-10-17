@@ -138,6 +138,17 @@ impl SimWorld {
         door_open(&self.0, map, level, x, y, facing)
     }
 
+    /// Whether the party faces a door, and if so whether it is open.
+    #[must_use]
+    pub fn faced_door(&self, data: &Data) -> Option<bool> {
+        let p = self.position(data)?;
+        let map = data.maps.get(&p.map)?;
+        map.cell(p.level, p.x, p.y)?
+            .doors
+            .has(p.facing)
+            .then(|| self.door_open(p.map, p.level, p.x, p.y, p.facing))
+    }
+
     /// Whether an object's footprint stops a step out of `(x, y)` toward `heading`
     /// (`api::object_blocks`), as the engine's step checks it.
     #[must_use]
