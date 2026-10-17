@@ -215,3 +215,13 @@
 - **Rule**: For each command the player can start, list what its outcome lines say in the empty case ("nothing
   hidden here") and what the player would expect it to mention (what lies in the cell), and test both. A line
   that reports only the dice is not an outcome.
+
+## 2026-10-17 — A new panel must be checked against every node already on that part of the screen
+- **What happened**: The outcome notice (2026-10-16) was placed where the screens stand, but the HUD's running
+  log, a single unbounded text at the top left, ran under it when a line was long. The owner found the overlap
+  by hand, and asked that the log be made less prominent now that the notice carries the important words. The
+  lesson of 2026-10-16 (place a node from the other group's measure) was written about the bottom line and not
+  applied to the log beside the new notice.
+- **Rule**: When a node is added to the screen, list the nodes already in its band (top left, centre, right
+  column, bottom) and give each the other's measure, or derive both from one constant with a test of the
+  relation. Unbounded text never shares a band with a panel.

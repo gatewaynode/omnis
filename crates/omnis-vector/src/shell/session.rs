@@ -1,5 +1,6 @@
 //! The session resource and the command line (presentation-ARCHITECTURE.md §6, §12).
 
+use super::hud::LOG_LINES;
 use super::text::{describe, searched};
 use crate::bind::Binder;
 use crate::grid::cell_of;
@@ -614,7 +615,7 @@ impl Session {
     /// Add a line to the HUD's recent events, keeping the last eight.
     pub fn say(&mut self, line: String) {
         self.lines.push(line);
-        let excess = self.lines.len().saturating_sub(8);
+        let excess = self.lines.len().saturating_sub(LOG_LINES);
         self.lines.drain(..excess);
     }
 }

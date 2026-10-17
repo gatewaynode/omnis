@@ -9,6 +9,10 @@ use super::session::Session;
 use crate::notice::alpha;
 use bevy::prelude::*;
 
+/// The widest the notice stands, in percent of the window, centred; the HUD's log keeps left of
+/// it (`hud::log_width`).
+pub const NOTICE_WIDTH: f32 = 60.0;
+
 /// Marks the notice's panel.
 #[derive(Component, Debug)]
 pub struct NoticePanel;
@@ -43,7 +47,7 @@ pub(super) fn spawn(mut commands: Commands) {
                 .spawn((
                     NoticePanel,
                     Node {
-                        max_width: Val::Percent(60.0),
+                        max_width: Val::Percent(NOTICE_WIDTH),
                         border: UiRect::all(Val::Px(1.0)),
                         padding: UiRect::axes(Val::Px(16.0), Val::Px(12.0)),
                         ..default()

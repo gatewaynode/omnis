@@ -10,7 +10,7 @@
 use super::capture::CaptureSize;
 use super::combat::size;
 use super::controls::Corner;
-use super::hud::StatusText;
+use super::hud::Hud;
 use super::minimap::Minimap;
 pub use super::screen_draw::{
     Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
@@ -762,8 +762,8 @@ fn played(session: Option<&Session>, nav: &Nav) -> bool {
     session.is_some_and(|s| nav.base(Some(&s.views)) != Some(ScreenId::CreateParty))
 }
 
-/// The game's own nodes: the HUD's status, the button groups and the minimap.
-type GameChrome = Or<(With<StatusText>, With<Corner>, With<Minimap>)>;
+/// The game's own nodes: the HUD (its status and log), the button groups and the minimap.
+type GameChrome = Or<(With<Hud>, With<Corner>, With<Minimap>)>;
 
 /// The game's HUD, buttons and minimap show only while a game is played: not at the title, nor
 /// while its party is made.

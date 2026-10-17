@@ -23,6 +23,7 @@ mod ground;
 mod inventory;
 mod labels;
 mod levels;
+mod log;
 mod look;
 mod minimap;
 mod notice;

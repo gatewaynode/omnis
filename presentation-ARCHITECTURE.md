@@ -506,8 +506,13 @@ A separate 2D screen in the vector style replaces the 3D view during a fight (X7
 ### 10.1 The HUD (as built)
 `shell/hud.rs` rewrites one status text each frame: the map, its level on a map of several (`hud::place`, "Roof (2)"), cell and facing; the mode and the clock; the
 accepted commands, refusals and mirror disagreements; frame rate, frame time and the window's physical
-size; the mouse-look hint while it is on; and up to 8 recent event lines (`Session.lines`, worded by
-`shell/text.rs`). It becomes the status panel of the explore screen (§6.6).
+size; and the mouse-look hint while it is on. Under it, the running log (owner, 2026-10-17): up to
+`LOG_LINES` (8) recent event lines (`Session.lines`, worded by `shell/text.rs`), each its own `LogLine` text in
+the `LogColumn`, which is at most `hud::log_width()` (18 vw) wide, so a long line wraps rather than run under
+the outcome notice (centred, at most `notice::NOTICE_WIDTH`, 60 %, wide; both widths come from that one
+constant). The lines are in the interface's dim role, the newest whole and each older one a tenth fainter
+(`log_alpha`), so the notice stands out. In a fight the log is hidden; the roll log has the fight's lines. It
+becomes the status panel of the explore screen (§6.6).
 
 Object lines (M8.5 step 2b): an object's skill or ability check as the roll log words it ("Pip Sleight of
 Hand: 14 against 10, success"); a failed use ("Chest: Open failed", then the kind's failure text); a new
