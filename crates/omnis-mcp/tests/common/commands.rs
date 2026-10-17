@@ -382,8 +382,11 @@ fn next(command: &Command) -> Option<Command> {
                 verb: Verb::ALL[i + 1],
                 option: 1,
             },
-            _ => Command::Climb(Vertical::Up),
+            _ => Command::Approach {
+                being: "rat".into(),
+            },
         },
+        Command::Approach { .. } => Command::Climb(Vertical::Up),
         Command::Climb(Vertical::Up) => Command::Climb(Vertical::Down),
         Command::Climb(Vertical::Down) => {
             Command::Party(PartyCommand::Create(draft(Alignment::ALL[0])))

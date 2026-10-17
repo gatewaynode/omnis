@@ -265,6 +265,34 @@ pub(crate) fn ambush(
     )
 }
 
+/// Meet the placed group `index` of the party's map where the party stands (M8.5 step 2c:
+/// `Approach` on a group that stands in view), Run putting it back at `retreat`.
+pub(crate) fn meet(
+    world: &mut World,
+    data: &Data,
+    index: u16,
+    retreat: Position,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let Some(e) = data
+        .maps
+        .get(&world.position.map)
+        .and_then(|m| m.encounters.get(usize::from(index)))
+    else {
+        return Ok(());
+    };
+    begin(
+        world,
+        data,
+        EncounterSource::Fixed(index),
+        e.stacks.clone(),
+        e.disposition,
+        Vec::new(),
+        retreat,
+        events,
+    )
+}
+
 /// Build the stacks, settle surprise, and either offer the choice or start the fight with the
 /// party surprised.
 #[allow(clippy::too_many_arguments)]

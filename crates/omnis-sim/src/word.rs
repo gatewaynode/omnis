@@ -234,6 +234,11 @@ fn command(word: &str, scope: &Scope<'_>) -> Option<Command> {
             if let Some(rest) = word.strip_prefix("act-") {
                 return parse_act(rest);
             }
+            if let Some(being) = word.strip_prefix("approach-") {
+                return (!being.is_empty() && !being.contains('-')).then(|| Command::Approach {
+                    being: being.into(),
+                });
+            }
             if let Some(rest) = word.strip_prefix("use-item-") {
                 return parse_use(rest, scope).map(Command::Combat);
             }
@@ -424,7 +429,7 @@ impl core::error::Error for ScriptError {}
 /// time `react-M-on` and `react-M-off` (member `M`'s reactions switch), inside a service
 /// `leave`, `room`, `rumor` and the words with numbers of `parse_town` (`buy-0`, `heal-1`, …),
 /// outside one `rest`, `short-rest` and `short-rest-A-B-…`, exploring `act-O-V[-N]` (verb `V` on
-/// the object `O`), separated by whitespace or commas;
+/// the object `O`) and `approach-B` (the standing group `B`), separated by whitespace or commas;
 /// `#` starts a comment that runs to the end of the line. Members are named by marching-order
 /// slot and definitions by their row in the list on screen; [`Word::command`] turns each into
 /// a command against the world it is applied to.
@@ -469,6 +474,7 @@ mod tests {
             "learn-0-2",
             "act-crate_1-examine",
             "act-chest_1-open-1",
+            "approach-rat",
         ] {
             assert!(Word::parse(word).is_some(), "{word}");
         }
@@ -484,6 +490,8 @@ mod tests {
             "act--open",
             "act-chest_1-open-x",
             "act-chest_1-open-1-2",
+            "approach-",
+            "approach-rat-2",
         ] {
             assert!(Word::parse(word).is_none(), "{word}");
         }
@@ -493,6 +501,12 @@ mod tests {
                 object: "chest_1".into(),
                 verb: Verb::Open,
                 option: 1,
+            })
+        );
+        assert_eq!(
+            command("approach-rat", &Scope::Any),
+            Some(Command::Approach {
+                being: "rat".into()
             })
         );
         assert_eq!(

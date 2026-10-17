@@ -7,7 +7,7 @@ mod container;
 pub(crate) mod notice;
 mod outcome;
 
-pub(crate) use act::{act, admit, choices, offered, reachable};
+pub(crate) use act::{act, admit, choices, offered, reach, reachable};
 pub use container::contents;
 pub(crate) use container::{put_in, take_out};
 pub(crate) use notice::search;
@@ -93,6 +93,11 @@ pub enum Refusal {
 pub enum Choice {
     /// Open or close the door on the faced edge: `Command::Door`.
     Door,
+    /// Go up to a group standing in reach: `Command::Approach` (M8.5 step 2c).
+    Being {
+        /// The group's id in the map.
+        being: String,
+    },
     /// An interaction of an object in reach: `Command::Act` with these fields.
     Object {
         /// The placement's id in the map.

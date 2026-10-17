@@ -174,8 +174,8 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        115,
-        "4 steps, 3 turns, interact, door, search, 13 acts (one per verb), 2 climbs, 20 party, 4 encounter, \
+        116,
+        "4 steps, 3 turns, interact, door, search, 13 acts (one per verb), approach, 2 climbs, 20 party, 4 encounter, \
          12 combat, 2 casts, 14 item, 14 service, 2 rest, 22 dev"
     );
     let mut used = Used::new();
@@ -191,7 +191,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 165, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 166, "oneOf branches and enum values offered");
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     }
     offered(&padded, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
-    assert_eq!(unused, ["/oneOf/13", "/oneOf/13/enum/\"Nap\""]);
+    assert_eq!(unused, ["/oneOf/14", "/oneOf/14/enum/\"Nap\""]);
 }
 
 #[test]

@@ -15,6 +15,7 @@ extern crate alloc;
 
 pub mod api;
 pub mod apply;
+pub mod beings;
 pub mod bus;
 pub mod cast_view;
 mod casting;

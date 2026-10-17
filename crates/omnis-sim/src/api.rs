@@ -69,6 +69,8 @@ pub use crate::objects_view::{
     CheckView, ItemCount, ObjectView, ObjectsView, PileView, SeenObject, VerbView, objects_view,
     on_level as objects_on_level,
 };
+// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level.
+pub use crate::beings::{BeingView, on_level as beings_on_level};
 pub use crate::query::{
     EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
     step_lands, viewport,

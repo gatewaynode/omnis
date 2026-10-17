@@ -68,6 +68,13 @@ pub enum Command {
         #[serde(default)]
         option: u8,
     },
+    /// Go up to a group standing in reach (M8.5 step 2c), in the party's cell or the one it
+    /// faces: the encounter begins as if the party had stepped in, but Run puts it back where it
+    /// stands, facing away.
+    Approach {
+        /// The group's id in the map (`rat`).
+        being: String,
+    },
 }
 
 impl Command {
@@ -121,6 +128,7 @@ impl Command {
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
             Command::Act { .. } => "act",
+            Command::Approach { .. } => "approach",
         }
     }
 }
@@ -407,6 +415,12 @@ pub enum Rejection {
     },
     /// There is no door on the faced edge.
     NoDoor,
+    /// No group of that id stands in reach: none in the map, beaten for good, met already, or
+    /// not in the party's cell or the one it faces (M8.5 step 2c).
+    NoSuchBeing {
+        /// The id asked for.
+        being: String,
+    },
     /// The ground of the party's cell holds no item of that id.
     NotOnGround {
         /// The id asked for.
@@ -473,6 +487,9 @@ impl Rejection {
             } => write!(f, "the member {member} is down"),
             Rejection::NoLadder => f.write_str("there is no ladder that way"),
             Rejection::NoSuchObject { object } => write!(f, "no object '{object}' is in reach"),
+            Rejection::NoSuchBeing { being } => {
+                write!(f, "no one called '{being}' stands in reach")
+            }
             Rejection::VerbRefused { reason } => write!(f, "{reason}"),
             Rejection::ChooseVerb { choices } => {
                 write!(

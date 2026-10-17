@@ -3,6 +3,7 @@
 //! Kept apart in `Cargo.toml`: `measure`.
 
 mod api_views;
+mod beings;
 mod casting;
 mod combat;
 mod common;

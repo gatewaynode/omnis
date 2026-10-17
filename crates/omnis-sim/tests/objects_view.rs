@@ -247,7 +247,7 @@ fn the_view_and_use_reach_the_same_objects() {
             .into_iter()
             .filter_map(|c| match c {
                 omnis_sim::objects::Choice::Object { object, .. } => Some(object),
-                omnis_sim::objects::Choice::Door => None,
+                omnis_sim::objects::Choice::Door | omnis_sim::objects::Choice::Being { .. } => None,
             })
             .collect();
         let at = world.position;

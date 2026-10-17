@@ -284,8 +284,9 @@ and places by `Place` (§4); lists are in marching or list order.
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
 | `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
 | `objects_on_level(&World, &Data, MapId, Level)` | `(Vec<SeenObject>, Vec<PileView>)`: every object and pile on that level as the viewport would show them from anywhere (removed objects left out, hidden ones until found); objects in file order, piles north to south. For a client that draws a whole level | none |
+| `beings_on_level(&World, &Data, MapId, Level)` | `Vec<BeingView>`: every group standing on that level as the viewport would show it from anywhere (not once beaten for good, nor while met), in file order. For a client that draws a whole level | none |
 
-`automap`, `map_text`, `door_open`, `objects_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+`automap`, `map_text`, `door_open`, `objects_on_level`, `beings_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
 
 ### 7.1 `Here` and `Status`
@@ -550,12 +551,20 @@ Races, classes and backgrounds are in id order.
 `visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
 (that level's name as a text key, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
 the party's level), `objects` (`[SeenObject]`, the objects on those tiles, nearest first; left out
-when none) and `piles` (`[PileView]`, the piles on them; left out when none).
+when none), `piles` (`[PileView]`, the piles on them; left out when none) and `beings`
+(`[BeingView]`, the groups standing on them, nearest first; left out when none).
+
+`BeingView` (M8.5 step 2c): `being` (the group's id in the map, which `Approach` names),
+`monster` (its front stack's monster, the one drawn), `count` (how many stand there, every stack
+together), `x`, `y` (its cell), `pos` (`[east, south]` offset in eighths, −4..=4), `facing`,
+`look` (a `Figure`: the monster's own, or its size's). A fixed encounter stands only when its map
+says so (`stand`); it is listed while its group stands: not once beaten for good, and not while the
+party meets or fights it. One whose figure reaches a seen tile is listed.
 
 `SeenObject` (M8.5 step 2): `object` (placement id), `object_kind`, `x`, `y` (its home cell),
 `pos` (`[east, south]` offset from the cell's centre in eighths, −4..=4), `facing` (its look's
 width runs across it), `state`, `look` (`shape`: `Box`, `Post`, `Slab`, `Arch`, `Sign`, `Heap`;
-`width`, `depth`, `height` in eighths, in the state it is in), `blocks` (whether it blocks a step in
+`Figure` for a being; `width`, `depth`, `height` in eighths, in the state it is in), `blocks` (whether it blocks a step in
 that state, so a client can draw a shut gate shut). An object whose footprint spills
 onto a seen tile is listed once; a hidden one only once found; a removed one never.
 `PileView`: `x`, `y`, `pos`, `items` (`[ItemCount]`, in the order laid down).
@@ -574,7 +583,7 @@ is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VIS
 
 ## 8. Commands
 
-`Command` (15 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (16 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
@@ -583,7 +592,7 @@ means the same thing after a reorder or a change to a list.
 |---|---|---|
 | `Step` | `Direction` | Move one tile relative to the facing, without turning. A stair up is taken only by a step onto it from its foot (moving the way the map's `stairs` list says it rises), a stair down only from its head (moving against it); a step from any other side lands on the stair as on a floor. The step's direction counts, not the facing, so backing or sidestepping onto a stair from its foot takes it. |
 | `Turn` | `Rotation` | Turn in place. |
-| `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
+| `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge, every group standing in reach (as `Approach`) and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door`, `Approach` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
 | `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. Costs 1 minute. Exploring only. |
 | `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
 | `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
@@ -596,6 +605,7 @@ means the same thing after a reorder or a change to a list.
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
 | `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
+| `Approach` | `being` (the group's id in the map, `BeingView.being`) | Go up to a group standing in the party's cell, or the faced cell across an edge with no wall, closed door or cliff (else `NoSuchBeing`): the encounter begins as a step into its cell begins it (`EncounterStarted` with its `Fixed` source), but the party stays where it is, and Run puts it back there facing away. Takes no time. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -811,7 +821,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (70 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (71 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -872,7 +882,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
 | `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
 | `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
-| `ChooseVerb` | `choices` (`Choice`: `Door`, or `{"Object": {object, verb, option}}`, each the `Door` or `Act` command that does it; the door first, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
+| `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
+| `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
 | `NoDoor` | | `Door`: no door on the faced edge. |
 | `NotOnGround` | `item` | `PickUp`: the ground of the party's cell holds none of it. |
 | `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
@@ -1038,6 +1049,11 @@ Additive (§13), so `PROTOCOL` stays 2:
   (M8.5 step 2b, item 5), so a client can word each way of noticing. The wire form is unchanged.
 - 2026-10-17: `Event::Lore { key, object }` (72 events), told by `Search` after its finds; the
   save's `MapState.lore_told` and `ObjectState.told`, left out when empty (M8.5 step 2b, lore).
+- 2026-10-17: groups that stand in view (M8.5 step 2c): `ViewportModel.beings` (`[BeingView]`,
+  left out when empty) and Tier 1's `beings_on_level`; `Command::Approach { being }` (16
+  commands), the word `approach-B`; `Choice::Being`; `Rejection::NoSuchBeing` (71 rejections);
+  `Shape::Figure`. A fixed encounter stands only when its map gives it a `stand`, and no shipped map
+  does, so shipped play, saves and the replays are unchanged.
 
 ### Protocol 2 (2026-10-10)
 

@@ -9,7 +9,7 @@ use crate::service::{self, ServiceState};
 use crate::time;
 use crate::world::{Known, Mode, World, layer};
 use crate::{INTERACT_MINUTES, PARTY};
-use crate::{casting, combat, dev, effects, encounter, items, objects, rest, visibility};
+use crate::{beings, casting, combat, dev, effects, encounter, items, objects, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, Position, Rotation, Vertical};
 use omnis_data::{Data, Join, MapData};
@@ -39,6 +39,9 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
                 option,
             },
         ) => objects::act(world, data, object, *verb, *option, &mut events)?,
+        (Mode::Explore, Command::Approach { being }) => {
+            beings::approach(world, data, being, &mut events)?;
+        }
         (Mode::Explore, Command::Climb(way)) => climb(world, data, *way, &mut events)?,
         (Mode::Explore | Mode::Town(_), Command::Party(command))
         | (Mode::Combat(_), Command::Party(command @ PartyCommand::Tactics(_)))
@@ -349,21 +352,28 @@ fn turn(world: &mut World, rotation: Rotation) {
 }
 
 /// Go into the service on the party's tile, or else open or close the door ahead.
-/// Use: a service on the party's tile, else the one door or object interaction in reach. None
+/// Use: a service on the party's tile, else the one door, standing group or object interaction
+/// in reach (in that order when there are several). None
 /// is "nothing here"; several are refused with the list, and the world is unchanged.
 fn interact(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Rejection> {
     if service::enter_here(world, data, events) {
         return Ok(());
     }
-    let mut choices = objects::choices(world, data);
-    if faced_door(world, data) {
-        choices.insert(0, Choice::Door);
-    }
+    let faced = faced_door(world, data).then_some(Choice::Door);
+    let standing = beings::in_reach(world, data)
+        .into_iter()
+        .map(|being| Choice::Being { being });
+    let choices: Vec<Choice> = faced
+        .into_iter()
+        .chain(standing)
+        .chain(objects::choices(world, data))
+        .collect();
     match choices.as_slice() {
         [] => events.push(Event::Message {
             key: MessageKey::NothingHere,
         }),
         [Choice::Door] => door(world, data, events)?,
+        [Choice::Being { being }] => beings::approach(world, data, being, events)?,
         [
             Choice::Object {
                 object,
