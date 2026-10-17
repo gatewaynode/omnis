@@ -255,3 +255,11 @@
   scroll, a half-typed word) and carry each over, or rebuild in place. Test it the way the player meets it:
   focus, empty, type. Carrying focus must give way when the new screen lacks that field, so a move to the next
   screen still focuses its own field.
+
+## 2026-10-17 — An acceptance step is checked against the fixture it names
+- **What happened**: 7c's script told the owner to "pull the lever" in the yard. The yard's lever is placed
+  `hidden: Some(12)` and must be found by a search first, so the owner found no lever to pull. I wrote the
+  step from memory of the lever's interaction, not from the map file.
+- **Rule**: For each step of an acceptance script that names a thing in a fixture (a lever, a door, a
+  monster), read its placement in the map file and write what stands in the way: hidden, locked, on another
+  level, needing an item. Where a step depends on a roll, say so and give a sure way round (the debug panel).
