@@ -3,7 +3,7 @@
 
 use crate::event::Event;
 use crate::party::Party;
-use crate::world::{Automap, MapState, Mode, SAVE_SCHEMA, SaveRule, Settings, World};
+use crate::world::{Automap, MapState, Mode, SaveRule, Settings, World};
 use alloc::borrow::ToOwned;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
@@ -130,7 +130,7 @@ pub(crate) fn v5_to_v6(mut world: World, data: &Data) -> World {
         }
     }
     crate::combat::begin_after_load(&mut world, data);
-    world.schema = SAVE_SCHEMA;
+    world.schema = 6;
     world
 }
 
@@ -152,6 +152,6 @@ pub(crate) fn v6_to_v7(mut world: World, data: &Data) -> World {
         era: world.party_clock().era,
     };
     world.contacts.clear();
-    world.schema = SAVE_SCHEMA;
+    world.schema = 7;
     world
 }

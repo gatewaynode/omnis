@@ -772,6 +772,38 @@ fn capture_schema_5_fixture() {
 }
 
 /// Captures `tests/saves/v6.ron` from a schema-6 build (M8 step 2, `0bcb02f`): Brenna, Durin and
+/// Captures `tests/saves/v7.ron` from a schema-7 build: the golden walk's world at its end, a
+/// party that has left the town for the meadow (region clocks and contacts), then set at the
+/// dungeon's first door and opening it (a map state), so
+/// the schema-8 conversion (M8.5 7d) has every part of a world to split. Run once, deliberately,
+/// before the schema moved on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-7 build"]
+fn capture_schema_7_fixture() {
+    let data = data();
+    let replay: Replay =
+        read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
+    let mut world = World::new(&data, replay.seed, replay.settings).unwrap();
+    for command in &replay.commands {
+        omnis_sim::apply(&mut world, &data, command.clone()).unwrap_or_else(|r| panic!("{r}"));
+    }
+    // Then into the dungeon at its first door, as the schema-2 capture stands, and open it: a
+    // map state for the dungeon's region beside the clocks and contacts the walk made.
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        level: omnis_core::Level::GROUND,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
+    assert!(world.clocks.len() > 1 && !world.contacts.is_empty());
+    assert_eq!(world.schema, 7);
+    write_ron(&save_path("v7"), &world).unwrap();
+}
+
 /// Ilvara, Ilvara with Shield declared, two steps lived, in round one of a fight with two goblins,
 /// so the schema-7 migration has a past to count as shared time and a fight to subscribe to the
 /// bus. Run once, deliberately, before the schema moved on (captured late, in M8 step 8c, from a
