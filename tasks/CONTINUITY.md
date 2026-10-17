@@ -58,7 +58,8 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode.
 
 ## Next
-- Planning the save model (D28) in plan mode, from the answered study (owner, 2026-10-17); it reshapes step 7.
+- Step 7 is now the save model, plan `tasks/plans/m8.5-save-model.md` (approved 2026-10-17), sub-steps 7a–7h.
+  Next: 7a, the journal and the replay timing measurement.
 
 ## Pins
 - Replays: walk `8d880647a25097b2`, fight `d06fa80460a947ef` (unchanged by 2c). `SAVE_SCHEMA` 7,

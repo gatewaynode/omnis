@@ -90,6 +90,9 @@ These rows are the study's main work. Three are hard:
    replayed on load, so a change of language rewords the history.
 
 ## What it changes
+The approved plan is `tasks/plans/m8.5-save-model.md` (2026-10-17). It corrects one line below: saving mid-fight is
+allowed and tested today, and the journal keeps it so.
+
 - **M8.5 step 7 (saves by name, planned):**
   - the name table shrinks to what the character save holds by number (the party's kit and spells are already
     named in commands);
