@@ -11,7 +11,7 @@ use omnis_sim::{Command, ItemCommand};
 use omnis_vector::notice::{GONE, Notice, alpha};
 use omnis_vector::pose::Pose;
 use omnis_vector::screen::ScreenId;
-use omnis_vector::shell::notice::NoticeText;
+use omnis_vector::shell::notice::{NoticeClose, NoticeText};
 use omnis_vector::shell::screen::{Screens, colour};
 use omnis_vector::shell::session::{Config, Session};
 use omnis_vector::style::Role;
@@ -28,7 +28,7 @@ fn at(x: u16, y: u16) -> Position {
 }
 
 #[test]
-fn a_notice_is_full_near_where_it_was_done_and_gone_a_cell_and_a_half_away() {
+fn a_notice_fades_from_the_first_step_and_is_gone_by_the_cell_s_edge() {
     let here = at(4, 1);
     let notice = Notice::new(
         vec!["Here the yard.".to_owned()],
@@ -46,13 +46,19 @@ fn a_notice_is_full_near_where_it_was_done_and_gone_a_cell_and_a_half_away() {
     // Turning on the spot keeps it.
     let turned = Pose { yaw: 1.0, ..pose };
     assert!((alpha(&notice, &here, &turned) - 1.0).abs() < 1e-6);
-    assert!((alpha(&notice, &here, &off(0.5, 0.0)) - 1.0).abs() < 1e-6);
-    assert!((alpha(&notice, &here, &off(0.0, -1.0)) - 0.5).abs() < 1e-6);
+    // Owner, 2026-10-17: the fade starts with the first movement and ends at the cell's edge.
     assert!(
-        (alpha(&notice, &here, &off(0.6, 0.8)) - 0.5).abs() < 1e-6,
+        alpha(&notice, &here, &off(0.05, 0.0)) < 1.0,
+        "fading at once"
+    );
+    assert!((alpha(&notice, &here, &off(0.0, -0.25)) - 0.5).abs() < 1e-6);
+    assert!(
+        (alpha(&notice, &here, &off(0.15, 0.2)) - 0.5).abs() < 1e-6,
         "by distance, not axis"
     );
+    assert!((GONE - 0.5).abs() < 1e-6, "the cell's edge");
     assert_eq!(alpha(&notice, &here, &off(GONE, 0.0)), 0.0);
+    assert_eq!(alpha(&notice, &here, &off(0.0, 1.0)), 0.0);
     assert_eq!(alpha(&notice, &here, &off(0.0, 3.0)), 0.0);
     // Another level or map: gone.
     let up = Position {
@@ -125,10 +131,10 @@ fn a_chosen_act_s_words_stand_centred_and_in_the_log_and_fade_as_the_party_walks
     let (text, tint) = drawn(&mut app).expect("still shown");
     assert_eq!(text, PLAQUE, "a command that only moved leaves the notice");
     assert!((tint.alpha() - 1.0).abs() < 1e-3);
-    // A cell north, half faded.
+    // A quarter cell north, half faded.
     {
         let mut session = app.world_mut().resource_mut::<Session>();
-        session.pose.z -= 1.0;
+        session.pose.z -= 0.25;
     }
     app.update();
     let (_, tint) = drawn(&mut app).expect("fading");
@@ -137,10 +143,10 @@ fn a_chosen_act_s_words_stand_centred_and_in_the_log_and_fade_as_the_party_walks
         "{}",
         tint.alpha()
     );
-    // Out of range it is dropped, and coming back does not bring it back.
+    // At the cell's edge it is dropped, and coming back does not bring it back.
     {
         let mut session = app.world_mut().resource_mut::<Session>();
-        session.pose.z -= 1.0;
+        session.pose.z -= 0.25;
     }
     app.update();
     assert_eq!(drawn(&mut app), None);
@@ -150,7 +156,7 @@ fn a_chosen_act_s_words_stand_centred_and_in_the_log_and_fade_as_the_party_walks
     );
     {
         let mut session = app.world_mut().resource_mut::<Session>();
-        session.pose.z += 2.0;
+        session.pose.z += 0.5;
     }
     app.update();
     assert_eq!(drawn(&mut app), None, "gone for good");
@@ -248,4 +254,27 @@ fn walking_into_a_cliff_says_it_is_too_steep_once() {
         .collect();
     assert_eq!(said.len(), 1, "{:?}", session.lines);
     assert_eq!(drawn(&mut app), None, "walking sets no notice");
+}
+
+#[test]
+fn the_close_button_puts_the_notice_away_until_the_next_one() {
+    let mut app = yard_app(4, 1, Facing::South);
+    order(&mut app, Command::Interact);
+    assert!(drawn(&mut app).is_some(), "the plaque's words");
+    common::app::press_ui(&mut app, NoticeClose);
+    assert_eq!(drawn(&mut app), None, "closed");
+    assert!(
+        app.world().resource::<Session>().notice.is_none(),
+        "dropped, not hidden"
+    );
+    assert!(
+        app.world()
+            .resource::<Session>()
+            .lines
+            .iter()
+            .any(|l| l == PLAQUE),
+        "the log keeps it"
+    );
+    order(&mut app, Command::Interact);
+    assert!(drawn(&mut app).is_some(), "the next command's words show");
 }

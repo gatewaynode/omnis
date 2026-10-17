@@ -225,3 +225,12 @@
 - **Rule**: When a node is added to the screen, list the nodes already in its band (top left, centre, right
   column, bottom) and give each the other's measure, or derive both from one constant with a test of the
   relation. Unbounded text never shares a band with a panel.
+
+## 2026-10-17 — A fade is sized to the step that ends it, and anything that stands over the view can be put away
+- **What happened**: The outcome notice was whole for half a cell and gone at a cell and a half, so it outlasted
+  the step away from where it was done; and it took no clicks, so a long one could only be walked off. The owner,
+  hand-testing, asked that it fade from the first movement, be gone by the cell's edge, and carry a close button.
+- **Rule**: A transient's lifetime is stated in the player's units (one step, the cell's edge), not in round
+  numbers, and checked against the motion that ends it. A panel over the view that holds the player's attention
+  has a close control from its first build.
+

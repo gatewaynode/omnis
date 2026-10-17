@@ -1,17 +1,14 @@
 //! The outcome notice (owner, 2026-10-16; presentation-ARCHITECTURE §6.6): what a command the
 //! player started said, kept with the place it was done, so it fades as the party walks away and
-//! is dropped once out of range. Distance alone fades it: a turn on the spot keeps it whole.
-//! Bevy-free.
+//! is dropped once out of range: it fades from the first movement and is gone by the cell's edge
+//! (owner, 2026-10-17). Distance alone fades it: a turn on the spot keeps it whole. Bevy-free.
 
 use crate::pose::Pose;
 use crate::style::Role;
 use omnis_sim::omnis_core::{Level, MapId, Position};
 
-/// Within this many cells of where it was done, a notice is whole.
-pub const FULL: f32 = 0.5;
-
-/// At this many cells it is gone.
-pub const GONE: f32 = 1.5;
+/// At this many cells from where it was done, half a cell, the cell's edge, a notice is gone.
+pub const GONE: f32 = 0.5;
 
 /// A command's words and where it was done.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,13 +39,13 @@ impl Notice {
     }
 }
 
-/// How opaque `notice` is with the party at `position` and the camera at `pose`: 1 within
-/// [`FULL`] cells, falling evenly to 0 at [`GONE`]; 0 on another map or level.
+/// How opaque `notice` is with the party at `position` and the camera at `pose`: 1 where it was
+/// done, falling evenly to 0 at [`GONE`]; 0 on another map or level.
 #[must_use]
 pub fn alpha(notice: &Notice, position: &Position, pose: &Pose) -> f32 {
     if position.map != notice.map || position.level != notice.level {
         return 0.0;
     }
     let distance = (pose.x - notice.at.0).hypot(pose.z - notice.at.1);
-    ((GONE - distance) / (GONE - FULL)).clamp(0.0, 1.0)
+    (1.0 - distance / GONE).clamp(0.0, 1.0)
 }
