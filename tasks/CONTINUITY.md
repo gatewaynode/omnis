@@ -1,50 +1,48 @@
 # Continuity notes
 
-Written 2026-10-17, after M8.5 step 2c was built, ahead of the owner's walk of its acceptance script. Rewrite
-this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-17, after the save model (D28) was planned and approved, before a compact. Rewrite this file every
+time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the four files under
   `assets/` and `docs/dnd_supplemental/` (the owner's, in progress).
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, **2 (2a, 2b, 2c accepted by the owner 2026-10-17)**, 7 (saves by name, now
-  waiting for the save-model study), editor (M5), 5, 6.
-- **Today's commits (2026-10-17):**
-  - 2b refinements, each hand-tested by the owner: notice fade and close `f7a5f93`; the full log `d599c60`
-    (L, the "Log  L" button, a click on the running log; filter; in-memory history).
-  - PRD D28 and the study `8d489c4`.
-  - The owner's world doc `ae20844`.
-  - 2c: data `6b44f52`, engine `b1689ad`, client `2deb324`, docs and acceptance `c68bf6a`.
-- **Acceptance:** the owner walked 2a, 2b and 2c ("Manually tested, good progress so far"); step 2 is closed in TODO.
-- **Gate:** `tests passed 861 failed 0 ignored 12`, VERIFY-GREEN at `2deb324`. Sentrux rules pass, quality 8988.
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, 2 (2a, 2b, 2c), all accepted (2a–2c by the owner 2026-10-17,
+  "Manually tested"). Then **7, now the save model (D28), sub-steps 7a–7h**, then the editor (M5), 5, 6.
+- **Today's later commits:** `aa1475e` (study answered, step 2 accepted), `1f195ca` (the step 7 plan).
+- **Gate:** last run `tests passed 861 failed 0 ignored 12`, VERIFY-GREEN at `2deb324` (docs-only commits since).
+  Sentrux rules pass, quality 8988.
 
-## The save model (PRD D28, owner 2026-10-17)
-- The save centres on the characters and their interactions, replayed from the last base state; a world file
-  apart, which only the simulation writes: immutable authored bases, layers of change, folds at thresholds
-  and story points.
-- Study `tasks/plans/world-state.md`: the six questions were answered on 2026-10-17 and written into the study,
-  PRD D28, §7.7 and §14. In short: migrate, then report a changed pack (the player loads without it or cancels);
-  flags scoped per flag (party or world); a world directory with one file per region under a manifest; characters
-  carry between worlds (a horizon); folds visible to the player; the bases a save names are kept.
-- Still open: the fold thresholds (PRD §14). Owner: they come from the world simulation, a simplified 4X engine over
-  biospheres, settlements, regions and the world, so they wait for its mechanics. The save model builds the fold
-  as a mechanism with no threshold of its own.
-- Until it is built, a save is the whole `World`, and the full log's history lasts the session.
-- Lesson of the day: when a feature has no home in a core structure, question the structure before
-  wedging it in.
+## Next: 7a, the journal and measurement
+- Read `tasks/plans/m8.5-save-model.md` in full first (the approved plan: shape, sub-steps, verification).
+- 7a builds `World.journal` (`#[serde(skip)]`, not fingerprinted), appended in `apply`
+  (`crates/omnis-sim/src/apply.rs:19-79`) for each accepted command: `Entry { minute, command }`, minute = the
+  party's age AFTER the command (as the client's History stamps it, `time_view.rs:107`); events kept in memory
+  only, without `Visible` and per-tile events. A replay must rebuild the journal identically, so `World:
+  PartialEq` stays meaningful (watch tests comparing a world against one loaded from the old whole-World save:
+  the loaded one has an empty journal).
+- Measurement: a release-mode timing harness (`omnis replay --time` and an ignored test) driving a seeded
+  wandering party for 10k and 50k commands on the test packs: µs per command for apply and for replay, bytes
+  per journal entry. No timings exist anywhere today. Commands per hour need the owner's play (the window's
+  `Session::save_log`, `.omnis/vector-session.ron`, which does not exist yet): ask the owner for a session.
+- Visible end: the debug World page shows the journal's length and "replay would take ~T ms".
+- Plan mode for 7a's detail is likely warranted (owner's practice for larger items); write an acceptance script
+  `tasks/acceptance/m8.5-7a.md`.
 
-## 2c as built (for the owner's walk and questions)
-- **Data:** `FixedEncounter.stand: Option<Stand { id, pos, facing }>`; `Monster.look` (a `Figure`) or
-  `figure_for(size)`; `Shape::Figure`. A being's id is shared with objects' ids; its figure keeps the spill
-  rules. Yard: two pack rats `rat` at (5, 1), pos (1, 0), facing West, `once`.
-- **Engine:** `beings.rs` (`BeingView`, `in_sight`, `on_level`, `reached`, `approach`), `encounter::meet`;
-  `ViewportModel.beings`, `ObjectsView.beings`, `Reply::Objects.beings`, `api::beings_on_level`;
-  `Command::Approach { being }` (word `approach-B`), `Choice::Being` (after the door, before the objects),
-  `Rejection::NoSuchBeing`. Not shown while met or fought, nor once cleared. Blocks nothing.
-- **Client:** `shapes::figures` on `SegKind::Being` (orange (3.0, 0.9, 0.15), provisional); reshape on
-  `EncounterStarted`, `Bribed`, Hide or Run checks; "Approach: Pack rat x2" on Use; Approach in the verbs
-  (closes them); a search names the group; `NoSuchBeing` reads "no one there to approach".
-- Expect the owner's notes on the figure's shape and colour, and perhaps on hostile groups that should
-  come to the party (no wandering in 2c, by the plan).
+## The save model as decided (owner, 2026-10-17; PRD D28, §7.7, §14; study `tasks/plans/world-state.md`)
+- Character save = checkpoint (party, party time and clock, party-side contacts, RNG streams, automap,
+  position, mode, bus, party flags, settings, turn) at the last fold + the journal since + the bases it names.
+- World folder `.omnis/worlds/<w>/`: manifest + `world/<hash>.ron` + `regions/<region>/<hash>.ron`; bases only.
+  **Layers are derived from the journal** (replayed on load). Base 0 = the authored packs, no file.
+- Changed pack: migrate (7h), then report what did not fit; the player loads without it or cancels.
+- Flags scoped per flag (party or world; undeclared = world). Folds are visible ("The world has moved on").
+  Named bases kept; dropping unnamed ones is a manual tidy (departure on timing only, in the plan).
+- **Provisional size fold** at safe points (long rest, entering a settlement) when the journal passes a rule value
+  set from 7a's measurement; M10's world sim (owner: a simplified 4X engine over biospheres, settlements, regions
+  and the world) sets real thresholds later. Story points (M11) fold too.
+- Pre-fold history archived as events beside the save. Characters may carry between worlds (a horizon).
+- Facts found: saving mid-fight is allowed and tested (kept); the 65,536 collection limit applies to packs, not
+  saves (4 MiB file limit is the save's); bases carry registry numbers until 7h, so the `PackMismatch` gate stays
+  until then; `ops.rs` 782 and `shell/session.rs` 822 lines, so new code goes in new modules.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -57,9 +55,6 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - Bug reports: fix directly, with a red test, a lesson in `tasks/LESSONS.md`, then report. Choices with real
   alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode.
 
-## Next
-- Step 7 is now the save model, plan `tasks/plans/m8.5-save-model.md` (approved 2026-10-17), sub-steps 7a–7h.
-  Next: 7a, the journal and the replay timing measurement.
 
 ## Pins
 - Replays: walk `8d880647a25097b2`, fight `d06fa80460a947ef` (unchanged by 2c). `SAVE_SCHEMA` 7,
