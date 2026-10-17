@@ -263,3 +263,171 @@ fn search_is_a_script_word() {
     assert_eq!(word.command(&world, &data), Some(Command::Search));
     assert_eq!(Command::Search.word(), "search");
 }
+
+// Lore (owner, 2026-10-16): text a search turns up in reach, from a cell or an object.
+
+/// The lore a command's events told, as (text key, object).
+fn told(events: &[Event]) -> Vec<(String, Option<String>)> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Lore { key, object } => Some((key.clone(), object.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The search's roll among `events`.
+fn rolled(events: &[Event]) -> i64 {
+    events
+        .iter()
+        .find_map(|e| match e {
+            Event::Searched { roll, .. } => Some(roll.total),
+            _ => None,
+        })
+        .expect("a search rolls")
+}
+
+fn search(world: &mut World, data: &Data) -> Vec<Event> {
+    apply(world, data, Command::Search).expect("exploring")
+}
+
+const BOOTPRINTS: &str = "objects:text:lore.bootprints";
+
+#[test]
+fn a_cell_s_lore_is_told_by_every_search_after_the_finds() {
+    let data = objects();
+    let mut world = eyed(&data, 2, 2, Facing::North, 1);
+    for _ in 0..2 {
+        let events = search(&mut world, &data);
+        assert_eq!(told(&events), [(BOOTPRINTS.to_owned(), None)]);
+        let lore = events.iter().position(|e| matches!(e, Event::Lore { .. }));
+        let searched = events
+            .iter()
+            .position(|e| matches!(e, Event::Searched { .. }));
+        let time = events
+            .iter()
+            .position(|e| matches!(e, Event::TimeAdvanced { .. }));
+        assert!(
+            searched < lore && lore < time,
+            "after the roll, before the time"
+        );
+    }
+    assert!(
+        world
+            .maps
+            .get(&yard(&data))
+            .is_none_or(|s| s.lore_told.is_empty()),
+        "lore told every time is not remembered"
+    );
+}
+
+#[test]
+fn lore_in_the_faced_cell_is_told_and_none_through_a_wall() {
+    let data = objects();
+    let mut world = eyed(&data, 2, 1, Facing::South, 1);
+    assert_eq!(
+        told(&search(&mut world, &data)),
+        [(BOOTPRINTS.to_owned(), None)]
+    );
+    // South of the hedge, facing the bootprints across it.
+    let mut world = eyed(&data, 2, 3, Facing::North, 1);
+    assert!(told(&search(&mut world, &data)).is_empty());
+}
+
+#[test]
+fn lore_with_a_difficulty_is_told_on_a_roll_that_meets_it_and_once_only() {
+    let data = objects();
+    let carving = ("objects:text:lore.carving".to_owned(), None);
+    let (mut hits, mut misses) = (0, 0);
+    for seed in 0..40 {
+        let mut world = eyed(&data, 4, 3, Facing::West, 1);
+        world.seed = seed;
+        let events = search(&mut world, &data);
+        let met = rolled(&events) >= 10;
+        assert_eq!(
+            told(&events),
+            if met {
+                vec![carving.clone()]
+            } else {
+                Vec::new()
+            },
+            "seed {seed}"
+        );
+        let kept = |w: &World| {
+            w.maps
+                .get(&yard(&data))
+                .is_some_and(|s| s.lore_told.contains("carving"))
+        };
+        assert_eq!(kept(&world), met);
+        if !met {
+            misses += 1;
+            continue;
+        }
+        hits += 1;
+        // Told once: never again, through a save and a load.
+        let text = omnis_sim::ops::save_text(&world).expect("saves");
+        let mut back = omnis_sim::ops::load_text(&text, &data, false).expect("loads");
+        assert!(kept(&back));
+        for _ in 0..3 {
+            assert!(told(&search(&mut back, &data)).is_empty());
+        }
+    }
+    assert!(hits > 0 && misses > 0, "{hits} told, {misses} not");
+}
+
+#[test]
+fn an_object_s_lore_is_its_placement_s_over_its_kind_s() {
+    let data = objects();
+    // The crate's is its kind's, every time.
+    let mut world = eyed(&data, 1, 2, Facing::North, 1);
+    assert_eq!(
+        told(&search(&mut world, &data)),
+        [(
+            "objects:text:crate.lore".to_owned(),
+            Some("crate_1".to_owned())
+        )]
+    );
+    // The statue's own, DC 12 and once, stands in for its kind's moss: a low roll tells nothing.
+    let name = (
+        "objects:text:statue.lore".to_owned(),
+        Some("statue_1".to_owned()),
+    );
+    let (mut hits, mut misses) = (0, 0);
+    for seed in 0..40 {
+        let mut world = eyed(&data, 3, 1, Facing::North, 1);
+        world.seed = seed;
+        let events = search(&mut world, &data);
+        if rolled(&events) >= 12 {
+            hits += 1;
+            assert_eq!(told(&events), std::slice::from_ref(&name));
+            let state = &world.maps[&yard(&data)].objects["statue_1"];
+            assert!(state.told);
+            assert!(told(&search(&mut world, &data)).is_empty(), "once");
+        } else {
+            misses += 1;
+            assert!(told(&events).is_empty(), "seed {seed}: not the kind's moss");
+        }
+    }
+    assert!(hits > 0 && misses > 0, "{hits} told, {misses} not");
+}
+
+#[test]
+fn a_hidden_object_s_lore_is_told_only_once_it_is_found() {
+    let lore = (
+        "objects:text:lever.lore".to_owned(),
+        Some("lever_1".to_owned()),
+    );
+    let (mut hits, mut misses) = (0, 0);
+    for seed in 0..40 {
+        let (_, events, _) = search_the_lever(seed);
+        if noticed(&events).is_empty() {
+            misses += 1;
+            assert!(told(&events).is_empty(), "seed {seed}");
+        } else {
+            hits += 1;
+            assert_eq!(told(&events), std::slice::from_ref(&lore), "seed {seed}");
+        }
+    }
+    assert!(hits > 0 && misses > 0);
+}

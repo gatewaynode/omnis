@@ -49,6 +49,10 @@ pub struct MapState {
     /// placed pile is kept with no items. Unwritten when none, so a save reads as before.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ground: BTreeMap<(Level, u16, u16), Pile>,
+    /// A cell's lore told once and never again, by its id (owner, 2026-10-16); unwritten when
+    /// none.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub lore_told: BTreeSet<String>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.

@@ -43,7 +43,7 @@ variants!(Event, EVENTS, event_name:
     Equipped Unequipped ItemMoved ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
     Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
-    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched);
+    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -225,7 +225,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     for (count, what) in [
         (COMMANDS.len(), "`Command` (15 variants)"),
         (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
-        (EVENTS.len(), "`Event` has 71 variants"),
+        (EVENTS.len(), "`Event` has 72 variants"),
         (REJECTIONS.len(), "`Rejection` (70 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "26 ops."),

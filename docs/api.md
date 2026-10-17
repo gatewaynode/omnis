@@ -693,7 +693,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 71 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 72 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -772,7 +772,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | Event | Fields | Meaning |
 |---|---|---|
 | `Noticed` | `object` (placement id in the party's map), `how` (`Passive`, `Search`, `Spell`) | A hidden object was found and is in reach from now on. `Passive`: after a look while exploring, the party's best passive Perception (members who can act) met its difficulty, its cell in sight within `notice_tiles` (2) cells; `Spell`: a reveal in force (`Utility::Reveal`, a lasting effect like light) reached it within its range on the party's level, seen or not, and it has an aura; `Search`: after `Searched`. Comes before `Visible`. |
-| `Searched` | `member` (`CharacterId`), `roll` (`Roll`) | `Search`: who searched and the Investigation roll; each object found follows as `Noticed`. |
+| `Searched` | `member` (`CharacterId`), `roll` (`Roll`) | `Search`: who searched and the Investigation roll; each object found follows as `Noticed`, then the lore it turned up as `Lore`. |
+| `Lore` | `key` (a text key), `object` (placement id; left out for a cell's) | Lore a search turned up in reach (owner, 2026-10-16): each cell's (`MapDef.lore`), then each object's (a placement's own, else its kind's), when it asks no `dc` or the search's roll meets it; a `once` lore is told the first time only, which the save keeps (`MapState.lore_told`, `ObjectState.told`). |
 | `ObjectUsed` | `object` (placement id in the party's map), `verb`, `success` | `Act` went through; its checks (`Check`) come before it, its effects after it on success, the kind's failure text on a failed check. |
 | `ObjectState` | `object`, `state` | The object moved to a state. |
 | `ObjectRemoved` | `object` | The object was taken away for good. |
@@ -1035,6 +1036,8 @@ Additive (§13), so `PROTOCOL` stays 2:
   client that draws every object on a level, not only those in sight.
 - 2026-10-16: Tier 1 re-exports `Notice` (`Event::Noticed`'s `how`) beside the other event types
   (M8.5 step 2b, item 5), so a client can word each way of noticing. The wire form is unchanged.
+- 2026-10-17: `Event::Lore { key, object }` (72 events), told by `Search` after its finds; the
+  save's `MapState.lore_told` and `ObjectState.told`, left out when empty (M8.5 step 2b, lore).
 
 ### Protocol 2 (2026-10-10)
 

@@ -39,6 +39,8 @@
         "objects:text:lore.carving": "Low on a hedge root, someone carved: B. R. was here.",
         "objects:text:crate.lore": "Stencilled on a slat: LOFT STORES.",
         "objects:text:statue.lore": "Under the moss on the plinth, a name: Ser Aldric.",
+        "objects:text:statue.moss": "Moss covers the plinth.",
+        "objects:text:lever.lore": "Rust flakes from the handle; it was pulled often once.",
         "objects:text:spell.sense_magic.name": "Sense Magic",
         "objects:text:spell.sense_magic.description": "Hidden things with a magical aura nearby are found while it lasts.",
     },

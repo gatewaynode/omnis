@@ -604,12 +604,21 @@ pub enum Event {
         how: Notice,
     },
     /// A member searched the party's cell and the one it faces; each object found follows as
-    /// `Noticed`.
+    /// `Noticed`, then the lore it turned up as `Lore`.
     Searched {
         /// Who searched: the member best at Investigation who can act.
         member: CharacterId,
         /// The Investigation roll.
         roll: Roll,
+    },
+    /// Lore a search turned up (owner, 2026-10-16): written on a cell in reach, or carried by an
+    /// object in reach, after the search's finds.
+    Lore {
+        /// The text key.
+        key: String,
+        /// The placement whose lore it is; left out for a cell's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        object: Option<String>,
     },
     /// The party did something to an object; on success its effects follow (M8.5 step 2).
     ObjectUsed {

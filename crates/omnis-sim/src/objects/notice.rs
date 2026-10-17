@@ -3,9 +3,11 @@
 //! sight within `notice_tiles`. A reveal in force: every hidden object with a magical aura within
 //! its range, seen or not. A search: one Investigation roll by the member best at it against
 //! each hidden object in the party's cell and the one it faces, which takes `search_minutes`
-//! whether or not anything is there.
+//! whether or not anything is there. The same roll turns up lore in reach (owner, 2026-10-16):
+//! each cell's, then each object's (a placement's own, else its kind's), when it asks no
+//! difficulty or the roll meets it, and a `once` lore only the first time.
 
-use super::act::reach;
+use super::act::{reach, reachable};
 use super::{Refusal, edit, saved};
 use crate::apply::advance;
 use crate::checks::{self, CheckSpec};
@@ -104,6 +106,7 @@ pub(crate) fn search(
             }
         }
     }
+    let total = roll.total;
     events.push(Event::Searched {
         member: world.party.members[member].id,
         roll,
@@ -111,10 +114,59 @@ pub(crate) fn search(
     for object in found {
         mark(world, object, Notice::Search, events);
     }
+    tell(world, data, total, events);
     let minutes =
         rule(data, "search_minutes").map_or(SEARCH_MINUTES, |v| u32::try_from(v).unwrap_or(0));
     advance(world, data, minutes, events);
     Ok(())
+}
+
+/// Whose lore a search tells: a cell's by its id, or a placement's.
+enum Teller {
+    Cell(String),
+    Object(String),
+}
+
+/// Tell the lore in reach that a search's `total` meets, once lore only once.
+fn tell(world: &mut World, data: &Data, total: i64, events: &mut Vec<Event>) {
+    let pos = world.position;
+    let Some(map) = data.maps.get(&pos.map) else {
+        return;
+    };
+    let meets = |dc: Option<u8>| dc.is_none_or(|dc| total >= i64::from(dc));
+    let state = world.maps.get(&pos.map);
+    let cells = reach(world, map, pos)
+        .into_iter()
+        .flat_map(|(x, y)| map.lore.get(&(pos.level, x, y)).into_iter().flatten())
+        .filter(|l| meets(l.dc) && !(l.once && state.is_some_and(|s| s.lore_told.contains(&l.id))))
+        .map(|l| (l.text.clone(), l.once, Teller::Cell(l.id.clone())));
+    let objects = reachable(world, data).filter_map(|p| {
+        let lore = p
+            .lore
+            .as_ref()
+            .or_else(|| data.objects.get(&p.kind)?.lore.as_ref())?;
+        let spent = lore.once && saved(world, pos.map, &p.id).is_some_and(|s| s.told);
+        (meets(lore.dc) && !spent)
+            .then(|| (lore.text.clone(), lore.once, Teller::Object(p.id.clone())))
+    });
+    let told: Vec<_> = cells.chain(objects).collect();
+    for (key, once, teller) in told {
+        let object = match teller {
+            Teller::Cell(id) => {
+                if once {
+                    world.map_state(pos.map).lore_told.insert(id);
+                }
+                None
+            }
+            Teller::Object(id) => {
+                if once {
+                    edit(world, pos.map, &id, |s| s.told = true);
+                }
+                Some(id)
+            }
+        };
+        events.push(Event::Lore { key, object });
+    }
 }
 
 /// Whether a placement is hidden and not yet found nor taken away.

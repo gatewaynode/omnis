@@ -47,6 +47,9 @@ pub struct ObjectState {
     /// A container's items, once changed from what it started with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<(ItemId, u16)>>,
+    /// Its lore, told once and never again.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub told: bool,
 }
 
 /// Why an object does not allow what was asked of it now. Checks are not refusals: a failed

@@ -9,6 +9,7 @@
         "down": (look: Some((shape: Post, width: 1, depth: 2, height: 2))),
     },
     attributes: (material: Some(Metal)),
+    lore: Some((text: "objects:text:lever.lore")),
     interactions: [
         (
             verb: Pull,
