@@ -6,24 +6,28 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the four files under
   `assets/` and `docs/dnd_supplemental/` (the owner's, in progress).
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c (all accepted), **2 (2a, 2b, 2c built)**, 7 (saves by name, now
+- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, **2 (2a, 2b, 2c accepted by the owner 2026-10-17)**, 7 (saves by name, now
   waiting for the save-model study), editor (M5), 5, 6.
 - **Today's commits (2026-10-17):**
   - 2b refinements, each hand-tested by the owner: notice fade and close `f7a5f93`; the full log `d599c60`
     (L, the "Log  L" button, a click on the running log; filter; in-memory history).
   - PRD D28 and the study `8d489c4`.
   - The owner's world doc `ae20844`.
-  - 2c: data `6b44f52`, engine `b1689ad`, client `2deb324`, docs and acceptance (the next commit).
-- **Open acceptance walks:** `tasks/acceptance/m8.5-2a.md` (never walked), `m8.5-2b.md` (Parts 1–6),
-  `m8.5-2c.md` (new, Parts 1–5). All stay open in TODO.
+  - 2c: data `6b44f52`, engine `b1689ad`, client `2deb324`, docs and acceptance `c68bf6a`.
+- **Acceptance:** the owner walked 2a, 2b and 2c ("Manually tested, good progress so far"); step 2 is closed in TODO.
 - **Gate:** `tests passed 861 failed 0 ignored 12`, VERIFY-GREEN at `2deb324`. Sentrux rules pass, quality 8988.
 
 ## The save model (PRD D28, owner 2026-10-17)
 - The save centres on the characters and their interactions, replayed from the last base state; a world file
   apart, which only the simulation writes: immutable authored bases, layers of change, folds at thresholds
   and story points.
-- Study `tasks/plans/world-state.md`: six questions await the owner, including the open PRD §14 question (a
-  replay meeting a changed pack: skip and report, or refuse unless migrated). Step 7 waits on it.
+- Study `tasks/plans/world-state.md`: the six questions were answered on 2026-10-17 and written into the study,
+  PRD D28, §7.7 and §14. In short: migrate, then report a changed pack (the player loads without it or cancels);
+  flags scoped per flag (party or world); a world directory with one file per region under a manifest; characters
+  carry between worlds (a horizon); folds visible to the player; the bases a save names are kept.
+- Still open: the fold thresholds (PRD §14). Owner: they come from the world simulation, a simplified 4X engine over
+  biospheres, settlements, regions and the world, so they wait for its mechanics. The save model builds the fold
+  as a mechanism with no threshold of its own.
 - Until it is built, a save is the whole `World`, and the full log's history lasts the session.
 - Lesson of the day: when a feature has no home in a core structure, question the structure before
   wedging it in.
@@ -54,9 +58,7 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode.
 
 ## Next
-- The owner's walks of 2a, 2b, 2c. Then step 7 (after the save-model study's answers) or the editor (M5), in
-  the owner's order: the build order puts 7 before the editor, but 7 waits on D28.
-- If the owner says only "continue", ask about the walks and the study's questions first.
+- Planning the save model (D28) in plan mode, from the answered study (owner, 2026-10-17); it reshapes step 7.
 
 ## Pins
 - Replays: walk `8d880647a25097b2`, fight `d06fa80460a947ef` (unchanged by 2c). `SAVE_SCHEMA` 7,

@@ -104,13 +104,28 @@ These rows are the study's main work. Three are hard:
 - **Co-op (D5) and other players' parties (§7.8):** several character saves over one world file.
 - **The full log view (built now):** an in-memory history until the journal exists, then read from it.
 
-## Questions for the owner
-1. The changed-world question (PRD §14).
-2. Whether quest flags are the party's or the world's, or both by kind.
-3. Whether a world file is one per world or one per region.
-4. Whether characters may carry from one world to another (the MM-era import), and what comes with them.
-5. What "minor" means in numbers, and whether the player sees a fold happen.
-6. Whether a character save older than the latest fold is replayed on the new base or kept on its own.
+## Questions for the owner (answered 2026-10-17 unless marked open)
+1. **A changed world under a replay (PRD §14): migrate, then report.** On load the packs' declared migrations run
+   first (step 7's plan). An interaction that still does not fit is listed in the load check, and the player
+   chooses to load with it skipped or to cancel. A skip can move later draws, so the report says the outcome may
+   differ from what was played.
+2. **Quest flags: both, declared per flag.** A flag's scope is pack data: a party flag (a quest taken, an oath)
+   lives in the character save and travels with the party; a world flag (a bridge burned, a lord dead) is a layer
+   in the world file and folds.
+3. **The world file: a directory per world.** A manifest (packs, seed, each region's current base) and one file per
+   region; a fold rewrites one region's file; a region never visited has none (M9's lazy materialization). The
+   manifest is written last and checked on load, so a torn write is detected.
+4. **Characters between worlds: yes, as a horizon.** The character save is shaped to carry; the import is built
+   later. It takes members, levels, kit and party flags; it leaves the journal, automap, clock and position. Kit is
+   resolved by name against the new world's packs and what is missing is reported, as in 1.
+5. **Folds: visible to the player.** A fold is announced (the world has moved on), part of the fiction; this suits
+   story points first. **Open:** the numbers for "minor". Owner (2026-10-17): folds happen at thresholds in the
+   larger world simulation, a simplified 4X engine driving the biospheres, settlements, regions and the world, so
+   the numbers wait for its mechanics (M10). The save model provides the fold as a mechanism, triggered by a
+   story point or by a caller, with no size or time rule of its own.
+6. **A save older than the latest fold: keep named bases.** The world directory keeps every region base a character
+   save still names and drops a base when no save names it, so loading an older save restores that moment. Disk
+   is bounded by the saves kept times the regions they touched.
 
 ## Measurements before choosing
 - Interactions per hour of play, from the window's session log (`.omnis/vector-session.ron`).
