@@ -74,6 +74,10 @@ impl Nav {
             (ScreenId::Pause, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
+            // Wherever a game is played: exploring, in a service, met or in a fight.
+            (ScreenId::Log, Some(_)) => {
+                !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
+            }
             (ScreenId::Actions | ScreenId::Verbs, Some(views)) => {
                 base.is_none() && views.exploring()
             }
@@ -123,6 +127,7 @@ impl Nav {
                     | ScreenId::CreateParty
                     | ScreenId::Settings
                     | ScreenId::Debug
+                    | ScreenId::Log
             )
         )
     }

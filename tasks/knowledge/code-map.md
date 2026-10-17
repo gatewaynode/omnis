@@ -165,7 +165,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   rows from `CombatView.items`, the spell notes, `budget_line`, `points`, `picking`), `arena.rs` (the fight
   screen's layout and picks: the left column of picture, actions, log and status; the `party` rectangle at the
   right; P7: `picker`, the pickers' panel; P8: `fit`, `zoom`, the fight's units at the interface scale), `settings.rs` (P8: `Prefs`,
-  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
+  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `history.rs` (the full log's lines, stamped, `matching`; 2026-10-17), `screen/log.rs` (the full log's screen), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Objects (M8.5 step 2b): `shapes.rs` (`Body`, `shapes`: a look as lines and fills on its footprint, turned by facing,
   on the home floor; a shut arch crossed; `PILE_LOOK`); `scene.rs` `Scene::build(data, ..)` adds each level's
@@ -182,7 +182,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   action column or the picker panel and routes `FightPress`, its arrows and number keys through `screen::apply`;
   `FightScreen.controls`; P8: `FightScreen.zoom`), `settings.rs` (P8: `Current`, `Fitted`, `SettingsPlugin`:
   `apply_quality` on the HDR cameras and gizmo groups, `apply_scale` to `UiScale`), `fonts.rs` (P8: `INTER`,
-  `ALEGREYA` at fixed handles, `FontsPlugin`, `wear`), `hud.rs`, `notice.rs` (2026-10-16: the outcome notice centred where the screens stand, faded by `crate::notice::alpha` and dropped out of range; it replaced P5's bottom message line), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
+  `ALEGREYA` at fixed handles, `FontsPlugin`, `wear`), `hud.rs`, `notice.rs` (2026-10-16: the outcome notice centred where the screens stand, faded by `crate::notice::alpha` and dropped out of range; it replaced P5's bottom message line; 2026-10-17: gone by the cell's edge, an "x" closes it), `minimap.rs`, `render.rs`, `capture.rs` (`--screenshot`,
   offscreen; the socket's live capture).
 - Screens (parity P2–P6; presentation-ARCHITECTURE §6): `src/screen/` is Bevy-free: `mod.rs` (`Screen`,
   `Panel`, `Row` (with `after`), `Span`, `Control` with `why_not`, `Kind::{Button, Choice, Number, Text}`,
@@ -201,7 +201,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   runs.
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays. `tests/service.rs` (P4): `inside(data, site)`, the
-  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/piles.rs` (the inventory's ground and containers, 2026-10-16); `tests/object_lines.rs` (the objects' HUD lines, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
+  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/full_log.rs` (the full log, 2026-10-17); `tests/piles.rs` (the inventory's ground and containers, 2026-10-16); `tests/object_lines.rs` (the objects' HUD lines, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
 - The engine boundary (parity P0): `sim.rs` holds `SimWorld` (`faced_door` since M8.5 2b lore) with its world private (methods mirror
   `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
   `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`), `rest` (`SimWorld::rest`, P6), `flags` (`SimWorld::flags`, only in a devtools world, P8)), which `Session::note` refreshes after every accepted

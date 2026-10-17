@@ -24,6 +24,7 @@ fn game<'a>(session: &'a Session, views: &'a Views) -> Game<'a> {
         views,
         log: &[],
         unreplayable: None,
+        history: &session.history,
     }
 }
 

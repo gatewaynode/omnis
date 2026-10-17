@@ -6,9 +6,10 @@
 use super::controls::GREEN;
 use super::movement::Intent;
 use super::notice::NOTICE_WIDTH;
-use super::screen::colour;
+use super::screen::{Screens, colour};
 use super::session::Session;
 use super::{VectorSet, ViewState};
+use crate::screen::ScreenId;
 use crate::style::Role;
 use bevy::diagnostic::{Diagnostic, DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -25,8 +26,8 @@ pub struct StatusText;
 #[derive(Component)]
 pub struct Hud;
 
-/// Marks the log's column.
-#[derive(Component)]
+/// Marks the log's column; a click on it opens the full log.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LogColumn;
 
 /// One line of the log, by its place from the top.
@@ -57,8 +58,10 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn)
-            .add_systems(Update, (arrange, status, log).in_set(VectorSet::Draw));
+        app.add_systems(Startup, spawn).add_systems(
+            Update,
+            (arrange, status, log, open_log).in_set(VectorSet::Draw),
+        );
     }
 }
 
@@ -89,7 +92,8 @@ fn spawn(mut commands: Commands) {
                     margin: UiRect::top(Val::Px(18.0)),
                     ..default()
                 },
-                Pickable::IGNORE,
+                // A click on it opens the full log.
+                Interaction::default(),
             ))
             .with_children(|column| {
                 for at in 0..LOG_LINES {
@@ -103,14 +107,6 @@ fn spawn(mut commands: Commands) {
                 }
             });
         });
-}
-
-/// Day, hour and minute from elapsed party minutes.
-#[must_use]
-pub fn clock(elapsed: i64) -> String {
-    let day = elapsed.div_euclid(1440) + 1;
-    let minute = elapsed.rem_euclid(1440);
-    format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
 }
 
 /// Where the party is, for the status block: the map, its level when the map has several
@@ -183,7 +179,7 @@ fn status(
     let mut out = format!(
         "{}  {}\ncommands {}  refusals {}  disagreements {}  {rate}",
         mode_name(here.mode),
-        clock(here.age),
+        crate::labels::clock(here.age),
         session.binder.log.len(),
         session.binder.refusals,
         session.binder.disagreements,
@@ -227,11 +223,14 @@ fn arrange(
 /// a fight, whose roll log has its lines.
 fn log(
     session: Res<Session>,
+    screens: Res<Screens>,
     view: Option<Res<State<ViewState>>>,
     mut log: Query<(&LogLine, &mut Text, &mut TextColor, &mut Visibility)>,
 ) {
     let fight = view.is_some_and(|v| *v.get() == ViewState::Fight);
-    let lines: &[String] = if fight { &[] } else { &session.lines };
+    // The full log shows them all; the running log does not stand beside it.
+    let full = screens.nav.top(Some(&session.views)) == Some(ScreenId::Log);
+    let lines: &[String] = if fight || full { &[] } else { &session.lines };
     let first = lines.len().saturating_sub(LOG_LINES);
     let lines = &lines[first..];
     for (at, mut words, mut tint, mut shown) in &mut log {
@@ -252,13 +251,16 @@ fn log(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::clock;
-
-    #[test]
-    fn the_clock_reads_days_hours_minutes() {
-        assert_eq!(clock(0), "Day 1 00:00");
-        assert_eq!(clock(1440 + 61), "Day 2 01:01");
+/// A click on the running log opens the full log, where it is allowed.
+fn open_log(
+    clicked: Query<&Interaction, (Changed<Interaction>, With<LogColumn>)>,
+    session: Option<Res<Session>>,
+    mut screens: ResMut<Screens>,
+) {
+    if let Some(session) = session
+        && clicked.iter().any(|i| *i == Interaction::Pressed)
+        && screens.nav.allowed(ScreenId::Log, Some(&session.views))
+    {
+        screens.nav.open(ScreenId::Log, Some(&session.views));
     }
 }

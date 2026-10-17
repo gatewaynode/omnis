@@ -14,7 +14,7 @@ pub mod notice;
 pub mod render;
 pub mod roster;
 pub mod screen;
-mod screen_draw;
+pub mod screen_draw;
 pub mod screen_text;
 pub mod session;
 pub mod settings;

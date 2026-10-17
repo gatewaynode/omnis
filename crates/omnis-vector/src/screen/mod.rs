@@ -16,6 +16,7 @@ pub mod debug;
 pub mod defeat;
 pub mod fight;
 pub mod inventory;
+pub mod log;
 pub mod nav;
 pub mod new_game;
 pub mod pause;
@@ -72,6 +73,8 @@ pub enum ScreenId {
     Debug,
     /// What the party can do with what is in reach, from the square's Use (M8.5 step 2b).
     Verbs,
+    /// Every line of the session, filtered (owner, 2026-10-17).
+    Log,
 }
 
 impl ScreenId {
@@ -192,6 +195,8 @@ pub enum ControlId {
     OpenDebug,
     /// The verbs screen's nth button: the faced door, then each object's interactions.
     Verb(u8),
+    /// The full log's filter.
+    LogFilter,
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -529,6 +534,8 @@ pub struct Game<'a> {
     pub log: &'a [String],
     /// Why the command log no longer replays, if it does not.
     pub unreplayable: Option<&'a str>,
+    /// Every line of the session, for the full log.
+    pub history: &'a crate::history::History,
 }
 
 /// The quick save: where it is, and whether there is one to load.
@@ -592,6 +599,8 @@ pub struct Forms {
     pub settings: Option<crate::settings::Prefs>,
     /// The debug panel's picks and what was typed; kept between openings, reset with the game.
     pub debug: debug::DebugForm,
+    /// The full log's filter as typed; cleared when the screen changes.
+    pub log_filter: String,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -616,6 +625,7 @@ impl Forms {
             self.dice.clear();
             self.tactics = tactics::TacticsForm::default();
             self.settings = None;
+            self.log_filter.clear();
         }
         if base == Some(ScreenId::Service) && self.seen.1 != base {
             self.bank.clear();
@@ -646,6 +656,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
         (ScreenId::Verbs, Some(game)) => verbs::content(ctx.data, game),
+        (ScreenId::Log, Some(game)) => log::content(game, forms),
         (ScreenId::Service, Some(game)) => service::content(ctx.data, game, &forms.bank),
         (ScreenId::Inventory, Some(game)) => inventory::content(ctx.data, game, forms),
         (ScreenId::Cast, Some(game)) => cast::content(ctx.data, game, forms),
@@ -707,6 +718,7 @@ pub fn apply(
         }
         (ScreenId::Actions, Some(game)) => actions::apply(ctx.data, game, control),
         (ScreenId::Verbs, Some(game)) => verbs::apply(ctx.data, game, control),
+        (ScreenId::Log, _) => log::apply(forms, control, payload),
         (ScreenId::Service, Some(game)) => service::apply(game, &mut forms.bank, control, payload)?,
         (ScreenId::Inventory, Some(game)) => inventory::apply(game, forms, control, payload),
         (ScreenId::Cast, Some(game)) => cast::apply(game, forms, control, payload),

@@ -157,6 +157,9 @@ pub fn views(world: &SimWorld, data: &Data) -> Views {
 }
 
 /// The context of a game in `world`, for the screen model; no quick save.
+/// The history a context made without a session reads.
+static NO_HISTORY: omnis_vector::history::History = omnis_vector::history::History::new();
+
 pub fn ctx<'a>(
     data: &'a Data,
     world: &'a SimWorld,
@@ -169,6 +172,7 @@ pub fn ctx<'a>(
             views,
             log: &[],
             unreplayable: None,
+            history: &NO_HISTORY,
         }),
         save: omnis_vector::screen::Slot {
             path: "saves/none.ron",

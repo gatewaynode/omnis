@@ -234,3 +234,12 @@
   numbers, and checked against the motion that ends it. A panel over the view that holds the player's attention
   has a close control from its first build.
 
+
+## 2026-10-17 — When a request will not fit the save, question the save before offering a way to fit it
+- **What happened**: The owner asked that the full log be kept in the save. The save is the engine's whole
+  `World`, so I offered two ways to put the log there (worded lines in a journal field, or the events). The
+  owner stopped me: the save was over-coupled. It should centre on the characters and their interactions,
+  replayed against a world the simulation owns (PRD D28).
+- **Rule**: When a feature has no natural home in a core structure (the save, a view, a crate), say that before
+  proposing where to wedge it. Name the coupling ("the save is the whole world, so a client note must become
+  engine state"), and ask whether the structure is right. Only then offer the options inside it.

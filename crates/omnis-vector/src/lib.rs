@@ -23,6 +23,7 @@ pub mod geom;
 pub mod geometry;
 pub mod grid;
 pub mod ground;
+pub mod history;
 pub mod labels;
 pub mod look;
 pub mod minimap;

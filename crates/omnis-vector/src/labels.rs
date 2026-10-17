@@ -16,6 +16,14 @@ use omnis_sim::omnis_data::{
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
 use omnis_sim::{CheckKind, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
 
+/// Day, hour and minute from elapsed party minutes: "Day 2 01:01".
+#[must_use]
+pub fn clock(elapsed: i64) -> String {
+    let day = elapsed.div_euclid(1440) + 1;
+    let minute = elapsed.rem_euclid(1440);
+    format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
+}
+
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
 #[must_use]
 pub fn text<'d>(data: &'d Data, key: &'d str) -> &'d str {

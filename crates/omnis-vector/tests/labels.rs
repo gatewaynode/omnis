@@ -503,3 +503,9 @@ fn the_lines_name_the_loot() {
         ))
     );
 }
+
+#[test]
+fn the_clock_reads_days_hours_minutes() {
+    assert_eq!(labels::clock(0), "Day 1 00:00");
+    assert_eq!(labels::clock(1440 + 61), "Day 2 01:01");
+}

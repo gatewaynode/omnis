@@ -16,8 +16,8 @@ pub use super::screen_draw::{
     Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
 };
 use super::screen_draw::{
-    LabelOf, Mark, MessageText, SpanAt, TitleText, bars, build, shown_label, text_field, thumbs,
-    wheel, width,
+    LabelOf, Mark, MessageText, SCROLL_FOOT, SpanAt, TitleText, bars, build, shown_label,
+    text_field, thumbs, wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::settings::{Current, Fitted};
@@ -109,6 +109,7 @@ impl Plugin for ScreenPlugin {
                     route,
                     super::roster::route,
                     paint,
+                    foot,
                     super::roster::paint,
                     make_room,
                     thumbs,
@@ -203,6 +204,7 @@ fn open_start(
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
         Some(StartScreen::Actions) => screens.nav.open(ScreenId::Actions, game),
         Some(StartScreen::Verbs) => screens.nav.open(ScreenId::Verbs, game),
+        Some(StartScreen::Log) => screens.nav.open(ScreenId::Log, game),
         Some(StartScreen::Inventory) => screens.nav.show(ScreenId::Inventory, game),
         Some(StartScreen::Title | StartScreen::CreateParty) | None => {}
     }
@@ -236,6 +238,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
             views: &session.views,
             log: &session.fight_log,
             unreplayable: session.unreplayable.as_deref(),
+            history: &session.history,
         }),
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),
@@ -442,7 +445,8 @@ fn applied(
 }
 
 /// Space or a right click opens or closes the square's actions while exploring; with Shift it
-/// runs the default action, or opens them when there is none. R opens or closes the camp.
+/// runs the default action, or opens them when there is none. R opens or closes the camp. L opens
+/// the full log.
 fn action_keys(
     keys: &ButtonInput<KeyCode>,
     mouse: &ButtonInput<MouseButton>,
@@ -459,6 +463,11 @@ fn action_keys(
         && matches!(nav.top(Some(&session.views)), None | Some(ScreenId::Camp))
     {
         nav.toggle(ScreenId::Camp, Some(&session.views));
+    }
+    // L opens the full log where no screen is up; it never closes it, for the filter takes
+    // typing (Esc, Close or the button do).
+    if keys.just_pressed(KeyCode::KeyL) && nav.top(Some(&session.views)).is_none() {
+        nav.open(ScreenId::Log, Some(&session.views));
     }
     if !action || !free || !session.views.exploring() || session.views.combat.is_some() {
         return;
@@ -671,7 +680,15 @@ fn paint(
         _ => {
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
-            node.width = Val::Px(width(&screen, height));
+            // The full log stands wide: most of the window (owner, 2026-10-17).
+            let log = screen.id == ScreenId::Log;
+            node.width = if log {
+                Val::Percent(LOG_WIDE)
+            } else {
+                Val::Px(width(&screen, height))
+            };
+            // And as tall as the room allows, however few its lines.
+            node.height = if log { room } else { Val::Auto };
             // Never wider than the window, at any interface scale: the panels scroll instead.
             node.max_width = Val::Percent(100.0);
             node.padding = UiRect::all(Val::Px(scaled(14.0, height)));
@@ -747,6 +764,37 @@ fn slide(
         }
     }
 }
+
+/// The full log stands at its newest line: when it is drawn anew, and whenever its lines change
+/// (a filter typed). Elsewhere the wheel moves it (`screen_draw::wheel`).
+fn foot(
+    screens: Res<Screens>,
+    mut last: Local<Option<u64>>,
+    mut panels: Query<&mut ScrollPosition, With<Scrolls>>,
+) {
+    use std::hash::{Hash, Hasher};
+    let Some((screen, _)) = screens
+        .drawn
+        .as_ref()
+        .filter(|(s, _)| s.id == ScreenId::Log)
+    else {
+        *last = None;
+        return;
+    };
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    screen.panels.hash(&mut h);
+    let lines = Some(h.finish());
+    let changed = *last != lines;
+    *last = lines;
+    for mut at in &mut panels {
+        if changed || at.is_added() {
+            at.0.y = SCROLL_FOOT;
+        }
+    }
+}
+
+/// The full log's width, in percent of the window.
+const LOG_WIDE: f32 = 90.0;
 
 /// The most a screen's height takes, in percent of the window's, over a game being played: the
 /// room between the HUD's lines above and the button groups below. A taller screen's panels

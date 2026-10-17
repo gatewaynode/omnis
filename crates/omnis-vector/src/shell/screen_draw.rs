@@ -404,10 +404,21 @@ fn span_node(
     };
 }
 
-/// The mouse wheel scrolls the panel under the cursor; the layout holds it inside its rows.
+/// Where a wheel's `dy` takes a panel scrolled to `at` whose rows run `max` past its foot: from
+/// the foot when `at` is past it (a panel set to its foot, `SCROLL_FOOT`), never above the top or
+/// below the foot.
+#[must_use]
+pub fn wheeled(at: f32, dy: f32, max: f32) -> f32 {
+    (at.min(max) - dy).clamp(0.0, max)
+}
+
+/// A scroll position past any foot: the layout shows the panel's foot (the full log's lines).
+pub const SCROLL_FOOT: f32 = f32::MAX;
+
+/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out.
 pub(super) fn wheel(
     scroll: Res<AccumulatedMouseScroll>,
-    mut panels: Query<(&RelativeCursorPosition, &mut ScrollPosition), With<Scrolls>>,
+    mut panels: Query<(&RelativeCursorPosition, &ComputedNode, &mut ScrollPosition), With<Scrolls>>,
 ) {
     let dy = match scroll.unit {
         MouseScrollUnit::Line => scroll.delta.y * WHEEL_LINE,
@@ -416,10 +427,16 @@ pub(super) fn wheel(
     if dy == 0.0 {
         return;
     }
-    for (cursor, mut at) in &mut panels {
+    for (cursor, node, mut at) in &mut panels {
         if cursor.cursor_over() {
+            // How far the rows run past the foot, in logical pixels; unbounded until laid out.
+            let max = if node.size.y > 0.0 {
+                ((node.content_size.y - node.size.y) * node.inverse_scale_factor).max(0.0)
+            } else {
+                f32::INFINITY
+            };
             // Wheel up (a positive delta) shows what is above.
-            at.0.y = (at.0.y - dy).max(0.0);
+            at.0.y = wheeled(at.0.y, dy, max);
         }
     }
 }
@@ -468,6 +485,16 @@ pub(super) fn bars(
     }
 }
 
+/// A panel's share of the screen's width and where it starts from: equal shares, but the full
+/// log's filter keeps its own width and its lines take the rest.
+fn grow(screen: &Screen, panel: usize) -> (f32, Val) {
+    if screen.id == crate::screen::ScreenId::Log && panel == 0 {
+        (0.0, Val::Auto)
+    } else {
+        (1.0, Val::Px(0.0))
+    }
+}
+
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
 /// The top screen's words carry the markers they are rewritten in place by.
 pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32, mark: Mark) {
@@ -489,8 +516,8 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                     // Panels share the width equally, so one panel's long rows never squeeze
                     // the next into wrapping.
                     .spawn(Node {
-                        flex_grow: 1.0,
-                        flex_basis: Val::Px(0.0),
+                        flex_grow: grow(screen, p).0,
+                        flex_basis: grow(screen, p).1,
                         min_width: Val::Px(0.0),
                         min_height: Val::Px(0.0),
                         column_gap: Val::Px(scaled(6.0, height)),

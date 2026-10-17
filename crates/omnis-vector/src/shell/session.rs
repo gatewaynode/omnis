@@ -4,6 +4,7 @@ use super::hud::LOG_LINES;
 use super::text::{describe, searched};
 use crate::bind::Binder;
 use crate::grid::cell_of;
+use crate::history::History;
 use crate::notice::Notice;
 use crate::party;
 use crate::pose::Pose;
@@ -99,6 +100,8 @@ pub enum StartScreen {
     Verbs,
     /// The first member's kit beside the party column, over a game.
     Inventory,
+    /// The full log, over a game.
+    Log,
 }
 
 impl StartScreen {
@@ -111,6 +114,7 @@ impl StartScreen {
                 | StartScreen::Actions
                 | StartScreen::Verbs
                 | StartScreen::Inventory
+                | StartScreen::Log
                 | StartScreen::CreateParty
         )
     }
@@ -177,9 +181,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     "actions" => StartScreen::Actions,
                     "verbs" => StartScreen::Verbs,
                     "inventory" => StartScreen::Inventory,
+                    "log" => StartScreen::Log,
                     other => {
                         return Err(format!(
-                            "--screen takes title, new-game, create-party, pause, actions, verbs or inventory, got {other}"
+                            "--screen takes title, new-game, create-party, pause, actions, verbs, inventory or log, got {other}"
                         ));
                     }
                 });
@@ -302,6 +307,9 @@ pub struct Session {
     pub log_path: PathBuf,
     /// Recent event lines for the HUD, newest last.
     pub lines: Vec<String>,
+    /// Every line said this session, the fight's own too, stamped: the full log
+    /// (`screen::log`).
+    pub history: History,
     /// What the last command the player started said, or its refusal, and where it was done:
     /// shown centred while exploring, fading as the party walks away (`crate::notice`).
     pub notice: Option<Notice>,
@@ -437,6 +445,7 @@ impl Session {
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
+            history: History::default(),
             notice: None,
             fight_log: Vec::new(),
             names,
@@ -553,37 +562,46 @@ impl Session {
         self.reshape |= events.iter().any(reshapes);
         self.names.observe(&self.views.party);
         self.names.locate(self.views.position.map);
+        // Each event's fight line, for the full log when the HUD has none for it.
+        let mut fight = Vec::with_capacity(events.len());
         for event in events {
             if matches!(event, Event::EncounterStarted { .. }) {
                 self.fight_log.clear();
             }
-            if let Some(line) = rolllog::describe(event, &self.names, &self.data) {
-                self.fight_log.push(line);
+            let line = rolllog::describe(event, &self.names, &self.data);
+            if let Some(line) = &line {
+                self.fight_log.push(line.clone());
             }
+            fight.push(line);
             self.names.follow(event, &self.data);
         }
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
-        // Each line, and whether a move said it: a notice leaves out a move's.
-        let mut lines: Vec<(bool, String)> = events
-            .iter()
-            .filter_map(|e| {
-                describe(e, &self.names, &self.data)
-                    .map(|line| (matches!(e, Event::Moved { .. }), line))
-            })
-            .collect();
-        lines.extend(
-            searched(
-                events,
-                &self.views,
-                &self.data,
-                self.world.faced_door(&self.data),
-            )
-            .into_iter()
-            .map(|line| (false, line)),
-        );
+        // Each line, and whether a move said it: a notice leaves out a move's. The full log
+        // keeps each event once: the HUD's line, else the fight's.
+        let mut lines: Vec<(bool, String)> = Vec::new();
+        let age = self.views.here.age;
+        for (event, fight) in events.iter().zip(fight) {
+            match (describe(event, &self.names, &self.data), fight) {
+                (Some(line), _) => {
+                    self.history.push(age, line.clone());
+                    lines.push((matches!(event, Event::Moved { .. }), line));
+                }
+                (None, Some(line)) => self.history.push(age, line),
+                (None, None) => {}
+            }
+        }
+        for line in searched(
+            events,
+            &self.views,
+            &self.data,
+            self.world.faced_door(&self.data),
+        ) {
+            self.history.push(age, line.clone());
+            lines.push((false, line));
+        }
         for (_, line) in &lines {
-            self.say(line.clone());
+            self.show(line.clone());
         }
         lines
     }
@@ -602,8 +620,9 @@ impl Session {
         self.names.observe(&self.views.party);
         self.reshape = true;
         self.unreplayable = Some(why.to_owned());
-        // The old world's last event is not this one's.
+        // The old world's last event is not this one's, nor its history.
         self.notice = None;
+        self.history = History::default();
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`
@@ -612,8 +631,14 @@ impl Session {
         self.views = self.world.views(&self.data);
     }
 
-    /// Add a line to the HUD's recent events, keeping the last eight.
+    /// Add a line to the HUD's recent events and the full log.
     pub fn say(&mut self, line: String) {
+        self.history.push(self.views.here.age, line.clone());
+        self.show(line);
+    }
+
+    /// Add a line to the HUD's recent events, keeping the last eight.
+    fn show(&mut self, line: String) {
         self.lines.push(line);
         let excess = self.lines.len().saturating_sub(LOG_LINES);
         self.lines.drain(..excess);

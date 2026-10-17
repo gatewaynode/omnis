@@ -17,6 +17,7 @@ mod debug;
 mod fight;
 mod fight_screen;
 mod fill;
+mod full_log;
 mod game_io;
 mod geometry;
 mod ground;
