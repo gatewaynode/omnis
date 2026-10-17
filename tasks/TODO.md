@@ -585,7 +585,20 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - **Unchanged:** `SAVE_SCHEMA` 7, the goldens (walk `8d880647a25097b2`, fight `d06fa80460a947ef`), every
       API pin.
     - **Debt:** `screen/debug.rs` is 872 lines. The World page's rows are the next piece out if it grows.
-  - [ ] 7c. Flag scope in pack data (party or world, default world). All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7c.md`.
+  - [x] 7c. Flag scope in pack data (party or world, default world). All items built (2026-10-17). Acceptance `tasks/acceptance/m8.5-7c.md`: accepted by the owner 2026-10-17 ("Manually tested"). The walk found a bug in every screen with a text field, fixed below.
+    - **Fixed from the walk (owner, 2026-10-17):** emptying the debug panel's Value field lost the cursor, so
+      nothing could be typed.
+      - **Cause:** an empty field dims its button, a dim button is part of a screen's shape, and a change of
+        shape rebuilds the panel. Every text field carried `AutoFocus`, so the keyboard went to the field spawned
+        last.
+      - **Fix:** `paint` keeps the keyboard on the field that had it, when the new screen still has that field
+        (`build`, `rows` and `control_node` take `keep`). A screen without it focuses its own field as before.
+      - **Tests:**
+        - `screens::a_field_emptied_and_typed_again_keeps_the_keyboard_when_its_button_dims` was red first. It
+          empties the field as backspaces would, since Backspace needs a layout headless tests lack.
+        - `the_second_member_is_named_on_the_keyboard_after_the_first_is_added` caught a first version that
+          kept the seed field's focus on the next screen.
+      - **Lesson** in `tasks/LESSONS.md`. Gate `tests passed 889 failed 0 ignored 13`, VERIFY-GREEN.
     - **What was built.**
       - **Data:** `omnis-data/src/flag.rs` (`FlagDef { schema, id, scope }`, `FlagScope::{Party, World}`, World
         by default). Unknown fields are refused, so a misspelt scope is not read as World.

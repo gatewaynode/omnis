@@ -257,14 +257,15 @@ pub(super) fn thumbs(
 /// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
-/// editable line.
+/// editable line, which takes the keyboard when drawn unless `keep` names another field: the
+/// field that had it when the screen was drawn anew keeps it.
 fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
     c: &Control,
     tint: Option<Role>,
-    height: f32,
-    mark: Mark,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
 ) {
     let role = if c.why_not.is_some() {
         Role::Dim
@@ -322,10 +323,9 @@ fn control_node(
         Kind::Text { value, max } => {
             parent.spawn(boxed(role, height)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
-                b.spawn((
+                let mut field = b.spawn((
                     Pressable(c.id),
                     text_field(value, *max),
-                    AutoFocus,
                     TextFont {
                         font_size: FontSize::Px(Size::Body.px(height)),
                         ..default()
@@ -341,6 +341,9 @@ fn control_node(
                     },
                     BorderColor::all(colour(Role::Dim)),
                 ));
+                if keep.is_none_or(|kept| kept == c.id) {
+                    field.insert(AutoFocus);
+                }
             });
         }
     }
@@ -361,8 +364,8 @@ pub(super) fn rows(
     p: usize,
     panel: &Panel,
     keys: &[(Key, ControlId)],
-    height: f32,
-    mark: Mark,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
 ) {
     let gap = Val::Px(scaled(6.0, height));
     for (r, row) in panel.rows.iter().enumerate() {
@@ -380,7 +383,7 @@ pub(super) fn rows(
                     span_node(line, (p, r, s), span, height, mark);
                 }
                 for c in &row.controls {
-                    control_node(line, keys, c, row.tint, height, mark);
+                    control_node(line, keys, c, row.tint, (height, mark), keep);
                 }
                 for (s, span) in row.after.iter().enumerate() {
                     span_node(line, (p, r, before + s), span, height, mark);
@@ -496,8 +499,14 @@ fn grow(screen: &Screen, panel: usize) -> (f32, Val) {
 }
 
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
-/// The top screen's words carry the markers they are rewritten in place by.
-pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32, mark: Mark) {
+/// The top screen's words carry the markers they are rewritten in place by. `keep` is the field
+/// that had the keyboard, which keeps it.
+pub(super) fn build(
+    parent: &mut ChildSpawnerCommands,
+    screen: &Screen,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
+) {
     let t = &screen.title;
     let mut title = parent.spawn(words(&t.text, t.role, t.size, height));
     if mark == Mark::Screen {
@@ -540,7 +549,7 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                                 RelativeCursorPosition::default(),
                             ))
                             .with_children(|column| {
-                                rows(column, p, panel, &screen.keys, height, mark);
+                                rows(column, p, panel, &screen.keys, (height, mark), keep);
                             })
                             .id();
                         scrollbar(pane, rows_at, height);

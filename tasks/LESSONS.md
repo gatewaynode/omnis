@@ -243,3 +243,15 @@
 - **Rule**: When a feature has no natural home in a core structure (the save, a view, a crate), say that before
   proposing where to wedge it. Name the coupling ("the save is the whole world, so a client note must become
   engine state"), and ask whether the structure is right. Only then offer the options inside it.
+
+## 2026-10-17 — A rebuild must carry over what the player holds: the keyboard, not only the words
+- **What happened**: The owner emptied the debug panel's Value field to type a new number and could not: the
+  cursor went away. An empty field dims its Set button ("type a number"), a dim button is part of a screen's
+  shape, and a change of shape rebuilds the panel. Every text field was spawned with `AutoFocus`, so the
+  rebuild handed the keyboard to whichever field spawned last. The bug was in every screen with a field and a
+  button that dims on it; the debug page was where it was met. A headless test could not press Backspace (it
+  needs the text's layout, which has no fonts there), so the test empties the field as the backspaces would.
+- **Rule**: When a screen is rebuilt from scratch, list the state the player holds in its nodes (focus, cursor,
+  scroll, a half-typed word) and carry each over, or rebuild in place. Test it the way the player meets it:
+  focus, empty, type. Carrying focus must give way when the new screen lacks that field, so a move to the next
+  screen still focuses its own field.

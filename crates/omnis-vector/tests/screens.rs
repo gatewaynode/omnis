@@ -752,8 +752,12 @@ fn start_again_makes_the_same_party_and_after_a_load_the_save_s_game_anew() {
 /// The shell with the window's keyboard path to a text field: focus, its dispatch, the text
 /// input observers and the edits applied, so a test types as a player does.
 fn keyboard_shell(save: &str) -> (App, Entity) {
+    keyboard_on(app_at_title(save))
+}
+
+/// `app` with the window's keyboard path to a text field, as [`keyboard_shell`].
+fn keyboard_on(mut app: App) -> (App, Entity) {
     use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
-    let mut app = app_at_title(save);
     app.add_plugins((
         bevy::asset::AssetPlugin::default(),
         InputFocusPlugin,
@@ -825,4 +829,53 @@ fn the_second_member_is_named_on_the_keyboard_after_the_first_is_added() {
     // The screen was drawn anew for the next member; its field has the keyboard.
     keyboard(&mut app, window, "Bree");
     assert_eq!(name(&app), "Bree");
+}
+
+/// The owner, 2026-10-17: emptying the debug panel's Value field lost the cursor, so nothing
+/// could be typed. An empty field dims its button, the screen's shape changed, and the rebuild
+/// gave the keyboard to whichever field was spawned last. A field that has the keyboard keeps it.
+#[test]
+fn a_field_emptied_and_typed_again_keeps_the_keyboard_when_its_button_dims() {
+    use bevy::input_focus::InputFocus;
+    use bevy::text::EditableText;
+    use omnis_vector::screen::debug::{DebugAct, Num, Page};
+    let (mut app, window) = keyboard_on(app_in_game(".omnis/test-saves/none.ron"));
+    app.update();
+    tap(&mut app, KeyCode::Backquote);
+    app.world_mut().resource_mut::<Screens>().forms.debug.page = Page::World;
+    app.update();
+    app.update();
+    let x = ControlId::Debug(DebugAct::Field(Num::X));
+    let field = |app: &mut App| {
+        let world = app.world_mut();
+        let mut fields = world.query::<(Entity, &Pressable, &EditableText)>();
+        fields
+            .iter(world)
+            .find(|(_, p, _)| p.0 == x)
+            .map(|(e, _, t)| (e, t.value().to_string()))
+            .expect("the x field")
+    };
+    let (entity, was) = field(&mut app);
+    app.world_mut()
+        .resource_mut::<InputFocus>()
+        .set(entity, bevy::input_focus::FocusCause::Pressed);
+    // Backspace needs the text's layout, which a headless test has no fonts for: the field is
+    // emptied as the player's backspaces leave it, then a frame lets the form see it.
+    app.world_mut()
+        .get_mut::<EditableText>(entity)
+        .expect("a field")
+        .clear();
+    app.update();
+    app.update();
+    keyboard(&mut app, window, "3");
+    let (entity, now) = field(&mut app);
+    assert_eq!(
+        now, "3",
+        "the emptied field took the new digit (it held {was})"
+    );
+    assert_eq!(
+        app.world().resource::<InputFocus>().get(),
+        Some(entity),
+        "and still has the keyboard"
+    );
 }

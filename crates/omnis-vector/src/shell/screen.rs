@@ -33,6 +33,7 @@ use crate::screen::{
 use crate::sim::Views;
 use crate::style::{Role, scaled};
 use bevy::ecs::system::SystemParam;
+use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{SliderValue, ValueChange};
@@ -643,6 +644,8 @@ fn paint(
     mut root: Query<(Entity, &mut Node), With<ScreenRoot>>,
     mut placed: Query<Placed>,
     sliders: Query<(Entity, &SliderOf, &SliderValue)>,
+    focus: Option<Res<InputFocus>>,
+    fields: Query<&Pressable, With<EditableText>>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -679,6 +682,15 @@ fn paint(
             slide(&screen, &sliders, &mut commands);
         }
         _ => {
+            // The field that has the keyboard keeps it through the rebuild when the screen still
+            // has it (a field emptied dims its button, which changes the shape; owner,
+            // 2026-10-17); a screen without it gives the keyboard to its own field.
+            let keep = focus
+                .as_ref()
+                .and_then(|f| f.get())
+                .and_then(|e| fields.get(e).ok())
+                .map(|p| p.0)
+                .filter(|id| screen.control(*id).is_some());
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
             // The full log stands wide: most of the window (owner, 2026-10-17).
@@ -696,7 +708,7 @@ fn paint(
             node.row_gap = Val::Px(scaled(8.0, height));
             commands
                 .entity(entity)
-                .with_children(|p| build(p, &screen, height, Mark::Screen));
+                .with_children(|p| build(p, &screen, (height, Mark::Screen), keep));
         }
     }
     screens.drawn = Some((screen, bucket));
