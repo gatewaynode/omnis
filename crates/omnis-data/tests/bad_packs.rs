@@ -373,6 +373,13 @@ fn every_placement_error_is_reported() {
         "lore 'again' is placed twice",
         "lore 'afar' at (9, 0) is outside the map",
         "lore 'hard' dc must be 1..=30",
+        // M8.5 step 2c: beings standing in shapes.ron
+        "being id 'Bad-Being' is not [a-z0-9_]{1,32}",
+        "being 'twice' shares its id with an object or another being",
+        "being 'drifter' pos must be within -4..=4 eighths",
+        // data/monsters/boxy.ron: a look that is not a figure, too wide
+        "look must be a Figure",
+        "look width and depth must be 1..=8 eighths",
         // data/maps/refs.ron at resolution: kinds, levels, states, names, contents, hiding,
         // spills, the start's centre, a crowded cell, the piles
         "object 'ghost' kind 'bado:object:none' is not defined by any loaded pack",
@@ -394,11 +401,15 @@ fn every_placement_error_is_reported() {
         "lore 'void' at (4, 2) has no ground",
         "text key 'bado:text:lore.gone' is not defined in any language",
         "cell (3, 2) on level 0 holds more than 16 lore",
+        // refs.ron's beings: through the wall, onto no ground
+        "being 'walled_in' reaches across the East edge of (2, 0)",
+        "being 'brink' reaches into (4, 2), which has no ground",
         // shapes.ron at resolution: what lies outside the map has no ground either
         "object 'far' at (9, 0) has no ground",
         "object 'far' reaches into (9, 0), which has no ground",
         "pile at (9, 0) has no ground",
         "lore 'afar' at (9, 0) has no ground",
+        "being 'drifter' reaches into (2, -1), which has no ground",
         // data/maps/land.ron: a portal onto the blocked start
         "portal at (0, 0) lands on (0, 0), where object 'squat' blocks the centre",
     ];

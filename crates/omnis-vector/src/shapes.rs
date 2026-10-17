@@ -1,5 +1,5 @@
 //! Objects and piles in the view (presentation-ARCHITECTURE.md §8.7, M8.5 step 2b): each
-//! object's look (box, post, slab, arch, sign, heap) as lines over dark fills, in the same world
+//! object's look (box, post, slab, arch, sign, heap, and a being's figure) as lines over dark fills, in the same world
 //! space as [`crate::geometry`]'s segments and [`crate::fill`]'s triangles.
 //!
 //! A look's width runs across its facing and its depth along it, both in eighths of a cell, so
@@ -38,6 +38,12 @@ const SIGN_POST: f32 = 0.25;
 
 /// A heap's top, as a share of its base.
 const HEAP_TOP: f32 = 0.5;
+
+/// A figure (M8.5 step 2c): a body narrowing from its whole footprint to this share of it at the
+/// shoulders, which stand at `SHOULDER` of its height, and a head this share of its width above.
+const BODY_TOP: f32 = 0.6;
+const SHOULDER: f32 = 0.75;
+const HEAD: f32 = 0.4;
 
 /// Where a shape stands: its centre on the ground, the unit vectors across and along its
 /// facing, its half width and half depth, its floor and its height, all in cells.
@@ -170,6 +176,17 @@ impl Out {
                     ..block((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0))
                 },
             ),
+            Shape::Figure => {
+                self.frustum(
+                    body,
+                    &Frustum {
+                        top: BODY_TOP,
+                        ..block((-1.0, 1.0), (-1.0, 1.0), (0.0, SHOULDER))
+                    },
+                );
+                let head = (-HEAD, HEAD);
+                self.frustum(body, &block(head, head, (SHOULDER, 1.0)));
+            }
         }
     }
 

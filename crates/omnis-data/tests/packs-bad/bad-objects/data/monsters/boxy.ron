@@ -1,0 +1,14 @@
+// A monster whose look is not a figure, and too wide (M8.5 step 2c).
+(
+    schema: 1,
+    id: "bado:monster:boxy",
+    name: "bado:text:thing",
+    size: Medium,
+    ac: 10,
+    hit_points: (count: 1, sides: 6, modifier: 0),
+    speed: 30,
+    abilities: (10, 10, 10, 10, 10, 10),
+    challenge: (1, 8),
+    xp: 25,
+    look: Some((shape: Box, width: 9, depth: 4, height: 5)),
+)

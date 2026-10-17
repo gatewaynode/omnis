@@ -602,6 +602,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             kinds: &data.objects,
         };
         let placed = placement::resolve(def, levels, &lookup, file, errors);
+        placement::check_beings(def, levels, &encounters, &data.monsters, file, errors);
         centres.insert(
             map_ids[id.as_str()],
             placement::blocked_centres(&placed, &data.objects),

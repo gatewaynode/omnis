@@ -1,6 +1,6 @@
 // Shapes checked with the map: an id, a repeat, outside, an offset, a dc, a count; piles outside,
 // sharing a cell, off centre, empty; an object's lore dc; lore with a bad id, a repeat, outside,
-// a dc.
+// a dc. Beings with a bad id, an object's id, an offset too far.
 (
     schema: 1, id: "bado:map:shapes", name: "bado:text:map", kind: Outdoor, tileset: "test:tileset:outdoor",
     width: 3, height: 1, start: (0, 0, East),
@@ -23,6 +23,11 @@
         (id: "again", x: 2, y: 0, text: "bado:text:thing"),
         (id: "afar", x: 9, y: 0, text: "bado:text:thing"),
         (id: "hard", x: 1, y: 0, text: "bado:text:thing", dc: Some(31)),
+    ],
+    encounters: [
+        (x: 0, y: 0, stacks: [("test:monster:giant_rat", 1)], stand: Some((id: "Bad-Being"))),
+        (x: 1, y: 0, stacks: [("test:monster:giant_rat", 1)], stand: Some((id: "twice"))),
+        (x: 2, y: 0, stacks: [("test:monster:giant_rat", 1)], stand: Some((id: "drifter", pos: (0, -5)))),
     ],
     ground: [
         (x: 9, y: 0, items: [("base:item:arrows", 1)]),

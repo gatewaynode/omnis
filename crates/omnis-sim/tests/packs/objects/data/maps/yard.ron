@@ -8,7 +8,8 @@
 // torch (6, 4) behind a door on its north edge. On the loft: another crate (5, 0). Lore a search
 // turns up: bootprints at (2, 2), every time; a carving at (4, 3), DC 10, once; the crate's stencil
 // (its kind's); the lever's rust (its kind's, once found); the statue's name under the moss (its
-// placement's, DC 12, once, over its kind's moss).
+// placement's, DC 12, once, over its kind's moss). Standing at (5, 1), facing West: two pack rats,
+// met once (M8.5 step 2c).
 (
     schema: 1,
     id: "objects:map:yard",
@@ -74,6 +75,9 @@
     ],
     ground: [
         (x: 2, y: 2, pos: (1, 1), items: [("base:item:arrows", 10)]),
+    ],
+    encounters: [
+        (x: 5, y: 1, stacks: [("objects:monster:pack_rat", 2)], once: true, stand: Some((id: "rat", pos: (1, 0), facing: West))),
     ],
     lore: [
         (id: "bootprints", x: 2, y: 2, text: "objects:text:lore.bootprints"),

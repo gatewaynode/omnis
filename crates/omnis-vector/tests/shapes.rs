@@ -17,13 +17,14 @@ use omnis_vector::scene::Scene;
 use omnis_vector::shapes::{PILE_LOOK, shapes};
 use omnis_vector::sim::SimWorld;
 
-const SHAPES: [Shape; 6] = [
+const SHAPES: [Shape; 7] = [
     Shape::Box,
     Shape::Post,
     Shape::Slab,
     Shape::Arch,
     Shape::Sign,
     Shape::Heap,
+    Shape::Figure,
 ];
 
 fn object(x: u16, y: u16, pos: (i8, i8), facing: Facing, look: Look, blocks: bool) -> SeenObject {

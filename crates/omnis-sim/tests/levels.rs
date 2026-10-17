@@ -389,6 +389,7 @@ fn running_from_a_group_off_the_ground_keeps_the_party_on_its_level() {
             stacks: vec![(rat, 1)],
             disposition: Disposition::Friendly,
             once: false,
+            stand: None,
         });
     let mut world = at(&data, UPPER, 3, 1, Facing::East);
     crate::common::party_of(&mut world, &data, 1);

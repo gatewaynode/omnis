@@ -45,7 +45,7 @@ pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;
 pub use encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, ResolvedEncounter, ResolvedEntry,
-    ResolvedRandom,
+    ResolvedRandom, Stand,
 };
 pub use error::{DataError, LoadReport};
 pub use item::{EquipSlot, Item, ItemKind, UseEffect};

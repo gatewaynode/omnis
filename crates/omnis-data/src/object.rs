@@ -74,6 +74,8 @@ pub enum Shape {
     Sign,
     /// A heap: rubble, a pile, a bush.
     Heap,
+    /// A standing figure: a being (M8.5 step 2c), drawn for a fixed encounter that stands.
+    Figure,
 }
 
 /// What an object is made of. Stored; nothing reads it yet.
@@ -377,7 +379,7 @@ impl ObjectKind {
     }
 }
 
-fn check_look(look: &Look, what: &str, error: &mut impl FnMut(String)) {
+pub(crate) fn check_look(look: &Look, what: &str, error: &mut impl FnMut(String)) {
     if !(1..=8).contains(&look.width) || !(1..=8).contains(&look.depth) {
         error(format!("{what} width and depth must be 1..=8 eighths"));
     }

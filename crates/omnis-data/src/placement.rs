@@ -3,6 +3,7 @@
 //! on the ground. Shapes are checked with the map; kinds, items, ground, spills across edges
 //! and the cells where the party arrives are checked when the map is resolved.
 
+use crate::encounter::ResolvedEncounter;
 use crate::error::DataError;
 use crate::footprint::Footprint;
 use crate::levels::LevelData;
@@ -12,9 +13,10 @@ use crate::limits::{
 };
 use crate::lore::{self, CellLore, Lore};
 use crate::map::{Cell, MapDef};
+use crate::monster::Monster;
 use crate::object::{Look, ObjectKind};
 use crate::registry::{Interner, Registry};
-use omnis_core::{Facing, ItemId, Level, ObjectKindId, TextKey};
+use omnis_core::{Facing, ItemId, Level, MonsterId, ObjectKindId, TextKey};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -205,6 +207,22 @@ pub(crate) fn validate(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) {
             error(format!(
                 "object '{}' lore dc must be 1..={MAX_CHECK_DC}",
                 p.id
+            ));
+        }
+    }
+    for stand in def.encounters.iter().filter_map(|e| e.stand.as_ref()) {
+        if !is_placement_id(&stand.id) {
+            error(format!("being id '{}' is not [a-z0-9_]{{1,32}}", stand.id));
+        } else if !ids.insert(stand.id.as_str()) {
+            error(format!(
+                "being '{}' shares its id with an object or another being",
+                stand.id
+            ));
+        }
+        if !near(stand.pos) {
+            error(format!(
+                "being '{}' pos must be within -4..=4 eighths",
+                stand.id
             ));
         }
     }
@@ -461,17 +479,35 @@ fn reach(
     map: &Grid<'_>,
     error: &mut impl FnMut(String),
 ) -> BTreeSet<(u16, u16)> {
+    let footprints: Vec<Footprint> = looks(kind).map(|look| p.footprint(look)).collect();
+    covered(
+        &format!("object '{}'", p.id),
+        p.level,
+        &footprints,
+        map,
+        error,
+    )
+}
+
+/// The cells the footprints cover, after checking that each has ground and that no two in it
+/// are parted by a wall, a door or a cliff; `what` names the thing in the errors.
+fn covered(
+    what: &str,
+    level: Level,
+    footprints: &[Footprint],
+    map: &Grid<'_>,
+    error: &mut impl FnMut(String),
+) -> BTreeSet<(u16, u16)> {
     let mut cells = BTreeSet::new();
-    for look in looks(kind) {
-        for (cx, cy) in p.footprint(look).cells() {
+    for footprint in footprints {
+        for (cx, cy) in footprint.cells() {
             match (u16::try_from(cx), u16::try_from(cy)) {
-                (Ok(x), Ok(y)) if map.cell(p.level, x, y).is_some() => {
+                (Ok(x), Ok(y)) if map.cell(level, x, y).is_some() => {
                     cells.insert((x, y));
                 }
                 _ => {
                     error(format!(
-                        "object '{}' reaches into ({cx}, {cy}), which has no ground",
-                        p.id
+                        "{what} reaches into ({cx}, {cy}), which has no ground"
                     ));
                     return BTreeSet::new();
                 }
@@ -479,20 +515,49 @@ fn reach(
         }
     }
     for &(x, y) in &cells {
-        let Some(cell) = map.cell(p.level, x, y) else {
+        let Some(cell) = map.cell(level, x, y) else {
             continue;
         };
         for (facing, next) in [(Facing::East, (x + 1, y)), (Facing::South, (x, y + 1))] {
             let shut = cell.walls.has(facing) || cell.doors.has(facing) || cell.cliffs.has(facing);
             if shut && cells.contains(&next) {
                 error(format!(
-                    "object '{}' reaches across the {facing:?} edge of ({x}, {y})",
-                    p.id
+                    "{what} reaches across the {facing:?} edge of ({x}, {y})"
                 ));
             }
         }
     }
     cells
+}
+
+/// A standing group's figure (M8.5 step 2c) is held to an object's rules: ground under all of
+/// it, no wall, door or cliff across it. Its cell is an arrival, so no blocking object covers
+/// its centre already.
+pub(crate) fn check_beings(
+    def: &MapDef,
+    levels: &[LevelData],
+    encounters: &[ResolvedEncounter],
+    monsters: &BTreeMap<MonsterId, Monster>,
+    file: &Path,
+    errors: &mut Vec<DataError>,
+) {
+    let mut error = |message: String| errors.push(DataError::new(file, message));
+    let map = Grid { def, levels };
+    for e in encounters {
+        let Some(monster) = e.front().and_then(|m| monsters.get(&m)) else {
+            continue;
+        };
+        let (Some(stand), Some(footprint)) = (&e.stand, e.footprint(&monster.figure())) else {
+            continue;
+        };
+        covered(
+            &format!("being '{}'", stand.id),
+            e.level,
+            &[footprint],
+            &map,
+            &mut error,
+        );
+    }
 }
 
 /// The cells where the party is put without walking a path to the centre: the start, every

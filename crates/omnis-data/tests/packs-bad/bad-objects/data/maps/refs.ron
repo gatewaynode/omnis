@@ -1,6 +1,7 @@
 // References checked when the map is resolved. Grass, a wall between (2, 0) and (3, 0), no
 // ground at (4, 2); the start is (0, 0). An object's lore with an unknown text key; lore on a level
-// the map lacks, on no ground, with an unknown text key, and seventeen lore in one cell.
+// the map lacks, on no ground, with an unknown text key, and seventeen lore in one cell. A being
+// reaching through the wall, one reaching onto no ground, and a group of a boxy monster.
 (
     schema: 1, id: "bado:map:refs", name: "bado:text:map", kind: Outdoor, tileset: "test:tileset:outdoor",
     width: 5, height: 3, start: (0, 0, East),
@@ -67,6 +68,11 @@
         (id: "l14", x: 3, y: 2, text: "bado:text:thing"),
         (id: "l15", x: 3, y: 2, text: "bado:text:thing"),
         (id: "l16", x: 3, y: 2, text: "bado:text:thing"),
+    ],
+    encounters: [
+        (x: 2, y: 0, stacks: [("test:monster:goblin", 1)], stand: Some((id: "walled_in", pos: (4, 0)))),
+        (x: 3, y: 2, stacks: [("test:monster:goblin", 1)], stand: Some((id: "brink", pos: (4, 0)))),
+        (x: 1, y: 0, stacks: [("bado:monster:boxy", 1)]),
     ],
     ground: [
         (x: 1, y: 0, items: [("bado:item:none", 1)]),
