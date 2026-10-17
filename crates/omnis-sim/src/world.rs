@@ -486,10 +486,17 @@ impl World {
             SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
         };
-        if !force && world.packs != data.fingerprints {
+        world.checked(data, force)
+    }
+
+    /// The world, when it fits the loaded packs: the same packs unless `force`, the party on a
+    /// loaded cell, a mode that can go on, a party whose sheets agree. What a load checks after
+    /// reading, and what joining a world's parts checks (`save::join`).
+    pub(crate) fn checked(self, data: &Data, force: bool) -> Result<World, LoadError> {
+        if !force && self.packs != data.fingerprints {
             return Err(LoadError::PackMismatch);
         }
-        let p = world.position;
+        let p = self.position;
         if !data
             .maps
             .get(&p.map)
@@ -497,9 +504,9 @@ impl World {
         {
             return Err(LoadError::BadPosition(p));
         }
-        world.check_mode(data)?;
-        world.check_party()?;
-        Ok(world)
+        self.check_mode(data)?;
+        self.check_party()?;
+        Ok(self)
     }
 
     /// Every equipped item must be carried: the rules read slots, so a slot naming an item

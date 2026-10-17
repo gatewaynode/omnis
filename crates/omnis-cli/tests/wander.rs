@@ -4,6 +4,7 @@
 use omnis_cli::wander::{TELEPORT_EVERY, wander};
 use omnis_data::{Data, load_packs};
 use omnis_sim::replay::replay_world;
+use omnis_sim::save::{join, split};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -40,6 +41,36 @@ fn a_wander_walks_several_maps_fights_and_raises_the_fallen() {
     );
     assert!(walk.minutes > 0);
     assert!(walk.event_bytes > 0);
+}
+
+/// A wander's world, split into its parts and joined back every 25 commands, is the world it was
+/// (PRD D28, M8.5 7b): through deaths, revivals, rests, teleports and fights on every map.
+#[test]
+fn a_wanders_world_splits_and_joins_back_all_the_way() {
+    let data = data();
+    let walk = wander(&data, 4, 2000).unwrap_or_else(|e| panic!("{e}"));
+    let r = &walk.replay;
+    let mut world = omnis_sim::World::new(&data, r.seed, r.settings).unwrap();
+    let mut checked = 0;
+    for (at, command) in r.commands.iter().enumerate() {
+        omnis_sim::apply(&mut world, &data, command.clone()).unwrap_or_else(|e| panic!("{e}"));
+        if at % 25 == 0 {
+            let back = join(split(&world, &data), &data, false)
+                .unwrap_or_else(|e| panic!("command {at}: {e}"));
+            let mut kept = world.clone();
+            kept.log.clear();
+            kept.journal = Default::default();
+            assert_eq!(back, kept, "command {at}");
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 80);
+    assert!(
+        walk.maps >= 2 && walk.fights >= 1,
+        "{} maps, {} fights",
+        walk.maps,
+        walk.fights
+    );
 }
 
 /// The figures the provisional fold is sized from: `cargo test --release -p omnis-cli --test

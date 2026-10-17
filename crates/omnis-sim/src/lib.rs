@@ -41,6 +41,7 @@ pub mod query;
 pub mod replay;
 pub mod rest;
 pub mod rest_view;
+pub mod save;
 mod sense;
 pub mod service;
 mod service_level;

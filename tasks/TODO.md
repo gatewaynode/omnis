@@ -507,7 +507,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
 - [ ] 6. **Magic and mana data in the map packs** (owner's 6). New: neither the PRD nor ARCHITECTURE has mana in a place (members have spell points). Needs the owner's intent before a plan: what a place's mana does (spell power, recovery, wild or dead zones), whether it is per cell, per map or per region, and whether it changes over time (a link to M10). Shown in the magic colour role from 5. Last because it needs that design and nothing else waits on it.
 - [ ] **The save model (D28), a study** (owner, 2026-10-17; PRD D28, §7.7; `tasks/plans/world-state.md`): the save centres on the characters and their interactions since the world's last base state, replayed on load; the world's state lives in a world file the simulation owns, immutable authored bases with layers folded into new bases at thresholds and story points. Owner answers: replay from the last base; the world file apart. Second round (2026-10-17, written into the study, D28, §7.7): migrate then report a changed pack; flags scoped per flag; a world directory, one file per region; characters carry between worlds (a horizon); folds visible; named bases kept. Open: the fold thresholds, set by the world simulation (owner: a simplified 4X engine over biospheres, settlements, regions and the world), so they wait for its mechanics. No milestone yet: a plan for the save model comes next, and step 7 is reshaped by it.
 - [ ] 7. **The save model (D28)** (owner, 2026-10-17; plan `tasks/plans/m8.5-save-model.md`, approved 2026-10-17). Owner answers: layers derived from the journal (the world folder holds bases only); a provisional size fold at safe points until M10's world sim sets thresholds; pre-fold history kept as archived events. Each sub-step ends in something visible and has its acceptance script.
-  - [ ] 7a. Journal and measurement: `World.journal` appended in `apply`; replay timing harness; µs per command, bytes per entry, commands per hour. All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7a.md` and a commands-an-hour figure from play.
+  - [x] 7a. Journal and measurement: `World.journal` appended in `apply`; replay timing harness; µs per command, bytes per entry, commands per hour. All items built (2026-10-17). Acceptance `tasks/acceptance/m8.5-7a.md`: accepted by the owner 2026-10-17 ("Manually tested"); the commands-an-hour figure from play is still to come.
     - **What was built.**
       - Engine: `omnis-sim/src/journal.rs` (`Entry { minute, command }` and `Journal`). The journal is
         `World.journal`, `#[serde(skip)]`, appended after each accepted command with the party's age after it.
@@ -553,9 +553,40 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
         0.4 s to load, about 1.3 MB). The owner's commands-an-hour figure turns that into hours of play.
       - The wanderer lived about 58 commands a game hour; real play's rate per wall-clock hour is the open
         number.
-  - [ ] 7b. `split`/`join` in memory and the invariant `join(split(w)) == w` (goldens, mid-fight, town, `World::new`).
+  - [ ] 7b. `split`/`join` in memory and the invariant `join(split(w)) == w` (goldens, mid-fight, town, `World::new`). All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7b.md`.
+    - **What was built.**
+      - **Engine** (`omnis-sim/src/save/`: `mod.rs` 125, `split.rs` 122, `join.rs` 92, `report.rs` 65):
+        - `Split { manifest, world, regions, checkpoint }`. Clocks, contacts and streams are grouped as
+          `Holdings` in each part, keyed as the world keys them.
+        - **Routing:**
+          - a map's state goes to its map's region, empty ones kept, and an unloaded map's to the world base's
+            `strays`;
+          - clocks and contacts go by holder (party to the checkpoint, region to its base, anything else to the
+            world base);
+          - streams go by the holders their name carries;
+          - every flag goes to the world base (until 7c);
+          - a region with nothing gets no base.
+        - `join` refuses a key held twice and runs the load's checks, now `World::checked`, extracted from
+          `from_ron` with the same behaviour.
+        - `split_report` sizes each part as RON and checks the round trip.
+      - **Client:** a Split button on the debug World page, with lines shown until the world's turn moves.
+    - **Changed from the plan:** the parts carry full keys (`Holdings`), not keys trimmed per side. It is
+      simpler, and a key can be checked across parts.
+    - **Tests:**
+      - `split.rs` (9 tests): base 0; both goldens after every command, with explore, encounter, combat and
+        the fight's bus subscription asserted met; three services; routing; an empty map state; the
+        catch-alls; `join`'s refusals; the report, including "differs".
+      - A 2,000-command wander, round-tripped every 25 commands.
+      - The debug button. The rule that "every lit debug button sends a command" now names Split as a report.
+      - 9 mutants, all killed: empty map states dropped, the bus left out, contacts to the party, streams to
+        the party, every region emitted, no duplicate check, `join` skipping the checks, a failed join reported
+        ok, a stale split shown.
+      - Gate `tests passed 883 failed 0 ignored 13`, VERIFY-GREEN. Sentrux rules pass, quality 8987.
+    - **Unchanged:** `SAVE_SCHEMA` 7, the goldens (walk `8d880647a25097b2`, fight `d06fa80460a947ef`), every
+      API pin.
+    - **Debt:** `screen/debug.rs` is 872 lines. The World page's rows are the next piece out if it grows.
   - [ ] 7c. Flag scope in pack data (party or world, default world).
-  - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8.
+  - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8. **The journal on disk is encoded compactly** (owner, 2026-10-17, asking whether visited squares could be deduplicated). A step cannot be dropped: each passes time and may draw an encounter roll, so the replay needs every command. The encoding is what shrinks. In a 10,000-command wander, 70% of commands were steps, there were 4,871 runs of a repeated command, and stripping whitespace took 242 KB to 137 KB. So run-length plus no pretty-printing should give about 3–4×; to be measured in 7d.
   - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, the provisional size rule, archive segments, named bases kept, manual tidy.
   - [ ] 7f. Full log across loads: History rebuilt from the archive and a stepwise replay.
   - [ ] 7g. Docs and pins (ARCHITECTURE §4.1, §4.9, §6.2, §11; `docs/api.md`; MCP schema; `code-map.md`; `horizons.md`).

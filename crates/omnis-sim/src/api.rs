@@ -77,6 +77,10 @@ pub use crate::query::{
     step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
+pub use crate::save::{
+    Checkpoint, Holdings, JoinError, Manifest, RegionBase, RegionSize, Split, SplitReport,
+    WorldBase, join, split, split_report,
+};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
 pub use crate::view::{

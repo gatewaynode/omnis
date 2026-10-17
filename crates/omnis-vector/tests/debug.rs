@@ -394,6 +394,10 @@ fn every_lit_button_on_every_page_sends_a_command_the_engine_accepts() {
                     continue;
                 }
                 let effect = use_(&session, &mut forms.clone(), act, Payload::Press);
+                if act == DebugAct::Split {
+                    assert_eq!(effect, Effect::None, "Split reports and sends nothing");
+                    continue;
+                }
                 let Effect::Command { command, .. } = effect else {
                     panic!("{p:?} {act:?}: {effect:?}");
                 };
@@ -562,5 +566,34 @@ fn the_world_page_counts_the_journal_and_times_a_replay() {
             .iter()
             .any(|l| l.to_lowercase().contains("commands an hour")),
         "{lines:?}"
+    );
+}
+
+#[test]
+fn split_shows_the_parts_and_the_round_trip_until_the_world_moves() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        !lines.iter().any(|l| l.starts_with("World base:")),
+        "nothing before the press: {lines:?}"
+    );
+    use_(&session, &mut forms, DebugAct::Split, Payload::Press);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("World base: ") && l.contains("; checkpoint: ")),
+        "{lines:?}"
+    );
+    assert!(lines.contains(&"Round trip: ok".to_owned()), "{lines:?}");
+    session
+        .ordered(Command::Turn(Rotation::Left))
+        .expect("a turn in town");
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        !lines.iter().any(|l| l.starts_with("Round trip")),
+        "a report of an older world is not shown: {lines:?}"
     );
 }

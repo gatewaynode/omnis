@@ -131,6 +131,8 @@ pub enum DebugAct {
     Stack,
     /// Kill the stack.
     Kill,
+    /// Cut the world into its parts and join them back (M8.5 7b): report, not a command.
+    Split,
 }
 
 const FACINGS: [Facing; 4] = [Facing::North, Facing::East, Facing::South, Facing::West];
@@ -154,6 +156,9 @@ pub struct DebugForm {
     stack: usize,
     /// What was typed, by field; a field without an edit shows the world's value.
     edits: BTreeMap<Num, String>,
+    /// The last split's lines and the turn it was taken on; shown only while the world is
+    /// still at that turn.
+    split: Option<(u64, Vec<String>)>,
 }
 
 impl DebugForm {
@@ -606,10 +611,47 @@ fn world_rows(look: &Look) -> Vec<Row> {
         ),
         look.button(DebugAct::Go, "Go"),
     ]));
+    if let Some((turn, lines)) = &look.form.split
+        && *turn == look.game.views.here.turn
+    {
+        rows.extend(lines.iter().map(|line| Row::text(note(line.clone()))));
+    }
+    rows.push(Row::controls(vec![Control::button(
+        ControlId::Debug(DebugAct::Split),
+        "Split",
+    )]));
     rows.extend(
         journal_lines(look.game.views.journal, look.game.timing).map(|line| Row::text(note(line))),
     );
     rows
+}
+
+/// The world's parts by size and whether they join back (PRD D28, M8.5 7b).
+fn split_lines(data: &Data, world: &crate::sim::SimWorld) -> Vec<String> {
+    let report = match world.split_report(data) {
+        Ok(report) => report,
+        Err(e) => return vec![format!("Split failed: {e}")],
+    };
+    let mut lines = vec![format!(
+        "World base: {} bytes; checkpoint: {} bytes",
+        report.world_bytes, report.checkpoint_bytes
+    )];
+    lines.extend(report.regions.iter().map(|r| {
+        let maps = if r.maps == 1 { "map" } else { "maps" };
+        format!("{}: {} bytes, {} {maps}", r.id, r.bytes, r.maps)
+    }));
+    if report.regions.is_empty() {
+        lines.push("No region has changed: each is as its pack wrote it".to_owned());
+    }
+    lines.push(
+        if report.round_trip {
+            "Round trip: ok"
+        } else {
+            "Round trip: differs"
+        }
+        .to_owned(),
+    );
+    lines
 }
 
 /// The journal a load would replay and what that would cost (PRD D28, M8.5 7a).
@@ -808,6 +850,9 @@ pub fn apply(
                 return Err(Refused::NotDigits);
             }
             form.edits.insert(num, text.clone());
+        }
+        DebugAct::Split => {
+            form.split = Some((game.views.here.turn, split_lines(data, game.world)));
         }
         DebugAct::Set(_)
         | DebugAct::Toggle

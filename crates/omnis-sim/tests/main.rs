@@ -33,6 +33,7 @@ mod save_and_replay;
 mod sense;
 mod service_view;
 mod services;
+mod split;
 mod time;
 mod town;
 mod training;

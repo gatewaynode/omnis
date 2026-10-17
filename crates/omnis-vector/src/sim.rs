@@ -114,6 +114,14 @@ impl SimWorld {
         omnis_sim::api::flags(&self.0, data)
     }
 
+    /// The world's parts by size and whether they join back (`api::split_report`).
+    ///
+    /// # Errors
+    /// A part that would not serialize.
+    pub fn split_report(&self, data: &Data) -> Result<omnis_sim::api::SplitReport, String> {
+        omnis_sim::api::split_report(&self.0, data).map_err(|e| e.to_string())
+    }
+
     /// How many commands a load would replay (`api::journal_len`).
     #[must_use]
     pub fn journal_len(&self) -> usize {

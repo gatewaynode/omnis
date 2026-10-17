@@ -280,6 +280,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
+| `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
 | `journal_len(&World)` | `usize`: how many commands the world has accepted since its base, which a load would replay (PRD D28); not saved yet, so 0 after a load | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
@@ -289,6 +290,20 @@ and places by `Place` (§4); lists are in marching or list order.
 
 `automap`, `map_text`, `door_open`, `objects_on_level`, `beings_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
+
+`split(&World, &Data) -> Split` and `join(Split, &Data, force) -> Result<World, JoinError>` (Tier 1, pure, registry
+numbers until M8.5 7h) cut a world into the parts the save model keeps apart (PRD D28) and put it back:
+- `Manifest` holds the seed and the packs.
+- `WorldBase` holds what belongs to no region: flags, holders that are neither party nor region, and the map
+  states of maps no loaded pack has.
+- `RegionBase` holds, for each region play has touched, its maps' states, its clock, its side of each contact,
+  and the streams that name it.
+- `Checkpoint` holds the party: members, time, its side of each contact, the other streams, the bus, position,
+  automap, mode, settings and turn.
+
+A region nothing has changed has no base, so a new world splits into its checkpoint alone. `join` refuses a key
+held by two parts (`JoinError::Duplicate`) and checks the result as a load does (`JoinError::Load`). The log and
+the journal are not in the parts.
 
 ### 7.1 `Here` and `Status`
 
@@ -966,7 +981,7 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `journal_len`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `journal_len`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -1061,6 +1076,9 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the journal (M8.5 7a): Tier 1's `journal_len`, the count of commands the world has
   accepted since its base (PRD D28), each kept with the party's age after it. It is not saved
   yet, so saves, fingerprints and the replays are unchanged; a load starts it at 0.
+- 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
+  types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
+  `SplitReport` and `RegionSize`. Nothing is saved differently yet.
 
 ### Protocol 2 (2026-10-10)
 
