@@ -43,6 +43,8 @@ pub const MAX_OBJECT_HEIGHT: u8 = 32;
 pub const MAX_CAPACITY: u16 = 64;
 /// Objects one cell may hold, spills from its neighbours included.
 pub const MAX_OBJECTS_PER_CELL: usize = 16;
+/// Lore one cell may hold.
+pub const MAX_LORE_PER_CELL: usize = 16;
 /// Objects one map may place.
 pub const MAX_OBJECTS_PER_MAP: usize = 4096;
 /// Item stacks in one pile on the ground.

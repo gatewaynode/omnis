@@ -87,7 +87,7 @@ fn check_flag(name: &str, error: &mut impl FnMut(String)) {
     }
 }
 
-/// Every text key a kind names: its name, labels, failures and messages.
+/// Every text key a kind names: its name, labels, failures, messages and lore.
 fn text_keys(kind: &ObjectKind) -> impl Iterator<Item = &str> {
     let per_interaction = kind.interactions.iter().flat_map(|it| {
         let messages = it.effects.iter().filter_map(|e| match e {
@@ -100,7 +100,9 @@ fn text_keys(kind: &ObjectKind) -> impl Iterator<Item = &str> {
             .chain(it.failure.as_deref())
             .chain(messages)
     });
-    core::iter::once(kind.name.as_str()).chain(per_interaction)
+    core::iter::once(kind.name.as_str())
+        .chain(per_interaction)
+        .chain(kind.lore.as_ref().map(|l| l.text.as_str()))
 }
 
 /// Every flag a kind names, in requirements and effects.

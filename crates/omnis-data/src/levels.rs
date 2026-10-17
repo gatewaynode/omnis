@@ -520,6 +520,7 @@ mod tests {
             rest_events: vec![],
             objects: vec![],
             ground: vec![],
+            lore: vec![],
         }
     }
 

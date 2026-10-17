@@ -33,6 +33,7 @@ use crate::encounter::{self, FixedEncounter, RandomEncounters};
 use crate::error::DataError;
 use crate::levels::{LevelDef, NO_GROUND};
 use crate::limits::{MAX_COLLECTION, MAX_MAP_SIDE, MAX_VISIBILITY_DEPTH, string_fits};
+use crate::lore::{self, CellLore};
 use crate::placement::{self, GroundDef, Placement};
 use crate::rest_event::RestEventDef;
 use crate::service::{self, Site};
@@ -214,6 +215,9 @@ pub struct MapDef {
     /// Items lying on the ground, one pile a cell.
     #[serde(default)]
     pub ground: Vec<GroundDef>,
+    /// Text a search of a cell turns up (owner, 2026-10-16).
+    #[serde(default)]
+    pub lore: Vec<CellLore>,
 }
 
 /// One tile after the layout is parsed.
@@ -357,6 +361,7 @@ impl MapDef {
         );
         service::validate_sites(self, file, errors);
         placement::validate(self, file, errors);
+        lore::validate(self, file, errors);
     }
 }
 
@@ -406,6 +411,7 @@ mod tests {
             rest_events: vec![],
             objects: vec![],
             ground: vec![],
+            lore: vec![],
         }
     }
 

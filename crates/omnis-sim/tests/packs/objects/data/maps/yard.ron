@@ -5,7 +5,9 @@
 // (4, 2); a pile of arrows (2, 2). The gate stands across the gap, half in (3, 2) and half in
 // (3, 3), shut until the lever is pulled. South of the hedge: a fountain (1, 3) that blocks, a
 // chest (5, 3) against its north side holding a dagger, a hidden rune with an aura (2, 4) and a
-// torch (6, 4) behind a door on its north edge. On the loft: another crate (5, 0).
+// torch (6, 4) behind a door on its north edge. On the loft: another crate (5, 0). Lore a search
+// turns up: bootprints at (2, 2), every time; a carving at (4, 3), DC 10, once; the crate's stencil
+// (its kind's); the statue's name under the moss (its placement's, DC 12, once).
 (
     schema: 1,
     id: "objects:map:yard",
@@ -58,7 +60,7 @@
     ],
     objects: [
         (id: "crate_1", kind: "objects:object:crate", x: 1, y: 1),
-        (id: "statue_1", kind: "objects:object:statue", x: 3, y: 0, name: Some("objects:text:statue.knight")),
+        (id: "statue_1", kind: "objects:object:statue", x: 3, y: 0, name: Some("objects:text:statue.knight"), lore: Some((text: "objects:text:statue.lore", dc: Some(12), once: true))),
         (id: "lever_1", kind: "objects:object:lever", x: 0, y: 0, pos: (-3, -3), hidden: Some(12)),
         (id: "stone_1", kind: "objects:object:stone", x: 0, y: 2, pos: (2, -2)),
         (id: "plaque_1", kind: "objects:object:plaque", x: 4, y: 2, pos: (0, -4), facing: South),
@@ -71,5 +73,9 @@
     ],
     ground: [
         (x: 2, y: 2, pos: (1, 1), items: [("base:item:arrows", 10)]),
+    ],
+    lore: [
+        (id: "bootprints", x: 2, y: 2, text: "objects:text:lore.bootprints"),
+        (id: "carving", x: 4, y: 3, text: "objects:text:lore.carving", dc: Some(10), once: true),
     ],
 )

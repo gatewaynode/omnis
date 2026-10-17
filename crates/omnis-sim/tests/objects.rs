@@ -400,3 +400,53 @@ fn an_object_spilling_into_a_cell_does_not_hide_its_own_cell_behind_the_spill() 
         "from the south, through the cell its spill reaches, the gate's own cell is seen"
     );
 }
+
+#[test]
+fn the_yard_s_lore_resolves_by_cell_by_kind_and_by_placement() {
+    let data = objects();
+    let map = &data.maps[&yard(&data)];
+    let at = |x: u16, y: u16| {
+        map.lore
+            .get(&(Level::GROUND, x, y))
+            .cloned()
+            .unwrap_or_default()
+    };
+    let bootprints = at(2, 2);
+    assert_eq!(bootprints.len(), 1);
+    assert_eq!(
+        (
+            bootprints[0].id.as_str(),
+            bootprints[0].text.as_str(),
+            bootprints[0].dc,
+            bootprints[0].once
+        ),
+        ("bootprints", "objects:text:lore.bootprints", None, false)
+    );
+    let carving = at(4, 3);
+    assert_eq!((carving[0].dc, carving[0].once), (Some(10), true));
+    assert!(at(3, 3).is_empty());
+    // The crate's lore is its kind's; the statue's its placement's.
+    let crate_kind = data.registry.objects.get("objects:object:crate").unwrap();
+    let stencil = data.objects[&crate_kind]
+        .lore
+        .as_ref()
+        .expect("the crate's lore");
+    assert_eq!(
+        (stencil.text.as_str(), stencil.dc, stencil.once),
+        ("objects:text:crate.lore", None, false)
+    );
+    let statue = map.objects.iter().find(|p| p.id == "statue_1").unwrap();
+    let name = statue.lore.as_ref().expect("the statue's lore");
+    assert_eq!(
+        (name.text.as_str(), name.dc, name.once),
+        ("objects:text:statue.lore", Some(12), true)
+    );
+    assert!(
+        map.objects
+            .iter()
+            .find(|p| p.id == "crate_1")
+            .unwrap()
+            .lore
+            .is_none()
+    );
+}

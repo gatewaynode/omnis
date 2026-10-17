@@ -10,6 +10,7 @@ use crate::limits::{
     MAX_CAPACITY, MAX_CHECK_DC, MAX_COLLECTION, MAX_OBJECTS_PER_CELL, MAX_OBJECTS_PER_MAP,
     MAX_PILE_STACKS,
 };
+use crate::lore::{self, CellLore, Lore};
 use crate::map::{Cell, MapDef};
 use crate::object::{Look, ObjectKind};
 use crate::registry::{Interner, Registry};
@@ -57,6 +58,9 @@ pub struct Placement {
     /// Items a container starts with.
     #[serde(default)]
     pub contents: Vec<(String, u16)>,
+    /// Lore of its own for a search, instead of its kind's.
+    #[serde(default)]
+    pub lore: Option<Lore>,
 }
 
 /// Items lying on the ground, as written.
@@ -110,6 +114,8 @@ pub struct ResolvedPlacement {
     pub name: Option<TextKey>,
     /// What a container starts with.
     pub contents: Vec<(ItemId, u16)>,
+    /// Its own lore, when it has some; else its kind's applies.
+    pub lore: Option<Lore>,
 }
 
 impl ResolvedPlacement {
@@ -146,7 +152,7 @@ pub fn in_state<'k>(kind: &'k ObjectKind, state: &str) -> (&'k Look, bool, bool)
     (look, moves, sight)
 }
 
-fn is_placement_id(id: &str) -> bool {
+pub(crate) fn is_placement_id(id: &str) -> bool {
     (1..=32).contains(&id.len())
         && id
             .bytes()
@@ -195,6 +201,12 @@ pub(crate) fn validate(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) {
                 p.id
             ));
         }
+        if p.lore.as_ref().is_some_and(|l| !l.dc_in_range()) {
+            error(format!(
+                "object '{}' lore dc must be 1..={MAX_CHECK_DC}",
+                p.id
+            ));
+        }
     }
     if def.ground.len() > MAX_COLLECTION {
         error("too many piles".to_owned());
@@ -231,6 +243,7 @@ pub(crate) struct Placed {
     pub objects: Vec<ResolvedPlacement>,
     pub object_cells: BTreeMap<(Level, u16, u16), Vec<u16>>,
     pub ground: BTreeMap<(Level, u16, u16), Pile>,
+    pub lore: BTreeMap<(Level, u16, u16), Vec<CellLore>>,
 }
 
 /// What resolution reads besides the map.
@@ -296,6 +309,13 @@ pub(crate) fn resolve(
             .ground
             .insert((g.level, g.x, g.y), Pile { pos: g.pos, items });
     }
+    placed.lore = lore::resolve(
+        def,
+        |level| levels.iter().any(|l| l.level == level),
+        |level, x, y| map.cell(level, x, y).is_some(),
+        &lookup.registry.text,
+        &mut error,
+    );
     placed
 }
 
@@ -409,6 +429,14 @@ fn resolve_one(
     if p.hidden.is_some() && (moves || sight) {
         error(format!("object '{}' is hidden but blocks", p.id));
     }
+    if let Some(l) = &p.lore
+        && lookup.registry.text.get(&l.text).is_none()
+    {
+        error(format!(
+            "text key '{}' is not defined in any language",
+            l.text
+        ));
+    }
     Some(ResolvedPlacement {
         id: p.id.clone(),
         kind: kind_id,
@@ -421,6 +449,7 @@ fn resolve_one(
         hidden: p.hidden,
         name,
         contents: intern_items(&p.contents, &lookup.registry.items, error),
+        lore: p.lore.clone(),
     })
 }
 

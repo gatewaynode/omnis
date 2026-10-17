@@ -631,6 +631,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     objects: placed.objects,
                     object_cells: placed.object_cells,
                     ground: placed.ground,
+                    lore: placed.lore,
                 },
             );
         }

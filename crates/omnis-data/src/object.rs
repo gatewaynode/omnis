@@ -15,6 +15,7 @@ use crate::limits::{
     MAX_CAPACITY, MAX_CHECK_DC, MAX_EFFECTS, MAX_INTERACTIONS, MAX_OBJECT_HEIGHT, MAX_REQUIREMENTS,
     MAX_STATES, MAX_TAGS, string_fits,
 };
+use crate::lore::Lore;
 use crate::terms::{Ability, School, Size, Skill};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -268,6 +269,9 @@ pub struct ObjectKind {
     /// What the party can do with it.
     #[serde(default)]
     pub interactions: Vec<Interaction>,
+    /// What a search of it turns up; a placement's own wins.
+    #[serde(default)]
+    pub lore: Option<Lore>,
 }
 
 impl ObjectKind {
@@ -277,6 +281,9 @@ impl ObjectKind {
         check_look(&self.look, "look", &mut error);
         self.check_states(&mut error);
         self.check_attributes(&mut error);
+        if self.lore.as_ref().is_some_and(|l| !l.dc_in_range()) {
+            error(format!("lore dc must be 1..={MAX_CHECK_DC}"));
+        }
         if self.interactions.len() > MAX_INTERACTIONS {
             error(format!("at most {MAX_INTERACTIONS} interactions"));
             return;

@@ -1,5 +1,6 @@
 // References checked when the map is resolved. Grass, a wall between (2, 0) and (3, 0), no
-// ground at (4, 2); the start is (0, 0).
+// ground at (4, 2); the start is (0, 0). An object's lore with an unknown text key; lore on a level
+// the map lacks, on no ground, with an unknown text key, and seventeen lore in one cell.
 (
     schema: 1, id: "bado:map:refs", name: "bado:text:map", kind: Outdoor, tileset: "test:tileset:outdoor",
     width: 5, height: 3, start: (0, 0, East),
@@ -43,6 +44,29 @@
         (id: "p14", kind: "bado:object:pebble", x: 4, y: 0),
         (id: "p15", kind: "bado:object:pebble", x: 4, y: 0),
         (id: "p16", kind: "bado:object:pebble", x: 4, y: 0),
+        (id: "storied", kind: "bado:object:pebble", x: 1, y: 2, lore: Some((text: "bado:text:lore.none"))),
+    ],
+    lore: [
+        (id: "aloft", level: 3, x: 1, y: 1, text: "bado:text:thing"),
+        (id: "void", x: 4, y: 2, text: "bado:text:thing"),
+        (id: "mute", x: 1, y: 1, text: "bado:text:lore.gone"),
+        (id: "l0", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l1", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l2", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l3", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l4", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l5", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l6", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l7", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l8", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l9", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l10", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l11", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l12", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l13", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l14", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l15", x: 3, y: 2, text: "bado:text:thing"),
+        (id: "l16", x: 3, y: 2, text: "bado:text:thing"),
     ],
     ground: [
         (x: 1, y: 0, items: [("bado:item:none", 1)]),

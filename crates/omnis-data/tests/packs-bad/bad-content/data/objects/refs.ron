@@ -1,12 +1,13 @@
 // Reference faults (M8.5 step 2): an initial state with no states, an unknown item to require
 // and to give, flags not named pack:flag:name, an unknown rules slot and one with a foreign
-// input, and text keys no language defines.
+// input, and text keys no language defines; lore with a dc over 30 and an undefined text key.
 (
     schema: 1,
     id: "badc:object:refs",
     name: "badc:text:object.refs",
     look: (shape: Heap, width: 2, depth: 2, height: 1),
     initial_state: "x",
+    lore: Some((text: "badc:text:object.lore", dc: Some(31))),
     interactions: [
         (
             verb: Use,

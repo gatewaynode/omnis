@@ -3,6 +3,7 @@
 
 use crate::encounter::{ResolvedEncounter, ResolvedRandom};
 use crate::levels::{self, LevelData};
+use crate::lore::CellLore;
 use crate::map::{Cell, MapDef, Terrain};
 use crate::placement::{Pile, ResolvedPlacement};
 use crate::rest_event::ResolvedRestEvent;
@@ -61,6 +62,8 @@ pub struct MapData {
     pub object_cells: BTreeMap<(Level, u16, u16), Vec<u16>>,
     /// Piles placed on the ground, by cell.
     pub ground: BTreeMap<(Level, u16, u16), Pile>,
+    /// Lore written on cells, by cell, in file order.
+    pub lore: BTreeMap<(Level, u16, u16), Vec<CellLore>>,
 }
 
 impl MapData {
