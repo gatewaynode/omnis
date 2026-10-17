@@ -26,6 +26,10 @@ pub struct SplitReport {
     pub world_bytes: usize,
     /// Bytes of the checkpoint's RON.
     pub checkpoint_bytes: usize,
+    /// Flags set that travel with the party (M8.5 7c).
+    pub party_flags: usize,
+    /// Flags set that stay with the world.
+    pub world_flags: usize,
     /// Each region with a base, in registry order.
     pub regions: Vec<RegionSize>,
     /// Whether the parts join back into this world, to the fingerprint.
@@ -47,6 +51,7 @@ pub fn split_report(world: &World, data: &Data) -> Result<SplitReport, DataError
             maps: base.maps.len(),
         });
     }
+    let (party_flags, world_flags) = (parts.checkpoint.flags.len(), parts.world.flags.len());
     let world_bytes = to_string(&parts.world)?.len();
     let checkpoint_bytes = to_string(&parts.checkpoint)?.len();
     let mut kept = world.clone();
@@ -59,6 +64,8 @@ pub fn split_report(world: &World, data: &Data) -> Result<SplitReport, DataError
     Ok(SplitReport {
         world_bytes,
         checkpoint_bytes,
+        party_flags,
+        world_flags,
         regions,
         round_trip,
     })

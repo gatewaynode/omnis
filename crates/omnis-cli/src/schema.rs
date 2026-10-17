@@ -4,8 +4,8 @@
 
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{
-    Background, Class, Condition, DataError, Item, MapDef, Monster, PackFingerprint, PackManifest,
-    Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
+    Background, Class, Condition, DataError, FlagDef, Item, MapDef, Monster, PackFingerprint,
+    PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
 use omnis_sim::world::SAVE_SCHEMA;
@@ -240,6 +240,13 @@ const REGION: &str = r#"(
     maps: ["example:map:vale"],
 )"#;
 
+// A party flag travels with the party (`World`, the default, stays with the world).
+const FLAG: &str = r#"(
+    schema: 1,
+    id: "example:flag:oath",
+    scope: Party,
+)"#;
+
 /// Every data file type as a parsed-and-rewritten example, then a save, a replay, and the
 /// protocol ops.
 pub fn dump() -> Result<String, DataError> {
@@ -297,6 +304,7 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     section(out, "data/monsters/<name>.ron", &parse::<Monster>(MONSTER)?)?;
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
     section(out, "data/regions/<name>.ron", &parse::<RegionDef>(REGION)?)?;
+    section(out, "data/flags/<name>.ron", &parse::<FlagDef>(FLAG)?)?;
     Ok(())
 }
 

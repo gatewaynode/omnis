@@ -1,0 +1,2 @@
+// A scope that is neither the party nor the world.
+(schema: 1, id: "badf:flag:guild", scope: Guild)

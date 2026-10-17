@@ -1,0 +1,7 @@
+// A debt the party owes: it travels with the party from world to world, so it is the party's.
+// No object sets it; the debug panel does.
+(
+    schema: 1,
+    id: "objects:flag:debt",
+    scope: Party,
+)

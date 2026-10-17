@@ -27,7 +27,7 @@ pub use crate::replay::{Replay, ReplayError};
 pub use crate::world::{LoadError, ModeKind, NewGameError, SAVE_SCHEMA, SaveRule, Settings, World};
 // What the party knows of a map, as `automap` returns it.
 pub use crate::world::{Known, layer};
-pub use omnis_data::{Data, LoadReport, PackFingerprint, load_packs};
+pub use omnis_data::{Data, FlagScope, LoadReport, PackFingerprint, load_packs};
 
 // Commands in, events out.
 pub use crate::apply::apply;
@@ -73,8 +73,8 @@ pub use crate::objects_view::{
 pub use crate::beings::{BeingView, on_level as beings_on_level};
 pub use crate::journal::journal_len;
 pub use crate::query::{
-    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
-    step_lands, viewport,
+    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flag_scope, flags, here, map_text,
+    site_ahead, step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::save::{

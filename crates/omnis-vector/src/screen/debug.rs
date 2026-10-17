@@ -562,7 +562,13 @@ fn world_rows(look: &Look) -> Vec<Row> {
                 "Flag",
                 flags
                     .iter()
-                    .map(|(id, v)| format!("{id} (now {v})"))
+                    .map(|(id, v)| {
+                        let whose = match omnis_sim::api::flag_scope(look.data, id) {
+                            Some(omnis_sim::api::FlagScope::Party) => "party",
+                            _ => "world",
+                        };
+                        format!("{id} ({whose}, now {v})")
+                    })
                     .collect(),
                 look.form.flag,
             ),
@@ -640,6 +646,10 @@ fn split_lines(data: &Data, world: &crate::sim::SimWorld) -> Vec<String> {
         let maps = if r.maps == 1 { "map" } else { "maps" };
         format!("{}: {} bytes, {} {maps}", r.id, r.bytes, r.maps)
     }));
+    lines.push(format!(
+        "Flags set: {} the party's, {} the world's",
+        report.party_flags, report.world_flags
+    ));
     if report.regions.is_empty() {
         lines.push("No region has changed: each is as its pack wrote it".to_owned());
     }

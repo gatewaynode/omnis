@@ -74,13 +74,14 @@ pub fn join(split: Split, data: &Data, force: bool) -> Result<World, JoinError> 
         maps: BTreeMap::new(),
         automap: checkpoint.automap,
         mode: checkpoint.mode,
-        flags: base.flags,
+        flags: checkpoint.flags,
         settings: checkpoint.settings,
         party: checkpoint.party,
         turn: checkpoint.turn,
         log: Vec::new(),
         journal: Journal::default(),
     };
+    merge(&mut world.flags, base.flags, "the flag")?;
     hold(&mut world, checkpoint.holdings)?;
     hold(&mut world, base.holdings)?;
     merge(&mut world.maps, base.strays, "the state of map")?;

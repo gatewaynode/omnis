@@ -597,3 +597,39 @@ fn split_shows_the_parts_and_the_round_trip_until_the_world_moves() {
         "a report of an older world is not shown: {lines:?}"
     );
 }
+
+#[test]
+fn the_flag_choice_names_whose_each_flag_is_and_split_counts_them() {
+    let mut config = config();
+    config.packs.push(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../omnis-sim/tests/packs/objects"),
+    );
+    let session = Session::start(&config).expect("a session with the objects pack");
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let s = shown(&session, &forms);
+    let options = s
+        .controls()
+        .into_iter()
+        .find(|c| c.id == ControlId::Debug(DebugAct::Flag))
+        .map(|c| match &c.kind {
+            Kind::Choice { options, .. } => options.clone(),
+            other => panic!("{other:?}"),
+        })
+        .expect("a flag choice");
+    assert!(
+        options.contains(&"objects:flag:debt (party, now 0)".to_owned()),
+        "{options:?}"
+    );
+    assert!(
+        options.contains(&"objects:flag:lever (world, now 0)".to_owned()),
+        "{options:?}"
+    );
+    use_(&session, &mut forms, DebugAct::Split, Payload::Press);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&"Flags set: 0 the party's, 0 the world's".to_owned()),
+        "{lines:?}"
+    );
+}

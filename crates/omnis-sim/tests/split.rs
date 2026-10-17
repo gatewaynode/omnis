@@ -235,3 +235,34 @@ fn the_report_says_so_when_the_parts_do_not_join() {
     let report = split_report(&world, &data).unwrap();
     assert!(!report.round_trip, "a party nowhere does not join back");
 }
+
+#[test]
+fn a_party_flag_travels_in_the_checkpoint_and_a_world_flag_stays() {
+    let data = crate::objects::objects();
+    let mut world = crate::objects::in_yard(&data, 0, 0, 1, omnis_core::Facing::East);
+    let flag = |name: &str| data.registry.flags.get(name).unwrap();
+    let (debt, lever) = (flag("objects:flag:debt"), flag("objects:flag:lever"));
+    world.flags.insert(debt, 3);
+    world.flags.insert(lever, 1);
+    let undeclared = omnis_core::FlagId(4_000);
+    world.flags.insert(undeclared, 7);
+    let parts = split(&world, &data);
+    assert_eq!(parts.checkpoint.flags.get(&debt), Some(&3), "the party's");
+    assert_eq!(parts.world.flags.get(&lever), Some(&1), "the world's");
+    assert_eq!(
+        parts.world.flags.get(&undeclared),
+        Some(&7),
+        "undeclared: the world's"
+    );
+    assert!(!parts.world.flags.contains_key(&debt));
+    assert!(!parts.checkpoint.flags.contains_key(&lever));
+    round_trip(&world, &data, "flags of both scopes");
+    let report = split_report(&world, &data).unwrap();
+    assert_eq!((report.party_flags, report.world_flags), (1, 2));
+    let mut twice = split(&world, &data);
+    twice.world.flags.insert(debt, 3);
+    assert!(
+        matches!(join(twice, &data, false), Err(JoinError::Duplicate(_))),
+        "a flag held by both"
+    );
+}

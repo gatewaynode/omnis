@@ -1,0 +1,2 @@
+// The wrong type in the id.
+(schema: 1, id: "badf:item:wrong", scope: Party)

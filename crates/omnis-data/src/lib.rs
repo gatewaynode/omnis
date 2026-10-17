@@ -13,6 +13,7 @@ pub mod condition;
 mod content;
 pub mod encounter;
 pub mod error;
+pub mod flag;
 pub mod footprint;
 pub mod item;
 pub mod levels;
@@ -48,6 +49,7 @@ pub use encounter::{
     ResolvedRandom, Stand,
 };
 pub use error::{DataError, LoadReport};
+pub use flag::{FlagDef, FlagScope};
 pub use item::{EquipSlot, Item, ItemKind, UseEffect};
 pub use levels::{LevelData, LevelDef, NO_GROUND};
 pub use loader::{Data, PackFingerprint, load_packs};

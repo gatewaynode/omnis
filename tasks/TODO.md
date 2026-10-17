@@ -553,7 +553,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
         0.4 s to load, about 1.3 MB). The owner's commands-an-hour figure turns that into hours of play.
       - The wanderer lived about 58 commands a game hour; real play's rate per wall-clock hour is the open
         number.
-  - [ ] 7b. `split`/`join` in memory and the invariant `join(split(w)) == w` (goldens, mid-fight, town, `World::new`). All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7b.md`.
+  - [x] 7b. `split`/`join` in memory and the invariant `join(split(w)) == w` (goldens, mid-fight, town, `World::new`). All items built (2026-10-17). Acceptance `tasks/acceptance/m8.5-7b.md`: accepted by the owner 2026-10-17 ("Manually tested").
     - **What was built.**
       - **Engine** (`omnis-sim/src/save/`: `mod.rs` 125, `split.rs` 122, `join.rs` 92, `report.rs` 65):
         - `Split { manifest, world, regions, checkpoint }`. Clocks, contacts and streams are grouped as
@@ -585,7 +585,32 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - **Unchanged:** `SAVE_SCHEMA` 7, the goldens (walk `8d880647a25097b2`, fight `d06fa80460a947ef`), every
       API pin.
     - **Debt:** `screen/debug.rs` is 872 lines. The World page's rows are the next piece out if it grows.
-  - [ ] 7c. Flag scope in pack data (party or world, default world).
+  - [ ] 7c. Flag scope in pack data (party or world, default world). All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7c.md`.
+    - **What was built.**
+      - **Data:** `omnis-data/src/flag.rs` (`FlagDef { schema, id, scope }`, `FlagScope::{Party, World}`, World
+        by default). Unknown fields are refused, so a misspelt scope is not read as World.
+        - Flag files are gathered from `data/flags` and interned after the flags object kinds name, so no
+          number a save holds moves.
+        - `Data.flags` and `Data::flag_scope` (World when undeclared).
+      - **Engine:**
+        - `Checkpoint.flags` takes the party's flags; `WorldBase.flags` the world's and every undeclared flag.
+        - `join` refuses a flag held by both.
+        - `SplitReport.party_flags` and `world_flags`.
+        - Tier 1 `flag_scope(&Data, &str)`.
+      - **Fixture:** the objects pack declares `objects:flag:debt` (Party) and `objects:flag:lever` (World,
+        as an example). Base and test are untouched.
+      - **Client:** the Flag choice reads "(party, now n)" or "(world, now n)", and Split gains "Flags set:".
+      - **Docs and the schema dump:** a `data/flags` section, `docs/api.md`, and one sentence in
+        ARCHITECTURE §4.5.
+    - **Tests:**
+      - New: `omnis-data/tests/flags.rs` (3, with a bad-flags pack in the corpus), a split test, and a debug
+        test.
+      - 7 mutants, all killed: the scope ignored (all to the world), all to the party, declarations interned
+        first, a missing scope read as Party, an undeclared flag read as Party, no duplicate check on flags,
+        the label ignoring scope.
+      - Gate `tests passed 888 failed 0 ignored 13`, VERIFY-GREEN. Sentrux rules pass, quality 8983.
+    - **Unchanged:** the goldens, `SAVE_SCHEMA` 7.
+    - **Debt:** `screen/debug.rs` is 882 lines.
   - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8. **The journal on disk is encoded compactly** (owner, 2026-10-17, asking whether visited squares could be deduplicated). A step cannot be dropped: each passes time and may draw an encounter roll, so the replay needs every command. The encoding is what shrinks. In a 10,000-command wander, 70% of commands were steps, there were 4,871 runs of a repeated command, and stripping whitespace took 242 KB to 137 KB. So run-length plus no pretty-printing should give about 3–4×; to be measured in 7d.
   - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, the provisional size rule, archive segments, named bases kept, manual tidy.
   - [ ] 7f. Full log across loads: History rebuilt from the archive and a stepwise replay.

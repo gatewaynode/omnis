@@ -67,12 +67,12 @@ impl RegionBase {
     }
 }
 
-/// What belongs to no region and to no party: world flags (all flags until 7c scopes them),
-/// holders that are neither (actors, characters apart, projects), and the state of maps no
-/// loaded pack has.
+/// What belongs to no region and to no party: the world's flags (every flag no pack declares
+/// the party's), holders that are neither (actors, characters apart, projects), and the state of
+/// maps no loaded pack has.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorldBase {
-    /// Named integer flags.
+    /// The world's flags.
     pub flags: BTreeMap<FlagId, i64>,
     /// Other holders' clocks, contacts and streams.
     pub holdings: Holdings,
@@ -95,6 +95,8 @@ pub struct Checkpoint {
     pub party: Party,
     /// The party's shared time and the date it believes.
     pub party_time: PartyTime,
+    /// The flags a pack declares the party's: a quest taken, an oath, a debt (M8.5 7c).
+    pub flags: BTreeMap<FlagId, i64>,
     /// The party's clock, its contacts, and the streams no region or other holder names.
     pub holdings: Holdings,
     /// The signal bus's subscriptions.

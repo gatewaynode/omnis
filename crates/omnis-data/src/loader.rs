@@ -8,6 +8,7 @@ use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
 use crate::encounter;
 use crate::error::{DataError, LoadReport};
+use crate::flag::{FlagDef, FlagScope};
 use crate::item::Item;
 use crate::levels::{self, LevelData};
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
@@ -28,8 +29,8 @@ use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, ItemId, Level, LootTableId, MapId, MonsterId,
-    ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
+    BackgroundId, Calendar, ClassId, ConditionId, FlagId, ItemId, Level, LootTableId, MapId,
+    MonsterId, ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -89,9 +90,17 @@ pub struct Data {
     pub objects: BTreeMap<ObjectKindId, ObjectKind>,
     /// Loot tables by id.
     pub loot: BTreeMap<LootTableId, LootTable>,
+    /// Flags a pack declared, by id; an undeclared flag is the world's.
+    pub flags: BTreeMap<FlagId, FlagDef>,
 }
 
 impl Data {
+    /// Whose `flag` is: as its file declares, else the world's (owner, 2026-10-17).
+    #[must_use]
+    pub fn flag_scope(&self, flag: FlagId) -> FlagScope {
+        self.flags.get(&flag).map_or(FlagScope::World, |f| f.scope)
+    }
+
     /// The calendar's shape from `rules/time.ron`, each value the default when it is missing.
     #[must_use]
     pub fn calendar(&self) -> Calendar {
@@ -430,6 +439,14 @@ fn gather_content(
         &mut content.objects,
     );
     gather(root, "data/loot", "loot", hasher, errors, &mut content.loot);
+    gather(
+        root,
+        "data/flags",
+        "flag",
+        hasher,
+        errors,
+        &mut content.flags,
+    );
 }
 
 trait HasSchema {
@@ -461,6 +478,7 @@ has_schema!(
     RegionDef,
     ObjectKind,
     LootTable,
+    FlagDef,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {

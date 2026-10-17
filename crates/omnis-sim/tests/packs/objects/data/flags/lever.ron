@@ -1,0 +1,7 @@
+// The yard's lever, pulled: the gate opens for anyone, so it is the world's. Declared only as an
+// example; an undeclared flag is the world's too.
+(
+    schema: 1,
+    id: "objects:flag:lever",
+    scope: World,
+)

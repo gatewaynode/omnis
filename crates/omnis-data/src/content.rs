@@ -5,6 +5,7 @@
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::error::DataError;
+use crate::flag::FlagDef;
 use crate::item::Item;
 use crate::loader::Data;
 use crate::loot::LootTable;
@@ -40,7 +41,7 @@ macro_rules! content {
 }
 content!(
     Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef,
-    ObjectKind, LootTable
+    ObjectKind, LootTable, FlagDef
 );
 
 impl Content for Condition {
@@ -68,6 +69,7 @@ pub(crate) struct RawContent {
     pub regions: Files<RegionDef>,
     pub objects: Files<ObjectKind>,
     pub loot: Files<LootTable>,
+    pub flags: Files<FlagDef>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -88,6 +90,9 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     data.services = intern(raw.services, &mut data.registry.services);
     data.objects = intern(raw.objects, &mut data.registry.objects);
     data.loot = intern(raw.loot, &mut data.registry.loot);
+    // After `check_objects` interned the flags object kinds name, so a declaration never moves
+    // the number of a flag a save already holds.
+    data.flags = intern(raw.flags, &mut data.registry.flags);
 }
 
 fn intern<I: Copy + Ord + From<u32> + Into<u32>, T>(

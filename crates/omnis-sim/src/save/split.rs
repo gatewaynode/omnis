@@ -4,7 +4,7 @@ use super::{Checkpoint, Holdings, Manifest, RegionBase, Split, WorldBase};
 use crate::world::World;
 use alloc::collections::BTreeMap;
 use omnis_core::{HolderId, RegionId, StreamName};
-use omnis_data::Data;
+use omnis_data::{Data, FlagScope};
 
 /// Whose a clock, a contact or a stream is.
 #[derive(Clone, Copy)]
@@ -63,18 +63,24 @@ impl Parts {
 
 /// Cut `world` into its manifest, world base, region bases and checkpoint. Each map's state goes
 /// to its map's region (an empty one too: it is in the fingerprint), each clock and contact to
-/// its holder's part, each stream to the part its name names. A region play has not touched
+/// its holder's part, each stream to the part its name names, each flag to the party or the
+/// world as its pack declares (the world's when undeclared). A region play has not touched
 /// gets no base. The log and the journal are left out.
 #[must_use]
 pub fn split(world: &World, data: &Data) -> Split {
     let mut parts = Parts {
-        world: WorldBase {
-            flags: world.flags.clone(),
-            ..WorldBase::default()
-        },
+        world: WorldBase::default(),
         regions: BTreeMap::new(),
         party: Holdings::default(),
     };
+    let mut party_flags = BTreeMap::new();
+    for (flag, value) in &world.flags {
+        let to = match data.flag_scope(*flag) {
+            FlagScope::Party => &mut party_flags,
+            FlagScope::World => &mut parts.world.flags,
+        };
+        to.insert(*flag, *value);
+    }
     for (map, state) in &world.maps {
         let target = match data.maps.get(map) {
             Some(loaded) => &mut parts.regions.entry(loaded.region).or_default().maps,
@@ -110,6 +116,7 @@ pub fn split(world: &World, data: &Data) -> Split {
         checkpoint: Checkpoint {
             party: world.party.clone(),
             party_time: world.party_time,
+            flags: party_flags,
             holdings: parts.party,
             bus: world.bus.clone(),
             position: world.position,

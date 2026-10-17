@@ -156,6 +156,13 @@ pub fn flags(world: &World, data: &Data) -> Vec<(String, i64)> {
         .collect()
 }
 
+/// Whose the flag `name` is (PRD D28, M8.5 7c): as its pack declares, else the world's; `None`
+/// for a flag no pack names.
+#[must_use]
+pub fn flag_scope(data: &Data, name: &str) -> Option<omnis_data::FlagScope> {
+    data.registry.flags.get(name).map(|id| data.flag_scope(id))
+}
+
 /// The viewport model, or `None` when the party's map is not loaded.
 #[must_use]
 pub fn viewport(world: &World, data: &Data) -> Option<ViewportModel> {
