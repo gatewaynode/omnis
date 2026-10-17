@@ -14,6 +14,7 @@ mod elevation;
 mod encounter;
 mod ground;
 mod items;
+mod journal;
 mod levels;
 mod loot;
 mod monster_cast;

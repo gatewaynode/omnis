@@ -8,6 +8,7 @@ use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::{BlockReason, Command, Event, Rejection, Replay, ReplayError, Settings};
+use std::time::Instant;
 
 /// The binder's distances, in cells, and angles, in radians.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,6 +52,48 @@ pub struct Outcome {
     pub pressed: Option<BlockReason>,
 }
 
+/// What the accepted commands cost this session on this machine (M8.5 7a): a load by replay
+/// (PRD D28) does the same applies again, so this prices one.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Timing {
+    /// Commands the simulation accepted, across loads.
+    pub applied: u64,
+    /// Microseconds their applies took together.
+    pub micros: u64,
+    /// When the first was applied.
+    pub since: Option<Instant>,
+}
+
+impl Timing {
+    /// Microseconds an accepted command took on average; `None` before the first.
+    #[must_use]
+    pub fn per_command(&self) -> Option<u64> {
+        self.micros.checked_div(self.applied)
+    }
+
+    /// Milliseconds a replay of `commands` would take at that rate.
+    #[must_use]
+    pub fn replay_millis(&self, commands: usize) -> Option<u64> {
+        let per = self.per_command()?;
+        Some((commands as u64).saturating_mul(per) / 1000)
+    }
+
+    /// Commands an hour since the first, menus and pauses counted; `None` before a minute has
+    /// passed.
+    #[must_use]
+    pub fn per_hour(&self, now: Instant) -> Option<u64> {
+        let seconds = now.duration_since(self.since?).as_secs();
+        (seconds >= 60).then(|| self.applied.saturating_mul(3600) / seconds)
+    }
+
+    fn add(&mut self, started: Instant) {
+        self.since.get_or_insert(started);
+        self.applied += 1;
+        let took = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
+        self.micros = self.micros.saturating_add(took);
+    }
+}
+
 /// Turns pose changes into commands, applies them, and keeps the accepted ones.
 #[derive(Debug, Clone, Default)]
 pub struct Binder {
@@ -64,6 +107,8 @@ pub struct Binder {
     pub disagreements: u32,
     /// What held the pose on the last call, so a contact is named once.
     pressing: Option<BlockReason>,
+    /// What the accepted commands cost.
+    pub timing: Timing,
 }
 
 impl Binder {
@@ -77,8 +122,10 @@ impl Binder {
         data: &Data,
         command: Command,
     ) -> Result<Vec<Event>, Rejection> {
+        let started = Instant::now();
         match world.apply(data, command.clone()) {
             Ok(events) => {
+                self.timing.add(started);
                 self.log.push(command);
                 Ok(events)
             }

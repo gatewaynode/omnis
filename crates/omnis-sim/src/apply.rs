@@ -2,6 +2,7 @@
 
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
+use crate::journal::Entry;
 use crate::names::{Place, id_of};
 use crate::objects::Choice;
 use crate::party::{self, PartyCommand};
@@ -75,6 +76,8 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     look(world, data, &mut events);
     world.turn += 1;
     world.record(&events);
+    let minute = world.party_clock().elapsed;
+    world.journal.push(Entry { minute, command });
     Ok(events)
 }
 

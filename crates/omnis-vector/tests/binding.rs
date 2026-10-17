@@ -370,3 +370,27 @@ fn the_shut_gate_holds_the_pose_and_the_open_one_lets_it_through() {
         "through to the yard's south wall"
     );
 }
+
+#[test]
+fn timing_prices_a_replay_and_counts_an_hour_only_after_a_minute() {
+    use omnis_vector::bind::Timing;
+    use std::time::{Duration, Instant};
+    let untimed = Timing::default();
+    assert_eq!(untimed.per_command(), None);
+    assert_eq!(untimed.replay_millis(1000), None);
+    assert_eq!(untimed.per_hour(Instant::now()), None);
+    let since = Instant::now();
+    let timing = Timing {
+        applied: 120,
+        micros: 120 * 25,
+        since: Some(since),
+    };
+    assert_eq!(timing.per_command(), Some(25));
+    assert_eq!(timing.replay_millis(40_000), Some(1000), "40,000 × 25 µs");
+    assert_eq!(timing.per_hour(since + Duration::from_secs(59)), None);
+    assert_eq!(
+        timing.per_hour(since + Duration::from_secs(120)),
+        Some(3600),
+        "120 commands in two minutes"
+    );
+}

@@ -29,6 +29,7 @@ pub mod encounter;
 pub mod event;
 pub mod ground;
 pub mod items;
+pub mod journal;
 mod migrate;
 pub mod names;
 pub mod objects;
@@ -73,6 +74,7 @@ pub use event::{
     LayerCheck, Loot, MessageKey, Notice, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
+pub use journal::{Entry, Journal, journal_len};
 pub use names::Place;
 pub use objects_view::{ObjectsView, objects_view};
 pub use ops::{Op, OpError, Reply, Status, dispatch};

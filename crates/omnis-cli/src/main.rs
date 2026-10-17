@@ -3,11 +3,16 @@
 
 use omnis_cli::args::Args;
 use omnis_cli::{Headless, bake, schema};
-use omnis_data::load_packs;
-use omnis_data::ron_io::read_ron;
+use omnis_data::ron_io::{self, read_ron, write_ron};
+use omnis_data::{Data, load_packs};
+use omnis_sim::replay::replay_world;
 use omnis_sim::{Op, Replay, Reply, parse_script};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Instant;
+
+/// Commands a wander takes when `--commands` is not given.
+const WANDER_COMMANDS: usize = 10_000;
 
 const USAGE: &str = "usage:
   omnis-cli validate <pack-dir>...                 load packs and report every error
@@ -15,7 +20,11 @@ const USAGE: &str = "usage:
   omnis-cli map text <map-id> [--pack <dir>]...    a map as text with the party at its start
   omnis-cli play --script <file> [--pack <dir>]... [--seed <n>]
                                                    run a command script, print events and the fingerprint
-  omnis-cli replay <replay.ron> [--pack <dir>]...  re-run a replay and assert its fingerprint
+  omnis-cli replay <replay.ron> [--pack <dir>]... [--time]
+                                                   re-run a replay and assert its fingerprint;
+                                                   --time reports how long the replay took
+  omnis-cli wander --out <replay.ron> [--commands <n>] [--seed <n>] [--pack <dir>]...
+                                                   a seeded party wanders the maps; writes the replay
   omnis-cli tileset bake <spec.ron>...             bake viewport slot sprites and write the tileset file
 ";
 
@@ -31,6 +40,7 @@ fn main() -> ExitCode {
         ["map", "text", rest @ ..] => Args::parse(rest).and_then(map_text),
         ["play", rest @ ..] => Args::parse(rest).and_then(play),
         ["replay", rest @ ..] => Args::parse(rest).and_then(replay),
+        ["wander", rest @ ..] => Args::parse(rest).and_then(wander),
         _ => Err(USAGE.trim_end().to_owned()),
     };
     match result {
@@ -133,14 +143,83 @@ fn replay(args: Args) -> Result<(), String> {
     };
     let file = PathBuf::from(file);
     let replay: Replay = read_ron(&file, &file).map_err(|e| e.to_string())?;
-    let packs = args.packs_or_default();
-    let roots: Vec<&Path> = packs.iter().map(PathBuf::as_path).collect();
-    let data = load_packs(&roots).map_err(|report| report.to_string())?;
+    let data = packs(&args)?;
+    if args.time {
+        return timed(&replay, &data);
+    }
     replay.check(&data).map_err(|e| e.to_string())?;
     println!(
         "ok: {} commands reproduce fingerprint {:016x}",
         replay.commands.len(),
         replay.fingerprint
+    );
+    Ok(())
+}
+
+fn packs(args: &Args) -> Result<Data, String> {
+    let packs = args.packs_or_default();
+    let roots: Vec<&Path> = packs.iter().map(PathBuf::as_path).collect();
+    load_packs(&roots).map_err(|report| report.to_string())
+}
+
+/// A replay checked as `replay` does, with what it cost: the replay itself (the work a load by
+/// replay does, PRD D28), the fingerprint, and the journal it rebuilt.
+fn timed(replay: &Replay, data: &Data) -> Result<(), String> {
+    if replay.packs != data.fingerprints {
+        return Err(omnis_sim::ReplayError::PackMismatch.to_string());
+    }
+    let start = Instant::now();
+    let world = replay_world(data, replay.seed, replay.settings, &replay.commands)
+        .map_err(|e| e.to_string())?;
+    let replayed = start.elapsed();
+    let start = Instant::now();
+    let fingerprint = world.fingerprint().map_err(|e| e.to_string())?;
+    let hashed = start.elapsed();
+    if fingerprint != replay.fingerprint {
+        let diverged = omnis_sim::ReplayError::Diverged {
+            expected: replay.fingerprint,
+            actual: fingerprint,
+        };
+        return Err(diverged.to_string());
+    }
+    let n = replay.commands.len().max(1);
+    let journal = ron_io::to_string(&world.journal).map_err(|e| e.to_string())?;
+    println!(
+        "ok: {} commands reproduce fingerprint {fingerprint:016x}",
+        replay.commands.len()
+    );
+    println!(
+        "replay: {} ms, {} µs a command; fingerprint: {} ms",
+        replayed.as_millis(),
+        replayed.as_micros() / n as u128,
+        hashed.as_millis()
+    );
+    println!(
+        "journal: {} entries, {} bytes a journal entry; the party lived {} minutes",
+        world.journal.len(),
+        journal.len() / n,
+        world.party_clock().elapsed
+    );
+    Ok(())
+}
+
+fn wander(args: Args) -> Result<(), String> {
+    let out = args.out.as_ref().ok_or("wander needs --out <replay.ron>")?;
+    let data = packs(&args)?;
+    let commands = args.commands.unwrap_or(WANDER_COMMANDS);
+    let walk = omnis_cli::wander::wander(&data, args.seed.unwrap_or(0), commands)?;
+    write_ron(out, &walk.replay).map_err(|e| e.to_string())?;
+    println!(
+        "wrote {} commands to {}",
+        walk.replay.commands.len(),
+        out.display()
+    );
+    println!(
+        "{} bytes of events a command; {} maps, {} fights, {} minutes lived",
+        walk.event_bytes / commands.max(1),
+        walk.maps,
+        walk.fights,
+        walk.minutes
     );
     Ok(())
 }

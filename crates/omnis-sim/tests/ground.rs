@@ -95,11 +95,13 @@ fn refused(world: &mut World, data: &Data, command: Command) -> Rejection {
     rejection
 }
 
-/// The world read back from its save is the same, but for the log a save does not keep.
+/// The world read back from its save is the same, but for the log and the journal a save does
+/// not keep.
 fn round_trip(world: &World, data: &Data) {
     let text = save_text(world).expect("saves");
     let mut back = load_text(&text, data, false).expect("loads");
     back.log.clone_from(&world.log);
+    back.journal.clone_from(&world.journal);
     assert_eq!(back, *world);
 }
 

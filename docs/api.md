@@ -280,6 +280,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
 | `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
+| `journal_len(&World)` | `usize`: how many commands the world has accepted since its base, which a load would replay (PRD D28); not saved yet, so 0 after a load | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
 | `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
@@ -965,7 +966,7 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `journal_len`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -1057,6 +1058,9 @@ Additive (§13), so `PROTOCOL` stays 2:
   commands), the word `approach-B`; `Choice::Being`; `Rejection::NoSuchBeing` (71 rejections);
   `Shape::Figure`. A fixed encounter stands only when its map gives it a `stand`, and no shipped map
   does, so shipped play, saves and the replays are unchanged.
+- 2026-10-17: the journal (M8.5 7a): Tier 1's `journal_len`, the count of commands the world has
+  accepted since its base (PRD D28), each kept with the party's age after it. It is not saved
+  yet, so saves, fingerprints and the replays are unchanged; a load starts it at 0.
 
 ### Protocol 2 (2026-10-10)
 

@@ -25,6 +25,7 @@ fn game<'a>(session: &'a Session, views: &'a Views) -> Game<'a> {
         log: &[],
         unreplayable: None,
         history: &session.history,
+        timing: session.binder.timing,
     }
 }
 

@@ -555,7 +555,7 @@ Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis
 
 ## 10. CLI (`omnis-cli`)
 
-Headless, Bevy-free, fast to compile. Subcommands as built: `validate <packs>`, `schema dump` (an example of every data file, a save, a replay, every op and every reply), `tileset bake`, `map text <map>`, `play --script <file>` (runs commands, prints events), `replay <file>` (asserts the fingerprint). Later: `gen region` (M9), `bench eco` (M10). CI uses it for golden and determinism tests. It exposes `omnis_cli::Headless`, the in-process Tier 2 host (§4.9), for the MCP bridge.
+Headless, Bevy-free, fast to compile. Subcommands as built: `validate <packs>`, `schema dump` (an example of every data file, a save, a replay, every op and every reply), `tileset bake`, `map text <map>`, `play --script <file>` (runs commands, prints events), `replay <file>` (asserts the fingerprint; `--time` reports what the replay cost, the work a load by replay does, D28), `wander --out <file>` (a seeded party plays the loaded maps for `--commands` commands and writes the replay: the load the journal is measured on, M8.5 7a). Later: `gen region` (M9), `bench eco` (M10). CI uses it for golden and determinism tests. It exposes `omnis_cli::Headless`, the in-process Tier 2 host (§4.9), for the MCP bridge.
 
 ## 11. Determinism and testing
 

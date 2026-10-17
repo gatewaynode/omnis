@@ -42,7 +42,7 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
 | `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
-| `omnis-cli` | Headless subcommands: validate, replay, play, map text, schema dump, tileset bake |
+| `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 
 Game content lives in `packs/`. `packs/base` is the shipped content (SRD 5.1 material under

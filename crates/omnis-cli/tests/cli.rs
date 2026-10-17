@@ -151,6 +151,23 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
 }
 
 #[test]
+fn wander_writes_a_replay_that_replay_times() {
+    let file = scratch("cli-wander").join("w.ron");
+    let path = file.to_str().unwrap();
+    let (ok, out, err) = cli(&["wander", "--seed", "3", "--commands", "120", "--out", path]);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("wrote 120 commands to "), "{out}");
+    assert!(out.contains("bytes of events a command"), "{out}");
+    let (ok, out, err) = cli(&["replay", path, "--time"]);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("ok: 120 commands reproduce"), "{out}");
+    assert!(out.contains("µs a command"), "{out}");
+    assert!(out.contains("bytes a journal entry"), "{out}");
+    let (ok, _, err) = cli(&["wander", "--commands", "5"]);
+    assert!(!ok && err.contains("--out"), "{err}");
+}
+
+#[test]
 fn nonsense_prints_usage_and_schema_dump_prints_sections() {
     let (ok, _, err) = cli(&["dance"]);
     assert!(!ok && err.contains("usage:"), "{err}");

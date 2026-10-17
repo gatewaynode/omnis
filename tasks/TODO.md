@@ -507,7 +507,52 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
 - [ ] 6. **Magic and mana data in the map packs** (owner's 6). New: neither the PRD nor ARCHITECTURE has mana in a place (members have spell points). Needs the owner's intent before a plan: what a place's mana does (spell power, recovery, wild or dead zones), whether it is per cell, per map or per region, and whether it changes over time (a link to M10). Shown in the magic colour role from 5. Last because it needs that design and nothing else waits on it.
 - [ ] **The save model (D28), a study** (owner, 2026-10-17; PRD D28, §7.7; `tasks/plans/world-state.md`): the save centres on the characters and their interactions since the world's last base state, replayed on load; the world's state lives in a world file the simulation owns, immutable authored bases with layers folded into new bases at thresholds and story points. Owner answers: replay from the last base; the world file apart. Second round (2026-10-17, written into the study, D28, §7.7): migrate then report a changed pack; flags scoped per flag; a world directory, one file per region; characters carry between worlds (a horizon); folds visible; named bases kept. Open: the fold thresholds, set by the world simulation (owner: a simplified 4X engine over biospheres, settlements, regions and the world), so they wait for its mechanics. No milestone yet: a plan for the save model comes next, and step 7 is reshaped by it.
 - [ ] 7. **The save model (D28)** (owner, 2026-10-17; plan `tasks/plans/m8.5-save-model.md`, approved 2026-10-17). Owner answers: layers derived from the journal (the world folder holds bases only); a provisional size fold at safe points until M10's world sim sets thresholds; pre-fold history kept as archived events. Each sub-step ends in something visible and has its acceptance script.
-  - [ ] 7a. Journal and measurement: `World.journal` appended in `apply`; replay timing harness; µs per command, bytes per entry, commands per hour.
+  - [ ] 7a. Journal and measurement: `World.journal` appended in `apply`; replay timing harness; µs per command, bytes per entry, commands per hour. All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7a.md` and a commands-an-hour figure from play.
+    - **What was built.**
+      - Engine: `omnis-sim/src/journal.rs` (`Entry { minute, command }` and `Journal`). The journal is
+        `World.journal`, `#[serde(skip)]`, appended after each accepted command with the party's age after it.
+        Rejections are never journaled; dev commands are.
+      - Replay: `replay::replay_world` returns the replayed world, and `run` fingerprints it.
+      - Tier 1 `journal_len`.
+      - CLI:
+        - `omnis-cli wander` (`src/wander.rs`): a seeded party of four, played through the public API, that
+          steps, turns, uses and searches at random, fights, rests when hurt, is raised by a dev `SetHp` when
+          it falls, and teleports every 1,000 commands;
+        - `omnis-cli replay --time`;
+        - flags `--time`, `--commands` and `--out`.
+      - Client: `bind::Timing`, the accepted applies timed with `Instant`, passed to the screens on `Game`;
+        `Views.journal`; three lines on the debug World page.
+      - Docs: `docs/api.md` (the view row, the known gaps, the changelog), README, ARCHITECTURE §10's list of
+        subcommands.
+    - **Changed from the plan:** an entry's events are not kept. That moves to 7e, which has the archive to
+      read them; 7a measures their size instead.
+    - **Not changed:** `SAVE_SCHEMA` 7, the fingerprints, the goldens (walk `8d880647a25097b2`, fight
+      `d06fa80460a947ef`), and every API pin.
+    - **Tests:** three tests comparing a world with its loaded save, and two comparing the same state reached by
+      different commands now copy or clear the journal as they do the log.
+      - 12 mutants, all killed: the push removed, the minute unstamped, dev commands skipped, the push before
+        validation, `replay_world` not rebuilding, the wanderer's choice constant, no teleport, no revive
+        (it first survived, so a revival count was added and asserted), `--time` ignored, timing not added,
+        the journal missing from views, an hour counted before a minute.
+      - Gate `tests passed 872 failed 0 ignored 13`, VERIFY-GREEN. Sentrux rules pass, quality 8991.
+      - Size: src +224 / −8 in tracked files, plus the new `journal.rs` (52) and `wander.rs` (280); tests
+        +114 / −3, plus `journal.rs` (119) and `wander.rs` (78). `screen/debug.rs` is at 827 lines.
+    - **Measured** (release, this Mac, seed 1, base plus test packs, all 4 maps walked):
+
+      | commands | apply µs/cmd (wander) | replay | replay µs/cmd | journal B/entry (RON) | events B/cmd (no `Visible`, no checks) | fights | game hours |
+      |---|---|---|---|---|---|---|---|
+      | 10,000 | 27 | 188 ms | 18 | 67 | 234 | 49 | 173 |
+      | 50,000 | 29 | 1,117 ms | 22 | 67 | 234 | 247 | 842 |
+
+      The goldens replay at 63 and 48 µs a command; small runs carry the setup.
+    - **What it means for 7e:**
+      - The **save file limit (4 MiB) binds about as soon as load time does**. At 67 bytes an entry, the
+        journal alone fills 4 MiB near 62,000 entries, and replaying those takes about 1.3 s.
+      - The archive's events, about 234 bytes a command, would fill a 4 MiB segment in about 18,000 commands.
+      - So the provisional fold value is bounded by the file, and is better set at about 20,000 entries (about
+        0.4 s to load, about 1.3 MB). The owner's commands-an-hour figure turns that into hours of play.
+      - The wanderer lived about 58 commands a game hour; real play's rate per wall-clock hour is the open
+        number.
   - [ ] 7b. `split`/`join` in memory and the invariant `join(split(w)) == w` (goldens, mid-fight, town, `World::new`).
   - [ ] 7c. Flag scope in pack data (party or world, default world).
   - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8.

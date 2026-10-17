@@ -8,6 +8,7 @@ use crate::common;
 use bevy::prelude::*;
 use common::app::{config, press_ui, tap};
 use common::fight::turn_of;
+use omnis_sim::omnis_core::Rotation;
 use omnis_sim::{Command, DevCommand, Settings};
 use omnis_vector::screen::debug::{DebugAct, Num, Page};
 use omnis_vector::screen::{self, ControlId, Effect, Forms, Kind, Payload, ScreenId};
@@ -503,4 +504,63 @@ fn backtick_opens_the_panel_with_mouse_look_on_esc_closes_it_and_an_edit_logs_a_
     assert_eq!(top(&app), Some(ScreenId::Debug));
     tap(&mut app, KeyCode::Escape);
     assert_eq!(top(&app), Some(ScreenId::Pause), "back to the pause");
+}
+
+/// Every span's words on the screen's first panel.
+fn texts(screen: &screen::Screen) -> Vec<String> {
+    screen.panels[0]
+        .rows
+        .iter()
+        .flat_map(|r| r.spans.iter().map(|s| s.text.clone()))
+        .collect()
+}
+
+#[test]
+fn the_world_page_counts_the_journal_and_times_a_replay() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let before = session.views.journal;
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&format!(
+            "Journal: {before} commands since the start or the last load"
+        )),
+        "{lines:?}"
+    );
+    let untimed = common::ctx(&session.data, &session.world, &session.views);
+    let lines = texts(&screen::content(ScreenId::Debug, &untimed, &forms));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("Replay timing: none yet")),
+        "a session that applied nothing has nothing to time: {lines:?}"
+    );
+    for _ in 0..3 {
+        session
+            .ordered(Command::Turn(Rotation::Left))
+            .expect("a turn in town");
+    }
+    assert_eq!(session.views.journal, before + 3, "one entry a command");
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&format!(
+            "Journal: {} commands since the start or the last load",
+            before + 3
+        )),
+        "{lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("Replay would take about ")
+                && l.ends_with("measured this session)")),
+        "{lines:?}"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.to_lowercase().contains("commands an hour")),
+        "{lines:?}"
+    );
 }

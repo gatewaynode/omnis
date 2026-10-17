@@ -5,6 +5,7 @@ use crate::bus::Bus;
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
+use crate::journal::Journal;
 use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7};
 use crate::objects::ObjectState;
 use crate::party::Party;
@@ -290,6 +291,10 @@ pub struct World {
     /// fingerprint.
     #[serde(skip)]
     pub log: Vec<Event>,
+    /// Every command accepted since the world's base (PRD D28). Rebuilt by a replay; not part
+    /// of the save or the fingerprint until the character save carries it (M8.5 7d).
+    #[serde(skip)]
+    pub journal: Journal,
 }
 
 /// Why a new game could not start.
@@ -376,6 +381,7 @@ impl World {
             party: Party::default(),
             turn: 0,
             log: Vec::new(),
+            journal: Journal::default(),
         })
     }
 

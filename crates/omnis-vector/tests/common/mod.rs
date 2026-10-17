@@ -173,6 +173,7 @@ pub fn ctx<'a>(
             log: &[],
             unreplayable: None,
             history: &NO_HISTORY,
+            timing: omnis_vector::bind::Timing::default(),
         }),
         save: omnis_vector::screen::Slot {
             path: "saves/none.ron",

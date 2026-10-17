@@ -38,6 +38,7 @@ fn headless_writes_reads_and_reloads() {
     step(&mut game);
     let mut saved = game.world.clone();
     saved.log.clear();
+    saved.journal = Default::default();
     let path = "saves/one.ron";
     assert_eq!(
         game.handle(&Op::SaveWrite { path: path.into() }).unwrap(),

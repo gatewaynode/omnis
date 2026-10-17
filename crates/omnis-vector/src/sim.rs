@@ -114,6 +114,12 @@ impl SimWorld {
         omnis_sim::api::flags(&self.0, data)
     }
 
+    /// How many commands a load would replay (`api::journal_len`).
+    #[must_use]
+    pub fn journal_len(&self) -> usize {
+        omnis_sim::api::journal_len(&self.0)
+    }
+
     /// The encounter or fight, if one is on (`api::combat_view`).
     #[must_use]
     pub fn combat(&self, data: &Data) -> Option<CombatView> {
@@ -300,6 +306,8 @@ pub struct Views {
     /// The objects in reach with their interactions, and the pile on the party's cell (M8.5
     /// step 2b).
     pub objects: ObjectsView,
+    /// How many commands the engine has journaled since the start or the last load (M8.5 7a).
+    pub journal: usize,
 }
 
 impl Views {
@@ -332,6 +340,7 @@ impl Views {
             },
             sight: world.sight(data),
             objects: world.objects(data),
+            journal: world.journal_len(),
         }
     }
 

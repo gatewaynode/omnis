@@ -239,6 +239,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
             log: &session.fight_log,
             unreplayable: session.unreplayable.as_deref(),
             history: &session.history,
+            timing: session.binder.timing,
         }),
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),

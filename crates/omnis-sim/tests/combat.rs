@@ -477,7 +477,8 @@ fn a_fight_survives_a_save_and_a_bad_one_is_refused() {
     let text = world.to_ron().unwrap();
     let mut loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
     world.log.clear();
-    assert_eq!(loaded, world, "equal but for the unsaved log");
+    world.journal = omnis_sim::Journal::default();
+    assert_eq!(loaded, world, "equal but for the unsaved log and journal");
     let stack = target(&world, &data);
     assert_eq!(
         attack(&mut loaded, &data, stack),

@@ -43,7 +43,8 @@ fn one_interaction_in_reach_is_done_at_once() {
     )
     .expect("in reach");
     assert_eq!(used, direct, "Use on the lone crate is Examine on it");
-    assert_eq!(world, acted);
+    acted.journal.clone_from(&world.journal);
+    assert_eq!(world, acted, "the same world, reached by another command");
 }
 
 #[test]

@@ -10,6 +10,7 @@
 use super::{
     Control, ControlId, Effect, Game, Kind, Panel, Payload, Refused, Row, Screen, ScreenId, Span,
 };
+use crate::bind::Timing;
 use crate::labels;
 use crate::style::Role;
 use crate::trial;
@@ -18,6 +19,7 @@ use omnis_sim::omnis_core::{CharacterId, Facing, Level};
 use omnis_sim::omnis_data::{Ability, Data};
 use omnis_sim::{Command, DevCommand};
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 /// Why the panel cannot be opened in this game: a world without devtools refuses every edit, and
 /// a build without the `devtools` feature has no panel.
@@ -604,7 +606,29 @@ fn world_rows(look: &Look) -> Vec<Row> {
         ),
         look.button(DebugAct::Go, "Go"),
     ]));
+    rows.extend(
+        journal_lines(look.game.views.journal, look.game.timing).map(|line| Row::text(note(line))),
+    );
     rows
+}
+
+/// The journal a load would replay and what that would cost (PRD D28, M8.5 7a).
+fn journal_lines(journal: usize, timing: Timing) -> [String; 3] {
+    let replay = match (timing.per_command(), timing.replay_millis(journal)) {
+        (Some(per), Some(ms)) => {
+            format!("Replay would take about {ms} ms ({per} µs a command, measured this session)")
+        }
+        _ => "Replay timing: none yet, no command applied this session".to_owned(),
+    };
+    let hourly = timing.per_hour(Instant::now()).map_or_else(
+        || "Commands an hour: after a minute of play".to_owned(),
+        |n| format!("About {n} commands an hour of play this session (menus and pauses count)"),
+    );
+    [
+        format!("Journal: {journal} commands since the start or the last load"),
+        replay,
+        hourly,
+    ]
 }
 
 fn fight_rows(look: &Look) -> Vec<Row> {

@@ -330,6 +330,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         party: Default::default(),
         turn: 0,
         log: Vec::new(),
+        journal: Default::default(),
     };
     let replay = Replay {
         seed: 1,
