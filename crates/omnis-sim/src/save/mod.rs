@@ -6,16 +6,20 @@
 
 mod character;
 mod disk;
+mod fold;
 mod join;
 mod report;
 mod split;
+mod tidy;
 
 pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
-pub use disk::{FileOut, Restored, WORLDS, load_save, save_files};
+pub use disk::{FileOut, Restored, WORLDS, archive_path, load_save, save_files};
+pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, due, fold, fold_at};
 pub use join::{JoinError, join};
 pub use report::{RegionSize, SplitReport, split_report};
 pub use split::split;
 pub(crate) use split::{Owner, owner_of, stream_owner};
+pub use tidy::{tidy_list, unnamed};
 
 use crate::bus::Bus;
 use crate::objects::Knowledge;

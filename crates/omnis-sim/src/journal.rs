@@ -156,6 +156,12 @@ pub fn journal_len(world: &World) -> usize {
     world.journal.len()
 }
 
+/// How many archive segments the folds have put away (M8.5 7e).
+#[must_use]
+pub fn archive_len(world: &World) -> usize {
+    world.archive.len()
+}
+
 /// What the world holds, as opposed to the party: the map states, the world flags, and the
 /// clocks, contacts and streams of every holder but the party.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

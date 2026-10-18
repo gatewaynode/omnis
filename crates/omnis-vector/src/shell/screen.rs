@@ -615,6 +615,23 @@ fn host_op(
                 report(screens, outcome);
             }
         }
+        HostOp::Tidy { delete } => match game_io::tidy(root(), delete) {
+            Ok(tidied) => {
+                let n = tidied.files.len();
+                let files = if n == 1 { "file" } else { "files" };
+                let said = if delete {
+                    format!("Deleted {n} {files} no save named ({} bytes)", tidied.bytes)
+                } else {
+                    format!("{n} {files} no save names ({} bytes)", tidied.bytes)
+                };
+                screens
+                    .forms
+                    .debug
+                    .tidied((!delete).then_some(tidied.files));
+                report(screens, Ok(said));
+            }
+            Err(e) => report(screens, Err(format!("Tidy failed: {e}"))),
+        },
     }
 }
 

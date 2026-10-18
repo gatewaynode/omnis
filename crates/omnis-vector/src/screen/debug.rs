@@ -8,7 +8,8 @@
 //! else the world's value; an accepted edit clears what was typed, so the field reads the world.
 
 use super::{
-    Control, ControlId, Effect, Game, Kind, Panel, Payload, Refused, Row, Screen, ScreenId, Span,
+    Control, ControlId, Effect, Game, HostOp, Kind, Panel, Payload, Refused, Row, Screen, ScreenId,
+    Span,
 };
 use crate::labels;
 use crate::style::Role;
@@ -131,6 +132,12 @@ pub enum DebugAct {
     Kill,
     /// Cut the world into its parts and join them back (M8.5 7b): report, not a command.
     Split,
+    /// Fold the world now (M8.5 7e).
+    Fold,
+    /// List the world-folder files no save names (M8.5 7e): the host's work.
+    Tidy,
+    /// Delete the files Tidy listed: the host's work, lit once Tidy found some.
+    Delete,
 }
 
 const FACINGS: [Facing; 4] = [Facing::North, Facing::East, Facing::South, Facing::West];
@@ -157,9 +164,16 @@ pub struct DebugForm {
     /// The last split's lines and the turn it was taken on; shown only while the world is
     /// still at that turn.
     split: Option<(u64, Vec<String>)>,
+    /// What the last tidy listed: the files no save names (M8.5 7e).
+    tidy: Option<Vec<String>>,
 }
 
 impl DebugForm {
+    /// The host listed the world-folder files no save names, or deleted them (`None`).
+    pub fn tidied(&mut self, files: Option<Vec<String>>) {
+        self.tidy = files;
+    }
+
     /// The command was accepted: its field reads the world again.
     pub fn accepted(&mut self, command: &DevCommand) {
         let num = match command {
@@ -395,6 +409,7 @@ impl<'a> Look<'a> {
             DebugAct::Kill => DevCommand::KillStack {
                 stack: self.stack.map(|s| s.stack).ok_or("no fight is on")?,
             },
+            DebugAct::Fold => DevCommand::Fold,
             _ => return Err(String::new()),
         })
     }
@@ -624,8 +639,41 @@ fn world_rows(look: &Look) -> Vec<Row> {
         ControlId::Debug(DebugAct::Split),
         "Split",
     )]));
-    rows.push(Row::text(note(journal_line(look.game.views.journal))));
+    rows.push(Row::text(note(journal_line(
+        look.game.views.journal,
+        look.game.views.archive,
+    ))));
+    rows.push(Row::controls(vec![
+        look.button(DebugAct::Fold, "Fold"),
+        Control::button(ControlId::Debug(DebugAct::Tidy), "Tidy"),
+        Control {
+            why_not: match &look.form.tidy {
+                Some(files) if !files.is_empty() => None,
+                Some(_) => Some("nothing to delete".to_owned()),
+                None => Some("tidy first".to_owned()),
+            },
+            ..Control::button(ControlId::Debug(DebugAct::Delete), "Delete them")
+        },
+    ]));
+    if let Some(files) = &look.form.tidy {
+        rows.extend(tidy_lines(files).into_iter().map(|l| Row::text(note(l))));
+    }
     rows
+}
+
+/// What the last tidy listed: how many, then the first few.
+fn tidy_lines(files: &[String]) -> Vec<String> {
+    const SHOWN: usize = 8;
+    let mut lines = vec![match files.len() {
+        0 => "Every world file is named by a save".to_owned(),
+        1 => "1 file no save names".to_owned(),
+        n => format!("{n} files no save names"),
+    }];
+    lines.extend(files.iter().take(SHOWN).cloned());
+    if files.len() > SHOWN {
+        lines.push(format!("and {} more", files.len() - SHOWN));
+    }
+    lines
 }
 
 /// The world's parts by size and whether they join back (PRD D28, M8.5 7b).
@@ -660,15 +708,16 @@ fn split_lines(data: &Data, world: &crate::sim::SimWorld) -> Vec<String> {
     lines
 }
 
-/// The journal a load lays over the world's bases (PRD D28, M8.5 7d): the interactions since,
-/// not the moves.
-fn journal_line(journal: usize) -> String {
+/// The journal a load lays over the world's bases (PRD D28, M8.5 7d): the interactions since
+/// the last fold, not the moves; and the archive the folds put away (7e).
+fn journal_line(journal: usize, archive: usize) -> String {
     let interactions = if journal == 1 {
         "interaction"
     } else {
         "interactions"
     };
-    format!("Journal: {journal} {interactions} since the world's base")
+    let segments = if archive == 1 { "segment" } else { "segments" };
+    format!("Journal: {journal} {interactions} since the last fold; archive: {archive} {segments}")
 }
 
 fn fight_rows(look: &Look) -> Vec<Row> {
@@ -852,12 +901,15 @@ pub fn apply(
         DebugAct::Split => {
             form.split = Some((game.views.here.turn, split_lines(data, game.world)));
         }
+        DebugAct::Tidy => return Ok(Effect::Host(HostOp::Tidy { delete: false })),
+        DebugAct::Delete => return Ok(Effect::Host(HostOp::Tidy { delete: true })),
         DebugAct::Set(_)
         | DebugAct::Toggle
         | DebugAct::ToMember
         | DebugAct::ToStores
         | DebugAct::Go
-        | DebugAct::Kill => {
+        | DebugAct::Kill
+        | DebugAct::Fold => {
             return Ok(look
                 .command(act)
                 .map_or(Effect::None, |dev| Effect::Command {

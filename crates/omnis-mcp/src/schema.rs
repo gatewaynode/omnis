@@ -160,7 +160,8 @@ fn dev_schema() -> Value {
         teleport(facing),
         variant("SetMonsterHp", &[("stack", index()), ("index", index()), ("hp", json!({"type": "integer"}))]),
         variant("KillStack", &[("stack", index())]),
-        variant("Reconcile", &[("region", String::schema())])
+        variant("Reconcile", &[("region", String::schema())]),
+        json!({"type": "string", "enum": ["Fold"]})
     ]})
 }
 
@@ -376,7 +377,7 @@ mod tests {
             14,
             "step, turn, interact or door or search, climb, party, encounter, combat, cast, item, service, rest, dev, act, approach"
         );
-        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 13);
+        assert_eq!(dev_schema()["oneOf"].as_array().unwrap().len(), 14);
         assert_eq!(rest_schema()["oneOf"].as_array().unwrap().len(), 2);
         assert_eq!(service_schema()["oneOf"].as_array().unwrap().len(), 12);
         assert_eq!(item_schema()["oneOf"].as_array().unwrap().len(), 10);

@@ -289,6 +289,12 @@ pub enum Event {
     },
     /// The party's members or their order changed.
     PartyChanged,
+    /// The world moved on (PRD D28, M8.5 7e): what it holds became its new bases, and the
+    /// journal's interactions went to the archive.
+    Folded {
+        /// How many interactions were folded.
+        interactions: u32,
+    },
     /// A step onto a tile of a map with a random table rolled for an encounter.
     EncounterCheck {
         /// The d100.

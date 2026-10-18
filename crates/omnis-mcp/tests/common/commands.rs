@@ -294,7 +294,8 @@ fn next_dev(command: &DevCommand) -> Option<DevCommand> {
         DevCommand::KillStack { .. } => DevCommand::Reconcile {
             region: "test:region:town".into(),
         },
-        DevCommand::Reconcile { .. } => return None,
+        DevCommand::Reconcile { .. } => DevCommand::Fold,
+        DevCommand::Fold => return None,
     })
 }
 

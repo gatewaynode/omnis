@@ -126,6 +126,8 @@ pub enum DevCommand {
         /// `pack:region:name`.
         region: String,
     },
+    /// Outside a fight: fold the world now (M8.5 7e), as a safe point past the threshold does.
+    Fold,
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -207,6 +209,12 @@ pub(crate) fn apply(
                 .filter(|id| data.regions.contains_key(id))
                 .ok_or_else(|| Rejection::UnknownId { id: region.clone() })?;
             crate::time::enter(world, data, id, None, &mut caused);
+        }
+        DevCommand::Fold => {
+            if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
+                return Err(Rejection::WrongMode);
+            }
+            caused.push(crate::save::fold(world, data));
         }
     }
     events.push(echo);

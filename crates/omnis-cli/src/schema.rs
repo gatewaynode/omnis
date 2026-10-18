@@ -361,6 +361,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         }]
         .into(),
         fingerprint: 0,
+        archive: vec![0x0123_4567_89ab_cdef],
     };
     let manifest = Manifest {
         seed: 1,

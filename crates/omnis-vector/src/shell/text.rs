@@ -81,6 +81,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             CombatOutcome::Defeat => "The party has fallen".to_owned(),
         },
         Event::Message { key } => labels::message(data, *key).to_owned(),
+        Event::Folded { .. } => "The world has moved on".to_owned(),
         _ => return None,
     })
 }
@@ -467,6 +468,7 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
         ),
         DevCommand::KillStack { stack } => format!("dev: stack {} slain", u16::from(*stack) + 1),
         DevCommand::Reconcile { region } => format!("dev: reconcile with {region}"),
+        DevCommand::Fold => "dev: fold".to_owned(),
     }
 }
 

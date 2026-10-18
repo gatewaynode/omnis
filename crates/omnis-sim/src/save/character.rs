@@ -7,6 +7,7 @@ use crate::journal::Journal;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use omnis_core::fnv1a64;
 use omnis_data::DataError;
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,10 @@ pub struct CharacterSave {
     pub journal: Journal,
     /// The world's fingerprint at the save, which the rebuilt world must have.
     pub fingerprint: u64,
+    /// The archive segments before the bases, oldest first, by name (M8.5 7e): the history the
+    /// folds put away, in the world folder's `archive/`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub archive: Vec<u64>,
 }
 
 /// A world folder's name: sixteen hex digits of its manifest's hash, so a world is found by its

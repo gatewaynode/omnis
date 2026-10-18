@@ -280,6 +280,7 @@ fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
             Event::RestInterrupted { minutes: 60 },
             "Ambushed after an hour!",
         ),
+        (Event::Folded { interactions: 12 }, "The world has moved on"),
         (
             Event::ReactionsSwitched {
                 member: durin,
@@ -398,6 +399,7 @@ fn dev_edits_read_as_lines_with_names() {
             "dev: stack 1 #2 hp 4",
         ),
         (DevCommand::KillStack { stack: 1 }, "dev: stack 2 slain"),
+        (DevCommand::Fold, "dev: fold"),
     ];
     for (command, line) in cases {
         assert_eq!(

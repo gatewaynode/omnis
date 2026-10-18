@@ -34,7 +34,7 @@ variants!(Command, COMMANDS, command_name:
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
-    SetMonsterHp KillStack Reconcile);
+    SetMonsterHp KillStack Reconcile Fold);
 
 variants!(Event, EVENTS, event_name:
     Moved Blocked Reconciled SignalsDropped TimeAdvanced Visible Door Message PartyChanged
@@ -44,7 +44,8 @@ variants!(Event, EVENTS, event_name:
     Equipped Unequipped ItemMoved ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
     Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
-    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore);
+    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore
+    Folded);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -226,8 +227,8 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     // The counts the document states are the types' counts.
     for (count, what) in [
         (COMMANDS.len(), "`Command` (16 variants)"),
-        (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
-        (EVENTS.len(), "`Event` has 72 variants"),
+        (DEV_COMMANDS.len(), "`DevCommand` (14 variants"),
+        (EVENTS.len(), "`Event` has 73 variants"),
         (REJECTIONS.len(), "`Rejection` (71 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "26 ops."),

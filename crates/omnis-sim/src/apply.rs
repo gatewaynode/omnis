@@ -6,6 +6,7 @@ use crate::journal::{Entry, Held};
 use crate::names::{Place, id_of};
 use crate::objects::Choice;
 use crate::party::{self, PartyCommand};
+use crate::save;
 use crate::service::{self, ServiceState};
 use crate::time;
 use crate::world::{Known, Mode, World, layer};
@@ -13,7 +14,7 @@ use crate::{INTERACT_MINUTES, PARTY};
 use crate::{beings, casting, combat, dev, effects, encounter, items, objects, rest, visibility};
 use alloc::vec::Vec;
 use omnis_core::{Direction, Facing, Position, Rotation, Vertical};
-use omnis_data::{Data, Join, MapData};
+use omnis_data::{Data, Join, MapData, RegionKind};
 
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
 /// appends the events to the log, and ends with what the party now sees.
@@ -77,7 +78,6 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     look(world, data, &mut events);
     world.prune();
     world.turn += 1;
-    world.record(&events);
     let changes = held.changes_to(&Held::of(world, data));
     if !changes.is_empty() {
         world.journal.push(Entry {
@@ -87,7 +87,31 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
             changes,
         });
     }
+    if safe_point(data, &events) && save::due(&world.journal, data) {
+        events.push(save::fold(world, data));
+    }
+    world.record(&events);
     Ok(events)
+}
+
+/// Whether the command just applied ended at a safe point, where the world may fold (M8.5 7e):
+/// a long rest done, a room taken at the inn, or the party come into a settlement. None of these
+/// leaves the party in an encounter or a fight.
+fn safe_point(data: &Data, events: &[Event]) -> bool {
+    let party = crate::time_view::holder_name(PARTY, data);
+    let settlement = |name: &str| {
+        data.registry
+            .regions
+            .get(name)
+            .and_then(|r| data.regions.get(&r))
+            .is_some_and(|def| def.kind == RegionKind::Settlement)
+    };
+    events.iter().any(|e| match e {
+        Event::Rested { long, .. } => *long,
+        Event::RoomTaken { .. } => true,
+        Event::Reconciled { a, b, .. } => *a == party && settlement(b),
+        _ => false,
+    })
 }
 
 /// The party lives `minutes`: its age, its shared time at the company of where it is, and

@@ -304,6 +304,10 @@ pub struct World {
     /// converted old save or a fold sets them (M8.5 7d). Not part of the fingerprint.
     #[serde(skip)]
     pub origin: Option<crate::save::Bases>,
+    /// The interactions folded away, oldest first (M8.5 7e): the history before the bases. The
+    /// character save names them; not part of the fingerprint.
+    #[serde(skip)]
+    pub archive: Vec<crate::save::Archived>,
 }
 
 /// Why a new game could not start.
@@ -410,6 +414,7 @@ impl World {
             log: Vec::new(),
             journal: Journal::default(),
             origin: None,
+            archive: Vec::new(),
         })
     }
 

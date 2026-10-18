@@ -128,6 +128,12 @@ impl SimWorld {
         omnis_sim::api::journal_len(&self.0)
     }
 
+    /// How many archive segments the folds have put away (`api::archive_len`).
+    #[must_use]
+    pub fn archive_len(&self) -> usize {
+        omnis_sim::api::archive_len(&self.0)
+    }
+
     /// The encounter or fight, if one is on (`api::combat_view`).
     #[must_use]
     pub fn combat(&self, data: &Data) -> Option<CombatView> {
@@ -321,6 +327,8 @@ pub struct Views {
     pub objects: ObjectsView,
     /// How many interactions the engine has journaled since the world's base (M8.5 7d).
     pub journal: usize,
+    /// How many archive segments the folds have put away (M8.5 7e).
+    pub archive: usize,
 }
 
 impl Views {
@@ -354,6 +362,7 @@ impl Views {
             sight: world.sight(data),
             objects: world.objects(data),
             journal: world.journal_len(),
+            archive: world.archive_len(),
         }
     }
 

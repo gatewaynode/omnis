@@ -66,6 +66,7 @@ fn every_edit() -> Vec<DevCommand> {
             y: 8,
             facing: Facing::South,
         },
+        DevCommand::Fold,
     ]
 }
 

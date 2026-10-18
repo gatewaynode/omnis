@@ -13,6 +13,7 @@ mod disk;
 mod effects;
 mod elevation;
 mod encounter;
+mod fold;
 mod ground;
 mod items;
 mod journal;

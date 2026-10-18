@@ -82,6 +82,7 @@ pub fn join(split: Split, data: &Data, force: bool) -> Result<World, JoinError> 
         log: Vec::new(),
         journal: Journal::default(),
         origin: None,
+        archive: Vec::new(),
     };
     merge(&mut world.flags, base.flags, "the flag")?;
     hold(&mut world, checkpoint.holdings)?;

@@ -186,3 +186,36 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         assert!(out.contains(header), "{header} missing from:\n{out}");
     }
 }
+
+/// `world tidy` (M8.5 7e) lists the world-folder files no save under `.omnis/` names, and
+/// deletes them only with `--yes`.
+#[test]
+fn world_tidy_lists_then_deletes_with_yes() {
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("cli-world-tidy");
+    let _ = std::fs::remove_dir_all(&root);
+    let stray = root.join(".omnis/worlds/0123456789abcdef/manifest.ron");
+    std::fs::create_dir_all(stray.parent().unwrap()).unwrap();
+    std::fs::write(&stray, "(seed: 1, packs: [])").unwrap();
+    let run = |args: &[&str]| {
+        let out = Command::new(env!("CARGO_BIN_EXE_omnis-cli"))
+            .current_dir(&root)
+            .args(args)
+            .output()
+            .expect("the binary runs");
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+        )
+    };
+    let (ok, out) = run(&["world", "tidy"]);
+    assert!(ok, "{out}");
+    assert!(
+        out.contains(".omnis/worlds/0123456789abcdef/manifest.ron"),
+        "{out}"
+    );
+    assert!(out.contains("--yes"), "{out}");
+    assert!(stray.is_file(), "listing deletes nothing");
+    let (ok, out) = run(&["world", "tidy", "--yes"]);
+    assert!(ok, "{out}");
+    assert!(!stray.exists(), "{out}");
+}

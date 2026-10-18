@@ -475,6 +475,11 @@ pub enum HostOp {
     SaveLog,
     /// The party is made: play begins.
     Begin,
+    /// List the world-folder files no save names, or delete them (M8.5 7e).
+    Tidy {
+        /// Delete, rather than list.
+        delete: bool,
+    },
 }
 
 /// What the shell does after a control was used.

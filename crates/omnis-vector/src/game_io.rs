@@ -7,9 +7,11 @@
 
 use crate::sim::SimWorld;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::omnis_data::ron_io::{read_under, write_files};
+use omnis_sim::omnis_data::ron_io::{
+    list_under, read_under, remove_under, size_under, write_files,
+};
 use omnis_sim::ops::client_path;
-use omnis_sim::save::{Restored, load_save};
+use omnis_sim::save::{Restored, load_save, tidy_list};
 use omnis_sim::{OpError, World};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -89,4 +91,35 @@ pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded,
         world,
         said: said(restored, started.elapsed().as_millis()),
     })
+}
+
+/// What a tidy found, or deleted: the world-folder files no save under `.omnis/` names.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Tidied {
+    /// Their paths, relative to the root.
+    pub files: Vec<String>,
+    /// Their size together.
+    pub bytes: u64,
+}
+
+/// The world-folder files no character save under `.omnis/` names (M8.5 7e,
+/// `save::tidy_list`), deleted when `delete`; the CLI's `world tidy` does the same.
+///
+/// # Errors
+/// A folder cannot be listed, a save under `.omnis/` does not read, or a file cannot be deleted.
+pub fn tidy(root: &Path, delete: bool) -> Result<Tidied, String> {
+    let all = list_under(root, ".omnis").map_err(|e| e.to_string())?;
+    let files = tidy_list(&all, &mut |p| {
+        read_under(root, p).map_err(|e| e.to_string())
+    })?;
+    let mut bytes = 0;
+    for file in &files {
+        bytes += size_under(root, file).map_err(|e| e.to_string())?;
+    }
+    if delete {
+        for file in &files {
+            remove_under(root, file).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(Tidied { files, bytes })
 }

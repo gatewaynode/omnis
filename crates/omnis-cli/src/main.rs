@@ -26,6 +26,8 @@ const USAGE: &str = "usage:
   omnis-cli wander --out <replay.ron> [--commands <n>] [--seed <n>] [--pack <dir>]...
                                                    a seeded party wanders the maps; writes the replay
   omnis-cli tileset bake <spec.ron>...             bake viewport slot sprites and write the tileset file
+  omnis-cli world tidy [--yes]                     list the world-folder files no save under .omnis/
+                                                   names; --yes deletes them
 ";
 
 fn main() -> ExitCode {
@@ -41,6 +43,7 @@ fn main() -> ExitCode {
         ["play", rest @ ..] => Args::parse(rest).and_then(play),
         ["replay", rest @ ..] => Args::parse(rest).and_then(replay),
         ["wander", rest @ ..] => Args::parse(rest).and_then(wander),
+        ["world", "tidy", rest @ ..] => Args::parse(rest).and_then(world_tidy),
         _ => Err(USAGE.trim_end().to_owned()),
     };
     match result {
@@ -221,5 +224,37 @@ fn wander(args: Args) -> Result<(), String> {
         walk.fights,
         walk.minutes
     );
+    Ok(())
+}
+
+/// The world-folder files no character save under `.omnis/` names (M8.5 7e,
+/// `save::tidy_list`), listed with their sizes; with `--yes`, deleted. The window's debug page
+/// does the same (`game_io::tidy`).
+fn world_tidy(args: Args) -> Result<(), String> {
+    if !args.positional.is_empty() {
+        return Err("world tidy takes no paths: it tidies .omnis/ under this folder".to_owned());
+    }
+    let root = Path::new(".");
+    let all = ron_io::list_under(root, ".omnis").map_err(|e| e.to_string())?;
+    let files = omnis_sim::save::tidy_list(&all, &mut |p| {
+        ron_io::read_under(root, p).map_err(|e| e.to_string())
+    })?;
+    let mut bytes = 0;
+    for file in &files {
+        let size = ron_io::size_under(root, file).map_err(|e| e.to_string())?;
+        bytes += size;
+        println!("{size:>10}  {file}");
+    }
+    if args.yes {
+        for file in &files {
+            ron_io::remove_under(root, file).map_err(|e| e.to_string())?;
+        }
+        println!("deleted {} files, {bytes} bytes", files.len());
+    } else {
+        println!(
+            "{} files, {bytes} bytes no save names; run again with --yes to delete them",
+            files.len()
+        );
+    }
     Ok(())
 }

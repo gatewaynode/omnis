@@ -6,7 +6,7 @@
 //! world becomes the base of an empty journal.
 
 use super::character::{BaseNames, CharacterSave, is_world_id, world_id};
-use super::{Bases, Manifest, RegionBase, Split, WorldBase, join, split};
+use super::{Archived, Bases, Manifest, RegionBase, Split, WorldBase, join, split};
 use crate::journal::apply_changes;
 use crate::ops::OpError;
 use crate::save::JoinError;
@@ -51,7 +51,7 @@ fn base_zero(data: &Data, manifest: &Manifest, world: &World) -> Result<Bases, S
 }
 
 /// The path of a region's base: its string id's pack and name as folders.
-fn region_path(id: &str, name: &str, hash: u64) -> Result<String, String> {
+pub(crate) fn region_path(id: &str, name: &str, hash: u64) -> Result<String, String> {
     let mut parts = name.split(':');
     match (parts.next(), parts.next(), parts.next(), parts.next()) {
         (Some(pack), Some("region"), Some(region), None) => Ok(format!(
@@ -61,9 +61,15 @@ fn region_path(id: &str, name: &str, hash: u64) -> Result<String, String> {
     }
 }
 
+/// The path of an archive segment in the world folder `id`.
+#[must_use]
+pub fn archive_path(id: &str, name: u64) -> String {
+    format!("{WORLDS}/{id}/archive/{name:016x}.ron")
+}
+
 /// The files that save `world` at `save_path`, in the order to write them: the bases its journal
-/// starts from, the world's manifest, then the character save, so a save never names a base
-/// that is not already on disk.
+/// starts from, the archive segments folded in this session, the world's manifest, then the
+/// character save, so a save never names a file that is not already on disk.
 pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<FileOut>, OpError> {
     if !world.may_save() {
         return Err(OpError::failed("the save rule forbids saving here"));
@@ -105,6 +111,22 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
             keep: true,
         });
     }
+    let mut archive = Vec::new();
+    for segment in &world.archive {
+        match segment {
+            Archived::Named(name) => archive.push(*name),
+            Archived::Held(journal) => {
+                let text = to_compact(journal).map_err(|e| failed(&e))?;
+                let name = fnv1a64(text.as_bytes());
+                archive.push(name);
+                files.push(FileOut {
+                    path: archive_path(&id, name),
+                    text,
+                    keep: true,
+                });
+            }
+        }
+    }
     files.push(FileOut {
         path: format!("{WORLDS}/{id}/manifest.ron"),
         text: to_string(&manifest).map_err(|e| failed(&e))?,
@@ -117,6 +139,7 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         checkpoint: split(world, data).checkpoint,
         journal: world.journal.clone(),
         fingerprint: world.fingerprint().map_err(|e| failed(&e))?,
+        archive,
     };
     files.push(FileOut {
         path: save_path.into(),
@@ -219,6 +242,7 @@ pub fn load_save(
         apply_changes(&mut world, &entry.changes);
     }
     world.journal = save.journal;
+    world.archive = save.archive.into_iter().map(Archived::Named).collect();
     let actual = world.fingerprint().map_err(LoadError::Parse)?;
     if !packs_differ && actual != save.fingerprint {
         return Err(LoadError::Diverged {

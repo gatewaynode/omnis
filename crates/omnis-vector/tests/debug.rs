@@ -11,7 +11,7 @@ use common::fight::turn_of;
 use omnis_sim::omnis_core::Rotation;
 use omnis_sim::{Command, DevCommand, Settings};
 use omnis_vector::screen::debug::{DebugAct, Num, Page};
-use omnis_vector::screen::{self, ControlId, Effect, Forms, Kind, Payload, ScreenId};
+use omnis_vector::screen::{self, ControlId, Effect, Forms, HostOp, Kind, Payload, ScreenId};
 use omnis_vector::shell::movement::Intent;
 use omnis_vector::shell::screen::{Pressable, Screens, ctx};
 use omnis_vector::shell::session::Session;
@@ -398,6 +398,14 @@ fn every_lit_button_on_every_page_sends_a_command_the_engine_accepts() {
                     assert_eq!(effect, Effect::None, "Split reports and sends nothing");
                     continue;
                 }
+                if act == DebugAct::Tidy {
+                    assert_eq!(
+                        effect,
+                        Effect::Host(HostOp::Tidy { delete: false }),
+                        "Tidy is the host's: it lists"
+                    );
+                    continue;
+                }
                 let Effect::Command { command, .. } = effect else {
                     panic!("{p:?} {act:?}: {effect:?}");
                 };
@@ -531,7 +539,7 @@ fn the_world_page_counts_the_journal_and_turning_adds_nothing() {
         } else {
             "interactions"
         };
-        format!("Journal: {n} {word} since the world's base")
+        format!("Journal: {n} {word} since the last fold; archive: 0 segments")
     };
     assert!(texts(&shown(&session, &forms)).contains(&line(before)));
     for _ in 0..3 {
@@ -607,5 +615,66 @@ fn the_flag_choice_names_whose_each_flag_is_and_split_counts_them() {
     assert!(
         lines.contains(&"Flags set: 0 the party's, 0 the world's".to_owned()),
         "{lines:?}"
+    );
+}
+
+#[test]
+fn fold_folds_and_says_the_world_has_moved_on() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert_eq!(why(&shown(&session, &forms), DebugAct::Fold), None);
+    let effect = use_(&session, &mut forms, DebugAct::Fold, Payload::Press);
+    assert_eq!(
+        effect,
+        Effect::Command {
+            command: Command::Dev(DevCommand::Fold),
+            close: false
+        }
+    );
+    send(&mut session, &mut forms, effect);
+    assert!(
+        session
+            .history
+            .iter()
+            .any(|e| e.text == "The world has moved on"),
+        "the player is told"
+    );
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(
+            &"Journal: 0 interactions since the last fold; archive: 0 segments".to_owned()
+        ),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn delete_is_dim_until_tidy_found_something() {
+    let session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert_eq!(
+        why(&shown(&session, &forms), DebugAct::Delete).as_deref(),
+        Some("tidy first")
+    );
+    forms.debug.tidied(Some(Vec::new()));
+    assert_eq!(
+        why(&shown(&session, &forms), DebugAct::Delete).as_deref(),
+        Some("nothing to delete")
+    );
+    let stray = ".omnis/worlds/0123456789abcdef/manifest.ron".to_owned();
+    forms.debug.tidied(Some(vec![stray.clone()]));
+    let screen = shown(&session, &forms);
+    assert_eq!(why(&screen, DebugAct::Delete), None);
+    let lines = texts(&screen);
+    assert!(
+        lines.contains(&"1 file no save names".to_owned()),
+        "{lines:?}"
+    );
+    assert!(lines.contains(&stray), "{lines:?}");
+    assert_eq!(
+        use_(&session, &mut forms, DebugAct::Delete, Payload::Press),
+        Effect::Host(HostOp::Tidy { delete: true })
     );
 }

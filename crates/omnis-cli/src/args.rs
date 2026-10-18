@@ -1,6 +1,6 @@
 //! Hand-rolled argument parsing (self-supporting rule). Flags: `--pack <dir>` (repeatable),
-//! `--seed <n>`, `--script <file>`, `--time`, `--commands <n>`, `--out <file>`; everything else
-//! is positional.
+//! `--seed <n>`, `--script <file>`, `--time`, `--commands <n>`, `--out <file>`, `--yes`;
+//! everything else is positional.
 
 use std::path::PathBuf;
 
@@ -21,6 +21,8 @@ pub struct Args {
     pub commands: Option<usize>,
     /// `--out`.
     pub out: Option<PathBuf>,
+    /// `--yes`: do what was only listed (`world tidy` deletes).
+    pub yes: bool,
 }
 
 impl Args {
@@ -41,6 +43,7 @@ impl Args {
                     args.script = Some(PathBuf::from(it.next().ok_or("--script needs a file")?));
                 }
                 "--time" => args.time = true,
+                "--yes" => args.yes = true,
                 "--commands" => {
                     let value = it.next().ok_or("--commands needs a number")?;
                     args.commands =

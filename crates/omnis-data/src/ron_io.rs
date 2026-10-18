@@ -117,3 +117,71 @@ pub fn read_under(root: &Path, path: &str) -> Result<String, DataError> {
     let full = under(root, path)?;
     read_text(&full, Path::new(path))
 }
+
+/// How deep `list_under` goes below its folder, and how many files it lists at most.
+const LIST_DEPTH: usize = 8;
+const LIST_FILES: usize = 100_000;
+
+/// The `.ron` files under the folder `dir` of `root`, as paths relative to `root` with `/`
+/// between parts, sorted. A symlink is never followed or listed, nor a name the path rule
+/// refuses; a folder that is not there lists nothing.
+pub fn list_under(root: &Path, dir: &str) -> Result<Vec<String>, DataError> {
+    let in_root = Path::new(dir)
+        .components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)));
+    if dir.is_empty() || !in_root {
+        return Err(DataError::new(
+            dir,
+            format!("folder '{dir}' is not under the root"),
+        ));
+    }
+    let mut found = Vec::new();
+    let mut folders = vec![(dir.to_owned(), 0)];
+    while let Some((folder, depth)) = folders.pop() {
+        let full = root.join(&folder);
+        let entries = match std::fs::read_dir(&full) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(DataError::new(&folder, format!("cannot list: {e}"))),
+        };
+        for entry in entries {
+            let entry = entry.map_err(|e| DataError::new(&folder, format!("cannot list: {e}")))?;
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            let path = format!("{folder}/{name}");
+            let kind = entry
+                .file_type()
+                .map_err(|e| DataError::new(&path, format!("cannot list: {e}")))?;
+            if kind.is_dir() && depth < LIST_DEPTH {
+                folders.push((path, depth + 1));
+            } else if kind.is_file() && check_asset_path(&path, &["ron"]).is_ok() {
+                if found.len() == LIST_FILES {
+                    return Err(DataError::new(dir, format!("more than {LIST_FILES} files")));
+                }
+                found.push(path);
+            }
+        }
+    }
+    found.sort();
+    Ok(found)
+}
+
+/// The size in bytes of the file `path` names under `root`.
+pub fn size_under(root: &Path, path: &str) -> Result<u64, DataError> {
+    let full = under(root, path)?;
+    let meta = std::fs::symlink_metadata(&full)
+        .map_err(|e| DataError::new(path, format!("cannot read: {e}")))?;
+    Ok(meta.len())
+}
+
+/// Delete the file `path` names under `root`: a plain file only, never a folder or a link.
+pub fn remove_under(root: &Path, path: &str) -> Result<(), DataError> {
+    let full = under(root, path)?;
+    let meta = std::fs::symlink_metadata(&full)
+        .map_err(|e| DataError::new(path, format!("cannot delete: {e}")))?;
+    if !meta.file_type().is_file() {
+        return Err(DataError::new(path, "not a file"));
+    }
+    std::fs::remove_file(&full).map_err(|e| DataError::new(path, format!("cannot delete: {e}")))
+}
