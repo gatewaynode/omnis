@@ -728,7 +728,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
         path asked of it; a first "manifest after the save" mutant was a no-op and was rewritten.
       - Gate `tests passed 900 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8978.
 
-  - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, a fold applies the journal into new bases, the provisional size rule, archive segments, named bases kept, manual tidy. Owner (2026-10-18): fold at 5,000 interactions; tidy looks at the saves under `.omnis/` and deletes only when confirmed. All items built (2026-10-18); awaiting the owner's walk of `tasks/acceptance/m8.5-7e.md`.
+  - [x] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, a fold applies the journal into new bases, the provisional size rule, archive segments, named bases kept, manual tidy. Owner (2026-10-18): fold at 5,000 interactions; tidy looks at the saves under `.omnis/` and deletes only when confirmed. All items built (2026-10-18); **accepted by the owner 2026-10-18** ("Manually tested, on to 7f") on their walk of `tasks/acceptance/m8.5-7e.md`.
     - **Built.**
       - **`save/fold.rs`:** `fold(world, data) -> Event` makes `world.origin` the split of what the world
         holds, moves the journal to `World.archive` (`Archived::Held`) and empties it; it cannot fail, so a fold
