@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7g (docs and pins) was built. Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7h1 (the seal) was built. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -16,32 +16,48 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7d, the character save and world folder | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
   | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | accepted 2026-10-18 (`b467758`) |
   | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
-  | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7g.md`** |
+  | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
+  | 7h1, the seal | `062a1fb`, `318603f` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7h1.md`** |
 
-  Then 7h (pack changes: name table, remap, migrations, `save.check`, the `PackMismatch` gate lifted).
-- **Gate:** `tests passed 932 failed 0 ignored 15`, VERIFY-GREEN at `9e703b5`. Sentrux rules pass, quality 8982.
-- Owner world doc `docs/background/introduction.md` changed and was committed alone (`63c61c5`).
+  7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
+  `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
+- **Gate:** `tests passed 936 failed 0 ignored 15`, VERIFY-GREEN at `062a1fb` after a clean rebuild. Sentrux rules
+  pass, quality 8982.
+- Owner world doc `docs/background/introduction.md` changed twice and was committed alone each time (`63c61c5`,
+  `2b7a62b`).
 
-## 7g as built (read TODO's 7g review for the whole)
-- **Owner (2026-10-18):** the PRD gets only §7.7's tidy line; its other save-model drift (D28 "history from
-  the journal", "replays from a base", migrations unbuilt, §7.6, §9.3, §11.1, §14) is listed in
-  `horizons.md` and left as written. Drift outside the save model fixed and pinned.
-- **ARCHITECTURE:** §4.1.1 Saves is now the full account of D28 as built; A19 is its decision row.
-- **Bug fixed:** `save_files` refuses a world file over `MAX_FILE_BYTES` (`fits`), as it does a save over
-  `MAX_SAVE_BYTES`.
-- **Tier 1** re-exports `fold`, `fold_at`, `due`, `FOLD_*`, `archive_path`, `unnamed`, `tidy_list`, `Archived`;
-  clients no longer import `omnis_sim::save`.
-- **Pins:** `api_doc.rs` checks ARCHITECTURE's four counts, README and code-map tool counts and lists, code-map's
-  command list. A **new command, event, rejection, dev command or tool** now also moves ARCHITECTURE §4.2,
-  the README's tool list and `code-map.md`. Frozen schema 8 save `crates/omnis-sim/tests/saves/v8/` (no
-  `.omnis/` prefix: git ignores it); rewrite it only when the schema moves on (`write_the_schema_8_fixture`).
+## 7h, the approved plan (owner 2026-10-18; read before each sub-step)
+- **Owner's choices:** sub-steps each walked; all six migration kinds plus `migration draft`; saves made
+  before 7h (no name table) load on changed packs only when forced (the break accepted); a log line on a
+  removed map is kept, its objects unnamed; mid-fight saves stay allowed.
+- **Name table in each world folder's manifest** (`Manifest.names`, serde default, skipped when empty so v8
+  world ids hold): per kind the string ids by old number (maps, flags, regions, items, spells, monsters,
+  conditions, races, classes, backgrounds, services), party-scoped flags, each map's terrain keys, each object
+  kind's `once` interaction signatures (verb, label, state). Ids are interned in sorted string-id order per kind.
+- **Load:** read in the save's own numbering (region bases keyed through the save's table), `join_raw`, lay
+  the journal, **always** check the fingerprint; then tiers: same packs as today; same names (content-only
+  edits) set `world.packs`, check places, no fold; different names remap the live World (`Remapper`, Missing
+  with paths), `checked(new)`, then **fold** (journal archived in old numbering under its old folder; history
+  never remapped). No table on other packs: `force` only.
+- **Remap covers live state only:** position, maps (objects' contents and `used`, piles), automap (terrain by
+  key), known, mode (encounter stacks, retreat, source; combat loot; town service), flags, clocks, contacts
+  (+ `other`), rngs, party, characters (race, class, background, spells, kit, conditions, equipped, effects,
+  tactics via `omnis-rules` `Rename`), `Logged.map`. Bus region topics rebuilt from `time::subscriptions`.
+  `time:<h>:<h>` stream names parsed, remapped and **rebuilt through `StreamName::time`** (order can flip).
+  Keyed maps rebuilt into new maps. Proof: an overlay pack shifting every number, all views equal (exploring,
+  town, mid-fight), a mutation per field.
+- **Also:** `base_zero` → `Bases::default()` (World::new puts nothing in a base); `CharacterSave.archive` →
+  `[Segment { world, name }]`, `Archived::Held.from: Option<Manifest>`, tidy counts other folders; fixed
+  encounters by required id, `SAVE_SCHEMA` 9; `pack.reload` must set `world.packs` (bug, red test in 7h2) and
+  later go through `ops::reload`.
+- **Sub-steps:** 7h2 schema 9 (encounter ids, names written, segments, base 0, reload packs, v9 fixture);
+  7h3 remap; 7h4 report, `save.check`, MCP `save_check` (27 tools), load screen; 7h5 reload by name;
+  7h6 migrations (the version chain: decide how patch bumps without a migration file chain); 7h7 docs (PRD
+  §7.7 needs the owner's approval).
 
 ## Next
-- When the owner says the 7g walk passed, mark 7g accepted in TODO, then plan 7h in plan mode: re-read
-  `tasks/plans/m8.5-saves-by-name.md` (update it, do not replace it) against the save model as built
-  (ARCHITECTURE §4.1.1): name table and remap for the checkpoint, bases and journal; fixed-encounter ids; pack
-  seal; declarative migrations; `save.check` in the load report; `pack.reload` through the remap; the gate lifted.
-  The v1–v8 fixtures must keep loading.
+- When the owner says the 7h1 walk passed, mark 7h1 accepted in TODO, then build 7h2 from the plan above
+  (red tests first; the v8 fixture must convert; write a v9 fixture with names).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -56,7 +72,7 @@ Durable knowledge lives in `tasks/knowledge/`.
 
 
 ## Pins
-- **Replays:** walk `d9f7bb81ad3a7a25`, fight `69264fcb84cbbb06` (rebaselined in 7d; the rework moved neither). `SAVE_SCHEMA` 8,
+- **Replays:** walk `14e46c0bea591749`, fight `aed8e1466adc88ea` (rebaselined in 7h1 for the pack hashes). `SAVE_SCHEMA` 8,
   `PROTOCOL` 2.
 - **MCP:** command `oneOf` 14, dev `oneOf` 14, item `oneOf` 10, schema proof 117/168, tools 26, ops 26.
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71. The base pack has 19 spells.
@@ -80,7 +96,8 @@ Durable knowledge lives in `tasks/knowledge/`.
 - **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, VERIFY-GREEN, no edits while it runs. Then
   Sentrux `rescan` and `check_rules`.
 - **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
-  in `finally`, `python3 -u` to a file), then `git status` to confirm the sources are clean.
+  in `finally` **by rewriting its text, never by moving a backup back**, which leaves an old mtime and a stale
+  mutant in `target/`; `python3 -u` to a file), then `git status` to confirm the sources are clean.
 - **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, ARCHITECTURE §4.2's counts, `code-map.md`'s command list (all pinned by `api_doc.rs`), `api_doc.rs` pins
   and `variants!` lists, the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`
   (instances, offered, the drift test's index), `common/commands.rs`, the word in `word.rs`, client
