@@ -728,7 +728,52 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
         path asked of it; a first "manifest after the save" mutant was a no-op and was rewritten.
       - Gate `tests passed 900 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8978.
 
-  - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, a fold applies the journal into new bases, the provisional size rule (by the journal's bytes), archive segments, named bases kept, manual tidy.
+  - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, a fold applies the journal into new bases, the provisional size rule, archive segments, named bases kept, manual tidy. Owner (2026-10-18): fold at 5,000 interactions; tidy looks at the saves under `.omnis/` and deletes only when confirmed. All items built (2026-10-18); awaiting the owner's walk of `tasks/acceptance/m8.5-7e.md`.
+    - **Built.**
+      - **`save/fold.rs`:** `fold(world, data) -> Event` makes `world.origin` the split of what the world
+        holds, moves the journal to `World.archive` (`Archived::Held`) and empties it; it cannot fail, so a fold
+        at the end of a command never half-happens.
+      - **When it folds:**
+        - `DevCommand::Fold`, in Explore or Town only (`WrongMode`), so `DevCommand` has 14 variants;
+        - automatically, at the end of `apply` after the journal entry: a safe point in the command's events
+          (`Rested { long: true }`, `RoomTaken`, `Reconciled` from the party into a `Settlement` region) and
+          `journal.len() >= fold_at` (the rules value `fold_interactions`, else `FOLD_INTERACTIONS` = 5000 in
+          code, so no pack hash and no golden moved).
+
+        Either way it says `Event::Folded { interactions }` (73 events), which the client shows as "The world
+        has moved on".
+      - **Saving and loading:** `CharacterSave.archive: [u64]` (left out when empty). `save_files` writes held
+        segments to `.omnis/worlds/<id>/archive/<hash>.ron` (kept) before the manifest. A load restores the
+        names (`Archived::Named`) and reads no segment.
+      - **Tidy:**
+        - `save/tidy.rs`: `unnamed(saves, files)` returns the world-folder files no save names, a whole
+          unnamed world included, and never a stranger. `tidy_list(all, read)` finds the saves under
+          `.omnis/` and stops on a schema 8 save that does not read.
+        - `omnis-data` `ron_io::{list_under, size_under, remove_under}`: no links, paths checked, depth and
+          count caps.
+        - `omnis-cli world tidy [--yes]` and `game_io::tidy`.
+        - The debug World page has **Fold**, **Tidy** and **Delete them** (`HostOp::Tidy`), and the journal
+          line now counts the archive (Tier 1 `archive_len`).
+    - **Changed from the plan:**
+      - the fold holds the folded journal in memory and serializes it at the save, so it cannot fail
+        mid-command;
+      - the safe-point check has no mode guard: the mutation run showed no safe-point event can leave the
+        party in an encounter or a fight, so the guard was unreachable and was removed.
+    - **Tests:**
+      - `fold.rs` 10;
+      - `files.rs` +2;
+      - `game_io.rs` +1;
+      - `debug.rs` +2 (and the lit-button test knows Tidy);
+      - `cli.rs` +1;
+      - labels +2;
+      - the MCP pins: `DevCommand` 14, `Event` 73, the dev schema 14 with a `"Fold"` branch, proof 117/168.
+    - **Mutations:**
+      - **Engine:** 14 of 15 caught; the one survivor was the unreachable guard, now removed.
+      - **Hosts:** 5 of 6 caught. The survivor is equivalent: it lets a folder past `remove_under`'s
+        file-only check, but `remove_file` refuses folders anyway, and links are still refused.
+    - **Gate:** `tests passed 919 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8988.
+      Two commits, not three: the engine's new event and dev command need the client's exhaustive matches in
+      the same change to compile.
   - [ ] 7f. Full log across loads: History rebuilt from the archive and the journal. Open: party-only events (a fight won, a purchase) leave no entry, so History needs the party's own chronicle.
   - [ ] 7g. Docs and pins (ARCHITECTURE §4.1, §4.9, §6.2, §11; `docs/api.md`; MCP schema; `code-map.md`; `horizons.md`).
   - [ ] 7h. The earlier plan, re-scoped (`tasks/plans/m8.5-saves-by-name.md`): name table and remap, fixed encounter ids, pack seal, migrations on the journal and bases, `save.check` in the load report, `pack.reload` remap; the `PackMismatch` gate lifted.

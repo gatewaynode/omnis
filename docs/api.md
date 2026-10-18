@@ -59,7 +59,8 @@ let party: PartyView = party_view(&world, &data);
 - `World::to_ron`, `World::from_ron(text, &Data, force)` and `World::fingerprint` write, read
   (migrating older schemas) and hash a whole world, a snapshot. A save is not one since M8.5 7d:
   `save::save_files` and `save::load_save` write and read the character save and the world
-  folder; `journal::apply_changes` lays a journal's changes over a world. `Replay::record` and `Replay::check` re-run a
+  folder; `journal::apply_changes` lays a journal's changes over a world; `save::fold` folds it
+  (7e), and `save::tidy_list` picks the world-folder files no save names. `Replay::record` and `Replay::check` re-run a
   command list and compare fingerprints.
 - The new world's party is empty; create members with `Command::Party(PartyCommand::Create(..))`.
 - `Dev` commands are refused (`DevOnly`) unless `Settings.devtools` is true.
@@ -284,6 +285,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
 | `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
 | `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
+| `archive_len(&World)` | `usize`: how many archive segments the folds have put away (M8.5 7e) | none |
 | `journal_len(&World)` | `usize`: how many interactions (commands that changed what the world holds) the journal has since the world's base: what a load lays over the bases (PRD D28). Moving, turning and what changes only the party add none | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
@@ -682,7 +684,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 `MemberTwice`; the dice are rolled in marching order), `Long` (the night; eats food; once per
 24 hours).
 
-`DevCommand` (13 variants; every one is raised back as `Event::Dev`):
+`DevCommand` (14 variants; every one is raised back as `Event::Dev`):
 
 | Variant | Fields | Meaning |
 |---|---|---|
@@ -699,6 +701,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 | `SetMonsterHp` | `stack`, `index` (among the stack's living, as in `ActorRef::Monster`), `hp` | Fights only; 0 removes it without gold. |
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
 | `Reconcile` | `region` (id) | Outside a fight: meet a region as on entering it (`time.reconcile`). |
+| `Fold` | | Outside a fight: fold the world now, as a safe point past the threshold does (`Folded`). On the wire the bare string `"Fold"`. |
 
 **Script words.** A typing aid for the CLI's `play --script`, the app's dev script and tests
 (`word.rs`). `parse_script(text) -> Result<Vec<Word>, ScriptError>` reads a text script: words
@@ -724,7 +727,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 9. Events
 
-`Event` has 72 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 73 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -741,6 +744,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `TimeAdvanced` | `holder` (`"party:0"` or a region id), `minutes`, `day_rolled` | A clock advanced. |
 | `Reconciled` | `a`, `b` (holders, named as `holder`), `delta_a`, `delta_b` (minutes), `era_b` | Two holders met; `b` caught up by `delta_b` for the `delta_a` that `a` lived. |
 | `SignalsDropped` | `count` | The signal bus dropped signals past its depth or budget. |
+| `Folded` | `interactions` | The world moved on (PRD D28): what it holds became its new bases and the journal's `interactions` went to the archive. A safe point folds when the journal holds `fold_interactions` (a rules value, 5000 when no pack sets it): a long rest done, a room taken at the inn, or coming into a settlement region. The client says "The world has moved on". |
 
 ### Encounters
 
@@ -984,7 +988,7 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -1082,6 +1086,15 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
   types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
   `SplitReport` and `RegionSize`. Nothing is saved differently yet.
+- 2026-10-18: the fold (M8.5 7e, PRD D28): `DevCommand::Fold` (14 variants) and `Event::Folded
+  { interactions }` (73 variants). A fold makes what the world holds its new bases and moves the
+  journal to the archive (`World.archive`, `save::Archived::{Held, Named}`); a safe point (a long
+  rest done, a room at the inn, coming into a settlement region) folds when the journal holds the
+  rules value `fold_interactions`, 5000 in code when no pack sets it. `CharacterSave.archive`
+  (`[u64]`, left out when empty) names the save's segments, written as
+  `.omnis/worlds/<id>/archive/<hash>.ron`; a load restores the names and reads no segment.
+  Tier 1: `fold`, `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`,
+  `archive_len`, `unnamed`, `tidy_list`. `SAVE_SCHEMA` stays 8; no golden moved.
 - 2026-10-17: the character save (M8.5 7d, PRD D28, amended the same day), `SAVE_SCHEMA` 8:
   `save.write` writes a character save (`CharacterSave { schema, world, bases, checkpoint, journal,
   fingerprint }`: the party as it stands, and the journal of interactions, `Entry { minute, at,
