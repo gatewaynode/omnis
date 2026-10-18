@@ -3,6 +3,7 @@
 
 use crate::bus::Bus;
 use crate::combat::CombatState;
+use crate::command::Rejection;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
 use crate::journal::Journal;
@@ -27,8 +28,11 @@ use serde::{Deserialize, Serialize};
 /// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
 /// schema 3 (no equipment slots, no effects, no devtools bit) and schema 4 (gold in whole pieces)
 /// migrate on load, and so do schema 5 (no turn budget) and schema 6 (no subjective time:
-/// contacts, the party's shared time and date, the signal bus).
-pub const SAVE_SCHEMA: u32 = 7;
+/// contacts, the party's shared time and date, the signal bus). Schema 8 (M8.5 7d, PRD D28) is the
+/// character save (`save::CharacterSave`); a schema 1 to 7 save is a whole world, converted on
+/// load by making it the base its journal starts from. `World::from_ron` reads a whole world of
+/// any schema, as a snapshot.
+pub const SAVE_SCHEMA: u32 = 8;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -291,10 +295,14 @@ pub struct World {
     /// fingerprint.
     #[serde(skip)]
     pub log: Vec<Event>,
-    /// Every command accepted since the world's base (PRD D28). Rebuilt by a replay; not part
-    /// of the save or the fingerprint until the character save carries it (M8.5 7d).
+    /// Every command accepted since the world's base (PRD D28). Rebuilt by a replay; the
+    /// character save carries it (M8.5 7d); not part of the fingerprint.
     #[serde(skip)]
     pub journal: Journal,
+    /// The parts the journal starts from: `None` for base 0, a new game on the world's seed and
+    /// settings; a converted old save or a fold sets them (M8.5 7d). Not part of the fingerprint.
+    #[serde(skip)]
+    pub origin: Option<crate::save::Split>,
 }
 
 /// Why a new game could not start.
@@ -329,6 +337,24 @@ pub enum LoadError {
     BadParty(&'static str),
     /// The saved service is not the one on the party's tile.
     BadTown,
+    /// A character save that does not hold together: what is wrong (M8.5 7d).
+    BadSave(String),
+    /// A world base a save names is missing or not what its name says: which.
+    BadBase(String),
+    /// A command of the save's journal was refused on replay: which, and why.
+    Replay {
+        /// From 0, in the journal.
+        index: usize,
+        /// The engine's refusal.
+        rejection: Rejection,
+    },
+    /// The replay ended on another world than the save recorded.
+    Diverged {
+        /// What the save recorded.
+        expected: u64,
+        /// What the replay reached.
+        actual: u64,
+    },
 }
 
 impl fmt::Display for LoadError {
@@ -344,6 +370,18 @@ impl fmt::Display for LoadError {
             LoadError::BadCombat(why) => write!(f, "save combat cannot continue: {why}"),
             LoadError::BadParty(why) => write!(f, "save party is inconsistent: {why}"),
             LoadError::BadTown => f.write_str("save service is not the one where the party stands"),
+            LoadError::BadSave(why) => write!(f, "save does not hold together: {why}"),
+            LoadError::BadBase(which) => write!(f, "world base {which} is missing or altered"),
+            LoadError::Replay { index, rejection } => {
+                write!(
+                    f,
+                    "save's command {index} was refused on replay: {rejection}"
+                )
+            }
+            LoadError::Diverged { expected, actual } => write!(
+                f,
+                "save's replay reached {actual:016x}, not the recorded {expected:016x}"
+            ),
         }
     }
 }
@@ -382,6 +420,7 @@ impl World {
             turn: 0,
             log: Vec::new(),
             journal: Journal::default(),
+            origin: None,
         })
     }
 
@@ -483,9 +522,12 @@ impl World {
             6 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
-            SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
+            // Schema 7 is the last whole-world save; 8 is a whole world only as a snapshot.
+            7 | SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
         };
+        let mut world = world;
+        world.schema = SAVE_SCHEMA;
         world.checked(data, force)
     }
 

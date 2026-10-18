@@ -383,19 +383,22 @@ fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
 /// the party's tile, and `rules.set` bounds and checks its source.
 #[test]
 fn the_host_ops_rules_hold_for_every_host() {
-    use omnis_sim::ops::{check_reload, load_text, rules_set, save_text};
+    use omnis_sim::ops::{check_reload, rules_set};
+    use omnis_sim::save::save_files;
     use omnis_sim::{SaveRule, Settings, World};
     let data = data();
     let world = world(&data);
-    let text = save_text(&world).unwrap();
-    assert_eq!(load_text(&text, &data, false).unwrap(), world);
+    assert!(save_files(&world, &data, "s.ron").is_ok());
     let strict = Settings {
         save_rule: SaveRule::InnOnly,
         ..Settings::default()
     };
     let outside = World::new(&data, 1, strict).unwrap();
     assert!(
-        matches!(save_text(&outside), Err(OpError::Failed { .. })),
+        matches!(
+            save_files(&outside, &data, "s.ron"),
+            Err(OpError::Failed { .. })
+        ),
         "only at an inn"
     );
 

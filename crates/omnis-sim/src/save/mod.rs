@@ -4,10 +4,16 @@
 //! pure and inverse: `join(split(w))` is `w` but for the log and the journal, which a save does
 //! not keep in these parts. Registry numbers are kept until saves name things by id (7h).
 
+mod character;
+mod disk;
 mod join;
 mod report;
 mod split;
 
+pub use character::{
+    BaseNames, CharacterSave, MAX_JOURNAL, Run, expand, is_world_id, runs, world_id,
+};
+pub use disk::{FileOut, Restored, WORLDS, load_save, save_files};
 pub use join::{JoinError, join};
 pub use report::{RegionSize, SplitReport, split_report};
 pub use split::split;

@@ -624,7 +624,68 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
       - Gate `tests passed 888 failed 0 ignored 13`, VERIFY-GREEN. Sentrux rules pass, quality 8983.
     - **Unchanged:** the goldens, `SAVE_SCHEMA` 7.
     - **Debt:** `screen/debug.rs` is 882 lines.
-  - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8. **The journal on disk is encoded compactly** (owner, 2026-10-17, asking whether visited squares could be deduplicated). A step cannot be dropped: each passes time and may draw an encounter roll, so the replay needs every command. The encoding is what shrinks. In a 10,000-command wander, 70% of commands were steps, there were 4,871 runs of a repeated command, and stripping whitespace took 242 KB to 137 KB. So run-length plus no pretty-printing should give about 3–4×; to be measured in 7d.
+  - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8. **The journal on disk is encoded compactly** (owner, 2026-10-17, asking whether visited squares could be deduplicated). A step cannot be dropped: each passes time and may draw an encounter roll, so the replay needs every command. The encoding is what shrinks. In a 10,000-command wander, 70% of commands were steps, there were 4,871 runs of a repeated command, and stripping whitespace took 242 KB to 137 KB. So run-length plus no pretty-printing should give about 3–4×; to be measured in 7d. All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7d.md`.
+    - **What was built.**
+      - **Engine** (`save/character.rs` 122, `save/disk.rs` 232):
+        - `CharacterSave { schema: 8, world, bases, checkpoint, journal: [Run], fingerprint }`, written as compact
+          RON (`ron_io::to_compact`);
+        - `Run { command, times }`, with no minutes stored; the replay rebuilds them;
+        - `MAX_JOURNAL` = 1,000,000;
+        - `WorldId` = fnv of the manifest, 16 hex digits.
+      - **Writing:** `save_files` enforces the save rule (moved from `ops::save_text`). It returns the origin's
+        bases (`.omnis/worlds/<id>/world/<hash>.ron`, `regions/<pack>/<name>/<hash>.ron`), then the manifest,
+        then the save.
+      - **Loading:** `load_save` converts a schema 1–7 save (the world becomes `World.origin`, with an empty
+        journal). A schema 8 save is loaded in order:
+        1. check the world name's form, before any read;
+        2. check the manifest's hash against the name;
+        3. check each base's hash;
+        4. `join` it, which checks the packs (`force` passes them);
+        5. replay the journal;
+        6. compare the fingerprint, unless forced onto other packs.
+      - **World changes:** `World.origin: Option<Split>` (`None` = base 0). `LoadError` gains `BadSave`,
+        `BadBase`, `Replay` and `Diverged`. `ops::save_text`/`load_text` are gone.
+      - **Hosts:**
+        - `omnis-data` `ron_io::{write_atomic, write_files, read_under}` (temp file and rename; keep
+          content-named files; paths checked);
+        - headless and `game_io` use them;
+        - `game_io::load` returns `Loaded { world, said }`, and the window and socket say "Loaded …: replayed
+          N commands in T ms" or "…: converted from a schema 7 save".
+      - **Fixtures and the schema dump:**
+        - `tests/saves/v7.ron` captured before the bump (`8f4d134`), with the migrate literals fixed;
+        - `SAVE_SCHEMA` 8, and `from_ron` reads schemas 1–8 whole worlds as snapshots;
+        - the schema dump shows a character save and a manifest.
+    - **Rebaseline:** both goldens, because their fingerprint text carries the schema field. The commands are
+      unchanged. Walk is `d9f7bb81ad3a7a25` (15706228391109360165), fight `69264fcb84cbbb06`
+      (7576831158622337798).
+    - **Measured** (release, the 7a wander):
+
+      | Commands | Character save | Same save, pretty | Runs | Load |
+      | --- | --- | --- | --- | --- |
+      | 10,000 | 120 KB | 306 KB | 4,903 | 217 ms |
+      | 50,000 | 605 KB | — | 24,825 | 1,819 ms |
+
+      The 7a raw journal took about 670 KB per 10,000 commands, so 4 MiB now holds about 340,000 commands, and
+      **load time is what folds must bound**. For a 1 s load the provisional fold is about 25,000 commands.
+    - **Changed from the plan:**
+      - no skip-and-continue replay; a refusal stops the load, and skipping comes with 7h;
+      - the redundant early pack check is dropped, since `join` holds it;
+      - the commits are three, not four (the bump came with the engine).
+    - **Found:**
+      - **The model needs every change to be a command.** Test helpers that place a party or fill a purse by
+        hand must make the world their base first (`disk.rs` `based`, `game_io` test on `town_session`).
+      - **Open for 7e:** `rules.set` and `pack.reload` (dev socket) change rules without a command, so a later
+        save may not replay. A fold at that moment would rebase.
+      - **The owner's own `.omnis/quick.ron`** was made with the objects pack before 7c changed it, so it is
+        refused (other packs) until 7h. The acceptance script uses the v7 fixture.
+    - **Tests:**
+      - `disk.rs` 9 and `files.rs` 2, plus the headless round trip, the client limits, the socket and the
+        screens' quick save and load through the new files.
+      - 10 mutants killed (base hash, runs, run lengths, cap, conversion origin, fingerprint, save rule, file
+        order, kept files, world name). The world-name check was caught only once the reader recorded every
+        path asked of it; a first "manifest after the save" mutant was a no-op and was rewritten.
+      - Gate `tests passed 900 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8978.
+
   - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, the provisional size rule, archive segments, named bases kept, manual tidy.
   - [ ] 7f. Full log across loads: History rebuilt from the archive and a stepwise replay.
   - [ ] 7g. Docs and pins (ARCHITECTURE §4.1, §4.9, §6.2, §11; `docs/api.md`; MCP schema; `code-map.md`; `horizons.md`).

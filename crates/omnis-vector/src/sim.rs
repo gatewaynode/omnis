@@ -9,8 +9,8 @@ use omnis_sim::api::{
     Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
     Rejection, Reply, RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap,
     beings_on_level, cast_view, check_reload, combat_view, creation_view, dispatch, door_open,
-    here, object_blocks, objects_on_level, objects_view, party_view, rest_view, save_text,
-    service_view, status, step_lands, viewport,
+    here, object_blocks, objects_on_level, objects_view, party_view, rest_view, service_view,
+    status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -209,12 +209,17 @@ impl SimWorld {
         step_lands(&self.0, data, direction)
     }
 
-    /// The save file's text, or why the save rule refuses it (`api::save_text`).
+    /// The files that save the world at `path`: the world folder's, then the character save
+    /// (`api::save_files`).
     ///
     /// # Errors
-    /// The save rule refuses a save here.
-    pub fn save_text(&self) -> Result<String, OpError> {
-        save_text(&self.0)
+    /// The save rule refuses a save here, or a part will not serialize.
+    pub fn save_files(
+        &self,
+        data: &Data,
+        path: &str,
+    ) -> Result<Vec<omnis_sim::api::FileOut>, OpError> {
+        omnis_sim::api::save_files(&self.0, data, path)
     }
 
     /// `game.status` (`api::status`).

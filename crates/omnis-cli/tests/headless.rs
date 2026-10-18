@@ -10,7 +10,8 @@ use omnis_data::{
 };
 use omnis_sim::omnis_core::Direction;
 use omnis_sim::omnis_rules::Draft;
-use omnis_sim::{Command, Op, OpError, Replay, Reply, World};
+use omnis_sim::save::{CharacterSave, Manifest};
+use omnis_sim::{Command, Op, OpError, Replay, Reply};
 use std::path::{Path, PathBuf};
 
 fn test_pack() -> PathBuf {
@@ -38,7 +39,6 @@ fn headless_writes_reads_and_reloads() {
     step(&mut game);
     let mut saved = game.world.clone();
     saved.log.clear();
-    saved.journal = Default::default();
     let path = "saves/one.ron";
     assert_eq!(
         game.handle(&Op::SaveWrite { path: path.into() }).unwrap(),
@@ -57,7 +57,10 @@ fn headless_writes_reads_and_reloads() {
         panic!("not a status")
     };
     assert_eq!(status.turn, 1);
-    assert_eq!(game.world, saved, "restored, with an empty log");
+    assert_eq!(
+        game.world, saved,
+        "restored by its replay, with an empty log"
+    );
 
     for bad in ["../one.ron", "/tmp/one.ron", "saves/one.txt", ""] {
         let error = game
@@ -130,7 +133,9 @@ fn schema_dump_sections_parse_with_the_real_types() {
         (region.company, region.rule.as_str()),
         (900, "time.settled")
     );
-    parse::<World>(&body("# save (schema 7)\n")).unwrap();
+    let save = parse::<CharacterSave>(&body("# save (schema 8)\n")).unwrap();
+    assert_eq!(save.journal[0].times, 3);
+    parse::<Manifest>(&body("# .omnis/worlds/<id>/manifest.ron\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();

@@ -1,5 +1,6 @@
 //! The journal (PRD D28, M8.5 7a): every accepted command since the world's base, with the
-//! party's age after it. Not saved yet, so not fingerprinted; a replay rebuilds it.
+//! party's age after it. Not fingerprinted; a replay rebuilds it, and the character save (7d)
+//! carries its commands.
 
 use crate::common;
 use common::{data, step, turn, world};
@@ -69,7 +70,7 @@ fn a_dev_command_is_an_entry_a_replay_repeats() {
 }
 
 #[test]
-fn the_journal_is_not_in_the_save_or_the_fingerprint() {
+fn the_journal_is_not_in_the_world_snapshot_or_the_fingerprint() {
     let data = data();
     let mut world = world(&data);
     let fresh = world.clone();
@@ -79,14 +80,14 @@ fn the_journal_is_not_in_the_save_or_the_fingerprint() {
     let text = world.to_ron().unwrap();
     assert!(
         !text.contains("journal"),
-        "the journal is not saved yet (7d)"
+        "the world's text (the fingerprint's) has no journal; the character save carries it"
     );
     assert_eq!(world.fingerprint(), emptied.fingerprint());
     let loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         journal_len(&loaded),
         0,
-        "a loaded world starts a new journal"
+        "a world read from a snapshot starts a new journal"
     );
 }
 

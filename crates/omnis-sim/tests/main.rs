@@ -9,6 +9,7 @@ mod combat;
 mod common;
 mod creation_view;
 mod dev;
+mod disk;
 mod effects;
 mod elevation;
 mod encounter;

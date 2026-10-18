@@ -8,8 +8,9 @@ use omnis_data::{
     PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
+use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest, Run};
 use omnis_sim::world::SAVE_SCHEMA;
-use omnis_sim::{Command, Op, PARTY, Replay, World};
+use omnis_sim::{Command, Op, PARTY, Replay};
 use std::collections::BTreeMap;
 
 const MANIFEST: &str = r#"(
@@ -314,14 +315,16 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         version: "0.1.0".into(),
         hash: 0x0123_4567_89ab_cdef,
     };
-    let world = World {
-        schema: SAVE_SCHEMA,
-        seed: 1,
-        packs: vec![fingerprint.clone()],
-        rngs: BTreeMap::new(),
-        clocks: BTreeMap::from([(PARTY, Clock::new(EraId(0)))]),
-        contacts: BTreeMap::new(),
+    // A character save (PRD D28, M8.5 7d): the party at the world's base, the commands since in
+    // runs, and the bases it names in its world folder. Written as one line; shown pretty here.
+    let checkpoint = Checkpoint {
+        party: Default::default(),
         party_time: Default::default(),
+        flags: BTreeMap::new(),
+        holdings: Holdings {
+            clocks: BTreeMap::from([(PARTY, Clock::new(EraId(0)))]),
+            ..Holdings::default()
+        },
         bus: Default::default(),
         position: Position {
             map: MapId(0),
@@ -330,15 +333,35 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             y: 0,
             facing: Facing::East,
         },
-        maps: BTreeMap::new(),
         automap: Default::default(),
         mode: omnis_sim::Mode::Explore,
-        flags: BTreeMap::new(),
         settings: Default::default(),
-        party: Default::default(),
         turn: 0,
-        log: Vec::new(),
-        journal: Default::default(),
+    };
+    let forward = Command::Step(omnis_sim::omnis_core::Direction::Forward);
+    let save = CharacterSave {
+        schema: SAVE_SCHEMA,
+        world: "0123456789abcdef".into(),
+        bases: BaseNames {
+            world: None,
+            regions: BTreeMap::from([("example:region:vale".to_owned(), 0x0fed_cba9_8765_4321)]),
+        },
+        checkpoint,
+        journal: vec![
+            Run {
+                command: forward.clone(),
+                times: 3,
+            },
+            Run {
+                command: Command::Turn(omnis_sim::omnis_core::Rotation::Left),
+                times: 1,
+            },
+        ],
+        fingerprint: 0,
+    };
+    let manifest = Manifest {
+        seed: 1,
+        packs: vec![fingerprint.clone()],
     };
     let replay = Replay {
         seed: 1,
@@ -412,7 +435,8 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             source: "level * 10".into(),
         },
     ];
-    section(out, &format!("save (schema {SAVE_SCHEMA})"), &world)?;
+    section(out, &format!("save (schema {SAVE_SCHEMA})"), &save)?;
+    section(out, ".omnis/worlds/<id>/manifest.ron", &manifest)?;
     section(out, "replay", &replay)?;
     section(out, "protocol ops (JSON on the dev socket; RON here)", &ops)?;
     Ok(())

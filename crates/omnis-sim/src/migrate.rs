@@ -64,6 +64,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         turn: old.turn,
         log: Vec::<Event>::new(),
         journal: crate::journal::Journal::default(),
+        origin: None,
     }
 }
 

@@ -736,7 +736,13 @@ fn start_again_makes_the_same_party_and_after_a_load_the_save_s_game_anew() {
         &party::fixed(),
     )
     .expect("a game");
-    omnis_vector::game_io::save(&other.world, std::path::Path::new("."), &save.0).expect("saved");
+    omnis_vector::game_io::save(
+        &other.world,
+        &other.data,
+        std::path::Path::new("."),
+        &save.0,
+    )
+    .expect("saved");
     pause(&mut app);
     press(&mut app, ControlId::Load);
     app.update();

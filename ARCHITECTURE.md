@@ -114,7 +114,7 @@ pub struct World {
 
 - All collections are ordered (`BTreeMap`, `Vec`); iteration order is part of determinism.
 - All numbers are integers. Ratios use `core::Fixed` (i64 with 1/1000 scale) where needed. No `f32` or `f64` anywhere in the simulation crates; CI denies the types with a lint.
-- The world is `serde::Serialize + Deserialize`; a save is the world in RON (D15), optionally compressed on disk.
+- The world is `serde::Serialize + Deserialize`; its RON is the fingerprint's text and a snapshot. A save is not the world since M8.5 7d (D28, `SAVE_SCHEMA` 8): a character save (the party's checkpoint at the world's base, the journal since in runs, the bases it names, the fingerprint, as compact RON) beside a world folder `.omnis/worlds/<id>/` (a manifest and the bases, each named by its hash); loading joins the bases (`save::join`) and replays the journal. A schema 1 to 7 save, a whole world, is converted on load into the base of an empty journal. The full account comes with 7g.
 - `World::fingerprint()` hashes the canonical serialization; equal fingerprints on two platforms is the determinism test.
 - The fields are public for the simulation's own tests and tools. They are not the API: a client reads through the views (§4.3, §4.9). `regions` and `quests` arrive with M10 and M11.
 

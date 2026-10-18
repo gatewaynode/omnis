@@ -365,9 +365,9 @@ fn lore_with_a_difficulty_is_told_on_a_roll_that_meets_it_and_once_only() {
             continue;
         }
         hits += 1;
-        // Told once: never again, through a save and a load.
-        let text = omnis_sim::ops::save_text(&world).expect("saves");
-        let mut back = omnis_sim::ops::load_text(&text, &data, false).expect("loads");
+        // Told once: never again, through the world's text and back.
+        let text = world.to_ron().expect("writes");
+        let mut back = World::from_ron(&text, &data, false).expect("reads");
         assert!(kept(&back));
         for _ in 0..3 {
             assert!(told(&search(&mut back, &data)).is_empty());

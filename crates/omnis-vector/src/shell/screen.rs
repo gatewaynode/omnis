@@ -578,7 +578,7 @@ fn host_op(
         }
         HostOp::Save => {
             if let Some(session) = session.as_deref() {
-                let outcome = game_io::save(&session.world, root(), &save)
+                let outcome = game_io::save(&session.world, &session.data, root(), &save)
                     .map(|_| format!("Saved to {save}"))
                     .map_err(|e| format!("Save failed: {e}"));
                 report(screens, outcome);
@@ -589,15 +589,16 @@ fn host_op(
                 .as_deref()
                 .map_or_else(|| host.packs.data.clone(), |s| s.data.clone());
             match game_io::load(&data, root(), &save, false) {
-                Ok(world) => {
+                Ok(loaded) => {
                     let why = format!("the save {save} was loaded");
+                    let line = format!("Loaded {save}: {}", loaded.said);
                     if let Some(session) = session.as_deref_mut() {
-                        session.replace(world, &why);
-                        session.say(format!("Loaded {save}"));
+                        session.replace(loaded.world, &why);
+                        session.say(line);
                         screens.reset(Some(&session.views));
                     } else {
-                        let mut fresh = Session::loaded(&host.packs, world, &why);
-                        fresh.say(format!("Loaded {save}"));
+                        let mut fresh = Session::loaded(&host.packs, loaded.world, &why);
+                        fresh.say(line);
                         screens.reset(Some(&fresh.views));
                         host.commands.insert_resource(fresh);
                     }

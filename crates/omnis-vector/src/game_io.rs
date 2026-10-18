@@ -1,15 +1,18 @@
 //! Saving and loading a game: the one path the pause screen, the title, the defeat screen and the
-//! dev socket's `save.write` and `save.read` share (presentation-ARCHITECTURE §4.5, §6.2). The
-//! rules are the engine's I/O-free ones (`ops::client_path`, the save rule in
-//! `SimWorld::save_text`, the migration in `ops::load_text`); this module only reads and writes the
-//! file, with the pack loader's limits on what it reads. Bevy-free.
+//! dev socket's `save.write` and `save.read` share (presentation-ARCHITECTURE §4.5, §6.2). A save
+//! is a character save beside a world folder (PRD D28, M8.5 7d). The rules are the engine's
+//! I/O-free ones (`ops::client_path`, `save::save_files` with the save rule, `save::load_save`
+//! with conversion and the replay); this module only writes and reads the files, each whole, with
+//! the pack loader's limits, under `root`. Bevy-free.
 
 use crate::sim::SimWorld;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::omnis_data::ron_io::read_text;
-use omnis_sim::ops::{client_path, load_text};
+use omnis_sim::omnis_data::ron_io::{read_under, write_files};
+use omnis_sim::ops::client_path;
+use omnis_sim::save::{Restored, load_save};
 use omnis_sim::{OpError, World};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// The file `path` names under `root`, once `path` passes the client path rule (relative, no
 /// `..`, a `.ron` file).
@@ -26,28 +29,60 @@ pub fn exists(root: &Path, path: &str) -> bool {
     file(root, path).is_ok_and(|f| f.is_file())
 }
 
-/// Save `world` to `path` under `root`, creating its directory.
+/// Save `world` to `path` under `root`: the world folder's bases and manifest first, then the
+/// character save, each written whole.
 ///
 /// # Errors
-/// The save rule forbids saving here, the path is refused, or the file cannot be written.
-pub fn save(world: &SimWorld, root: &Path, path: &str) -> Result<PathBuf, OpError> {
+/// The save rule forbids saving here, the path is refused, or a file cannot be written.
+pub fn save(world: &SimWorld, data: &Data, root: &Path, path: &str) -> Result<PathBuf, OpError> {
     let file = file(root, path)?;
-    let text = world.save_text()?;
-    if let Some(parent) = file.parent() {
-        std::fs::create_dir_all(parent).map_err(OpError::failed)?;
-    }
-    std::fs::write(&file, text).map_err(OpError::failed)?;
+    let files = world.save_files(data, path)?;
+    let list: Vec<(&str, &str, bool)> = files
+        .iter()
+        .map(|f| (f.path.as_str(), f.text.as_str(), f.keep))
+        .collect();
+    write_files(root, &list).map_err(OpError::failed)?;
     Ok(file)
 }
 
-/// The world saved at `path` under `root`, migrated to the current schema and checked against
-/// `data`; with `force`, a save made with other packs loads anyway.
+/// A world loaded from a save, and what loading it did, in the player's words.
+#[derive(Debug)]
+pub struct Loaded {
+    /// The world.
+    pub world: World,
+    /// "replayed 412 commands in 9 ms", or "converted from a schema 7 save".
+    pub said: String,
+}
+
+/// What a load did, in words.
+fn said(restored: Restored, millis: u128) -> String {
+    match restored.converted_from {
+        Some(schema) => format!("converted from a schema {schema} save"),
+        None => {
+            let n = restored.replayed;
+            let commands = if n == 1 { "command" } else { "commands" };
+            format!("replayed {n} {commands} in {millis} ms")
+        }
+    }
+}
+
+/// The world saved at `path` under `root`: an older save converted, a character save joined from
+/// its world folder and its journal replayed, checked against `data`; with `force`, a save made
+/// with other packs loads anyway.
 ///
 /// # Errors
-/// The path is refused, the file is missing, too large or a link, or it is not a save these
-/// packs can load.
-pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<World, OpError> {
-    let file = file(root, path)?;
-    let text = read_text(&file, Path::new(path)).map_err(OpError::failed)?;
-    load_text(&text, data, force)
+/// The path is refused, a file is missing, too large or a link, or it is not a save these packs
+/// can load.
+pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded, OpError> {
+    let path = client_path(path, &["ron"])?;
+    let text = read_under(root, path).map_err(OpError::failed)?;
+    let started = Instant::now();
+    let (world, restored) = load_save(&text, data, force, &mut |p| {
+        read_under(root, p).map_err(|e| e.to_string())
+    })
+    .map_err(OpError::failed)?;
+    Ok(Loaded {
+        world,
+        said: said(restored, started.elapsed().as_millis()),
+    })
 }

@@ -19,7 +19,7 @@
 //!
 //! **Tier 2, the JSON op protocol.** [`Op`] in, [`Reply`] or [`OpError`] out, through
 //! [`dispatch`] for the simulation's ops and a host (the dev socket, `omnis_cli::Headless`) for
-//! the six host ops and their rules ([`save_text`], [`load_text`], [`check_reload`],
+//! the six host ops and their rules ([`save_files`], [`load_save`], [`check_reload`],
 //! [`rules_set`]).
 
 // The world, its start, its save and its replay.
@@ -78,8 +78,9 @@ pub use crate::query::{
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::save::{
-    Checkpoint, Holdings, JoinError, Manifest, RegionBase, RegionSize, Split, SplitReport,
-    WorldBase, join, split, split_report,
+    BaseNames, CharacterSave, Checkpoint, FileOut, Holdings, JoinError, MAX_JOURNAL, Manifest,
+    RegionBase, RegionSize, Restored, Run, Split, SplitReport, WORLDS, WorldBase, join, load_save,
+    save_files, split, split_report,
 };
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
@@ -91,6 +92,6 @@ pub use crate::view::{
 // The JSON op protocol.
 pub use crate::ops::{
     ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, Reply, RulesView, ShotTarget,
-    SlotView, Status, check_reload, client_path, dispatch, load_text, rules_set, save_text,
+    SlotView, Status, check_reload, client_path, dispatch, rules_set,
 };
 pub use omnis_core::Edges;

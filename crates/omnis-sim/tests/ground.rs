@@ -8,7 +8,6 @@ use omnis_data::placement::Pile;
 use omnis_sim::event::ItemPlace;
 use omnis_sim::ground::pile_at;
 use omnis_sim::objects::{ObjectState, Refusal};
-use omnis_sim::ops::{load_text, save_text};
 use omnis_sim::{Command, Event, ItemCommand, Rejection, World, apply};
 
 const DAGGER: &str = "base:item:dagger";
@@ -98,8 +97,8 @@ fn refused(world: &mut World, data: &Data, command: Command) -> Rejection {
 /// The world read back from its save is the same, but for the log and the journal a save does
 /// not keep.
 fn round_trip(world: &World, data: &Data) {
-    let text = save_text(world).expect("saves");
-    let mut back = load_text(&text, data, false).expect("loads");
+    let text = world.to_ron().expect("writes");
+    let mut back = World::from_ron(&text, data, false).expect("reads");
     back.log.clone_from(&world.log);
     back.journal.clone_from(&world.journal);
     assert_eq!(back, *world);

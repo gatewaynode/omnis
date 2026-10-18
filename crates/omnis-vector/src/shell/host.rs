@@ -25,12 +25,13 @@ use std::sync::Arc;
 pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpError> {
     match op {
         Op::SaveWrite { path } => {
-            game_io::save(&session.world, root, path)?;
+            game_io::save(&session.world, &session.data, root, path)?;
             Ok(Reply::Written { path: path.clone() })
         }
         Op::SaveRead { path, force } => {
-            let world = game_io::load(&session.data, root, path, *force)?;
-            session.replace(world, &format!("the save {path} was loaded"));
+            let loaded = game_io::load(&session.data, root, path, *force)?;
+            session.replace(loaded.world, &format!("the save {path} was loaded"));
+            session.say(format!("Loaded {path}: {}", loaded.said));
             session.world.status(&session.data).map(Reply::Status)
         }
         Op::PackReload => {

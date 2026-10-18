@@ -1,7 +1,7 @@
 //! Saves and packs read with the loader's limits: a save file over the size cap or a link is
 //! refused with the reason, and a pack directory that is not there stops the start with its name.
 
-use crate::common::{data, session};
+use crate::common::{data, town_session};
 use omnis_sim::omnis_data::limits::MAX_FILE_BYTES;
 use omnis_vector::game_io;
 use omnis_vector::shell::session::{Config, Packs};
@@ -13,8 +13,10 @@ fn a_save_is_read_with_the_loader_s_limits() {
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("vector-save-limits");
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
-    let (world, _) = session(&data);
-    game_io::save(&world, &root, "real.ron").unwrap();
+    // Built through commands: a save is the journal, so a party set down by hand would not
+    // replay (M8.5 7d).
+    let (world, _) = town_session(&data);
+    game_io::save(&world, &data, &root, "real.ron").unwrap();
     assert!(game_io::load(&data, &root, "real.ron", false).is_ok());
 
     let size = usize::try_from(MAX_FILE_BYTES).unwrap() + 1;

@@ -669,20 +669,8 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
 // The host ops' rules (ARCHITECTURE.md §4.9): every host writes only the file and window code
 // around these, so the socket and the headless driver cannot disagree.
 
-/// `save.write`: the save's text, when the save rule allows a save here.
-pub fn save_text(world: &World) -> Result<String, OpError> {
-    if !world.may_save() {
-        return Err(OpError::failed("the save rule forbids saving here"));
-    }
-    world.to_ron().map_err(OpError::failed)
-}
-
-/// `save.read`: the world a save's text holds, migrated to this schema and checked against the
-/// loaded packs (`force` loads it on other packs anyway). The host reads the text with the
-/// loader's limits (`omnis_data::ron_io::read_text`).
-pub fn load_text(text: &str, data: &Data, force: bool) -> Result<World, OpError> {
-    World::from_ron(text, data, force).map_err(OpError::failed)
-}
+// `save.write` and `save.read` are `save::save_files` and `save::load_save` (M8.5 7d): a
+// character save and the world folder's files, which the host writes and reads.
 
 /// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
 /// hold the party's tile.

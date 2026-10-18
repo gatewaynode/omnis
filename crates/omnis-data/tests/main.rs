@@ -4,6 +4,7 @@
 mod bad_packs;
 mod beings;
 mod common;
+mod files;
 mod flags;
 mod footprint;
 mod load_base_pack;
