@@ -624,8 +624,50 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
       - Gate `tests passed 888 failed 0 ignored 13`, VERIFY-GREEN. Sentrux rules pass, quality 8983.
     - **Unchanged:** the goldens, `SAVE_SCHEMA` 7.
     - **Debt:** `screen/debug.rs` is 882 lines.
-  - [ ] 7d. Character save and world folder on disk; load by replay with the report; v7 conversion by fold; `SAVE_SCHEMA` 8. **The journal on disk is encoded compactly** (owner, 2026-10-17, asking whether visited squares could be deduplicated). A step cannot be dropped: each passes time and may draw an encounter roll, so the replay needs every command. The encoding is what shrinks. In a 10,000-command wander, 70% of commands were steps, there were 4,871 runs of a repeated command, and stripping whitespace took 242 KB to 137 KB. So run-length plus no pretty-printing should give about 3–4×; to be measured in 7d. All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7d.md`.
-    - **What was built.**
+  - [ ] 7d. Character save and world folder on disk; v7 conversion; `SAVE_SCHEMA` 8. **Reworked the same day** (owner, 2026-10-17): the first build replayed every command on load, sized folds from a one-second load and kept every step. The owner: "CRPGs often have 4 - 5 second load times", and "saves should only be capturing interactions, movement does not impact the world besides eating time." Now the party is saved as it stands, the journal holds only interactions with the changes each made, and a load lays the changes over the bases without running a rule. All items built (2026-10-17); awaiting the owner's walk of `tasks/acceptance/m8.5-7d.md`.
+    - **Reworked (commits `f0977b8`, `55c69b6`).**
+      - **The party's knowledge** (`objects/knowledge.rs`): found hidden objects, an object's once lore and a
+        cell's once lore moved from `ObjectState.noticed`/`told` and `MapState.lore_told` to `World::known`, in
+        the checkpoint. A sharp eye on a step was the one world write moving made. Whole-world texts of schemas
+        1–8 carry their finds over (`migrate::legacy_knowledge`). `World::prune` drops objects and maps back at
+        their defaults after each command and on load.
+      - **The change record** (`journal.rs`): `Change` (`Door`, `LevelDoor`, `Cleared`, `Object`, `Ground`,
+        `Flag`, `Clock`, `Contact`, `Stream`), each the value after. `apply` compares what the world holds
+        (`Held`: map states, world-scope flags, and the clocks, contacts and streams split routes away from the
+        party) before and after a command, so no writer can be missed. A command with changes is
+        `Entry { minute, at, command, changes }`; one without is not journaled. `apply_changes` lays them over a
+        world; load and fold (7e) share it.
+      - **Save and load** (`save/disk.rs`): the checkpoint is `split(world).checkpoint` at save time. The journal
+        is written as entries; `Run`, `runs`, `expand`, `MAX_JOURNAL` and `LoadError::Replay` are gone (the 4 MiB
+        file limit bounds explicit entries). A load joins the bases with the party, lays each entry's changes,
+        and compares the fingerprint (`Diverged`), which now checks on every load that nothing was missed.
+        `World.origin` is `Option<Bases>`. `Restored { applied, converted_from }`.
+      - **Client and tools:** "Loaded …: N interactions applied in T ms"; the debug World page says "Journal: N
+        interactions since the world's base"; `bind::Timing` and the replay estimate are gone. `replay --time`
+        reports the interactions and their bytes; `journal_timing` measures the new save.
+      - **Found while checking the script:** entering another region is an interaction. The region's clock and
+        contact are the world's, so the meadow, the yard or a portal across regions journals one entry. Pinned by
+        `entering_another_region_is_one_interaction_with_its_time`, and the script counts it.
+    - **Measured** (release, the 7a wander), against the first build:
+
+      | Commands | Interactions | Journal | Save | Load | First build: save, load |
+      | --- | --- | --- | --- | --- | --- |
+      | 10,000 | 34 | 7 KB | 94 KB | 103 ms | 120 KB, 217 ms |
+      | 50,000 | 166 | 49 KB | 158 KB | 297 ms | 605 KB, 1,819 ms |
+
+      Most of the save is now the party (the automap). The journal grows with interactions (about 0.3% of the
+      wander's commands), so folds are set by history and file size, not load time.
+    - **Tests:**
+      - `journal.rs` (8): nothing for a step, a turn or a purse; one entry for a region entered, the lever, and a
+        world flag (none for a party flag); refusals leave it; not fingerprinted. After every command of both
+        goldens and the yard's lever and gate (opened, then shut back as placed), the journal over the start
+        holds what the world holds.
+      - `disk.rs` (10): adds 200 moves journal nothing and a hand-placed party saves as it stands, and a save
+        loads after `rules.set`.
+      - `notice.rs` (+1, and one asserts spotting leaves the map alone).
+      - 17 of 17 mutants caught; three survived first (pruning twice, removals) until the gate was shut back.
+    - **First build (superseded by the rework above).**
+    - **What was built first.**
       - **Engine** (`save/character.rs` 122, `save/disk.rs` 232):
         - `CharacterSave { schema: 8, world, bases, checkpoint, journal: [Run], fingerprint }`, written as compact
           RON (`ron_io::to_compact`);
@@ -686,8 +728,8 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
         path asked of it; a first "manifest after the save" mutant was a no-op and was rewritten.
       - Gate `tests passed 900 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8978.
 
-  - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, the provisional size rule, archive segments, named bases kept, manual tidy.
-  - [ ] 7f. Full log across loads: History rebuilt from the archive and a stepwise replay.
+  - [ ] 7e. Fold: `DevCommand::Fold`, `Event::Folded`, a fold applies the journal into new bases, the provisional size rule (by the journal's bytes), archive segments, named bases kept, manual tidy.
+  - [ ] 7f. Full log across loads: History rebuilt from the archive and the journal. Open: party-only events (a fight won, a purchase) leave no entry, so History needs the party's own chronicle.
   - [ ] 7g. Docs and pins (ARCHITECTURE §4.1, §4.9, §6.2, §11; `docs/api.md`; MCP schema; `code-map.md`; `horizons.md`).
   - [ ] 7h. The earlier plan, re-scoped (`tasks/plans/m8.5-saves-by-name.md`): name table and remap, fixed encounter ids, pack seal, migrations on the journal and bases, `save.check` in the load report, `pack.reload` remap; the `PackMismatch` gate lifted.
   - The earlier item, kept as the record: **Waiting for the save-model study (owner, 2026-10-17): D28 reshapes this step.** **Saves by name, validated on load, migrations offered** (owner, 2026-10-15; plan `tasks/plans/m8.5-saves-by-name.md`, owner's answers 2026-10-15 written in). After step 2, before the editor (M5), which will change packs constantly. Option A: the save carries a name table and is remapped by name on load, so new content no longer refuses older saves (PRD §7.7). Every load request is validated into a report (`save.check`); when the packs changed and something no longer resolves, the packs' declarative migrations are offered, not refusal outright. Fixed encounters get ids; `pack.reload` goes through the same remap (it silently renumbers today, to be proven red first). `SAVE_SCHEMA` 8; replays still require identical packs.

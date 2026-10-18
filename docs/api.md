@@ -59,7 +59,7 @@ let party: PartyView = party_view(&world, &data);
 - `World::to_ron`, `World::from_ron(text, &Data, force)` and `World::fingerprint` write, read
   (migrating older schemas) and hash a whole world, a snapshot. A save is not one since M8.5 7d:
   `save::save_files` and `save::load_save` write and read the character save and the world
-  folder. `Replay::record` and `Replay::check` re-run a
+  folder; `journal::apply_changes` lays a journal's changes over a world. `Replay::record` and `Replay::check` re-run a
   command list and compare fingerprints.
 - The new world's party is empty; create members with `Command::Party(PartyCommand::Create(..))`.
 - `Dev` commands are refused (`DevOnly`) unless `Settings.devtools` is true.
@@ -211,8 +211,8 @@ socket and the bridge (malformed request).
 | `rules.list` | none | `rules` | | |
 | `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
-| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there) |
-| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save, a base missing or altered, a journal command refused on replay, a replay that ends elsewhere than the save recorded) | host. A character save's bases are joined and its journal replayed (`save::load_save`); a schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). The save holds the party as it stands and the interactions since the base, each with its changes to the world |
+| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
@@ -284,7 +284,7 @@ and places by `Place` (§4); lists are in marching or list order.
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
 | `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
 | `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
-| `journal_len(&World)` | `usize`: how many commands the world has accepted since its base, which a load would replay (PRD D28); not saved yet, so 0 after a load | none |
+| `journal_len(&World)` | `usize`: how many interactions (commands that changed what the world holds) the journal has since the world's base: what a load lays over the bases (PRD D28). Moving, turning and what changes only the party add none | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
 | `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
@@ -1082,14 +1082,19 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
   types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
   `SplitReport` and `RegionSize`. Nothing is saved differently yet.
-- 2026-10-17: the character save (M8.5 7d, PRD D28), `SAVE_SCHEMA` 8: `save.write` writes a
-  character save (`CharacterSave { schema, world, bases, checkpoint, journal, fingerprint }`, the
-  journal in runs of one command, `Run { command, times }`) and the world folder
-  `.omnis/worlds/<id>/` (`manifest.ron`, `world/<hash>.ron`, `regions/<pack>/<name>/<hash>.ron`);
-  `save.read` joins and replays it, or converts a schema 1 to 7 save. Tier 1: `save_files`,
-  `load_save`, `FileOut`, `Restored`, `MAX_JOURNAL` (1,000,000 commands), `WORLDS`; `LoadError`
-  gains `BadSave`, `BadBase`, `Replay` and `Diverged`. `ops::save_text` and `ops::load_text` are
-  gone (Tier 1 only; the ops are unchanged). Both goldens rebaselined for the schema field.
+- 2026-10-17: the character save (M8.5 7d, PRD D28, amended the same day), `SAVE_SCHEMA` 8:
+  `save.write` writes a character save (`CharacterSave { schema, world, bases, checkpoint, journal,
+  fingerprint }`: the party as it stands, and the journal of interactions, `Entry { minute, at,
+  command, changes }`, each `Change` a value after: `Door`, `LevelDoor`, `Cleared`, `Object`,
+  `Ground`, `Flag`, `Clock`, `Contact`, `Stream`) and the world folder `.omnis/worlds/<id>/`
+  (`manifest.ron`, `world/<hash>.ron`, `regions/<pack>/<name>/<hash>.ron`); `save.read` joins the
+  bases with the party and lays the changes over them, running no rule, or converts a schema 1 to
+  7 save. A command that changes only the party is not journaled. Found hidden objects and lore
+  told once moved from `MapState`/`ObjectState` (`noticed`, `told`, `lore_told`) to the party's
+  `World::known` (`Knowledge`); older texts carry theirs over. Tier 1: `save_files`, `load_save`,
+  `FileOut`, `Restored { applied, converted_from }`, `Bases`, `WORLDS`, `apply_changes`, `Change`;
+  `LoadError` gains `BadSave`, `BadBase` and `Diverged`. `ops::save_text` and `ops::load_text`
+  are gone (Tier 1 only; the ops are unchanged). Both goldens rebaselined for the schema field.
 - 2026-10-17: flag scope (M8.5 7c): pack files `data/flags/<name>.ron` (`FlagDef { schema, id, scope }`,
   `FlagScope::{Party, World}`, `World` when left out); Tier 1's `flag_scope`; `Checkpoint.flags` (the party's)
   beside `WorldBase.flags` (the world's, and every undeclared flag); `SplitReport.party_flags` and
