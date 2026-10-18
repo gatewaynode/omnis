@@ -774,7 +774,19 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - **Gate:** `tests passed 919 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8988.
       Two commits, not three: the engine's new event and dev command need the client's exhaustive matches in
       the same change to compile.
-  - [ ] 7f. Full log across loads: History rebuilt from the archive and the journal. Open: party-only events (a fight won, a purchase) leave no entry, so History needs the party's own chronicle.
+  - [ ] 7f. Full log across loads. Owner (2026-10-18): History comes from the party's log, saved (not the archive); 16,384 events; the per-step `Visible`, `EncounterCheck`, `TimeAdvanced` stay in memory only; a character save may be 8 MiB. All items built (2026-10-18); awaiting the owner's walk of `tasks/acceptance/m8.5-7f.md`.
+    - [x] `World::log` of `Logged { minute, map, event }`, stamped in `record`; `LOG_CAPACITY` 16,384; `events.tail` unchanged in shape.
+    - [x] `CharacterSave.log` (the events `told` keeps), restored by `load_save` and bounded; a fold leaves it be.
+    - [x] `MAX_SAVE_BYTES` 8 MiB: `ron_io::read_save_under` for the hosts' save reads and tidy; `save_files` refuses a larger save.
+    - [x] Tier 1 `history`, `told`, `Logged`; client `SimWorld::history`, `shell::retold` (the full log and the names, retold), `Session::replace` retells; `HISTORY` = `LOG_CAPACITY`, with the filter's lowercase line made once.
+    - [x] Docs: `docs/api.md`, ARCHITECTURE (§4.1, the log lines), the save-model plan, the acceptance script.
+    - **Review (2026-10-18):**
+      - **Measured:** saving every event would have made the log about 13 MB, because a `Visible` is about 2.8 KB a step. That went to the owner, who chose to keep `Visible` and the other two per-step events in memory only and to raise the save limit. Without them an event saves at about 138 B. A full log (2.27 MB) plus a full journal (5,000 × 347 B, 1.74 MB) makes a 4.05 MB save, about half the room; a test pins it under three fifths.
+      - **Filter speed:** at 16,384 lines the full log's filter took about 4 ms a frame, so the lowercase line is now made once and it takes 0.3 ms.
+      - **Retelling:** retold lines equal the lines said live over a walk and a fight, stamps included. A fight's monster numbering comes back with the names, so a load in a fight carries on numbering correctly.
+      - **Tests:** `omnis-sim/tests/history.rs` (7), plus 3 in `full_log.rs`; the `game_io` limits test is reworked. Gate `tests passed 929 failed 0 ignored 14`, VERIFY-GREEN. The goldens round-trip with their logs after every command. The goldens and `SAVE_SCHEMA` 8 are unchanged.
+      - **Mutations:** 14 of 14 caught. "Retell skips locate" survived the first run, so the object test was added.
+      - **Sentrux:** rules pass, quality 8987.
   - [ ] 7g. Docs and pins (ARCHITECTURE §4.1, §4.9, §6.2, §11; `docs/api.md`; MCP schema; `code-map.md`; `horizons.md`).
   - [ ] 7h. The earlier plan, re-scoped (`tasks/plans/m8.5-saves-by-name.md`): name table and remap, fixed encounter ids, pack seal, migrations on the journal and bases, `save.check` in the load report, `pack.reload` remap; the `PackMismatch` gate lifted.
   - The earlier item, kept as the record: **Waiting for the save-model study (owner, 2026-10-17): D28 reshapes this step.** **Saves by name, validated on load, migrations offered** (owner, 2026-10-15; plan `tasks/plans/m8.5-saves-by-name.md`, owner's answers 2026-10-15 written in). After step 2, before the editor (M5), which will change packs constantly. Option A: the save carries a name table and is remapped by name on load, so new content no longer refuses older saves (PRD §7.7). Every load request is validated into a report (`save.check`); when the packs changed and something no longer resolves, the packs' declarative migrations are offered, not refusal outright. Fixed encounters get ids; `pack.reload` goes through the same remap (it silently renumbers today, to be proven red first). `SAVE_SCHEMA` 8; replays still require identical packs.

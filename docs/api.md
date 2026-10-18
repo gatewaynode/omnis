@@ -195,7 +195,7 @@ socket and the bridge (malformed request).
 | `world.query` | `path` (string) | `value` | `TooLong` | |
 | `sim.command` | `command` (`Command`) | `events` | `Rejected` | |
 | `sim.script` | `commands` (`[Command]`, at most `MAX_SCRIPT`) | `script` | `TooMany` | |
-| `events.tail` | `count` (default 32, capped at 4096) | `events` | | |
+| `events.tail` | `count` (default 32, capped at 16384) | `events` | | |
 | `viewport.get` | none | `viewport` | `UnknownMap` | |
 | `map.text` | `map` (optional id; the party's map when absent), `level` (optional; the party's level on its own map, else 0) | `text` | `TooLong`, `UnknownMap` | |
 | `automap.get` | `map` (optional id), `level` (optional, as `map.text`) | `automap` | `TooLong`, `UnknownMap` | |
@@ -226,8 +226,9 @@ Notes:
   unless the world's settings allow dev commands), `save.read`, `pack.reload` and `rules.set`.
 - `sim.script` stops at the first rejection and still answers `script` with the events so far,
   `applied` and `rejected`; it is not an `OpError`.
-- `events.tail` reads `World::log`, the last 4096 events (`LOG_CAPACITY`). The log is not saved:
-  it starts empty after `save.read`.
+- `events.tail` reads `World::log`, the party's log: the last 16384 events (`LOG_CAPACITY`). The
+  character save carries the events of it that a full log tells (`told`: all but `Visible`,
+  `EncounterCheck` and `TimeAdvanced`), so after `save.read` it holds those (M8.5 7f).
 - `world.query` is outside the contract (§1). `value` is `null` when the path does not exist.
 - The MCP tool descriptions (`crates/omnis-mcp/src/tools.rs`) say the same for an agent.
 
@@ -286,6 +287,8 @@ and places by `Place` (§4); lists are in marching or list order.
 | `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
 | `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
 | `archive_len(&World)` | `usize`: how many archive segments the folds have put away (M8.5 7e) | none |
+| `history(&World)` | `&[Logged]`: the party's log, oldest first; each `Logged { minute, map, event }` is an event with the party's age and the `MapId` it stood on when it was said (M8.5 7f). A load gives back the events `told` keeps | `events.tail` (events only) |
+| `told(&Event)` | `bool`: whether the character save keeps the event in the party's log: all but `Visible`, `EncounterCheck` and `TimeAdvanced`, the view and the dice of each step, which no full log tells | none |
 | `journal_len(&World)` | `usize`: how many interactions (commands that changed what the world holds) the journal has since the world's base: what a load lays over the bases (PRD D28). Moving, turning and what changes only the party add none | none |
 | `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
@@ -948,8 +951,9 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `MAX_SCRIPT` | 10,000 commands per `sim.script` | `omnis-sim/src/ops.rs` |
 | `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` |
 | `omnis_data::limits::MAX_STRING_BYTES` | 4 KiB per string argument (`TooLong`) | `omnis-data/src/limits.rs` |
-| `MAX_FILE_BYTES` | 4 MiB per file read (saves included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
-| `LOG_CAPACITY` | 4096 events kept for `events.tail` | `omnis-sim/src/lib.rs` |
+| `MAX_FILE_BYTES` | 4 MiB per file read (a world folder's files included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
+| `MAX_SAVE_BYTES` | 8 MiB per character save, read (`ron_io::read_save_under`) or written (`save_files` refuses a larger one). A full log and a full journal measure about 4 MB | `omnis-data/src/limits.rs` |
+| `LOG_CAPACITY` | 16384 events in the party's log (`events.tail`, `history`) | `omnis-sim/src/lib.rs` |
 | Paths | Relative; only ASCII letters, digits, `.`, `_`, `-`, `/`; no `.` or `..` components; the extension checked (`.ron` for saves, `.png` for screenshots) | `ops::client_path` |
 
 Every argument from a client is untrusted (ARCHITECTURE.md §6.2) and bounded before it is
@@ -988,7 +992,7 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `history`, `told`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
   event log is not saved, so it is empty after `save.read`.
@@ -1086,6 +1090,14 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
   types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
   `SplitReport` and `RegionSize`. Nothing is saved differently yet.
+- 2026-10-18: the party's log is saved (M8.5 7f): `World::log` holds `Logged { minute, map, event
+  }`, each event stamped with the party's age and map when it was said, and keeps 16384
+  (`LOG_CAPACITY`, was 4096; `events.tail` still answers with events). `CharacterSave.log`
+  (`[Logged]`, left out when empty) carries the events `told` keeps, so a load gives the party's
+  log back and a client retells its full log from it; a fold leaves it be. A character save may
+  be 8 MiB (`MAX_SAVE_BYTES`; the world folder's files stay at 4 MiB), and `save_files` refuses a
+  larger one. Tier 1: `history`, `told`, `Logged`. `SAVE_SCHEMA` stays 8 (a save without `log`
+  loads with none); no golden moved.
 - 2026-10-18: the fold (M8.5 7e, PRD D28): `DevCommand::Fold` (14 variants) and `Event::Folded
   { interactions }` (73 variants). A fold makes what the world holds its new bases and moves the
   journal to the archive (`World.archive`, `save::Archived::{Held, Named}`); a safe point (a long
