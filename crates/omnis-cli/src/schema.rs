@@ -334,6 +334,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             facing: Facing::East,
         },
         automap: Default::default(),
+        known: Default::default(),
         mode: omnis_sim::Mode::Explore,
         settings: Default::default(),
         turn: 0,

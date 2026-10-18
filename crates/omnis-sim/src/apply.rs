@@ -74,6 +74,7 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
         _ => return Err(Rejection::WrongMode),
     }
     look(world, data, &mut events);
+    world.prune();
     world.turn += 1;
     world.record(&events);
     let minute = world.party_clock().elapsed;

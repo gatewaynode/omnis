@@ -27,11 +27,7 @@ fn noticed(events: &[Event]) -> Vec<(String, Notice)> {
 }
 
 fn found(world: &World, data: &Data, id: &str) -> bool {
-    world
-        .maps
-        .get(&yard(data))
-        .and_then(|s| s.objects.get(id))
-        .is_some_and(|s| s.noticed)
+    world.known.has_noticed(yard(data), id)
 }
 
 fn sees(events: &[Event], cell: (u16, u16)) -> bool {
@@ -54,10 +50,12 @@ fn a_sharp_eye_finds_the_lever_two_cells_off_in_sight() {
         omnis_data::Skill::Perception,
     );
     assert_eq!(eye, Ok(12), "the lever's difficulty exactly");
+    let maps = world.maps.clone();
     let events = turn(&mut world, &data, Rotation::Around);
     assert!(sees(&events, (0, 0)));
     assert_eq!(noticed(&events), [("lever_1".to_owned(), Notice::Passive)]);
     assert!(found(&world, &data, "lever_1"));
+    assert_eq!(world.maps, maps, "the party's knowledge, not the map's");
     let again = turn(&mut world, &data, Rotation::Around);
     let back = turn(&mut world, &data, Rotation::Around);
     assert!(
@@ -314,10 +312,7 @@ fn a_cell_s_lore_is_told_by_every_search_after_the_finds() {
         );
     }
     assert!(
-        world
-            .maps
-            .get(&yard(&data))
-            .is_none_or(|s| s.lore_told.is_empty()),
+        world.known.lore.is_empty(),
         "lore told every time is not remembered"
     );
 }
@@ -354,11 +349,7 @@ fn lore_with_a_difficulty_is_told_on_a_roll_that_meets_it_and_once_only() {
             },
             "seed {seed}"
         );
-        let kept = |w: &World| {
-            w.maps
-                .get(&yard(&data))
-                .is_some_and(|s| s.lore_told.contains("carving"))
-        };
+        let kept = |w: &World| w.known.knows_lore(yard(&data), "carving");
         assert_eq!(kept(&world), met);
         if !met {
             misses += 1;
@@ -401,8 +392,7 @@ fn an_object_s_lore_is_its_placement_s_over_its_kind_s() {
         if rolled(&events) >= 12 {
             hits += 1;
             assert_eq!(told(&events), std::slice::from_ref(&name));
-            let state = &world.maps[&yard(&data)].objects["statue_1"];
-            assert!(state.told);
+            assert!(world.known.was_told(yard(&data), "statue_1"));
             assert!(told(&search(&mut world, &data)).is_empty(), "once");
         } else {
             misses += 1;
@@ -430,4 +420,35 @@ fn a_hidden_object_s_lore_is_told_only_once_it_is_found() {
         }
     }
     assert!(hits > 0 && misses > 0);
+}
+
+#[test]
+fn an_older_save_that_kept_finds_on_the_map_gives_them_to_the_party() {
+    let data = objects();
+    let mut world = eyed(&data, 0, 2, Facing::South, 10);
+    world.map_state(yard(&data)).objects.insert(
+        "lever_1".into(),
+        omnis_sim::objects::ObjectState {
+            state: Some("marker".into()),
+            ..Default::default()
+        },
+    );
+    world.schema = 7;
+    let text = omnis_data::ron_io::to_string(&world).expect("ron");
+    let old = text
+        .replace(
+            "state: Some(\"marker\"),",
+            "noticed: true,\n                    told: true,",
+        )
+        .replace(
+            "cleared: [],",
+            "cleared: [],\n            lore_told: [\"carving\"],",
+        );
+    assert_ne!(old, text, "the text was made old");
+    let back = World::from_ron(&old, &data, false).expect("loads");
+    let map = yard(&data);
+    assert!(back.known.has_noticed(map, "lever_1"));
+    assert!(back.known.was_told(map, "lever_1"));
+    assert!(back.known.knows_lore(map, "carving"));
+    assert!(back.maps.get(&map).is_none_or(|s| s.objects.is_empty()));
 }

@@ -19,6 +19,7 @@ pub use report::{RegionSize, SplitReport, split_report};
 pub use split::split;
 
 use crate::bus::Bus;
+use crate::objects::Knowledge;
 use crate::party::Party;
 use crate::time::PartyTime;
 use crate::world::{Automap, MapState, Mode, Settings};
@@ -111,6 +112,9 @@ pub struct Checkpoint {
     pub position: Position,
     /// What the party knows of the maps.
     pub automap: Automap,
+    /// The hidden things it has found and the lore it has been told.
+    #[serde(default, skip_serializing_if = "Knowledge::is_empty")]
+    pub known: Knowledge,
     /// What the party is doing.
     pub mode: Mode,
     /// The difficulty options.

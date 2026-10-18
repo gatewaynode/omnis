@@ -4,12 +4,14 @@
 
 mod act;
 mod container;
+mod knowledge;
 pub(crate) mod notice;
 mod outcome;
 
 pub(crate) use act::{act, admit, choices, offered, reach, reachable};
 pub use container::contents;
 pub(crate) use container::{put_in, take_out};
+pub use knowledge::Knowledge;
 pub(crate) use notice::search;
 pub(crate) use outcome::check_of;
 
@@ -41,15 +43,9 @@ pub struct ObjectState {
     /// Interactions marked `once` that have succeeded, by index in the kind.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub used: BTreeSet<u8>,
-    /// A hidden object the party has found.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub noticed: bool,
     /// A container's items, once changed from what it started with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<(ItemId, u16)>>,
-    /// Its lore, told once and never again.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub told: bool,
 }
 
 /// Why an object does not allow what was asked of it now. Checks are not refusals: a failed
@@ -142,13 +138,10 @@ pub fn state_in<'a>(state: Option<&'a MapState>, p: &'a ResolvedPlacement) -> &'
         .unwrap_or(&p.state)
 }
 
-/// Whether a placement is in sight of the party: not hidden, or found.
+/// Whether a placement on `map` is in sight of the party: not hidden, or found.
 #[must_use]
-pub fn found_in(state: Option<&MapState>, p: &ResolvedPlacement) -> bool {
-    p.hidden.is_none()
-        || state
-            .and_then(|s| s.objects.get(&p.id))
-            .is_some_and(|s| s.noticed)
+pub fn found_in(known: &Knowledge, map: MapId, p: &ResolvedPlacement) -> bool {
+    p.hidden.is_none() || known.has_noticed(map, &p.id)
 }
 
 /// Change what the save remembers of a placement in the party's map; an entry back at its

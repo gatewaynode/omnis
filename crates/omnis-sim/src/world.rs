@@ -7,8 +7,10 @@ use crate::command::Rejection;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
 use crate::journal::Journal;
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7};
-use crate::objects::ObjectState;
+use crate::migrate::{
+    WorldV1, legacy_knowledge, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7,
+};
+use crate::objects::{Knowledge, ObjectState};
 use crate::party::Party;
 use crate::service::ServiceState;
 use crate::time::PartyTime;
@@ -54,10 +56,6 @@ pub struct MapState {
     /// placed pile is kept with no items. Unwritten when none, so a save reads as before.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub ground: BTreeMap<(Level, u16, u16), Pile>,
-    /// A cell's lore told once and never again, by its id (owner, 2026-10-16); unwritten when
-    /// none.
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub lore_told: BTreeSet<String>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
@@ -281,6 +279,10 @@ pub struct World {
     pub maps: BTreeMap<MapId, MapState>,
     /// What the party knows.
     pub automap: Automap,
+    /// The hidden objects the party has found and the lore it has been told once (M8.5 7d):
+    /// the party's knowledge, not the map's.
+    #[serde(default, skip_serializing_if = "Knowledge::is_empty")]
+    pub known: Knowledge,
     /// What the party is doing.
     pub mode: Mode,
     /// Named integer flags.
@@ -413,6 +415,7 @@ impl World {
             },
             maps: BTreeMap::new(),
             automap: Automap::default(),
+            known: Knowledge::default(),
             mode: Mode::Explore,
             flags: BTreeMap::new(),
             settings,
@@ -457,6 +460,16 @@ impl World {
     /// Mutable state of the map the party is on, created on first touch.
     pub fn map_state(&mut self, map: MapId) -> &mut MapState {
         self.maps.entry(map).or_default()
+    }
+
+    /// Drop what holds only defaults: an object's state back where it started, a map with
+    /// nothing changed. The world then reads the same however it came to be, played or rebuilt
+    /// from its parts (M8.5 7d).
+    pub(crate) fn prune(&mut self) {
+        for state in self.maps.values_mut() {
+            state.objects.retain(|_, o| *o != ObjectState::default());
+        }
+        self.maps.retain(|_, s| *s != MapState::default());
     }
 
     /// Append events to the bounded log.
@@ -527,6 +540,8 @@ impl World {
             other => return Err(LoadError::Schema(other)),
         };
         let mut world = world;
+        world.known = legacy_knowledge(text).map_err(LoadError::Parse)?;
+        world.prune();
         world.schema = SAVE_SCHEMA;
         world.checked(data, force)
     }

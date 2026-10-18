@@ -73,15 +73,7 @@ fn nothing_in_reach_is_nothing_here_and_a_hidden_object_is_not_offered() {
         key: MessageKey::NothingHere
     }));
     assert!(!events.iter().any(|e| matches!(e, Event::ObjectUsed { .. })));
-    set(
-        &mut world,
-        &data,
-        "rune_1",
-        ObjectState {
-            noticed: true,
-            ..ObjectState::default()
-        },
-    );
+    world.known.notice(yard(&data), "rune_1");
     let found = apply(&mut world, &data, Command::Interact);
     assert!(
         matches!(found, Err(Rejection::VerbRefused { .. })),

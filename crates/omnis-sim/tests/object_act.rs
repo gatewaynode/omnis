@@ -29,13 +29,7 @@ fn no_such(object: &str) -> Result<Vec<Event>, Rejection> {
 
 /// Mark a hidden placement found, as Search or a sharp eye will (item 13).
 fn notice(world: &mut World, data: &Data, id: &str) {
-    world.map_state(yard(data)).objects.insert(
-        id.into(),
-        ObjectState {
-            noticed: true,
-            ..ObjectState::default()
-        },
-    );
+    world.known.notice(yard(data), id);
 }
 
 /// Add the `n`th of the six standard drafts to the party.

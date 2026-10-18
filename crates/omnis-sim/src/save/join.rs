@@ -73,6 +73,7 @@ pub fn join(split: Split, data: &Data, force: bool) -> Result<World, JoinError> 
         position: checkpoint.position,
         maps: BTreeMap::new(),
         automap: checkpoint.automap,
+        known: checkpoint.known,
         mode: checkpoint.mode,
         flags: checkpoint.flags,
         settings: checkpoint.settings,

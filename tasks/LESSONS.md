@@ -263,3 +263,16 @@
 - **Rule**: For each step of an acceptance script that names a thing in a fixture (a lever, a door, a
   monster), read its placement in the map file and write what stands in the way: hidden, locked, on another
   level, needing an item. Where a step depends on a roll, say so and give a sure way round (the debug panel).
+
+## 2026-10-17 — Ask what a cost buys before defending it, and check budgets against the genre
+- **What happened**: The owner asked whether visited squares could be deduplicated in the journal. I answered
+  that every step had to be kept because a step passes time and may draw an encounter roll, and shrank only the
+  encoding. Then I set the fold rule from a one-second load. The owner: CRPGs load in 4–5 s, and movement does
+  not change the world besides eating time, so a save should capture interactions. Reading `apply.rs` showed
+  that everything a step changes is the party's own state (position, clocks, automap, its RNG streams), apart
+  from the interactions it triggers. The "every step is needed" claim held only because the save re-derived
+  party state by replay, which was a choice, not a fact.
+- **Rule**: When defending a cost ("this must be kept"), list what the kept thing actually changes and whose
+  state that is, and say what design choice makes it necessary. A budget (load time, file size, frame time)
+  is set against what players of the genre accept, stated with its source, and offered to the owner as a
+  number to confirm, never assumed.

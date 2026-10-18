@@ -246,13 +246,7 @@ fn a_hidden_object_is_drawn_once_found_and_a_taken_one_never() {
     };
     assert_eq!(drawn(&world, &lever), 0, "hidden");
     assert_eq!(drawn(&world, &stone), 12);
-    world.map_state(yard).objects.insert(
-        "lever_1".into(),
-        ObjectState {
-            noticed: true,
-            ..ObjectState::default()
-        },
-    );
+    world.known.notice(yard, "lever_1");
     assert_eq!(drawn(&world, &lever), 12, "found");
     let take = omnis_sim::Command::Act {
         object: "stone_1".into(),

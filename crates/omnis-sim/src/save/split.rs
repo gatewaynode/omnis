@@ -121,6 +121,7 @@ pub fn split(world: &World, data: &Data) -> Split {
             bus: world.bus.clone(),
             position: world.position,
             automap: world.automap.clone(),
+            known: world.known.clone(),
             mode: world.mode.clone(),
             settings: world.settings,
             turn: world.turn,

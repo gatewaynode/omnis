@@ -178,12 +178,7 @@ fn worlds(data: &Data) -> Vec<World> {
                     set_state(&mut world, data, "chest_1", "open");
                     let lever = data.registry.flags.get("objects:flag:lever").expect("flag");
                     world.flags.insert(lever, 1);
-                    world
-                        .map_state(yard(data))
-                        .objects
-                        .entry("lever_1".into())
-                        .or_default()
-                        .noticed = true;
+                    world.known.notice(yard(data), "lever_1");
                     worlds.push(world);
                 }
             }
@@ -285,12 +280,7 @@ fn the_viewport_carries_the_objects_and_piles_in_sight() {
         (stone.x, stone.y, stone.pos, stone.object_kind.as_str()),
         (0, 2, (2, -2), "objects:object:stone")
     );
-    world
-        .map_state(yard(&data))
-        .objects
-        .entry("lever_1".into())
-        .or_default()
-        .noticed = true;
+    world.known.notice(yard(&data), "lever_1");
     let viewport = query::viewport(&world, &data).expect("the yard");
     let lever = viewport
         .objects
@@ -386,12 +376,7 @@ fn the_look_is_the_state_s_own() {
     let data = objects();
     let mut world = in_yard(&data, 0, 0, 2, Facing::North);
     set_state(&mut world, &data, "lever_1", "down");
-    world
-        .map_state(yard(&data))
-        .objects
-        .get_mut("lever_1")
-        .expect("set")
-        .noticed = true;
+    world.known.notice(yard(&data), "lever_1");
     let viewport = query::viewport(&world, &data).expect("the yard");
     let lever = viewport
         .objects
@@ -457,12 +442,7 @@ fn finding_taking_and_moving_items_change_what_a_level_lists() {
     let data = objects();
     let level = |w: &World| on_level(w, &data, yard(&data), Level(0));
     let mut world = in_yard(&data, 0, 0, 2, Facing::North);
-    world
-        .map_state(yard(&data))
-        .objects
-        .entry("lever_1".into())
-        .or_default()
-        .noticed = true;
+    world.known.notice(yard(&data), "lever_1");
     assert!(ids(&level(&world).0).contains(&"lever_1"), "found");
     let take = Command::Act {
         object: "stone_1".into(),

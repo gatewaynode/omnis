@@ -8,7 +8,7 @@
 //! difficulty or the roll meets it, and a `once` lore only the first time.
 
 use super::act::{reach, reachable};
-use super::{Refusal, edit, saved};
+use super::{Refusal, saved};
 use crate::apply::advance;
 use crate::checks::{self, CheckSpec};
 use crate::combat::Roller;
@@ -134,18 +134,17 @@ fn tell(world: &mut World, data: &Data, total: i64, events: &mut Vec<Event>) {
         return;
     };
     let meets = |dc: Option<u8>| dc.is_none_or(|dc| total >= i64::from(dc));
-    let state = world.maps.get(&pos.map);
     let cells = reach(world, map, pos)
         .into_iter()
         .flat_map(|(x, y)| map.lore.get(&(pos.level, x, y)).into_iter().flatten())
-        .filter(|l| meets(l.dc) && !(l.once && state.is_some_and(|s| s.lore_told.contains(&l.id))))
+        .filter(|l| meets(l.dc) && !(l.once && world.known.knows_lore(pos.map, &l.id)))
         .map(|l| (l.text.clone(), l.once, Teller::Cell(l.id.clone())));
     let objects = reachable(world, data).filter_map(|p| {
         let lore = p
             .lore
             .as_ref()
             .or_else(|| data.objects.get(&p.kind)?.lore.as_ref())?;
-        let spent = lore.once && saved(world, pos.map, &p.id).is_some_and(|s| s.told);
+        let spent = lore.once && world.known.was_told(pos.map, &p.id);
         (meets(lore.dc) && !spent)
             .then(|| (lore.text.clone(), lore.once, Teller::Object(p.id.clone())))
     });
@@ -154,13 +153,13 @@ fn tell(world: &mut World, data: &Data, total: i64, events: &mut Vec<Event>) {
         let object = match teller {
             Teller::Cell(id) => {
                 if once {
-                    world.map_state(pos.map).lore_told.insert(id);
+                    world.known.lore.insert((pos.map, id));
                 }
                 None
             }
             Teller::Object(id) => {
                 if once {
-                    edit(world, pos.map, &id, |s| s.told = true);
+                    world.known.told.insert((pos.map, id.clone()));
                 }
                 Some(id)
             }
@@ -171,8 +170,10 @@ fn tell(world: &mut World, data: &Data, total: i64, events: &mut Vec<Event>) {
 
 /// Whether a placement is hidden and not yet found nor taken away.
 fn unfound(world: &World, p: &ResolvedPlacement) -> bool {
+    let map = world.position.map;
     p.hidden.is_some()
-        && !saved(world, world.position.map, &p.id).is_some_and(|s| s.noticed || s.removed)
+        && !world.known.has_noticed(map, &p.id)
+        && !saved(world, map, &p.id).is_some_and(|s| s.removed)
 }
 
 /// Cells from the party to a placement's own cell, as a king moves.
@@ -186,6 +187,6 @@ fn rule(data: &Data, key: &str) -> Option<i64> {
 }
 
 fn mark(world: &mut World, object: String, how: Notice, events: &mut Vec<Event>) {
-    edit(world, world.position.map, &object, |s| s.noticed = true);
+    world.known.notice(world.position.map, &object);
     events.push(Event::Noticed { object, how });
 }

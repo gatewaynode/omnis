@@ -15,7 +15,7 @@ use crate::names::id_of;
 use crate::objects::{
     admit, check_of, contents, found_in, offered, reachable, removed_in, state_in, state_of,
 };
-use crate::world::{MapState, Mode, World};
+use crate::world::{Mode, World};
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -196,13 +196,12 @@ pub(crate) fn in_sight(
     let Some(map) = data.maps.get(&pos.map) else {
         return (Vec::new(), Vec::new());
     };
-    let state = world.maps.get(&pos.map);
     let mut seen = BTreeSet::new();
     let objects = tiles
         .iter()
         .flat_map(|&(x, y)| map.objects_at(pos.level, x, y))
         .filter(|(_, p)| seen.insert(p.id.as_str()))
-        .filter_map(|(_, p)| drawn(state, data, p))
+        .filter_map(|(_, p)| drawn(world, pos.map, data, p))
         .collect();
     let piles = tiles
         .iter()
@@ -230,7 +229,7 @@ pub fn on_level(
         .objects
         .iter()
         .filter(|p| p.level == level)
-        .filter_map(|p| drawn(state, data, p))
+        .filter_map(|p| drawn(world, map, data, p))
         .collect();
     let saved = state.into_iter().flat_map(|s| s.ground.keys());
     let cells: BTreeSet<(u16, u16)> = def
@@ -248,8 +247,9 @@ pub fn on_level(
 }
 
 /// A placement as drawn, unless removed or still hidden.
-fn drawn(state: Option<&MapState>, data: &Data, p: &ResolvedPlacement) -> Option<SeenObject> {
-    if removed_in(state, p) || !found_in(state, p) {
+fn drawn(world: &World, map: MapId, data: &Data, p: &ResolvedPlacement) -> Option<SeenObject> {
+    let state = world.maps.get(&map);
+    if removed_in(state, p) || !found_in(&world.known, map, p) {
         return None;
     }
     let kind = data.objects.get(&p.kind)?;

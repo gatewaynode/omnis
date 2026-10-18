@@ -2,13 +2,15 @@
 //! loads in build N+1 (PRD §7.7): the old shape is read as written, then converted.
 
 use crate::event::Event;
+use crate::objects::Knowledge;
 use crate::party::Party;
 use crate::world::{Automap, MapState, Mode, SaveRule, Settings, World};
 use alloc::borrow::ToOwned;
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{Clock, FlagId, HolderId, MapId, Pcg32, Position, StreamName, money};
-use omnis_data::{Ability, Data, PackFingerprint};
+use omnis_data::{Ability, Data, DataError, PackFingerprint};
 use omnis_rules::tactics::TACTICS_NAME_BYTES;
 use omnis_rules::{ActionRef, Criteria, CriteriaSet, Predicate, Trigger, auto_equip, modifier};
 use serde::Deserialize;
@@ -49,6 +51,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         position: old.position,
         maps: old.maps,
         automap: old.automap,
+        known: crate::objects::Knowledge::default(),
         mode: old.mode,
         flags: old.flags,
         settings: Settings {
@@ -155,4 +158,48 @@ pub(crate) fn v6_to_v7(mut world: World, data: &Data) -> World {
     world.contacts.clear();
     world.schema = 7;
     world
+}
+
+/// A whole-world text's knowledge (schemas 1 to 8 as snapshots): before M8.5 7d, what the party
+/// had found and been told was written on the map's state (`noticed` and `told` on an object,
+/// `lore_told` on the map). It is the party's now (`World::known`), read back from those fields;
+/// a world text that already has `known` keeps it.
+pub(crate) fn legacy_knowledge(text: &str) -> Result<Knowledge, DataError> {
+    #[derive(Deserialize, Default)]
+    struct Object {
+        #[serde(default)]
+        noticed: bool,
+        #[serde(default)]
+        told: bool,
+    }
+    #[derive(Deserialize, Default)]
+    struct Map {
+        #[serde(default)]
+        objects: BTreeMap<String, Object>,
+        #[serde(default)]
+        lore_told: BTreeSet<String>,
+    }
+    #[derive(Deserialize)]
+    struct Old {
+        #[serde(default)]
+        maps: BTreeMap<MapId, Map>,
+        #[serde(default)]
+        known: Knowledge,
+    }
+    let old: Old = omnis_data::ron_io::parse(text)?;
+    let mut known = old.known;
+    for (map, state) in old.maps {
+        for (id, object) in state.objects {
+            if object.noticed {
+                known.noticed.insert((map, id.clone()));
+            }
+            if object.told {
+                known.told.insert((map, id));
+            }
+        }
+        known
+            .lore
+            .extend(state.lore_told.into_iter().map(|id| (map, id)));
+    }
+    Ok(known)
 }

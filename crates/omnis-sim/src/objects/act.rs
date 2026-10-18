@@ -140,7 +140,7 @@ pub(crate) fn reachable<'w, 'd>(
                 .flat_map(move |m| m.objects_at(pos.level, x, y))
         })
         .map(|(_, p)| p)
-        .filter(move |p| !removed_in(state, p) && found_in(state, p))
+        .filter(move |p| !removed_in(state, p) && found_in(&world.known, pos.map, p))
         .filter(move |p| seen.insert(p.id.as_str()))
 }
 
