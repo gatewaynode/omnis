@@ -28,6 +28,9 @@ const USAGE: &str = "usage:
   omnis-cli tileset bake <spec.ron>...             bake viewport slot sprites and write the tileset file
   omnis-cli world tidy [--yes]                     list the world-folder files no save under .omnis/
                                                    names; --yes deletes them
+  omnis-cli pack seal <pack-dir> [--version <x.y.z>]
+                                                   record the pack's content hash in pack.ron; a
+                                                   changed pack goes up a patch number
 ";
 
 fn main() -> ExitCode {
@@ -44,6 +47,8 @@ fn main() -> ExitCode {
         ["replay", rest @ ..] => Args::parse(rest).and_then(replay),
         ["wander", rest @ ..] => Args::parse(rest).and_then(wander),
         ["world", "tidy", rest @ ..] => Args::parse(rest).and_then(world_tidy),
+        ["pack", "seal", root] => pack_seal(root, None),
+        ["pack", "seal", root, "--version", version] => pack_seal(root, Some(version)),
         _ => Err(USAGE.trim_end().to_owned()),
     };
     match result {
@@ -53,6 +58,22 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// Seal the pack at `root` (M8.5 7h1): print its version and hash, and whether `pack.ron` moved.
+fn pack_seal(root: &str, version: Option<&str>) -> Result<(), String> {
+    let sealed = omnis_data::seal::seal(Path::new(root), version).map_err(|e| e.to_string())?;
+    println!(
+        "{root}: {} at {}, hash {}",
+        if sealed.changed {
+            "sealed"
+        } else {
+            "already sealed"
+        },
+        sealed.version,
+        sealed.hash
+    );
+    Ok(())
 }
 
 fn validate(roots: &[&str]) -> Result<(), String> {

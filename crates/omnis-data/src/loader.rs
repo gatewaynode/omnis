@@ -155,7 +155,7 @@ pub fn load_packs(roots: &[&Path]) -> Result<Data, LoadReport> {
     let mut raw = Raw::default();
     let mut data = Data::default();
     for root in roots {
-        load_one(root, &mut raw, &mut data, &mut report.errors);
+        load_one(root, &mut raw, &mut data, &mut report.errors, true);
     }
     resolve(raw, &mut data, &mut report.errors);
     if report.is_empty() {
@@ -165,13 +165,46 @@ pub fn load_packs(roots: &[&Path]) -> Result<Data, LoadReport> {
     }
 }
 
-fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataError>) {
+/// The manifest of the pack at `root` and the hash of its content, whatever else is wrong with
+/// it: what `seal` records. Only a manifest that does not read is an error.
+pub(crate) fn content_hash(root: &Path) -> Result<(PackManifest, u64), DataError> {
+    let mut errors = Vec::new();
+    let mut data = Data::default();
+    load_one(root, &mut Raw::default(), &mut data, &mut errors, false);
+    match (data.packs.pop(), data.fingerprints.pop()) {
+        (Some(manifest), Some(print)) => Ok((manifest, print.hash)),
+        _ => Err(errors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| DataError::new(root.join("pack.ron"), "no manifest"))),
+    }
+}
+
+/// Load one pack into `raw` and `data`. `sealed`: refuse it unless its manifest records the
+/// hash of its content (`content_hash` passes false, to compute it).
+fn load_one(
+    root: &Path,
+    raw: &mut Raw,
+    data: &mut Data,
+    errors: &mut Vec<DataError>,
+    sealed: bool,
+) {
     let mut hasher = PackHasher::default();
     let manifest_rel = Path::new("pack.ron");
-    let Some(manifest) = read_checked::<PackManifest>(root, manifest_rel, &mut hasher, errors)
+    let Some(manifest) =
+        read_checked::<PackManifest>(root, manifest_rel, &mut PackHasher::default(), errors)
     else {
         return;
     };
+    // The manifest counts as content by its fields, not its layout, and without its own hash.
+    let unsealed = PackManifest {
+        hash: 0,
+        ..manifest.clone()
+    };
+    match crate::ron_io::to_string(&unsealed) {
+        Ok(text) => hasher.add(manifest_rel, &text),
+        Err(e) => errors.push(e),
+    }
     if !is_pack_id(&manifest.id) {
         errors.push(DataError::new(
             root.join(manifest_rel),
@@ -250,10 +283,29 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
             format!("pack is {} bytes; limit is {MAX_PACK_BYTES}", hasher.bytes),
         ));
     }
+    let hash = hasher.finish();
+    if sealed {
+        let file = root.join(manifest_rel);
+        match manifest.hash {
+            0 => errors.push(DataError::new(
+                file,
+                "the pack is not sealed: record its hash with `omnis-cli pack seal`",
+            )),
+            recorded if recorded != hash => errors.push(DataError::new(
+                file,
+                format!(
+                    "the content changed since version {} was sealed: raise the version and \
+                     reseal with `omnis-cli pack seal`",
+                    manifest.version
+                ),
+            )),
+            _ => {}
+        }
+    }
     data.fingerprints.push(PackFingerprint {
         id: pack,
         version: manifest.version.clone(),
-        hash: hasher.finish(),
+        hash,
     });
     data.packs.push(manifest);
 }

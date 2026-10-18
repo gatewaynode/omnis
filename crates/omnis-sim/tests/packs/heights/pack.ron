@@ -4,6 +4,7 @@
     schema: 1,
     id: "heights",
     version: "0.1.0",
+    hash: 12505019801092055478,
     name: "Omnis elevation fixtures",
     license: "MIT OR Apache-2.0",
     attribution: [],

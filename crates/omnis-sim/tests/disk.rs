@@ -251,8 +251,9 @@ fn other_packs_are_refused_unless_forced() {
 #[test]
 fn a_schema_7_save_converts_and_its_bases_are_written() {
     let data = data();
-    // Unforced, as the window loads: the fixture was made on today's base and test packs.
-    let (world, report) = load_save(&fixture("v7"), &data, false, &mut |p| {
+    // Forced: the fixture was made on the base and test packs before they were sealed (M8.5
+    // 7h1), whose numbering is today's.
+    let (world, report) = load_save(&fixture("v7"), &data, true, &mut |p| {
         Err(format!("a schema-7 save reads no other file, not {p}"))
     })
     .unwrap_or_else(|e| panic!("{e}"));
@@ -279,7 +280,8 @@ fn a_schema_7_save_converts_and_its_bases_are_written() {
             .all(|p| p.contains("/regions/") || p.contains("/world/")),
         "bases, then the manifest, then the save: {order:?}"
     );
-    let (back, report) = read(&disk, &data, false).unwrap_or_else(|e| panic!("{e}"));
+    // Still on the packs the fixture names (made before the seal), so still forced.
+    let (back, report) = read(&disk, &data, true).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(report.converted_from, None);
     assert_eq!(back, kept(&world), "the converted world, saved and loaded");
     let mut tampered = disk.clone();

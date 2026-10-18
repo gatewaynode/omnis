@@ -14,6 +14,11 @@ pub struct PackManifest {
     pub id: String,
     /// Semantic version string.
     pub version: String,
+    /// The hash of the pack's content at this version, recorded by `seal` (M8.5 7h1). The
+    /// loader refuses a pack whose content no longer has it, so content never changes under one
+    /// version. Not part of the hash itself. 0 (left out) is a pack never sealed.
+    #[serde(default, skip_serializing_if = "is_unsealed")]
+    pub hash: u64,
     /// Display name.
     pub name: String,
     /// SPDX licence expression for the pack's own content.
@@ -27,6 +32,12 @@ pub struct PackManifest {
     /// The map a new game starts on. The last loaded pack that sets it wins.
     #[serde(default)]
     pub entry: Option<String>,
+}
+
+/// Whether a manifest's `hash` says the pack was never sealed.
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's `skip_serializing_if` passes a reference
+const fn is_unsealed(hash: &u64) -> bool {
+    *hash == 0
 }
 
 /// Whether `id` is a well-formed pack id: `[a-z0-9_-]+`.

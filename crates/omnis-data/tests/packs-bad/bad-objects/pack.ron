@@ -1,3 +1,3 @@
 // Placement faults (M8.5 step 2), loaded after the base and test packs: their tileset, items and
 // time rules are used, so every error here is about objects and piles.
-(schema: 1, id: "bado", version: "0.1.0", name: "Bad placements", license: "MIT", depends: ["base", "test"])
+(schema: 1, id: "bado", version: "0.1.0", hash: 10059277125330946686, name: "Bad placements", license: "MIT", depends: ["base", "test"])

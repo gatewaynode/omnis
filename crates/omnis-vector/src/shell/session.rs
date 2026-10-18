@@ -277,7 +277,7 @@ impl Packs {
     /// The loader's report for packs that fail to load.
     pub fn load(config: &Config) -> Result<Packs, String> {
         let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
-        let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
+        let data = load_packs(&roots).map_err(|report| report.to_string())?;
         Ok(Packs {
             data: Arc::new(data),
             config: config.clone(),

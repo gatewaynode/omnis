@@ -318,6 +318,7 @@ fn dependencies_must_load_first() {
         r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"])"#,
     )
     .unwrap();
+    omnis_data::seal::seal(&dir, None).unwrap();
     assert!(load_packs(&[&dir]).is_err());
     let [base, test] = common::test_packs();
     let data = load_packs(&[&base, &test, &dir]).unwrap_or_else(|r| panic!("{r}"));
@@ -342,6 +343,7 @@ fn dependencies_must_load_first() {
         r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"], entry: Some("mod:map:none"))"#,
     )
     .unwrap();
+    omnis_data::seal::seal(&dir, None).unwrap();
     let report = load_packs(&[&base, &test, &dir]).unwrap_err();
     assert_eq!(
         report.messages(),

@@ -32,6 +32,7 @@ pub mod registry;
 pub mod rest_event;
 pub mod ron_io;
 pub mod rules;
+pub mod seal;
 pub mod sense;
 pub mod service;
 pub mod spell;

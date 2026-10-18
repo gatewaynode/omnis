@@ -18,6 +18,7 @@ const MANIFEST: &str = r#"(
     schema: 1,
     id: "example",
     version: "0.1.0",
+    hash: 1234567890123456789,
     name: "Example pack",
     license: "CC0-1.0",
     attribution: [("Tiles by someone", "CC0-1.0", "assets/LICENSE.txt")],

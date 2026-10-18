@@ -43,6 +43,7 @@ fn an_undeclared_flag_and_a_flag_without_a_scope_are_the_worlds() {
         r#"(schema: 1, id: "plain:flag:rumour")"#,
     )
     .unwrap();
+    omnis_data::seal::seal(&root, None).unwrap();
     let data = load_packs(&[&base_pack(), &root]).unwrap_or_else(|r| panic!("{r}"));
     let rumour = data.registry.flags.get("plain:flag:rumour").unwrap();
     assert_eq!(data.flag_scope(rumour), FlagScope::World);
