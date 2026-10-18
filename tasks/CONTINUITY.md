@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7f (the saved log) was built. Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7g (docs and pins) was built. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -15,29 +15,33 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7c, flag scope (`data/flags`) | `ae99144` | accepted |
   | 7d, the character save and world folder | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
   | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | accepted 2026-10-18 (`b467758`) |
-  | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7f.md`** |
+  | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
+  | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7g.md`** |
 
-  Then 7g (docs and pins) and 7h (pack changes).
-- **Gate:** `tests passed 929 failed 0 ignored 14`, VERIFY-GREEN at `e04eebf`. Sentrux (scan `crates/`) rules
-  pass, quality 8987.
+  Then 7h (pack changes: name table, remap, migrations, `save.check`, the `PackMismatch` gate lifted).
+- **Gate:** `tests passed 932 failed 0 ignored 15`, VERIFY-GREEN at `9e703b5`. Sentrux rules pass, quality 8982.
+- Owner world doc `docs/background/introduction.md` changed and was committed alone (`63c61c5`).
 
-## 7f as built (read TODO's 7f review for the whole)
-- **Owner's choices (2026-10-18):** History comes from the party's log, not the archive; 16,384 events; the
-  per-step `Visible`, `EncounterCheck` and `TimeAdvanced` stay in memory only; a character save may be 8 MiB.
-- **The log:** `World::log: Vec<Logged { minute, map, event }>`, stamped in `World::record`; `LOG_CAPACITY` is
-  16,384; `log::{history, told, bound}`.
-- **Saving:** `CharacterSave.log` holds the `told` events. `load_save` restores and bounds it. `save_files`
-  refuses a save over `MAX_SAVE_BYTES`, and hosts read saves with `ron_io::read_save_under`.
-- **Client:** `shell::retold` rebuilds the History and the Names, `Session::replace` calls it, `HISTORY` equals
-  `LOG_CAPACITY`, and `history::Entry.folded` caches the filter text.
-- **Measured:** a worst-case save is 4.05 MB. With every event kept it would be about 13 MB, since `Visible` is
-  about 2.8 KB a step.
-- **Not retold:** the client's own lines, a search's "Within reach" summary, and members who left before the save.
+## 7g as built (read TODO's 7g review for the whole)
+- **Owner (2026-10-18):** the PRD gets only §7.7's tidy line; its other save-model drift (D28 "history from
+  the journal", "replays from a base", migrations unbuilt, §7.6, §9.3, §11.1, §14) is listed in
+  `horizons.md` and left as written. Drift outside the save model fixed and pinned.
+- **ARCHITECTURE:** §4.1.1 Saves is now the full account of D28 as built; A19 is its decision row.
+- **Bug fixed:** `save_files` refuses a world file over `MAX_FILE_BYTES` (`fits`), as it does a save over
+  `MAX_SAVE_BYTES`.
+- **Tier 1** re-exports `fold`, `fold_at`, `due`, `FOLD_*`, `archive_path`, `unnamed`, `tidy_list`, `Archived`;
+  clients no longer import `omnis_sim::save`.
+- **Pins:** `api_doc.rs` checks ARCHITECTURE's four counts, README and code-map tool counts and lists, code-map's
+  command list. A **new command, event, rejection, dev command or tool** now also moves ARCHITECTURE §4.2,
+  the README's tool list and `code-map.md`. Frozen schema 8 save `crates/omnis-sim/tests/saves/v8/` (no
+  `.omnis/` prefix: git ignores it); rewrite it only when the schema moves on (`write_the_schema_8_fixture`).
 
 ## Next
-- When the owner says the 7f walk passed, mark 7f accepted in TODO, then plan 7g (docs and pins: ARCHITECTURE
-  §4.1/§4.9/§6.2/§11, `docs/api.md`, MCP schema, `code-map.md`, `horizons.md` with the archive as the world's
-  history for later tools, co-op, character import; PRD note on tidy timing; `MAX_SAVE_BYTES` in §6.2).
+- When the owner says the 7g walk passed, mark 7g accepted in TODO, then plan 7h in plan mode: re-read
+  `tasks/plans/m8.5-saves-by-name.md` (update it, do not replace it) against the save model as built
+  (ARCHITECTURE §4.1.1): name table and remap for the checkpoint, bases and journal; fixed-encounter ids; pack
+  seal; declarative migrations; `save.check` in the load report; `pack.reload` through the remap; the gate lifted.
+  The v1–v8 fixtures must keep loading.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -77,7 +81,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   Sentrux `rescan` and `check_rules`.
 - **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
   in `finally`, `python3 -u` to a file), then `git status` to confirm the sources are clean.
-- **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, `api_doc.rs` pins
+- **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, ARCHITECTURE §4.2's counts, `code-map.md`'s command list (all pinned by `api_doc.rs`), `api_doc.rs` pins
   and `variants!` lists, the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`
   (instances, offered, the drift test's index), `common/commands.rs`, the word in `word.rs`, client
   `labels::refused`.
