@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7d was reworked (the party saved as it stands, a journal of world changes). Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7e (the fold) was built. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -13,40 +13,29 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7a, the journal and its measurement | `8d8773e` | accepted |
   | 7b, `split`/`join` in memory | `d5f14d6` | accepted |
   | 7c, flag scope (`data/flags`) | `ae99144` | accepted |
-  | 7d, the character save and world folder | first `8f4d134`, `1906f45`; reworked `f0977b8`, `55c69b6`, `18f8a2d` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7d.md`** |
+  | 7d, the character save and world folder (reworked: the party as it stands, a journal of world changes) | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
+  | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7e.md`** |
 
-  Then 7e (fold), 7f (full log across loads), 7g (docs and pins), 7h (pack changes).
-- **The rework (owner, 2026-10-17):** "CRPGs often have 4 - 5 second load times"; "saves should only be capturing
-  interactions, movement does not impact the world besides eating time." The owner chose "the party now plus the
-  world's changes" over "replay with travel folded", and found objects and lore told as the party's knowledge.
-  PRD D28 and §7.7 amended (approved in the plan).
-- **Gate:** `tests passed 903 failed 0 ignored 14`, VERIFY-GREEN at `55c69b6`. Sentrux (scan `crates/`) rules
-  pass, quality 8983.
+  Then 7f (full log across loads), 7g (docs and pins), 7h (pack changes).
+- **Gate:** `tests passed 919 failed 0 ignored 14`, VERIFY-GREEN at `b43443c`. Sentrux (scan `crates/`) rules
+  pass, quality 8988.
 
-## 7d as built (read TODO's 7d review for the whole)
-- **The save** `.omnis/quick.ron`: `CharacterSave { schema 8, world id, bases, checkpoint (the party at save
-  time), journal: [Entry { minute, at, command, changes: [Change] }], fingerprint }`, compact RON.
-- **The journal** holds only commands that changed what the world holds. `apply` diffs `Held` (map states,
-  world-scope flags, non-party clocks, contacts and streams) before and after each command. Entering another
-  region IS an entry (its clock and contact are the world's).
-- **Load:** join the bases with the party, `apply_changes` per entry, compare the fingerprint. No rule runs.
-- **`World::known`** (`objects/knowledge.rs`): noticed, told and cell lore, the party's. `World::prune` after
-  every command and on load.
-- **Measured:** 10k wander, 34 interactions, 94 KB, 103 ms; 50k, 166, 158 KB, 297 ms. Most of the save is the
-  automap.
-- **The owner's old `.omnis/quick.ron`** (objects pack, pre-7c) is refused for other packs until 7h; the script
-  uses `crates/omnis-sim/tests/saves/v7.ron` (base and test packs only).
+## 7e as built (read TODO's 7e review for the whole)
+- `save::fold` (cannot fail): `origin` = split of the world, the journal held as `Archived::Held` in
+  `World.archive`, the journal emptied, `Event::Folded { interactions }`, shown as "The world has moved on".
+- **Triggers:** `DevCommand::Fold` (Explore or Town), and a safe point at the end of `apply` (`Rested { long:
+  true }`, `RoomTaken`, `Reconciled` from the party into a Settlement region) when `journal.len() >=
+  fold_interactions` (5000 in code, owner 2026-10-18; no pack sets it).
+- **On disk:** `CharacterSave.archive: [u64]`; segments at `.omnis/worlds/<id>/archive/<hash>.ron`. A load keeps the
+  names only (`Archived::Named`).
+- **Tidy:** `save::{unnamed, tidy_list}`, `ron_io::{list_under, size_under, remove_under}`, `omnis-cli world tidy
+  [--yes]`, and the debug World page's Fold, Tidy and Delete them (`HostOp::Tidy`).
 
 ## Next
-- When the owner says the 7d walk passed, mark 7d accepted in TODO, then plan 7e in plan mode:
-  - a fold applies the journal into new bases (`apply_changes` exists) and archives the entries;
-  - `DevCommand::Fold`, `Event::Folded` (Event 73), the HUD line "The world has moved on";
-  - a provisional threshold by the journal's bytes at safe points (a long rest, entering a settlement);
-  - kept named bases and a manual tidy (`omnis-cli world tidy`).
-
-  Each new command or event moves the API pins (see Process).
-- **Open for 7f:** party-only events (a fight won against a random encounter, a purchase) leave no journal entry,
-  so History across loads needs the party's own chronicle.
+- When the owner says the 7e walk passed, mark 7e accepted in TODO, then plan 7f in plan mode. 7f is the full log
+  (History) across loads, from the archive and the journal. **Open, the owner's call:** party-only events (a
+  fight won against a random encounter, a purchase, a rest) leave no journal entry, so History needs the party's
+  own chronicle (where it lives, how big it grows, whether folds archive it too).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -63,8 +52,8 @@ Durable knowledge lives in `tasks/knowledge/`.
 ## Pins
 - **Replays:** walk `d9f7bb81ad3a7a25`, fight `69264fcb84cbbb06` (rebaselined in 7d; the rework moved neither). `SAVE_SCHEMA` 8,
   `PROTOCOL` 2.
-- **MCP:** command `oneOf` 14, item `oneOf` 10, schema proof 116/166, tools 26, ops 26.
-- **Counts:** `Command` 16, `Event` 72, `Rejection` 71. The base pack has 19 spells.
+- **MCP:** command `oneOf` 14, dev `oneOf` 14, item `oneOf` 10, schema proof 117/168, tools 26, ops 26.
+- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71. The base pack has 19 spells.
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
