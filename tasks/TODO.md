@@ -774,7 +774,7 @@ Vector adoption is complete: CI green, the owner's manual tests passed, `vector-
     - **Gate:** `tests passed 919 failed 0 ignored 14`, VERIFY-GREEN. Sentrux rules pass, quality 8988.
       Two commits, not three: the engine's new event and dev command need the client's exhaustive matches in
       the same change to compile.
-  - [ ] 7f. Full log across loads. Owner (2026-10-18): History comes from the party's log, saved (not the archive); 16,384 events; the per-step `Visible`, `EncounterCheck`, `TimeAdvanced` stay in memory only; a character save may be 8 MiB. All items built (2026-10-18); awaiting the owner's walk of `tasks/acceptance/m8.5-7f.md`.
+  - [x] 7f. Full log across loads. Owner (2026-10-18): History comes from the party's log, saved (not the archive); 16,384 events; the per-step `Visible`, `EncounterCheck`, `TimeAdvanced` stay in memory only; a character save may be 8 MiB. All items built (2026-10-18); **accepted by the owner 2026-10-18** ("Manually tested, on to 7g") on their walk of `tasks/acceptance/m8.5-7f.md`.
     - [x] `World::log` of `Logged { minute, map, event }`, stamped in `record`; `LOG_CAPACITY` 16,384; `events.tail` unchanged in shape.
     - [x] `CharacterSave.log` (the events `told` keeps), restored by `load_save` and bounded; a fold leaves it be.
     - [x] `MAX_SAVE_BYTES` 8 MiB: `ron_io::read_save_under` for the hosts' save reads and tidy; `save_files` refuses a larger save.
