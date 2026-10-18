@@ -2,7 +2,7 @@
 
 use crate::command::{Command, Rejection};
 use crate::event::{BlockReason, Event, MessageKey};
-use crate::journal::Entry;
+use crate::journal::{Entry, Held};
 use crate::names::{Place, id_of};
 use crate::objects::Choice;
 use crate::party::{self, PartyCommand};
@@ -18,6 +18,7 @@ use omnis_data::{Data, Join, MapData};
 /// Apply one command. A `Rejection` leaves the world unchanged; every `Ok` advances `turn`,
 /// appends the events to the log, and ends with what the party now sees.
 pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Event>, Rejection> {
+    let held = Held::of(world, data);
     let mut events = Vec::new();
     match (&world.mode, &command) {
         (_, Command::Dev(edit)) => dev::apply(world, data, edit, &mut events)?,
@@ -77,8 +78,15 @@ pub fn apply(world: &mut World, data: &Data, command: Command) -> Result<Vec<Eve
     world.prune();
     world.turn += 1;
     world.record(&events);
-    let minute = world.party_clock().elapsed;
-    world.journal.push(Entry { minute, command });
+    let changes = held.changes_to(&Held::of(world, data));
+    if !changes.is_empty() {
+        world.journal.push(Entry {
+            minute: world.party_clock().elapsed,
+            at: world.position,
+            command,
+            changes,
+        });
+    }
     Ok(events)
 }
 

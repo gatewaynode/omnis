@@ -536,8 +536,6 @@ pub struct Game<'a> {
     pub unreplayable: Option<&'a str>,
     /// Every line of the session, for the full log.
     pub history: &'a crate::history::History,
-    /// What the session's commands cost, for the debug panel.
-    pub timing: crate::bind::Timing,
 }
 
 /// The quick save: where it is, and whether there is one to load.

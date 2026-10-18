@@ -1,11 +1,13 @@
 //! The files of a save (PRD D28, M8.5 7d), as text and relative paths; the host writes and reads
 //! them. A world folder `.omnis/worlds/<id>/` holds the manifest and the bases, each base named
-//! by the hash of its text; the character save names the folder and its bases. A schema 1 to 7
-//! save, a whole world, is converted on load: the world becomes the base its journal starts from.
+//! by the hash of its text; the character save names the folder and its bases, and holds the
+//! party as it stands and the journal of the world's changes since. A load lays the changes over
+//! the bases and runs no rule. A schema 1 to 7 save, a whole world, is converted on load: the
+//! world becomes the base of an empty journal.
 
-use super::character::{BaseNames, CharacterSave, expand, is_world_id, runs, world_id};
-use super::{Manifest, RegionBase, Split, WorldBase, join, split};
-use crate::apply::apply;
+use super::character::{BaseNames, CharacterSave, is_world_id, world_id};
+use super::{Bases, Manifest, RegionBase, Split, WorldBase, join, split};
+use crate::journal::apply_changes;
 use crate::ops::OpError;
 use crate::save::JoinError;
 use crate::world::{LoadError, SAVE_SCHEMA, World};
@@ -35,17 +37,17 @@ pub struct FileOut {
 /// What a load did.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Restored {
-    /// Commands replayed from the save's journal.
-    pub replayed: usize,
+    /// Interactions of the save's journal whose changes were laid over the bases.
+    pub applied: usize,
     /// The schema of an older save made the base of a new journal.
     pub converted_from: Option<u32>,
 }
 
-/// The parts a new game on the world's seed and settings starts from: base 0.
-fn base_zero(data: &Data, manifest: &Manifest, world: &World) -> Result<Split, String> {
+/// What a new game on the world's seed and settings holds: base 0.
+fn base_zero(data: &Data, manifest: &Manifest, world: &World) -> Result<Bases, String> {
     let mut fresh = World::new(data, manifest.seed, world.settings).map_err(|e| e.to_string())?;
     fresh.packs.clone_from(&manifest.packs);
-    Ok(split(&fresh, data))
+    Ok(split(&fresh, data).into())
 }
 
 /// The path of a region's base: its string id's pack and name as folders.
@@ -72,23 +74,23 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         packs: world.packs.clone(),
     };
     let id = world_id(&manifest).map_err(|e| failed(&e))?;
-    let origin = match &world.origin {
+    let bases = match &world.origin {
         Some(origin) => origin.clone(),
         None => base_zero(data, &manifest, world).map_err(|e| failed(&e))?,
     };
     let mut files = Vec::new();
-    let mut bases = BaseNames::default();
-    if !origin.world.is_empty() {
-        let text = to_string(&origin.world).map_err(|e| failed(&e))?;
+    let mut names = BaseNames::default();
+    if !bases.world.is_empty() {
+        let text = to_string(&bases.world).map_err(|e| failed(&e))?;
         let hash = fnv1a64(text.as_bytes());
-        bases.world = Some(hash);
+        names.world = Some(hash);
         files.push(FileOut {
             path: format!("{WORLDS}/{id}/world/{hash:016x}.ron"),
             text,
             keep: true,
         });
     }
-    for (region, base) in &origin.regions {
+    for (region, base) in &bases.regions {
         let name = data
             .registry
             .regions
@@ -96,7 +98,7 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
             .ok_or_else(|| OpError::failed(format!("region {region:?} is not loaded")))?;
         let text = to_string(base).map_err(|e| failed(&e))?;
         let hash = fnv1a64(text.as_bytes());
-        bases.regions.insert(name.into(), hash);
+        names.regions.insert(name.into(), hash);
         files.push(FileOut {
             path: region_path(&id, name, hash).map_err(|e| failed(&e))?,
             text,
@@ -111,9 +113,9 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
     let save = CharacterSave {
         schema: SAVE_SCHEMA,
         world: id,
-        bases,
-        checkpoint: origin.checkpoint,
-        journal: runs(&world.journal),
+        bases: names,
+        checkpoint: split(world, data).checkpoint,
+        journal: world.journal.clone(),
         fingerprint: world.fingerprint().map_err(|e| failed(&e))?,
     };
     files.push(FileOut {
@@ -141,9 +143,10 @@ fn base<T: serde::de::DeserializeOwned>(
 
 /// A save's world, from its text and, for a character save, the world folder's files through
 /// `read` (a relative path to its text). An older whole-world save is converted: it becomes the
-/// base of an empty journal. A character save's bases are joined and its journal replayed to the
-/// fingerprint it recorded (unless `force` loaded it on other packs). `force` passes other packs,
-/// never a save that does not hold together.
+/// base of an empty journal. A character save's bases are joined with its party, and its
+/// journal's changes laid over them, in order, to the fingerprint it recorded (unless `force`
+/// loaded it on other packs). No rule runs. `force` passes other packs, never a save that does
+/// not hold together.
 pub fn load_save(
     text: &str,
     data: &Data,
@@ -157,9 +160,9 @@ pub fn load_save(
     let header: Header = parse(text).map_err(LoadError::Parse)?;
     if header.schema < SAVE_SCHEMA {
         let mut world = World::from_ron(text, data, force)?;
-        world.origin = Some(split(&world, data));
+        world.origin = Some(split(&world, data).into());
         let report = Restored {
-            replayed: 0,
+            applied: 0,
             converted_from: Some(header.schema),
         };
         return Ok((world, report));
@@ -181,10 +184,9 @@ pub fn load_save(
     if world_id(&manifest).map_err(LoadError::Parse)? != id {
         return Err(LoadError::BadSave(format!("{path} is not the world {id}")));
     }
-    // Other packs are refused by `join`'s checks unless forced; forced, the replay cannot be
-    // held to the fingerprint the old packs reached.
+    // Other packs are refused by `join`'s checks unless forced; forced, the world cannot be
+    // held to the fingerprint the old packs gave it.
     let packs_differ = manifest.packs != data.fingerprints;
-    let commands = expand(&save.journal)?;
     let world_base: WorldBase = match save.bases.world {
         Some(hash) => base(&format!("{WORLDS}/{id}/world/{hash:016x}.ron"), hash, read)?,
         None => WorldBase::default(),
@@ -211,12 +213,12 @@ pub fn load_save(
         JoinError::Duplicate(what) => LoadError::BadSave(format!("two parts hold {what}")),
     })?;
     let zero = base_zero(data, &parts.manifest, &world).map_err(LoadError::BadSave)?;
-    world.origin = (parts != zero).then_some(parts);
-    for (index, command) in commands.iter().enumerate() {
-        apply(&mut world, data, command.clone())
-            .map_err(|rejection| LoadError::Replay { index, rejection })?;
+    let bases = Bases::from(parts);
+    world.origin = (bases != zero).then_some(bases);
+    for entry in save.journal.entries() {
+        apply_changes(&mut world, &entry.changes);
     }
-    world.log.clear();
+    world.journal = save.journal;
     let actual = world.fingerprint().map_err(LoadError::Parse)?;
     if !packs_differ && actual != save.fingerprint {
         return Err(LoadError::Diverged {
@@ -225,7 +227,7 @@ pub fn load_save(
         });
     }
     let report = Restored {
-        replayed: commands.len(),
+        applied: world.journal.len(),
         converted_from: None,
     };
     Ok((world, report))

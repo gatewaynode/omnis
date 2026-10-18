@@ -7,10 +7,11 @@ use omnis_data::{
     Background, Class, Condition, DataError, FlagDef, Item, MapDef, Monster, PackFingerprint,
     PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
+use omnis_sim::api::Change;
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
-use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest, Run};
+use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest};
 use omnis_sim::world::SAVE_SCHEMA;
-use omnis_sim::{Command, Op, PARTY, Replay};
+use omnis_sim::{Command, Entry, Op, PARTY, Replay};
 use std::collections::BTreeMap;
 
 const MANIFEST: &str = r#"(
@@ -315,8 +316,9 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         version: "0.1.0".into(),
         hash: 0x0123_4567_89ab_cdef,
     };
-    // A character save (PRD D28, M8.5 7d): the party at the world's base, the commands since in
-    // runs, and the bases it names in its world folder. Written as one line; shown pretty here.
+    // A character save (PRD D28, M8.5 7d): the party as it stands, the interactions since the
+    // world's base with the changes each made, and the bases it names in its world folder.
+    // Written as one line; shown pretty here.
     let checkpoint = Checkpoint {
         party: Default::default(),
         party_time: Default::default(),
@@ -339,7 +341,6 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         settings: Default::default(),
         turn: 0,
     };
-    let forward = Command::Step(omnis_sim::omnis_core::Direction::Forward);
     let save = CharacterSave {
         schema: SAVE_SCHEMA,
         world: "0123456789abcdef".into(),
@@ -347,17 +348,18 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             world: None,
             regions: BTreeMap::from([("example:region:vale".to_owned(), 0x0fed_cba9_8765_4321)]),
         },
-        checkpoint,
-        journal: vec![
-            Run {
-                command: forward.clone(),
-                times: 3,
-            },
-            Run {
-                command: Command::Turn(omnis_sim::omnis_core::Rotation::Left),
-                times: 1,
-            },
-        ],
+        checkpoint: checkpoint.clone(),
+        journal: vec![Entry {
+            minute: 42,
+            at: checkpoint.position,
+            command: Command::Door,
+            changes: vec![Change::Door {
+                map: MapId(0),
+                edge: (0, 0, Facing::East),
+                open: true,
+            }],
+        }]
+        .into(),
         fingerprint: 0,
     };
     let manifest = Manifest {

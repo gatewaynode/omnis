@@ -1,13 +1,14 @@
-//! The character save and the world folder (PRD D28, M8.5 7d): a save is the party's checkpoint at
-//! the world's last base, the journal since, and the names of the bases, which sit in a folder of
-//! their own. Loading joins the bases and replays the journal. Here the files are a map in memory,
-//! as a host would write and read them.
+//! The character save and the world folder (PRD D28, M8.5 7d): a save is the party as it stands,
+//! the journal of interactions since the world's last base with the changes each made, and the
+//! names of the bases, which sit in a folder of their own. Loading joins the bases with the party
+//! and lays the changes over them; no rule runs. Here the files are a map in memory, as a host
+//! would write and read them.
 
 use crate::common;
 use common::{data, step, world};
 use omnis_data::Data;
 use omnis_data::ron_io::read_ron;
-use omnis_sim::save::{MAX_JOURNAL, Restored, load_save, save_files};
+use omnis_sim::save::{Restored, load_save, save_files};
 use omnis_sim::{Command, LoadError, Mode, Replay, SaveRule, Settings, World, apply};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -53,14 +54,6 @@ fn read(
     })
 }
 
-/// `world` made the base its journal starts from, as a fold will (7e): the test helpers place a
-/// party and fill a purse without commands, which no journal could replay.
-fn based(mut world: World, data: &Data) -> World {
-    world.origin = Some(omnis_sim::save::split(&world, data));
-    world.journal = Default::default();
-    world
-}
-
 /// The world as a load gives it back: everything but the log of events already seen.
 fn kept(world: &World) -> World {
     let mut kept = world.clone();
@@ -78,7 +71,7 @@ fn round_trip(world: &World, data: &Data, at: &str) -> Restored {
 }
 
 #[test]
-fn a_new_games_save_names_no_bases_and_replays_its_journal() {
+fn a_new_games_save_names_no_bases_and_making_a_party_journals_nothing() {
     let data = data();
     let mut world = World::new(&data, 3, Settings::default()).unwrap();
     common::party_of(&mut world, &data, 2);
@@ -92,10 +85,10 @@ fn a_new_games_save_names_no_bases_and_replays_its_journal() {
     assert!(text.contains("schema:8"), "{text}");
     let (back, report) = read(&disk, &data, false).unwrap();
     assert_eq!(back, kept(&world));
-    assert_eq!(report.replayed, 2, "the two drafts");
+    assert_eq!(report.applied, 0, "the drafts change only the party");
     assert_eq!(report.converted_from, None);
-    assert_eq!(back.journal, world.journal, "rebuilt by the replay");
-    assert!(back.log.is_empty(), "the replay's events are not news");
+    assert!(back.journal.is_empty());
+    assert!(back.log.is_empty(), "a load makes no news");
 }
 
 #[test]
@@ -117,7 +110,7 @@ fn both_goldens_save_and_load_along_the_way() {
 #[test]
 fn a_save_in_a_service_and_mid_fight_load_back() {
     let data = data();
-    let mut inn = based(common::inside(&data, "inn"), &data);
+    let mut inn = common::inside(&data, "inn");
     round_trip(&inn, &data, "at the inn");
     apply(
         &mut inn,
@@ -125,7 +118,7 @@ fn a_save_in_a_service_and_mid_fight_load_back() {
         Command::Service(omnis_sim::ServiceCommand::Leave),
     )
     .unwrap();
-    round_trip(&inn, &data, "out of the inn, a command after its base");
+    round_trip(&inn, &data, "out of the inn");
     let replay = golden("fight");
     let mut world = World::new(&data, replay.seed, replay.settings).unwrap();
     for command in &replay.commands {
@@ -138,30 +131,57 @@ fn a_save_in_a_service_and_mid_fight_load_back() {
     panic!("the golden fight fights");
 }
 
+/// A party set down by hand, then walking and turning: the party is saved as it stands, so
+/// nothing of the walk is journaled.
 #[test]
-fn repeated_commands_are_one_run() {
+fn walking_journals_nothing_and_a_party_placed_by_hand_saves_as_it_stands() {
     let data = data();
-    let mut world = based(world(&data), &data);
-    for _ in 0..5 {
-        apply(&mut world, &data, Command::Turn(omnis_core::Rotation::Left)).unwrap();
+    let mut world = world(&data);
+    for n in 0..200 {
+        if n % 3 == 0 {
+            apply(&mut world, &data, Command::Turn(omnis_core::Rotation::Left)).unwrap();
+        } else {
+            step(&mut world, &data);
+        }
     }
-    step(&mut world, &data);
+    assert!(world.journal.is_empty(), "{:?}", world.journal);
     let mut disk = BTreeMap::new();
     write(&world, &data, &mut disk);
-    let text = &disk[SAVE];
-    assert_eq!(text.matches("Turn(Left)").count(), 1, "{text}");
-    assert!(text.contains("times:5"), "{text}");
+    assert!(disk[SAVE].contains("journal:[]"), "{}", disk[SAVE]);
     let (back, report) = read(&disk, &data, false).unwrap();
-    assert_eq!(report.replayed, 6);
+    assert_eq!(report.applied, 0);
     assert_eq!(back, kept(&world));
 }
 
-/// A save file edited to say something false is refused, and nothing is replayed past a lie.
+/// A save made after the rules changed under it (the dev socket's `rules.set`) loads: no rule
+/// runs on load.
+#[test]
+fn a_save_loads_after_the_rules_change() {
+    let data = data();
+    let replay = golden("walk");
+    let mut world = World::new(&data, replay.seed, replay.settings).unwrap();
+    for command in &replay.commands {
+        apply(&mut world, &data, command.clone()).unwrap();
+    }
+    let mut disk = BTreeMap::new();
+    write(&world, &data, &mut disk);
+    let mut changed = common::data();
+    omnis_sim::ops::rules_set(&mut changed, "encounter.random", "true")
+        .unwrap_or_else(|e| panic!("{e}"));
+    let (back, _) = read(&disk, &changed, false).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(back, kept(&world));
+}
+
+/// A save file edited to say something false is refused.
 #[test]
 fn a_save_that_does_not_hold_together_is_refused() {
     let data = data();
-    let mut world = based(world(&data), &data);
-    step(&mut world, &data);
+    let replay = golden("walk");
+    let mut world = World::new(&data, replay.seed, replay.settings).unwrap();
+    for command in &replay.commands {
+        apply(&mut world, &data, command.clone()).unwrap();
+    }
+    assert!(!world.journal.is_empty(), "the walk changes the world");
     let mut disk = BTreeMap::new();
     write(&world, &data, &mut disk);
     let edit = |from: &str, to: &str| {
@@ -170,23 +190,17 @@ fn a_save_that_does_not_hold_together_is_refused() {
         bad.insert(SAVE.to_owned(), text);
         bad
     };
-    assert!(matches!(
-        read(
-            &edit("Step(Forward)", "Step(Forward),times:0"),
-            &data,
-            false
+    assert!(
+        matches!(
+            read(
+                &edit("changes:[", "changes:[Flag(flag:0,value:Some(9)),"),
+                &data,
+                false
+            ),
+            Err(LoadError::Diverged { .. })
         ),
-        Err(LoadError::BadSave(_))
-    ));
-    let huge = format!("Step(Forward),times:{}", MAX_JOURNAL + 1);
-    assert!(matches!(
-        read(&edit("Step(Forward)", &huge), &data, false),
-        Err(LoadError::BadSave(_))
-    ));
-    assert!(matches!(
-        read(&edit("Step(Forward)", "Encounter(Attack)"), &data, false),
-        Err(LoadError::Replay { index: 0, .. })
-    ));
+        "a change the play never made"
+    );
     let fingerprint = world.fingerprint().unwrap().to_string();
     assert!(matches!(
         read(&edit(&fingerprint, "1"), &data, false),
@@ -214,7 +228,7 @@ fn a_save_that_does_not_hold_together_is_refused() {
 #[test]
 fn other_packs_are_refused_unless_forced() {
     let data = data();
-    let mut world = based(world(&data), &data);
+    let mut world = world(&data);
     step(&mut world, &data);
     let mut disk = BTreeMap::new();
     write(&world, &data, &mut disk);
@@ -237,7 +251,7 @@ fn a_schema_7_save_converts_and_its_bases_are_written() {
     })
     .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(report.converted_from, Some(7));
-    assert_eq!(report.replayed, 0);
+    assert_eq!(report.applied, 0);
     assert!(world.journal.is_empty());
     assert!(world.origin.is_some(), "the old world is the new base");
     let mut disk = BTreeMap::new();

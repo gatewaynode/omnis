@@ -71,15 +71,15 @@ pub use crate::objects_view::{
 };
 // Groups standing in view (M8.5 step 2c), and what a client draws of a whole level.
 pub use crate::beings::{BeingView, on_level as beings_on_level};
-pub use crate::journal::journal_len;
+pub use crate::journal::{Change, apply_changes, journal_len};
 pub use crate::query::{
     EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flag_scope, flags, here, map_text,
     site_ahead, step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::save::{
-    BaseNames, CharacterSave, Checkpoint, FileOut, Holdings, JoinError, MAX_JOURNAL, Manifest,
-    RegionBase, RegionSize, Restored, Run, Split, SplitReport, WORLDS, WorldBase, join, load_save,
+    BaseNames, Bases, CharacterSave, Checkpoint, FileOut, Holdings, JoinError, Manifest,
+    RegionBase, RegionSize, Restored, Split, SplitReport, WORLDS, WorldBase, join, load_save,
     save_files, split, split_report,
 };
 pub use crate::service_view::{OfferView, ServiceView, service_view};

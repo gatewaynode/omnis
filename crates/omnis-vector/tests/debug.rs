@@ -520,55 +520,31 @@ fn texts(screen: &screen::Screen) -> Vec<String> {
 }
 
 #[test]
-fn the_world_page_counts_the_journal_and_times_a_replay() {
+fn the_world_page_counts_the_journal_and_turning_adds_nothing() {
     let mut session = town();
     let mut forms = Forms::default();
     page(&mut forms, Page::World);
     let before = session.views.journal;
-    let lines = texts(&shown(&session, &forms));
-    assert!(
-        lines.contains(&format!(
-            "Journal: {before} commands since the start or the last load"
-        )),
-        "{lines:?}"
-    );
-    let untimed = common::ctx(&session.data, &session.world, &session.views);
-    let lines = texts(&screen::content(ScreenId::Debug, &untimed, &forms));
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.starts_with("Replay timing: none yet")),
-        "a session that applied nothing has nothing to time: {lines:?}"
-    );
+    let line = |n: usize| {
+        let word = if n == 1 {
+            "interaction"
+        } else {
+            "interactions"
+        };
+        format!("Journal: {n} {word} since the world's base")
+    };
+    assert!(texts(&shown(&session, &forms)).contains(&line(before)));
     for _ in 0..3 {
         session
             .ordered(Command::Turn(Rotation::Left))
             .expect("a turn in town");
     }
-    assert_eq!(session.views.journal, before + 3, "one entry a command");
-    let lines = texts(&shown(&session, &forms));
-    assert!(
-        lines.contains(&format!(
-            "Journal: {} commands since the start or the last load",
-            before + 3
-        )),
-        "{lines:?}"
+    assert_eq!(
+        session.views.journal, before,
+        "turning changes only the party"
     );
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.starts_with("Replay would take about ")
-                && l.ends_with("measured this session)")),
-        "{lines:?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.to_lowercase().contains("commands an hour")),
-        "{lines:?}"
-    );
+    assert!(texts(&shown(&session, &forms)).contains(&line(before)));
 }
-
 #[test]
 fn split_shows_the_parts_and_the_round_trip_until_the_world_moves() {
     let mut session = town();

@@ -122,7 +122,7 @@ impl SimWorld {
         omnis_sim::api::split_report(&self.0, data).map_err(|e| e.to_string())
     }
 
-    /// How many commands a load would replay (`api::journal_len`).
+    /// How many interactions a load lays over the bases (`api::journal_len`).
     #[must_use]
     pub fn journal_len(&self) -> usize {
         omnis_sim::api::journal_len(&self.0)
@@ -319,7 +319,7 @@ pub struct Views {
     /// The objects in reach with their interactions, and the pile on the party's cell (M8.5
     /// step 2b).
     pub objects: ObjectsView,
-    /// How many commands the engine has journaled since the start or the last load (M8.5 7a).
+    /// How many interactions the engine has journaled since the world's base (M8.5 7d).
     pub journal: usize,
 }
 

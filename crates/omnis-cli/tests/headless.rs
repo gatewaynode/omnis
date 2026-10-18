@@ -134,7 +134,11 @@ fn schema_dump_sections_parse_with_the_real_types() {
         (900, "time.settled")
     );
     let save = parse::<CharacterSave>(&body("# save (schema 8)\n")).unwrap();
-    assert_eq!(save.journal[0].times, 3);
+    assert_eq!(
+        save.journal.entries()[0].changes.len(),
+        1,
+        "one door opened"
+    );
     parse::<Manifest>(&body("# .omnis/worlds/<id>/manifest.ron\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =

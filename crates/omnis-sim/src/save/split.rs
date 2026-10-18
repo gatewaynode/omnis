@@ -8,14 +8,14 @@ use omnis_data::{Data, FlagScope};
 
 /// Whose a clock, a contact or a stream is.
 #[derive(Clone, Copy)]
-enum Owner {
+pub(crate) enum Owner {
     Party,
     Region(RegionId),
     World,
 }
 
 /// A holder's owner: a party's is the checkpoint, a region's its base, any other the world.
-fn owner_of(holder: HolderId) -> Owner {
+pub(crate) fn owner_of(holder: HolderId) -> Owner {
     match holder {
         HolderId::Party(_) => Owner::Party,
         HolderId::Region(r) => Owner::Region(r),
@@ -26,7 +26,7 @@ fn owner_of(holder: HolderId) -> Owner {
 /// A stream's owner, read from the holders its name carries (`time:party:0:region:3`): any
 /// holder that is neither a party nor a region makes it the world's, else the first region
 /// named owns it, else the party. A bare name (`combat`) is the party's.
-fn stream_owner(name: &StreamName) -> Owner {
+pub(crate) fn stream_owner(name: &StreamName) -> Owner {
     let mut parts = name.0.split(':').skip(1);
     let mut region = None;
     while let (Some(kind), Some(index)) = (parts.next(), parts.next()) {

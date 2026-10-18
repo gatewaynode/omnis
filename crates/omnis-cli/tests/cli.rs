@@ -162,7 +162,7 @@ fn wander_writes_a_replay_that_replay_times() {
     assert!(ok, "{err}");
     assert!(out.starts_with("ok: 120 commands reproduce"), "{out}");
     assert!(out.contains("µs a command"), "{out}");
-    assert!(out.contains("bytes a journal entry"), "{out}");
+    assert!(out.contains(" interactions, "), "{out}");
     let (ok, _, err) = cli(&["wander", "--commands", "5"]);
     assert!(!ok && err.contains("--out"), "{err}");
 }

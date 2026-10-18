@@ -10,13 +10,12 @@ mod join;
 mod report;
 mod split;
 
-pub use character::{
-    BaseNames, CharacterSave, MAX_JOURNAL, Run, expand, is_world_id, runs, world_id,
-};
+pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
 pub use disk::{FileOut, Restored, WORLDS, load_save, save_files};
 pub use join::{JoinError, join};
 pub use report::{RegionSize, SplitReport, split_report};
 pub use split::split;
+pub(crate) use split::{Owner, owner_of, stream_owner};
 
 use crate::bus::Bus;
 use crate::objects::Knowledge;
@@ -121,6 +120,25 @@ pub struct Checkpoint {
     pub settings: Settings,
     /// Commands applied so far.
     pub turn: u64,
+}
+
+/// What the world holds at a base: the world's part and each region's. The journal's changes
+/// lie over them.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Bases {
+    /// What belongs to no region.
+    pub world: WorldBase,
+    /// Each region play has touched.
+    pub regions: BTreeMap<RegionId, RegionBase>,
+}
+
+impl From<Split> for Bases {
+    fn from(split: Split) -> Bases {
+        Bases {
+            world: split.world,
+            regions: split.regions,
+        }
+    }
 }
 
 /// A world in its parts.

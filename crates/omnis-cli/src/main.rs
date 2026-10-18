@@ -162,8 +162,8 @@ fn packs(args: &Args) -> Result<Data, String> {
     load_packs(&roots).map_err(|report| report.to_string())
 }
 
-/// A replay checked as `replay` does, with what it cost: the replay itself (the work a load by
-/// replay does, PRD D28), the fingerprint, and the journal it rebuilt.
+/// A replay checked as `replay` does, with what it cost: the replay itself, the fingerprint, and
+/// the journal of interactions it left (what a save carries, PRD D28).
 fn timed(replay: &Replay, data: &Data) -> Result<(), String> {
     if replay.packs != data.fingerprints {
         return Err(omnis_sim::ReplayError::PackMismatch.to_string());
@@ -183,7 +183,7 @@ fn timed(replay: &Replay, data: &Data) -> Result<(), String> {
         return Err(diverged.to_string());
     }
     let n = replay.commands.len().max(1);
-    let journal = ron_io::to_string(&world.journal).map_err(|e| e.to_string())?;
+    let journal = ron_io::to_compact(&world.journal).map_err(|e| e.to_string())?;
     println!(
         "ok: {} commands reproduce fingerprint {fingerprint:016x}",
         replay.commands.len()
@@ -195,9 +195,9 @@ fn timed(replay: &Replay, data: &Data) -> Result<(), String> {
         hashed.as_millis()
     );
     println!(
-        "journal: {} entries, {} bytes a journal entry; the party lived {} minutes",
+        "journal: {} interactions, {} bytes; the party lived {} minutes",
         world.journal.len(),
-        journal.len() / n,
+        journal.len(),
         world.party_clock().elapsed
     );
     Ok(())

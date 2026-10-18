@@ -50,7 +50,7 @@ pub fn save(world: &SimWorld, data: &Data, root: &Path, path: &str) -> Result<Pa
 pub struct Loaded {
     /// The world.
     pub world: World,
-    /// "replayed 412 commands in 9 ms", or "converted from a schema 7 save".
+    /// "12 interactions applied in 3 ms", or "converted from a schema 7 save".
     pub said: String,
 }
 
@@ -59,16 +59,20 @@ fn said(restored: Restored, millis: u128) -> String {
     match restored.converted_from {
         Some(schema) => format!("converted from a schema {schema} save"),
         None => {
-            let n = restored.replayed;
-            let commands = if n == 1 { "command" } else { "commands" };
-            format!("replayed {n} {commands} in {millis} ms")
+            let n = restored.applied;
+            let interactions = if n == 1 {
+                "interaction"
+            } else {
+                "interactions"
+            };
+            format!("{n} {interactions} applied in {millis} ms")
         }
     }
 }
 
 /// The world saved at `path` under `root`: an older save converted, a character save joined from
-/// its world folder and its journal replayed, checked against `data`; with `force`, a save made
-/// with other packs loads anyway.
+/// its world folder with its journal's changes laid over, checked against `data`; with `force`,
+/// a save made with other packs loads anyway.
 ///
 /// # Errors
 /// The path is refused, a file is missing, too large or a link, or it is not a save these packs

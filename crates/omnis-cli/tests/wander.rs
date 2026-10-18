@@ -80,7 +80,7 @@ fn a_wanders_world_splits_and_joins_back_all_the_way() {
 fn journal_timing() {
     let data = data();
     println!(
-        "commands | apply µs/cmd | replay ms | replay µs/cmd | journal B/entry | events B/cmd | maps | fights | game hours | save KB (compact runs) | save KB (pretty runs) | runs | load ms"
+        "commands | apply µs/cmd | replay ms | interactions | journal KB | save KB | load ms | maps | fights | game hours"
     );
     for commands in [10_000, 50_000] {
         let start = Instant::now();
@@ -92,14 +92,14 @@ fn journal_timing() {
             replay_world(&data, r.seed, r.settings, &r.commands).unwrap_or_else(|e| panic!("{e}"));
         let replayed = start.elapsed();
         assert_eq!(world.fingerprint().unwrap(), r.fingerprint);
-        let journal = omnis_data::ron_io::to_string(&world.journal).unwrap().len();
-        // The character save as written (compact, run-length), and as pretty RON for comparison.
+        let journal = omnis_data::ron_io::to_compact(&world.journal)
+            .unwrap()
+            .len();
+        // The character save as written: the party as it stands and the interactions.
         let files = omnis_sim::save::save_files(&world, &data, "x.ron").unwrap();
         let save = &files.last().unwrap().text;
-        let parsed: omnis_sim::save::CharacterSave = omnis_data::ron_io::parse(save).unwrap();
-        let pretty = omnis_data::ron_io::to_string(&parsed).unwrap().len();
         let start = Instant::now();
-        let (loaded, _) = omnis_sim::save::load_save(save, &data, false, &mut |p| {
+        let (loaded, report) = omnis_sim::save::load_save(save, &data, false, &mut |p| {
             files
                 .iter()
                 .find(|f| f.path == p)
@@ -109,20 +109,16 @@ fn journal_timing() {
         .unwrap();
         let load_ms = start.elapsed().as_millis();
         assert_eq!(loaded.fingerprint().unwrap(), r.fingerprint);
-        let per = |d: std::time::Duration| d.as_micros() / commands as u128;
         println!(
-            "{commands} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {load_ms}",
-            per(played),
+            "{commands} | {} | {} | {} | {} | {} | {load_ms} | {} | {} | {}",
+            played.as_micros() / commands as u128,
             replayed.as_millis(),
-            per(replayed),
-            journal / commands,
-            walk.event_bytes / commands,
+            report.applied,
+            journal / 1024,
+            save.len() / 1024,
             walk.maps,
             walk.fights,
             walk.minutes / 60,
-            save.len() / 1024,
-            pretty / 1024,
-            parsed.journal.len(),
         );
     }
 }

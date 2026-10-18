@@ -3,7 +3,6 @@
 
 use crate::bus::Bus;
 use crate::combat::CombatState;
-use crate::command::Rejection;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
 use crate::journal::Journal;
@@ -297,14 +296,14 @@ pub struct World {
     /// fingerprint.
     #[serde(skip)]
     pub log: Vec<Event>,
-    /// Every command accepted since the world's base (PRD D28). Rebuilt by a replay; the
-    /// character save carries it (M8.5 7d); not part of the fingerprint.
+    /// The interactions since the world's base and what each changed (PRD D28). The character
+    /// save carries it (M8.5 7d); not part of the fingerprint.
     #[serde(skip)]
     pub journal: Journal,
-    /// The parts the journal starts from: `None` for base 0, a new game on the world's seed and
-    /// settings; a converted old save or a fold sets them (M8.5 7d). Not part of the fingerprint.
+    /// The bases the journal's changes lie over: `None` for base 0, the packs as written; a
+    /// converted old save or a fold sets them (M8.5 7d). Not part of the fingerprint.
     #[serde(skip)]
-    pub origin: Option<crate::save::Split>,
+    pub origin: Option<crate::save::Bases>,
 }
 
 /// Why a new game could not start.
@@ -343,14 +342,7 @@ pub enum LoadError {
     BadSave(String),
     /// A world base a save names is missing or not what its name says: which.
     BadBase(String),
-    /// A command of the save's journal was refused on replay: which, and why.
-    Replay {
-        /// From 0, in the journal.
-        index: usize,
-        /// The engine's refusal.
-        rejection: Rejection,
-    },
-    /// The replay ended on another world than the save recorded.
+    /// The world rebuilt from the save is not the one the save recorded.
     Diverged {
         /// What the save recorded.
         expected: u64,
@@ -374,15 +366,9 @@ impl fmt::Display for LoadError {
             LoadError::BadTown => f.write_str("save service is not the one where the party stands"),
             LoadError::BadSave(why) => write!(f, "save does not hold together: {why}"),
             LoadError::BadBase(which) => write!(f, "world base {which} is missing or altered"),
-            LoadError::Replay { index, rejection } => {
-                write!(
-                    f,
-                    "save's command {index} was refused on replay: {rejection}"
-                )
-            }
             LoadError::Diverged { expected, actual } => write!(
                 f,
-                "save's replay reached {actual:016x}, not the recorded {expected:016x}"
+                "save rebuilt the world {actual:016x}, not the recorded {expected:016x}"
             ),
         }
     }
