@@ -130,7 +130,7 @@ so the client can do only what the API allows:
 | `here`, `party`, `combat` | `here`, `party_view`, `combat_view` |
 | `position`, `exploring_at` | `here().position` turned back into a `Position` through `data.registry.maps`; the second only while exploring |
 | `automap(map)`, `door_open(map, x, y, facing)`, `step_lands(data, direction)` | the Tier 1 queries |
-| `save_text`, `status`, `check_reload(fresh)`, `replace(world)` | the host ops' engine halves (`ops::save_text`, `ops::status`, `ops::check_reload`) |
+| `save_files`, `status`, `check_reload(fresh)`, `replace(world)`, `history` | the host ops' engine halves (`save::save_files`, `ops::status`, `ops::check_reload`); the party's log, retold after a load (M8.5 7f) |
 | `views(data)` | `Views::of` |
 
 `Deref` and `DerefMut` to `World` exist only under `cfg(any(test, feature = "test-fixtures"))`, for tests that
@@ -314,7 +314,7 @@ pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 - **`apply` refuses before any screen sees the input** (`Refused`): a control not on the screen, a dim one, a payload its kind does not take, text over its limit, a number outside its range. A screen may refuse what was typed too (the bank's amount: `NotDigits`, or `OutOfRange` over `u32::MAX / 100` gold). Any refused text is put back in the field as the form holds it.
 - **The outcome.** A command from a screen reports on that screen (P4): the newest event line it added (`Session::ordered`) in the body role, or its refusal in the alert role. `Forms::shown` clears the outcome whenever the top screen changes, and the bank's amount whenever a service is entered.
 - A `Command` is offered only when a trial accepts it, so the binder's refusal count stays 0. The shell sends it through `Session::order`, which logs it; `close` says whether the screen closes after it (the square's actions do, an inventory will not).
-- `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule in `SimWorld::save_text`, the loader's limits, `load_text`), which the socket's `save.write` and `save.read` share. A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
+- `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule and files in `SimWorld::save_files`, `load_save` with the save's limit, `tidy`), which the socket's `save.write` and `save.read` and the debug page's Tidy share; after a load `Session::replace` retells the full log (`shell::retold`). A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
 
 ### 6.3 Navigation
 `screen::nav::Nav` is a stack of overlays over a **base** that follows the world (`nav::base`), as

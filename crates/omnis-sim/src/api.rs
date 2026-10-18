@@ -79,9 +79,10 @@ pub use crate::query::{
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
 pub use crate::save::{
-    BaseNames, Bases, CharacterSave, Checkpoint, FileOut, Holdings, JoinError, Manifest,
-    RegionBase, RegionSize, Restored, Split, SplitReport, WORLDS, WorldBase, join, load_save,
-    save_files, split, split_report,
+    Archived, BaseNames, Bases, CharacterSave, Checkpoint, FOLD_INTERACTIONS, FOLD_RULE, FileOut,
+    Holdings, JoinError, Manifest, RegionBase, RegionSize, Restored, Split, SplitReport, WORLDS,
+    WorldBase, archive_path, due, fold, fold_at, join, load_save, save_files, split, split_report,
+    tidy_list, unnamed,
 };
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};

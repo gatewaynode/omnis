@@ -1,0 +1,1 @@
+[(minute:1,at:(map:2,x:16,y:30,facing:North),command:Step(Back),changes:[Clock(holder:Region(2),clock:Some((elapsed:0,era:0))),Contact(key:(Region(2),Party(0)),contact:Some((other:Party(0),self_elapsed:0,other_elapsed:1,self_shared:0))),Stream(name:"time:party:0:region:2",rng:Some((state:245662723695204379,inc:8810637786524245455,draws:1)))])]

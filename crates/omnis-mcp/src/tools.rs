@@ -148,16 +148,20 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "save_write",
             "save.write",
-            "Write the save to a relative .ron path.",
+            "Write a character save (the party as it stands, the world's changes since its base, the party's log) to a relative .ron path, and the world's files under .omnis/worlds/<id>/. Refused if the save would be over 8 MiB or a world file over 4 MiB.",
             &[path("A relative .ron path without . or .. components.")],
         ),
         tool(
             "save_read",
             "save.read",
-            "Replace the world with a save from a relative .ron path.",
+            "Replace the world with a save from a relative .ron path: its world's bases with the save's changes laid over them (no command is replayed), the party and its log as saved. An older whole-world save is converted.",
             &[
                 path("A relative .ron path without . or .. components."),
-                Field::new::<bool>("force", false, "Skip the pack fingerprint check."),
+                Field::new::<bool>(
+                    "force",
+                    false,
+                    "Load a save made with other packs; skips the pack and fingerprint checks.",
+                ),
             ],
         ),
         tool(

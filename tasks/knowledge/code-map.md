@@ -17,7 +17,7 @@ only `omnis-sim` imports it, and its vocabulary is `omnis-sim/src/bus.rs`.
 `spell.rs` (`SpellEffect`, `Reach`), `item.rs` (`ItemKind`, `Slot`, `UseEffect::{Heal, Sense}`,
 `consumable`, `description`), `sense.rs` (`SenseSource { geometry: Geometry::Ray, fidelity, check,
 persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `content.rs`
-(cross-file checks such as the component threshold), `limits.rs`, `loader.rs`, `map_data.rs` (`MapData` and its lookups by tile, M8.5 step 2), `object.rs` (`ObjectKind`, `Look`, `Verb`, `Requirement`, `Effect`, `Interaction`; cross-file checks and flag interning in `object/check.rs`; M8.5 step 2), `footprint.rs` (`Footprint::{of, path, overlaps, cells, ray_span}` in sixteenths of a cell, shared by the engine and the client's mirror), `lore.rs` (`Lore` on kinds and placements, `CellLore` in `MapDef.lore`, `MapData.lore` by cell; owner 2026-10-16), `placement.rs` (`Placement`, `GroundDef`, `Pile`, `ResolvedPlacement`; shapes checked with the map, kinds, ground, spills and arrival centres at resolution; `in_state`, `looks`, `covers_centre`; `MapData::{objects, object_cells, ground, objects_at}`), `loot.rs` (`LootTable { picks, entries }`, `LootEntry { item, count, weight, chance_percent }`; `Monster.loot` names one), `registry.rs`,
+(cross-file checks such as the component threshold), `limits.rs` (`MAX_FILE_BYTES` 4 MiB, `MAX_SAVE_BYTES` 8 MiB for a character save, M8.5 7f), `flag.rs` (`FlagDef`, `FlagScope`, `data/flags`, M8.5 7c), `ron_io.rs` (`read_under`, `read_save_under` (the save's limit), `write_atomic`, `write_files`, `list_under`, `remove_under`), `loader.rs`, `map_data.rs` (`MapData` and its lookups by tile, M8.5 step 2), `object.rs` (`ObjectKind`, `Look`, `Verb`, `Requirement`, `Effect`, `Interaction`; cross-file checks and flag interning in `object/check.rs`; M8.5 step 2), `footprint.rs` (`Footprint::{of, path, overlaps, cells, ray_span}` in sixteenths of a cell, shared by the engine and the client's mirror), `lore.rs` (`Lore` on kinds and placements, `CellLore` in `MapDef.lore`, `MapData.lore` by cell; owner 2026-10-16), `placement.rs` (`Placement`, `GroundDef`, `Pile`, `ResolvedPlacement`; shapes checked with the map, kinds, ground, spills and arrival centres at resolution; `in_state`, `looks`, `covers_centre`; `MapData::{objects, object_cells, ground, objects_at}`), `loot.rs` (`LootTable { picks, entries }`, `LootEntry { item, count, weight, chance_percent }`; `Monster.loot` names one), `registry.rs`,
 `service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kinds,
 spells on a guild or a temple;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
@@ -50,7 +50,7 @@ M7c: `feature.rs` (`combat_features`, `uses_left`, `spend_use`, `recover_uses`;
 old saves only).
 
 ## omnis-sim
-- Entry: `command.rs` (`Command::{Step, Turn, Interact, Party, Encounter, Combat, Cast, Item, Service, Rest, Dev}`,
+- Entry: `command.rs` (16 variants, `Command::{Step, Turn, Interact, Door, Search, Climb, Party, Encounter, Combat, Cast, Item, Service, Rest, Dev, Act, Approach}`,
   `Rejection` with `fmt_play`/`fmt_items`/`fmt_magic`), `word.rs` (script words: `Word`, `parse_script`,
   `Word::command(world, data)` turns a slot or a list row into an identity when applied), `apply.rs`
   (`match (mode, command)`; `advance()` is the only clock writer; effects pruned there),
@@ -74,14 +74,14 @@ old saves only).
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
   `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
   couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,
-  `time_view`, `party_date`; `time.clocks`); `World.{contacts, party_time, bus}`; `migrate::v6_to_v7`.
+  `time_view`, `party_date`; `time.clocks`); `World.{contacts, party_time, bus}`; `migrate::v6_to_v7` (the last step: older saves stop at 7 and are converted to schema 8 on load, `save/disk.rs`).
   Data: `omnis-data/src/region.rs` (`RegionDef`, `Region`, `RegionKind`, the load checks),
   `MapData.region`, `Data::calendar()` → `omnis_core::{Calendar, Date}`, `text::fill` (`{ago}`);
   `rules/time.ron` (`time.settled`, `time.wild`, the calendar values). App: `panels::clock_text`
   (the HUD clock line), `text::ago_text` (a rumor's age).
 - The engine's API (ARCHITECTURE §4.9, M8 step 8): `api.rs` re-exports exactly the contract; `ops.rs` (`PROTOCOL`,
   `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
-  `save_text`, `load_text`, `check_reload`, `rules_set`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
+  `check_reload`, `rules_set`; the save's are in `save/`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
@@ -91,7 +91,7 @@ old saves only).
 - World: `world.rs` (`World`, `Settings { save_rule, permadeath, devtools }`, `Automap`,
   `Known`, `layer::{TERRAIN 1, STRUCTURE 2, VISITED 4, REMOTE 8}`, layer-aware `record`),
   `party.rs` (`heal`, `bury`), `visibility.rs` (`depth`, `cone`, `ray`), `query.rs`, `view.rs`,
-  `migrate.rs` (one function per schema step, `v4_to_v5` the copper purse), `replay.rs`,
+  `migrate.rs` (one function per schema step up to 7, `v4_to_v5` the copper purse), `replay.rs`,
   `party_view.rs` (`PartyView`, `MemberView`, `ItemView`, `KnownSpellView` (P6: each known spell's cost and `pay`), `party_view`); `cast_view::cost` is the one place a spell's shown cost is evaluated (road rows, known spells, the fight's `SpellView`).
 - Money (schema 5): `Party.gold` and `Party.bank` count copper; `omnis_core::money::{from_gp,
   gp_floor, Coins}`; pack data stays in gold (backgrounds, monster drops) and converts where it is
@@ -146,7 +146,18 @@ old saves only).
 - Items: `items.rs` (`ItemCommand`, `UsePlan`, `UseKind`, `validate_use`, `use_item`, `transfer`,
   `drop_worn`, stock helpers `add_to`/`take_from`/`count_of`/`consume`/`item_id`).
 - Sensing: `sense.rs` (`LAYERS`, `best_eyes`, `dc`, `reach_for_layer`, `resolve`).
-- Dev: `dev.rs` (`DevCommand`, twelve variants, gated by `Settings.devtools`).
+- Dev: `dev.rs` (`DevCommand`, 14 variants, gated by `Settings.devtools`).
+- Saves (PRD D28, M8.5 7a–7f; ARCHITECTURE §4.1.1): `journal.rs` (`Journal`, `Entry { minute, at, command, changes }`,
+  `Change` values after, `Held` (the before-and-after compare in `apply`), `apply_changes`, `journal_len`, `archive_len`);
+  `log.rs` (`Logged { minute, map, event }`, `told`, `history`, `bound` to `LOG_CAPACITY`; stamped in `World::record`);
+  `save/mod.rs` (`Split`, `Checkpoint`, `Holdings`, `Bases`, `WorldBase`, `RegionBase`, `Manifest`), `save/split.rs`
+  (`split`), `save/join.rs` (`join`, `JoinError`), `save/report.rs` (`split_report`), `save/character.rs`
+  (`CharacterSave`, `BaseNames`, `world_id`, `is_world_id`), `save/disk.rs` (`save_files` with `fits`, each file
+  against its reader's limit; `load_save`, `Restored`, base 0, the v1–7 conversion, `region_path`, `archive_path`),
+  `save/fold.rs` (`fold`, `Archived::{Held, Named}`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
+  `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`). `World.{known, journal, origin, archive, log}`.
+  Tests: `journal.rs`, `split.rs`, `disk.rs` (both goldens saved and loaded after every command; fixtures
+  `tests/saves/v1..v7.ron` and the schema 8 one), `fold.rs`, `history.rs`.
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
   `new_world`: a new game placed on the meadow's start, where tests from before the town begin;
   `party_of`, `act`: one command played as a whole turn). M7c: `turn_budget.rs`, `reactions.rs`,
@@ -200,12 +211,12 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `Session::{new_game (no party), with_party, start (the fixed four), drafts, restart}`. `labels.rs` turns ids and text keys into words (the only `Data::label` caller; the service words:
   `offer_label`, `offer_caption`, `offer_note`, `service_reason`, `rumor`, `ago`; P5: `slot`, `count_label`, `reason` for item and cast refusals; P6: `race`, `background`, `ability`, `signed`, `pay`, and rest and tactics refusals in `reason`; M8.5 2b: `verb`, `check`, `object_refusal`, `refused`); `shell/text.rs` the HUD's
   event lines, the town's and the kit's and road spells' included, P6 the rest's and the tactics' (`camp`), P8 the dev edits' (`dev`), M8.5 2b the objects' (`objects`: checks, a failed use, states, removals, finds, items spent, searches, notices);
-  `style.rs` the roles and the type scale; `game_io.rs` save and load (the pause and the socket share it).
+  `style.rs` the roles and the type scale; `game_io.rs` save, load and tidy (the pause, the debug page and the socket share it; `HostOp::Tidy`, `DebugAct::Tidy`); `shell/retold.rs` (`retold`: the full log and the names retold from the party's log after a load, M8.5 7f); `history.rs` (`History`, `HISTORY` = `LOG_CAPACITY`, `Entry.folded` the filter's lowercase line).
   `VectorSet::Screens` runs every frame; `Grab`/`Input`/`Move` only while `playing`, `Draw` while a game
   runs.
 - Tests: one `integration` binary (`tests/main.rs`). `common::session` places the party on the meadow cell
   the walking tests were written on (16, 16, North); `town_session` is the game's own start and replays. `tests/service.rs` (P4): `inside(data, site)`, the
-  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/full_log.rs` (the full log, 2026-10-17); `tests/piles.rs` (the inventory's ground and containers, 2026-10-16); `tests/object_lines.rs` (the objects' HUD lines, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
+  seven site tiles, the screen model and the shell's service tests. `common::ctx(data, world, views)` builds a screen `Ctx`. `tests/inventory.rs`, `tests/cast.rs`, `tests/notice.rs` (the outcome notice, 2026-10-16); `tests/full_log.rs` (the full log, 2026-10-17; retold after a load, 7f); `tests/game_io.rs` (saves, limits, tidy); `tests/piles.rs` (the inventory's ground and containers, 2026-10-16); `tests/object_lines.rs` (the objects' HUD lines, 2026-10-16); `tests/camp.rs`, `tests/sheet.rs`, `tests/tactics.rs` (P6); `tests/settings.rs`, `tests/debug.rs` (P8). `common::app::{press_ui, tap, top}` (P6).
 - The engine boundary (parity P0): `sim.rs` holds `SimWorld` (`faced_door` since M8.5 2b lore) with its world private (methods mirror
   `omnis_sim::api`; it derefs to `World` only under feature `test-fixtures`, which the tests turn on) and
   `Views` (`here`, `position`, `party`, `combat`, `creation`, `service`, `casts` (`SimWorld::casts`), `rest` (`SimWorld::rest`, P6), `flags` (`SimWorld::flags`, only in a devtools world, P8)), which `Session::note` refreshes after every accepted
@@ -218,10 +229,10 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 25 tools, the hand-written `Command`
-schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{headless,args,schema,bake}.rs`:
+`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 26 tools, the hand-written `Command`
+schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{main,headless,args,schema,bake,wander}.rs` (`main.rs` has `world tidy [--yes]`; `wander.rs` the seeded wandering party, M8.5 7a):
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
-`omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant), `replies.rs`, `schema_proof.rs`,
+`omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant; ARCHITECTURE, README and this map state the code's counts, M8.5 7g), `replies.rs`, `schema_proof.rs`,
 `vocabulary.rs` (protocol 2: one meaning per JSON key across commands, rejections, events and views),
 `common/commands.rs` (the schema proof's `Command` instances, shared with the vocabulary test).
 

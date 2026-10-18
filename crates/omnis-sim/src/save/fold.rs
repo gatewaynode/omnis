@@ -1,5 +1,6 @@
 //! The fold (PRD D28, M8.5 7e): the world as it stands becomes the new bases, and the journal's
-//! interactions move into the archive, the game's history (7f reads it). Older saves keep naming
+//! interactions move into the archive, the world's history, kept for later tools (the full log
+//! reads the party's log instead, M8.5 7f). Older saves keep naming
 //! the bases they started from, so loading one restores its moment. Pure: the new bases and the
 //! archive segment reach disk with the next save (`save_files`), each named by its text's hash.
 

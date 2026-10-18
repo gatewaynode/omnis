@@ -42,7 +42,7 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
 | `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
-| `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, schema dump, tileset bake |
+| `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, world tidy, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 
 Game content lives in `packs/`. `packs/base` is the shipped content (SRD 5.1 material under
@@ -77,7 +77,9 @@ Settings, Debug (in a game with developer tools; also the backtick key), Quit to
 A member's sheet, inventory and spells open from the party column. In a fight, the buttons pick
 the action and a click on a figure the target; the number keys pick from a list. Saves are RON
 files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
-`.omnis/settings.ron`.
+`.omnis/settings.ron`. A save holds the party and what it changed; the world it plays in is kept
+beside it under `.omnis/worlds/`, and `omnis-cli world tidy` (or the debug page's Tidy) lists the
+world files no save names and deletes them only when asked.
 
 ## Verification
 
@@ -109,10 +111,10 @@ about the linker; check a toolchain change with a fresh target directory.
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes twenty-four tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes 26 tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
 `pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
-`service_get`, `rest_get`, `cast_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and
+`service_get`, `rest_get`, `cast_get`, `objects_get`, `creation_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and
 `time_reconcile`. Each tool is an op of the simulation's JSON protocol, the engine's API for
 clients other than the Rust library (`ARCHITECTURE.md` §4.9).
 

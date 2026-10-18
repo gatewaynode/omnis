@@ -185,8 +185,8 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 ## 5. Ops
 
 26 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
-every host (the socket, `Headless`) implements them around the I/O-free rules in `ops.rs`
-(`save_text`, `load_text`, `check_reload`, `rules_set`). `BadRequest` can answer any op on the
+every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`) and the
+rest in `ops.rs` (`check_reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
 
 | Op | Args | Reply | Errors | Host |
@@ -212,8 +212,8 @@ socket and the bridge (malformed request).
 | `rules.list` | none | `rules` | | |
 | `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
-| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). The save holds the party as it stands and the interactions since the base, each with its changes to the world |
-| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
+| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
@@ -312,6 +312,20 @@ numbers until M8.5 7h) cut a world into the parts the save model keeps apart (PR
 A region nothing has changed has no base, so a new world splits into its checkpoint alone. `join` refuses a key
 held by two parts (`JoinError::Duplicate`) and checks the result as a load does (`JoinError::Load`). The log and
 the journal are not in the parts.
+
+The save itself (Tier 1, I/O-free; ARCHITECTURE.md §4.1.1) is what the host ops `save.write` and `save.read`
+run:
+- `save_files(&World, &Data, path) -> Result<Vec<FileOut>, OpError>`: every file a save writes, each
+  `FileOut { path, text, keep }` (`keep`: a world-folder file, left alone when already on disk). Refuses a
+  file over its reader's limit.
+- `load_save(text, &Data, force, read) -> Result<(World, Restored), LoadError>`: `read` turns a relative
+  path into its text; `Restored { applied, converted_from }` says how many interactions were laid and
+  whether an old save was converted.
+- `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
+  threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
+- `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
+  `unnamed(saves, files)`: the world-folder files no save names, for
+  a host's tidy; `archive_path(id, name)`.
 
 ### 7.1 `Here` and `Status`
 
@@ -994,8 +1008,9 @@ As of protocol 2:
   lists. Only Tier 1 has `Data`.
 - **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `history`, `told`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
-- **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
-  event log is not saved, so it is empty after `save.read`.
+- **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. After
+  `save.read` the log holds the saved events a full log tells (`told`), not `Visible`,
+  `EncounterCheck` or `TimeAdvanced`.
 - **No sliced long ops.** Every op answers within one frame; ops that take long (an ecosystem
   tick, M10) and their progress reports are not built.
 - **`world.query` is debug-only** and outside the contract.
@@ -1090,23 +1105,10 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
   types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
   `SplitReport` and `RegionSize`. Nothing is saved differently yet.
-- 2026-10-18: the party's log is saved (M8.5 7f): `World::log` holds `Logged { minute, map, event
-  }`, each event stamped with the party's age and map when it was said, and keeps 16384
-  (`LOG_CAPACITY`, was 4096; `events.tail` still answers with events). `CharacterSave.log`
-  (`[Logged]`, left out when empty) carries the events `told` keeps, so a load gives the party's
-  log back and a client retells its full log from it; a fold leaves it be. A character save may
-  be 8 MiB (`MAX_SAVE_BYTES`; the world folder's files stay at 4 MiB), and `save_files` refuses a
-  larger one. Tier 1: `history`, `told`, `Logged`. `SAVE_SCHEMA` stays 8 (a save without `log`
-  loads with none); no golden moved.
-- 2026-10-18: the fold (M8.5 7e, PRD D28): `DevCommand::Fold` (14 variants) and `Event::Folded
-  { interactions }` (73 variants). A fold makes what the world holds its new bases and moves the
-  journal to the archive (`World.archive`, `save::Archived::{Held, Named}`); a safe point (a long
-  rest done, a room at the inn, coming into a settlement region) folds when the journal holds the
-  rules value `fold_interactions`, 5000 in code when no pack sets it. `CharacterSave.archive`
-  (`[u64]`, left out when empty) names the save's segments, written as
-  `.omnis/worlds/<id>/archive/<hash>.ron`; a load restores the names and reads no segment.
-  Tier 1: `fold`, `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`,
-  `archive_len`, `unnamed`, `tidy_list`. `SAVE_SCHEMA` stays 8; no golden moved.
+- 2026-10-17: flag scope (M8.5 7c): pack files `data/flags/<name>.ron` (`FlagDef { schema, id, scope }`,
+  `FlagScope::{Party, World}`, `World` when left out); Tier 1's `flag_scope`; `Checkpoint.flags` (the party's)
+  beside `WorldBase.flags` (the world's, and every undeclared flag); `SplitReport.party_flags` and
+  `world_flags`. Declared flags are interned after those object kinds name, so no flag number a save holds moves.
 - 2026-10-17: the character save (M8.5 7d, PRD D28, amended the same day), `SAVE_SCHEMA` 8:
   `save.write` writes a character save (`CharacterSave { schema, world, bases, checkpoint, journal,
   fingerprint }`: the party as it stands, and the journal of interactions, `Entry { minute, at,
@@ -1120,10 +1122,27 @@ Additive (§13), so `PROTOCOL` stays 2:
   `FileOut`, `Restored { applied, converted_from }`, `Bases`, `WORLDS`, `apply_changes`, `Change`;
   `LoadError` gains `BadSave`, `BadBase` and `Diverged`. `ops::save_text` and `ops::load_text`
   are gone (Tier 1 only; the ops are unchanged). Both goldens rebaselined for the schema field.
-- 2026-10-17: flag scope (M8.5 7c): pack files `data/flags/<name>.ron` (`FlagDef { schema, id, scope }`,
-  `FlagScope::{Party, World}`, `World` when left out); Tier 1's `flag_scope`; `Checkpoint.flags` (the party's)
-  beside `WorldBase.flags` (the world's, and every undeclared flag); `SplitReport.party_flags` and
-  `world_flags`. Declared flags are interned after those object kinds name, so no flag number a save holds moves.
+- 2026-10-18: the fold (M8.5 7e, PRD D28): `DevCommand::Fold` (14 variants) and `Event::Folded
+  { interactions }` (73 variants). A fold makes what the world holds its new bases and moves the
+  journal to the archive (`World.archive`, `save::Archived::{Held, Named}`); a safe point (a long
+  rest done, a room at the inn, coming into a settlement region) folds when the journal holds the
+  rules value `fold_interactions`, 5000 in code when no pack sets it. `CharacterSave.archive`
+  (`[u64]`, left out when empty) names the save's segments, written as
+  `.omnis/worlds/<id>/archive/<hash>.ron`; a load restores the names and reads no segment.
+  Tier 1: `fold`, `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`,
+  `archive_len`, `unnamed`, `tidy_list`. `SAVE_SCHEMA` stays 8; no golden moved.
+- 2026-10-18: the party's log is saved (M8.5 7f): `World::log` holds `Logged { minute, map, event
+  }`, each event stamped with the party's age and map when it was said, and keeps 16384
+  (`LOG_CAPACITY`, was 4096; `events.tail` still answers with events). `CharacterSave.log`
+  (`[Logged]`, left out when empty) carries the events `told` keeps, so a load gives the party's
+  log back and a client retells its full log from it; a fold leaves it be. A character save may
+  be 8 MiB (`MAX_SAVE_BYTES`; the world folder's files stay at 4 MiB), and `save_files` refuses a
+  larger one. Tier 1: `history`, `told`, `Logged`. `SAVE_SCHEMA` stays 8 (a save without `log`
+  loads with none); no golden moved.
+- 2026-10-18: docs and pins (M8.5 7g): Tier 1 now re-exports what the 7e entry named (`fold`,
+  `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`, `unnamed`, `tidy_list`) and
+  `Archived`; they were reachable only through `omnis_sim::save`. `save_files` refuses a world file
+  over `MAX_FILE_BYTES` as well as a save over `MAX_SAVE_BYTES`, since the reader refuses both.
 
 ### Protocol 2 (2026-10-10)
 

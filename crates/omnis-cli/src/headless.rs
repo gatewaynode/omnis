@@ -5,8 +5,8 @@
 
 use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
+use omnis_sim::api::{load_save, save_files};
 use omnis_sim::ops::client_path;
-use omnis_sim::save::{load_save, save_files};
 use omnis_sim::{NewGameError, Op, OpError, Reply, Settings, World, dispatch, ops};
 use std::fmt;
 use std::path::{Path, PathBuf};

@@ -321,3 +321,77 @@ fn the_save_rule_still_holds() {
     let world = common::new_world(&data, 1, settings);
     assert!(save_files(&world, &data, SAVE).is_err());
 }
+
+/// The schema 8 fixture's world: the golden walk, folded halfway, so its save names bases, an
+/// archive segment and a journal, and carries a log.
+fn fixture_world(data: &Data) -> World {
+    let replay = golden("walk");
+    let mut world = World::new(data, replay.seed, replay.settings).unwrap();
+    world.settings.devtools = true;
+    let half = replay.commands.len() / 2;
+    for (at, command) in replay.commands.into_iter().enumerate() {
+        if at == half {
+            apply(&mut world, data, Command::Dev(omnis_sim::DevCommand::Fold))
+                .unwrap_or_else(|r| panic!("{r}"));
+        }
+        apply(&mut world, data, command).unwrap_or_else(|r| panic!("{r}"));
+    }
+    world
+}
+
+/// The fixture's folder: a save's files as a host writes them under its root, but without the
+/// `.omnis/` prefix, which git ignores.
+fn fixture_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/saves/v8")
+}
+
+fn in_fixture(path: &str) -> &str {
+    path.strip_prefix(".omnis/").expect("a path under .omnis")
+}
+
+/// Writes `tests/saves/v8/`: run with `--ignored` only when the schema moves on and a new frozen
+/// save is wanted, never to make the test below pass.
+#[test]
+#[ignore = "writes the schema 8 fixture"]
+fn write_the_schema_8_fixture() {
+    use omnis_data::ron_io::{list_under, remove_under, write_files};
+    let data = data();
+    let world = fixture_world(&data);
+    let root = fixture_root();
+    for dir in ["saves", "worlds"] {
+        for old in list_under(&root, dir).unwrap() {
+            remove_under(&root, &old).unwrap();
+        }
+    }
+    let files = save_files(&world, &data, SAVE).unwrap_or_else(|e| panic!("{e}"));
+    let files: Vec<(&str, &str, bool)> = files
+        .iter()
+        .map(|f| (in_fixture(&f.path), f.text.as_str(), false))
+        .collect();
+    write_files(&root, &files).unwrap();
+}
+
+/// A frozen schema 8 save (M8.5 7g) still loads: its party, its journal laid over its base, its
+/// archive by name and its log. On the packs it was made with it is the world that made it.
+#[test]
+fn the_schema_8_fixture_still_loads() {
+    let data = data();
+    let root = fixture_root();
+    let text = omnis_data::ron_io::read_save_under(&root, in_fixture(SAVE)).unwrap();
+    // Forced, as the older fixtures are: a pack edit must not retire a frozen save.
+    let (world, report) = load_save(&text, &data, true, &mut |p| {
+        omnis_data::ron_io::read_under(&root, in_fixture(p)).map_err(|e| e.to_string())
+    })
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(report.converted_from, None);
+    assert_eq!(report.applied, 1, "the interaction after the fold");
+    assert_eq!(world.archive.len(), 1, "the segment the fold put away");
+    assert!(world.origin.is_some(), "the bases the fold made");
+    assert!(!world.log.is_empty());
+    if world.packs == data.fingerprints {
+        let made = fixture_world(&data);
+        assert_eq!(world.fingerprint(), made.fingerprint());
+        assert_eq!(world.journal, made.journal);
+        assert_eq!(world.log, kept(&made).log);
+    }
+}

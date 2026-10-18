@@ -233,19 +233,104 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
         (OPS.len(), "26 ops."),
     ] {
-        let stated: usize = what
-            .chars()
-            .filter(char::is_ascii_digit)
-            .collect::<String>()
-            .parse()
-            .unwrap();
         assert_eq!(
-            count, stated,
+            count,
+            stated(what),
             "the type has {count}; the document says {what}"
         );
         assert!(
             doc.contains(what),
             "docs/api.md lost the line naming {what}"
+        );
+    }
+}
+
+/// The number written in `what`, its digits read together.
+fn stated(what: &str) -> usize {
+    what.chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .unwrap()
+}
+
+fn document(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(name);
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The other documents that state a count say the code's, and those that list the tools or the
+/// commands list every one (M8.5 7g: they had drifted by up to eleven variants).
+#[test]
+fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
+    let tools = omnis_mcp::tools::tools();
+    let architecture = document("ARCHITECTURE.md");
+    let readme = document("README.md");
+    let map = document("tasks/knowledge/code-map.md");
+    for (doc, name, count, what) in [
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            COMMANDS.len(),
+            "pub enum Command {                  // 16 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            DEV_COMMANDS.len(),
+            "Dev(DevCommand),                // 14 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            EVENTS.len(),
+            "pub enum Event {                    // 73 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            REJECTIONS.len(),
+            "A `Rejection` (71 variants",
+        ),
+        (
+            &readme,
+            "README.md",
+            tools.len(),
+            "The bridge exposes 26 tools",
+        ),
+        (&map, "code-map.md", tools.len(), "26 tools"),
+        (
+            &map,
+            "code-map.md",
+            DEV_COMMANDS.len(),
+            "`DevCommand`, 14 variants",
+        ),
+        (&map, "code-map.md", COMMANDS.len(), "16 variants"),
+    ] {
+        assert_eq!(
+            count,
+            stated(what),
+            "the code has {count}; {name} says {what}"
+        );
+        assert!(doc.contains(what), "{name} lost the line naming {what}");
+    }
+    for tool in &tools {
+        assert!(
+            readme.contains(&format!("`{}`", tool.name)),
+            "README.md does not list the tool `{}`",
+            tool.name
+        );
+    }
+    let entry = map
+        .lines()
+        .find(|l| l.contains("`Command::{"))
+        .expect("the code map's command list");
+    for command in COMMANDS {
+        assert!(
+            entry.contains(&format!("{command},")) || entry.contains(&format!("{command}}}")),
+            "code-map.md's command list lacks {command}: {entry}"
         );
     }
 }
