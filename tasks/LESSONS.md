@@ -284,3 +284,14 @@
   written a save that could not load.
 - **Rule**: When a reader caps a file, its writer refuses the same cap for every file it produces, not only
   the one under discussion. Test each kind of file the writer emits, not just one.
+
+## 2026-10-18 — A mutation runner restores a file by rewriting it, never by moving a backup back
+- **What happened**: the mutation runners copied each source to `.bak`, wrote the mutant, built, then
+  `shutil.move`d the backup back. The restored file kept the backup's mtime, which is older than the mutated
+  build, so cargo (mtime freshness for path crates) treated the mutated artifact as up to date. A later
+  `cargo build -p omnis-cli` linked the last mutant ("version not rehashed") and the 7h1 demo failed: a
+  resealed pack was still refused. The gate itself builds with other features, so it rebuilt; a plain build
+  did not.
+- **Rule**: restore with `open(f, 'w').write(original)` (a fresh mtime), or `touch` the file after restoring.
+  After any mutation run, `touch` the mutated files before the gate or a demo. When a demo disagrees with the
+  tests, suspect a stale artifact before the code.

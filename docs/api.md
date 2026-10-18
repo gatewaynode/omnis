@@ -980,7 +980,7 @@ looked at.
 | `ops::PROTOCOL` | 2 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
 | `SAVE_SCHEMA` | 8 | Save files: the character save (`save::CharacterSave`, compact RON) and the world folder (`save::Manifest`, `WorldBase`, `RegionBase`, pretty RON) | The save's shape changes. Schemas 1 to 7 were whole worlds (`World::to_ron`); they migrate to 7 and are converted on load. `World::to_ron` remains the fingerprint's text and a snapshot `World::from_ron` reads. |
 | `omnis_data::SCHEMA` | 1 | Pack data files | The pack file format changes; the loader refuses other schemas. |
-| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files (FNV-1a 64 over them). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
+| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files, or to its manifest's fields (FNV-1a 64 over them); a pack records it in `pack.ron` as `hash`, and the loader refuses one whose content no longer has it (M8.5 7h1). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
 
 The three versions move independently.
 
@@ -1143,6 +1143,10 @@ Additive (§13), so `PROTOCOL` stays 2:
   `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`, `unnamed`, `tidy_list`) and
   `Archived`; they were reachable only through `omnis_sim::save`. `save_files` refuses a world file
   over `MAX_FILE_BYTES` as well as a save over `MAX_SAVE_BYTES`, since the reader refuses both.
+- 2026-10-18: the seal (M8.5 7h1): `pack.ron` gains `hash` (`PackManifest.hash`, 0 when left out),
+  the hash of the pack's content at its version; the loader refuses a pack not sealed or no
+  longer matching it. `PackFingerprint` is unchanged, but every pack's hash moved once (the
+  manifest is now hashed by its fields), so saves made before it count as made on other packs.
 
 ### Protocol 2 (2026-10-10)
 

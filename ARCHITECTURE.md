@@ -448,7 +448,7 @@ Serves PRD goals 2 and 3, D3, D15, §10, §11.3.
 ### 6.1 Pack layout
 ```
 packs/<pack_id>/
-  pack.ron            # manifest: id, version, name, license, attribution, depends, schema
+  pack.ron            # manifest: id, version, hash (the seal, M8.5 7h1), name, license, attribution, depends, schema
   data/
     races/*.ron  classes/*.ron  backgrounds/*.ron  spells/*.ron  monsters/*.ron
     items/*.ron  conditions/*.ron  tiles/*.ron  maps/*.ron  regions/*.ron  services/*.ron
@@ -625,6 +625,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
 - Packs, saves, socket input: §6.2 limits and normalization; never panic, always report.
 - Scripts from data run only in the Rhai formula profile (§5.2): no I/O, no modules, no functions, no strings, bounded operations and depth, checked arithmetic.
 - Dev socket: loopback only, compiled out of release, single client, request size cap (1 MB), op allowlist. `Dev` commands are rejected by `apply` (`Rejection::DevOnly`) unless `Settings.devtools` is set, which dev builds of the app do when a game starts and the headless driver always does; a save records it, and a release build never sets it (M6 as built).
+- **The seal (M8.5 7h1).** `pack.ron` records `hash`, the FNV-1a 64 of the pack's content at its version (every data and text file in path order, and the manifest's own fields without `hash`; comments and layout in `pack.ron` are not content). The loader refuses a pack that is not sealed or whose content no longer has its hash, so content never changes under one version; `omnis-cli pack seal <dir> [--version x.y.z]` (`omnis_data::seal`) records it, a first seal keeping the version and a changed pack going up a patch number. Every shipped, fixture and bad-pack corpus pack is sealed; a test that writes a pack seals it.
 - Saves record pack fingerprints (in the world's manifest); loading with different packs warns and refuses unless forced, and a forced load skips the fingerprint check. The gate is lifted by the name table and remap of M8.5 7h.
 - Dependencies: pinned exact versions in `[workspace.dependencies]`; `Cargo.lock` committed. Policy, in priority order (owner direction 2026-09-12):
   1. **Match Bevy's requirements.** Any crate Bevy already pulls (ron, serde, and so on) is pinned to the version Bevy 0.19 resolves, so the tree stays single-copy. `cargo tree --duplicates` must be empty for those crates; CI checks it.
