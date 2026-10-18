@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7h1 (the seal) was built. Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7h1 (the seal) was accepted, before a compact. Next: build 7h2. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -17,7 +17,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | accepted 2026-10-18 (`b467758`) |
   | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
   | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
-  | 7h1, the seal | `062a1fb`, `318603f` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7h1.md`** |
+  | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
+  | 7h2, schema 9 | | **next: build it** (owner, "on to 7h2") |
 
   7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
   `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
@@ -56,8 +57,33 @@ Durable knowledge lives in `tasks/knowledge/`.
   §7.7 needs the owner's approval).
 
 ## Next
-- When the owner says the 7h1 walk passed, mark 7h1 accepted in TODO, then build 7h2 from the plan above
-  (red tests first; the v8 fixture must convert; write a v9 fixture with names).
+- **Build 7h2 now** (the owner said "on to 7h2"; no plan mode needed: the approved plan is above and in
+  TODO's 7h items). Read the critical files cold first: `crates/omnis-sim/src/save/{mod,disk,join,fold,
+  tidy,character}.rs`, `world.rs` (`MapState.cleared`, `checked` ~L547), `encounter.rs` (`EncounterSource::
+  Fixed(u16)` ~L28, set ~L125/L287, read ~L407, `beings.rs:61`), `journal.rs` (`Change::Cleared` ~L47,
+  made ~L258, laid ~L324), `omnis-data/src/encounter.rs` (`FixedEncounter` ~L68; `Stand.id` already
+  exists ~L57), `migrate.rs`, the hosts' `pack.reload` (`omnis-vector/src/shell/host.rs:37`,
+  `omnis-cli/src/headless.rs:83`).
+- **7h2 items, red tests first:**
+  1. `pack.reload` sets `world.packs` (red test: reload, save, load unforced must not be `PackMismatch`).
+  2. `FixedEncounter.id` required (`[a-z0-9_]{1,32}`, unique per map; reuse the object-id check), bad-pack
+     row; the test pack's maps gain ids (and the objects/levels/heights fixture packs if they have fixed
+     encounters), resealed with `omnis-cli pack seal`.
+  3. `MapState.cleared: BTreeSet<String>`, `EncounterSource::Fixed(String)`, `Change::Cleared { map, id }`;
+     `SAVE_SCHEMA` 9; v8 → v9 converts rows to ids through the current maps (a row out of range refuses the
+     load); the whole-world v1–v7 path converts too; the goldens rebaseline for the schema.
+  4. `Manifest.names: NameTable` written by `save_files` (`NameTable::of(&Data)`, serde default, skipped
+     when empty); a new `save/names.rs`.
+  5. `CharacterSave.archive: [Segment { world: Option<String>, name }]`; `Archived::Held.from:
+     Option<Manifest>`; tidy counts other folders' segments and manifests.
+  6. `base_zero` → `Bases::default()` (plus a test that `split(World::new(..))` gives it).
+  7. A frozen v9 fixture `crates/omnis-sim/tests/saves/v9/` (as v8: paths without `.omnis/`, written by an
+     ignored test through `omnis_data::ron_io`, loaded by a pinned test); v8 still loads (forced) and
+     converts.
+  - Visible end: a save made before 7h2 loads (forced, via MCP `save_read force`) with its cleared
+    encounters still cleared; the debug World page shows the manifest's name count. Then the acceptance
+    script `tasks/acceptance/m8.5-7h2.md`, TODO review, docs touch (api.md changelog, ARCH §4.1.1), commit,
+    continuity, report with numbered try-it steps.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
