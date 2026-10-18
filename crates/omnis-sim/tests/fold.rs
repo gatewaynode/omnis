@@ -372,3 +372,26 @@ fn tidy_lists_only_what_no_save_names() {
         "all but the stranger: {none:?}"
     );
 }
+
+#[test]
+fn a_world_file_over_the_file_limit_is_not_written() {
+    // Its reader refuses a world-folder file over `MAX_FILE_BYTES`, so a save that wrote one
+    // could not be loaded.
+    let data = objects();
+    let mut world = at_the_lever(&data);
+    apply(&mut world, &data, act("lever_1", Verb::Pull)).unwrap();
+    let entry = world.journal.entries()[0].clone();
+    let size = omnis_data::ron_io::to_compact(&entry).unwrap().len();
+    let entries = omnis_data::limits::MAX_FILE_BYTES as usize / size + 1;
+    world
+        .archive
+        .push(Archived::Held(vec![entry; entries].into()));
+    let refused = save_files(&world, &data, ".omnis/quick.ron")
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refused.contains("/archive/") && refused.contains("a world file may hold"),
+        "{refused}"
+    );
+}

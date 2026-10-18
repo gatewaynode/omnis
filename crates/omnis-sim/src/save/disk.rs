@@ -17,7 +17,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use omnis_core::fnv1a64;
 use omnis_data::Data;
-use omnis_data::limits::MAX_SAVE_BYTES;
+use omnis_data::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES};
 use omnis_data::ron_io::{parse, to_compact, to_string};
 use serde::Deserialize;
 
@@ -149,18 +149,31 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
             .collect(),
     };
     let text = to_compact(&save).map_err(|e| failed(&e))?;
-    if text.len() as u64 > MAX_SAVE_BYTES {
-        return Err(OpError::failed(format!(
-            "the save is {} bytes; a save may hold {MAX_SAVE_BYTES}",
-            text.len()
-        )));
-    }
     files.push(FileOut {
         path: save_path.into(),
         text,
         keep: false,
     });
+    files.iter().try_for_each(fits)?;
     Ok(files)
+}
+
+/// Refuse a file its reader would refuse: the character save over `MAX_SAVE_BYTES`, a world
+/// file over `MAX_FILE_BYTES`, so a save is never written that cannot be loaded.
+fn fits(file: &FileOut) -> Result<(), OpError> {
+    let (limit, what) = if file.keep {
+        (MAX_FILE_BYTES, "a world file")
+    } else {
+        (MAX_SAVE_BYTES, "a save")
+    };
+    if file.text.len() as u64 > limit {
+        return Err(OpError::failed(format!(
+            "{} is {} bytes; {what} may hold {limit}",
+            file.path,
+            file.text.len()
+        )));
+    }
+    Ok(())
 }
 
 /// Read a base the save names and check that its text is what its name says.

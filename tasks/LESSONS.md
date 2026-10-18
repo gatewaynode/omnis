@@ -276,3 +276,11 @@
   state that is, and say what design choice makes it necessary. A budget (load time, file size, frame time)
   is set against what players of the genre accept, stated with its source, and offered to the owner as a
   number to confirm, never assumed.
+
+## 2026-10-18 — A writer checks every file against the limit its reader enforces
+- **What happened**: 7f gave the character save its own limit and checked it in `save_files`. The 7g doc
+  audit found that the same function wrote world bases and archive segments with no check, though the hosts
+  read them with `read_under` and refuse anything over `MAX_FILE_BYTES`. A large enough fold would have
+  written a save that could not load.
+- **Rule**: When a reader caps a file, its writer refuses the same cap for every file it produces, not only
+  the one under discussion. Test each kind of file the writer emits, not just one.
