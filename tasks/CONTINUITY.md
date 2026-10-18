@@ -1,48 +1,51 @@
 # Continuity notes
 
-Written 2026-10-17, after the save model (D28) was planned and approved, before a compact. Rewrite this file every
-time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-17, after M8.5 7d was built, before a compact. Rewrite this file every time it is used.
+Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the four files under
-  `assets/` and `docs/dnd_supplemental/` (the owner's, in progress).
-- **M8.5 build order:** 1a, 4, 4b, 1b, 3, 1c, 2 (2a, 2b, 2c), all accepted (2a–2c by the owner 2026-10-17,
-  "Manually tested"). Then **7, now the save model (D28), sub-steps 7a–7h**, then the editor (M5), 5, 6.
-- **Today's later commits:** `aa1475e` (study answered, step 2 accepted), `1f195ca` (the step 7 plan).
-- **Gate:** last run `tests passed 861 failed 0 ignored 12`, VERIFY-GREEN at `2deb324` (docs-only commits since).
-  Sentrux rules pass, quality 8988.
+  `assets/` and `docs/dnd_supplemental/` (the owner's).
+- **Step 7, the save model (D28), plan `tasks/plans/m8.5-save-model.md`:**
 
-## Next: 7a, the journal and measurement
-- Read `tasks/plans/m8.5-save-model.md` in full first (the approved plan: shape, sub-steps, verification).
-- 7a builds `World.journal` (`#[serde(skip)]`, not fingerprinted), appended in `apply`
-  (`crates/omnis-sim/src/apply.rs:19-79`) for each accepted command: `Entry { minute, command }`, minute = the
-  party's age AFTER the command (as the client's History stamps it, `time_view.rs:107`); events kept in memory
-  only, without `Visible` and per-tile events. A replay must rebuild the journal identically, so `World:
-  PartialEq` stays meaningful (watch tests comparing a world against one loaded from the old whole-World save:
-  the loaded one has an empty journal).
-- Measurement: a release-mode timing harness (`omnis replay --time` and an ignored test) driving a seeded
-  wandering party for 10k and 50k commands on the test packs: µs per command for apply and for replay, bytes
-  per journal entry. No timings exist anywhere today. Commands per hour need the owner's play (the window's
-  `Session::save_log`, `.omnis/vector-session.ron`, which does not exist yet): ask the owner for a session.
-- Visible end: the debug World page shows the journal's length and "replay would take ~T ms".
-- Plan mode for 7a's detail is likely warranted (owner's practice for larger items); write an acceptance script
-  `tasks/acceptance/m8.5-7a.md`.
+  | Sub-step | Commit | State |
+  | --- | --- | --- |
+  | 7a, the journal and its measurement | `8d8773e` | accepted |
+  | 7b, `split`/`join` in memory | `d5f14d6` | accepted |
+  | 7c, flag scope (`data/flags`) | `ae99144` | accepted |
+  | 7d, the character save and world folder | `8f4d134`, `1906f45` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7d.md`** |
 
-## The save model as decided (owner, 2026-10-17; PRD D28, §7.7, §14; study `tasks/plans/world-state.md`)
-- Character save = checkpoint (party, party time and clock, party-side contacts, RNG streams, automap,
-  position, mode, bus, party flags, settings, turn) at the last fold + the journal since + the bases it names.
-- World folder `.omnis/worlds/<w>/`: manifest + `world/<hash>.ron` + `regions/<region>/<hash>.ron`; bases only.
-  **Layers are derived from the journal** (replayed on load). Base 0 = the authored packs, no file.
-- Changed pack: migrate (7h), then report what did not fit; the player loads without it or cancels.
-- Flags scoped per flag (party or world; undeclared = world). Folds are visible ("The world has moved on").
-  Named bases kept; dropping unnamed ones is a manual tidy (departure on timing only, in the plan).
-- **Provisional size fold** at safe points (long rest, entering a settlement) when the journal passes a rule value
-  set from 7a's measurement; M10's world sim (owner: a simplified 4X engine over biospheres, settlements, regions
-  and the world) sets real thresholds later. Story points (M11) fold too.
-- Pre-fold history archived as events beside the save. Characters may carry between worlds (a horizon).
-- Facts found: saving mid-fight is allowed and tested (kept); the 65,536 collection limit applies to packs, not
-  saves (4 MiB file limit is the save's); bases carry registry numbers until 7h, so the `PackMismatch` gate stays
-  until then; `ops.rs` 782 and `shell/session.rs` 822 lines, so new code goes in new modules.
+  Then 7e (fold), 7f (full log across loads), 7g (docs and pins), 7h (the old saves-by-name plan, re-scoped).
+- **Fixes made during the walks:**
+  - a text field kept the keyboard through a rebuild (`9a208c9`, lesson written);
+  - the 7c script now says the yard's lever is hidden (`8e7ac5c`, lesson written).
+- **Gate:** `tests passed 900 failed 0 ignored 14`, VERIFY-GREEN at `1906f45`. Sentrux (scan `crates/`, not the
+  repo root) rules pass, quality 8978.
+
+## 7d as built (read TODO's 7d review for the whole)
+- **The save** is `.omnis/quick.ron`, a character save written as compact RON: `CharacterSave { schema 8, world
+  id, bases, checkpoint, journal: [Run {command, times}], fingerprint }`.
+- **The world folder** is `.omnis/worlds/<16 hex>/`, holding `manifest.ron`, `world/<hash>.ron` and
+  `regions/<pack>/<name>/<hash>.ron`.
+- **`World.origin: Option<Split>`** (`None` = base 0). Until 7e, a new game's save replays from the start, and
+  only a converted old save writes base files.
+- **The code:** `save::{save_files, load_save}`; hosts use `ron_io::{write_files, read_under}`. `ops::save_text`
+  and `load_text` are gone.
+- **Measured:** 10k commands = 120 KB and a 0.2 s load; 50k = 605 KB and 1.8 s. Load time bounds folds, about
+  25k commands for 1 s.
+- **Open for 7e:**
+  - `rules.set`/`pack.reload` change rules without a command, so a later save may not replay; a fold should
+    rebase at that moment.
+  - The provisional fold rule is to be set from the numbers above.
+  - The owner's commands-an-hour figure from play is still to come.
+- **The owner's old `.omnis/quick.ron`** (objects pack, pre-7c) is refused for other packs until 7h. The 7d
+  script uses `crates/omnis-sim/tests/saves/v7.ron` instead.
+
+## Next
+- When the owner says the 7d walk passed, mark 7d accepted in TODO, then plan 7e in plan mode: `DevCommand::Fold`,
+  `Event::Folded` (Event 73), the HUD line "The world has moved on", the provisional size rule at safe points
+  (long rest, entering a settlement), archive segments (the entry events deferred from 7a), kept named bases,
+  and a manual tidy (`omnis-cli world tidy`). Each new command or event moves the API pins (see Process).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -57,10 +60,10 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 
 ## Pins
-- Replays: walk `8d880647a25097b2`, fight `d06fa80460a947ef` (unchanged by 2c). `SAVE_SCHEMA` 7,
+- **Replays:** walk `d9f7bb81ad3a7a25`, fight `69264fcb84cbbb06` (rebaselined in 7d). `SAVE_SCHEMA` 8,
   `PROTOCOL` 2.
-- MCP: command `oneOf` 14, item `oneOf` 10, schema proof 116/166, tools 26, ops 26. `Command` 16, `Event` 72,
-  `Rejection` 71. Base pack: 19 spells.
+- **MCP:** command `oneOf` 14, item `oneOf` 10, schema proof 116/166, tools 26, ops 26.
+- **Counts:** `Command` 16, `Event` 72, `Rejection` 71. The base pack has 19 spells.
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
