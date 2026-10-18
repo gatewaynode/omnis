@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7e (the fold) was built. Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7f (the saved log) was built. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -13,29 +13,31 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7a, the journal and its measurement | `8d8773e` | accepted |
   | 7b, `split`/`join` in memory | `d5f14d6` | accepted |
   | 7c, flag scope (`data/flags`) | `ae99144` | accepted |
-  | 7d, the character save and world folder (reworked: the party as it stands, a journal of world changes) | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
-  | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7e.md`** |
+  | 7d, the character save and world folder | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
+  | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | accepted 2026-10-18 (`b467758`) |
+  | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | built, **awaiting the owner's walk of `tasks/acceptance/m8.5-7f.md`** |
 
-  Then 7f (full log across loads), 7g (docs and pins), 7h (pack changes).
-- **Gate:** `tests passed 919 failed 0 ignored 14`, VERIFY-GREEN at `b43443c`. Sentrux (scan `crates/`) rules
-  pass, quality 8988.
+  Then 7g (docs and pins) and 7h (pack changes).
+- **Gate:** `tests passed 929 failed 0 ignored 14`, VERIFY-GREEN at `e04eebf`. Sentrux (scan `crates/`) rules
+  pass, quality 8987.
 
-## 7e as built (read TODO's 7e review for the whole)
-- `save::fold` (cannot fail): `origin` = split of the world, the journal held as `Archived::Held` in
-  `World.archive`, the journal emptied, `Event::Folded { interactions }`, shown as "The world has moved on".
-- **Triggers:** `DevCommand::Fold` (Explore or Town), and a safe point at the end of `apply` (`Rested { long:
-  true }`, `RoomTaken`, `Reconciled` from the party into a Settlement region) when `journal.len() >=
-  fold_interactions` (5000 in code, owner 2026-10-18; no pack sets it).
-- **On disk:** `CharacterSave.archive: [u64]`; segments at `.omnis/worlds/<id>/archive/<hash>.ron`. A load keeps the
-  names only (`Archived::Named`).
-- **Tidy:** `save::{unnamed, tidy_list}`, `ron_io::{list_under, size_under, remove_under}`, `omnis-cli world tidy
-  [--yes]`, and the debug World page's Fold, Tidy and Delete them (`HostOp::Tidy`).
+## 7f as built (read TODO's 7f review for the whole)
+- **Owner's choices (2026-10-18):** History comes from the party's log, not the archive; 16,384 events; the
+  per-step `Visible`, `EncounterCheck` and `TimeAdvanced` stay in memory only; a character save may be 8 MiB.
+- **The log:** `World::log: Vec<Logged { minute, map, event }>`, stamped in `World::record`; `LOG_CAPACITY` is
+  16,384; `log::{history, told, bound}`.
+- **Saving:** `CharacterSave.log` holds the `told` events. `load_save` restores and bounds it. `save_files`
+  refuses a save over `MAX_SAVE_BYTES`, and hosts read saves with `ron_io::read_save_under`.
+- **Client:** `shell::retold` rebuilds the History and the Names, `Session::replace` calls it, `HISTORY` equals
+  `LOG_CAPACITY`, and `history::Entry.folded` caches the filter text.
+- **Measured:** a worst-case save is 4.05 MB. With every event kept it would be about 13 MB, since `Visible` is
+  about 2.8 KB a step.
+- **Not retold:** the client's own lines, a search's "Within reach" summary, and members who left before the save.
 
 ## Next
-- When the owner says the 7e walk passed, mark 7e accepted in TODO, then plan 7f in plan mode. 7f is the full log
-  (History) across loads, from the archive and the journal. **Open, the owner's call:** party-only events (a
-  fight won against a random encounter, a purchase, a rest) leave no journal entry, so History needs the party's
-  own chronicle (where it lives, how big it grows, whether folds archive it too).
+- When the owner says the 7f walk passed, mark 7f accepted in TODO, then plan 7g (docs and pins: ARCHITECTURE
+  §4.1/§4.9/§6.2/§11, `docs/api.md`, MCP schema, `code-map.md`, `horizons.md` with the archive as the world's
+  history for later tools, co-op, character import; PRD note on tidy timing; `MAX_SAVE_BYTES` in §6.2).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
