@@ -3,7 +3,7 @@
 //! uses it in `--headless` mode. Host ops (files, packs) are handled here; the rest go to
 //! `omnis_sim::dispatch`.
 
-use omnis_data::ron_io::{read_under, write_files};
+use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
 use omnis_sim::ops::client_path;
 use omnis_sim::save::{load_save, save_files};
@@ -72,7 +72,7 @@ impl Headless {
             Op::SaveRead { path, force } => {
                 let root = Path::new(".");
                 let text =
-                    read_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
+                    read_save_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
                 let (world, _) = load_save(&text, &self.data, *force, &mut |p| {
                     read_under(root, p).map_err(|e| e.to_string())
                 })

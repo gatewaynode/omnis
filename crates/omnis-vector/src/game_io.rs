@@ -8,7 +8,7 @@
 use crate::sim::SimWorld;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::ron_io::{
-    list_under, read_under, remove_under, size_under, write_files,
+    list_under, read_save_under, read_under, remove_under, size_under, write_files,
 };
 use omnis_sim::ops::client_path;
 use omnis_sim::save::{Restored, load_save, tidy_list};
@@ -81,7 +81,7 @@ fn said(restored: Restored, millis: u128) -> String {
 /// can load.
 pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded, OpError> {
     let path = client_path(path, &["ron"])?;
-    let text = read_under(root, path).map_err(OpError::failed)?;
+    let text = read_save_under(root, path).map_err(OpError::failed)?;
     let started = Instant::now();
     let (world, restored) = load_save(&text, data, force, &mut |p| {
         read_under(root, p).map_err(|e| e.to_string())
@@ -110,7 +110,7 @@ pub struct Tidied {
 pub fn tidy(root: &Path, delete: bool) -> Result<Tidied, String> {
     let all = list_under(root, ".omnis").map_err(|e| e.to_string())?;
     let files = tidy_list(&all, &mut |p| {
-        read_under(root, p).map_err(|e| e.to_string())
+        read_save_under(root, p).map_err(|e| e.to_string())
     })?;
     let mut bytes = 0;
     for file in &files {

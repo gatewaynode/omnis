@@ -38,7 +38,7 @@ fn headless_writes_reads_and_reloads() {
     let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     step(&mut game);
     let mut saved = game.world.clone();
-    saved.log.clear();
+    saved.log.retain(|l| omnis_sim::told(&l.event));
     let path = "saves/one.ron";
     assert_eq!(
         game.handle(&Op::SaveWrite { path: path.into() }).unwrap(),
@@ -57,10 +57,7 @@ fn headless_writes_reads_and_reloads() {
         panic!("not a status")
     };
     assert_eq!(status.turn, 1);
-    assert_eq!(
-        game.world, saved,
-        "restored by its replay, with an empty log"
-    );
+    assert_eq!(game.world, saved, "restored, with the party's log as saved");
 
     for bad in ["../one.ron", "/tmp/one.ron", "saves/one.txt", ""] {
         let error = game

@@ -124,7 +124,7 @@ fn game_tools() -> Vec<Tool> {
             &[Field::new::<usize>(
                 "count",
                 false,
-                "How many, default 32, at most 4096.",
+                "How many, default 32, at most 16384.",
             )],
         ),
         tool(

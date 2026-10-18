@@ -18,14 +18,17 @@ use omnis_vector::shell::hud::{HudPlugin, LogColumn, LogLine};
 use omnis_vector::shell::screen::{Screens, ctx};
 use omnis_vector::shell::screen_draw::{Scrolls, wheeled};
 use omnis_vector::shell::session::Session;
+use std::path::PathBuf;
 
 #[test]
 fn the_history_keeps_the_newest_and_a_filter_needs_every_word_in_any_case() {
     let mut history = History::default();
     // Midnight of day one, but the last five on day two.
-    for n in 0..HISTORY + 5 {
-        let minute = if n < HISTORY { 0 } else { 1440 };
-        history.push(minute, format!("line {n}"));
+    for n in 0..HISTORY {
+        history.push(0, format!("line {n}"));
+    }
+    for n in 0..5 {
+        history.push(1440, format!("late line {n}"));
     }
     assert_eq!(history.len(), HISTORY);
     let first = history.iter().next().expect("kept");
@@ -37,10 +40,10 @@ fn the_history_keeps_the_newest_and_a_filter_needs_every_word_in_any_case() {
     let want = history.iter().filter(|e| e.text.contains("59")).count();
     assert_eq!(found.len(), want);
     assert!(found.iter().all(|e| e.text.contains("59")));
-    // Line 2004 was said on day two: the stamp's words count.
-    assert_eq!(history.matching("Day 2 line 2004").len(), 1);
+    // The late lines were said on day two: the stamp's words count.
+    assert_eq!(history.matching("Day 2 late line 4").len(), 1);
     assert!(
-        history.matching("day 1 line 2004").is_empty(),
+        history.matching("day 1 late line 4").is_empty(),
         "the stamp counts"
     );
     assert!(history.matching("line nothing").is_empty(), "every word");
@@ -239,4 +242,79 @@ fn the_wheel_moves_from_the_foot_and_stays_inside_the_rows() {
     assert_eq!(wheeled(100.0, -40.0, 300.0), 140.0);
     assert_eq!(wheeled(10.0, 40.0, 300.0), 0.0);
     assert_eq!(wheeled(290.0, -40.0, 300.0), 300.0);
+}
+
+/// A session met by the dungeon's group, then a fight of dodges, until it ends or 30 turns pass.
+fn fought() -> Session {
+    use omnis_sim::{CombatCommand, Command, EncounterChoice};
+    let mut session = common::fight::met();
+    session.order(Command::Encounter(EncounterChoice::Attack));
+    for _ in 0..30 {
+        if !common::fight::fighting(&session) {
+            break;
+        }
+        session.order(Command::Combat(CombatCommand::Dodge));
+    }
+    session
+}
+
+fn said(history: &History) -> Vec<(i64, String)> {
+    history.iter().map(|e| (e.minute, e.text.clone())).collect()
+}
+
+#[test]
+fn the_full_log_is_retold_from_the_party_s_log_as_it_was_said() {
+    let session = fought();
+    let live = said(&session.history);
+    assert!(
+        live.iter().any(|(_, l)| l.starts_with("Moved to"))
+            && live.iter().any(|(_, l)| l == "Round 1"),
+        "a walk and a fight: {live:?}"
+    );
+    let (retold, _) = omnis_vector::shell::retold::retold(
+        session.world.history(),
+        &session.views.party,
+        &session.data,
+    );
+    assert_eq!(said(&retold), live);
+}
+
+#[test]
+fn a_load_retells_the_full_log_from_the_save() {
+    let mut session = fought();
+    let live = said(&session.history);
+    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("vector-retold");
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    omnis_vector::game_io::save(&session.world, &session.data, &root, "one.ron").unwrap();
+    let loaded = omnis_vector::game_io::load(&session.data, &root, "one.ron", false).unwrap();
+    // Another session's history is not this save's.
+    session.history = History::default();
+    session.history.push(0, "said by another game".to_owned());
+    session.replace(loaded.world, "loaded");
+    assert_eq!(said(&session.history), live, "every line, at its clock");
+}
+
+#[test]
+fn a_retold_object_is_named_from_the_map_it_was_found_on() {
+    use omnis_sim::{Logged, Notice};
+    let data = common::objects_data();
+    let (world, _) = common::session(&data);
+    let party = common::views(&world, &data).party;
+    let found = Logged {
+        minute: 5,
+        map: common::map(&data, "objects:map:yard"),
+        event: Event::Noticed {
+            object: "lever_1".into(),
+            how: Notice::Search,
+        },
+    };
+    let (retold, _) = omnis_vector::shell::retold::retold(&[found], &party, &data);
+    let lines = said(&retold);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].0, 5);
+    assert!(
+        lines[0].1.starts_with("Found: ") && !lines[0].1.contains("Something"),
+        "{lines:?}"
+    );
 }

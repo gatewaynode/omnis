@@ -2,7 +2,7 @@
 //! refused with the reason, and a pack directory that is not there stops the start with its name.
 
 use crate::common::{data, town_session};
-use omnis_sim::omnis_data::limits::MAX_FILE_BYTES;
+use omnis_sim::omnis_data::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES};
 use omnis_vector::game_io;
 use omnis_vector::shell::session::{Config, Packs};
 use std::path::PathBuf;
@@ -17,7 +17,12 @@ fn a_save_is_read_with_the_loader_s_limits() {
     game_io::save(&world, &data, &root, "real.ron").unwrap();
     assert!(game_io::load(&data, &root, "real.ron", false).is_ok());
 
+    // A save has room of its own, more than a pack file (M8.5 7f).
     let size = usize::try_from(MAX_FILE_BYTES).unwrap() + 1;
+    std::fs::write(root.join("roomy.ron"), vec![b' '; size]).unwrap();
+    let refused = game_io::load(&data, &root, "roomy.ron", false).unwrap_err();
+    assert!(!refused.to_string().contains("limit"), "{refused}");
+    let size = usize::try_from(MAX_SAVE_BYTES).unwrap() + 1;
     std::fs::write(root.join("big.ron"), vec![b' '; size]).unwrap();
     let refused = game_io::load(&data, &root, "big.ron", false).unwrap_err();
     assert!(refused.to_string().contains("limit"), "{refused}");

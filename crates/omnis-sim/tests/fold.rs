@@ -141,9 +141,12 @@ fn each_save_loads_at_its_own_moment_across_folds() {
     assert_eq!(state(&second, &data, "gate_1").as_deref(), Some("open"));
     assert_eq!(report.applied, 0);
     let mut kept = world.clone();
-    kept.log.clear();
+    kept.log.retain(|l| omnis_sim::told(&l.event));
     kept.archive = second.archive.clone();
-    assert_eq!(second, kept, "the folded world, saved and loaded");
+    assert_eq!(
+        second, kept,
+        "the folded world, saved and loaded, its log with it"
+    );
 }
 
 #[test]
@@ -248,7 +251,11 @@ fn a_long_rest_folds_once_the_journal_reaches_the_threshold() {
     let events = long_rest(&mut world, &data);
     assert_eq!(folded(&events), Some(1));
     assert!(world.journal.is_empty());
-    assert_eq!(world.log.last(), events.last(), "the fold is news");
+    assert_eq!(
+        world.log.last().map(|l| &l.event),
+        events.last(),
+        "the fold is news"
+    );
     let data = folding_at(2);
     let mut world = camped(&data);
     assert_eq!(

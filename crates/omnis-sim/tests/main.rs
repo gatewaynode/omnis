@@ -15,6 +15,7 @@ mod elevation;
 mod encounter;
 mod fold;
 mod ground;
+mod history;
 mod items;
 mod journal;
 mod levels;

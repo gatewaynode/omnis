@@ -518,7 +518,10 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::EventsTail { count } => {
             let keep = (*count).min(LOG_CAPACITY).min(world.log.len());
             Ok(Reply::Events {
-                events: world.log[world.log.len() - keep..].to_vec(),
+                events: world.log[world.log.len() - keep..]
+                    .iter()
+                    .map(|l| l.event.clone())
+                    .collect(),
             })
         }
         Op::ViewportGet => query::viewport(world, data)

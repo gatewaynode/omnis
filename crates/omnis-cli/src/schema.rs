@@ -11,7 +11,7 @@ use omnis_sim::api::Change;
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
 use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest};
 use omnis_sim::world::SAVE_SCHEMA;
-use omnis_sim::{Command, Entry, Op, PARTY, Replay};
+use omnis_sim::{Command, Entry, Logged, Op, PARTY, Replay};
 use std::collections::BTreeMap;
 
 const MANIFEST: &str = r#"(
@@ -362,6 +362,18 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         .into(),
         fingerprint: 0,
         archive: vec![0x0123_4567_89ab_cdef],
+        log: vec![Logged {
+            minute: 42,
+            map: MapId(0),
+            event: omnis_sim::Event::Door {
+                map: "example:map:vale".into(),
+                level: omnis_sim::omnis_core::Level::GROUND,
+                x: 0,
+                y: 0,
+                facing: Facing::East,
+                open: true,
+            },
+        }],
     };
     let manifest = Manifest {
         seed: 1,

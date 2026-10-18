@@ -1,13 +1,12 @@
 //! The full log's history (owner, 2026-10-17): every line the session said, exploration and
 //! fight alike, each stamped with the party's clock when it was said, the newest [`HISTORY`]
-//! kept. It lasts the session until the save model of PRD D28 keeps the party's interactions,
-//! from which it will be read. Bevy-free.
+//! kept. A load retells it from the party's saved log (M8.5 7f, `shell::retold`). Bevy-free.
 
 use crate::labels;
 use std::collections::VecDeque;
 
-/// The most lines kept; the oldest go first.
-pub const HISTORY: usize = 2000;
+/// The most lines kept; the oldest go first. As many as the party's log keeps events (M8.5 7f).
+pub const HISTORY: usize = omnis_sim::LOG_CAPACITY;
 
 /// A line and when it was said.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +15,9 @@ pub struct Entry {
     pub minute: i64,
     /// The words.
     pub text: String,
+    /// The stamped line in lower case, which a filter reads: made once, as the full log can
+    /// hold [`HISTORY`] lines and its screen filters them every frame it is open.
+    folded: String,
 }
 
 impl Entry {
@@ -46,7 +48,13 @@ impl History {
         if self.entries.len() == HISTORY {
             self.entries.pop_front();
         }
-        self.entries.push_back(Entry { minute, text });
+        let mut entry = Entry {
+            minute,
+            text,
+            folded: String::new(),
+        };
+        entry.folded = entry.stamped().to_lowercase();
+        self.entries.push_back(entry);
     }
 
     /// How many lines are kept.
@@ -73,10 +81,7 @@ impl History {
         let words: Vec<String> = filter.split_whitespace().map(str::to_lowercase).collect();
         self.entries
             .iter()
-            .filter(|e| {
-                let line = e.stamped().to_lowercase();
-                words.iter().all(|w| line.contains(w.as_str()))
-            })
+            .filter(|e| words.iter().all(|w| e.folded.contains(w.as_str())))
             .collect()
     }
 }

@@ -237,7 +237,7 @@ fn world_tidy(args: Args) -> Result<(), String> {
     let root = Path::new(".");
     let all = ron_io::list_under(root, ".omnis").map_err(|e| e.to_string())?;
     let files = omnis_sim::save::tidy_list(&all, &mut |p| {
-        ron_io::read_under(root, p).map_err(|e| e.to_string())
+        ron_io::read_save_under(root, p).map_err(|e| e.to_string())
     })?;
     let mut bytes = 0;
     for file in &files {

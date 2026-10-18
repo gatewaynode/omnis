@@ -12,6 +12,7 @@ pub mod minimap;
 pub mod movement;
 pub mod notice;
 pub mod render;
+pub mod retold;
 pub mod roster;
 pub mod screen;
 pub mod screen_draw;

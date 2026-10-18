@@ -1,6 +1,7 @@
 //! The complete game state (ARCHITECTURE.md §4.1). Ordered collections, integers, serde. A save
 //! is this struct as RON text; the fingerprint hashes that text.
 
+use crate::PARTY;
 use crate::bus::Bus;
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
@@ -13,7 +14,6 @@ use crate::objects::{Knowledge, ObjectState};
 use crate::party::Party;
 use crate::service::ServiceState;
 use crate::time::PartyTime;
-use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -292,10 +292,11 @@ pub struct World {
     pub party: Party,
     /// Commands applied so far.
     pub turn: u64,
-    /// Recent events for clients that poll (`events.tail`). Not part of the save or the
+    /// The party's log: the newest `LOG_CAPACITY` events, stamped (M8.5 7f). The character
+    /// save carries it, and `events.tail` reads it; not part of the world's RON or the
     /// fingerprint.
     #[serde(skip)]
-    pub log: Vec<Event>,
+    pub log: Vec<crate::log::Logged>,
     /// The interactions since the world's base and what each changed (PRD D28). The character
     /// save carries it (M8.5 7d); not part of the fingerprint.
     #[serde(skip)]
@@ -463,13 +464,16 @@ impl World {
         self.maps.retain(|_, s| *s != MapState::default());
     }
 
-    /// Append events to the bounded log.
+    /// Append events to the bounded log, stamped with the party's clock and map now.
     pub fn record(&mut self, events: &[Event]) {
-        self.log.extend_from_slice(events);
-        if self.log.len() > LOG_CAPACITY {
-            let excess = self.log.len() - LOG_CAPACITY;
-            self.log.drain(..excess);
-        }
+        let (minute, map) = (self.party_clock().elapsed, self.position.map);
+        self.log
+            .extend(events.iter().map(|event| crate::log::Logged {
+                minute,
+                map,
+                event: event.clone(),
+            }));
+        crate::log::bound(&mut self.log);
     }
 
     /// The save text.

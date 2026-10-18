@@ -30,6 +30,7 @@ pub mod event;
 pub mod ground;
 pub mod items;
 pub mod journal;
+pub mod log;
 mod migrate;
 pub mod names;
 pub mod objects;
@@ -76,6 +77,7 @@ pub use event::{
 };
 pub use items::ItemCommand;
 pub use journal::{Entry, Journal, journal_len};
+pub use log::{Logged, history, told};
 pub use names::Place;
 pub use objects_view::{ObjectsView, objects_view};
 pub use ops::{Op, OpError, Reply, Status, dispatch};
@@ -104,5 +106,5 @@ use omnis_core::{HolderId, PartyId};
 pub const PARTY: HolderId = HolderId::Party(PartyId(0));
 /// Minutes opening or closing a door costs.
 pub const INTERACT_MINUTES: u32 = 1;
-/// How many events `World::log` keeps.
-pub const LOG_CAPACITY: usize = 4096;
+/// How many events `World::log`, the party's log, keeps (M8.5 7f: 16,384, owner 2026-10-18).
+pub const LOG_CAPACITY: usize = 16_384;

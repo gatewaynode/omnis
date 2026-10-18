@@ -5,6 +5,9 @@ use std::path::{Component, Path};
 
 /// Largest text file the loader reads.
 pub const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
+/// Largest character save a host reads or the engine writes (M8.5 7f, owner 2026-10-18): the
+/// party's log and a full journal at their bounds, with room to spare.
+pub const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 /// Largest total of data files in one pack.
 pub const MAX_PACK_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest map side in tiles.

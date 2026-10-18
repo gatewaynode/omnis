@@ -1,6 +1,7 @@
 //! The session resource and the command line (presentation-ARCHITECTURE.md §6, §12).
 
 use super::hud::LOG_LINES;
+use super::retold::retold;
 use super::text::{describe, searched};
 use crate::bind::Binder;
 use crate::grid::cell_of;
@@ -620,9 +621,9 @@ impl Session {
         self.names.observe(&self.views.party);
         self.reshape = true;
         self.unreplayable = Some(why.to_owned());
-        // The old world's last event is not this one's, nor its history.
+        // The old world's last event is not this one's; its history is the party's log, retold.
         self.notice = None;
-        self.history = History::default();
+        (self.history, self.names) = retold(self.world.history(), &self.views.party, &self.data);
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`

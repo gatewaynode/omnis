@@ -1,7 +1,6 @@
 //! Save migrations, one function per schema step (ARCHITECTURE.md §6.1). A save from build N
 //! loads in build N+1 (PRD §7.7): the old shape is read as written, then converted.
 
-use crate::event::Event;
 use crate::objects::Knowledge;
 use crate::party::Party;
 use crate::world::{Automap, MapState, Mode, SaveRule, Settings, World};
@@ -65,7 +64,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         },
         party: Party::default(),
         turn: old.turn,
-        log: Vec::<Event>::new(),
+        log: Vec::new(),
         journal: crate::journal::Journal::default(),
         origin: None,
         archive: Vec::new(),

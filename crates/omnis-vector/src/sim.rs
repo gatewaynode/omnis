@@ -128,6 +128,12 @@ impl SimWorld {
         omnis_sim::api::journal_len(&self.0)
     }
 
+    /// The party's log, oldest first (`api::history`, M8.5 7f).
+    #[must_use]
+    pub fn history(&self) -> &[omnis_sim::api::Logged] {
+        omnis_sim::api::history(&self.0)
+    }
+
     /// How many archive segments the folds have put away (`api::archive_len`).
     #[must_use]
     pub fn archive_len(&self) -> usize {

@@ -17,6 +17,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use omnis_core::fnv1a64;
 use omnis_data::Data;
+use omnis_data::limits::MAX_SAVE_BYTES;
 use omnis_data::ron_io::{parse, to_compact, to_string};
 use serde::Deserialize;
 
@@ -140,10 +141,23 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         journal: world.journal.clone(),
         fingerprint: world.fingerprint().map_err(|e| failed(&e))?,
         archive,
+        log: world
+            .log
+            .iter()
+            .filter(|l| crate::log::told(&l.event))
+            .cloned()
+            .collect(),
     };
+    let text = to_compact(&save).map_err(|e| failed(&e))?;
+    if text.len() as u64 > MAX_SAVE_BYTES {
+        return Err(OpError::failed(format!(
+            "the save is {} bytes; a save may hold {MAX_SAVE_BYTES}",
+            text.len()
+        )));
+    }
     files.push(FileOut {
         path: save_path.into(),
-        text: to_compact(&save).map_err(|e| failed(&e))?,
+        text,
         keep: false,
     });
     Ok(files)
@@ -243,6 +257,8 @@ pub fn load_save(
     }
     world.journal = save.journal;
     world.archive = save.archive.into_iter().map(Archived::Named).collect();
+    world.log = save.log;
+    crate::log::bound(&mut world.log);
     let actual = world.fingerprint().map_err(LoadError::Parse)?;
     if !packs_differ && actual != save.fingerprint {
         return Err(LoadError::Diverged {

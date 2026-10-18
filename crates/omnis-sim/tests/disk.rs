@@ -54,10 +54,11 @@ fn read(
     })
 }
 
-/// The world as a load gives it back: everything but the log of events already seen.
+/// The world as a load gives it back: all of it, and of the party's log the events a full log
+/// tells (M8.5 7f).
 fn kept(world: &World) -> World {
     let mut kept = world.clone();
-    kept.log.clear();
+    kept.log.retain(|l| omnis_sim::told(&l.event));
     kept
 }
 
@@ -88,7 +89,12 @@ fn a_new_games_save_names_no_bases_and_making_a_party_journals_nothing() {
     assert_eq!(report.applied, 0, "the drafts change only the party");
     assert_eq!(report.converted_from, None);
     assert!(back.journal.is_empty());
-    assert!(back.log.is_empty(), "a load makes no news");
+    assert!(!back.log.is_empty(), "the party's making is in its log");
+    assert_eq!(
+        back.log,
+        kept(&world).log,
+        "a load makes no news of its own"
+    );
 }
 
 #[test]
@@ -254,6 +260,7 @@ fn a_schema_7_save_converts_and_its_bases_are_written() {
     assert_eq!(report.applied, 0);
     assert!(world.journal.is_empty());
     assert!(world.origin.is_some(), "the old world is the new base");
+    assert!(world.log.is_empty(), "an old save kept no log");
     let mut disk = BTreeMap::new();
     let order = write(&world, &data, &mut disk);
     let regions = order.iter().filter(|p| p.contains("/regions/")).count();

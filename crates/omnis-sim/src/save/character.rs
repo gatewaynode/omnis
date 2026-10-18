@@ -4,6 +4,7 @@
 
 use super::{Checkpoint, Manifest};
 use crate::journal::Journal;
+use crate::log::Logged;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
@@ -45,6 +46,9 @@ pub struct CharacterSave {
     /// folds put away, in the world folder's `archive/`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub archive: Vec<u64>,
+    /// The party's log, oldest first (M8.5 7f): the newest `LOG_CAPACITY` events, stamped.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub log: Vec<Logged>,
 }
 
 /// A world folder's name: sixteen hex digits of its manifest's hash, so a world is found by its

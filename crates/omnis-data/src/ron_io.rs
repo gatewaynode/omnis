@@ -2,7 +2,7 @@
 //! the game loads (PRD §10). Reads are bounded: file size, recursion depth.
 
 use crate::error::DataError;
-use crate::limits::{MAX_FILE_BYTES, RON_RECURSION_LIMIT, check_asset_path};
+use crate::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES, RON_RECURSION_LIMIT, check_asset_path};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::path::Path;
@@ -44,15 +44,20 @@ pub fn to_compact<T: Serialize>(value: &T) -> Result<String, DataError> {
 /// Read a file's text with the size cap, refusing symlinks so a pack cannot point outside
 /// its root.
 pub fn read_text(path: &Path, display: &Path) -> Result<String, DataError> {
+    read_capped(path, display, MAX_FILE_BYTES)
+}
+
+/// `read_text` with the cap `limit`.
+fn read_capped(path: &Path, display: &Path, limit: u64) -> Result<String, DataError> {
     let meta = std::fs::symlink_metadata(path)
         .map_err(|e| DataError::new(display, format!("cannot read: {e}")))?;
     if meta.file_type().is_symlink() {
         return Err(DataError::new(display, "symlinks are not allowed in packs"));
     }
-    if meta.len() > MAX_FILE_BYTES {
+    if meta.len() > limit {
         return Err(DataError::new(
             display,
-            format!("file is {} bytes; limit is {MAX_FILE_BYTES}", meta.len()),
+            format!("file is {} bytes; limit is {limit}", meta.len()),
         ));
     }
     std::fs::read_to_string(path).map_err(|e| DataError::new(display, format!("cannot read: {e}")))
@@ -116,6 +121,13 @@ pub fn write_files(root: &Path, files: &[(&str, &str, bool)]) -> Result<(), Data
 pub fn read_under(root: &Path, path: &str) -> Result<String, DataError> {
     let full = under(root, path)?;
     read_text(&full, Path::new(path))
+}
+
+/// Read the character save `path` names under `root`: `read_under` with the save's own cap,
+/// `MAX_SAVE_BYTES`.
+pub fn read_save_under(root: &Path, path: &str) -> Result<String, DataError> {
+    let full = under(root, path)?;
+    read_capped(&full, Path::new(path), MAX_SAVE_BYTES)
 }
 
 /// How deep `list_under` goes below its folder, and how many files it lists at most.
