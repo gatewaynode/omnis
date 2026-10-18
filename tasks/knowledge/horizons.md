@@ -25,6 +25,22 @@ order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files
 the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
 own value.
 
+## The save model (PRD D28, M8.5 step 7)
+Built in 7a–7f (ARCHITECTURE §4.1.1). Left for later, each a horizon:
+- **The archive as the world's history.** Every fold keeps the journal it folds as an archive
+  segment (`.omnis/worlds/<id>/archive/`), never read back today. A chronicle of the world, a
+  "what happened here" for a place, or the story engine's memory (M11) can read it. The full log
+  reads the party's own log instead (owner, 2026-10-18).
+- **Co-op over one world** (D5): several characters' saves naming one world folder need the
+  world's changes stored as shared layers, not only as each save's private journal.
+- **Carrying a character to another world**, or importing one: the checkpoint is the party apart
+  from any world, but its ids, flags and knowledge name one world's packs and maps (PRD §7.7).
+- **Fold thresholds from the world simulation** (M10): today a safe point folds at 5,000
+  interactions, a provisional rules value; story points (M11) fold too.
+- **The PRD's save-model text** (owner, 2026-10-18, 7g: only §7.7's tidy line was brought to the
+  build): D28 and §7.7 still say the full log reads the journal and that loads replay from a base;
+  §7.6, §9.3, §11.1 and §14 predate flag scope, the lay-not-replay load and the provisional fold.
+
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 **Built in M7c (2026-10-04, ARCH §4.7)**: everything in the "Planned for M7c" paragraph below, the tactics panel beside the sheet, and Bob; D24 stands over the SRD's one-spell limit (step 4b reverted in step 8a, owner 2026-10-04). What follows is the history and what stays open.
 **Owner, 2026-09-20: M7c, M7's last acceptance point, planned in plan mode when reached; ARCH
