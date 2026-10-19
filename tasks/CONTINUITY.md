@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7h2 (schema 9) was built and committed. Next: the owner walks 7h2; then build 7h3. Rewrite this file every time it is used.
+Written 2026-10-19, after the owner accepted M8.5 7h2 (schema 9). Next: build 7h3, the remap. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -18,7 +18,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
   | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
   | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
-  | 7h2, schema 9 | `9495867`, docs `ca9c556` | **built, awaiting the owner's walk** (`tasks/acceptance/m8.5-7h2.md`) |
+  | 7h2, schema 9 | `9495867`, docs `ca9c556` | accepted 2026-10-19 ("Manually confirmed") |
 
   7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
   `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
@@ -59,10 +59,14 @@ Durable knowledge lives in `tasks/knowledge/`.
   §7.7 needs the owner's approval).
 
 ## Next
-- **The owner walks 7h2.** Step 2 of the script is a forced load the owner asks for in session: call the omnis MCP
-  `save_read` with `path: ".omnis/saves/folded-v8.ron"`, `force: true` (and `journal-v8.ron` for step 6), with the
-  game running (`just run --windowed --pack packs/base --pack packs/test`, a new game started). Expected: "Loaded
-  …: converted from a schema 8 save", the goblins' encounter at (3, 14); the World page "Manifest: 109 names, …".
+- **Build 7h3, the remap** (TODO; plan summary below): load in the save's own numbering, `join_raw`, the
+  fingerprint always checked, then the tiers; `Remapper` over live state; `time:` streams rebuilt through
+  `StreamName::time`; the bus from `time::subscriptions`; the fold on a names change (`Held.from`); the overlay
+  proof with every view equal, one mutation per field.
+- **Forced loads in a walk:** when the omnis MCP isn't connected, send `{"id":1,"op":"save.read","args":{"path":..,
+  "force":true}}` as one JSON line to the address in `.omnis/dev.addr` (a short `python3 -I` socket script);
+  `screen.text` reads the window back. The game must be in a world, not on the title or New game screen ("no game
+  is running").
 - **Open for the owner (in the report):** the pack data `SCHEMA` stays 1 though `FixedEncounter.id` is now required
   and `Stand.id` is gone (only our packs exist); a bump would touch every data file.
 - **7h2 as built (what 7h3 builds on):** `save/rows.rs` (rows read as `#n` markers via `row_or_id`/`rows_or_ids`
