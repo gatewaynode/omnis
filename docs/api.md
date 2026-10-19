@@ -144,7 +144,7 @@ rejections alike (ARCHITECTURE.md §4.9):
    events, views and `Status`; `level` is left out on the map's own level (0).
 5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
    `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
-   `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
+   `world.query` paths (the saved
    world), and Tier 1's `automap`, `map_text` and `door_open` (which take a `MapId`), `step_lands` (a
    `Position`) and `site_ahead` (a `ServiceId`). The `World`'s own fields keep
    registry numbers; they are not API.
@@ -186,7 +186,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 26 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`) and the
-rest in `ops.rs` (`check_reload`, `rules_set`). `BadRequest` can answer any op on the
+rest in `ops.rs` (`reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
 
 | Op | Args | Reply | Errors | Host |
@@ -444,7 +444,7 @@ answer).
 | Field | Meaning |
 |---|---|
 | `phase` | `Encounter` or `Combat`. |
-| `source` | `EncounterSource`: `{"Fixed": n}` (the placement's position in the map file), `Random`, `Ambush` (at rest). |
+| `source` | `EncounterSource`: `{"Fixed": "<id>"}` (the placement's id in the map, M8.5 7h2), `Random`, `Ambush` (at rest). |
 | `disposition` | `Hostile`, `Wary`, `Neutral`, `Friendly`. |
 | `stacks` | `[StackView]`, in encounter order. |
 | `retreat` | `Place` that Run and Flee put the party on. |
@@ -978,7 +978,7 @@ looked at.
 | Version | Value | Covers | Moves when |
 |---|---|---|---|
 | `ops::PROTOCOL` | 2 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
-| `SAVE_SCHEMA` | 8 | Save files: the character save (`save::CharacterSave`, compact RON) and the world folder (`save::Manifest`, `WorldBase`, `RegionBase`, pretty RON) | The save's shape changes. Schemas 1 to 7 were whole worlds (`World::to_ron`); they migrate to 7 and are converted on load. `World::to_ron` remains the fingerprint's text and a snapshot `World::from_ron` reads. |
+| `SAVE_SCHEMA` | 9 | Save files: the character save (`save::CharacterSave`, compact RON) and the world folder (`save::Manifest` with its `NameTable`, `WorldBase`, `RegionBase`, pretty RON) | The save's shape changes. Schemas 1 to 7 were whole worlds (`World::to_ron`); they migrate to 7 and are converted on load. Schema 8 named fixed encounters by row; it is converted on load (M8.5 7h2). `World::to_ron` remains the fingerprint's text and a snapshot `World::from_ron` reads. |
 | `omnis_data::SCHEMA` | 1 | Pack data files | The pack file format changes; the loader refuses other schemas. |
 | Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files, or to its manifest's fields (FNV-1a 64 over them); a pack records it in `pack.ron` as `hash`, and the loader refuses one whose content no longer has it (M8.5 7h1). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
 
@@ -1147,6 +1147,22 @@ Additive (§13), so `PROTOCOL` stays 2:
   the hash of the pack's content at its version; the loader refuses a pack not sealed or no
   longer matching it. `PackFingerprint` is unchanged, but every pack's hash moved once (the
   manifest is now hashed by its fields), so saves made before it count as made on other packs.
+- 2026-10-18: schema 9 (M8.5 7h2). A fixed encounter has a required `id` (`FixedEncounter.id`,
+  `[a-z0-9_]{1,32}`, unique among the map's objects and encounters); `Stand` loses its own `id`,
+  and a standing group is named by the encounter's (`BeingView.being` and `Approach` unchanged on
+  the wire). `EncounterSource::Fixed` carries the id, so `EncounterStarted.source` and
+  `CombatView.source` read `{"Fixed": "<id>"}` where they read the row; protocol stays 2 (the
+  row was listed as numeric by design, and no client read it). `SAVE_SCHEMA` 9: `MapState.cleared`
+  and `Change::Cleared` (`id`, was `index`) by id; a schema 8 save converts its rows on load
+  (reported converted, not held to its fingerprint) and a row a loaded map lacks refuses it. The
+  world folder's manifest carries `names` (`save::NameTable`), so every save made from now on
+  writes a new world folder. `CharacterSave.archive` holds `save::Segment { world, name }`
+  (a schema 8 save's bare hashes still read), and a segment folded under other packs is written
+  in that world's folder (`Archived::Held { journal, from }`). Base 0 is `Bases::default()`.
+  `ops::check_reload` becomes `ops::reload`, which also records the packs on the world: a save
+  after `pack.reload` loads without `force`. Tier 1 adds `NameTable`, `Segment`, `Signature`.
+  The goldens moved (the test pack resealed at 0.1.1, the schema): walk `8eab9a1dd95b472d`,
+  fight `79ca2704c92bc312`.
 
 ### Protocol 2 (2026-10-10)
 

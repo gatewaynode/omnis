@@ -74,14 +74,14 @@ old saves only).
 - Time (M8): `time.rs` (`PartyTime { shared_milli, date, era }`, `advance` at the region's company,
   `moved` raises `Signal::Entered`, the `Sim` host and `Reconcile`, `subscriptions`, `region_clock`,
   couplings at depth one on `time:<a>:<b>`), `time_view.rs` (`TimeView`, `DateView`, `ContactView`,
-  `time_view`, `party_date`; `time.clocks`); `World.{contacts, party_time, bus}`; `migrate::v6_to_v7` (the last step: older saves stop at 7 and are converted to schema 8 on load, `save/disk.rs`).
+  `time_view`, `party_date`; `time.clocks`); `World.{contacts, party_time, bus}`; `migrate::v6_to_v7` (the last step: older saves stop at 7 and are converted to a character save on load, `save/disk.rs`).
   Data: `omnis-data/src/region.rs` (`RegionDef`, `Region`, `RegionKind`, the load checks),
   `MapData.region`, `Data::calendar()` → `omnis_core::{Calendar, Date}`, `text::fill` (`{ago}`);
   `rules/time.ron` (`time.settled`, `time.wild`, the calendar values). App: `panels::clock_text`
   (the HUD clock line), `text::ago_text` (a rumor's age).
 - The engine's API (ARCHITECTURE §4.9, M8 step 8): `api.rs` re-exports exactly the contract; `ops.rs` (`PROTOCOL`,
   `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
-  `check_reload`, `rules_set`; the save's are in `save/`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
+  `reload` (records the packs, 7h2), `rules_set`; the save's are in `save/`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
@@ -153,11 +153,12 @@ old saves only).
   `save/mod.rs` (`Split`, `Checkpoint`, `Holdings`, `Bases`, `WorldBase`, `RegionBase`, `Manifest`), `save/split.rs`
   (`split`), `save/join.rs` (`join`, `JoinError`), `save/report.rs` (`split_report`), `save/character.rs`
   (`CharacterSave`, `BaseNames`, `world_id`, `is_world_id`), `save/disk.rs` (`save_files` with `fits`, each file
-  against its reader's limit; `load_save`, `Restored`, base 0, the v1–7 conversion, `region_path`, `archive_path`),
-  `save/fold.rs` (`fold`, `Archived::{Held, Named}`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
-  `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`). `World.{known, journal, origin, archive, log}`.
+  against its reader's limit; `load_save`, `Restored`, the v1–7 conversion, `CHARACTER_SCHEMA`, `region_path`, `archive_path`),
+  `save/fold.rs` (`fold`, `Archived::{Held { journal, from }, Named(Segment)}`, `Segment`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
+  `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`; schema 8 and 9 saves both count), `save/names.rs` (7h2: `NameTable::of`,
+  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids). `World.{known, journal, origin, archive, log}`.
   Tests: `journal.rs`, `split.rs`, `disk.rs` (both goldens saved and loaded after every command; fixtures
-  `tests/saves/v1..v7.ron` and the schema 8 one), `fold.rs`, `history.rs`.
+  `tests/saves/v1..v7.ron`, the schema 8 and 9 ones), `by_id.rs` (7h2: the v8-cleared fixture, the name table), `fold.rs`, `history.rs`.
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
   `new_world`: a new game placed on the meadow's start, where tests from before the town begin;
   `party_of`, `act`: one command played as a whole turn). M7c: `turn_budget.rs`, `reactions.rs`,

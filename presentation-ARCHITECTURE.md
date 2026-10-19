@@ -130,7 +130,7 @@ so the client can do only what the API allows:
 | `here`, `party`, `combat` | `here`, `party_view`, `combat_view` |
 | `position`, `exploring_at` | `here().position` turned back into a `Position` through `data.registry.maps`; the second only while exploring |
 | `automap(map)`, `door_open(map, x, y, facing)`, `step_lands(data, direction)` | the Tier 1 queries |
-| `save_files`, `status`, `check_reload(fresh)`, `replace(world)`, `history` | the host ops' engine halves (`save::save_files`, `ops::status`, `ops::check_reload`); the party's log, retold after a load (M8.5 7f) |
+| `save_files`, `status`, `reload(fresh)`, `replace(world)`, `history` | the host ops' engine halves (`save::save_files`, `ops::status`, `ops::reload`, which records the packs); the party's log, retold after a load (M8.5 7f) |
 | `views(data)` | `Views::of` |
 
 `Deref` and `DerefMut` to `World` exist only under `cfg(any(test, feature = "test-fixtures"))`, for tests that
