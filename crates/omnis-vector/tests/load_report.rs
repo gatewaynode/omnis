@@ -124,7 +124,7 @@ fn a_save_naming_what_the_packs_lack_opens_the_load_screen_and_closes_to_the_tit
     for line in [
         "This save does not load",
         "It names what the loaded packs no longer have.",
-        "ahead: 0.1.1 → none",
+        "ahead: saved 0.1.1, loaded none",
         "item 'ahead:item:dagger' in party.inventory",
         "[button]",
     ] {
@@ -264,7 +264,11 @@ fn the_load_screen_shows_twelve_of_a_list_and_counts_the_rest() {
         12
     );
     assert!(
-        texts.contains(&"…and 3 more; save_check lists them all".to_owned()),
+        texts.contains(&"and 3 more; save_check lists them all".to_owned()),
         "{texts:?}"
+    );
+    assert!(
+        texts.iter().all(|t| t.is_ascii()) && screen.title.text.is_ascii(),
+        "the built-in face draws ASCII only: {texts:?}"
     );
 }

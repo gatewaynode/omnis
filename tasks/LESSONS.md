@@ -303,3 +303,7 @@
 - **Rule**: when the owner asks about context, say plainly that I cannot read it and ask for `/context`, or
   give a range that leans high. Before a large sub-step, keep broad reading in subagents (the 7h3 id inventory
   by an Explore agent cost the main context one report), and cap test output with `grep`/`cut`.
+
+## 2026-10-19 — Interface words are ASCII unless the face is known to draw them
+- **What happened**: The 7h4 Load screen wrote "saved → loaded" and "…and N more". The built-in face has neither glyph, so the owner's walk showed boxes. The tests read the strings, not the glyphs, so nothing failed.
+- **Rule**: Text a screen builds in code uses ASCII ("saved 0.1.1, loaded none", "and 3 more"). A new screen's test asserts its texts are ASCII. Arrows, ellipses and dashes belong in docs and comments, never in `Span`s, until a face's coverage is checked.

@@ -1,7 +1,8 @@
 //! The save that does not load (M8.5 7h4): what the loaded packs make of it, from the title,
 //! the pause or the fallen party's screen. It opens only when the verdict refuses the load (a
 //! name the packs lack, or a save that keeps no names on other packs); a save that loads, loads
-//! at once. It lists the packs that changed, then what is missing and where, and closes.
+//! at once. It lists the packs that changed, then what is missing and where, and closes. Its
+//! words are ASCII: the built-in face has no arrow or ellipsis (owner's walk, 2026-10-19).
 
 use super::{Control, ControlId, Effect, Forms, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::api::{PackStamp, SaveCheck, Verdict};
@@ -19,7 +20,7 @@ fn listed(rows: &mut Vec<Row>, lines: impl ExactSizeIterator<Item = String>) {
     rows.extend(lines.take(SHOWN).map(|l| Row::text(Span::body(l))));
     if n > SHOWN {
         rows.push(Row::text(Span::body(format!(
-            "…and {} more; save_check lists them all",
+            "and {} more; save_check lists them all",
             n - SHOWN
         ))));
     }
@@ -63,7 +64,7 @@ fn packs(rows: &mut Vec<Row>, check: &SaveCheck) {
         .filter(|p| p.saved != p.loaded)
         .map(|p| {
             format!(
-                "{}: {} → {}",
+                "{}: saved {}, loaded {}",
                 p.id,
                 version(p.saved.as_ref()),
                 version(p.loaded.as_ref())
@@ -71,7 +72,7 @@ fn packs(rows: &mut Vec<Row>, check: &SaveCheck) {
         })
         .collect();
     if !changed.is_empty() {
-        rows.push(Row::text(Span::body("Packs, saved → loaded:")));
+        rows.push(Row::text(Span::body("Packs changed:")));
         listed(rows, changed.into_iter());
     }
 }
