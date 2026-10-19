@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-18, after M8.5 7h1 (the seal) was accepted, before a compact. Next: build 7h2. Rewrite this file every time it is used.
+Written 2026-10-18, after M8.5 7h2 (schema 9) was built and committed. Next: the owner walks 7h2; then build 7h3. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -18,12 +18,14 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
   | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
   | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
-  | 7h2, schema 9 | | **next: build it** (owner, "on to 7h2") |
+  | 7h2, schema 9 | `9495867`, docs `ca9c556` | **built, awaiting the owner's walk** (`tasks/acceptance/m8.5-7h2.md`) |
 
   7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
   `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
-- **Gate:** `tests passed 936 failed 0 ignored 15`, VERIFY-GREEN at `062a1fb` after a clean rebuild. Sentrux rules
-  pass, quality 8982.
+- **Gate:** `tests passed 948 failed 0 ignored 15`, VERIFY-GREEN at `9495867`. Sentrux rules pass, quality 8982.
+  7h2 mutations 16 of 16.
+- Owner world docs `docs/locations/the_floating_isles_of_the_west_reach.md` and `..._paratoron_empire_...` committed
+  alone (`2368ea8`).
 - Owner world doc `docs/background/introduction.md` changed twice and was committed alone each time (`63c61c5`,
   `2b7a62b`).
 
@@ -57,33 +59,25 @@ Durable knowledge lives in `tasks/knowledge/`.
   §7.7 needs the owner's approval).
 
 ## Next
-- **Build 7h2 now** (the owner said "on to 7h2"; no plan mode needed: the approved plan is above and in
-  TODO's 7h items). Read the critical files cold first: `crates/omnis-sim/src/save/{mod,disk,join,fold,
-  tidy,character}.rs`, `world.rs` (`MapState.cleared`, `checked` ~L547), `encounter.rs` (`EncounterSource::
-  Fixed(u16)` ~L28, set ~L125/L287, read ~L407, `beings.rs:61`), `journal.rs` (`Change::Cleared` ~L47,
-  made ~L258, laid ~L324), `omnis-data/src/encounter.rs` (`FixedEncounter` ~L68; `Stand.id` already
-  exists ~L57), `migrate.rs`, the hosts' `pack.reload` (`omnis-vector/src/shell/host.rs:37`,
-  `omnis-cli/src/headless.rs:83`).
-- **7h2 items, red tests first:**
-  1. `pack.reload` sets `world.packs` (red test: reload, save, load unforced must not be `PackMismatch`).
-  2. `FixedEncounter.id` required (`[a-z0-9_]{1,32}`, unique per map; reuse the object-id check), bad-pack
-     row; the test pack's maps gain ids (and the objects/levels/heights fixture packs if they have fixed
-     encounters), resealed with `omnis-cli pack seal`.
-  3. `MapState.cleared: BTreeSet<String>`, `EncounterSource::Fixed(String)`, `Change::Cleared { map, id }`;
-     `SAVE_SCHEMA` 9; v8 → v9 converts rows to ids through the current maps (a row out of range refuses the
-     load); the whole-world v1–v7 path converts too; the goldens rebaseline for the schema.
-  4. `Manifest.names: NameTable` written by `save_files` (`NameTable::of(&Data)`, serde default, skipped
-     when empty); a new `save/names.rs`.
-  5. `CharacterSave.archive: [Segment { world: Option<String>, name }]`; `Archived::Held.from:
-     Option<Manifest>`; tidy counts other folders' segments and manifests.
-  6. `base_zero` → `Bases::default()` (plus a test that `split(World::new(..))` gives it).
-  7. A frozen v9 fixture `crates/omnis-sim/tests/saves/v9/` (as v8: paths without `.omnis/`, written by an
-     ignored test through `omnis_data::ron_io`, loaded by a pinned test); v8 still loads (forced) and
-     converts.
-  - Visible end: a save made before 7h2 loads (forced, via MCP `save_read force`) with its cleared
-    encounters still cleared; the debug World page shows the manifest's name count. Then the acceptance
-    script `tasks/acceptance/m8.5-7h2.md`, TODO review, docs touch (api.md changelog, ARCH §4.1.1), commit,
-    continuity, report with numbered try-it steps.
+- **The owner walks 7h2.** Step 2 of the script is a forced load the owner asks for in session: call the omnis MCP
+  `save_read` with `path: ".omnis/saves/folded-v8.ron"`, `force: true` (and `journal-v8.ron` for step 6), with the
+  game running (`just run --windowed --pack packs/base --pack packs/test`, a new game started). Expected: "Loaded
+  …: converted from a schema 8 save", the goblins' encounter at (3, 14); the World page "Manifest: 109 names, …".
+- **Open for the owner (in the report):** the pack data `SCHEMA` stays 1 though `FixedEncounter.id` is now required
+  and `Stand.id` is gone (only our packs exist); a bump would touch every data file.
+- **7h2 as built (what 7h3 builds on):** `save/rows.rs` (rows read as `#n` markers via `row_or_id`/`rows_or_ids`
+  deserializers on `MapState.cleared`, `EncounterSource::Fixed`, `Change::Cleared` (`alias = "index"`); `rows::world`
+  in `World::from_ron`, `rows::parts` + `rows::log` in `load_save`); `save/names.rs` (`NameTable::of`, `len`,
+  `Signature`; `Manifest::of(world, data)` used by `split` and `save_files`); `disk.rs` `CHARACTER_SCHEMA` 8,
+  `converted` skips the fingerprint for schema 8; `Segment { world, name }`, in memory always `Some(folder)`, saved
+  `None` for the save's own; `Archived::Held { journal, from: Option<Box<Manifest>> }` (7h3/7h5 set `from` on a
+  names-change fold); `ops::reload` sets `world.packs`. A forced load keeps the save's packs on the world, so its
+  next save is still "other packs" until 7h3's tiers.
+- **Then 7h3, the remap** (plan above): load in the save's numbering (region bases keyed through the save's table),
+  `join_raw`, journal, always the fingerprint, then the tiers; `Remapper` over live state; `time:` streams rebuilt
+  through `StreamName::time`; bus from `time::subscriptions`; fold on a names change with `Held.from`; the overlay
+  pack proof (every view equal: exploring, town, mid-fight) and a mutation per field. Visible: add a spell sorting
+  first in `packs/test`, reseal, load: the wizard's spells unchanged, "The world has moved on".
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -98,8 +92,8 @@ Durable knowledge lives in `tasks/knowledge/`.
 
 
 ## Pins
-- **Replays:** walk `14e46c0bea591749`, fight `aed8e1466adc88ea` (rebaselined in 7h1 for the pack hashes). `SAVE_SCHEMA` 8,
-  `PROTOCOL` 2.
+- **Replays:** walk `8eab9a1dd95b472d`, fight `79ca2704c92bc312` (rebaselined in 7h2: test pack 0.1.1, schema 9).
+  `SAVE_SCHEMA` 9, `PROTOCOL` 2. The base and test packs give 109 names.
 - **MCP:** command `oneOf` 14, dev `oneOf` 14, item `oneOf` 10, schema proof 117/168, tools 26, ops 26.
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71. The base pack has 19 spells.
 
@@ -128,7 +122,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   and `variants!` lists, the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`
   (instances, offered, the drift test's index), `common/commands.rs`, the word in `word.rs`, client
   `labels::refused`.
-- **Commits:** stage new files by name; build the path list from `git status --short` without `assets/`,
+- **Commits:** stage new files by name with `git add` first (`--pathspec-from-file` does not add untracked files); build the path list from `git status --short` without `assets/`,
   `.claude/` or `docs/dnd_supplemental/`, write it to a scratchpad file, `git commit --pathspec-from-file=<file>
   -F -`. Messages end with the Co-Authored-By line and, when the system gives one, the Claude-Session line. Never push. Owner world docs
   (`docs/background`, `docs/locations`) go in their own commit, unedited.
