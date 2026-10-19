@@ -295,3 +295,11 @@
 - **Rule**: restore with `open(f, 'w').write(original)` (a fresh mtime), or `touch` the file after restoring.
   After any mutation run, `touch` the mutated files before the gate or a demo. When a demo disagrees with the
   tests, suspect a stale artifact before the code.
+
+## 2026-10-19 — Context is measured, not estimated
+- **What happened**: asked to check context before 7h4, I estimated 200–250k from memory of what I had read;
+  `/context` measured 297.7k, with the messages alone at 262k. Tool output (test failures, file reads, long
+  diffs) costs more than it feels.
+- **Rule**: when the owner asks about context, say plainly that I cannot read it and ask for `/context`, or
+  give a range that leans high. Before a large sub-step, keep broad reading in subagents (the 7h3 id inventory
+  by an Explore agent cost the main context one report), and cap test output with `grep`/`cut`.

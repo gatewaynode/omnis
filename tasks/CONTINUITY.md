@@ -59,6 +59,15 @@ Durable knowledge lives in `tasks/knowledge/`.
   7h6 migrations (the version chain: decide how patch bumps without a migration file chain); 7h7 docs (PRD
   §7.7 needs the owner's approval).
 
+## When you resume (after the compact)
+1. `/catchup`: this file, then `tasks/LESSONS.md` (newest: context is measured; mutation runners restore by
+   rewriting), then TODO's 7h entries.
+2. Before 7h4's code, read in subagents, not the main context: the window's load path (`omnis-vector`
+   `game_io.rs` `load`/`said`, the title's and pause's Load buttons, how a refused load shows), the MCP crate
+   (`crates/omnis-mcp/src/{tools,schema}.rs`, the tool-count pins), and `ops.rs` `Op`/`Reply` (the ops-count
+   pins, `docs/api.md` §2's table). Then plan 7h4 in TODO and check in with the owner before building.
+3. Context was 297.7k/1M at the compact (owner's `/context`).
+
 ## Next
 - **The owner walks 7h3** (`tasks/acceptance/m8.5-7h3.md`): save on base+test+objects, load with
   `crates/omnis-sim/tests/packs/ahead` added ("made with other packs, loaded by name. The world has moved on"),
