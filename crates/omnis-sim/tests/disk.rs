@@ -83,7 +83,7 @@ fn a_new_games_save_names_no_bases_and_making_a_party_journals_nothing() {
     assert_eq!(order[1], SAVE, "the character save last");
     let text = &disk[SAVE];
     assert!(!text.contains('\n'), "the character save is compact RON");
-    assert!(text.contains("schema:8"), "{text}");
+    assert!(text.contains("schema:9"), "{text}");
     let (back, report) = read(&disk, &data, false).unwrap();
     assert_eq!(back, kept(&world));
     assert_eq!(report.applied, 0, "the drafts change only the party");
@@ -324,10 +324,11 @@ fn the_save_rule_still_holds() {
     assert!(save_files(&world, &data, SAVE).is_err());
 }
 
-/// The schema 8 fixture's world: the golden walk, folded halfway, so its save names bases, an
-/// archive segment and a journal, and carries a log.
-fn fixture_world(data: &Data) -> World {
-    let replay = golden("walk");
+/// A fixture's world: a golden replay, folded halfway, so its save names bases, an archive
+/// segment and a journal, and carries a log. The schema 8 fixture is the walk's; the schema 9
+/// fixture is the fight's, so its journal clears the rats by id.
+fn fixture_world(data: &Data, name: &str) -> World {
+    let replay = golden(name);
     let mut world = World::new(data, replay.seed, replay.settings).unwrap();
     world.settings.devtools = true;
     let half = replay.commands.len() / 2;
@@ -341,25 +342,25 @@ fn fixture_world(data: &Data) -> World {
     world
 }
 
-/// The fixture's folder: a save's files as a host writes them under its root, but without the
-/// `.omnis/` prefix, which git ignores.
-fn fixture_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/saves/v8")
+/// A fixture's folder (`v8`, `v9`): a save's files as a host writes them under its root, but
+/// without the `.omnis/` prefix, which git ignores.
+fn fixture_root(schema: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("tests/saves/{schema}"))
 }
 
 fn in_fixture(path: &str) -> &str {
     path.strip_prefix(".omnis/").expect("a path under .omnis")
 }
 
-/// Writes `tests/saves/v8/`: run with `--ignored` only when the schema moves on and a new frozen
-/// save is wanted, never to make the test below pass.
+/// Writes `tests/saves/v9/`: run with `--ignored` only when the schema moves on and a new frozen
+/// save is wanted (into a new folder), never to make the tests below pass.
 #[test]
-#[ignore = "writes the schema 8 fixture"]
-fn write_the_schema_8_fixture() {
+#[ignore = "writes the schema 9 fixture"]
+fn write_the_schema_9_fixture() {
     use omnis_data::ron_io::{list_under, remove_under, write_files};
     let data = data();
-    let world = fixture_world(&data);
-    let root = fixture_root();
+    let world = fixture_world(&data, "fight");
+    let root = fixture_root("v9");
     for dir in ["saves", "worlds"] {
         for old in list_under(&root, dir).unwrap() {
             remove_under(&root, &old).unwrap();
@@ -378,20 +379,63 @@ fn write_the_schema_8_fixture() {
 #[test]
 fn the_schema_8_fixture_still_loads() {
     let data = data();
-    let root = fixture_root();
+    let root = fixture_root("v8");
     let text = omnis_data::ron_io::read_save_under(&root, in_fixture(SAVE)).unwrap();
     // Forced, as the older fixtures are: a pack edit must not retire a frozen save.
     let (world, report) = load_save(&text, &data, true, &mut |p| {
         omnis_data::ron_io::read_under(&root, in_fixture(p)).map_err(|e| e.to_string())
     })
     .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(report.converted_from, None);
+    assert_eq!(
+        report.converted_from,
+        Some(8),
+        "its rows become ids (M8.5 7h2)"
+    );
     assert_eq!(report.applied, 1, "the interaction after the fold");
     assert_eq!(world.archive.len(), 1, "the segment the fold put away");
     assert!(world.origin.is_some(), "the bases the fold made");
     assert!(!world.log.is_empty());
     if world.packs == data.fingerprints {
-        let made = fixture_world(&data);
+        let made = fixture_world(&data, "walk");
+        assert_eq!(world.fingerprint(), made.fingerprint());
+        assert_eq!(world.journal, made.journal);
+        assert_eq!(world.log, kept(&made).log);
+    }
+}
+
+/// The frozen schema 9 save (M8.5 7h2) loads as written: no conversion, its world folder's
+/// manifest naming what its numbers stand for, the rats cleared by id. On the packs it was made
+/// with it is the world that made it.
+#[test]
+fn the_schema_9_fixture_still_loads() {
+    let data = data();
+    let root = fixture_root("v9");
+    let text = omnis_data::ron_io::read_save_under(&root, in_fixture(SAVE)).unwrap();
+    let save: omnis_sim::save::CharacterSave = omnis_data::ron_io::parse(&text).unwrap();
+    assert_eq!(save.schema, 9);
+    let manifest =
+        omnis_data::ron_io::read_under(&root, &format!("worlds/{}/manifest.ron", save.world))
+            .unwrap();
+    let manifest: omnis_sim::save::Manifest = omnis_data::ron_io::parse(&manifest).unwrap();
+    assert!(
+        manifest.names.maps.iter().any(|m| m == "test:map:dungeon"),
+        "{:?}",
+        manifest.names.maps
+    );
+    let (world, report) = load_save(&text, &data, true, &mut |p| {
+        omnis_data::ron_io::read_under(&root, in_fixture(p)).map_err(|e| e.to_string())
+    })
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(report.converted_from, None);
+    assert_eq!(world.archive.len(), 1, "the segment the fold put away");
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    assert!(world.maps[&dungeon].cleared.contains("giant_rat_3_8"));
+    assert!(
+        text.contains("id:\"giant_rat_3_8\""),
+        "the journal's change by id"
+    );
+    if world.packs == data.fingerprints {
+        let made = fixture_world(&data, "fight");
         assert_eq!(world.fingerprint(), made.fingerprint());
         assert_eq!(world.journal, made.journal);
         assert_eq!(world.log, kept(&made).log);

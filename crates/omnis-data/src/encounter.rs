@@ -50,11 +50,10 @@ const fn north() -> Facing {
 
 /// Where a fixed encounter's group stands in view (M8.5 step 2c): one figure, its front stack's
 /// monster, at an offset from the cell's centre. Entering the cell meets it, as an unseen one;
-/// Use from the next cell meets it too.
+/// Use from the next cell meets it too. Its name is the encounter's `id`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Stand {
-    /// Unique among the map's objects and beings, `[a-z0-9_]{1,32}`: the name a command uses.
-    pub id: String,
     /// Offset of its centre from the cell's centre, eighths east and south, each -4..=4.
     #[serde(default)]
     pub pos: (i8, i8),
@@ -66,6 +65,9 @@ pub struct Stand {
 /// A group placed on a tile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FixedEncounter {
+    /// Unique among the map's objects and encounters, `[a-z0-9_]{1,32}`: the name a save keeps
+    /// it cleared by (M8.5 7h2) and, when it stands, the name a command uses.
+    pub id: String,
     /// Trigger level (M8.5 step 1b).
     #[serde(default)]
     pub level: Level,
@@ -110,6 +112,8 @@ pub struct RandomEncounters {
 /// A fixed encounter with interned monsters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEncounter {
+    /// Its id in the map.
+    pub id: String,
     /// Trigger level.
     pub level: Level,
     /// Trigger column.
@@ -288,6 +292,7 @@ pub(crate) fn resolve(
         .iter()
         .enumerate()
         .map(|(i, e)| ResolvedEncounter {
+            id: e.id.clone(),
             level: e.level,
             x: e.x,
             y: e.y,
@@ -344,6 +349,7 @@ mod tests {
         let def = parts(
             vec![
                 FixedEncounter {
+                    id: "e1".into(),
                     level: Level::GROUND,
                     x: 2,
                     y: 0,
@@ -353,6 +359,7 @@ mod tests {
                     stand: None,
                 },
                 FixedEncounter {
+                    id: "e2".into(),
                     level: Level::GROUND,
                     x: 1,
                     y: 1,
@@ -362,6 +369,7 @@ mod tests {
                     stand: None,
                 },
                 FixedEncounter {
+                    id: "e3".into(),
                     level: Level::GROUND,
                     x: 1,
                     y: 1,
@@ -414,6 +422,7 @@ mod tests {
         let rat = monsters.intern("t:monster:rat");
         let def = parts(
             vec![FixedEncounter {
+                id: "e4".into(),
                 level: Level::GROUND,
                 x: 0,
                 y: 1,

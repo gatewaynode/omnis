@@ -408,7 +408,7 @@ fn finish(
             world.party.gold = world.party.gold.saturating_add(gold);
             ground::lay(world, data, &state.loot);
             loot = Loot::of(data, &state.loot);
-            clear_once(world, data, state.encounter.source);
+            clear_once(world, data, &state.encounter.source);
         }
         CombatOutcome::Fled => retreat(world, data, state.encounter.retreat, events),
         CombatOutcome::Defeat => {}

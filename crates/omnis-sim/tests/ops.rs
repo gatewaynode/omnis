@@ -383,7 +383,7 @@ fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
 /// the party's tile, and `rules.set` bounds and checks its source.
 #[test]
 fn the_host_ops_rules_hold_for_every_host() {
-    use omnis_sim::ops::{check_reload, rules_set};
+    use omnis_sim::ops::{reload, rules_set};
     use omnis_sim::save::save_files;
     use omnis_sim::{SaveRule, Settings, World};
     let data = data();
@@ -402,13 +402,23 @@ fn the_host_ops_rules_hold_for_every_host() {
         "only at an inn"
     );
 
-    assert_eq!(check_reload(&world, &data), Ok(()));
-    let mut gone = data.clone();
+    let mut reloaded = world.clone();
+    let mut fresh = data.clone();
+    fresh.fingerprints[0].hash ^= 1;
+    assert_eq!(reload(&mut reloaded, &fresh), Ok(()));
+    assert_eq!(
+        reloaded.packs, fresh.fingerprints,
+        "the world records the packs"
+    );
+    let mut gone = fresh.clone();
+    gone.fingerprints[0].hash ^= 2;
     gone.maps.remove(&world.position.map);
+    let before = reloaded.clone();
     assert!(
-        matches!(check_reload(&world, &gone), Err(OpError::Failed { .. })),
+        matches!(reload(&mut reloaded, &gone), Err(OpError::Failed { .. })),
         "the party's map is gone"
     );
+    assert_eq!(reloaded, before, "a refused reload changes nothing");
 
     let mut rules = data.clone();
     let long = "1 + ".repeat(2000) + "1";

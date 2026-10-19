@@ -83,6 +83,8 @@ fn every_error_in_a_broken_pack_is_reported() {
         "encounter 1 has no stacks",
         "encounter 2 shares tile (0, 0) with encounter 1",
         "encounter 2 has more than 4 stacks",
+        // M8.5 7h2: an encounter is named by its id, unique in the map
+        "encounter 'twin' shares its id with an object or another encounter",
         "random chance_percent must be 0..=100",
         "random entry 0 weight must be at least 1",
         "random entry 0 has no stacks",
@@ -376,8 +378,8 @@ fn every_placement_error_is_reported() {
         "lore 'afar' at (9, 0) is outside the map",
         "lore 'hard' dc must be 1..=30",
         // M8.5 step 2c: beings standing in shapes.ron
-        "being id 'Bad-Being' is not [a-z0-9_]{1,32}",
-        "being 'twice' shares its id with an object or another being",
+        "encounter id 'Bad-Being' is not [a-z0-9_]{1,32}",
+        "encounter 'twice' shares its id with an object or another encounter",
         "being 'drifter' pos must be within -4..=4 eighths",
         // data/monsters/boxy.ron: a look that is not a figure, too wide
         "look must be a Figure",

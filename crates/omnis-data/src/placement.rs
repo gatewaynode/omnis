@@ -210,19 +210,19 @@ pub(crate) fn validate(def: &MapDef, file: &Path, errors: &mut Vec<DataError>) {
             ));
         }
     }
-    for stand in def.encounters.iter().filter_map(|e| e.stand.as_ref()) {
-        if !is_placement_id(&stand.id) {
-            error(format!("being id '{}' is not [a-z0-9_]{{1,32}}", stand.id));
-        } else if !ids.insert(stand.id.as_str()) {
+    for e in &def.encounters {
+        if !is_placement_id(&e.id) {
+            error(format!("encounter id '{}' is not [a-z0-9_]{{1,32}}", e.id));
+        } else if !ids.insert(e.id.as_str()) {
             error(format!(
-                "being '{}' shares its id with an object or another being",
-                stand.id
+                "encounter '{}' shares its id with an object or another encounter",
+                e.id
             ));
         }
-        if !near(stand.pos) {
+        if e.stand.as_ref().is_some_and(|stand| !near(stand.pos)) {
             error(format!(
                 "being '{}' pos must be within -4..=4 eighths",
-                stand.id
+                e.id
             ));
         }
     }
@@ -547,11 +547,11 @@ pub(crate) fn check_beings(
         let Some(monster) = e.front().and_then(|m| monsters.get(&m)) else {
             continue;
         };
-        let (Some(stand), Some(footprint)) = (&e.stand, e.footprint(&monster.figure())) else {
+        let Some(footprint) = e.footprint(&monster.figure()) else {
             continue;
         };
         covered(
-            &format!("being '{}'", stand.id),
+            &format!("being '{}'", e.id),
             e.level,
             &[footprint],
             &map,

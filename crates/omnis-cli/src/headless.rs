@@ -82,7 +82,7 @@ impl Headless {
             }
             Op::PackReload => {
                 let data = load(&self.packs).map_err(OpError::failed)?;
-                ops::check_reload(&self.world, &data)?;
+                ops::reload(&mut self.world, &data)?;
                 self.data = data;
                 Ok(Reply::Done {})
             }

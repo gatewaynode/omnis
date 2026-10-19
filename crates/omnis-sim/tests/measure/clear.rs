@@ -167,7 +167,7 @@ pub(crate) fn placed(
         })
         .collect();
     EncounterState {
-        source: EncounterSource::Fixed(u16::try_from(index).unwrap()),
+        source: EncounterSource::Fixed(def.id.clone()),
         stacks,
         disposition: def.disposition,
         retreat: world.position,

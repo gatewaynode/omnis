@@ -66,7 +66,7 @@ const MAP: &str = r#"(
         "+-+-+",
     ],
     portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East, marker: Some("stairs"))],
-    encounters: [(x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
+    encounters: [(id: "goblins", x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
     random: Some((chance_percent: 4, entries: [(weight: 1, stacks: [("example:monster:goblin", (count: 1, sides: 4, modifier: 1))], disposition: Hostile)])),
 )"#;
 
@@ -362,7 +362,10 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         }]
         .into(),
         fingerprint: 0,
-        archive: vec![0x0123_4567_89ab_cdef],
+        archive: vec![omnis_sim::save::Segment {
+            world: None,
+            name: 0x0123_4567_89ab_cdef,
+        }],
         log: vec![Logged {
             minute: 42,
             map: MapId(0),
@@ -379,6 +382,10 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
     let manifest = Manifest {
         seed: 1,
         packs: vec![fingerprint.clone()],
+        names: omnis_sim::save::NameTable {
+            maps: vec!["example:map:vale".into()],
+            ..Default::default()
+        },
     };
     let replay = Replay {
         seed: 1,

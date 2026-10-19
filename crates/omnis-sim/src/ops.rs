@@ -676,8 +676,9 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
 // character save and the world folder's files, which the host writes and reads.
 
 /// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
-/// hold the party's tile.
-pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
+/// hold the party's tile; then the world records them, so its next save names the packs it
+/// runs on (M8.5 7h2). Refused, nothing changes; the host swaps its data only on `Ok`.
+pub fn reload(world: &mut World, fresh: &Data) -> Result<(), OpError> {
     let p = world.position;
     if fresh
         .maps
@@ -689,6 +690,7 @@ pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
             "the party's tile {p} is not in the reloaded packs; nothing changed"
         )));
     }
+    world.packs.clone_from(&fresh.fingerprints);
     Ok(())
 }
 

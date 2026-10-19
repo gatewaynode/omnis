@@ -8,15 +8,19 @@ mod character;
 mod disk;
 mod fold;
 mod join;
+mod names;
 mod report;
+pub(crate) mod rows;
 mod split;
 mod tidy;
 
 pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
 pub use disk::{FileOut, Restored, WORLDS, archive_path, load_save, save_files};
-pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, due, fold, fold_at};
+pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, Segment, due, fold, fold_at};
 pub use join::{JoinError, join};
+pub use names::{NameTable, Signature};
 pub use report::{RegionSize, SplitReport, split_report};
+pub(crate) use rows::{row_or_id, rows_or_ids};
 pub use split::split;
 pub(crate) use split::{Owner, owner_of, stream_owner};
 pub use tidy::{tidy_list, unnamed};
@@ -32,13 +36,29 @@ use omnis_core::{Clock, Contact, FlagId, HolderId, MapId, Pcg32, Position, Regio
 use omnis_data::PackFingerprint;
 use serde::{Deserialize, Serialize};
 
-/// What a world is made from: its seed and its packs.
+/// What a world is made from: its seed and its packs, and what its files' numbers stand for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
     /// The world seed every stream derives from (A14).
     pub seed: u64,
     /// The packs, in load order.
     pub packs: Vec<PackFingerprint>,
+    /// The string ids behind the numbers (M8.5 7h2); left out before, so an older world's
+    /// folder keeps its name.
+    #[serde(default, skip_serializing_if = "NameTable::is_empty")]
+    pub names: NameTable,
+}
+
+impl Manifest {
+    /// The manifest of `world` on the loaded packs.
+    #[must_use]
+    pub fn of(world: &crate::world::World, data: &omnis_data::Data) -> Manifest {
+        Manifest {
+            seed: world.seed,
+            packs: world.packs.clone(),
+            names: NameTable::of(data),
+        }
+    }
 }
 
 /// Holders' time and draws: clocks, the contacts kept on the holder's side, and the streams.

@@ -15,7 +15,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{Facing, Level, MapId};
 use omnis_data::encounter::Stand;
-use omnis_data::{Data, Look, MapData, ResolvedEncounter};
+use omnis_data::{Data, Look, ResolvedEncounter};
 use serde::{Deserialize, Serialize};
 
 /// A standing group as a client draws it.
@@ -39,41 +39,41 @@ pub struct BeingView {
     pub look: Look,
 }
 
-/// The groups of `map` that stand now, with their indices: not cleared, and not the one the
-/// party is meeting or fighting.
+/// The groups of `map` that stand now: not cleared, and not the one the party is meeting or
+/// fighting.
 fn standing<'d>(
     world: &World,
     data: &'d Data,
     map: MapId,
-) -> impl Iterator<Item = (u16, &'d ResolvedEncounter, &'d Stand)> + use<'d> {
-    let cleared: BTreeSet<u16> = world
+) -> impl Iterator<Item = (&'d ResolvedEncounter, &'d Stand)> + use<'d> {
+    let cleared: BTreeSet<String> = world
         .maps
         .get(&map)
         .map(|s| s.cleared.clone())
         .unwrap_or_default();
     let met = match &world.mode {
-        Mode::Encounter(state) => Some(state.source),
-        Mode::Combat(state) => Some(state.encounter.source),
+        Mode::Encounter(state) => Some(&state.source),
+        Mode::Combat(state) => Some(&state.encounter.source),
         _ => None,
     }
     .filter(|_| world.position.map == map)
     .and_then(|s| match s {
-        EncounterSource::Fixed(i) => Some(i),
+        EncounterSource::Fixed(id) => Some(id.clone()),
         _ => None,
     });
     data.maps
         .get(&map)
         .into_iter()
-        .flat_map(|m| m.encounters.iter().enumerate())
-        .filter_map(|(i, e)| Some((u16::try_from(i).ok()?, e, e.stand.as_ref()?)))
-        .filter(move |(i, _, _)| !cleared.contains(i) && met != Some(*i))
+        .flat_map(|m| m.encounters.iter())
+        .filter_map(|e| Some((e, e.stand.as_ref()?)))
+        .filter(move |(e, _)| !cleared.contains(&e.id) && met.as_ref() != Some(&e.id))
 }
 
 fn view(data: &Data, e: &ResolvedEncounter, stand: &Stand) -> Option<BeingView> {
     let front = e.front()?;
     let look = data.monsters.get(&front)?.figure();
     Some(BeingView {
-        being: stand.id.clone(),
+        being: e.id.clone(),
         monster: id_of(&data.registry.monsters, front),
         count: e.stacks.iter().map(|s| u16::from(s.1)).sum(),
         x: e.x,
@@ -89,8 +89,8 @@ fn view(data: &Data, e: &ResolvedEncounter, stand: &Stand) -> Option<BeingView> 
 pub(crate) fn in_sight(world: &World, data: &Data, tiles: &[(u16, u16)]) -> Vec<BeingView> {
     let pos = world.position;
     let mut found: Vec<(usize, BeingView)> = standing(world, data, pos.map)
-        .filter(|(_, e, _)| e.level == pos.level)
-        .filter_map(|(_, e, stand)| {
+        .filter(|(e, _)| e.level == pos.level)
+        .filter_map(|(e, stand)| {
             let being = view(data, e, stand)?;
             let footprint = e.footprint(&being.look)?;
             let nearest = footprint
@@ -110,8 +110,8 @@ pub(crate) fn in_sight(world: &World, data: &Data, tiles: &[(u16, u16)]) -> Vec<
 #[must_use]
 pub fn on_level(world: &World, data: &Data, map: MapId, level: Level) -> Vec<BeingView> {
     standing(world, data, map)
-        .filter(|(_, e, _)| e.level == level)
-        .filter_map(|(_, e, stand)| view(data, e, stand))
+        .filter(|(e, _)| e.level == level)
+        .filter_map(|(e, stand)| view(data, e, stand))
         .collect()
 }
 
@@ -124,8 +124,8 @@ pub(crate) fn reached(world: &World, data: &Data) -> Vec<BeingView> {
     };
     let cells = reach(world, map, pos);
     standing(world, data, pos.map)
-        .filter(|(_, e, _)| e.level == pos.level && cells.contains(&(e.x, e.y)))
-        .filter_map(|(_, e, stand)| view(data, e, stand))
+        .filter(|(e, _)| e.level == pos.level && cells.contains(&(e.x, e.y)))
+        .filter_map(|(e, stand)| view(data, e, stand))
         .collect()
 }
 
@@ -148,23 +148,9 @@ pub(crate) fn approach(
     if !in_reach(world, data).iter().any(|b| b == being) {
         return Err(refused());
     }
-    let pos = world.position;
-    let index = data
-        .maps
-        .get(&pos.map)
-        .and_then(|m| index_of(m, being))
-        .ok_or_else(refused)?;
     let retreat = omnis_core::Position {
-        facing: pos.facing.opposite(),
-        ..pos
+        facing: world.position.facing.opposite(),
+        ..world.position
     };
-    encounter::meet(world, data, index, retreat, events).map_err(Rejection::Rule)
-}
-
-fn index_of(map: &MapData, being: &str) -> Option<u16> {
-    let i = map
-        .encounters
-        .iter()
-        .position(|e| e.stand.as_ref().is_some_and(|s| s.id == being))?;
-    u16::try_from(i).ok()
+    encounter::meet(world, data, being, retreat, events).map_err(Rejection::Rule)
 }

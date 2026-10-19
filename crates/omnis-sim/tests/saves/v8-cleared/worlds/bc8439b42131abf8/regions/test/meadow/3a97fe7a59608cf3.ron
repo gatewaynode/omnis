@@ -1,0 +1,26 @@
+(
+    maps: {},
+    holdings: (
+        clocks: {
+            Region(2): (
+                elapsed: 0,
+                era: 0,
+            ),
+        },
+        contacts: {
+            (Region(2), Party(0)): (
+                other: Party(0),
+                self_elapsed: 0,
+                other_elapsed: 1,
+                self_shared: 0,
+            ),
+        },
+        streams: {
+            "time:party:0:region:2": (
+                state: 12707164967231654785,
+                inc: 8810637786524245455,
+                draws: 1,
+            ),
+        },
+    ),
+)

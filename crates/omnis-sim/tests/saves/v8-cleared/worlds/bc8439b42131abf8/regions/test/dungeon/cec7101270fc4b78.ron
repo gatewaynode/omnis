@@ -1,0 +1,35 @@
+(
+    maps: {
+        1: (
+            open_doors: [
+                (3, 5, South),
+            ],
+            cleared: [
+                0,
+            ],
+        ),
+    },
+    holdings: (
+        clocks: {
+            Region(1): (
+                elapsed: 34,
+                era: 0,
+            ),
+        },
+        contacts: {
+            (Region(1), Party(0)): (
+                other: Party(0),
+                self_elapsed: 34,
+                other_elapsed: 26,
+                self_shared: 0,
+            ),
+        },
+        streams: {
+            "time:party:0:region:1": (
+                state: 8292539302996676285,
+                inc: 7454027775938355413,
+                draws: 1,
+            ),
+        },
+    ),
+)

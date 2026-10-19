@@ -230,7 +230,7 @@ pub fn combat_view(world: &World, data: &Data) -> Option<CombatView> {
         .collect();
     Some(CombatView {
         phase: world.mode.kind(),
-        source: encounter.source,
+        source: encounter.source.clone(),
         disposition: encounter.disposition,
         stacks,
         retreat: Place::of(encounter.retreat, data),

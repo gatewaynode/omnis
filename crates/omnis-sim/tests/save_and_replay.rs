@@ -107,10 +107,10 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 8", "schema: 9", 1);
+    let other = text.replacen("schema: 9", "schema: 10", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
-        LoadError::Schema(9)
+        LoadError::Schema(10)
     );
 
     let mut foreign = world.clone();
@@ -198,10 +198,10 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 8").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 9").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
@@ -222,7 +222,7 @@ fn a_schema_2_save_migrates() {
         "the fixture's base pack predates the combat rules"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.party.members.len(), 1);
     assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
@@ -237,7 +237,7 @@ fn a_schema_2_save_migrates() {
     assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 8").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
@@ -255,7 +255,7 @@ fn a_schema_3_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 3") && !text.contains("equipped") && !text.contains("devtools"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     assert!(!world.settings.devtools);
     let brenna = &world.party.members[0];
     let item = |name: &str| {
@@ -279,7 +279,7 @@ fn a_schema_3_save_migrates() {
     let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 8").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
 
     let mut torn = world.clone();
@@ -301,7 +301,7 @@ fn a_schema_4_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 4") && text.contains("gold: 15,") && !text.contains("bank"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     assert_eq!(
         (
             world.party.gold,
@@ -317,7 +317,7 @@ fn a_schema_4_save_migrates() {
     let dungeon = FIXTURE_DUNGEON;
     assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 8").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
@@ -337,7 +337,7 @@ fn a_schema_5_save_migrates() {
     assert!(text.contains("schema: 5") && text.contains("auto_cast: ["));
     assert!(!text.contains("tactics") && !text.contains("budget"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     let shield = data.registry.spells.get("base:spell:shield").unwrap();
     let ilvara = &world.party.members[2];
     assert!(ilvara.legacy_auto_cast.is_empty());
@@ -373,7 +373,7 @@ fn a_schema_5_save_migrates() {
         );
     }
     let written = world.to_ron().unwrap();
-    assert_eq!(written.matches("schema: 8").count(), 1);
+    assert_eq!(written.matches("schema: 9").count(), 1);
     assert!(!written.contains("auto_cast"), "never written");
     assert_eq!(World::from_ron(&written, &data, true).unwrap(), world);
     let mut world = world;
@@ -420,7 +420,7 @@ fn a_schema_4_fight_converts_its_loot() {
     let old = world
         .to_ron()
         .unwrap()
-        .replacen("schema: 8", "schema: 4", 1);
+        .replacen("schema: 9", "schema: 4", 1);
     let loaded = World::from_ron(&old, &data, false).unwrap_or_else(|e| panic!("{e}"));
     let Mode::Combat(fight) = &loaded.mode else {
         panic!("still fighting");
@@ -548,7 +548,7 @@ fn fight(data: &Data) -> Vec<Command> {
     );
     assert_eq!(world.mode, Mode::Explore);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    assert!(world.maps[&dungeon].cleared.contains(&0));
+    assert!(world.maps[&dungeon].cleared.contains("giant_rat_3_8"));
     commands
 }
 
@@ -714,7 +714,7 @@ fn a_schema_6_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 6") && !text.contains("party_time") && !text.contains("bus"));
     let mut world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 8);
+    assert_eq!(world.schema, 9);
     let age = world.party_clock().elapsed;
     assert!(age > 0, "two steps lived");
     assert_eq!(

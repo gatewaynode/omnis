@@ -130,7 +130,7 @@ fn schema_dump_sections_parse_with_the_real_types() {
         (region.company, region.rule.as_str()),
         (900, "time.settled")
     );
-    let save = parse::<CharacterSave>(&body("# save (schema 8)\n")).unwrap();
+    let save = parse::<CharacterSave>(&body("# save (schema 9)\n")).unwrap();
     assert_eq!(
         save.journal.entries()[0].changes.len(),
         1,

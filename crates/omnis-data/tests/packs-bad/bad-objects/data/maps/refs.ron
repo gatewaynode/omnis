@@ -70,9 +70,9 @@
         (id: "l16", x: 3, y: 2, text: "bado:text:thing"),
     ],
     encounters: [
-        (x: 2, y: 0, stacks: [("test:monster:goblin", 1)], stand: Some((id: "walled_in", pos: (4, 0)))),
-        (x: 3, y: 2, stacks: [("test:monster:goblin", 1)], stand: Some((id: "brink", pos: (4, 0)))),
-        (x: 1, y: 0, stacks: [("bado:monster:boxy", 1)]),
+        (id: "walled_in", x: 2, y: 0, stacks: [("test:monster:goblin", 1)], stand: Some((pos: (4, 0)))),
+        (id: "brink", x: 3, y: 2, stacks: [("test:monster:goblin", 1)], stand: Some((pos: (4, 0)))),
+        (id: "boxy", x: 1, y: 0, stacks: [("bado:monster:boxy", 1)]),
     ],
     ground: [
         (x: 1, y: 0, items: [("bado:item:none", 1)]),

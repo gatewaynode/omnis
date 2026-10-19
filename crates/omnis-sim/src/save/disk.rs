@@ -6,20 +6,23 @@
 //! world becomes the base of an empty journal.
 
 use super::character::{BaseNames, CharacterSave, is_world_id, world_id};
-use super::{Archived, Bases, Manifest, RegionBase, Split, WorldBase, join, split};
+use super::{Archived, Bases, Manifest, RegionBase, Segment, Split, WorldBase, join, split};
 use crate::journal::apply_changes;
 use crate::ops::OpError;
 use crate::save::JoinError;
 use crate::world::{LoadError, SAVE_SCHEMA, World};
 use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::fnv1a64;
 use omnis_data::Data;
 use omnis_data::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES};
 use omnis_data::ron_io::{parse, to_compact, to_string};
 use serde::Deserialize;
+
+/// The first schema that is a character save; an older save is a whole world.
+pub(crate) const CHARACTER_SCHEMA: u32 = 8;
 
 /// Where the world folders are, relative to the host's root.
 pub const WORLDS: &str = ".omnis/worlds";
@@ -42,13 +45,6 @@ pub struct Restored {
     pub applied: usize,
     /// The schema of an older save made the base of a new journal.
     pub converted_from: Option<u32>,
-}
-
-/// What a new game on the world's seed and settings holds: base 0.
-fn base_zero(data: &Data, manifest: &Manifest, world: &World) -> Result<Bases, String> {
-    let mut fresh = World::new(data, manifest.seed, world.settings).map_err(|e| e.to_string())?;
-    fresh.packs.clone_from(&manifest.packs);
-    Ok(split(&fresh, data).into())
 }
 
 /// The path of a region's base: its string id's pack and name as folders.
@@ -76,15 +72,10 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         return Err(OpError::failed("the save rule forbids saving here"));
     }
     let failed = |e: &dyn core::fmt::Display| OpError::failed(e);
-    let manifest = Manifest {
-        seed: world.seed,
-        packs: world.packs.clone(),
-    };
+    let manifest = Manifest::of(world, data);
     let id = world_id(&manifest).map_err(|e| failed(&e))?;
-    let bases = match &world.origin {
-        Some(origin) => origin.clone(),
-        None => base_zero(data, &manifest, world).map_err(|e| failed(&e))?,
-    };
+    // Base 0, the packs as written, holds nothing: a new world's parts are all the party's.
+    let bases = world.origin.clone().unwrap_or_default();
     let mut files = Vec::new();
     let mut names = BaseNames::default();
     if !bases.world.is_empty() {
@@ -113,20 +104,45 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         });
     }
     let mut archive = Vec::new();
+    let mut others = BTreeMap::new();
     for segment in &world.archive {
         match segment {
-            Archived::Named(name) => archive.push(*name),
-            Archived::Held(journal) => {
+            Archived::Named(segment) => archive.push(segment.clone()),
+            Archived::Held { journal, from } => {
                 let text = to_compact(journal).map_err(|e| failed(&e))?;
                 let name = fnv1a64(text.as_bytes());
-                archive.push(name);
+                let folder = match from {
+                    Some(old) => {
+                        let folder = world_id(old).map_err(|e| failed(&e))?;
+                        others.insert(folder.clone(), old);
+                        Some(folder)
+                    }
+                    None => None,
+                };
                 files.push(FileOut {
-                    path: archive_path(&id, name),
+                    path: archive_path(folder.as_deref().unwrap_or(&id), name),
                     text,
                     keep: true,
                 });
+                archive.push(Segment {
+                    world: folder,
+                    name,
+                });
             }
         }
+    }
+    // A segment in this world's own folder is named by its hash alone.
+    for segment in &mut archive {
+        if segment.world.as_deref() == Some(id.as_str()) {
+            segment.world = None;
+        }
+    }
+    for (folder, old) in others {
+        files.push(FileOut {
+            path: format!("{WORLDS}/{folder}/manifest.ron"),
+            text: to_string(old).map_err(|e| failed(&e))?,
+            keep: true,
+        });
     }
     files.push(FileOut {
         path: format!("{WORLDS}/{id}/manifest.ron"),
@@ -208,7 +224,7 @@ pub fn load_save(
         schema: u32,
     }
     let header: Header = parse(text).map_err(LoadError::Parse)?;
-    if header.schema < SAVE_SCHEMA {
+    if header.schema < CHARACTER_SCHEMA {
         let mut world = World::from_ron(text, data, force)?;
         world.origin = Some(split(&world, data).into());
         let report = Restored {
@@ -225,6 +241,16 @@ pub fn load_save(
         return Err(LoadError::BadSave(format!(
             "world '{}' is not a world's name",
             save.world
+        )));
+    }
+    if let Some(bad) = save
+        .archive
+        .iter()
+        .filter_map(|s| s.world.as_deref())
+        .find(|w| !is_world_id(w))
+    {
+        return Err(LoadError::BadSave(format!(
+            "archive world '{bad}' is not a world's name"
         )));
     }
     let id = save.world.clone();
@@ -252,28 +278,41 @@ pub fn load_save(
         let base: RegionBase = base(&path, *hash, read)?;
         regions.insert(region, base);
     }
-    let parts = Split {
+    let mut parts = Split {
         manifest,
         world: world_base,
         regions,
         checkpoint: save.checkpoint,
     };
+    let mut journal = save.journal;
+    super::rows::parts(data, &mut parts, &mut journal)?;
     let mut world = join(parts.clone(), data, force).map_err(|e| match e {
         JoinError::Load(e) => e,
         JoinError::Duplicate(what) => LoadError::BadSave(format!("two parts hold {what}")),
     })?;
-    let zero = base_zero(data, &parts.manifest, &world).map_err(LoadError::BadSave)?;
     let bases = Bases::from(parts);
-    world.origin = (bases != zero).then_some(bases);
-    for entry in save.journal.entries() {
+    world.origin = (bases != Bases::default()).then_some(bases);
+    for entry in journal.entries() {
         apply_changes(&mut world, &entry.changes);
     }
-    world.journal = save.journal;
-    world.archive = save.archive.into_iter().map(Archived::Named).collect();
+    world.journal = journal;
+    world.archive = save
+        .archive
+        .into_iter()
+        .map(|s| {
+            Archived::Named(Segment {
+                world: Some(s.world.unwrap_or_else(|| id.clone())),
+                name: s.name,
+            })
+        })
+        .collect();
     world.log = save.log;
+    super::rows::log(data, &mut world.log);
     crate::log::bound(&mut world.log);
+    // A schema 8 save's world was fingerprinted with its encounters' rows, which are ids now.
+    let converted = header.schema < SAVE_SCHEMA;
     let actual = world.fingerprint().map_err(LoadError::Parse)?;
-    if !packs_differ && actual != save.fingerprint {
+    if !packs_differ && !converted && actual != save.fingerprint {
         return Err(LoadError::Diverged {
             expected: save.fingerprint,
             actual,
@@ -281,7 +320,7 @@ pub fn load_save(
     }
     let report = Restored {
         applied: world.journal.len(),
-        converted_from: None,
+        converted_from: converted.then_some(header.schema),
     };
     Ok((world, report))
 }

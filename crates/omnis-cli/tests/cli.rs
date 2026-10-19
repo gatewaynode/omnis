@@ -179,7 +179,7 @@ fn nonsense_prints_usage_and_schema_dump_prints_sections() {
         "# data/maps/<name>.ron (schema 1)",
         "# data/regions/<name>.ron",
         "# data/flags/<name>.ron",
-        "# save (schema 8)",
+        "# save (schema 9)",
         "# replay",
         "# protocol ops",
     ] {

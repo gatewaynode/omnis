@@ -37,7 +37,7 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
         Op::PackReload => {
             let roots: Vec<&Path> = session.config.packs.iter().map(PathBuf::as_path).collect();
             let fresh = load_packs(&roots).map_err(OpError::failed)?;
-            session.world.check_reload(&fresh)?;
+            session.world.reload(&fresh)?;
             session.data = Arc::new(fresh);
             session.refresh();
             session.reshape = true;

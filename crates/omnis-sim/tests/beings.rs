@@ -91,9 +91,9 @@ fn use_from_the_next_cell_meets_them_and_the_retreat_is_where_the_party_stood() 
         events.iter().any(|e| matches!(
             e,
             Event::EncounterStarted {
-                source: EncounterSource::Fixed(0),
+                source: EncounterSource::Fixed(id),
                 ..
-            }
+            } if id == "rat"
         )),
         "{events:?}"
     );
@@ -250,7 +250,7 @@ fn stepping_into_their_cell_meets_them_as_an_unseen_group_is_met() {
     let Mode::Encounter(state) = &world.mode else {
         panic!("met: {:?}", world.mode);
     };
-    assert_eq!(state.source, EncounterSource::Fixed(0));
+    assert_eq!(state.source, EncounterSource::Fixed("rat".into()));
     assert_eq!(
         (state.retreat.x, state.retreat.y),
         (4, 1),

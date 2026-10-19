@@ -643,6 +643,7 @@ fn world_rows(look: &Look) -> Vec<Row> {
         look.game.views.journal,
         look.game.views.archive,
     ))));
+    rows.push(Row::text(note(names_line(look.game.views.names))));
     rows.push(Row::controls(vec![
         look.button(DebugAct::Fold, "Fold"),
         Control::button(ControlId::Debug(DebugAct::Tidy), "Tidy"),
@@ -718,6 +719,11 @@ fn journal_line(journal: usize, archive: usize) -> String {
     };
     let segments = if archive == 1 { "segment" } else { "segments" };
     format!("Journal: {journal} {interactions} since the last fold; archive: {archive} {segments}")
+}
+
+/// The names a save writes into its world's manifest (M8.5 7h2): what its numbers stand for.
+fn names_line(names: usize) -> String {
+    format!("Manifest: {names} names, what the save's numbers stand for")
 }
 
 fn fight_rows(look: &Look) -> Vec<Row> {

@@ -117,15 +117,18 @@ impl MapData {
             .find(|p| p.level == level && p.x == x && p.y == y)
     }
 
-    /// The fixed encounter on a tile with its index (the key a cleared encounter is remembered
-    /// by), if any.
+    /// The fixed encounter on a tile, if any.
     #[must_use]
-    pub fn encounter_at(&self, level: Level, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
+    pub fn encounter_at(&self, level: Level, x: u16, y: u16) -> Option<&ResolvedEncounter> {
         self.encounters
             .iter()
-            .enumerate()
-            .find(|(_, e)| e.level == level && e.x == x && e.y == y)
-            .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
+            .find(|e| e.level == level && e.x == x && e.y == y)
+    }
+
+    /// The fixed encounter with this id, if any.
+    #[must_use]
+    pub fn encounter(&self, id: &str) -> Option<&ResolvedEncounter> {
+        self.encounters.iter().find(|e| e.id == id)
     }
 
     /// The `Object` surface marking the portal on a tile, if any.

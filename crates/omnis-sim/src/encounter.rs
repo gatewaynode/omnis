@@ -11,6 +11,7 @@ use crate::event::{ActorRef, CheckKind, Event, Surprise};
 use crate::names::id_of;
 use crate::world::{Mode, World};
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::{Dice, Facing, MapId, MonsterId, Position, RollTrace, StreamName};
 use omnis_data::omnis_expr::Value;
@@ -22,10 +23,10 @@ use omnis_rules::{
 use serde::{Deserialize, Serialize};
 
 /// Where an encounter came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum EncounterSource {
-    /// A placement on the map, by its index in the map file.
-    Fixed(u16),
+    /// A placement on the map, by its id (M8.5 7h2; before, its row in the map file).
+    Fixed(#[serde(deserialize_with = "crate::save::row_or_id")] String),
     /// The map's random table.
     Random,
     /// The map's random table, come upon the party at rest (M7 step 5).
@@ -111,18 +112,18 @@ pub(crate) fn trigger(
         y: from.y,
         facing: move_facing.opposite(),
     };
-    let cleared = |i: &u16| {
+    let cleared = |id: &str| {
         world
             .maps
             .get(&pos.map)
-            .is_some_and(|s| s.cleared.contains(i))
+            .is_some_and(|s| s.cleared.contains(id))
     };
     let placed = map
         .encounter_at(pos.level, pos.x, pos.y)
-        .filter(|(i, _)| !cleared(i));
-    let (source, stacks, disposition, counts) = if let Some((i, e)) = placed {
+        .filter(|e| !cleared(&e.id));
+    let (source, stacks, disposition, counts) = if let Some(e) = placed {
         (
-            EncounterSource::Fixed(i),
+            EncounterSource::Fixed(e.id.clone()),
             e.stacks.clone(),
             e.disposition,
             Vec::new(),
@@ -265,26 +266,26 @@ pub(crate) fn ambush(
     )
 }
 
-/// Meet the placed group `index` of the party's map where the party stands (M8.5 step 2c:
+/// Meet the placed group `id` of the party's map where the party stands (M8.5 step 2c:
 /// `Approach` on a group that stands in view), Run putting it back at `retreat`.
 pub(crate) fn meet(
     world: &mut World,
     data: &Data,
-    index: u16,
+    id: &str,
     retreat: Position,
     events: &mut Vec<Event>,
 ) -> Result<(), RuleError> {
     let Some(e) = data
         .maps
         .get(&world.position.map)
-        .and_then(|m| m.encounters.get(usize::from(index)))
+        .and_then(|m| m.encounter(id))
     else {
         return Ok(());
     };
     begin(
         world,
         data,
-        EncounterSource::Fixed(index),
+        EncounterSource::Fixed(e.id.clone()),
         e.stacks.clone(),
         e.disposition,
         Vec::new(),
@@ -365,7 +366,7 @@ fn begin(
         (Some(roll), noticed)
     };
     events.push(Event::EncounterStarted {
-        source,
+        source: source.clone(),
         stacks: stacks
             .iter()
             .map(|&(monster, count)| (id_of(&data.registry.monsters, monster), count))
@@ -403,18 +404,18 @@ fn take(world: &mut World) -> Option<EncounterState> {
 }
 
 /// A cleared placement stays cleared when the map file says `once`.
-pub(crate) fn clear_once(world: &mut World, data: &Data, source: EncounterSource) {
-    let EncounterSource::Fixed(i) = source else {
+pub(crate) fn clear_once(world: &mut World, data: &Data, source: &EncounterSource) {
+    let EncounterSource::Fixed(id) = source else {
         return;
     };
     let map = world.position.map;
     let once = data
         .maps
         .get(&map)
-        .and_then(|m| m.encounters.get(usize::from(i)))
+        .and_then(|m| m.encounter(id))
         .is_some_and(|e| e.once);
     if once {
-        world.map_state(map).cleared.insert(i);
+        world.map_state(map).cleared.insert(id.clone());
     }
 }
 
@@ -427,10 +428,9 @@ pub fn groups_cleared(world: &World, data: &Data, map: MapId) -> (u16, u16) {
     };
     let cleared = world.maps.get(&map).map(|s| &s.cleared);
     let (mut done, mut total) = (0u16, 0u16);
-    for (i, _) in def.encounters.iter().enumerate().filter(|(_, e)| e.once) {
+    for e in def.encounters.iter().filter(|e| e.once) {
         total = total.saturating_add(1);
-        let i = u16::try_from(i).unwrap_or(u16::MAX);
-        if cleared.is_some_and(|c| c.contains(&i)) {
+        if cleared.is_some_and(|c| c.contains(&e.id)) {
             done = done.saturating_add(1);
         }
     }
@@ -516,7 +516,7 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
     world.party.gold -= cost;
     events.push(Event::Bribed { cost });
     if let Some(state) = take(world) {
-        clear_once(world, data, state.source);
+        clear_once(world, data, &state.source);
     }
     Ok(())
 }

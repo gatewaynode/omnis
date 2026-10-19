@@ -43,12 +43,13 @@ pub enum Change {
         /// Open now.
         open: bool,
     },
-    /// A fixed encounter, by its index in the map file.
+    /// A fixed encounter, by its id in the map (M8.5 7h2; before, `index`, its row).
     Cleared {
         /// The map.
         map: MapId,
         /// The encounter.
-        index: u16,
+        #[serde(alias = "index", deserialize_with = "crate::save::row_or_id")]
+        id: String,
         /// Cleared for good now.
         cleared: bool,
     },
@@ -129,6 +130,11 @@ impl Journal {
     #[must_use]
     pub fn entries(&self) -> &[Entry] {
         &self.0
+    }
+
+    /// The entries, to convert an older save's.
+    pub(crate) fn entries_mut(&mut self) -> &mut [Entry] {
+        &mut self.0
     }
 
     /// How many entries.
@@ -255,11 +261,11 @@ fn map_changes(map: MapId, was: &MapState, is: &MapState, out: &mut Vec<Change>)
             open,
         });
     }
-    for index in was.cleared.symmetric_difference(&is.cleared) {
-        let cleared = is.cleared.contains(index);
+    for id in was.cleared.symmetric_difference(&is.cleared) {
+        let cleared = is.cleared.contains(id);
         out.push(Change::Cleared {
             map,
-            index: *index,
+            id: id.clone(),
             cleared,
         });
     }
@@ -321,11 +327,9 @@ pub fn apply_changes(world: &mut World, changes: &[Change]) {
             Change::LevelDoor { map, edge, open } => {
                 mark(&mut world.map_state(map).level_doors, edge, open);
             }
-            Change::Cleared {
-                map,
-                index,
-                cleared,
-            } => mark(&mut world.map_state(map).cleared, index, cleared),
+            Change::Cleared { map, id, cleared } => {
+                mark(&mut world.map_state(map).cleared, id, cleared);
+            }
             Change::Object { map, id, state } => put(&mut world.map_state(map).objects, id, state),
             Change::Ground { map, at, pile } => put(&mut world.map_state(map).ground, at, pile),
             Change::Flag { flag, value } => put(&mut world.flags, flag, value),

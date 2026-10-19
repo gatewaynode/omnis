@@ -79,17 +79,17 @@
     // a friendly one. A small random table of rats on top. Goblins and skeletons in the lower
     // two rows of rooms (M7b, measured by `clear_over_seeds` before the owner plays).
     encounters: [
-        (x: 3, y: 8, stacks: [("test:monster:giant_rat", 2)], disposition: Hostile, once: true),
-        (x: 9, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Wary),
-        (x: 15, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Friendly, once: true),
-        (x: 3, y: 14, stacks: [("test:monster:goblin", 2)], disposition: Hostile, once: true),
-        (x: 15, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
-        (x: 9, y: 20, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
-        (x: 21, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
-        (x: 9, y: 14, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
-        (x: 21, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
-        (x: 3, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
-        (x: 15, y: 20, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 1)], disposition: Hostile, once: true),
+        (id: "giant_rat_3_8", x: 3, y: 8, stacks: [("test:monster:giant_rat", 2)], disposition: Hostile, once: true),
+        (id: "giant_rat_9_8", x: 9, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Wary),
+        (id: "giant_rat_15_8", x: 15, y: 8, stacks: [("test:monster:giant_rat", 1)], disposition: Friendly, once: true),
+        (id: "goblin_3_14", x: 3, y: 14, stacks: [("test:monster:goblin", 2)], disposition: Hostile, once: true),
+        (id: "goblin_15_14", x: 15, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
+        (id: "skeleton_9_20", x: 9, y: 20, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (id: "goblin_21_20", x: 21, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
+        (id: "skeleton_9_14", x: 9, y: 14, stacks: [("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (id: "goblin_21_14", x: 21, y: 14, stacks: [("test:monster:goblin", 3)], disposition: Hostile, once: true),
+        (id: "goblin_3_20", x: 3, y: 20, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 1)], disposition: Hostile, once: true),
+        (id: "skeleton_15_20", x: 15, y: 20, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 1)], disposition: Hostile, once: true),
     ],
     random: Some((
         chance_percent: 3,

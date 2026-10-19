@@ -2,7 +2,7 @@
 //! since the world's last base with the changes each made, the names of the bases, and the
 //! fingerprint the rebuilt world must have.
 
-use super::{Checkpoint, Manifest};
+use super::{Checkpoint, Manifest, Segment};
 use crate::journal::Journal;
 use crate::log::Logged;
 use alloc::collections::BTreeMap;
@@ -42,10 +42,16 @@ pub struct CharacterSave {
     pub journal: Journal,
     /// The world's fingerprint at the save, which the rebuilt world must have.
     pub fingerprint: u64,
-    /// The archive segments before the bases, oldest first, by name (M8.5 7e): the history the
-    /// folds put away, in the world folder's `archive/`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub archive: Vec<u64>,
+    /// The archive segments before the bases, oldest first (M8.5 7e): the history the folds put
+    /// away, each in a world folder's `archive/`, this save's own unless it names another
+    /// (M8.5 7h2: a world whose packs changed folds into a new folder). A schema 8 save names
+    /// each by its hash alone.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "segments"
+    )]
+    pub archive: Vec<Segment>,
     /// The party's log, oldest first (M8.5 7f): the newest `LOG_CAPACITY` events, stamped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub log: Vec<Logged>,
@@ -65,4 +71,22 @@ pub fn is_world_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// A save's archive: each segment by its fields, or by its hash alone (schema 8), in this folder.
+fn segments<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Segment>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Written {
+        Here(u64),
+        Full(Segment),
+    }
+    let written = Vec::<Written>::deserialize(d)?;
+    Ok(written
+        .into_iter()
+        .map(|w| match w {
+            Written::Here(name) => Segment { world: None, name },
+            Written::Full(segment) => segment,
+        })
+        .collect())
 }

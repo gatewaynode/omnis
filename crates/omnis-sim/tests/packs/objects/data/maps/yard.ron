@@ -77,7 +77,7 @@
         (x: 2, y: 2, pos: (1, 1), items: [("base:item:arrows", 10)]),
     ],
     encounters: [
-        (x: 5, y: 1, stacks: [("objects:monster:pack_rat", 2)], once: true, stand: Some((id: "rat", pos: (1, 0), facing: West))),
+        (id: "rat", x: 5, y: 1, stacks: [("objects:monster:pack_rat", 2)], once: true, stand: Some((pos: (1, 0), facing: West))),
     ],
     lore: [
         (id: "bootprints", x: 2, y: 2, text: "objects:text:lore.bootprints"),

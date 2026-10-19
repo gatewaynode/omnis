@@ -4,7 +4,7 @@
 
 use super::WORLDS;
 use super::character::{CharacterSave, is_world_id};
-use super::disk::{archive_path, region_path};
+use super::disk::{CHARACTER_SCHEMA, archive_path, region_path};
 use crate::world::SAVE_SCHEMA;
 use alloc::collections::BTreeSet;
 use alloc::format;
@@ -13,7 +13,8 @@ use alloc::vec::Vec;
 use omnis_data::ron_io::parse;
 use serde::Deserialize;
 
-/// Every file in the world folders a save names: its manifest, its bases, its archive.
+/// Every file in the world folders a save names: its manifest, its bases, its archive, and the
+/// manifest of each other folder its archive lies in.
 fn named(saves: &[CharacterSave]) -> BTreeSet<String> {
     let mut named = BTreeSet::new();
     for save in saves.iter().filter(|s| is_world_id(&s.world)) {
@@ -27,7 +28,14 @@ fn named(saves: &[CharacterSave]) -> BTreeSet<String> {
                 named.insert(path);
             }
         }
-        named.extend(save.archive.iter().map(|name| archive_path(id, *name)));
+        for segment in &save.archive {
+            let folder = segment.world.as_ref().unwrap_or(id);
+            if !is_world_id(folder) {
+                continue;
+            }
+            named.insert(format!("{WORLDS}/{folder}/manifest.ron"));
+            named.insert(archive_path(folder, segment.name));
+        }
     }
     named
 }
@@ -67,7 +75,7 @@ pub fn unnamed(saves: &[CharacterSave], files: &[String]) -> Vec<String> {
 
 /// Of the files under `.omnis/` (`all`, relative paths), the world-folder files no character save
 /// among them names; `read` gives a file's text. A file outside the world folders that is not a
-/// save of this schema is passed over, but one that says it is and does not read as one stops
+/// character save (schema 8 on) is passed over, but one that says it is and does not read as one stops
 /// the tidy: the files it names might be the ones listed.
 ///
 /// # Errors
@@ -86,7 +94,9 @@ pub fn tidy_list(
     let mut saves = Vec::new();
     for path in &others {
         let text = read(path)?;
-        if parse::<Header>(&text).is_ok_and(|h| h.schema == SAVE_SCHEMA) {
+        if parse::<Header>(&text)
+            .is_ok_and(|h| (CHARACTER_SCHEMA..=SAVE_SCHEMA).contains(&h.schema))
+        {
             let save = parse(&text).map_err(|e| format!("{path} does not read as a save: {e}"))?;
             saves.push(save);
         }

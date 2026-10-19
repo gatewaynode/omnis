@@ -383,6 +383,7 @@ fn running_from_a_group_off_the_ground_keeps_the_party_on_its_level() {
         .expect("tower")
         .encounters
         .push(ResolvedEncounter {
+            id: "upper_rat".into(),
             level: UPPER,
             x: 4,
             y: 1,

@@ -678,3 +678,20 @@ fn delete_is_dim_until_tidy_found_something() {
         Effect::Host(HostOp::Tidy { delete: true })
     );
 }
+
+/// The World page counts the names a save writes into its world's manifest (M8.5 7h2).
+#[test]
+fn the_world_page_counts_the_manifests_names() {
+    let session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let names = omnis_sim::api::NameTable::of(&session.data).len();
+    assert!(names > 50, "every kind's names: {names}");
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&format!(
+            "Manifest: {names} names, what the save's numbers stand for"
+        )),
+        "{lines:?}"
+    );
+}

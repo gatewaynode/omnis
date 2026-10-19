@@ -8,8 +8,8 @@ use crate::objects::{in_yard, objects, yard};
 use omnis_core::{Facing, Level, Position};
 use omnis_data::{Data, Verb};
 use omnis_sim::save::{
-    Archived, FOLD_INTERACTIONS, FOLD_RULE, Restored, archive_path, fold_at, load_save, save_files,
-    split,
+    Archived, FOLD_INTERACTIONS, FOLD_RULE, Restored, Segment, archive_path, fold_at, load_save,
+    save_files, split, tidy_list, world_id,
 };
 use omnis_sim::{
     Command, DevCommand, Event, Journal, LoadError, Mode, Rejection, RestCommand, ServiceCommand,
@@ -79,7 +79,13 @@ fn a_fold_makes_the_world_its_bases_and_archives_the_journal() {
     let events = apply(&mut world, &data, dev(DevCommand::Fold)).unwrap();
     assert_eq!(folded(&events), Some(1));
     assert!(world.journal.is_empty(), "the fold itself journals nothing");
-    assert_eq!(world.archive, [Archived::Held(journal)]);
+    assert_eq!(
+        world.archive,
+        [Archived::Held {
+            journal,
+            from: None
+        }]
+    );
     assert_eq!(world.origin, Some(split(&world, &data).into()));
     assert_eq!(state(&world, &data, "lever_1").as_deref(), Some("down"));
     let again = apply(&mut world, &data, dev(DevCommand::Fold)).unwrap();
@@ -159,7 +165,7 @@ fn a_save_names_its_archive_and_the_segment_holds_the_folded_interactions() {
     let mut disk = Disk::new();
     save(&world, &data, &mut disk, ".omnis/quick.ron");
     let (back, _) = load(&disk, &data, ".omnis/quick.ron").unwrap_or_else(|e| panic!("{e}"));
-    let [Archived::Named(name)] = back.archive.as_slice() else {
+    let [Archived::Named(Segment { name, .. })] = back.archive.as_slice() else {
         panic!("one segment, by name: {:?}", back.archive);
     };
     let segment = disk
@@ -181,7 +187,7 @@ fn a_save_names_its_archive_and_the_segment_holds_the_folded_interactions() {
         !again.keys().any(|p| p.contains("/archive/")),
         "a segment known by name is not written again"
     );
-    assert!(again[".omnis/quick.ron"].contains(&format!("archive:[{name}]")));
+    assert!(again[".omnis/quick.ron"].contains(&format!("archive:[(name:{name})]")));
 }
 
 #[test]
@@ -383,9 +389,10 @@ fn a_world_file_over_the_file_limit_is_not_written() {
     let entry = world.journal.entries()[0].clone();
     let size = omnis_data::ron_io::to_compact(&entry).unwrap().len();
     let entries = omnis_data::limits::MAX_FILE_BYTES as usize / size + 1;
-    world
-        .archive
-        .push(Archived::Held(vec![entry; entries].into()));
+    world.archive.push(Archived::Held {
+        journal: vec![entry; entries].into(),
+        from: None,
+    });
     let refused = save_files(&world, &data, ".omnis/quick.ron")
         .map(|_| ())
         .unwrap_err()
@@ -393,5 +400,96 @@ fn a_world_file_over_the_file_limit_is_not_written() {
     assert!(
         refused.contains("/archive/") && refused.contains("a world file may hold"),
         "{refused}"
+    );
+}
+
+/// A reload records the packs (M8.5 7h2): the next save writes a new world folder, names the
+/// segments folded before in the old one, and loads on the new packs without `force`; tidy keeps
+/// the old folder's segment and manifest.
+#[test]
+fn after_a_reload_a_save_loads_unforced_and_names_the_old_folders_segments() {
+    let data = objects();
+    let mut world = at_the_lever(&data);
+    apply(&mut world, &data, act("lever_1", Verb::Pull)).unwrap();
+    apply(&mut world, &data, dev(DevCommand::Fold)).unwrap();
+    let mut disk = Disk::new();
+    save(&world, &data, &mut disk, ".omnis/before.ron");
+    let (mut world, _) = load(&disk, &data, ".omnis/before.ron").unwrap_or_else(|e| panic!("{e}"));
+    let old = world_id(&omnis_sim::save::Manifest::of(&world, &data)).unwrap();
+    let mut fresh = data.clone();
+    fresh.fingerprints[0].hash ^= 1;
+    omnis_sim::ops::reload(&mut world, &fresh).unwrap();
+    world.position = world.position.at(3, 2);
+    world.position.facing = Facing::South;
+    apply(&mut world, &fresh, act("gate_1", Verb::Push)).unwrap();
+    apply(&mut world, &fresh, dev(DevCommand::Fold)).unwrap();
+    save(&world, &fresh, &mut disk, ".omnis/after.ron");
+    let (back, _) = load(&disk, &fresh, ".omnis/after.ron").unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(state(&back, &fresh, "gate_1").as_deref(), Some("open"));
+    let [Archived::Named(first), Archived::Named(second)] = back.archive.as_slice() else {
+        panic!("two segments: {:?}", back.archive);
+    };
+    assert_eq!(
+        first.world.as_deref(),
+        Some(old.as_str()),
+        "the old folder's"
+    );
+    assert_ne!(second.world, first.world, "the new folder's");
+    let text = &disk[".omnis/after.ron"];
+    assert!(
+        text.contains(&format!("world:Some(\"{old}\")")),
+        "named by folder: {text}"
+    );
+    let all: Vec<String> = disk.keys().cloned().collect();
+    let gone = tidy_list(&all, &mut |p| Ok(disk[p].clone())).unwrap();
+    assert!(gone.is_empty(), "every file named: {gone:?}");
+    disk.remove(".omnis/before.ron");
+    let gone = tidy_list(&disk.keys().cloned().collect::<Vec<_>>(), &mut |p| {
+        Ok(disk[p].clone())
+    })
+    .unwrap();
+    assert!(
+        !gone.contains(&archive_path(&old, first.name))
+            && !gone.contains(&format!(".omnis/worlds/{old}/manifest.ron")),
+        "the old folder's segment and manifest stay named: {gone:?}"
+    );
+    assert!(!gone.is_empty(), "the old folder's bases go: {gone:?}");
+}
+
+/// A segment folded from another world (its packs changed since) is written under that world's
+/// folder, beside that world's manifest.
+#[test]
+fn a_segment_held_from_another_world_is_written_in_its_folder() {
+    let data = objects();
+    let mut world = at_the_lever(&data);
+    apply(&mut world, &data, act("lever_1", Verb::Pull)).unwrap();
+    let mut old = omnis_sim::save::Manifest::of(&world, &data);
+    old.packs[0].hash ^= 1;
+    let folder = world_id(&old).unwrap();
+    world.archive.push(Archived::Held {
+        journal: world.journal.clone(),
+        from: Some(Box::new(old.clone())),
+    });
+    let files = save_files(&world, &data, ".omnis/s.ron").unwrap();
+    let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+    let manifest = format!(".omnis/worlds/{folder}/manifest.ron");
+    let at = paths
+        .iter()
+        .position(|p| *p == manifest)
+        .expect("its manifest");
+    assert_eq!(
+        omnis_data::ron_io::parse::<omnis_sim::save::Manifest>(&files[at].text).unwrap(),
+        old
+    );
+    assert!(
+        paths
+            .iter()
+            .any(|p| p.starts_with(&format!(".omnis/worlds/{folder}/archive/"))),
+        "{paths:?}"
+    );
+    assert_eq!(
+        paths.last(),
+        Some(&".omnis/s.ron"),
+        "the save is written last"
     );
 }

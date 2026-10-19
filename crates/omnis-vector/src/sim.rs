@@ -8,8 +8,8 @@ use omnis_sim::api::{
     BeingView, CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known,
     Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
     Rejection, Reply, RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap,
-    beings_on_level, cast_view, check_reload, combat_view, creation_view, dispatch, door_open,
-    here, object_blocks, objects_on_level, objects_view, party_view, rest_view, service_view,
+    beings_on_level, cast_view, combat_view, creation_view, dispatch, door_open, here,
+    object_blocks, objects_on_level, objects_view, party_view, reload, rest_view, service_view,
     status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
@@ -242,12 +242,13 @@ impl SimWorld {
         status(&self.0, data)
     }
 
-    /// Whether freshly loaded packs can replace the current ones (`api::check_reload`).
+    /// Take freshly loaded packs in place of the current ones (`api::reload`): the world records
+    /// them, or nothing changes.
     ///
     /// # Errors
-    /// The fresh packs would change what the world's numbers mean.
-    pub fn check_reload(&self, fresh: &Data) -> Result<(), OpError> {
-        check_reload(&self.0, fresh)
+    /// The fresh packs do not hold the party's tile.
+    pub fn reload(&mut self, fresh: &Data) -> Result<(), OpError> {
+        reload(&mut self.0, fresh)
     }
 
     /// Put a loaded world in place of this one.
@@ -335,6 +336,9 @@ pub struct Views {
     pub journal: usize,
     /// How many archive segments the folds have put away (M8.5 7e).
     pub archive: usize,
+    /// How many names a save's world manifest holds for these packs (M8.5 7h2); only in a
+    /// devtools world, for the debug panel.
+    pub names: usize,
 }
 
 impl Views {
@@ -369,6 +373,11 @@ impl Views {
             objects: world.objects(data),
             journal: world.journal_len(),
             archive: world.archive_len(),
+            names: if here_devtools {
+                omnis_sim::api::NameTable::of(data).len()
+            } else {
+                0
+            },
         }
     }
 

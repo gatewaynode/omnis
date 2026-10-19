@@ -537,7 +537,7 @@ fn a_fight_saved_before_the_bus_keeps_its_reactions() {
         let mut old = world.clone();
         old.bus = Default::default();
         old.party_time = Default::default();
-        let text = old.to_ron().unwrap().replacen("schema: 8", "schema: 6", 1);
+        let text = old.to_ron().unwrap().replacen("schema: 9", "schema: 6", 1);
         let loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(
             loaded.bus.subscribers(Topic::Battle),

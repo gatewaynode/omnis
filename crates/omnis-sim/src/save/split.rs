@@ -107,10 +107,7 @@ pub fn split(world: &World, data: &Data) -> Split {
             .insert(name.clone(), *stream);
     }
     Split {
-        manifest: Manifest {
-            seed: world.seed,
-            packs: world.packs.clone(),
-        },
+        manifest: Manifest::of(world, data),
         world: parts.world,
         regions: parts.regions,
         checkpoint: Checkpoint {

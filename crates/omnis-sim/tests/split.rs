@@ -7,7 +7,7 @@ use common::{data, world};
 use omnis_core::{ActorId, Clock, Contact, EraId, HolderId, MapId, Pcg32, StreamName};
 use omnis_data::Data;
 use omnis_data::ron_io::read_ron;
-use omnis_sim::save::{JoinError, join, split, split_report};
+use omnis_sim::save::{Bases, JoinError, join, split, split_report};
 use omnis_sim::{LoadError, MapState, Mode, ModeKind, PARTY, Replay, World, apply};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -34,24 +34,28 @@ fn round_trip(world: &World, data: &Data, at: &str) {
     assert_eq!(back.fingerprint(), world.fingerprint(), "{at}");
 }
 
+/// Base 0 is empty (M8.5 7h2): a new world, on packs with flags and regions or without, puts
+/// nothing in a base, so a save needs no current data to know what base 0 holds.
 #[test]
 fn a_new_world_splits_into_the_party_alone() {
-    let data = data();
-    let fresh = World::new(&data, 5, Default::default()).unwrap();
-    let parts = split(&fresh, &data);
-    assert!(
-        parts.regions.is_empty(),
-        "no region has a base: {:?}",
-        parts.regions
-    );
-    assert!(parts.world.is_empty(), "{:?}", parts.world);
-    assert_eq!(parts.manifest.seed, 5);
-    assert_eq!(parts.manifest.packs, data.fingerprints);
-    assert_eq!(
-        join(parts, &data, false).unwrap(),
-        fresh,
-        "base 0 is the packs"
-    );
+    for data in [data(), crate::objects::objects()] {
+        let fresh = World::new(&data, 5, Default::default()).unwrap();
+        let parts = split(&fresh, &data);
+        assert!(
+            parts.regions.is_empty(),
+            "no region has a base: {:?}",
+            parts.regions
+        );
+        assert!(parts.world.is_empty(), "{:?}", parts.world);
+        assert_eq!(Bases::from(parts.clone()), Bases::default());
+        assert_eq!(parts.manifest.seed, 5);
+        assert_eq!(parts.manifest.packs, data.fingerprints);
+        assert_eq!(
+            join(parts, &data, false).unwrap(),
+            fresh,
+            "base 0 is the packs"
+        );
+    }
 }
 
 #[test]

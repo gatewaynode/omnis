@@ -31,9 +31,11 @@ use serde::{Deserialize, Serialize};
 /// migrate on load, and so do schema 5 (no turn budget) and schema 6 (no subjective time:
 /// contacts, the party's shared time and date, the signal bus). Schema 8 (M8.5 7d, PRD D28) is the
 /// character save (`save::CharacterSave`); a schema 1 to 7 save is a whole world, converted on
-/// load by making it the base its journal starts from. `World::from_ron` reads a whole world of
+/// load by making it the base its journal starts from. Schema 9 (M8.5 7h2) names fixed
+/// encounters by id where 8 and before name their rows, converted on load (`save::rows`), and
+/// its world folders' manifests carry the packs' names. `World::from_ron` reads a whole world of
 /// any schema, as a snapshot.
-pub const SAVE_SCHEMA: u32 = 8;
+pub const SAVE_SCHEMA: u32 = 9;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,9 +46,9 @@ pub struct MapState {
     /// when none, so a save of a map of one level reads as before.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub level_doors: BTreeSet<(Level, u16, u16, Facing)>,
-    /// Fixed encounters cleared for good, by their index in the map file.
-    #[serde(default)]
-    pub cleared: BTreeSet<u16>,
+    /// Fixed encounters cleared for good, by their id in the map (M8.5 7h2; before, their rows).
+    #[serde(default, deserialize_with = "crate::save::rows_or_ids")]
+    pub cleared: BTreeSet<String>,
     /// What has changed of the map's objects, by placement id (M8.5 step 2); unwritten when
     /// nothing has, so a save with no objects reads as before.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -530,12 +532,13 @@ impl World {
             6 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
-            // Schema 7 is the last whole-world save; 8 is a whole world only as a snapshot.
-            7 | SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
+            // Schema 7 is the last whole-world save; 8 and 9 are whole worlds only as snapshots.
+            7 | 8 | SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
         };
         let mut world = world;
         world.known = legacy_knowledge(text).map_err(LoadError::Parse)?;
+        crate::save::rows::world(data, &mut world)?;
         world.prune();
         world.schema = SAVE_SCHEMA;
         world.checked(data, force)

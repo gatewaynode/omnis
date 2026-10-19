@@ -4,6 +4,7 @@
 
 mod api_views;
 mod beings;
+mod by_id;
 mod casting;
 mod combat;
 mod common;

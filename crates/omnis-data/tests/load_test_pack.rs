@@ -200,8 +200,9 @@ fn portals_and_tileset_slots_resolve() {
         11,
         "three rat groups, eight of goblins and skeletons"
     );
-    let (index, rats) = dungeon.encounter_at(Level::GROUND, 3, 8).expect("the rats");
-    assert_eq!(index, 0);
+    let rats = dungeon.encounter_at(Level::GROUND, 3, 8).expect("the rats");
+    assert_eq!(rats.id, "giant_rat_3_8");
+    assert_eq!(dungeon.encounter("giant_rat_3_8"), Some(rats));
     assert_eq!(rats.stacks.len(), 1);
     assert_eq!(
         (
