@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-19, after the owner accepted M8.5 7h2 (schema 9). Next: build 7h3, the remap. Rewrite this file every time it is used.
+Written 2026-10-19, after M8.5 7h3 (saves by name) was built and committed. Next: the owner walks 7h3; then 7h4. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -19,11 +19,12 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
   | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
   | 7h2, schema 9 | `9495867`, docs `ca9c556` | accepted 2026-10-19 ("Manually confirmed") |
+  | 7h3, saves by name | `787426e`, docs `40ccc7a` | **built, awaiting the owner's walk** (`tasks/acceptance/m8.5-7h3.md`) |
 
   7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
   `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
-- **Gate:** `tests passed 948 failed 0 ignored 15`, VERIFY-GREEN at `9495867`. Sentrux rules pass, quality 8982.
-  7h2 mutations 16 of 16.
+- **Gate:** `tests passed 960 failed 0 ignored 15`, VERIFY-GREEN at `787426e`. Sentrux rules pass, quality 8985.
+  7h3 mutations 38 of 38 (runner `scratchpad/mutate7h3.py`, args filter by name).
 - Owner world docs `docs/locations/the_floating_isles_of_the_west_reach.md` and `..._paratoron_empire_...` committed
   alone (`2368ea8`).
 - Owner world doc `docs/background/introduction.md` changed twice and was committed alone each time (`63c61c5`,
@@ -59,29 +60,27 @@ Durable knowledge lives in `tasks/knowledge/`.
   §7.7 needs the owner's approval).
 
 ## Next
-- **Build 7h3, the remap** (TODO; plan summary below): load in the save's own numbering, `join_raw`, the
-  fingerprint always checked, then the tiers; `Remapper` over live state; `time:` streams rebuilt through
-  `StreamName::time`; the bus from `time::subscriptions`; the fold on a names change (`Held.from`); the overlay
-  proof with every view equal, one mutation per field.
+- **The owner walks 7h3** (`tasks/acceptance/m8.5-7h3.md`): save on base+test+objects, load with
+  `crates/omnis-sim/tests/packs/ahead` added ("made with other packs, loaded by name. The world has moved on"),
+  the wizard's spells the same; give ahead's Dagger (first in the debug Item list), save, load without
+  `ahead`: refused, "item 'ahead:item:dagger' in party.inventory". All from the window, no forcing.
+- **7h3 as built (what 7h4 builds on):** `save/disk.rs` `load_save`: region bases keyed through
+  `Manifest.names` (`region_number`), `join::assemble` (unchecked), journal, fingerprint on any packs (schema 8
+  converted skips), then `fit(world, old manifest, data) -> (World, PackFit)`: `Same`, `Content` (equal
+  `NameTable`), `Renumbered` (`remap::world` then `remap::log`, packs set, `checked`, `fold_from(.., Some(old))`),
+  `Forced` (no table; early `PackMismatch` unless force). `save/remap.rs` (471 lines): `Remapper` with
+  `RefCell` missing list, implements `Rename<Ids, Ids>` for tactics; `Missing { kind: NameKind, name, at }`;
+  `LoadError::Unresolved(Vec<Missing>)`. `Restored.fit`; window `game_io::said` words each fit. `Bus::retain`
+  in omnis-bus. Fixture pack `tests/packs/ahead` (0.1.1, depends base/test/objects).
+- **7h4 next:** `examine`/`restore`, `LoadReport` (per-pack versions, names found/missing with where, place
+  checks: position, doors, piles, automap bounds, `used` signatures, terrain keys; verdict `Same`/`Renamed`/
+  `NeedsMigration`/`Unresolved`), `save.check` + MCP `save_check` (27 tools, ops count moves), the window's
+  load screen per verdict (Renamed: "Made with other packs; loaded by name."; Unresolved: the list and Cancel).
+  `PackFit` and `Unresolved` are the seeds of it.
 - **Forced loads in a walk:** when the omnis MCP isn't connected, send `{"id":1,"op":"save.read","args":{"path":..,
   "force":true}}` as one JSON line to the address in `.omnis/dev.addr` (a short `python3 -I` socket script);
-  `screen.text` reads the window back. The game must be in a world, not on the title or New game screen ("no game
-  is running").
-- **Open for the owner (in the report):** the pack data `SCHEMA` stays 1 though `FixedEncounter.id` is now required
-  and `Stand.id` is gone (only our packs exist); a bump would touch every data file.
-- **7h2 as built (what 7h3 builds on):** `save/rows.rs` (rows read as `#n` markers via `row_or_id`/`rows_or_ids`
-  deserializers on `MapState.cleared`, `EncounterSource::Fixed`, `Change::Cleared` (`alias = "index"`); `rows::world`
-  in `World::from_ron`, `rows::parts` + `rows::log` in `load_save`); `save/names.rs` (`NameTable::of`, `len`,
-  `Signature`; `Manifest::of(world, data)` used by `split` and `save_files`); `disk.rs` `CHARACTER_SCHEMA` 8,
-  `converted` skips the fingerprint for schema 8; `Segment { world, name }`, in memory always `Some(folder)`, saved
-  `None` for the save's own; `Archived::Held { journal, from: Option<Box<Manifest>> }` (7h3/7h5 set `from` on a
-  names-change fold); `ops::reload` sets `world.packs`. A forced load keeps the save's packs on the world, so its
-  next save is still "other packs" until 7h3's tiers.
-- **Then 7h3, the remap** (plan above): load in the save's numbering (region bases keyed through the save's table),
-  `join_raw`, journal, always the fingerprint, then the tiers; `Remapper` over live state; `time:` streams rebuilt
-  through `StreamName::time`; bus from `time::subscriptions`; fold on a names change with `Held.from`; the overlay
-  pack proof (every view equal: exploring, town, mid-fight) and a mutation per field. Visible: add a spell sorting
-  first in `packs/test`, reseal, load: the wizard's spells unchanged, "The world has moved on".
+  `screen.text` reads the window back. The game must be in a world, not on the title or New game screen.
+- **Decided 2026-10-19:** the pack data `SCHEMA` stays 1 (owner: "Keep the schema at 1").
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
