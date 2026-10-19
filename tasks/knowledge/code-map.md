@@ -81,7 +81,7 @@ old saves only).
   (the HUD clock line), `text::ago_text` (a rumor's age).
 - The engine's API (ARCHITECTURE §4.9, M8 step 8): `api.rs` re-exports exactly the contract; `ops.rs` (`PROTOCOL`,
   `Op`, `Reply` tagged `reply`, `OpError`, `Status`, `dispatch`, `Op::is_host`, `MAX_SCRIPT`, the host ops' rules
-  `reload` (records the packs, 7h2), `rules_set`; the save's are in `save/`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
+  `reload` (by name through `save::examine_running` and `restore`, 7h5; `ReloadRefused`), `rules_set`; the save's are in `save/`); `names.rs` (protocol 2: `Place`, `id_of` (`#n` for a
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
@@ -156,7 +156,7 @@ old saves only).
   against its reader's limit; `load_save`, `Restored`, `PackFit`, `fit` (7h3: same packs, same names, renumbered and folded, or forced), `region_number`, the v1–7 conversion, `CHARACTER_SCHEMA`, `region_path`, `archive_path`),
   `save/fold.rs` (`fold`, `fold_from` (7h3), `Archived::{Held { journal, from }, Named(Segment)}`, `Segment`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
   `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`; schema 8 and 9 saves both count), `save/names.rs` (7h2: `NameTable::of`,
-  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids), `save/remap.rs` (7h3: `world` renumbers the live world by name through `Remapper`, `Registered` per id kind, terrain rows by key, `used` rows by `Signature`, `time:` streams, the bus's region topics; `log`; `Missing`, `NameKind`), `save/check.rs` (7h4: `examine`, `restore`, `SaveCheck`, `Verdict`, `PackChange`), `save/places.rs` (7h4: the place checks and fixes, `PlaceWarning`, `PlaceFix`). `World.{known, journal, origin, archive, log}`.
+  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids), `save/remap.rs` (7h3: `world` renumbers the live world by name through `Remapper`, `Registered` per id kind, terrain rows by key, `used` rows by `Signature`, `time:` streams, the bus's region topics; `log`; `Missing`, `NameKind`), `save/check.rs` (7h4: `examine`, `restore`, `SaveCheck`, `Verdict`, `PackChange`; 7h5: `examine_running`, the shared `refit`), `save/places.rs` (7h4: the place checks and fixes, `PlaceWarning`, `PlaceFix`). `World.{known, journal, origin, archive, log}`.
   Tests: `journal.rs`, `split.rs`, `disk.rs` (both goldens saved and loaded after every command; fixtures
   `tests/saves/v1..v7.ron`, the schema 8 and 9 ones), `by_id.rs` (7h2: the v8-cleared fixture, the name table), `by_name.rs` (7h3: the `ahead` fixture pack moves every number; every view equal after a load by name, exploring, mid-fight, in town and in the yard), `fold.rs`, `history.rs`.
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
@@ -179,7 +179,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   rows from `CombatView.items`, the spell notes, `budget_line`, `points`, `picking`), `arena.rs` (the fight
   screen's layout and picks: the left column of picture, actions, log and status; the `party` rectangle at the
   right; P7: `picker`, the pickers' panel; P8: `fit`, `zoom`, the fight's units at the interface scale), `settings.rs` (P8: `Prefs`,
-  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `history.rs` (the full log's lines, stamped, `matching`; 2026-10-17), `screen/log.rs` (the full log's screen), `screen/load_report.rs` (7h4: the save that does not load, its packs and missing names, Close), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
+  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `history.rs` (the full log's lines, stamped, `matching`; 2026-10-17), `screen/log.rs` (the full log's screen), `screen/load_report.rs` (7h4: the save that does not load, its packs and missing names, Close; 7h5: the packs that do not reload, `Refusal`), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Objects (M8.5 step 2b): `shapes.rs` (`Body`, `shapes`: a look as lines and fills on its footprint, turned by facing,
   on the home floor; a shut arch crossed; `PILE_LOOK`); `scene.rs` `Scene::build(data, ..)` adds each level's

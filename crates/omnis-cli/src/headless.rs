@@ -93,9 +93,9 @@ impl Headless {
             }
             Op::PackReload => {
                 let data = load(&self.packs).map_err(OpError::failed)?;
-                ops::reload(&mut self.world, &data)?;
+                let check = ops::reload(&mut self.world, &self.data, &data)?;
                 self.data = data;
-                Ok(Reply::Done {})
+                Ok(Reply::Done { check })
             }
             Op::Screenshot { .. } => Err(OpError::failed(
                 "a screenshot needs the game window; this is headless",

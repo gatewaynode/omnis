@@ -24,7 +24,7 @@ fn examined(disk: &Disk, data: &Data) -> Examined {
 }
 
 /// `data` with every pack's version raised: other packs, the same names.
-fn edited(data: &Data) -> Data {
+pub fn edited(data: &Data) -> Data {
     let mut data = data.clone();
     for pack in &mut data.fingerprints {
         pack.version.push_str("-edited");
@@ -37,7 +37,7 @@ fn yard(data: &Data) -> MapId {
 }
 
 /// Take the ground from a cell of the yard's own level.
-fn rock(data: &mut Data, x: u16, y: u16) {
+pub fn rock(data: &mut Data, x: u16, y: u16) {
     let yard = yard(data);
     let map = data.maps.get_mut(&yard).unwrap();
     let width = usize::from(map.def.width);
@@ -49,7 +49,7 @@ fn rock(data: &mut Data, x: u16, y: u16) {
     level.cells[usize::from(y) * width + usize::from(x)] = None;
 }
 
-fn spot(x: u16, y: u16) -> Spot {
+pub fn spot(x: u16, y: u16) -> Spot {
     Spot {
         level: Level::GROUND,
         x,
@@ -79,7 +79,7 @@ fn daggers_on_the_ground(world: &World, data: &Data) -> u32 {
         .sum()
 }
 
-fn saved_in_the_yard(x: u16, y: u16) -> (World, Data, Disk) {
+pub fn saved_in_the_yard(x: u16, y: u16) -> (World, Data, Disk) {
     let data = before();
     let mut world = crate::objects::in_yard(&data, 0, x, y, Facing::East);
     look(&mut world, &data);

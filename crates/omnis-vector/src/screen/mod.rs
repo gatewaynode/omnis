@@ -483,6 +483,8 @@ pub enum HostOp {
         /// Delete, rather than list.
         delete: bool,
     },
+    /// Reload the packs from disk under the running world, by name (M8.5 7h5).
+    Reload,
 }
 
 /// What the shell does after a control was used.
@@ -609,8 +611,9 @@ pub struct Forms {
     pub debug: debug::DebugForm,
     /// The full log's filter as typed; cleared when the screen changes.
     pub log_filter: String,
-    /// What the loaded packs made of the save the last Load refused; dropped by Close.
-    pub load_report: Option<omnis_sim::api::SaveCheck>,
+    /// What the packs made of the save the last Load refused, or of the world the last Reload
+    /// packs refused; dropped by Close.
+    pub load_report: Option<load_report::Refusal>,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }

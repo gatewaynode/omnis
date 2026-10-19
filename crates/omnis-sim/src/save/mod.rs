@@ -18,7 +18,9 @@ mod split;
 mod tidy;
 
 pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
-pub use check::{Examined, PackChange, PackStamp, SaveCheck, Verdict, examine, restore};
+pub use check::{
+    Examined, PackChange, PackStamp, SaveCheck, Verdict, examine, examine_running, restore,
+};
 pub use disk::{FileOut, PackFit, Restored, WORLDS, archive_path, load_save, save_files};
 pub(crate) use fold::fold_from;
 pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, Segment, due, fold, fold_at};

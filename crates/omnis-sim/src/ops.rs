@@ -19,12 +19,13 @@ use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::rest_view::{RestView, rest_view};
-use crate::save::SaveCheck;
+use crate::save::{SaveCheck, examine_running, restore};
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, Settings, World};
 use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -414,8 +415,12 @@ pub enum Reply {
         /// The value as text.
         value: Option<String>,
     },
-    /// `pack.reload`.
-    Done {},
+    /// `pack.reload`: what the fresh packs made of the running world (M8.5 7h5).
+    Done {
+        /// The report: how the world was fitted to them, and each place changed.
+        #[serde(default)]
+        check: SaveCheck,
+    },
     /// `save.check`: what the loaded packs make of a save (M8.5 7h4).
     Check {
         /// The report.
@@ -689,23 +694,43 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
 // `save.write` and `save.read` are `save::save_files` and `save::load_save` (M8.5 7d): a
 // character save and the world folder's files, which the host writes and reads.
 
-/// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
-/// hold the party's tile; then the world records them, so its next save names the packs it
-/// runs on (M8.5 7h2). Refused, nothing changes; the host swaps its data only on `Ok`.
-pub fn reload(world: &mut World, fresh: &Data) -> Result<(), OpError> {
-    let p = world.position;
-    if fresh
-        .maps
-        .get(&p.map)
-        .and_then(|m| m.cell(p.level, p.x, p.y))
-        .is_none()
-    {
-        return Err(OpError::failed(format!(
-            "the party's tile {p} is not in the reloaded packs; nothing changed"
-        )));
+/// `pack.reload` by name (M8.5 7h5): the running world is fitted to the freshly loaded packs
+/// as a save made on `old`, the packs it runs on, would be on load (`save::examine_running`,
+/// `save::restore`): the same packs change nothing; other packs are recorded; moved names
+/// renumber it and fold it, its journal held for `old`'s folder; places the maps no longer
+/// allow are fixed and reported. Refused, nothing changes; the host swaps its data only on `Ok`.
+///
+/// # Errors
+/// A name the fresh packs lack, or a world they cannot hold, with the report.
+pub fn reload(world: &mut World, old: &Data, fresh: &Data) -> Result<SaveCheck, ReloadRefused> {
+    let examined = examine_running(world, old, fresh);
+    let check = examined.report().clone();
+    match restore(examined, fresh, false) {
+        Ok((next, _)) => {
+            *world = next;
+            Ok(check)
+        }
+        Err(e) => Err(ReloadRefused {
+            error: OpError::failed(format!("{e}; nothing changed")),
+            check: Box::new(check),
+        }),
     }
-    world.packs.clone_from(&fresh.fingerprints);
-    Ok(())
+}
+
+/// A refused `pack.reload`: why, as the op answers it, and what the fresh packs made of the
+/// world, for a host that shows the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReloadRefused {
+    /// The op's error.
+    pub error: OpError,
+    /// The report.
+    pub check: Box<SaveCheck>,
+}
+
+impl From<ReloadRefused> for OpError {
+    fn from(refused: ReloadRefused) -> OpError {
+        refused.error
+    }
 }
 
 /// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with

@@ -173,7 +173,7 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "pack_reload",
             "pack.reload",
-            "Reload the packs from disk, keeping the world where it is.",
+            "Reload the packs from disk under the running world, fitted by name; answers done with the check, or refuses with each name the packs lack, nothing changed.",
             &[],
         ),
         screenshot_tool(),

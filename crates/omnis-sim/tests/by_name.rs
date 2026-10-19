@@ -70,7 +70,7 @@ pub fn read(disk: &Disk, data: &Data) -> Result<(World, Restored), LoadError> {
 
 /// Every view a client reads, as the protocol answers it: string ids only, so equal across a
 /// renumbering when the remap is right.
-fn views(world: &World, data: &Data) -> Vec<String> {
+pub fn views(world: &World, data: &Data) -> Vec<String> {
     let ops = [
         Op::PartyGet,
         Op::ViewportGet,
@@ -101,7 +101,7 @@ fn views(world: &World, data: &Data) -> Vec<String> {
 
 /// What no view shows, by name: the `time:` streams' holders, the bus's region topics, each
 /// map's cleared encounters and object states, and the party's knowledge.
-fn named(world: &World, data: &Data) -> Vec<String> {
+pub fn named(world: &World, data: &Data) -> Vec<String> {
     let region = |h: &HolderId| match h {
         HolderId::Region(r) => format!("region {}", data.registry.regions.name(*r).unwrap()),
         other => other.to_string(),
@@ -326,7 +326,7 @@ fn ahead_moves_every_number() {
 
 /// The dagger, a spell and a monster and a condition the members' tactics, effects and
 /// conditions name, so each id a member holds is in the save.
-fn armed(world: &mut World, data: &Data) {
+pub fn armed(world: &mut World, data: &Data) {
     let id = |kind: &str, name: &str| format!("base:{kind}:{name}");
     let spell = data
         .registry

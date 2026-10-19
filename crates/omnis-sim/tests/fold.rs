@@ -418,7 +418,7 @@ fn after_a_reload_a_save_loads_unforced_and_names_the_old_folders_segments() {
     let old = world_id(&omnis_sim::save::Manifest::of(&world, &data)).unwrap();
     let mut fresh = data.clone();
     fresh.fingerprints[0].hash ^= 1;
-    omnis_sim::ops::reload(&mut world, &fresh).unwrap();
+    omnis_sim::ops::reload(&mut world, &data, &fresh).unwrap();
     world.position = world.position.at(3, 2);
     world.position.facing = Facing::South;
     apply(&mut world, &fresh, act("gate_1", Verb::Push)).unwrap();

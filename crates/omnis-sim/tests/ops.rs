@@ -379,8 +379,8 @@ fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
 }
 
 /// The host ops' rules, shared by the dev socket and the headless driver (ARCHITECTURE.md §4.9):
-/// the save rule decides `save.write`, a save reads back as the world it was, a reload must keep
-/// the party's tile, and `rules.set` bounds and checks its source.
+/// the save rule decides `save.write`, a save reads back as the world it was, a reload must hold
+/// the party's map (M8.5 7h5: by name, `reload.rs`), and `rules.set` bounds and checks its source.
 #[test]
 fn the_host_ops_rules_hold_for_every_host() {
     use omnis_sim::ops::{reload, rules_set};
@@ -405,7 +405,10 @@ fn the_host_ops_rules_hold_for_every_host() {
     let mut reloaded = world.clone();
     let mut fresh = data.clone();
     fresh.fingerprints[0].hash ^= 1;
-    assert_eq!(reload(&mut reloaded, &fresh), Ok(()));
+    assert_eq!(
+        reload(&mut reloaded, &data, &fresh).map(|c| c.verdict),
+        Ok(omnis_sim::save::Verdict::Content)
+    );
     assert_eq!(
         reloaded.packs, fresh.fingerprints,
         "the world records the packs"
@@ -415,7 +418,10 @@ fn the_host_ops_rules_hold_for_every_host() {
     gone.maps.remove(&world.position.map);
     let before = reloaded.clone();
     assert!(
-        matches!(reload(&mut reloaded, &gone), Err(OpError::Failed { .. })),
+        matches!(
+            reload(&mut reloaded, &fresh, &gone).map_err(OpError::from),
+            Err(OpError::Failed { .. })
+        ),
         "the party's map is gone"
     );
     assert_eq!(reloaded, before, "a refused reload changes nothing");

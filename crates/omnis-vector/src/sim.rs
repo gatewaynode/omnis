@@ -7,10 +7,10 @@
 use omnis_sim::api::{
     BeingView, CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known,
     Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
-    Rejection, Reply, RestView, SeenObject, ServiceView, Settings, Status, World, apply, automap,
-    beings_on_level, cast_view, combat_view, creation_view, dispatch, door_open, here,
-    object_blocks, objects_on_level, objects_view, party_view, reload, rest_view, service_view,
-    status, step_lands, viewport,
+    Rejection, ReloadRefused, Reply, RestView, SaveCheck, SeenObject, ServiceView, Settings,
+    Status, World, apply, automap, beings_on_level, cast_view, combat_view, creation_view,
+    dispatch, door_open, here, object_blocks, objects_on_level, objects_view, party_view, reload,
+    rest_view, service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -242,13 +242,13 @@ impl SimWorld {
         status(&self.0, data)
     }
 
-    /// Take freshly loaded packs in place of the current ones (`api::reload`): the world records
-    /// them, or nothing changes.
+    /// Take freshly loaded packs in place of `old`, the ones it runs on (`api::reload`, M8.5
+    /// 7h5): the world is fitted to them by name, or nothing changes.
     ///
     /// # Errors
-    /// The fresh packs do not hold the party's tile.
-    pub fn reload(&mut self, fresh: &Data) -> Result<(), OpError> {
-        reload(&mut self.0, fresh)
+    /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
+    pub fn reload(&mut self, old: &Data, fresh: &Data) -> Result<SaveCheck, ReloadRefused> {
+        reload(&mut self.0, old, fresh)
     }
 
     /// Put a loaded world in place of this one.

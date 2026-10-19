@@ -8,13 +8,12 @@
 //! still replays, and the presentation follows them as it follows the keyboard: the HUD lines,
 //! the roll log, the reshape flag and the pose.
 
-use super::session::Session;
+use super::session::{Packs, Session};
 use crate::game_io;
 use crate::pose::Pose;
-use omnis_sim::omnis_data::load_packs;
 use omnis_sim::ops::rules_set;
 use omnis_sim::{Command, DevCommand, Op, OpError, PartyCommand, Reply};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 /// Answer one op. Relative paths in it (saves) are taken under `root`, the directory the
@@ -42,14 +41,9 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
             Ok(Reply::Check { check })
         }
         Op::PackReload => {
-            let roots: Vec<&Path> = session.config.packs.iter().map(PathBuf::as_path).collect();
-            let fresh = load_packs(&roots).map_err(OpError::failed)?;
-            session.world.reload(&fresh)?;
-            session.data = Arc::new(fresh);
-            session.refresh();
-            session.reshape = true;
-            session.unreplayable = Some("the packs were reloaded".to_owned());
-            Ok(Reply::Done {})
+            let fresh = Packs::load(&session.config).map_err(OpError::failed)?.data;
+            let check = session.reload(fresh)?;
+            Ok(Reply::Done { check })
         }
         Op::RulesSet { slot, source } => {
             let reply = rules_set(Arc::make_mut(&mut session.data), slot, source)?;

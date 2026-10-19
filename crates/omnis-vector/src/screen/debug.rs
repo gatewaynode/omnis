@@ -138,6 +138,8 @@ pub enum DebugAct {
     Tidy,
     /// Delete the files Tidy listed: the host's work, lit once Tidy found some.
     Delete,
+    /// Reload the packs from disk under the running world, by name (M8.5 7h5): the host's work.
+    Reload,
 }
 
 const FACINGS: [Facing; 4] = [Facing::North, Facing::East, Facing::South, Facing::West];
@@ -647,6 +649,7 @@ fn world_rows(look: &Look) -> Vec<Row> {
     rows.push(Row::controls(vec![
         look.button(DebugAct::Fold, "Fold"),
         Control::button(ControlId::Debug(DebugAct::Tidy), "Tidy"),
+        Control::button(ControlId::Debug(DebugAct::Reload), "Reload packs"),
         Control {
             why_not: match &look.form.tidy {
                 Some(files) if !files.is_empty() => None,
@@ -909,6 +912,7 @@ pub fn apply(
         }
         DebugAct::Tidy => return Ok(Effect::Host(HostOp::Tidy { delete: false })),
         DebugAct::Delete => return Ok(Effect::Host(HostOp::Tidy { delete: true })),
+        DebugAct::Reload => return Ok(Effect::Host(HostOp::Reload)),
         DebugAct::Set(_)
         | DebugAct::Toggle
         | DebugAct::ToMember

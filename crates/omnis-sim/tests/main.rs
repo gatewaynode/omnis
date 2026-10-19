@@ -32,6 +32,7 @@ mod objects_view;
 mod ops;
 mod party;
 mod reactions;
+mod reload;
 mod rest;
 mod rest_view;
 mod save_and_replay;

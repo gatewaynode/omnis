@@ -83,7 +83,8 @@ pub use crate::save::{
     FileOut, Holdings, JoinError, Manifest, Missing, NameKind, NameTable, PackChange, PackFit,
     PackStamp, PlaceFix, PlaceWarning, RegionBase, RegionSize, Restored, SaveCheck, Segment,
     Signature, Split, SplitReport, Spot, Verdict, WORLDS, WorldBase, archive_path, due, examine,
-    fold, fold_at, join, load_save, restore, save_files, split, split_report, tidy_list, unnamed,
+    examine_running, fold, fold_at, join, load_save, restore, save_files, split, split_report,
+    tidy_list, unnamed,
 };
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
@@ -94,7 +95,7 @@ pub use crate::view::{
 
 // The JSON op protocol.
 pub use crate::ops::{
-    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, Reply, RulesView, ShotTarget,
-    SlotView, Status, client_path, dispatch, reload, rules_set,
+    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RulesView,
+    ShotTarget, SlotView, Status, client_path, dispatch, reload, rules_set,
 };
 pub use omnis_core::Edges;

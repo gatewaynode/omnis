@@ -13,7 +13,7 @@ use crate::rolllog::{self, Names};
 use crate::sim::{SimWorld, Views, game_settings};
 use crate::style::Role;
 use bevy::prelude::Resource;
-use omnis_sim::api::Draft;
+use omnis_sim::api::{Draft, ReloadRefused, SaveCheck};
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
 use omnis_sim::{CheckKind, Command, Event, ItemPlace, PartyCommand, Settings, World};
@@ -624,6 +624,29 @@ impl Session {
         // The old world's last event is not this one's; its history is the party's log, retold.
         self.notice = None;
         (self.history, self.names) = retold(self.world.history(), &self.views.party, &self.data);
+    }
+
+    /// Packs freshly loaded from disk take this game's in place (`pack.reload`, M8.5 7h5): the
+    /// world is fitted to them by name, the pose follows a party the maps moved, the lines are
+    /// redrawn, the log says what changed, and the binder's log stops replaying. Refused,
+    /// nothing changes.
+    ///
+    /// # Errors
+    /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
+    pub fn reload(&mut self, fresh: Arc<Data>) -> Result<SaveCheck, ReloadRefused> {
+        let check = self.world.reload(&self.data, &fresh)?;
+        let before = self.views.position;
+        self.data = fresh;
+        self.refresh();
+        if self.views.position != before {
+            self.pose = Pose::at(self.views.position);
+        }
+        self.reshape = true;
+        self.unreplayable = Some("the packs were reloaded".to_owned());
+        for line in crate::game_io::reloaded(&check) {
+            self.say(line);
+        }
+        Ok(check)
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`

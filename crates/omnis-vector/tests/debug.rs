@@ -398,6 +398,14 @@ fn every_lit_button_on_every_page_sends_a_command_the_engine_accepts() {
                     assert_eq!(effect, Effect::None, "Split reports and sends nothing");
                     continue;
                 }
+                if act == DebugAct::Reload {
+                    assert_eq!(
+                        effect,
+                        Effect::Host(HostOp::Reload),
+                        "Reload packs is the host's"
+                    );
+                    continue;
+                }
                 if act == DebugAct::Tidy {
                     assert_eq!(
                         effect,

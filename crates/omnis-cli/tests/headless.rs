@@ -77,7 +77,18 @@ fn headless_writes_reads_and_reloads() {
     ));
 
     let before = game.world.clone();
-    assert_eq!(game.handle(&Op::PackReload).unwrap(), Reply::Done {});
+    let Reply::Done { check } = game.handle(&Op::PackReload).unwrap() else {
+        panic!("a reload answers done");
+    };
+    assert_eq!(
+        check.verdict,
+        omnis_sim::save::Verdict::Same,
+        "the same packs"
+    );
+    assert!(
+        !check.packs.is_empty() && check.packs.iter().all(|p| p.saved == p.loaded),
+        "the report of the packs: {check:?}"
+    );
     assert_eq!(game.world, before, "a reload keeps the world");
     assert!(matches!(
         game.handle(&Op::Screenshot {

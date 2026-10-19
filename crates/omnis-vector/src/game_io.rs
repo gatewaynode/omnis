@@ -139,6 +139,26 @@ pub fn examine(data: &Data, root: &Path, path: &str) -> Result<Opened, OpError> 
     Ok(Opened { examined, started })
 }
 
+/// What a reload did, in the player's words (M8.5 7h5): "Packs reloaded: …", then each place
+/// warning.
+#[must_use]
+pub fn reloaded(check: &SaveCheck) -> Vec<String> {
+    let warnings = warnings(check);
+    let how = match check.verdict {
+        Verdict::Renamed => "loaded by name. The world has moved on",
+        Verdict::Content => "other packs, every name the same",
+        _ => "the same packs",
+    };
+    let first = match warnings.len() {
+        0 => format!("Packs reloaded: {how}"),
+        1 => format!("Packs reloaded: {how}; 1 place changed, see the log"),
+        n => format!("Packs reloaded: {how}; {n} places changed, see the log"),
+    };
+    let mut lines = vec![first];
+    lines.extend(warnings);
+    lines
+}
+
 /// What a load did, in words.
 fn said(restored: Restored, millis: u128, places: usize) -> String {
     let done = match restored.converted_from {

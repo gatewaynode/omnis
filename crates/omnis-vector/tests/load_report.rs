@@ -1,14 +1,17 @@
 //! The window's load examines the save first (M8.5 7h4): a save that loads, loads at once, by
 //! name on other packs, each place the loaded maps no longer allow a line in the log; a save that
 //! does not opens the Load screen, which lists why and closes back where Load was pressed.
+//! The Debug page's Reload packs (M8.5 7h5) fits the running world to the packs on disk by
+//! name, and opens the same screen when they lack a name the world holds.
 
-use crate::common::app::{config, set, shell};
+use crate::common::app::{config, set, shell, tap};
 use crate::common::{map, objects_data, place, town_session};
 use bevy::prelude::*;
 use omnis_sim::api::{Missing, NameKind, SaveCheck, Verdict};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::Data;
 use omnis_vector::game_io;
+use omnis_vector::screen::debug::{DebugAct, Page};
 use omnis_vector::screen::{ControlId, Forms, ScreenId, load_report};
 use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
@@ -245,10 +248,13 @@ fn the_load_screen_shows_twelve_of_a_list_and_counts_the_rest() {
         })
         .collect();
     let mut forms = Forms::default();
-    forms.load_report = Some(SaveCheck {
-        verdict: Verdict::Unresolved,
-        missing,
-        ..SaveCheck::default()
+    forms.load_report = Some(load_report::Refusal {
+        check: SaveCheck {
+            verdict: Verdict::Unresolved,
+            missing,
+            ..SaveCheck::default()
+        },
+        reload: false,
     });
     let screen = load_report::content(&forms);
     let texts: Vec<String> = screen.panels[0]
@@ -270,5 +276,123 @@ fn the_load_screen_shows_twelve_of_a_list_and_counts_the_rest() {
     assert!(
         texts.iter().all(|t| t.is_ascii()) && screen.title.text.is_ascii(),
         "the built-in face draws ASCII only: {texts:?}"
+    );
+}
+
+/// In a game on `ahead` or not, the Debug page open on its World tab, the packs on disk now
+/// `then`'s: what Reload packs reads.
+fn on_the_world_page(ahead: bool, then: bool) -> App {
+    let mut app = app_on(ahead, ".omnis/test-saves/none.ron", true);
+    app.update();
+    app.update();
+    app.world_mut().resource_mut::<Screens>().forms.debug.page = Page::World;
+    tap(&mut app, KeyCode::Backquote);
+    assert_eq!(top(&app), Some(ScreenId::Debug));
+    app.world_mut().resource_mut::<Session>().config.packs = packs(then);
+    app
+}
+
+#[test]
+fn reload_packs_fits_the_running_world_by_name() {
+    let mut app = on_the_world_page(false, true);
+    let party = app.world().resource::<Session>().views.party.clone();
+    press(&mut app, ControlId::Debug(DebugAct::Reload));
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Debug), "the page stays");
+    let session = app.world().resource::<Session>();
+    assert!(
+        session.data.fingerprints.iter().any(|p| p.id == "ahead"),
+        "the game runs on the fresh packs"
+    );
+    assert_eq!(session.views.party, party, "every name the same");
+    assert!(
+        session
+            .lines
+            .iter()
+            .any(|l| l == "Packs reloaded: loaded by name. The world has moved on"),
+        "{:?}",
+        session.lines
+    );
+    assert!(session.unreplayable.is_some());
+}
+
+#[test]
+fn reload_packs_lacking_a_carried_name_opens_the_load_screen_and_changes_nothing() {
+    let mut app = on_the_world_page(true, false);
+    {
+        let mut session = app.world_mut().resource_mut::<Session>();
+        let id = session
+            .data
+            .registry
+            .items
+            .get("ahead:item:dagger")
+            .unwrap();
+        session.world.party.inventory.push((id, 1));
+        session.refresh();
+    }
+    let packs = app.world().resource::<Session>().data.fingerprints.clone();
+    let party = app.world().resource::<Session>().views.party.clone();
+    press(&mut app, ControlId::Debug(DebugAct::Reload));
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::LoadReport));
+    let text = screen_text(app.world());
+    for line in [
+        "These packs do not load",
+        "The world names what the reloaded packs no longer have. Nothing changed.",
+        "ahead: running 0.1.1, reloaded none",
+        "item 'ahead:item:dagger' in party.inventory",
+    ] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    assert!(text.is_ascii(), "{text}");
+    let session = app.world().resource::<Session>();
+    assert_eq!(session.data.fingerprints, packs, "nothing changed");
+    assert_eq!(session.views.party, party);
+    press(&mut app, ControlId::Close);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Debug), "back to the page");
+}
+
+/// What a reload says in the log, for each verdict that takes it.
+#[test]
+fn a_reload_says_how_it_fitted_and_each_place() {
+    use omnis_sim::api::{PlaceFix, PlaceWarning, Spot};
+    let at = |x, y| Spot {
+        level: Level::GROUND,
+        x,
+        y,
+    };
+    let said = |verdict, places: Vec<PlaceWarning>| {
+        game_io::reloaded(&SaveCheck {
+            verdict,
+            places,
+            ..SaveCheck::default()
+        })
+    };
+    assert_eq!(
+        said(Verdict::Same, Vec::new()),
+        ["Packs reloaded: the same packs"]
+    );
+    assert_eq!(
+        said(Verdict::Renamed, Vec::new()),
+        ["Packs reloaded: loaded by name. The world has moved on"]
+    );
+    let moved = PlaceWarning {
+        map: "objects:map:yard".into(),
+        fix: PlaceFix::PartyMoved {
+            from: at(2, 2),
+            to: at(2, 1),
+        },
+    };
+    assert_eq!(
+        said(Verdict::Content, vec![moved.clone()]),
+        [
+            "Packs reloaded: other packs, every name the same; 1 place changed, see the log",
+            "The party could not stand at objects:map:yard (2, 2); moved to (2, 1)."
+        ]
+    );
+    assert_eq!(
+        said(Verdict::Content, vec![moved.clone(), moved])[0],
+        "Packs reloaded: other packs, every name the same; 2 places changed, see the log"
     );
 }

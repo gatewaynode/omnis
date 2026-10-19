@@ -309,6 +309,19 @@ fn saves_stop_the_log_replaying(app: &mut App, peer: &mut Peer, dir: &Path) {
     assert!(why.contains("saves/a.ron"), "{why}");
     let reply = peer.send(app, r#"{"id": 14, "op": "pack.reload"}"#);
     assert_eq!(reply["ok"], json!(true), "{reply}");
+    assert_eq!(reply["result"]["reply"], json!("done"), "{reply}");
+    assert_eq!(
+        reply["result"]["check"]["verdict"],
+        json!("same"),
+        "the same packs: {reply}"
+    );
+    assert!(
+        session(app)
+            .lines
+            .iter()
+            .any(|l| l == "Packs reloaded: the same packs"),
+        "the log says it"
+    );
 }
 
 fn second_client_and_flood(app: &mut App, peer: &mut Peer, addr: SocketAddr) {

@@ -179,29 +179,14 @@ pub(crate) fn examine_with(
         ..SaveCheck::default()
     };
     let names = old.as_ref().map(|m| &m.names).filter(|n| !n.is_empty());
-    report.verdict = match names {
-        _ if world.packs == against => Verdict::Same,
-        None => Verdict::Unnamed,
-        Some(names) if *names == NameTable::of(data) => Verdict::Content,
-        Some(names) => match remap::world(&mut world, names, data) {
-            Ok(()) => {
-                remap::log(&mut world.log, names, data);
-                report.moved = names.moved(&NameTable::of(data));
-                Verdict::Renamed
-            }
-            Err(missing) => {
-                report.missing = missing;
-                Verdict::Unresolved
-            }
-        },
+    let fixed = match names {
+        _ if world.packs == against => false,
+        None => {
+            report.verdict = Verdict::Unnamed;
+            false
+        }
+        Some(names) => refit(&mut world, names, data, &mut report),
     };
-    let mut fixed = false;
-    if matches!(report.verdict, Verdict::Content | Verdict::Renamed) {
-        let checked = places::fix(&mut world, data);
-        report.places = checked.places;
-        report.trimmed = checked.trimmed;
-        fixed = checked.changed;
-    }
     Ok(Examined {
         report,
         world: Some(world),
@@ -209,6 +194,57 @@ pub(crate) fn examine_with(
         against,
         fixed,
     })
+}
+
+/// The running world, `old` the packs it runs on, examined against freshly loaded packs
+/// (`pack.reload`, M8.5 7h5): fitted by name as a save made on `old` would be, changing
+/// nothing. `restore` takes it, folding a renumbered or fixed world with its journal held for
+/// `old`'s folder.
+#[must_use]
+pub fn examine_running(world: &World, old: &Data, data: &Data) -> Examined {
+    let against = data.fingerprints.clone();
+    let mut report = SaveCheck {
+        packs: changes(&world.packs, &against),
+        ..SaveCheck::default()
+    };
+    let mut next = world.clone();
+    let fixed = world.packs != against && refit(&mut next, &NameTable::of(old), data, &mut report);
+    Examined {
+        report,
+        world: Some(Box::new(next)),
+        old: Some(Box::new(Manifest::of(world, old))),
+        against,
+        fixed,
+    }
+}
+
+/// Fit `world`, numbered by `names`, to other packs: `Content` when every name is the same,
+/// else renumbered by name (`Renamed`) or `Unresolved` with what is missing; a world that fits
+/// has its places checked and fixed. Whether the fix changed the world.
+fn refit(world: &mut World, names: &NameTable, data: &Data, report: &mut SaveCheck) -> bool {
+    let now = NameTable::of(data);
+    report.verdict = if *names == now {
+        Verdict::Content
+    } else {
+        match remap::world(world, names, data) {
+            Ok(()) => {
+                remap::log(&mut world.log, names, data);
+                report.moved = names.moved(&now);
+                Verdict::Renamed
+            }
+            Err(missing) => {
+                report.missing = missing;
+                Verdict::Unresolved
+            }
+        }
+    };
+    if report.verdict == Verdict::Unresolved {
+        return false;
+    }
+    let checked = places::fix(world, data);
+    report.places = checked.places;
+    report.trimmed = checked.trimmed;
+    checked.changed
 }
 
 /// Load what was examined: refused when it names what the packs lack, when it keeps no names

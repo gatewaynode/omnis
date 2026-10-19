@@ -53,7 +53,7 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Objects { .. } => "objects",
         Reply::Creation { .. } => "creation",
         Reply::Value { .. } => "value",
-        Reply::Done {} => "done",
+        Reply::Done { .. } => "done",
         Reply::Check { .. } => "check",
     }
 }
@@ -108,11 +108,11 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
                 path: "position.x".into(),
             },
         ),
+        ask(&mut game, Op::PackReload),
         // The host ops need files; their replies are built as the hosts build them.
         Reply::Written {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
         },
-        Reply::Done {},
         check(&game),
         Reply::Rule {
             rule: SlotView {
@@ -169,4 +169,17 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         panic!("game.status answers with the status");
     };
     assert_eq!(status.protocol, PROTOCOL);
+}
+
+/// `done` gained its `check` in protocol 2 (M8.5 7h5), an addition: a `done` without it still
+/// reads, as the report of the same packs.
+#[test]
+fn a_done_without_its_check_still_reads() {
+    let back: Reply = serde_json::from_value(serde_json::json!({"reply": "done"})).unwrap();
+    assert_eq!(
+        back,
+        Reply::Done {
+            check: omnis_cli::omnis_sim::save::SaveCheck::default()
+        }
+    );
 }

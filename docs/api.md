@@ -215,7 +215,7 @@ socket and the bridge (malformed request).
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
 | `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
 | `save.check` | `path` (relative `.ron`) | `check` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. What the loaded packs make of a save, changing nothing (`save::examine`): a `SaveCheck` for every save that holds together, whether it would load or not (§7.11) |
-| `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
+| `pack.reload` | none | `done` | `Failed` (packs do not load; they lack a name the world holds, each listed; they cannot hold the world; nothing changes) | host. The running world fitted to the packs on disk by name, as a save made on the packs it runs on would be on load (`ops::reload`, M8.5 7h5): the `check` says how, and each place changed |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
 
@@ -255,7 +255,7 @@ Notes:
 | `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`), `beings` (`[BeingView]`, left out when none) | `objects.get` |
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
-| `done` | `Reply::Done` | nothing | `pack.reload` |
+| `done` | `Reply::Done` | `check` (`SaveCheck`, §7.11; the same packs' report when absent) | `pack.reload` |
 | `check` | `Reply::Check` | `check` (`SaveCheck`, §7.11) | `save.check` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
@@ -332,6 +332,11 @@ run:
   refused for `Unresolved`, for `Unnamed` unless `force`, and on packs other than the ones it was
   examined against (`PackMismatch`). On other packs a place fixed folds the world, as a renumbering
   does (M8.5 7h4).
+- `examine_running(&World, old: &Data, fresh: &Data) -> Examined`: the running world, `old` the
+  packs it runs on, fitted to fresh packs as a save made on `old` would be; `restore` takes it, a
+  fold holding the journal for `old`'s folder. `ops::reload(&mut World, old, fresh) ->
+  Result<SaveCheck, ReloadRefused>` is the two (`pack.reload`); `ReloadRefused { error, check }`
+  gives the op's error and the report, and converts into `OpError` (M8.5 7h5).
 - `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
   threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
 - `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
@@ -1204,6 +1209,13 @@ Additive (§13), so `PROTOCOL` stays 2:
   the map lost and automap tiles outside the map are dropped; the world then folds. Tier 1 adds `examine`, `restore`, `Examined`, `SaveCheck`,
   `Verdict`, `PackChange`, `PackStamp`, `PlaceWarning`, `PlaceFix`, `Spot`. `Missing` and `NameKind`
   serialize. MCP `save_check` (27 tools).
+- 2026-10-19: reload by name (M8.5 7h5). `pack.reload` fits the running world to the packs on disk
+  as a load fits a save: the same packs change nothing; other content records them; moved names
+  renumber the world and fold it; places the maps no longer allow load and warn (the old refusal
+  for a party tile the packs lack is gone). A name the packs lack refuses it with nothing changed,
+  each listed. `done` gains `check` (`serde(default)`), the reload's `SaveCheck`. `ops::reload`
+  takes the old packs too and answers `Result<SaveCheck, ReloadRefused>`. Tier 1 adds
+  `examine_running`, `ReloadRefused`. No golden moved.
 
 ### Protocol 2 (2026-10-10)
 

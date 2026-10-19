@@ -25,6 +25,7 @@ use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
 use crate::screen::actions::{Does, default_action};
+use crate::screen::load_report::Refusal;
 use crate::screen::nav::{Escape, Nav};
 use crate::screen::{
     self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Screen,
@@ -591,7 +592,10 @@ fn host_op(
             // opens the report.
             let loaded = match game_io::examine(&data, root(), &save) {
                 Ok(opened) if !opened.report().verdict.loads() => {
-                    screens.forms.load_report = Some(opened.into_report());
+                    screens.forms.load_report = Some(Refusal {
+                        check: opened.into_report(),
+                        reload: false,
+                    });
                     let views = session.as_deref().map(|s| &s.views);
                     screens.nav.open(ScreenId::LoadReport, views);
                     return;
@@ -629,6 +633,28 @@ fn host_op(
                     .map(|path| format!("Log saved to {}", path.display()))
                     .map_err(|e| format!("Log not saved: {e}"));
                 report(screens, outcome);
+            }
+        }
+        HostOp::Reload => {
+            if let Some(session) = session.as_deref_mut() {
+                // Refused for a name the fresh packs lack: the Load screen lists them.
+                match Packs::load(&session.config).map(|p| session.reload(p.data)) {
+                    Ok(Ok(check)) => {
+                        let said = game_io::reloaded(&check).swap_remove(0);
+                        report(screens, Ok(said));
+                    }
+                    Ok(Err(refused)) if !refused.check.verdict.loads() => {
+                        screens.forms.load_report = Some(Refusal {
+                            check: *refused.check,
+                            reload: true,
+                        });
+                        screens.nav.open(ScreenId::LoadReport, Some(&session.views));
+                    }
+                    Ok(Err(refused)) => {
+                        report(screens, Err(format!("Reload refused: {}", refused.error)))
+                    }
+                    Err(e) => report(screens, Err(format!("Reload failed: {e}"))),
+                }
             }
         }
         HostOp::Tidy { delete } => match game_io::tidy(root(), delete) {
