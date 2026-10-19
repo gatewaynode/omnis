@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-19, after M8.5 7h3 (saves by name) was built and committed. Next: the owner walks 7h3; then 7h4. Rewrite this file every time it is used.
+Written 2026-10-19, after the owner accepted M8.5 7h3 (saves by name). Next: 7h4, the report and the load screen. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -19,7 +19,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
   | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
   | 7h2, schema 9 | `9495867`, docs `ca9c556` | accepted 2026-10-19 ("Manually confirmed") |
-  | 7h3, saves by name | `787426e`, docs `40ccc7a` | **built, awaiting the owner's walk** (`tasks/acceptance/m8.5-7h3.md`) |
+  | 7h3, saves by name | `787426e`, docs `40ccc7a` | accepted 2026-10-19 ("Manually tested") |
 
   7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
   `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
