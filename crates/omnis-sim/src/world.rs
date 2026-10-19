@@ -349,6 +349,8 @@ pub enum LoadError {
     BadSave(String),
     /// A world base a save names is missing or not what its name says: which.
     BadBase(String),
+    /// The save names what the loaded packs do not have, each with where (M8.5 7h3).
+    Unresolved(Vec<crate::save::Missing>),
     /// The world rebuilt from the save is not the one the save recorded.
     Diverged {
         /// What the save recorded.
@@ -373,6 +375,13 @@ impl fmt::Display for LoadError {
             LoadError::BadTown => f.write_str("save service is not the one where the party stands"),
             LoadError::BadSave(why) => write!(f, "save does not hold together: {why}"),
             LoadError::BadBase(which) => write!(f, "world base {which} is missing or altered"),
+            LoadError::Unresolved(missing) => {
+                f.write_str("save names what the packs no longer have:")?;
+                for (i, m) in missing.iter().enumerate() {
+                    write!(f, "{} {m}", if i == 0 { "" } else { ";" })?;
+                }
+                Ok(())
+            }
             LoadError::Diverged { expected, actual } => write!(
                 f,
                 "save rebuilt the world {actual:016x}, not the recorded {expected:016x}"

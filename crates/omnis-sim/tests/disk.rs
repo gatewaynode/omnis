@@ -8,7 +8,7 @@ use crate::common;
 use common::{data, step, world};
 use omnis_data::Data;
 use omnis_data::ron_io::read_ron;
-use omnis_sim::save::{Restored, load_save, save_files};
+use omnis_sim::save::{Manifest, NameTable, PackFit, Restored, load_save, save_files, world_id};
 use omnis_sim::{Command, LoadError, Mode, Replay, SaveRule, Settings, World, apply};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -231,8 +231,10 @@ fn a_save_that_does_not_hold_together_is_refused() {
     );
 }
 
+/// A save with a name table loads on other packs by name, unforced (M8.5 7h3); one without
+/// (before 7h2) is refused unless forced.
 #[test]
-fn other_packs_are_refused_unless_forced() {
+fn other_packs_load_by_name_and_a_save_without_names_only_forced() {
     let data = data();
     let mut world = world(&data);
     step(&mut world, &data);
@@ -241,11 +243,34 @@ fn other_packs_are_refused_unless_forced() {
     let objects = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/packs/objects");
     let more = omnis_data::load_packs(&[&common::base_pack(), &common::test_pack(), &objects])
         .unwrap_or_else(|r| panic!("{r}"));
+    let (_, report) = read(&disk, &more, false).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(report.fit, PackFit::Renumbered);
+    let manifest = disk
+        .keys()
+        .find(|p| p.ends_with("manifest.ron"))
+        .unwrap()
+        .clone();
+    let mut old: Manifest = omnis_data::ron_io::parse(&disk[&manifest]).unwrap();
+    assert!(!old.names.is_empty());
+    old.names = NameTable::default();
+    let bare = omnis_data::ron_io::to_string(&old).unwrap();
+    let id = world_id(&old).unwrap();
+    let was = manifest.split('/').nth(2).unwrap().to_owned();
+    let mut unnamed = BTreeMap::new();
+    for (path, text) in &disk {
+        let text = if *path == manifest {
+            bare.clone()
+        } else {
+            text.replace(&was, &id)
+        };
+        unnamed.insert(path.replace(&was, &id), text);
+    }
     assert!(matches!(
-        read(&disk, &more, false),
+        read(&unnamed, &more, false),
         Err(LoadError::PackMismatch)
     ));
-    assert!(read(&disk, &more, true).is_ok(), "force passes the packs");
+    let (_, report) = read(&unnamed, &more, true).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(report.fit, PackFit::Forced, "force passes the packs");
 }
 
 #[test]
@@ -280,10 +305,14 @@ fn a_schema_7_save_converts_and_its_bases_are_written() {
             .all(|p| p.contains("/regions/") || p.contains("/world/")),
         "bases, then the manifest, then the save: {order:?}"
     );
-    // Still on the packs the fixture names (made before the seal), so still forced.
-    let (back, report) = read(&disk, &data, true).unwrap_or_else(|e| panic!("{e}"));
+    // Still on the packs the fixture names (made before the seal), but its world folder has
+    // today's names now: the same names, so it loads unforced and records today's packs.
+    let (back, report) = read(&disk, &data, false).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(report.converted_from, None);
-    assert_eq!(back, kept(&world), "the converted world, saved and loaded");
+    assert_eq!(report.fit, PackFit::Content);
+    let mut now = kept(&world);
+    now.packs.clone_from(&data.fingerprints);
+    assert_eq!(back, now, "the converted world, saved and loaded");
     let mut tampered = disk.clone();
     let base = order.iter().find(|p| p.contains("/regions/")).unwrap();
     let text = tampered[base].clone() + " ";

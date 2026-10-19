@@ -50,13 +50,17 @@ pub enum Archived {
 /// Fold `world`: its bases become what it holds now, its journal goes to the archive and starts
 /// again empty. It cannot fail, so a fold at the end of a command never half-happens.
 pub fn fold(world: &mut World, data: &Data) -> Event {
+    fold_from(world, data, None)
+}
+
+/// Fold `world`, whose journal was written in the world `from` when that is not the world the
+/// loaded packs make (a load by name on other packs, M8.5 7h3): its segment goes to that
+/// world's folder, in that world's numbering.
+pub(crate) fn fold_from(world: &mut World, data: &Data, from: Option<Box<Manifest>>) -> Event {
     let journal = core::mem::take(&mut world.journal);
     let interactions = u32::try_from(journal.len()).unwrap_or(u32::MAX);
     if !journal.is_empty() {
-        world.archive.push(Archived::Held {
-            journal,
-            from: None,
-        });
+        world.archive.push(Archived::Held { journal, from });
     }
     world.origin = Some(split(world, data).into());
     Event::Folded { interactions }

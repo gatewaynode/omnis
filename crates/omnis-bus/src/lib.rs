@@ -77,6 +77,11 @@ impl<T: Ord, S: Copy + Eq> Bus<T, S> {
         }
     }
 
+    /// Keep only the topics `keep` accepts, each with its subscribers in order.
+    pub fn retain(&mut self, mut keep: impl FnMut(&T) -> bool) {
+        self.subs.retain(|topic, _| keep(topic));
+    }
+
     /// The subscribers of `topic`, in call order.
     #[must_use]
     pub fn subscribers(&self, topic: T) -> &[S] {

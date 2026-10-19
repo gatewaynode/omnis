@@ -1,0 +1,17 @@
+// Fixture pack for loading saves by name (M8.5 7h3): one definition of every kind a save numbers
+// (a map and its region, a flag, an item, a spell, a monster, a condition, a race, a class, a
+// background, a service), each a copy of another pack's under this pack's id, which sorts first,
+// so loaded with base, test and objects it moves every number they had. Its lever names a flag
+// of its own, since the flags object kinds name are numbered before the declared ones. Not
+// shipped.
+(
+    schema: 1,
+    id: "ahead",
+    version: "0.1.1",
+    hash: 9451866891182289566,
+    name: "Omnis renumbering fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test", "objects"],
+    entry: None,
+)

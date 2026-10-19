@@ -175,3 +175,14 @@ fn a_cue_raised_by_every_answer_stops_at_the_depth_cap() {
         "the cue and four nested answers, and only the fight's subscribers"
     );
 }
+
+#[test]
+fn retain_keeps_the_topics_it_accepts_in_order() {
+    let mut bus = Bus::<Topic, Sub>::default();
+    bus.subscribe(Topic::Place(1), Sub::First);
+    bus.subscribe(Topic::Fight, Sub::Second);
+    bus.subscribe(Topic::Fight, Sub::First);
+    bus.retain(|t| *t == Topic::Fight);
+    assert_eq!(bus.subscribers(Topic::Place(1)), &[] as &[Sub]);
+    assert_eq!(bus.subscribers(Topic::Fight), &[Sub::Second, Sub::First]);
+}

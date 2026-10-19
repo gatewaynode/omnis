@@ -55,6 +55,14 @@ fn hold(world: &mut World, holdings: Holdings) -> Result<(), JoinError> {
 /// The world `split` cut into these parts, checked as a load checks a save (`force` passes
 /// other packs, not the structural checks). Its log and journal start empty.
 pub fn join(split: Split, data: &Data, force: bool) -> Result<World, JoinError> {
+    assemble(split)?
+        .checked(data, force)
+        .map_err(JoinError::Load)
+}
+
+/// The world in these parts, in their own numbering, unchecked: a load rebuilds a save so on
+/// any packs, proves it against its fingerprint, then fits it to the loaded ones (M8.5 7h3).
+pub(crate) fn assemble(split: Split) -> Result<World, JoinError> {
     let Split {
         manifest,
         world: base,
@@ -92,5 +100,5 @@ pub fn join(split: Split, data: &Data, force: bool) -> Result<World, JoinError> 
         hold(&mut world, region.holdings)?;
         merge(&mut world.maps, region.maps, "the state of map")?;
     }
-    world.checked(data, force).map_err(JoinError::Load)
+    Ok(world)
 }

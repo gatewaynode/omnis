@@ -6,7 +6,7 @@
 //! the pack loader's limits, under `root`. Bevy-free.
 
 use crate::sim::SimWorld;
-use omnis_sim::api::{Restored, load_save, tidy_list};
+use omnis_sim::api::{PackFit, Restored, load_save, tidy_list};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::ron_io::{
     list_under, read_save_under, read_under, remove_under, size_under, write_files,
@@ -58,7 +58,7 @@ pub struct Loaded {
 
 /// What a load did, in words.
 fn said(restored: Restored, millis: u128) -> String {
-    match restored.converted_from {
+    let done = match restored.converted_from {
         Some(schema) => format!("converted from a schema {schema} save"),
         None => {
             let n = restored.applied;
@@ -69,6 +69,14 @@ fn said(restored: Restored, millis: u128) -> String {
             };
             format!("{n} {interactions} applied in {millis} ms")
         }
+    };
+    match restored.fit {
+        PackFit::Same => done,
+        PackFit::Content => format!("{done}; made with other packs, every name the same"),
+        PackFit::Renumbered => {
+            format!("{done}; made with other packs, loaded by name. The world has moved on")
+        }
+        PackFit::Forced => format!("{done}; made with other packs, loaded as written"),
     }
 }
 
