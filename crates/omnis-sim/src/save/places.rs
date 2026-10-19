@@ -1,8 +1,10 @@
 //! The places a save depends on, checked against the loaded maps when the packs changed (M8.5
-//! 7h4). A broken place loads and warns (owner, 2026-10-19): the party is moved to the nearest
-//! cell it can stand on, a pile to the nearest that holds one, a lost object's contents laid on
-//! the ground, so no item is lost; what held nothing (an open door no longer a door, a cleared
-//! encounter the map lost, automap tiles outside the map) is forgotten.
+//! 7h4). A broken place loads and warns (owner, 2026-10-19). The party is moved to the nearest
+//! cell it can stand on. What lies in the world is the world's (owner, 2026-10-19): a pile whose
+//! ground went away is lost, and so is what a container the map no longer places held; only the
+//! party's own inventory and stores are kept whatever the packs do (a bank, a house or a vehicle
+//! may keep more, later). What held nothing (an open door no longer a door, a cleared encounter
+//! the map lost, automap tiles outside the map) is forgotten.
 
 use crate::objects::{ObjectState, state_of};
 use crate::world::{Mode, World};
@@ -11,7 +13,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{Facing, ItemId, Level, MapId};
-use omnis_data::placement::{Pile, covers_centre, in_state};
+use omnis_data::placement::{covers_centre, in_state};
 use omnis_data::{Data, MapData};
 use serde::{Deserialize, Serialize};
 
@@ -20,105 +22,114 @@ use serde::{Deserialize, Serialize};
 pub struct PlaceWarning {
     /// The map, by its string id.
     pub map: String,
-    /// The level of the cell.
-    #[serde(default, skip_serializing_if = "Level::is_ground")]
-    pub level: Level,
-    /// Its column.
-    pub x: u16,
-    /// Its row.
-    pub y: u16,
     /// What was done.
     pub fix: PlaceFix,
+}
+
+/// A cell of a map: its level, column and row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Spot {
+    /// The level; left out on the ground.
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub level: Level,
+    /// Column.
+    pub x: u16,
+    /// Row.
+    pub y: u16,
+}
+
+impl fmt::Display for Spot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Spot { level, x, y } = *self;
+        if level.is_ground() {
+            write!(f, "({x}, {y})")
+        } else {
+            write!(f, "({x}, {y}) on level {}", level.0)
+        }
+    }
 }
 
 /// What a load did with a place the loaded maps no longer allow.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaceFix {
-    /// The party could not stand there; it stands here now, on the same map.
+    /// The party could not stand at `from`; it stands at `to` now, on the same map.
     PartyMoved {
-        /// The level.
-        #[serde(default, skip_serializing_if = "Level::is_ground")]
-        level: Level,
-        /// Column.
-        x: u16,
-        /// Row.
-        y: u16,
+        /// Where it stood.
+        from: Spot,
+        /// Where it stands.
+        to: Spot,
     },
     /// An open door on this edge is no longer a door; it is forgotten.
     DoorForgotten {
+        /// The cell.
+        at: Spot,
         /// The edge.
         facing: Facing,
     },
-    /// A pile lay where no pile can; it lies here now, items whole.
-    PileMoved {
-        /// Column.
-        x: u16,
-        /// Row.
-        y: u16,
+    /// A pile lay where the ground went away; it is lost.
+    PileLost {
+        /// Its cell.
+        at: Spot,
+        /// How many items it held.
+        items: u32,
     },
-    /// The map no longer places this object; its state is forgotten and what it held, if it
-    /// held anything changed, laid on the ground at `laid`.
+    /// The map no longer places this object; its state is forgotten, and what it held, changed
+    /// from what the map gave it, is lost.
     ObjectForgotten {
         /// The placement's id.
         id: String,
-        /// Where its contents were laid, when it held any.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        laid: Option<(Level, u16, u16)>,
+        /// How many items it held that are lost.
+        items: u32,
     },
+}
+
+/// How many items a list holds.
+fn count(items: &[(ItemId, u16)]) -> u32 {
+    items.iter().map(|(_, n)| u32::from(*n)).sum()
+}
+
+fn items(n: u32) -> String {
+    if n == 1 {
+        "1 item".into()
+    } else {
+        alloc::format!("{n} items")
+    }
 }
 
 impl fmt::Display for PlaceWarning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let at = Cell(self.level, self.x, self.y);
+        let map = &self.map;
         match &self.fix {
-            PlaceFix::PartyMoved { level, x, y } => write!(
-                f,
-                "the party could not stand at {} {at}; moved to {}",
-                self.map,
-                Cell(*level, *x, *y)
-            ),
-            PlaceFix::DoorForgotten { facing } => write!(
-                f,
-                "the open door {facing:?} of {} {at} is no longer a door",
-                self.map
-            ),
-            PlaceFix::PileMoved { x, y } => write!(
-                f,
-                "a pile at {} {at} has no ground; moved to {}",
-                self.map,
-                Cell(self.level, *x, *y)
-            ),
-            PlaceFix::ObjectForgotten { id, laid: None } => {
+            PlaceFix::PartyMoved { from, to } => {
                 write!(
                     f,
-                    "{} no longer places '{id}'; its state is forgotten",
-                    self.map
+                    "the party could not stand at {map} {from}; moved to {to}"
                 )
             }
-            PlaceFix::ObjectForgotten {
-                id,
-                laid: Some((level, x, y)),
-            } => write!(
-                f,
-                "{} no longer places '{id}'; what it held lies at {}",
-                self.map,
-                Cell(*level, *x, *y)
-            ),
-        }
-    }
-}
-
-/// A cell as the warnings write it: `(x, y)`, with its level when not the ground.
-struct Cell(Level, u16, u16);
-
-impl fmt::Display for Cell {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Cell(level, x, y) = *self;
-        if level.is_ground() {
-            write!(f, "({x}, {y})")
-        } else {
-            write!(f, "({x}, {y}) on level {}", level.0)
+            PlaceFix::DoorForgotten { at, facing } => {
+                write!(
+                    f,
+                    "the open door {facing:?} of {map} {at} is no longer a door"
+                )
+            }
+            PlaceFix::PileLost { at, items: n } => {
+                write!(
+                    f,
+                    "the ground at {map} {at} is gone, and the {} lying there with it",
+                    items(*n)
+                )
+            }
+            PlaceFix::ObjectForgotten { id, items: 0 } => {
+                write!(f, "{map} no longer places '{id}'; its state is forgotten")
+            }
+            PlaceFix::ObjectForgotten { id, items: n } => {
+                write!(
+                    f,
+                    "{map} no longer places '{id}'; the {} left in it are lost",
+                    items(*n)
+                )
+            }
         }
     }
 }
@@ -243,10 +254,14 @@ fn party(world: &mut World, data: &Data, out: &mut Vec<PlaceWarning>) {
     };
     out.push(PlaceWarning {
         map: map_name(data, p.map),
-        level: p.level,
-        x: p.x,
-        y: p.y,
-        fix: PlaceFix::PartyMoved { level, x, y },
+        fix: PlaceFix::PartyMoved {
+            from: Spot {
+                level: p.level,
+                x: p.x,
+                y: p.y,
+            },
+            to: Spot { level, x, y },
+        },
     });
     world.position.level = level;
     world.position.x = x;
@@ -276,86 +291,33 @@ fn doors(world: &mut World, id: MapId, map: &MapData, name: &str, out: &mut Vec<
     gone.sort_unstable();
     out.extend(gone.into_iter().map(|(level, x, y, facing)| PlaceWarning {
         map: name.into(),
-        level,
-        x,
-        y,
-        fix: PlaceFix::DoorForgotten { facing },
+        fix: PlaceFix::DoorForgotten {
+            at: Spot { level, x, y },
+            facing,
+        },
     }));
 }
 
-/// Items laid on a cell: onto the pile the world holds there, or the map's, or a new one.
-fn lay(
-    world: &mut World,
-    id: MapId,
-    map: &MapData,
-    at: (Level, u16, u16),
-    items: &[(ItemId, u16)],
-) {
-    let Some(state) = world.maps.get_mut(&id) else {
-        return;
-    };
-    let pile = state.ground.entry(at).or_insert_with(|| {
-        map.ground.get(&at).cloned().unwrap_or(Pile {
-            pos: (0, 0),
-            items: Vec::new(),
-        })
-    });
-    for &(item, n) in items {
-        match pile.items.iter_mut().find(|(i, _)| *i == item) {
-            Some((_, have)) => *have = have.saturating_add(n),
-            None => pile.items.push((item, n)),
-        }
-    }
-}
-
-/// Where a pile may lie on `level` near `(x, y)`: the cell itself if it has ground, else the
-/// nearest that does; on a level the map lost, its ground level.
-fn ground_near(map: &MapData, level: Level, (x, y): (u16, u16)) -> Option<(Level, u16, u16)> {
-    let level = if map.level(level).is_some() {
-        level
-    } else {
-        Level::GROUND
-    };
-    if map.cell(level, x, y).is_some() {
-        return Some((level, x, y));
-    }
-    let has_ground = |(l, x, y)| map.cell(l, x, y).is_some();
-    nearest(map, level, (x, y), has_ground).map(|(x, y)| (level, x, y))
-}
-
+/// A pile on a cell the ground went from is lost with what it held.
 fn piles(world: &mut World, id: MapId, map: &MapData, name: &str, out: &mut Vec<PlaceWarning>) {
     let Some(state) = world.maps.get_mut(&id) else {
         return;
     };
-    let lost: Vec<((Level, u16, u16), Pile)> = state
-        .ground
-        .iter()
-        .filter(|((l, x, y), _)| map.cell(*l, *x, *y).is_none())
-        .map(|(k, p)| (*k, p.clone()))
-        .collect();
-    for ((level, x, y), pile) in lost {
-        if let Some(state) = world.maps.get_mut(&id) {
-            state.ground.remove(&(level, x, y));
+    let mut lost = Vec::new();
+    state.ground.retain(|&(level, x, y), pile| {
+        let keep = map.cell(level, x, y).is_some();
+        if !keep && !pile.items.is_empty() {
+            lost.push((Spot { level, x, y }, count(&pile.items)));
         }
-        if pile.items.is_empty() {
-            continue;
-        }
-        let Some(to) = ground_near(map, level, (x, y)) else {
-            continue;
-        };
-        lay(world, id, map, to, &pile.items);
-        out.push(PlaceWarning {
-            map: name.into(),
-            level,
-            x,
-            y,
-            fix: PlaceFix::PileMoved { x: to.1, y: to.2 },
-        });
-    }
+        keep
+    });
+    out.extend(lost.into_iter().map(|(at, items)| PlaceWarning {
+        map: name.into(),
+        fix: PlaceFix::PileLost { at, items },
+    }));
 }
 
-/// An object state whose placement the map lost is forgotten; contents it held, changed from
-/// the map's, are laid where the party stands when it is on this map, else at the map's start.
+/// An object state whose placement the map lost is forgotten, with what it held.
 fn objects(world: &mut World, data: &Data, id: MapId, name: &str, out: &mut Vec<PlaceWarning>) {
     let Some(map) = data.maps.get(&id) else {
         return;
@@ -363,37 +325,21 @@ fn objects(world: &mut World, data: &Data, id: MapId, name: &str, out: &mut Vec<
     let Some(state) = world.maps.get_mut(&id) else {
         return;
     };
-    let lost: BTreeMap<String, ObjectState> = state
-        .objects
-        .iter()
-        .filter(|(key, _)| !map.objects.iter().any(|p| &p.id == *key))
-        .map(|(k, s)| (k.clone(), s.clone()))
-        .collect();
-    state.objects.retain(|key, _| !lost.contains_key(key));
-    let p = world.position;
-    let near = if p.map == id {
-        (p.level, p.x, p.y)
-    } else {
-        (Level::GROUND, map.def.start.0, map.def.start.1)
-    };
-    for (key, object) in lost {
-        let items = object.contents.unwrap_or_default();
-        let laid = if items.is_empty() {
-            None
-        } else {
-            ground_near(map, near.0, (near.1, near.2))
-        };
-        if let Some(at) = laid {
-            lay(world, id, map, at, &items);
+    let mut lost: BTreeMap<String, ObjectState> = BTreeMap::new();
+    state.objects.retain(|key, object| {
+        let keep = map.objects.iter().any(|p| &p.id == key);
+        if !keep {
+            lost.insert(key.clone(), object.clone());
         }
-        out.push(PlaceWarning {
-            map: name.into(),
-            level: near.0,
-            x: near.1,
-            y: near.2,
-            fix: PlaceFix::ObjectForgotten { id: key, laid },
-        });
-    }
+        keep
+    });
+    out.extend(lost.into_iter().map(|(key, object)| PlaceWarning {
+        map: name.into(),
+        fix: PlaceFix::ObjectForgotten {
+            id: key,
+            items: count(object.contents.as_deref().unwrap_or_default()),
+        },
+    }));
 }
 
 /// Automap tiles outside their map, or on a level it lost, are dropped: what the party saw,

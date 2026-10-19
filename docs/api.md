@@ -642,7 +642,7 @@ What the loaded packs make of a save (`save.check`, `save::examine`; M8.5 7h4).
 | `packs` | `[PackChange]`, by id: `id`, `saved` and `loaded`, each `{version, hash}` or null when the pack is new or gone. |
 | `moved` | How many of the save's names the loaded packs hold under another number. |
 | `missing` | `[Missing]`: `kind` (`map`, `flag`, `region`, `item`, `spell`, `monster`, `condition`, `race`, `class`, `background`, `service`, `terrain`, `interaction`), `name` (its string id), `at` (where the world holds it, `party.members[2].known_spells`). |
-| `places` | `[PlaceWarning]`, checked when the packs differ: `map` (string id), `level` (left out on the ground), `x`, `y`, `fix`: `party_moved` `{level, x, y}` (the party could not stand there: no ground, terrain it may not enter, or an object across the cell's centre; the nearest cell it can, ring by ring in row order, else the map's start); `door_forgotten` `{facing}` (an open door no longer a door); `pile_moved` `{x, y}` (a pile on a cell without ground, items whole); `object_forgotten` `{id, laid}` (the map no longer places it; contents it held, changed from the map's, laid at `laid`, where the party stands on that map, else near the map's start). A place never blocks a load. |
+| `places` | `[PlaceWarning]`, checked when the packs differ: `map` (string id) and `fix`, each cell a `Spot` (`level`, left out on the ground, `x`, `y`): `party_moved` `{from, to}` (the party could not stand at `from`: no ground, terrain it may not enter, or an object across the cell's centre; `to` is the nearest cell it can, ring by ring in row order, else the map's start); `door_forgotten` `{at, facing}` (an open door no longer a door); `pile_lost` `{at, items}` (the ground under a pile went away, and the pile with it); `object_forgotten` `{id, items}` (the map no longer places it; its state is forgotten and the `items` it held, changed from the map's, are lost). What lies in the world is the world's: only the party's inventory and stores are kept whatever the packs do (owner, 2026-10-19). A place never blocks a load. |
 | `trimmed` | Automap tiles outside their map, or on a level it lost, dropped. |
 | `applied`, `converted_from` | As `Restored`. |
 
@@ -1198,11 +1198,11 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-19: the save check (M8.5 7h4). The op `save.check` (`path`) answers `check`, a
   `SaveCheck`: the verdict, the packs as saved and as loaded, the names that moved number, those
   the packs lack with where, and the places the loaded maps no longer allow. On other packs a
-  broken place loads and warns: the party moves to the nearest cell it can stand on, a pile to the
-  nearest with ground, a lost object's changed contents are laid on the ground, an open door no
-  longer a door and a cleared encounter the map lost are forgotten, automap tiles outside the map
-  dropped; the world then folds. Tier 1 adds `examine`, `restore`, `Examined`, `SaveCheck`,
-  `Verdict`, `PackChange`, `PackStamp`, `PlaceWarning`, `PlaceFix`. `Missing` and `NameKind`
+  broken place loads and warns: the party moves to the nearest cell it can stand on; a pile whose
+  ground went away and what a container no longer placed held are lost (only the party's inventory
+  and stores are kept whatever the packs do); an open door no longer a door, a cleared encounter
+  the map lost and automap tiles outside the map are dropped; the world then folds. Tier 1 adds `examine`, `restore`, `Examined`, `SaveCheck`,
+  `Verdict`, `PackChange`, `PackStamp`, `PlaceWarning`, `PlaceFix`, `Spot`. `Missing` and `NameKind`
   serialize. MCP `save_check` (27 tools).
 
 ### Protocol 2 (2026-10-10)

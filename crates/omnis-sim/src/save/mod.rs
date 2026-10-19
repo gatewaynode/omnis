@@ -24,7 +24,7 @@ pub(crate) use fold::fold_from;
 pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, Segment, due, fold, fold_at};
 pub use join::{JoinError, join};
 pub use names::{NameTable, Signature};
-pub use places::{PlaceFix, PlaceWarning};
+pub use places::{PlaceFix, PlaceWarning, Spot};
 pub use remap::{Missing, NameKind};
 pub use report::{RegionSize, SplitReport, split_report};
 pub(crate) use rows::{row_or_id, rows_or_ids};

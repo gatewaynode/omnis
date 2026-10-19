@@ -11,7 +11,8 @@ use omnis_data::Data;
 use omnis_data::placement::Pile;
 use omnis_sim::objects::ObjectState;
 use omnis_sim::save::{
-    Examined, Manifest, NameKind, PackFit, PlaceFix, Verdict, examine, load_save, restore, world_id,
+    Examined, Manifest, NameKind, PackFit, PlaceFix, Spot, Verdict, examine, load_save, restore,
+    world_id,
 };
 use omnis_sim::{LoadError, World};
 
@@ -46,6 +47,14 @@ fn rock(data: &mut Data, x: u16, y: u16) {
         .find(|l| l.level == Level::GROUND)
         .unwrap();
     level.cells[usize::from(y) * width + usize::from(x)] = None;
+}
+
+fn spot(x: u16, y: u16) -> Spot {
+    Spot {
+        level: Level::GROUND,
+        x,
+        y,
+    }
 }
 
 fn dagger(data: &Data) -> ItemId {
@@ -245,15 +254,11 @@ fn a_party_in_rock_moves_to_the_nearest_cell_it_can_stand_on() {
     assert_eq!(
         place.fix,
         PlaceFix::PartyMoved {
-            level: Level::GROUND,
-            x: 2,
-            y: 1
+            from: spot(2, 2),
+            to: spot(2, 1)
         }
     );
-    assert_eq!(
-        (place.map.as_str(), place.x, place.y),
-        ("objects:map:yard", 2, 2)
-    );
+    assert_eq!(place.map, "objects:map:yard");
     assert_eq!(
         place.to_string(),
         "the party could not stand at objects:map:yard (2, 2); moved to (2, 1)"
@@ -276,9 +281,8 @@ fn a_party_stands_only_where_the_terrain_lets_it() {
     assert_eq!(
         report.places[0].fix,
         PlaceFix::PartyMoved {
-            level: Level::GROUND,
-            x: start.0,
-            y: start.1
+            from: spot(2, 2),
+            to: spot(start.0, start.1)
         },
         "nowhere to stand: the map's start"
     );
@@ -320,14 +324,19 @@ fn an_open_door_no_longer_a_door_is_forgotten() {
     }
     let report = examined(&disk, &other).into_report();
     assert_eq!(report.places.len(), 1, "{:?}", report.places);
-    assert_eq!(report.places[0].fix, PlaceFix::DoorForgotten { facing });
-    assert_eq!((report.places[0].x, report.places[0].y), (x, y));
+    assert_eq!(
+        report.places[0].fix,
+        PlaceFix::DoorForgotten {
+            at: spot(x, y),
+            facing
+        }
+    );
     let back = round_trip(&disk, &other);
     assert!(back.maps[&yard].open_doors.is_empty());
 }
 
 #[test]
-fn a_pile_on_a_cell_without_ground_moves_with_every_item() {
+fn a_pile_whose_ground_went_away_is_lost() {
     let data = before();
     let yard = yard(&data);
     let mut world = crate::objects::in_yard(&data, 0, 1, 2, Facing::East);
@@ -346,14 +355,28 @@ fn a_pile_on_a_cell_without_ground_moves_with_every_item() {
     rock(&mut other, 4, 1);
     let report = examined(&disk, &other).into_report();
     assert_eq!(report.places.len(), 1, "{:?}", report.places);
-    assert_eq!(report.places[0].fix, PlaceFix::PileMoved { x: 3, y: 0 });
+    assert_eq!(
+        report.places[0].fix,
+        PlaceFix::PileLost {
+            at: spot(4, 1),
+            items: 2
+        }
+    );
+    assert_eq!(
+        report.places[0].to_string(),
+        "the ground at objects:map:yard (4, 1) is gone, and the 2 items lying there with it"
+    );
     let back = round_trip(&disk, &other);
     assert!(!back.maps[&yard].ground.contains_key(&(Level::GROUND, 4, 1)));
-    assert_eq!(daggers_on_the_ground(&back, &other), before_count);
+    assert_eq!(daggers_on_the_ground(&back, &other), before_count - 2);
+    assert_eq!(
+        back.party.inventory, world.party.inventory,
+        "the party's stores are its own"
+    );
 }
 
 #[test]
-fn an_object_the_map_no_longer_places_leaves_what_it_held_on_the_ground() {
+fn what_an_object_the_map_no_longer_places_held_is_lost() {
     let data = before();
     let yard = yard(&data);
     let mut world = crate::objects::in_yard(&data, 0, 1, 2, Facing::East);
@@ -391,13 +414,20 @@ fn an_object_the_map_no_longer_places_leaves_what_it_held_on_the_ground() {
         report.places[0].fix,
         PlaceFix::ObjectForgotten {
             id: "chest_1".into(),
-            laid: Some((Level::GROUND, 1, 2))
-        },
-        "laid where the party stands"
+            items: 3
+        }
+    );
+    assert_eq!(
+        report.places[0].to_string(),
+        "objects:map:yard no longer places 'chest_1'; the 3 items left in it are lost"
     );
     let back = round_trip(&disk, &other);
     assert!(!back.maps[&yard].objects.contains_key("chest_1"));
-    assert_eq!(daggers_on_the_ground(&back, &other), before_count + 3);
+    assert_eq!(
+        daggers_on_the_ground(&back, &other),
+        before_count,
+        "none laid"
+    );
 }
 
 /// A cleared encounter the map no longer has is dropped with no warning: nothing was lost.
@@ -420,43 +450,6 @@ fn a_cleared_encounter_the_map_lost_is_dropped() {
     assert!(
         kept.maps[&yard].cleared.contains("rat"),
         "kept while the map has it"
-    );
-}
-
-/// A pile moved onto a cell with one of its own joins it, counts added.
-#[test]
-fn a_moved_pile_joins_the_pile_already_there() {
-    let data = before();
-    let yard = yard(&data);
-    let mut world = crate::objects::in_yard(&data, 0, 1, 2, Facing::East);
-    let dagger = dagger(&data);
-    let state = world.map_state(yard);
-    state.ground.insert(
-        (Level::GROUND, 4, 1),
-        Pile {
-            pos: (0, 0),
-            items: vec![(dagger, 2)],
-        },
-    );
-    state.ground.insert(
-        (Level::GROUND, 3, 0),
-        Pile {
-            pos: (2, 2),
-            items: vec![(dagger, 5)],
-        },
-    );
-    omnis_sim::save::fold(&mut world, &data);
-    let mut disk = Disk::new();
-    write(&world, &data, &mut disk);
-    let mut other = edited(&data);
-    rock(&mut other, 4, 1);
-    let back = round_trip(&disk, &other);
-    assert_eq!(
-        back.maps[&yard].ground[&(Level::GROUND, 3, 0)],
-        Pile {
-            pos: (2, 2),
-            items: vec![(dagger, 7)]
-        }
     );
 }
 

@@ -82,8 +82,8 @@ pub use crate::save::{
     Archived, BaseNames, Bases, CharacterSave, Checkpoint, Examined, FOLD_INTERACTIONS, FOLD_RULE,
     FileOut, Holdings, JoinError, Manifest, Missing, NameKind, NameTable, PackChange, PackFit,
     PackStamp, PlaceFix, PlaceWarning, RegionBase, RegionSize, Restored, SaveCheck, Segment,
-    Signature, Split, SplitReport, Verdict, WORLDS, WorldBase, archive_path, due, examine, fold,
-    fold_at, join, load_save, restore, save_files, split, split_report, tidy_list, unnamed,
+    Signature, Split, SplitReport, Spot, Verdict, WORLDS, WorldBase, archive_path, due, examine,
+    fold, fold_at, join, load_save, restore, save_files, split, split_report, tidy_list, unnamed,
 };
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
