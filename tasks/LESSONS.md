@@ -307,3 +307,11 @@
 ## 2026-10-19 — Interface words are ASCII unless the face is known to draw them
 - **What happened**: The 7h4 Load screen wrote "saved → loaded" and "…and N more". The built-in face has neither glyph, so the owner's walk showed boxes. The tests read the strings, not the glyphs, so nothing failed.
 - **Rule**: Text a screen builds in code uses ASCII ("saved 0.1.1, loaded none", "and 3 more"). A new screen's test asserts its texts are ASCII. Arrows, ellipses and dashes belong in docs and comments, never in `Span`s, until a face's coverage is checked.
+
+## 2026-10-19 — Stage by path, never a directory that holds the owner's files
+- **What happened**: committing 7h5 I ran `git add -A crates docs tasks ARCHITECTURE.md`. `docs` swept in the
+  owner's untracked `docs/dnd_supplemental/dnd_5e_combat_flow.md`, which must never be staged. Seen in the
+  status line after the commit; the commit was unpushed, so it was amended without the file (left on disk).
+- **Rule**: stage the files I changed by name (`git add <paths>`, or `git add -u` plus each new file I made).
+  Never `git add -A`/`.` on `docs/`, `assets/` or the root. Read `git status --short` before `git commit`, not
+  after, and stop if anything under `assets/` or `docs/dnd_supplemental/` is staged.
