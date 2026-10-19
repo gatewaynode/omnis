@@ -31,6 +31,13 @@ const USAGE: &str = "usage:
   omnis-cli pack seal <pack-dir> [--version <x.y.z>]
                                                    record the pack's content hash in pack.ron; a
                                                    changed pack goes up a patch number
+  omnis-cli migration draft --from <old-pack-dir> --to <new-pack-dir> [--pack <dir>]...
+                                                   write the new version's next migration: each
+                                                   name gone as a Remove to check; --pack gives
+                                                   the packs both load after
+  omnis-cli save check <save.ron> [--pack <dir>]... what the packs make of a save under this
+                                                   folder, changing nothing; fails when it does
+                                                   not load
 ";
 
 fn main() -> ExitCode {
@@ -49,6 +56,8 @@ fn main() -> ExitCode {
         ["world", "tidy", rest @ ..] => Args::parse(rest).and_then(world_tidy),
         ["pack", "seal", root] => pack_seal(root, None),
         ["pack", "seal", root, "--version", version] => pack_seal(root, Some(version)),
+        ["migration", "draft", rest @ ..] => Args::parse(rest).and_then(migration_draft),
+        ["save", "check", rest @ ..] => Args::parse(rest).and_then(save_check),
         _ => Err(USAGE.trim_end().to_owned()),
     };
     match result {
@@ -74,6 +83,103 @@ fn pack_seal(root: &str, version: Option<&str>) -> Result<(), String> {
         sealed.hash
     );
     Ok(())
+}
+
+/// Draft the next migration of the pack `--to` from `--from` (M8.5 7h6), written beside its
+/// others; refused when the file is there.
+fn migration_draft(args: Args) -> Result<(), String> {
+    let (Some(from), Some(to)) = (&args.from, &args.to) else {
+        return Err("migration draft needs --from <old-pack-dir> --to <new-pack-dir>".into());
+    };
+    let load = |pack: &Path| {
+        let mut roots: Vec<&Path> = args.packs.iter().map(PathBuf::as_path).collect();
+        roots.push(pack);
+        load_packs(&roots).map_err(|r| format!("{}: {r}", pack.display()))
+    };
+    let (old, new) = (load(from)?, load(to)?);
+    let pack = new.packs.last().map(|p| p.id.clone()).unwrap_or_default();
+    if old.packs.last().map(|p| p.id.as_str()) != Some(pack.as_str()) {
+        return Err("--from and --to are not the same pack".into());
+    }
+    let draft = omnis_cli::draft::draft(&pack, &old, &new)?;
+    if draft.steps + draft.open == 0 {
+        println!("{pack}: nothing is gone; no migration needed");
+        return Ok(());
+    }
+    let number = new.migrations.get(&pack).map_or(0, Vec::len) + 1;
+    let file = to.join(format!("migrations/{number:04}.ron"));
+    if file.exists() {
+        return Err(format!("{} is already there", file.display()));
+    }
+    std::fs::create_dir_all(to.join("migrations")).map_err(|e| e.to_string())?;
+    ron_io::write_atomic(&file, &draft.text).map_err(|e| e.to_string())?;
+    println!(
+        "{}: {} steps, {} to decide; check it, then reseal: omnis-cli pack seal {}",
+        file.display(),
+        draft.steps,
+        draft.open,
+        to.display()
+    );
+    Ok(())
+}
+
+/// What the packs make of a save under this folder (M8.5 7h6), changing nothing: the report,
+/// and a failure when it does not load even with its migrations.
+fn save_check(args: Args) -> Result<(), String> {
+    let [path] = args.positional.as_slice() else {
+        return Err("save check needs exactly one save path".into());
+    };
+    let root = Path::new(".");
+    let packs = args.packs_or_default();
+    let roots: Vec<&Path> = packs.iter().map(PathBuf::as_path).collect();
+    let data = load_packs(&roots).map_err(|r| r.to_string())?;
+    let at = omnis_sim::ops::client_path(path, &["ron"]).map_err(|e| e.to_string())?;
+    let text = ron_io::read_save_under(root, at).map_err(|e| e.to_string())?;
+    let check = omnis_sim::api::examine(&text, &data, &mut |p| {
+        ron_io::read_under(root, p).map_err(|e| e.to_string())
+    })
+    .map_err(|e| e.to_string())?
+    .into_report();
+    print!("{}", report(&check));
+    match check.verdict {
+        omnis_sim::api::Verdict::Unresolved | omnis_sim::api::Verdict::Unnamed => {
+            Err(format!("{path} does not load on these packs"))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// A save check in lines: the verdict, the packs that changed, then each list.
+fn report(check: &omnis_sim::api::SaveCheck) -> String {
+    use std::fmt::Write;
+    let mut out = format!("verdict: {:?}\n", check.verdict);
+    for p in check.packs.iter().filter(|p| p.saved != p.loaded) {
+        let v = |s: &Option<omnis_sim::api::PackStamp>| {
+            s.as_ref().map_or("none".to_owned(), |s| s.version.clone())
+        };
+        let _ = writeln!(
+            out,
+            "pack {}: saved {}, loaded {}",
+            p.id,
+            v(&p.saved),
+            v(&p.loaded)
+        );
+    }
+    if check.moved > 0 {
+        let _ = writeln!(out, "names moved: {}", check.moved);
+    }
+    for m in &check.missing {
+        let _ = writeln!(out, "missing: {m}");
+    }
+    for m in &check.migrations {
+        for step in &m.steps {
+            let _ = writeln!(out, "migration {} {} (to {}): {step}", m.pack, m.file, m.to);
+        }
+    }
+    for p in &check.places {
+        let _ = writeln!(out, "place: {p}");
+    }
+    out
 }
 
 fn validate(roots: &[&str]) -> Result<(), String> {

@@ -33,7 +33,7 @@ pub fn content(ctx: &Ctx) -> Screen {
 pub fn apply(control: ControlId) -> Effect {
     match control {
         ControlId::NewGame => Effect::Open(ScreenId::NewGame),
-        ControlId::Load => Effect::Host(HostOp::Load),
+        ControlId::Load => Effect::Host(HostOp::Load { migrate: false }),
         ControlId::Settings => Effect::Open(ScreenId::Settings),
         ControlId::Quit => Effect::Quit,
         _ => Effect::None,

@@ -401,7 +401,7 @@ fn every_lit_button_on_every_page_sends_a_command_the_engine_accepts() {
                 if act == DebugAct::Reload {
                     assert_eq!(
                         effect,
-                        Effect::Host(HostOp::Reload),
+                        Effect::Host(HostOp::Reload { migrate: false }),
                         "Reload packs is the host's"
                     );
                     continue;

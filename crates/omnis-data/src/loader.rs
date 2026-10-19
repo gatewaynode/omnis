@@ -16,6 +16,7 @@ use crate::loot::LootTable;
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
 use crate::map::MapDef;
 use crate::map_data::{MapData, ResolvedPortal};
+use crate::migration::{self, Migration, Migrations, PackMigration};
 use crate::monster::Monster;
 use crate::object::ObjectKind;
 use crate::placement;
@@ -92,6 +93,8 @@ pub struct Data {
     pub loot: BTreeMap<LootTableId, LootTable>,
     /// Flags a pack declared, by id; an undeclared flag is the world's.
     pub flags: BTreeMap<FlagId, FlagDef>,
+    /// Each pack's migrations, by pack id, in file order (M8.5 7h6).
+    pub migrations: Migrations,
 }
 
 impl Data {
@@ -147,6 +150,8 @@ struct Raw {
     maps: BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
     text: BTreeMap<String, BTreeMap<String, String>>,
     content: RawContent,
+    /// Every pack's migrations, checked against the loaded packs once all are read.
+    migrations: Vec<(PathBuf, String, PackMigration)>,
 }
 
 /// Load packs from `roots`, in order. A pack's dependencies must appear earlier in the list.
@@ -277,6 +282,24 @@ fn load_one(
             }
         }
     }
+    let mut migrations = Vec::new();
+    for rel in list_ron(root, Path::new("migrations"), errors) {
+        if let Some(m) = read_checked::<Migration>(root, &rel, &mut hasher, errors) {
+            let file = migration::file_name(&rel);
+            let loaded = PackMigration {
+                file,
+                to: m.to,
+                steps: m.steps,
+            };
+            migrations.push((root.join(&rel), loaded));
+        }
+    }
+    migration::check_pack(&pack, &manifest.version, &migrations, errors);
+    raw.migrations.extend(
+        migrations
+            .into_iter()
+            .map(|(path, m)| (path, pack.clone(), m)),
+    );
     if hasher.bytes > MAX_PACK_BYTES {
         errors.push(DataError::new(
             root.join(manifest_rel),
@@ -531,6 +554,7 @@ has_schema!(
     ObjectKind,
     LootTable,
     FlagDef,
+    Migration,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
@@ -716,6 +740,12 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 format!("entry map '{entry}' is not defined by any loaded pack"),
             )),
         }
+    }
+    if errors.len() == before {
+        migration::check_loaded(&raw.migrations, data, errors);
+    }
+    for (_, pack, m) in raw.migrations {
+        data.migrations.entry(pack).or_default().push(m);
     }
     if errors.len() > before {
         data.maps.clear();

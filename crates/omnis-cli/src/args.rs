@@ -1,5 +1,6 @@
 //! Hand-rolled argument parsing (self-supporting rule). Flags: `--pack <dir>` (repeatable),
-//! `--seed <n>`, `--script <file>`, `--time`, `--commands <n>`, `--out <file>`, `--yes`;
+//! `--seed <n>`, `--script <file>`, `--time`, `--commands <n>`, `--out <file>`, `--yes`,
+//! `--from <dir>`, `--to <dir>`;
 //! everything else is positional.
 
 use std::path::PathBuf;
@@ -23,6 +24,10 @@ pub struct Args {
     pub out: Option<PathBuf>,
     /// `--yes`: do what was only listed (`world tidy` deletes).
     pub yes: bool,
+    /// `--from`: a pack's old version (`migration draft`).
+    pub from: Option<PathBuf>,
+    /// `--to`: the same pack's new version (`migration draft`).
+    pub to: Option<PathBuf>,
 }
 
 impl Args {
@@ -50,6 +55,10 @@ impl Args {
                         Some(value.parse().map_err(|_| format!("bad count '{value}'"))?);
                 }
                 "--out" => args.out = Some(PathBuf::from(it.next().ok_or("--out needs a file")?)),
+                "--from" => {
+                    args.from = Some(PathBuf::from(it.next().ok_or("--from needs a directory")?));
+                }
+                "--to" => args.to = Some(PathBuf::from(it.next().ok_or("--to needs a directory")?)),
                 flag if flag.starts_with("--") => return Err(format!("unknown flag '{flag}'")),
                 other => args.positional.push(other.to_owned()),
             }

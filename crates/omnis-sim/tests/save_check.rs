@@ -103,7 +103,7 @@ fn the_same_packs_report_same() {
     );
     assert_eq!((report.moved, report.trimmed), (0, 0));
     assert!(report.missing.is_empty() && report.places.is_empty());
-    let (back, restored) = restore(examined, &data, false).unwrap();
+    let (back, restored) = restore(examined, &data, false, false).unwrap();
     assert_eq!(restored.fit, PackFit::Same);
     assert_eq!(back.position, world.position);
 }
@@ -144,12 +144,12 @@ fn a_name_the_packs_lack_reports_unresolved_and_restore_refuses() {
     let gone = report.packs.iter().find(|p| p.id == "ahead").unwrap();
     assert!(gone.saved.is_some() && gone.loaded.is_none());
     assert!(matches!(
-        restore(examined, &old, false),
+        restore(examined, &old, false, false),
         Err(LoadError::Unresolved(m)) if m == report.missing
     ));
     assert!(
         matches!(
-            restore(self::examined(&disk, &old), &old, true),
+            restore(self::examined(&disk, &old), &old, true, false),
             Err(LoadError::Unresolved(_))
         ),
         "force never passes a missing name"
@@ -183,7 +183,7 @@ fn a_save_without_names_reports_unnamed_and_loads_only_forced() {
     assert_eq!(examined.report().verdict, Verdict::Unnamed);
     assert!(examined.report().packs.iter().all(|p| p.saved != p.loaded));
     assert!(matches!(
-        restore(examined, &other, false),
+        restore(examined, &other, false, false),
         Err(LoadError::PackMismatch)
     ));
     let (_, restored) = load_save(&bare[SAVE], &other, true, &mut |p| {
@@ -198,7 +198,7 @@ fn restore_refuses_packs_other_than_the_ones_examined() {
     let (_, data, disk) = saved_in_the_yard(1, 2);
     let examined = examined(&disk, &data);
     assert!(matches!(
-        restore(examined, &edited(&data), false),
+        restore(examined, &edited(&data), false, false),
         Err(LoadError::PackMismatch)
     ));
 }
@@ -212,7 +212,7 @@ fn restore_refuses_other_packs_than_the_content_ones_examined() {
     assert_eq!(examined.report().verdict, Verdict::Content);
     let third = edited(&edited(&data));
     assert!(matches!(
-        restore(examined, &third, false),
+        restore(examined, &third, false, false),
         Err(LoadError::PackMismatch)
     ));
 }

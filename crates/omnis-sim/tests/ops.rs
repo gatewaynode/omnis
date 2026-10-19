@@ -216,8 +216,9 @@ fn limits_and_host_ops_are_refused() {
         Op::SaveRead {
             path: "a.ron".into(),
             force: false,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: ShotTarget::Canvas,
@@ -262,8 +263,9 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         Op::SaveRead {
             path: "s.ron".into(),
             force: true,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: Some("p.png".into()),
             target: ShotTarget::Window,
@@ -406,7 +408,7 @@ fn the_host_ops_rules_hold_for_every_host() {
     let mut fresh = data.clone();
     fresh.fingerprints[0].hash ^= 1;
     assert_eq!(
-        reload(&mut reloaded, &data, &fresh).map(|c| c.verdict),
+        reload(&mut reloaded, &data, &fresh, false).map(|c| c.verdict),
         Ok(omnis_sim::save::Verdict::Content)
     );
     assert_eq!(
@@ -419,7 +421,7 @@ fn the_host_ops_rules_hold_for_every_host() {
     let before = reloaded.clone();
     assert!(
         matches!(
-            reload(&mut reloaded, &fresh, &gone).map_err(OpError::from),
+            reload(&mut reloaded, &fresh, &gone, false).map_err(OpError::from),
             Err(OpError::Failed { .. })
         ),
         "the party's map is gone"

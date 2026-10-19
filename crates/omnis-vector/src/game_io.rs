@@ -91,14 +91,16 @@ impl Opened {
         self.examined.into_report()
     }
 
-    /// Load it, unforced: refused when its verdict does not load.
+    /// Load it, unforced: refused when its verdict does not load, unless the packs' migrations
+    /// change it and `migrate` applies them (M8.5 7h6).
     ///
     /// # Errors
-    /// It names what the packs lack, keeps no names on other packs, or does not hold together.
-    pub fn load(self, data: &Data) -> Result<Loaded, OpError> {
+    /// It names what the packs lack, keeps no names on other packs, needs migrations not
+    /// applied, or does not hold together.
+    pub fn load(self, data: &Data, migrate: bool) -> Result<Loaded, OpError> {
         let warnings = warnings(self.report());
         let (world, restored) =
-            restore_save(self.examined, data, false).map_err(OpError::failed)?;
+            restore_save(self.examined, data, false, migrate).map_err(OpError::failed)?;
         Ok(Loaded {
             world,
             said: said(restored, self.started.elapsed().as_millis(), warnings.len()),
@@ -146,6 +148,7 @@ pub fn reloaded(check: &SaveCheck) -> Vec<String> {
     let warnings = warnings(check);
     let how = match check.verdict {
         Verdict::Renamed => "loaded by name. The world has moved on",
+        Verdict::NeedsMigration => "their migrations applied. The world has moved on",
         Verdict::Content => "other packs, every name the same",
         _ => "the same packs",
     };
@@ -185,20 +188,30 @@ fn said(restored: Restored, millis: u128, places: usize) -> String {
             format!("{done}; made with other packs, loaded by name. The world has moved on")
         }
         PackFit::Forced => format!("{done}; made with other packs, loaded as written"),
+        PackFit::Migrated => format!(
+            "{done}; made with older packs, their migrations applied. The world has moved on"
+        ),
     }
 }
 
 /// The world saved at `path` under `root`: an older save converted, a character save joined from
 /// its world folder with its journal's changes laid over, checked against `data`, examined
-/// first; with `force`, a save that keeps no names loads on other packs, numbers as written.
+/// first; with `force`, a save that keeps no names loads on other packs, numbers as written;
+/// with `migrate`, the packs' migrations apply when they change it (M8.5 7h6).
 ///
 /// # Errors
 /// The path is refused, a file is missing, too large or a link, or it is not a save these packs
 /// can load.
-pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded, OpError> {
+pub fn load(
+    data: &Data,
+    root: &Path,
+    path: &str,
+    force: bool,
+    migrate: bool,
+) -> Result<Loaded, OpError> {
     let opened = examine(data, root, path)?;
     if !(force && opened.report().verdict == Verdict::Unnamed) {
-        return opened.load(data);
+        return opened.load(data, migrate);
     }
     let path = client_path(path, &["ron"])?;
     let text = read_save_under(root, path).map_err(OpError::failed)?;

@@ -16,7 +16,7 @@ use omnis_sim::{Command, EncounterChoice, ModeKind, OpError, World, apply};
 /// Reload `world`, running on `old`, onto `new`, which must take it.
 fn reloaded(world: &World, old: &Data, new: &Data, what: &str) -> (World, SaveCheck) {
     let mut now = world.clone();
-    let check = reload(&mut now, old, new).unwrap_or_else(|r| panic!("{what}: {}", r.error));
+    let check = reload(&mut now, old, new, false).unwrap_or_else(|r| panic!("{what}: {}", r.error));
     (now, check)
 }
 
@@ -123,7 +123,7 @@ fn a_reload_that_lacks_a_carried_name_is_refused_and_changes_nothing() {
     let dagger = old.registry.items.get("ahead:item:dagger").unwrap();
     world.party.inventory.push((dagger, 1));
     let was = world.clone();
-    let refused = reload(&mut world, &old, &new).expect_err("the dagger is gone");
+    let refused = reload(&mut world, &old, &new, false).expect_err("the dagger is gone");
     assert_eq!(world, was, "nothing changed");
     assert_eq!(refused.check.verdict, Verdict::Unresolved);
     assert!(
@@ -206,7 +206,7 @@ fn a_refused_reload_reports_no_places() {
     world.party.inventory.push((dagger, 1));
     let mut new = edited(&before());
     rock(&mut new, 2, 2);
-    let refused = reload(&mut world.clone(), &old, &new).expect_err("the dagger is gone");
+    let refused = reload(&mut world.clone(), &old, &new, false).expect_err("the dagger is gone");
     assert_eq!(refused.check.verdict, Verdict::Unresolved);
     assert!(!refused.check.missing.is_empty());
     assert!(

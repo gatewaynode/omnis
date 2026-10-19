@@ -383,6 +383,11 @@ mod tests {
             "defaults stand in for a missing args"
         );
         assert_eq!(
+            parse_request(br#"{"op": "pack.reload"}"#).unwrap().1,
+            Op::PackReload { migrate: false },
+            "pack.reload took no args before M8.5 7h6, and still need not"
+        );
+        assert_eq!(
             parse_request(br#"{"op": "screenshot"}"#).unwrap().1,
             Op::Screenshot {
                 path: None,

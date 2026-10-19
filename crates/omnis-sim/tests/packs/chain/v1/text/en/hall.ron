@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    entries: {
+        "chain:text:map.hall.name": "Chain Hall",
+        "chain:text:region.hall.name": "Chain Hall",
+        "chain:text:item.old_sword.name": "Old Sword",
+        "chain:text:item.junk.name": "Junk",
+        "chain:text:spell.old_bolt.name": "Old Bolt",
+        "chain:text:spell.fading.name": "Fading Shield",
+    },
+)

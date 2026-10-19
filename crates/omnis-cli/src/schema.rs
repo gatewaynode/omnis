@@ -250,6 +250,21 @@ const FLAG: &str = r#"(
     scope: Party,
 )"#;
 
+// A pack migration (M8.5 7h6): saves made before `to` are offered its steps, in order. A step
+// names only its own pack's ids; cells are (level, x, y).
+const MIGRATION: &str = r#"(
+    schema: 1,
+    to: "0.2.0",
+    steps: [
+        Rename(kind: item, from: "example:item:old_sword", to: "example:item:sword"),
+        Replace(kind: spell, from: "example:spell:old_bolt", to: "base:spell:fire_bolt"),
+        Remove(kind: item, id: "example:item:junk"),
+        MovePlace(map: "example:map:vale", from: (0, 2, 1), to: (0, 3, 1)),
+        RenameEncounter(map: "example:map:vale", from: "wolves", to: "pack"),
+        RenameObject(map: "example:map:vale", from: "chest_1", to: "coffer"),
+    ],
+)"#;
+
 /// Every data file type as a parsed-and-rewritten example, then a save, a replay, and the
 /// protocol ops.
 pub fn dump() -> Result<String, DataError> {
@@ -308,6 +323,11 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
     section(out, "data/regions/<name>.ron", &parse::<RegionDef>(REGION)?)?;
     section(out, "data/flags/<name>.ron", &parse::<FlagDef>(FLAG)?)?;
+    section(
+        out,
+        "migrations/NNNN.ron",
+        &parse::<omnis_data::migration::Migration>(MIGRATION)?,
+    )?;
     Ok(())
 }
 
@@ -366,6 +386,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             world: None,
             name: 0x0123_4567_89ab_cdef,
         }],
+        migrated: Vec::new(),
         log: vec![Logged {
             minute: 42,
             map: MapId(0),
@@ -421,11 +442,12 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         Op::SaveRead {
             path: ".omnis/quick.ron".into(),
             force: false,
+            migrate: false,
         },
         Op::SaveCheck {
             path: ".omnis/quick.ron".into(),
         },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: omnis_sim::ops::ShotTarget::Canvas,

@@ -24,6 +24,7 @@ pub mod lore;
 pub mod manifest;
 pub mod map;
 pub mod map_data;
+pub mod migration;
 pub mod monster;
 pub mod object;
 pub mod placement;

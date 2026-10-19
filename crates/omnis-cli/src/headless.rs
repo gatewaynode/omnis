@@ -5,7 +5,7 @@
 
 use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
-use omnis_sim::api::{examine, load_save, save_files};
+use omnis_sim::api::{examine, load_save_with, save_files};
 use omnis_sim::ops::client_path;
 use omnis_sim::{NewGameError, Op, OpError, Reply, Settings, World, dispatch, ops};
 use std::fmt;
@@ -69,11 +69,15 @@ impl Headless {
                 write_files(Path::new("."), &list).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.clone() })
             }
-            Op::SaveRead { path, force } => {
+            Op::SaveRead {
+                path,
+                force,
+                migrate,
+            } => {
                 let root = Path::new(".");
                 let text =
                     read_save_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
-                let (world, _) = load_save(&text, &self.data, *force, &mut |p| {
+                let (world, _) = load_save_with(&text, &self.data, *force, *migrate, &mut |p| {
                     read_under(root, p).map_err(|e| e.to_string())
                 })
                 .map_err(OpError::failed)?;
@@ -91,9 +95,9 @@ impl Headless {
                 .into_report();
                 Ok(Reply::Check { check })
             }
-            Op::PackReload => {
+            Op::PackReload { migrate } => {
                 let data = load(&self.packs).map_err(OpError::failed)?;
-                let check = ops::reload(&mut self.world, &self.data, &data)?;
+                let check = ops::reload(&mut self.world, &self.data, &data, *migrate)?;
                 self.data = data;
                 Ok(Reply::Done { check })
             }

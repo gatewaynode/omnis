@@ -912,7 +912,7 @@ pub fn apply(
         }
         DebugAct::Tidy => return Ok(Effect::Host(HostOp::Tidy { delete: false })),
         DebugAct::Delete => return Ok(Effect::Host(HostOp::Tidy { delete: true })),
-        DebugAct::Reload => return Ok(Effect::Host(HostOp::Reload)),
+        DebugAct::Reload => return Ok(Effect::Host(HostOp::Reload { migrate: false })),
         DebugAct::Set(_)
         | DebugAct::Toggle
         | DebugAct::ToMember

@@ -262,7 +262,7 @@ fn the_title_loads_only_when_there_is_a_save() {
     );
     assert_eq!(
         use_(&title_ctx(&data, true), ControlId::Load),
-        Ok(Effect::Host(HostOp::Load))
+        Ok(Effect::Host(HostOp::Load { migrate: false }))
     );
     assert_eq!(
         use_(&missing, ControlId::NewGame),

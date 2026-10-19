@@ -108,7 +108,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
                 path: "position.x".into(),
             },
         ),
-        ask(&mut game, Op::PackReload),
+        ask(&mut game, Op::PackReload { migrate: false }),
         // The host ops need files; their replies are built as the hosts build them.
         Reply::Written {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
@@ -182,4 +182,25 @@ fn a_done_without_its_check_still_reads() {
             check: omnis_cli::omnis_sim::save::SaveCheck::default()
         }
     );
+}
+
+/// `save.read` and `pack.reload` gained `migrate` in protocol 2 (M8.5 7h6), an addition: an op
+/// without it reads as before (a bare `pack.reload`, with no `args`, is the socket's to fill:
+/// `omnis-vector`'s `parse_request`).
+#[test]
+fn migrate_is_optional_on_the_wire() {
+    let read: Op = serde_json::from_str(r#"{"op":"save.read","args":{"path":"a.ron"}}"#).unwrap();
+    assert_eq!(
+        read,
+        Op::SaveRead {
+            path: "a.ron".into(),
+            force: false,
+            migrate: false
+        }
+    );
+    let reload: Op = serde_json::from_str(r#"{"op":"pack.reload","args":{}}"#).unwrap();
+    assert_eq!(reload, Op::PackReload { migrate: false });
+    let applied: Op =
+        serde_json::from_str(r#"{"op":"pack.reload","args":{"migrate":true}}"#).unwrap();
+    assert_eq!(applied, Op::PackReload { migrate: true });
 }

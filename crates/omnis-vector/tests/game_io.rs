@@ -15,22 +15,22 @@ fn a_save_is_read_with_the_loader_s_limits() {
     std::fs::create_dir_all(&root).unwrap();
     let (world, _) = town_session(&data);
     game_io::save(&world, &data, &root, "real.ron").unwrap();
-    assert!(game_io::load(&data, &root, "real.ron", false).is_ok());
+    assert!(game_io::load(&data, &root, "real.ron", false, false).is_ok());
 
     // A save has room of its own, more than a pack file (M8.5 7f).
     let size = usize::try_from(MAX_FILE_BYTES).unwrap() + 1;
     std::fs::write(root.join("roomy.ron"), vec![b' '; size]).unwrap();
-    let refused = game_io::load(&data, &root, "roomy.ron", false).unwrap_err();
+    let refused = game_io::load(&data, &root, "roomy.ron", false, false).unwrap_err();
     assert!(!refused.to_string().contains("limit"), "{refused}");
     let size = usize::try_from(MAX_SAVE_BYTES).unwrap() + 1;
     std::fs::write(root.join("big.ron"), vec![b' '; size]).unwrap();
-    let refused = game_io::load(&data, &root, "big.ron", false).unwrap_err();
+    let refused = game_io::load(&data, &root, "big.ron", false, false).unwrap_err();
     assert!(refused.to_string().contains("limit"), "{refused}");
 
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(root.join("real.ron"), root.join("link.ron")).unwrap();
-        let refused = game_io::load(&data, &root, "link.ron", false).unwrap_err();
+        let refused = game_io::load(&data, &root, "link.ron", false, false).unwrap_err();
         assert!(refused.to_string().contains("symlink"), "{refused}");
     }
 }

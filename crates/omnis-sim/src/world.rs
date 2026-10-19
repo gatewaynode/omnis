@@ -311,6 +311,10 @@ pub struct World {
     /// character save names them; not part of the fingerprint.
     #[serde(skip)]
     pub archive: Vec<crate::save::Archived>,
+    /// The pack migrations it went through, oldest first (M8.5 7h6). The character save
+    /// carries them; not part of the fingerprint.
+    #[serde(skip)]
+    pub migrated: Vec<crate::save::Migrated>,
 }
 
 /// Why a new game could not start.
@@ -351,6 +355,9 @@ pub enum LoadError {
     BadBase(String),
     /// The save names what the loaded packs do not have, each with where (M8.5 7h3).
     Unresolved(Vec<crate::save::Missing>),
+    /// The packs' migrations change the save, and the load was not told to apply them: each
+    /// offered file, by pack (M8.5 7h6).
+    NeedsMigration(Vec<(String, String)>),
     /// The world rebuilt from the save is not the one the save recorded.
     Diverged {
         /// What the save recorded.
@@ -379,6 +386,13 @@ impl fmt::Display for LoadError {
                 f.write_str("save names what the packs no longer have:")?;
                 for (i, m) in missing.iter().enumerate() {
                     write!(f, "{} {m}", if i == 0 { "" } else { ";" })?;
+                }
+                Ok(())
+            }
+            LoadError::NeedsMigration(files) => {
+                f.write_str("the packs' migrations change it; migrate applies them")?;
+                for (i, (pack, file)) in files.iter().enumerate() {
+                    write!(f, "{} {pack} {file}", if i == 0 { ":" } else { "," })?;
                 }
                 Ok(())
             }
@@ -427,6 +441,7 @@ impl World {
             journal: Journal::default(),
             origin: None,
             archive: Vec::new(),
+            migrated: Vec::new(),
         })
     }
 

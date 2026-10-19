@@ -118,9 +118,10 @@ fn every_op() -> Vec<Op> {
         Op::SaveRead {
             path: text(),
             force: false,
+            migrate: false,
         },
         Op::SaveCheck { path: text() },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: Default::default(),

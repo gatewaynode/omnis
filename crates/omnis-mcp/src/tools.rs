@@ -162,6 +162,11 @@ fn game_tools() -> Vec<Tool> {
                     false,
                     "Load a save made with other packs; skips the pack and fingerprint checks.",
                 ),
+                Field::new::<bool>(
+                    "migrate",
+                    false,
+                    "Apply the packs' migrations when they change the save (save_check's verdict needs_migration lists them).",
+                ),
             ],
         ),
         tool(
@@ -173,8 +178,12 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "pack_reload",
             "pack.reload",
-            "Reload the packs from disk under the running world, fitted by name; answers done with the check, or refuses with each name the packs lack, nothing changed.",
-            &[],
+            "Reload the packs from disk under the running world, fitted by name through the packs' migrations; answers done with the check, or refuses with each name the packs lack, or with the migrations that would change the world unless migrate, nothing changed.",
+            &[Field::new::<bool>(
+                "migrate",
+                false,
+                "Apply the packs' migrations when they change the running world.",
+            )],
         ),
         screenshot_tool(),
         screen_text_tool(),
@@ -317,9 +326,12 @@ mod tests {
             ("map_text", json!({"map": "test:map:dungeon"})),
             ("automap_get", json!({})),
             ("save_write", json!({"path": "a.ron"})),
-            ("save_read", json!({"path": "a.ron", "force": true})),
+            (
+                "save_read",
+                json!({"path": "a.ron", "force": true, "migrate": true}),
+            ),
             ("save_check", json!({"path": "a.ron"})),
-            ("pack_reload", json!({})),
+            ("pack_reload", json!({"migrate": true})),
             (
                 "screenshot",
                 json!({"path": "shot.png", "target": "window"}),

@@ -201,7 +201,7 @@ fn a_place_the_maps_no_longer_allow_loads_with_a_line_for_it() {
     let other = edited(&data, 2, 2);
     let opened = game_io::examine(&other, &root, "yard.ron").unwrap();
     assert!(opened.report().verdict.loads());
-    let loaded = opened.load(&other).unwrap();
+    let loaded = opened.load(&other, false).unwrap();
     assert!(
         loaded
             .said
@@ -217,7 +217,7 @@ fn a_place_the_maps_no_longer_allow_loads_with_a_line_for_it() {
         loaded.lines("yard.ron")[1],
         "The party could not stand at objects:map:yard (2, 2); moved to (2, 1)."
     );
-    let loaded = game_io::load(&other, &root, "yard.ron", false).unwrap();
+    let loaded = game_io::load(&other, &root, "yard.ron", false, false).unwrap();
     assert_eq!(loaded.warnings.len(), 1, "the socket's load says it too");
 }
 
@@ -229,8 +229,9 @@ fn a_save_without_names_loads_only_forced() {
     let root = repo().join("crates/omnis-sim/tests/saves");
     let opened = game_io::examine(&data, &root, "v7.ron").unwrap();
     assert_eq!(opened.report().verdict, Verdict::Unnamed);
-    assert!(game_io::load(&data, &root, "v7.ron", false).is_err());
-    let loaded = game_io::load(&data, &root, "v7.ron", true).unwrap_or_else(|e| panic!("{e}"));
+    assert!(game_io::load(&data, &root, "v7.ron", false, false).is_err());
+    let loaded =
+        game_io::load(&data, &root, "v7.ron", true, false).unwrap_or_else(|e| panic!("{e}"));
     assert!(
         loaded.said.ends_with("loaded as written"),
         "{}",
@@ -394,5 +395,158 @@ fn a_reload_says_how_it_fitted_and_each_place() {
     assert_eq!(
         said(Verdict::Content, vec![moved.clone(), moved])[0],
         "Packs reloaded: other packs, every name the same; 2 places changed, see the log"
+    );
+}
+
+/// Base, test, objects and the `chain` fixture at `version` (`v1` is 0.1.0, `v3` 0.3.0 with
+/// its two migrations, M8.5 7h6).
+fn chain(version: &str) -> Vec<PathBuf> {
+    let mut packs = packs(false);
+    packs.push(repo().join(format!("crates/omnis-sim/tests/packs/chain/{version}")));
+    packs
+}
+
+/// The old sword in the party's stores, in the running game.
+fn with_the_old_sword(app: &mut App) {
+    let mut session = app.world_mut().resource_mut::<Session>();
+    let id = session
+        .data
+        .registry
+        .items
+        .get("chain:item:old_sword")
+        .unwrap();
+    session.world.party.inventory.push((id, 1));
+    session.refresh();
+}
+
+fn holds_the_sword(app: &App) -> bool {
+    let session = app.world().resource::<Session>();
+    session
+        .views
+        .party
+        .inventory
+        .iter()
+        .any(|i| i.item == "chain:item:sword")
+}
+
+/// A save the packs' migrations change opens the Load screen to ask: the steps listed, Close
+/// loading nothing; Apply and load loads it through them.
+#[test]
+fn a_save_the_migrations_change_asks_then_applies() {
+    let save = Scratch::new("load-migrate");
+    {
+        let mut app = shell(
+            Config {
+                packs: chain("v1"),
+                save: save.0.clone(),
+                ..config()
+            },
+            true,
+        );
+        app.update();
+        with_the_old_sword(&mut app);
+        let session = app.world().resource::<Session>();
+        let data = session.data.clone();
+        game_io::save(
+            &session.world,
+            &data,
+            &repo().join("crates/omnis-vector"),
+            &save.0,
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+    }
+    let mut app = shell(
+        Config {
+            packs: chain("v3"),
+            save: save.0.clone(),
+            ..config()
+        },
+        false,
+    );
+    app.update();
+    press(&mut app, ControlId::Load);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::LoadReport));
+    let text = screen_text(app.world());
+    for line in [
+        "These packs moved on",
+        "The packs changed since this save, and their migrations change it.",
+        "chain: saved 0.1.0, loaded 0.3.0",
+        "Migrations:",
+        "chain 0001.ron: item 'chain:item:old_sword' is now 'chain:item:mid_sword'",
+        "chain 0002.ron: map 'chain:map:hall': the cell (0, 2, 1) moved to (0, 3, 1)",
+        "Apply and load",
+    ] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    assert!(text.is_ascii(), "{text}");
+    press(&mut app, ControlId::Close);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Title));
+    assert!(
+        app.world().get_resource::<Session>().is_none(),
+        "Close loads nothing"
+    );
+    press(&mut app, ControlId::Load);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::LoadReport));
+    press(&mut app, ControlId::Apply);
+    app.update();
+    assert_ne!(top(&app), Some(ScreenId::LoadReport));
+    assert!(holds_the_sword(&app), "loaded through the migrations");
+    let session = app.world().resource::<Session>();
+    assert!(
+        session
+            .lines
+            .iter()
+            .any(|l| l.contains("made with older packs, their migrations applied")),
+        "{:?}",
+        session.lines
+    );
+}
+
+/// Reload packs whose migrations change the running world asks the same way; Apply and reload
+/// reloads through them and goes back to the Debug page.
+#[test]
+fn reload_packs_asks_then_applies_the_migrations() {
+    let mut app = shell(
+        Config {
+            packs: chain("v1"),
+            save: ".omnis/test-saves/none.ron".into(),
+            ..config()
+        },
+        true,
+    );
+    app.update();
+    app.update();
+    app.world_mut().resource_mut::<Screens>().forms.debug.page = Page::World;
+    tap(&mut app, KeyCode::Backquote);
+    app.world_mut().resource_mut::<Session>().config.packs = chain("v3");
+    with_the_old_sword(&mut app);
+    press(&mut app, ControlId::Debug(DebugAct::Reload));
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::LoadReport));
+    let text = screen_text(app.world());
+    for line in [
+        "These packs moved on",
+        "The reloaded packs' migrations change the running world.",
+        "chain: running 0.1.0, reloaded 0.3.0",
+        "Apply and reload",
+    ] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    assert!(!holds_the_sword(&app), "nothing changed yet");
+    press(&mut app, ControlId::Apply);
+    app.update();
+    assert_eq!(top(&app), Some(ScreenId::Debug), "back to the page");
+    assert!(holds_the_sword(&app));
+    let session = app.world().resource::<Session>();
+    assert!(
+        session
+            .lines
+            .iter()
+            .any(|l| l == "Packs reloaded: their migrations applied. The world has moved on"),
+        "{:?}",
+        session.lines
     );
 }

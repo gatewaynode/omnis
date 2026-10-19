@@ -473,7 +473,10 @@ pub enum HostOp {
     /// Save to the quick save.
     Save,
     /// Load the quick save.
-    Load,
+    Load {
+        /// Apply the packs' migrations, which change it (M8.5 7h6): the Load screen's Apply.
+        migrate: bool,
+    },
     /// Write the command log as a replay.
     SaveLog,
     /// The party is made: play begins.
@@ -484,7 +487,10 @@ pub enum HostOp {
         delete: bool,
     },
     /// Reload the packs from disk under the running world, by name (M8.5 7h5).
-    Reload,
+    Reload {
+        /// Apply the packs' migrations, which change the world (M8.5 7h6).
+        migrate: bool,
+    },
 }
 
 /// What the shell does after a control was used.

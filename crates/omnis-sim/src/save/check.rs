@@ -3,6 +3,7 @@
 //! that holds together, whether it can load or not; only a save that cannot be read, or was
 //! altered, is an error.
 
+use super::chain::{Chain, Offered};
 use super::disk::{Built, PackFit, Restored, build};
 use super::places::{self, PlaceWarning};
 use super::{Manifest, Missing, NameTable, fold_from, remap};
@@ -33,6 +34,11 @@ pub struct SaveCheck {
     /// The schema of an older save, converted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub converted_from: Option<u32>,
+    /// The packs' migrations leading on from the versions the save was made with (M8.5 7h6),
+    /// in order: offered when the verdict is `NeedsMigration`, else applied as they are, since
+    /// none finds anything of the save.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub migrations: Vec<Offered>,
 }
 
 /// Whether a save loads on the loaded packs, and how.
@@ -46,7 +52,10 @@ pub enum Verdict {
     Content,
     /// Other packs whose names moved: it loads by name, and the world moves on.
     Renamed,
-    /// It names what the loaded packs lack: it does not load.
+    /// The packs' migrations change it, and with them it loads: it loads when the player
+    /// applies them (M8.5 7h6).
+    NeedsMigration,
+    /// It names what the loaded packs lack, even through their migrations: it does not load.
     Unresolved,
     /// Other packs, and a save that keeps no names (before 7h2): only a forced load reads it,
     /// numbers as written.
@@ -54,7 +63,7 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    /// Whether `restore` loads it unforced.
+    /// Whether `restore` loads it unforced, without migrations.
     #[must_use]
     pub const fn loads(self) -> bool {
         matches!(self, Verdict::Same | Verdict::Content | Verdict::Renamed)
@@ -218,19 +227,30 @@ pub fn examine_running(world: &World, old: &Data, data: &Data) -> Examined {
     }
 }
 
-/// Fit `world`, numbered by `names`, to other packs: `Content` when every name is the same,
-/// else renumbered by name (`Renamed`) or `Unresolved` with what is missing; a world that fits
-/// has its places checked and fixed. Whether the fix changed the world.
+/// Fit `world`, numbered by `names` on the packs it records, to other packs, through their
+/// migrations: `Content` when every name is the same and no migration leads on, else
+/// renumbered by name (`Renamed`), `NeedsMigration` when a migration's step found something of
+/// it, or `Unresolved` with what is missing; a world that fits has its places checked and
+/// fixed. Whether the fix changed the world.
 fn refit(world: &mut World, names: &NameTable, data: &Data, report: &mut SaveCheck) -> bool {
     let now = NameTable::of(data);
-    report.verdict = if *names == now {
+    let chain = Chain::of(&world.packs, data);
+    report.migrations = chain.offered();
+    report.verdict = if *names == now && chain.is_empty() {
         Verdict::Content
     } else {
-        match remap::world(world, names, data) {
+        match remap::world(world, names, data, &chain) {
             Ok(()) => {
-                remap::log(&mut world.log, names, data);
+                remap::log(&mut world.log, names, data, &chain);
+                chain.places(world, data);
                 report.moved = names.moved(&now);
-                Verdict::Renamed
+                if chain.used() {
+                    Verdict::NeedsMigration
+                } else if *names == now {
+                    Verdict::Content
+                } else {
+                    Verdict::Renamed
+                }
             }
             Err(missing) => {
                 report.missing = missing;
@@ -241,6 +261,7 @@ fn refit(world: &mut World, names: &NameTable, data: &Data, report: &mut SaveChe
     if report.verdict == Verdict::Unresolved {
         return false;
     }
+    world.migrated.extend(chain.migrated());
     let checked = places::fix(world, data);
     report.places = checked.places;
     report.trimmed = checked.trimmed;
@@ -248,13 +269,15 @@ fn refit(world: &mut World, names: &NameTable, data: &Data, report: &mut SaveChe
 }
 
 /// Load what was examined: refused when it names what the packs lack, when it keeps no names
-/// unless `force`, and when the packs are not the ones it was examined against. On other packs
-/// the world records them; renumbered, or changed by the places check, it folds, its journal held for
-/// its old world's folder.
+/// unless `force`, when the packs' migrations change it unless `migrate` (the player's
+/// consent, M8.5 7h6), and when the packs are not the ones it was examined against. On other
+/// packs the world records them and the migrations it went through; renumbered, migrated, or
+/// changed by the places check, it folds, its journal held for its old world's folder.
 pub fn restore(
     examined: Examined,
     data: &Data,
     force: bool,
+    migrate: bool,
 ) -> Result<(World, Restored), LoadError> {
     let Examined {
         report,
@@ -270,6 +293,16 @@ pub fn restore(
         Verdict::Same => PackFit::Same,
         Verdict::Content => PackFit::Content,
         Verdict::Renamed => PackFit::Renumbered,
+        Verdict::NeedsMigration if migrate => PackFit::Migrated,
+        Verdict::NeedsMigration => {
+            return Err(LoadError::NeedsMigration(
+                report
+                    .migrations
+                    .iter()
+                    .map(|m| (m.pack.clone(), m.file.clone()))
+                    .collect(),
+            ));
+        }
         Verdict::Unresolved => return Err(LoadError::Unresolved(report.missing)),
         Verdict::Unnamed if force => PackFit::Forced,
         Verdict::Unnamed => return Err(LoadError::PackMismatch),
@@ -277,11 +310,14 @@ pub fn restore(
     let Some(mut world) = world.map(|w| *w) else {
         return Err(LoadError::PackMismatch);
     };
-    if matches!(fit, PackFit::Content | PackFit::Renumbered) {
+    if matches!(
+        fit,
+        PackFit::Content | PackFit::Renumbered | PackFit::Migrated
+    ) {
         world.packs.clone_from(&data.fingerprints);
     }
     let mut world = world.checked(data, fit == PackFit::Forced)?;
-    if fit == PackFit::Renumbered || fixed {
+    if matches!(fit, PackFit::Renumbered | PackFit::Migrated) || fixed {
         fold_from(&mut world, data, old);
     }
     let restored = Restored {

@@ -6,8 +6,12 @@
 //!
 //! The Debug page's **Reload packs** opens it too (M8.5 7h5), for fresh packs that lack a name
 //! the running world holds: the reload is refused and nothing changed.
+//!
+//! A save or a running world the packs' migrations change opens it to ask (M8.5 7h6): it lists
+//! each step, and **Apply and load** (or **Apply and reload**) applies them; Close changes
+//! nothing.
 
-use super::{Control, ControlId, Effect, Forms, Panel, Row, Screen, ScreenId, Span};
+use super::{Control, ControlId, Effect, Forms, HostOp, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::api::{PackStamp, SaveCheck, Verdict};
 
 /// How many rows of each list are shown; the rest are counted (`save_check` lists them all).
@@ -26,6 +30,9 @@ pub struct Refusal {
 struct Words {
     title: &'static str,
     lacks: &'static str,
+    moved_on: &'static str,
+    asks: &'static str,
+    apply: &'static str,
     was: &'static str,
     now: &'static str,
     lists: &'static str,
@@ -34,6 +41,9 @@ struct Words {
 const SAVE: Words = Words {
     title: "This save does not load",
     lacks: "It names what the loaded packs no longer have.",
+    moved_on: "These packs moved on",
+    asks: "The packs changed since this save, and their migrations change it. Apply them to load it; the world moves on.",
+    apply: "Apply and load",
     was: "saved",
     now: "loaded",
     lists: "save_check",
@@ -42,6 +52,9 @@ const SAVE: Words = Words {
 const RELOAD: Words = Words {
     title: "These packs do not load",
     lacks: "The world names what the reloaded packs no longer have. Nothing changed.",
+    moved_on: "These packs moved on",
+    asks: "The reloaded packs' migrations change the running world. Apply them to reload; nothing changes until then.",
+    apply: "Apply and reload",
     was: "running",
     now: "reloaded",
     lists: "pack_reload",
@@ -72,11 +85,16 @@ pub fn content(forms: &Forms) -> Screen {
         Some(r) if r.reload => &RELOAD,
         _ => &SAVE,
     };
+    let asks = forms
+        .load_report
+        .as_ref()
+        .is_some_and(|r| r.check.verdict == Verdict::NeedsMigration);
     if let Some(Refusal { check, .. }) = &forms.load_report {
         rows.push(Row::text(Span::alert(match check.verdict {
             Verdict::Unnamed => {
                 "Made with other packs before saves kept names: a forced load through the dev tools loads it as written."
             }
+            Verdict::NeedsMigration => words.asks,
             _ => words.lacks,
         })));
         packs(&mut rows, words, check);
@@ -88,14 +106,37 @@ pub fn content(forms: &Forms) -> Screen {
                 check.missing.iter().map(ToString::to_string),
             );
         }
+        if asks {
+            let steps: Vec<String> = check
+                .migrations
+                .iter()
+                .flat_map(|m| {
+                    m.steps
+                        .iter()
+                        .map(move |step| format!("{} {}: {step}", m.pack, m.file))
+                })
+                .collect();
+            rows.push(Row::text(Span::body("Migrations:")));
+            listed(&mut rows, words, steps.into_iter());
+            if !check.places.is_empty() {
+                rows.push(Row::text(Span::body("Then, places:")));
+                listed(
+                    &mut rows,
+                    words,
+                    check.places.iter().map(ToString::to_string),
+                );
+            }
+        }
     }
-    rows.push(Row::controls(vec![Control::button(
-        ControlId::Close,
-        "Close",
-    )]));
+    let mut controls = Vec::new();
+    if asks {
+        controls.push(Control::button(ControlId::Apply, words.apply));
+    }
+    controls.push(Control::button(ControlId::Close, "Close"));
+    rows.push(Row::controls(controls));
     Screen {
         id: ScreenId::LoadReport,
-        title: Span::title(words.title),
+        title: Span::title(if asks { words.moved_on } else { words.title }),
         panels: vec![Panel { rows }],
         keys: Vec::new(),
         message: None,
@@ -125,13 +166,26 @@ fn packs(rows: &mut Vec<Row>, words: &Words, check: &SaveCheck) {
     }
 }
 
-/// Close drops the report and goes back to the screen that asked for the load or the reload.
+/// Close drops the report and goes back to the screen that asked for the load or the reload;
+/// Apply, offered when the packs' migrations change the save or the world, loads or reloads
+/// again with them (the host closes this screen).
 pub fn apply(forms: &mut Forms, control: ControlId) -> Effect {
     match control {
         ControlId::Close => {
             forms.load_report = None;
             Effect::Back
         }
+        ControlId::Apply => match forms.load_report.take() {
+            Some(r) if r.check.verdict == Verdict::NeedsMigration => Effect::Host(if r.reload {
+                HostOp::Reload { migrate: true }
+            } else {
+                HostOp::Load { migrate: true }
+            }),
+            other => {
+                forms.load_report = other;
+                Effect::None
+            }
+        },
         _ => Effect::None,
     }
 }

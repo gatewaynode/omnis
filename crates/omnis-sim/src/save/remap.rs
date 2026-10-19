@@ -8,6 +8,7 @@
 //! refuses them all at once (nothing is dropped without a migration, owner 2026-10-15).
 
 use super::NameTable;
+use super::chain::Chain;
 use crate::bus::Topic;
 use crate::encounter::EncounterState;
 use crate::log::Logged;
@@ -23,6 +24,7 @@ use omnis_core::{
     MonsterId, PartyId, ProjectId, RaceId, RegionId, ServiceId, SpellId, StreamName,
 };
 use omnis_data::Data;
+use omnis_data::migration::{Kind, Target};
 use omnis_data::registry::{Interner, Registry};
 use omnis_rules::tactics::{Ids, Rename};
 use omnis_rules::{ActiveEffect, Character};
@@ -100,6 +102,7 @@ impl fmt::Display for Missing {
 /// An id the registry numbers, with its kind's list in a name table.
 trait Registered: Copy + From<u32> + Into<u32> {
     const KIND: NameKind;
+    const MIGRATION: Kind;
     fn old(names: &NameTable) -> &[String];
     fn new(registry: &Registry) -> &Interner<Self>;
 }
@@ -108,6 +111,7 @@ macro_rules! registered {
     ($($id:ty, $kind:ident, $field:ident;)*) => {$(
         impl Registered for $id {
             const KIND: NameKind = NameKind::$kind;
+            const MIGRATION: Kind = Kind::$kind;
             fn old(names: &NameTable) -> &[String] {
                 &names.$field
             }
@@ -132,13 +136,27 @@ registered! {
     ServiceId, Service, services;
 }
 
-/// Renumbers from one name table to the loaded packs, collecting what is missing.
+/// Renumbers from one name table to the loaded packs, through the save's migrations,
+/// collecting what is missing.
 struct Remapper<'a> {
     old: &'a NameTable,
     data: &'a Data,
+    chain: &'a Chain<'a>,
     missing: RefCell<Vec<Missing>>,
     /// Where the tactics being renamed are, for `Rename`'s calls.
     here: RefCell<String>,
+    /// The name a migration removed that `Rename` last met, for the tactics that name it.
+    removed: RefCell<Option<(NameKind, String)>>,
+}
+
+/// A saved number found again.
+enum Found<I> {
+    /// Its number on the loaded packs.
+    To(I),
+    /// A migration removed it: its name.
+    Removed(String),
+    /// The loaded packs lack it: its name.
+    Missing(String),
 }
 
 impl Remapper<'_> {
@@ -156,20 +174,61 @@ impl Remapper<'_> {
         I::old(self.old).get(index).map(String::as_str)
     }
 
-    /// `id`'s number on the loaded packs; missing, it is noted and kept.
-    fn id<I: Registered>(&self, id: I, at: &str) -> I {
-        let name = self.name_of(id);
-        if let Some(new) = name.and_then(|n| I::new(&self.data.registry).get(n)) {
-            return new;
-        }
-        let name = name.map_or_else(|| format!("#{}", id.into()), String::from);
-        self.miss(I::KIND, name, at);
-        id
+    /// `id` found again on the loaded packs, through the save's migrations.
+    fn found<I: Registered>(&self, id: I) -> Found<I> {
+        let Some(name) = self.name_of(id) else {
+            return Found::Missing(format!("#{}", id.into()));
+        };
+        let name = match self.chain.name(I::MIGRATION, name) {
+            Some(Target::Removed) => return Found::Removed(name.into()),
+            Some(Target::To(to)) => to.as_str(),
+            None => name,
+        };
+        I::new(&self.data.registry)
+            .get(name)
+            .map_or_else(|| Found::Missing(name.into()), Found::To)
     }
 
-    fn items(&self, items: &mut [(ItemId, u16)], at: &str) {
-        for (item, _) in items {
-            *item = self.id(*item, at);
+    /// `id`'s number on the loaded packs, where the world cannot do without it; missing or
+    /// removed, it is noted and kept.
+    fn id<I: Registered>(&self, id: I, at: &str) -> I {
+        match self.found(id) {
+            Found::To(new) => new,
+            Found::Removed(name) => {
+                self.miss(I::KIND, name, &format!("{at} (removed by a migration)"));
+                id
+            }
+            Found::Missing(name) => {
+                self.miss(I::KIND, name, at);
+                id
+            }
+        }
+    }
+
+    /// `id` renumbered in a list that can do without it: false when a migration removed it.
+    fn keep<I: Registered>(&self, id: &mut I, at: &str) -> bool {
+        match self.found(*id) {
+            Found::To(new) => *id = new,
+            Found::Removed(_) => return false,
+            Found::Missing(name) => self.miss(I::KIND, name, at),
+        }
+        true
+    }
+
+    /// A list of stacks renumbered, a removed item's stack gone. Stacks of one item stay apart,
+    /// as a starting kit keeps them.
+    fn items(&self, items: &mut Vec<(ItemId, u16)>, at: &str) {
+        items.retain_mut(|(item, _)| self.keep(item, at));
+    }
+
+    /// A criteria set renamed failed only on a removed name: what it needs is missing.
+    fn criteria_lost(&self) {
+        if let Some((kind, name)) = self.removed.borrow_mut().take() {
+            let at = format!(
+                "{} (removed by a migration, named by its criteria)",
+                self.here.borrow()
+            );
+            self.miss(kind, name, &at);
         }
     }
 
@@ -197,10 +256,8 @@ impl Remapper<'_> {
         }
     }
 
-    fn effects(&self, effects: &mut [ActiveEffect], at: &str) {
-        for effect in effects {
-            effect.source = self.id(effect.source, at);
-        }
+    fn effects(&self, effects: &mut Vec<ActiveEffect>, at: &str) {
+        effects.retain_mut(|effect| self.keep(&mut effect.source, at));
     }
 
     fn member(&self, m: &mut Character, at: &str) {
@@ -208,36 +265,50 @@ impl Remapper<'_> {
         m.class = self.id(m.class, &format!("{at}.class"));
         m.background = self.id(m.background, &format!("{at}.background"));
         let spells = format!("{at}.known_spells");
-        for spell in m.known_spells.iter_mut().chain(&mut m.legacy_auto_cast) {
-            *spell = self.id(*spell, &spells);
-        }
+        let known = m.known_spells.len();
+        m.known_spells.retain_mut(|spell| self.keep(spell, &spells));
+        let mut seen = BTreeSet::new();
+        m.known_spells.retain(|spell| seen.insert(*spell));
+        // A removed spell, or one replaced by a spell already known, gives its pick back;
+        // nothing else is refunded (owner, 2026-10-15).
+        let given = u8::try_from(known - m.known_spells.len()).unwrap_or(u8::MAX);
+        m.spell_picks = m.spell_picks.saturating_add(given);
+        m.legacy_auto_cast
+            .retain_mut(|spell| self.keep(spell, &spells));
         self.items(&mut m.equipment, &format!("{at}.equipment"));
         let conditions = format!("{at}.conditions");
-        for condition in &mut m.conditions {
-            *condition = self.id(*condition, &conditions);
-        }
+        m.conditions
+            .retain_mut(|condition| self.keep(condition, &conditions));
         let equipped = format!("{at}.equipped");
-        for item in m.equipped.values_mut() {
-            *item = self.id(*item, &equipped);
-        }
+        m.equipped.retain(|_, item| self.keep(item, &equipped));
         self.effects(&mut m.effects, &format!("{at}.effects"));
         let tactics = &mut m.tactics;
         for (i, set) in tactics.library.iter_mut().enumerate() {
             *self.here.borrow_mut() = format!("{at}.tactics.library[{i}]");
-            if let Ok(mapped) = set.map(self) {
-                *set = mapped;
+            match set.map(self) {
+                Ok(mapped) => *set = mapped,
+                Err(_) => self.criteria_lost(),
             }
         }
         for (i, book) in tactics.runbooks.iter_mut().enumerate() {
             *self.here.borrow_mut() = format!("{at}.tactics.runbooks[{i}]");
-            if let Some(Ok(when)) = book.when.as_ref().map(|w| w.map(self)) {
-                book.when = Some(when);
+            match book.when.as_ref().map(|w| w.map(self)) {
+                Some(Ok(when)) => book.when = Some(when),
+                Some(Err(_)) => self.criteria_lost(),
+                None => {}
             }
-            for (action, _) in &mut book.entries {
-                if let Ok(mapped) = action.map(self) {
-                    *action = mapped;
-                }
-            }
+            // An action naming a removed spell or item leaves the runbook.
+            book.entries
+                .retain_mut(|(action, _)| match action.map(self) {
+                    Ok(mapped) => {
+                        *action = mapped;
+                        true
+                    }
+                    Err(_) => {
+                        self.removed.borrow_mut().take();
+                        false
+                    }
+                });
         }
     }
 
@@ -341,18 +412,36 @@ impl Remapper<'_> {
     }
 }
 
+impl Remapper<'_> {
+    /// A name in tactics: renumbered, or missing and noted; a removed one is `Err`, for the
+    /// caller to drop the action or note the criteria.
+    fn tactic<I: Registered>(&self, id: I) -> Result<I, String> {
+        match self.found(id) {
+            Found::To(new) => Ok(new),
+            Found::Removed(name) => {
+                *self.removed.borrow_mut() = Some((I::KIND, name.clone()));
+                Err(name)
+            }
+            Found::Missing(name) => {
+                self.miss(I::KIND, name, &self.here.borrow());
+                Ok(id)
+            }
+        }
+    }
+}
+
 impl Rename<Ids, Ids> for Remapper<'_> {
     fn spell(&self, spell: &SpellId) -> Result<SpellId, String> {
-        Ok(self.id(*spell, &self.here.borrow()))
+        self.tactic(*spell)
     }
     fn item(&self, item: &ItemId) -> Result<ItemId, String> {
-        Ok(self.id(*item, &self.here.borrow()))
+        self.tactic(*item)
     }
     fn monster(&self, monster: &MonsterId) -> Result<MonsterId, String> {
-        Ok(self.id(*monster, &self.here.borrow()))
+        self.tactic(*monster)
     }
     fn condition(&self, condition: &ConditionId) -> Result<ConditionId, String> {
-        Ok(self.id(*condition, &self.here.borrow()))
+        self.tactic(*condition)
     }
 }
 
@@ -373,17 +462,27 @@ fn holder_of(kind: &str, number: &str) -> Option<HolderId> {
 /// anew, so two numbers that trade places never meet. The bus's region subscriptions are the
 /// loaded packs' (`time::subscriptions`); its other topics are kept. Refused, every name the
 /// packs lack is listed and the world is left half-renumbered: the caller drops it.
-pub(crate) fn world(world: &mut World, old: &NameTable, data: &Data) -> Result<(), Vec<Missing>> {
+pub(crate) fn world(
+    world: &mut World,
+    old: &NameTable,
+    data: &Data,
+    chain: &Chain<'_>,
+) -> Result<(), Vec<Missing>> {
     let r = Remapper {
         old,
         data,
+        chain,
         missing: RefCell::new(Vec::new()),
         here: RefCell::new(String::new()),
+        removed: RefCell::new(None),
     };
     world.position.map = r.id(world.position.map, "position");
     let mut maps = BTreeMap::new();
     for (map, mut state) in core::mem::take(&mut world.maps) {
-        let new = r.id(map, "maps");
+        let mut new = map;
+        if !r.keep(&mut new, "maps") {
+            continue;
+        }
         r.map_state(
             new,
             &mut state,
@@ -395,14 +494,20 @@ pub(crate) fn world(world: &mut World, old: &NameTable, data: &Data) -> Result<(
     let automap = &mut world.automap;
     let mut tiles = BTreeMap::new();
     for (map, mut known) in core::mem::take(&mut automap.maps) {
-        let new = r.id(map, "automap");
+        let mut new = map;
+        if !r.keep(&mut new, "automap") {
+            continue;
+        }
         r.tiles(map, new, &mut known, "automap");
         tiles.insert(new, known);
     }
     automap.maps = tiles;
     let mut levels = BTreeMap::new();
     for ((map, level), mut known) in core::mem::take(&mut automap.levels) {
-        let new = r.id(map, "automap.levels");
+        let mut new = map;
+        if !r.keep(&mut new, "automap.levels") {
+            continue;
+        }
         r.tiles(map, new, &mut known, "automap.levels");
         levels.insert((new, level), known);
     }
@@ -415,13 +520,13 @@ pub(crate) fn world(world: &mut World, old: &NameTable, data: &Data) -> Result<(
     ] {
         *set = core::mem::take(set)
             .into_iter()
-            .map(|(map, id)| (r.id(map, at), id))
+            .filter_map(|(mut map, id)| r.keep(&mut map, at).then_some((map, id)))
             .collect();
     }
     r.mode(&mut world.mode);
     world.flags = core::mem::take(&mut world.flags)
         .into_iter()
-        .map(|(flag, value)| (r.id(flag, "flags"), value))
+        .filter_map(|(mut flag, value)| r.keep(&mut flag, "flags").then_some((flag, value)))
         .collect();
     world.clocks = core::mem::take(&mut world.clocks)
         .into_iter()
@@ -461,11 +566,16 @@ pub(crate) fn world(world: &mut World, old: &NameTable, data: &Data) -> Result<(
 /// The map a log line was said on, renumbered; a map the packs no longer have becomes a number
 /// no loaded map has, so the line is kept and retold with its objects unnamed (owner,
 /// 2026-10-18).
-pub(crate) fn log(log: &mut [Logged], old: &NameTable, data: &Data) {
+pub(crate) fn log(log: &mut [Logged], old: &NameTable, data: &Data, chain: &Chain<'_>) {
     for line in log {
         let name = usize::try_from(line.map.0)
             .ok()
-            .and_then(|i| old.maps.get(i));
+            .and_then(|i| old.maps.get(i))
+            .and_then(|n| match chain.lead(Kind::Map, n) {
+                Some(Target::To(to)) => Some(to),
+                Some(Target::Removed) => None,
+                None => Some(n),
+            });
         line.map = name
             .and_then(|n| data.registry.maps.get(n))
             .unwrap_or(MapId(u32::MAX));

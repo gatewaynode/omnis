@@ -1,0 +1,11 @@
+// 0.1.0 to 0.2.0: the old sword renamed (on its way to `chain:item:sword`), the junk gone, the
+// chest renamed.
+(
+    schema: 1,
+    to: "0.2.0",
+    steps: [
+        Rename(kind: item, from: "chain:item:old_sword", to: "chain:item:mid_sword"),
+        Remove(kind: item, id: "chain:item:junk"),
+        RenameObject(map: "chain:map:hall", from: "chest_1", to: "coffer"),
+    ],
+)

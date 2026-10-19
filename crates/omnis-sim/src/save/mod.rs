@@ -4,6 +4,7 @@
 //! pure and inverse: `join(split(w))` is `w` but for the log and the journal, which a save does
 //! not keep in these parts. Registry numbers are kept until saves name things by id (7h).
 
+mod chain;
 mod character;
 mod check;
 mod disk;
@@ -17,11 +18,14 @@ pub(crate) mod rows;
 mod split;
 mod tidy;
 
+pub use chain::{Migrated, Offered};
 pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
 pub use check::{
     Examined, PackChange, PackStamp, SaveCheck, Verdict, examine, examine_running, restore,
 };
-pub use disk::{FileOut, PackFit, Restored, WORLDS, archive_path, load_save, save_files};
+pub use disk::{
+    FileOut, PackFit, Restored, WORLDS, archive_path, load_save, load_save_with, save_files,
+};
 pub(crate) use fold::fold_from;
 pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, Segment, due, fold, fold_at};
 pub use join::{JoinError, join};

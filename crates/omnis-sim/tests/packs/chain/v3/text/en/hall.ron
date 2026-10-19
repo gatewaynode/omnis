@@ -1,0 +1,8 @@
+(
+    schema: 1,
+    entries: {
+        "chain:text:map.hall.name": "Chain Hall",
+        "chain:text:region.hall.name": "Chain Hall",
+        "chain:text:item.sword.name": "Sword",
+    },
+)

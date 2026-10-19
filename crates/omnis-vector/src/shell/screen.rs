@@ -584,14 +584,17 @@ fn host_op(
                 report(screens, outcome);
             }
         }
-        HostOp::Load => {
+        HostOp::Load { migrate } => {
             let data = session
                 .as_deref()
                 .map_or_else(|| host.packs.data.clone(), |s| s.data.clone());
+            if migrate && screens.nav.is_open(ScreenId::LoadReport) {
+                screens.nav.back();
+            }
             // Examined first (M8.5 7h4): a save that loads, loads at once; one that does not
-            // opens the report.
+            // opens the report, and one the packs' migrations change asks first (7h6).
             let loaded = match game_io::examine(&data, root(), &save) {
-                Ok(opened) if !opened.report().verdict.loads() => {
+                Ok(opened) if !opened.report().verdict.loads() && !migrate => {
                     screens.forms.load_report = Some(Refusal {
                         check: opened.into_report(),
                         reload: false,
@@ -600,7 +603,7 @@ fn host_op(
                     screens.nav.open(ScreenId::LoadReport, views);
                     return;
                 }
-                Ok(opened) => opened.load(&data),
+                Ok(opened) => opened.load(&data, migrate),
                 Err(e) => Err(e),
             };
             match loaded {
@@ -635,10 +638,14 @@ fn host_op(
                 report(screens, outcome);
             }
         }
-        HostOp::Reload => {
+        HostOp::Reload { migrate } => {
+            if migrate && screens.nav.is_open(ScreenId::LoadReport) {
+                screens.nav.back();
+            }
             if let Some(session) = session.as_deref_mut() {
-                // Refused for a name the fresh packs lack: the Load screen lists them.
-                match Packs::load(&session.config).map(|p| session.reload(p.data)) {
+                // Refused for a name the fresh packs lack, or for migrations not yet applied:
+                // the Load screen lists them.
+                match Packs::load(&session.config).map(|p| session.reload(p.data, migrate)) {
                     Ok(Ok(check)) => {
                         let said = game_io::reloaded(&check).swap_remove(0);
                         report(screens, Ok(said));

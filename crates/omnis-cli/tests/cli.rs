@@ -219,3 +219,167 @@ fn world_tidy_lists_then_deletes_with_yes() {
     assert!(ok, "{out}");
     assert!(!stray.exists(), "{out}");
 }
+
+fn fixture(name: &str) -> PathBuf {
+    repo().join("crates/omnis-sim/tests/packs").join(name)
+}
+
+fn copy(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// `migration draft` (M8.5 7h6): the `chain` fixture's 0.3.0 without its migrations, drafted
+/// from 0.1.0: each item and spell gone as a `Remove` with the `Rename` to write instead, the
+/// chest and the rats as comments; the draft loads once resealed.
+#[test]
+fn migration_draft_writes_each_name_gone_as_a_remove() {
+    let new = scratch("cli-draft").join("chain");
+    copy(&fixture("chain/v3"), &new);
+    std::fs::remove_dir_all(new.join("migrations")).unwrap();
+    let new_dir = new.to_str().unwrap();
+    assert!(cli(&["pack", "seal", new_dir, "--version", "0.3.0"]).0);
+    let deps = [
+        "--pack",
+        "packs/base",
+        "--pack",
+        "packs/test",
+        "--pack",
+        "crates/omnis-sim/tests/packs/objects",
+    ];
+    let from = "crates/omnis-sim/tests/packs/chain/v1";
+    let mut args = vec!["migration", "draft", "--from", from, "--to", new_dir];
+    args.extend(deps);
+    let (ok, out, err) = cli(&args);
+    assert!(ok, "{out}{err}");
+    assert!(out.contains("0001.ron: 4 steps, 2 to decide"), "{out}");
+    let text = std::fs::read_to_string(new.join("migrations/0001.ron")).unwrap();
+    for line in [
+        "to: \"0.3.0\"",
+        "        // or: Rename(kind: item, from: \"chain:item:old_sword\", to: \"<its new id>\"),",
+        "        Remove(kind: item, id: \"chain:item:old_sword\"),",
+        "        Remove(kind: item, id: \"chain:item:junk\"),",
+        "        Remove(kind: spell, id: \"chain:spell:fading\"),",
+        "        Remove(kind: spell, id: \"chain:spell:old_bolt\"),",
+        "        // encounter 'rats' is gone from chain:map:hall; if it was renamed:",
+        "        // RenameObject(map: \"chain:map:hall\", from: \"chest_1\", to: \"<its new id>\"),",
+    ] {
+        assert!(text.contains(line), "{line}\n{text}");
+    }
+    assert!(
+        !text.contains("chain:item:sword\""),
+        "never a guessed rename: {text}"
+    );
+    let (ok, _, err) = cli(&args);
+    assert!(!ok, "the pack changed: it must be resealed first");
+    assert!(err.contains("reseal"), "{err}");
+    assert!(cli(&["pack", "seal", new_dir]).0);
+    let mut validate = vec!["validate", "packs/base", "packs/test"];
+    validate.push("crates/omnis-sim/tests/packs/objects");
+    validate.push(new_dir);
+    let (ok, out, err) = cli(&validate);
+    assert!(ok, "the draft loads: {out}{err}");
+}
+
+/// `save check` (M8.5 7h6): a save made on `chain` 0.1.0 holding the old sword, examined on
+/// 0.3.0, asks for its migrations and loads with them; on packs without `chain` it does not
+/// load, and the command fails.
+#[test]
+fn save_check_prints_the_report_and_fails_when_the_save_does_not_load() {
+    let root = scratch("cli-save-check");
+    let old = load_packs(&[
+        &repo().join("packs/base"),
+        &repo().join("packs/test"),
+        &fixture("objects"),
+        &fixture("chain/v1"),
+    ])
+    .unwrap();
+    let mut world = omnis_sim::World::new(&old, 3, Settings::default()).unwrap();
+    let sword = old.registry.items.get("chain:item:old_sword").unwrap();
+    world.party.inventory.push((sword, 1));
+    for file in omnis_sim::save::save_files(&world, &old, "saves/a.ron").unwrap() {
+        let path = root.join(&file.path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, file.text).unwrap();
+    }
+    let run = |chain: bool| {
+        let mut args = vec![
+            "save".to_owned(),
+            "check".to_owned(),
+            "saves/a.ron".to_owned(),
+        ];
+        let mut packs = vec![
+            repo().join("packs/base"),
+            repo().join("packs/test"),
+            fixture("objects"),
+        ];
+        if chain {
+            packs.push(fixture("chain/v3"));
+        }
+        for p in packs {
+            args.push("--pack".into());
+            args.push(p.to_string_lossy().into_owned());
+        }
+        let out = Command::new(env!("CARGO_BIN_EXE_omnis-cli"))
+            .current_dir(&root)
+            .args(&args)
+            .output()
+            .expect("the binary runs");
+        (
+            out.status.success(),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+        )
+    };
+    let (ok, out) = run(true);
+    assert!(ok, "{out}");
+    for line in [
+        "verdict: NeedsMigration",
+        "pack chain: saved 0.1.0, loaded 0.3.0",
+        "migration chain 0001.ron (to 0.2.0): item 'chain:item:old_sword' is now 'chain:item:mid_sword'",
+    ] {
+        assert!(out.contains(line), "{line}\n{out}");
+    }
+    let (ok, out) = run(false);
+    assert!(!ok, "{out}");
+    assert!(out.contains("verdict: Unresolved"), "{out}");
+    assert!(
+        out.contains("missing: item 'chain:item:old_sword' in party.inventory"),
+        "{out}"
+    );
+}
+
+/// A race, class, background or region gone cannot be removed: the draft leaves it open, a
+/// commented `Rename` with why, and counts it.
+#[test]
+fn migration_draft_leaves_what_cannot_be_removed_open() {
+    let load = |chain: &str| {
+        load_packs(&[
+            &repo().join("packs/base"),
+            &repo().join("packs/test"),
+            &fixture("objects"),
+            &fixture(chain),
+        ])
+        .unwrap()
+    };
+    let (mut old, mut new) = (load("chain/v1"), load("chain/v3"));
+    old.registry.races.intern("chain:race:gone");
+    new.migrations.clear();
+    let draft = omnis_cli::draft::draft("chain", &old, &new).unwrap();
+    assert!(
+        draft.text.contains(
+            "        // A race cannot be removed: rename or replace it.\n        // Rename(kind: race, from: \"chain:race:gone\""
+        ),
+        "{}",
+        draft.text
+    );
+    assert!(!draft.text.contains("Remove(kind: race"), "{}", draft.text);
+    assert_eq!((draft.steps, draft.open), (4, 3));
+}

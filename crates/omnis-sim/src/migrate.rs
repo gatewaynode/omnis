@@ -68,6 +68,7 @@ pub(crate) fn v1_to_v2(old: WorldV1) -> World {
         journal: crate::journal::Journal::default(),
         origin: None,
         archive: Vec::new(),
+        migrated: Vec::new(),
     }
 }
 

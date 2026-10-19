@@ -67,6 +67,9 @@ pub enum PackFit {
     /// Other packs, and a save with no name table (before 7h2), loaded forced with its
     /// numbers as written.
     Forced,
+    /// Other packs whose migrations changed it, applied with the player's consent (M8.5 7h6):
+    /// renumbered by name through them and folded.
+    Migrated,
 }
 
 /// The path of a region's base: its string id's pack and name as folders.
@@ -179,6 +182,7 @@ pub fn save_files(world: &World, data: &Data, save_path: &str) -> Result<Vec<Fil
         journal: world.journal.clone(),
         fingerprint: world.fingerprint().map_err(|e| failed(&e))?,
         archive,
+        migrated: world.migrated.clone(),
         log: world
             .log
             .iter()
@@ -241,7 +245,19 @@ pub fn load_save(
     force: bool,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
 ) -> Result<(World, Restored), LoadError> {
-    restore(examine_with(text, data, force, read)?, data, force)
+    load_save_with(text, data, force, false, read)
+}
+
+/// `load_save`, with `migrate` applying the packs' migrations when they change the save
+/// (M8.5 7h6): the player's consent, which `save.read migrate` gives.
+pub fn load_save_with(
+    text: &str,
+    data: &Data,
+    force: bool,
+    migrate: bool,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Result<(World, Restored), LoadError> {
+    restore(examine_with(text, data, force, read)?, data, force, migrate)
 }
 
 /// A save rebuilt in its own numbering, not yet fitted to the loaded packs.
@@ -374,6 +390,7 @@ pub(crate) fn build(
             })
         })
         .collect();
+    world.migrated = save.migrated;
     world.log = save.log;
     super::rows::log(data, &mut world.log);
     crate::log::bound(&mut world.log);

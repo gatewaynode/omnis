@@ -91,6 +91,7 @@ pub(crate) fn assemble(split: Split) -> Result<World, JoinError> {
         journal: Journal::default(),
         origin: None,
         archive: Vec::new(),
+        migrated: Vec::new(),
     };
     merge(&mut world.flags, base.flags, "the flag")?;
     hold(&mut world, checkpoint.holdings)?;

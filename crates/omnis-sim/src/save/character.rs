@@ -52,6 +52,10 @@ pub struct CharacterSave {
         deserialize_with = "segments"
     )]
     pub archive: Vec<Segment>,
+    /// The pack migrations the world went through, oldest first (M8.5 7h6), as a database
+    /// keeps its migrations table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub migrated: Vec<super::Migrated>,
     /// The party's log, oldest first (M8.5 7f): the newest `LOG_CAPACITY` events, stamped.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub log: Vec<Logged>,

@@ -243,12 +243,18 @@ impl SimWorld {
     }
 
     /// Take freshly loaded packs in place of `old`, the ones it runs on (`api::reload`, M8.5
-    /// 7h5): the world is fitted to them by name, or nothing changes.
+    /// 7h5): the world is fitted to them by name, through their migrations with `migrate`
+    /// (7h6), or nothing changes.
     ///
     /// # Errors
     /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
-    pub fn reload(&mut self, old: &Data, fresh: &Data) -> Result<SaveCheck, ReloadRefused> {
-        reload(&mut self.0, old, fresh)
+    pub fn reload(
+        &mut self,
+        old: &Data,
+        fresh: &Data,
+        migrate: bool,
+    ) -> Result<SaveCheck, ReloadRefused> {
+        reload(&mut self.0, old, fresh, migrate)
     }
 
     /// Put a loaded world in place of this one.

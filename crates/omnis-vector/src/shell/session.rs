@@ -633,8 +633,8 @@ impl Session {
     ///
     /// # Errors
     /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
-    pub fn reload(&mut self, fresh: Arc<Data>) -> Result<SaveCheck, ReloadRefused> {
-        let check = self.world.reload(&self.data, &fresh)?;
+    pub fn reload(&mut self, fresh: Arc<Data>, migrate: bool) -> Result<SaveCheck, ReloadRefused> {
+        let check = self.world.reload(&self.data, &fresh, migrate)?;
         let before = self.views.position;
         self.data = fresh;
         self.refresh();

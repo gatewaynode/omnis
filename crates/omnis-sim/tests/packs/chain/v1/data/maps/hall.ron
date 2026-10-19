@@ -1,0 +1,33 @@
+// The chain fixture's hall (version 0.1.0: the party's cell (2, 1) is grass). Not shipped.
+(
+    schema: 1,
+    id: "chain:map:hall",
+    name: "chain:text:map.hall.name",
+    kind: Outdoor,
+    tileset: "test:tileset:outdoor",
+    width: 5,
+    height: 3,
+    start: (0, 1, East),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"),
+    door: "gate",
+    door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+        (glyph: 'T', name: "trees", floor: "grass", ceiling: None, block: Some("trees"), passable: false, opaque: true, visibility_depth: 6, step_minutes: 4),
+    ],
+    layout: [
+        "+-+-+-+-+-+",
+        "|g g g g g|",
+        "+ + + + + +",
+        "|g g g g g|",
+        "+ + + + + +",
+        "|g g g g g|",
+        "+-+-+-+-+-+",
+    ],
+    objects: [
+        (id: "chest_1", kind: "objects:object:chest", x: 1, y: 0, pos: (0, -2), facing: South, contents: [("base:item:dagger", 1)]),
+    ],
+    encounters: [
+        (id: "rats", x: 4, y: 2, stacks: [("objects:monster:pack_rat", 1)], once: true),
+    ],
+)

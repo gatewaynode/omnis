@@ -51,6 +51,7 @@ fn headless_writes_reads_and_reloads() {
         .handle(&Op::SaveRead {
             path: path.into(),
             force: false,
+            migrate: false,
         })
         .unwrap()
     else {
@@ -71,13 +72,14 @@ fn headless_writes_reads_and_reloads() {
     assert!(matches!(
         game.handle(&Op::SaveRead {
             path: "saves/none.ron".into(),
-            force: false
+            force: false,
+            migrate: false,
         }),
         Err(OpError::Failed { .. })
     ));
 
     let before = game.world.clone();
-    let Reply::Done { check } = game.handle(&Op::PackReload).unwrap() else {
+    let Reply::Done { check } = game.handle(&Op::PackReload { migrate: false }).unwrap() else {
         panic!("a reload answers done");
     };
     assert_eq!(
@@ -101,6 +103,46 @@ fn headless_writes_reads_and_reloads() {
         Headless::new(vec![dir.join("no-such-pack")], 1).is_err(),
         "missing packs are an error, not a panic"
     );
+    // M8.5 7h6: a save the packs' migrations change loads only with `migrate`.
+    let fixture = |name: &str| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../omnis-sim/tests/packs")
+            .join(name)
+    };
+    let chain = |v: &str| {
+        vec![
+            base_pack(),
+            test_pack(),
+            fixture("objects"),
+            fixture(&format!("chain/{v}")),
+        ]
+    };
+    let mut old = Headless::new(chain("v1"), 1).unwrap();
+    let sword = old.data.registry.items.get("chain:item:old_sword").unwrap();
+    old.world.party.inventory.push((sword, 1));
+    old.handle(&Op::SaveWrite {
+        path: "saves/chain.ron".into(),
+    })
+    .unwrap();
+    let mut new = Headless::new(chain("v3"), 1).unwrap();
+    let read = |migrate| Op::SaveRead {
+        path: "saves/chain.ron".into(),
+        force: false,
+        migrate,
+    };
+    assert!(
+        matches!(new.handle(&read(false)), Err(OpError::Failed { message }) if message.contains("migrate")),
+        "asks first"
+    );
+    assert!(matches!(new.handle(&read(true)), Ok(Reply::Status(_))));
+    let names: Vec<&str> = new
+        .world
+        .party
+        .inventory
+        .iter()
+        .filter_map(|(i, _)| new.data.registry.items.name(*i))
+        .collect();
+    assert_eq!(names, ["chain:item:sword"]);
 }
 
 #[test]

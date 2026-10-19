@@ -22,6 +22,7 @@ mod items;
 mod journal;
 mod levels;
 mod loot;
+mod migrations;
 mod monster_cast;
 mod movement;
 mod notice;

@@ -127,6 +127,9 @@ pub enum Op {
         /// Skip the pack fingerprint check.
         #[serde(default)]
         force: bool,
+        /// Apply the packs' migrations when they change the save (M8.5 7h6).
+        #[serde(default)]
+        migrate: bool,
     },
     /// Host: what the loaded packs make of a save, changing nothing (M8.5 7h4).
     #[serde(rename = "save.check")]
@@ -136,7 +139,11 @@ pub enum Op {
     },
     /// Host: reload the packs from disk, keeping the world.
     #[serde(rename = "pack.reload")]
-    PackReload,
+    PackReload {
+        /// Apply the packs' migrations when they change the world (M8.5 7h6).
+        #[serde(default)]
+        migrate: bool,
+    },
     /// Host, game only: save a PNG of the canvas, or of everything the window shows.
     #[serde(rename = "screenshot")]
     Screenshot {
@@ -222,7 +229,7 @@ impl Op {
             Op::SaveWrite { .. }
                 | Op::SaveRead { .. }
                 | Op::SaveCheck { .. }
-                | Op::PackReload
+                | Op::PackReload { .. }
                 | Op::Screenshot { .. }
                 | Op::ScreenText
                 | Op::RulesSet { .. }
@@ -627,7 +634,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::SaveWrite { .. }
         | Op::SaveRead { .. }
         | Op::SaveCheck { .. }
-        | Op::PackReload
+        | Op::PackReload { .. }
         | Op::Screenshot { .. }
         | Op::ScreenText
         | Op::RulesSet { .. } => Err(OpError::HostOnly),
@@ -698,14 +705,21 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
 /// as a save made on `old`, the packs it runs on, would be on load (`save::examine_running`,
 /// `save::restore`): the same packs change nothing; other packs are recorded; moved names
 /// renumber it and fold it, its journal held for `old`'s folder; places the maps no longer
-/// allow are fixed and reported. Refused, nothing changes; the host swaps its data only on `Ok`.
+/// allow are fixed and reported. Migrations leading on from the running packs' versions apply
+/// as a load's do (M8.5 7h6): when they change the world, only with `migrate`. Refused, nothing
+/// changes; the host swaps its data only on `Ok`.
 ///
 /// # Errors
 /// A name the fresh packs lack, or a world they cannot hold, with the report.
-pub fn reload(world: &mut World, old: &Data, fresh: &Data) -> Result<SaveCheck, ReloadRefused> {
+pub fn reload(
+    world: &mut World,
+    old: &Data,
+    fresh: &Data,
+    migrate: bool,
+) -> Result<SaveCheck, ReloadRefused> {
     let examined = examine_running(world, old, fresh);
     let check = examined.report().clone();
-    match restore(examined, fresh, false) {
+    match restore(examined, fresh, false, migrate) {
         Ok((next, _)) => {
             *world = next;
             Ok(check)

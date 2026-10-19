@@ -27,8 +27,12 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
             game_io::save(&session.world, &session.data, root, path)?;
             Ok(Reply::Written { path: path.clone() })
         }
-        Op::SaveRead { path, force } => {
-            let loaded = game_io::load(&session.data, root, path, *force)?;
+        Op::SaveRead {
+            path,
+            force,
+            migrate,
+        } => {
+            let loaded = game_io::load(&session.data, root, path, *force, *migrate)?;
             let lines = loaded.lines(path);
             session.replace(loaded.world, &format!("the save {path} was loaded"));
             for line in lines {
@@ -40,9 +44,9 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
             let check = game_io::examine(&session.data, root, path)?.into_report();
             Ok(Reply::Check { check })
         }
-        Op::PackReload => {
+        Op::PackReload { migrate } => {
             let fresh = Packs::load(&session.config).map_err(OpError::failed)?.data;
-            let check = session.reload(fresh)?;
+            let check = session.reload(fresh, *migrate)?;
             Ok(Reply::Done { check })
         }
         Op::RulesSet { slot, source } => {

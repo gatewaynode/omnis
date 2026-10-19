@@ -213,9 +213,9 @@ socket and the bridge (malformed request).
 | `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
-| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.read` | `path`, `force` (default false), `migrate` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, the packs' migrations change it and `migrate` is not given (each file named), inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
 | `save.check` | `path` (relative `.ron`) | `check` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. What the loaded packs make of a save, changing nothing (`save::examine`): a `SaveCheck` for every save that holds together, whether it would load or not (§7.11) |
-| `pack.reload` | none | `done` | `Failed` (packs do not load; they lack a name the world holds, each listed; they cannot hold the world; nothing changes) | host. The running world fitted to the packs on disk by name, as a save made on the packs it runs on would be on load (`ops::reload`, M8.5 7h5): the `check` says how, and each place changed |
+| `pack.reload` | `migrate` (default false; `args` may be left out) | `done` | `Failed` (packs do not load; they lack a name the world holds, each listed; their migrations change the world and `migrate` is not given; they cannot hold the world; nothing changes) | host. The running world fitted to the packs on disk by name, through their migrations, as a save made on the packs it runs on would be on load (`ops::reload`, M8.5 7h5, 7h6): the `check` says how, and each place changed |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
 
@@ -324,19 +324,23 @@ run:
   path into its text; `Restored { applied, converted_from, fit }` says how many interactions were laid,
   whether an old save was converted, and how its packs fit the loaded ones (`PackFit`: `Same`;
   `Content`, other packs with the same names; `Renumbered`, loaded by name and folded; `Forced`, a save
-  with no name table loaded on other packs with `force`). A name the loaded packs lack refuses the load
-  with `LoadError::Unresolved(Vec<Missing>)`, each `Missing { kind: NameKind, name, at }` (M8.5 7h3).
-  It is `examine` then `restore`.
+  with no name table loaded on other packs with `force`; `Migrated`, the packs' migrations applied with
+  consent, M8.5 7h6). A name the loaded packs lack refuses the load with
+  `LoadError::Unresolved(Vec<Missing>)`, each `Missing { kind: NameKind, name, at }` (M8.5 7h3); migrations
+  that change the save, unapplied, with `LoadError::NeedsMigration(Vec<(pack, file)>)`. It is `examine`
+  then `restore`, never migrating; `load_save_with(text, &Data, force, migrate, read)` takes the consent.
 - `examine(text, &Data, read) -> Result<Examined, LoadError>`: the save rebuilt and checked, nothing
-  loaded; `Examined::report()` is its `SaveCheck` (§7.11). `restore(Examined, &Data, force)` loads it:
-  refused for `Unresolved`, for `Unnamed` unless `force`, and on packs other than the ones it was
-  examined against (`PackMismatch`). On other packs a place fixed folds the world, as a renumbering
-  does (M8.5 7h4).
+  loaded; `Examined::report()` is its `SaveCheck` (§7.11). `restore(Examined, &Data, force, migrate)`
+  loads it: refused for `Unresolved`, for `Unnamed` unless `force`, for `NeedsMigration` unless
+  `migrate`, and on packs other than the ones it was examined against (`PackMismatch`). On other packs a
+  place fixed folds the world, as a renumbering and a migration do (M8.5 7h4, 7h6). The world records
+  the migration files it went through (`World.migrated`, `[Migrated { pack, file }]`; the character
+  save carries them, outside the fingerprint).
 - `examine_running(&World, old: &Data, fresh: &Data) -> Examined`: the running world, `old` the
   packs it runs on, fitted to fresh packs as a save made on `old` would be; `restore` takes it, a
-  fold holding the journal for `old`'s folder. `ops::reload(&mut World, old, fresh) ->
+  fold holding the journal for `old`'s folder. `ops::reload(&mut World, old, fresh, migrate) ->
   Result<SaveCheck, ReloadRefused>` is the two (`pack.reload`); `ReloadRefused { error, check }`
-  gives the op's error and the report, and converts into `OpError` (M8.5 7h5).
+  gives the op's error and the report, and converts into `OpError` (M8.5 7h5, 7h6).
 - `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
   threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
 - `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
@@ -643,13 +647,31 @@ What the loaded packs make of a save (`save.check`, `save::examine`; M8.5 7h4).
 
 | Field | Meaning |
 |---|---|
-| `verdict` | `same` (the packs it was made with); `content` (other packs, every name the same: loads as it is); `renamed` (other packs whose names moved: loads by name, and the world moves on); `unresolved` (names what the packs lack: does not load); `unnamed` (other packs and a save that keeps no names, made before 7h2: only a forced `save.read` loads it, numbers as written). |
+| `verdict` | `same` (the packs it was made with); `content` (other packs, every name the same: loads as it is); `renamed` (other packs whose names moved: loads by name, and the world moves on); `needs_migration` (the packs' migrations change it: loads when they are applied, `save.read` `migrate`; M8.5 7h6); `unresolved` (names what the packs lack, even through their migrations: does not load); `unnamed` (other packs and a save that keeps no names, made before 7h2: only a forced `save.read` loads it, numbers as written). |
 | `packs` | `[PackChange]`, by id: `id`, `saved` and `loaded`, each `{version, hash}` or null when the pack is new or gone. |
 | `moved` | How many of the save's names the loaded packs hold under another number. |
 | `missing` | `[Missing]`: `kind` (`map`, `flag`, `region`, `item`, `spell`, `monster`, `condition`, `race`, `class`, `background`, `service`, `terrain`, `interaction`), `name` (its string id), `at` (where the world holds it, `party.members[2].known_spells`). |
 | `places` | `[PlaceWarning]`, checked when the packs differ: `map` (string id) and `fix`, each cell a `Spot` (`level`, left out on the ground, `x`, `y`): `party_moved` `{from, to}` (the party could not stand at `from`: no ground, terrain it may not enter, or an object across the cell's centre; `to` is the nearest cell it can, ring by ring in row order, else the map's start); `door_forgotten` `{at, facing}` (an open door no longer a door); `pile_lost` `{at, items}` (the ground under a pile went away, and the pile with it); `object_forgotten` `{id, items}` (the map no longer places it; its state is forgotten and the `items` it held, changed from the map's, are lost). What lies in the world is the world's: only the party's inventory and stores are kept whatever the packs do (owner, 2026-10-19). A place never blocks a load. |
 | `trimmed` | Automap tiles outside their map, or on a level it lost, dropped. |
 | `applied`, `converted_from` | As `Restored`. |
+| `migrations` | `[Offered]`, left out when none: the packs' migrations leading on from the versions the save was made with, in order, each `pack`, `file` (`0001.ron`), `to` (the version it leads to) and `steps`. Offered when the verdict is `needs_migration`; else applied as they are, since none finds anything of the save (owner, 2026-10-19). |
+
+A migration file is `packs/<pack>/migrations/NNNN.ron`, sealed with the pack: `(schema: 1, to: "x.y.z",
+steps: [..])`. A save made at version `v` is offered every file with `v < to <=` the pack's version, in
+file order; versions between files need none. Each step, as JSON `{"<Step>": {..}}`, names only its own
+pack's ids:
+- `Rename { kind, from, to }` and `Replace { kind, from, to }`: what the save holds of `from` it holds of
+  `to` (a rename, or another definition standing in). `kind`: `map`, `flag`, `region`, `item`, `spell`,
+  `monster`, `condition`, `race`, `class`, `background`, `service`. A chain composes: `a` to `b` then `b`
+  to `c` is `a` to `c`.
+- `Remove { kind, id }`: it leaves every list that holds it (stores, kit, worn, known spells, giving the
+  pick back, conditions, effects, flags, piles and containers, a map's state, a runbook's actions); where
+  the world cannot do without it (the party's map, a fight's monster, the service it is in, tactics
+  criteria) it stays `missing`. A race, class, background or region cannot be removed.
+- `MovePlace { map, from, to }`, cells `(level, x, y)`: the party on it, a fight's retreat to it, its
+  pile, its open doors and its automap tile move with it.
+- `RenameEncounter { map, from, to }` and `RenameObject { map, from, to }`: a placement's id, in the
+  cleared encounters, a fight met there, the object states and what the party noticed or was told.
 
 ## 8. Commands
 
@@ -1216,6 +1238,16 @@ Additive (§13), so `PROTOCOL` stays 2:
   each listed. `done` gains `check` (`serde(default)`), the reload's `SaveCheck`. `ops::reload`
   takes the old packs too and answers `Result<SaveCheck, ReloadRefused>`. Tier 1 adds
   `examine_running`, `ReloadRefused`. No golden moved.
+
+- 2026-10-19: pack migrations (M8.5 7h6). A pack keeps `migrations/NNNN.ron`, sealed with it, each
+  naming the version it leads `to`; a save made on an earlier version is offered the files after
+  it. Six steps (§7.11), checked at pack load with bad-pack rows. `save.read` and `pack.reload` gain
+  `migrate` (default false; a bare `pack.reload` still reads). `SaveCheck` gains `migrations` and the
+  verdict `needs_migration`, given only when a step finds something of the save; one they find
+  nothing of loads as before, the files recorded. Tier 1: `restore` and `ops::reload` take
+  `migrate`; `load_save_with`; `PackFit::Migrated`; `LoadError::NeedsMigration`; `World.migrated`
+  and the character save's `migrated` (`Migrated`, `Offered`); `omnis_data::migration`. CLI:
+  `migration draft`, `save check`. Ops 27, tools 27; no golden moved.
 
 ### Protocol 2 (2026-10-10)
 

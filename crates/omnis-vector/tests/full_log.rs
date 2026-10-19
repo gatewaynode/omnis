@@ -287,7 +287,8 @@ fn a_load_retells_the_full_log_from_the_save() {
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
     omnis_vector::game_io::save(&session.world, &session.data, &root, "one.ron").unwrap();
-    let loaded = omnis_vector::game_io::load(&session.data, &root, "one.ron", false).unwrap();
+    let loaded =
+        omnis_vector::game_io::load(&session.data, &root, "one.ron", false, false).unwrap();
     // Another session's history is not this save's.
     session.history = History::default();
     session.history.push(0, "said by another game".to_owned());
