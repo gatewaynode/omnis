@@ -151,14 +151,14 @@ old saves only).
   `Change` values after, `Held` (the before-and-after compare in `apply`), `apply_changes`, `journal_len`, `archive_len`);
   `log.rs` (`Logged { minute, map, event }`, `told`, `history`, `bound` to `LOG_CAPACITY`; stamped in `World::record`);
   `save/mod.rs` (`Split`, `Checkpoint`, `Holdings`, `Bases`, `WorldBase`, `RegionBase`, `Manifest`), `save/split.rs`
-  (`split`), `save/join.rs` (`join`, `JoinError`), `save/report.rs` (`split_report`), `save/character.rs`
+  (`split`), `save/join.rs` (`join`, `JoinError`; `assemble`, the parts unchecked, 7h3), `save/report.rs` (`split_report`), `save/character.rs`
   (`CharacterSave`, `BaseNames`, `world_id`, `is_world_id`), `save/disk.rs` (`save_files` with `fits`, each file
-  against its reader's limit; `load_save`, `Restored`, the v1–7 conversion, `CHARACTER_SCHEMA`, `region_path`, `archive_path`),
-  `save/fold.rs` (`fold`, `Archived::{Held { journal, from }, Named(Segment)}`, `Segment`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
+  against its reader's limit; `load_save`, `Restored`, `PackFit`, `fit` (7h3: same packs, same names, renumbered and folded, or forced), `region_number`, the v1–7 conversion, `CHARACTER_SCHEMA`, `region_path`, `archive_path`),
+  `save/fold.rs` (`fold`, `fold_from` (7h3), `Archived::{Held { journal, from }, Named(Segment)}`, `Segment`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
   `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`; schema 8 and 9 saves both count), `save/names.rs` (7h2: `NameTable::of`,
-  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids). `World.{known, journal, origin, archive, log}`.
+  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids), `save/remap.rs` (7h3: `world` renumbers the live world by name through `Remapper`, `Registered` per id kind, terrain rows by key, `used` rows by `Signature`, `time:` streams, the bus's region topics; `log`; `Missing`, `NameKind`). `World.{known, journal, origin, archive, log}`.
   Tests: `journal.rs`, `split.rs`, `disk.rs` (both goldens saved and loaded after every command; fixtures
-  `tests/saves/v1..v7.ron`, the schema 8 and 9 ones), `by_id.rs` (7h2: the v8-cleared fixture, the name table), `fold.rs`, `history.rs`.
+  `tests/saves/v1..v7.ron`, the schema 8 and 9 ones), `by_id.rs` (7h2: the v8-cleared fixture, the name table), `by_name.rs` (7h3: the `ahead` fixture pack moves every number; every view equal after a load by name, exploring, mid-fight, in town and in the yard), `fold.rs`, `history.rs`.
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
   `new_world`: a new game placed on the meadow's start, where tests from before the town begin;
   `party_of`, `act`: one command played as a whole turn). M7c: `turn_budget.rs`, `reactions.rs`,

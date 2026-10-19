@@ -213,7 +213,7 @@ socket and the bridge (malformed request).
 | `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
-| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
@@ -319,8 +319,11 @@ run:
   `FileOut { path, text, keep }` (`keep`: a world-folder file, left alone when already on disk). Refuses a
   file over its reader's limit.
 - `load_save(text, &Data, force, read) -> Result<(World, Restored), LoadError>`: `read` turns a relative
-  path into its text; `Restored { applied, converted_from }` says how many interactions were laid and
-  whether an old save was converted.
+  path into its text; `Restored { applied, converted_from, fit }` says how many interactions were laid,
+  whether an old save was converted, and how its packs fit the loaded ones (`PackFit`: `Same`;
+  `Content`, other packs with the same names; `Renumbered`, loaded by name and folded; `Forced`, a save
+  with no name table loaded on other packs with `force`). A name the loaded packs lack refuses the load
+  with `LoadError::Unresolved(Vec<Missing>)`, each `Missing { kind: NameKind, name, at }` (M8.5 7h3).
 - `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
   threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
 - `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
@@ -980,7 +983,7 @@ looked at.
 | `ops::PROTOCOL` | 2 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
 | `SAVE_SCHEMA` | 9 | Save files: the character save (`save::CharacterSave`, compact RON) and the world folder (`save::Manifest` with its `NameTable`, `WorldBase`, `RegionBase`, pretty RON) | The save's shape changes. Schemas 1 to 7 were whole worlds (`World::to_ron`); they migrate to 7 and are converted on load. Schema 8 named fixed encounters by row; it is converted on load (M8.5 7h2). `World::to_ron` remains the fingerprint's text and a snapshot `World::from_ron` reads. |
 | `omnis_data::SCHEMA` | 1 | Pack data files | The pack file format changes; the loader refuses other schemas. |
-| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files, or to its manifest's fields (FNV-1a 64 over them); a pack records it in `pack.ron` as `hash`, and the loader refuses one whose content no longer has it (M8.5 7h1). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
+| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files, or to its manifest's fields (FNV-1a 64 over them); a pack records it in `pack.ron` as `hash`, and the loader refuses one whose content no longer has it (M8.5 7h1). A save made on other packs loads by name (M8.5 7h3); one with no name table (before 7h2) is refused (`save.read` `Failed`) unless `force`. |
 
 The three versions move independently.
 
@@ -1163,6 +1166,13 @@ Additive (§13), so `PROTOCOL` stays 2:
   after `pack.reload` loads without `force`. Tier 1 adds `NameTable`, `Segment`, `Signature`.
   The goldens moved (the test pack resealed at 0.1.1, the schema): walk `8eab9a1dd95b472d`,
   fight `79ca2704c92bc312`.
+- 2026-10-19: saves by name (M8.5 7h3). `save.read` loads a save made on other packs without
+  `force` when its world folder has a name table: the save is rebuilt and proved in its own
+  numbering, then renumbered by name and folded (its journal kept under its old world folder);
+  the same names on other packs record the new packs and renumber nothing. A name the loaded
+  packs lack refuses it (`LoadError::Unresolved`, listing each). `force` now matters only for a
+  save with no name table. The fingerprint is checked on any packs. `Restored.fit` (`PackFit`).
+  Tier 1 adds `Missing`, `NameKind`, `PackFit`. No golden moved.
 
 ### Protocol 2 (2026-10-10)
 
