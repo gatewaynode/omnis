@@ -22,13 +22,13 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 /// Turn about, so the automap has the cells around.
-fn look(world: &mut World, data: &Data) {
+pub fn look(world: &mut World, data: &Data) {
     for _ in 0..4 {
         crate::common::turn(world, data, omnis_core::Rotation::Left);
     }
 }
 
-const SAVE: &str = ".omnis/saves/by-name.ron";
+pub const SAVE: &str = ".omnis/saves/by-name.ron";
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -37,12 +37,12 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 /// Base, test and the objects fixture: the packs a save is made on.
-fn before() -> Data {
+pub fn before() -> Data {
     load_packs(&[&base_pack(), &test_pack(), &fixture("objects")]).unwrap_or_else(|r| panic!("{r}"))
 }
 
 /// The same with `ahead`, whose every definition sorts first.
-fn after() -> Data {
+pub fn after() -> Data {
     load_packs(&[
         &base_pack(),
         &test_pack(),
@@ -52,9 +52,9 @@ fn after() -> Data {
     .unwrap_or_else(|r| panic!("{r}"))
 }
 
-type Disk = BTreeMap<String, String>;
+pub type Disk = BTreeMap<String, String>;
 
-fn write(world: &World, data: &Data, disk: &mut Disk) {
+pub fn write(world: &World, data: &Data, disk: &mut Disk) {
     for file in save_files(world, data, SAVE).unwrap_or_else(|e| panic!("{e}")) {
         if !(file.keep && disk.contains_key(&file.path)) {
             disk.insert(file.path, file.text);
@@ -62,7 +62,7 @@ fn write(world: &World, data: &Data, disk: &mut Disk) {
     }
 }
 
-fn read(disk: &Disk, data: &Data) -> Result<(World, Restored), LoadError> {
+pub fn read(disk: &Disk, data: &Data) -> Result<(World, Restored), LoadError> {
     load_save(&disk[SAVE], data, false, &mut |p| {
         disk.get(p).cloned().ok_or_else(|| format!("no file {p}"))
     })

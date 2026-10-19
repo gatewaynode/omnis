@@ -16,6 +16,7 @@ pub mod debug;
 pub mod defeat;
 pub mod fight;
 pub mod inventory;
+pub mod load_report;
 pub mod log;
 pub mod nav;
 pub mod new_game;
@@ -75,6 +76,8 @@ pub enum ScreenId {
     Verbs,
     /// Every line of the session, filtered (owner, 2026-10-17).
     Log,
+    /// A save the loaded packs cannot load, and why (M8.5 7h4).
+    LoadReport,
 }
 
 impl ScreenId {
@@ -606,6 +609,8 @@ pub struct Forms {
     pub debug: debug::DebugForm,
     /// The full log's filter as typed; cleared when the screen changes.
     pub log_filter: String,
+    /// What the loaded packs made of the save the last Load refused; dropped by Close.
+    pub load_report: Option<omnis_sim::api::SaveCheck>,
     /// The top screen and the base as last shown, for [`Forms::shown`].
     seen: (Option<ScreenId>, Option<ScreenId>),
 }
@@ -657,6 +662,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Title, _) => title::content(ctx),
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Settings, _) => settings::content(ctx, forms),
+        (ScreenId::LoadReport, _) => load_report::content(forms),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
@@ -718,6 +724,7 @@ pub fn apply(
         (ScreenId::NewGame, _) => new_game::apply(&mut forms.new_game, control, payload, entropy),
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
+        (ScreenId::LoadReport, _) => load_report::apply(forms, control),
         (ScreenId::Debug, Some(game)) => {
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }

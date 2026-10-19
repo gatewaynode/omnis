@@ -284,6 +284,21 @@ fn saves_stop_the_log_replaying(app: &mut App, peer: &mut Peer, dir: &Path) {
     assert!(session(app).save_log().is_ok(), "still replays");
     let reply = peer.send(
         app,
+        r#"{"id": 16, "op": "save.check", "args": {"path": "saves/a.ron"}}"#,
+    );
+    assert_eq!(reply["result"]["reply"], json!("check"), "{reply}");
+    assert_eq!(
+        reply["result"]["check"]["verdict"],
+        json!("same"),
+        "{reply}"
+    );
+    assert_eq!(
+        session(app).views.here.turn,
+        turn + 1,
+        "a check changes nothing"
+    );
+    let reply = peer.send(
+        app,
         r#"{"id": 13, "op": "save.read", "args": {"path": "saves/a.ron"}}"#,
     );
     assert_eq!(reply["result"]["turn"], json!(turn), "{reply}");

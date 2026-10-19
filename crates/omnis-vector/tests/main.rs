@@ -25,6 +25,7 @@ mod ground;
 mod inventory;
 mod labels;
 mod levels;
+mod load_report;
 mod log;
 mod look;
 mod minimap;

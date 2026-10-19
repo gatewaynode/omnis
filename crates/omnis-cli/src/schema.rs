@@ -422,6 +422,9 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             path: ".omnis/quick.ron".into(),
             force: false,
         },
+        Op::SaveCheck {
+            path: ".omnis/quick.ron".into(),
+        },
         Op::PackReload,
         Op::Screenshot {
             path: None,

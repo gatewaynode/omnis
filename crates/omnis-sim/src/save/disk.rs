@@ -6,11 +6,9 @@
 //! world becomes the base of an empty journal.
 
 use super::character::{BaseNames, CharacterSave, is_world_id, world_id};
+use super::check::{examine_with, restore};
 use super::join::assemble;
-use super::{
-    Archived, Bases, Manifest, NameTable, RegionBase, Segment, Split, WorldBase, fold_from, remap,
-    split,
-};
+use super::{Archived, Bases, Manifest, NameTable, RegionBase, Segment, Split, WorldBase, split};
 use crate::journal::apply_changes;
 use crate::ops::OpError;
 use crate::save::JoinError;
@@ -22,9 +20,9 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use omnis_core::RegionId;
 use omnis_core::fnv1a64;
-use omnis_data::Data;
 use omnis_data::limits::{MAX_FILE_BYTES, MAX_SAVE_BYTES};
 use omnis_data::ron_io::{parse, to_compact, to_string};
+use omnis_data::{Data, PackFingerprint};
 use serde::Deserialize;
 
 /// The first schema that is a character save; an older save is a whole world.
@@ -234,29 +232,71 @@ fn base<T: serde::de::DeserializeOwned>(
 /// A save's world, from its text and, for a character save, the world folder's files through
 /// `read` (a relative path to its text). An older whole-world save is converted: it becomes the
 /// base of an empty journal. A character save's bases are joined with its party, and its
-/// journal's changes laid over them, in order, to the fingerprint it recorded (unless `force`
-/// loaded it on other packs). No rule runs. `force` passes other packs, never a save that does
-/// not hold together.
+/// journal's changes laid over them, in order, to the fingerprint it recorded. No rule runs.
+/// `force` passes other packs for a save with no name table, never a save that does not hold
+/// together or names what the packs lack. It is `examine` then `restore` (M8.5 7h4).
 pub fn load_save(
     text: &str,
     data: &Data,
     force: bool,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
 ) -> Result<(World, Restored), LoadError> {
+    restore(examine_with(text, data, force, read)?, data, force)
+}
+
+/// A save rebuilt in its own numbering, not yet fitted to the loaded packs.
+pub(crate) enum Built {
+    /// Other packs and no name table (a save before 7h2, or a whole world), not forced: its
+    /// numbers cannot be read.
+    Unnamed {
+        /// The packs it was made with.
+        saved: Vec<PackFingerprint>,
+    },
+    /// The world it recorded.
+    World {
+        /// It, in the save's numbering.
+        world: Box<World>,
+        /// Its world folder's manifest; none for a whole-world save.
+        manifest: Option<Box<Manifest>>,
+        /// Interactions laid over the bases.
+        applied: usize,
+        /// The schema of an older save, converted.
+        converted_from: Option<u32>,
+    },
+}
+
+/// Read a save and rebuild its world in its own numbering, checked against its fingerprint.
+pub(crate) fn build(
+    text: &str,
+    data: &Data,
+    force: bool,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Result<Built, LoadError> {
     #[derive(Deserialize)]
     struct Header {
         schema: u32,
     }
     let header: Header = parse(text).map_err(LoadError::Parse)?;
     if header.schema < CHARACTER_SCHEMA {
-        let mut world = World::from_ron(text, data, force)?;
+        #[derive(Deserialize)]
+        struct Packs {
+            #[serde(default)]
+            packs: Vec<PackFingerprint>,
+        }
+        let mut world = match World::from_ron(text, data, force) {
+            Err(LoadError::PackMismatch) if !force => {
+                let saved = parse::<Packs>(text).map_err(LoadError::Parse)?.packs;
+                return Ok(Built::Unnamed { saved });
+            }
+            other => other?,
+        };
         world.origin = Some(split(&world, data).into());
-        let report = Restored {
+        return Ok(Built::World {
+            world: Box::new(world),
+            manifest: None,
             applied: 0,
             converted_from: Some(header.schema),
-            fit: PackFit::default(),
-        };
-        return Ok((world, report));
+        });
     }
     if header.schema > SAVE_SCHEMA {
         return Err(LoadError::Schema(header.schema));
@@ -289,7 +329,9 @@ pub fn load_save(
     // forced (owner, 2026-10-18).
     let same_packs = manifest.packs == data.fingerprints;
     if !same_packs && manifest.names.is_empty() && !force {
-        return Err(LoadError::PackMismatch);
+        return Ok(Built::Unnamed {
+            saved: manifest.packs,
+        });
     }
     let world_base: WorldBase = match save.bases.world {
         Some(hash) => base(&format!("{WORLDS}/{id}/world/{hash:016x}.ron"), hash, read)?,
@@ -345,14 +387,12 @@ pub fn load_save(
             actual,
         });
     }
-    let applied = world.journal.len();
-    let (world, fit) = fit(world, manifest, data)?;
-    let report = Restored {
-        applied,
+    Ok(Built::World {
+        applied: world.journal.len(),
+        world: Box::new(world),
+        manifest: Some(Box::new(manifest)),
         converted_from: converted.then_some(header.schema),
-        fit,
-    };
-    Ok((world, report))
+    })
 }
 
 /// The number of the region `name` in a save's world folder: by its name table, or, before the
@@ -363,30 +403,4 @@ fn region_number(names: &NameTable, data: &Data, name: &str) -> Option<RegionId>
     }
     let index = names.regions.iter().position(|r| r == name)?;
     u32::try_from(index).ok().map(RegionId)
-}
-
-/// A world rebuilt in its save's numbering, fitted to the loaded packs (M8.5 7h3): the same
-/// packs as it is; the same names on other packs with the packs recorded; other names
-/// renumbered by name and folded, its journal to the archive under its old world's folder. A
-/// save with no name table on other packs keeps its numbers (only a forced load reaches here).
-fn fit(mut world: World, old: Manifest, data: &Data) -> Result<(World, PackFit), LoadError> {
-    let fit = if world.packs == data.fingerprints {
-        PackFit::Same
-    } else if old.names.is_empty() {
-        PackFit::Forced
-    } else if old.names == NameTable::of(data) {
-        PackFit::Content
-    } else {
-        remap::world(&mut world, &old.names, data).map_err(LoadError::Unresolved)?;
-        remap::log(&mut world.log, &old.names, data);
-        PackFit::Renumbered
-    };
-    if matches!(fit, PackFit::Content | PackFit::Renumbered) {
-        world.packs.clone_from(&data.fingerprints);
-    }
-    let mut world = world.checked(data, fit == PackFit::Forced)?;
-    if fit == PackFit::Renumbered {
-        fold_from(&mut world, data, Some(Box::new(old)));
-    }
-    Ok((world, fit))
 }

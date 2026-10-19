@@ -165,6 +165,12 @@ fn game_tools() -> Vec<Tool> {
             ],
         ),
         tool(
+            "save_check",
+            "save.check",
+            "What the loaded packs make of a save at a relative .ron path, changing nothing: a verdict (same, content, renamed, unresolved, unnamed), each pack as saved and as loaded, how many names moved number, the names the packs lack with where the save holds them, and the places the loaded maps no longer allow with what loading does with each.",
+            &[path("A relative .ron path without . or .. components.")],
+        ),
+        tool(
             "pack_reload",
             "pack.reload",
             "Reload the packs from disk, keeping the world where it is.",
@@ -312,6 +318,7 @@ mod tests {
             ("automap_get", json!({})),
             ("save_write", json!({"path": "a.ron"})),
             ("save_read", json!({"path": "a.ron", "force": true})),
+            ("save_check", json!({"path": "a.ron"})),
             ("pack_reload", json!({})),
             (
                 "screenshot",
@@ -366,6 +373,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 26);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 27);
     }
 }

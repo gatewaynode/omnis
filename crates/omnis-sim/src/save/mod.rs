@@ -5,10 +5,12 @@
 //! not keep in these parts. Registry numbers are kept until saves name things by id (7h).
 
 mod character;
+mod check;
 mod disk;
 mod fold;
 mod join;
 mod names;
+mod places;
 pub(crate) mod remap;
 mod report;
 pub(crate) mod rows;
@@ -16,11 +18,13 @@ mod split;
 mod tidy;
 
 pub use character::{BaseNames, CharacterSave, is_world_id, world_id};
+pub use check::{Examined, PackChange, PackStamp, SaveCheck, Verdict, examine, restore};
 pub use disk::{FileOut, PackFit, Restored, WORLDS, archive_path, load_save, save_files};
 pub(crate) use fold::fold_from;
 pub use fold::{Archived, FOLD_INTERACTIONS, FOLD_RULE, Segment, due, fold, fold_at};
 pub use join::{JoinError, join};
 pub use names::{NameTable, Signature};
+pub use places::{PlaceFix, PlaceWarning};
 pub use remap::{Missing, NameKind};
 pub use report::{RegionSize, SplitReport, split_report};
 pub(crate) use rows::{row_or_id, rows_or_ids};

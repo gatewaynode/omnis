@@ -587,17 +587,33 @@ fn host_op(
             let data = session
                 .as_deref()
                 .map_or_else(|| host.packs.data.clone(), |s| s.data.clone());
-            match game_io::load(&data, root(), &save, false) {
+            // Examined first (M8.5 7h4): a save that loads, loads at once; one that does not
+            // opens the report.
+            let loaded = match game_io::examine(&data, root(), &save) {
+                Ok(opened) if !opened.report().verdict.loads() => {
+                    screens.forms.load_report = Some(opened.into_report());
+                    let views = session.as_deref().map(|s| &s.views);
+                    screens.nav.open(ScreenId::LoadReport, views);
+                    return;
+                }
+                Ok(opened) => opened.load(&data),
+                Err(e) => Err(e),
+            };
+            match loaded {
                 Ok(loaded) => {
                     let why = format!("the save {save} was loaded");
-                    let line = format!("Loaded {save}: {}", loaded.said);
+                    let lines = loaded.lines(&save);
                     if let Some(session) = session.as_deref_mut() {
                         session.replace(loaded.world, &why);
-                        session.say(line);
+                        for line in lines {
+                            session.say(line);
+                        }
                         screens.reset(Some(&session.views));
                     } else {
                         let mut fresh = Session::loaded(&host.packs, loaded.world, &why);
-                        fresh.say(line);
+                        for line in lines {
+                            fresh.say(line);
+                        }
                         screens.reset(Some(&fresh.views));
                         host.commands.insert_resource(fresh);
                     }

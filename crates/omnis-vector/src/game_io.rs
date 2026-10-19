@@ -6,7 +6,10 @@
 //! the pack loader's limits, under `root`. Bevy-free.
 
 use crate::sim::SimWorld;
-use omnis_sim::api::{PackFit, Restored, load_save, tidy_list};
+use omnis_sim::api::{
+    Examined, PackFit, Restored, SaveCheck, Verdict, examine as examine_save, load_save,
+    restore as restore_save, tidy_list,
+};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::ron_io::{
     list_under, read_save_under, read_under, remove_under, size_under, write_files,
@@ -54,10 +57,90 @@ pub struct Loaded {
     pub world: World,
     /// "12 interactions applied in 3 ms", or "converted from a schema 7 save".
     pub said: String,
+    /// Each place the loaded maps no longer allowed, and what the load did with it (M8.5 7h4).
+    pub warnings: Vec<String>,
+}
+
+impl Loaded {
+    /// What the log says of it: "Loaded `path`: …", then each place warning.
+    #[must_use]
+    pub fn lines(&self, path: &str) -> Vec<String> {
+        let mut lines = vec![format!("Loaded {path}: {}", self.said)];
+        lines.extend(self.warnings.iter().cloned());
+        lines
+    }
+}
+
+/// A save read and examined against the loaded packs, not yet loaded (M8.5 7h4).
+#[derive(Debug)]
+pub struct Opened {
+    examined: Examined,
+    started: Instant,
+}
+
+impl Opened {
+    /// What the loaded packs make of it.
+    #[must_use]
+    pub fn report(&self) -> &SaveCheck {
+        self.examined.report()
+    }
+
+    /// The report, the save dropped.
+    #[must_use]
+    pub fn into_report(self) -> SaveCheck {
+        self.examined.into_report()
+    }
+
+    /// Load it, unforced: refused when its verdict does not load.
+    ///
+    /// # Errors
+    /// It names what the packs lack, keeps no names on other packs, or does not hold together.
+    pub fn load(self, data: &Data) -> Result<Loaded, OpError> {
+        let warnings = warnings(self.report());
+        let (world, restored) =
+            restore_save(self.examined, data, false).map_err(OpError::failed)?;
+        Ok(Loaded {
+            world,
+            said: said(restored, self.started.elapsed().as_millis(), warnings.len()),
+            warnings,
+        })
+    }
+}
+
+/// A report's place warnings, each a sentence.
+fn warnings(report: &SaveCheck) -> Vec<String> {
+    report
+        .places
+        .iter()
+        .map(|p| {
+            let text = p.to_string();
+            let mut chars = text.chars();
+            chars.next().map_or_else(String::new, |c| {
+                c.to_uppercase().chain(chars).collect::<String>() + "."
+            })
+        })
+        .collect()
+}
+
+/// The save at `path` under `root`, examined against `data` (M8.5 7h4): the window loads it
+/// at once when its verdict loads, and shows the report when it does not.
+///
+/// # Errors
+/// The path is refused, a file is missing, too large or a link, or the save cannot be read or
+/// was altered.
+pub fn examine(data: &Data, root: &Path, path: &str) -> Result<Opened, OpError> {
+    let path = client_path(path, &["ron"])?;
+    let text = read_save_under(root, path).map_err(OpError::failed)?;
+    let started = Instant::now();
+    let examined = examine_save(&text, data, &mut |p| {
+        read_under(root, p).map_err(|e| e.to_string())
+    })
+    .map_err(OpError::failed)?;
+    Ok(Opened { examined, started })
 }
 
 /// What a load did, in words.
-fn said(restored: Restored, millis: u128) -> String {
+fn said(restored: Restored, millis: u128, places: usize) -> String {
     let done = match restored.converted_from {
         Some(schema) => format!("converted from a schema {schema} save"),
         None => {
@@ -70,6 +153,11 @@ fn said(restored: Restored, millis: u128) -> String {
             format!("{n} {interactions} applied in {millis} ms")
         }
     };
+    let done = match places {
+        0 => done,
+        1 => format!("{done}; 1 place changed, see the log"),
+        n => format!("{done}; {n} places changed, see the log"),
+    };
     match restored.fit {
         PackFit::Same => done,
         PackFit::Content => format!("{done}; made with other packs, every name the same"),
@@ -81,13 +169,17 @@ fn said(restored: Restored, millis: u128) -> String {
 }
 
 /// The world saved at `path` under `root`: an older save converted, a character save joined from
-/// its world folder with its journal's changes laid over, checked against `data`; with `force`,
-/// a save made with other packs loads anyway.
+/// its world folder with its journal's changes laid over, checked against `data`, examined
+/// first; with `force`, a save that keeps no names loads on other packs, numbers as written.
 ///
 /// # Errors
 /// The path is refused, a file is missing, too large or a link, or it is not a save these packs
 /// can load.
 pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded, OpError> {
+    let opened = examine(data, root, path)?;
+    if !(force && opened.report().verdict == Verdict::Unnamed) {
+        return opened.load(data);
+    }
     let path = client_path(path, &["ron"])?;
     let text = read_save_under(root, path).map_err(OpError::failed)?;
     let started = Instant::now();
@@ -97,7 +189,8 @@ pub fn load(data: &Data, root: &Path, path: &str, force: bool) -> Result<Loaded,
     .map_err(OpError::failed)?;
     Ok(Loaded {
         world,
-        said: said(restored, started.elapsed().as_millis()),
+        said: said(restored, started.elapsed().as_millis(), 0),
+        warnings: Vec::new(),
     })
 }
 

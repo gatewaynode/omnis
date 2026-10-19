@@ -61,6 +61,8 @@ impl Nav {
         let base = self.base(game);
         match (id, game) {
             (ScreenId::NewGame, None) => true,
+            // Wherever Load is: the title, the pause, the fallen party's screen.
+            (ScreenId::LoadReport, _) => true,
             // From the title, or from the pause wherever it is allowed.
             (ScreenId::Settings, None) => true,
             (ScreenId::Settings, Some(_)) => {
@@ -128,6 +130,7 @@ impl Nav {
                     | ScreenId::Settings
                     | ScreenId::Debug
                     | ScreenId::Log
+                    | ScreenId::LoadReport
             )
         )
     }

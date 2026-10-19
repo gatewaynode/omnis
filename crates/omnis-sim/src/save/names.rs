@@ -138,7 +138,15 @@ impl NameTable {
     /// interactions.
     #[must_use]
     pub fn len(&self) -> usize {
-        let kinds = [
+        self.kinds().iter().map(|k| k.len()).sum::<usize>()
+            + self.party_flags.len()
+            + self.terrains.values().map(Vec::len).sum::<usize>()
+            + self.interactions.values().map(BTreeMap::len).sum::<usize>()
+    }
+
+    /// The numbered kinds' lists, in one order.
+    fn kinds(&self) -> [&Vec<String>; 11] {
+        [
             &self.maps,
             &self.flags,
             &self.regions,
@@ -150,11 +158,27 @@ impl NameTable {
             &self.classes,
             &self.backgrounds,
             &self.services,
-            &self.party_flags,
-        ];
-        kinds.iter().map(|k| k.len()).sum::<usize>()
-            + self.terrains.values().map(Vec::len).sum::<usize>()
-            + self.interactions.values().map(BTreeMap::len).sum::<usize>()
+        ]
+    }
+
+    /// How many of its names `now` holds under another number (M8.5 7h4).
+    #[must_use]
+    pub fn moved(&self, now: &NameTable) -> usize {
+        self.kinds()
+            .into_iter()
+            .zip(now.kinds())
+            .map(|(old, new)| {
+                let at: BTreeMap<&str, usize> = new
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| (n.as_str(), i))
+                    .collect();
+                old.iter()
+                    .enumerate()
+                    .filter(|(i, n)| at.get(n.as_str()).is_some_and(|j| j != i))
+                    .count()
+            })
+            .sum()
     }
 
     /// Whether it holds nothing: a manifest written before 7h2.

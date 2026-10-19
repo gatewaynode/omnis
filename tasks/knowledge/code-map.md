@@ -156,7 +156,7 @@ old saves only).
   against its reader's limit; `load_save`, `Restored`, `PackFit`, `fit` (7h3: same packs, same names, renumbered and folded, or forced), `region_number`, the v1–7 conversion, `CHARACTER_SCHEMA`, `region_path`, `archive_path`),
   `save/fold.rs` (`fold`, `fold_from` (7h3), `Archived::{Held { journal, from }, Named(Segment)}`, `Segment`, `fold_at`, `due`, `FOLD_INTERACTIONS`; safe points call
   `due` in `apply`), `save/tidy.rs` (`tidy_list`, `unnamed`; schema 8 and 9 saves both count), `save/names.rs` (7h2: `NameTable::of`,
-  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids), `save/remap.rs` (7h3: `world` renumbers the live world by name through `Remapper`, `Registered` per id kind, terrain rows by key, `used` rows by `Signature`, `time:` streams, the bus's region topics; `log`; `Missing`, `NameKind`). `World.{known, journal, origin, archive, log}`.
+  `Signature`, in `Manifest.names`), `save/rows.rs` (7h2: a schema 8 save's encounter rows read as `#n` markers and turned into ids), `save/remap.rs` (7h3: `world` renumbers the live world by name through `Remapper`, `Registered` per id kind, terrain rows by key, `used` rows by `Signature`, `time:` streams, the bus's region topics; `log`; `Missing`, `NameKind`), `save/check.rs` (7h4: `examine`, `restore`, `SaveCheck`, `Verdict`, `PackChange`), `save/places.rs` (7h4: the place checks and fixes, `PlaceWarning`, `PlaceFix`). `World.{known, journal, origin, archive, log}`.
   Tests: `journal.rs`, `split.rs`, `disk.rs` (both goldens saved and loaded after every command; fixtures
   `tests/saves/v1..v7.ron`, the schema 8 and 9 ones), `by_id.rs` (7h2: the v8-cleared fixture, the name table), `by_name.rs` (7h3: the `ahead` fixture pack moves every number; every view equal after a load by name, exploring, mid-fight, in town and in the yard), `fold.rs`, `history.rs`.
 - Tests: one file per system under `tests/`, `common/mod.rs` builders (`data`, `world`,
@@ -179,7 +179,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   rows from `CombatView.items`, the spell notes, `budget_line`, `points`, `picking`), `arena.rs` (the fight
   screen's layout and picks: the left column of picture, actions, log and status; the `party` rectangle at the
   right; P7: `picker`, the pickers' panel; P8: `fit`, `zoom`, the fight's units at the interface scale), `settings.rs` (P8: `Prefs`,
-  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `history.rs` (the full log's lines, stamped, `matching`; 2026-10-17), `screen/log.rs` (the full log's screen), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
+  `Quality`, `Face`, the lenient settings file `read`/`write`, `clamp_scale`, `fits`), `history.rs` (the full log's lines, stamped, `matching`; 2026-10-17), `screen/log.rs` (the full log's screen), `screen/load_report.rs` (7h4: the save that does not load, its packs and missing names, Close), `rolllog.rs` (the roll log; `Names`, which since M8.5 2b also names objects on the party's map, `locate`, `object`,
   definitions by string id), `cinema.rs` and `raster.rs` (the picture window).
 - Objects (M8.5 step 2b): `shapes.rs` (`Body`, `shapes`: a look as lines and fills on its footprint, turned by facing,
   on the home floor; a shut arch crossed; `PILE_LOOK`); `scene.rs` `Scene::build(data, ..)` adds each level's
@@ -230,7 +230,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 26 tools, the hand-written `Command`
+`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 27 tools, the hand-written `Command`
 schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{main,headless,args,schema,bake,wander}.rs` (`main.rs` has `world tidy [--yes]`; `wander.rs` the seeded wandering party, M8.5 7a):
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
 `omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant; ARCHITECTURE, README and this map state the code's counts, M8.5 7g), `replies.rs`, `schema_proof.rs`,

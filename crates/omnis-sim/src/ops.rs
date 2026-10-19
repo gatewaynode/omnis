@@ -19,6 +19,7 @@ use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::rest_view::{RestView, rest_view};
+use crate::save::SaveCheck;
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
@@ -126,6 +127,12 @@ pub enum Op {
         #[serde(default)]
         force: bool,
     },
+    /// Host: what the loaded packs make of a save, changing nothing (M8.5 7h4).
+    #[serde(rename = "save.check")]
+    SaveCheck {
+        /// A relative `.ron` path.
+        path: String,
+    },
     /// Host: reload the packs from disk, keeping the world.
     #[serde(rename = "pack.reload")]
     PackReload,
@@ -213,6 +220,7 @@ impl Op {
             self,
             Op::SaveWrite { .. }
                 | Op::SaveRead { .. }
+                | Op::SaveCheck { .. }
                 | Op::PackReload
                 | Op::Screenshot { .. }
                 | Op::ScreenText
@@ -408,6 +416,11 @@ pub enum Reply {
     },
     /// `pack.reload`.
     Done {},
+    /// `save.check`: what the loaded packs make of a save (M8.5 7h4).
+    Check {
+        /// The report.
+        check: SaveCheck,
+    },
 }
 
 /// A failed op. The world is unchanged unless the message says otherwise.
@@ -608,6 +621,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
         Op::SaveWrite { .. }
         | Op::SaveRead { .. }
+        | Op::SaveCheck { .. }
         | Op::PackReload
         | Op::Screenshot { .. }
         | Op::ScreenText

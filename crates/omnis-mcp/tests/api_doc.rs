@@ -65,7 +65,7 @@ variants!(OpError, ERROR_KINDS, error_kind:
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Objects Creation Value Done);
+    Casts Objects Creation Value Done Check);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
 macro_rules! ops {
@@ -84,7 +84,7 @@ ops! {
     GameStatus => "game.status", WorldQuery => "world.query", SimCommand => "sim.command",
     SimScript => "sim.script", EventsTail => "events.tail", ViewportGet => "viewport.get",
     MapText => "map.text", AutomapGet => "automap.get", SaveWrite => "save.write",
-    SaveRead => "save.read", PackReload => "pack.reload", Screenshot => "screenshot",
+    SaveRead => "save.read", SaveCheck => "save.check", PackReload => "pack.reload", Screenshot => "screenshot",
     ScreenText => "screen.text", PartyGet => "party.get", PartyCreate => "party.create",
     CombatGet => "combat.get", ServiceGet => "service.get", RulesList => "rules.list",
     RulesGet => "rules.get", TimeClocks => "time.clocks", TimeReconcile => "time.reconcile",
@@ -119,6 +119,7 @@ fn every_op() -> Vec<Op> {
             path: text(),
             force: false,
         },
+        Op::SaveCheck { path: text() },
         Op::PackReload,
         Op::Screenshot {
             path: None,
@@ -231,7 +232,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (EVENTS.len(), "`Event` has 73 variants"),
         (REJECTIONS.len(), "`Rejection` (71 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
-        (OPS.len(), "26 ops."),
+        (OPS.len(), "27 ops."),
     ] {
         assert_eq!(
             count,
@@ -298,9 +299,9 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &readme,
             "README.md",
             tools.len(),
-            "The bridge exposes 26 tools",
+            "The bridge exposes 27 tools",
         ),
-        (&map, "code-map.md", tools.len(), "26 tools"),
+        (&map, "code-map.md", tools.len(), "27 tools"),
         (
             &map,
             "code-map.md",

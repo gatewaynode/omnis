@@ -184,8 +184,8 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-26 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
-every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`) and the
+27 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`, `examine`) and the
 rest in `ops.rs` (`reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
 
@@ -214,6 +214,7 @@ socket and the bridge (malformed request).
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
 | `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.check` | `path` (relative `.ron`) | `check` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. What the loaded packs make of a save, changing nothing (`save::examine`): a `SaveCheck` for every save that holds together, whether it would load or not (§7.11) |
 | `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
@@ -255,6 +256,7 @@ Notes:
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | nothing | `pack.reload` |
+| `check` | `Reply::Check` | `check` (`SaveCheck`, §7.11) | `save.check` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
@@ -324,6 +326,12 @@ run:
   `Content`, other packs with the same names; `Renumbered`, loaded by name and folded; `Forced`, a save
   with no name table loaded on other packs with `force`). A name the loaded packs lack refuses the load
   with `LoadError::Unresolved(Vec<Missing>)`, each `Missing { kind: NameKind, name, at }` (M8.5 7h3).
+  It is `examine` then `restore`.
+- `examine(text, &Data, read) -> Result<Examined, LoadError>`: the save rebuilt and checked, nothing
+  loaded; `Examined::report()` is its `SaveCheck` (§7.11). `restore(Examined, &Data, force)` loads it:
+  refused for `Unresolved`, for `Unnamed` unless `force`, and on packs other than the ones it was
+  examined against (`PackMismatch`). On other packs a place fixed folds the world, as a renumbering
+  does (M8.5 7h4).
 - `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
   threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
 - `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
@@ -623,6 +631,20 @@ around it; a tile behind higher ground is not in `tiles`.
 bits), `seen_at` (party clock when last seen; the automap shows what was seen and when, not what
 is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VISITED` = 4,
 `layer::REMOTE` = 8 (the latest knowledge came from afar; a direct sighting clears it).
+
+### 7.11 `SaveCheck`, `Verdict`, `PackChange`, `Missing`, `PlaceWarning`
+
+What the loaded packs make of a save (`save.check`, `save::examine`; M8.5 7h4).
+
+| Field | Meaning |
+|---|---|
+| `verdict` | `same` (the packs it was made with); `content` (other packs, every name the same: loads as it is); `renamed` (other packs whose names moved: loads by name, and the world moves on); `unresolved` (names what the packs lack: does not load); `unnamed` (other packs and a save that keeps no names, made before 7h2: only a forced `save.read` loads it, numbers as written). |
+| `packs` | `[PackChange]`, by id: `id`, `saved` and `loaded`, each `{version, hash}` or null when the pack is new or gone. |
+| `moved` | How many of the save's names the loaded packs hold under another number. |
+| `missing` | `[Missing]`: `kind` (`map`, `flag`, `region`, `item`, `spell`, `monster`, `condition`, `race`, `class`, `background`, `service`, `terrain`, `interaction`), `name` (its string id), `at` (where the world holds it, `party.members[2].known_spells`). |
+| `places` | `[PlaceWarning]`, checked when the packs differ: `map` (string id), `level` (left out on the ground), `x`, `y`, `fix`: `party_moved` `{level, x, y}` (the party could not stand there: no ground, terrain it may not enter, or an object across the cell's centre; the nearest cell it can, ring by ring in row order, else the map's start); `door_forgotten` `{facing}` (an open door no longer a door); `pile_moved` `{x, y}` (a pile on a cell without ground, items whole); `object_forgotten` `{id, laid}` (the map no longer places it; contents it held, changed from the map's, laid at `laid`, where the party stands on that map, else near the map's start). A place never blocks a load. |
+| `trimmed` | Automap tiles outside their map, or on a level it lost, dropped. |
+| `applied`, `converted_from` | As `Restored`. |
 
 ## 8. Commands
 
@@ -1173,6 +1195,15 @@ Additive (§13), so `PROTOCOL` stays 2:
   packs lack refuses it (`LoadError::Unresolved`, listing each). `force` now matters only for a
   save with no name table. The fingerprint is checked on any packs. `Restored.fit` (`PackFit`).
   Tier 1 adds `Missing`, `NameKind`, `PackFit`. No golden moved.
+- 2026-10-19: the save check (M8.5 7h4). The op `save.check` (`path`) answers `check`, a
+  `SaveCheck`: the verdict, the packs as saved and as loaded, the names that moved number, those
+  the packs lack with where, and the places the loaded maps no longer allow. On other packs a
+  broken place loads and warns: the party moves to the nearest cell it can stand on, a pile to the
+  nearest with ground, a lost object's changed contents are laid on the ground, an open door no
+  longer a door and a cleared encounter the map lost are forgotten, automap tiles outside the map
+  dropped; the world then folds. Tier 1 adds `examine`, `restore`, `Examined`, `SaveCheck`,
+  `Verdict`, `PackChange`, `PackStamp`, `PlaceWarning`, `PlaceFix`. `Missing` and `NameKind`
+  serialize. MCP `save_check` (27 tools).
 
 ### Protocol 2 (2026-10-10)
 

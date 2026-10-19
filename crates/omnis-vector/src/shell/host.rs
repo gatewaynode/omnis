@@ -30,9 +30,16 @@ pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpEr
         }
         Op::SaveRead { path, force } => {
             let loaded = game_io::load(&session.data, root, path, *force)?;
+            let lines = loaded.lines(path);
             session.replace(loaded.world, &format!("the save {path} was loaded"));
-            session.say(format!("Loaded {path}: {}", loaded.said));
+            for line in lines {
+                session.say(line);
+            }
             session.world.status(&session.data).map(Reply::Status)
+        }
+        Op::SaveCheck { path } => {
+            let check = game_io::examine(&session.data, root, path)?.into_report();
+            Ok(Reply::Check { check })
         }
         Op::PackReload => {
             let roots: Vec<&Path> = session.config.packs.iter().map(PathBuf::as_path).collect();

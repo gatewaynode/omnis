@@ -5,7 +5,7 @@
 
 use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
-use omnis_sim::api::{load_save, save_files};
+use omnis_sim::api::{examine, load_save, save_files};
 use omnis_sim::ops::client_path;
 use omnis_sim::{NewGameError, Op, OpError, Reply, Settings, World, dispatch, ops};
 use std::fmt;
@@ -79,6 +79,17 @@ impl Headless {
                 .map_err(OpError::failed)?;
                 self.world = world;
                 ops::status(&self.world, &self.data).map(Reply::Status)
+            }
+            Op::SaveCheck { path } => {
+                let root = Path::new(".");
+                let text =
+                    read_save_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
+                let check = examine(&text, &self.data, &mut |p| {
+                    read_under(root, p).map_err(|e| e.to_string())
+                })
+                .map_err(OpError::failed)?
+                .into_report();
+                Ok(Reply::Check { check })
             }
             Op::PackReload => {
                 let data = load(&self.packs).map_err(OpError::failed)?;

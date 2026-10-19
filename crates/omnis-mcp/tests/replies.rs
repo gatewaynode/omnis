@@ -4,6 +4,7 @@
 //! exhaustive `match`, so a new variant fails the build until it is named here and covered.
 
 use omnis_cli::Headless;
+use omnis_cli::omnis_sim::api::{examine, save_files};
 use omnis_cli::omnis_sim::omnis_core::{Facing, Position};
 use omnis_cli::omnis_sim::omnis_data::Disposition;
 use omnis_cli::omnis_sim::ops::{PROTOCOL, SlotView};
@@ -15,6 +16,20 @@ use std::path::PathBuf;
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// `save.check`'s reply as the hosts build it: the game saved in memory, then examined.
+fn check(game: &Headless) -> Reply {
+    let files = save_files(&game.world, &game.data, ".omnis/a.ron").unwrap();
+    let disk: std::collections::BTreeMap<String, String> =
+        files.into_iter().map(|f| (f.path, f.text)).collect();
+    let examined = examine(&disk[".omnis/a.ron"], &game.data, &mut |p| {
+        disk.get(p).cloned().ok_or_else(|| format!("no file {p}"))
+    })
+    .unwrap();
+    let check = examined.into_report();
+    assert!(!check.packs.is_empty());
+    Reply::Check { check }
 }
 
 /// The wire name of a reply.
@@ -39,10 +54,11 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Creation { .. } => "creation",
         Reply::Value { .. } => "value",
         Reply::Done {} => "done",
+        Reply::Check { .. } => "check",
     }
 }
 
-const EVERY: usize = 19;
+const EVERY: usize = 20;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
@@ -97,6 +113,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
         },
         Reply::Done {},
+        check(&game),
         Reply::Rule {
             rule: SlotView {
                 name: "x".into(),

@@ -26,9 +26,11 @@ use omnis_data::Data;
 use omnis_data::registry::{Interner, Registry};
 use omnis_rules::tactics::{Ids, Rename};
 use omnis_rules::{ActiveEffect, Character};
+use serde::{Deserialize, Serialize};
 
 /// What kind of name a save holds that the loaded packs do not.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum NameKind {
     /// A map.
     Map,
@@ -79,7 +81,7 @@ impl fmt::Display for NameKind {
 }
 
 /// A name a save holds that the loaded packs do not: what it is, and where the world uses it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Missing {
     /// Its kind.
     pub kind: NameKind,
