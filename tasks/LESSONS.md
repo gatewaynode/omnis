@@ -315,3 +315,12 @@
 - **Rule**: stage the files I changed by name (`git add <paths>`, or `git add -u` plus each new file I made).
   Never `git add -A`/`.` on `docs/`, `assets/` or the root. Read `git status --short` before `git commit`, not
   after, and stop if anything under `assets/` or `docs/dnd_supplemental/` is staged.
+
+## 2026-10-19 — Nothing builds, and no fixture changes, while a mutation run is going
+- **What happened**: during the 7h6 mutation run I edited the `chain` fixture's files and ran `cargo run -p
+  omnis-cli -- pack seal`. The run mutates sources in place, so my build compiled whatever mutant was in place
+  (a warning showed one), and between my edit and the reseal the fixture packs were unsealed, so any test of
+  that moment failed for my reason, not the mutant's: a false "caught". The run's results were discarded and
+  rerun.
+- **Rule**: once a mutation runner starts, no `cargo` command and no edit to a file any of its tests read
+  (sources, fixtures, packs) until it ends. Write docs and plans meanwhile. Settle fixtures before the run.
