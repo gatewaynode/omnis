@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v0.8, matches M8 as built (2026-10-20: saves by name as built in M8.5 7h1–7h6: §4.1.1's migrations, §4.5's progression note, §4.9's host operations, §6.1, §6.2's migration checks, §12 and A19; 2026-10-18: the save model as built in M8.5 7a–7f, PRD D28: §4.1 and the new §4.1.1, §4.2's counts, §4.5, §4.6, §4.9, §6, §6.2's save limits, §7, §9.3, §10, §11, §12, A14 and the new A19; §2 and §3 lose `omnis-app`'s last traces; 2026-10-14: the editor's toolkit and direction settled, §8.2, §13, A11; 2026-10-11: `omnis-app` retired at parity P9, A18 done; §2, §3, §4.7, §8, §9, §11, §13, §14, §15 and A11 updated; 2026-10-10: the vector client adopted, A18; §2, §3, §8, §9, §13, §14 and §15 point to `presentation-ARCHITECTURE.md`; 2026-10-10: §4.9 and A17, protocol 2's naming rule; 2026-10-07: the engine's API in §4.9 and A17 (two tiers, views only, a protocol version), and §4.1–§4.4, §9 and §10 brought to the code as built; 2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; 2026-10-06: the bus is its own crate, `omnis-bus`, with its architecture and three designed expansions in §4.8, §3 and A16; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
+| Status | Draft v0.8, matches M8 as built (2026-10-20: review corrections from `tasks/BACKLOG.md`: §2, §3, §4.9, §9.3, §14, §15 and A9 brought to the code as built; 2026-10-20: saves by name as built in M8.5 7h1–7h6: §4.1.1's migrations, §4.5's progression note, §4.9's host operations, §6.1, §6.2's migration checks, §12 and A19; 2026-10-18: the save model as built in M8.5 7a–7f, PRD D28: §4.1 and the new §4.1.1, §4.2's counts, §4.5, §4.6, §4.9, §6, §6.2's save limits, §7, §9.3, §10, §11, §12, A14 and the new A19; §2 and §3 lose `omnis-app`'s last traces; 2026-10-14: the editor's toolkit and direction settled, §8.2, §13, A11; 2026-10-11: `omnis-app` retired at parity P9, A18 done; §2, §3, §4.7, §8, §9, §11, §13, §14, §15 and A11 updated; 2026-10-10: the vector client adopted, A18; §2, §3, §8, §9, §13, §14 and §15 point to `presentation-ARCHITECTURE.md`; 2026-10-10: §4.9 and A17, protocol 2's naming rule; 2026-10-07: the engine's API in §4.9 and A17 (two tiers, views only, a protocol version), and §4.1–§4.4, §9 and §10 brought to the code as built; 2026-10-05: §4.4 company and the party's date, §4.8 the signal bus, as planned; 2026-10-06: the bus is its own crate, `omnis-bus`, with its architecture and three designed expansions in §4.8, §3 and A16; v0.8 when M8 is built). v0.7 (2026-10-04: matches M7c as built: the turn budget, class features, declared reactions and monster casting in §4.7; the commands and events in §4.2; the `combat.get`, `party.get` and `sim.command` rows of §9.3; D24 stands over the SRD's one-spell limit). v0.6 (2026-10-03: matches M7b as built: progression in §4.5, the trainer's, guild's and temple's offers in the views of §9. v0.5, 2026-10-03: matches M7a as built: town, services and rest in §4.5, the `bevy_ui` screens and the tool bar in §8, schema 5 in copper, the new streams in §11; no gamepad. v0.4, 2026-09-20: the Feathers experiment's outcome in §8.1, §8.4 and A11; §4.7 confirmed and placed in M7c with save schema 6. v0.3, 2026-09-20: matches M6 as built; turn budget and tactics as designed; Feathers experiment), reviewed by owner item by item; derived from `PRD.md` v0.7 |
 | Date | 2026-09-11 |
 | Owner | john@gatewaynode.com |
 | Scope | How the system is built. What and why live in `PRD.md`. |
@@ -41,6 +41,7 @@ flowchart LR
     STORY[omnis-story]
     DATA[omnis-data<br/>schemas, packs, loader, validator]
     EXPR[omnis-expr]
+    BUS[omnis-bus<br/>signal bus mechanism]
     CORE[omnis-core<br/>ids, int math, rng, calendar]
   end
   VEC --> SIM
@@ -48,6 +49,7 @@ flowchart LR
   TEST --> SIM
   MCP -. localhost socket .-> VEC
   MCP -. in-process headless .-> CLI
+  SIM --> BUS
   SIM --> RULES & GEN & ECO & STORY
   RULES & GEN & ECO & STORY --> DATA
   DATA --> EXPR
@@ -55,7 +57,7 @@ flowchart LR
   DATA & EXPR & SIM --> CORE
 ```
 
-The game loop, in words: a client turns player input into a `Command`; `omnis-sim::apply` mutates the `World` and returns `Vec<Event>`; the client renders the events and the new state. The MCP bridge is just another client that sends commands and queries over a socket.
+`omnis-gen`, `omnis-eco` and `omnis-story` are drawn as designed; they are not yet created (M9 to M11, §16). The game loop, in words: a client turns player input into a `Command`; `omnis-sim::apply` mutates the `World` and returns `Vec<Event>`; the client renders the events and the new state. The MCP bridge is just another client that sends commands and queries over a socket.
 
 ## 3. Workspace and crates
 
@@ -77,7 +79,8 @@ Cargo workspace at the repository root. Crates under `crates/`. Names use the `o
 | `omnis-mcp` | bin `omnis-mcp` | MCP bridge: JSON-RPC over stdio to Claude Code, private protocol to the game socket, or in-process headless via `omnis-cli`. | `serde_json`, `omnis-cli` (lib) |
 
 Rules the dependency graph enforces:
-- Only the client, `omnis-vector`, may depend on Bevy; nothing below them does. CI greps `Cargo.lock` paths to prove it.
+- Only the client, `omnis-vector`, may depend on Bevy; nothing below it does. `scripts/lint-sim.sh` proves it on the resolved graph: `cargo tree -p <crate> --locked` for every simulation crate must show no `bevy` edge, and a `cargo tree` that fails is a lint failure, not a pass (§14).
+- `omnis-gen`, `omnis-eco` and `omnis-story` are not yet created (M9 to M11, §16): the workspace names their paths and the lint lists them so that each is held to the rules from its first commit.
 - `omnis-bus` is a leaf: it imports no other Omnis crate, and only `omnis-sim` imports it.
 - `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-rules` are leaves that never import each other, except `story` reading `eco` types. Cross-cutting flows go through `omnis-sim`.
 - Only `omnis-data` reads or writes files. Everything else receives loaded data.
@@ -382,7 +385,7 @@ pub const MAX_SIGNALS: u32 = 64;
 
 The owner, 2026-10-07: "we are creating the API that any number of clients might be interacting with. The sim is basically an SRD variant engine that other tracks of development will have to interface with while the sim itself is under development." The simulation's API is a contract with two named tiers; `docs/api.md` is the reference other tracks read, and a test fails when it misses an op, a reply, an error kind, a command, an event or a rejection.
 
-**Tier 1, the Rust library**, for clients in the same process (the app, the CLI, tests, another Rust front end). `omnis_sim::api` re-exports exactly the contract: `World::new`, `apply`, `World::{to_ron, from_ron, fingerprint}` (the snapshot, and the reader for schema 1 to 7 saves), `Replay`; the save (§4.1.1: `save_files`, `load_save`, `split`, `join`, `split_report`, `fold`, `fold_at`, `due`, `tidy_list`, `unnamed`, `archive_path`, `CharacterSave`, `Checkpoint`, `Bases`, `Manifest`, `Archived` and their parts), the journal (`Change`, `apply_changes`, `journal_len`, `archive_len`) and the party's log (`Logged`, `history`, `told`); flag scope (`FlagScope`, `flag_scope`); `Command` and its sub-commands, `Event`, `Rejection`; `ModeKind` and `Settings`; the views of §4.3; `Data` and the pack loader. Anything outside `api` is internal and may change without notice. A client reads state only through the views: `World`'s fields are public for the simulation's own tests and tools, never for clients, and the app is held to that by the compiler (its `SimWorld` keeps the world private).
+**Tier 1, the Rust library**, for clients in the same process (the app, the CLI, tests, another Rust front end). `omnis_sim::api` re-exports exactly the contract: `World::new`, `apply`, `World::{to_ron, from_ron, fingerprint}` (the snapshot, and the reader for schema 1 to 7 saves), `Replay`; the save (§4.1.1: `save_files`, `load_save`, `split`, `join`, `split_report`, `fold`, `fold_at`, `due`, `tidy_list`, `unnamed`, `archive_path`, `CharacterSave`, `Checkpoint`, `Bases`, `Manifest`, `Archived` and their parts), the journal (`Change`, `apply_changes`, `journal_len`, `archive_len`) and the party's log (`Logged`, `history`, `told`); flag scope (`FlagScope`, `flag_scope`); `Command` and its sub-commands, `Event`, `Rejection`; `ModeKind` and `Settings`; the views of §4.3; `Data` and the pack loader. Anything outside `api` is internal and may change without notice. A client reads state only through the views: `World`'s fields are public for the simulation's own tests and tools, never for clients, and the client is held to that by the compiler (its `SimWorld` keeps the world private, `presentation-ARCHITECTURE.md` §4.1).
 
 **Tier 2, the JSON op protocol**, for everything else (`omnis-sim/src/ops.rs`): one `Op` in, one `Reply` or `OpError` out. The transports are the dev socket (§9.1), `omnis_cli::Headless` in process, and the MCP bridge, whose tool names are the op names with `_` for `.`. Every Tier 1 view has an op, `here` through `game.status`; the query helpers `flags`, `step_lands` and `site_ahead` are Tier 1 only. A client calls `game.status` first and checks `protocol`.
 
@@ -397,9 +400,9 @@ The owner, 2026-10-07: "we are creating the API that any number of clients might
 
 A test (`omnis-mcp/tests/vocabulary.rs`) collects every key that every command, the golden replays' events and every view put on the wire, and fails when a key carries two JSON types, a definition key is not a string, a member key holds a number no member has had, or a banned key (`caster_id`, `at`, a numeric `row`, a stray `index`) appears.
 
-**Versions and stability.** `ops::PROTOCOL` versions both tiers' contract. Additions do not bump it: a new op, a new optional field (`serde(default)`), a new event, command or rejection variant; clients ignore fields they do not know and variants they do not handle. A rename, a removal, or a change of meaning or units bumps it, and `docs/api.md`'s changelog names the change and the migration. Saves are versioned separately (`SAVE_SCHEMA` 8; a schema 1 to 7 save is converted on load, §4.1.1; the character save and world folder formats are not part of the protocol) and pack data too (`omnis_data::SCHEMA`); the three move independently. `world.query` reads the world's serialized shape and is outside the contract.
+**Versions and stability.** `ops::PROTOCOL` versions both tiers' contract. Additions do not bump it: a new op, a new optional field (`serde(default)`), a new event, command or rejection variant; clients ignore fields they do not know and variants they do not handle. A rename, a removal, or a change of meaning or units bumps it, and `docs/api.md`'s changelog names the change and the migration. Saves are versioned separately (`SAVE_SCHEMA` 9; a schema 1 to 8 save is converted on load, §4.1.1; the character save and world folder formats are not part of the protocol) and pack data too (`omnis_data::SCHEMA`); the three move independently. `world.query` reads the world's serialized shape and is outside the contract.
 
-**Host operations.** Six ops touch the host (`save.write`, `save.read`, `pack.reload`, `rules.set`, `screenshot`, `screen.text`); `dispatch` refuses them. Their rules are I/O-free functions, so each host writes only the file and window code around them: the save's in `omnis-sim/src/save/` (`save_files` returns the files to write, `load_save` takes a reader), the reload's in `ops.rs` (`reload`: `save::examine_running`, then `save::restore` with the request's `migrate`, so a reload and a load cannot disagree) and the slot check (`rules_set`). Tidying world folders is no op: it is the CLI's `world tidy` and the debug page's (§4.1.1).
+**Host operations.** Seven ops touch the host (`save.write`, `save.read`, `save.check`, `pack.reload`, `rules.set`, `screenshot`, `screen.text`; `Op::is_host`); `dispatch` refuses them. Their rules are I/O-free functions, so each host writes only the file and window code around them: the save's in `omnis-sim/src/save/` (`save_files` returns the files to write, `load_save` takes a reader), the reload's in `ops.rs` (`reload`: `save::examine_running`, then `save::restore` with the request's `migrate`, so a reload and a load cannot disagree) and the slot check (`rules_set`). Tidying world folders is no op: it is the CLI's `world tidy` and the debug page's (§4.1.1).
 
 ## 5. Rule scripting host (`omnis-expr`, Rhai)
 
@@ -583,7 +586,7 @@ sequenceDiagram
 
 ### 9.3 Tool set (v1)
 
-Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.status` is `game_status`). Built through M8.5 step 2a: 26 (`creation.get` in parity P3, `objects.get` in M8.5 step 2a).
+Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.status` is `game_status`). Built through M8.5 7h4: 27 (`creation.get` in parity P3, `objects.get` in M8.5 step 2a, `save.check` in M8.5 7h4).
 
 | Op | Purpose |
 |---|---|
@@ -604,6 +607,7 @@ Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.statu
 | `rules.list`, `rules.get`, `rules.set` | inspect and hot-swap expression slots |
 | `pack.reload` | reload packs into the running game |
 | `save.write`, `save.read` | write a character save to a relative path, with its world folder beside it (8 MiB at most); read one back by laying its journal over its bases, reporting "N interactions applied in T ms" or "converted" (§4.1.1) |
+| `save.check` | what the loaded packs make of a save without loading it: the verdict, each pack as saved and as loaded, the names the packs lack, the migrations offered and the place warnings (M8.5 7h4, §4.1.1) |
 | `screenshot` | PNG of the window as image content (game mode only) |
 | `screen.text` | the open `bevy_ui` panels as text, a line per control, label or text with its rectangle (game mode only; M7) |
 | later | `pack.validate`, `eco.region`, `eco.tick` (M10), `story.state`, `story.check` (M11), `editor.*` (the editor) |
@@ -668,10 +672,10 @@ Deliberately absent: `rand` (own PCG32), `tokio` (no async), any MCP SDK, any pr
 
 ## 14. Build and CI
 
-- Workspace `Cargo.toml` with `[workspace.dependencies]` pins, `rust-version = "1.95"`, and profiles: `dev` with `opt-level = 1` for workspace crates and `opt-level = 3` for dependencies; `release` with thin LTO and one codegen unit. No client feature enables `bevy/dynamic_linking` since `omnis-app` (and its `dev` feature) was retired at P9. A `.cargo/config.toml` selects a fast linker where available.
+- Workspace `Cargo.toml` with `[workspace.dependencies]` pins, `rust-version = "1.95"`, and profiles: `dev` with `opt-level = 1` for workspace crates and `opt-level = 3` for dependencies; `release` with thin LTO and one codegen unit. No client feature enables `bevy/dynamic_linking` since `omnis-app` (and its `dev` feature) was retired at P9. There is no `.cargo/config.toml`: the platform's default linker is used (a faster one is a measured change when a build is slow enough to need it).
 - `just` or plain `cargo` aliases: `just run` (`cargo run -p omnis-vector`, the `omnis` binary), `cargo run -p omnis-cli -- validate packs/base`, `cargo test --workspace`.
 - CI (GitHub Actions, macOS and Linux; Linux deferred by owner 2026-09-12 until needed): fmt, clippy with `-D warnings`, no-float lint, `cargo test --workspace`, replay fingerprints compared across the two runners, pack validation of `packs/base`.
-- Single-copy is enforced relative to Bevy: `scripts/check-duplicates.sh` compares `cargo tree --duplicates` against a committed allow list of the duplicates Bevy's own tree carries, so only duplicates we introduce fail CI. The simulation lint is `scripts/lint-sim.sh`; `omnis-core`, `omnis-rules`, `omnis-gen`, `omnis-eco`, `omnis-story`, and `omnis-sim` are `#![no_std]` so the compiler also excludes the std modules the lint bans.
+- Single-copy is enforced relative to Bevy: `scripts/check-duplicates.sh` compares `cargo tree --duplicates` against a committed allow list of the duplicates Bevy's own tree carries, so only duplicates we introduce fail CI. The simulation lint is `scripts/lint-sim.sh` (its `--self-test` plants one violation of every kind, a Bevy edge included, and requires the lint to catch each); `omnis-core`, `omnis-bus`, `omnis-rules`, `omnis-gen`, `omnis-eco`, `omnis-story`, and `omnis-sim` are `#![no_std]` so the compiler also excludes the std modules the lint bans.
 - macOS linker (2026-10-02): `cc` locates clang through `xcodebuild -find clang`, which reads `/Library/Preferences/com.apple.dt.Xcode.plist`. A sandboxed shell cannot read it, so a fresh link fails there even with Xcode's license accepted. Builds and the gate run inside a sandbox are prefixed with `DEVELOPER_DIR=/Library/Developer/CommandLineTools` (process-local; nothing global changes). CI runners are not sandboxed and need no prefix. A toolchain change is verified with a fresh link, never a cached gate.
 - Windows builds in CI once Phase 1 is playable.
 
@@ -681,8 +685,10 @@ Deliberately absent: `rand` (own PCG32), `tokio` (no async), any MCP SDK, any pr
 omnis/
   Cargo.toml              # workspace
   crates/
-    omnis-core/  omnis-expr/  omnis-data/  omnis-rules/  omnis-gen/
-    omnis-eco/   omnis-story/ omnis-sim/   omnis-vector/ omnis-cli/  omnis-mcp/
+    omnis-core/  omnis-bus/  omnis-expr/  omnis-data/  omnis-rules/
+    omnis-sim/   omnis-vector/ omnis-cli/  omnis-mcp/
+    omnis-gen/   omnis-eco/   omnis-story/   # not yet created (M9 to M11, §16)
+  scripts/                # lint-sim.sh, check-duplicates.sh, check-test-modules.sh, verify.sh (§14)
   packs/
     base/                 # the campaign, authored in the editor
     test/                 # minimal fixtures for tests
@@ -720,7 +726,7 @@ omnis/
 | A6 | Own PCG32 with named streams | `rand` | Tiny, serializable, stream-per-subsystem isolation, one fewer dependency. |
 | A7 | RON for content and saves | TOML, JSON | D15; native enums and nested structs. |
 | A8 | Ecosystem state changes only through typed region events | Direct mutation | NPC agency later inserts as an event source (PRD §9.2). |
-| A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). |
+| A9 | Two-depth viewport: sprite rows to detail depth, procedural horizon band beyond | Single variable depth | D16; bounded art contract (R10). **Superseded by A18 (2026-10-10): the vector client draws the whole map in lines out to the fog (`presentation-ARCHITECTURE.md` §8.1). The `ViewportModel` query stays the engine's (§8.1); the tileset slots and `omnis-cli tileset bake` stay in the data until the tileset data's fate is decided (`tasks/BACKLOG.md`, the assets no code uses).** |
 | A10 | Game state lives in one serializable `World`, not in Bevy ECS | ECS for game state | Save, replay, and headless become trivial; Bevy churn (R2) cannot reach game state. |
 | A11 | `bevy_ui` with Feathers for the game and the editor (owner, 2026-09-20); canvas screens retrofitted as convenient | Feathers everywhere; egui everywhere; egui around the canvas (+17 crates, 2 duplicate versions, antialiased text) | Owner decision (confirmed 2026-09-12): Feathers is new and not mature; the editor needs something that reaches a working state fast without being wrestled with. Tool UI productivity where it matters, pixel UI for players, egui isolated to one plugin. The game UI moved from `bevy_ui` text to canvas sprites with a self-authored bitmap font on 2026-09-12 (§8.2). **Amended by the owner on 2026-09-20 (PRD D26, §11.1): Feathers in game.** The canvas direction seemed safe, but the game needs better interface widgets and a modern look. Start experimenting with Feathers in the game, see how the default styles work, and see if modern fonts can replace the pixel-art based fonts. The experiment is bounded: one in-game screen first (the tactics screen needs dropdowns, number inputs, lists and scrolling, which the canvas toolkit lacks), measured on the `ui` feature's crate count, rendering and scaling on the owner's ultrawide, the MCP screenshot and screen dumps still showing the interface, and headless tests still driving every widget. Facts read from the 0.19.1 sources: `bevy_feathers` and `bevy_ui_widgets` are part of Bevy (no third-party crates, where `bevy_egui` adds 17 and two duplicates), both call themselves experimental, and Feathers' documentation aims it at editors and suggests copying and restyling its widgets for a game. If the in-game integration goes well, the editor's toolkit is reconsidered. **Outcome (owner, 2026-09-20, `tasks/plans/feathers-experiment.md`): a success; "committing to moving the rest of the play UI over bit by bit".** Measured: 323 to 329 crates with no new duplicate, +16 MB, headless tests drive every control by event and by pointer with no GPU, the window target of `screenshot` shows the interface, a text tree stands in for the PPM dump; open: frame time on a visible window, vendoring at Bevy 0.20. **The editor's toolkit (owner, 2026-09-20): "That is a yes to use feathers on the editor and all user interface moving forward (and retrofit as convenient)."** `bevy_egui` is dropped. **Superseded for the game by A18 and X15 (2026-10-10); Feathers left the workspace with `omnis-app` at P9 (2026-10-11).** **Settled owner, 2026-10-14: the editor is `bevy_ui` in the neon style, as the game (§8.2).** |
 | A12 | Packs bypass Bevy's asset system; only images and audio go through an `AssetLoader` | RON as Bevy assets | Packs are validated untrusted data with cross-file references; Bevy's loader is per-file and has no RON loader anyway. |

@@ -34,12 +34,6 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
 - **Pack text is not checked for non-ASCII.**
   - Screen words are kept ASCII by rule (presentation-ARCHITECTURE §7.4). Text that comes from a pack is not
     checked, so a pack could show glyphs the fonts lack.
-- **The sim lint's Bevy-edge check fails open** (found 2026-10-20, read-only review).
-  - `scripts/lint-sim.sh:61` runs `cargo tree -p <crate> -e normal,build --locked 2>/dev/null | grep '^bevy' || true`.
-    A `cargo tree` that errors (a stale lock under `--locked`, a missing crate) prints nothing to the pipe, so the
-    check reads as "no Bevy edge" and passes. The `--self-test` plants float, hash, time and I/O violations only;
-    the Bevy edge is never tested.
-  - Fix: fail when `cargo tree` itself fails, and plant a Bevy edge in the self-test.
 
 ## Docs and wording
 - **The editor's toolkit is contradicted** (found at P9). **Resolved 2026-10-14: the owner chose `bevy_ui`; the docs agree.**
@@ -56,22 +50,9 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
   - For example `tests/inventory.rs::the_kit_s_events_read_as_the_other_client_s_lines`. The comments say "the
     retired client" since P9; the function names were left as they were.
 
-Found 2026-10-20 in a read-only review of `ARCHITECTURE.md` (every item checked against the files it names):
-- **ARCHITECTURE §14 names a `.cargo/config.toml` that selects a fast linker.** There is no `.cargo` directory.
-  Nothing in the repo selects a linker. Either add the file or drop the sentence.
-- **ARCHITECTURE §4.9 says `SAVE_SCHEMA` 8.** §4.1.1 and `omnis-sim/src/world.rs:38` say 9 (M8.5 7h).
-- **ARCHITECTURE §9.3 counts 26 ops and its table lacks `save.check`.** `ops.rs` defines 26 ops including
-  `save.check`, and `screenshot` is hosted outside it, so the set is 27, as `README.md` says. §4.9's "six ops touch
-  the host" also leaves `save.check` out, though it reads files; say whether it goes through `dispatch` or the host.
-- **ARCHITECTURE §3 says CI greps `Cargo.lock` paths to prove no Bevy edge.** The lint runs `cargo tree`
-  (`scripts/lint-sim.sh:61`); see the fail-open entry under Tools.
-- **`omnis-bus` is missing** from the §2 diagram, the §15 repository layout and §14's `no_std` list, though §4.8
-  and the lint treat it as a `no_std` simulation crate.
-- **`omnis-gen`, `omnis-eco` and `omnis-story` are listed as crates** in §3 and §15 and in `[workspace.dependencies]`
-  (path entries to missing directories), and the lint skips them silently. Planned work (M9 to M11), but the layout
-  reads as current; mark them as not yet created.
-- **§8.1 and A9 still carry the sprite-renderer contract** as if current, with `omnis-cli tileset bake` and the `png`
-  dependency kept for a renderer no client uses (see the tileset assets below). A9 is not marked superseded by A18.
+Found 2026-10-20 in a read-only review of `ARCHITECTURE.md` (every item checked against the files it names). The
+`ARCHITECTURE.md` items (§2, §3, §4.9, §9.3, §14, §15, A9) and the lint's fail-open Bevy check were fixed the same
+day; what remains is in the owner's documents or waits on a planned change:
 - **PRD.md carries retired state, and the PRD is the truth.** D26's outcome row (line 94) still says the interface
   moves to `bevy_ui` with Feathers at the canvas's whole-number scale; §11.1 (line 303) says "as built, the
   placeholder presentation is an integer-scaled 720-row canvas"; the §14 spike bullet (line 383) says "D2's '2D

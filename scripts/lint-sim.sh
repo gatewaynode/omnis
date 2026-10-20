@@ -54,27 +54,47 @@ for crate in "${NO_STD_CRATES[@]}"; do
   fi
 done
 
+# tree_of CRATE ARGS... — the resolved graph under --locked; its exit status is the caller's to check.
+tree_of() { local crate="$1"; shift; cargo tree -p "$crate" "$@" --prefix none --locked 2>&1; }
+
 # No Bevy edge below the client: check the resolved dependency graph, not just source text.
+# A `cargo tree` that fails (a stale lock under --locked, a crate cargo cannot resolve) is a lint
+# failure, never a silent pass: an unchecked edge is not a clean one.
 if command -v cargo >/dev/null; then
   for crate in "${SIM_CRATES[@]}"; do
     [ -d "crates/$crate" ] || continue
-    edges=$(cargo tree -p "$crate" -e normal,build --prefix none --locked 2>/dev/null | grep -E '^bevy' || true)
+    if ! tree=$(tree_of "$crate" -e normal,build); then
+      say "$crate: cargo tree failed, so its Bevy edge could not be checked:"; echo "$tree" >&2
+      continue
+    fi
+    edges=$(echo "$tree" | grep -E '^bevy' || true)
     [ -n "$edges" ] && say "$crate depends on Bevy:" && echo "$edges" >&2
   done
   # Rhai must be built with no floats, one integer type, and never unchecked.
   if [ -d crates/omnis-expr ]; then
-    feats=$(cargo tree -p omnis-expr -e features -i rhai --prefix none --locked 2>/dev/null | grep -E '^rhai feature' || true)
-    echo "$feats" | grep -q 'feature "no_float"' || say "omnis-expr: rhai must enable no_float"
-    echo "$feats" | grep -q 'feature "only_i64"' || say "omnis-expr: rhai must enable only_i64"
-    echo "$feats" | grep -q 'feature "unchecked"' && say "omnis-expr: rhai must not enable unchecked"
+    if ! tree=$(tree_of omnis-expr -e features -i rhai); then
+      say "omnis-expr: cargo tree failed, so rhai's features could not be checked:"; echo "$tree" >&2
+    else
+      feats=$(echo "$tree" | grep -E '^rhai feature' || true)
+      echo "$feats" | grep -q 'feature "no_float"' || say "omnis-expr: rhai must enable no_float"
+      echo "$feats" | grep -q 'feature "only_i64"' || say "omnis-expr: rhai must enable only_i64"
+      echo "$feats" | grep -q 'feature "unchecked"' && say "omnis-expr: rhai must not enable unchecked"
+    fi
   fi
+else
+  say "cargo is not on PATH, so the Bevy edges and rhai's features could not be checked"
 fi
 
 if [ "${1:-}" = "--self-test" ]; then
-  # Plant one violation of each textual kind in a scratch file inside omnis-core and require a
-  # failure for each. The scratch file is removed on exit no matter what.
+  # Plant one violation of each kind and require a failure for each: the textual kinds in a
+  # scratch file inside omnis-core, and a Bevy edge in omnis-core's manifest. Both are undone on
+  # exit no matter what; the lock is never written (--locked), so the planted edge is caught either
+  # as a Bevy edge or as the lock refusing it, and both name the crate and Bevy.
   scratch="crates/omnis-core/src/__lint_self_test.rs"
-  trap 'rm -f "$scratch"' EXIT
+  manifest="crates/omnis-core/Cargo.toml"
+  backup="$manifest.lint-self-test"
+  cp "$manifest" "$backup"
+  trap 'rm -f "$scratch"; [ -f "$backup" ] && mv -f "$backup" "$manifest"' EXIT
   cat > "$scratch" <<'PLANT'
 fn a() -> f64 { 1.0f64 }
 fn b() { let _ = 1.5f32 as f64; }
@@ -82,11 +102,13 @@ fn c() { let _ = HashMap::<u8, u8>::new(); }
 fn d() { let _ = SystemTime::now(); }
 fn e() { let _ = File::open("x"); }
 PLANT
+  printf '\n[dependencies.bevy]\nworkspace = true\n' >> "$manifest"
   out=$(bash "$0" 2>&1 >/dev/null || true)
-  rm -f "$scratch"; trap - EXIT
+  rm -f "$scratch"; mv -f "$backup" "$manifest"; trap - EXIT
   for want in "float type or literal" "hashed collection or hasher" "time, thread, or network use" "file or process I/O"; do
     echo "$out" | grep -q "$want" || { echo "lint-sim self-test: did not catch '$want'" >&2; fail=1; }
   done
+  echo "$out" | grep -q 'omnis-core.*Bevy' || { echo "lint-sim self-test: did not catch the planted Bevy edge" >&2; fail=1; }
   [ "$fail" = 0 ] && echo "lint-sim self-test: all planted violations caught"
   exit "$fail"
 fi
