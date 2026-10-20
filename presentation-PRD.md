@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
+| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-20: §9's Bevy features as built, no `3d` group (review, `tasks/BACKLOG.md`). 2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10 (branch `vector-adoption`; `tasks/plans/vector-adoption.md`) |
 | Parent documents | `PRD.md` (v0.8), `ARCHITECTURE.md` (v0.8, A18); companion `presentation-ARCHITECTURE.md` (v0.4) |
 | Owner | gatewaynode |
@@ -269,8 +269,9 @@ Three depth levels (X17):
 - **`omnis-vector` is not a simulation crate.** It may use floats and Bevy. It must never pass a
   float into the simulation: its only channels in are `Command`s, and its only reads are queries
   and events.
-- **Feature unification.** `verify.sh` builds the workspace with Bevy's 3D features. Its run time
-  is tracked.
+- **Feature unification.** `verify.sh` builds the workspace with the client's Bevy features, `2d`,
+  `png`, `bevy_pbr` and `ui`; the `3d` group is not used (presentation-ARCHITECTURE §3, VA1). Its
+  run time is tracked.
 - **Dependency policy applies:** pinned, older than 30 days, checksums in the lock. Bevy itself is
   exempt from N−1 (PRD D9). The 0.20 migration is planned in `tasks/plans/bevy-0.20-migration.md`.
 - **Merging with the mechanics work.** `Cargo.lock` is regenerated, not hand-merged.

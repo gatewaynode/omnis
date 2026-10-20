@@ -50,23 +50,13 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
   - For example `tests/inventory.rs::the_kit_s_events_read_as_the_other_client_s_lines`. The comments say "the
     retired client" since P9; the function names were left as they were.
 
-Found 2026-10-20 in a read-only review of `ARCHITECTURE.md` (every item checked against the files it names). The
-`ARCHITECTURE.md` items (§2, §3, §4.9, §9.3, §14, §15, A9) and the lint's fail-open Bevy check were fixed the same
-day; what remains is in the owner's documents or waits on a planned change:
-- **PRD.md carries retired state, and the PRD is the truth.** D26's outcome row (line 94) still says the interface
-  moves to `bevy_ui` with Feathers at the canvas's whole-number scale; §11.1 (line 303) says "as built, the
-  placeholder presentation is an integer-scaled 720-row canvas"; the §14 spike bullet (line 383) says "D2's '2D
-  rendering' stands as built". All of it left at P9 (2026-10-11).
-- **The performance floor contradicts itself inside PRD §11.1 line 303**: "measured, not assumed" and "remains the
-  performance floor" in one bullet, while presentation-PRD X20 says neither kept nor dropped until measured.
-- **presentation-PRD §9 says `verify.sh` builds "Bevy's 3D features"**; presentation-ARCHITECTURE §3 and the
-  `omnis-vector/Cargo.toml` comment say the `3d` group is not used, only `bevy_pbr`. Wording.
+Found 2026-10-20 in a read-only review of `ARCHITECTURE.md` (every item checked against the files it names). Fixed
+the same day: the `ARCHITECTURE.md` items (§2, §3, §4.9, §9.3, §14, §15, A9), the lint's fail-open Bevy check, the
+retired Feathers and canvas state in PRD D26, §11.1 and §14, the performance floor's wording in §11.1,
+presentation-PRD §9's "3D features", and the headless-versus-offscreen sentence in presentation-ARCHITECTURE §10.3.
+Left, waiting on a planned change:
 - **The Bevy 0.20 plan changes tonemapping from `None` to `Linear`** (`tasks/plans/bevy-0.20-migration.md`);
   presentation-ARCHITECTURE §3 and §8.6 will need the change when it lands.
-- **"Headless" and "offscreen" are two different things and no doc says so.** The offscreen `--screenshot` path
-  (`main.rs:66-89`, `DefaultPlugins` without winit) still initialises the renderer and needs a GPU adapter;
-  headless (`MinimalPlugins`, `omnis_cli::Headless`) has no renderer. `docs/api.md` line 246, `verification.md`
-  lines 26-30 and presentation-ARCHITECTURE §10.3 each describe one side; a sentence in §10.3 would settle it.
 
 ## Dependencies
 - **`smartstring` RUSTSEC-2026-0249** (through rhai): to add to ARCHITECTURE §13's dependency notes.
