@@ -658,7 +658,8 @@ What the loaded packs make of a save (`save.check`, `save::examine`; M8.5 7h4).
 
 A migration file is `packs/<pack>/migrations/NNNN.ron`, sealed with the pack: `(schema: 1, to: "x.y.z",
 steps: [..])`. A save made at version `v` is offered every file with `v < to <=` the pack's version, in
-file order; versions between files need none. Each step, as JSON `{"<Step>": {..}}`, names only its own
+file order; versions between files need none. A pack keeps at most 1024 files (`MAX_MIGRATIONS`),
+a file 1 to 4096 steps (`MAX_STEPS`). Each step, as JSON `{"<Step>": {..}}`, names only its own
 pack's ids:
 - `Rename { kind, from, to }` and `Replace { kind, from, to }`: what the save holds of `from` it holds of
   `to` (a rename, or another definition standing in). `kind`: `map`, `flag`, `region`, `item`, `spell`,
@@ -1066,6 +1067,9 @@ As of protocol 2:
 - **No sliced long ops.** Every op answers within one frame; ops that take long (an ecosystem
   tick, M10) and their progress reports are not built.
 - **`world.query` is debug-only** and outside the contract.
+- **Event rows after a pack change.** `Rumor.rumor` and `RestEvent.entry` name rows in file order,
+  so a save loaded on changed packs may retell another rumor or rest event in its log (M8.5 7h;
+  every other id a save holds is found again by name).
 - **Later systems.** Region events (M10, `omnis-eco`) and quest events (M11, `omnis-story`) do
   not exist yet, nor the ops `pack.validate`, `eco.region`, `eco.tick`, `story.state`,
   `story.check`, `editor.*`.

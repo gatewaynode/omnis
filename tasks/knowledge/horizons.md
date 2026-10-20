@@ -20,10 +20,8 @@ full spell effects where M7b's spells simplify them (named in each spell file). 
 owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
-items; string ids in saves before much more content arrives (planned as M8.5 step 7, owner 2026-10-15: `tasks/plans/m8.5-saves-by-name.md`; ids are interned `u32`s in file
-order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files renumbered
-the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
-own value.
+items; `doff_armor_minutes` as its own value. (String ids in saves, waiting here since M7b, were
+built as M8.5 7h: below, and ARCHITECTURE §4.1.1.)
 
 ## The save model (PRD D28, M8.5 step 7)
 Built in 7a–7f (ARCHITECTURE §4.1.1). Left for later, each a horizon:
@@ -38,8 +36,27 @@ Built in 7a–7f (ARCHITECTURE §4.1.1). Left for later, each a horizon:
 - **Fold thresholds from the world simulation** (M10): today a safe point folds at 5,000
   interactions, a provisional rules value; story points (M11) fold too.
 - **The PRD's save-model text** (owner, 2026-10-18, 7g: only §7.7's tidy line was brought to the
-  build): D28 and §7.7 still say the full log reads the journal and that loads replay from a base;
+  build; 2026-10-20, 7h7: its changed-pack line too, and the line on the save before D28 removed): D28 and §7.7 still say the full log reads the journal and that loads replay from a base;
   §7.6, §9.3, §11.1 and §14 predate flag scope, the lay-not-replay load and the provisional fold.
+
+## Saves by name (M8.5 7h)
+Built in 7h1–7h6 (ARCHITECTURE §4.1.1; plan `tasks/plans/m8.5-saves-by-name.md`): a save keeps
+the names its numbers stand for, loads on changed packs by name, and is offered the packs'
+migrations. Left as it is, each a horizon:
+- **Replays need identical packs.** A replay (A14) reproduces a game from its commands for tests
+  and goldens; it is not remapped.
+- **Snapshots are not recomputed.** A stack's or member's hit points stay as saved, so a monster
+  whose maximum went down may stand above it after a load mid-fight.
+- **Two events name rows:** `Event::Rumor { rumor }` and `RestEvent { entry }` are rows in file
+  order, so after a pack change the party's log may retell another rumor or rest event. Cosmetic
+  (`docs/api.md` §14); ids for them when either is edited in practice.
+- **Stream names keep region numbers** (`time:party:0:region:3`). They are rebuilt by name on a
+  renumbering; moving them to string ids would change every golden.
+- **Interaction ids.** An object kind's `once` interactions are found again by verb, label and
+  state; two with one signature are told apart only by order. Optional interaction ids if an edit
+  makes that matter.
+- **Carrying a character to another world** (above) is nearer: the name table is what a carry or
+  an import would resolve a party's ids through.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 **Built in M7c (2026-10-04, ARCH §4.7)**: everything in the "Planned for M7c" paragraph below, the tactics panel beside the sheet, and Bob; D24 stands over the SRD's one-spell limit (step 4b reverted in step 8a, owner 2026-10-04). What follows is the history and what stays open.

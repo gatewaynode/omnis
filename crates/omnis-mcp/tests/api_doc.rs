@@ -336,3 +336,53 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
         );
     }
 }
+
+/// The documents state the save schema, the protocol, the op count and the migration limits
+/// the code holds (M8.5 7h7).
+#[test]
+fn the_documents_state_the_save_schema_the_protocol_and_the_migration_limits() {
+    use omnis_cli::omnis_sim::api::{PROTOCOL, SAVE_SCHEMA};
+    use omnis_cli::omnis_sim::omnis_data::migration::{MAX_MIGRATIONS, MAX_STEPS};
+    let architecture = document("ARCHITECTURE.md");
+    let api = document("docs/api.md");
+    for (doc, name, what) in [
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`SAVE_SCHEMA` {SAVE_SCHEMA}, compact RON"),
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`MAX_MIGRATIONS` ({MAX_MIGRATIONS})"),
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`MAX_STEPS` ({MAX_STEPS})"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("`ops::PROTOCOL` is `{PROTOCOL}`"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("| `SAVE_SCHEMA` | {SAVE_SCHEMA} |"),
+        ),
+        (&api, "docs/api.md", format!("{} ops.", every_op().len())),
+        (
+            &api,
+            "docs/api.md",
+            format!("at most {MAX_MIGRATIONS} files (`MAX_MIGRATIONS`)"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("1 to {MAX_STEPS} steps (`MAX_STEPS`)"),
+        ),
+    ] {
+        assert!(doc.contains(&what), "{name} does not say {what}");
+    }
+}

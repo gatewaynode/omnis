@@ -1,95 +1,24 @@
 # Continuity notes
 
-Written 2026-10-19, after the owner accepted M8.5 7h3 (saves by name). Next: 7h4, the report and the load screen. Rewrite this file every time it is used.
-Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-20, with M8.5 7h7 (docs and close for saves by name) built and awaiting the owner's read. Rewrite
+this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the four files under
-  `assets/` and `docs/dnd_supplemental/` (the owner's).
-- **Step 7, the save model (D28), plan `tasks/plans/m8.5-save-model.md` (amended 2026-10-17):**
-
-  | Sub-step | Commit | State |
-  | --- | --- | --- |
-  | 7a, the journal and its measurement | `8d8773e` | accepted |
-  | 7b, `split`/`join` in memory | `d5f14d6` | accepted |
-  | 7c, flag scope (`data/flags`) | `ae99144` | accepted |
-  | 7d, the character save and world folder | `f0977b8`, `55c69b6`, `18f8a2d` | accepted 2026-10-18 |
-  | 7e, the fold, the archive and tidy | `b43443c`, `a19633a` | accepted 2026-10-18 (`b467758`) |
-  | 7f, the party's log saved and retold | `e04eebf`, `1964e0e` | accepted 2026-10-18 (`5070624`) |
-  | 7g, docs and pins | `c552aa7` (fix), `9e703b5`, `a4dd48e` | accepted 2026-10-18 (`f243e1d`) |
-  | 7h1, the seal | `062a1fb`, `318603f`, script `97d62ab` | accepted 2026-10-18 |
-  | 7h2, schema 9 | `9495867`, docs `ca9c556` | accepted 2026-10-19 ("Manually confirmed") |
-  | 7h3, saves by name | `787426e`, docs `40ccc7a` | accepted 2026-10-19 ("Manually tested") |
-
-  7h is saves by name, in sub-steps 7h1–7h7 (TODO; the re-scope is at the top of
-  `tasks/plans/m8.5-saves-by-name.md`; the full approved plan was in plan mode, summarised below).
-- **Gate:** `tests passed 960 failed 0 ignored 15`, VERIFY-GREEN at `787426e`. Sentrux rules pass, quality 8985.
-  7h3 mutations 38 of 38 (runner `scratchpad/mutate7h3.py`, args filter by name).
-- Owner world docs `docs/locations/the_floating_isles_of_the_west_reach.md` and `..._paratoron_empire_...` committed
-  alone (`2368ea8`).
-- Owner world doc `docs/background/introduction.md` changed twice and was committed alone each time (`63c61c5`,
-  `2b7a62b`).
-
-## 7h, the approved plan (owner 2026-10-18; read before each sub-step)
-- **Owner's choices:** sub-steps each walked; all six migration kinds plus `migration draft`; saves made
-  before 7h (no name table) load on changed packs only when forced (the break accepted); a log line on a
-  removed map is kept, its objects unnamed; mid-fight saves stay allowed.
-- **Name table in each world folder's manifest** (`Manifest.names`, serde default, skipped when empty so v8
-  world ids hold): per kind the string ids by old number (maps, flags, regions, items, spells, monsters,
-  conditions, races, classes, backgrounds, services), party-scoped flags, each map's terrain keys, each object
-  kind's `once` interaction signatures (verb, label, state). Ids are interned in sorted string-id order per kind.
-- **Load:** read in the save's own numbering (region bases keyed through the save's table), `join_raw`, lay
-  the journal, **always** check the fingerprint; then tiers: same packs as today; same names (content-only
-  edits) set `world.packs`, check places, no fold; different names remap the live World (`Remapper`, Missing
-  with paths), `checked(new)`, then **fold** (journal archived in old numbering under its old folder; history
-  never remapped). No table on other packs: `force` only.
-- **Remap covers live state only:** position, maps (objects' contents and `used`, piles), automap (terrain by
-  key), known, mode (encounter stacks, retreat, source; combat loot; town service), flags, clocks, contacts
-  (+ `other`), rngs, party, characters (race, class, background, spells, kit, conditions, equipped, effects,
-  tactics via `omnis-rules` `Rename`), `Logged.map`. Bus region topics rebuilt from `time::subscriptions`.
-  `time:<h>:<h>` stream names parsed, remapped and **rebuilt through `StreamName::time`** (order can flip).
-  Keyed maps rebuilt into new maps. Proof: an overlay pack shifting every number, all views equal (exploring,
-  town, mid-fight), a mutation per field.
-- **Also:** `base_zero` → `Bases::default()` (World::new puts nothing in a base); `CharacterSave.archive` →
-  `[Segment { world, name }]`, `Archived::Held.from: Option<Manifest>`, tidy counts other folders; fixed
-  encounters by required id, `SAVE_SCHEMA` 9; `pack.reload` must set `world.packs` (bug, red test in 7h2) and
-  later go through `ops::reload`.
-- **Sub-steps:** 7h2 schema 9 (encounter ids, names written, segments, base 0, reload packs, v9 fixture);
-  7h3 remap; 7h4 report, `save.check`, MCP `save_check` (27 tools), load screen; 7h5 reload by name;
-  7h6 migrations (the version chain: decide how patch bumps without a migration file chain); 7h7 docs (PRD
-  §7.7 needs the owner's approval).
-
-## When you resume (after the compact)
-1. `/catchup`: this file, then `tasks/LESSONS.md` (newest: context is measured; mutation runners restore by
-   rewriting), then TODO's 7h entries.
-2. Before 7h4's code, read in subagents, not the main context: the window's load path (`omnis-vector`
-   `game_io.rs` `load`/`said`, the title's and pause's Load buttons, how a refused load shows), the MCP crate
-   (`crates/omnis-mcp/src/{tools,schema}.rs`, the tool-count pins), and `ops.rs` `Op`/`Reply` (the ops-count
-   pins, `docs/api.md` §2's table). Then plan 7h4 in TODO and check in with the owner before building.
-3. Context was 297.7k/1M at the compact (owner's `/context`).
+- **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the files under `assets/`
+  and `docs/dnd_supplemental/` (the owner's).
+- **Step 7, the save model (D28):** 7a–7g accepted 2026-10-17/18. **7h, saves by name** (plan
+  `tasks/plans/m8.5-saves-by-name.md`, its "Built" note at the top lists every sub-step's commit and the
+  departures): 7h1 seal, 7h2 schema 9, 7h3 load by name, 7h4 save check and Load screen, 7h5 reload by name,
+  7h6 pack migrations (`c39d019`, accepted 2026-10-20). **7h7 built 2026-10-20**: ARCHITECTURE §4.1.1
+  (migrations), §4.5, §4.9, §6.1, §6.2, §12, A19; PRD §7.7 (owner's wording; the pre-D28 line removed);
+  `horizons.md` "Saves by name"; api.md §14; a docs pin test. Script `tasks/acceptance/m8.5-7h7.md`.
+- **Gate:** `tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN; clippy clean; Sentrux rules pass, 9001.
 
 ## Next
-- **The owner walks 7h3** (`tasks/acceptance/m8.5-7h3.md`): save on base+test+objects, load with
-  `crates/omnis-sim/tests/packs/ahead` added ("made with other packs, loaded by name. The world has moved on"),
-  the wizard's spells the same; give ahead's Dagger (first in the debug Item list), save, load without
-  `ahead`: refused, "item 'ahead:item:dagger' in party.inventory". All from the window, no forcing.
-- **7h3 as built (what 7h4 builds on):** `save/disk.rs` `load_save`: region bases keyed through
-  `Manifest.names` (`region_number`), `join::assemble` (unchecked), journal, fingerprint on any packs (schema 8
-  converted skips), then `fit(world, old manifest, data) -> (World, PackFit)`: `Same`, `Content` (equal
-  `NameTable`), `Renumbered` (`remap::world` then `remap::log`, packs set, `checked`, `fold_from(.., Some(old))`),
-  `Forced` (no table; early `PackMismatch` unless force). `save/remap.rs` (471 lines): `Remapper` with
-  `RefCell` missing list, implements `Rename<Ids, Ids>` for tactics; `Missing { kind: NameKind, name, at }`;
-  `LoadError::Unresolved(Vec<Missing>)`. `Restored.fit`; window `game_io::said` words each fit. `Bus::retain`
-  in omnis-bus. Fixture pack `tests/packs/ahead` (0.1.1, depends base/test/objects).
-- **7h4 next:** `examine`/`restore`, `LoadReport` (per-pack versions, names found/missing with where, place
-  checks: position, doors, piles, automap bounds, `used` signatures, terrain keys; verdict `Same`/`Renamed`/
-  `NeedsMigration`/`Unresolved`), `save.check` + MCP `save_check` (27 tools, ops count moves), the window's
-  load screen per verdict (Renamed: "Made with other packs; loaded by name."; Unresolved: the list and Cancel).
-  `PackFit` and `Unresolved` are the seeds of it.
-- **Forced loads in a walk:** when the omnis MCP isn't connected, send `{"id":1,"op":"save.read","args":{"path":..,
-  "force":true}}` as one JSON line to the address in `.omnis/dev.addr` (a short `python3 -I` socket script);
-  `screen.text` reads the window back. The game must be in a world, not on the title or New game screen.
-- **Decided 2026-10-19:** the pack data `SCHEMA` stays 1 (owner: "Keep the schema at 1").
+1. The owner reads 7h7. On acceptance: check 7h7, 7h and M8.5 step 7 in TODO (line "M8.5 step 7 checked" in the
+   7h7 Built note).
+2. Then the owner sets the order: open M8.5 steps are 1 (the 3D map format, partly done), 5 (colour scheme and
+   biosphere palettes), 6 (mana in map packs, needs the owner's intent), then the editor (M5). Ask.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -104,10 +33,12 @@ Durable knowledge lives in `tasks/knowledge/`.
 
 
 ## Pins
-- **Replays:** walk `8eab9a1dd95b472d`, fight `79ca2704c92bc312` (rebaselined in 7h2: test pack 0.1.1, schema 9).
-  `SAVE_SCHEMA` 9, `PROTOCOL` 2. The base and test packs give 109 names.
-- **MCP:** command `oneOf` 14, dev `oneOf` 14, item `oneOf` 10, schema proof 117/168, tools 26, ops 26.
-- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71. The base pack has 19 spells.
+- **Replays:** walk `8eab9a1dd95b472d`, fight `79ca2704c92bc312` (rebaselined in 7h2). `SAVE_SCHEMA` 9,
+  `PROTOCOL` 2, ops 27, MCP tools 27, `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (all pinned to the docs by
+  `omnis-mcp/tests/api_doc.rs`, run as `--test integration api_doc`).
+- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12.
+- **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,objects}`; a test that edits a pack reseals
+  it (`omnis-cli pack seal`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
@@ -129,7 +60,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   Sentrux `rescan` and `check_rules`.
 - **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
   in `finally` **by rewriting its text, never by moving a backup back**, which leaves an old mtime and a stale
-  mutant in `target/`; `python3 -u` to a file), then `git status` to confirm the sources are clean.
+  mutant in `target/`; `python3 -u` to a file), then `git status` to confirm the sources are clean. No cargo command and no fixture edit while a mutation run or the gate runs.
 - **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, ARCHITECTURE §4.2's counts, `code-map.md`'s command list (all pinned by `api_doc.rs`), `api_doc.rs` pins
   and `variants!` lists, the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`
   (instances, offered, the drift test's index), `common/commands.rs`, the word in `word.rs`, client
