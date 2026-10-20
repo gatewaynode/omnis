@@ -2,7 +2,7 @@
 
 The plan was `~/.claude/plans/nested-growing-bear.md` (PRD D26, §11.1; ARCH A11 as amended): party
 creation rebuilt with Bevy's Feathers widgets and a modern font, on `m7-tasks`, commits `8e111d5..5bce8b7`.
-The per-step record with every measurement is in `tasks/TODO.md` under "The Feathers experiment".
+The per-step record with every measurement is in `tasks/archive/TODO-2026-10-20.md` (archived from `tasks/TODO.md` 2026-10-20) under "The Feathers experiment".
 
 ## Outcome (owner, 2026-09-20)
 "I'm ready to call the feathers experiment a success and committing to moving the rest of the play UI

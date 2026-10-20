@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-20, with M8.5 7h7 (docs and close for saves by name) built and awaiting the owner's read. Rewrite
+Written 2026-10-20, after the owner accepted M8.5 7h7 and TODO.md was archived. Rewrite
 this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -9,16 +9,17 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **Step 7, the save model (D28):** 7a–7g accepted 2026-10-17/18. **7h, saves by name** (plan
   `tasks/plans/m8.5-saves-by-name.md`, its "Built" note at the top lists every sub-step's commit and the
   departures): 7h1 seal, 7h2 schema 9, 7h3 load by name, 7h4 save check and Load screen, 7h5 reload by name,
-  7h6 pack migrations (`c39d019`, accepted 2026-10-20). **7h7 built 2026-10-20**: ARCHITECTURE §4.1.1
+  7h6 pack migrations (`c39d019`, accepted 2026-10-20). **7h7 accepted 2026-10-20** (`b9240e0`): ARCHITECTURE §4.1.1
   (migrations), §4.5, §4.9, §6.1, §6.2, §12, A19; PRD §7.7 (owner's wording; the pre-D28 line removed);
   `horizons.md` "Saves by name"; api.md §14; a docs pin test. Script `tasks/acceptance/m8.5-7h7.md`.
 - **Gate:** `tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN; clippy clean; Sentrux rules pass, 9001.
 
 ## Next
-1. The owner reads 7h7. On acceptance: check 7h7, 7h and M8.5 step 7 in TODO (line "M8.5 step 7 checked" in the
-   7h7 Built note).
-2. Then the owner sets the order: open M8.5 steps are 1 (the 3D map format, partly done), 5 (colour scheme and
-   biosphere palettes), 6 (mana in map packs, needs the owner's intent), then the editor (M5). Ask.
+- **7h7 accepted 2026-10-20**; M8.5 step 7 closed. `tasks/TODO.md` was archived the same day (owner): everything
+  done moved verbatim to `tasks/archive/TODO-2026-10-20.md`; TODO keeps only the open work.
+- **The owner sets the next phase.** Open: Editor v1 (M5), M8.5 steps 5 (colour roles, biosphere palettes) and 6
+  (mana, needs the owner's intent), the items outside the milestones (README's stale Status table among them),
+  then M9 to M12. Ask.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

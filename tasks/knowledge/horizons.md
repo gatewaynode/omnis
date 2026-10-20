@@ -7,7 +7,7 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 - 2026-10-10: Socket re-audit of `rhai` 1.26.1.
 
 ## M7 (town, services, rest, progression)
-Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan, each a horizon:
+Planned 2026-09-20 (the M7 block, now in `tasks/archive/TODO-2026-10-20.md`). Left out of M7 by its plan, each a horizon:
 swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
 limited shop stock (bank interest is out: owner, 2026-10-05, "There will be no bank interest in this game"), rumors from the story engine (M11; M7's
 are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
