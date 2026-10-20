@@ -34,6 +34,12 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
 - **Pack text is not checked for non-ASCII.**
   - Screen words are kept ASCII by rule (presentation-ARCHITECTURE §7.4). Text that comes from a pack is not
     checked, so a pack could show glyphs the fonts lack.
+- **The sim lint's Bevy-edge check fails open** (found 2026-10-20, read-only review).
+  - `scripts/lint-sim.sh:61` runs `cargo tree -p <crate> -e normal,build --locked 2>/dev/null | grep '^bevy' || true`.
+    A `cargo tree` that errors (a stale lock under `--locked`, a missing crate) prints nothing to the pipe, so the
+    check reads as "no Bevy edge" and passes. The `--self-test` plants float, hash, time and I/O violations only;
+    the Bevy edge is never tested.
+  - Fix: fail when `cargo tree` itself fails, and plant a Bevy edge in the self-test.
 
 ## Docs and wording
 - **The editor's toolkit is contradicted** (found at P9). **Resolved 2026-10-14: the owner chose `bevy_ui`; the docs agree.**
@@ -50,11 +56,95 @@ Features and planned work stay in `tasks/TODO.md`: Look and Map, removing or edi
   - For example `tests/inventory.rs::the_kit_s_events_read_as_the_other_client_s_lines`. The comments say "the
     retired client" since P9; the function names were left as they were.
 
+Found 2026-10-20 in a read-only review of `ARCHITECTURE.md` (every item checked against the files it names):
+- **ARCHITECTURE §14 names a `.cargo/config.toml` that selects a fast linker.** There is no `.cargo` directory.
+  Nothing in the repo selects a linker. Either add the file or drop the sentence.
+- **ARCHITECTURE §4.9 says `SAVE_SCHEMA` 8.** §4.1.1 and `omnis-sim/src/world.rs:38` say 9 (M8.5 7h).
+- **ARCHITECTURE §9.3 counts 26 ops and its table lacks `save.check`.** `ops.rs` defines 26 ops including
+  `save.check`, and `screenshot` is hosted outside it, so the set is 27, as `README.md` says. §4.9's "six ops touch
+  the host" also leaves `save.check` out, though it reads files; say whether it goes through `dispatch` or the host.
+- **ARCHITECTURE §3 says CI greps `Cargo.lock` paths to prove no Bevy edge.** The lint runs `cargo tree`
+  (`scripts/lint-sim.sh:61`); see the fail-open entry under Tools.
+- **`omnis-bus` is missing** from the §2 diagram, the §15 repository layout and §14's `no_std` list, though §4.8
+  and the lint treat it as a `no_std` simulation crate.
+- **`omnis-gen`, `omnis-eco` and `omnis-story` are listed as crates** in §3 and §15 and in `[workspace.dependencies]`
+  (path entries to missing directories), and the lint skips them silently. Planned work (M9 to M11), but the layout
+  reads as current; mark them as not yet created.
+- **§8.1 and A9 still carry the sprite-renderer contract** as if current, with `omnis-cli tileset bake` and the `png`
+  dependency kept for a renderer no client uses (see the tileset assets below). A9 is not marked superseded by A18.
+- **PRD.md carries retired state, and the PRD is the truth.** D26's outcome row (line 94) still says the interface
+  moves to `bevy_ui` with Feathers at the canvas's whole-number scale; §11.1 (line 303) says "as built, the
+  placeholder presentation is an integer-scaled 720-row canvas"; the §14 spike bullet (line 383) says "D2's '2D
+  rendering' stands as built". All of it left at P9 (2026-10-11).
+- **The performance floor contradicts itself inside PRD §11.1 line 303**: "measured, not assumed" and "remains the
+  performance floor" in one bullet, while presentation-PRD X20 says neither kept nor dropped until measured.
+- **presentation-PRD §9 says `verify.sh` builds "Bevy's 3D features"**; presentation-ARCHITECTURE §3 and the
+  `omnis-vector/Cargo.toml` comment say the `3d` group is not used, only `bevy_pbr`. Wording.
+- **The Bevy 0.20 plan changes tonemapping from `None` to `Linear`** (`tasks/plans/bevy-0.20-migration.md`);
+  presentation-ARCHITECTURE §3 and §8.6 will need the change when it lands.
+- **"Headless" and "offscreen" are two different things and no doc says so.** The offscreen `--screenshot` path
+  (`main.rs:66-89`, `DefaultPlugins` without winit) still initialises the renderer and needs a GPU adapter;
+  headless (`MinimalPlugins`, `omnis_cli::Headless`) has no renderer. `docs/api.md` line 246, `verification.md`
+  lines 26-30 and presentation-ARCHITECTURE §10.3 each describe one side; a sentence in §10.3 would settle it.
+
 ## Dependencies
 - **`smartstring` RUSTSEC-2026-0249** (through rhai): to add to ARCHITECTURE §13's dependency notes.
 - **`ttf-parser` 0.25.1 RUSTSEC-2026-0192**: reached only on Linux, through winit's Wayland window decorations
   (`winit` → `sctk-adwaita` → `ab_glyph` → `owned_ttf_parser`; `cargo tree --target all -i ttf-parser`). It is not in
   the macOS build. To review against the Bevy 0.20 move (not before 2026-11-07).
+- **`webgl2` is enabled transitively** (found 2026-10-20). Bevy's `2d` and `ui` groups pull `default_platform`,
+  which carries `webgl2` (`bevy_internal/webgl` → `bevy_render/webgl` → `wgpu/webgl`). Presumed inert on a native
+  target; not verified. A narrower feature list would drop it; check with the Bevy 0.20 move.
+
+## Rendering direction: GPU-first (recommendation, 2026-10-20)
+The owner's concern (2026-10-20): an early miscommunication left the rendering built with old techniques. Found in
+the read-only review: the look is the owner's (presentation-PRD X3, X13), the grid with quantized steps is the
+rules, and neither is a rendering technique. The technique is Bevy's debug-drawing path: `shell/render.rs::draw`
+walks every segment each frame, computes a fog fade on the CPU and submits a gizmo line, which Bevy re-uploads
+every frame. The only retained geometry is the fills mesh (M8.5 step 3). There are no shaders, materials, compute
+passes or render-graph nodes of the project's own anywhere in the repo. The whole GPU-facing surface is one file,
+`shell/render.rs` (281 lines); the 1,866 lines of Bevy-free core (`geometry`, `fill`, `ground`, `scene`, `shapes`)
+decide what exists and stay whatever is done below.
+
+The measurement already made says where the time goes (presentation-ARCHITECTURE §8.6, offscreen, release, a
+300-frame walk): 1.9 to 2.2 ms mean at 1920×1080 and the same at 5120×1440. No change over 3.5× the pixels means
+the GPU is idle and the cost is CPU submission. At 2 ms a frame it is not a performance problem today; the case
+for GPU-first is capability, not speed: pixel-constant anti-aliased lines, relief (X10), depth levels (X17),
+density and glow (X13) are each planned, and on the current path each adds to the per-frame CPU loop.
+
+Three sizes, each a candidate for `tasks/TODO.md` when the owner chooses:
+1. **Retained geometry with an own shader** (the design already deferred in presentation-ARCHITECTURE §8.2 and
+   VA4). Lines become `LineList` meshes built on change and drawn through a custom `Material` whose vertex and
+   fragment shaders do fog, fade, pattern and weight; the per-frame CPU loop goes. New surface: one WGSL file
+   (about 100 lines), a material module, a rewrite of `render.rs`. No new crate: `bevy_pbr`, already enabled, has
+   the material trait. The core is untouched and the headless tests stand. This is also the measurement X20 asked
+   for before the floor is set.
+2. **The look computed on the GPU.** Lines expanded to screen-space quads in the vertex shader for pixel-constant
+   width and anti-aliasing; relief as displacement over a per-map heightfield texture instead of the CPU noise
+   planned for M8.5 step 5; depth levels and fog as material parameters; objects, piles and beings instanced. The
+   CPU sends a scene once and a few uniforms a frame. Three to four shaders, an instancing path, a texture upload a
+   map. This is where "GPU first" becomes true.
+3. **A GPU-resident map.** Cells, heights and edges uploaded once as storage buffers; a compute pass or procedural
+   vertex shader generates walls, floors and relief; a door opening is a one-cell update. The core shrinks to the
+   collision mirror and the uploader. Needs render-graph and compute code, the most Bevy-version-sensitive kind;
+   the agreement tests lose their CPU geometry reference. A horizon, not an exclusion.
+
+What each size costs beyond code:
+- **Docs.** Size 1 fits presentation-PRD X3 ("can grow into meshes"), X20 and VA4 as written. Sizes 2 and 3 are a
+  presentation-PRD amendment (the owner's departure adds a direction) and change VA1, VA4 and §8.2.
+- **Testing.** The gate has no GPU. Size 1 keeps the pattern (core tested headless, captures as acceptance on the
+  owner's machine). Sizes 2 and 3 move the look into shaders that no headless test sees; whether GitHub's macOS
+  runners expose a Metal device for offscreen capture is unverified and decides whether CI can ever check the
+  picture.
+- **Ordering.** Shader APIs churn between Bevy versions and the 0.20 move is planned. Shaders written on 0.19.1
+  are written twice. Do 0.20 first.
+- **Dependencies.** None at any size. Own WGSL in the repo matches the self-supporting rule; no line-rendering
+  crate is needed.
+
+**Recommendation:** size 1 straight after the Bevy 0.20 migration, with size 2 designed in the same amendment so
+the shader is written once with width, fog and relief in mind; size 3 stays a horizon. When the owner chooses, the
+chosen size moves to `tasks/TODO.md` with a plan under `tasks/plans/` and the amendment text for
+`presentation-PRD.md`.
 
 ## Assets no code uses (review for removal; the owner's files)
 Found at P9, when `omnis-app` left. Nothing here is deleted without the owner.
