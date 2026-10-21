@@ -17,11 +17,15 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   lint fix; this re-plan touched no code.
 
 ## Next
-- **W0 continues:** W0.2 archive `tasks/alt-TODO.md`; W0.3 the README's Status table; W0.4 the vision-document
-  changes, each approved by the owner first (PRD §13's note, ARCHITECTURE §16 and its stale TODO pointers,
-  presentation-PRD §11 steps 1 and 4, presentation-ARCHITECTURE's status line, §4.3 and §7); W0.5 the three
-  studies (accounts, multiplayer, multi-platform) as `tasks/plans/study-<name>.md`, read-only.
-- **Then W1:** plan M5 Editor v1 in plan mode against the format as built.
+- **W0 is done** (2026-10-21): W0.1 `1902277`, W0.2+W0.4 `efd86b8`, W0.3 `83d752e`, W0.5 `80f460f`; gate green on
+  the tree (1020 passed). Not pushed.
+- **Owner decisions pending from the studies:** D29 (accounts: the study recommends nothing in code until W5,
+  signed packs first), D30 (multiplayer: several parties by the time model as the horizon, the one-party
+  `World` refactor folded into M9), D31 (platforms: Linux CI now against the owner's 2026-09-12 deferral,
+  Windows at W1's close, web deferred, mobile deferred without a milestone). Each enters PRD.md as a row when
+  the owner chooses; ask before writing them.
+- **Then W1:** plan M5 Editor v1 in plan mode against the format as built (`tasks/plans/editor-v1.md` §A and
+  §E to reuse; the rest superseded).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
