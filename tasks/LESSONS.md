@@ -324,3 +324,14 @@
   rerun.
 - **Rule**: once a mutation runner starts, no `cargo` command and no edit to a file any of its tests read
   (sources, fixtures, packs) until it ends. Write docs and plans meanwhile. Settle fixtures before the run.
+
+## 2026-10-21 — A text for an author is sized to how authors work, and addressed to what it is about
+- **What happened**: M5.1 added one optional `notes: Option<String>` of 4 KiB to each map and level, the
+  shape ARCHITECTURE §8.2 had named. The owner: campaign notes are copious, the editor is also the game
+  master's desk, and each square, object and item may need its own 4 KiB; a keyed notes file is the right
+  shape. The hand-written maps already showed it: their comments sit on particular cells, services and
+  portals, which one text per map cannot address.
+- **Rule**: when a field holds text for a person (an author, a game master, a modder), size it against how
+  that person works, not against the string limit, and address it to the thing it is about (a key per
+  square, object or item, in a store of its own) rather than hanging one string on the file. Before
+  building a field a vision document named in passing, check the real material it must hold.

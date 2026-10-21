@@ -297,7 +297,7 @@ Observations. F1 falls to roughly a quarter of SRD capacity. F2 tracks the SRD f
 - Every data file has a schema and a version. Loading validates against the schema and reports every error with file and line, never panics.
 - Assets (sprites, tilesets, audio) are referenced by pack-relative path. Missing assets render as a visible placeholder, never a crash.
 - The editor and the loader are the same code path. If the editor can save it, the game can load it.
-- Editor v1 (owner, 2026-10-14): `bevy_ui` in the neon style. It edits maps on a top-down plan, one level at a time, with the 3D view as a preview from the cursor and Playtest dropping the party there; a map and each of its levels carry an optional `notes` text the editor keeps. Every other data file is edited as RON text, checked by the loader before it is saved. The data table, region, quest graph and procgen views follow content needs (R5). It is built after M8.5 step 2 (objects in data and the engine first) and closes Phase 1 (D4).
+- Editor v1 (owner, 2026-10-14): `bevy_ui` in the neon style. It edits maps on a top-down plan, one level at a time, with the 3D view as a preview from the cursor and Playtest dropping the party there; the author's notes are a keyed store in the pack (`notes/`), one text per key for any map, level, square, object, item or other content, since campaign notes run long and the editor is also the game master's desk (owner, 2026-10-21); the game never reads them. Every other data file is edited as RON text, checked by the loader before it is saved. The data table, region, quest graph and procgen views follow content needs (R5). It is built after M8.5 step 2 (objects in data and the engine first) and closes Phase 1 (D4).
 
 ## 11. Constraints
 

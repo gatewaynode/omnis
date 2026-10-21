@@ -24,6 +24,14 @@ pub fn load_test_packs() -> omnis_data::Data {
     omnis_data::load_packs(&[&base, &test]).unwrap_or_else(|report| panic!("{report}"))
 }
 
+/// A fixture pack of the simulation's tests (`levels`, `heights`, `objects`, ...), which depends
+/// on the base and test packs.
+pub fn fixture_pack(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../omnis-sim/tests/packs")
+        .join(name)
+}
+
 /// A known-bad pack from the corpus under `tests/packs-bad/`.
 pub fn bad_pack(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

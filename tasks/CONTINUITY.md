@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-21, after the W0.5 decisions and the advisory Linux CI job. Rewrite this file every time it is
+Written 2026-10-21, after M5.1 (W1, the editor). Rewrite this file every time it is
 used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -20,12 +20,16 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Bevy build on Linux is proven only by the first GitHub run (the owner reports CI; `gh` is not installed).
 
 ## Next
-- **The first CI run after the push:** the owner reports whether `linux (advisory, never blocks)` passed. If the
-  apt line is short (a missing `-dev` package shows as a `pkg-config` or linker error in a `-sys` crate's build
-  script), fix the package list; the tree reaches `libudev-sys` (gilrs), `wayland-sys`, `x11-dl` (dlopen) and
-  `sctk-adwaita` on Linux, nothing else that links a system library.
-- **W1:** plan M5 Editor v1 in plan mode against the format as built (`tasks/plans/editor-v1.md` §A and §E to
-  reuse; the rest superseded). From W1 on, no new per-party state enters `World` as a bare field (D30).
+- **W1 is under way on branch `W1-authoring-tools`** (the M8.5 branch merged as PR #13; CI green with the advisory
+  Linux job). The approved M5 plan: `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md`.
+- **M5.1 landed** (notes store `notes/*.ron`, `MapData::resolve`; `tasks/acceptance/m5-1.md`). Owner's direction
+  during it: notes are a keyed store, never sealed, dangling keys allowed (lesson 2026-10-21).
+- **Next: M5.2**, `omnis_data::edit` (`grid.rs`, `kinds.rs`, `document.rs`, `session.rs`, `files.rs`): byte-identical
+  layouts on the eight fixture maps first (red), then the document and the session on a scratch copy of
+  `packs/test` (`common::copy_pack` to write). The session also reads and writes the notes store (`notes/*.ron`,
+  `NotesFile`, `is_note_key`) and lists orphaned keys. `loader.rs` now exposes `pub(crate) parse_checked`,
+  `check_manifest`, `check_text_file`, `check_id`, `HasSchema` for the RON check by directory.
+- **Then M5.3** the ops (14 + notes), M5.4 onward the client (see the plan's steps table).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

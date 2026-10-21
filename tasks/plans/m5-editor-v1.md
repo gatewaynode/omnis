@@ -18,6 +18,14 @@ superseded. This plan replaces it as `tasks/plans/m5-editor-v1.md` (written and 
 and the files are rewritten by the editor, the pack resealed and both golden replays rebaselined in that commit;
 Playtest uses the **fixed party** (`party::fixed()`), saving dimmed during a playtest.
 
+**Owner's direction (2026-10-21, during M5.1):** notes are a keyed store, `notes/*.ron` in the pack (`NotesFile {
+schema, entries: BTreeMap<key, text> }`, the shape of `text/<lang>/`), not a field on maps and levels: a key is a
+content id or one followed by `/` and a path (`test:map:town/0/3,1`, `/level/-1`, `/chest.1`, `/terrain/r`), each
+text up to 4 KiB, 65,536 entries and 4 MiB per file, any number of files. The loader checks the files and never
+hashes them (a note changes no fingerprint and bumps no version); a key whose target is missing is allowed and the
+editor marks it orphaned. Where this plan says `notes`, read the store: the editor shows and edits the note of
+whatever the cursor is on, the map's and the level's, and lists a file's orphans.
+
 Decisions taken in planning (consistent with the documents, no owner choice needed): the RON editor writes the
 checked text **verbatim** ("written as typed" in §8.2 means the author's text; comments survive); the plan view is
 a Bevy-free `Raster` in one `ImageNode` (the minimap's path), not UI nodes per cell; the editor is its own layer

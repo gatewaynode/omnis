@@ -339,15 +339,13 @@ pub(crate) fn resolve(
 
 /// Every cell whose centre a placement blocks in its starting state, with the placement's id.
 pub(crate) fn blocked_centres(
-    placed: &Placed,
+    objects: &[ResolvedPlacement],
+    object_cells: &BTreeMap<(Level, u16, u16), Vec<u16>>,
     kinds: &BTreeMap<ObjectKindId, ObjectKind>,
 ) -> BTreeMap<(Level, u16, u16), String> {
     let mut out = BTreeMap::new();
-    for (&(level, x, y), list) in &placed.object_cells {
-        for p in list
-            .iter()
-            .filter_map(|&i| placed.objects.get(usize::from(i)))
-        {
+    for (&(level, x, y), list) in object_cells {
+        for p in list.iter().filter_map(|&i| objects.get(usize::from(i))) {
             let Some(kind) = kinds.get(&p.kind) else {
                 continue;
             };

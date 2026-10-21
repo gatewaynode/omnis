@@ -73,6 +73,10 @@ fn every_error_in_a_broken_pack_is_reported() {
         "level 2: layout has 1 rows; a 1-tile-high map needs 3",
         "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
         "map 'broken:map:levels' belongs to no region",
+        // notes/bad.ron (M5.1): checked on load, never hashed into the seal
+        "note key 'Not a key' is not a content id, or one followed by '/' and a path",
+        "note key 'broken:map:glyph/' is not a content id, or one followed by '/' and a path",
+        "note 'broken:map:glyph/0/1,1' is over the size limit",
         // data/maps/stairs.ron (M8.5 step 1c)
         "the stair entry at (1, 0) is not on a stair",
         "the stair up at (0, 0) has no entry in `stairs` saying which way it rises",

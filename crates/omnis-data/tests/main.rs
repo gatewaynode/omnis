@@ -10,5 +10,6 @@ mod footprint;
 mod load_base_pack;
 mod load_test_pack;
 mod migrations;
+mod resolve;
 mod round_trip;
 mod seal;

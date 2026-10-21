@@ -472,6 +472,7 @@ packs/<pack_id>/
     objects/*.ron  loot/*.ron  flags/*.ron   # flags: a flag's scope, party or world (M8.5 7c)
     quests/*.ron  templates/*.ron  eco/*.ron  rules/*.ron  tables/*.ron
   text/<lang>/*.ron   # TextKey -> string with {arg} placeholders
+  notes/*.ron         # the author's notes, a key -> text table; checked on load, never sealed, never read by the game (M5.1)
   migrations/NNNN.ron # the pack's migrations, sealed with it: each names the version it leads to (M8.5 7h6, §4.1.1)
   assets/
     tilesets/  sprites/  ui/  fonts/  audio/
@@ -552,7 +553,7 @@ Serves D2, D16, PRD §7.2, R2, R10.
 - Lives in the same binary, as an editor mode of `omnis-vector` (its shape is the build plan's; the client has no app-state enum). Edits `omnis-data` structs in memory and writes RON through `omnis-data`; the loader and the writer are the same code path (PRD §10).
 - Views: tile map (paint terrain, edges, objects, triggers, lock mask), region (state and rules), quest graph, data tables, procgen panel (generate, regenerate a layer, lock), text keys, and a playtest button that builds a `World` from the in-memory pack at the cursor tile.
 - UI toolkit (owner, 2026-10-14): `bevy_ui` in the neon style, as the game's screens (X15, `presentation-ARCHITECTURE.md` §6, §7); no new dependency. Before it: A11 chose Feathers (2026-09-20), which left the workspace with `omnis-app` at P9, and `presentation-PRD.md` named `bevy_egui`.
-- v1 (owner, 2026-10-14): maps on a top-down plan, one level at a time (terrain list, edges, heights, ramps, levels, joins, stairs, portals, encounters, sites, objects), with the 3D view as a preview from the cursor and Playtest; every other data file as RON text, checked by the loader before it is written as typed. A map and each level gain an optional `notes` text, so the writer, which drops RON comments, loses nothing the editor shows. Built after M8.5 step 2, which defines objects in data and the engine; its plan is written then (`tasks/plans/editor-v1.md` is superseded for planning).
+- v1 (owner, 2026-10-14): maps on a top-down plan, one level at a time (terrain list, edges, heights, ramps, levels, joins, stairs, portals, encounters, sites, objects), with the 3D view as a preview from the cursor and Playtest; every other data file as RON text, checked by the loader before it is written as typed. The author's notes are a keyed store, `notes/*.ron` (owner, 2026-10-21; M5.1 as built): a key is a content id, or one followed by `/` and a path inside it (a cell `test:map:town/0/3,1`, a level `/level/-1`, a placement `/chest.1`, a terrain `/terrain/r`), each text up to the string limit, so every square, object and item can carry a game master's note and the writer, which drops RON comments, loses nothing the editor shows; the loader checks the files' shape, never hashes them into the seal and never keeps them, and a key whose target is missing is the editor's to mark, not the loader's to refuse. Built after M8.5 step 2, which defines objects in data and the engine; its plan is written then (`tasks/plans/editor-v1.md` is superseded for planning).
 
 ## 9. Dev socket and MCP (client feature `devtools`, `omnis-mcp`)
 

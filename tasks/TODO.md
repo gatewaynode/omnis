@@ -103,7 +103,9 @@ no loss, and every later map is built with it.
   save reseals and bumps the patch version; the four maps' comments move into `notes`; Playtest uses the fixed
   party. The steps, one commit each, each with an acceptance script `tasks/acceptance/m5-N.md`:
   - [x] M5.0 (2026-10-21) The plan saved; this block.
-  - [ ] M5.1 `notes` on maps and levels; the loader's per-map resolve extracted as `MapData::resolve` (in memory).
+  - [x] M5.1 (2026-10-21) The author's notes as a keyed store, `notes/*.ron`, checked on load and never sealed (owner's
+    direction, replacing a 4 KiB field per map and level); the loader's per-map resolve extracted as
+    `MapData::resolve` (in memory, with the other maps' portals checked both ways); `tasks/acceptance/m5-1.md`.
   - [ ] M5.2 `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal, files,
     check, write); byte-identical layouts on every fixture map.
   - [ ] M5.3 `editor.*` ops (14), replies, `OpError::Invalid`, `Headless.editor`, the MCP tools; counts 27 to 41.
