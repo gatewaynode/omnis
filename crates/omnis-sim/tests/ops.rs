@@ -83,6 +83,7 @@ fn text(world: &mut omnis_sim::World, data: &omnis_data::Data, map: Option<&str>
         data,
         &Op::MapText {
             map: map.map(str::to_owned),
+            level: None,
         },
     ) {
         Ok(Reply::Text { text }) => text,
@@ -115,6 +116,7 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
 
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
@@ -135,7 +137,8 @@ fn map_text_is_the_layout_plus_the_party_and_door_state() {
             &mut world,
             &data,
             &Op::MapText {
-                map: Some("nope".into())
+                map: Some("nope".into()),
+                level: None,
             }
         )
         .unwrap_err(),
@@ -155,9 +158,15 @@ fn automap_get_lists_known_tiles_of_the_named_map() {
         },
     )
     .unwrap();
-    let Reply::Automap { map, tiles } =
-        dispatch(&mut world, &data, &Op::AutomapGet { map: None }).unwrap()
-    else {
+    let Reply::Automap { map, tiles, .. } = dispatch(
+        &mut world,
+        &data,
+        &Op::AutomapGet {
+            map: None,
+            level: None,
+        },
+    )
+    .unwrap() else {
         panic!("not an automap")
     };
     assert_eq!(map, "test:map:meadow");
@@ -168,6 +177,7 @@ fn automap_get_lists_known_tiles_of_the_named_map() {
         &data,
         &Op::AutomapGet {
             map: Some("test:map:dungeon".into()),
+            level: None,
         },
     )
     .unwrap() else {
@@ -206,8 +216,9 @@ fn limits_and_host_ops_are_refused() {
         Op::SaveRead {
             path: "a.ron".into(),
             force: false,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: ShotTarget::Canvas,
@@ -238,9 +249,13 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         },
         Op::EventsTail { count: 5 },
         Op::ViewportGet,
-        Op::MapText { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
         Op::AutomapGet {
             map: Some("m".into()),
+            level: None,
         },
         Op::SaveWrite {
             path: "s.ron".into(),
@@ -248,8 +263,9 @@ fn ops_and_replies_round_trip_and_scripts_parse() {
         Op::SaveRead {
             path: "s.ron".into(),
             force: true,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: Some("p.png".into()),
             target: ShotTarget::Window,
@@ -365,33 +381,52 @@ fn time_ops_list_the_clocks_and_reconcile_as_a_dev_command() {
 }
 
 /// The host ops' rules, shared by the dev socket and the headless driver (ARCHITECTURE.md §4.9):
-/// the save rule decides `save.write`, a save reads back as the world it was, a reload must keep
-/// the party's tile, and `rules.set` bounds and checks its source.
+/// the save rule decides `save.write`, a save reads back as the world it was, a reload must hold
+/// the party's map (M8.5 7h5: by name, `reload.rs`), and `rules.set` bounds and checks its source.
 #[test]
 fn the_host_ops_rules_hold_for_every_host() {
-    use omnis_sim::ops::{check_reload, load_text, rules_set, save_text};
+    use omnis_sim::ops::{reload, rules_set};
+    use omnis_sim::save::save_files;
     use omnis_sim::{SaveRule, Settings, World};
     let data = data();
     let world = world(&data);
-    let text = save_text(&world).unwrap();
-    assert_eq!(load_text(&text, &data, false).unwrap(), world);
+    assert!(save_files(&world, &data, "s.ron").is_ok());
     let strict = Settings {
         save_rule: SaveRule::InnOnly,
         ..Settings::default()
     };
     let outside = World::new(&data, 1, strict).unwrap();
     assert!(
-        matches!(save_text(&outside), Err(OpError::Failed { .. })),
+        matches!(
+            save_files(&outside, &data, "s.ron"),
+            Err(OpError::Failed { .. })
+        ),
         "only at an inn"
     );
 
-    assert_eq!(check_reload(&world, &data), Ok(()));
-    let mut gone = data.clone();
+    let mut reloaded = world.clone();
+    let mut fresh = data.clone();
+    fresh.fingerprints[0].hash ^= 1;
+    assert_eq!(
+        reload(&mut reloaded, &data, &fresh, false).map(|c| c.verdict),
+        Ok(omnis_sim::save::Verdict::Content)
+    );
+    assert_eq!(
+        reloaded.packs, fresh.fingerprints,
+        "the world records the packs"
+    );
+    let mut gone = fresh.clone();
+    gone.fingerprints[0].hash ^= 2;
     gone.maps.remove(&world.position.map);
+    let before = reloaded.clone();
     assert!(
-        matches!(check_reload(&world, &gone), Err(OpError::Failed { .. })),
+        matches!(
+            reload(&mut reloaded, &fresh, &gone, false).map_err(OpError::from),
+            Err(OpError::Failed { .. })
+        ),
         "the party's map is gone"
     );
+    assert_eq!(reloaded, before, "a refused reload changes nothing");
 
     let mut rules = data.clone();
     let long = "1 + ".repeat(2000) + "1";

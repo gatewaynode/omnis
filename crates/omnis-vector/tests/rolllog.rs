@@ -127,6 +127,7 @@ fn a_member_the_fight_removed_is_still_named() {
         xp: 0,
         gold: 0,
         fallen: vec![gone.id],
+        loot: Vec::new(),
     }]);
     let last = session.fight_log.last().expect("a line");
     assert_eq!(last, &format!("The party has fallen. Lost: {}", gone.name));

@@ -2,7 +2,13 @@
 //! for a fixed wait on its first launch, so each test binary costs that wait once per build.
 
 mod bad_packs;
+mod beings;
 mod common;
+mod files;
+mod flags;
+mod footprint;
 mod load_base_pack;
 mod load_test_pack;
+mod migrations;
 mod round_trip;
+mod seal;

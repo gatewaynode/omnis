@@ -1,0 +1,9 @@
+// A portal into refs.ron's start, where the box 'squat' stands across the centre.
+(
+    schema: 1, id: "bado:map:land", name: "bado:text:map", kind: Outdoor, tileset: "test:tileset:outdoor",
+    width: 2, height: 1, start: (1, 0, West),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"), door: "gate", door_open: Some("gate.open"),
+    terrains: [(glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2)],
+    layout: ["+-+-+", "|g g|", "+-+-+"],
+    portals: [(x: 0, y: 0, to_map: "bado:map:refs", to_x: 0, to_y: 0, to_facing: East, marker: Some("signpost"))],
+)

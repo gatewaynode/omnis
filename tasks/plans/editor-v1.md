@@ -1,6 +1,16 @@
 # Editor v1 on `bevy_egui`, then objects
 
+> **Superseded for planning (owner, 2026-10-14).** The toolkit is `bevy_ui` in the neon style; the client is
+> `omnis-vector`, not `omnis-app`; the map format has heights, ramps, levels, joins and stairs; objects come
+> first, in M8.5 step 2. The new plan is written after step 2 (`tasks/TODO.md`, M5). Parts to reuse: §A
+> (`omnis_data::edit`, `Document` with undo and redo, save refused while invalid) and §E's kinds, placements,
+> stable ids, limits and blocking. Kept below as the record.
+
 Saved 2026-09-19. Planned on 2026-09-13 as M5 and deferred by the owner on 2026-09-19 ("the editor can wait"); it now sits in the TODO's Phases 2–5 block ahead of the procgen panel that extends it. Dates and version numbers below are as of the planning day; re-check the dependency table (30-day rule, Socket scores) and the code facts (function lengths, file lines, `Title::ITEMS`) before starting.
+
+**Since 2026-10-12 (M8.5 step 1a):** maps carry heights (`heights` rows, eighths of a cell), a `climb`
+per terrain and ramp edges (`/`); the editor must author all three, and show the cliffs the loader derives
+(`tasks/plans/m8.5-elevation.md`). The Z axis (step 1b) may add more.
 
 ## Context
 M0–M4 are merged and the wide canvas is accepted on branch `m5-tasks` (pushed at `024772c`; CI runs on
@@ -235,6 +245,13 @@ playtest from (3, 8) facing South, quit to editor. MCP: restart the server on th
 `editor_open` → `editor_paint` → `editor_status` (dirty, no errors) → `editor_save` headless and live.
 
 ## Risks and horizons
+- Levels (M8.5 step 1b): a map may hold `levels`, each a layout and heights at the map's size with a
+  `base` and a name key, `_` for no ground, and joins as terrain (`join`). The editor paints one level at a
+  time with a level chooser, and placements carry a `level`; the writer keeps level 0 as the map's own
+  `layout`.
+- Stairs (M8.5 step 1c): every stair up or down needs an entry in `stairs` (`level`, `x`, `y`, `rise`).
+  Painting a stair asks for its rise (or turns it with a key), and erasing one drops its entry, so the
+  file always loads; the editor shows the loader's foot, head and pair refusals as it does the others.
 - egui invisible to captures (owner's run is the visual acceptance; `render_egui_to_image` is a horizon).
 - Rewritten maps lose comments; a compact map-only writer is a horizon; `PrettyConfig` is frozen.
 - Window drags and zoom untouched (zoom 1.0; egui uses the true scale factor).

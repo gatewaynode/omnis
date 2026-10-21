@@ -30,18 +30,20 @@ fn facing_encounter(
     let placement = &data.maps[&dungeon(data)].encounters[usize::from(index)];
     world.position = Position {
         map: dungeon(data),
+        level: omnis_core::Level::GROUND,
         x: placement.x,
         y: placement.y,
         facing: Facing::South,
     };
     let retreat = Position {
         map: dungeon(data),
+        level: omnis_core::Level::GROUND,
         x: placement.x,
         y: placement.y - 1,
         facing: Facing::North,
     };
     let mut state = encounter(data, stacks, disposition, retreat);
-    state.source = EncounterSource::Fixed(index);
+    state.source = EncounterSource::Fixed(placement.id.clone());
     world.mode = Mode::Encounter(state);
     world
 }
@@ -73,7 +75,7 @@ fn the_placed_rats_wait_on_their_tile_and_stay_cleared() {
     else {
         panic!("no encounter: {events:?}")
     };
-    assert_eq!(*source, EncounterSource::Fixed(0));
+    assert_eq!(*source, EncounterSource::Fixed("giant_rat_3_8".into()));
     assert_eq!(stacks.iter().map(|(_, n)| *n).collect::<Vec<_>>(), [2]);
     assert_eq!((*disposition, counts.len()), (Disposition::Hostile, 0));
     assert!(
@@ -96,7 +98,11 @@ fn the_placed_rats_wait_on_their_tile_and_stay_cleared() {
         _ => true,
     }));
     assert_eq!(world.mode, Mode::Explore);
-    assert!(world.maps[&dungeon(&data)].cleared.contains(&0));
+    assert!(
+        world.maps[&dungeon(&data)]
+            .cleared
+            .contains("giant_rat_3_8")
+    );
     let (_, again) = play(
         &mut world,
         &data,
@@ -111,9 +117,9 @@ fn the_placed_rats_wait_on_their_tile_and_stay_cleared() {
         !again.iter().any(|e| matches!(
             e,
             Event::EncounterStarted {
-                source: EncounterSource::Fixed(0),
+                source: EncounterSource::Fixed(id),
                 ..
-            }
+            } if id == "giant_rat_3_8"
         )),
         "a once encounter does not come back"
     );
@@ -131,6 +137,7 @@ fn with_the_surprise_value_on_an_unnoticed_party_starts_the_fight_surprised() {
         let placement = &data.maps[&dungeon(&data)].encounters[0];
         world.position = Position {
             map: dungeon(&data),
+            level: omnis_core::Level::GROUND,
             x: placement.x,
             y: placement.y - 1,
             facing: Facing::South,
@@ -208,7 +215,11 @@ fn a_bribe_costs_by_the_rules_and_clears_a_once_group() {
     let events = choose(&mut world, &data, EncounterChoice::Bribe);
     assert_eq!(events[0], Event::Bribed { cost: 20_000 });
     assert_eq!((world.party.gold, &world.mode), (30_000, &Mode::Explore));
-    assert!(world.maps[&dungeon(&data)].cleared.contains(&0));
+    assert!(
+        world.maps[&dungeon(&data)]
+            .cleared
+            .contains("giant_rat_3_8")
+    );
     assert!(
         world.party.members.iter().all(|m| m.xp == 0),
         "no experience for paying"
@@ -249,7 +260,7 @@ fn hiding_and_running_roll_against_the_group_or_start_a_surprised_fight() {
                 !world
                     .maps
                     .get(&dungeon(&data))
-                    .is_some_and(|s| s.cleared.contains(&1))
+                    .is_some_and(|s| s.cleared.contains("giant_rat_9_8"))
             );
         } else {
             seen[1] = true;

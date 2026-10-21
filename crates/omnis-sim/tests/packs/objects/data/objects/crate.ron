@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "objects:object:crate",
+    name: "objects:text:crate.name",
+    look: (shape: Box, width: 6, depth: 6, height: 6),
+    attributes: (blocks_movement: true, blocks_sight: true, size: Some(Medium), material: Some(Wood), weight_tenths: 400),
+    lore: Some((text: "objects:text:crate.lore")),
+    interactions: [
+        (verb: Examine, effects: [Message("objects:text:crate.examine")]),
+    ],
+)

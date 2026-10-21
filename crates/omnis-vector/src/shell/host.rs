@@ -8,13 +8,12 @@
 //! still replays, and the presentation follows them as it follows the keyboard: the HUD lines,
 //! the roll log, the reshape flag and the pose.
 
-use super::session::Session;
+use super::session::{Packs, Session};
 use crate::game_io;
 use crate::pose::Pose;
-use omnis_sim::omnis_data::load_packs;
 use omnis_sim::ops::rules_set;
 use omnis_sim::{Command, DevCommand, Op, OpError, PartyCommand, Reply};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 /// Answer one op. Relative paths in it (saves) are taken under `root`, the directory the
@@ -25,23 +24,30 @@ use std::sync::Arc;
 pub fn handle(session: &mut Session, root: &Path, op: &Op) -> Result<Reply, OpError> {
     match op {
         Op::SaveWrite { path } => {
-            game_io::save(&session.world, root, path)?;
+            game_io::save(&session.world, &session.data, root, path)?;
             Ok(Reply::Written { path: path.clone() })
         }
-        Op::SaveRead { path, force } => {
-            let world = game_io::load(&session.data, root, path, *force)?;
-            session.replace(world, &format!("the save {path} was loaded"));
+        Op::SaveRead {
+            path,
+            force,
+            migrate,
+        } => {
+            let loaded = game_io::load(&session.data, root, path, *force, *migrate)?;
+            let lines = loaded.lines(path);
+            session.replace(loaded.world, &format!("the save {path} was loaded"));
+            for line in lines {
+                session.say(line);
+            }
             session.world.status(&session.data).map(Reply::Status)
         }
-        Op::PackReload => {
-            let roots: Vec<&Path> = session.config.packs.iter().map(PathBuf::as_path).collect();
-            let fresh = load_packs(&roots).map_err(OpError::failed)?;
-            session.world.check_reload(&fresh)?;
-            session.data = Arc::new(fresh);
-            session.refresh();
-            session.reshape = true;
-            session.unreplayable = Some("the packs were reloaded".to_owned());
-            Ok(Reply::Done {})
+        Op::SaveCheck { path } => {
+            let check = game_io::examine(&session.data, root, path)?.into_report();
+            Ok(Reply::Check { check })
+        }
+        Op::PackReload { migrate } => {
+            let fresh = Packs::load(&session.config).map_err(OpError::failed)?.data;
+            let check = session.reload(fresh, *migrate)?;
+            Ok(Reply::Done { check })
         }
         Op::RulesSet { slot, source } => {
             let reply = rules_set(Arc::make_mut(&mut session.data), slot, source)?;

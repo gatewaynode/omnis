@@ -7,27 +7,31 @@
 
 use crate::LOG_CAPACITY;
 use crate::apply::apply;
+use crate::beings::BeingView;
 use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::creation_view::{CreationView, creation_view};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::names::Place;
+use crate::objects_view::{ItemCount, ObjectView, ObjectsView, objects_view};
 use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::rest_view::{RestView, rest_view};
+use crate::save::{SaveCheck, examine_running, restore};
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, Settings, World};
 use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{EraId, MapId};
+use omnis_core::{EraId, Level, MapId};
 use omnis_data::limits::{check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
@@ -88,19 +92,26 @@ pub enum Op {
     /// The viewport model.
     #[serde(rename = "viewport.get")]
     ViewportGet,
-    /// A map as text with the party marker; the party's map when `map` is absent.
+    /// A level of a map as text with the party marker; the party's map when `map` is absent,
+    /// the party's level of it (else the ground) when `level` is.
     #[serde(rename = "map.text")]
     MapText {
         /// Map id such as `test:map:dungeon`.
         #[serde(default)]
         map: Option<String>,
+        /// Level (M8.5 step 1b).
+        #[serde(default)]
+        level: Option<Level>,
     },
-    /// Known tiles of a map; the party's map when `map` is absent.
+    /// Known tiles of a level of a map; the party's map and level when absent, as `map.text`.
     #[serde(rename = "automap.get")]
     AutomapGet {
         /// Map id.
         #[serde(default)]
         map: Option<String>,
+        /// Level (M8.5 step 1b).
+        #[serde(default)]
+        level: Option<Level>,
     },
     /// Host: write the save to a path.
     #[serde(rename = "save.write")]
@@ -116,10 +127,23 @@ pub enum Op {
         /// Skip the pack fingerprint check.
         #[serde(default)]
         force: bool,
+        /// Apply the packs' migrations when they change the save (M8.5 7h6).
+        #[serde(default)]
+        migrate: bool,
+    },
+    /// Host: what the loaded packs make of a save, changing nothing (M8.5 7h4).
+    #[serde(rename = "save.check")]
+    SaveCheck {
+        /// A relative `.ron` path.
+        path: String,
     },
     /// Host: reload the packs from disk, keeping the world.
     #[serde(rename = "pack.reload")]
-    PackReload,
+    PackReload {
+        /// Apply the packs' migrations when they change the world (M8.5 7h6).
+        #[serde(default)]
+        migrate: bool,
+    },
     /// Host, game only: save a PNG of the canvas, or of everything the window shows.
     #[serde(rename = "screenshot")]
     Screenshot {
@@ -177,6 +201,10 @@ pub enum Op {
     /// What a party member's draft may be: point buy, races, classes, backgrounds (parity P3).
     #[serde(rename = "creation.get")]
     CreationGet,
+    /// The objects in reach with every verb they offer and why each would be refused, and the
+    /// pile underfoot (M8.5 step 2).
+    #[serde(rename = "objects.get")]
+    ObjectsGet,
     /// Host: replace one slot's formula in the loaded rules (hot swap; packs on disk are
     /// untouched).
     #[serde(rename = "rules.set")]
@@ -200,7 +228,8 @@ impl Op {
             self,
             Op::SaveWrite { .. }
                 | Op::SaveRead { .. }
-                | Op::PackReload
+                | Op::SaveCheck { .. }
+                | Op::PackReload { .. }
                 | Op::Screenshot { .. }
                 | Op::ScreenText
                 | Op::RulesSet { .. }
@@ -317,6 +346,9 @@ pub enum Reply {
     Automap {
         /// The map id.
         map: String,
+        /// The level (M8.5 step 1b); unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// Known tiles, column by column (`x`, then `y`).
         tiles: Vec<KnownTile>,
     },
@@ -370,6 +402,16 @@ pub enum Reply {
         /// Every member's spells castable outside a fight.
         casts: Vec<CastView>,
     },
+    /// `objects.get`.
+    Objects {
+        /// The objects in reach, the party's cell first.
+        objects: Vec<ObjectView>,
+        /// The pile on the party's cell.
+        ground: Vec<ItemCount>,
+        /// The groups standing in reach (M8.5 step 2c); left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        beings: Vec<BeingView>,
+    },
     /// `creation.get`.
     Creation {
         /// What a draft may be.
@@ -380,8 +422,17 @@ pub enum Reply {
         /// The value as text.
         value: Option<String>,
     },
-    /// `pack.reload`.
-    Done {},
+    /// `pack.reload`: what the fresh packs made of the running world (M8.5 7h5).
+    Done {
+        /// The report: how the world was fitted to them, and each place changed.
+        #[serde(default)]
+        check: SaveCheck,
+    },
+    /// `save.check`: what the loaded packs make of a save (M8.5 7h4).
+    Check {
+        /// The report.
+        check: SaveCheck,
+    },
 }
 
 /// A failed op. The world is unchanged unless the message says otherwise.
@@ -492,23 +543,28 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::EventsTail { count } => {
             let keep = (*count).min(LOG_CAPACITY).min(world.log.len());
             Ok(Reply::Events {
-                events: world.log[world.log.len() - keep..].to_vec(),
+                events: world.log[world.log.len() - keep..]
+                    .iter()
+                    .map(|l| l.event.clone())
+                    .collect(),
             })
         }
         Op::ViewportGet => query::viewport(world, data)
             .map(Reply::Viewport)
             .ok_or_else(|| unknown(world.position.map, data)),
-        Op::MapText { map } => {
+        Op::MapText { map, level } => {
             let id = resolve_map(world, data, map.as_deref())?;
-            query::map_text(world, data, id)
+            let level = level_of(world, id, *level);
+            query::map_text(world, data, id, level)
                 .map(|text| Reply::Text { text })
                 .ok_or_else(|| unknown(id, data))
         }
-        Op::AutomapGet { map } => {
+        Op::AutomapGet { map, level } => {
             let id = resolve_map(world, data, map.as_deref())?;
+            let level = level_of(world, id, *level);
             let tiles = world
                 .automap
-                .map(id)
+                .tiles(id, level)
                 .map(|known| {
                     known
                         .iter()
@@ -518,6 +574,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
                 .unwrap_or_default();
             Ok(Reply::Automap {
                 map: map_name(id, data),
+                level,
                 tiles,
             })
         }
@@ -543,6 +600,18 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::CastGet => Ok(Reply::Casts {
             casts: cast_view(world, data),
         }),
+        Op::ObjectsGet => {
+            let ObjectsView {
+                objects,
+                ground,
+                beings,
+            } = objects_view(world, data);
+            Ok(Reply::Objects {
+                objects,
+                ground,
+                beings,
+            })
+        }
         Op::CreationGet => Ok(Reply::Creation {
             creation: creation_view(data),
         }),
@@ -564,7 +633,8 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
         Op::SaveWrite { .. }
         | Op::SaveRead { .. }
-        | Op::PackReload
+        | Op::SaveCheck { .. }
+        | Op::PackReload { .. }
         | Op::Screenshot { .. }
         | Op::ScreenText
         | Op::RulesSet { .. } => Err(OpError::HostOnly),
@@ -628,36 +698,53 @@ pub fn status(world: &World, data: &Data) -> Result<Status, OpError> {
 // The host ops' rules (ARCHITECTURE.md §4.9): every host writes only the file and window code
 // around these, so the socket and the headless driver cannot disagree.
 
-/// `save.write`: the save's text, when the save rule allows a save here.
-pub fn save_text(world: &World) -> Result<String, OpError> {
-    if !world.may_save() {
-        return Err(OpError::failed("the save rule forbids saving here"));
+// `save.write` and `save.read` are `save::save_files` and `save::load_save` (M8.5 7d): a
+// character save and the world folder's files, which the host writes and reads.
+
+/// `pack.reload` by name (M8.5 7h5): the running world is fitted to the freshly loaded packs
+/// as a save made on `old`, the packs it runs on, would be on load (`save::examine_running`,
+/// `save::restore`): the same packs change nothing; other packs are recorded; moved names
+/// renumber it and fold it, its journal held for `old`'s folder; places the maps no longer
+/// allow are fixed and reported. Migrations leading on from the running packs' versions apply
+/// as a load's do (M8.5 7h6): when they change the world, only with `migrate`. Refused, nothing
+/// changes; the host swaps its data only on `Ok`.
+///
+/// # Errors
+/// A name the fresh packs lack, or a world they cannot hold, with the report.
+pub fn reload(
+    world: &mut World,
+    old: &Data,
+    fresh: &Data,
+    migrate: bool,
+) -> Result<SaveCheck, ReloadRefused> {
+    let examined = examine_running(world, old, fresh);
+    let check = examined.report().clone();
+    match restore(examined, fresh, false, migrate) {
+        Ok((next, _)) => {
+            *world = next;
+            Ok(check)
+        }
+        Err(e) => Err(ReloadRefused {
+            error: OpError::failed(format!("{e}; nothing changed")),
+            check: Box::new(check),
+        }),
     }
-    world.to_ron().map_err(OpError::failed)
 }
 
-/// `save.read`: the world a save's text holds, migrated to this schema and checked against the
-/// loaded packs (`force` loads it on other packs anyway). The host reads the text with the
-/// loader's limits (`omnis_data::ron_io::read_text`).
-pub fn load_text(text: &str, data: &Data, force: bool) -> Result<World, OpError> {
-    World::from_ron(text, data, force).map_err(OpError::failed)
+/// A refused `pack.reload`: why, as the op answers it, and what the fresh packs made of the
+/// world, for a host that shows the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReloadRefused {
+    /// The op's error.
+    pub error: OpError,
+    /// The report.
+    pub check: Box<SaveCheck>,
 }
 
-/// `pack.reload`: the freshly loaded packs may replace the running ones only when they still
-/// hold the party's tile.
-pub fn check_reload(world: &World, fresh: &Data) -> Result<(), OpError> {
-    let p = world.position;
-    if fresh
-        .maps
-        .get(&p.map)
-        .and_then(|m| m.cell(p.x, p.y))
-        .is_none()
-    {
-        return Err(OpError::failed(format!(
-            "the party's tile {p} is not in the reloaded packs; nothing changed"
-        )));
+impl From<ReloadRefused> for OpError {
+    fn from(refused: ReloadRefused) -> OpError {
+        refused.error
     }
-    Ok(())
 }
 
 /// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with
@@ -706,6 +793,15 @@ pub fn bounded(s: &str) -> Result<(), OpError> {
             limit: omnis_data::limits::MAX_STRING_BYTES,
         })
     }
+}
+
+/// The level asked for, else the party's level when it is on `map`, else the ground.
+fn level_of(world: &World, map: MapId, asked: Option<Level>) -> Level {
+    asked.unwrap_or(if world.position.map == map {
+        world.position.level
+    } else {
+        Level::GROUND
+    })
 }
 
 fn resolve_map(world: &World, data: &Data, name: Option<&str>) -> Result<MapId, OpError> {

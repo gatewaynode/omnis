@@ -4,8 +4,8 @@
 
 use crate::pose::Pose;
 use omnis_sim::Known;
-use omnis_sim::omnis_core::Facing;
-use omnis_sim::omnis_data::MapData;
+use omnis_sim::omnis_core::{Facing, Level};
+use omnis_sim::omnis_data::{Join, MapData};
 use omnis_sim::world::layer;
 use std::collections::BTreeMap;
 
@@ -22,6 +22,14 @@ pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
 pub const WALL: [u8; 4] = [60, 255, 120, 255];
 /// A known door.
 pub const DOOR: [u8; 4] = [255, 170, 40, 255];
+/// A known cliff edge (provisional until the colour roles, M8.5 step 5).
+pub const CLIFF: [u8; 4] = [230, 150, 60, 255];
+/// A known ramp edge's tick.
+pub const RAMP: [u8; 4] = [120, 220, 255, 255];
+/// A known stair's or ladder's mark (M8.5 step 1b; provisional as cliffs and ramps).
+pub const JOIN: [u8; 4] = [240, 215, 90, 255];
+/// A known hole's cross.
+pub const HOLE: [u8; 4] = [255, 90, 70, 255];
 /// The party.
 pub const MARKER: [u8; 4] = [255, 255, 255, 255];
 
@@ -65,6 +73,105 @@ fn edges(known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, bool> {
     out
 }
 
+/// What height puts on an edge: a cliff, or a ramp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Rise {
+    Cliff,
+    Ramp,
+}
+
+/// The cliff and ramp edges of the known tiles, each once, read from the map's cells: a cliff
+/// facing either way, seen from the known side.
+fn rises(
+    map: &MapData,
+    level: Level,
+    known: &BTreeMap<(u16, u16), Known>,
+) -> BTreeMap<EdgeKey, Rise> {
+    let mut out = BTreeMap::new();
+    for &(x, y) in known.keys() {
+        let Some(cell) = map.cell(level, x, y) else {
+            continue;
+        };
+        for facing in Facing::ALL {
+            let (dx, dy) = facing.delta();
+            let beyond = u16::try_from(i32::from(x) + dx)
+                .ok()
+                .zip(u16::try_from(i32::from(y) + dy).ok())
+                .and_then(|(nx, ny)| map.cell(level, nx, ny));
+            let back = facing.opposite();
+            let rise = if cell.cliffs.has(facing) || beyond.is_some_and(|b| b.cliffs.has(back)) {
+                Rise::Cliff
+            } else if cell.ramps.has(facing) {
+                Rise::Ramp
+            } else {
+                continue;
+            };
+            out.insert(key(x, y, facing), rise);
+        }
+    }
+    out
+}
+
+/// The pixels of a tick across the middle of an edge, half a cell long.
+fn tick_pixels(raster: &Raster, (horizontal, col, row): EdgeKey) -> Vec<(i64, i64)> {
+    let s = i64::from(raster.scale);
+    let (mx, my) = if horizontal {
+        (col * s + s / 2, row * s)
+    } else {
+        (col * s, row * s + s / 2)
+    };
+    (-s / 4..=s / 4)
+        .map(|i| {
+            if horizontal {
+                (mx, my + i)
+            } else {
+                (mx + i, my)
+            }
+        })
+        .collect()
+}
+
+/// The pixels of a straight line from `a` to `b`, both ends included.
+fn line_pixels(a: (i64, i64), b: (i64, i64)) -> Vec<(i64, i64)> {
+    let n = (b.0 - a.0).abs().max((b.1 - a.1).abs()).max(1);
+    (0..=n)
+        .map(|i| (a.0 + (b.0 - a.0) * i / n, a.1 + (b.1 - a.1) * i / n))
+        .collect()
+}
+
+/// The pixels of a join's mark on cell `(x, y)`, drawn like its glyph: a chevron pointing the
+/// way a stair rises (`rise`), with a bar across the foot for a stair down; a ladder's rails and
+/// rungs; a hole's cross.
+fn join_pixels(raster: &Raster, (x, y): (u16, u16), join: Join, rise: Facing) -> Vec<(i64, i64)> {
+    let s = i64::from(raster.scale);
+    let (x0, y0) = (i64::from(x) * s, i64::from(y) * s);
+    let at = |fx: i64, fy: i64| (x0 + s * fx / 8, y0 + s * fy / 8);
+    // A stair's strokes are written rising north, then turned to its rise.
+    let turned = |fx: i64, fy: i64| match rise {
+        Facing::North => at(fx, fy),
+        Facing::East => at(8 - fy, fx),
+        Facing::South => at(8 - fx, 8 - fy),
+        Facing::West => at(fy, 8 - fx),
+    };
+    let chevron = [(turned(2, 5), turned(4, 3)), (turned(4, 3), turned(6, 5))];
+    let strokes = match join {
+        Join::Up => chevron.to_vec(),
+        Join::Down => [chevron.as_slice(), &[(turned(2, 6), turned(6, 6))]].concat(),
+        Join::Ladder => vec![
+            (at(3, 1), at(3, 7)),
+            (at(5, 1), at(5, 7)),
+            (at(3, 2), at(5, 2)),
+            (at(3, 4), at(5, 4)),
+            (at(3, 6), at(5, 6)),
+        ],
+        Join::Hole => vec![(at(2, 2), at(6, 6)), (at(6, 2), at(2, 6))],
+    };
+    strokes
+        .into_iter()
+        .flat_map(|(a, b)| line_pixels(a, b))
+        .collect()
+}
+
 /// The pixels of an edge, `inset` pixels in from each end. An edge on the map's far side is
 /// drawn on the last pixel row or column.
 fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> Vec<(i64, i64)> {
@@ -84,10 +191,16 @@ fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> 
         .collect()
 }
 
-/// Paint the known tiles of `map` (visited ones brighter than ones only seen), their walls and
-/// doors, then the party as a triangle pointing along the yaw.
+/// Paint the known tiles of a level of `map` (visited ones brighter than ones only seen), their
+/// cliffs and ramps (M8.5 step 4), their stairs, ladders and holes (step 1b), their walls and
+/// doors over those, then the party as a triangle pointing along the yaw.
 #[must_use]
-pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: Pose) -> Raster {
+pub fn paint(
+    map: &MapData,
+    level: Level,
+    known: Option<&BTreeMap<(u16, u16), Known>>,
+    pose: Pose,
+) -> Raster {
     let scale = scale_for(map.def.width, map.def.height);
     let mut out = Raster::filled(
         u32::from(map.def.width) * scale,
@@ -112,6 +225,30 @@ pub fn paint(map: &MapData, known: Option<&BTreeMap<(u16, u16), Known>>, pose: P
             for dx in 0..s {
                 out.put(i64::from(x) * s + dx, i64::from(y) * s + dy, fill);
             }
+        }
+    }
+    for (edge, rise) in rises(map, level, known) {
+        let (pixels, colour) = match rise {
+            Rise::Cliff => (edge_pixels(&out, edge, 0), CLIFF),
+            Rise::Ramp => (tick_pixels(&out, edge), RAMP),
+        };
+        for (px, py) in pixels {
+            out.put(px, py, colour);
+        }
+    }
+    for (&(x, y), tile) in known {
+        let Some(join) = map
+            .def
+            .terrains
+            .get(usize::from(tile.terrain))
+            .and_then(|t| t.join)
+        else {
+            continue;
+        };
+        let colour = if join == Join::Hole { HOLE } else { JOIN };
+        let rise = map.rise(level, x, y).unwrap_or(Facing::South);
+        for (px, py) in join_pixels(&out, (x, y), join, rise) {
+            out.put(px, py, colour);
         }
     }
     for (edge, door) in edges(known) {

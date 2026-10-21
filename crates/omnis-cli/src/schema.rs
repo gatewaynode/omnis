@@ -4,18 +4,21 @@
 
 use omnis_data::ron_io::{parse, to_string};
 use omnis_data::{
-    Background, Class, Condition, DataError, Item, MapDef, Monster, PackFingerprint, PackManifest,
-    Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
+    Background, Class, Condition, DataError, FlagDef, Item, MapDef, Monster, PackFingerprint,
+    PackManifest, Race, RegionDef, RulesFile, SCHEMA, Spell, Tileset,
 };
+use omnis_sim::api::Change;
 use omnis_sim::omnis_core::{Clock, EraId, Facing, MapId, Position};
+use omnis_sim::save::{BaseNames, CharacterSave, Checkpoint, Holdings, Manifest};
 use omnis_sim::world::SAVE_SCHEMA;
-use omnis_sim::{Command, Op, PARTY, Replay, World};
+use omnis_sim::{Command, Entry, Logged, Op, PARTY, Replay};
 use std::collections::BTreeMap;
 
 const MANIFEST: &str = r#"(
     schema: 1,
     id: "example",
     version: "0.1.0",
+    hash: 1234567890123456789,
     name: "Example pack",
     license: "CC0-1.0",
     attribution: [("Tiles by someone", "CC0-1.0", "assets/LICENSE.txt")],
@@ -63,7 +66,7 @@ const MAP: &str = r#"(
         "+-+-+",
     ],
     portals: [(x: 1, y: 0, to_map: "example:map:start", to_x: 0, to_y: 0, to_facing: East, marker: Some("stairs"))],
-    encounters: [(x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
+    encounters: [(id: "goblins", x: 0, y: 0, stacks: [("example:monster:goblin", 3)], disposition: Wary, once: true)],
     random: Some((chance_percent: 4, entries: [(weight: 1, stacks: [("example:monster:goblin", (count: 1, sides: 4, modifier: 1))], disposition: Hostile)])),
 )"#;
 
@@ -240,6 +243,28 @@ const REGION: &str = r#"(
     maps: ["example:map:vale"],
 )"#;
 
+// A party flag travels with the party (`World`, the default, stays with the world).
+const FLAG: &str = r#"(
+    schema: 1,
+    id: "example:flag:oath",
+    scope: Party,
+)"#;
+
+// A pack migration (M8.5 7h6): saves made before `to` are offered its steps, in order. A step
+// names only its own pack's ids; cells are (level, x, y).
+const MIGRATION: &str = r#"(
+    schema: 1,
+    to: "0.2.0",
+    steps: [
+        Rename(kind: item, from: "example:item:old_sword", to: "example:item:sword"),
+        Replace(kind: spell, from: "example:spell:old_bolt", to: "base:spell:fire_bolt"),
+        Remove(kind: item, id: "example:item:junk"),
+        MovePlace(map: "example:map:vale", from: (0, 2, 1), to: (0, 3, 1)),
+        RenameEncounter(map: "example:map:vale", from: "wolves", to: "pack"),
+        RenameObject(map: "example:map:vale", from: "chest_1", to: "coffer"),
+    ],
+)"#;
+
 /// Every data file type as a parsed-and-rewritten example, then a save, a replay, and the
 /// protocol ops.
 pub fn dump() -> Result<String, DataError> {
@@ -297,6 +322,12 @@ fn data_sections(out: &mut String) -> Result<(), DataError> {
     section(out, "data/monsters/<name>.ron", &parse::<Monster>(MONSTER)?)?;
     section(out, "data/rules/<name>.ron", &parse::<RulesFile>(RULES)?)?;
     section(out, "data/regions/<name>.ron", &parse::<RegionDef>(REGION)?)?;
+    section(out, "data/flags/<name>.ron", &parse::<FlagDef>(FLAG)?)?;
+    section(
+        out,
+        "migrations/NNNN.ron",
+        &parse::<omnis_data::migration::Migration>(MIGRATION)?,
+    )?;
     Ok(())
 }
 
@@ -306,29 +337,76 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         version: "0.1.0".into(),
         hash: 0x0123_4567_89ab_cdef,
     };
-    let world = World {
-        schema: SAVE_SCHEMA,
-        seed: 1,
-        packs: vec![fingerprint.clone()],
-        rngs: BTreeMap::new(),
-        clocks: BTreeMap::from([(PARTY, Clock::new(EraId(0)))]),
-        contacts: BTreeMap::new(),
+    // A character save (PRD D28, M8.5 7d): the party as it stands, the interactions since the
+    // world's base with the changes each made, and the bases it names in its world folder.
+    // Written as one line; shown pretty here.
+    let checkpoint = Checkpoint {
+        party: Default::default(),
         party_time: Default::default(),
+        flags: BTreeMap::new(),
+        holdings: Holdings {
+            clocks: BTreeMap::from([(PARTY, Clock::new(EraId(0)))]),
+            ..Holdings::default()
+        },
         bus: Default::default(),
         position: Position {
             map: MapId(0),
+            level: omnis_core::Level::GROUND,
             x: 0,
             y: 0,
             facing: Facing::East,
         },
-        maps: BTreeMap::new(),
         automap: Default::default(),
+        known: Default::default(),
         mode: omnis_sim::Mode::Explore,
-        flags: BTreeMap::new(),
         settings: Default::default(),
-        party: Default::default(),
         turn: 0,
-        log: Vec::new(),
+    };
+    let save = CharacterSave {
+        schema: SAVE_SCHEMA,
+        world: "0123456789abcdef".into(),
+        bases: BaseNames {
+            world: None,
+            regions: BTreeMap::from([("example:region:vale".to_owned(), 0x0fed_cba9_8765_4321)]),
+        },
+        checkpoint: checkpoint.clone(),
+        journal: vec![Entry {
+            minute: 42,
+            at: checkpoint.position,
+            command: Command::Door,
+            changes: vec![Change::Door {
+                map: MapId(0),
+                edge: (0, 0, Facing::East),
+                open: true,
+            }],
+        }]
+        .into(),
+        fingerprint: 0,
+        archive: vec![omnis_sim::save::Segment {
+            world: None,
+            name: 0x0123_4567_89ab_cdef,
+        }],
+        migrated: Vec::new(),
+        log: vec![Logged {
+            minute: 42,
+            map: MapId(0),
+            event: omnis_sim::Event::Door {
+                map: "example:map:vale".into(),
+                level: omnis_sim::omnis_core::Level::GROUND,
+                x: 0,
+                y: 0,
+                facing: Facing::East,
+                open: true,
+            },
+        }],
+    };
+    let manifest = Manifest {
+        seed: 1,
+        packs: vec![fingerprint.clone()],
+        names: omnis_sim::save::NameTable {
+            maps: vec!["example:map:vale".into()],
+            ..Default::default()
+        },
     };
     let replay = Replay {
         seed: 1,
@@ -350,16 +428,26 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::EventsTail { count: 32 },
         Op::ViewportGet,
-        Op::MapText { map: None },
-        Op::AutomapGet { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
+        Op::AutomapGet {
+            map: None,
+            level: None,
+        },
         Op::SaveWrite {
             path: ".omnis/quick.ron".into(),
         },
         Op::SaveRead {
             path: ".omnis/quick.ron".into(),
             force: false,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::SaveCheck {
+            path: ".omnis/quick.ron".into(),
+        },
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: omnis_sim::ops::ShotTarget::Canvas,
@@ -381,6 +469,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         Op::ServiceGet,
         Op::RestGet,
         Op::CastGet,
+        Op::ObjectsGet,
         Op::CreationGet,
         Op::TimeClocks,
         Op::TimeReconcile {
@@ -395,7 +484,8 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
             source: "level * 10".into(),
         },
     ];
-    section(out, &format!("save (schema {SAVE_SCHEMA})"), &world)?;
+    section(out, &format!("save (schema {SAVE_SCHEMA})"), &save)?;
+    section(out, ".omnis/worlds/<id>/manifest.ron", &manifest)?;
     section(out, "replay", &replay)?;
     section(out, "protocol ops (JSON on the dev socket; RON here)", &ops)?;
     Ok(())

@@ -10,6 +10,7 @@ use bevy::post_process::bloom::Bloom;
 use bevy::prelude::*;
 use common::app::{config, press_ui, shell, tap};
 use omnis_vector::geometry::{SegKind, extract};
+use omnis_vector::look::LevelOnStep;
 use omnis_vector::screen::settings::Field;
 use omnis_vector::screen::{self, ControlId, Effect, Forms, Payload, ScreenId};
 use omnis_vector::settings::{self as prefs, Face, Prefs, Quality};
@@ -68,9 +69,56 @@ fn the_settings_written_read_back() {
         quality: Quality::Low,
         font: Face::Alegreya,
         scale: 150,
+        level_on_step: LevelOnStep::Never,
     };
     prefs::write(Path::new("."), &s.0, p).expect("written");
     assert_eq!(read(&s), (p, None));
+}
+
+#[test]
+fn level_view_on_step_steps_through_its_three_choices_and_an_older_file_reads_as_the_default() {
+    let s = Scratch::new("level");
+    s.write("(reduced_motion: true)");
+    assert_eq!(read(&s).0.level_on_step, LevelOnStep::Unlocked, "no key");
+    s.write("(level_on_step: \"sideways\")");
+    assert_eq!(
+        read(&s).0.level_on_step,
+        LevelOnStep::Unlocked,
+        "an unknown word"
+    );
+    s.write("(level_on_step: \"always\")");
+    assert_eq!(read(&s).0.level_on_step, LevelOnStep::Always);
+
+    let data = common::data();
+    let ctx = title_ctx(&data, Prefs::default());
+    let mut forms = Forms::default();
+    let level = ControlId::Setting(Field::Level);
+    let mut seen = Vec::new();
+    for _ in 0..3 {
+        screen::apply(
+            ScreenId::Settings,
+            &ctx,
+            &mut forms,
+            level,
+            &Payload::Right,
+            0,
+        )
+        .expect("the choice steps");
+        seen.push(forms.settings.expect("a draft").level_on_step);
+    }
+    assert_eq!(
+        seen,
+        [
+            LevelOnStep::Always,
+            LevelOnStep::Never,
+            LevelOnStep::Unlocked
+        ]
+    );
+    let shown = screen::content(ScreenId::Settings, &ctx, &forms);
+    assert_eq!(
+        shown.control(level).map(|c| c.label.clone()),
+        Some("Level view on step".to_owned())
+    );
 }
 
 #[test]
@@ -393,7 +441,15 @@ fn the_font_applied_dresses_every_text_and_text_that_comes_later() {
 fn the_hidden_grid_drops_the_floor_and_ceiling_and_keeps_the_rest() {
     let session = Session::start(&config()).expect("a session");
     let map = session.views.position.map;
-    let lines = extract(&session.data.maps[&map], map, &session.world);
+    let data = &session.data.maps[&map];
+    let ground = omnis_vector::ground::Ground::from_map(data, omnis_sim::omnis_core::Level::GROUND);
+    let lines = extract(
+        data,
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        &session.world,
+        &ground,
+    );
     let grid = |k: SegKind| matches!(k, SegKind::Floor | SegKind::Ceiling);
     assert!(
         lines.iter().any(|l| grid(l.kind)),

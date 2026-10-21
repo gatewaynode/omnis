@@ -13,6 +13,7 @@ use crate::names::id_of;
 use crate::party::{self, Party};
 use crate::sense;
 use crate::world::World;
+use crate::{ground, objects};
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -84,6 +85,46 @@ pub enum ItemCommand {
         item: String,
         /// Whom a potion goes to; the user when `None`.
         receiver: Option<CharacterId>,
+    },
+    /// Lay items from a member's kit on the ground of the party's cell (M8.5 step 2).
+    Drop {
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the member's kit must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
+    },
+    /// Pick items up from the ground of the party's cell into a member's kit.
+    PickUp {
+        /// The member.
+        member: CharacterId,
+        /// The item's id; the pile must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
+    },
+    /// Take items out of an open container in reach into a member's kit.
+    TakeOut {
+        /// The member.
+        member: CharacterId,
+        /// The container's placement id.
+        object: String,
+        /// The item's id; the container must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
+    },
+    /// Put items from a member's kit into an open container in reach.
+    PutIn {
+        /// The member.
+        member: CharacterId,
+        /// The container's placement id.
+        object: String,
+        /// The item's id; the member's kit must hold it.
+        item: String,
+        /// How many; at least one.
+        count: u16,
     },
 }
 
@@ -161,6 +202,28 @@ pub(crate) fn apply(
             let route = (Place::Stores, Place::Kit(own));
             transfer(world, data, route, item, count, events)
         }
+        ItemCommand::Drop {
+            member,
+            ref item,
+            count,
+        } => ground::drop(world, data, member, item, count, events),
+        ItemCommand::PickUp {
+            member,
+            ref item,
+            count,
+        } => ground::pick_up(world, data, member, item, count, events),
+        ItemCommand::TakeOut {
+            member,
+            ref object,
+            ref item,
+            count,
+        } => objects::take_out(world, data, member, object, item, count, events),
+        ItemCommand::PutIn {
+            member,
+            ref object,
+            ref item,
+            count,
+        } => objects::put_in(world, data, member, object, item, count, events),
         ItemCommand::Use {
             member,
             ref item,
@@ -198,7 +261,7 @@ fn member_index(world: &World, member: CharacterId) -> Result<usize, Rejection> 
 }
 
 /// The slot of a member who can act: alive and up.
-fn actor(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
+pub(crate) fn actor(world: &World, data: &Data, member: CharacterId) -> Result<usize, Rejection> {
     let own = member_index(world, member)?;
     let m = &world.party.members[own];
     if state::is_dead(m, data) {
@@ -336,6 +399,62 @@ fn drop_worn(member: &mut Character, data: &Data, item: ItemId, events: &mut Vec
     }
 }
 
+/// The item a member's kit gives up for `count` of `item`, checked before anything changes.
+pub(crate) fn from_kit(
+    world: &World,
+    data: &Data,
+    own: usize,
+    item: &str,
+    count: u16,
+) -> Result<ItemId, Rejection> {
+    from_list(
+        data,
+        &world.party.members[own].equipment,
+        item,
+        count,
+        not_in_kit,
+    )
+}
+
+/// The item a counted list gives up for `count` of `item`, checked before anything changes;
+/// `missing` is the refusal when it holds none.
+pub(crate) fn from_list(
+    data: &Data,
+    list: &[(ItemId, u16)],
+    item: &str,
+    count: u16,
+    missing: fn(&str) -> Rejection,
+) -> Result<ItemId, Rejection> {
+    if count == 0 {
+        return Err(Rejection::ZeroCount);
+    }
+    let id = held(data, list, item).ok_or_else(|| missing(item))?;
+    let have = count_of(list, id);
+    if have < count {
+        return Err(Rejection::NotEnough {
+            item: String::from(item),
+            have,
+        });
+    }
+    Ok(id)
+}
+
+/// Take `count` of an item already checked by [`from_kit`] out of a member's kit, a worn one
+/// taken off first when the last goes.
+pub(crate) fn out_of_kit(
+    world: &mut World,
+    data: &Data,
+    own: usize,
+    item: ItemId,
+    count: u16,
+    events: &mut Vec<Event>,
+) {
+    let member = &mut world.party.members[own];
+    if take_from(&mut member.equipment, item, count).is_ok() {
+        drop_worn(member, data, item, events);
+    }
+}
+
 /// Move `count` of the item `item` from one list into the other. A kit that loses the last of
 /// a worn item takes it off first. No minutes pass.
 fn transfer(
@@ -346,23 +465,13 @@ fn transfer(
     count: u16,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
-    if count == 0 {
-        return Err(Rejection::ZeroCount);
-    }
-    let source = list(&world.party, from);
-    let id = held(data, source, item).ok_or_else(|| match from {
-        Place::Kit(_) => not_in_kit(item),
-        Place::Stores => Rejection::NotInStores {
+    let missing = match from {
+        Place::Kit(_) => not_in_kit,
+        Place::Stores => |item: &str| Rejection::NotInStores {
             item: String::from(item),
         },
-    })?;
-    let have = count_of(source, id);
-    if have < count {
-        return Err(Rejection::NotEnough {
-            item: String::from(item),
-            have,
-        });
-    }
+    };
+    let id = from_list(data, list(&world.party, from), item, count, missing)?;
     take_from(list_mut(&mut world.party, from), id, count)
         .map_err(|short| short.rejection(data))?;
     add_to(list_mut(&mut world.party, to), id, count);

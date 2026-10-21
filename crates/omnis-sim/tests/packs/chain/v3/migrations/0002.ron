@@ -1,0 +1,13 @@
+// 0.2.0 to 0.3.0 (0.2.1 and on needed no migration): the sword's last name, the old bolt replaced
+// by the base's fire bolt, the fading spell gone, a cell of the hall moved, the rats renamed.
+(
+    schema: 1,
+    to: "0.3.0",
+    steps: [
+        Rename(kind: item, from: "chain:item:mid_sword", to: "chain:item:sword"),
+        Replace(kind: spell, from: "chain:spell:old_bolt", to: "base:spell:fire_bolt"),
+        Remove(kind: spell, id: "chain:spell:fading"),
+        MovePlace(map: "chain:map:hall", from: (0, 2, 1), to: (0, 3, 1)),
+        RenameEncounter(map: "chain:map:hall", from: "rats", to: "vermin"),
+    ],
+)

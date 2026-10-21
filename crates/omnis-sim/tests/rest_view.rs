@@ -18,6 +18,7 @@ fn at(data: &Data, members: usize, name: &str, x: u16, y: u16) -> World {
     party_of(&mut world, data, members);
     world.position = Position {
         map: data.registry.maps.get(&format!("test:map:{name}")).unwrap(),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing: Facing::North,

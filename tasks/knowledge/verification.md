@@ -12,9 +12,9 @@ with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-def
 carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
 push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
 
-Test count at the gate: 715 passed, 13 ignored (2026-10-10, after parity P3; 701 after P2, 670 after the vector
-adoption's V3, 583 before `omnis-vector` joined). The gate's log says it on one line:
-`tests passed 715 failed 0 ignored 13`. Write each gate run to a new file name: `verify.sh` stops at the
+Test count at the gate: 712 passed, 12 ignored (2026-10-14, after M8.5 1c and the hills' crests; 708 after 1c; 697 after step 3; 678 after 1b; 715 and 13
+ignored after parity P3, before `omnis-app` retired; 583 before `omnis-vector` joined). The gate's log says it
+on one line: `tests passed 712 failed 0 ignored 12`. Write each gate run to a new file name: `verify.sh` stops at the
 first failing step, so `cargo fmt --check && verify.sh > gate.txt` that fails at fmt leaves an older
 `gate.txt` in place, and reading it reports an old count as this run's (P2, 2026-10-10).
 
@@ -78,10 +78,10 @@ repository root (the root has no rules file).
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
   serialized-`World` change.
-- `SAVE_SCHEMA 7`; `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
+- `SAVE_SCHEMA 9` (M8.5 7d, the character save: ARCHITECTURE §4.1.1; 7h2, fixed encounters by id and the manifest's name table); a schema 1 to 7 save is migrated to 7, then converted on load, and a schema 8 save has its encounter rows converted (`save/rows.rs`). `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
   (gold ×100, a saved fight's loot too), `v5_to_v6` (M7c: auto-cast spells become declared sets; a
   saved fight gets its budget and reactions) and `v6_to_v7` (M8: the past counted in full as shared
-  time and date; the bus's default subscriptions, and `Battle → Reactions` for a fight saved mid-way); fixtures `tests/saves/v1..v6.ron` (`v6.ron` captured late, in M8 step 8c, from a worktree of the step 2 build `0bcb02f`), each captured by an
+  time and date; the bus's default subscriptions, and `Battle → Reactions` for a fight saved mid-way); fixtures `tests/saves/v1..v7.ron` the schema 8 save `tests/saves/v8/` (its world folder beside it, paths without `.omnis/`; loaded forced by `the_schema_8_fixture_still_loads`), the schema 8 saves `tests/saves/v8-cleared/` (written once from a 7h1 worktree: rows in a base, a journal, an encounter and the log; `by_id.rs`) and the schema 9 save `tests/saves/v9/` (written by the ignored `write_the_schema_9_fixture`, the golden fight folded halfway; `the_schema_9_fixture_still_loads`); `v1..v6.ron` (`v6.ron` captured late, in M8 step 8c, from a worktree of the step 2 build `0bcb02f`), each captured by an
   ignored `capture_schema_N_fixture` before the schema moved on. Content ids are interned in
   file order, so a new map or spell file renumbers those after it: the fixtures (loaded with
   `force`) name the dungeon by their own id, `FIXTURE_DUNGEON` (M7b).
@@ -94,11 +94,11 @@ repository root (the root has no rules file).
 - MCP: 25 tools (asserted in `omnis-mcp/src/tools.rs` and twice in `tests/bridge.rs`; the op list in
   `omnis-cli`'s schema dump, 25, in `omnis-cli/tests/headless.rs`: a hand list, so a new op is added to
   `omnis-cli/src/schema.rs` by hand; the gate does not catch a missing one); the hand-written
-  `Command` schema has `oneOf` 11, combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
+  `Command` schema has `oneOf` 12 (M8.5 1b: `Climb`), combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
   `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
-- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 94 instances from the `next` chain of
-  exhaustive matches (M8: `Reconcile`), 142 offered `oneOf` branches and `enum` values, all used; the drift test's
-  padded branch is `/oneOf/11`. A new `Command`
+- The schema proof (`omnis-mcp/tests/schema_proof.rs`): 96 instances from the `next` chain of
+  exhaustive matches (M8.5 1b: `Climb`), 145 offered `oneOf` branches and `enum` values, all used; the drift test's
+  padded branch is `/oneOf/12`. A new `Command`
   variant needs a successor arm there and a schema branch; both numbers move with it.
 - The headless driver is a devtools world, so its fingerprints differ from a default replay of the
   same commands by design.

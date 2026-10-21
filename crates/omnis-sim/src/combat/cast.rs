@@ -302,20 +302,22 @@ pub(crate) fn resolve(
             Ok(())
         }
         (SpellEffect::Light { depth, minutes }, _) => {
-            cast_light(world, data, plan, spell, *depth, *minutes, events);
+            let light = EffectKind::Light { depth: *depth };
+            cast_lasting(world, data, plan, spell, light, *minutes, events);
             Ok(())
         }
         _ => Ok(()),
     }
 }
 
-/// A light on the whole party, ending the caster's previous concentration first.
-pub(crate) fn cast_light(
+/// A lasting effect on the whole party (a light, a reveal), ending the caster's previous
+/// concentration first.
+pub(crate) fn cast_lasting(
     world: &mut World,
     data: &Data,
     plan: &CastPlan,
     spell: &Spell,
-    depth: u8,
+    kind: EffectKind,
     minutes: u32,
     events: &mut Vec<Event>,
 ) {
@@ -329,7 +331,7 @@ pub(crate) fn cast_light(
             source: plan.spell,
             caster,
             concentration: spell.concentration,
-            kind: EffectKind::Light { depth },
+            kind,
             until,
         },
         events,

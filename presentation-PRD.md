@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
+| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-21: §11's steps 1 and 4 marked done and the order from `tasks/TODO.md` W2; the Phase A report's pointer to the archive. 2026-10-20: §9's Bevy features as built, no `3d` group (review, `tasks/BACKLOG.md`). 2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10 (branch `vector-adoption`; `tasks/plans/vector-adoption.md`) |
 | Parent documents | `PRD.md` (v0.8), `ARCHITECTURE.md` (v0.8, A18); companion `presentation-ARCHITECTURE.md` (v0.4) |
 | Owner | gatewaynode |
@@ -48,7 +48,7 @@ owner has merged it. At the merge, the main PRD is amended to point here (X9):
 | PRD D26, §14 | "Modern" undecided; possibly reopening 3D | Decided: the 3D vector presentation of this document |
 | PRD R10, R13 | Sprite-tileset art pipeline and its risks | Replaced by procedural and authored line art (X12) and §10's risks |
 | ARCH §8.1 | "The `3d` group (pbr, gltf) is never enabled" | Bevy 3D features enabled for the client |
-| ARCH §8.2, A11 | Canvas sprites for the HUD and menus | `bevy_ui` in the neon style (X13); `bevy_egui` stays the editor's choice until revisited |
+| ARCH §8.2, A11 | Canvas sprites for the HUD and menus | `bevy_ui` in the neon style (X13); the editor too (owner, 2026-10-14) |
 
 Height (X10) and cliffs (X11) need pack-data and rules support that belongs to the mechanics work
 (`omnis-data`, `omnis-sim`). This document states what the presentation needs. The mechanics
@@ -58,7 +58,7 @@ branch decides how the rules use height beyond cliffs.
 
 | # | Topic | Decision | Alternatives considered | Rationale |
 |---|---|---|---|---|
-| X1 | Movement model | Free movement and mouse look in 3D. The grid cell is computed continuously from the pose. Each cell boundary crossed emits `Command::Step`, and the simulation processes everything that cell entry triggers. A yaw that snaps to a new cardinal direction emits `Command::Turn` | Discrete steps with tweening (a smaller proof); discrete now and free later | Owner decision (2026-10-02). It tests the stronger claim: the grid rules survive a presentation that does not look like a grid. Proven in Phase A. |
+| X1 | Movement model | Free movement and mouse look in 3D (both axes since M8.5 step 4b, unlimited; the pitch is the head's and never reaches the grid). The grid cell is computed continuously from the pose. Each cell boundary crossed emits `Command::Step`, and the simulation processes everything that cell entry triggers. A yaw that snaps to a new cardinal direction emits `Command::Turn` | Discrete steps with tweening (a smaller proof); discrete now and free later | Owner decision (2026-10-02). It tests the stronger claim: the grid rules survive a presentation that does not look like a grid. Proven in Phase A. |
 | X2 | File space | A crate in the main workspace, `crates/omnis-vector` | A separate Cargo workspace under `alt/`; a separate repository | Owner decision (2026-10-02). It shares the lock, `verify.sh` and the dependency policy. |
 | X3 | Rendering | Bevy `Camera3d` with perspective. Geometry drawn as lines (gizmos in the proof) | Lines hand-projected onto the existing `2d` features | Owner decision (2026-10-02). It is the real 3D path and can grow into meshes. |
 | X4 | Scope of the binary | During the proof, a standalone viewer driving `omnis-sim` directly. Superseded by X14 | Reuse `omnis-app`'s canvas UI, menus and combat | Owner decision (2026-10-02). |
@@ -67,10 +67,10 @@ branch decides how the rules use height beyond cliffs.
 | X7 | Combat | A fight replaces the 3D view with a separate 2D combat screen in the same vector style. It uses static figures for now, and animated line figures and art later. The fight is `omnis-sim`'s combat state machine, unchanged | Combat in the 3D scene; a frozen notice | Owner decision (2026-10-02). Built in Phase B and kept by the owner on 2026-10-10 after playing it. |
 | X8 | Adoption | The 3D vector presentation with free movement replaces the 2D canvas UI as the game's presentation direction | Keep the experiment separate; fold only the 3D view into the canvas UI | Owner decision (2026-10-10), after playing Phases A and B: the line style is "leading somewhere interesting" and free movement is "definitely more engaging". |
 | X9 | This document's role | The presentation PRD. At the merge, PRD.md's presentation sections are amended to point here (§2) | Fold this content into PRD.md and retire it; keep the experiment framing | Owner decision (2026-10-10). |
-| X10 | Terrain height | Maps carry a coarse authored height in pack data, available to the rules. The client adds fine relief from a seeded noise per terrain kind, which never changes the rules | Client-only relief (height could never matter to the rules); authored height only, with no relief | Owner decision (2026-10-10). The ground should never read as flat, and the rules can use height later (line of sight, climbing, falling). |
-| X11 | What height does in the rules, first | Cliffs block. An edge between two cells whose heights differ by more than a step is impassable, like a wall. The cliff is derived when the pack loads, so the simulation and the client agree and stay integer. Everything else about height is visual at first: the camera follows the ground | Visual only; cliffs plus a slope cost in step minutes | Owner decision (2026-10-10). Slopes, line of sight and falling are left to the mechanics branch. |
+| X10 | Terrain height | Maps carry a coarse authored height in pack data, available to the rules. The client adds fine relief from a seeded noise per terrain kind, which never changes the rules | Client-only relief (height could never matter to the rules); authored height only, with no relief | Owner decision (2026-10-10). The ground should never read as flat, and the rules can use height later (line of sight, climbing, falling). **Amended 2026-10-12 (M8.5 step 1a, owner):** height is per cell, a whole number of eighths of a cell (a wall is 8 tall), a signed value so maps can sit above or below a shared level; an inner edge may be a ramp or stair (`/`), walkable across up to two walls. **Amended 2026-10-12 (M8.5 step 1b, owner):** a map holds levels in one file, above and below its own, each with a base height on the same scale, so heights compare across levels; the levels just above and below are drawn dimmer at their real heights, while the rules stay per level. |
+| X11 | What height does in the rules, first | Cliffs block. An edge between two cells whose heights differ by more than a step is impassable, like a wall. The cliff is derived when the pack loads, so the simulation and the client agree and stay integer. Everything else about height is visual at first: the camera follows the ground | Visual only; cliffs plus a slope cost in step minutes | Owner decision (2026-10-10). Slopes, line of sight and falling are left to the mechanics branch. **Amended 2026-10-12 (M8.5 step 1a, owner):** the threshold is per terrain (`climb`), set by the terrain entered, and limits drops as much as climbs, so an edge between two terrains can be walkable one way only; a ramp edge crosses any difference up to two walls. Sight is no longer deferred: higher ground, walls and opaque tiles hide what lies below the sight line, and standing above the tiles around adds to the visibility depth (rule value `sight_rise_per_tile`). Slopes as a cost and falling stay later. **Amended 2026-10-12 (M8.5 step 1b, owner):** levels join by stairs (two-way, taken by a step), ladders and shafts (climbed with an action) and holes (a one-way drop); falling damage stays later. **Amended 2026-10-12 (M8.5 step 1c, owner):** a stair has a direction, listed per tile in the map; it is taken up only from its foot and down only from its head, and from a side it is floor. |
 | X12 | Structures | Walls and edges keep their cell-edge logic and collision, but are drawn as shaped line forms per terrain kind: jagged rock, broken ruin, rounded towers, organic trees. Packs can also place authored line-art set pieces (statues, arches, machines) on cells | Procedural shaping only; authored line models only | Owner decision (2026-10-10). Nothing should read as a grid of boxes. |
-| X13 | Look ceiling | Glowing lines are the whole look. Dark, solid surfaces occlude the lines behind them (hidden-line removal), so detail can get dense without becoming see-through noise. No textures | Pure see-through wireframe; lines first with shaded materials or textures later | Owner decision (2026-10-10). |
+| X13 | Look ceiling | Glowing lines are the whole look. Dark, solid surfaces occlude the lines behind them (hidden-line removal), so detail can get dense without becoming see-through noise. No textures. Built in M8.5 step 3: the ground, walls, doors, blocks, ceilings and cliff faces are dark fills under the lines, and the levels above and below are hidden where the party's level covers them (owner, 2026-10-12) | Pure see-through wireframe; lines first with shaded materials or textures later | Owner decision (2026-10-10). |
 | X14 | Client | `omnis-vector` grows into the game client: menus, party creation, sheets, town, saves. `omnis-app` stays until the new client reaches feature parity, then is retired. The canvas UI is replaced, not ported. **Done 2026-10-11 (parity P9): `omnis-app` retired; `omnis-vector` builds the `omnis` binary** | Fold the 3D view into `omnis-app`; keep both clients | Owner decision (2026-10-10). |
 | X15 | Interface | Every screen beyond the 3D view and the fight screen (menus, character sheets, inventory, the tactics panel, town) is `bevy_ui` in the neon style of the HUD and fight screen, under one style guide (§7) | Feathers with a neon theme; panels drawn as vector line art | Owner decision (2026-10-10). |
 | X16 | References | Tron (1982 and *Legacy*): glowing edges on dark solids, strong colour coding, architectural scale. Technical drawing and blueprint: drafting-style line detail, hatching, contour lines, an annotated, engraved feel | Battlezone and Tempest; Rez and Thumper | Owner decision (2026-10-10). The arcade vector games were the experiment's starting point, not the goal. |
@@ -103,18 +103,20 @@ and applies it.
 
 What a step does (`crates/omnis-sim/src/apply.rs`, `step`, then `move`, then `encounter::trigger`):
 
-1. It refuses on a wall, a closed door, impassable terrain or the map edge, with an `Event::Blocked` reason. A cliff edge (X11) refuses the same way.
+1. It refuses on a wall, a closed door, impassable terrain or the map edge, with an `Event::Blocked` reason. A cliff edge (X11) refuses the same way, and so does an object whose footprint lies across the step's path (M8.5 step 2).
 2. It moves the party and emits `Event::Moved`.
 3. It advances the party clock by the terrain's `step_minutes`.
 4. It records the cell as visited on the automap.
 5. It follows a portal on the target cell (a teleport).
-6. It starts an encounter: a placed group on the cell that is not cleared, or else a roll on the map's random table.
+6. It starts an encounter: a placed group on the cell that is not cleared, or else a roll on the map's random table. A placed group may stand in view (M8.5 step 2c), drawn as a figure; Use from the next cell meets it too, and Run then returns the party to where it stood.
 
 Every successful command then ends in `look`, which records the cardinal cone to the automap and
 emits `Event::Visible`. `Turn` only rotates the position, so free look costs no game time.
 
 Traps and passive perception checks arrive from the mechanics work on this same cell-entry path,
-and the client receives them without change.
+and the client receives them without change. Passive notice of hidden objects is built (M8.5 step 2):
+`look` rolls nothing; it compares the party's best passive Perception with each hidden object in
+sight within `notice_tiles` cells, and the client draws a found object and says "Spotted: …".
 
 ### 4.3 Feasibility issues and the rule for each
 
@@ -127,7 +129,8 @@ and the client receives them without change.
 | An encounter starts mid-motion | Input freezes, the pose settles in the entered cell, and the fight screen replaces the 3D view (X7). |
 | Run or flight retreats the party | The pose snaps to the retreat cell when exploration resumes. |
 | Time | Game time advances per cell crossed, by `step_minutes`, never per frame. |
-| Doors | Opened by `Command::Interact` on the faced edge, from the action menu or its key. |
+| Doors | Opened by `Command::Interact` on the faced edge, from the action menu or its key. With an object in reach as well, Use lists every choice on the verbs screen, the door first. |
+| Objects (M8.5 step 2) | Drawn as shapes in their cells, offset and turned. A blocking footprint across the step's path refuses the step; the mirror asks the engine (`api::object_blocks`), so the footprint geometry is never copied, and the agreement test covers it. The pose is not pushed out of a footprint in its own cell (visual only, later). |
 | Shaped structures (X12) | The drawn shape is decoration. Collision follows the cell edges, so a jagged rock face is walked against as a straight edge. Shapes are kept close enough to the edge that this reads as natural; how close is measured (§10, XR7). |
 
 ### 4.4 Proof of binding
@@ -186,13 +189,17 @@ same way that a monster marker on the map does.
 
 ### 6.1 Terrain
 
-- **Height** (X10). Maps carry a coarse height in pack data. Whether it is stored per cell or per
-  corner is open (§12). The client draws the ground at that height, and the camera follows it.
+- **Height** (X10). Maps carry a coarse height in pack data: one per cell, in eighths of a cell
+  (decided 2026-10-12). The client draws the ground at that height, and the camera follows it.
 - **Relief.** On top of the authored height, the client adds fine relief from a seeded noise
   chosen by terrain kind: rolling grass, broken rock, rippled sand, uneven cave floor. Relief is
   presentation only. It never changes a rule, and the same seed always draws the same ground.
-- **Cliffs** (X11). An edge whose two cells differ in height by more than a step is a cliff. It is
-  drawn as a rock face and blocks like a wall. The step threshold is pack data.
+- **Cliffs** (X11). An edge whose two cells differ in height by more than the step is a cliff. It is
+  drawn as a rock face and blocks like a wall. The step threshold is pack data: each terrain's
+  `climb`, read for the terrain entered. A ramp or stair edge crosses up to two walls.
+- **Levels** (X10, X11; M8.5 step 1b). A map may stack levels; the party's is drawn in full and the
+  levels just above and below dimmer, at their heights. Stairs, ladders and holes are drawn so they
+  can be seen, and the minimap and the HUD name the level.
 - **The grid** (X21) is drawn faintly on the ground and follows the relief, like contour lines.
 
 ### 6.2 Structures
@@ -201,6 +208,9 @@ same way that a monster marker on the map does.
   and collision, but each terrain kind has a shape generator: jagged rock for caves, broken masonry
   for ruins, rounded towers, organic trunks and canopies for forests. Generators are seeded per
   cell, so the world is stable between visits and sessions.
+- **Objects** (built in M8.5 step 2). Packs place objects in cells, offset in eighths and turned by
+  facing, each drawn from its kind's shape primitive (box, post, slab, arch, sign, heap) with a width,
+  depth and height in eighths, as lines over a dark fill; piles of items as small heaps.
 - **Authored set pieces.** Packs can place line-art models on cells or edges: statues, arches,
   machines, landmarks. The format is open (§12).
 - **Doors stay readable.** Whatever the shape, a door carries the interactive role's channels
@@ -250,7 +260,7 @@ Three depth levels (X17):
   boundary.
 - **Developer tools** (the dev socket, MCP screenshot, the debug menu) move to the new client as
   part of parity, so agents and the owner keep their capture and inspection paths.
-- **The editor** keeps `bevy_egui` (ARCH A11) until its toolkit is revisited.
+- **The editor** is `bevy_ui` in the neon style under X15's style guide (owner, 2026-10-14; ARCH §8.2).
 
 ## 9. Constraints
 
@@ -259,8 +269,9 @@ Three depth levels (X17):
 - **`omnis-vector` is not a simulation crate.** It may use floats and Bevy. It must never pass a
   float into the simulation: its only channels in are `Command`s, and its only reads are queries
   and events.
-- **Feature unification.** `verify.sh` builds the workspace with Bevy's 3D features. Its run time
-  is tracked.
+- **Feature unification.** `verify.sh` builds the workspace with the client's Bevy features, `2d`,
+  `png`, `bevy_pbr` and `ui`; the `3d` group is not used (presentation-ARCHITECTURE §3, VA1). Its
+  run time is tracked.
 - **Dependency policy applies:** pinned, older than 30 days, checksums in the lock. Bevy itself is
   exempt from N−1 (PRD D9). The 0.20 migration is planned in `tasks/plans/bevy-0.20-migration.md`.
 - **Merging with the mechanics work.** `Cargo.lock` is regenerated, not hand-merged.
@@ -286,28 +297,36 @@ Three depth levels (X17):
 
 - **Phase A, exploration (2026-10-02/03):** the test pack's maps drawn as lines, free movement and
   mouse look with buttons for every action, the grid binding of §4, a HUD, a 2D minimap, a
-  replayable command log, and window sizing for 5120×1440 and 16:9. Report in `tasks/alt-TODO.md`.
+  replayable command log, and window sizing for 5120×1440 and 16:9. Report in
+  `tasks/archive/alt-TODO-2026-10-21.md`.
 - **Phase B, the fight screen (2026-10-03):** the 2D combat screen with the roll log, the action
   model with targets, the arena layout, the picture window, and the switch between the 3D view and
   the fight. Played by the owner on the ultrawide (B6).
 
 ### Next (proposed; each planned in plan mode when the owner asks)
 
-1. **Merge** with the mechanics work (B7), then amend the main PRD per §2.
-2. **Occluding fills** (X13): move from gizmos to line meshes over dark solid surfaces, and measure (X20).
+1. **Merge** with the mechanics work (B7), then amend the main PRD per §2. Done 2026-10-10 (`tasks/plans/vector-adoption.md`; `PRD.md` v0.8, D27).
+2. **Occluding fills** (X13): move from gizmos to line meshes over dark solid surfaces, and measure (X20). Built in M8.5 step 3 as fills under the gizmo lines (owner: fills first, then measure); the fills measured at no cost, so line meshes wait for a measurement that needs them.
 3. **The style system** (X18, X19): colour roles, biosphere palettes in pack data, and the first
    non-colour channels, applied to the 3D view, the fight screen and the HUD.
 4. **Terrain height and cliffs** (X10, X11): the data shape with the mechanics work, then relief,
-   the contour grid and the camera following the ground.
+   the contour grid and the camera following the ground. The data shape, the cliffs, levels and stairs, the
+   height drawn and the camera's pitch were built in M8.5 steps 1a, 1b, 1c, 4 and 4b; relief and the contour
+   grid wait for step 5 (`tasks/TODO.md` W2).
 5. **Shaped structures** (X12): shape generators per terrain kind, then the first authored set piece.
 6. **Interface parity** (X14, X15): the screens of §7, then retiring `omnis-app` (done 2026-10-11, P0–P9; Look and Map in the backlog).
 
 The art update (animated figures, the fight screen's scale) fits alongside 3 and 6.
 
+The order from 2026-10-21 (`tasks/TODO.md` W2): the Bevy 0.20 migration, then the rendering direction the
+owner chooses from `tasks/BACKLOG.md` (GPU-first, three sizes), then 3, then 5, with the art update, Look and
+Map, the distant level and the blueprint automap as interface polish the owner sets a time for.
+
 ## 12. Open questions
 
-1. **Height's data shape:** per cell or per corner; its range and units; the cliff threshold; how
-   the editor authors it. Designed with the mechanics work (X10, XR10).
+1. **Height's data shape:** resolved 2026-10-12 (M8.5 step 1a, `tasks/plans/m8.5-elevation.md`):
+   per cell, eighths of a cell, within ±4096; a `climb` per terrain for the terrain entered; ramp
+   edges up to 16. How the editor authors it is left to the editor plan.
 2. **Biosphere assignment:** per region, per map or per terrain; whether a biosphere also selects
    relief noise and shape generators, or only the palette.
 3. **The role set:** the final list of colour roles and their non-colour channels (§5.2, §5.3), and
@@ -317,10 +336,13 @@ The art update (animated figures, the fight screen's scale) fits alongside 3 and
    tool. Decided when the first set piece is built.
 5. **The automap's sensing** (X22): whether it should record what the 3D camera sees, using a
    frustum test, rather than the cardinal cone. That needs a simulation command, so it belongs to
-   the mechanics work.
-6. **Performance floor** (X20): set after measuring occluding fills, relief and detail.
+   the mechanics work. Objects and piles are not drawn on the automap or the minimap yet (owner,
+   2026-10-14); when they are is decided with the automap.
+6. **Performance floor** (X20): set after measuring occluding fills, relief and detail. Fills measured at M8.5 step 3 (presentation-ARCHITECTURE §8.6): about 2 ms a frame offscreen in release at 1920×1080 and 5120×1440, with or without them. Relief and detail are still to measure.
 7. **The distant level** (X17): where its content comes from (pack data per region or biosphere,
    generated from the region's terrain, or both); whether weather and darkness dim or hide it; and
    how a distant landmark relates to the real place when the party travels toward it.
 8. **Camera:** eye height, and a field of view suited to 32:9 and 16:9, revisited once the ground
-   has height.
+   has height. Pitch is decided (M8.5 step 4b, owner 2026-10-12: mouse first, unlimited, a step
+   levels the view unless the mouse looks, configurable); eye height and field of view are
+   reviewed after the owner walks with it.

@@ -7,7 +7,7 @@ use crate::pose::Pose;
 use crate::sim::SimWorld;
 use omnis_sim::omnis_core::{Facing, Position};
 use omnis_sim::omnis_data::Data;
-use omnis_sim::{Command, Event, Rejection, Replay, ReplayError, Settings};
+use omnis_sim::{BlockReason, Command, Event, Rejection, Replay, ReplayError, Settings};
 
 /// The binder's distances, in cells, and angles, in radians.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -44,6 +44,11 @@ pub struct Outcome {
     pub snapped: bool,
     /// The world is no longer exploring; motion stops.
     pub frozen: bool,
+    /// Why a closed side holds the pose, when this call first pressed on it. A held step never
+    /// reaches the simulation, so this stands in for its `Blocked`.
+    pub bumped: Option<BlockReason>,
+    /// Why a closed side holds the pose during this call, first or not.
+    pub pressed: Option<BlockReason>,
 }
 
 /// Turns pose changes into commands, applies them, and keeps the accepted ones.
@@ -57,6 +62,8 @@ pub struct Binder {
     pub refusals: u32,
     /// Steps the mirror allowed but the simulation blocked (a bug in the mirror).
     pub disagreements: u32,
+    /// What held the pose on the last call, so a contact is named once.
+    pressing: Option<BlockReason>,
 }
 
 impl Binder {
@@ -85,6 +92,14 @@ impl Binder {
     /// Move the pose from `from` to `to`, emitting a `Turn` when the yaw reaches a new facing
     /// and a `Step` for every cell boundary crossed, in the order they are met.
     pub fn advance(&mut self, world: &mut SimWorld, data: &Data, from: Pose, to: Pose) -> Outcome {
+        let mut out = self.motion(world, data, from, to);
+        out.bumped = out.pressed.filter(|&r| self.pressing != Some(r));
+        self.pressing = out.pressed;
+        out
+    }
+
+    /// `advance` without naming the contact.
+    fn motion(&mut self, world: &mut SimWorld, data: &Data, from: Pose, to: Pose) -> Outcome {
         let mut out = Outcome::default();
         let Some(here) = world.exploring_at(data) else {
             out.frozen = true;
@@ -130,7 +145,8 @@ impl Binder {
         yaw: f32,
         out: &mut Outcome,
     ) -> Option<(f32, f32)> {
-        let mut point = self.clamp_here(world, data, target);
+        let (mut point, pressed) = self.clamp_here(world, data, target);
+        out.pressed = out.pressed.or(pressed);
         for _ in 0..2 {
             let Some(here) = world.position(data) else {
                 break;
@@ -174,19 +190,32 @@ impl Binder {
                 ));
                 return None;
             }
-            point = self.clamp_here(world, data, point);
+            let (held, pressed) = self.clamp_here(world, data, point);
+            point = held;
+            out.pressed = out.pressed.or(pressed);
         }
         Some(point)
     }
 
-    /// Clamp a point against the closed sides of the simulation's current cell.
-    fn clamp_here(&self, world: &SimWorld, data: &Data, point: (f32, f32)) -> (f32, f32) {
+    /// Clamp a point against the closed sides of the simulation's current cell, with why the
+    /// first side that moved it is closed.
+    fn clamp_here(
+        &self,
+        world: &SimWorld,
+        data: &Data,
+        point: (f32, f32),
+    ) -> ((f32, f32), Option<BlockReason>) {
         let Some(p) = world.position(data) else {
-            return point;
+            return (point, None);
         };
-        clamp(point, (p.x, p.y), self.tuning.radius, |f| {
-            blocks(data, world, p.map, p.x, p.y, f).is_some()
-        })
+        let reason = |f| blocks(data, world, p.map, p.level, p.x, p.y, f);
+        let cell = (p.x, p.y);
+        let radius = self.tuning.radius;
+        let pressed = Facing::ALL
+            .into_iter()
+            .filter(|&f| clamp(point, cell, radius, |g| g == f) != point)
+            .find_map(reason);
+        (clamp(point, cell, radius, |f| reason(f).is_some()), pressed)
     }
 
     /// Keep a point inside `here` on the side toward `heading` after a refused step.

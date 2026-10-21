@@ -232,6 +232,7 @@ fn spent_in_the_dungeon(data: &Data, seed: u64, members: usize) -> World {
     party_of(&mut world, data, members);
     world.position = Position {
         map: data.registry.maps.get("test:map:dungeon").unwrap(),
+        level: omnis_core::Level::GROUND,
         x: 1,
         y: 0,
         facing: Facing::South,

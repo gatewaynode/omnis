@@ -107,9 +107,21 @@ pub fn run(
     settings: Settings,
     commands: &[Command],
 ) -> Result<u64, ReplayError> {
+    replay_world(data, seed, settings, commands)?
+        .fingerprint()
+        .map_err(ReplayError::Fingerprint)
+}
+
+/// Apply `commands` to a fresh world and return it, its journal rebuilt (PRD D28).
+pub fn replay_world(
+    data: &Data,
+    seed: u64,
+    settings: Settings,
+    commands: &[Command],
+) -> Result<World, ReplayError> {
     let mut world = World::new(data, seed, settings).map_err(ReplayError::NewGame)?;
     for (index, command) in commands.iter().enumerate() {
         apply(&mut world, data, command.clone()).map_err(|_| ReplayError::Rejected { index })?;
     }
-    world.fingerprint().map_err(ReplayError::Fingerprint)
+    Ok(world)
 }

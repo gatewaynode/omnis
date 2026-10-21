@@ -4,3 +4,4 @@
 
 mod bake;
 mod cli;
+mod wander;

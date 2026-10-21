@@ -3,12 +3,14 @@
 
 use crate::labels;
 use crate::rolllog::Names;
+use crate::sim::Views;
 use omnis_sim::omnis_core::CharacterId;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::EquipSlot;
 use omnis_sim::omnis_rules::Gains;
 use omnis_sim::{
-    BlockReason, CombatOutcome, DevCommand, EffectEnd, EffectTarget, Event, ItemPlace,
+    BlockReason, CheckKind, CombatOutcome, DevCommand, EffectEnd, EffectTarget, Event, ItemPlace,
+    Notice,
 };
 
 /// A HUD line for the events worth showing; the per-step chatter is left out. Members are
@@ -18,6 +20,7 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
     if let Some(line) = town(event, names, data)
         .or_else(|| kit_and_spells(event, names, data))
         .or_else(|| camp(event, names))
+        .or_else(|| objects(event, names, data))
     {
         return Some(line);
     }
@@ -25,7 +28,21 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         return Some(dev(command, names, data));
     }
     Some(match event {
-        Event::Moved { to, .. } => format!("Moved to ({}, {}) facing {:?}", to.x, to.y, to.facing),
+        Event::Moved { from, to } => {
+            // A change of level is named (M8.5 step 1b): a stair, a hole, a ladder.
+            let level = data
+                .registry
+                .maps
+                .get(&to.map)
+                .and_then(|id| data.maps.get(&id))
+                .filter(|_| from.level != to.level)
+                .and_then(|map| crate::labels::level(data, map, to.level))
+                .map_or_else(String::new, |l| format!(" on {l}"));
+            format!(
+                "Moved to ({}, {}){level} facing {:?}",
+                to.x, to.y, to.facing
+            )
+        }
         Event::Blocked { reason } => format!(
             "Blocked: {}",
             match reason {
@@ -33,6 +50,9 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 BlockReason::ClosedDoor => "a closed door",
                 BlockReason::Impassable => "impassable ground",
                 BlockReason::MapEdge => "the map edge",
+                BlockReason::Cliff => "too steep",
+                BlockReason::NoGround => "no ground",
+                BlockReason::Object => "something in the way",
             }
         ),
         Event::Door { open, .. } => if *open {
@@ -45,13 +65,23 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
         Event::Bribed { cost } => format!("Paid {}; the monsters leave", labels::gold(*cost)),
         Event::CombatStarted { .. } => "The fight begins".to_owned(),
         Event::CombatEnded {
-            outcome, xp, gold, ..
+            outcome,
+            xp,
+            gold,
+            loot,
+            ..
         } => match outcome {
+            CombatOutcome::Victory if !loot.is_empty() => format!(
+                "Victory! {xp} XP each, {}; on the ground: {}",
+                labels::gold(*gold),
+                labels::loot(data, loot)
+            ),
             CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
             CombatOutcome::Fled => "The party got away".to_owned(),
             CombatOutcome::Defeat => "The party has fallen".to_owned(),
         },
         Event::Message { key } => labels::message(data, *key).to_owned(),
+        Event::Folded { .. } => "The world has moved on".to_owned(),
         _ => return None,
     })
 }
@@ -97,9 +127,21 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 }
                 (ItemPlace::Member(f), ItemPlace::Stores) => format!("{} stows {what}", who(f)),
                 (ItemPlace::Stores, ItemPlace::Member(t)) => format!("{} takes {what}", who(t)),
+                (ItemPlace::Member(f), ItemPlace::Ground) => format!("{} drops {what}", who(f)),
+                (ItemPlace::Ground, ItemPlace::Member(t)) => format!("{} picks up {what}", who(t)),
+                (ItemPlace::Member(f), ItemPlace::Object(_)) => {
+                    format!("{} puts {what} in", who(f))
+                }
+                (ItemPlace::Object(_), ItemPlace::Member(t)) => {
+                    format!("{} takes {what} out", who(t))
+                }
                 (ItemPlace::Stores, ItemPlace::Stores) => format!("{what} stays in the stores"),
+                // The engine moves nothing else between these.
+                _ => format!("{what} is moved"),
             }
         }
+        // An object's own words: what a verb did, or why it failed (M8.5 step 2b).
+        Event::ObjectMessage { key, .. } => labels::text(data, key).to_owned(),
         // A look has no receiver; its `Sensed` line is the outcome.
         Event::ItemUsed { receiver: None, .. } => return None,
         Event::ItemUsed {
@@ -163,6 +205,111 @@ fn kit_and_spells(event: &Event, names: &Names, data: &Data) -> Option<String> {
         } => {
             format!("{} lets {} go", who(caster), spell(s))
         }
+        _ => return None,
+    })
+}
+
+/// What a search turned up, after its own lines (owner, 2026-10-16): what is within reach (the
+/// faced door, `door` open or not, each standing group by its front monster's name and count,
+/// then each object by name and state), the pile on the party's
+/// cell, and "Nothing hidden here" when nothing hidden was noticed and no lore was told. Empty for
+/// events with no search; `views` are read after the events.
+#[must_use]
+pub fn searched(events: &[Event], views: &Views, data: &Data, door: Option<bool>) -> Vec<String> {
+    if !events.iter().any(|e| matches!(e, Event::Searched { .. })) {
+        return Vec::new();
+    }
+    let mut lines = Vec::new();
+    let door = door.map(|open| format!("Door ({})", if open { "open" } else { "shut" }));
+    let beings = views
+        .objects
+        .beings
+        .iter()
+        .map(|b| labels::count_label(labels::monster(data, &b.monster), b.count));
+    let reach: Vec<String> = door
+        .into_iter()
+        .chain(beings)
+        .chain(views.objects.objects.iter().map(|o| {
+            let name = labels::text(data, &o.name);
+            if o.state.is_empty() {
+                name.to_owned()
+            } else {
+                format!("{name} ({})", o.state)
+            }
+        }))
+        .collect();
+    if !reach.is_empty() {
+        lines.push(format!("Within reach: {}", reach.join(", ")));
+    }
+    let ground = &views.objects.ground;
+    if !ground.is_empty() {
+        let items: Vec<String> = ground
+            .iter()
+            .map(|i| labels::count_label(labels::item(data, &i.item), i.count))
+            .collect();
+        lines.push(format!("On the ground: {}", items.join(", ")));
+    }
+    if !events
+        .iter()
+        .any(|e| matches!(e, Event::Noticed { .. } | Event::Lore { .. }))
+    {
+        lines.push("Nothing hidden here".to_owned());
+    }
+    lines
+}
+
+/// A line for what the party does with objects and finds in the world (M8.5 step 2b), each
+/// object by its name in the pack. A use that worked says nothing of its own: its effects do.
+fn objects(event: &Event, names: &Names, data: &Data) -> Option<String> {
+    let object = |id: &str| names.object(data, id);
+    let counted = |item: &str, count: u16| {
+        let name = labels::item(data, item);
+        if count == 1 {
+            name.to_owned()
+        } else {
+            format!("{count} {name}")
+        }
+    };
+    Some(match event {
+        // An object's checks: the only skill and ability checks the engine rolls.
+        Event::Check {
+            kind: CheckKind::Skill(_) | CheckKind::Ability(_),
+            ..
+        } => return crate::rolllog::describe(event, names, data),
+        Event::ObjectUsed {
+            object: id,
+            verb,
+            success: false,
+        } => format!("{}: {} failed", object(id), labels::verb(*verb)),
+        Event::ObjectState { object: id, state } => format!("{} is now {state}", object(id)),
+        Event::ObjectRemoved { object: id } => format!("{} is gone", object(id)),
+        // A search's lore: its text, as the pack writes it.
+        Event::Lore { key, .. } => labels::text(data, key).to_owned(),
+        Event::Searched { member, roll } => {
+            format!(
+                "{} searches: Investigation {}",
+                names.member(*member),
+                roll.total
+            )
+        }
+        Event::Noticed { object: id, how } => {
+            let how = match how {
+                Notice::Passive => "Spotted",
+                Notice::Search => "Found",
+                Notice::Spell => "Sensed by magic",
+            };
+            format!("{how}: {}", object(id))
+        }
+        Event::GoldFound { amount } => format!("Found {}", labels::coins(*amount)),
+        Event::ItemFound { item, count } => {
+            format!("Found {}; into the stores", counted(item, *count))
+        }
+        Event::ItemSpent { item, count, from } => match from {
+            ItemPlace::Member(m) => {
+                format!("{} uses up {}", names.member(*m), counted(item, *count))
+            }
+            _ => format!("{} from the stores is used up", counted(item, *count)),
+        },
         _ => return None,
     })
 }
@@ -299,9 +446,20 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
         DevCommand::SetGold { gold } => format!("dev: gold {}", labels::coins(*gold)),
         DevCommand::SetFood { food } => format!("dev: food {food}"),
         DevCommand::SetFlag { flag, value } => format!("dev: {flag} = {value}"),
-        DevCommand::Teleport { map, x, y, facing } => format!(
-            "dev: teleport to {} ({x}, {y}) facing {facing}",
-            labels::map(data, map)
+        DevCommand::Teleport {
+            map,
+            level,
+            x,
+            y,
+            facing,
+        } => format!(
+            "dev: teleport to {}{} ({x}, {y}) facing {facing}",
+            labels::map(data, map),
+            if level.is_ground() {
+                String::new()
+            } else {
+                format!(" level {level}")
+            }
         ),
         DevCommand::SetMonsterHp { stack, index, hp } => format!(
             "dev: stack {} #{} hp {hp}",
@@ -310,6 +468,7 @@ fn dev(command: &DevCommand, names: &Names, data: &Data) -> String {
         ),
         DevCommand::KillStack { stack } => format!("dev: stack {} slain", u16::from(*stack) + 1),
         DevCommand::Reconcile { region } => format!("dev: reconcile with {region}"),
+        DevCommand::Fold => "dev: fold".to_owned(),
     }
 }
 

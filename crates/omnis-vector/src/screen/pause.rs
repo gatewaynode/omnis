@@ -64,7 +64,7 @@ pub fn apply(control: ControlId) -> Effect {
     match control {
         ControlId::Resume => Effect::Back,
         ControlId::Save => Effect::Host(HostOp::Save),
-        ControlId::Load => Effect::Host(HostOp::Load),
+        ControlId::Load => Effect::Host(HostOp::Load { migrate: false }),
         ControlId::SaveLog => Effect::Host(HostOp::SaveLog),
         ControlId::Settings => Effect::Open(ScreenId::Settings),
         ControlId::OpenDebug => Effect::Open(ScreenId::Debug),

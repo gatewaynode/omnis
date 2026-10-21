@@ -1,21 +1,23 @@
 //! The predictive collision mirror (presentation-ARCHITECTURE.md §5.4, VA3).
 //!
 //! `blocks` copies the refusal conditions of `omnis_sim::apply`'s private `move`, in the same
-//! order, so the pose slides along walls instead of walking into them. The simulation stays
+//! order, so the pose slides along walls and objects' footprints instead of walking into them
+//! (objects since M8.5 step 2b, through the engine's own check, `api::object_blocks`). The simulation stays
 //! authoritative; `tests/agreement.rs` holds the copy to it on every edge of the test maps.
 
 use crate::sim::SimWorld;
 use omnis_sim::BlockReason;
-use omnis_sim::omnis_core::{Facing, MapId, Position};
+use omnis_sim::omnis_core::{Facing, Level, MapId, Position};
 use omnis_sim::omnis_data::Data;
 
-/// Why a step from `(x, y)` on `map` toward `heading` would be refused, or `None` when the
-/// simulation would take it. Mirrors `omnis_sim::apply::move`.
+/// Why a step from `(x, y)` on `level` of `map` toward `heading` would be refused, or `None`
+/// when the simulation would take it. Mirrors `omnis_sim::apply::move`.
 #[must_use]
 pub fn blocks(
     data: &Data,
     world: &SimWorld,
     map: MapId,
+    level: Level,
     x: u16,
     y: u16,
     heading: Facing,
@@ -23,29 +25,39 @@ pub fn blocks(
     let Some(map_data) = data.maps.get(&map) else {
         return Some(BlockReason::MapEdge);
     };
-    let Some(cell) = map_data.cell(x, y) else {
+    let Some(cell) = map_data.cell(level, x, y) else {
         return Some(BlockReason::MapEdge);
     };
     if cell.walls.has(heading) {
         return Some(BlockReason::Wall);
     }
-    if cell.doors.has(heading) && !world.door_open(map, x, y, heading) {
+    if cell.doors.has(heading) && !world.door_open(map, level, x, y, heading) {
         return Some(BlockReason::ClosedDoor);
     }
     let here = Position {
         map,
+        level,
         x,
         y,
         facing: heading,
     };
-    let Some((tx, ty)) = here.neighbour(heading) else {
+    let Some((tx, ty)) = here
+        .neighbour(heading)
+        .filter(|&(x, y)| map_data.inside(x, y))
+    else {
         return Some(BlockReason::MapEdge);
     };
-    let Some(target) = map_data.cell(tx, ty) else {
-        return Some(BlockReason::MapEdge);
+    let Some(target) = map_data.cell(level, tx, ty) else {
+        return Some(BlockReason::NoGround);
     };
     if !map_data.terrain(target).passable {
         return Some(BlockReason::Impassable);
+    }
+    if cell.cliffs.has(heading) {
+        return Some(BlockReason::Cliff);
+    }
+    if world.object_blocks(data, map, level, (x, y), heading) {
+        return Some(BlockReason::Object);
     }
     None
 }

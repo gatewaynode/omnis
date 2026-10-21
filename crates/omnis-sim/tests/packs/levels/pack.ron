@@ -1,0 +1,14 @@
+// Fixture pack for levels in one map (M8.5 step 1b): a tower of four levels joined by stairs, a
+// ladder and a hole, loaded after base and test (it draws with the test pack's outdoor tileset).
+// Not shipped.
+(
+    schema: 1,
+    id: "levels",
+    version: "0.1.0",
+    hash: 4492393498342917543,
+    name: "Omnis level fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test"],
+    entry: None,
+)

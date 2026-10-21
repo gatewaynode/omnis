@@ -26,6 +26,7 @@ fn to(data: &Data, map: &str) -> Command {
     let (x, y, facing) = data.maps[&id].def.start;
     Command::Dev(DevCommand::Teleport {
         map: map.into(),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing,
@@ -242,9 +243,9 @@ fn a_schema_6_save_counts_its_past_in_full() {
     old.contacts.clear();
     old.party_time = Default::default();
     old.bus = Default::default();
-    let text = old.to_ron().unwrap().replacen("schema: 7", "schema: 6", 1);
+    let text = old.to_ron().unwrap().replacen("schema: 9", "schema: 6", 1);
     let loaded = World::from_ron(&text, &data, false).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(loaded.schema, 7);
+    assert_eq!(loaded.schema, 9);
     assert_eq!(
         (loaded.party_time.shared_milli, loaded.party_time.date),
         (age * 1000, age)

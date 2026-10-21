@@ -205,7 +205,12 @@ fn a_spell_may_be_learned_from_the_class_list_up_to_the_level_s_maximum() {
     );
     assert_eq!(
         eligible(&durin, &data).unwrap(),
-        [healing_word, guiding_bolt, inflict_wounds],
+        [
+            healing_word,
+            guiding_bolt,
+            inflict_wounds,
+            spell(&data, "detect_magic")
+        ],
         "the list's first-level spells not yet known, in list order"
     );
 
@@ -218,7 +223,7 @@ fn a_spell_may_be_learned_from_the_class_list_up_to_the_level_s_maximum() {
     );
     assert_eq!(
         eligible(&durin, &data).unwrap(),
-        [guiding_bolt, inflict_wounds]
+        [guiding_bolt, inflict_wounds, spell(&data, "detect_magic")]
     );
     durin.level = 3;
     assert_eq!(check(&durin, &data, healing_word), None);

@@ -1,6 +1,6 @@
 //! The `omnis` binary (package `omnis-vector`):
-//! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions]`
-//! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH]]`,
+//! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions|verbs|inventory]`
+//! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH] [--timing]]`,
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
 
@@ -74,11 +74,19 @@ fn main() -> AppExit {
                 })
                 .disable::<WinitPlugin>(),
         )
-        .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_secs_f64(
-            1.0 / 60.0,
-        )))
-        .insert_resource(CaptureSize(config.size.0, config.size.1))
-        .insert_resource(Capture::new(path, config.walk));
+        // Timed, the loop runs as fast as the frames are made.
+        .add_plugins(ScheduleRunnerPlugin::run_loop(if config.timing {
+            Duration::ZERO
+        } else {
+            Duration::from_secs_f64(1.0 / 60.0)
+        }))
+        .insert_resource(CaptureSize(config.size.0, config.size.1));
+        let capture = Capture::new(path, config.walk);
+        app.insert_resource(if config.timing {
+            capture.timed()
+        } else {
+            capture
+        });
     } else {
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {

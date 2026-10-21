@@ -8,13 +8,14 @@
 //! else the world's value; an accepted edit clears what was typed, so the field reads the world.
 
 use super::{
-    Control, ControlId, Effect, Game, Kind, Panel, Payload, Refused, Row, Screen, ScreenId, Span,
+    Control, ControlId, Effect, Game, HostOp, Kind, Panel, Payload, Refused, Row, Screen, ScreenId,
+    Span,
 };
 use crate::labels;
 use crate::style::Role;
 use crate::trial;
 use omnis_sim::api::{MemberView, StackView};
-use omnis_sim::omnis_core::{CharacterId, Facing};
+use omnis_sim::omnis_core::{CharacterId, Facing, Level};
 use omnis_sim::omnis_data::{Ability, Data};
 use omnis_sim::{Command, DevCommand};
 use std::collections::BTreeMap;
@@ -119,6 +120,8 @@ pub enum DebugAct {
     Flag,
     /// Which map to teleport to.
     Map,
+    /// Which level of it (M8.5 step 1b).
+    Level,
     /// Which way to face there.
     Facing,
     /// Teleport.
@@ -127,6 +130,16 @@ pub enum DebugAct {
     Stack,
     /// Kill the stack.
     Kill,
+    /// Cut the world into its parts and join them back (M8.5 7b): report, not a command.
+    Split,
+    /// Fold the world now (M8.5 7e).
+    Fold,
+    /// List the world-folder files no save names (M8.5 7e): the host's work.
+    Tidy,
+    /// Delete the files Tidy listed: the host's work, lit once Tidy found some.
+    Delete,
+    /// Reload the packs from disk under the running world, by name (M8.5 7h5): the host's work.
+    Reload,
 }
 
 const FACINGS: [Facing; 4] = [Facing::North, Facing::East, Facing::South, Facing::West];
@@ -144,13 +157,25 @@ pub struct DebugForm {
     flag: usize,
     /// The teleport's map, by registry order; the party's map when unset.
     map: Option<usize>,
+    /// The teleport's level; the party's when it stays on its map, else the ground, when unset.
+    level: Option<Level>,
     facing: Option<Facing>,
     stack: usize,
     /// What was typed, by field; a field without an edit shows the world's value.
     edits: BTreeMap<Num, String>,
+    /// The last split's lines and the turn it was taken on; shown only while the world is
+    /// still at that turn.
+    split: Option<(u64, Vec<String>)>,
+    /// What the last tidy listed: the files no save names (M8.5 7e).
+    tidy: Option<Vec<String>>,
 }
 
 impl DebugForm {
+    /// The host listed the world-folder files no save names, or deleted them (`None`).
+    pub fn tidied(&mut self, files: Option<Vec<String>>) {
+        self.tidy = files;
+    }
+
     /// The command was accepted: its field reads the world again.
     pub fn accepted(&mut self, command: &DevCommand) {
         let num = match command {
@@ -164,6 +189,7 @@ impl DebugForm {
             DevCommand::SetMonsterHp { .. } => Num::Lead,
             DevCommand::Teleport { .. } => {
                 self.map = None;
+                self.level = None;
                 self.facing = None;
                 self.edits.remove(&Num::X);
                 self.edits.remove(&Num::Y);
@@ -224,6 +250,35 @@ impl<'a> Look<'a> {
         self.form
             .map
             .unwrap_or_else(|| self.maps().iter().position(|m| m == here).unwrap_or(0))
+    }
+
+    /// The levels of the teleport's map, lowest first; the ground alone for a map not loaded.
+    fn levels(&self) -> Vec<Level> {
+        self.loaded(self.maps()[self.map()]).map_or_else(
+            || vec![Level::GROUND],
+            |m| m.levels.iter().map(|l| l.level).collect(),
+        )
+    }
+
+    /// The teleport's level: the one picked, else the party's on its own map, else the ground.
+    fn level(&self) -> Level {
+        let here = &self.game.views.here.position;
+        self.form.level.unwrap_or_else(|| {
+            if self.maps()[self.map()] == here.map {
+                here.level
+            } else {
+                Level::GROUND
+            }
+        })
+    }
+
+    /// A loaded map by its string id.
+    fn loaded(&self, id: &str) -> Option<&'a omnis_sim::omnis_data::MapData> {
+        self.data
+            .registry
+            .maps
+            .get(id)
+            .and_then(|m| self.data.maps.get(&m))
     }
 
     /// A map's size in cells.
@@ -348,6 +403,7 @@ impl<'a> Look<'a> {
             },
             DebugAct::Go => DevCommand::Teleport {
                 map: self.maps()[self.map()].to_owned(),
+                level: self.level(),
                 x: self.number(Num::X).ok_or(typed.clone())?,
                 y: self.number(Num::Y).ok_or(typed)?,
                 facing: self.facing(),
@@ -355,6 +411,7 @@ impl<'a> Look<'a> {
             DebugAct::Kill => DevCommand::KillStack {
                 stack: self.stack.map(|s| s.stack).ok_or("no fight is on")?,
             },
+            DebugAct::Fold => DevCommand::Fold,
             _ => return Err(String::new()),
         })
     }
@@ -520,7 +577,13 @@ fn world_rows(look: &Look) -> Vec<Row> {
                 "Flag",
                 flags
                     .iter()
-                    .map(|(id, v)| format!("{id} (now {v})"))
+                    .map(|(id, v)| {
+                        let whose = match omnis_sim::api::flag_scope(look.data, id) {
+                            Some(omnis_sim::api::FlagScope::Party) => "party",
+                            _ => "world",
+                        };
+                        format!("{id} ({whose}, now {v})")
+                    })
                     .collect(),
                 look.form.flag,
             ),
@@ -540,6 +603,21 @@ fn world_rows(look: &Look) -> Vec<Row> {
             .collect(),
         look.map(),
     )]));
+    let levels = look.levels();
+    let level = look.level();
+    let map = look.loaded(maps[look.map()]);
+    rows.push(Row::controls(vec![choice(
+        DebugAct::Level,
+        "Level",
+        levels
+            .iter()
+            .map(|&l| {
+                map.and_then(|m| crate::labels::level(look.data, m, l))
+                    .unwrap_or_else(|| l.to_string())
+            })
+            .collect(),
+        levels.iter().position(|&l| l == level).unwrap_or(0),
+    )]));
     rows.push(Row::controls(vec![
         look.field(Num::X, "x"),
         look.field(Num::Y, "y"),
@@ -554,7 +632,101 @@ fn world_rows(look: &Look) -> Vec<Row> {
         ),
         look.button(DebugAct::Go, "Go"),
     ]));
+    if let Some((turn, lines)) = &look.form.split
+        && *turn == look.game.views.here.turn
+    {
+        rows.extend(lines.iter().map(|line| Row::text(note(line.clone()))));
+    }
+    rows.push(Row::controls(vec![Control::button(
+        ControlId::Debug(DebugAct::Split),
+        "Split",
+    )]));
+    rows.push(Row::text(note(journal_line(
+        look.game.views.journal,
+        look.game.views.archive,
+    ))));
+    rows.push(Row::text(note(names_line(look.game.views.names))));
+    rows.push(Row::controls(vec![
+        look.button(DebugAct::Fold, "Fold"),
+        Control::button(ControlId::Debug(DebugAct::Tidy), "Tidy"),
+        Control::button(ControlId::Debug(DebugAct::Reload), "Reload packs"),
+        Control {
+            why_not: match &look.form.tidy {
+                Some(files) if !files.is_empty() => None,
+                Some(_) => Some("nothing to delete".to_owned()),
+                None => Some("tidy first".to_owned()),
+            },
+            ..Control::button(ControlId::Debug(DebugAct::Delete), "Delete them")
+        },
+    ]));
+    if let Some(files) = &look.form.tidy {
+        rows.extend(tidy_lines(files).into_iter().map(|l| Row::text(note(l))));
+    }
     rows
+}
+
+/// What the last tidy listed: how many, then the first few.
+fn tidy_lines(files: &[String]) -> Vec<String> {
+    const SHOWN: usize = 8;
+    let mut lines = vec![match files.len() {
+        0 => "Every world file is named by a save".to_owned(),
+        1 => "1 file no save names".to_owned(),
+        n => format!("{n} files no save names"),
+    }];
+    lines.extend(files.iter().take(SHOWN).cloned());
+    if files.len() > SHOWN {
+        lines.push(format!("and {} more", files.len() - SHOWN));
+    }
+    lines
+}
+
+/// The world's parts by size and whether they join back (PRD D28, M8.5 7b).
+fn split_lines(data: &Data, world: &crate::sim::SimWorld) -> Vec<String> {
+    let report = match world.split_report(data) {
+        Ok(report) => report,
+        Err(e) => return vec![format!("Split failed: {e}")],
+    };
+    let mut lines = vec![format!(
+        "World base: {} bytes; checkpoint: {} bytes",
+        report.world_bytes, report.checkpoint_bytes
+    )];
+    lines.extend(report.regions.iter().map(|r| {
+        let maps = if r.maps == 1 { "map" } else { "maps" };
+        format!("{}: {} bytes, {} {maps}", r.id, r.bytes, r.maps)
+    }));
+    lines.push(format!(
+        "Flags set: {} the party's, {} the world's",
+        report.party_flags, report.world_flags
+    ));
+    if report.regions.is_empty() {
+        lines.push("No region has changed: each is as its pack wrote it".to_owned());
+    }
+    lines.push(
+        if report.round_trip {
+            "Round trip: ok"
+        } else {
+            "Round trip: differs"
+        }
+        .to_owned(),
+    );
+    lines
+}
+
+/// The journal a load lays over the world's bases (PRD D28, M8.5 7d): the interactions since
+/// the last fold, not the moves; and the archive the folds put away (7e).
+fn journal_line(journal: usize, archive: usize) -> String {
+    let interactions = if journal == 1 {
+        "interaction"
+    } else {
+        "interactions"
+    };
+    let segments = if archive == 1 { "segment" } else { "segments" };
+    format!("Journal: {journal} {interactions} since the last fold; archive: {archive} {segments}")
+}
+
+/// The names a save writes into its world's manifest (M8.5 7h2): what its numbers stand for.
+fn names_line(names: usize) -> String {
+    format!("Manifest: {names} names, what the save's numbers stand for")
 }
 
 fn fight_rows(look: &Look) -> Vec<Row> {
@@ -701,8 +873,14 @@ pub fn apply(
             };
             let (x, y) = (held(Num::X, w), held(Num::Y, h));
             form.map = Some(at);
+            form.level = None;
             form.edits.insert(Num::X, x);
             form.edits.insert(Num::Y, y);
+        }
+        DebugAct::Level => {
+            let levels = look.levels();
+            let at = levels.iter().position(|&l| l == look.level()).unwrap_or(0);
+            form.level = levels.get(step(at, levels.len(), payload)).copied();
         }
         DebugAct::Facing => {
             let at = FACINGS
@@ -729,12 +907,19 @@ pub fn apply(
             }
             form.edits.insert(num, text.clone());
         }
+        DebugAct::Split => {
+            form.split = Some((game.views.here.turn, split_lines(data, game.world)));
+        }
+        DebugAct::Tidy => return Ok(Effect::Host(HostOp::Tidy { delete: false })),
+        DebugAct::Delete => return Ok(Effect::Host(HostOp::Tidy { delete: true })),
+        DebugAct::Reload => return Ok(Effect::Host(HostOp::Reload { migrate: false })),
         DebugAct::Set(_)
         | DebugAct::Toggle
         | DebugAct::ToMember
         | DebugAct::ToStores
         | DebugAct::Go
-        | DebugAct::Kill => {
+        | DebugAct::Kill
+        | DebugAct::Fold => {
             return Ok(look
                 .command(act)
                 .map_or(Effect::None, |dev| Effect::Command {

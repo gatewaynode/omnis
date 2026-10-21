@@ -8,9 +8,10 @@ use crate::common;
 use bevy::prelude::*;
 use common::app::{config, press_ui, tap};
 use common::fight::turn_of;
+use omnis_sim::omnis_core::Rotation;
 use omnis_sim::{Command, DevCommand, Settings};
 use omnis_vector::screen::debug::{DebugAct, Num, Page};
-use omnis_vector::screen::{self, ControlId, Effect, Forms, Kind, Payload, ScreenId};
+use omnis_vector::screen::{self, ControlId, Effect, Forms, HostOp, Kind, Payload, ScreenId};
 use omnis_vector::shell::movement::Intent;
 use omnis_vector::shell::screen::{Pressable, Screens, ctx};
 use omnis_vector::shell::session::Session;
@@ -393,6 +394,26 @@ fn every_lit_button_on_every_page_sends_a_command_the_engine_accepts() {
                     continue;
                 }
                 let effect = use_(&session, &mut forms.clone(), act, Payload::Press);
+                if act == DebugAct::Split {
+                    assert_eq!(effect, Effect::None, "Split reports and sends nothing");
+                    continue;
+                }
+                if act == DebugAct::Reload {
+                    assert_eq!(
+                        effect,
+                        Effect::Host(HostOp::Reload { migrate: false }),
+                        "Reload packs is the host's"
+                    );
+                    continue;
+                }
+                if act == DebugAct::Tidy {
+                    assert_eq!(
+                        effect,
+                        Effect::Host(HostOp::Tidy { delete: false }),
+                        "Tidy is the host's: it lists"
+                    );
+                    continue;
+                }
                 let Effect::Command { command, .. } = effect else {
                     panic!("{p:?} {act:?}: {effect:?}");
                 };
@@ -503,4 +524,182 @@ fn backtick_opens_the_panel_with_mouse_look_on_esc_closes_it_and_an_edit_logs_a_
     assert_eq!(top(&app), Some(ScreenId::Debug));
     tap(&mut app, KeyCode::Escape);
     assert_eq!(top(&app), Some(ScreenId::Pause), "back to the pause");
+}
+
+/// Every span's words on the screen's first panel.
+fn texts(screen: &screen::Screen) -> Vec<String> {
+    screen.panels[0]
+        .rows
+        .iter()
+        .flat_map(|r| r.spans.iter().map(|s| s.text.clone()))
+        .collect()
+}
+
+#[test]
+fn the_world_page_counts_the_journal_and_turning_adds_nothing() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let before = session.views.journal;
+    let line = |n: usize| {
+        let word = if n == 1 {
+            "interaction"
+        } else {
+            "interactions"
+        };
+        format!("Journal: {n} {word} since the last fold; archive: 0 segments")
+    };
+    assert!(texts(&shown(&session, &forms)).contains(&line(before)));
+    for _ in 0..3 {
+        session
+            .ordered(Command::Turn(Rotation::Left))
+            .expect("a turn in town");
+    }
+    assert_eq!(
+        session.views.journal, before,
+        "turning changes only the party"
+    );
+    assert!(texts(&shown(&session, &forms)).contains(&line(before)));
+}
+#[test]
+fn split_shows_the_parts_and_the_round_trip_until_the_world_moves() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        !lines.iter().any(|l| l.starts_with("World base:")),
+        "nothing before the press: {lines:?}"
+    );
+    use_(&session, &mut forms, DebugAct::Split, Payload::Press);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines
+            .iter()
+            .any(|l| l.starts_with("World base: ") && l.contains("; checkpoint: ")),
+        "{lines:?}"
+    );
+    assert!(lines.contains(&"Round trip: ok".to_owned()), "{lines:?}");
+    session
+        .ordered(Command::Turn(Rotation::Left))
+        .expect("a turn in town");
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        !lines.iter().any(|l| l.starts_with("Round trip")),
+        "a report of an older world is not shown: {lines:?}"
+    );
+}
+
+#[test]
+fn the_flag_choice_names_whose_each_flag_is_and_split_counts_them() {
+    let mut config = config();
+    config.packs.push(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../omnis-sim/tests/packs/objects"),
+    );
+    let session = Session::start(&config).expect("a session with the objects pack");
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let s = shown(&session, &forms);
+    let options = s
+        .controls()
+        .into_iter()
+        .find(|c| c.id == ControlId::Debug(DebugAct::Flag))
+        .map(|c| match &c.kind {
+            Kind::Choice { options, .. } => options.clone(),
+            other => panic!("{other:?}"),
+        })
+        .expect("a flag choice");
+    assert!(
+        options.contains(&"objects:flag:debt (party, now 0)".to_owned()),
+        "{options:?}"
+    );
+    assert!(
+        options.contains(&"objects:flag:lever (world, now 0)".to_owned()),
+        "{options:?}"
+    );
+    use_(&session, &mut forms, DebugAct::Split, Payload::Press);
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&"Flags set: 0 the party's, 0 the world's".to_owned()),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn fold_folds_and_says_the_world_has_moved_on() {
+    let mut session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert_eq!(why(&shown(&session, &forms), DebugAct::Fold), None);
+    let effect = use_(&session, &mut forms, DebugAct::Fold, Payload::Press);
+    assert_eq!(
+        effect,
+        Effect::Command {
+            command: Command::Dev(DevCommand::Fold),
+            close: false
+        }
+    );
+    send(&mut session, &mut forms, effect);
+    assert!(
+        session
+            .history
+            .iter()
+            .any(|e| e.text == "The world has moved on"),
+        "the player is told"
+    );
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(
+            &"Journal: 0 interactions since the last fold; archive: 0 segments".to_owned()
+        ),
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn delete_is_dim_until_tidy_found_something() {
+    let session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    assert_eq!(
+        why(&shown(&session, &forms), DebugAct::Delete).as_deref(),
+        Some("tidy first")
+    );
+    forms.debug.tidied(Some(Vec::new()));
+    assert_eq!(
+        why(&shown(&session, &forms), DebugAct::Delete).as_deref(),
+        Some("nothing to delete")
+    );
+    let stray = ".omnis/worlds/0123456789abcdef/manifest.ron".to_owned();
+    forms.debug.tidied(Some(vec![stray.clone()]));
+    let screen = shown(&session, &forms);
+    assert_eq!(why(&screen, DebugAct::Delete), None);
+    let lines = texts(&screen);
+    assert!(
+        lines.contains(&"1 file no save names".to_owned()),
+        "{lines:?}"
+    );
+    assert!(lines.contains(&stray), "{lines:?}");
+    assert_eq!(
+        use_(&session, &mut forms, DebugAct::Delete, Payload::Press),
+        Effect::Host(HostOp::Tidy { delete: true })
+    );
+}
+
+/// The World page counts the names a save writes into its world's manifest (M8.5 7h2).
+#[test]
+fn the_world_page_counts_the_manifests_names() {
+    let session = town();
+    let mut forms = Forms::default();
+    page(&mut forms, Page::World);
+    let names = omnis_sim::api::NameTable::of(&session.data).len();
+    assert!(names > 50, "every kind's names: {names}");
+    let lines = texts(&shown(&session, &forms));
+    assert!(
+        lines.contains(&format!(
+            "Manifest: {names} names, what the save's numbers stand for"
+        )),
+        "{lines:?}"
+    );
 }

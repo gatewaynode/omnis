@@ -1,0 +1,1 @@
+(schema: 1, id: "bado:object:pebble", name: "bado:text:thing", look: (shape: Heap, width: 1, depth: 1, height: 1))

@@ -1,13 +1,16 @@
 //! The grid under free movement (presentation-PRD §4, presentation-ARCHITECTURE.md §10.3), driven headless on
 //! the real test maps: at rest the camera's cell is the simulation's position; boundaries,
-//! corners, walls, a portal and a placed encounter behave; the log replays.
+//! corners, walls, objects, a portal and a placed encounter behave; the log replays.
 
 use crate::common;
 
-use common::{data, drive, map, place, session, steps, town_session_seeded};
+use common::{
+    data, drive, heights_data, map, objects_data, place, session, steps, town_session,
+    town_session_seeded,
+};
 use core::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use omnis_sim::omnis_core::{Direction, Facing};
-use omnis_sim::{Command, Event, Mode, Settings};
+use omnis_sim::{BlockReason, Command, Event, Mode, Settings};
 use omnis_vector::geom::yaw_of;
 use omnis_vector::grid::cell_of;
 use omnis_vector::pose::Pose;
@@ -140,6 +143,27 @@ fn water_is_impassable_and_the_pose_slides_along_it() {
     assert_eq!(world.position.y, 25);
     assert!(world.position.x > 10);
     assert_eq!(binder.disagreements, 0);
+}
+
+/// A cliff is drawn flat until M8.5 step 4, so the mirror's hold is all the player meets: the
+/// binder names it once when the pose first presses on it, not every frame it stays pressed.
+#[test]
+fn pressing_on_a_cliff_names_it_once_per_contact() {
+    let data = heights_data();
+    let (mut world, mut binder) = session(&data);
+    let hills = map(&data, "heights:map:hills");
+    let start = place(&mut world, hills, 0, 0, Facing::East);
+    let east = yaw_of(Facing::East);
+    let (pose, _, outs) = drive(&mut binder, &mut world, &data, start, (STEP, 0.0), east, 80);
+    assert_eq!(position(&world), (2, 0), "the slope walks, the cliff holds");
+    let bumps: Vec<_> = outs.iter().filter_map(|o| o.bumped).collect();
+    assert_eq!(bumps, [BlockReason::Cliff]);
+    assert_eq!((binder.refusals, binder.disagreements), (0, 0));
+    // Letting go and pressing again is a new contact.
+    let (pose, _, _) = drive(&mut binder, &mut world, &data, pose, (0.0, 0.0), east, 5);
+    let (_, _, outs) = drive(&mut binder, &mut world, &data, pose, (STEP, 0.0), east, 10);
+    let bumps: Vec<_> = outs.iter().filter_map(|o| o.bumped).collect();
+    assert_eq!(bumps, [BlockReason::Cliff]);
 }
 
 #[test]
@@ -286,4 +310,63 @@ fn a_free_movement_session_replays_to_the_same_fingerprint() {
         world.fingerprint().expect("a fingerprint")
     );
     assert_eq!(binder.refusals, 0);
+}
+
+/// The yard's crate (M8.5 step 2b): walking into it stops the pose a body's radius short of the
+/// cell's side, with no step sent and nothing refused.
+#[test]
+fn a_crate_stops_the_pose_without_a_step() {
+    let data = objects_data();
+    let (mut world, mut binder) = town_session(&data);
+    let yard = map(&data, "objects:map:yard");
+    let start = place(&mut world, yard, 1, 2, Facing::North);
+    let (pose, _, _) = drive(
+        &mut binder,
+        &mut world,
+        &data,
+        start,
+        (0.0, -STEP),
+        0.0,
+        100,
+    );
+    assert_eq!(position(&world), (1, 2));
+    assert!(pose.z >= 2.2 - 1e-5, "held short of the crate: {}", pose.z);
+    assert_eq!((binder.refusals, binder.disagreements), (0, 0));
+}
+
+/// The gate across the hedge's gap holds the party while shut and lets it through once open.
+#[test]
+fn the_shut_gate_holds_the_pose_and_the_open_one_lets_it_through() {
+    let data = objects_data();
+    let yard = map(&data, "objects:map:yard");
+    let walk = |open: bool| {
+        let (mut world, mut binder) = town_session(&data);
+        if open {
+            world.map_state(yard).objects.insert(
+                "gate_1".into(),
+                omnis_sim::api::ObjectState {
+                    state: Some("open".into()),
+                    ..omnis_sim::api::ObjectState::default()
+                },
+            );
+        }
+        let start = place(&mut world, yard, 3, 1, Facing::South);
+        let south = yaw_of(Facing::South);
+        drive(
+            &mut binder,
+            &mut world,
+            &data,
+            start,
+            (0.0, STEP),
+            south,
+            150,
+        );
+        (position(&world), binder.refusals, binder.disagreements)
+    };
+    assert_eq!(walk(false), ((3, 2), 0, 0), "held at the gate");
+    assert_eq!(
+        walk(true),
+        ((3, 4), 0, 0),
+        "through to the yard's south wall"
+    );
 }

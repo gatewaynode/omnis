@@ -107,10 +107,10 @@ fn loads_are_checked() {
     let world = world(&data);
     let text = world.to_ron().unwrap();
 
-    let other = text.replacen("schema: 7", "schema: 8", 1);
+    let other = text.replacen("schema: 9", "schema: 10", 1);
     assert_eq!(
         World::from_ron(&other, &data, false).unwrap_err(),
-        LoadError::Schema(8)
+        LoadError::Schema(10)
     );
 
     let mut foreign = world.clone();
@@ -128,6 +128,7 @@ fn loads_are_checked() {
     let mut lost = world.clone();
     lost.position = Position {
         map: omnis_core::MapId(99),
+        level: omnis_core::Level::GROUND,
         x: 0,
         y: 0,
         facing: Facing::North,
@@ -197,10 +198,10 @@ fn a_schema_1_save_migrates() {
         "the fixture names an example pack"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     assert!(world.party.members.is_empty());
     assert_eq!(world.settings, Settings::default());
-    assert_eq!(world.to_ron().unwrap().matches("schema: 7").count(), 1);
+    assert_eq!(world.to_ron().unwrap().matches("schema: 9").count(), 1);
     let inn_only = text.replace("save_anywhere: true", "save_anywhere: false");
     let world = World::from_ron(&inn_only, &data, true).unwrap();
     assert_eq!(world.settings.save_rule, SaveRule::InnOnly);
@@ -221,7 +222,7 @@ fn a_schema_2_save_migrates() {
         "the fixture's base pack predates the combat rules"
     );
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     assert_eq!(world.mode, Mode::Explore);
     assert_eq!(world.party.members.len(), 1);
     assert_eq!(world.party.members[0].death_saves, DeathSaves::default());
@@ -233,10 +234,10 @@ fn a_schema_2_save_migrates() {
         world.party.members[0].equipped
     );
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert!(world.maps[&dungeon].cleared.is_empty());
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 7").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
@@ -254,7 +255,7 @@ fn a_schema_3_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 3") && !text.contains("equipped") && !text.contains("devtools"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     assert!(!world.settings.devtools);
     let brenna = &world.party.members[0];
     let item = |name: &str| {
@@ -276,9 +277,9 @@ fn a_schema_3_save_migrates() {
     assert!(world.party.effects.is_empty());
     assert_eq!(world.party.gold, 1500, "the acolyte's 15 gp in copper");
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 7").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(World::from_ron(&text, &data, true).unwrap(), world);
 
     let mut torn = world.clone();
@@ -300,7 +301,7 @@ fn a_schema_4_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 4") && text.contains("gold: 15,") && !text.contains("bank"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     assert_eq!(
         (
             world.party.gold,
@@ -314,9 +315,9 @@ fn a_schema_4_save_migrates() {
     assert!(!text.contains("spell_picks"));
     assert!(world.party.members.iter().all(|m| m.spell_picks == 0));
     let dungeon = FIXTURE_DUNGEON;
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     let text = world.to_ron().unwrap();
-    assert_eq!(text.matches("schema: 7").count(), 1);
+    assert_eq!(text.matches("schema: 9").count(), 1);
     assert_eq!(
         World::from_ron(&text, &data, true).unwrap(),
         world,
@@ -336,7 +337,7 @@ fn a_schema_5_save_migrates() {
     assert!(text.contains("schema: 5") && text.contains("auto_cast: ["));
     assert!(!text.contains("tactics") && !text.contains("budget"));
     let world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     let shield = data.registry.spells.get("base:spell:shield").unwrap();
     let ilvara = &world.party.members[2];
     assert!(ilvara.legacy_auto_cast.is_empty());
@@ -372,7 +373,7 @@ fn a_schema_5_save_migrates() {
         );
     }
     let written = world.to_ron().unwrap();
-    assert_eq!(written.matches("schema: 7").count(), 1);
+    assert_eq!(written.matches("schema: 9").count(), 1);
     assert!(!written.contains("auto_cast"), "never written");
     assert_eq!(World::from_ron(&written, &data, true).unwrap(), world);
     let mut world = world;
@@ -419,7 +420,7 @@ fn a_schema_4_fight_converts_its_loot() {
     let old = world
         .to_ron()
         .unwrap()
-        .replacen("schema: 7", "schema: 4", 1);
+        .replacen("schema: 9", "schema: 4", 1);
     let loaded = World::from_ron(&old, &data, false).unwrap_or_else(|e| panic!("{e}"));
     let Mode::Combat(fight) = &loaded.mode else {
         panic!("still fighting");
@@ -547,7 +548,7 @@ fn fight(data: &Data) -> Vec<Command> {
     );
     assert_eq!(world.mode, Mode::Explore);
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
-    assert!(world.maps[&dungeon].cleared.contains(&0));
+    assert!(world.maps[&dungeon].cleared.contains("giant_rat_3_8"));
     commands
 }
 
@@ -616,12 +617,13 @@ fn capture_schema_2_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!(world.schema, 2);
     write_ron(&save_path("v2"), &world).unwrap();
 }
@@ -652,12 +654,13 @@ fn capture_schema_3_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!(world.schema, 3);
     write_ron(&save_path("v3"), &world).unwrap();
 }
@@ -688,12 +691,13 @@ fn capture_schema_4_fixture() {
     let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
     world.position = Position {
         map: dungeon,
+        level: omnis_core::Level::GROUND,
         x: 5,
         y: 3,
         facing: Facing::East,
     };
     interact(&mut world, &data);
-    assert!(world.maps[&dungeon].door_open(5, 3, Facing::East));
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
     assert_eq!((world.schema, world.party.gold), (4, 15));
     write_ron(&save_path("v4"), &world).unwrap();
 }
@@ -710,7 +714,7 @@ fn a_schema_6_save_migrates() {
     let text = omnis_data::ron_io::read_text(&path, &path).unwrap();
     assert!(text.contains("schema: 6") && !text.contains("party_time") && !text.contains("bus"));
     let mut world = World::from_ron(&text, &data, true).unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(world.schema, 7);
+    assert_eq!(world.schema, 9);
     let age = world.party_clock().elapsed;
     assert!(age > 0, "two steps lived");
     assert_eq!(
@@ -768,6 +772,38 @@ fn capture_schema_5_fixture() {
 }
 
 /// Captures `tests/saves/v6.ron` from a schema-6 build (M8 step 2, `0bcb02f`): Brenna, Durin and
+/// Captures `tests/saves/v7.ron` from a schema-7 build: the golden walk's world at its end, a
+/// party that has left the town for the meadow (region clocks and contacts), then set at the
+/// dungeon's first door and opening it (a map state), so
+/// the schema-8 conversion (M8.5 7d) has every part of a world to split. Run once, deliberately,
+/// before the schema moved on.
+#[test]
+#[ignore = "writes the fixture; run deliberately on a schema-7 build"]
+fn capture_schema_7_fixture() {
+    let data = data();
+    let replay: Replay =
+        read_ron(&replay_path("walk"), &replay_path("walk")).unwrap_or_else(|e| panic!("{e}"));
+    let mut world = World::new(&data, replay.seed, replay.settings).unwrap();
+    for command in &replay.commands {
+        omnis_sim::apply(&mut world, &data, command.clone()).unwrap_or_else(|r| panic!("{r}"));
+    }
+    // Then into the dungeon at its first door, as the schema-2 capture stands, and open it: a
+    // map state for the dungeon's region beside the clocks and contacts the walk made.
+    let dungeon = data.registry.maps.get("test:map:dungeon").unwrap();
+    world.position = Position {
+        map: dungeon,
+        level: omnis_core::Level::GROUND,
+        x: 5,
+        y: 3,
+        facing: Facing::East,
+    };
+    interact(&mut world, &data);
+    assert!(world.maps[&dungeon].door_open(omnis_core::Level::GROUND, 5, 3, Facing::East));
+    assert!(world.clocks.len() > 1 && !world.contacts.is_empty());
+    assert_eq!(world.schema, 7);
+    write_ron(&save_path("v7"), &world).unwrap();
+}
+
 /// Ilvara, Ilvara with Shield declared, two steps lived, in round one of a fight with two goblins,
 /// so the schema-7 migration has a past to count as shared time and a fight to subscribe to the
 /// bus. Run once, deliberately, before the schema moved on (captured late, in M8 step 8c, from a

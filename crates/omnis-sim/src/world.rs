@@ -1,40 +1,62 @@
 //! The complete game state (ARCHITECTURE.md §4.1). Ordered collections, integers, serde. A save
 //! is this struct as RON text; the fingerprint hashes that text.
 
+use crate::PARTY;
 use crate::bus::Bus;
 use crate::combat::CombatState;
 use crate::encounter::EncounterState;
 use crate::event::{ActorRef, Event};
-use crate::migrate::{WorldV1, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7};
+use crate::journal::Journal;
+use crate::migrate::{
+    WorldV1, legacy_knowledge, v1_to_v2, v2_to_v3, v3_to_v4, v4_to_v5, v5_to_v6, v6_to_v7,
+};
+use crate::objects::{Knowledge, ObjectState};
 use crate::party::Party;
 use crate::service::ServiceState;
 use crate::time::PartyTime;
-use crate::{LOG_CAPACITY, PARTY};
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{
-    Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, MapId, Pcg32, Position, StreamName,
-    fnv1a64,
+    Clock, Contact, Edges, EraId, Facing, FlagId, HolderId, Level, MapId, Pcg32, Position,
+    StreamName, fnv1a64,
 };
+use omnis_data::placement::Pile;
 use omnis_data::{Data, DataError, PackFingerprint, ServiceKind};
 use serde::{Deserialize, Serialize};
 
 /// The save schema this build writes. Schema 1 (no party, a save switch), schema 2 (no combat)
 /// schema 3 (no equipment slots, no effects, no devtools bit) and schema 4 (gold in whole pieces)
 /// migrate on load, and so do schema 5 (no turn budget) and schema 6 (no subjective time:
-/// contacts, the party's shared time and date, the signal bus).
-pub const SAVE_SCHEMA: u32 = 7;
+/// contacts, the party's shared time and date, the signal bus). Schema 8 (M8.5 7d, PRD D28) is the
+/// character save (`save::CharacterSave`); a schema 1 to 7 save is a whole world, converted on
+/// load by making it the base its journal starts from. Schema 9 (M8.5 7h2) names fixed
+/// encounters by id where 8 and before name their rows, converted on load (`save::rows`), and
+/// its world folders' manifests carry the packs' names. `World::from_ron` reads a whole world of
+/// any schema, as a snapshot.
+pub const SAVE_SCHEMA: u32 = 9;
 
 /// Mutable state of one map. Static tiles come from data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapState {
-    /// Open doors by canonical edge (see `door_key`).
+    /// Open doors on the map's own level by canonical edge (see `door_key`).
     pub open_doors: BTreeSet<(u16, u16, Facing)>,
-    /// Fixed encounters cleared for good, by their index in the map file.
-    #[serde(default)]
-    pub cleared: BTreeSet<u16>,
+    /// Open doors on its other levels (M8.5 step 1b), by level and canonical edge; unwritten
+    /// when none, so a save of a map of one level reads as before.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub level_doors: BTreeSet<(Level, u16, u16, Facing)>,
+    /// Fixed encounters cleared for good, by their id in the map (M8.5 7h2; before, their rows).
+    #[serde(default, deserialize_with = "crate::save::rows_or_ids")]
+    pub cleared: BTreeSet<String>,
+    /// What has changed of the map's objects, by placement id (M8.5 step 2); unwritten when
+    /// nothing has, so a save with no objects reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub objects: BTreeMap<String, ObjectState>,
+    /// The piles on the ground that differ from the map's, by level and cell; an emptied
+    /// placed pile is kept with no items. Unwritten when none, so a save reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ground: BTreeMap<(Level, u16, u16), Pile>,
 }
 
 /// A door edge is shared by two tiles; this names it once, from the north or west tile.
@@ -48,10 +70,27 @@ pub fn door_key(x: u16, y: u16, facing: Facing) -> (u16, u16, Facing) {
 }
 
 impl MapState {
-    /// Whether the door on `facing` of tile `(x, y)` is open.
+    /// Whether the door on `facing` of tile `(x, y)` of `level` is open.
     #[must_use]
-    pub fn door_open(&self, x: u16, y: u16, facing: Facing) -> bool {
-        self.open_doors.contains(&door_key(x, y, facing))
+    pub fn door_open(&self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        let (x, y, facing) = door_key(x, y, facing);
+        if level.is_ground() {
+            self.open_doors.contains(&(x, y, facing))
+        } else {
+            self.level_doors.contains(&(level, x, y, facing))
+        }
+    }
+
+    /// Open the door if closed, close it if open; whether it is open now.
+    pub fn toggle_door(&mut self, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        let (x, y, facing) = door_key(x, y, facing);
+        if level.is_ground() {
+            let key = (x, y, facing);
+            !self.open_doors.remove(&key) && self.open_doors.insert(key)
+        } else {
+            let key = (level, x, y, facing);
+            !self.level_doors.remove(&key) && self.level_doors.insert(key)
+        }
     }
 }
 
@@ -86,27 +125,31 @@ pub struct Known {
 /// The party's persistent record of the world (PRD §7.2).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Automap {
-    /// Per map, per tile.
+    /// Per map, per tile of the map's own level.
     pub maps: BTreeMap<MapId, BTreeMap<(u16, u16), Known>>,
+    /// Per map and level, per tile, for the other levels (M8.5 step 1b); unwritten when none,
+    /// so a save that never left level 0 reads as before.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub levels: BTreeMap<(MapId, Level), BTreeMap<(u16, u16), Known>>,
 }
 
 impl Automap {
     /// Record a tile: the terrain when `TERRAIN` is carried, the walls and doors when
     /// `STRUCTURE` is, layers merged (`VISITED` sticks), the time the newest. `REMOTE` is set
     /// by a remote recording and cleared by a direct one.
-    pub fn record(&mut self, map: MapId, x: u16, y: u16, known: Known) {
-        let entry = self
-            .maps
-            .entry(map)
-            .or_default()
-            .entry((x, y))
-            .or_insert(Known {
-                terrain: known.terrain,
-                walls: Edges::default(),
-                doors: Edges::default(),
-                layers: 0,
-                seen_at: known.seen_at,
-            });
+    pub fn record(&mut self, map: MapId, level: Level, x: u16, y: u16, known: Known) {
+        let tiles = if level.is_ground() {
+            self.maps.entry(map).or_default()
+        } else {
+            self.levels.entry((map, level)).or_default()
+        };
+        let entry = tiles.entry((x, y)).or_insert(Known {
+            terrain: known.terrain,
+            walls: Edges::default(),
+            doors: Edges::default(),
+            layers: 0,
+            seen_at: known.seen_at,
+        });
         if known.layers & layer::TERRAIN != 0 {
             entry.terrain = known.terrain;
         }
@@ -121,10 +164,14 @@ impl Automap {
         entry.seen_at = known.seen_at;
     }
 
-    /// Known tiles of a map.
+    /// Known tiles of a level of a map.
     #[must_use]
-    pub fn map(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
-        self.maps.get(&map)
+    pub fn tiles(&self, map: MapId, level: Level) -> Option<&BTreeMap<(u16, u16), Known>> {
+        if level.is_ground() {
+            self.maps.get(&map)
+        } else {
+            self.levels.get(&(map, level))
+        }
     }
 }
 
@@ -233,6 +280,10 @@ pub struct World {
     pub maps: BTreeMap<MapId, MapState>,
     /// What the party knows.
     pub automap: Automap,
+    /// The hidden objects the party has found and the lore it has been told once (M8.5 7d):
+    /// the party's knowledge, not the map's.
+    #[serde(default, skip_serializing_if = "Knowledge::is_empty")]
+    pub known: Knowledge,
     /// What the party is doing.
     pub mode: Mode,
     /// Named integer flags.
@@ -243,10 +294,27 @@ pub struct World {
     pub party: Party,
     /// Commands applied so far.
     pub turn: u64,
-    /// Recent events for clients that poll (`events.tail`). Not part of the save or the
+    /// The party's log: the newest `LOG_CAPACITY` events, stamped (M8.5 7f). The character
+    /// save carries it, and `events.tail` reads it; not part of the world's RON or the
     /// fingerprint.
     #[serde(skip)]
-    pub log: Vec<Event>,
+    pub log: Vec<crate::log::Logged>,
+    /// The interactions since the world's base and what each changed (PRD D28). The character
+    /// save carries it (M8.5 7d); not part of the fingerprint.
+    #[serde(skip)]
+    pub journal: Journal,
+    /// The bases the journal's changes lie over: `None` for base 0, the packs as written; a
+    /// converted old save or a fold sets them (M8.5 7d). Not part of the fingerprint.
+    #[serde(skip)]
+    pub origin: Option<crate::save::Bases>,
+    /// The interactions folded away, oldest first (M8.5 7e): the history before the bases. The
+    /// character save names them; not part of the fingerprint.
+    #[serde(skip)]
+    pub archive: Vec<crate::save::Archived>,
+    /// The pack migrations it went through, oldest first (M8.5 7h6). The character save
+    /// carries them; not part of the fingerprint.
+    #[serde(skip)]
+    pub migrated: Vec<crate::save::Migrated>,
 }
 
 /// Why a new game could not start.
@@ -281,6 +349,22 @@ pub enum LoadError {
     BadParty(&'static str),
     /// The saved service is not the one on the party's tile.
     BadTown,
+    /// A character save that does not hold together: what is wrong (M8.5 7d).
+    BadSave(String),
+    /// A world base a save names is missing or not what its name says: which.
+    BadBase(String),
+    /// The save names what the loaded packs do not have, each with where (M8.5 7h3).
+    Unresolved(Vec<crate::save::Missing>),
+    /// The packs' migrations change the save, and the load was not told to apply them: each
+    /// offered file, by pack (M8.5 7h6).
+    NeedsMigration(Vec<(String, String)>),
+    /// The world rebuilt from the save is not the one the save recorded.
+    Diverged {
+        /// What the save recorded.
+        expected: u64,
+        /// What the replay reached.
+        actual: u64,
+    },
 }
 
 impl fmt::Display for LoadError {
@@ -296,6 +380,26 @@ impl fmt::Display for LoadError {
             LoadError::BadCombat(why) => write!(f, "save combat cannot continue: {why}"),
             LoadError::BadParty(why) => write!(f, "save party is inconsistent: {why}"),
             LoadError::BadTown => f.write_str("save service is not the one where the party stands"),
+            LoadError::BadSave(why) => write!(f, "save does not hold together: {why}"),
+            LoadError::BadBase(which) => write!(f, "world base {which} is missing or altered"),
+            LoadError::Unresolved(missing) => {
+                f.write_str("save names what the packs no longer have:")?;
+                for (i, m) in missing.iter().enumerate() {
+                    write!(f, "{} {m}", if i == 0 { "" } else { ";" })?;
+                }
+                Ok(())
+            }
+            LoadError::NeedsMigration(files) => {
+                f.write_str("the packs' migrations change it; migrate applies them")?;
+                for (i, (pack, file)) in files.iter().enumerate() {
+                    write!(f, "{} {pack} {file}", if i == 0 { ":" } else { "," })?;
+                }
+                Ok(())
+            }
+            LoadError::Diverged { expected, actual } => write!(
+                f,
+                "save rebuilt the world {actual:016x}, not the recorded {expected:016x}"
+            ),
         }
     }
 }
@@ -318,15 +422,26 @@ impl World {
             contacts: BTreeMap::new(),
             party_time: PartyTime::default(),
             bus: crate::time::subscriptions(data),
-            position: Position { map, x, y, facing },
+            position: Position {
+                map,
+                level: omnis_core::Level::GROUND,
+                x,
+                y,
+                facing,
+            },
             maps: BTreeMap::new(),
             automap: Automap::default(),
+            known: Knowledge::default(),
             mode: Mode::Explore,
             flags: BTreeMap::new(),
             settings,
             party: Party::default(),
             turn: 0,
             log: Vec::new(),
+            journal: Journal::default(),
+            origin: None,
+            archive: Vec::new(),
+            migrated: Vec::new(),
         })
     }
 
@@ -365,13 +480,26 @@ impl World {
         self.maps.entry(map).or_default()
     }
 
-    /// Append events to the bounded log.
-    pub fn record(&mut self, events: &[Event]) {
-        self.log.extend_from_slice(events);
-        if self.log.len() > LOG_CAPACITY {
-            let excess = self.log.len() - LOG_CAPACITY;
-            self.log.drain(..excess);
+    /// Drop what holds only defaults: an object's state back where it started, a map with
+    /// nothing changed. The world then reads the same however it came to be, played or rebuilt
+    /// from its parts (M8.5 7d).
+    pub(crate) fn prune(&mut self) {
+        for state in self.maps.values_mut() {
+            state.objects.retain(|_, o| *o != ObjectState::default());
         }
+        self.maps.retain(|_, s| *s != MapState::default());
+    }
+
+    /// Append events to the bounded log, stamped with the party's clock and map now.
+    pub fn record(&mut self, events: &[Event]) {
+        let (minute, map) = (self.party_clock().elapsed, self.position.map);
+        self.log
+            .extend(events.iter().map(|event| crate::log::Logged {
+                minute,
+                map,
+                event: event.clone(),
+            }));
+        crate::log::bound(&mut self.log);
     }
 
     /// The save text.
@@ -428,23 +556,36 @@ impl World {
             6 => omnis_data::ron_io::parse::<World>(text)
                 .map(|w| v6_to_v7(w, data))
                 .map_err(LoadError::Parse)?,
-            SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
+            // Schema 7 is the last whole-world save; 8 and 9 are whole worlds only as snapshots.
+            7 | 8 | SAVE_SCHEMA => omnis_data::ron_io::parse(text).map_err(LoadError::Parse)?,
             other => return Err(LoadError::Schema(other)),
         };
-        if !force && world.packs != data.fingerprints {
+        let mut world = world;
+        world.known = legacy_knowledge(text).map_err(LoadError::Parse)?;
+        crate::save::rows::world(data, &mut world)?;
+        world.prune();
+        world.schema = SAVE_SCHEMA;
+        world.checked(data, force)
+    }
+
+    /// The world, when it fits the loaded packs: the same packs unless `force`, the party on a
+    /// loaded cell, a mode that can go on, a party whose sheets agree. What a load checks after
+    /// reading, and what joining a world's parts checks (`save::join`).
+    pub(crate) fn checked(self, data: &Data, force: bool) -> Result<World, LoadError> {
+        if !force && self.packs != data.fingerprints {
             return Err(LoadError::PackMismatch);
         }
-        let p = world.position;
+        let p = self.position;
         if !data
             .maps
             .get(&p.map)
-            .is_some_and(|map| map.cell(p.x, p.y).is_some())
+            .is_some_and(|map| map.cell(p.level, p.x, p.y).is_some())
         {
             return Err(LoadError::BadPosition(p));
         }
-        world.check_mode(data)?;
-        world.check_party()?;
-        Ok(world)
+        self.check_mode(data)?;
+        self.check_party()?;
+        Ok(self)
     }
 
     /// Every equipped item must be carried: the rules read slots, so a slot naming an item
@@ -470,7 +611,10 @@ impl World {
             Mode::Explore => return Ok(()),
             Mode::Town(state) => {
                 let p = self.position;
-                let here = data.maps.get(&p.map).and_then(|m| m.site_at(p.x, p.y));
+                let here = data
+                    .maps
+                    .get(&p.map)
+                    .and_then(|m| m.site_at(p.level, p.x, p.y));
                 let kind = data.services.get(&state.service).map(|s| s.kind);
                 return if here == Some(state.service) && kind == Some(state.kind) {
                     Ok(())

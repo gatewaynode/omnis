@@ -3,8 +3,8 @@
 //! instance against the hand-written schema; the vocabulary test reads every key they carry.
 
 use omnis_cli::omnis_sim::omnis_core::CharacterId;
-use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation};
-use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill};
+use omnis_cli::omnis_sim::omnis_core::{Direction, Facing, Rotation, Vertical};
+use omnis_cli::omnis_sim::omnis_data::{Ability, Alignment, EquipSlot, Skill, Verb};
 use omnis_cli::omnis_sim::omnis_rules::{
     ActionRef, Cmp, Criteria, CriteriaSet, Draft, Named, Predicate, Trigger, Who,
 };
@@ -196,7 +196,29 @@ fn next_item(command: &ItemCommand) -> Option<ItemCommand> {
             item,
             receiver: None,
         },
-        ItemCommand::Use { receiver: None, .. } => return None,
+        ItemCommand::Use { receiver: None, .. } => ItemCommand::Drop {
+            member,
+            item,
+            count,
+        },
+        ItemCommand::Drop { .. } => ItemCommand::PickUp {
+            member,
+            item,
+            count,
+        },
+        ItemCommand::PickUp { .. } => ItemCommand::TakeOut {
+            member,
+            object: "chest_1".into(),
+            item,
+            count,
+        },
+        ItemCommand::TakeOut { .. } => ItemCommand::PutIn {
+            member,
+            object: "chest_1".into(),
+            item,
+            count,
+        },
+        ItemCommand::PutIn { .. } => return None,
     })
 }
 
@@ -212,6 +234,7 @@ fn next_facing(facing: Facing) -> Option<Facing> {
 fn teleport(facing: Facing) -> DevCommand {
     DevCommand::Teleport {
         map: "test:map:dungeon".into(),
+        level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
         x: 3,
         y: 4,
         facing,
@@ -271,7 +294,8 @@ fn next_dev(command: &DevCommand) -> Option<DevCommand> {
         DevCommand::KillStack { .. } => DevCommand::Reconcile {
             region: "test:region:town".into(),
         },
-        DevCommand::Reconcile { .. } => return None,
+        DevCommand::Reconcile { .. } => DevCommand::Fold,
+        DevCommand::Fold => return None,
     })
 }
 
@@ -346,7 +370,28 @@ fn next(command: &Command) -> Option<Command> {
     Some(match command {
         Command::Step(direction) => next_step(*direction),
         Command::Turn(rotation) => next_turn(*rotation),
-        Command::Interact => Command::Party(PartyCommand::Create(draft(Alignment::ALL[0]))),
+        Command::Interact => Command::Door,
+        Command::Door => Command::Search,
+        Command::Search => Command::Act {
+            object: "chest_1".into(),
+            verb: Verb::ALL[0],
+            option: 0,
+        },
+        Command::Act { verb, .. } => match Verb::ALL.iter().position(|v| v == verb) {
+            Some(i) if i + 1 < Verb::ALL.len() => Command::Act {
+                object: "chest_1".into(),
+                verb: Verb::ALL[i + 1],
+                option: 1,
+            },
+            _ => Command::Approach {
+                being: "rat".into(),
+            },
+        },
+        Command::Approach { .. } => Command::Climb(Vertical::Up),
+        Command::Climb(Vertical::Up) => Command::Climb(Vertical::Down),
+        Command::Climb(Vertical::Down) => {
+            Command::Party(PartyCommand::Create(draft(Alignment::ALL[0])))
+        }
         Command::Party(party) => {
             next_party(party).map_or(Command::Encounter(EncounterChoice::Attack), Command::Party)
         }

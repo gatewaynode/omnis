@@ -2,7 +2,7 @@
 
 use crate::common;
 
-use omnis_core::{Edges, Facing};
+use omnis_core::{Edges, Facing, Level};
 use omnis_data::{MapKind, ServiceKind, SlotKind, load_packs};
 
 #[test]
@@ -35,8 +35,8 @@ fn test_pack_loads_with_its_maps() {
         (meadow.def.width, meadow.def.height, meadow.def.kind),
         (32, 32, MapKind::Outdoor)
     );
-    assert_eq!(dungeon.cells.len(), 24 * 24);
-    assert_eq!(meadow.cells.len(), 32 * 32);
+    assert_eq!(dungeon.levels[0].cells.len(), 24 * 24);
+    assert_eq!(meadow.levels[0].cells.len(), 32 * 32);
     assert_eq!(data.text("en", dungeon.name), "Test Dungeon");
     assert_eq!(
         data.text("de", meadow.name),
@@ -45,45 +45,61 @@ fn test_pack_loads_with_its_maps() {
     );
 
     // The dungeon's first room: walls on the boundary, a door east at row 3.
-    let corner = dungeon.cell(0, 0).unwrap();
+    let corner = dungeon.cell(Level::GROUND, 0, 0).unwrap();
     assert_eq!(
         corner.walls,
         Edges::NONE.with(Facing::North).with(Facing::West)
     );
-    let door_tile = dungeon.cell(5, 3).unwrap();
+    let door_tile = dungeon.cell(Level::GROUND, 5, 3).unwrap();
     assert!(
         door_tile.doors.has(Facing::East),
         "door at (5,3) east: {door_tile:?}"
     );
     assert!(
-        dungeon.cell(6, 3).unwrap().doors.has(Facing::West),
+        dungeon
+            .cell(Level::GROUND, 6, 3)
+            .unwrap()
+            .doors
+            .has(Facing::West),
         "same door from the other side"
     );
     assert!(
-        dungeon.cell(5, 2).unwrap().walls.has(Facing::East),
+        dungeon
+            .cell(Level::GROUND, 5, 2)
+            .unwrap()
+            .walls
+            .has(Facing::East),
         "wall where there is no door"
     );
-    let pillar = dungeon.terrain(dungeon.cell(3, 3).unwrap());
+    let pillar = dungeon.terrain(dungeon.cell(Level::GROUND, 3, 3).unwrap());
     assert!(!pillar.passable && pillar.opaque, "pillar at (3,3)");
-    let water = meadow.terrain(meadow.cell(8, 22).unwrap());
+    let water = meadow.terrain(meadow.cell(Level::GROUND, 8, 22).unwrap());
     assert!(!water.passable && !water.opaque, "water can be seen across");
 
     // The meadow is open inside the hedge; the road runs north to the portal.
-    assert_eq!(meadow.cell(10, 10).unwrap().walls, Edges::NONE);
     assert_eq!(
-        meadow.cell(0, 0).unwrap().walls,
+        meadow.cell(Level::GROUND, 10, 10).unwrap().walls,
+        Edges::NONE
+    );
+    assert_eq!(
+        meadow.cell(Level::GROUND, 0, 0).unwrap().walls,
         Edges::NONE.with(Facing::North).with(Facing::West)
     );
-    assert_eq!(meadow.terrain(meadow.cell(16, 20).unwrap()).name, "road");
     assert_eq!(
         meadow
-            .terrain(meadow.cell(16, 20).unwrap())
+            .terrain(meadow.cell(Level::GROUND, 16, 20).unwrap())
+            .name,
+        "road"
+    );
+    assert_eq!(
+        meadow
+            .terrain(meadow.cell(Level::GROUND, 16, 20).unwrap())
             .visibility_depth,
         12
     );
     assert_eq!(
         dungeon
-            .terrain(dungeon.cell(1, 1).unwrap())
+            .terrain(dungeon.cell(Level::GROUND, 1, 1).unwrap())
             .visibility_depth,
         6
     );
@@ -125,7 +141,7 @@ fn the_game_starts_in_a_town_of_seven_services_behind_doors() {
     for site in &town.sites {
         let (x, y) = (site.x, site.y);
         let door = if y == 1 { Facing::South } else { Facing::North };
-        let cell = town.cell(x, y).unwrap();
+        let cell = town.cell(Level::GROUND, x, y).unwrap();
         assert!(
             cell.doors.has(door),
             "the site at ({x}, {y}) is behind a door"
@@ -140,10 +156,14 @@ fn the_game_starts_in_a_town_of_seven_services_behind_doors() {
         assert!(!data.label("en", &def.name).is_empty());
     }
     assert_eq!(
-        town.site_at(1, 1),
+        town.site_at(Level::GROUND, 1, 1),
         data.registry.services.get("base:service:inn")
     );
-    assert_eq!(town.site_at(1, 2), None, "the street is no service");
+    assert_eq!(
+        town.site_at(Level::GROUND, 1, 2),
+        None,
+        "the street is no service"
+    );
     let colours: std::collections::BTreeSet<_> =
         town.def.terrains.iter().map(|t| t.color).collect();
     assert_eq!(
@@ -170,7 +190,7 @@ fn portals_and_tileset_slots_resolve() {
     let meadow = &data.maps[&meadow_id];
 
     // Portals link the maps both ways.
-    let down = meadow.portal_at(16, 5).expect("entrance");
+    let down = meadow.portal_at(Level::GROUND, 16, 5).expect("entrance");
     assert_eq!(
         (down.to_map, down.to_x, down.to_y, down.to_facing),
         (dungeon_id, 1, 0, Facing::South)
@@ -180,8 +200,9 @@ fn portals_and_tileset_slots_resolve() {
         11,
         "three rat groups, eight of goblins and skeletons"
     );
-    let (index, rats) = dungeon.encounter_at(3, 8).expect("the rats");
-    assert_eq!(index, 0);
+    let rats = dungeon.encounter_at(Level::GROUND, 3, 8).expect("the rats");
+    assert_eq!(rats.id, "giant_rat_3_8");
+    assert_eq!(dungeon.encounter("giant_rat_3_8"), Some(rats));
     assert_eq!(rats.stacks.len(), 1);
     assert_eq!(
         (
@@ -191,21 +212,23 @@ fn portals_and_tileset_slots_resolve() {
         (Some("test:monster:giant_rat"), 2)
     );
     assert!(rats.once);
-    assert_eq!(dungeon.encounter_at(0, 0), None);
+    assert_eq!(dungeon.encounter_at(Level::GROUND, 0, 0), None);
     assert_eq!(dungeon.random.as_ref().map(|r| r.chance_percent), Some(3));
     assert_eq!(dungeon.random.as_ref().map(|r| r.total_weight()), Some(4));
     assert_eq!(meadow.random.as_ref().map(|r| r.chance_percent), Some(0));
-    let up = dungeon.portal_at(0, 0).expect("exit");
+    let up = dungeon.portal_at(Level::GROUND, 0, 0).expect("exit");
     assert_eq!((up.to_map, up.to_x, up.to_y), (meadow_id, 16, 6));
     // The depths below, and back (M7b).
     let depths_id = data.registry.maps.get("test:map:depths").unwrap();
-    let deeper = dungeon.portal_at(23, 23).expect("the way down");
+    let deeper = dungeon
+        .portal_at(Level::GROUND, 23, 23)
+        .expect("the way down");
     assert_eq!(
         (deeper.to_map, deeper.to_x, deeper.to_y, deeper.to_facing),
         (depths_id, 1, 0, Facing::South)
     );
     let depths = &data.maps[&depths_id];
-    let back = depths.portal_at(0, 0).expect("the way up");
+    let back = depths.portal_at(Level::GROUND, 0, 0).expect("the way up");
     assert_eq!(
         (back.to_map, back.to_x, back.to_y, back.to_facing),
         (dungeon_id, 22, 23, Facing::West)
@@ -242,12 +265,16 @@ fn portals_and_tileset_slots_resolve() {
         assert!(data.registry.spells.get(spell).is_some(), "{spell}");
     }
     let town_id = data.registry.maps.get("test:map:town").unwrap();
-    let home = meadow.portal_at(16, 31).expect("the road south");
+    let home = meadow
+        .portal_at(Level::GROUND, 16, 31)
+        .expect("the road south");
     assert_eq!(
         (home.to_map, home.to_x, home.to_y, home.to_facing),
         (town_id, 10, 2, Facing::West)
     );
-    let out = data.maps[&town_id].portal_at(11, 2).expect("the town gate");
+    let out = data.maps[&town_id]
+        .portal_at(Level::GROUND, 11, 2)
+        .expect("the town gate");
     assert_eq!(
         (out.to_map, out.to_x, out.to_y, out.to_facing),
         (meadow_id, 16, 30, Facing::North),
@@ -262,12 +289,16 @@ fn portals_and_tileset_slots_resolve() {
         (town, 11, 2, "signpost"),
     ];
     for (map, x, y, marker) in markers {
-        assert_eq!(map.marker_at(x, y), Some(marker));
+        assert_eq!(map.marker_at(Level::GROUND, x, y), Some(marker));
         let surface = &data.tilesets[&map.tileset].surfaces[marker];
         assert_eq!(surface.kind, SlotKind::Object);
         assert!(!surface.slots.is_empty(), "{marker} was baked");
     }
-    assert_eq!(meadow.marker_at(16, 6), None, "no portal, no marker");
+    assert_eq!(
+        meadow.marker_at(Level::GROUND, 16, 6),
+        None,
+        "no portal, no marker"
+    );
 
     // Tileset slots resolve to the baked sprite paths.
     let tileset = &data.tilesets[&dungeon.tileset];

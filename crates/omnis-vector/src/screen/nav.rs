@@ -61,6 +61,8 @@ impl Nav {
         let base = self.base(game);
         match (id, game) {
             (ScreenId::NewGame, None) => true,
+            // Wherever Load is: the title, the pause, the fallen party's screen.
+            (ScreenId::LoadReport, _) => true,
             // From the title, or from the pause wherever it is allowed.
             (ScreenId::Settings, None) => true,
             (ScreenId::Settings, Some(_)) => {
@@ -74,7 +76,13 @@ impl Nav {
             (ScreenId::Pause, Some(_)) => {
                 !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
             }
-            (ScreenId::Actions, Some(views)) => base.is_none() && views.exploring(),
+            // Wherever a game is played: exploring, in a service, met or in a fight.
+            (ScreenId::Log, Some(_)) => {
+                !matches!(base, Some(ScreenId::Defeat | ScreenId::CreateParty))
+            }
+            (ScreenId::Actions | ScreenId::Verbs, Some(views)) => {
+                base.is_none() && views.exploring()
+            }
             // From the party column, exploring or in a fight (to look); not over a service.
             (ScreenId::Inventory | ScreenId::Cast | ScreenId::Sheet, Some(_)) => base.is_none(),
             // Resting is the map's: not in a service (the room is the rest indoors) or a fight.
@@ -121,6 +129,8 @@ impl Nav {
                     | ScreenId::CreateParty
                     | ScreenId::Settings
                     | ScreenId::Debug
+                    | ScreenId::Log
+                    | ScreenId::LoadReport
             )
         )
     }
@@ -168,12 +178,16 @@ impl Nav {
         self.creating = game.is_some_and(|v| v.party.members.is_empty());
     }
 
-    /// Close what the world no longer allows, and the square's actions when the party `moved`.
+    /// Close what the world no longer allows, and the square's actions and verbs when the party
+    /// `moved`.
     pub fn settle(&mut self, game: Option<&Views>, moved: bool) {
         let stack = core::mem::take(&mut self.stack);
         self.stack = stack
             .into_iter()
-            .filter(|&id| self.allowed(id, game) && !(moved && id == ScreenId::Actions))
+            .filter(|&id| {
+                self.allowed(id, game)
+                    && !(moved && matches!(id, ScreenId::Actions | ScreenId::Verbs))
+            })
             .collect();
     }
 

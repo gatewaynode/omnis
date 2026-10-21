@@ -3,7 +3,7 @@
 
 use crate::common;
 
-use omnis_sim::{CombatOutcome, Event, MessageKey, SaveRule};
+use omnis_sim::{CombatOutcome, Event, ItemPlace, MessageKey, SaveRule};
 use omnis_vector::labels;
 use omnis_vector::rolllog::{self, Names};
 use omnis_vector::shell::text;
@@ -18,6 +18,7 @@ fn victory() -> Event {
         xp: 40,
         gold: 1234,
         fallen: Vec::new(),
+        loot: Vec::new(),
     }
 }
 
@@ -279,6 +280,7 @@ fn rest_and_tactics_events_read_as_the_other_client_s_lines() {
             Event::RestInterrupted { minutes: 60 },
             "Ambushed after an hour!",
         ),
+        (Event::Folded { interactions: 12 }, "The world has moved on"),
         (
             Event::ReactionsSwitched {
                 member: durin,
@@ -381,6 +383,7 @@ fn dev_edits_read_as_lines_with_names() {
         (
             DevCommand::Teleport {
                 map: "test:map:town".to_owned(),
+                level: omnis_sim::omnis_core::Level::GROUND,
                 x: 3,
                 y: 4,
                 facing: Facing::North,
@@ -396,6 +399,7 @@ fn dev_edits_read_as_lines_with_names() {
             "dev: stack 1 #2 hp 4",
         ),
         (DevCommand::KillStack { stack: 1 }, "dev: stack 2 slain"),
+        (DevCommand::Fold, "dev: fold"),
     ];
     for (command, line) in cases {
         assert_eq!(
@@ -411,4 +415,99 @@ fn dev_edits_read_as_lines_with_names() {
             "{command:?}"
         );
     }
+}
+
+/// Items laid down, picked up, and moved in and out of a container (M8.5 step 2a, item 11).
+#[test]
+fn the_hud_names_items_on_the_ground_and_in_a_container() {
+    let data = common::data();
+    let names = Names::default();
+    let member = omnis_sim::omnis_core::CharacterId(0);
+    let who = names.member(member);
+    let dagger = labels::item(&data, "base:item:dagger");
+    let chest = || ItemPlace::Object("chest_1".into());
+    let lines = [
+        (
+            ItemPlace::Member(member),
+            ItemPlace::Ground,
+            format!("{who} drops {dagger}"),
+        ),
+        (
+            ItemPlace::Ground,
+            ItemPlace::Member(member),
+            format!("{who} picks up {dagger}"),
+        ),
+        (
+            ItemPlace::Member(member),
+            chest(),
+            format!("{who} puts {dagger} in"),
+        ),
+        (
+            chest(),
+            ItemPlace::Member(member),
+            format!("{who} takes {dagger} out"),
+        ),
+    ];
+    for (from, to, line) in lines {
+        let moved = Event::ItemMoved {
+            item: "base:item:dagger".into(),
+            count: 1,
+            from,
+            to,
+        };
+        assert_eq!(text::describe(&moved, &names, &data), Some(line));
+    }
+}
+
+/// What the dead dropped, on the death and the victory lines (M8.5 step 2a, item 12).
+#[test]
+fn the_lines_name_the_loot() {
+    let data = common::data();
+    let names = Names::default();
+    let loot = vec![
+        omnis_sim::Loot {
+            item: "base:item:gem".into(),
+            count: 2,
+        },
+        omnis_sim::Loot {
+            item: "base:item:dagger".into(),
+            count: 1,
+        },
+    ];
+    let (gem, dagger) = (
+        labels::item(&data, "base:item:gem"),
+        labels::item(&data, "base:item:dagger"),
+    );
+    let won = Event::CombatEnded {
+        outcome: CombatOutcome::Victory,
+        xp: 40,
+        gold: 1234,
+        fallen: Vec::new(),
+        loot: loot.clone(),
+    };
+    assert_eq!(
+        text::describe(&won, &names, &data),
+        Some(format!(
+            "Victory! 40 XP each, 12 gold; on the ground: 2 {gem}, {dagger}"
+        ))
+    );
+    let rat = omnis_sim::ActorRef::Monster { stack: 0, index: 0 };
+    let died = Event::Death {
+        target: rat,
+        gold: None,
+        loot,
+    };
+    assert_eq!(
+        rolllog::describe(&died, &names, &data),
+        Some(format!(
+            "{} dies, dropping 2 {gem}, {dagger}",
+            names.actor(rat)
+        ))
+    );
+}
+
+#[test]
+fn the_clock_reads_days_hours_minutes() {
+    assert_eq!(labels::clock(0), "Day 1 00:00");
+    assert_eq!(labels::clock(1440 + 61), "Day 2 01:01");
 }

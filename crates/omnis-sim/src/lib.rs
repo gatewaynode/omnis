@@ -15,6 +15,7 @@ extern crate alloc;
 
 pub mod api;
 pub mod apply;
+pub mod beings;
 pub mod bus;
 pub mod cast_view;
 mod casting;
@@ -26,9 +27,14 @@ pub mod dev;
 pub mod effects;
 pub mod encounter;
 pub mod event;
+pub mod ground;
 pub mod items;
+pub mod journal;
+pub mod log;
 mod migrate;
 pub mod names;
+pub mod objects;
+pub mod objects_view;
 pub mod ops;
 pub mod party;
 pub mod party_view;
@@ -36,6 +42,7 @@ pub mod query;
 pub mod replay;
 pub mod rest;
 pub mod rest_view;
+pub mod save;
 mod sense;
 pub mod service;
 mod service_level;
@@ -66,10 +73,13 @@ pub use encounter::{
 };
 pub use event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
-    LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
+    LayerCheck, Loot, MessageKey, Notice, SeenTile, SensedTile, Surprise,
 };
 pub use items::ItemCommand;
+pub use journal::{Entry, Journal, journal_len};
+pub use log::{Logged, history, told};
 pub use names::Place;
+pub use objects_view::{ObjectsView, objects_view};
 pub use ops::{Op, OpError, Reply, Status, dispatch};
 pub use party::{Party, PartyCommand};
 pub use party_view::{
@@ -96,5 +106,5 @@ use omnis_core::{HolderId, PartyId};
 pub const PARTY: HolderId = HolderId::Party(PartyId(0));
 /// Minutes opening or closing a door costs.
 pub const INTERACT_MINUTES: u32 = 1;
-/// How many events `World::log` keeps.
-pub const LOG_CAPACITY: usize = 4096;
+/// How many events `World::log`, the party's log, keeps (M8.5 7f: 16,384, owner 2026-10-18).
+pub const LOG_CAPACITY: usize = 16_384;

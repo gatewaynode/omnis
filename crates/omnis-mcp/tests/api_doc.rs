@@ -29,11 +29,12 @@ macro_rules! variants {
 }
 
 variants!(Command, COMMANDS, command_name:
-    Step Turn Interact Party Encounter Combat Cast Item Service Rest Dev);
+    Step Turn Interact Door Search Climb Party Encounter Combat Cast Item Service Rest Dev Act
+    Approach);
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
-    SetMonsterHp KillStack Reconcile);
+    SetMonsterHp KillStack Reconcile Fold);
 
 variants!(Event, EVENTS, event_name:
     Moved Blocked Reconciled SignalsDropped TimeAdvanced Visible Door Message PartyChanged
@@ -42,7 +43,9 @@ variants!(Event, EVENTS, event_name:
     SpellCast EffectApplied EffectEnded Concentration ReactionsSwitched TacticsChanged Reaction
     Equipped Unequipped ItemMoved ItemUsed Sensed Healed Down Wounded DeathSave Condition Death
     CombatEnded ServiceEntered ServiceLeft RoomTaken FoodBought Rumor Treated Raised Bought Sold
-    Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev);
+    Banked LevelUp SpellLearned Rested HitDiceSpent RestInterrupted RestEvent Dev ObjectUsed
+    ObjectState ObjectRemoved ObjectMessage GoldFound ItemFound ItemSpent Noticed Searched Lore
+    Folded);
 
 variants!(Rejection, REJECTIONS, rejection_name:
     WrongMode PartyFull Character BadOrder NotYourTurn NoSuchStack StackDead OutOfReach
@@ -51,9 +54,10 @@ variants!(Rejection, REJECTIONS, rejection_name:
     NotInStores NotCarried NotEquippable HandsFull SlotEmpty NotUsable NotUsableHere TargetDead
     ZeroCount DevOnly UnknownId OutOfRange OffMap NotOffered NothingToTreat NotDead BankShort
     RestTooSoon NoFood NoHitDice NotReady MaxLevel NoPicks NoSuchSpell NotOnList
-    CantripNotLearned SpellTooHigh AlreadyKnown NoActionLeft NoBonusActionLeft ReactionOnly
+    CantripNotLearned SpellTooHigh AlreadyKnown NoLadder NoActionLeft NoBonusActionLeft ReactionOnly
     NotABonusAction NeedsPreparation NoSuchFeature NoUsesLeft WrongChoice Tactics CannotReact
-    NoSuchEntry Rule);
+    NoSuchEntry Rule NoSuchObject VerbRefused ChooseVerb NoDoor NotOnGround NotInObject PileFull
+    NoSuchBeing);
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
@@ -61,7 +65,7 @@ variants!(OpError, ERROR_KINDS, error_kind:
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Creation Value Done);
+    Casts Objects Creation Value Done Check);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
 macro_rules! ops {
@@ -80,12 +84,12 @@ ops! {
     GameStatus => "game.status", WorldQuery => "world.query", SimCommand => "sim.command",
     SimScript => "sim.script", EventsTail => "events.tail", ViewportGet => "viewport.get",
     MapText => "map.text", AutomapGet => "automap.get", SaveWrite => "save.write",
-    SaveRead => "save.read", PackReload => "pack.reload", Screenshot => "screenshot",
+    SaveRead => "save.read", SaveCheck => "save.check", PackReload => "pack.reload", Screenshot => "screenshot",
     ScreenText => "screen.text", PartyGet => "party.get", PartyCreate => "party.create",
     CombatGet => "combat.get", ServiceGet => "service.get", RulesList => "rules.list",
     RulesGet => "rules.get", TimeClocks => "time.clocks", TimeReconcile => "time.reconcile",
     RestGet => "rest.get", CastGet => "cast.get", CreationGet => "creation.get",
-    RulesSet => "rules.set",
+    RulesSet => "rules.set", ObjectsGet => "objects.get",
 }
 
 /// One op of every kind, to read its wire name from serde.
@@ -102,14 +106,22 @@ fn every_op() -> Vec<Op> {
         },
         Op::EventsTail { count: 1 },
         Op::ViewportGet,
-        Op::MapText { map: None },
-        Op::AutomapGet { map: None },
+        Op::MapText {
+            map: None,
+            level: None,
+        },
+        Op::AutomapGet {
+            map: None,
+            level: None,
+        },
         Op::SaveWrite { path: text() },
         Op::SaveRead {
             path: text(),
             force: false,
+            migrate: false,
         },
-        Op::PackReload,
+        Op::SaveCheck { path: text() },
+        Op::PackReload { migrate: false },
         Op::Screenshot {
             path: None,
             target: Default::default(),
@@ -135,6 +147,7 @@ fn every_op() -> Vec<Op> {
         Op::TimeReconcile { region: text() },
         Op::RestGet,
         Op::CastGet,
+        Op::ObjectsGet,
         Op::CreationGet,
         Op::RulesSet {
             slot: text(),
@@ -215,26 +228,161 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     );
     // The counts the document states are the types' counts.
     for (count, what) in [
-        (COMMANDS.len(), "`Command` (11 variants)"),
-        (DEV_COMMANDS.len(), "`DevCommand` (13 variants"),
-        (EVENTS.len(), "`Event` has 62 variants"),
-        (REJECTIONS.len(), "`Rejection` (62 variants)"),
+        (COMMANDS.len(), "`Command` (16 variants)"),
+        (DEV_COMMANDS.len(), "`DevCommand` (14 variants"),
+        (EVENTS.len(), "`Event` has 73 variants"),
+        (REJECTIONS.len(), "`Rejection` (71 variants)"),
         (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
-        (OPS.len(), "25 ops."),
+        (OPS.len(), "27 ops."),
     ] {
-        let stated: usize = what
-            .chars()
-            .filter(char::is_ascii_digit)
-            .collect::<String>()
-            .parse()
-            .unwrap();
         assert_eq!(
-            count, stated,
+            count,
+            stated(what),
             "the type has {count}; the document says {what}"
         );
         assert!(
             doc.contains(what),
             "docs/api.md lost the line naming {what}"
         );
+    }
+}
+
+/// The number written in `what`, its digits read together.
+fn stated(what: &str) -> usize {
+    what.chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .unwrap()
+}
+
+fn document(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(name);
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The other documents that state a count say the code's, and those that list the tools or the
+/// commands list every one (M8.5 7g: they had drifted by up to eleven variants).
+#[test]
+fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
+    let tools = omnis_mcp::tools::tools();
+    let architecture = document("ARCHITECTURE.md");
+    let readme = document("README.md");
+    let map = document("tasks/knowledge/code-map.md");
+    for (doc, name, count, what) in [
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            COMMANDS.len(),
+            "pub enum Command {                  // 16 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            DEV_COMMANDS.len(),
+            "Dev(DevCommand),                // 14 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            EVENTS.len(),
+            "pub enum Event {                    // 73 variants",
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            REJECTIONS.len(),
+            "A `Rejection` (71 variants",
+        ),
+        (
+            &readme,
+            "README.md",
+            tools.len(),
+            "The bridge exposes 27 tools",
+        ),
+        (&map, "code-map.md", tools.len(), "27 tools"),
+        (
+            &map,
+            "code-map.md",
+            DEV_COMMANDS.len(),
+            "`DevCommand`, 14 variants",
+        ),
+        (&map, "code-map.md", COMMANDS.len(), "16 variants"),
+    ] {
+        assert_eq!(
+            count,
+            stated(what),
+            "the code has {count}; {name} says {what}"
+        );
+        assert!(doc.contains(what), "{name} lost the line naming {what}");
+    }
+    for tool in &tools {
+        assert!(
+            readme.contains(&format!("`{}`", tool.name)),
+            "README.md does not list the tool `{}`",
+            tool.name
+        );
+    }
+    let entry = map
+        .lines()
+        .find(|l| l.contains("`Command::{"))
+        .expect("the code map's command list");
+    for command in COMMANDS {
+        assert!(
+            entry.contains(&format!("{command},")) || entry.contains(&format!("{command}}}")),
+            "code-map.md's command list lacks {command}: {entry}"
+        );
+    }
+}
+
+/// The documents state the save schema, the protocol, the op count and the migration limits
+/// the code holds (M8.5 7h7).
+#[test]
+fn the_documents_state_the_save_schema_the_protocol_and_the_migration_limits() {
+    use omnis_cli::omnis_sim::api::{PROTOCOL, SAVE_SCHEMA};
+    use omnis_cli::omnis_sim::omnis_data::migration::{MAX_MIGRATIONS, MAX_STEPS};
+    let architecture = document("ARCHITECTURE.md");
+    let api = document("docs/api.md");
+    for (doc, name, what) in [
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`SAVE_SCHEMA` {SAVE_SCHEMA}, compact RON"),
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`MAX_MIGRATIONS` ({MAX_MIGRATIONS})"),
+        ),
+        (
+            &architecture,
+            "ARCHITECTURE.md",
+            format!("`MAX_STEPS` ({MAX_STEPS})"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("`ops::PROTOCOL` is `{PROTOCOL}`"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("| `SAVE_SCHEMA` | {SAVE_SCHEMA} |"),
+        ),
+        (&api, "docs/api.md", format!("{} ops.", every_op().len())),
+        (
+            &api,
+            "docs/api.md",
+            format!("at most {MAX_MIGRATIONS} files (`MAX_MIGRATIONS`)"),
+        ),
+        (
+            &api,
+            "docs/api.md",
+            format!("1 to {MAX_STEPS} steps (`MAX_STEPS`)"),
+        ),
+    ] {
+        assert!(doc.contains(&what), "{name} does not say {what}");
     }
 }

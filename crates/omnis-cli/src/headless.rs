@@ -3,8 +3,9 @@
 //! uses it in `--headless` mode. Host ops (files, packs) are handled here; the rest go to
 //! `omnis_sim::dispatch`.
 
-use omnis_data::ron_io::read_text;
+use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
+use omnis_sim::api::{examine, load_save_with, save_files};
 use omnis_sim::ops::client_path;
 use omnis_sim::{NewGameError, Op, OpError, Reply, Settings, World, dispatch, ops};
 use std::fmt;
@@ -56,26 +57,49 @@ impl Headless {
     /// Answer one op.
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
         match op {
+            // A save is a character save beside its world folder (PRD D28, M8.5 7d), under the
+            // working directory.
             Op::SaveWrite { path } => {
-                let file = PathBuf::from(client_path(path, &["ron"])?);
-                let text = ops::save_text(&self.world)?;
-                if let Some(parent) = file.parent().filter(|p| !p.as_os_str().is_empty()) {
-                    std::fs::create_dir_all(parent).map_err(OpError::failed)?;
-                }
-                std::fs::write(&file, text).map_err(OpError::failed)?;
+                let at = client_path(path, &["ron"])?;
+                let files = save_files(&self.world, &self.data, at)?;
+                let list: Vec<(&str, &str, bool)> = files
+                    .iter()
+                    .map(|f| (f.path.as_str(), f.text.as_str(), f.keep))
+                    .collect();
+                write_files(Path::new("."), &list).map_err(OpError::failed)?;
                 Ok(Reply::Written { path: path.clone() })
             }
-            Op::SaveRead { path, force } => {
-                let file = PathBuf::from(client_path(path, &["ron"])?);
-                let text = read_text(&file, &file).map_err(OpError::failed)?;
-                self.world = ops::load_text(&text, &self.data, *force)?;
+            Op::SaveRead {
+                path,
+                force,
+                migrate,
+            } => {
+                let root = Path::new(".");
+                let text =
+                    read_save_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
+                let (world, _) = load_save_with(&text, &self.data, *force, *migrate, &mut |p| {
+                    read_under(root, p).map_err(|e| e.to_string())
+                })
+                .map_err(OpError::failed)?;
+                self.world = world;
                 ops::status(&self.world, &self.data).map(Reply::Status)
             }
-            Op::PackReload => {
+            Op::SaveCheck { path } => {
+                let root = Path::new(".");
+                let text =
+                    read_save_under(root, client_path(path, &["ron"])?).map_err(OpError::failed)?;
+                let check = examine(&text, &self.data, &mut |p| {
+                    read_under(root, p).map_err(|e| e.to_string())
+                })
+                .map_err(OpError::failed)?
+                .into_report();
+                Ok(Reply::Check { check })
+            }
+            Op::PackReload { migrate } => {
                 let data = load(&self.packs).map_err(OpError::failed)?;
-                ops::check_reload(&self.world, &data)?;
+                let check = ops::reload(&mut self.world, &self.data, &data, *migrate)?;
                 self.data = data;
-                Ok(Reply::Done {})
+                Ok(Reply::Done { check })
             }
             Op::Screenshot { .. } => Err(OpError::failed(
                 "a screenshot needs the game window; this is headless",

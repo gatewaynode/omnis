@@ -1,0 +1,23 @@
+// Shape faults (M8.5 step 2): a look out of range, a state's look, an unknown initial state, too
+// big a container, an interaction in a state the kind lacks, a dc past 30, a state set that does
+// not exist, an item count of 0, an interaction with no effect, and a name with no text.
+(
+    schema: 1,
+    id: "badc:object:bad",
+    name: "badc:text:object.bad",
+    look: (shape: Box, width: 9, depth: 0, height: 40),
+    initial_state: "gone",
+    states: {
+        "a": (look: Some((shape: Post, width: 1, depth: 1, height: 0))),
+    },
+    attributes: (capacity: 65),
+    interactions: [
+        (
+            verb: Open,
+            when_state: Some("nope"),
+            requires: [Skill(skill: Athletics, dc: 31)],
+            effects: [SetState("nowhere"), GiveItem(id: "badc:item:blade", count: 0)],
+        ),
+        (verb: Close, effects: []),
+    ],
+)

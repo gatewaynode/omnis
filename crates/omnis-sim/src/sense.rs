@@ -97,8 +97,8 @@ pub(crate) fn resolve(
         return Err(RuleError::new("sense", "the party's map is not loaded"));
     };
     let Geometry::Ray { range } = source.geometry;
-    let ray = visibility::ray(map, world.maps.get(&pos.map), pos, range);
-    let visibility = visibility::depth(world, map);
+    let ray = visibility::ray(map, &data.objects, world.maps.get(&pos.map), pos, range);
+    let visibility = visibility::depth(world, data, map);
     let mut checks = Vec::new();
     // A layer reaches no farther than the one below it: failing a layer stops the ladder
     // there (PRD §7.2, D18), so a wall's shape is never known where its ground is not.
@@ -137,11 +137,12 @@ pub(crate) fn resolve(
             .zip(LAYERS)
             .filter(|(check, _)| check.reach >= distance)
             .fold(0u8, |bits, (_, (_, bit))| bits | bit);
-        let Some(cell) = map.cell(*x, *y).filter(|_| layers != 0) else {
+        let Some(cell) = map.cell(pos.level, *x, *y).filter(|_| layers != 0) else {
             continue;
         };
         world.automap.record(
             pos.map,
+            pos.level,
             *x,
             *y,
             Known {

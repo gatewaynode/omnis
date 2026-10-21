@@ -8,15 +8,24 @@ use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use omnis_sim::omnis_core::MapId;
+use omnis_sim::omnis_core::{Level, MapId};
 
 /// Marks the minimap's node.
 #[derive(Component)]
 pub struct Minimap;
 
+/// Marks the line beside the minimap, on its left, that names the party's level on a map of
+/// several (M8.5 step 1b). Under it is the party panel's place.
+#[derive(Component)]
+pub struct MinimapCaption;
+
 /// What the picture last showed: the map, the accepted-command count (the automap only changes
 /// when a command is accepted), and the marker's pixel and heading.
-type Shown = (MapId, usize, (i64, i64), i64);
+type Shown = ((MapId, Level), usize, (i64, i64), i64);
+
+/// The caption's text and place, apart from the picture's node.
+type Caption<'w, 's> =
+    Query<'w, 's, (&'static mut Text, &'static mut Node), (With<MinimapCaption>, Without<Minimap>)>;
 
 /// The minimap. Needs `Assets<Image>`, so a window or the offscreen capture.
 pub struct MinimapPlugin;
@@ -47,6 +56,21 @@ fn spawn(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         },
         BorderColor::all(super::controls::GREEN),
     ));
+    commands.spawn((
+        MinimapCaption,
+        Text::new(""),
+        TextFont {
+            font_size: FontSize::Px(16.0),
+            ..default()
+        },
+        TextColor(super::controls::GREEN),
+        Node {
+            position_type: PositionType::Absolute,
+            right: Val::Px(16.0),
+            top: Val::Px(16.0),
+            ..default()
+        },
+    ));
 }
 
 /// A raster as an image the UI can show.
@@ -70,6 +94,7 @@ fn repaint(
     session: Res<Session>,
     mut images: ResMut<Assets<Image>>,
     mut node: Query<(&ImageNode, &mut Node), With<Minimap>>,
+    mut caption: Caption,
     mut last: Local<Option<Shown>>,
 ) {
     let Ok((picture, mut layout)) = node.single_mut() else {
@@ -84,7 +109,7 @@ fn repaint(
     // A sixteenth of a turn is as fine as the heading line can show.
     #[allow(clippy::cast_possible_truncation)]
     let shown = (
-        p.map,
+        (p.map, p.level),
         session.binder.log.len(),
         ((pose.x * scale) as i64, (pose.z * scale) as i64),
         (pose.yaw * 8.0 / core::f32::consts::PI).round() as i64,
@@ -93,11 +118,16 @@ fn repaint(
         return;
     }
     *last = Some(shown);
-    let raster = paint(map, session.world.automap(p.map), pose);
+    let raster = paint(map, p.level, session.world.automap(p.map, p.level), pose);
     #[allow(clippy::cast_precision_loss)]
     let (w, h) = (raster.width as f32, raster.height as f32);
     layout.width = Val::Px(w);
     layout.height = Val::Px(h);
+    if let Ok((mut text, mut place)) = caption.single_mut() {
+        text.0 = crate::labels::level(&session.data, map, p.level).unwrap_or_default();
+        // Left of the picture and its one-pixel border.
+        place.right = Val::Px(16.0 + w + 10.0);
+    }
     if let Some(mut target) = images.get_mut(&picture.image) {
         *target = image(&raster);
     }

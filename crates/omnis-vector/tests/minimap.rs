@@ -31,7 +31,14 @@ fn a_fresh_party_sees_only_its_surroundings_and_is_marked() {
     let p = world.position;
     let map = &data.maps[&p.map];
     let pose = Pose::at(p);
-    let raster = paint(map, world.automap.map(p.map), pose);
+    let raster = paint(
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(p.map, omnis_sim::omnis_core::Level::GROUND),
+        pose,
+    );
     let s = raster.scale;
     assert_eq!(raster.width, u32::from(map.def.width) * s);
     assert_eq!(raster.height, u32::from(map.def.height) * s);
@@ -54,7 +61,10 @@ fn walking_reveals_more_and_the_dungeon_walls_show() {
     let start = world.position;
     let before = paint(
         &data.maps[&start.map],
-        world.automap.map(start.map),
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(start.map, omnis_sim::omnis_core::Level::GROUND),
         Pose::at(start),
     );
     // North up the road and through the portal into the dungeon.
@@ -69,13 +79,23 @@ fn walking_reveals_more_and_the_dungeon_walls_show() {
     );
     let meadow = paint(
         &data.maps[&start.map],
-        world.automap.map(start.map),
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(start.map, omnis_sim::omnis_core::Level::GROUND),
         Pose::at(start),
     );
     assert!(painted(&meadow) > painted(&before), "the road was seen");
     let here = world.position;
     assert_ne!(here.map, start.map, "in the dungeon");
-    let dungeon = paint(&data.maps[&here.map], world.automap.map(here.map), pose);
+    let dungeon = paint(
+        &data.maps[&here.map],
+        omnis_sim::omnis_core::Level::GROUND,
+        world
+            .automap
+            .tiles(here.map, omnis_sim::omnis_core::Level::GROUND),
+        pose,
+    );
     assert!(
         dungeon.rgba.as_chunks::<4>().0.contains(&WALL),
         "the dungeon's walls are drawn once seen"
@@ -90,7 +110,7 @@ fn the_marker_points_along_the_yaw() {
     let map = &data.maps[&p.map];
     for facing in omnis_sim::omnis_core::Facing::ALL {
         let pose = Pose::at(omnis_sim::omnis_core::Position { facing, ..p });
-        let raster = paint(map, None, pose);
+        let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, None, pose);
         let s = raster.scale as f32;
         let (fx, fz) = omnis_vector::geom::forward(pose.yaw);
         // How far ahead of the pose, in cells, each marker pixel lies.
@@ -137,11 +157,171 @@ fn an_edge_recorded_on_one_side_is_drawn_once_known() {
         z: 20.5,
         yaw: 0.0,
     };
-    let raster = paint(map, Some(&known), far);
+    let raster = paint(map, omnis_sim::omnis_core::Level::GROUND, Some(&known), far);
     let s = raster.scale;
     for dy in 0..s {
         assert_eq!(raster.pixel(6 * s, 5 * s + dy), Some(WALL));
     }
     // The west side of (5, 5) has no wall.
     assert_ne!(raster.pixel(5 * s, 5 * s + 1), Some(WALL));
+}
+
+/// Every tile of `map` known and visited, as the automap would hold it.
+fn all_known(
+    map: &omnis_sim::omnis_data::MapData,
+) -> std::collections::BTreeMap<(u16, u16), omnis_sim::Known> {
+    let mut known = std::collections::BTreeMap::new();
+    for y in 0..map.def.height {
+        for x in 0..map.def.width {
+            let cell = map
+                .cell(omnis_sim::omnis_core::Level::GROUND, x, y)
+                .expect("a cell");
+            known.insert(
+                (x, y),
+                omnis_sim::Known {
+                    terrain: cell.terrain,
+                    walls: cell.walls,
+                    doors: cell.doors,
+                    layers: omnis_sim::world::layer::VISITED,
+                    seen_at: 0,
+                },
+            );
+        }
+    }
+    known
+}
+
+/// M8.5 step 4: a cliff is drawn along its edge and a ramp ticked across its middle.
+#[test]
+fn cliffs_and_ramps_show_on_the_elevation_fixture() {
+    use omnis_vector::minimap::{CLIFF, RAMP};
+    let data = common::heights_data();
+    let map = &data.maps[&common::map(&data, "heights:map:hills")];
+    let known = all_known(map);
+    let pose = Pose {
+        x: 8.5,
+        z: 4.5,
+        yaw: 0.0,
+    };
+    let raster = paint(
+        map,
+        omnis_sim::omnis_core::Level::GROUND,
+        Some(&known),
+        pose,
+    );
+    let s = raster.scale;
+    // The cliff at x 3 on row 0, from the slope up to 12: its column of pixels (the first is
+    // the map's north wall, which wins).
+    for i in 1..s {
+        assert_eq!(raster.pixel(3 * s, i), Some(CLIFF), "row {i}");
+    }
+    // The ramp at x 1 on row 2: a tick across the middle of its edge.
+    assert_eq!(raster.pixel(s, 2 * s + s / 2), Some(RAMP));
+    assert_eq!(raster.pixel(s - s / 4, 2 * s + s / 2), Some(RAMP));
+    // The slope between x 0 and 1 on row 0 is neither.
+    let mid = raster.pixel(s, s / 2);
+    assert!(mid != Some(CLIFF) && mid != Some(RAMP), "{mid:?}");
+}
+
+/// The cell's pixels of `colour` on `raster`.
+fn in_cell(raster: &Raster, (x, y): (u32, u32), colour: [u8; 4]) -> usize {
+    let s = raster.scale;
+    (y * s..(y + 1) * s)
+        .flat_map(|py| (x * s..(x + 1) * s).map(move |px| (px, py)))
+        .filter(|&(px, py)| raster.pixel(px, py) == Some(colour))
+        .count()
+}
+
+#[test]
+fn the_minimap_marks_the_joins_the_party_has_seen_on_its_level() {
+    use omnis_sim::omnis_core::{Facing, Level, Position, Rotation};
+    use omnis_vector::minimap::{HOLE, JOIN};
+    let data = common::levels_data();
+    let id = common::map(&data, "levels:map:tower");
+    let mut world =
+        omnis_vector::sim::SimWorld::start(&data, common::SEED, omnis_sim::Settings::default())
+            .expect("an entry map");
+    world.position = Position {
+        map: id,
+        level: Level(1),
+        x: 4,
+        y: 1,
+        facing: Facing::East,
+    };
+    world
+        .apply(&data, omnis_sim::Command::Turn(Rotation::Right))
+        .expect("a turn");
+    let map = &data.maps[&id];
+    let pose = Pose::at(world.position);
+    let upper = paint(map, Level(1), world.automap(id, Level(1)), pose);
+    assert!(
+        in_cell(&upper, (5, 2), HOLE) > 0,
+        "the hole beside the bridge"
+    );
+    assert!(
+        in_cell(&upper, (4, 3), JOIN) > 0,
+        "the stair at the bridge's end"
+    );
+    assert_eq!(
+        in_cell(&upper, (4, 2), JOIN),
+        0,
+        "the bridge itself is no join"
+    );
+    let ground = paint(map, Level::GROUND, world.automap(id, Level::GROUND), pose);
+    assert_eq!(
+        in_cell(&ground, (5, 2), HOLE),
+        0,
+        "the road below is not the upper floor"
+    );
+}
+
+#[test]
+fn a_map_of_several_levels_names_the_party_s_level_and_a_map_of_one_does_not() {
+    use omnis_sim::omnis_core::Level;
+    let data = common::levels_data();
+    let tower = &data.maps[&common::map(&data, "levels:map:tower")];
+    assert_eq!(
+        omnis_vector::labels::level(&data, tower, Level(2)).as_deref(),
+        Some("Roof (2)")
+    );
+    assert_eq!(
+        omnis_vector::labels::level(&data, tower, Level::GROUND).as_deref(),
+        Some("Test Tower (0)")
+    );
+    let shipped = common::data();
+    for map in shipped.maps.values() {
+        assert_eq!(
+            omnis_vector::labels::level(&shipped, map, Level::GROUND),
+            None
+        );
+    }
+}
+
+#[test]
+fn a_stair_s_mark_points_the_way_it_rises() {
+    use omnis_sim::omnis_core::Level;
+    use omnis_vector::minimap::JOIN;
+    let data = common::levels_data();
+    let map = &data.maps[&common::map(&data, "levels:map:tower")];
+    let pose = Pose {
+        x: 0.5,
+        z: 4.5,
+        yaw: 0.0,
+    };
+    let raster = paint(map, Level::GROUND, Some(&all_known(map)), pose);
+    let s = raster.scale;
+    // A point of cell (x, y) in eighths of the cell.
+    let at = |(x, y): (u32, u32), (fx, fy): (u32, u32)| {
+        raster.pixel(x * s + s * fx / 8, y * s + s * fy / 8)
+    };
+    // The tower's stair rises west: a chevron pointing west, its arms ending at the east.
+    assert_eq!(at((2, 0), (5, 6)), Some(JOIN));
+    assert_ne!(
+        at((2, 0), (6, 5)),
+        Some(JOIN),
+        "not a chevron pointing north"
+    );
+    // The courtyard's rises north: a chevron pointing north.
+    assert_eq!(at((4, 3), (6, 5)), Some(JOIN));
+    assert_ne!(at((4, 3), (5, 6)), Some(JOIN));
 }

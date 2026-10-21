@@ -7,6 +7,7 @@
 use super::{
     Control, ControlId, Ctx, Effect, Forms, Kind, Panel, Payload, Row, Screen, ScreenId, Span,
 };
+use crate::look::LevelOnStep;
 use crate::settings::{Face, Prefs, Quality, SCALE_MAX, SCALE_MIN, SCALE_STEP};
 use crate::style::Role;
 
@@ -23,6 +24,8 @@ pub enum Field {
     Font,
     /// The interface scale.
     Scale,
+    /// When a step levels the view.
+    Level,
 }
 
 /// The scales offered, smallest first.
@@ -71,6 +74,18 @@ pub fn content(ctx: &Ctx, forms: &Forms) -> Screen {
                     "Floor grid",
                     words(&["hidden", "shown"]),
                     usize::from(d.grid),
+                ),
+                choice(
+                    Field::Level,
+                    "Level view on step",
+                    LevelOnStep::ALL
+                        .iter()
+                        .map(|l| l.label().to_owned())
+                        .collect(),
+                    LevelOnStep::ALL
+                        .iter()
+                        .position(|l| *l == d.level_on_step)
+                        .unwrap_or(0),
                 ),
                 choice(
                     Field::Quality,
@@ -131,6 +146,7 @@ pub fn apply(ctx: &Ctx, forms: &mut Forms, control: ControlId, payload: &Payload
                 Field::Grid => d.grid = step(&[false, true], d.grid, payload),
                 Field::Quality => d.quality = step(&Quality::ALL, d.quality, payload),
                 Field::Font => d.font = step(&Face::ALL, d.font, payload),
+                Field::Level => d.level_on_step = step(&LevelOnStep::ALL, d.level_on_step, payload),
                 Field::Scale => {
                     let all: Vec<u16> = scales().collect();
                     d.scale = step(&all, d.scale, payload);

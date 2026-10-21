@@ -10,21 +10,22 @@
 use super::capture::CaptureSize;
 use super::combat::size;
 use super::controls::Corner;
-use super::hud::StatusText;
+use super::hud::Hud;
 use super::minimap::Minimap;
 pub use super::screen_draw::{
     Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
 };
 use super::screen_draw::{
-    LabelOf, Mark, MessageText, SpanAt, TitleText, bars, build, shown_label, text_field, thumbs,
-    wheel, width,
+    LabelOf, Mark, MessageText, SCROLL_FOOT, SpanAt, TitleText, bars, build, shown_label,
+    text_field, thumbs, wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::settings::{Current, Fitted};
 use super::{VectorSet, ViewState};
 use crate::combat_menu::Step;
 use crate::game_io;
-use crate::screen::actions::default_action;
+use crate::screen::actions::{Does, default_action};
+use crate::screen::load_report::Refusal;
 use crate::screen::nav::{Escape, Nav};
 use crate::screen::{
     self, Control, ControlId, Ctx, Effect, Forms, Game, HostOp, Key, Kind, Payload, Screen,
@@ -33,6 +34,7 @@ use crate::screen::{
 use crate::sim::Views;
 use crate::style::{Role, scaled};
 use bevy::ecs::system::SystemParam;
+use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::EditableText;
 use bevy::ui_widgets::{SliderValue, ValueChange};
@@ -109,6 +111,7 @@ impl Plugin for ScreenPlugin {
                     route,
                     super::roster::route,
                     paint,
+                    foot,
                     super::roster::paint,
                     make_room,
                     thumbs,
@@ -202,6 +205,9 @@ fn open_start(
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
         Some(StartScreen::Pause) => screens.nav.open(ScreenId::Pause, game),
         Some(StartScreen::Actions) => screens.nav.open(ScreenId::Actions, game),
+        Some(StartScreen::Verbs) => screens.nav.open(ScreenId::Verbs, game),
+        Some(StartScreen::Log) => screens.nav.open(ScreenId::Log, game),
+        Some(StartScreen::Inventory) => screens.nav.show(ScreenId::Inventory, game),
         Some(StartScreen::Title | StartScreen::CreateParty) | None => {}
     }
 }
@@ -234,6 +240,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
             views: &session.views,
             log: &session.fight_log,
             unreplayable: session.unreplayable.as_deref(),
+            history: &session.history,
         }),
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),
@@ -440,7 +447,8 @@ fn applied(
 }
 
 /// Space or a right click opens or closes the square's actions while exploring; with Shift it
-/// runs the default action, or opens them when there is none. R opens or closes the camp.
+/// runs the default action, or opens them when there is none. R opens or closes the camp. L opens
+/// the full log.
 fn action_keys(
     keys: &ButtonInput<KeyCode>,
     mouse: &ButtonInput<MouseButton>,
@@ -458,15 +466,21 @@ fn action_keys(
     {
         nav.toggle(ScreenId::Camp, Some(&session.views));
     }
+    // L opens the full log where no screen is up; it never closes it, for the filter takes
+    // typing (Esc, Close or the button do).
+    if keys.just_pressed(KeyCode::KeyL) && nav.top(Some(&session.views)).is_none() {
+        nav.open(ScreenId::Log, Some(&session.views));
+    }
     if !action || !free || !session.views.exploring() || session.views.combat.is_some() {
         return;
     }
     if keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
         match default_action(&session.world, &session.data) {
-            Some(command) => {
+            Some(Does::Command(command)) => {
                 session.order(command);
                 nav.settle(Some(&session.views), true);
             }
+            Some(Does::Choose) => nav.open(ScreenId::Verbs, Some(&session.views)),
             None => nav.open(ScreenId::Actions, Some(&session.views)),
         }
     } else {
@@ -564,26 +578,49 @@ fn host_op(
         }
         HostOp::Save => {
             if let Some(session) = session.as_deref() {
-                let outcome = game_io::save(&session.world, root(), &save)
+                let outcome = game_io::save(&session.world, &session.data, root(), &save)
                     .map(|_| format!("Saved to {save}"))
                     .map_err(|e| format!("Save failed: {e}"));
                 report(screens, outcome);
             }
         }
-        HostOp::Load => {
+        HostOp::Load { migrate } => {
             let data = session
                 .as_deref()
                 .map_or_else(|| host.packs.data.clone(), |s| s.data.clone());
-            match game_io::load(&data, root(), &save, false) {
-                Ok(world) => {
+            if migrate && screens.nav.is_open(ScreenId::LoadReport) {
+                screens.nav.back();
+            }
+            // Examined first (M8.5 7h4): a save that loads, loads at once; one that does not
+            // opens the report, and one the packs' migrations change asks first (7h6).
+            let loaded = match game_io::examine(&data, root(), &save) {
+                Ok(opened) if !opened.report().verdict.loads() && !migrate => {
+                    screens.forms.load_report = Some(Refusal {
+                        check: opened.into_report(),
+                        reload: false,
+                    });
+                    let views = session.as_deref().map(|s| &s.views);
+                    screens.nav.open(ScreenId::LoadReport, views);
+                    return;
+                }
+                Ok(opened) => opened.load(&data, migrate),
+                Err(e) => Err(e),
+            };
+            match loaded {
+                Ok(loaded) => {
                     let why = format!("the save {save} was loaded");
+                    let lines = loaded.lines(&save);
                     if let Some(session) = session.as_deref_mut() {
-                        session.replace(world, &why);
-                        session.say(format!("Loaded {save}"));
+                        session.replace(loaded.world, &why);
+                        for line in lines {
+                            session.say(line);
+                        }
                         screens.reset(Some(&session.views));
                     } else {
-                        let mut fresh = Session::loaded(&host.packs, world, &why);
-                        fresh.say(format!("Loaded {save}"));
+                        let mut fresh = Session::loaded(&host.packs, loaded.world, &why);
+                        for line in lines {
+                            fresh.say(line);
+                        }
                         screens.reset(Some(&fresh.views));
                         host.commands.insert_resource(fresh);
                     }
@@ -601,6 +638,49 @@ fn host_op(
                 report(screens, outcome);
             }
         }
+        HostOp::Reload { migrate } => {
+            if migrate && screens.nav.is_open(ScreenId::LoadReport) {
+                screens.nav.back();
+            }
+            if let Some(session) = session.as_deref_mut() {
+                // Refused for a name the fresh packs lack, or for migrations not yet applied:
+                // the Load screen lists them.
+                match Packs::load(&session.config).map(|p| session.reload(p.data, migrate)) {
+                    Ok(Ok(check)) => {
+                        let said = game_io::reloaded(&check).swap_remove(0);
+                        report(screens, Ok(said));
+                    }
+                    Ok(Err(refused)) if !refused.check.verdict.loads() => {
+                        screens.forms.load_report = Some(Refusal {
+                            check: *refused.check,
+                            reload: true,
+                        });
+                        screens.nav.open(ScreenId::LoadReport, Some(&session.views));
+                    }
+                    Ok(Err(refused)) => {
+                        report(screens, Err(format!("Reload refused: {}", refused.error)))
+                    }
+                    Err(e) => report(screens, Err(format!("Reload failed: {e}"))),
+                }
+            }
+        }
+        HostOp::Tidy { delete } => match game_io::tidy(root(), delete) {
+            Ok(tidied) => {
+                let n = tidied.files.len();
+                let files = if n == 1 { "file" } else { "files" };
+                let said = if delete {
+                    format!("Deleted {n} {files} no save named ({} bytes)", tidied.bytes)
+                } else {
+                    format!("{n} {files} no save names ({} bytes)", tidied.bytes)
+                };
+                screens
+                    .forms
+                    .debug
+                    .tidied((!delete).then_some(tidied.files));
+                report(screens, Ok(said));
+            }
+            Err(e) => report(screens, Err(format!("Tidy failed: {e}"))),
+        },
     }
 }
 
@@ -630,6 +710,8 @@ fn paint(
     mut root: Query<(Entity, &mut Node), With<ScreenRoot>>,
     mut placed: Query<Placed>,
     sliders: Query<(Entity, &SliderOf, &SliderValue)>,
+    focus: Option<Res<InputFocus>>,
+    fields: Query<&Pressable, With<EditableText>>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -666,16 +748,33 @@ fn paint(
             slide(&screen, &sliders, &mut commands);
         }
         _ => {
+            // The field that has the keyboard keeps it through the rebuild when the screen still
+            // has it (a field emptied dims its button, which changes the shape; owner,
+            // 2026-10-17); a screen without it gives the keyboard to its own field.
+            let keep = focus
+                .as_ref()
+                .and_then(|f| f.get())
+                .and_then(|e| fields.get(e).ok())
+                .map(|p| p.0)
+                .filter(|id| screen.control(*id).is_some());
             commands.entity(entity).despawn_related::<Children>();
             node.display = Display::Flex;
-            node.width = Val::Px(width(&screen, height));
+            // The full log stands wide: most of the window (owner, 2026-10-17).
+            let log = screen.id == ScreenId::Log;
+            node.width = if log {
+                Val::Percent(LOG_WIDE)
+            } else {
+                Val::Px(width(&screen, height))
+            };
+            // And as tall as the room allows, however few its lines.
+            node.height = if log { room } else { Val::Auto };
             // Never wider than the window, at any interface scale: the panels scroll instead.
             node.max_width = Val::Percent(100.0);
             node.padding = UiRect::all(Val::Px(scaled(14.0, height)));
             node.row_gap = Val::Px(scaled(8.0, height));
             commands
                 .entity(entity)
-                .with_children(|p| build(p, &screen, height, Mark::Screen));
+                .with_children(|p| build(p, &screen, (height, Mark::Screen), keep));
         }
     }
     screens.drawn = Some((screen, bucket));
@@ -745,6 +844,37 @@ fn slide(
     }
 }
 
+/// The full log stands at its newest line: when it is drawn anew, and whenever its lines change
+/// (a filter typed). Elsewhere the wheel moves it (`screen_draw::wheel`).
+fn foot(
+    screens: Res<Screens>,
+    mut last: Local<Option<u64>>,
+    mut panels: Query<&mut ScrollPosition, With<Scrolls>>,
+) {
+    use std::hash::{Hash, Hasher};
+    let Some((screen, _)) = screens
+        .drawn
+        .as_ref()
+        .filter(|(s, _)| s.id == ScreenId::Log)
+    else {
+        *last = None;
+        return;
+    };
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    screen.panels.hash(&mut h);
+    let lines = Some(h.finish());
+    let changed = *last != lines;
+    *last = lines;
+    for mut at in &mut panels {
+        if changed || at.is_added() {
+            at.0.y = SCROLL_FOOT;
+        }
+    }
+}
+
+/// The full log's width, in percent of the window.
+const LOG_WIDE: f32 = 90.0;
+
 /// The most a screen's height takes, in percent of the window's, over a game being played: the
 /// room between the HUD's lines above and the button groups below. A taller screen's panels
 /// scroll.
@@ -759,8 +889,8 @@ fn played(session: Option<&Session>, nav: &Nav) -> bool {
     session.is_some_and(|s| nav.base(Some(&s.views)) != Some(ScreenId::CreateParty))
 }
 
-/// The game's own nodes: the HUD's status, the button groups and the minimap.
-type GameChrome = Or<(With<StatusText>, With<Corner>, With<Minimap>)>;
+/// The game's own nodes: the HUD (its status and log), the button groups and the minimap.
+type GameChrome = Or<(With<Hud>, With<Corner>, With<Minimap>)>;
 
 /// The game's HUD, buttons and minimap show only while a game is played: not at the title, nor
 /// while its party is made.

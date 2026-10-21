@@ -136,9 +136,12 @@ fn the_menu_is_kept_away_from_the_movement_pad_and_buttons_are_opaque() {
     for action in [Action::Forward, Action::Back, Action::TurnLeft] {
         assert_eq!(corner_of(&mut app, action), Corner::Left, "{action:?}");
     }
-    for action in [Action::Menu, Action::Actions] {
+    for action in [Action::Menu, Action::Actions, Action::Log] {
         assert_eq!(corner_of(&mut app, action), Corner::Right, "{action:?}");
     }
+    // Rows of three at most: both groups fit side by side at 1280 pixels (owner, 2026-10-17).
+    assert!(omnis_vector::shell::controls::widest_row(Corner::Left) <= 3);
+    assert!(omnis_vector::shell::controls::widest_row(Corner::Right) <= 3);
     let world = app.world_mut();
     let mut backgrounds = world.query_filtered::<&BackgroundColor, With<Action>>();
     for colour in backgrounds.iter(world) {
@@ -186,6 +189,7 @@ fn the_views_are_the_world_s_after_every_frame() {
         let dungeon = common::map(&session.data, "test:map:dungeon");
         session.world.position = Position {
             map: dungeon,
+            level: omnis_sim::omnis_core::Level::GROUND,
             x: 3,
             y: 5,
             facing: Facing::South,

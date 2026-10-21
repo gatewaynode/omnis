@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "chain:region:hall",
+    name: "chain:text:region.hall.name",
+    kind: Wild,
+    company: 100,
+    stability: 800,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["chain:map:hall"],
+)

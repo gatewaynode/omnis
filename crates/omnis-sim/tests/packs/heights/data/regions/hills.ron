@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "heights:region:hills",
+    name: "heights:text:region.hills.name",
+    kind: Wild,
+    company: 100,
+    stability: 800,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["heights:map:hills"],
+)

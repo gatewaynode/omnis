@@ -38,7 +38,7 @@ pub fn content(ctx: &Ctx, game: Game) -> Screen {
 #[must_use]
 pub fn apply(control: ControlId) -> Effect {
     match control {
-        ControlId::Load => Effect::Host(HostOp::Load),
+        ControlId::Load => Effect::Host(HostOp::Load { migrate: false }),
         ControlId::StartAgain => Effect::Host(HostOp::Restart),
         ControlId::QuitToTitle => Effect::ToTitle,
         _ => Effect::None,

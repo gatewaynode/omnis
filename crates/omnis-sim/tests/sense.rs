@@ -20,6 +20,7 @@ fn dungeon(data: &Data) -> MapId {
 fn place(world: &mut World, data: &Data, x: u16, y: u16, facing: Facing) {
     world.position = Position {
         map: dungeon(data),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing,
@@ -49,13 +50,20 @@ fn the_ray_stops_before_a_closed_door_after_a_pillar_and_at_a_wall() {
     let map = &data.maps[&dungeon(&data)];
     let at = |x, y, facing| Position {
         map: dungeon(&data),
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing,
     };
     let state = |world: &World| world.maps.get(&dungeon(&data)).cloned();
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 16),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            16
+        ),
         [(3, 5)],
         "the door below (3, 5) is closed"
     );
@@ -64,27 +72,39 @@ fn the_ray_stops_before_a_closed_door_after_a_pillar_and_at_a_wall() {
     apply(&mut world, &data, Command::Interact).unwrap();
     let through: Vec<(u16, u16)> = (5..=11).map(|y| (3, y)).collect();
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 16),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            16
+        ),
         through,
         "through the open door to the next closed one"
     );
     assert_eq!(
-        ray(map, state(&world).as_ref(), at(3, 4, Facing::South), 3),
+        ray(
+            map,
+            &data.objects,
+            state(&world).as_ref(),
+            at(3, 4, Facing::South),
+            3
+        ),
         &through[..3],
         "the range caps it"
     );
     assert_eq!(
-        ray(map, None, at(3, 0, Facing::South), 16),
+        ray(map, &data.objects, None, at(3, 0, Facing::South), 16),
         [(3, 1), (3, 2), (3, 3)],
         "the pillar at (3, 3) is seen, not seen through"
     );
     assert_eq!(
-        ray(map, None, at(1, 0, Facing::South), 16).len(),
+        ray(map, &data.objects, None, at(1, 0, Facing::South), 16).len(),
         5,
         "the wall under the first room"
     );
     assert!(
-        ray(map, None, at(1, 0, Facing::North), 16).is_empty(),
+        ray(map, &data.objects, None, at(1, 0, Facing::North), 16).is_empty(),
         "the map's edge"
     );
 }
@@ -168,7 +188,10 @@ fn a_spyglass_records_what_its_checks_reach_as_remotely_seen() {
     expected.sort_by_key(|(_, y, _)| *y);
     assert_eq!(tiles, expected, "{checks:?}");
     let seen_now = cone(&world, &data);
-    let known = world.automap.map(dungeon(&data)).unwrap();
+    let known = world
+        .automap
+        .tiles(dungeon(&data), omnis_core::Level::GROUND)
+        .unwrap();
     for (x, y, bits) in &tiles {
         let tile = known[&(*x, *y)];
         assert_eq!(
@@ -262,11 +285,12 @@ fn a_direct_sighting_clears_the_remote_mark_and_visited_sticks() {
     // A remote terrain-only look records the terrain and nothing of the walls.
     world.automap.record(
         map,
+        omnis_core::Level::GROUND,
         9,
         9,
         known(1, 0b1111, layer::TERRAIN | layer::REMOTE, 5),
     );
-    let tile = world.automap.map(map).unwrap()[&(9, 9)];
+    let tile = world.automap.tiles(map, omnis_core::Level::GROUND).unwrap()[&(9, 9)];
     assert_eq!(
         (tile.terrain, tile.walls, tile.layers, tile.seen_at),
         (1, Edges(0), layer::TERRAIN | layer::REMOTE, 5)
@@ -274,11 +298,12 @@ fn a_direct_sighting_clears_the_remote_mark_and_visited_sticks() {
     // A later remote look with structure keeps the terrain it did not carry and adds walls.
     world.automap.record(
         map,
+        omnis_core::Level::GROUND,
         9,
         9,
         known(0, 0b0011, layer::STRUCTURE | layer::REMOTE, 6),
     );
-    let tile = world.automap.map(map).unwrap()[&(9, 9)];
+    let tile = world.automap.tiles(map, omnis_core::Level::GROUND).unwrap()[&(9, 9)];
     assert_eq!(
         (tile.terrain, tile.walls, tile.layers, tile.seen_at),
         (
@@ -291,6 +316,7 @@ fn a_direct_sighting_clears_the_remote_mark_and_visited_sticks() {
     // The party's own sighting clears the mark; a visit sticks through a later remote look.
     world.automap.record(
         map,
+        omnis_core::Level::GROUND,
         9,
         9,
         known(
@@ -300,7 +326,7 @@ fn a_direct_sighting_clears_the_remote_mark_and_visited_sticks() {
             7,
         ),
     );
-    let tile = world.automap.map(map).unwrap()[&(9, 9)];
+    let tile = world.automap.tiles(map, omnis_core::Level::GROUND).unwrap()[&(9, 9)];
     assert_eq!(
         (tile.terrain, tile.walls, tile.layers),
         (
@@ -309,10 +335,14 @@ fn a_direct_sighting_clears_the_remote_mark_and_visited_sticks() {
             layer::TERRAIN | layer::STRUCTURE | layer::VISITED
         )
     );
-    world
-        .automap
-        .record(map, 9, 9, known(1, 0, layer::TERRAIN | layer::REMOTE, 8));
-    let tile = world.automap.map(map).unwrap()[&(9, 9)];
+    world.automap.record(
+        map,
+        omnis_core::Level::GROUND,
+        9,
+        9,
+        known(1, 0, layer::TERRAIN | layer::REMOTE, 8),
+    );
+    let tile = world.automap.tiles(map, omnis_core::Level::GROUND).unwrap()[&(9, 9)];
     assert_eq!(
         tile.layers,
         layer::TERRAIN | layer::STRUCTURE | layer::VISITED | layer::REMOTE

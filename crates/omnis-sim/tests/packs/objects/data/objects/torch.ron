@@ -1,0 +1,16 @@
+(
+    schema: 1,
+    id: "objects:object:torch",
+    name: "objects:text:torch.name",
+    look: (shape: Post, width: 1, depth: 1, height: 6),
+    initial_state: "lit",
+    states: {
+        "lit": (),
+        "out": (),
+    },
+    attributes: (light: 2, material: Some(Wood)),
+    interactions: [
+        (verb: Extinguish, when_state: Some("lit"), effects: [SetState("out")]),
+        (verb: Light, when_state: Some("out"), effects: [SetState("lit")]),
+    ],
+)

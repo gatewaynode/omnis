@@ -1,6 +1,6 @@
 # Plan: adopt `omnis-vector` as the game client
 
-**Approved by the owner 2026-10-10.** Progress is tracked in `tasks/TODO.md` ("Vector adoption").
+**Approved by the owner 2026-10-10.** Progress was tracked in `tasks/TODO.md` ("Vector adoption"), archived 2026-10-20 in `tasks/archive/TODO-2026-10-20.md`.
 
 ## Context
 You played the 3D vector experiment (`origin/gui-3d-experiment`, crate `omnis-vector`) and decided to adopt it (presentation-PRD X8). You have reviewed presentation-PRD v0.3 and accepted it, and you chose to replace `omnis-app` **after parity**, as X14 says. The reason: today `omnis-vector` only walks, opens doors and fights. It has no character creation, saving or loading, pause screen, town services, inventory, rest or dev socket, so deleting `omnis-app` now would make the game unplayable and break window-mode MCP.

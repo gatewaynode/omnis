@@ -37,6 +37,11 @@ pub enum EffectKind {
         /// Tiles.
         depth: u8,
     },
+    /// Hidden objects with a magical aura within this many cells are found (M8.5 step 2).
+    Reveal {
+        /// Cells.
+        range: u8,
+    },
 }
 
 /// One effect in force.
@@ -113,6 +118,18 @@ pub fn armor_bonus(effects: &[ActiveEffect]) -> i64 {
             _ => 0,
         })
         .sum()
+}
+
+/// The farthest any reveal in force reaches.
+#[must_use]
+pub fn reveal_range(effects: &[ActiveEffect]) -> Option<u8> {
+    effects
+        .iter()
+        .filter_map(|e| match e.kind {
+            EffectKind::Reveal { range } => Some(range),
+            _ => None,
+        })
+        .max()
 }
 
 /// The farthest any light in force reaches.

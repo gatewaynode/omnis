@@ -5,11 +5,12 @@
 //! Bevy-free.
 
 use omnis_sim::api::{
-    CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known, MapId,
-    ModeKind, NewGameError, Op, OpError, PartyView, Position, Rejection, Reply, RestView,
-    ServiceView, Settings, Status, World, apply, automap, cast_view, check_reload, combat_view,
-    creation_view, dispatch, door_open, here, party_view, rest_view, save_text, service_view,
-    status, step_lands,
+    BeingView, CastView, CombatView, Command, CreationView, Direction, Event, Facing, Here, Known,
+    Level, MapId, ModeKind, NewGameError, ObjectsView, Op, OpError, PartyView, PileView, Position,
+    Rejection, ReloadRefused, Reply, RestView, SaveCheck, SeenObject, ServiceView, Settings,
+    Status, World, apply, automap, beings_on_level, cast_view, combat_view, creation_view,
+    dispatch, door_open, here, object_blocks, objects_on_level, objects_view, party_view, reload,
+    rest_view, service_view, status, step_lands, viewport,
 };
 use omnis_sim::omnis_data::Data;
 use std::collections::BTreeMap;
@@ -94,6 +95,13 @@ impl SimWorld {
         }
     }
 
+    /// How many tiles the party sees (`api::viewport`'s `visibility_depth`); 6 when its map
+    /// is not loaded.
+    #[must_use]
+    pub fn sight(&self, data: &Data) -> u8 {
+        viewport(&self.0, data).map_or(6, |v| v.visibility_depth)
+    }
+
     /// The party and every member's sheet (`api::party_view`).
     #[must_use]
     pub fn party(&self, data: &Data) -> PartyView {
@@ -104,6 +112,32 @@ impl SimWorld {
     #[must_use]
     pub fn flags(&self, data: &Data) -> Vec<(String, i64)> {
         omnis_sim::api::flags(&self.0, data)
+    }
+
+    /// The world's parts by size and whether they join back (`api::split_report`).
+    ///
+    /// # Errors
+    /// A part that would not serialize.
+    pub fn split_report(&self, data: &Data) -> Result<omnis_sim::api::SplitReport, String> {
+        omnis_sim::api::split_report(&self.0, data).map_err(|e| e.to_string())
+    }
+
+    /// How many interactions a load lays over the bases (`api::journal_len`).
+    #[must_use]
+    pub fn journal_len(&self) -> usize {
+        omnis_sim::api::journal_len(&self.0)
+    }
+
+    /// The party's log, oldest first (`api::history`, M8.5 7f).
+    #[must_use]
+    pub fn history(&self) -> &[omnis_sim::api::Logged] {
+        omnis_sim::api::history(&self.0)
+    }
+
+    /// How many archive segments the folds have put away (`api::archive_len`).
+    #[must_use]
+    pub fn archive_len(&self) -> usize {
+        omnis_sim::api::archive_len(&self.0)
     }
 
     /// The encounter or fight, if one is on (`api::combat_view`).
@@ -118,16 +152,67 @@ impl SimWorld {
         service_view(&self.0, data)
     }
 
-    /// What the party knows of a map (`api::automap`).
+    /// What the party knows of a level of a map (`api::automap`).
     #[must_use]
-    pub fn automap(&self, map: MapId) -> Option<&BTreeMap<(u16, u16), Known>> {
-        automap(&self.0, map)
+    pub fn automap(&self, map: MapId, level: Level) -> Option<&BTreeMap<(u16, u16), Known>> {
+        automap(&self.0, map, level)
     }
 
     /// Whether a door is open in the world (`api::door_open`).
     #[must_use]
-    pub fn door_open(&self, map: MapId, x: u16, y: u16, facing: Facing) -> bool {
-        door_open(&self.0, map, x, y, facing)
+    pub fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool {
+        door_open(&self.0, map, level, x, y, facing)
+    }
+
+    /// Whether the party faces a door, and if so whether it is open.
+    #[must_use]
+    pub fn faced_door(&self, data: &Data) -> Option<bool> {
+        let p = self.position(data)?;
+        let map = data.maps.get(&p.map)?;
+        map.cell(p.level, p.x, p.y)?
+            .doors
+            .has(p.facing)
+            .then(|| self.door_open(p.map, p.level, p.x, p.y, p.facing))
+    }
+
+    /// Whether an object's footprint stops a step out of `(x, y)` toward `heading`
+    /// (`api::object_blocks`), as the engine's step checks it.
+    #[must_use]
+    pub fn object_blocks(
+        &self,
+        data: &Data,
+        map: MapId,
+        level: Level,
+        cell: (u16, u16),
+        heading: Facing,
+    ) -> bool {
+        object_blocks(&self.0, data, map, level, cell, heading)
+    }
+
+    /// The objects in the party's reach, with what each offers and why not, and the pile on its
+    /// cell (`api::objects_view`).
+    #[must_use]
+    pub fn objects(&self, data: &Data) -> ObjectsView {
+        objects_view(&self.0, data)
+    }
+
+    /// Every object and pile on a level of a map as the party would see them drawn
+    /// (`api::objects_on_level`).
+    #[must_use]
+    pub fn objects_on(
+        &self,
+        data: &Data,
+        map: MapId,
+        level: Level,
+    ) -> (Vec<SeenObject>, Vec<PileView>) {
+        objects_on_level(&self.0, data, map, level)
+    }
+
+    /// Every group standing on a level of a map, as the party would see it drawn
+    /// (`api::beings_on_level`, M8.5 step 2c).
+    #[must_use]
+    pub fn beings_on(&self, data: &Data, map: MapId, level: Level) -> Vec<BeingView> {
+        beings_on_level(&self.0, data, map, level)
     }
 
     /// Where a step in `direction` would leave the party (`api::step_lands`).
@@ -136,12 +221,17 @@ impl SimWorld {
         step_lands(&self.0, data, direction)
     }
 
-    /// The save file's text, or why the save rule refuses it (`api::save_text`).
+    /// The files that save the world at `path`: the world folder's, then the character save
+    /// (`api::save_files`).
     ///
     /// # Errors
-    /// The save rule refuses a save here.
-    pub fn save_text(&self) -> Result<String, OpError> {
-        save_text(&self.0)
+    /// The save rule refuses a save here, or a part will not serialize.
+    pub fn save_files(
+        &self,
+        data: &Data,
+        path: &str,
+    ) -> Result<Vec<omnis_sim::api::FileOut>, OpError> {
+        omnis_sim::api::save_files(&self.0, data, path)
     }
 
     /// `game.status` (`api::status`).
@@ -152,12 +242,19 @@ impl SimWorld {
         status(&self.0, data)
     }
 
-    /// Whether freshly loaded packs can replace the current ones (`api::check_reload`).
+    /// Take freshly loaded packs in place of `old`, the ones it runs on (`api::reload`, M8.5
+    /// 7h5): the world is fitted to them by name, through their migrations with `migrate`
+    /// (7h6), or nothing changes.
     ///
     /// # Errors
-    /// The fresh packs would change what the world's numbers mean.
-    pub fn check_reload(&self, fresh: &Data) -> Result<(), OpError> {
-        check_reload(&self.0, fresh)
+    /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
+    pub fn reload(
+        &mut self,
+        old: &Data,
+        fresh: &Data,
+        migrate: bool,
+    ) -> Result<SaveCheck, ReloadRefused> {
+        reload(&mut self.0, old, fresh, migrate)
     }
 
     /// Put a loaded world in place of this one.
@@ -193,6 +290,7 @@ impl core::ops::DerefMut for SimWorld {
 fn position(data: &Data, here: &Here) -> Option<Position> {
     Some(Position {
         map: data.registry.maps.get(&here.position.map)?,
+        level: here.position.level,
         x: here.position.x,
         y: here.position.y,
         facing: here.position.facing,
@@ -234,6 +332,19 @@ pub struct Views {
     /// Every world flag with its value, in registry order; only in a devtools world, for the
     /// debug panel (the retired client's rule).
     pub flags: Vec<(String, i64)>,
+    /// How many tiles the party sees from where it stands, as the engine counts them (the
+    /// terrain, a light, height), for the fog.
+    pub sight: u8,
+    /// The objects in reach with their interactions, and the pile on the party's cell (M8.5
+    /// step 2b).
+    pub objects: ObjectsView,
+    /// How many interactions the engine has journaled since the world's base (M8.5 7d).
+    pub journal: usize,
+    /// How many archive segments the folds have put away (M8.5 7e).
+    pub archive: usize,
+    /// How many names a save's world manifest holds for these packs (M8.5 7h2); only in a
+    /// devtools world, for the debug panel.
+    pub names: usize,
 }
 
 impl Views {
@@ -245,6 +356,7 @@ impl Views {
         // A map no pack names (never the case for a loaded world) reads as one no pack holds.
         let position = position(data, &here).unwrap_or(Position {
             map: MapId(u32::MAX),
+            level: here.position.level,
             x: here.position.x,
             y: here.position.y,
             facing: here.position.facing,
@@ -262,6 +374,15 @@ impl Views {
                 world.flags(data)
             } else {
                 Vec::new()
+            },
+            sight: world.sight(data),
+            objects: world.objects(data),
+            journal: world.journal_len(),
+            archive: world.archive_len(),
+            names: if here_devtools {
+                omnis_sim::api::NameTable::of(data).len()
+            } else {
+                0
             },
         }
     }

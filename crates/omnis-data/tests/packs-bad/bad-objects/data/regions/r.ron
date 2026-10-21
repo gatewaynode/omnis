@@ -1,0 +1,1 @@
+(schema: 1, id: "bado:region:r", name: "bado:text:region", kind: Wild, company: 100, stability: 800, rule: "time.wild", couplings: [], maps: ["bado:map:shapes", "bado:map:refs", "bado:map:land"])

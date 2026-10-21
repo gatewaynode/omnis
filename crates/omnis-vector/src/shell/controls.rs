@@ -26,10 +26,15 @@ pub enum Action {
     TurnLeft,
     /// Turn a quarter to the right.
     TurnRight,
+    /// Return the view to level (M8.5 step 4b).
+    Level,
     /// Open or close the camp: rest on the road.
     Camp,
     /// Open or close the action menu for the square.
     Actions,
+    /// Open the full log (owner, 2026-10-17); Esc or its Close shuts it, as the buttons rest
+    /// under a screen that pauses.
+    Log,
     /// Open the pause: save, load, the log, leave.
     Menu,
 }
@@ -45,8 +50,10 @@ impl Action {
             Action::StrafeRight => "Right  D",
             Action::TurnLeft => "Turn left  Q",
             Action::TurnRight => "Turn right  E",
+            Action::Level => "Level  Home",
             Action::Camp => "Camp  R",
             Action::Actions => "Actions  Space",
+            Action::Log => "Log  L",
             Action::Menu => "Menu  Esc",
         }
     }
@@ -67,9 +74,25 @@ const PAD: [&[Action]; 2] = [
     &[Action::StrafeLeft, Action::Back, Action::StrafeRight],
 ];
 
-/// The other actions, bottom right, away from the pad: the camp, the square's actions, and the
-/// menu (the pause, which holds save, load, the log and quitting).
-const SIDE: [&[Action]; 1] = [&[Action::Camp, Action::Actions, Action::Menu]];
+/// The other actions, bottom right, away from the pad, in rows of three at most so the two groups
+/// fit side by side at 1280 pixels wide (owner, 2026-10-17: a fifth button, the full log, made one
+/// row of five meet the pad there): levelling the view and the full log above; the camp, the
+/// square's actions and the menu (the pause: save, load, quitting) below, flush right.
+const SIDE: [&[Action]; 2] = [
+    &[Action::Level, Action::Log],
+    &[Action::Camp, Action::Actions, Action::Menu],
+];
+
+/// The most buttons a row of `corner`'s group holds: at most three each, about 490 pixels, so
+/// the two groups and their margins take about 1,030 of the narrowest window's 1,280.
+#[must_use]
+pub fn widest_row(corner: Corner) -> usize {
+    let rows: &[&[Action]] = match corner {
+        Corner::Left => &PAD,
+        Corner::Right => &SIDE,
+    };
+    rows.iter().map(|r| r.len()).max().unwrap_or(0)
+}
 
 /// The interface role's colour (`style::Role::Interface`).
 pub const GREEN: Color = srgb(Role::Interface.rgb());
@@ -85,11 +108,14 @@ pub struct ControlsPlugin;
 
 impl Plugin for ControlsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn, super::message::spawn))
-            .add_systems(Update, (press, shade).in_set(VectorSet::Input))
+        app.add_systems(Startup, (spawn, super::notice::spawn))
             .add_systems(
                 Update,
-                (super::message::paint, light).in_set(VectorSet::Screens),
+                (press, shade, super::notice::close).in_set(VectorSet::Input),
+            )
+            .add_systems(
+                Update,
+                (super::notice::paint, light).in_set(VectorSet::Screens),
             );
     }
 }
@@ -135,7 +161,7 @@ pub fn button(parent: &mut ChildSpawnerCommands, label: &str, marker: impl Bundl
 pub enum Corner {
     /// Bottom left: the movement pad.
     Left,
-    /// Bottom right: actions, save log, quit.
+    /// Bottom right: the view, the log, the camp, actions, the menu.
     Right,
 }
 
@@ -146,9 +172,10 @@ fn spawn(mut commands: Commands) {
 
 /// A block of button rows anchored 16 pixels from a bottom corner.
 fn group(commands: &mut Commands, corner: Corner, rows: &[&[Action]]) {
-    let (left, right) = match corner {
-        Corner::Left => (Val::Px(16.0), Val::Auto),
-        Corner::Right => (Val::Auto, Val::Px(16.0)),
+    let (left, right, align) = match corner {
+        Corner::Left => (Val::Px(16.0), Val::Auto, AlignItems::FlexStart),
+        // Shorter rows sit flush right, over the menu.
+        Corner::Right => (Val::Auto, Val::Px(16.0), AlignItems::FlexEnd),
     };
     commands
         .spawn((
@@ -159,6 +186,7 @@ fn group(commands: &mut Commands, corner: Corner, rows: &[&[Action]]) {
                 right,
                 bottom: Val::Px(16.0),
                 flex_direction: FlexDirection::Column,
+                align_items: align,
                 row_gap: Val::Px(6.0),
                 ..default()
             },
@@ -206,8 +234,10 @@ fn press(
         match action {
             Action::TurnLeft => intent.pending_turn += FRAC_PI_2,
             Action::TurnRight => intent.pending_turn -= FRAC_PI_2,
+            Action::Level => intent.level = true,
             Action::Camp => screens.nav.toggle(ScreenId::Camp, Some(&session.views)),
             Action::Actions => screens.nav.toggle(ScreenId::Actions, Some(&session.views)),
+            Action::Log => screens.nav.toggle(ScreenId::Log, Some(&session.views)),
             Action::Menu => screens.nav.open(ScreenId::Pause, Some(&session.views)),
             _ => {}
         }

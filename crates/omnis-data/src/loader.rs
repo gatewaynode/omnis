@@ -6,25 +6,32 @@ use crate::SCHEMA;
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::content::{Content, Files, RawContent, resolve_content};
-use crate::encounter::{self, ResolvedEncounter, ResolvedRandom};
+use crate::encounter;
 use crate::error::{DataError, LoadReport};
+use crate::flag::{FlagDef, FlagScope};
 use crate::item::Item;
+use crate::levels::{self, LevelData};
 use crate::limits::{MAX_COLLECTION, MAX_PACK_BYTES, string_fits};
+use crate::loot::LootTable;
 use crate::manifest::{PackManifest, is_content_id, is_pack_id};
-use crate::map::{Cell, MapDef, Terrain};
+use crate::map::MapDef;
+use crate::map_data::{MapData, ResolvedPortal};
+use crate::migration::{self, Migration, Migrations, PackMigration};
 use crate::monster::Monster;
+use crate::object::ObjectKind;
+use crate::placement;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
-use crate::rest_event::{self, ResolvedRestEvent};
+use crate::rest_event;
 use crate::ron_io::{from_str, read_text};
 use crate::rules::RulesFile;
-use crate::service::{self, ResolvedSite, ServiceDef};
+use crate::service::{self, ServiceDef};
 use crate::spell::Spell;
 use crate::text::TextFile;
 use crate::tileset::{SlotKind, Tileset};
 use omnis_core::{
-    BackgroundId, Calendar, ClassId, ConditionId, Facing, ItemId, MapId, MonsterId, RaceId,
-    RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
+    BackgroundId, Calendar, ClassId, ConditionId, FlagId, ItemId, Level, LootTableId, MapId,
+    MonsterId, ObjectKindId, RaceId, RegionId, ServiceId, SpellId, TextKey, TilesetId, fnv1a64,
 };
 use omnis_expr::Rules;
 use serde::de::DeserializeOwned;
@@ -41,102 +48,6 @@ pub struct PackFingerprint {
     pub version: String,
     /// FNV-1a 64 over every data and text file, in path order.
     pub hash: u64,
-}
-
-/// A portal with its destination resolved to an interned map.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResolvedPortal {
-    /// Trigger column.
-    pub x: u16,
-    /// Trigger row.
-    pub y: u16,
-    /// Destination map.
-    pub to_map: MapId,
-    /// Destination column.
-    pub to_x: u16,
-    /// Destination row.
-    pub to_y: u16,
-    /// Facing on arrival.
-    pub to_facing: Facing,
-}
-
-/// A map ready for the simulation: parsed cells and resolved references.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MapData {
-    /// The file as written.
-    pub def: MapDef,
-    /// Row-major cells, `width × height`.
-    pub cells: Vec<Cell>,
-    /// The interned tileset.
-    pub tileset: TilesetId,
-    /// The interned display-name key.
-    pub name: TextKey,
-    /// Portals with interned destinations.
-    pub portals: Vec<ResolvedPortal>,
-    /// Fixed encounters with interned monsters, in file order.
-    pub encounters: Vec<ResolvedEncounter>,
-    /// The random table with interned monsters, if the map has one.
-    pub random: Option<ResolvedRandom>,
-    /// Services placed on tiles, in file order.
-    pub sites: Vec<ResolvedSite>,
-    /// The region that owns the map.
-    pub region: RegionId,
-    /// What may happen while resting here, in file order.
-    pub rest_events: Vec<ResolvedRestEvent>,
-}
-
-impl MapData {
-    /// The cell at a coordinate, if inside the map.
-    #[must_use]
-    pub fn cell(&self, x: u16, y: u16) -> Option<&Cell> {
-        if x >= self.def.width || y >= self.def.height {
-            return None;
-        }
-        self.cells
-            .get(usize::from(y) * usize::from(self.def.width) + usize::from(x))
-    }
-
-    /// The terrain of a cell.
-    #[must_use]
-    pub fn terrain(&self, cell: &Cell) -> &Terrain {
-        &self.def.terrains[usize::from(cell.terrain)]
-    }
-
-    /// The portal on a tile, if any.
-    #[must_use]
-    pub fn portal_at(&self, x: u16, y: u16) -> Option<&ResolvedPortal> {
-        self.portals.iter().find(|p| p.x == x && p.y == y)
-    }
-
-    /// The fixed encounter on a tile with its index (the key a cleared encounter is remembered
-    /// by), if any.
-    #[must_use]
-    pub fn encounter_at(&self, x: u16, y: u16) -> Option<(u16, &ResolvedEncounter)> {
-        self.encounters
-            .iter()
-            .enumerate()
-            .find(|(_, e)| e.x == x && e.y == y)
-            .and_then(|(i, e)| u16::try_from(i).ok().map(|i| (i, e)))
-    }
-
-    /// The `Object` surface marking the portal on a tile, if any.
-    #[must_use]
-    pub fn marker_at(&self, x: u16, y: u16) -> Option<&str> {
-        self.def
-            .portals
-            .iter()
-            .find(|p| p.x == x && p.y == y)
-            .and_then(|p| p.marker.as_deref())
-    }
-
-    /// The service placed on a tile, if any.
-    #[must_use]
-    pub fn site_at(&self, x: u16, y: u16) -> Option<ServiceId> {
-        self.sites
-            .iter()
-            .find(|s| s.x == x && s.y == y)
-            .map(|s| s.service)
-    }
 }
 
 /// Everything loaded from a set of packs.
@@ -176,9 +87,23 @@ pub struct Data {
     pub rules: Rules,
     /// Regions by id.
     pub regions: BTreeMap<RegionId, Region>,
+    /// Object kinds by id.
+    pub objects: BTreeMap<ObjectKindId, ObjectKind>,
+    /// Loot tables by id.
+    pub loot: BTreeMap<LootTableId, LootTable>,
+    /// Flags a pack declared, by id; an undeclared flag is the world's.
+    pub flags: BTreeMap<FlagId, FlagDef>,
+    /// Each pack's migrations, by pack id, in file order (M8.5 7h6).
+    pub migrations: Migrations,
 }
 
 impl Data {
+    /// Whose `flag` is: as its file declares, else the world's (owner, 2026-10-17).
+    #[must_use]
+    pub fn flag_scope(&self, flag: FlagId) -> FlagScope {
+        self.flags.get(&flag).map_or(FlagScope::World, |f| f.scope)
+    }
+
     /// The calendar's shape from `rules/time.ron`, each value the default when it is missing.
     #[must_use]
     pub fn calendar(&self) -> Calendar {
@@ -222,9 +147,11 @@ impl Data {
 #[derive(Default)]
 struct Raw {
     tilesets: Files<Tileset>,
-    maps: BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
+    maps: BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
     text: BTreeMap<String, BTreeMap<String, String>>,
     content: RawContent,
+    /// Every pack's migrations, checked against the loaded packs once all are read.
+    migrations: Vec<(PathBuf, String, PackMigration)>,
 }
 
 /// Load packs from `roots`, in order. A pack's dependencies must appear earlier in the list.
@@ -233,7 +160,7 @@ pub fn load_packs(roots: &[&Path]) -> Result<Data, LoadReport> {
     let mut raw = Raw::default();
     let mut data = Data::default();
     for root in roots {
-        load_one(root, &mut raw, &mut data, &mut report.errors);
+        load_one(root, &mut raw, &mut data, &mut report.errors, true);
     }
     resolve(raw, &mut data, &mut report.errors);
     if report.is_empty() {
@@ -243,13 +170,46 @@ pub fn load_packs(roots: &[&Path]) -> Result<Data, LoadReport> {
     }
 }
 
-fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataError>) {
+/// The manifest of the pack at `root` and the hash of its content, whatever else is wrong with
+/// it: what `seal` records. Only a manifest that does not read is an error.
+pub(crate) fn content_hash(root: &Path) -> Result<(PackManifest, u64), DataError> {
+    let mut errors = Vec::new();
+    let mut data = Data::default();
+    load_one(root, &mut Raw::default(), &mut data, &mut errors, false);
+    match (data.packs.pop(), data.fingerprints.pop()) {
+        (Some(manifest), Some(print)) => Ok((manifest, print.hash)),
+        _ => Err(errors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| DataError::new(root.join("pack.ron"), "no manifest"))),
+    }
+}
+
+/// Load one pack into `raw` and `data`. `sealed`: refuse it unless its manifest records the
+/// hash of its content (`content_hash` passes false, to compute it).
+fn load_one(
+    root: &Path,
+    raw: &mut Raw,
+    data: &mut Data,
+    errors: &mut Vec<DataError>,
+    sealed: bool,
+) {
     let mut hasher = PackHasher::default();
     let manifest_rel = Path::new("pack.ron");
-    let Some(manifest) = read_checked::<PackManifest>(root, manifest_rel, &mut hasher, errors)
+    let Some(manifest) =
+        read_checked::<PackManifest>(root, manifest_rel, &mut PackHasher::default(), errors)
     else {
         return;
     };
+    // The manifest counts as content by its fields, not its layout, and without its own hash.
+    let unsealed = PackManifest {
+        hash: 0,
+        ..manifest.clone()
+    };
+    match crate::ron_io::to_string(&unsealed) {
+        Ok(text) => hasher.add(manifest_rel, &text),
+        Err(e) => errors.push(e),
+    }
     if !is_pack_id(&manifest.id) {
         errors.push(DataError::new(
             root.join(manifest_rel),
@@ -290,8 +250,8 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
         let file = root.join(&rel);
         check_id(&map.id, "map", &file, errors);
         map.validate(&file, errors);
-        let cells = map.cells(&file, errors).unwrap_or_default();
-        raw.maps.insert(map.id.clone(), (file, map, cells));
+        let levels = levels::parse(&map, &file, errors).unwrap_or_default();
+        raw.maps.insert(map.id.clone(), (file, map, levels));
     }
     gather_content(root, &mut hasher, errors, &mut raw.content);
     for lang in list_dirs(root, Path::new("text"), errors) {
@@ -322,16 +282,53 @@ fn load_one(root: &Path, raw: &mut Raw, data: &mut Data, errors: &mut Vec<DataEr
             }
         }
     }
+    let mut migrations = Vec::new();
+    for rel in list_ron(root, Path::new("migrations"), errors) {
+        if let Some(m) = read_checked::<Migration>(root, &rel, &mut hasher, errors) {
+            let file = migration::file_name(&rel);
+            let loaded = PackMigration {
+                file,
+                to: m.to,
+                steps: m.steps,
+            };
+            migrations.push((root.join(&rel), loaded));
+        }
+    }
+    migration::check_pack(&pack, &manifest.version, &migrations, errors);
+    raw.migrations.extend(
+        migrations
+            .into_iter()
+            .map(|(path, m)| (path, pack.clone(), m)),
+    );
     if hasher.bytes > MAX_PACK_BYTES {
         errors.push(DataError::new(
             root.join(manifest_rel),
             format!("pack is {} bytes; limit is {MAX_PACK_BYTES}", hasher.bytes),
         ));
     }
+    let hash = hasher.finish();
+    if sealed {
+        let file = root.join(manifest_rel);
+        match manifest.hash {
+            0 => errors.push(DataError::new(
+                file,
+                "the pack is not sealed: record its hash with `omnis-cli pack seal`",
+            )),
+            recorded if recorded != hash => errors.push(DataError::new(
+                file,
+                format!(
+                    "the content changed since version {} was sealed: raise the version and \
+                     reseal with `omnis-cli pack seal`",
+                    manifest.version
+                ),
+            )),
+            _ => {}
+        }
+    }
     data.fingerprints.push(PackFingerprint {
         id: pack,
         version: manifest.version.clone(),
-        hash: hasher.finish(),
+        hash,
     });
     data.packs.push(manifest);
 }
@@ -508,6 +505,23 @@ fn gather_content(
         errors,
         &mut content.regions,
     );
+    gather(
+        root,
+        "data/objects",
+        "object",
+        hasher,
+        errors,
+        &mut content.objects,
+    );
+    gather(root, "data/loot", "loot", hasher, errors, &mut content.loot);
+    gather(
+        root,
+        "data/flags",
+        "flag",
+        hasher,
+        errors,
+        &mut content.flags,
+    );
 }
 
 trait HasSchema {
@@ -537,6 +551,10 @@ has_schema!(
     RulesFile,
     ServiceDef,
     RegionDef,
+    ObjectKind,
+    LootTable,
+    FlagDef,
+    Migration,
 );
 
 fn check_id(id: &str, kind: &str, file: &Path, errors: &mut Vec<DataError>) {
@@ -625,7 +643,9 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     );
     data.regions = regions;
     check_calendar(&data.rules, errors);
-    for (id, (file, def, cells)) in &raw.maps {
+    let mut centres = BTreeMap::new();
+    let mut landings = Vec::new();
+    for (id, (file, def, levels)) in &raw.maps {
         let Some(tileset_id) = data.registry.tilesets.get(&def.tileset) else {
             errors.push(DataError::new(
                 file,
@@ -650,6 +670,17 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 TextKey(0)
             }
         };
+        for level in levels.iter().filter(|l| !l.name.is_empty()) {
+            if data.registry.text.get(&level.name).is_none() {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "level {} name text key '{}' is not defined in any language",
+                        level.level, level.name
+                    ),
+                ));
+            }
+        }
         let portals = resolve_portals(def, file, &map_ids, &raw.maps, errors);
         let (encounters, random) = encounter::resolve(
             &def.encounters,
@@ -658,8 +689,19 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             &data.registry.monsters,
             errors,
         );
-        let sites = service::resolve_sites(def, cells, &data.registry.services, file, errors);
+        let sites = service::resolve_sites(def, levels, &data.registry.services, file, errors);
         let rest_events = rest_event::resolve(def, &data.registry.text, file, errors);
+        let lookup = placement::Lookup {
+            registry: &data.registry,
+            kinds: &data.objects,
+        };
+        let placed = placement::resolve(def, levels, &lookup, file, errors);
+        placement::check_beings(def, levels, &encounters, &data.monsters, file, errors);
+        centres.insert(
+            map_ids[id.as_str()],
+            placement::blocked_centres(&placed, &data.objects),
+        );
+        landings.push((file.clone(), portals.clone()));
         let region = owners.get(&map_ids[id.as_str()]).copied();
         if region.is_none() {
             errors.push(DataError::new(
@@ -672,7 +714,7 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 map_ids[id.as_str()],
                 MapData {
                     def: def.clone(),
-                    cells: cells.clone(),
+                    levels: levels.clone(),
                     tileset: tileset_id,
                     name,
                     portals,
@@ -681,10 +723,15 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                     sites,
                     region: region.unwrap_or(RegionId(0)),
                     rest_events,
+                    objects: placed.objects,
+                    object_cells: placed.object_cells,
+                    ground: placed.ground,
+                    lore: placed.lore,
                 },
             );
         }
     }
+    check_landings(&landings, &centres, errors);
     if let Some(entry) = data.packs.iter().rev().find_map(|p| p.entry.as_deref()) {
         match data.registry.maps.get(entry) {
             Some(id) => data.entry = Some(id),
@@ -694,8 +741,36 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
             )),
         }
     }
+    if errors.len() == before {
+        migration::check_loaded(&raw.migrations, data, errors);
+    }
+    for (_, pack, m) in raw.migrations {
+        data.migrations.entry(pack).or_default().push(m);
+    }
     if errors.len() > before {
         data.maps.clear();
+    }
+}
+
+/// No portal lands the party where an object stands across the centre of the cell.
+fn check_landings(
+    portals: &[(PathBuf, Vec<ResolvedPortal>)],
+    centres: &BTreeMap<MapId, BTreeMap<(Level, u16, u16), String>>,
+    errors: &mut Vec<DataError>,
+) {
+    for (file, list) in portals {
+        for portal in list {
+            let at = (portal.to_level, portal.to_x, portal.to_y);
+            if let Some(object) = centres.get(&portal.to_map).and_then(|c| c.get(&at)) {
+                errors.push(DataError::new(
+                    file,
+                    format!(
+                        "portal at ({}, {}) lands on ({}, {}), where object '{object}' blocks the centre",
+                        portal.x, portal.y, at.1, at.2
+                    ),
+                ));
+            }
+        }
     }
 }
 
@@ -767,7 +842,7 @@ fn resolve_portals(
     def: &MapDef,
     file: &Path,
     map_ids: &BTreeMap<&str, MapId>,
-    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<Cell>)>,
+    maps: &BTreeMap<String, (PathBuf, MapDef, Vec<LevelData>)>,
     errors: &mut Vec<DataError>,
 ) -> Vec<ResolvedPortal> {
     let mut portals = Vec::with_capacity(def.portals.len());
@@ -783,6 +858,20 @@ fn resolve_portals(
             continue;
         };
         let (_, target, _) = &maps[&portal.to_map];
+        let has_level = portal.to_level.is_ground()
+            || target
+                .levels
+                .iter()
+                .any(|l| Level(l.level) == portal.to_level);
+        if !has_level {
+            errors.push(DataError::new(
+                file,
+                format!(
+                    "portal at ({}, {}) lands on level {}, which map '{}' does not have",
+                    portal.x, portal.y, portal.to_level, portal.to_map
+                ),
+            ));
+        }
         if portal.to_x >= target.width || portal.to_y >= target.height {
             errors.push(DataError::new(
                 file,
@@ -793,9 +882,11 @@ fn resolve_portals(
             ));
         }
         portals.push(ResolvedPortal {
+            level: portal.level,
             x: portal.x,
             y: portal.y,
             to_map,
+            to_level: portal.to_level,
             to_x: portal.to_x,
             to_y: portal.to_y,
             to_facing: portal.to_facing,

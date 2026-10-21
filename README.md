@@ -9,24 +9,32 @@ stories need. The world will also support fully procedural generation, so vast a
 created and then left as they are or customized by hand.
 
 `PRD.md` says what the game is; `ARCHITECTURE.md` says how it is shaped. Both are the source of
-truth for every decision below. `tasks/TODO.md` is the build order and the record of what each
-milestone delivered.
+truth for every decision below. `tasks/TODO.md` is the execution plan; what each milestone delivered
+is recorded in `tasks/archive/`.
 
 ## Status
 
-Phase 1 is in progress. Built so far, each milestone played by the owner before the next one starts (M6's remote sensing awaits that play):
+The MVP is built and played: Phase 1 of `PRD.md` §13 is complete but the editor. Each milestone was
+played by the owner before the next one started; the record of each is in
+`tasks/archive/TODO-2026-10-20.md`.
 
 | Milestone | Delivered |
 |---|---|
 | M0 | Workspace, lints, CI |
 | M1 | Walkable dungeon, the automap, golden replays |
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
-| M3 | Party and characters on the SRD 5.1 structure, the bitmap-font canvas UI |
+| M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1, deferred by the owner; planned in `tasks/plans/editor-v1.md` |
+| M5 | Editor v1, deferred by the owner; next (W1 of `tasks/TODO.md`) |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
+| M7 | Town and services, rest, progression, the turn budget and declared reactions |
+| M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |
+| Protocol 2 | Definitions named by string id on the wire; members by identity |
+| Vector adoption | The 3D vector client `omnis-vector` replaces the 2D client at parity (P0 to P9) |
+| M8.5 | Elevation, levels and stairs, objects in data, occluding fills, the camera's pitch, the save model and saves by name across changed packs |
 
-Next is M7: town, services, rest and progression, which closes the Phase 1 loop from PRD §13.
+Next is the plan in `tasks/TODO.md`: the editor (M5), then the look in data, the world's structure
+(M9), the living world (M10, M11) and release (M12), toward the owner building the first locality.
 
 ## Layout
 
@@ -42,7 +50,7 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-rules` | Characters, checks, saves, spells, effects, equipment slots |
 | `omnis-sim` | The world, commands, events, movement, visibility, combat, casting, items, sensing, saves |
 | `omnis-vector` | The game client (binary `omnis`): Bevy 0.19.1, a walkable 3D view in glowing lines, a 2D fight screen, buttons for every action (`presentation-PRD.md`) |
-| `omnis-cli` | Headless subcommands: validate, replay, play, map text, schema dump, tileset bake |
+| `omnis-cli` | Headless subcommands: validate, replay (and `--time`), wander, play, map text, world tidy, pack seal, schema dump, tileset bake |
 | `omnis-mcp` | The MCP bridge that lets an agent drive the game or a headless world |
 
 Game content lives in `packs/`. `packs/base` is the shipped content (SRD 5.1 material under
@@ -62,7 +70,7 @@ cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed
 cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
 cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel
 cargo run -p omnis-vector -- --screenshot shot.png --size 1600x900   # an offscreen capture, then exit
-cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions
+cargo run -p omnis-vector -- --screenshot t.png --screen title       # any screen: title, new-game, create-party, pause, actions, verbs, inventory
 ```
 
 The client is described in `presentation-PRD.md` and `presentation-ARCHITECTURE.md`. It starts at a
@@ -77,7 +85,9 @@ Settings, Debug (in a game with developer tools; also the backtick key), Quit to
 A member's sheet, inventory and spells open from the party column. In a fight, the buttons pick
 the action and a click on a figure the target; the number keys pick from a list. Saves are RON
 files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
-`.omnis/settings.ron`.
+`.omnis/settings.ron`. A save holds the party and what it changed; the world it plays in is kept
+beside it under `.omnis/worlds/`, and `omnis-cli world tidy` (or the debug page's Tidy) lists the
+world files no save names and deletes them only when asked.
 
 ## Verification
 
@@ -85,7 +95,8 @@ files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
 on every target and on the client's library with and without developer tools, every test, the simulation-crate
 lint, the dependency-duplicate check, and pack validation, and it exits non-zero on any failure.
 CI runs the same steps plus the golden replays
-through the CLI.
+through the CLI, on macOS as the required check and on Linux as an advisory job that reports and never
+blocks (PRD D31).
 
 ```sh
 scripts/verify.sh
@@ -109,10 +120,10 @@ about the linker; check a toolchain change with a fresh target directory.
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes twenty-four tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes 27 tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
-`pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
-`service_get`, `rest_get`, `cast_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and
+`save_check`, `pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
+`service_get`, `rest_get`, `cast_get`, `objects_get`, `creation_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks` and
 `time_reconcile`. Each tool is an op of the simulation's JSON protocol, the engine's API for
 clients other than the Rust library (`ARCHITECTURE.md` §4.9).
 

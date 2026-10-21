@@ -49,11 +49,11 @@
         (x: 0, y: 0, to_map: "test:map:dungeon", to_x: 22, to_y: 23, to_facing: West, marker: Some("stairs.up")),
     ],
     encounters: [
-        (x: 3, y: 3, stacks: [("test:monster:skeleton", 3)], disposition: Hostile, once: true),
-        (x: 9, y: 3, stacks: [("test:monster:goblin", 4)], disposition: Hostile, once: true),
-        (x: 3, y: 9, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 2)], disposition: Hostile, once: true),
-        (x: 9, y: 9, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 2)], disposition: Hostile, once: true),
-        (x: 13, y: 8, stacks: [("test:monster:giant_rat", 3), ("test:monster:giant_rat", 2), ("test:monster:bob_the_rat_king", 1)], disposition: Hostile, once: true),
+        (id: "skeleton_3_3", x: 3, y: 3, stacks: [("test:monster:skeleton", 3)], disposition: Hostile, once: true),
+        (id: "goblin_9_3", x: 9, y: 3, stacks: [("test:monster:goblin", 4)], disposition: Hostile, once: true),
+        (id: "goblin_3_9", x: 3, y: 9, stacks: [("test:monster:goblin", 2), ("test:monster:skeleton", 2)], disposition: Hostile, once: true),
+        (id: "skeleton_9_9", x: 9, y: 9, stacks: [("test:monster:skeleton", 2), ("test:monster:goblin", 2)], disposition: Hostile, once: true),
+        (id: "giant_rat_13_8", x: 13, y: 8, stacks: [("test:monster:giant_rat", 3), ("test:monster:giant_rat", 2), ("test:monster:bob_the_rat_king", 1)], disposition: Hostile, once: true),
     ],
     random: Some((
         chance_percent: 3,

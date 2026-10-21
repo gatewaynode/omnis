@@ -56,17 +56,35 @@ fn every_error_in_a_broken_pack_is_reported() {
         // data/maps/glyph.ron
         "terrain glyph '.' is used twice",
         "terrain glyph '-' is reserved for edges and portals",
+        "terrain glyph '/' is reserved for edges and portals",
         "terrain 'floor' visibility_depth must be 1..=32",
         "start (2, 0) is outside the map",
         "portal at (5, 5) is outside the map",
         "portal at (5, 5) has no marker; every portal must be visible",
+        "tile (1, 0) height 'x' must be a whole number within -4096..=4096",
+        "heights row 1 has 3 numbers; a 2-tile-wide map needs 2",
         "tile (1, 0) has unknown glyph '?'",
+        // data/maps/heights.ron
+        "tile (1, 0) west ramp joins heights 24 and 0, more than 16 apart",
+        // data/maps/levels.ron (M8.5 step 1b): shapes on load, then the site at resolution
+        "terrain glyph '_' is reserved for no ground",
+        "site at (0, 0) is on level 5, which the map does not have",
+        "level 0 is the map's own layout; another level needs another number",
+        "level 2: layout has 1 rows; a 1-tile-high map needs 3",
+        "site at (0, 0) names service 'broken:service:none', which is not defined by any loaded pack",
+        "map 'broken:map:levels' belongs to no region",
+        // data/maps/stairs.ron (M8.5 step 1c)
+        "the stair entry at (1, 0) is not on a stair",
+        "the stair up at (0, 0) has no entry in `stairs` saying which way it rises",
+        "map 'broken:map:stairs' belongs to no region",
         // data/maps/refs.ron: encounters
         "encounter 0 at (9, 9) is outside the map",
         "encounter 0 stack count must be at least 1",
         "encounter 1 has no stacks",
         "encounter 2 shares tile (0, 0) with encounter 1",
         "encounter 2 has more than 4 stacks",
+        // M8.5 7h2: an encounter is named by its id, unique in the map
+        "encounter 'twin' shares its id with an object or another encounter",
         "random chance_percent must be 0..=100",
         "random entry 0 weight must be at least 1",
         "random entry 0 has no stacks",
@@ -122,7 +140,10 @@ fn every_error_in_a_broken_pack_is_reported() {
         // data/regions/twice.ron
         "rule 'time.odd' declares input 'age'; a region's rule takes only lived, shared_time, stability",
         // every map belongs to a region; glyph and refs do
+        "map 'broken:map:heights' belongs to no region",
         "map 'broken:map:sites' belongs to no region",
+        // data/maps/sites.ron's upper level (M8.5 step 1b)
+        "level 1 name text key 'broken:text:level.none' is not defined in any language",
         // data/rules/time.ron: the calendar
         "value 'days_per_year' is 0; it must be 1..=65535",
         "value 'night_to' is 1440; it must be 0..=1439",
@@ -132,7 +153,11 @@ fn every_error_in_a_broken_pack_is_reported() {
 
 /// The pack's report is exactly `expected`, each message once, in any order.
 fn assert_reports(name: &str, expected: &[&str]) {
-    let got = messages(name);
+    assert_same(&messages(name), expected);
+}
+
+/// `got` is exactly `expected`, each message as often, in any order.
+fn assert_same(got: &[String], expected: &[&str]) {
     let missing: Vec<&&str> = expected
         .iter()
         .filter(|e| !got.contains(&(**e).to_owned()))
@@ -225,6 +250,39 @@ fn every_error_in_bad_content_is_reported() {
         "item 'badc:item:gone' is not defined by any loaded pack",
         "spell 'badc:spell:gone' is not defined by any loaded pack",
         "text key 'badc:text:rumor.none' is not defined in any language",
+        // data/objects/bad.ron (M8.5 step 2): shapes on load, then its name at resolution
+        "look width and depth must be 1..=8 eighths",
+        "look height must be 1..=32 eighths",
+        "state 'a' look height must be 1..=32 eighths",
+        "initial_state 'gone' is not one of the states",
+        "capacity must be 0..=64",
+        "interaction 0 is offered in state 'nope', which the kind does not have",
+        "interaction 0 check dc must be 1..=30",
+        "interaction 0 sets state 'nowhere', which the kind does not have",
+        "interaction 0 gives an item count of 0",
+        "interaction 1 needs at least one effect",
+        "text key 'badc:text:object.bad' is not defined in any language",
+        // data/objects/refs.ron: shapes on load, then references at resolution
+        "initial_state 'x' needs states",
+        "lore dc must be 1..=30",
+        "text key 'badc:text:object.refs' is not defined in any language",
+        "text key 'badc:text:object.none' is not defined in any language",
+        "text key 'badc:text:object.lore' is not defined in any language",
+        "item 'badc:item:none' is not defined by any loaded pack",
+        "flag 'badc:item:blade' is not of the form pack:flag:name",
+        "rule 'objects.none' is not a rules slot",
+        "rule 'objects.age' declares input 'age'; an object's rule takes only party_level, party_size",
+        "item 'badc:item:gone' is not defined by any loaded pack",
+        "flag 'notaflag' is not of the form pack:flag:name",
+        // data/loot/heap.ron, bare.ron (M8.5 step 2): shapes on load, then the item
+        "picks must be 1..=8",
+        "loot entry 0 count needs dice",
+        "loot entry 0 weight must be at least 1",
+        "loot entry 0 chance_percent must be 1..=100",
+        "a loot table needs 1..=64 entries",
+        "item 'badc:item:none' is not defined by any loaded pack",
+        // hush.ron names a table no pack defines
+        "loot table 'badc:loot:gone' is not defined by any loaded pack",
     ];
     assert_reports("bad-content", &expected);
 }
@@ -262,6 +320,7 @@ fn dependencies_must_load_first() {
         r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"])"#,
     )
     .unwrap();
+    omnis_data::seal::seal(&dir, None).unwrap();
     assert!(load_packs(&[&dir]).is_err());
     let [base, test] = common::test_packs();
     let data = load_packs(&[&base, &test, &dir]).unwrap_or_else(|r| panic!("{r}"));
@@ -286,9 +345,77 @@ fn dependencies_must_load_first() {
         r#"(schema: 1, id: "mod", version: "0.1.0", name: "a mod", license: "MIT", depends: ["test"], entry: Some("mod:map:none"))"#,
     )
     .unwrap();
+    omnis_data::seal::seal(&dir, None).unwrap();
     let report = load_packs(&[&base, &test, &dir]).unwrap_err();
     assert_eq!(
         report.messages(),
         ["entry map 'mod:map:none' is not defined by any loaded pack"]
     );
+}
+
+#[test]
+fn every_placement_error_is_reported() {
+    let [base, test] = common::test_packs();
+    let got = match load_packs(&[&base, &test, &common::bad_pack("bad-objects")]) {
+        Ok(_) => panic!("bad-objects loaded"),
+        Err(report) => report.messages(),
+    };
+    let expected = [
+        // data/maps/shapes.ron (M8.5 step 2): shapes on load
+        "object id 'Bad-Id' is not [a-z0-9_]{1,32}",
+        "object 'twice' is placed twice",
+        "object 'far' at (9, 0) is outside the map",
+        "object 'drift' pos must be within -4..=4 eighths",
+        "object 'deep' hidden dc must be 1..=30",
+        "object 'empty' contents need counts of at least 1, at most 64 stacks",
+        "object 'told' lore dc must be 1..=30",
+        "pile at (9, 0) is outside the map",
+        "pile at (0, 0) shares its cell with another pile",
+        "pile at (1, 0) pos must be within -4..=4 eighths",
+        "pile at (2, 0) needs 1..=32 stacks of at least 1",
+        "lore id 'Bad-Lore' is not [a-z0-9_]{1,32}",
+        "lore 'again' is placed twice",
+        "lore 'afar' at (9, 0) is outside the map",
+        "lore 'hard' dc must be 1..=30",
+        // M8.5 step 2c: beings standing in shapes.ron
+        "encounter id 'Bad-Being' is not [a-z0-9_]{1,32}",
+        "encounter 'twice' shares its id with an object or another encounter",
+        "being 'drifter' pos must be within -4..=4 eighths",
+        // data/monsters/boxy.ron: a look that is not a figure, too wide
+        "look must be a Figure",
+        "look width and depth must be 1..=8 eighths",
+        // data/maps/refs.ron at resolution: kinds, levels, states, names, contents, hiding,
+        // spills, the start's centre, a crowded cell, the piles
+        "object 'ghost' kind 'bado:object:none' is not defined by any loaded pack",
+        "object 'upstairs' is on level 3, which the map does not have",
+        "object 'moody' state 'angry' is not one of its kind's states",
+        "text key 'bado:text:none' is not defined in any language",
+        "object 'stuffed' holds items but its kind is not a container",
+        "object 'full' holds 2 stacks; its kind holds 1",
+        "item 'bado:item:none' is not defined by any loaded pack",
+        "object 'secret' is hidden but blocks",
+        "object 'edge' reaches into (4, 2), which has no ground",
+        "object 'walled' reaches across the East edge of (2, 0)",
+        "object 'squat' blocks the centre of (0, 0), where the party arrives",
+        "text key 'bado:text:lore.none' is not defined in any language",
+        "cell (4, 0) on level 0 holds more than 16 objects",
+        "item 'bado:item:none' is not defined by any loaded pack",
+        "pile at (4, 2) has no ground",
+        "lore 'aloft' is on level 3, which the map does not have",
+        "lore 'void' at (4, 2) has no ground",
+        "text key 'bado:text:lore.gone' is not defined in any language",
+        "cell (3, 2) on level 0 holds more than 16 lore",
+        // refs.ron's beings: through the wall, onto no ground
+        "being 'walled_in' reaches across the East edge of (2, 0)",
+        "being 'brink' reaches into (4, 2), which has no ground",
+        // shapes.ron at resolution: what lies outside the map has no ground either
+        "object 'far' at (9, 0) has no ground",
+        "object 'far' reaches into (9, 0), which has no ground",
+        "pile at (9, 0) has no ground",
+        "lore 'afar' at (9, 0) has no ground",
+        "being 'drifter' reaches into (2, -1), which has no ground",
+        // data/maps/land.ron: a portal onto the blocked start
+        "portal at (0, 0) lands on (0, 0), where object 'squat' blocks the centre",
+    ];
+    assert_same(&got, &expected);
 }

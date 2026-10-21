@@ -72,3 +72,14 @@ the fix) and the fixing commit. Newest last.
 - **Test**: `omnis-sim/tests/api_views.rs::a_number_no_pack_names_reads_the_same_in_the_party_view_as_everywhere`
   (a spell id 999 in the known list reads `#999`; with the spell line put back to `?` it fails: `Some("?")`).
 - **Fixed in**: `4ecb1d6` (P2d WIP).
+
+## B7 — Running from a group off the ground put the party on level 0 (review, M8.5 step 2 planning, 2026-10-14)
+- **Report**: found reading `encounter::trigger` while planning step 2; not seen in play (no shipped map has
+  an encounter off level 0).
+- **Cause**: the retreat position was built with `level: Level::GROUND` instead of the level the party came
+  from, a leftover from before levels (step 1b).
+- **Fix**: the retreat keeps `from.level`.
+- **Test**: `omnis-sim/tests/levels.rs::running_from_a_group_off_the_ground_keeps_the_party_on_its_level`
+  (a friendly rat on the tower's bridge, level 1; red before the fix: the retreat read `Level(0)`; the
+  mutation back to `GROUND` is caught).
+- **Fixed in**: the commit that adds this entry.

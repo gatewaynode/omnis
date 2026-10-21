@@ -5,6 +5,9 @@ use std::path::{Component, Path};
 
 /// Largest text file the loader reads.
 pub const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
+/// Largest character save a host reads or the engine writes (M8.5 7f, owner 2026-10-18): the
+/// party's log and a full journal at their bounds, with room to spare.
+pub const MAX_SAVE_BYTES: u64 = 8 * 1024 * 1024;
 /// Largest total of data files in one pack.
 pub const MAX_PACK_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest map side in tiles.
@@ -19,8 +22,42 @@ pub const RON_RECURSION_LIMIT: usize = 64;
 pub const MAX_DETAIL_DEPTH: u8 = 8;
 /// Largest visibility depth a tile may declare (PRD §7.2: an open plain reaches 20).
 pub const MAX_VISIBILITY_DEPTH: u8 = 32;
+/// Highest and lowest cell height, in eighths of a cell (a wall is 8): 512 wall heights each way.
+pub const MAX_HEIGHT: i16 = 4096;
+/// The most a ramp edge may join, in eighths of a cell: two wall heights.
+pub const MAX_RAMP: i32 = 16;
+/// Levels a map may have, its own among them (M8.5 step 1b).
+pub const MAX_LEVELS: usize = 16;
 /// Stacks an encounter may hold: the combat screen lists four.
 pub const MAX_STACKS: usize = 4;
+/// States an object kind may have (M8.5 step 2).
+pub const MAX_STATES: usize = 16;
+/// Interactions an object kind may offer.
+pub const MAX_INTERACTIONS: usize = 16;
+/// Requirements on one interaction.
+pub const MAX_REQUIREMENTS: usize = 8;
+/// Effects of one interaction.
+pub const MAX_EFFECTS: usize = 16;
+/// Tags on one object kind.
+pub const MAX_TAGS: usize = 32;
+/// Tallest object, in eighths of a cell: four wall heights.
+pub const MAX_OBJECT_HEIGHT: u8 = 32;
+/// Item stacks a container may hold.
+pub const MAX_CAPACITY: u16 = 64;
+/// Objects one cell may hold, spills from its neighbours included.
+pub const MAX_OBJECTS_PER_CELL: usize = 16;
+/// Lore one cell may hold.
+pub const MAX_LORE_PER_CELL: usize = 16;
+/// Objects one map may place.
+pub const MAX_OBJECTS_PER_MAP: usize = 4096;
+/// Item stacks in one pile on the ground.
+pub const MAX_PILE_STACKS: usize = 32;
+/// Entries in one loot table.
+pub const MAX_LOOT_ENTRIES: usize = 64;
+/// Draws a loot table makes for one individual.
+pub const MAX_LOOT_PICKS: u8 = 8;
+/// Highest difficulty an object's check may set (the SRD's nearly impossible).
+pub const MAX_CHECK_DC: u8 = 30;
 /// Farthest a sensing ray may reach, in tiles (PRD §7.2: a spyglass to a long range).
 pub const MAX_SENSE_RANGE: u8 = 64;
 /// Image extensions a pack may reference.

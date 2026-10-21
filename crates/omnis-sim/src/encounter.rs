@@ -11,22 +11,22 @@ use crate::event::{ActorRef, CheckKind, Event, Surprise};
 use crate::names::id_of;
 use crate::world::{Mode, World};
 use alloc::format;
+use alloc::string::String;
 use alloc::vec::Vec;
-use core::cmp::Reverse;
 use omnis_core::{Dice, Facing, MapId, MonsterId, Position, RollTrace, StreamName};
 use omnis_data::omnis_expr::Value;
 use omnis_data::{Ability, Data, Disposition, ResolvedRandom, Skill};
 use omnis_rules::{
-    Character, Roll, RollMode, RuleError, kept_d20, modifier_of, monster_hit_points, passive,
-    passive_perception, skill_bonus,
+    Roll, RollMode, RuleError, kept_d20, modifier_of, monster_hit_points, passive,
+    passive_perception,
 };
 use serde::{Deserialize, Serialize};
 
 /// Where an encounter came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum EncounterSource {
-    /// A placement on the map, by its index in the map file.
-    Fixed(u16),
+    /// A placement on the map, by its id (M8.5 7h2; before, its row in the map file).
+    Fixed(#[serde(deserialize_with = "crate::save::row_or_id")] String),
     /// The map's random table.
     Random,
     /// The map's random table, come upon the party at rest (M7 step 5).
@@ -107,20 +107,23 @@ pub(crate) fn trigger(
     };
     let retreat = Position {
         map: from.map,
+        level: from.level,
         x: from.x,
         y: from.y,
         facing: move_facing.opposite(),
     };
-    let cleared = |i: &u16| {
+    let cleared = |id: &str| {
         world
             .maps
             .get(&pos.map)
-            .is_some_and(|s| s.cleared.contains(i))
+            .is_some_and(|s| s.cleared.contains(id))
     };
-    let placed = map.encounter_at(pos.x, pos.y).filter(|(i, _)| !cleared(i));
-    let (source, stacks, disposition, counts) = if let Some((i, e)) = placed {
+    let placed = map
+        .encounter_at(pos.level, pos.x, pos.y)
+        .filter(|e| !cleared(&e.id));
+    let (source, stacks, disposition, counts) = if let Some(e) = placed {
         (
-            EncounterSource::Fixed(i),
+            EncounterSource::Fixed(e.id.clone()),
             e.stacks.clone(),
             e.disposition,
             Vec::new(),
@@ -263,6 +266,34 @@ pub(crate) fn ambush(
     )
 }
 
+/// Meet the placed group `id` of the party's map where the party stands (M8.5 step 2c:
+/// `Approach` on a group that stands in view), Run putting it back at `retreat`.
+pub(crate) fn meet(
+    world: &mut World,
+    data: &Data,
+    id: &str,
+    retreat: Position,
+    events: &mut Vec<Event>,
+) -> Result<(), RuleError> {
+    let Some(e) = data
+        .maps
+        .get(&world.position.map)
+        .and_then(|m| m.encounter(id))
+    else {
+        return Ok(());
+    };
+    begin(
+        world,
+        data,
+        EncounterSource::Fixed(e.id.clone()),
+        e.stacks.clone(),
+        e.disposition,
+        Vec::new(),
+        retreat,
+        events,
+    )
+}
+
 /// Build the stacks, settle surprise, and either offer the choice or start the fight with the
 /// party surprised.
 #[allow(clippy::too_many_arguments)]
@@ -335,7 +366,7 @@ fn begin(
         (Some(roll), noticed)
     };
     events.push(Event::EncounterStarted {
-        source,
+        source: source.clone(),
         stacks: stacks
             .iter()
             .map(|&(monster, count)| (id_of(&data.registry.monsters, monster), count))
@@ -373,18 +404,18 @@ fn take(world: &mut World) -> Option<EncounterState> {
 }
 
 /// A cleared placement stays cleared when the map file says `once`.
-pub(crate) fn clear_once(world: &mut World, data: &Data, source: EncounterSource) {
-    let EncounterSource::Fixed(i) = source else {
+pub(crate) fn clear_once(world: &mut World, data: &Data, source: &EncounterSource) {
+    let EncounterSource::Fixed(id) = source else {
         return;
     };
     let map = world.position.map;
     let once = data
         .maps
         .get(&map)
-        .and_then(|m| m.encounters.get(usize::from(i)))
+        .and_then(|m| m.encounter(id))
         .is_some_and(|e| e.once);
     if once {
-        world.map_state(map).cleared.insert(i);
+        world.map_state(map).cleared.insert(id.clone());
     }
 }
 
@@ -397,10 +428,9 @@ pub fn groups_cleared(world: &World, data: &Data, map: MapId) -> (u16, u16) {
     };
     let cleared = world.maps.get(&map).map(|s| &s.cleared);
     let (mut done, mut total) = (0u16, 0u16);
-    for (i, _) in def.encounters.iter().enumerate().filter(|(_, e)| e.once) {
+    for e in def.encounters.iter().filter(|e| e.once) {
         total = total.saturating_add(1);
-        let i = u16::try_from(i).unwrap_or(u16::MAX);
-        if cleared.is_some_and(|c| c.contains(&i)) {
+        if cleared.is_some_and(|c| c.contains(&e.id)) {
             done = done.saturating_add(1);
         }
     }
@@ -486,27 +516,14 @@ fn bribe(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), 
     world.party.gold -= cost;
     events.push(Event::Bribed { cost });
     if let Some(state) = take(world) {
-        clear_once(world, data, state.source);
+        clear_once(world, data, &state.source);
     }
     Ok(())
 }
 
-/// The member who rolls for the group: the best at `bonus`, the first in marching order on
-/// ties.
-fn best_member(
-    world: &World,
-    data: &Data,
-    bonus: impl Fn(&Character) -> i64,
-) -> Result<usize, RuleError> {
-    world
-        .party
-        .members
-        .iter()
-        .enumerate()
-        .filter(|(_, m)| can_fight(m, data))
-        .min_by_key(|(_, m)| Reverse(bonus(m)))
-        .map(|(i, _)| i)
-        .ok_or_else(|| RuleError::new("encounter", "no member can act"))
+/// The member who rolls for the group.
+fn roller_for(world: &World, data: &Data, spec: CheckSpec) -> Result<usize, RuleError> {
+    checks::best(world, data, spec).ok_or_else(|| RuleError::new("encounter", "no member can act"))
 }
 
 /// Hide: Stealth against the monsters' best passive Perception; they stay where they are.
@@ -522,14 +539,12 @@ fn hide(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), R
         .max()
         .unwrap_or(10);
     let friendly = state.disposition == Disposition::Friendly;
-    let member = best_member(world, data, |m| {
-        skill_bonus(m, data, Skill::Stealth).unwrap_or(0)
-    })?;
     let spec = CheckSpec {
         skill: Some(Skill::Stealth),
         ability: Ability::Dexterity,
         mode: RollMode::Normal,
     };
+    let member = roller_for(world, data, spec)?;
     let success = checked(
         world,
         data,
@@ -589,14 +604,12 @@ fn run(world: &mut World, data: &Data, events: &mut Vec<Event>) -> Result<(), Ru
     };
     let dc = run_dc(data, state.disposition);
     let friendly = state.disposition == Disposition::Friendly;
-    let member = best_member(world, data, |m| {
-        omnis_rules::modifier(m.scores[Ability::Dexterity.index()])
-    })?;
     let spec = CheckSpec {
         skill: None,
         ability: Ability::Dexterity,
         mode: RollMode::Normal,
     };
+    let member = roller_for(world, data, spec)?;
     let success = checked(
         world,
         data,

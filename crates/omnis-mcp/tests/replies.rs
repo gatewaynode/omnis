@@ -4,6 +4,7 @@
 //! exhaustive `match`, so a new variant fails the build until it is named here and covered.
 
 use omnis_cli::Headless;
+use omnis_cli::omnis_sim::api::{examine, save_files};
 use omnis_cli::omnis_sim::omnis_core::{Facing, Position};
 use omnis_cli::omnis_sim::omnis_data::Disposition;
 use omnis_cli::omnis_sim::ops::{PROTOCOL, SlotView};
@@ -15,6 +16,20 @@ use std::path::PathBuf;
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+/// `save.check`'s reply as the hosts build it: the game saved in memory, then examined.
+fn check(game: &Headless) -> Reply {
+    let files = save_files(&game.world, &game.data, ".omnis/a.ron").unwrap();
+    let disk: std::collections::BTreeMap<String, String> =
+        files.into_iter().map(|f| (f.path, f.text)).collect();
+    let examined = examine(&disk[".omnis/a.ron"], &game.data, &mut |p| {
+        disk.get(p).cloned().ok_or_else(|| format!("no file {p}"))
+    })
+    .unwrap();
+    let check = examined.into_report();
+    assert!(!check.packs.is_empty());
+    Reply::Check { check }
 }
 
 /// The wire name of a reply.
@@ -35,13 +50,15 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Time { .. } => "time",
         Reply::Rest { .. } => "rest",
         Reply::Casts { .. } => "casts",
+        Reply::Objects { .. } => "objects",
         Reply::Creation { .. } => "creation",
         Reply::Value { .. } => "value",
-        Reply::Done {} => "done",
+        Reply::Done { .. } => "done",
+        Reply::Check { .. } => "check",
     }
 }
 
-const EVERY: usize = 18;
+const EVERY: usize = 20;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
@@ -58,8 +75,20 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
             },
         ),
         ask(&mut game, Op::EventsTail { count: 4 }),
-        ask(&mut game, Op::AutomapGet { map: None }),
-        ask(&mut game, Op::MapText { map: None }),
+        ask(
+            &mut game,
+            Op::AutomapGet {
+                map: None,
+                level: None,
+            },
+        ),
+        ask(
+            &mut game,
+            Op::MapText {
+                map: None,
+                level: None,
+            },
+        ),
         ask(&mut game, Op::PartyGet),
         ask(&mut game, Op::RulesList),
         ask(
@@ -71,6 +100,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         ask(&mut game, Op::TimeClocks),
         ask(&mut game, Op::RestGet),
         ask(&mut game, Op::CastGet),
+        ask(&mut game, Op::ObjectsGet),
         ask(&mut game, Op::CreationGet),
         ask(
             &mut game,
@@ -78,11 +108,12 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
                 path: "position.x".into(),
             },
         ),
+        ask(&mut game, Op::PackReload { migrate: false }),
         // The host ops need files; their replies are built as the hosts build them.
         Reply::Written {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
         },
-        Reply::Done {},
+        check(&game),
         Reply::Rule {
             rule: SlotView {
                 name: "x".into(),
@@ -94,6 +125,7 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
     let town = game.data.registry.maps.get("test:map:town").unwrap();
     game.world.position = Position {
         map: town,
+        level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
         x: 1,
         y: 1,
         facing: Facing::North,
@@ -137,4 +169,38 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         panic!("game.status answers with the status");
     };
     assert_eq!(status.protocol, PROTOCOL);
+}
+
+/// `done` gained its `check` in protocol 2 (M8.5 7h5), an addition: a `done` without it still
+/// reads, as the report of the same packs.
+#[test]
+fn a_done_without_its_check_still_reads() {
+    let back: Reply = serde_json::from_value(serde_json::json!({"reply": "done"})).unwrap();
+    assert_eq!(
+        back,
+        Reply::Done {
+            check: omnis_cli::omnis_sim::save::SaveCheck::default()
+        }
+    );
+}
+
+/// `save.read` and `pack.reload` gained `migrate` in protocol 2 (M8.5 7h6), an addition: an op
+/// without it reads as before (a bare `pack.reload`, with no `args`, is the socket's to fill:
+/// `omnis-vector`'s `parse_request`).
+#[test]
+fn migrate_is_optional_on_the_wire() {
+    let read: Op = serde_json::from_str(r#"{"op":"save.read","args":{"path":"a.ron"}}"#).unwrap();
+    assert_eq!(
+        read,
+        Op::SaveRead {
+            path: "a.ron".into(),
+            force: false,
+            migrate: false
+        }
+    );
+    let reload: Op = serde_json::from_str(r#"{"op":"pack.reload","args":{}}"#).unwrap();
+    assert_eq!(reload, Op::PackReload { migrate: false });
+    let applied: Op =
+        serde_json::from_str(r#"{"op":"pack.reload","args":{"migrate":true}}"#).unwrap();
+    assert_eq!(applied, Op::PackReload { migrate: true });
 }

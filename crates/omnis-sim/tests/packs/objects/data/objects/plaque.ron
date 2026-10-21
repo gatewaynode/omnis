@@ -1,0 +1,10 @@
+(
+    schema: 1,
+    id: "objects:object:plaque",
+    name: "objects:text:plaque.name",
+    look: (shape: Sign, width: 4, depth: 1, height: 6),
+    attributes: (material: Some(Metal)),
+    interactions: [
+        (verb: Read, effects: [Message("objects:text:plaque.read")]),
+    ],
+)

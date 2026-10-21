@@ -1,5 +1,7 @@
 //! Hand-rolled argument parsing (self-supporting rule). Flags: `--pack <dir>` (repeatable),
-//! `--seed <n>`, `--script <file>`; everything else is positional.
+//! `--seed <n>`, `--script <file>`, `--time`, `--commands <n>`, `--out <file>`, `--yes`,
+//! `--from <dir>`, `--to <dir>`;
+//! everything else is positional.
 
 use std::path::PathBuf;
 
@@ -14,6 +16,18 @@ pub struct Args {
     pub seed: Option<u64>,
     /// `--script`.
     pub script: Option<PathBuf>,
+    /// `--time`: report how long the work took.
+    pub time: bool,
+    /// `--commands`.
+    pub commands: Option<usize>,
+    /// `--out`.
+    pub out: Option<PathBuf>,
+    /// `--yes`: do what was only listed (`world tidy` deletes).
+    pub yes: bool,
+    /// `--from`: a pack's old version (`migration draft`).
+    pub from: Option<PathBuf>,
+    /// `--to`: the same pack's new version (`migration draft`).
+    pub to: Option<PathBuf>,
 }
 
 impl Args {
@@ -33,6 +47,18 @@ impl Args {
                 "--script" => {
                     args.script = Some(PathBuf::from(it.next().ok_or("--script needs a file")?));
                 }
+                "--time" => args.time = true,
+                "--yes" => args.yes = true,
+                "--commands" => {
+                    let value = it.next().ok_or("--commands needs a number")?;
+                    args.commands =
+                        Some(value.parse().map_err(|_| format!("bad count '{value}'"))?);
+                }
+                "--out" => args.out = Some(PathBuf::from(it.next().ok_or("--out needs a file")?)),
+                "--from" => {
+                    args.from = Some(PathBuf::from(it.next().ok_or("--from needs a directory")?));
+                }
+                "--to" => args.to = Some(PathBuf::from(it.next().ok_or("--to needs a directory")?)),
                 flag if flag.starts_with("--") => return Err(format!("unknown flag '{flag}'")),
                 other => args.positional.push(other.to_owned()),
             }
@@ -68,5 +94,18 @@ mod tests {
         assert!(Args::parse(&["--seed"]).is_err());
         assert!(Args::parse(&["--seed", "x"]).is_err());
         assert!(Args::parse(&["--what"]).is_err());
+    }
+
+    #[test]
+    fn measuring_flags() {
+        let args =
+            Args::parse(&["w.ron", "--time", "--commands", "500", "--out", "o.ron"]).unwrap();
+        assert_eq!(args.positional, ["w.ron"]);
+        assert!(args.time);
+        assert_eq!(args.commands, Some(500));
+        assert_eq!(args.out, Some(PathBuf::from("o.ron")));
+        assert!(!Args::parse(&[]).unwrap().time);
+        assert!(Args::parse(&["--commands", "many"]).is_err());
+        assert!(Args::parse(&["--out"]).is_err());
     }
 }

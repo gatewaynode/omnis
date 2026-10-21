@@ -341,7 +341,7 @@ fn refresh(
             BackgroundColor(SHADES[0]),
             ZIndex(1),
         ))
-        .with_children(|column| build(column, &controls, h * r, Mark::Fight));
+        .with_children(|column| build(column, &controls, (h * r, Mark::Fight), None));
         p.spawn((
             // The newest line at the bottom; the oldest are clipped off the top.
             Node {

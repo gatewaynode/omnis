@@ -19,7 +19,7 @@
 //!
 //! **Tier 2, the JSON op protocol.** [`Op`] in, [`Reply`] or [`OpError`] out, through
 //! [`dispatch`] for the simulation's ops and a host (the dev socket, `omnis_cli::Headless`) for
-//! the six host ops and their rules ([`save_text`], [`load_text`], [`check_reload`],
+//! the six host ops and their rules ([`save_files`], [`load_save`], [`reload`],
 //! [`rules_set`]).
 
 // The world, its start, its save and its replay.
@@ -27,7 +27,7 @@ pub use crate::replay::{Replay, ReplayError};
 pub use crate::world::{LoadError, ModeKind, NewGameError, SAVE_SCHEMA, SaveRule, Settings, World};
 // What the party knows of a map, as `automap` returns it.
 pub use crate::world::{Known, layer};
-pub use omnis_data::{Data, LoadReport, PackFingerprint, load_packs};
+pub use omnis_data::{Data, FlagScope, LoadReport, PackFingerprint, load_packs};
 
 // Commands in, events out.
 pub use crate::apply::apply;
@@ -37,7 +37,7 @@ pub use crate::dev::DevCommand;
 pub use crate::encounter::{EncounterChoice, EncounterSource};
 pub use crate::event::{
     ActorRef, BlockReason, CheckKind, CombatOutcome, EffectEnd, EffectTarget, Event, ItemPlace,
-    LayerCheck, MessageKey, SeenTile, SensedTile, Surprise,
+    LayerCheck, Loot, MessageKey, Notice, SeenTile, SensedTile, Surprise,
 };
 pub use crate::items::ItemCommand;
 pub use crate::names::Place;
@@ -45,7 +45,7 @@ pub use crate::party::PartyCommand;
 pub use crate::rest::{HitDiceSpend, RestCommand};
 pub use crate::service::ServiceCommand;
 pub use crate::tactics::TacticsCommand;
-pub use omnis_core::{CharacterId, Direction, Facing, MapId, Position, Rotation};
+pub use omnis_core::{CharacterId, Direction, Facing, Level, MapId, Position, Rotation, Vertical};
 pub use omnis_rules::Draft;
 // A declared reaction as `PutReaction` carries it and `ReactionView` shows it: by string ids.
 pub use omnis_rules::{ActionRef, Cmp, Criteria, CriteriaSet, Named, Predicate, Row, Trigger, Who};
@@ -62,11 +62,30 @@ pub use crate::party_view::{
     AnswerView, EffectView, ItemView, KnownSpellView, MemberView, PartyView, ReactionView,
     TacticsView, party_view,
 };
+// Objects in cells (M8.5 step 2): whether a footprint blocks a step, for a client's mirror.
+pub use crate::objects::{ObjectState, blocks_step as object_blocks};
+// What a client reads of objects: `objects.get`'s view, and what it draws of a whole level.
+pub use crate::objects_view::{
+    CheckView, ItemCount, ObjectView, ObjectsView, PileView, SeenObject, VerbView, objects_view,
+    on_level as objects_on_level,
+};
+// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level.
+pub use crate::beings::{BeingView, on_level as beings_on_level};
+pub use crate::journal::{Change, apply_changes, archive_len, journal_len};
+pub use crate::log::{Logged, history, told};
 pub use crate::query::{
-    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flags, here, map_text, site_ahead,
-    step_lands, viewport,
+    EdgeView, Here, ViewTile, ViewportModel, automap, door_open, flag_scope, flags, here, map_text,
+    site_ahead, step_lands, viewport,
 };
 pub use crate::rest_view::{CampMember, RestView, rest_view};
+pub use crate::save::{
+    Archived, BaseNames, Bases, CharacterSave, Checkpoint, Examined, FOLD_INTERACTIONS, FOLD_RULE,
+    FileOut, Holdings, JoinError, Manifest, Missing, NameKind, NameTable, PackChange, PackFit,
+    PackStamp, PlaceFix, PlaceWarning, RegionBase, RegionSize, Restored, SaveCheck, Segment,
+    Signature, Split, SplitReport, Spot, Verdict, WORLDS, WorldBase, archive_path, due, examine,
+    examine_running, fold, fold_at, join, load_save, load_save_with, restore, save_files, split,
+    split_report, tidy_list, unnamed,
+};
 pub use crate::service_view::{OfferView, ServiceView, service_view};
 pub use crate::time_view::{ContactView, DateView, HolderClock, TimeView, time_view};
 pub use crate::view::{
@@ -76,7 +95,7 @@ pub use crate::view::{
 
 // The JSON op protocol.
 pub use crate::ops::{
-    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, Reply, RulesView, ShotTarget,
-    SlotView, Status, check_reload, client_path, dispatch, load_text, rules_set, save_text,
+    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RulesView,
+    ShotTarget, SlotView, Status, client_path, dispatch, reload, rules_set,
 };
 pub use omnis_core::Edges;

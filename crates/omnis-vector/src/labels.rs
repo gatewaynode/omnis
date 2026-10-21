@@ -7,16 +7,47 @@
 //! `MessageKey`, which falls back to this client's own wording so a key never reaches the player.
 
 use omnis_sim::api::{MemberView, PartyView};
+use omnis_sim::objects::Refusal;
 use omnis_sim::omnis_core::money::{Coins, gp_floor};
-use omnis_sim::omnis_core::{Calendar, CharacterId};
-use omnis_sim::omnis_data::{Ability, Alignment, Cost, Data, Disposition, EquipSlot, Skill};
+use omnis_sim::omnis_core::{Calendar, CharacterId, Level};
+use omnis_sim::omnis_data::{
+    Ability, Alignment, Cost, Data, Disposition, EquipSlot, MapData, Skill, Verb,
+};
 use omnis_sim::omnis_rules::{CreationError, TacticsFault};
-use omnis_sim::{MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
+use omnis_sim::{CheckKind, MessageKey, OfferView, Rejection, SaveRule, ServiceCommand};
+
+/// Day, hour and minute from elapsed party minutes: "Day 2 01:01".
+#[must_use]
+pub fn clock(elapsed: i64) -> String {
+    let day = elapsed.div_euclid(1440) + 1;
+    let minute = elapsed.rem_euclid(1440);
+    format!("Day {day} {:02}:{:02}", minute / 60, minute % 60)
+}
 
 /// The display text of a text key a view or event carries (`ItemView.name`, `SpellView.name`).
 #[must_use]
 pub fn text<'d>(data: &'d Data, key: &'d str) -> &'d str {
     data.label("en", key)
+}
+
+/// A level of a map as the player reads it (M8.5 step 1b), with its number: `Roof (2)`. The
+/// map's own level is named by the map (`Test Tower (0)`). `None` for a map of one level, where
+/// a level says nothing.
+#[must_use]
+pub fn level(data: &Data, map: &MapData, level: Level) -> Option<String> {
+    if map.levels.len() < 2 {
+        return None;
+    }
+    let key = map.level(level).map_or("", |l| l.name.as_str());
+    let name = if key.is_empty() {
+        data.registry
+            .text
+            .name(map.name)
+            .map_or("", |k| text(data, k))
+    } else {
+        text(data, key)
+    };
+    Some(format!("{name} ({level})"))
 }
 
 /// A class's name from its string id.
@@ -51,6 +82,19 @@ pub fn background<'d>(data: &'d Data, id: &'d str) -> &'d str {
 
 /// An item's name from its string id.
 #[must_use]
+/// Items a monster dropped, by name: "2 Gems, Dagger".
+pub fn loot(data: &Data, loot: &[omnis_sim::Loot]) -> String {
+    let named: Vec<String> = loot
+        .iter()
+        .map(|l| match l.count {
+            1 => item(data, &l.item).to_owned(),
+            n => format!("{n} {}", item(data, &l.item)),
+        })
+        .collect();
+    named.join(", ")
+}
+
+/// An item's name from its string id.
 pub fn item<'d>(data: &'d Data, id: &'d str) -> &'d str {
     data.registry
         .items
@@ -200,6 +244,51 @@ pub const fn pay(cost: Cost) -> &'static str {
         Cost::BonusAction => "bonus action",
         Cost::Reaction => "reaction",
         Cost::Free => "free",
+    }
+}
+
+/// A verb, as a button says it when the kind gives no label: "Examine", "Extinguish".
+#[must_use]
+pub fn verb(v: Verb) -> String {
+    format!("{v:?}")
+}
+
+/// A check an object asks for: "Athletics DC 15", "Strength DC 12".
+#[must_use]
+pub fn check(kind: CheckKind, dc: i64) -> String {
+    let name = match kind {
+        CheckKind::Skill(s) => skill(s),
+        CheckKind::Ability(a) => ability(a),
+        other => spaced(&format!("{other:?}")),
+    };
+    format!("{name} DC {dc}")
+}
+
+/// Any refusal worded short: an object's by [`object_refusal`], the rest by [`reason`].
+#[must_use]
+pub fn refused(data: &Data, party: &PartyView, refusal: &Rejection) -> String {
+    match refusal {
+        Rejection::VerbRefused { reason } => object_refusal(data, reason),
+        Rejection::NoSuchBeing { .. } => "no one there to approach".to_owned(),
+        other => reason(party, other),
+    }
+}
+
+/// Why an object will not do something now, in a few words for a dim button (M8.5 step 2b):
+/// the item it needs by name. A flag is not named: it is the pack's bookkeeping, and the player
+/// learns what opens the gate by finding it.
+#[must_use]
+pub fn object_refusal(data: &Data, refusal: &Refusal) -> String {
+    match refusal {
+        Refusal::NotOffered => "not now".to_owned(),
+        Refusal::Spent => "done already".to_owned(),
+        Refusal::Lacks { item: id } => format!("needs {}", item(data, id)),
+        Refusal::Flag { .. } => "something else must be done first".to_owned(),
+        Refusal::School { school } => format!("needs someone who knows {school:?} magic"),
+        Refusal::Rule { .. } => "not allowed now".to_owned(),
+        Refusal::NoneCanAct => "nobody can act".to_owned(),
+        Refusal::Closed => "it is shut".to_owned(),
+        Refusal::Full => "it is full".to_owned(),
     }
 }
 

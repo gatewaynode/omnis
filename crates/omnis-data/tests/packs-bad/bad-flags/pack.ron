@@ -1,0 +1,1 @@
+(schema: 1, id: "badf", version: "0.1.0", hash: 1866163390951214872, name: "Bad flags", license: "MIT", depends: ["base"])

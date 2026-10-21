@@ -13,5 +13,5 @@ work is done and where things are.
 | `horizons.md` | Before planning a milestone: everything deferred, with the milestone it waits for and dated re-audits |
 
 Related, elsewhere: `tasks/LESSONS.md` (corrections and the rules they produced), `tasks/TODO.md`
-(the build order and every milestone review), `tasks/plans/` (saved plans for deferred work),
+(the execution plan toward world building, phases W0 to W5, with the milestone numbers kept inside them), `tasks/archive/` (completed milestones and their reviews), `tasks/plans/` (saved plans for deferred work),
 `ARCHITECTURE.md` §4.5 (the "as built" paragraphs per milestone).

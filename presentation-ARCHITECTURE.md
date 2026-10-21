@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (2026-10-21: §0's pointer to the archived TODO, §4.3 and §7 brought to their state; §10.3 on 2026-10-20, offscreen is not headless (review, `tasks/BACKLOG.md`); §6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired; §5.6, §8.4 after M8.5 step 1a; §5.2, §5.6, §8.1, §8.4, §10.2 after M8.5 step 4, height drawn; §5.6, §6.6, §7.5, §8.6, §10.5, §12, VA7 after M8.5 step 4b, camera pitch; §8.2, §8.4, §8.6, §10.3, §15.3, VA4 after M8.5 step 3, occluding fills; §8.2, §8.4 after M8.5 step 1c, a stair's direction): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
 Decision numbers prefixed X are `presentation-PRD.md`'s; this document's own are VA1 onward (§14). Each
 section says whether it describes the code **as built** or a design **to build**, and names the step that
-builds it: parity steps P2–P9 (`tasks/TODO.md`, "Vector adoption") or the presentation steps of
+builds it: parity steps P2–P9 (`tasks/archive/TODO-2026-10-20.md`, "Vector adoption") or the presentation steps of
 presentation-PRD §11.
 
 ## 0. Reading order
@@ -130,7 +130,7 @@ so the client can do only what the API allows:
 | `here`, `party`, `combat` | `here`, `party_view`, `combat_view` |
 | `position`, `exploring_at` | `here().position` turned back into a `Position` through `data.registry.maps`; the second only while exploring |
 | `automap(map)`, `door_open(map, x, y, facing)`, `step_lands(data, direction)` | the Tier 1 queries |
-| `save_text`, `status`, `check_reload(fresh)`, `replace(world)` | the host ops' engine halves (`ops::save_text`, `ops::status`, `ops::check_reload`) |
+| `save_files`, `status`, `reload(fresh)`, `replace(world)`, `history` | the host ops' engine halves (`save::save_files`, `ops::status`, `ops::reload`, which records the packs); the party's log, retold after a load (M8.5 7f) |
 | `views(data)` | `Views::of` |
 
 `Deref` and `DerefMut` to `World` exist only under `cfg(any(test, feature = "test-fixtures"))`, for tests that
@@ -146,7 +146,7 @@ function itself.
 - **Growth.** A parity step adds the views its screens read: `service` (`service_view`, built in P4: `None` outside a service), `rest` (`rest_view`, built in P6: each member's hit dice and what a rest would do, with both rests' refusals), `casts` (`cast_view`, built in P5: every member's spells for the road, each with its cost and refusal), `flags` (P8), and `viewport` if the automap needs it (X22). A view used by one rarely open screen may instead be read when that screen's content is built, through a `SimWorld` method, so the per-command refresh stays cheap; the cost decides, measured.
 - **Fixtures.** A test that writes the world through the fixture deref calls `session.refresh()` afterwards.
 
-### 4.3 Labels (to build, P2)
+### 4.3 Labels (built, P2)
 The views name definitions by string id and text by key (protocol 2). One Bevy-free module, `labels.rs`,
 turns them into words, ported from `omnis-app`'s `defs.rs` and `text::Names`:
 
@@ -212,7 +212,8 @@ One cell is 1.0 unit. `geom::wall_height(&Terrain)` returns 1.0 and `EYE_HEIGHT`
 | `grid.rs` | Pure grid maths | `cell_of(x, z)`, `facing_of(yaw, current, margin)`, `nearest`, `relative(heading, facing)`, `rotation(from, to)`, `crossings(from, to, cell, margin)` |
 | `pose.rs` | The continuous pose | `Pose { x, z, yaw }`, `Pose::at(Position)`, `Motion { forward, strafe }`, `integrate` |
 | `collide.rs` | The collision mirror | `blocks(data, world, map, x, y, facing)`, `clamp(point, cell, radius, blocked)` |
-| `bind.rs` | Pose changes to commands, the command log | `Tuning`, `Outcome { pose, events, snapped, frozen }`, `Binder { tuning, log, refusals, disagreements }`: `apply`, `advance(world, data, from, to)`, `settle`, `interact`, `replay` |
+| `ground.rs` | The ground under the view (§8.4) | `Ground::from_map`, `patch`, `height(x, z)`, `joined`, `eye(ground, pose)`, `ease_eye` |
+| `bind.rs` | Pose changes to commands, the command log | `Tuning`, `Outcome { pose, events, snapped, frozen, bumped, pressed }` (`bumped`: the side that first holds the pose, once per contact, so the shell can name a cliff's hold), `Binder { tuning, log, refusals, disagreements }`: `apply`, `advance(world, data, from, to)`, `settle`, `interact`, `replay` |
 | `trial.rs` | A command tried on a copy | `refusal`, `accepted` |
 
 `Tuning` holds the margins: cell-entry hysteresis 0.15, body radius 0.2, yaw hysteresis 5°, sub-step 0.25
@@ -225,13 +226,17 @@ of a cell.
 
 ### 5.4 The collision mirror
 `collide::blocks` reproduces the step's refusal conditions in `omnis_sim::apply::move`'s order: the map edge,
-a wall, a closed door (`SimWorld::door_open`), a missing cell, impassable terrain. `clamp` keeps the pose a
-body radius inside a blocking edge.
+a wall, a closed door (`SimWorld::door_open`), a missing cell, impassable terrain, a cliff, and since M8.5
+step 2b an object's footprint across the step's path (`SimWorld::object_blocks`, the engine's own check,
+`api::object_blocks`, so the footprint geometry is never copied). `clamp` keeps the pose a body radius inside
+a blocking edge: a footprint holds the pose at its cell's side, not at the footprint's own edge.
 
 The agreement test (`tests/agreement.rs`) places the party on every cell and heading of every loaded map
 through the fixture deref, applies `Step` and asserts that `blocks` agrees with `Event::Blocked` or `Moved`,
-reason included; door edges are checked closed, then opened with `Interact`, and the test asserts that
-service doors were met. A change to the step's rules fails it.
+reason included; door edges are checked closed, then opened with `Interact` (with `Door` where an object in
+reach makes Use ask which), and the test asserts that service doors were met. On the objects fixture's yard
+it runs with the gate shut and again open (`tests/binding.rs` walks into the crate and through the gap too).
+A change to the step's rules fails it.
 
 ### 5.5 Reconcile and the log
 After each `apply`, the first matching rule:
@@ -252,10 +257,13 @@ refusals never are (VA5). Save log writes `Binder::replay` (`Replay::record`) as
 (default `.omnis/vector-session.ron`), and `omnis-cli replay` reproduces the session's fingerprint
 (presentation-PRD §4.4).
 
-### 5.6 Height and cliffs (to build, X10, X11)
-- **The pose stays `x, z, yaw`.** Height never reaches the simulation. The camera's y is `ground.height(x, z) + EYE_HEIGHT`, from the ground sampler (§8.4).
-- **Cliffs block like walls.** They are derived in the engine when the pack loads (X11), so the step refuses with a cliff reason. The mirror gains the same condition, read through a `SimWorld` query rather than recomputed from heights, and the agreement test covers cliff edges.
+### 5.6 Height and cliffs (rules built in M8.5 step 1a, drawing in step 4; X10, X11)
+- **The pose stays `x, z, yaw`.** The camera's height never reaches the simulation, which knows the cells' heights only. The camera's y eases toward `ground::eye` (the ground under the pose plus `EYE_HEIGHT`; §8.4, built). The pitch (M8.5 step 4b) is the head's, kept beside the pose in `shell::movement::View`, so the binder and the simulation never see it (VA7).
+- **A cliff's hold is named** (built): the mirror holds the pose before the simulation hears of the step, so the binder reports the first contact (`Outcome.bumped`) and the shell shows the engine's own "Blocked: too steep" line, once per contact.
+- **Cliffs block like walls** (built). `omnis-data` derives them when the pack loads (`Cell.cliffs`: the difference is more than the entered terrain's `climb` and the edge is no ramp), so the step refuses with `BlockReason::Cliff`. The mirror reads the same `Cell.cliffs` rather than recomputing from heights, and the agreement test covers cliff edges on the engine's elevation fixture.
+- **The fog follows the engine's sight** (built): `Views.sight` is the viewport's `visibility_depth`, which counts a light and the party's height (before M8.5 the fog read the floor's depth and ignored a light).
 - **Relief never moves the walkable rule** (XR7): the pose walks the cell grid; the drawn ground only lifts the camera.
+- **Levels** (built, M8.5 step 1b): the client reads the party's level from the engine (`sim::position` from `Here`), and the mirror reads that level's cells, refusing a step into no ground as the engine does (`BlockReason::NoGround`). A stair or a hole moves the party on the same cell, so the pose stays and only the drawn level and the camera's height change; the agreement test runs on every level of every map, the engine's tower fixture among them.
 
 ## 6. The screen model (as built, P2; VA10)
 
@@ -306,7 +314,7 @@ pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 - **`apply` refuses before any screen sees the input** (`Refused`): a control not on the screen, a dim one, a payload its kind does not take, text over its limit, a number outside its range. A screen may refuse what was typed too (the bank's amount: `NotDigits`, or `OutOfRange` over `u32::MAX / 100` gold). Any refused text is put back in the field as the form holds it.
 - **The outcome.** A command from a screen reports on that screen (P4): the newest event line it added (`Session::ordered`) in the body role, or its refusal in the alert role. `Forms::shown` clears the outcome whenever the top screen changes, and the bank's amount whenever a service is entered.
 - A `Command` is offered only when a trial accepts it, so the binder's refusal count stays 0. The shell sends it through `Session::order`, which logs it; `close` says whether the screen closes after it (the square's actions do, an inventory will not).
-- `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule in `SimWorld::save_text`, the loader's limits, `load_text`), which the socket's `save.write` and `save.read` share. A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
+- `HostOp` is the client's own work. Save and load go through `game_io.rs` (`client_path`, the engine's save rule and files in `SimWorld::save_files`, `load_save` with the save's limit, `tidy`), which the socket's `save.write` and `save.read` and the debug page's Tidy share; after a load `Session::replace` retells the full log (`shell::retold`). A blank seed takes `entropy`, the clock's nanoseconds mixed by `splitmix64` in the shell, so tests pass a fixed number.
 
 ### 6.3 Navigation
 `screen::nav::Nav` is a stack of overlays over a **base** that follows the world (`nav::base`), as
@@ -322,7 +330,7 @@ pub enum HostOp { Restart, NewGame { seed, settings }, Save, Load, SaveLog }
 | Defeat | No member can fight (`Views::fallen`): Load last save, Start again, Quit to title |
 
 Overlays: NewGame (over the title), Pause and the square's Actions (P2); Inventory and Cast (P5); Camp,
-Sheet, Tactics (P6); Settings and Debug (P8). Settings opens from the title and the pause wherever the pause is allowed; Debug from the pause's Debug or backtick, while the base is none (exploring, an encounter, a fight) or a service, in a devtools world of a `devtools` build (`debug::unavailable`); both are in `paused`. Inventory, Cast and the Sheet open from the party column
+Sheet, Tactics (P6); Settings and Debug (P8); Verbs (M8.5 step 2b), over the Actions from their Use or straight from Shift+Space, allowed and closed when the party moves as the Actions are, and not paused, so the party may walk away from it. Settings opens from the title and the pause wherever the pause is allowed; Debug from the pause's Debug or backtick, while the base is none (exploring, an encounter, a fight) or a service, in a devtools world of a `devtools` build (`debug::unavailable`); both are in `paused`. Inventory, Cast and the Sheet open from the party column
 (`Nav::show`, which replaces whatever stands beside the column), are allowed while the base is none (exploring, or a
 fight, where they only look) and never over a service. Camp is allowed only while exploring (not in a service, where the room is the rest indoors, nor a fight; an ambush closes it). Tactics opens over the Sheet (`Effect::Open`) outside a fight, so Close and Esc return to the Sheet. `ScreenId::beside_column` names the screens the column stands beside: Inventory, Cast, Camp, Sheet, Tactics. `Nav::settle` runs every frame and closes what the
 world no longer allows: the actions when the party moves or a fight begins, the game's overlays when the game
@@ -360,8 +368,8 @@ through `CombatMenu` (`combat_menu.rs`), so they share the description, `apply`,
 The explore base is the 3D view plus descriptions:
 - **Status** (as built, `shell/hud.rs`): place, mode and clock, the counts, frame time, the event lines (§10.1).
 - **The party column** (built 2026-10-11, owner; the roster band of `omnis-app/src/band.rs`): `screen/roster.rs` describes it Bevy-free, `shell/roster.rs` draws it at the right, under the minimap in explore and at the arena's party rectangle in a fight (§9). Per member in marching order under "front" and "back": an entry button "name  Class level", then "HP h/max", "SP s/max  AC n", the entry (its button and this line) in the caution role (yellow) under half its hit points and the alert role (red) under a quarter, down members among them, and dim when dead (owner, 2026-10-11; `Row::tint` carries the role to the button), and "down", "dead", or the first condition or effect; the acting member is marked "> " in a fight. Pressing an entry selects the member (again clears it); the selection (`Forms.selected`) is dropped when the member leaves and on every reset (a new game, a load, the title), and is the target for give, a potion and a spell. Under the selected member: Sheet, Inventory, Spells, Journal, each opening its screen for that member (`Forms.owner`) when its step has landed: Sheet and Inventory always, Spells dim "No spells for the road" when the member has no `casts` row, Journal "No quests yet" until quests; in a fight they open read-only (owner: look, don't act; the action column acts). The column's buttons carry `Side`, not `Pressable`, so the top screen's router never sees them; it shows while a game is played and either no screen is up or the top screen stands beside it (Inventory, Cast, Camp, Sheet, Tactics; owner, P5 and P6) so its selection can be picked while they are open.
-- **The message line** (built, P5: `shell/message.rs`, `Session.message`): one centred line at the bottom between the movement pad and the right-hand buttons. `Session::note` sets it to the newest event line that is not a bare move, a refusal from `Session::ordered` sets it in the alert role, a batch that only moved clears it, and `replace` (a load) clears it. It has no timer. It shows only while exploring with no screen up: a screen shows its own outcome (§6.2) and the fight has its log. A refused step has no line, as the binder only counts refusals.
-- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. No tool bar (owner, 2026-10-11): Sheet, Inventory and Spells open from the party column. Camp ("Camp  R", built in P6) stands before Actions and Menu at the bottom right, lit every frame by `Nav::allowed(ScreenId::Camp)` (the other client's rule: exploring, not in a service) and dim otherwise, with no `Button` or `Interaction`, so it takes no clicks; R toggles it. Look and Map are in the backlog (owner, P9): until then the spyglass is used from Inventory's Use, and the minimap shows the whole known map.
+- **The outcome notice** (built 2026-10-16, owner, after walking 2b's verbs; it replaced P5's message line at the bottom, which ran under the right-hand buttons once Camp and Level joined them): the words of the last command the player started (`Session::ordered`: the screens, Shift+Space), its lines but a move's (at most six), or its refusal in the alert role, in a bordered panel centred where the screens' panel stands (`shell/notice.rs`, `Session.notice`, `crate::notice`). Every line is also in the HUD's recent lines. It is kept with the map, level and pose it was done at, and fades with the pose's distance from there (owner, 2026-10-17: from the first movement, gone by the cell's edge at 0.5 cells; it was whole within 0.5 and gone at 1.5, which lingered; a turn on the spot keeps it), then is dropped for good; another map or level drops it, and so does a load. A command that only moved the party (a climb) leaves the last notice to fade. Walking (the binder's steps, `Session::note`) and the dev socket set none: their lines are the log's. It shows only while exploring with no screen up: a screen shows its own outcome (§6.2) and the fight has its log. Its one click is the close button, an "x" at its top right (owner, 2026-10-17), which drops it; the log keeps its words. The actions and the verbs still close on a move.
+- **The controls** (as built, `shell/controls.rs`): the movement pad bottom left; Actions and Menu (the pause) bottom right. No tool bar (owner, 2026-10-11): Sheet, Inventory and Spells open from the party column. Level ("Level  Home", M8.5 step 4b: the view back to level, the mouse's way to do what Home does) and Camp ("Camp  R", built in P6) stand before Actions and Menu at the bottom right. Since the full log's "Log  L" joined them (owner, 2026-10-17) the group is two rows of at most three, flush right, Level and Log over Camp, Actions and Menu, so it fits beside the pad at 1280 pixels wide (`controls::widest_row`). Camp is lit every frame by `Nav::allowed(ScreenId::Camp)` (the other client's rule: exploring, not in a service) and dim otherwise, with no `Button` or `Interaction`, so it takes no clicks; R toggles it. Look and Map are in the backlog (owner, P9): until then the spyglass is used from Inventory's Use, and the minimap shows the whole known map.
 
 ### 6.7 The parity map
 What each screen reads, and the details `omnis-app` had that the vector screen had to carry. The details were
@@ -375,16 +383,17 @@ the parity checklist for each step's plan; `omnis-app` was retired at P9, so the
 | Party creation (built, P3) | P3 | names from `Data`, the creation view (§4.4), a trial of `PartyCommand::Create` for Add's reason | Name; race, class, background, alignment; six scores with the running cost "X points spent of Y"; class skill picks "This class picks N skills"; Add member, Begin, Back; "The party is full", "Give the character a name", "Add at least one member". Added in P3: the racial bonus beside each score, and a granted skill dim "from the background"/"from the race" (the other client let it through to the engine's refusal) |
 | Step confirmation | dropped | | Not built: the owner's decision of 2026-10-11. Walking onto a site enters at once and Leave leaves at once, without the other client's "Enter the X?" / "Leave the X?" |
 | Service panel (built, P4) | P4 | `Views.service` (`OfferView`), `party`, a trial for the bank | The money line "Gold X  Bank Y  Food N" with Leave beside it in the first row (a long list scrolls, so Leave is not last); a panel per list by kind (smith: for sale and your stores; inn, tavern: on offer; temple: on offer and spells; trainer: levels and spell picks; guild: spells), "Nothing to offer" for an empty one; each row's label, a captioned button dim with its reason, and the note (price, "free", "pays X"; a refused purchase keeps its price); the bank's "Gold pieces" field (digits only, at most 8, at most 42,949,672 gold, as its copper fits a `u32`) with Deposit and Withdraw, dim "Type an amount" or the trial's reason; Esc leaves; the outcome on the panel. Added in P4: short reasons where the engine's words name a member by number ("0 of 300 XP", "level 2 spell, up to level 1 now", "the bank holds X") |
-| Inventory (built, P5) | P5 | `party` (`ItemView`, `MemberView.worn`), a trial of each button's command | Opened from the party column's Inventory (§6.6), which stands beside it. The member's kit beside the party's stores (owner): "Kit of < name >" (the `Owner` choice switches the member) and Close; "wearing …" or "wearing nothing"; under "Kit" a row per item, its count ("Rations x5"; 1 shows the name only), after it the slot and "worn", or "use", and only the buttons its view facts allow: Equip or Take off, Use (on the selection, else the user), Stow, Give (to the selection); "Nothing carried". Under "Stores" the money and food, then rows with Take (to the shown member); "Nothing in the stores". Counts are 1. In a fight the rows have no buttons and a note says to act from the fight's actions. Added in P5: every button is lit by a trial of its exact command, dim with the engine's reason worded short ("{name} is down", "cannot be worn or wielded", "no hand free for a shield", "does nothing when used"), where the other client let a dead or down member and a two-handed conflict through to the refusal; Give with no selection reads "Select a member in the party column", and to the giver "Select another member in the party column"; the outcome on the screen, which stays open |
+| Inventory (built, P5) | P5 | `party` (`ItemView`, `MemberView.worn`), a trial of each button's command | Opened from the party column's Inventory (§6.6), which stands beside it. The member's kit beside the party's stores (owner): "Kit of < name >" (the `Owner` choice switches the member) and Close; "wearing …" or "wearing nothing"; under "Kit" a row per item, its count ("Rations x5"; 1 shows the name only), after it the slot and "worn", or "use", and only the buttons its view facts allow: Equip or Take off, Use (on the selection, else the user), Stow, Give (to the selection); "Nothing carried". Under "Stores" the money and food, then rows with Take (to the shown member); "Nothing in the stores". Counts are 1. In a fight the rows have no buttons and a note says to act from the fight's actions. Added in P5: every button is lit by a trial of its exact command, dim with the engine's reason worded short ("{name} is down", "cannot be worn or wielded", "no hand free for a shield", "does nothing when used"), where the other client let a dead or down member and a two-handed conflict through to the refusal; Give with no selection reads "Select a member in the party column", and to the giver "Select another member in the party column"; the outcome on the screen, which stays open. Added in M8.5 step 2b: Drop on every kit row, and "Put in {container}" for each open container in reach; under the stores, "On the ground" (the pile on the party's cell, `Views.objects.ground`) with Pick up, then each open container in reach by name with Take out ("Empty"); a shut container is not listed (its verbs open it). An object's refusal is worded as on the verbs screen (`labels::refused`: "it is full") |
 | Cast on the road (built, P5) | P5 | `Views.casts` (`CastView`), a trial of the `Cast` | Opened from the party column's Spells (§6.6), which stands beside it: "< caster >" and Close; a row per road spell of the caster: the name, Cast, after it "N pt" (the cost the cast charges, §4.4) and "on {target}" for a spell on a member; the target is the column's selection, else the caster; the view's refusal ("need N pt", "needs components", "not here"), else the trial's, dims Cast; "{name} knows no spell for the road", "Nobody knows a spell for the road."; read-only in a fight with a note. The screen stays open after a cast (owner) and shows the outcome. Added in P5: the trial also catches a dead or down caster or target, which the view does not |
 | Camp (built, P6) | P6 | `Views.rest` (`RestView`), `party`, a trial of each rest | Opened from the Camp button, the party column beside it: "The night eats N food; the stores hold M" with Close; per member "name  HP h/max  Hit dice l/t dD", a Spend number capped at `spendable` (only when above 0) and its note ("spend N", "unhurt", "no hit dice left", "cannot spend"); Short rest ("An hour; each member spends the dice chosen"), dim "Choose hit dice to spend" with no count; Long rest ("eight hours: full hit points and spell points, half the hit dice back"), dim with its refusal worded short ("rested too recently (10h 05m)", "the rest eats N food; the stores hold M"); the screen stays open with the outcome. Added in P6: both rests are also checked by a trial |
 | Character sheet (built, P6) | P6 | `party` (`MemberView`, `known_spells`, §4.4), `combat` | Opened from the party column's Sheet (§6.6), which stands beside it: the Member choice with "Race Class level  member i of n" and Close; a Page choice (Stats, Magic, Gear; owner: tabs as before) and Tactics, dim "Not in a fight" in a fight. Stats: "HP h/max  SP s/max  AC n  Proficiency +p", "XP x / next" ("max" at the top), "Hit dice l/t dD" with "Ready to train" and "Spell picks N", the scores three to a row ("STR 16 +3"), "Saves  WIS +5  CHA +1", "Skills" and each with its bonus, "Conditions  none", "{background}  {alignment}  {age} years". Magic: "Casting Wisdom  Points s/max" or "No spellcasting", each known spell with "cantrip" or "N pt" and its action cost, the member's and the party's effects with "N min" or "next turn". Gear: each slot in order ("Main hand  Longsword", "-" when empty), then the kit ("Rations x5"). Added in P6: the action cost beside each spell |
 | Tactics (built, P6) | P6 | `MemberView.tactics` (`TacticsView`), monsters and conditions from `Data` (a catalogue), a trial of each command | Opened over the sheet outside a fight, the column beside it; Close and Esc go back to the sheet. The Member choice, "Reactions" off/on (`SetReactions`), Close; "Declared reactions, in the order they are considered", then "1. Shield on attacked, when me HP < 50%" per entry with Edit and Remove, or "None declared"; the form: "New reaction" or "Editing reaction N", Action (the answers; "nothing to declare yet") and its trigger, When "all of these"/"any of these" with "hold (none: always)" and Add condition (dim "Fifteen conditions at most"), per condition its kind, fields, number and Drop; Save (dim "Nothing this member can declare", "Sixteen reactions at most" for a new row, or the trial's reason) and New. A reaction the form cannot write loads locked: "Set elsewhere: it can be removed here, not edited", every form control dim with it. Added in P6: Save, Remove and the switch are lit by trials |
 | Fight (built, P7) | P7 | `combat` (`SpellView.pay`, `FeatureView`, `CombatView.items`, §4.4), `party`, trials for the targets and each command | "Round R: X's turn"; the budget line "Action 1   Bonus 1   Reaction 1 (on)"; "Reactions < on >" toggles the acting member's reactions; Features its own entry (owner), each feature with "1 use", "N uses" or "at will" and its action cost, Cunning Action as "swap" and "hide"; the spell picker's rows "Bless  1 pt" with one note, in order: "reaction" (dim, "declare it in tactics"), the refusal, "in force", "bonus action"; the Use picker with items only ("not from a fight" for a sense item); the pickers in a panel over the picture (owner); "Monsters ahead: hostile"; "Victory! N XP each, G gold". Added in P7: refusals worded short through `labels::reason` ("no uses left until a rest"), a refusal shown under the controls |
 | Debug (built, P8) | P8 | `party`, `here`, `combat`, `Views.flags`, items, conditions and maps from `Data` (catalogues), a trial of each button's command | Pages (owner): Page < Member, Party, World, Fight >, Member < name > on the first two, Close. Member: "Hit points [n] Set  of max", "Spell points", "Experience … level L", Ability < STR > [score] Set, Condition < name > On / off with "on"/"off". Party: "Copper" with the coins after, "Food", Item < name >, Count, To member, To stores. World: Flag < id (now v) > [value] Set or "The packs declare no flags"; Map < id (w by h) >, x, y, Facing < north >, Go. Fight: Stack < name (living of initial) >, "Lead hit points", Kill, or "No fight is on". Numbers typed (digits, 10 at most), saturated to the command's type; "type a number"; "dev: …" lines. Added in P8: every button lit by a trial, the engine's refusal in place of the other client's greys; names in the dev lines ("dev: Brenna hp 5") |
+| Verbs (built, M8.5 step 2b) | 2b | `Views.objects` (`ObjectsView`: the objects in reach and their `VerbView`s), the faced door, a trial of each command | "Within reach" and Close; "Door" with "Open the door" or "Close the door" when the party faces one; then each object in the order Use reaches it, its name with its state after ("Chest  closed"), and a row per interaction its state offers: the kind's label or the verb ("Force it open", "Extinguish"), after it the checks ("Athletics DC 15") and "N min"; dim with the view's refusal (the engine's `admit`, shared with `Act`) or a trial's, worded by `labels::object_refusal` ("needs Thieves' tools", "something else must be done first": a flag is not named, "done already", "it is shut"); number keys 1 to 9 on the buttons; "Nothing within reach". A verb sends `Door` or `Act` and the screen stays open with its line (`ObjectMessage` worded from the pack's text). The Actions gain "Search here" (`Search`, never the default: it spends ten minutes) and offer "Use..." in place of Use when a trial of `Interact` answers `ChooseVerb` or `VerbRefused`, so the choice or the reason shows and no refused command is sent |
 | Settings (built, P8) | P8 | the applied settings (§10.5), the window's fit | Reduced motion < off | on >, Floor grid < hidden | shown >, Quality < low | medium | high >, Font < built-in | Inter | Alegreya Sans >, Interface scale < 50% … 200% > with "N% fits this window" past the fit; Apply (dim "nothing changed") and Close; "Settings saved to …" / "Could not save settings: …". Changes wait for Apply; Close and Esc drop them (owner) |
 
-## 7. The style system (to build; X18, X19, presentation-PRD §5, §7)
+## 7. The style system (partly built: the type scale and fonts, P8; the roles, biosphere palettes and palette checks wait for M8.5 step 5, `tasks/TODO.md` W2; X18, X19, presentation-PRD §5, §7)
 
 ### 7.1 Roles and channels
 A Bevy-free `style.rs`:
@@ -418,7 +427,7 @@ pub fn channels(role: Role) -> Channels                       // the same in eve
 
 ### 7.5 Motion and the settings
 Motion is a channel, so reduced motion (§10.5) turns it off for every role at once. The same setting stops
-pulsing controls in the UI. As built (P8), the only motion is the movement's: under reduced motion the 90-degree turns and the drift back onto the cell happen in one frame (`shell/movement.rs`: `yaw_delta`, `ease`); walking, held turns and mouse look are driven by the player and unchanged (owner).
+pulsing controls in the UI. As built (P8), the only motion is the movement's: under reduced motion the 90-degree turns, the drift back onto the cell and the view's return to level after a step (M8.5 step 4b) happen in one frame (`shell/movement.rs`: `yaw_delta`, `ease`; `look::level`); walking, held turns and mouse look (both axes) are driven by the player and unchanged (owner). The level ease is the only motion the game starts on its own here, so it is the one reduced motion removes (my call, the owner deferring, 2026-10-12).
 
 ## 8. Rendering
 
@@ -426,21 +435,24 @@ pulsing controls in the UI. As built (P8), the only motion is the movement's: un
 A `Camera3d` with perspective (X3). The whole map is drawn in every direction out to the fog (X6), not
 only the simulation's forward cone; the automap still records the cone (§10.2).
 
-`geometry::extract(map, map_id, world)` turns one map into `Segment`s of a `SegKind`:
-- **Edges** are deduplicated per line (north and south sides share a row key, east and west a column key), a door on either side winning over a wall. A wall is a rectangle `wall_height` high. A door is a lintel and posts (drawn as wall) and an inner frame, crossed by two diagonals while closed (`SimWorld::door_open`).
-- **Cells:** floor lines on each cell's north and west sides; ceiling lines where the terrain has one; a 12-edge box inset 0.1 for a block; a floor cross for impassable ground (`Barrier`).
+`geometry::extract(map, map_id, world, ground)` turns one map into `Segment`s of a `SegKind`, standing on the `Ground` (§8.4). On a flat map every segment is where it was before height was drawn (a copy of the old extractor is the test's reference).
+- **Edges** are deduplicated per line (north and south sides share a row key, east and west a column key), a door on either side winning over a wall. A wall stands from the lower ground at each end to `wall_height` above the higher cell's centre, the engine's sight rule (top = higher floor + 8). A door is a lintel and posts (drawn as wall) and an inner frame, crossed by two diagonals while closed (`SimWorld::door_open`).
+- **Cells:** floor lines on each cell's north and west sides between its corners, and its south or east side too where the neighbour meets it at other heights (both rims of a split); ceiling lines `wall_height` above the cell; a 12-edge box inset 0.1 for a block, on the cell's height; a floor cross for impassable ground (`Barrier`).
+- **Height** (M8.5 step 4): `Cliff`, verticals every quarter cell between the two rims of a cliff edge; `Ramp`, four treads along a ramp edge lying on the ground. Both are always drawn (the grid setting hides only `Floor` and `Ceiling`); their colours are provisional until the roles (§7.1).
 - Segments are rebuilt when the map changes or `Session.reshape` is set (a door moved, a world replaced).
 
-### 8.2 From gizmos to meshes with occluding fills (to build, X13)
-As built, `shell/render.rs` draws every segment with immediate-mode `Gizmos::line` (width 2.0), fading
-colour and alpha per segment between half the fog distance and the fog end (the party cell's visibility
-depth plus 2). That is see-through wireframe; X13 asks for dark solids that hide what is behind them.
+### 8.2 Occluding fills under the lines (X13; built in M8.5 step 3), and the path to line meshes
+**As built (M8.5 step 3).** The lines are still immediate-mode `Gizmos::line` (width 2.0, set by the quality), fading colour and alpha per segment between half the fog distance and the fog end (the party cell's visibility depth plus 2). Under them, dark solid fills hide what lies behind:
+- **`fill::fills(map, map_id, level, world, ground)`** (Bevy-free) gives triangles in the segments' world space: each cell's ground (the four triangles `Ground::height` samples), each wall's face from its feet to its top, a closed door whole and an open one less its opening (the lintel and the strips beside the frame), a block's box, a ceiling where the lines draw one, and each cliff's face between its rims. It shares `geometry::edges` and `geometry::splits` with `extract`, so the two never disagree. A tile with no ground fills nothing.
+- **Where levels join, the fills open:** no ceiling over a stair or ladder that leads up, no floor under a stair or ladder that leads down (the cellar ladder's foot keeps its floor), and a hole keeps only its rim. A stair is a slab under its treads, from the lower floor at its foot to the higher at its head, the way the map says it rises (`geometry::stair_at`, M8.5 step 1c); a ladder stays lines.
+- **`Scene::fills`** holds the party's level's fills and its neighbours', so the levels above and below are hidden wherever the party's floors and ceilings cover them, and show through open air, holes, stairwells and shafts.
+- **The renderer** draws the scene's fills as one mesh (`render::mesh`, a triangle list), rebuilt with the lines, in an unlit black `StandardMaterial` with culling off, so a face hides from either side. Fills carry no colour: they are the clear colour, writing depth.
+- **The bias.** The gizmo group's `depth_bias` (`LINE_DEPTH_BIAS`, −0.002, a power of the depth) draws the lines a little toward the camera, so a wall's own edges and the floor grid are not hidden by the face they lie on. Checked on the captures; no z-fighting on the test maps.
 
-The design fixes the seams; the technique is measured in its step (X20):
-- **The core emits fills beside segments.** `extract` gains `Fill`s: the quads of walls, doors, blocks and later shaped structures and terrain, as triangles in the same world space. Fills carry no colour: they are the ground colour, unlit, writing depth.
+**Line meshes are deferred, by measurement (X20, §8.6).** Fills under gizmos cost nothing measurable offscreen (§8.6), so the gizmo renderer stays and VA4 stands for the lines. The move below is the design if a later measurement (relief, detail, step 5) needs it:
 - **Lines become meshes.** Segments are batched into line meshes per role and depth level, drawn depth-tested against the fills with a small bias so a wall's own edges are not hidden by its face. Pattern and weight (§7.1) are attributes of the line material.
 - **The fog moves into the material**, so the per-line alpha loop goes.
-- **One swap point.** The renderer behind the `Lines` resource is replaced whole; the core's output, the cameras and the capture do not change. The gizmo renderer is kept until the mesh renderer's capture matches it on the test maps, then removed (VA4 superseded).
+- **One swap point.** The renderer behind the `Lines` resource is replaced whole; the core's output (segments and fills), the cameras and the capture do not change. The gizmo renderer is kept until the mesh renderer's capture matches it on the test maps, then removed.
 - Candidates to measure: `bevy_pbr`'s `StandardMaterial` unlit fills with `LineList` meshes; a custom material for screen-space line width. Bevy features added only if the measurement needs them (§3).
 
 ### 8.3 Depth levels (to build, X17)
@@ -448,11 +460,14 @@ The design fixes the seams; the technique is measured in its step (X20):
 - **Level 3** is a backdrop: huge, low-detail forms on a separate camera layer or far plane, moving with the slowest parallax, drawn outdoors only. Where its content comes from is open (presentation-PRD §12.7).
 - **Visibility depth** from the terrain still sets the fog end, as built.
 
-### 8.4 Terrain (to build, X10, X21)
-- **`Ground`** is a core sampler: `height(x, z) -> f32` = the authored coarse height from the map data (the shape is designed with the mechanics work, presentation-PRD §12.1) plus relief from a seeded noise chosen by terrain kind. The noise is the client's own small function (no dependency), seeded from the map and cell, so the same ground draws the same way every visit.
-- **The floor grid** follows the ground like contour lines (X21), in the ground role, hidden by a setting.
-- **The camera's y** is the ground's height under the pose plus the eye height (§5.6), smoothed so a step up is not a jolt.
-- **Cliffs** are drawn as rock faces in the structure role and block through the engine (§5.6).
+### 8.4 Terrain (built in M8.5 step 4, X10, X21; relief with step 5)
+- **`Ground`** (`ground.rs`, Bevy-free) is the core sampler. Each cell's centre is at its authored height (`Cell.height` in eighths, so a wall's 1.0 is 8). Its corners are shared with the cells it is joined to: across an edge that is neither a wall nor a cliff from either side (doors and ramps join), the cells around a corner take their group's mean. So the ground runs smooth where the party can walk and splits where it cannot (owner, 2026-10-12: "smooth where walkable"). A cell's surface is four triangles from its centre to each side's corners; `height(x, z)` samples it.
+- **Relief** (to build, M8.5 step 5): a seeded noise per terrain kind added to `height`, the client's own small function (no dependency), seeded from the map and cell. Which noise a terrain uses is pack data with the biosphere palettes (presentation-PRD §12.2).
+- **The floor grid** lies on the ground (X21), hidden by a setting. Contour lines on the ground and the minimap come later.
+- **The camera's y** eases toward `eye` (the ground under the pose plus `EYE_HEIGHT`) with a 0.1 s time constant; at once under reduced motion and for a jump of more than a wall (a portal, a teleport).
+- **Cliffs** are hatched rock faces (`SegKind::Cliff`) and block through the engine (§5.6). The minimap draws a known cliff along its edge and ticks a ramp (§10.2).
+- **Levels** (built, M8.5 step 1b; `scene.rs`, Bevy-free): `Scene::build` gives the party's level on its `Ground` and the levels just above and below on theirs, at their real heights; `Scene::strokes` draws the neighbours at `NEIGHBOUR_DIM` (0.2, provisional until step 5's colour roles). A level's ceiling grid is not drawn under ground of the level above. Joins are drawn so they can be seen: `SegKind::Stair` (four treads on two stringers, climbing from the lower floor to the higher the way the map's `stairs` say it rises, so a stair up and its stair down above draw one flight; M8.5 step 1c), `Ladder` (two ladders crossed, so one reads face-on from any side, up to the floor above) and `Hole` (the opening hatched to the cell's corners). The `Lines` resource is rebuilt when the map, the level or a door changes.
+- **Fills since M8.5 step 3:** a hill, a wall or a floor hides what lies behind it; the fills (§8.2) are built on the same `Ground` and edges as the lines, and the neighbouring levels are hidden where the party's level covers them.
 
 ### 8.5 Shaped structures (to build, X12)
 - **Generators per terrain kind** (jagged rock, broken masonry, rounded towers, trunks and canopies) turn a wall edge or a block cell into segments and fills. They are seeded per cell, so the world is stable between visits.
@@ -461,9 +476,20 @@ The design fixes the seams; the technique is measured in its step (X20):
 - **Doors stay readable:** whatever the generator, a door is drawn in the interactive role with its channels, open and closed distinct (presentation-PRD §6.2).
 
 ### 8.6 Cameras (as built) and measurement (to build, X20)
-- **The 3D camera:** `Camera3d`, `IsDefaultUiCamera`, `Hdr`, `Tonemapping::None`, `Bloom` (intensity 0.25), a fixed **vertical** field of view of 0.96 rad (`render.rs` `FOV`), near plane 0.02, yaw only, at the eye height. Field of view and eye height for 32:9 and 16:9 are open (presentation-PRD §12.8).
+- **The 3D camera:** `Camera3d`, `IsDefaultUiCamera`, `Hdr`, `Tonemapping::None`, `Bloom` (intensity 0.25), a fixed **vertical** field of view of 0.96 rad (`render.rs` `FOV`), near plane 0.02, at the eye height. Field of view and eye height for 32:9 and 16:9 are open (presentation-PRD §12.8), reviewed after the owner walks with pitch.
+- **Pitch** (M8.5 step 4b, owner 2026-10-12; `look.rs`, Bevy-free): the rotation is the body's yaw then the head's pitch (`render::rotation`: `Quat::from_rotation_y(yaw) * Quat::from_rotation_x(pitch)`, positive up). No limits: the pitch wraps in (−π, π], and past ±π/2 the view turns over and looks back, upside down, while the body, its facing and W stay put; upside down, the mouse's sideways motion is reversed so the picture turns the way the mouse moves (`look::yaw_sign`). Input: the mouse's vertical motion while looking (the same 0.003 rad a pixel and per-frame clamp as yaw), PageUp and PageDown held at the turn speed, Home and the Level button to level at once. A step (`Event::Moved` from the binder) starts a return to level as the setting says (§10.5: unless the mouse is looking, the default; always; never), eased with a 0.15 s time constant the shorter way round, at once under reduced motion; any tilt stops it. A jump made outside the movement (a load, a new game, a teleport from the debug panel) starts the view level.
 - **The fight camera:** an inactive `Camera2d` (`FightCamera`, `Hdr`, `Bloom`, render layer 1) that takes over in a fight (§9).
-- **Measurement.** The offscreen capture (§10.3) gains a timing mode: frames rendered over a fixed walk on the largest test map at 5120×1440 and 1920×1080, reporting mean and worst frame time. Run before and after each renderer step, the numbers go in its review, and the floor is set from them (X20, presentation-PRD §12.6).
+- **Measurement.** The offscreen capture's timing mode (`--timing`, §10.3) runs the loop uncapped and reports the mean and worst frame time from frame 11 to the shot, as a line and as JSON. Run in release before and after each renderer step, on the hills fixture and the town at 1920×1080 and 5120×1440, three runs each; the numbers go in its review, and the floor is set from them (X20, presentation-PRD §12.6).
+  - M8.5 step 3 (the owner's Mac, offscreen, release, 300-frame walk): gizmos alone 1.92 to 2.20 ms mean, 2.45 to 4.12 ms worst; fills under the gizmos 1.89 to 2.06 ms mean, 2.29 to 2.97 ms worst. No difference at either size. A capture at 8192×8192 takes about 1.4 ms more than one at 320×200, so the offscreen numbers may understate the GPU's share; the window's frame time (`--frame-stats`) is read in acceptance.
+
+### 8.7 Objects, piles and beings (built in M8.5 steps 2b and 2c)
+- **What is drawn.** The view draws the whole level, so it reads every object and pile on the party's level and the levels beside it through Tier 1's `objects_on_level` (`SimWorld::objects_on`), not the viewport's forward cone: removed objects never, hidden ones only once found, each in its state's look. The automap and minimap show no objects (presentation-PRD §12.5; owner, 2026-10-14).
+- **`shapes::shapes`** (Bevy-free) turns each look into `SegKind::Object` lines and fills in the segments' world space. Width runs across the facing and depth along it, so the plan is the engine's footprint (`omnis_data::footprint`) at every facing; the shape stands on its home cell's floor (the engine's sight test stands it there) and rises `height` eighths. Box, post and slab are boxes; an arch is two legs and a lintel, its opening crossed and filled while it blocks a step (`SeenObject.blocks`), as a shut door is; a sign is a board on a post; a heap a frustum. A pile is a small heap (`PILE_LOOK`, `SegKind::Pile`). Colours are provisional until the roles (step 5).
+- **`Scene::build(data, map, level, world)`** adds each level's shapes to its lines and fills; the neighbours' are dimmed with the rest of their level.
+- **Redrawn** when `session::reshapes` says so: a door, an object's state, an object removed or found, items laid on or taken from the ground, and `CombatEnded` (loot).
+- **Collision:** the mirror refuses a step through a footprint as the engine does (§5.4).
+- **Known:** an object flush against a wall (the yard's chest) shows the outline of its touching face through the wall, since the lines are biased toward the camera (§8.2). The client does not push the pose out of a footprint in its own cell (visual only, later).
+- **Beings (M8.5 step 2c).** A group that stands in view (§4.5 of ARCHITECTURE.md) is drawn by `shapes::figures` as its front monster's figure, a body narrowing to the shoulders at three quarters of its height with a head above, on `SegKind::Being` lines (a provisional orange until step 5); the scene reads the level's groups through Tier 1's `beings_on_level` (`SimWorld::beings_on`). A group is not drawn once beaten for good, nor while met or fought; the view is redrawn on `EncounterStarted`, `Bribed` and a Hide or Run check, as on `CombatEnded`. Use names a lone group ("Approach: Pack rat x2"); the verbs list each group in reach after the door, its name and count over Approach, which closes the verbs as the encounter takes over; a search names the groups within reach. A being blocks no step, so the mirror is unchanged.
 
 ## 9. The fight screen (as built, Phase B and V2; corrected)
 
@@ -479,17 +505,51 @@ A separate 2D screen in the vector style replaces the 3D view during a fight (X7
 ## 10. The HUD, the minimap and the developer tools
 
 ### 10.1 The HUD (as built)
-`shell/hud.rs` rewrites one status text each frame: the map, cell and facing; the mode and the clock; the
+`shell/hud.rs` rewrites one status text each frame: the map, its level on a map of several (`hud::place`, "Roof (2)"), cell and facing; the mode and the clock; the
 accepted commands, refusals and mirror disagreements; frame rate, frame time and the window's physical
-size; the mouse-look hint while it is on; and up to 8 recent event lines (`Session.lines`, worded by
-`shell/text.rs`). It becomes the status panel of the explore screen (§6.6).
+size; and the mouse-look hint while it is on. Under it, the running log (owner, 2026-10-17): up to
+`LOG_LINES` (8) recent event lines (`Session.lines`, worded by `shell/text.rs`), each its own `LogLine` text in
+the `LogColumn`, which is at most `hud::log_width()` (18 vw) wide, so a long line wraps rather than run under
+the outcome notice (centred, at most `notice::NOTICE_WIDTH`, 60 %, wide; both widths come from that one
+constant). The lines are in the interface's dim role, the newest whole and each older one a tenth fainter
+(`log_alpha`), so the notice stands out. In a fight the log is hidden; the roll log has the fight's lines. It
+becomes the status panel of the explore screen (§6.6). A click on it opens the full log.
+
+**The full log** (owner, 2026-10-17; `screen/log.rs`, `crate::history`): every line the session said, each
+event once (the HUD's line, else the fight's from `rolllog`, so a fight reads in the same log), plus refusals
+and the host's lines, each stamped with the party's clock (`labels::clock`), the newest `HISTORY` (2,000) kept
+in `Session.history`. `ScreenId::Log` stands most of the window wide (90 %) and as tall as the room allows:
+a filter column (the field, "N of M lines", Close) beside the lines, which are one text so typing rewrites
+it in place and the field keeps its focus. The filter keeps a line holding every typed word in any case, in
+the stamp or the words; the newest `SHOWN` (500) matches are shown. It opens scrolled to the newest
+(`SCROLL_FOOT`, set again when the lines change), and the wheel moves from there inside the rows. L opens
+it where no screen is up and never closes it (the filter takes typing); Esc, Close or the "Log  L" button
+and a click on the running log open and close it as described. It pauses the game, is allowed wherever a
+game is played, fights included, and hides the running log while up. The history lasts the session (a load
+starts it afresh) until the save model of PRD D28 keeps the party's interactions, from which it will be
+read.
+
+Object lines (M8.5 step 2b): an object's skill or ability check as the roll log words it ("Pip Sleight of
+Hand: 14 against 10, success"); a failed use ("Chest: Open failed", then the kind's failure text); a new
+state ("Torch is now out"); a removal ("Loose stone is gone"); an object's own text; found coin and items
+("Found 1 gp 0 sp 0 cp", "Found Gem; into the stores"); an item used up ("Pip uses up Thieves' tools", or
+"… from the stores is used up"); a search ("Pip searches: Investigation 12"); and a hidden thing noticed
+("Spotted: Rune" by a sharp eye, "Found: Rune" by a search, "Sensed by magic: Rune"). A search's lore is
+its text (`Event::Lore`). After a search's own lines (`text::searched`, owner 2026-10-16): what is within reach
+("Within reach: Door (shut), Chest (closed), Crate": the faced door, `SimWorld::faced_door`, then each object
+in reach by name and state), the pile on the party's cell ("On the ground: Arrow x10") and, when nothing
+hidden was noticed and no lore told, "Nothing hidden here". A use that worked says
+nothing of its own; its effects do. Objects are named by `Names::object`: the placement's own name, else its
+kind's, on the map the party stands on (`Names::locate`, set with each batch of events), "Something" for an
+id the map does not hold. Items moved to and from the ground and containers say "drops", "picks up",
+"puts … in" and "takes … out". A chosen command's lines are also its outcome notice (§6.6).
 
 ### 10.2 The minimap (as built) and the automap (to build, X22)
-- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map, the command count, the marker's pixel or its heading changes.
+- **As built:** `minimap::paint` (Bevy-free) paints the current map's automap tiles (visited brighter than seen), then the known tiles' cliffs (along the edge) and ramps (a tick across it), read from their map cells (M8.5 step 4), the party's level only, with its stairs, ladders and holes marked like glyphs (chevrons, rungs, a cross; step 1b), then walls and doors with canonical edges, and a triangle at the pose pointing along the yaw; `shell/minimap.rs` uploads it as an `ImageNode` top right, repainting only when the map or level, the command count, the marker's pixel or its heading changes. On a map of several levels the level's name stands left of the picture (`labels::level`), clear of the party panel under it.
 - **To build:** a blueprint-style map in the neon style with height as contour lines (X22), opened full-screen from the tool bar's Map. What it records stays the engine's (the cardinal cone); recording the camera's view needs an engine command (presentation-PRD §12.5).
 
 ### 10.3 Capture (as built)
-- **Offscreen:** `--screenshot PATH [--walk FRAMES] [--size WxH] [--screen title|new-game|pause|actions]` renders without a window (`ScheduleRunnerPlugin`), opens the screen asked for (the title and the form with no game), walks forward, settles 30 frames, saves and exits. §8.6 adds a timing mode.
+- **Offscreen:** `--screenshot PATH [--walk FRAMES] [--size WxH] [--screen title|new-game|create-party|pause|actions|verbs|inventory]` renders without a window (`ScheduleRunnerPlugin`), opens the screen asked for (the title and the form with no game), walks forward, settles 30 frames, saves and exits. `--timing` runs the loop uncapped and prints the frame times (§8.6). **Offscreen is not headless:** this path starts Bevy's renderer without a window (`DefaultPlugins` less winit, `main.rs`) and needs a GPU adapter, which is why its frame times carry a GPU share. Headless (`MinimalPlugins` in the tests, §11; `omnis_cli::Headless`) has no renderer at all, and its `screenshot` answers `Failed` (`docs/api.md`).
 - **The start.** The window opens at the title; `--seed N`, a capture of the game view, or `--screen pause|actions` start in a game. `--save FILE` names the quick save (default `.omnis/quick.ron`).
 - **Live:** the socket's `screenshot` (§4.5).
 
@@ -499,7 +559,7 @@ its rectangle, `[button]` when its parent is a button, and the text quoted. With
 dim controls' reasons and field values.
 
 ### 10.5 Settings (as built, P8)
-- **Client settings** are the player's, not the world's: reduced motion, the floor grid, quality, font and interface scale (`src/settings.rs`, Bevy-free: `Prefs`). They are kept in `.omnis/settings.ron` (`--settings PATH`, a relative `.ron` path), never in the save and never seen by the simulation.
+- **Client settings** are the player's, not the world's: reduced motion, the floor grid, quality, font, interface scale and "Level view on step" (M8.5 step 4b: when not mouse looking, the default; always; never; file key `level_on_step`) (`src/settings.rs`, Bevy-free: `Prefs`). They are kept in `.omnis/settings.ron` (`--settings PATH`, a relative `.ron` path), never in the save and never seen by the simulation.
 - **Read leniently** at start: through `ron_io::read_text` (no symlinks, 4 MiB), every key optional, unknown keys ignored, an unknown word falls back to its default, the scale clamped to 50..=200 and rounded to a step of 10; a missing file is the first start (the defaults, no note); an unreadable one gives the defaults and a note on stderr, and is not rewritten until Apply.
 - **The screen** (§6.7) edits a draft (`Forms.settings`); Apply (`Effect::Settings`) sets the `Current` resource and writes the file; Close and Esc drop the draft (owner).
 - **What each does.** The floor grid hides the floor and ceiling lines (`SegKind::drawn`). Quality is one preset (owner): low (no bloom, 1 px lines), medium (bloom 0.15, 1.5 px), high (bloom 0.25, 2 px, the look before P8), on every HDR camera and gizmo group (`apply_quality`); the depth levels (§8.3) join it with X17. Reduced motion: §7.5. The font: §7.4.
@@ -507,7 +567,7 @@ dim controls' reasons and field values.
 - The simulation's `Settings` (save rule, permadeath, devtools) are world rules, chosen on the new-game screen (P2) and kept in the save. P2 also gives vector a devtools world in debug builds, as `omnis-app`'s `game_settings` does, so `time.reconcile` and `Dev` commands work over the socket.
 
 ### 10.6 The debug panel (as built, P8)
-A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags and a teleport, and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
+A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags and a teleport (with a Level choice, M8.5 step 1b), and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
 
 ## 11. The test and capture contract
 
@@ -520,7 +580,7 @@ Every test runs under `scripts/verify.sh` against the real packs. None is a mock
 4. **A capture path:** `--screenshot` with `--screen <id>`, so the owner's and agents' captures need no clicking.
 
 **Standing tests:**
-- `tests/agreement.rs`, the collision mirror against the step (cliffs too, §5.6).
+- `tests/agreement.rs`, the collision mirror against the step (cliffs too, §5.6; every level, step 1b).
 - `tests/binding.rs`, the binder on the real maps, with the replay proof.
 - `the_views_are_the_world_s_after_every_frame`, the one refresh path.
 - `tests/socket.rs`, the dev socket over loopback.
@@ -536,7 +596,7 @@ step's acceptance script under `tasks/acceptance/`, with the capture beside them
 - **Paths.** `--log` takes a relative path without `..` (`session.rs` `safe_relative`); every socket path goes through `client_path` (relative, no `..`, the extension checked) under the working directory. The quick save (`--save`) is checked by `client_path` when parsed and again on every save and load.
 - **The dev socket:** loopback only (a non-loopback `--dev-socket` is refused), one client, 1 MiB per line, compiled out without `devtools`, absent in capture mode (§4.5).
 - **Screens.** `apply` clamps and refuses every value a control reports (§6.2). Text fields are bounded.
-- **Bounded input.** The mouse delta per frame and the frame's `dt` (0.1 s at most) are clamped before integration, so a stall cannot carry the pose across cells.
+- **Bounded input.** The mouse delta per frame (yaw and pitch alike) and the frame's `dt` (0.1 s at most) are clamped before integration, so a stall cannot carry the pose across cells.
 - **No `Dev` command** is reachable from player input outside the debug panel, which exists only in `devtools` builds; the agreement test uses the fixture deref.
 
 ## 13. Build impact and measurement
@@ -562,10 +622,10 @@ files left, nothing was added.
 | VA1 | Bevy features `2d`, `png`, `bevy_pbr`, `ui`; no `3d` group | The full `3d` group | `bevy_pbr` enables the 3D gizmo pipeline and the materials meshes need; `3d` adds glTF, ktx2, zstd and LUTs that lines do not use (§3). |
 | VA2 | A Bevy-free core (`grid`, `collide`, `bind`, `geometry`, the layouts, the action model, the screens) and a thin shell | Logic inside Bevy systems | Headless tests on the real maps without a GPU. |
 | VA3 | A predictive collision mirror held by an exhaustive agreement test | A world clone per frame; no client collision | A clone per frame is costly and still needs a pose to slide; without collision the pose walks into walls and snaps (§5.4). |
-| VA4 | Immediate-mode gizmos with a per-line fade first. **To be superseded** by line meshes over occluding fills (§8.2) | Meshes from the start | It was the least code for the proof. X13 needs depth-writing fills, which gizmos cannot give. |
+| VA4 | Immediate-mode gizmos with a per-line fade. Occluding fills are a mesh under them (M8.5 step 3); line meshes wait for a measurement that needs them (§8.2) | Meshes from the start | It was the least code for the proof. Gizmos are depth-tested against meshes, so the fills X13 needs did not require line meshes; measured, the fills cost nothing visible (§8.6). |
 | VA5 | Log only `Ok` commands, blocked steps included | Log every attempt | A replay fails on a refused command; blocked steps are accepted and move the turn counter. |
 | VA6 | Cardinal facing with a hysteresis margin; turns before steps | Facing per step | Relative steps need the right facing; the margin stops `Turn` spam near diagonals. |
-| VA7 | Yaw-only camera | Pitch from the start | Yaw maps to facing; pitch adds nothing the grid uses. Revisited with height (presentation-PRD §12.8). |
+| VA7 | Yaw, and since M8.5 step 4b pitch, with the pitch outside the pose | Yaw only (until 4b); pitch in the pose | Yaw maps to facing. Pitch was added when height made the hills hard to navigate without looking up and down (owner, 2026-10-12); it is the head's, unlimited, and never reaches the binder or the grid. |
 | VA8 | The engine boundary: a private `SimWorld` mirroring `omnis_sim::api`, one `Views` copy refreshed on every change (§4.1, §4.2) | Read `World` fields; call view functions from each system | ARCH A17. The compiler holds it; one refresh path keeps every screen consistent and the cost known. (P0, 2026-10-10) |
 | VA9 | Rules come from views, trials and queries; `Data` for labels and catalogues only (§4.4) | Port `omnis-app`'s derivations from pack data | Owner, 2026-10-10. Rules in the client drift from the engine and cannot be reproduced by a JSON client; each gap becomes an additive engine view. |
 | VA10 | Screens are Bevy-free descriptions with an `apply`, drawn by one renderer (§6) | `omnis-app`'s pattern (a model per screen and a Bevy file per screen on a kit); grow vector's `Notice` | Owner, 2026-10-10. Every screen is testable without Bevy, the style guide lives in one renderer, and `screen.text` covers every screen for free. `Notice` cannot express fields, tabs or sheets. |
@@ -581,5 +641,5 @@ level (7), the camera (8).
 This document's own:
 1. ~~**Fields in `bevy_ui` without Feathers.**~~ Resolved in P2: Bevy's `ui` feature already compiles `bevy_ui_widgets` (unstyled `EditableText`, `Slider`, `Checkbox`, `ScrollArea`; no new crate). The seed field is an `EditableText`; P3's scores use the slider (with arrows); P4 and P6 the checkbox, styled by the renderer. `TabNavigationPlugin` is not in `DefaultPlugins`, so keyboard focus moves only by `AutoFocus` and clicks until a step adds it.
 2. **The font.** Bevy's default until a modern font is chosen with the style step; a font is a licensed asset in the repo.
-3. **The line technique** for §8.2 (unlit standard material with line lists, or a custom material for pixel-width lines), decided by measurement.
+3. **The line technique** for §8.2 (unlit standard material with line lists, or a custom material for pixel-width lines), decided by measurement. Not needed yet: at M8.5 step 3 the fills under gizmo lines measured the same as gizmos alone (§8.6); revisit with relief and detail (step 5).
 4. **Where the client settings file lives** for a shipped build (§10.5): `.omnis/` is the development path; the platform's config directory arrives with packaging (M12).

@@ -416,9 +416,9 @@ fn the_words_name_the_new_commands() {
         "a trainer sells no spells"
     );
     assert_eq!(
-        resolve(&world, "choose-1-10"),
+        resolve(&world, "choose-1-11"),
         None,
-        "the list has ten rows"
+        "the list has eleven rows"
     );
     let guild = inside_with(&data, "guild", 3);
     assert_eq!(

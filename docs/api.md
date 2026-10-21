@@ -56,8 +56,11 @@ let party: PartyView = party_view(&world, &data);
   untouched. A `Rejection` is a rule refusal (not your turn, cannot afford, a wall), not an error.
   Bad pack data found mid-command surfaces as `Rejection::Rule`, never a panic.
 - `World::new(&Data, seed, Settings)` fails only with `NewGameError::NoEntryMap`.
-- `World::to_ron`, `World::from_ron(text, &Data, force)` and `World::fingerprint` save, load
-  (migrating older schemas) and hash the world. `Replay::record` and `Replay::check` re-run a
+- `World::to_ron`, `World::from_ron(text, &Data, force)` and `World::fingerprint` write, read
+  (migrating older schemas) and hash a whole world, a snapshot. A save is not one since M8.5 7d:
+  `save::save_files` and `save::load_save` write and read the character save and the world
+  folder; `journal::apply_changes` lays a journal's changes over a world; `save::fold` folds it
+  (7e), and `save::tidy_list` picks the world-folder files no save names. `Replay::record` and `Replay::check` re-run a
   command list and compare fingerprints.
 - The new world's party is empty; create members with `Command::Party(PartyCommand::Create(..))`.
 - `Dev` commands are refused (`DevOnly`) unless `Settings.devtools` is true.
@@ -137,11 +140,11 @@ rejections alike (ARCHITECTURE.md §4.9):
    `SetMonsterHp`), `entry` (a runbook entry; a map's rest event), `rumor` (a tavern's rumor).
    There is no other `index` field, and `row` names only the front or back row (`Predicate::Row`).
    Lists in views are in marching or list order.
-4. **A place on a map is a `Place`**, `{"map": "<string id>", "x", "y", "facing"}`, in events,
-   views and `Status`.
+4. **A place on a map is a `Place`**, `{"map": "<string id>", "level", "x", "y", "facing"}`, in
+   events, views and `Status`; `level` is left out on the map's own level (0).
 5. **Left numeric by design:** `era` (a count, not a definition), `ActorRef::Stack` and
    `Monster` (positions), `ViewTile.terrain` and `Known.terrain` (rows of the map's terrains),
-   `EncounterSource::Fixed` (a row of the map's placements), `world.query` paths (the saved
+   `world.query` paths (the saved
    world), and Tier 1's `automap`, `map_text` and `door_open` (which take a `MapId`), `step_lands` (a
    `Position`) and `site_ahead` (a `ServiceId`). The `World`'s own fields keep
    registry numbers; they are not API.
@@ -164,7 +167,7 @@ Common value types:
 
 | Type | Wire | Meaning |
 |---|---|---|
-| `Place` | `{"map": "<string id>", "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). |
+| `Place` | `{"map": "<string id>", "level", "x", "y", "facing"}` | `facing` is `North` (−y), `East` (+x), `South` (+y), `West` (−x). `level` (an integer: 0 is the map's own layout, below the ground negative, above it positive) is left out when 0. |
 | String id | `"pack:kind:name"`, e.g. `"base:spell:bless"` | A definition in the loaded packs; `#n` for a number no pack names. Tier 1 maps ids to registry numbers through `Data::registry`. |
 | `CharacterId` | number | A member's stable identity, `MemberView.member`; kept through reorders, deaths and saves. |
 | Holder | `"party:0"` or a region's string id | Who owns a clock, in events and `TimeView`. |
@@ -181,9 +184,9 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-25 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
-every host (the socket, `Headless`) implements them around the I/O-free rules in `ops.rs`
-(`save_text`, `load_text`, `check_reload`, `rules_set`). `BadRequest` can answer any op on the
+27 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`, `examine`) and the
+rest in `ops.rs` (`reload`, `rules_set`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
 
 | Op | Args | Reply | Errors | Host |
@@ -192,25 +195,27 @@ socket and the bridge (malformed request).
 | `world.query` | `path` (string) | `value` | `TooLong` | |
 | `sim.command` | `command` (`Command`) | `events` | `Rejected` | |
 | `sim.script` | `commands` (`[Command]`, at most `MAX_SCRIPT`) | `script` | `TooMany` | |
-| `events.tail` | `count` (default 32, capped at 4096) | `events` | | |
+| `events.tail` | `count` (default 32, capped at 16384) | `events` | | |
 | `viewport.get` | none | `viewport` | `UnknownMap` | |
-| `map.text` | `map` (optional id; the party's map when absent) | `text` | `TooLong`, `UnknownMap` | |
-| `automap.get` | `map` (optional id) | `automap` | `TooLong`, `UnknownMap` | |
+| `map.text` | `map` (optional id; the party's map when absent), `level` (optional; the party's level on its own map, else 0) | `text` | `TooLong`, `UnknownMap` | |
+| `automap.get` | `map` (optional id), `level` (optional, as `map.text`) | `automap` | `TooLong`, `UnknownMap` | |
 | `party.get` | none | `party` | | |
 | `party.create` | `character` (`Draft`) | `events` | `Rejected` | |
 | `combat.get` | none | `combat` | `NoEncounter` | |
 | `service.get` | none | `service` | `NoService` | |
 | `rest.get` | none | `rest` | | |
 | `cast.get` | none | `casts` | | |
+| `objects.get` | none | `objects` | | |
 | `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
 | `time.reconcile` | `region` (`pack:region:name`) | `events` | `Rejected` | dev only |
 | `rules.list` | none | `rules` | | |
 | `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
-| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host |
-| `save.read` | `path`, `force` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, other packs without `force`, inconsistent save) | host |
-| `pack.reload` | none | `done` | `Failed` (packs do not load, or no longer hold the party's tile; nothing changes) | host |
+| `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
+| `save.read` | `path`, `force` (default false), `migrate` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, the packs' migrations change it and `migrate` is not given (each file named), inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
+| `save.check` | `path` (relative `.ron`) | `check` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. What the loaded packs make of a save, changing nothing (`save::examine`): a `SaveCheck` for every save that holds together, whether it would load or not (§7.11) |
+| `pack.reload` | `migrate` (default false; `args` may be left out) | `done` | `Failed` (packs do not load; they lack a name the world holds, each listed; their migrations change the world and `migrate` is not given; they cannot hold the world; nothing changes) | host. The running world fitted to the packs on disk by name, through their migrations, as a save made on the packs it runs on would be on load (`ops::reload`, M8.5 7h5, 7h6): the `check` says how, and each place changed |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
 
@@ -222,8 +227,9 @@ Notes:
   unless the world's settings allow dev commands), `save.read`, `pack.reload` and `rules.set`.
 - `sim.script` stops at the first rejection and still answers `script` with the events so far,
   `applied` and `rejected`; it is not an `OpError`.
-- `events.tail` reads `World::log`, the last 4096 events (`LOG_CAPACITY`). The log is not saved:
-  it starts empty after `save.read`.
+- `events.tail` reads `World::log`, the party's log: the last 16384 events (`LOG_CAPACITY`). The
+  character save carries the events of it that a full log tells (`told`: all but `Visible`,
+  `EncounterCheck` and `TimeAdvanced`), so after `save.read` it holds those (M8.5 7f).
 - `world.query` is outside the contract (§1). `value` is `null` when the path does not exist.
 - The MCP tool descriptions (`crates/omnis-mcp/src/tools.rs`) say the same for an agent.
 
@@ -235,7 +241,7 @@ Notes:
 | `viewport` | `Reply::Viewport(ViewportModel)` | `ViewportModel`'s fields, flattened | `viewport.get` |
 | `script` | `Reply::Script` | `applied` (count), `events` (`[Event]`), `rejected` (`Rejection` or null) | `sim.script` |
 | `events` | `Reply::Events` | `events` (`[Event]`) | `sim.command`, `party.create`, `time.reconcile`, `events.tail` |
-| `automap` | `Reply::Automap` | `map` (string id), `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
+| `automap` | `Reply::Automap` | `map` (string id), `level`, `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
 | `text` | `Reply::Text` | `text` (string) | `map.text`, `screen.text` |
 | `written` | `Reply::Written` | `path` (string) | `save.write`, `screenshot` |
 | `party` | `Reply::Party` | `party` (`PartyView`) | `party.get` |
@@ -246,13 +252,16 @@ Notes:
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
 | `rest` | `Reply::Rest` | `rest` (`RestView`) | `rest.get` |
 | `casts` | `Reply::Casts` | `casts` (`[CastView]`) | `cast.get` |
+| `objects` | `Reply::Objects` | `objects` (`[ObjectView]`), `ground` (`[ItemCount]`), `beings` (`[BeingView]`, left out when none) | `objects.get` |
 | `creation` | `Reply::Creation` | `creation` (`CreationView`) | `creation.get` |
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
-| `done` | `Reply::Done` | nothing | `pack.reload` |
+| `done` | `Reply::Done` | `check` (`SaveCheck`, §7.11; the same packs' report when absent) | `pack.reload` |
+| `check` | `Reply::Check` | `check` (`SaveCheck`, §7.11) | `save.check` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
-`_` `'`, a portal `*`, the party `^` `>` `v` `<`.
+`_` `'`, ramps `/`, a portal `*`, the party `^` `>` `v` `<`, and `_` for a tile with no ground on
+that level. One level is drawn; the party is marked only on its own level.
 
 ## 7. Views
 
@@ -271,17 +280,72 @@ and places by `Place` (§4); lists are in marching or list order.
 | `rest_view` | `RestView` | `rest.get` |
 | `time_view` | `TimeView` | `time.clocks` |
 | `cast_view` | `Vec<CastView>` | `cast.get` |
+| `objects_view` | `ObjectsView` (`objects`, `ground`, `beings`) | `objects.get` |
 | `creation_view(&Data)` | `CreationView` | `creation.get` |
 | `viewport` | `Option<ViewportModel>` (none when the party's map is not loaded) | `viewport.get` |
-| `automap(&World, MapId)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
-| `map_text(&World, &Data, MapId)` | `Option<String>` | `map.text` |
+| `automap(&World, MapId, Level)` | `Option<&BTreeMap<(u16, u16), Known>>` | `automap.get` |
+| `map_text(&World, &Data, MapId, Level)` | `Option<String>` | `map.text` |
 | `flags` | `Vec<(String, i64)>`, every declared flag with its value (0 when never set) | none |
-| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, at its far end); a Tier 1 `Position` with its `MapId` | none |
+| `flag_scope(&Data, &str)` | `Option<FlagScope>`: whose a flag is, `Party` or `World`, as its pack's `data/flags` file declares, `World` when no file does; `None` for a flag no pack names | none |
+| `split_report` | `Result<SplitReport, DataError>`: the RON bytes of the world base, the checkpoint and each region's base (`RegionSize`: `id`, `bytes`, `maps`), and whether `join(split(w))` is `w` again (`round_trip`) | none |
+| `archive_len(&World)` | `usize`: how many archive segments the folds have put away (M8.5 7e) | none |
+| `history(&World)` | `&[Logged]`: the party's log, oldest first; each `Logged { minute, map, event }` is an event with the party's age and the `MapId` it stood on when it was said (M8.5 7f). A load gives back the events `told` keeps | `events.tail` (events only) |
+| `told(&Event)` | `bool`: whether the character save keeps the event in the party's log: all but `Visible`, `EncounterCheck` and `TimeAdvanced`, the view and the dice of each step, which no full log tells | none |
+| `journal_len(&World)` | `usize`: how many interactions (commands that changed what the world holds) the journal has since the world's base: what a load lays over the bases (PRD D28). Moving, turning and what changes only the party add none | none |
+| `step_lands(&World, &Data, Direction)` | `Option<Position>`: where a step would leave the party (through a portal, a stair or a hole, at its far end); a Tier 1 `Position` with its `MapId` | none |
 | `site_ahead(&World, &Data, Direction)` | `Option<ServiceId>`: the service a step would enter (a registry number) | none |
-| `door_open(&World, MapId, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
+| `door_open(&World, MapId, Level, x, y, Facing)` | `bool`: whether that door is open in the world (not the party's knowledge); `false` for an edge without a door or a map not loaded. For a client that draws a map or predicts a step | none |
+| `objects_on_level(&World, &Data, MapId, Level)` | `(Vec<SeenObject>, Vec<PileView>)`: every object and pile on that level as the viewport would show them from anywhere (removed objects left out, hidden ones until found); objects in file order, piles north to south. For a client that draws a whole level | none |
+| `beings_on_level(&World, &Data, MapId, Level)` | `Vec<BeingView>`: every group standing on that level as the viewport would show it from anywhere (not once beaten for good, nor while met), in file order. For a client that draws a whole level | none |
 
-`automap`, `map_text`, `door_open`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
+`automap`, `map_text`, `door_open`, `objects_on_level`, `beings_on_level`, `step_lands` and `site_ahead` are Tier 1 only and keep registry numbers;
 the ops answer with string ids.
+
+`split(&World, &Data) -> Split` and `join(Split, &Data, force) -> Result<World, JoinError>` (Tier 1, pure, registry
+numbers until M8.5 7h) cut a world into the parts the save model keeps apart (PRD D28) and put it back:
+- `Manifest` holds the seed and the packs.
+- `WorldBase` holds what belongs to no region: the world's flags, holders that are neither party nor region,
+  and the map states of maps no loaded pack has.
+- `RegionBase` holds, for each region play has touched, its maps' states, its clock, its side of each contact,
+  and the streams that name it.
+- `Checkpoint` holds the party: members, time, the flags a pack declares the party's, its side of each contact, the other streams, the bus, position,
+  automap, mode, settings and turn.
+
+A region nothing has changed has no base, so a new world splits into its checkpoint alone. `join` refuses a key
+held by two parts (`JoinError::Duplicate`) and checks the result as a load does (`JoinError::Load`). The log and
+the journal are not in the parts.
+
+The save itself (Tier 1, I/O-free; ARCHITECTURE.md §4.1.1) is what the host ops `save.write` and `save.read`
+run:
+- `save_files(&World, &Data, path) -> Result<Vec<FileOut>, OpError>`: every file a save writes, each
+  `FileOut { path, text, keep }` (`keep`: a world-folder file, left alone when already on disk). Refuses a
+  file over its reader's limit.
+- `load_save(text, &Data, force, read) -> Result<(World, Restored), LoadError>`: `read` turns a relative
+  path into its text; `Restored { applied, converted_from, fit }` says how many interactions were laid,
+  whether an old save was converted, and how its packs fit the loaded ones (`PackFit`: `Same`;
+  `Content`, other packs with the same names; `Renumbered`, loaded by name and folded; `Forced`, a save
+  with no name table loaded on other packs with `force`; `Migrated`, the packs' migrations applied with
+  consent, M8.5 7h6). A name the loaded packs lack refuses the load with
+  `LoadError::Unresolved(Vec<Missing>)`, each `Missing { kind: NameKind, name, at }` (M8.5 7h3); migrations
+  that change the save, unapplied, with `LoadError::NeedsMigration(Vec<(pack, file)>)`. It is `examine`
+  then `restore`, never migrating; `load_save_with(text, &Data, force, migrate, read)` takes the consent.
+- `examine(text, &Data, read) -> Result<Examined, LoadError>`: the save rebuilt and checked, nothing
+  loaded; `Examined::report()` is its `SaveCheck` (§7.11). `restore(Examined, &Data, force, migrate)`
+  loads it: refused for `Unresolved`, for `Unnamed` unless `force`, for `NeedsMigration` unless
+  `migrate`, and on packs other than the ones it was examined against (`PackMismatch`). On other packs a
+  place fixed folds the world, as a renumbering and a migration do (M8.5 7h4, 7h6). The world records
+  the migration files it went through (`World.migrated`, `[Migrated { pack, file }]`; the character
+  save carries them, outside the fingerprint).
+- `examine_running(&World, old: &Data, fresh: &Data) -> Examined`: the running world, `old` the
+  packs it runs on, fitted to fresh packs as a save made on `old` would be; `restore` takes it, a
+  fold holding the journal for `old`'s folder. `ops::reload(&mut World, old, fresh, migrate) ->
+  Result<SaveCheck, ReloadRefused>` is the two (`pack.reload`); `ReloadRefused { error, check }`
+  gives the op's error and the report, and converts into `OpError` (M8.5 7h5, 7h6).
+- `fold(&mut World, &Data) -> Event` (what `DevCommand::Fold` and a safe point run), `fold_at(&Data)` (the
+  threshold, `fold_interactions` or `FOLD_INTERACTIONS`) and `due(&Journal, &Data)`.
+- `tidy_list(all, read)` (every file under the host's `.omnis/`, each save among them read) and
+  `unnamed(saves, files)`: the world-folder files no save names, for
+  a host's tidy; `archive_path(id, name)`.
 
 ### 7.1 `Here` and `Status`
 
@@ -400,7 +464,7 @@ answer).
 | Field | Meaning |
 |---|---|
 | `phase` | `Encounter` or `Combat`. |
-| `source` | `EncounterSource`: `{"Fixed": n}` (the placement's position in the map file), `Random`, `Ambush` (at rest). |
+| `source` | `EncounterSource`: `{"Fixed": "<id>"}` (the placement's id in the map, M8.5 7h2), `Random`, `Ambush` (at rest). |
 | `disposition` | `Hostile`, `Wary`, `Neutral`, `Friendly`. |
 | `stacks` | `[StackView]`, in encounter order. |
 | `retreat` | `Place` that Run and Flee put the party on. |
@@ -498,6 +562,29 @@ id, `Command::Cast`'s `spell`), `name` (text key), `cost` (the points the cast c
 spell's own `points`, else the rules' `spell_points.cost` slot, so a `rules.set` there moves it;
 0 for a cantrip), `targets_members`, `refusal` (`Rejection` or null).
 
+### 7.8a `ObjectView`, `VerbView`, `CheckView`, `ItemCount`
+
+What `objects.get` answers (M8.5 step 2): the objects the party reaches, in the order Use reaches
+them (its own cell, then the one it faces across an open edge; an object spanning both once; a
+hidden one only once found; a removed one never), and `ground`, the pile on the party's cell
+(`[ItemCount]`, what `PickUp` takes from; empty when there is none), and `beings` (`[BeingView]`,
+§7.10: the groups standing in the party's cell or the one it faces, on its level, which `Approach`
+meets; left out when none, M8.5 step 2c).
+
+`ObjectView`: `object` (the placement's id, `Act`'s `object`), `object_kind` (the kind's id),
+`name` (text key: the placement's own, else the kind's), `state` (empty when the kind has none),
+`capacity` (kinds of item it holds; 0 when not a container), `contents` (`[ItemCount]` when an
+open container, else null), `verbs` (`[VerbView]`).
+
+`VerbView`, one per interaction the kind offers in that state, in the kind's order: `verb` and
+`option` (which of the verb's offered interactions, from 0: `Act`'s `verb` and `option`), `label`
+(text key or null), `checks` (`[CheckView]`: `kind`, a `CheckKind`, and `dc`, rolled in order by
+the member best at each), `minutes` (an attempt's time, success or not), `refusal` (`Rejection`
+or null). The refusal is the one `Act` gives, from the same checks: `WrongMode` outside
+exploring, then `VerbRefused` with `Spent` (a `once` done; still listed), `NoneCanAct`, `Lacks`,
+`Flag`, `School` or `Rule`. A rules slot is evaluated on a copy of the `object` stream, so looking
+draws nothing. `ItemCount`: `item` (item id), `count`.
+
 ### 7.9 `CreationView`, `RaceOption`, `ClassOption`, `BackgroundOption`
 
 What a `Draft` may be, read through the functions `party.create` checks it with, so a draft
@@ -521,37 +608,97 @@ Races, classes and backgrounds are in id order.
 
 `ViewportModel` (what the renderer draws, ARCHITECTURE.md §8.3): `map` (the map's string id),
 `tileset` (its tileset's string id), `facing`, `detail_depth` (rows drawn with sprites),
-`visibility_depth` (rows visible at all), `tiles` (`[ViewTile]`, nearest first).
+`visibility_depth` (rows visible at all), `level` (the party's level of the map), `level_name`
+(that level's name as a text key, empty on the map's own level), `tiles` (`[ViewTile]`, nearest first, all on
+the party's level), `objects` (`[SeenObject]`, the objects on those tiles, nearest first; left out
+when none), `piles` (`[PileView]`, the piles on them; left out when none) and `beings`
+(`[BeingView]`, the groups standing on them, nearest first; left out when none).
+
+`BeingView` (M8.5 step 2c): `being` (the group's id in the map, which `Approach` names),
+`monster` (its front stack's monster, the one drawn), `count` (how many stand there, every stack
+together), `x`, `y` (its cell), `pos` (`[east, south]` offset in eighths, −4..=4), `facing`,
+`look` (a `Figure`: the monster's own, or its size's). A fixed encounter stands only when its map
+says so (`stand`); it is listed while its group stands: not once beaten for good, and not while the
+party meets or fights it. One whose figure reaches a seen tile is listed.
+
+`SeenObject` (M8.5 step 2): `object` (placement id), `object_kind`, `x`, `y` (its home cell),
+`pos` (`[east, south]` offset from the cell's centre in eighths, −4..=4), `facing` (its look's
+width runs across it), `state`, `look` (`shape`: `Box`, `Post`, `Slab`, `Arch`, `Sign`, `Heap`;
+`Figure` for a being; `width`, `depth`, `height` in eighths, in the state it is in), `blocks` (whether it blocks a step in
+that state, so a client can draw a shut gate shut). An object whose footprint spills
+onto a seen tile is listed once; a hidden one only once found; a removed one never.
+`PileView`: `x`, `y`, `pos`, `items` (`[ItemCount]`, in the order laid down).
 
 `ViewTile`: `depth` (tiles ahead), `offset` (tiles right of the facing line; negative is left),
-`x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `front`, `left`, `right`
-(`EdgeView`: `"Open"`, `"Wall"`, `{"Door": {"open": bool}}`, as seen from the party).
+`x`, `y` (map cell), `terrain` (a number into the map's terrains; §4), `height` (the floor in
+eighths of a cell; a wall is 8 tall), `front`, `left`, `right` (`EdgeView`: `"Open"`, `"Wall"`,
+`{"Door": {"open": bool}}`, `"Ramp"` (open, and walkable across up to 16), as seen from the
+party). `visibility_depth` counts the terrain, a light, and the party's height above the tiles
+around it; a tile behind higher ground is not in `tiles`.
 
 `Known` (one automap tile): `terrain`, `walls` and `doors` (`Edges` bits), `layers` (`layer`
 bits), `seen_at` (party clock when last seen; the automap shows what was seen and when, not what
 is). `layer::TERRAIN` = 1, `layer::STRUCTURE` = 2 (walls and doors), `layer::VISITED` = 4,
 `layer::REMOTE` = 8 (the latest knowledge came from afar; a direct sighting clears it).
 
+### 7.11 `SaveCheck`, `Verdict`, `PackChange`, `Missing`, `PlaceWarning`
+
+What the loaded packs make of a save (`save.check`, `save::examine`; M8.5 7h4).
+
+| Field | Meaning |
+|---|---|
+| `verdict` | `same` (the packs it was made with); `content` (other packs, every name the same: loads as it is); `renamed` (other packs whose names moved: loads by name, and the world moves on); `needs_migration` (the packs' migrations change it: loads when they are applied, `save.read` `migrate`; M8.5 7h6); `unresolved` (names what the packs lack, even through their migrations: does not load); `unnamed` (other packs and a save that keeps no names, made before 7h2: only a forced `save.read` loads it, numbers as written). |
+| `packs` | `[PackChange]`, by id: `id`, `saved` and `loaded`, each `{version, hash}` or null when the pack is new or gone. |
+| `moved` | How many of the save's names the loaded packs hold under another number. |
+| `missing` | `[Missing]`: `kind` (`map`, `flag`, `region`, `item`, `spell`, `monster`, `condition`, `race`, `class`, `background`, `service`, `terrain`, `interaction`), `name` (its string id), `at` (where the world holds it, `party.members[2].known_spells`). |
+| `places` | `[PlaceWarning]`, checked when the packs differ: `map` (string id) and `fix`, each cell a `Spot` (`level`, left out on the ground, `x`, `y`): `party_moved` `{from, to}` (the party could not stand at `from`: no ground, terrain it may not enter, or an object across the cell's centre; `to` is the nearest cell it can, ring by ring in row order, else the map's start); `door_forgotten` `{at, facing}` (an open door no longer a door); `pile_lost` `{at, items}` (the ground under a pile went away, and the pile with it); `object_forgotten` `{id, items}` (the map no longer places it; its state is forgotten and the `items` it held, changed from the map's, are lost). What lies in the world is the world's: only the party's inventory and stores are kept whatever the packs do (owner, 2026-10-19). A place never blocks a load. |
+| `trimmed` | Automap tiles outside their map, or on a level it lost, dropped. |
+| `applied`, `converted_from` | As `Restored`. |
+| `migrations` | `[Offered]`, left out when none: the packs' migrations leading on from the versions the save was made with, in order, each `pack`, `file` (`0001.ron`), `to` (the version it leads to) and `steps`. Offered when the verdict is `needs_migration`; else applied as they are, since none finds anything of the save (owner, 2026-10-19). |
+
+A migration file is `packs/<pack>/migrations/NNNN.ron`, sealed with the pack: `(schema: 1, to: "x.y.z",
+steps: [..])`. A save made at version `v` is offered every file with `v < to <=` the pack's version, in
+file order; versions between files need none. A pack keeps at most 1024 files (`MAX_MIGRATIONS`),
+a file 1 to 4096 steps (`MAX_STEPS`). Each step, as JSON `{"<Step>": {..}}`, names only its own
+pack's ids:
+- `Rename { kind, from, to }` and `Replace { kind, from, to }`: what the save holds of `from` it holds of
+  `to` (a rename, or another definition standing in). `kind`: `map`, `flag`, `region`, `item`, `spell`,
+  `monster`, `condition`, `race`, `class`, `background`, `service`. A chain composes: `a` to `b` then `b`
+  to `c` is `a` to `c`.
+- `Remove { kind, id }`: it leaves every list that holds it (stores, kit, worn, known spells, giving the
+  pick back, conditions, effects, flags, piles and containers, a map's state, a runbook's actions); where
+  the world cannot do without it (the party's map, a fight's monster, the service it is in, tactics
+  criteria) it stays `missing`. A race, class, background or region cannot be removed.
+- `MovePlace { map, from, to }`, cells `(level, x, y)`: the party on it, a fight's retreat to it, its
+  pile, its open doors and its automap tile move with it.
+- `RenameEncounter { map, from, to }` and `RenameObject { map, from, to }`: a placement's id, in the
+  cleared encounters, a fight met there, the object states and what the party noticed or was told.
+
 ## 8. Commands
 
-`Command` (11 variants). Commands name members by `CharacterId` (`MemberView.member`) and
+`Command` (16 variants). Commands name members by `CharacterId` (`MemberView.member`) and
 definitions by string id (a feature by its name key); a stack is named by its position in the
 encounter (`stack`). No command addresses a marching-order slot or a list row, so a command
 means the same thing after a reorder or a change to a list.
 
 | Variant | Fields | Meaning |
 |---|---|---|
-| `Step` | `Direction` | Move one tile relative to the facing, without turning. |
+| `Step` | `Direction` | Move one tile relative to the facing, without turning. A stair up is taken only by a step onto it from its foot (moving the way the map's `stairs` list says it rises), a stair down only from its head (moving against it); a step from any other side lands on the stair as on a floor. The step's direction counts, not the facing, so backing or sidestepping onto a stair from its foot takes it. |
 | `Turn` | `Rotation` | Turn in place. |
-| `Interact` | | Use the facing edge or tile: a door, a site (enters its service). |
+| `Interact` | | Use what is in reach: a site on the party's tile enters its service; else the choices are the door on the faced edge, every group standing in reach (as `Approach`) and every interaction the objects in reach (as `Act`) offer now, less a `once` already spent. One is done at once (as `Door`, `Approach` or `Act`), none is the message `NothingHere`, several are refused (`ChooseVerb`, listing them). |
+| `Door` | | Open or close the door on the faced edge (else `NoDoor`), for when `Interact` has more than one choice. Costs 1 minute. Exploring only. |
+| `Search` | | One Investigation roll on the `object` stream by the member best at it who can act (else `VerbRefused` with `NoneCanAct`) against each hidden object in the party's cell and the one it faces, as `Act` reaches them; each whose difficulty the roll meets is found. Takes `search_minutes` (10) whether or not anything is there. Exploring only. |
+| `Climb` | `Vertical` (`Up`, `Down`) | Climb a ladder or shaft to the same tile of the next level that way; a ladder on either tile joins them, and the far one must be ground the party can enter (else `NoLadder`). Costs the far terrain's minutes. Exploring only. |
 | `Party` | `PartyCommand` | Build, reorder or set tactics. |
 | `Encounter` | `EncounterChoice` | Choose what to do about the monsters ahead. |
 | `Combat` | `CombatCommand` | Act on the acting member's turn. |
 | `Cast` | `caster` (`CharacterId`), `spell` (spell id; the caster must know it), `target` (`Target`) | Cast outside a fight: healing, a buff, light, mage hand (`cast.get` lists what may be cast). `target` is ignored by light and mage hand. |
-| `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight. |
+| `Item` | `ItemCommand` | Equip, unequip, give, stow, take or use outside a fight; drop, pick up, take out of or put into a container while exploring. |
 | `Service` | `ServiceCommand` | Act inside a service. |
 | `Rest` | `RestCommand` | Rest outside a service. |
 | `Dev` | `DevCommand` | A debugging edit; refused with `DevOnly` unless `Settings.devtools`. |
+| `Act` | `object` (the placement's id in the map), `verb` (`Verb`), `option` (from 0, the default) | Do something to an object whose footprint reaches the party's cell, or the faced cell across an edge with no wall, closed door or cliff; hidden and taken-away objects are not there (`NoSuchObject`). Names the `option`th interaction of `verb` the kind offers in the object's state now (else `VerbRefused`). Requirements that need no die (item, flag, school, rule) refuse when they fail; then each check is rolled in order by the member best at it, on the `object` stream. A failed check spends the minutes and shows the kind's failure text but uses up nothing and spends no `once`; a success uses up consumed items (the stores first, then a spare in a kit, never a worn one), marks `once`, and does the effects in order. Costs the interaction's `minutes`, else 1. Exploring only. |
+| `Approach` | `being` (the group's id in the map, `BeingView.being`) | Go up to a group standing in the party's cell, or the faced cell across an edge with no wall, closed door or cliff (else `NoSuchBeing`): the encounter begins as a step into its cell begins it (`EncounterStarted` with its `Fixed` source), but the party stays where it is, and Run puts it back there facing away. Takes no time. Exploring only. |
 
 `PartyCommand`: `Create(Draft)` (a `Draft` is `name`, `race`, `class`, `background` ids,
 `alignment`, `scores` (six point-buy scores, SRD order), `skills` (picked from the class list)),
@@ -582,7 +729,17 @@ the name key `FeatureView.feature` shows; `choice` defaults to `None`), `EndTurn
 the stores count by kind): `Equip { member, item }`,
 `Unequip { member, slot }` (`EquipSlot`), `Give { giver, receiver, item, count }` (kit to kit),
 `Stow { member, item, count }` (kit to stores), `Take { member, item, count }` (stores to kit),
-`Use { member, item, receiver }` (`receiver` null for the user).
+`Use { member, item, receiver }` (`receiver` null for the user). While exploring only, by a
+member who can act, and taking no time: `Drop { member, item, count }` (kit to the ground of the
+party's cell; a new pile lies 2 eighths ahead of the party, one already there takes it where it
+lies; a pile holds 32 kinds, else `PileFull`), `PickUp { member, item, count }` (the ground of
+the party's cell to kit, else `NotOnGround`), `TakeOut { member, object, item, count }` and
+`PutIn { member, object, item, count }` (an open container in reach, as `Act` reaches it, by its
+placement id, to kit and back; a kind with a capacity is a container, open in a state marked
+`open` or always when it has no states; its capacity counts kinds of item; refusals
+`NoSuchObject`, `VerbRefused` with `NotOffered` (not a container), `Closed` or `Full`, and
+`NotInObject`). The save keeps a pile or a container's contents only once they differ from the
+map's.
 
 `ServiceCommand` (`member` a `CharacterId`; `item` and `spell` string ids): `Leave` (any),
 `Room` (inn: a long rest), `Rumor` (tavern), `BuyFood { count }` (tavern), `Heal { member }`,
@@ -597,7 +754,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 `MemberTwice`; the dice are rolled in marching order), `Long` (the night; eats food; once per
 24 hours).
 
-`DevCommand` (13 variants; every one is raised back as `Event::Dev`):
+`DevCommand` (14 variants; every one is raised back as `Event::Dev`):
 
 | Variant | Fields | Meaning |
 |---|---|---|
@@ -610,10 +767,11 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 | `SetScore` | `member`, `ability`, `score` | One ability score, any `u8` (Con and mental scores recompute their pools). |
 | `SetCondition` | `member`, `condition` (id), `applied` | A condition on or off, raw. |
 | `SetFlag` | `flag` (id), `value` | A world flag. |
-| `Teleport` | `map` (id), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
+| `Teleport` | `map` (id), `level` (optional, 0 when absent), `x`, `y`, `facing` | Explore only; no time passes, no encounter triggers. |
 | `SetMonsterHp` | `stack`, `index` (among the stack's living, as in `ActorRef::Monster`), `hp` | Fights only; 0 removes it without gold. |
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
 | `Reconcile` | `region` (id) | Outside a fight: meet a region as on entering it (`time.reconcile`). |
+| `Fold` | | Outside a fight: fold the world now, as a safe point past the threshold does (`Folded`). On the wire the bare string `"Fold"`. |
 
 **Script words.** A typing aid for the CLI's `play --script`, the app's dev script and tests
 (`word.rs`). `parse_script(text) -> Result<Vec<Word>, ScriptError>` reads a text script: words
@@ -632,13 +790,14 @@ slot `W`) `feature-F-hide` `end`; any time `react-M-on` `react-M-off`; in a serv
 `room` `rumor` `food-N` `heal-M` `cure-M` `raise-M` `buy-R[-N]` (stock item `R`) `sell-R[-N]`
 (stores item `R`) `deposit-N` `withdraw-N` (copper) `train-M` `choose-M-R` (class-list spell
 `R`) `learn-M-R` (the service's spell `R`); outside one `rest` `short-rest`
-`short-rest-A-B-…` (hit dice per member in marching order). Party creation, items, `Cast`
+`short-rest-A-B-…` (hit dice per member in marching order); exploring `door`, `search`, `act-O-V` and `act-O-V-N`
+(verb `V`, lower case, on object `O`, its `N`th interaction). Party creation, items, `Cast`
 outside a fight and `Dev` have no words. `Command::word` (`command.rs`) gives a command's bare
 verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their own).
 
 ## 9. Events
 
-`Event` has 62 variants. Events carry ids, numbers and roll traces, never text: a member is its
+`Event` has 73 variants. Events carry ids, numbers and roll traces, never text: a member is its
 `CharacterId`, a definition its string id, a place a `Place`. Most commands end with a
 `Visible` event. Groups as in ARCHITECTURE.md §4.2.
 
@@ -646,15 +805,16 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 | Event | Fields | Meaning |
 |---|---|---|
-| `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. |
-| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`) | A step did not happen; the turn was taken. |
+| `Moved` | `from`, `to` (`Place`) | The party moved, possibly through a portal. A portal, a stair or a hole gives two: onto the tile, then to its far end. |
+| `Blocked` | `reason` (`Wall`, `ClosedDoor`, `Impassable`, `MapEdge`, `Cliff`, `NoGround`, `Object`) | A step did not happen; the turn was taken. `Cliff`: the height difference is more than the entered terrain's `climb`, up or down, and the edge is not a ramp. `NoGround`: the tile ahead has no ground on the party's level. `Object`: an object's footprint stands in the step's path (centre to centre, half a cell wide), in either cell. |
 | `Visible` | `tiles` (`[{x, y, depth, offset}]`) | What the party perceives after the command, nearest first. |
-| `Door` | `map` (id), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
+| `Door` | `map` (id), `level` (left out when 0), `x`, `y`, `facing`, `open` | A door on the party's tile, on edge `facing`, changed state. |
 | `Message` | `key` (`MessageKey`: `NothingHere`) | A message for the player; text under `sim:message:<name>`. |
 | `PartyChanged` | | Members or their order changed. |
 | `TimeAdvanced` | `holder` (`"party:0"` or a region id), `minutes`, `day_rolled` | A clock advanced. |
 | `Reconciled` | `a`, `b` (holders, named as `holder`), `delta_a`, `delta_b` (minutes), `era_b` | Two holders met; `b` caught up by `delta_b` for the `delta_a` that `a` lived. |
 | `SignalsDropped` | `count` | The signal bus dropped signals past its depth or budget. |
+| `Folded` | `interactions` | The world moved on (PRD D28): what it holds became its new bases and the journal's `interactions` went to the archive. A safe point folds when the journal holds `fold_interactions` (a rules value, 5000 when no pack sets it): a long rest done, a room taken at the inn, or coming into a settlement region. The client says "The world has moved on". |
 
 ### Encounters
 
@@ -662,7 +822,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `EncounterCheck` | `roll` (d100 `RollTrace`), `chance`, `fired` | A step rolled for a random encounter. |
 | `EncounterStarted` | `source`, `stacks` (`[[monster id, count]]`), `disposition`, `counts` (`[RollTrace]`), `stealth` (`Roll` or null), `perception`, `noticed` | Monsters stand before the party; unnoticed means the party is surprised. |
-| `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
+| `Check` | `actor` (`ActorRef`), `kind` (`Stealth`, `Hide`, `Run`, `Flee`, `{"Save": Ability}`, `{"Skill": Skill}`, `{"Ability": Ability}`, the last two from `Act`), `roll` (`Roll` or null), `dc`, `success` | A check against a difficulty. |
 | `Bribed` | `cost` (copper) | The monsters took the money and left. |
 
 ### Fights
@@ -682,8 +842,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `Wounded` | `member`, `failures` | Damage at 0 hit points: a failed death save (two on a crit). |
 | `DeathSave` | `member`, `roll` (`RollTrace`), `result` (`Success`, `Failure`, `Stable`, `Revived`, `Died`), `successes`, `failures` | A death saving throw at the end of a round. |
 | `Condition` | `target` (`ActorRef`), `condition` (id), `applied` | A condition came or went. |
-| `Death` | `target` (`ActorRef`), `gold` (`RollTrace` of whole gold pieces, or null) | A combatant died; the gold is looted as copper. |
-| `CombatEnded` | `outcome` (`Victory`, `Fled`, `Defeat`), `xp` (each survivor), `gold` (copper), `fallen` (`[CharacterId]` removed by permadeath) | The fight is over. |
+| `Death` | `target` (`ActorRef`), `gold` (`RollTrace` of whole gold pieces, or null), `loot` (`[Loot]`, each `{item, count}`; left out when empty) | A combatant died; the gold is looted as copper. A monster whose kind names a loot table drops items: the table is drawn `picks` times by weight on the `combat` stream, and each drawn entry rolls a d100 against its `chance_percent`, then its count. The fight holds them until it ends. |
+| `CombatEnded` | `outcome` (`Victory`, `Fled`, `Defeat`), `xp` (each survivor), `gold` (copper), `fallen` (`[CharacterId]` removed by permadeath), `loot` (`[Loot]` laid on the ground; left out when empty) | The fight is over. On victory what the dead dropped lies on the ground of the party's cell (`PickUp`), joining a pile already there; a flight or a defeat leaves it behind for good. |
 | `FeatureUsed` | `member`, `feature` (name key) | A class feature was used; its effect follows. |
 | `OpportunityAttack` | `stack`, `member` | A front stack swings at a member leaving; attack events follow. |
 | `MonsterCast` | `caster` (`ActorRef`), `spell` (id) | A monster cast; what it did follows. |
@@ -708,9 +868,24 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 |---|---|---|
 | `Equipped` | `member`, `slot`, `item` (id) | Worn or wielded. |
 | `Unequipped` | `member`, `slot`, `item` | Taken off, or it left the kit. |
-| `ItemMoved` | `item`, `count`, `from`, `to` (`{"Member": CharacterId}` or `"Stores"`) | Items moved. |
+| `ItemMoved` | `item`, `count`, `from`, `to` (`ItemPlace`: `{"Member": CharacterId}`, `"Stores"`, `"Ground"` (the party's cell) or `{"Object": placement id}`) | Items moved. |
 | `ItemUsed` | `member`, `item`, `receiver` (`CharacterId` or null), `consumed` | An item was used; what it did follows. |
 | `Sensed` | `actor` (`CharacterId`), `item`, `checks` (`[{layer, roll, reach}]`), `tiles` (`[{x, y, layers}]`) | A member looked from afar (a spyglass); the automap now carries the tiles as remote. |
+
+### Objects
+
+| Event | Fields | Meaning |
+|---|---|---|
+| `Noticed` | `object` (placement id in the party's map), `how` (`Passive`, `Search`, `Spell`) | A hidden object was found and is in reach from now on. `Passive`: after a look while exploring, the party's best passive Perception (members who can act) met its difficulty, its cell in sight within `notice_tiles` (2) cells; `Spell`: a reveal in force (`Utility::Reveal`, a lasting effect like light) reached it within its range on the party's level, seen or not, and it has an aura; `Search`: after `Searched`. Comes before `Visible`. |
+| `Searched` | `member` (`CharacterId`), `roll` (`Roll`) | `Search`: who searched and the Investigation roll; each object found follows as `Noticed`, then the lore it turned up as `Lore`. |
+| `Lore` | `key` (a text key), `object` (placement id; left out for a cell's) | Lore a search turned up in reach (owner, 2026-10-16): each cell's (`MapDef.lore`), then each object's (a placement's own, else its kind's), when it asks no `dc` or the search's roll meets it; a `once` lore is told the first time only, which the save keeps (`MapState.lore_told`, `ObjectState.told`). |
+| `ObjectUsed` | `object` (placement id in the party's map), `verb`, `success` | `Act` went through; its checks (`Check`) come before it, its effects after it on success, the kind's failure text on a failed check. |
+| `ObjectState` | `object`, `state` | The object moved to a state. |
+| `ObjectRemoved` | `object` | The object was taken away for good. |
+| `ObjectMessage` | `object`, `key` (a text key) | Text for the player. |
+| `GoldFound` | `amount` (copper) | Coin went to the party. |
+| `ItemFound` | `item`, `count` | Items went into the stores from the world. |
+| `ItemSpent` | `item`, `count`, `from` (`{"Member": CharacterId}` or `"Stores"`) | Items were used up. |
 
 ### Town, rest and progression
 
@@ -741,7 +916,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 
 ## 10. Rejections and errors
 
-`Rejection` (62 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
+`Rejection` (71 variants) is a rule refusal; the world is unchanged. Over Tier 2 it arrives as
 `{"kind":"Rejected","rejection": ...}`, in `Reply::Script.rejected`, or inside a view
 (`refusal`, `blocked`, `bonus`, `long_refusal`). A rejection names members by `CharacterId`
 (`member`), definitions by string id (`spell`, `item`, `feature`, `id`) and a stack by
@@ -799,6 +974,15 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `CantripNotLearned` | | Cantrips come with the class; none is picked or bought. |
 | `SpellTooHigh` | `level`, `max` | Above the highest level the member may learn. |
 | `AlreadyKnown` | `member` | The spell is already on the member's list. |
+| `NoLadder` | | `Climb`: no ladder joins the party's tile to a level that way, or nothing there to stand on. |
+| `NoSuchObject` | `object` | `Act`: no object of that id is in reach (none in the map, hidden, taken away, or not in the party's cell or the one it faces). |
+| `VerbRefused` | `reason` (`Refusal`: `NotOffered`, `Spent`, `{"Lacks": {item}}`, `{"Flag": {flag}}`, `{"School": {school}}`, `{"Rule": {rule}}`, `NoneCanAct`, `Closed`, `Full`) | `Act`, `TakeOut`, `PutIn`: the object does not allow that now; nothing changed. |
+| `NoSuchBeing` | `being` | `Approach`: no group of that id stands in reach (none in the map, beaten for good, or not in the party's cell or the one it faces). |
+| `ChooseVerb` | `choices` (`Choice`: `Door`, `{"Being": {being}}` or `{"Object": {object, verb, option}}`, each the `Door`, `Approach` or `Act` command that does it; the door first, then the standing groups, then objects in the party's cell before the faced one) | `Interact`: more than one thing to do; nothing changed. |
+| `NoDoor` | | `Door`: no door on the faced edge. |
+| `NotOnGround` | `item` | `PickUp`: the ground of the party's cell holds none of it. |
+| `NotInObject` | `item` | `TakeOut`: the container holds none of it. |
+| `PileFull` | | `Drop`: the cell's pile holds 32 kinds, none of them this one. |
 | `NoActionLeft` | | The turn's action is spent. |
 | `NoBonusActionLeft` | | The turn's bonus action is spent. |
 | `ReactionOnly` | | That costs a reaction; only a declared reaction pays for it. |
@@ -834,8 +1018,9 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `MAX_SCRIPT` | 10,000 commands per `sim.script` | `omnis-sim/src/ops.rs` |
 | `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` |
 | `omnis_data::limits::MAX_STRING_BYTES` | 4 KiB per string argument (`TooLong`) | `omnis-data/src/limits.rs` |
-| `MAX_FILE_BYTES` | 4 MiB per file read (saves included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
-| `LOG_CAPACITY` | 4096 events kept for `events.tail` | `omnis-sim/src/lib.rs` |
+| `MAX_FILE_BYTES` | 4 MiB per file read (a world folder's files included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
+| `MAX_SAVE_BYTES` | 8 MiB per character save, read (`ron_io::read_save_under`) or written (`save_files` refuses a larger one). A full log and a full journal measure about 4 MB | `omnis-data/src/limits.rs` |
+| `LOG_CAPACITY` | 16384 events in the party's log (`events.tail`, `history`) | `omnis-sim/src/lib.rs` |
 | Paths | Relative; only ASCII letters, digits, `.`, `_`, `-`, `/`; no `.` or `..` components; the extension checked (`.ron` for saves, `.png` for screenshots) | `ops::client_path` |
 
 Every argument from a client is untrusted (ARCHITECTURE.md §6.2) and bounded before it is
@@ -846,9 +1031,9 @@ looked at.
 | Version | Value | Covers | Moves when |
 |---|---|---|---|
 | `ops::PROTOCOL` | 2 | Both API tiers | A rename, a removal, or a change of meaning or units (§13). |
-| `SAVE_SCHEMA` | 7 | Save files (`World::to_ron`) | The saved world's shape changes; older schemas (1 to 6) migrate on load. |
+| `SAVE_SCHEMA` | 9 | Save files: the character save (`save::CharacterSave`, compact RON) and the world folder (`save::Manifest` with its `NameTable`, `WorldBase`, `RegionBase`, pretty RON) | The save's shape changes. Schemas 1 to 7 were whole worlds (`World::to_ron`); they migrate to 7 and are converted on load. Schema 8 named fixed encounters by row; it is converted on load (M8.5 7h2). `World::to_ron` remains the fingerprint's text and a snapshot `World::from_ron` reads. |
 | `omnis_data::SCHEMA` | 1 | Pack data files | The pack file format changes; the loader refuses other schemas. |
-| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files (FNV-1a 64 over them). A save made on other packs is refused (`save.read` `Failed`) unless `force`. |
+| Pack fingerprints | `PackFingerprint { id, version, hash }` per pack, in `Status.packs` | The content a world runs on | Any edit to a pack's data or text files, or to its manifest's fields (FNV-1a 64 over them); a pack records it in `pack.ron` as `hash`, and the loader refuses one whose content no longer has it (M8.5 7h1). A save made on other packs loads by name (M8.5 7h3); one with no name table (before 7h2) is refused (`save.read` `Failed`) unless `force`. |
 
 The three versions move independently.
 
@@ -874,13 +1059,17 @@ As of protocol 2:
   a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
   backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
   lists. Only Tier 1 has `Data`.
-- **Tier 1 reads without an op**: `flags`, `step_lands`, `site_ahead`, `door_open`. `here` is reachable only
+- **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `history`, `told`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
-- **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. The
-  event log is not saved, so it is empty after `save.read`.
+- **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. After
+  `save.read` the log holds the saved events a full log tells (`told`), not `Visible`,
+  `EncounterCheck` or `TimeAdvanced`.
 - **No sliced long ops.** Every op answers within one frame; ops that take long (an ecosystem
   tick, M10) and their progress reports are not built.
 - **`world.query` is debug-only** and outside the contract.
+- **Event rows after a pack change.** `Rumor.rumor` and `RestEvent.entry` name rows in file order,
+  so a save loaded on changed packs may retell another rumor or rest event in its log (M8.5 7h;
+  every other id a save holds is found again by name).
 - **Later systems.** Region events (M10, `omnis-eco`) and quest events (M11, `omnis-story`) do
   not exist yet, nor the ops `pack.validate`, `eco.region`, `eco.tick`, `story.state`,
   `story.check`, `editor.*`.
@@ -910,6 +1099,159 @@ Additive (§13), so `PROTOCOL` stays 2:
 - 2026-10-11: `SpellView.pay` (the definition's cost of the turn); `CombatView.items`
   (`FightItemView`: `item`, `name`, `count`, `blocked`, the acting member's usable kit rows with
   the refusal `Use` would get) (parity P7).
+- 2026-10-12: elevation (M8.5 step 1a): `ViewTile.height`, `EdgeView::Ramp`,
+  `BlockReason::Cliff`, `/` in `map.text`; sight follows height, and `visibility_depth` adds
+  height (rule value `sight_rise_per_tile`). Flat maps see and play as before.
+- 2026-10-12: levels in one map (M8.5 step 1b): `Place.level` and `Event::Door.level` (left out
+  on level 0, so level-0 traffic is byte-identical); `ViewportModel.level` and `level_name`;
+  `level` on `map.text`, `automap.get` and `Reply::Automap`; `DevCommand::Teleport.level`;
+  `Command::Climb(Vertical)` and `Rejection::NoLadder`; `BlockReason::NoGround`; a stair or a
+  hole gives a second `Moved`, as a portal does; `_` for no ground in `map.text`. Tier 1's
+  `automap`, `map_text` and `door_open` take a `Level`.
+- 2026-10-12: a stair's direction (M8.5 step 1c): a map lists every stair with the way it rises
+  (`stairs`), and a `Step` takes a stair up only from its foot and a stair down only from its
+  head; from a side it is a plain step (one `Moved`). No type changes; no shipped map has stairs,
+  so shipped play and the replays are unchanged.
+- 2026-10-14: objects in cells (M8.5 step 2, in progress): `BlockReason::Object`; Tier 1's
+  `object_blocks` (the step check a client's mirror shares) and `ObjectState` (what a save keeps
+  of a placement, written only once it changes). Sight is blocked where an object whose kind
+  blocks sight rises above the line, except in the cell it stands in. No shipped map places
+  objects, so shipped play,
+  saves and the replays are unchanged.
+- 2026-10-14: `Command::Act { object, verb, option }` (M8.5 step 2, item 9), the word
+  `act-O-V[-N]`; events `ObjectUsed`, `ObjectState`, `ObjectRemoved`, `ObjectMessage`,
+  `GoldFound`, `ItemFound`, `ItemSpent`; `CheckKind::Skill` and `CheckKind::Ability`;
+  rejections `NoSuchObject` and `VerbRefused` (`Refusal`); `Verb::ALL`. An object's rules slot
+  gets `party_level` (the mean level of members who can act, rounded down) and `party_size`
+  (how many can act).
+- 2026-10-15: `Command::Door` and its word `door` (M8.5 step 2, item 10); `Interact` chooses
+  among the faced door and the interactions of objects in reach; rejections `ChooseVerb`
+  (`Choice`) and `NoDoor`. A door alone is used as before.
+- 2026-10-15: `ItemCommand::{Drop, PickUp, TakeOut, PutIn}` (M8.5 step 2, item 11);
+  `ItemPlace::Ground` and `ItemPlace::Object` (so `ItemPlace` is no longer `Copy` in Rust);
+  `Refusal::Closed` and `Refusal::Full`; rejections `NotOnGround`, `NotInObject`, `PileFull`.
+  The save's map state gains `ground`, written only when a pile differs from the map's.
+- 2026-10-15: loot (M8.5 step 2, item 12): `Death.loot` and `CombatEnded.loot` (`[Loot]`, left
+  out when empty, so a fight without loot reads as before); the fight's saved state gains `loot`,
+  written only when something has dropped. Base monsters carry no loot table.
+- 2026-10-15: hidden objects (M8.5 step 2, item 13): `Command::Search` and its word `search`;
+  events `Noticed` (`Notice`: `Passive`, `Search`, `Spell`) and `Searched`; a spell effect
+  `Utility::Reveal { range_tiles, minutes }` (pack data), a lasting effect like `Light`. The
+  rules values `notice_tiles` (2) and `search_minutes` (10) default in code; the base pack sets
+  them (item 14) and gains `base:spell:detect_magic`.
+- 2026-10-15: `objects.get` and `objects_view` (`ObjectView`, `VerbView`, `CheckView`,
+  `ItemCount`), bringing the ops to 26 (M8.5 step 2, item 15); `ViewportModel.objects`
+  (`[SeenObject]`) and `ViewportModel.piles` (`[PileView]`), left out when empty, so a viewport
+  with no objects reads as before.
+- 2026-10-15: `SeenObject.blocks` and Tier 1's `objects_on_level` (M8.5 step 2b, item 1), for a
+  client that draws every object on a level, not only those in sight.
+- 2026-10-16: Tier 1 re-exports `Notice` (`Event::Noticed`'s `how`) beside the other event types
+  (M8.5 step 2b, item 5), so a client can word each way of noticing. The wire form is unchanged.
+- 2026-10-17: `Event::Lore { key, object }` (72 events), told by `Search` after its finds; the
+  save's `MapState.lore_told` and `ObjectState.told`, left out when empty (M8.5 step 2b, lore).
+- 2026-10-17: groups that stand in view (M8.5 step 2c): `ViewportModel.beings` (`[BeingView]`,
+  left out when empty), `ObjectsView.beings` and `Reply::Objects.beings` (those in reach, left out
+  when empty) and Tier 1's `beings_on_level`; `Command::Approach { being }` (16
+  commands), the word `approach-B`; `Choice::Being`; `Rejection::NoSuchBeing` (71 rejections);
+  `Shape::Figure`. A fixed encounter stands only when its map gives it a `stand`, and no shipped map
+  does, so shipped play, saves and the replays are unchanged.
+- 2026-10-17: the journal (M8.5 7a): Tier 1's `journal_len`, the count of commands the world has
+  accepted since its base (PRD D28), each kept with the party's age after it. It is not saved
+  yet, so saves, fingerprints and the replays are unchanged; a load starts it at 0.
+- 2026-10-17: the world in its parts (M8.5 7b): Tier 1's `split`, `join`, `split_report` and the
+  types `Split`, `Manifest`, `WorldBase`, `RegionBase`, `Holdings`, `Checkpoint`, `JoinError`,
+  `SplitReport` and `RegionSize`. Nothing is saved differently yet.
+- 2026-10-17: flag scope (M8.5 7c): pack files `data/flags/<name>.ron` (`FlagDef { schema, id, scope }`,
+  `FlagScope::{Party, World}`, `World` when left out); Tier 1's `flag_scope`; `Checkpoint.flags` (the party's)
+  beside `WorldBase.flags` (the world's, and every undeclared flag); `SplitReport.party_flags` and
+  `world_flags`. Declared flags are interned after those object kinds name, so no flag number a save holds moves.
+- 2026-10-17: the character save (M8.5 7d, PRD D28, amended the same day), `SAVE_SCHEMA` 8:
+  `save.write` writes a character save (`CharacterSave { schema, world, bases, checkpoint, journal,
+  fingerprint }`: the party as it stands, and the journal of interactions, `Entry { minute, at,
+  command, changes }`, each `Change` a value after: `Door`, `LevelDoor`, `Cleared`, `Object`,
+  `Ground`, `Flag`, `Clock`, `Contact`, `Stream`) and the world folder `.omnis/worlds/<id>/`
+  (`manifest.ron`, `world/<hash>.ron`, `regions/<pack>/<name>/<hash>.ron`); `save.read` joins the
+  bases with the party and lays the changes over them, running no rule, or converts a schema 1 to
+  7 save. A command that changes only the party is not journaled. Found hidden objects and lore
+  told once moved from `MapState`/`ObjectState` (`noticed`, `told`, `lore_told`) to the party's
+  `World::known` (`Knowledge`); older texts carry theirs over. Tier 1: `save_files`, `load_save`,
+  `FileOut`, `Restored { applied, converted_from }`, `Bases`, `WORLDS`, `apply_changes`, `Change`;
+  `LoadError` gains `BadSave`, `BadBase` and `Diverged`. `ops::save_text` and `ops::load_text`
+  are gone (Tier 1 only; the ops are unchanged). Both goldens rebaselined for the schema field.
+- 2026-10-18: the fold (M8.5 7e, PRD D28): `DevCommand::Fold` (14 variants) and `Event::Folded
+  { interactions }` (73 variants). A fold makes what the world holds its new bases and moves the
+  journal to the archive (`World.archive`, `save::Archived::{Held, Named}`); a safe point (a long
+  rest done, a room at the inn, coming into a settlement region) folds when the journal holds the
+  rules value `fold_interactions`, 5000 in code when no pack sets it. `CharacterSave.archive`
+  (`[u64]`, left out when empty) names the save's segments, written as
+  `.omnis/worlds/<id>/archive/<hash>.ron`; a load restores the names and reads no segment.
+  Tier 1: `fold`, `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`,
+  `archive_len`, `unnamed`, `tidy_list`. `SAVE_SCHEMA` stays 8; no golden moved.
+- 2026-10-18: the party's log is saved (M8.5 7f): `World::log` holds `Logged { minute, map, event
+  }`, each event stamped with the party's age and map when it was said, and keeps 16384
+  (`LOG_CAPACITY`, was 4096; `events.tail` still answers with events). `CharacterSave.log`
+  (`[Logged]`, left out when empty) carries the events `told` keeps, so a load gives the party's
+  log back and a client retells its full log from it; a fold leaves it be. A character save may
+  be 8 MiB (`MAX_SAVE_BYTES`; the world folder's files stay at 4 MiB), and `save_files` refuses a
+  larger one. Tier 1: `history`, `told`, `Logged`. `SAVE_SCHEMA` stays 8 (a save without `log`
+  loads with none); no golden moved.
+- 2026-10-18: docs and pins (M8.5 7g): Tier 1 now re-exports what the 7e entry named (`fold`,
+  `fold_at`, `due`, `FOLD_INTERACTIONS`, `FOLD_RULE`, `archive_path`, `unnamed`, `tidy_list`) and
+  `Archived`; they were reachable only through `omnis_sim::save`. `save_files` refuses a world file
+  over `MAX_FILE_BYTES` as well as a save over `MAX_SAVE_BYTES`, since the reader refuses both.
+- 2026-10-18: the seal (M8.5 7h1): `pack.ron` gains `hash` (`PackManifest.hash`, 0 when left out),
+  the hash of the pack's content at its version; the loader refuses a pack not sealed or no
+  longer matching it. `PackFingerprint` is unchanged, but every pack's hash moved once (the
+  manifest is now hashed by its fields), so saves made before it count as made on other packs.
+- 2026-10-18: schema 9 (M8.5 7h2). A fixed encounter has a required `id` (`FixedEncounter.id`,
+  `[a-z0-9_]{1,32}`, unique among the map's objects and encounters); `Stand` loses its own `id`,
+  and a standing group is named by the encounter's (`BeingView.being` and `Approach` unchanged on
+  the wire). `EncounterSource::Fixed` carries the id, so `EncounterStarted.source` and
+  `CombatView.source` read `{"Fixed": "<id>"}` where they read the row; protocol stays 2 (the
+  row was listed as numeric by design, and no client read it). `SAVE_SCHEMA` 9: `MapState.cleared`
+  and `Change::Cleared` (`id`, was `index`) by id; a schema 8 save converts its rows on load
+  (reported converted, not held to its fingerprint) and a row a loaded map lacks refuses it. The
+  world folder's manifest carries `names` (`save::NameTable`), so every save made from now on
+  writes a new world folder. `CharacterSave.archive` holds `save::Segment { world, name }`
+  (a schema 8 save's bare hashes still read), and a segment folded under other packs is written
+  in that world's folder (`Archived::Held { journal, from }`). Base 0 is `Bases::default()`.
+  `ops::check_reload` becomes `ops::reload`, which also records the packs on the world: a save
+  after `pack.reload` loads without `force`. Tier 1 adds `NameTable`, `Segment`, `Signature`.
+  The goldens moved (the test pack resealed at 0.1.1, the schema): walk `8eab9a1dd95b472d`,
+  fight `79ca2704c92bc312`.
+- 2026-10-19: saves by name (M8.5 7h3). `save.read` loads a save made on other packs without
+  `force` when its world folder has a name table: the save is rebuilt and proved in its own
+  numbering, then renumbered by name and folded (its journal kept under its old world folder);
+  the same names on other packs record the new packs and renumber nothing. A name the loaded
+  packs lack refuses it (`LoadError::Unresolved`, listing each). `force` now matters only for a
+  save with no name table. The fingerprint is checked on any packs. `Restored.fit` (`PackFit`).
+  Tier 1 adds `Missing`, `NameKind`, `PackFit`. No golden moved.
+- 2026-10-19: the save check (M8.5 7h4). The op `save.check` (`path`) answers `check`, a
+  `SaveCheck`: the verdict, the packs as saved and as loaded, the names that moved number, those
+  the packs lack with where, and the places the loaded maps no longer allow. On other packs a
+  broken place loads and warns: the party moves to the nearest cell it can stand on; a pile whose
+  ground went away and what a container no longer placed held are lost (only the party's inventory
+  and stores are kept whatever the packs do); an open door no longer a door, a cleared encounter
+  the map lost and automap tiles outside the map are dropped; the world then folds. Tier 1 adds `examine`, `restore`, `Examined`, `SaveCheck`,
+  `Verdict`, `PackChange`, `PackStamp`, `PlaceWarning`, `PlaceFix`, `Spot`. `Missing` and `NameKind`
+  serialize. MCP `save_check` (27 tools).
+- 2026-10-19: reload by name (M8.5 7h5). `pack.reload` fits the running world to the packs on disk
+  as a load fits a save: the same packs change nothing; other content records them; moved names
+  renumber the world and fold it; places the maps no longer allow load and warn (the old refusal
+  for a party tile the packs lack is gone). A name the packs lack refuses it with nothing changed,
+  each listed. `done` gains `check` (`serde(default)`), the reload's `SaveCheck`. `ops::reload`
+  takes the old packs too and answers `Result<SaveCheck, ReloadRefused>`. Tier 1 adds
+  `examine_running`, `ReloadRefused`. No golden moved.
+
+- 2026-10-19: pack migrations (M8.5 7h6). A pack keeps `migrations/NNNN.ron`, sealed with it, each
+  naming the version it leads `to`; a save made on an earlier version is offered the files after
+  it. Six steps (§7.11), checked at pack load with bad-pack rows. `save.read` and `pack.reload` gain
+  `migrate` (default false; a bare `pack.reload` still reads). `SaveCheck` gains `migrations` and the
+  verdict `needs_migration`, given only when a step finds something of the save; one they find
+  nothing of loads as before, the files recorded. Tier 1: `restore` and `ops::reload` take
+  `migrate`; `load_save_with`; `PackFit::Migrated`; `LoadError::NeedsMigration`; `World.migrated`
+  and the character save's `migrated` (`Migrated`, `Offered`); `omnis_data::migration`. CLI:
+  `migration draft`, `save check`. Ops 27, tools 27; no golden moved.
 
 ### Protocol 2 (2026-10-10)
 

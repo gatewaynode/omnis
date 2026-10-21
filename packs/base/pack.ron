@@ -5,6 +5,7 @@
     schema: 1,
     id: "base",
     version: "0.1.0",
+    hash: 2652312303854716409,
     name: "Omnis base content",
     license: "CC-BY-4.0",
     attribution: [

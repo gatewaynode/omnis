@@ -5,9 +5,12 @@
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
 use crate::error::DataError;
+use crate::flag::FlagDef;
 use crate::item::Item;
 use crate::loader::Data;
+use crate::loot::LootTable;
 use crate::monster::Monster;
+use crate::object::{ObjectKind, check_objects};
 use crate::region::RegionDef;
 use crate::registry::Interner;
 use crate::rules::RulesFile;
@@ -37,7 +40,8 @@ macro_rules! content {
     )*};
 }
 content!(
-    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef
+    Tileset, Race, Class, Background, Item, Spell, Monster, RulesFile, ServiceDef, RegionDef,
+    ObjectKind, LootTable, FlagDef
 );
 
 impl Content for Condition {
@@ -63,6 +67,9 @@ pub(crate) struct RawContent {
     pub rules: Files<RulesFile>,
     pub services: Files<ServiceDef>,
     pub regions: Files<RegionDef>,
+    pub objects: Files<ObjectKind>,
+    pub loot: Files<LootTable>,
+    pub flags: Files<FlagDef>,
 }
 
 /// Check references and text keys, compile the rules, intern everything.
@@ -72,6 +79,7 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     check_text_keys(&raw, data, errors);
     data.rules = build_rules(&raw.rules, errors);
     check_component_threshold(&raw.spells, &data.rules, errors);
+    check_objects(&raw.objects, &raw.items, data, errors);
     data.races = intern(raw.races, &mut data.registry.races);
     data.classes = intern(raw.classes, &mut data.registry.classes);
     data.backgrounds = intern(raw.backgrounds, &mut data.registry.backgrounds);
@@ -80,6 +88,11 @@ pub(crate) fn resolve_content(raw: RawContent, data: &mut Data, errors: &mut Vec
     data.spells = intern(raw.spells, &mut data.registry.spells);
     data.monsters = intern(raw.monsters, &mut data.registry.monsters);
     data.services = intern(raw.services, &mut data.registry.services);
+    data.objects = intern(raw.objects, &mut data.registry.objects);
+    data.loot = intern(raw.loot, &mut data.registry.loot);
+    // After `check_objects` interned the flags object kinds name, so a declaration never moves
+    // the number of a flag a save already holds.
+    data.flags = intern(raw.flags, &mut data.registry.flags);
 }
 
 fn intern<I: Copy + Ord + From<u32> + Into<u32>, T>(
@@ -131,6 +144,19 @@ fn check_references(raw: &RawContent, errors: &mut Vec<DataError>) {
     for (file, monster) in raw.monsters.values() {
         for id in monster.casting.iter().flat_map(|c| &c.spells) {
             require(file, "spell", id, raw.spells.contains_key(id));
+        }
+        if let Some(id) = &monster.loot {
+            require(file, "loot table", id, raw.loot.contains_key(id));
+        }
+    }
+    for (file, table) in raw.loot.values() {
+        for entry in &table.entries {
+            require(
+                file,
+                "item",
+                &entry.item,
+                raw.items.contains_key(&entry.item),
+            );
         }
     }
     for (file, service) in raw.services.values() {

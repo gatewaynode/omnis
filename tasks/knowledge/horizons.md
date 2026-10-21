@@ -7,7 +7,7 @@ Everything deferred so far, with the milestone it waits for. A horizon is not a 
 - 2026-10-10: Socket re-audit of `rhai` 1.26.1.
 
 ## M7 (town, services, rest, progression)
-Planned 2026-09-20 (the M7 block in `tasks/TODO.md`). Left out of M7 by its plan, each a horizon:
+Planned 2026-09-20 (the M7 block, now in `tasks/archive/TODO-2026-10-20.md`). Left out of M7 by its plan, each a horizon:
 swapping and hiring at the inn (D10 sidecar), donations, identify and repair (no such item state),
 limited shop stock (bank interest is out: owner, 2026-10-05, "There will be no bank interest in this game"), rumors from the story engine (M11; M7's
 are a static list), cantrips gained by level, ability score improvement, subclasses, Extra Attack,
@@ -20,10 +20,43 @@ full spell effects where M7b's spells simplify them (named in each spell file). 
 owner's stretch goal, after step 4b). Waiting since before:
 Rest (pools only empty until then; the debug menu refills them); the temple for the `dead`
 condition; shops (the acolyte's potion leaves the kit when shops exist); a blacksmith; `Relief`
-items; string ids in saves before much more content arrives (ids are interned `u32`s in file
-order, guarded by the pack fingerprint; M7b's `depths.ron` and seven spell files renumbered
-the dungeon and every spell, so no earlier save loads in play); `doff_armor_minutes` as its
-own value.
+items; `doff_armor_minutes` as its own value. (String ids in saves, waiting here since M7b, were
+built as M8.5 7h: below, and ARCHITECTURE §4.1.1.)
+
+## The save model (PRD D28, M8.5 step 7)
+Built in 7a–7f (ARCHITECTURE §4.1.1). Left for later, each a horizon:
+- **The archive as the world's history.** Every fold keeps the journal it folds as an archive
+  segment (`.omnis/worlds/<id>/archive/`), never read back today. A chronicle of the world, a
+  "what happened here" for a place, or the story engine's memory (M11) can read it. The full log
+  reads the party's own log instead (owner, 2026-10-18).
+- **Co-op over one world** (D5): several characters' saves naming one world folder need the
+  world's changes stored as shared layers, not only as each save's private journal.
+- **Carrying a character to another world**, or importing one: the checkpoint is the party apart
+  from any world, but its ids, flags and knowledge name one world's packs and maps (PRD §7.7).
+- **Fold thresholds from the world simulation** (M10): today a safe point folds at 5,000
+  interactions, a provisional rules value; story points (M11) fold too.
+- **The PRD's save-model text** (owner, 2026-10-18, 7g: only §7.7's tidy line was brought to the
+  build; 2026-10-20, 7h7: its changed-pack line too, and the line on the save before D28 removed): D28 and §7.7 still say the full log reads the journal and that loads replay from a base;
+  §7.6, §9.3, §11.1 and §14 predate flag scope, the lay-not-replay load and the provisional fold.
+
+## Saves by name (M8.5 7h)
+Built in 7h1–7h6 (ARCHITECTURE §4.1.1; plan `tasks/plans/m8.5-saves-by-name.md`): a save keeps
+the names its numbers stand for, loads on changed packs by name, and is offered the packs'
+migrations. Left as it is, each a horizon:
+- **Replays need identical packs.** A replay (A14) reproduces a game from its commands for tests
+  and goldens; it is not remapped.
+- **Snapshots are not recomputed.** A stack's or member's hit points stay as saved, so a monster
+  whose maximum went down may stand above it after a load mid-fight.
+- **Two events name rows:** `Event::Rumor { rumor }` and `RestEvent { entry }` are rows in file
+  order, so after a pack change the party's log may retell another rumor or rest event. Cosmetic
+  (`docs/api.md` §14); ids for them when either is edited in practice.
+- **Stream names keep region numbers** (`time:party:0:region:3`). They are rebuilt by name on a
+  renumbering; moving them to string ids would change every golden.
+- **Interaction ids.** An object kind's `once` interactions are found again by verb, label and
+  state; two with one signature are told apart only by order. Optional interaction ids if an edit
+  makes that matter.
+- **Carrying a character to another world** (above) is nearer: the name table is what a carry or
+  an import would resolve a party's ids through.
 
 ## Turn budget and tactics (PRD D21–D24, §7.9; approved 2026-09-20)
 **Built in M7c (2026-10-04, ARCH §4.7)**: everything in the "Planned for M7c" paragraph below, the tactics panel beside the sheet, and Bob; D24 stands over the SRD's one-spell limit (step 4b reverted in step 8a, owner 2026-10-04). What follows is the history and what stays open.
@@ -98,10 +131,19 @@ Lands with the first system that reads a tool (Cartography's map detail, M7 at t
 paper and ink as charges; fast-travel modifiers wait for sectors (Phase 2); Mining, Assaying,
 Refining are Omnis tools for the Prospector.
 
+## Objects (M8.5 step 2a)
+Stored and doing nothing yet: an object's size, material, weight, light, noise, smell, value and tags. Not
+built: Detect Magic's barriers (stone, metal, lead) and naming an aura's school; casting a ritual; the
+guild selling Detect Magic; more inputs for an object's rules slot than `party_level` and `party_size`;
+objects and piles on the automap (owner, 2026-10-14: not yet); a pile's position chosen by the party;
+sight through the corner of a gap in a wall (a ray that only touches the gap's corner sees through, so a
+cell behind a hedge beside a gap is seen: found at the 2a test in the yard, 2026-10-15, as recorded for
+corners in 1a). No saving mid-fight is the owner's rule (2026-10-15), built in M8.5 step 7.
+
 ## Combat and magic
 `Reach::AllStacks`, upcasting, counterspell (monster spellcasting came with Bob the Rat King, M7c), torches,
-`Surprise::Monsters`, finesse weapons, loot and encounter budgets
-(M9), floating damage numbers, MAP in a fight, saving from the pause overlay mid-fight,
+`Surprise::Monsters`, finesse weapons, encounter budgets (M9) and loot tables for the base monsters
+(the mechanism came in M8.5 step 2a), floating damage numbers, MAP in a fight,
 `turn::act` restoring `party` as well as `state` on a `RuleError`.
 
 ## Items and the sheet
@@ -118,7 +160,8 @@ inputs, the reach drawn on the automap, a look from a fight, `RevealMap` as a de
 
 ## Modern presentation (PRD D26, owner 2026-09-20)
 > Superseded (2026-10-10, A18, X15): the game's interface is `omnis-vector`'s `bevy_ui` in the neon
-> style; Feathers left the workspace with `omnis-app` at P9 (2026-10-11). Kept as history.
+> style; Feathers left the workspace with `omnis-app` at P9 (2026-10-11). The editor follows: `bevy_ui`
+> (owner, 2026-10-14). Kept as history.
 
 **The Feathers experiment is done and a success by the owner's word (2026-09-20): "committing to
 moving the rest of the play UI over bit by bit."** Inter; interface scale 1.1 at canvas 1×, 1.5
@@ -162,6 +205,31 @@ name in wide scripts (the rules' `NAME_MAX_BYTES` is 32, so the form keeps 16 tw
 three-byte letters of the input's 24 characters; 96 bytes would hold 24 of any script, a rules
 change for the owner to call).
 
+## The editor (owner, 2026-10-14)
+Chosen: `bevy_ui`, a top-down plan with a 3D preview, maps plus a RON text editor, a `notes` text, objects
+defined first in M8.5 step 2. Not chosen for v1, each waiting for the editor's later steps or a content need:
+- editing in the 3D view (picking cells and edges in first person or an orbit camera);
+- form-based editors for the data tables (PRD §10's data table view);
+- a map writer that keeps `//` comments in place (the `notes` text stands in);
+- the editor before objects, authoring them from the start (objects are hand-written RON until the editor).
+
+## Accounts, multiplayer and platforms (PRD D29 to D31, owner 2026-10-21)
+Chosen from the W0.5 studies (`tasks/plans/study-{accounts,multiplayer,multi-platform}.md`). Not chosen, each
+with what it waits for:
+- co-op on one party alone: never alone; it falls out of the several-parties model if a transport lands (W4+);
+- a hosted server: at most a shell over the same engine after W5, and only if a service is ever chosen (D29 says
+  no own hosted service); a platform's cloud save as an option at M12 if a store asks for it;
+- two parties sharing a fight: a row of its own after multiplayer's first step (initiative across parties, the
+  encounter clock, loot);
+- an own Ed25519: only if `ed25519-compact` lapses (1100+ lines); a signature registry or revocation: needs a
+  service, none planned;
+- a `wasm32-wasip1` golden job on Linux as a fourth fingerprint target: cheap, when the owner wants it;
+- the offscreen capture in CI (macOS runners expose Metal): after the look settles at W2;
+- a blocking Linux job: when someone plays on Linux (the owner's call; today it reports and never blocks).
+
 ## Later phases
-The editor (M5, deferred; `tasks/plans/editor-v1.md`), GFDL backgrounds as their own pack,
-procedural generation (M9), the ecosystem (M10), the story engine (M11), packaging (M12).
+Planned in `tasks/TODO.md` (2026-10-21) as phases toward world building: the editor (M5, W1), the look and the
+engine under it (M8.5 steps 5 and 6, set pieces, W2), procedural generation (M9, W3), the ecosystem and the story
+engine (M10, M11, W4), the campaign, GFDL backgrounds and packaging (M12, W5). Accounts, multiplayer and
+multi-platform were studies first (W0.5) and are decided (PRD D29 to D31, 2026-10-21): Linux CI advisory now,
+Windows at W1's close, the `PartyState` refactor with M9, multiplayer's first step at W4, signed packs at W5.

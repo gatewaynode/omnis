@@ -3,10 +3,11 @@
 //! what it offers is its stock; every price is a rule slot.
 
 use crate::error::DataError;
+use crate::levels::LevelData;
 use crate::limits::{MAX_COLLECTION, string_fits};
-use crate::map::{Cell, MapDef};
+use crate::map::MapDef;
 use crate::registry::Interner;
-use omnis_core::ServiceId;
+use omnis_core::{Level, ServiceId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -143,6 +144,9 @@ fn kinds(owners: &[ServiceKind]) -> String {
 /// A service placed on a map tile: stepping onto the tile enters it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Site {
+    /// Level (M8.5 step 1b).
+    #[serde(default)]
+    pub level: Level,
     /// Column.
     pub x: u16,
     /// Row.
@@ -154,6 +158,8 @@ pub struct Site {
 /// A site with its service interned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedSite {
+    /// Level.
+    pub level: Level,
     /// Column.
     pub x: u16,
     /// Row.
@@ -178,19 +184,27 @@ pub(crate) fn validate_sites(def: &MapDef, file: &Path, errors: &mut Vec<DataErr
                 format!("site at ({x}, {y}) is outside the map"),
             ));
         }
-        if !seen.insert((x, y)) {
+        if !seen.insert((site.level, x, y)) {
             errors.push(DataError::new(
                 file,
                 format!("site at ({x}, {y}) shares its tile with another site"),
             ));
         }
-        if def.portals.iter().any(|p| (p.x, p.y) == (x, y)) {
+        if def
+            .portals
+            .iter()
+            .any(|p| (p.level, p.x, p.y) == (site.level, x, y))
+        {
             errors.push(DataError::new(
                 file,
                 format!("site at ({x}, {y}) shares its tile with a portal"),
             ));
         }
-        if def.encounters.iter().any(|e| (e.x, e.y) == (x, y)) {
+        if def
+            .encounters
+            .iter()
+            .any(|e| (e.level, e.x, e.y) == (site.level, x, y))
+        {
             errors.push(DataError::new(
                 file,
                 format!("site at ({x}, {y}) shares its tile with an encounter"),
@@ -199,11 +213,11 @@ pub(crate) fn validate_sites(def: &MapDef, file: &Path, errors: &mut Vec<DataErr
     }
 }
 
-/// Sites must name a loaded service and stand on a tile the party can enter. `cells` is empty
+/// Sites must name a loaded service and stand on a tile the party can enter. `levels` is empty
 /// when the layout did not parse; the tile check is skipped then (the layout's errors stand).
 pub(crate) fn resolve_sites(
     def: &MapDef,
-    cells: &[Cell],
+    levels: &[LevelData],
     services: &Interner<ServiceId>,
     file: &Path,
     errors: &mut Vec<DataError>,
@@ -212,15 +226,24 @@ pub(crate) fn resolve_sites(
     for site in &def.sites {
         let (x, y) = (site.x, site.y);
         let index = usize::from(y) * usize::from(def.width) + usize::from(x);
-        let tile = cells.get(index).filter(|_| x < def.width);
-        if tile.is_some_and(|c| !def.terrains[usize::from(c.terrain)].passable) {
+        let tile = levels
+            .iter()
+            .find(|l| l.level == site.level)
+            .and_then(|l| l.cells.get(index))
+            .filter(|_| x < def.width);
+        if tile.is_some_and(|c| c.is_none_or(|c| !def.terrains[usize::from(c.terrain)].passable)) {
             errors.push(DataError::new(
                 file,
                 format!("site at ({x}, {y}) is on a tile the party cannot enter"),
             ));
         }
         match services.get(&site.service) {
-            Some(service) => sites.push(ResolvedSite { x, y, service }),
+            Some(service) => sites.push(ResolvedSite {
+                level: site.level,
+                x,
+                y,
+                service,
+            }),
             None => errors.push(DataError::new(
                 file,
                 format!(

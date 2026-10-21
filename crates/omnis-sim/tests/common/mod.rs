@@ -35,7 +35,13 @@ pub fn new_world(data: &Data, seed: u64, settings: Settings) -> World {
     let mut world = World::new(data, seed, settings).expect("entry map");
     let map = data.registry.maps.get("test:map:meadow").expect("meadow");
     let (x, y, facing) = data.maps[&map].def.start;
-    world.position = Position { map, x, y, facing };
+    world.position = Position {
+        map,
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    };
     world
 }
 
@@ -305,6 +311,7 @@ pub fn inside_with(data: &Data, name: &str, members: usize) -> World {
     let (x, y) = site(name);
     world.position = Position {
         map,
+        level: omnis_core::Level::GROUND,
         x,
         y,
         facing: Facing::North,

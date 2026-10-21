@@ -1,0 +1,7 @@
+(
+    schema: 1,
+    entries: {
+        "heights:text:map.hills.name": "Test Hills",
+        "heights:text:region.hills.name": "Test Hills",
+    },
+)

@@ -6,13 +6,15 @@ use crate::combat::{CombatCommand, Target};
 use crate::dev::DevCommand;
 use crate::encounter::EncounterChoice;
 use crate::items::ItemCommand;
+use crate::objects::{Choice, Refusal};
 use crate::party::PartyCommand;
 use crate::rest::RestCommand;
 use crate::service::ServiceCommand;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::fmt;
-use omnis_core::{CharacterId, Coins, Direction, Rotation};
-use omnis_data::EquipSlot;
+use omnis_core::{CharacterId, Coins, Direction, Rotation, Vertical};
+use omnis_data::{EquipSlot, Verb};
 use omnis_rules::{CreationError, RuleError, TacticsFault};
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +25,15 @@ pub enum Command {
     Step(Direction),
     /// Turn in place.
     Turn(Rotation),
-    /// Use whatever is on the facing edge or tile: a door in M1.
+    /// Use whatever is on the faced edge or in reach: a service on the party's tile, else the
+    /// one door or object interaction there is; several are refused with the list to choose from.
     Interact,
+    /// Open or close the door on the faced edge (M8.5 step 2), when Use has more than one choice.
+    Door,
+    /// Search the party's cell and the one it faces for hidden objects (M8.5 step 2).
+    Search,
+    /// Climb a ladder or shaft one level up or down, to the same tile (M8.5 step 1b).
+    Climb(Vertical),
     /// Build or reorder the party.
     Party(PartyCommand),
     /// Choose what to do about the monsters ahead.
@@ -48,6 +57,24 @@ pub enum Command {
     Rest(RestCommand),
     /// A debugging edit; accepted only when the world's settings say `devtools`.
     Dev(DevCommand),
+    /// Do something to an object in reach (M8.5 step 2): the kind's interaction of `verb` that
+    /// it offers in the state it is in now, the `option`th when it offers more than one.
+    Act {
+        /// The placement's id in the map (`chest_1`).
+        object: String,
+        /// What to do.
+        verb: Verb,
+        /// Which of the verb's offered interactions, counted from 0.
+        #[serde(default)]
+        option: u8,
+    },
+    /// Go up to a group standing in reach (M8.5 step 2c), in the party's cell or the one it
+    /// faces: the encounter begins as if the party had stepped in, but Run puts it back where it
+    /// stands, facing away.
+    Approach {
+        /// The group's id in the map (`rat`).
+        being: String,
+    },
 }
 
 impl Command {
@@ -64,6 +91,10 @@ impl Command {
             Command::Turn(Rotation::Right) => "turn-right",
             Command::Turn(Rotation::Around) => "around",
             Command::Interact => "use",
+            Command::Door => "door",
+            Command::Search => "search",
+            Command::Climb(Vertical::Up) => "climb-up",
+            Command::Climb(Vertical::Down) => "climb-down",
             Command::Party(_) => "party",
             Command::Encounter(EncounterChoice::Attack) => "fight",
             Command::Encounter(EncounterChoice::Bribe) => "bribe",
@@ -96,6 +127,8 @@ impl Command {
             Command::Rest(RestCommand::Long) => "rest",
             Command::Rest(RestCommand::Short { .. }) => "short-rest",
             Command::Dev(_) => "dev",
+            Command::Act { .. } => "act",
+            Command::Approach { .. } => "approach",
         }
     }
 }
@@ -320,6 +353,8 @@ pub enum Rejection {
         /// The member asked for.
         member: CharacterId,
     },
+    /// No ladder joins the party's tile to a level that way, or nothing to stand on there.
+    NoLadder,
     /// The turn's action is spent (ARCHITECTURE.md §4.7).
     NoActionLeft,
     /// The turn's bonus action is spent.
@@ -362,6 +397,42 @@ pub enum Rejection {
     },
     /// A rule formula failed while resolving: bad pack data, reported rather than a panic.
     Rule(RuleError),
+    /// No object of that id is in reach: none in the map, or hidden, taken away, or not in the
+    /// party's cell or the one it faces.
+    NoSuchObject {
+        /// The id asked for.
+        object: String,
+    },
+    /// The object does not allow that now.
+    VerbRefused {
+        /// Why.
+        reason: Refusal,
+    },
+    /// Use has more than one thing it could do; nothing was done.
+    ChooseVerb {
+        /// What it could do, each as the command that does it.
+        choices: Vec<Choice>,
+    },
+    /// There is no door on the faced edge.
+    NoDoor,
+    /// No group of that id stands in reach: none in the map, beaten for good, met already, or
+    /// not in the party's cell or the one it faces (M8.5 step 2c).
+    NoSuchBeing {
+        /// The id asked for.
+        being: String,
+    },
+    /// The ground of the party's cell holds no item of that id.
+    NotOnGround {
+        /// The id asked for.
+        item: String,
+    },
+    /// The container holds no item of that id.
+    NotInObject {
+        /// The id asked for.
+        item: String,
+    },
+    /// The ground of the party's cell has no room for another kind of item.
+    PileFull,
 }
 
 impl core::fmt::Display for Rejection {
@@ -414,6 +485,23 @@ impl Rejection {
             Rejection::MemberDown {
                 member: CharacterId(member),
             } => write!(f, "the member {member} is down"),
+            Rejection::NoLadder => f.write_str("there is no ladder that way"),
+            Rejection::NoSuchObject { object } => write!(f, "no object '{object}' is in reach"),
+            Rejection::NoSuchBeing { being } => {
+                write!(f, "no one called '{being}' stands in reach")
+            }
+            Rejection::VerbRefused { reason } => write!(f, "{reason}"),
+            Rejection::ChooseVerb { choices } => {
+                write!(
+                    f,
+                    "there are {} things to do here; choose one",
+                    choices.len()
+                )
+            }
+            Rejection::NoDoor => f.write_str("there is no door that way"),
+            Rejection::NotOnGround { item } => write!(f, "there is no {item} on the ground"),
+            Rejection::NotInObject { item } => write!(f, "there is no {item} in it"),
+            Rejection::PileFull => f.write_str("there is no room on the ground here"),
             Rejection::Rule(e) => write!(f, "rule error: {e}"),
             _ => return None,
         })

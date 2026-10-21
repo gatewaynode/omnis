@@ -1,0 +1,12 @@
+// Fixture pack for pack migrations (M8.5 7h6), as a save was made on it: an old sword, a junk dagger, two spells (one replaced and one removed later) and a hall. Not shipped.
+(
+    schema: 1,
+    id: "chain",
+    version: "0.1.0",
+    hash: 9767584891561954676,
+    name: "Omnis migration fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test", "objects"],
+    entry: None,
+)

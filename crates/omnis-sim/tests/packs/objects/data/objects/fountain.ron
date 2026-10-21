@@ -1,0 +1,21 @@
+(
+    schema: 1,
+    id: "objects:object:fountain",
+    name: "objects:text:fountain.name",
+    look: (shape: Slab, width: 6, depth: 6, height: 3),
+    attributes: (blocks_movement: true, material: Some(Stone)),
+    interactions: [
+        (verb: Drink, effects: [Message("objects:text:fountain.drink")], minutes: Some(5)),
+        (
+            verb: Use,
+            label: Some("objects:text:fountain.wish"),
+            requires: [
+                Item(id: "base:item:gem", consume: true),
+                Rule(slot: "objects.crowd"),
+                Ability(ability: Wisdom, dc: 12),
+            ],
+            effects: [GiveGold(100), Message("objects:text:fountain.granted")],
+            failure: Some("objects:text:fountain.sinks"),
+        ),
+    ],
+)

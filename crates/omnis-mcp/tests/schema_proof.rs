@@ -174,9 +174,9 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     let all = instances();
     assert_eq!(
         all.len(),
-        94,
-        "4 steps, 3 turns, interact, 20 party, 4 encounter, 12 combat, 2 casts, 10 item, \
-         14 service, 2 rest, 22 dev"
+        117,
+        "4 steps, 3 turns, interact, door, search, 13 acts (one per verb), approach, 2 climbs, 20 party, 4 encounter, \
+         12 combat, 2 casts, 14 item, 14 service, 2 rest, 23 dev"
     );
     let mut used = Used::new();
     for command in &all {
@@ -191,7 +191,7 @@ fn every_command_variant_validates_reads_back_and_uses_the_whole_schema() {
     offered(&schema, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
     assert!(unused.is_empty(), "no instance uses {unused:?}");
-    assert_eq!(every.len(), 142, "oneOf branches and enum values offered");
+    assert_eq!(every.len(), 168, "oneOf branches and enum values offered");
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn a_draft_without_skills_validates_and_deserializes() {
 
 /// The `Attack` arm of the fight's schema.
 fn attack_arm(schema: &mut Value) -> &mut Value {
-    &mut schema["oneOf"][5]["properties"]["Combat"]["oneOf"][0]["properties"]["Attack"]
+    &mut schema["oneOf"][6]["properties"]["Combat"]["oneOf"][0]["properties"]["Attack"]
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn the_proof_catches_a_schema_that_drifted() {
     }
     offered(&padded, "", &mut every);
     let unused: Vec<&String> = every.difference(&used).collect();
-    assert_eq!(unused, ["/oneOf/11", "/oneOf/11/enum/\"Nap\""]);
+    assert_eq!(unused, ["/oneOf/14", "/oneOf/14/enum/\"Nap\""]);
 }
 
 #[test]

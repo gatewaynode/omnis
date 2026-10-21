@@ -1,0 +1,22 @@
+(
+    schema: 1,
+    id: "objects:object:gate",
+    name: "objects:text:gate.name",
+    look: (shape: Arch, width: 8, depth: 2, height: 8),
+    initial_state: "shut",
+    states: {
+        "shut": (),
+        "open": (blocks_movement: Some(false)),
+    },
+    attributes: (blocks_movement: true, material: Some(Metal)),
+    interactions: [
+        (
+            verb: Push,
+            when_state: Some("shut"),
+            requires: [Flag(name: "objects:flag:lever", min: 1)],
+            effects: [SetState("open"), Message("objects:text:gate.opens")],
+            failure: Some("objects:text:gate.locked"),
+        ),
+        (verb: Pull, when_state: Some("open"), effects: [SetState("shut")]),
+    ],
+)

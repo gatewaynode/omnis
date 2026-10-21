@@ -58,6 +58,8 @@ fn a_rewritten_pack_loads_identically() {
         )
         .unwrap();
     }
+    // Written anew, so sealed anew at the same version.
+    omnis_data::seal::seal(&dir, Some(&data.packs[1].version)).unwrap();
     let again = load_packs(&[&common::base_pack(), &dir]).unwrap_or_else(|r| panic!("{r}"));
     assert_eq!(again.maps, data.maps);
     assert_eq!(again.tilesets, data.tilesets);

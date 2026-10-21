@@ -1,0 +1,12 @@
+// Fixture pack for pack migrations (M8.5 7h6), two migrations on: the sword renamed twice, the junk and one spell removed, the other replaced, a cell of the hall moved, its chest and rats renamed. Not shipped.
+(
+    schema: 1,
+    id: "chain",
+    version: "0.3.0",
+    hash: 11273130871006794117,
+    name: "Omnis migration fixtures",
+    license: "MIT OR Apache-2.0",
+    attribution: [],
+    depends: ["base", "test", "objects"],
+    entry: None,
+)

@@ -14,7 +14,7 @@ use crate::party::{self, set_condition_id};
 use crate::world::{Mode, World};
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, Facing, Position};
+use omnis_core::{CharacterId, Facing, Level, Position};
 use omnis_data::{Ability, Data};
 use omnis_rules::{DeathSaves, level_up, modifier, ready, spell_point_pool};
 use serde::{Deserialize, Serialize};
@@ -96,6 +96,9 @@ pub enum DevCommand {
     Teleport {
         /// `pack:map:name`.
         map: String,
+        /// The level (M8.5 step 1b); the ground when left out.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// Column.
         x: u16,
         /// Row.
@@ -123,6 +126,8 @@ pub enum DevCommand {
         /// `pack:region:name`.
         region: String,
     },
+    /// Outside a fight: fold the world now (M8.5 7e), as a safe point past the threshold does.
+    Fold,
 }
 
 /// Apply a dev command: the gate, the mode, the edit, with the command echoed as an event
@@ -184,8 +189,14 @@ pub(crate) fn apply(
                 .ok_or_else(|| Rejection::UnknownId { id: flag.clone() })?;
             world.flags.insert(id, *value);
         }
-        DevCommand::Teleport { map, x, y, facing } => {
-            teleport(world, data, map, *x, *y, *facing, &mut caused)?;
+        DevCommand::Teleport {
+            map,
+            level,
+            x,
+            y,
+            facing,
+        } => {
+            teleport(world, data, map, *level, (*x, *y), *facing, &mut caused)?;
         }
         DevCommand::Reconcile { region } => {
             if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
@@ -198,6 +209,12 @@ pub(crate) fn apply(
                 .filter(|id| data.regions.contains_key(id))
                 .ok_or_else(|| Rejection::UnknownId { id: region.clone() })?;
             crate::time::enter(world, data, id, None, &mut caused);
+        }
+        DevCommand::Fold => {
+            if !matches!(world.mode, Mode::Explore | Mode::Town(_)) {
+                return Err(Rejection::WrongMode);
+            }
+            caused.push(crate::save::fold(world, data));
         }
     }
     events.push(echo);
@@ -236,6 +253,7 @@ fn set_monster_hp(
         events.push(Event::Death {
             target: ActorRef::Monster { stack, index },
             gold: None,
+            loot: Vec::new(),
         });
     }
     Ok(())
@@ -253,6 +271,7 @@ fn kill_stack(world: &mut World, stack: u8, events: &mut Vec<Event>) -> Result<(
                 index: u8::try_from(index).unwrap_or(u8::MAX),
             },
             gold: None,
+            loot: Vec::new(),
         });
     }
     s.hp.clear();
@@ -380,8 +399,8 @@ fn teleport(
     world: &mut World,
     data: &Data,
     map: &str,
-    x: u16,
-    y: u16,
+    level: Level,
+    (x, y): (u16, u16),
     facing: Facing,
     events: &mut Vec<Event>,
 ) -> Result<(), Rejection> {
@@ -396,12 +415,13 @@ fn teleport(
         .ok_or_else(|| Rejection::UnknownId {
             id: String::from(map),
         })?;
-    if data.maps[&id].cell(x, y).is_none() {
+    if data.maps[&id].cell(level, x, y).is_none() {
         return Err(Rejection::OffMap { x, y });
     }
     let from = world.position;
     let to = Position {
         map: id,
+        level,
         x,
         y,
         facing,

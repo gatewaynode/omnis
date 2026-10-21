@@ -194,6 +194,6 @@ pub(super) fn paint(
     node.row_gap = Val::Px(scaled(6.0, place.height));
     commands
         .entity(entity)
-        .with_children(|column| rows(column, 0, &panel, &[], place.height, Mark::Side));
+        .with_children(|column| rows(column, 0, &panel, &[], (place.height, Mark::Side), None));
     drawn.0 = Some((panel, place));
 }

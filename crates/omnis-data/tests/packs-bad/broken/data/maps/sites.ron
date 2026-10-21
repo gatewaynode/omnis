@@ -18,11 +18,14 @@
         "|. . . #|",
         "+-+-+-+-+",
     ],
+    levels: [
+        (level: 1, name: "broken:text:level.none", layout: ["+-+-+-+-+", "|. . . .|", "+-+-+-+-+"]),
+    ],
     portals: [
         (x: 0, y: 0, to_map: "broken:map:sites", to_x: 1, to_y: 0, to_facing: East),
     ],
     encounters: [
-        (x: 1, y: 0, stacks: [("broken:monster:gone", 1)]),
+        (id: "gone", x: 1, y: 0, stacks: [("broken:monster:gone", 1)]),
     ],
     sites: [
         (x: 0, y: 0, service: "broken:service:none"),

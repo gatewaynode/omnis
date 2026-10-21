@@ -1,6 +1,7 @@
 //! `data/monsters`: SRD stat blocks reduced to what the crawler uses (M4 consumes them).
 
 use crate::error::DataError;
+use crate::object::{Look, Shape, check_look};
 use crate::terms::{DamageType, Size};
 use omnis_core::Dice;
 use serde::{Deserialize, Serialize};
@@ -81,9 +82,42 @@ pub struct Monster {
     /// Spells it casts, if any.
     #[serde(default)]
     pub casting: Option<MonsterCasting>,
+    /// `pack:loot:name`: the table its items are drawn from when it dies (M8.5 step 2).
+    #[serde(default)]
+    pub loot: Option<String>,
+    /// How it is drawn when its group stands in view (M8.5 step 2c), a `Shape::Figure`; left
+    /// out, its size gives one (`figure_for`).
+    #[serde(default)]
+    pub look: Option<Look>,
+}
+
+/// The figure a monster of a size is drawn as, in eighths of a cell (a wall is 8 high): a cell's
+/// width at most, so a Large one fills its cell and the bigger ones only stand taller.
+#[must_use]
+pub const fn figure_for(size: Size) -> Look {
+    let (width, height) = match size {
+        Size::Tiny => (2, 2),
+        Size::Small => (3, 3),
+        Size::Medium => (4, 5),
+        Size::Large => (8, 8),
+        Size::Huge => (8, 12),
+        Size::Gargantuan => (8, 16),
+    };
+    Look {
+        shape: Shape::Figure,
+        width,
+        depth: width,
+        height,
+    }
 }
 
 impl Monster {
+    /// How it is drawn: its own look, or its size's figure.
+    #[must_use]
+    pub fn figure(&self) -> Look {
+        self.look.unwrap_or(figure_for(self.size))
+    }
+
     /// Self-contained checks; every problem is pushed.
     pub fn validate(&self, file: &Path, errors: &mut Vec<DataError>) {
         if self.ac == 0 || self.ac > 30 {
@@ -118,6 +152,12 @@ impl Monster {
             if casting.spells.is_empty() {
                 errors.push(DataError::new(file, "casting needs at least one spell"));
             }
+        }
+        if let Some(look) = &self.look {
+            if look.shape != Shape::Figure {
+                errors.push(DataError::new(file, "look must be a Figure"));
+            }
+            check_look(look, "look", &mut |m| errors.push(DataError::new(file, m)));
         }
         if self.gold.is_some_and(|g| g.count == 0 || g.sides == 0) {
             errors.push(DataError::new(file, "gold needs dice"));

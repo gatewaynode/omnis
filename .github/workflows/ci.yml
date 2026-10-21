@@ -12,9 +12,11 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
 
-# macOS only for now (owner, 2026-09-12). When Linux returns, restore the OS matrix, the apt
-# packages for winit/wayland, the fingerprint artifact upload, and the cross-platform compare job
-# (ARCHITECTURE.md §11, test tier 3).
+# `check` on macOS is the required check. `linux` runs the same steps as an advisory job (PRD D31,
+# 2026-10-21): the golden replays were recorded on macOS, so reproducing their fingerprints on
+# Linux is the cross-platform determinism test of ARCHITECTURE.md §11 tier 3. Its failure is
+# reported in the run and never blocks a merge: no one plays on Linux yet, so nothing waits on it.
+# Windows joins at the close of W1 (Phase 1 playable).
 jobs:
   check:
     runs-on: macos-latest
@@ -37,6 +39,37 @@ jobs:
         run: cargo clippy -p omnis-vector --no-default-features --lib --locked -- -D warnings
       - run: cargo test --workspace --locked
       - name: Golden replays through the CLI
+        run: |
+          cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack packs/test
+          cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/fight.ron --pack packs/base --pack packs/test
+      - name: Pack validation
+        run: cargo run -p omnis-cli --locked -- validate packs/base packs/test
+
+  linux:
+    name: linux (advisory, never blocks)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Linux packages Bevy's tree links (gilrs through libudev; winit through wayland and xkbcommon)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libudev-dev libwayland-dev libxkbcommon-dev
+      - name: Toolchain from rust-toolchain.toml
+        run: rustup toolchain install && rustup show
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo fmt --all --check
+      - name: Simulation crate lint
+        run: scripts/lint-sim.sh --self-test && scripts/lint-sim.sh
+      - name: Dependency duplicates
+        run: scripts/check-duplicates.sh
+      - name: Every test file in a target
+        run: scripts/check-test-modules.sh --self-test && scripts/check-test-modules.sh
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: The vector client reads the world only through views (no test fixtures)
+        run: cargo clippy -p omnis-vector --lib --locked -- -D warnings
+      - name: The vector client without devtools (the shipped configuration)
+        run: cargo clippy -p omnis-vector --no-default-features --lib --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - name: Golden replays recorded on macOS reproduce their fingerprints on Linux (§11 tier 3)
         run: |
           cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack packs/test
           cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/fight.ron --pack packs/base --pack packs/test

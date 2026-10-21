@@ -1,1 +1,1 @@
-(schema: 1, id: "Broken", version: "0.1.0", name: "every check at once", license: "MIT", depends: ["base"])
+(schema: 1, id: "Broken", version: "0.1.1", hash: 9311175737832180318, name: "every check at once", license: "MIT", depends: ["base"])

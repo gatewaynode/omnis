@@ -140,6 +140,7 @@ pub(crate) fn placed(
     let def = &data.maps[&map].encounters[index];
     world.position = Position {
         map,
+        level: omnis_core::Level::GROUND,
         x: def.x,
         y: def.y,
         facing: Facing::North,
@@ -166,7 +167,7 @@ pub(crate) fn placed(
         })
         .collect();
     EncounterState {
-        source: EncounterSource::Fixed(u16::try_from(index).unwrap()),
+        source: EncounterSource::Fixed(def.id.clone()),
         stacks,
         disposition: def.disposition,
         retreat: world.position,

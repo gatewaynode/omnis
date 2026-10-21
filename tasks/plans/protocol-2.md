@@ -1,6 +1,6 @@
 # Protocol 2: one meaning per field name (identities everywhere)
 
-**Closed 2026-10-10** (P2a–P2d; the record is in `tasks/TODO.md`): accepted by the owner the same day
+**Closed 2026-10-10** (P2a–P2d; the record is in `tasks/archive/TODO-2026-10-20.md`, archived from `tasks/TODO.md`): accepted by the owner the same day
 (`tasks/acceptance/protocol-2.md`, all three parts). As built, beyond this plan: 11 more renames the vocabulary test found
 (owner: "Rename all 11"), `on` kept as the bool it is (not a member key), and one integration test binary per
 crate (`8eed1cc`).

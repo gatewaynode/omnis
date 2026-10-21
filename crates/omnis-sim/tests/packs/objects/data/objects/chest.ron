@@ -1,0 +1,34 @@
+(
+    schema: 1,
+    id: "objects:object:chest",
+    name: "objects:text:chest.name",
+    look: (shape: Box, width: 6, depth: 4, height: 4),
+    initial_state: "closed",
+    states: {
+        "closed": (),
+        "open": (open: true),
+    },
+    attributes: (blocks_movement: true, capacity: 8, material: Some(Wood), value_cp: 500, tags: ["container"]),
+    interactions: [
+        (
+            verb: Open,
+            label: Some("objects:text:chest.force"),
+            when_state: Some("closed"),
+            requires: [Skill(skill: Athletics, dc: 15)],
+            effects: [SetState("open"), Message("objects:text:chest.opened")],
+            failure: Some("objects:text:chest.stuck"),
+            minutes: Some(2),
+        ),
+        (
+            verb: Open,
+            label: Some("objects:text:chest.pick"),
+            when_state: Some("closed"),
+            requires: [Item(id: "base:item:thieves_tools"), Skill(skill: SleightOfHand, dc: 10)],
+            effects: [SetState("open"), Message("objects:text:chest.opened")],
+            failure: Some("objects:text:chest.stuck"),
+            minutes: Some(5),
+        ),
+        (verb: Search, when_state: Some("open"), effects: [GiveGold(2500), Message("objects:text:chest.gold")], once: true),
+        (verb: Close, when_state: Some("open"), effects: [SetState("closed")]),
+    ],
+)

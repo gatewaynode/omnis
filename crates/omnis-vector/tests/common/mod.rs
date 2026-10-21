@@ -30,6 +30,41 @@ pub fn data() -> Data {
     load_packs(&[base.as_path(), test.as_path()]).expect("the shipped packs load")
 }
 
+/// The shipped packs and the engine's elevation fixture (M8.5 step 1a): slopes, cliffs, a
+/// one-way edge and a ramp, on `heights:map:hills`.
+pub fn heights_data() -> Data {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/heights"),
+    ])
+    .expect("the fixture loads")
+}
+
+/// The shipped packs and the engine's objects fixture (M8.5 step 2): the yard.
+pub fn objects_data() -> Data {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/objects"),
+    ])
+    .expect("the fixture loads")
+}
+
+/// The shipped packs and the engine's levels fixture (M8.5 step 1b): a tower of four levels
+/// joined by stairs, a ladder and a hole, on `levels:map:tower`.
+pub fn levels_data() -> Data {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    load_packs(&[
+        &root.join("packs/base"),
+        &root.join("packs/test"),
+        &root.join("crates/omnis-sim/tests/packs/levels"),
+    ])
+    .expect("the fixture loads")
+}
+
 /// The member at marching-order `slot`, by identity.
 pub fn id(world: &SimWorld, slot: u8) -> CharacterId {
     world.party.members[usize::from(slot)].id
@@ -75,7 +110,13 @@ pub fn town_session_seeded(data: &Data, seed: u64) -> (SimWorld, Binder) {
 
 /// Put the party somewhere directly (tests that do not replay).
 pub fn place(world: &mut SimWorld, map: MapId, x: u16, y: u16, facing: Facing) -> Pose {
-    world.position = Position { map, x, y, facing };
+    world.position = Position {
+        map,
+        level: omnis_sim::omnis_core::Level::GROUND,
+        x,
+        y,
+        facing,
+    };
     Pose::at(world.position)
 }
 
@@ -116,6 +157,9 @@ pub fn views(world: &SimWorld, data: &Data) -> Views {
 }
 
 /// The context of a game in `world`, for the screen model; no quick save.
+/// The history a context made without a session reads.
+static NO_HISTORY: omnis_vector::history::History = omnis_vector::history::History::new();
+
 pub fn ctx<'a>(
     data: &'a Data,
     world: &'a SimWorld,
@@ -128,6 +172,7 @@ pub fn ctx<'a>(
             views,
             log: &[],
             unreplayable: None,
+            history: &NO_HISTORY,
         }),
         save: omnis_vector::screen::Slot {
             path: "saves/none.ron",

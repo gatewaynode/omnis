@@ -1,0 +1,10 @@
+// A pack rat's hoard: one draw, a gem three times in four, else a dagger half the time.
+(
+    schema: 1,
+    id: "objects:loot:hoard",
+    picks: 1,
+    entries: [
+        (item: "base:item:gem", count: (count: 1, sides: 2, modifier: 0), weight: 3, chance_percent: 100),
+        (item: "base:item:dagger", count: (count: 1, sides: 1, modifier: 0), weight: 1, chance_percent: 50),
+    ],
+)

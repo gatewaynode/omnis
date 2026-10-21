@@ -7,8 +7,8 @@ use crate::encounter::EncounterSource;
 use crate::names::Place;
 use alloc::string::String;
 use alloc::vec::Vec;
-use omnis_core::{CharacterId, EraId, Facing, RollTrace};
-use omnis_data::{Ability, DamageType, Disposition, EquipSlot};
+use omnis_core::{CharacterId, EraId, Facing, Level, RollTrace};
+use omnis_data::{Ability, DamageType, Disposition, EquipSlot, Skill, Verb};
 use omnis_rules::{ActionRef, Named, Trigger};
 use omnis_rules::{DamageAdjust, DeathSaveResult, Gains, Roll};
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,13 @@ pub enum BlockReason {
     Impassable,
     /// The target is off the map or the map is unknown.
     MapEdge,
+    /// The height difference is more than the target terrain allows, up or down, and the
+    /// edge is not a ramp.
+    Cliff,
+    /// There is no ground there on the party's level (M8.5 step 1b): air or rock.
+    NoGround,
+    /// An object's footprint stands in the step's path (M8.5 step 2).
+    Object,
 }
 
 /// A message for the player, named so packs can localize it under `sim:message:<name>`.
@@ -111,6 +118,10 @@ pub enum CheckKind {
     Flee,
     /// A saving throw against a spell.
     Save(Ability),
+    /// A skill check an object asks for (M8.5 step 2).
+    Skill(Skill),
+    /// An ability check an object asks for.
+    Ability(Ability),
 }
 
 /// Whom an effect is on.
@@ -159,13 +170,51 @@ pub struct SensedTile {
     pub layers: u8,
 }
 
+/// How a hidden object was found (M8.5 step 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Notice {
+    /// A sharp eye: the party's best passive Perception, in sight and near.
+    Passive,
+    /// `Command::Search`.
+    Search,
+    /// A reveal in force, sensing the object's aura.
+    Spell,
+}
+
+/// Items of one kind a monster dropped (M8.5 step 2).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Loot {
+    /// The item's id.
+    pub item: String,
+    /// How many.
+    pub count: u16,
+}
+
+impl Loot {
+    /// A counted list of items as loot, by string id.
+    #[must_use]
+    pub fn of(data: &omnis_data::Data, items: &[(omnis_core::ItemId, u16)]) -> Vec<Loot> {
+        items
+            .iter()
+            .map(|&(item, count)| Loot {
+                item: crate::names::id_of(&data.registry.items, item),
+                count,
+            })
+            .collect()
+    }
+}
+
 /// Where an item was or went.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ItemPlace {
     /// A member's kit.
     Member(CharacterId),
     /// The party's stores.
     Stores,
+    /// The ground of the party's cell (M8.5 step 2).
+    Ground,
+    /// A container, by its placement id in the party's map.
+    Object(String),
 }
 
 /// What happened.
@@ -221,6 +270,9 @@ pub enum Event {
     Door {
         /// The map's string id.
         map: String,
+        /// The level (M8.5 step 1b); unwritten when it is the ground.
+        #[serde(default, skip_serializing_if = "Level::is_ground")]
+        level: Level,
         /// The tile the party stands on.
         x: u16,
         /// The tile the party stands on.
@@ -237,6 +289,12 @@ pub enum Event {
     },
     /// The party's members or their order changed.
     PartyChanged,
+    /// The world moved on (PRD D28, M8.5 7e): what it holds became its new bases, and the
+    /// journal's interactions went to the archive.
+    Folded {
+        /// How many interactions were folded.
+        interactions: u32,
+    },
     /// A step onto a tile of a map with a random table rolled for an encounter.
     EncounterCheck {
         /// The d100.
@@ -540,6 +598,82 @@ pub enum Event {
         target: ActorRef,
         /// The whole gold pieces a monster dropped, as rolled; looted as copper.
         gold: Option<RollTrace>,
+        /// The items a monster dropped, drawn from its loot table; left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        loot: Vec<Loot>,
+    },
+    /// The party found a hidden object (M8.5 step 2).
+    Noticed {
+        /// The placement's id in the party's map.
+        object: String,
+        /// How.
+        how: Notice,
+    },
+    /// A member searched the party's cell and the one it faces; each object found follows as
+    /// `Noticed`, then the lore it turned up as `Lore`.
+    Searched {
+        /// Who searched: the member best at Investigation who can act.
+        member: CharacterId,
+        /// The Investigation roll.
+        roll: Roll,
+    },
+    /// Lore a search turned up (owner, 2026-10-16): written on a cell in reach, or carried by an
+    /// object in reach, after the search's finds.
+    Lore {
+        /// The text key.
+        key: String,
+        /// The placement whose lore it is; left out for a cell's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        object: Option<String>,
+    },
+    /// The party did something to an object; on success its effects follow (M8.5 step 2).
+    ObjectUsed {
+        /// The placement's id in the party's map.
+        object: String,
+        /// What it did.
+        verb: Verb,
+        /// Whether every requirement held.
+        success: bool,
+    },
+    /// An object moved to another state.
+    ObjectState {
+        /// The placement's id in the party's map.
+        object: String,
+        /// The state it is in now.
+        state: String,
+    },
+    /// An object was taken away for good.
+    ObjectRemoved {
+        /// The placement's id in the party's map.
+        object: String,
+    },
+    /// An object's text for the player.
+    ObjectMessage {
+        /// The placement's id in the party's map.
+        object: String,
+        /// The text key.
+        key: String,
+    },
+    /// The party found coin.
+    GoldFound {
+        /// Copper.
+        amount: u32,
+    },
+    /// Items went into the stores from the world.
+    ItemFound {
+        /// Which item.
+        item: String,
+        /// How many.
+        count: u16,
+    },
+    /// Items were used up.
+    ItemSpent {
+        /// Which item.
+        item: String,
+        /// How many.
+        count: u16,
+        /// Whose they were.
+        from: ItemPlace,
     },
     /// The fight is over.
     CombatEnded {
@@ -551,6 +685,9 @@ pub enum Event {
         gold: u32,
         /// Members removed by permadeath.
         fallen: Vec<CharacterId>,
+        /// The items laid on the fight's cell on victory; left out when none.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        loot: Vec<Loot>,
     },
     /// The party went into the service on its tile.
     ServiceEntered {

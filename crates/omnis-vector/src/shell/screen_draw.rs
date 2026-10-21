@@ -257,14 +257,15 @@ pub(super) fn thumbs(
 /// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
-/// editable line.
+/// editable line, which takes the keyboard when drawn unless `keep` names another field: the
+/// field that had it when the screen was drawn anew keeps it.
 fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
     c: &Control,
     tint: Option<Role>,
-    height: f32,
-    mark: Mark,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
 ) {
     let role = if c.why_not.is_some() {
         Role::Dim
@@ -322,10 +323,9 @@ fn control_node(
         Kind::Text { value, max } => {
             parent.spawn(boxed(role, height)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
-                b.spawn((
+                let mut field = b.spawn((
                     Pressable(c.id),
                     text_field(value, *max),
-                    AutoFocus,
                     TextFont {
                         font_size: FontSize::Px(Size::Body.px(height)),
                         ..default()
@@ -341,6 +341,9 @@ fn control_node(
                     },
                     BorderColor::all(colour(Role::Dim)),
                 ));
+                if keep.is_none_or(|kept| kept == c.id) {
+                    field.insert(AutoFocus);
+                }
             });
         }
     }
@@ -361,8 +364,8 @@ pub(super) fn rows(
     p: usize,
     panel: &Panel,
     keys: &[(Key, ControlId)],
-    height: f32,
-    mark: Mark,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
 ) {
     let gap = Val::Px(scaled(6.0, height));
     for (r, row) in panel.rows.iter().enumerate() {
@@ -380,7 +383,7 @@ pub(super) fn rows(
                     span_node(line, (p, r, s), span, height, mark);
                 }
                 for c in &row.controls {
-                    control_node(line, keys, c, row.tint, height, mark);
+                    control_node(line, keys, c, row.tint, (height, mark), keep);
                 }
                 for (s, span) in row.after.iter().enumerate() {
                     span_node(line, (p, r, before + s), span, height, mark);
@@ -404,10 +407,21 @@ fn span_node(
     };
 }
 
-/// The mouse wheel scrolls the panel under the cursor; the layout holds it inside its rows.
+/// Where a wheel's `dy` takes a panel scrolled to `at` whose rows run `max` past its foot: from
+/// the foot when `at` is past it (a panel set to its foot, `SCROLL_FOOT`), never above the top or
+/// below the foot.
+#[must_use]
+pub fn wheeled(at: f32, dy: f32, max: f32) -> f32 {
+    (at.min(max) - dy).clamp(0.0, max)
+}
+
+/// A scroll position past any foot: the layout shows the panel's foot (the full log's lines).
+pub const SCROLL_FOOT: f32 = f32::MAX;
+
+/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out.
 pub(super) fn wheel(
     scroll: Res<AccumulatedMouseScroll>,
-    mut panels: Query<(&RelativeCursorPosition, &mut ScrollPosition), With<Scrolls>>,
+    mut panels: Query<(&RelativeCursorPosition, &ComputedNode, &mut ScrollPosition), With<Scrolls>>,
 ) {
     let dy = match scroll.unit {
         MouseScrollUnit::Line => scroll.delta.y * WHEEL_LINE,
@@ -416,10 +430,16 @@ pub(super) fn wheel(
     if dy == 0.0 {
         return;
     }
-    for (cursor, mut at) in &mut panels {
+    for (cursor, node, mut at) in &mut panels {
         if cursor.cursor_over() {
+            // How far the rows run past the foot, in logical pixels; unbounded until laid out.
+            let max = if node.size.y > 0.0 {
+                ((node.content_size.y - node.size.y) * node.inverse_scale_factor).max(0.0)
+            } else {
+                f32::INFINITY
+            };
             // Wheel up (a positive delta) shows what is above.
-            at.0.y = (at.0.y - dy).max(0.0);
+            at.0.y = wheeled(at.0.y, dy, max);
         }
     }
 }
@@ -468,9 +488,25 @@ pub(super) fn bars(
     }
 }
 
+/// A panel's share of the screen's width and where it starts from: equal shares, but the full
+/// log's filter keeps its own width and its lines take the rest.
+fn grow(screen: &Screen, panel: usize) -> (f32, Val) {
+    if screen.id == crate::screen::ScreenId::Log && panel == 0 {
+        (0.0, Val::Auto)
+    } else {
+        (1.0, Val::Px(0.0))
+    }
+}
+
 /// Build the screen's nodes under the root: the heading, the panels side by side, the outcome.
-/// The top screen's words carry the markers they are rewritten in place by.
-pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: f32, mark: Mark) {
+/// The top screen's words carry the markers they are rewritten in place by. `keep` is the field
+/// that had the keyboard, which keeps it.
+pub(super) fn build(
+    parent: &mut ChildSpawnerCommands,
+    screen: &Screen,
+    (height, mark): (f32, Mark),
+    keep: Option<ControlId>,
+) {
     let t = &screen.title;
     let mut title = parent.spawn(words(&t.text, t.role, t.size, height));
     if mark == Mark::Screen {
@@ -489,8 +525,8 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                     // Panels share the width equally, so one panel's long rows never squeeze
                     // the next into wrapping.
                     .spawn(Node {
-                        flex_grow: 1.0,
-                        flex_basis: Val::Px(0.0),
+                        flex_grow: grow(screen, p).0,
+                        flex_basis: grow(screen, p).1,
                         min_width: Val::Px(0.0),
                         min_height: Val::Px(0.0),
                         column_gap: Val::Px(scaled(6.0, height)),
@@ -513,7 +549,7 @@ pub(super) fn build(parent: &mut ChildSpawnerCommands, screen: &Screen, height: 
                                 RelativeCursorPosition::default(),
                             ))
                             .with_children(|column| {
-                                rows(column, p, panel, &screen.keys, height, mark);
+                                rows(column, p, panel, &screen.keys, (height, mark), keep);
                             })
                             .id();
                         scrollbar(pane, rows_at, height);

@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "objects:object:statue",
+    name: "objects:text:statue.name",
+    look: (shape: Post, width: 4, depth: 4, height: 16),
+    attributes: (blocks_movement: true, blocks_sight: true, size: Some(Large), material: Some(Stone)),
+    lore: Some((text: "objects:text:statue.moss")),
+    interactions: [
+        (verb: Examine, effects: [Message("objects:text:statue.examine")]),
+    ],
+)

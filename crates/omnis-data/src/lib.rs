@@ -13,20 +13,31 @@ pub mod condition;
 mod content;
 pub mod encounter;
 pub mod error;
+pub mod flag;
+pub mod footprint;
 pub mod item;
+pub mod levels;
 pub mod limits;
 pub mod loader;
+pub mod loot;
+pub mod lore;
 pub mod manifest;
 pub mod map;
+pub mod map_data;
+pub mod migration;
 pub mod monster;
+pub mod object;
+pub mod placement;
 pub mod region;
 pub mod registry;
 pub mod rest_event;
 pub mod ron_io;
 pub mod rules;
+pub mod seal;
 pub mod sense;
 pub mod service;
 pub mod spell;
+pub mod stairs;
 pub mod terms;
 pub mod text;
 pub mod tileset;
@@ -37,15 +48,25 @@ pub use condition::Condition;
 pub use content::DEFAULT_COMPONENT_THRESHOLD;
 pub use encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, ResolvedEncounter, ResolvedEntry,
-    ResolvedRandom,
+    ResolvedRandom, Stand,
 };
 pub use error::{DataError, LoadReport};
+pub use flag::{FlagDef, FlagScope};
 pub use item::{EquipSlot, Item, ItemKind, UseEffect};
-pub use loader::{Data, MapData, PackFingerprint, ResolvedPortal, load_packs};
+pub use levels::{LevelData, LevelDef, NO_GROUND};
+pub use loader::{Data, PackFingerprint, load_packs};
+pub use loot::{LootEntry, LootTable};
+pub use lore::{CellLore, Lore};
 pub use manifest::{Attribution, PackManifest};
-pub use map::{Cell, MapDef, MapKind, Portal, Terrain, WallSurfaces};
+pub use map::{Cell, Join, MapDef, MapKind, Portal, Terrain, WallSurfaces};
+pub use map_data::{MapData, ResolvedPortal};
 pub use monster::{Attack, Monster, MonsterCasting};
+pub use object::{
+    Attributes, Effect as ObjectEffect, Interaction, Look, Material, ObjectKind, Requirement,
+    Shape, StateDef, Verb,
+};
 pub use omnis_expr;
+pub use placement::{GroundDef, Pile, Placement, ResolvedPlacement};
 pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};

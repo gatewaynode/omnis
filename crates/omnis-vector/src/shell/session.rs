@@ -1,18 +1,22 @@
 //! The session resource and the command line (presentation-ARCHITECTURE.md §6, §12).
 
-use super::text::describe;
+use super::hud::LOG_LINES;
+use super::retold::retold;
+use super::text::{describe, searched};
 use crate::bind::Binder;
 use crate::grid::cell_of;
+use crate::history::History;
+use crate::notice::Notice;
 use crate::party;
 use crate::pose::Pose;
 use crate::rolllog::{self, Names};
-use crate::screen::Span;
 use crate::sim::{SimWorld, Views, game_settings};
+use crate::style::Role;
 use bevy::prelude::Resource;
-use omnis_sim::api::Draft;
+use omnis_sim::api::{Draft, ReloadRefused, SaveCheck};
 use omnis_sim::omnis_data::{Data, load_packs};
 use omnis_sim::ops::client_path;
-use omnis_sim::{Command, Event, PartyCommand, Settings, World};
+use omnis_sim::{CheckKind, Command, Event, ItemPlace, PartyCommand, Settings, World};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
@@ -48,6 +52,8 @@ pub struct Config {
     pub walk: u32,
     /// The capture's size in pixels.
     pub size: (u32, u32),
+    /// Run the capture uncapped and report its frame times (`--timing`).
+    pub timing: bool,
     /// The dev socket's loopback address (feature `devtools`); `None` with `--no-dev-socket`.
     pub dev_socket: Option<String>,
 }
@@ -69,10 +75,14 @@ impl Default for Config {
             screenshot: None,
             walk: 0,
             size: (1600, 900),
+            timing: false,
             dev_socket: Some("127.0.0.1:0".to_owned()),
         }
     }
 }
+
+/// The most lines a notice keeps: a command's newest.
+const NOTICE_LINES: usize = 6;
 
 /// A screen the command line can open at the start.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +97,12 @@ pub enum StartScreen {
     Pause,
     /// The square's actions, over a game.
     Actions,
+    /// The verbs of what is in reach, over a game.
+    Verbs,
+    /// The first member's kit beside the party column, over a game.
+    Inventory,
+    /// The full log, over a game.
+    Log,
 }
 
 impl StartScreen {
@@ -95,7 +111,12 @@ impl StartScreen {
     pub const fn in_game(self) -> bool {
         matches!(
             self,
-            StartScreen::Pause | StartScreen::Actions | StartScreen::CreateParty
+            StartScreen::Pause
+                | StartScreen::Actions
+                | StartScreen::Verbs
+                | StartScreen::Inventory
+                | StartScreen::Log
+                | StartScreen::CreateParty
         )
     }
 }
@@ -115,11 +136,12 @@ impl Config {
 /// Parse `--pack <dir>` (repeatable; replaces the defaults), `--seed <n>` (and start in the game
 /// rather than at the title), `--save <file>` (the quick save, a relative `.ron` path),
 /// `--settings <file>` (the player's settings, a relative `.ron` path),
-/// `--screen title|new-game|create-party|pause|actions` (open it at the start), `--windowed`,
+/// `--screen title|new-game|create-party|pause|actions|verbs` (open it at the start), `--windowed`,
 /// `--no-vsync`, `--frame-stats` (log the frame times, vsync off), `--monitor <n>` (the display to go fullscreen on, 0 to 15),
 /// `--log <path>` and `--screenshot <path>` (relative, without `..`, so a session cannot write
 /// outside the working tree), `--walk <frames>` (hold forward before the screenshot), and
-/// `--size WxH` (the offscreen capture's size), and with feature `devtools`
+/// `--size WxH` (the offscreen capture's size), `--timing` (with `--screenshot`: run uncapped and
+/// report the frame times), and with feature `devtools`
 /// `--dev-socket <ip:port>` (a loopback address; port 0, the default, picks a free one) and
 /// `--no-dev-socket`.
 ///
@@ -158,9 +180,12 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     "create-party" => StartScreen::CreateParty,
                     "pause" => StartScreen::Pause,
                     "actions" => StartScreen::Actions,
+                    "verbs" => StartScreen::Verbs,
+                    "inventory" => StartScreen::Inventory,
+                    "log" => StartScreen::Log,
                     other => {
                         return Err(format!(
-                            "--screen takes title, new-game, create-party, pause or actions, got {other}"
+                            "--screen takes title, new-game, create-party, pause, actions, verbs, inventory or log, got {other}"
                         ));
                     }
                 });
@@ -200,6 +225,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
                     .parse()
                     .map_err(|_| "--walk takes a frame count".to_owned())?
             }
+            "--timing" => config.timing = true,
             "--dev-socket" if cfg!(feature = "devtools") => {
                 config.dev_socket = Some(value("--dev-socket")?);
             }
@@ -209,6 +235,9 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Config, String> {
     }
     if !packs.is_empty() {
         config.packs = packs;
+    }
+    if config.timing && config.screenshot.is_none() {
+        return Err("--timing times a capture: it needs --screenshot".to_owned());
     }
     Ok(config)
 }
@@ -248,7 +277,7 @@ impl Packs {
     /// The loader's report for packs that fail to load.
     pub fn load(config: &Config) -> Result<Packs, String> {
         let roots: Vec<&Path> = config.packs.iter().map(PathBuf::as_path).collect();
-        let data = load_packs(&roots).map_err(|report| format!("{report:?}"))?;
+        let data = load_packs(&roots).map_err(|report| report.to_string())?;
         Ok(Packs {
             data: Arc::new(data),
             config: config.clone(),
@@ -279,9 +308,12 @@ pub struct Session {
     pub log_path: PathBuf,
     /// Recent event lines for the HUD, newest last.
     pub lines: Vec<String>,
-    /// The explore message line: the last event worth a line, or the last refusal (alert);
-    /// cleared by a move that said nothing else.
-    pub message: Option<Span>,
+    /// Every line said this session, the fight's own too, stamped: the full log
+    /// (`screen::log`).
+    pub history: History,
+    /// What the last command the player started said, or its refusal, and where it was done:
+    /// shown centred while exploring, fading as the party walks away (`crate::notice`).
+    pub notice: Option<Notice>,
     /// The current or last fight's roll log, newest last.
     pub fight_log: Vec<String>,
     /// Who is in the fight, for the roll log.
@@ -414,7 +446,8 @@ impl Session {
             settings,
             log_path: config.log.clone(),
             lines: Vec::new(),
-            message: None,
+            history: History::default(),
+            notice: None,
             fight_log: Vec::new(),
             names,
             reshape: true,
@@ -456,16 +489,33 @@ impl Session {
     /// # Errors
     /// The refusal's line, also added to the lines, when the command was refused.
     pub fn ordered(&mut self, command: Command) -> Result<Option<String>, String> {
-        let outcome = match self.binder.apply(&mut self.world, &self.data, command) {
-            Ok(events) => Ok(self.note(&events)),
+        let (outcome, said, role) = match self.binder.apply(&mut self.world, &self.data, command) {
+            Ok(events) => {
+                let lines = self.take_in(&events);
+                let newest = lines.last().map(|(_, line)| line.clone());
+                let said = lines
+                    .into_iter()
+                    .filter(|(moved, _)| !moved)
+                    .map(|(_, l)| l);
+                (Ok(newest), said.collect(), Role::Interface)
+            }
             Err(rejection) => {
                 let line = format!("Refused: {rejection}");
                 self.say(line.clone());
-                self.message = Some(Span::alert(line.clone()));
-                Err(line)
+                (Err(line.clone()), vec![line], Role::Alert)
             }
         };
         self.follow();
+        // A command that only moved the party leaves the last notice to fade where it was.
+        if !said.is_empty() && self.views.exploring() {
+            let keep = said.len().saturating_sub(NOTICE_LINES);
+            self.notice = Some(Notice::new(
+                said[keep..].to_vec(),
+                role,
+                self.views.position,
+                self.pose,
+            ));
+        }
         outcome
     }
 
@@ -504,39 +554,57 @@ impl Session {
     /// when monsters are met, the last 40 lines kept), and the reshape flag. Answers the newest
     /// line added.
     pub fn note(&mut self, events: &[Event]) -> Option<String> {
+        self.take_in(events).pop().map(|(_, line)| line)
+    }
+
+    /// [`Session::note`], answering every line added and whether a move said it.
+    fn take_in(&mut self, events: &[Event]) -> Vec<(bool, String)> {
         self.refresh();
-        self.reshape |= events.iter().any(|e| matches!(e, Event::Door { .. }));
+        self.reshape |= events.iter().any(reshapes);
         self.names.observe(&self.views.party);
+        self.names.locate(self.views.position.map);
+        // Each event's fight line, for the full log when the HUD has none for it.
+        let mut fight = Vec::with_capacity(events.len());
         for event in events {
             if matches!(event, Event::EncounterStarted { .. }) {
                 self.fight_log.clear();
             }
-            if let Some(line) = rolllog::describe(event, &self.names, &self.data) {
-                self.fight_log.push(line);
+            let line = rolllog::describe(event, &self.names, &self.data);
+            if let Some(line) = &line {
+                self.fight_log.push(line.clone());
             }
+            fight.push(line);
             self.names.follow(event, &self.data);
         }
         let excess = self.fight_log.len().saturating_sub(40);
         self.fight_log.drain(..excess);
-        // Each line, and whether a move said it: the message line takes the newest line but a
-        // move's, and a move that said nothing else clears it.
-        let lines: Vec<(bool, String)> = events
-            .iter()
-            .filter_map(|e| {
-                describe(e, &self.names, &self.data)
-                    .map(|line| (matches!(e, Event::Moved { .. }), line))
-            })
-            .collect();
-        if let Some((_, line)) = lines.iter().rev().find(|(moved, _)| !moved) {
-            self.message = Some(Span::body(line.clone()));
-        } else if events.iter().any(|e| matches!(e, Event::Moved { .. })) {
-            self.message = None;
+        // Each line, and whether a move said it: a notice leaves out a move's. The full log
+        // keeps each event once: the HUD's line, else the fight's.
+        let mut lines: Vec<(bool, String)> = Vec::new();
+        let age = self.views.here.age;
+        for (event, fight) in events.iter().zip(fight) {
+            match (describe(event, &self.names, &self.data), fight) {
+                (Some(line), _) => {
+                    self.history.push(age, line.clone());
+                    lines.push((matches!(event, Event::Moved { .. }), line));
+                }
+                (None, Some(line)) => self.history.push(age, line),
+                (None, None) => {}
+            }
         }
-        let newest = lines.last().map(|(_, line)| line.clone());
-        for (_, line) in lines {
-            self.say(line);
+        for line in searched(
+            events,
+            &self.views,
+            &self.data,
+            self.world.faced_door(&self.data),
+        ) {
+            self.history.push(age, line.clone());
+            lines.push((false, line));
         }
-        newest
+        for (_, line) in &lines {
+            self.show(line.clone());
+        }
+        lines
     }
 
     /// A world from outside the binder (a loaded save) takes this one's place: the views, the
@@ -553,8 +621,32 @@ impl Session {
         self.names.observe(&self.views.party);
         self.reshape = true;
         self.unreplayable = Some(why.to_owned());
-        // The old world's last event is not this one's.
-        self.message = None;
+        // The old world's last event is not this one's; its history is the party's log, retold.
+        self.notice = None;
+        (self.history, self.names) = retold(self.world.history(), &self.views.party, &self.data);
+    }
+
+    /// Packs freshly loaded from disk take this game's in place (`pack.reload`, M8.5 7h5): the
+    /// world is fitted to them by name, the pose follows a party the maps moved, the lines are
+    /// redrawn, the log says what changed, and the binder's log stops replaying. Refused,
+    /// nothing changes.
+    ///
+    /// # Errors
+    /// The fresh packs lack a name the world holds, or cannot hold it; with the report.
+    pub fn reload(&mut self, fresh: Arc<Data>, migrate: bool) -> Result<SaveCheck, ReloadRefused> {
+        let check = self.world.reload(&self.data, &fresh, migrate)?;
+        let before = self.views.position;
+        self.data = fresh;
+        self.refresh();
+        if self.views.position != before {
+            self.pose = Pose::at(self.views.position);
+        }
+        self.reshape = true;
+        self.unreplayable = Some("the packs were reloaded".to_owned());
+        for line in crate::game_io::reloaded(&check) {
+            self.say(line);
+        }
+        Ok(check)
     }
 
     /// Read the views afresh. Every change to the world ends here: `note` calls it, and `note`
@@ -563,11 +655,41 @@ impl Session {
         self.views = self.world.views(&self.data);
     }
 
-    /// Add a line to the HUD's recent events, keeping the last eight.
+    /// Add a line to the HUD's recent events and the full log.
     pub fn say(&mut self, line: String) {
+        self.history.push(self.views.here.age, line.clone());
+        self.show(line);
+    }
+
+    /// Add a line to the HUD's recent events, keeping the last eight.
+    fn show(&mut self, line: String) {
         self.lines.push(line);
-        let excess = self.lines.len().saturating_sub(8);
+        let excess = self.lines.len().saturating_sub(LOG_LINES);
         self.lines.drain(..excess);
+    }
+}
+
+/// Whether an event changes what the view draws of the map: a door, an object's state, an
+/// object taken away or found, items laid on or taken from the ground, loot left by a fight, or
+/// a standing group met, bought off, hidden from or run from (M8.5 step 2c).
+#[must_use]
+pub fn reshapes(event: &Event) -> bool {
+    match event {
+        Event::Door { .. }
+        | Event::ObjectState { .. }
+        | Event::ObjectRemoved { .. }
+        | Event::Noticed { .. }
+        | Event::EncounterStarted { .. }
+        | Event::Bribed { .. }
+        | Event::Check {
+            kind: CheckKind::Hide | CheckKind::Run,
+            ..
+        }
+        | Event::CombatEnded { .. } => true,
+        Event::ItemMoved { from, to, .. } => {
+            [from, to].iter().any(|p| matches!(p, ItemPlace::Ground))
+        }
+        _ => false,
     }
 }
 
@@ -619,6 +741,18 @@ mod tests {
     }
 
     #[test]
+    fn timing_needs_a_capture() {
+        let config = parse(args(&["--screenshot", "x.png", "--timing"])).expect("valid");
+        assert!(config.timing);
+        assert!(
+            !parse(args(&["--screenshot", "x.png"]))
+                .expect("valid")
+                .timing
+        );
+        assert!(parse(args(&["--timing"])).is_err());
+    }
+
+    #[test]
     fn the_title_is_the_start_unless_a_game_is_asked_for() {
         let start = |list: &[&str]| parse(args(list)).expect("valid").starts_in_game();
         assert!(!start(&[]), "the title");
@@ -635,6 +769,61 @@ mod tests {
             "a new world to make a party in"
         );
         assert!(parse(args(&["--screen", "sheet"])).is_err());
+    }
+
+    #[test]
+    fn the_view_is_redrawn_for_doors_objects_found_items_on_the_ground_and_loot() {
+        use omnis_sim::api::{CombatOutcome, Place};
+        use omnis_sim::event::Notice;
+        let place = Place {
+            map: "test:map:town".into(),
+            level: omnis_sim::api::Level::GROUND,
+            x: 0,
+            y: 0,
+            facing: omnis_sim::api::Facing::North,
+        };
+        let moved = |from, to| Event::ItemMoved {
+            item: "base:item:arrows".into(),
+            count: 1,
+            from,
+            to,
+        };
+        let member = ItemPlace::Member(omnis_sim::api::CharacterId(1));
+        let object = |o: &str| o.to_owned();
+        for yes in [
+            Event::ObjectState {
+                object: object("gate_1"),
+                state: "open".into(),
+            },
+            Event::ObjectRemoved {
+                object: object("stone_1"),
+            },
+            Event::Noticed {
+                object: object("lever_1"),
+                how: Notice::Passive,
+            },
+            moved(member.clone(), ItemPlace::Ground),
+            moved(ItemPlace::Ground, member.clone()),
+            Event::CombatEnded {
+                outcome: CombatOutcome::Victory,
+                xp: 0,
+                gold: 0,
+                fallen: Vec::new(),
+                loot: Vec::new(),
+            },
+        ] {
+            assert!(reshapes(&yes), "{yes:?}");
+        }
+        for no in [
+            moved(member.clone(), ItemPlace::Stores),
+            moved(member, ItemPlace::Object(object("chest_1"))),
+            Event::Moved {
+                from: place.clone(),
+                to: place,
+            },
+        ] {
+            assert!(!reshapes(&no), "{no:?}");
+        }
     }
 
     #[test]

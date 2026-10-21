@@ -80,6 +80,13 @@ fn game_tools() -> Vec<Tool> {
             "Map id such as test:map:dungeon; the party's map when absent.",
         )
     };
+    let level = || {
+        Field::new::<Option<omnis_cli::omnis_sim::omnis_core::Level>>(
+            "level",
+            false,
+            "Level of the map (0 the ground, below negative, above positive); the party's level on its map, else 0, when absent.",
+        )
+    };
     let path = |what: &'static str| Field::new::<String>("path", true, what);
     vec![
         tool(
@@ -117,7 +124,7 @@ fn game_tools() -> Vec<Tool> {
             &[Field::new::<usize>(
                 "count",
                 false,
-                "How many, default 32, at most 4096.",
+                "How many, default 32, at most 16384.",
             )],
         ),
         tool(
@@ -129,35 +136,54 @@ fn game_tools() -> Vec<Tool> {
         tool(
             "map_text",
             "map.text",
-            "A map as text: walls - |, closed doors = :, open doors _ ', the party as ^ > v <.",
-            &[map()],
+            "A level of a map as text: walls - |, closed doors = :, open doors _ ', ramps /, portals *, no ground _ on a tile, the party as ^ > v <.",
+            &[map(), level()],
         ),
         tool(
             "automap_get",
             "automap.get",
-            "What the party knows of a map: tiles with terrain, walls, doors, layers, and when they were seen.",
-            &[map()],
+            "What the party knows of a level of a map: tiles with terrain, walls, doors, layers, and when they were seen.",
+            &[map(), level()],
         ),
         tool(
             "save_write",
             "save.write",
-            "Write the save to a relative .ron path.",
+            "Write a character save (the party as it stands, the world's changes since its base, the party's log) to a relative .ron path, and the world's files under .omnis/worlds/<id>/. Refused if the save would be over 8 MiB or a world file over 4 MiB.",
             &[path("A relative .ron path without . or .. components.")],
         ),
         tool(
             "save_read",
             "save.read",
-            "Replace the world with a save from a relative .ron path.",
+            "Replace the world with a save from a relative .ron path: its world's bases with the save's changes laid over them (no command is replayed), the party and its log as saved. An older whole-world save is converted.",
             &[
                 path("A relative .ron path without . or .. components."),
-                Field::new::<bool>("force", false, "Skip the pack fingerprint check."),
+                Field::new::<bool>(
+                    "force",
+                    false,
+                    "Load a save made with other packs; skips the pack and fingerprint checks.",
+                ),
+                Field::new::<bool>(
+                    "migrate",
+                    false,
+                    "Apply the packs' migrations when they change the save (save_check's verdict needs_migration lists them).",
+                ),
             ],
+        ),
+        tool(
+            "save_check",
+            "save.check",
+            "What the loaded packs make of a save at a relative .ron path, changing nothing: a verdict (same, content, renamed, unresolved, unnamed), each pack as saved and as loaded, how many names moved number, the names the packs lack with where the save holds them, and the places the loaded maps no longer allow with what loading does with each.",
+            &[path("A relative .ron path without . or .. components.")],
         ),
         tool(
             "pack_reload",
             "pack.reload",
-            "Reload the packs from disk, keeping the world where it is.",
-            &[],
+            "Reload the packs from disk under the running world, fitted by name through the packs' migrations; answers done with the check, or refuses with each name the packs lack, or with the migrations that would change the world unless migrate, nothing changed.",
+            &[Field::new::<bool>(
+                "migrate",
+                false,
+                "Apply the packs' migrations when they change the running world.",
+            )],
         ),
         screenshot_tool(),
         screen_text_tool(),
@@ -201,6 +227,12 @@ fn party_tools() -> Vec<Tool> {
             "cast_get",
             "cast.get",
             "The spells each member may cast outside a fight: the caster's id and the spell's id (the `caster` and `spell` a Cast command takes), its cost in points, whether it is aimed at a member, and the refusal the rules would give now. Looking changes nothing.",
+            &[],
+        ),
+        tool(
+            "objects_get",
+            "objects.get",
+            "The objects the party reaches (its own cell, and the one it faces across an open edge), each with its id (the `object` an Act command takes), kind, name key, state, capacity and, when it is an open container, its contents; and every interaction its kind offers in that state as the `verb` and `option` Act takes, with its label key, the checks it rolls (skill or ability and difficulty), the minutes an attempt takes and the refusal the rules would give now (a spent one-time interaction stays listed, refused). Also the pile on the party's cell, what PickUp takes from. Hidden objects appear once found. Looking changes nothing.",
             &[],
         ),
         tool(
@@ -294,8 +326,12 @@ mod tests {
             ("map_text", json!({"map": "test:map:dungeon"})),
             ("automap_get", json!({})),
             ("save_write", json!({"path": "a.ron"})),
-            ("save_read", json!({"path": "a.ron", "force": true})),
-            ("pack_reload", json!({})),
+            (
+                "save_read",
+                json!({"path": "a.ron", "force": true, "migrate": true}),
+            ),
+            ("save_check", json!({"path": "a.ron"})),
+            ("pack_reload", json!({"migrate": true})),
             (
                 "screenshot",
                 json!({"path": "shot.png", "target": "window"}),
@@ -309,6 +345,7 @@ mod tests {
             ("service_get", json!({})),
             ("rest_get", json!({})),
             ("cast_get", json!({})),
+            ("objects_get", json!({})),
             ("creation_get", json!({})),
             ("time_clocks", json!({})),
             ("time_reconcile", json!({"region": "test:region:town"})),
@@ -348,6 +385,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 25);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 27);
     }
 }

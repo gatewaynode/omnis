@@ -6,7 +6,7 @@
 //! shows it every event after describing it.
 
 use crate::labels;
-use omnis_sim::omnis_core::CharacterId;
+use omnis_sim::omnis_core::{CharacterId, MapId};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_rules::{DamageAdjust, DeathSaveResult};
 use omnis_sim::{ActorRef, CheckKind, CombatOutcome, EffectTarget, Event, PartyView, Surprise};
@@ -30,6 +30,8 @@ pub struct Names {
     members: BTreeMap<CharacterId, String>,
     /// The stacks of the current or last encounter.
     stacks: Vec<Stack>,
+    /// The map the party stands on, whose placements object events name.
+    map: Option<MapId>,
 }
 
 impl Names {
@@ -38,6 +40,28 @@ impl Names {
         for m in &party.members {
             self.members.insert(m.member, m.name.clone());
         }
+    }
+
+    /// Take in the map the party stands on.
+    pub fn locate(&mut self, map: MapId) {
+        self.map = Some(map);
+    }
+
+    /// An object of the party's map by its placement id: the placement's own name, else its
+    /// kind's; "Something" for one the map does not hold.
+    #[must_use]
+    pub fn object(&self, data: &Data, object: &str) -> String {
+        self.map
+            .and_then(|map| data.maps.get(&map))
+            .and_then(|map| map.objects.iter().find(|p| p.id == object))
+            .and_then(|p| match p.name {
+                Some(key) => data.registry.text.name(key),
+                None => data.objects.get(&p.kind).map(|k| k.name.as_str()),
+            })
+            .map_or_else(
+                || "Something".to_owned(),
+                |key| labels::text(data, key).to_owned(),
+            )
     }
 
     /// Follow an event already described: meeting monsters numbers them afresh, and a death
@@ -144,6 +168,8 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
                 CheckKind::Run => "Run".to_owned(),
                 CheckKind::Flee => "Flee".to_owned(),
                 CheckKind::Save(ability) => format!("{ability:?} save"),
+                CheckKind::Skill(skill) => labels::skill(*skill),
+                CheckKind::Ability(ability) => format!("{ability:?}"),
             };
             let rolled = roll
                 .as_ref()
@@ -287,20 +313,35 @@ pub fn describe(event: &Event, names: &Names, data: &Data) -> Option<String> {
             let state = if *applied { "is now" } else { "is no longer" };
             format!("{} {state} {condition}", names.actor(*target))
         }
-        Event::Death { target, gold } => {
-            let gold = gold
-                .as_ref()
+        Event::Death { target, gold, loot } => {
+            let mut dropped: Vec<String> = gold
+                .iter()
                 .filter(|g| g.total > 0)
-                .map_or_else(String::new, |g| format!(", dropping {} gold", g.total));
-            format!("{} dies{gold}", names.actor(*target))
+                .map(|g| format!("{} gold", g.total))
+                .collect();
+            if !loot.is_empty() {
+                dropped.push(labels::loot(data, loot));
+            }
+            let dropped = if dropped.is_empty() {
+                String::new()
+            } else {
+                format!(", dropping {}", dropped.join(", "))
+            };
+            format!("{} dies{dropped}", names.actor(*target))
         }
         Event::CombatEnded {
             outcome,
             xp,
             gold,
             fallen,
+            loot,
         } => {
             let line = match outcome {
+                CombatOutcome::Victory if !loot.is_empty() => format!(
+                    "Victory! {xp} XP each, {}; on the ground: {}",
+                    labels::gold(*gold),
+                    labels::loot(data, loot)
+                ),
                 CombatOutcome::Victory => format!("Victory! {xp} XP each, {}", labels::gold(*gold)),
                 CombatOutcome::Fled => "The party got away".to_owned(),
                 CombatOutcome::Defeat => "The party has fallen".to_owned(),

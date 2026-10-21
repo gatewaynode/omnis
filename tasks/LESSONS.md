@@ -196,3 +196,131 @@
 - **Rule**: A new screen's capture is taken with the HUD's recent lines filled and long. A new way to open a
   screen (a key, a button) is tested with mouse look on. A system the shell gates on `playing` is checked for
   whether it must also run while a screen holds the game.
+
+## 2026-10-16 — A layout constant sized for one set of buttons goes stale when the set grows; outcomes of chosen acts stand front and centre
+- **What happened**: The explore message line reserved room for two right-hand buttons (`message.rs` `RIGHT`);
+  Camp (P6) and Level (step 4b) joined them and nobody re-measured, so long lines ran under four buttons. The
+  owner, hand-testing 2b's verbs, found a plaque's words cut off, and asked that the result of anything started
+  on purpose stand centred where the actions panel stands, be repeated in the log, and fade as the party walks
+  away from where it was done (owner, 2026-10-16: only the result fades; gone by 1.5 cells; the bottom line
+  retired).
+- **Rule**: A node placed beside another group is placed from that group's own measure, or a test checks the two
+  never overlap at the sizes the window allows; when a group gains a button, grep for the constants that sized it.
+  A result the player asked for is shown where they were looking (the screens' centre), not in a band at the edge.
+
+## 2026-10-16 — A command the player starts always answers, even when it changed nothing
+- **What happened**: 2b's Search said only "{name} searches: Investigation n". The engine's `Searched` event
+  reports the roll, and a find follows as `Noticed`; with nothing hidden there, nothing else followed. The owner,
+  hand-testing, searched a cell with a pile of arrows and saw no word of what was there.
+- **Rule**: For each command the player can start, list what its outcome lines say in the empty case ("nothing
+  hidden here") and what the player would expect it to mention (what lies in the cell), and test both. A line
+  that reports only the dice is not an outcome.
+
+## 2026-10-17 — A new panel must be checked against every node already on that part of the screen
+- **What happened**: The outcome notice (2026-10-16) was placed where the screens stand, but the HUD's running
+  log, a single unbounded text at the top left, ran under it when a line was long. The owner found the overlap
+  by hand, and asked that the log be made less prominent now that the notice carries the important words. The
+  lesson of 2026-10-16 (place a node from the other group's measure) was written about the bottom line and not
+  applied to the log beside the new notice.
+- **Rule**: When a node is added to the screen, list the nodes already in its band (top left, centre, right
+  column, bottom) and give each the other's measure, or derive both from one constant with a test of the
+  relation. Unbounded text never shares a band with a panel.
+
+## 2026-10-17 — A fade is sized to the step that ends it, and anything that stands over the view can be put away
+- **What happened**: The outcome notice was whole for half a cell and gone at a cell and a half, so it outlasted
+  the step away from where it was done; and it took no clicks, so a long one could only be walked off. The owner,
+  hand-testing, asked that it fade from the first movement, be gone by the cell's edge, and carry a close button.
+- **Rule**: A transient's lifetime is stated in the player's units (one step, the cell's edge), not in round
+  numbers, and checked against the motion that ends it. A panel over the view that holds the player's attention
+  has a close control from its first build.
+
+
+## 2026-10-17 — When a request will not fit the save, question the save before offering a way to fit it
+- **What happened**: The owner asked that the full log be kept in the save. The save is the engine's whole
+  `World`, so I offered two ways to put the log there (worded lines in a journal field, or the events). The
+  owner stopped me: the save was over-coupled. It should centre on the characters and their interactions,
+  replayed against a world the simulation owns (PRD D28).
+- **Rule**: When a feature has no natural home in a core structure (the save, a view, a crate), say that before
+  proposing where to wedge it. Name the coupling ("the save is the whole world, so a client note must become
+  engine state"), and ask whether the structure is right. Only then offer the options inside it.
+
+## 2026-10-17 — A rebuild must carry over what the player holds: the keyboard, not only the words
+- **What happened**: The owner emptied the debug panel's Value field to type a new number and could not: the
+  cursor went away. An empty field dims its Set button ("type a number"), a dim button is part of a screen's
+  shape, and a change of shape rebuilds the panel. Every text field was spawned with `AutoFocus`, so the
+  rebuild handed the keyboard to whichever field spawned last. The bug was in every screen with a field and a
+  button that dims on it; the debug page was where it was met. A headless test could not press Backspace (it
+  needs the text's layout, which has no fonts there), so the test empties the field as the backspaces would.
+- **Rule**: When a screen is rebuilt from scratch, list the state the player holds in its nodes (focus, cursor,
+  scroll, a half-typed word) and carry each over, or rebuild in place. Test it the way the player meets it:
+  focus, empty, type. Carrying focus must give way when the new screen lacks that field, so a move to the next
+  screen still focuses its own field.
+
+## 2026-10-17 — An acceptance step is checked against the fixture it names
+- **What happened**: 7c's script told the owner to "pull the lever" in the yard. The yard's lever is placed
+  `hidden: Some(12)` and must be found by a search first, so the owner found no lever to pull. I wrote the
+  step from memory of the lever's interaction, not from the map file.
+- **Rule**: For each step of an acceptance script that names a thing in a fixture (a lever, a door, a
+  monster), read its placement in the map file and write what stands in the way: hidden, locked, on another
+  level, needing an item. Where a step depends on a roll, say so and give a sure way round (the debug panel).
+
+## 2026-10-17 — Ask what a cost buys before defending it, and check budgets against the genre
+- **What happened**: The owner asked whether visited squares could be deduplicated in the journal. I answered
+  that every step had to be kept because a step passes time and may draw an encounter roll, and shrank only the
+  encoding. Then I set the fold rule from a one-second load. The owner: CRPGs load in 4–5 s, and movement does
+  not change the world besides eating time, so a save should capture interactions. Reading `apply.rs` showed
+  that everything a step changes is the party's own state (position, clocks, automap, its RNG streams), apart
+  from the interactions it triggers. The "every step is needed" claim held only because the save re-derived
+  party state by replay, which was a choice, not a fact.
+- **Rule**: When defending a cost ("this must be kept"), list what the kept thing actually changes and whose
+  state that is, and say what design choice makes it necessary. A budget (load time, file size, frame time)
+  is set against what players of the genre accept, stated with its source, and offered to the owner as a
+  number to confirm, never assumed.
+
+## 2026-10-18 — A writer checks every file against the limit its reader enforces
+- **What happened**: 7f gave the character save its own limit and checked it in `save_files`. The 7g doc
+  audit found that the same function wrote world bases and archive segments with no check, though the hosts
+  read them with `read_under` and refuse anything over `MAX_FILE_BYTES`. A large enough fold would have
+  written a save that could not load.
+- **Rule**: When a reader caps a file, its writer refuses the same cap for every file it produces, not only
+  the one under discussion. Test each kind of file the writer emits, not just one.
+
+## 2026-10-18 — A mutation runner restores a file by rewriting it, never by moving a backup back
+- **What happened**: the mutation runners copied each source to `.bak`, wrote the mutant, built, then
+  `shutil.move`d the backup back. The restored file kept the backup's mtime, which is older than the mutated
+  build, so cargo (mtime freshness for path crates) treated the mutated artifact as up to date. A later
+  `cargo build -p omnis-cli` linked the last mutant ("version not rehashed") and the 7h1 demo failed: a
+  resealed pack was still refused. The gate itself builds with other features, so it rebuilt; a plain build
+  did not.
+- **Rule**: restore with `open(f, 'w').write(original)` (a fresh mtime), or `touch` the file after restoring.
+  After any mutation run, `touch` the mutated files before the gate or a demo. When a demo disagrees with the
+  tests, suspect a stale artifact before the code.
+
+## 2026-10-19 — Context is measured, not estimated
+- **What happened**: asked to check context before 7h4, I estimated 200–250k from memory of what I had read;
+  `/context` measured 297.7k, with the messages alone at 262k. Tool output (test failures, file reads, long
+  diffs) costs more than it feels.
+- **Rule**: when the owner asks about context, say plainly that I cannot read it and ask for `/context`, or
+  give a range that leans high. Before a large sub-step, keep broad reading in subagents (the 7h3 id inventory
+  by an Explore agent cost the main context one report), and cap test output with `grep`/`cut`.
+
+## 2026-10-19 — Interface words are ASCII unless the face is known to draw them
+- **What happened**: The 7h4 Load screen wrote "saved → loaded" and "…and N more". The built-in face has neither glyph, so the owner's walk showed boxes. The tests read the strings, not the glyphs, so nothing failed.
+- **Rule**: Text a screen builds in code uses ASCII ("saved 0.1.1, loaded none", "and 3 more"). A new screen's test asserts its texts are ASCII. Arrows, ellipses and dashes belong in docs and comments, never in `Span`s, until a face's coverage is checked.
+
+## 2026-10-19 — Stage by path, never a directory that holds the owner's files
+- **What happened**: committing 7h5 I ran `git add -A crates docs tasks ARCHITECTURE.md`. `docs` swept in the
+  owner's untracked `docs/dnd_supplemental/dnd_5e_combat_flow.md`, which must never be staged. Seen in the
+  status line after the commit; the commit was unpushed, so it was amended without the file (left on disk).
+- **Rule**: stage the files I changed by name (`git add <paths>`, or `git add -u` plus each new file I made).
+  Never `git add -A`/`.` on `docs/`, `assets/` or the root. Read `git status --short` before `git commit`, not
+  after, and stop if anything under `assets/` or `docs/dnd_supplemental/` is staged.
+
+## 2026-10-19 — Nothing builds, and no fixture changes, while a mutation run is going
+- **What happened**: during the 7h6 mutation run I edited the `chain` fixture's files and ran `cargo run -p
+  omnis-cli -- pack seal`. The run mutates sources in place, so my build compiled whatever mutant was in place
+  (a warning showed one), and between my edit and the reseal the fixture packs were unsealed, so any test of
+  that moment failed for my reason, not the mutant's: a false "caught". The run's results were discarded and
+  rerun.
+- **Rule**: once a mutation runner starts, no `cargo` command and no edit to a file any of its tests read
+  (sources, fixtures, packs) until it ends. Write docs and plans meanwhile. Settle fixtures before the run.

@@ -5,8 +5,10 @@
 
 pub mod args;
 pub mod bake;
+pub mod draft;
 pub mod headless;
 pub mod schema;
+pub mod wander;
 
 pub use headless::{Headless, HeadlessError};
 

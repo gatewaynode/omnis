@@ -3,9 +3,11 @@
 //! them (M4); the editor places them (M5).
 
 use crate::error::DataError;
+use crate::footprint::Footprint;
 use crate::limits::{MAX_COLLECTION, MAX_STACKS};
+use crate::object::Look;
 use crate::registry::Interner;
-use omnis_core::{Dice, MonsterId};
+use omnis_core::{Dice, Facing, Level, MonsterId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -42,9 +44,33 @@ impl Disposition {
     }
 }
 
+const fn north() -> Facing {
+    Facing::North
+}
+
+/// Where a fixed encounter's group stands in view (M8.5 step 2c): one figure, its front stack's
+/// monster, at an offset from the cell's centre. Entering the cell meets it, as an unseen one;
+/// Use from the next cell meets it too. Its name is the encounter's `id`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Stand {
+    /// Offset of its centre from the cell's centre, eighths east and south, each -4..=4.
+    #[serde(default)]
+    pub pos: (i8, i8),
+    /// The way it faces.
+    #[serde(default = "north")]
+    pub facing: Facing,
+}
+
 /// A group placed on a tile.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FixedEncounter {
+    /// Unique among the map's objects and encounters, `[a-z0-9_]{1,32}`: the name a save keeps
+    /// it cleared by (M8.5 7h2) and, when it stands, the name a command uses.
+    pub id: String,
+    /// Trigger level (M8.5 step 1b).
+    #[serde(default)]
+    pub level: Level,
     /// Trigger column.
     pub x: u16,
     /// Trigger row.
@@ -57,6 +83,9 @@ pub struct FixedEncounter {
     /// Whether clearing the group removes it from the tile for the rest of the game.
     #[serde(default)]
     pub once: bool,
+    /// Where it stands in view; left out, it is an unseen trigger (as before M8.5 step 2c).
+    #[serde(default)]
+    pub stand: Option<Stand>,
 }
 
 /// One entry of a random table: its weight and the stacks it spawns, each with a count roll.
@@ -83,6 +112,10 @@ pub struct RandomEncounters {
 /// A fixed encounter with interned monsters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedEncounter {
+    /// Its id in the map.
+    pub id: String,
+    /// Trigger level.
+    pub level: Level,
     /// Trigger column.
     pub x: u16,
     /// Trigger row.
@@ -93,6 +126,24 @@ pub struct ResolvedEncounter {
     pub disposition: Disposition,
     /// Whether clearing it is remembered.
     pub once: bool,
+    /// Where it stands in view, if it does.
+    pub stand: Option<Stand>,
+}
+
+impl ResolvedEncounter {
+    /// The front stack's monster: the one its figure shows.
+    #[must_use]
+    pub fn front(&self) -> Option<MonsterId> {
+        self.stacks.first().map(|s| s.0)
+    }
+
+    /// The room a look takes where the group stands, if it stands.
+    #[must_use]
+    pub fn footprint(&self, look: &Look) -> Option<Footprint> {
+        self.stand
+            .as_ref()
+            .map(|s| Footprint::of(self.x, self.y, s.pos, s.facing, look.width, look.depth))
+    }
 }
 
 /// A random table entry with interned monsters.
@@ -145,7 +196,7 @@ pub fn validate(
         }
         if let Some(k) = encounters[..i]
             .iter()
-            .position(|o| o.x == e.x && o.y == e.y)
+            .position(|o| o.level == e.level && o.x == e.x && o.y == e.y)
         {
             errors.push(DataError::new(
                 file,
@@ -241,6 +292,8 @@ pub(crate) fn resolve(
         .iter()
         .enumerate()
         .map(|(i, e)| ResolvedEncounter {
+            id: e.id.clone(),
+            level: e.level,
             x: e.x,
             y: e.y,
             stacks: e
@@ -252,6 +305,7 @@ pub(crate) fn resolve(
                 .collect(),
             disposition: e.disposition,
             once: e.once,
+            stand: e.stand.clone(),
         })
         .collect();
     let random = random.map(|random| ResolvedRandom {
@@ -295,25 +349,34 @@ mod tests {
         let def = parts(
             vec![
                 FixedEncounter {
+                    id: "e1".into(),
+                    level: Level::GROUND,
                     x: 2,
                     y: 0,
                     stacks: vec![("t:monster:a".into(), 0)],
                     disposition: Disposition::Hostile,
                     once: true,
+                    stand: None,
                 },
                 FixedEncounter {
+                    id: "e2".into(),
+                    level: Level::GROUND,
                     x: 1,
                     y: 1,
                     stacks: vec![],
                     disposition: Disposition::Wary,
                     once: false,
+                    stand: None,
                 },
                 FixedEncounter {
+                    id: "e3".into(),
+                    level: Level::GROUND,
                     x: 1,
                     y: 1,
                     stacks: vec![("t:monster:a".into(), 1); 5],
                     disposition: Disposition::Friendly,
                     once: false,
+                    stand: None,
                 },
             ],
             Some(RandomEncounters {
@@ -359,11 +422,14 @@ mod tests {
         let rat = monsters.intern("t:monster:rat");
         let def = parts(
             vec![FixedEncounter {
+                id: "e4".into(),
+                level: Level::GROUND,
                 x: 0,
                 y: 1,
                 stacks: vec![("t:monster:rat".into(), 3), ("t:monster:none".into(), 1)],
                 disposition: Disposition::Neutral,
                 once: true,
+                stand: None,
             }],
             Some(RandomEncounters {
                 chance_percent: 5,

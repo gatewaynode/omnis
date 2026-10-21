@@ -10,7 +10,8 @@ use omnis_data::{
 };
 use omnis_sim::omnis_core::Direction;
 use omnis_sim::omnis_rules::Draft;
-use omnis_sim::{Command, Op, OpError, Replay, Reply, World};
+use omnis_sim::save::{CharacterSave, Manifest};
+use omnis_sim::{Command, Op, OpError, Replay, Reply};
 use std::path::{Path, PathBuf};
 
 fn test_pack() -> PathBuf {
@@ -37,7 +38,7 @@ fn headless_writes_reads_and_reloads() {
     let mut game = Headless::new(vec![base_pack(), test_pack()], 1).unwrap();
     step(&mut game);
     let mut saved = game.world.clone();
-    saved.log.clear();
+    saved.log.retain(|l| omnis_sim::told(&l.event));
     let path = "saves/one.ron";
     assert_eq!(
         game.handle(&Op::SaveWrite { path: path.into() }).unwrap(),
@@ -50,13 +51,14 @@ fn headless_writes_reads_and_reloads() {
         .handle(&Op::SaveRead {
             path: path.into(),
             force: false,
+            migrate: false,
         })
         .unwrap()
     else {
         panic!("not a status")
     };
     assert_eq!(status.turn, 1);
-    assert_eq!(game.world, saved, "restored, with an empty log");
+    assert_eq!(game.world, saved, "restored, with the party's log as saved");
 
     for bad in ["../one.ron", "/tmp/one.ron", "saves/one.txt", ""] {
         let error = game
@@ -70,13 +72,25 @@ fn headless_writes_reads_and_reloads() {
     assert!(matches!(
         game.handle(&Op::SaveRead {
             path: "saves/none.ron".into(),
-            force: false
+            force: false,
+            migrate: false,
         }),
         Err(OpError::Failed { .. })
     ));
 
     let before = game.world.clone();
-    assert_eq!(game.handle(&Op::PackReload).unwrap(), Reply::Done {});
+    let Reply::Done { check } = game.handle(&Op::PackReload { migrate: false }).unwrap() else {
+        panic!("a reload answers done");
+    };
+    assert_eq!(
+        check.verdict,
+        omnis_sim::save::Verdict::Same,
+        "the same packs"
+    );
+    assert!(
+        !check.packs.is_empty() && check.packs.iter().all(|p| p.saved == p.loaded),
+        "the report of the packs: {check:?}"
+    );
     assert_eq!(game.world, before, "a reload keeps the world");
     assert!(matches!(
         game.handle(&Op::Screenshot {
@@ -89,6 +103,46 @@ fn headless_writes_reads_and_reloads() {
         Headless::new(vec![dir.join("no-such-pack")], 1).is_err(),
         "missing packs are an error, not a panic"
     );
+    // M8.5 7h6: a save the packs' migrations change loads only with `migrate`.
+    let fixture = |name: &str| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../omnis-sim/tests/packs")
+            .join(name)
+    };
+    let chain = |v: &str| {
+        vec![
+            base_pack(),
+            test_pack(),
+            fixture("objects"),
+            fixture(&format!("chain/{v}")),
+        ]
+    };
+    let mut old = Headless::new(chain("v1"), 1).unwrap();
+    let sword = old.data.registry.items.get("chain:item:old_sword").unwrap();
+    old.world.party.inventory.push((sword, 1));
+    old.handle(&Op::SaveWrite {
+        path: "saves/chain.ron".into(),
+    })
+    .unwrap();
+    let mut new = Headless::new(chain("v3"), 1).unwrap();
+    let read = |migrate| Op::SaveRead {
+        path: "saves/chain.ron".into(),
+        force: false,
+        migrate,
+    };
+    assert!(
+        matches!(new.handle(&read(false)), Err(OpError::Failed { message }) if message.contains("migrate")),
+        "asks first"
+    );
+    assert!(matches!(new.handle(&read(true)), Ok(Reply::Status(_))));
+    let names: Vec<&str> = new
+        .world
+        .party
+        .inventory
+        .iter()
+        .filter_map(|(i, _)| new.data.registry.items.name(*i))
+        .collect();
+    assert_eq!(names, ["chain:item:sword"]);
 }
 
 #[test]
@@ -129,11 +183,17 @@ fn schema_dump_sections_parse_with_the_real_types() {
         (region.company, region.rule.as_str()),
         (900, "time.settled")
     );
-    parse::<World>(&body("# save (schema 7)\n")).unwrap();
+    let save = parse::<CharacterSave>(&body("# save (schema 9)\n")).unwrap();
+    assert_eq!(
+        save.journal.entries()[0].changes.len(),
+        1,
+        "one door opened"
+    );
+    parse::<Manifest>(&body("# .omnis/worlds/<id>/manifest.ron\n")).unwrap();
     parse::<Replay>(&body("# replay\n")).unwrap();
     let ops =
         parse::<Vec<Op>>(&body("# protocol ops (JSON on the dev socket; RON here)\n")).unwrap();
-    assert_eq!(ops.len(), 25);
+    assert_eq!(ops.len(), 27);
 }
 
 /// The M3 "done when": the spell point formula changes through `rules.set` without a rebuild.
