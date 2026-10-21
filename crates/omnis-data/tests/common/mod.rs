@@ -46,3 +46,30 @@ pub fn scratch(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("scratch dir");
     dir
 }
+
+/// A copy of the pack at `src` under a fresh scratch directory `name`: `pack.ron` and the
+/// directories the loader reads, so tests may write and reseal without touching the repository.
+pub fn copy_pack(src: &std::path::Path, name: &str) -> PathBuf {
+    let dst = scratch(name);
+    std::fs::copy(src.join("pack.ron"), dst.join("pack.ron")).expect("pack.ron");
+    for dir in ["data", "text", "notes", "migrations"] {
+        copy_dir(&src.join(dir), &dst.join(dir));
+    }
+    dst
+}
+
+fn copy_dir(src: &std::path::Path, dst: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(src) else {
+        return;
+    };
+    std::fs::create_dir_all(dst).expect("copy dir");
+    for entry in entries {
+        let entry = entry.expect("entry");
+        let to = dst.join(entry.file_name());
+        if entry.file_type().expect("type").is_dir() {
+            copy_dir(&entry.path(), &to);
+        } else {
+            std::fs::copy(entry.path(), to).expect("copy file");
+        }
+    }
+}

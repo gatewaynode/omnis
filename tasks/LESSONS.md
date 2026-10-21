@@ -335,3 +335,14 @@
   that person works, not against the string limit, and address it to the thing it is about (a key per
   square, object or item, in a store of its own) rather than hanging one string on the file. Before
   building a field a vision document named in passing, check the real material it must hold.
+
+## 2026-10-21 — A gate run in the background is read before the commit, and the commit is chained on its verdict
+- **What happened**: M5.2's gate ran in the background and the task runner reported "exit code 0", the
+  wrapper shell's. The gate itself had exited 101 on a clippy error in a test. I committed in a separate
+  command that printed the log's `exit 101` and went on to `git commit` regardless; the commit had to be
+  amended. The 2026-09-19 lesson ("the gate's exit status must reach the commit") was broken by the
+  background pattern, where the status sits in a file.
+- **Rule**: a background gate writes `VERIFY-GREEN` and its exit code to its log; the commit command is
+  `grep -q VERIFY-GREEN <log> && git commit …` (or the whole gate-and-commit chain runs as one background
+  command), never a commit in a command of its own after reading the log by eye. The runner's exit code is
+  the wrapper's, not the gate's.

@@ -11,6 +11,7 @@ pub mod action;
 pub mod character;
 pub mod condition;
 mod content;
+pub mod edit;
 pub mod encounter;
 pub mod error;
 pub mod flag;

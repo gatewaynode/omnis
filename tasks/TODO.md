@@ -106,8 +106,8 @@ no loss, and every later map is built with it.
   - [x] M5.1 (2026-10-21) The author's notes as a keyed store, `notes/*.ron`, checked on load and never sealed (owner's
     direction, replacing a 4 KiB field per map and level); the loader's per-map resolve extracted as
     `MapData::resolve` (in memory, with the other maps' portals checked both ways); `tasks/acceptance/m5-1.md`.
-  - [ ] M5.2 `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal, files,
-    check, write); byte-identical layouts on every fixture map.
+  - [x] M5.2 (2026-10-21) `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal,
+    files, check, write, the notes store); byte-identical layouts on every fixture map; `tasks/acceptance/m5-2.md`.
   - [ ] M5.3 `editor.*` ops (14), replies, `OpError::Invalid`, `Headless.editor`, the MCP tools; counts 27 to 41.
   - [ ] M5.4 The client's editor layer: Title "Editor", `--editor`, the plan view, cursor, levels, inspector.
   - [ ] M5.5 Brushes, strokes, pick, undo and redo, Save refused while invalid, Revert.
