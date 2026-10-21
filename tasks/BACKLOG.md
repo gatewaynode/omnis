@@ -63,6 +63,9 @@ Left, waiting on a planned change:
   presentation-ARCHITECTURE §3 and §8.6 will need the change when it lands.
 
 ## Dependencies
+- **The seed's clock entropy** (`crates/omnis-vector/src/shell/screen.rs:281`, `SystemTime`) against ARCHITECTURE §11's
+  "OS entropy": harmless today; `getrandom` is already in the tree for the day a key needs it (D29). From the accounts
+  study, question 9 (2026-10-21).
 - **`smartstring` RUSTSEC-2026-0249** (through rhai): to add to ARCHITECTURE §13's dependency notes.
 - **`ttf-parser` 0.25.1 RUSTSEC-2026-0192**: reached only on Linux, through winit's Wayland window decorations
   (`winit` → `sctk-adwaita` → `ab_glyph` → `owned_ttf_parser`; `cargo tree --target all -i ttf-parser`). It is not in

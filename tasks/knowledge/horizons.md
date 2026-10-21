@@ -213,8 +213,23 @@ defined first in M8.5 step 2. Not chosen for v1, each waiting for the editor's l
 - a map writer that keeps `//` comments in place (the `notes` text stands in);
 - the editor before objects, authoring them from the start (objects are hand-written RON until the editor).
 
+## Accounts, multiplayer and platforms (PRD D29 to D31, owner 2026-10-21)
+Chosen from the W0.5 studies (`tasks/plans/study-{accounts,multiplayer,multi-platform}.md`). Not chosen, each
+with what it waits for:
+- co-op on one party alone: never alone; it falls out of the several-parties model if a transport lands (W4+);
+- a hosted server: at most a shell over the same engine after W5, and only if a service is ever chosen (D29 says
+  no own hosted service); a platform's cloud save as an option at M12 if a store asks for it;
+- two parties sharing a fight: a row of its own after multiplayer's first step (initiative across parties, the
+  encounter clock, loot);
+- an own Ed25519: only if `ed25519-compact` lapses (1100+ lines); a signature registry or revocation: needs a
+  service, none planned;
+- a `wasm32-wasip1` golden job on Linux as a fourth fingerprint target: cheap, when the owner wants it;
+- the offscreen capture in CI (macOS runners expose Metal): after the look settles at W2;
+- a blocking Linux job: when someone plays on Linux (the owner's call; today it reports and never blocks).
+
 ## Later phases
 Planned in `tasks/TODO.md` (2026-10-21) as phases toward world building: the editor (M5, W1), the look and the
 engine under it (M8.5 steps 5 and 6, set pieces, W2), procedural generation (M9, W3), the ecosystem and the story
 engine (M10, M11, W4), the campaign, GFDL backgrounds and packaging (M12, W5). Accounts, multiplayer and
-multi-platform are studies first (W0.5), then PRD amendments the owner chooses.
+multi-platform were studies first (W0.5) and are decided (PRD D29 to D31, 2026-10-21): Linux CI advisory now,
+Windows at W1's close, the `PartyState` refactor with M9, multiplayer's first step at W4, signed packs at W5.
