@@ -99,9 +99,21 @@ no loss, and every later map is built with it.
   every other file, a `notes` text on maps and levels; PRD §10, ARCHITECTURE §8.2; `tasks/plans/editor-v1.md` is
   superseded for planning and keeps §A, the document model, and §E's kinds and limits to reuse). Planned in
   plan mode first, against the format as built (heights, ramps, levels, joins, stairs, portals, encounters by
-  id, sites, objects, the pack seal). The plan sets the sub-steps; the expected shape: the document model with
-  undo and redo and a save refused while invalid; the editor mode and the plan view; painting; the preview and
-  Playtest; the RON editor; `editor.*` ops and their MCP tools; the re-authoring; the documents.
+  id, sites, objects, the pack seal). **Planned 2026-10-21: `tasks/plans/m5-editor-v1.md`.** Owner's choices: a
+  save reseals and bumps the patch version; the four maps' comments move into `notes`; Playtest uses the fixed
+  party. The steps, one commit each, each with an acceptance script `tasks/acceptance/m5-N.md`:
+  - [x] M5.0 (2026-10-21) The plan saved; this block.
+  - [ ] M5.1 `notes` on maps and levels; the loader's per-map resolve extracted as `MapData::resolve` (in memory).
+  - [ ] M5.2 `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal, files,
+    check, write); byte-identical layouts on every fixture map.
+  - [ ] M5.3 `editor.*` ops (14), replies, `OpError::Invalid`, `Headless.editor`, the MCP tools; counts 27 to 41.
+  - [ ] M5.4 The client's editor layer: Title "Editor", `--editor`, the plan view, cursor, levels, inspector.
+  - [ ] M5.5 Brushes, strokes, pick, undo and redo, Save refused while invalid, Revert.
+  - [ ] M5.6 Placements, terrains, levels and notes forms.
+  - [ ] M5.7 The 3D preview from the cursor.
+  - [ ] M5.8 Playtest and Back to editor.
+  - [ ] M5.9 The RON text editor (Check, Save verbatim).
+  - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.
