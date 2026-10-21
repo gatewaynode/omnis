@@ -9,24 +9,32 @@ stories need. The world will also support fully procedural generation, so vast a
 created and then left as they are or customized by hand.
 
 `PRD.md` says what the game is; `ARCHITECTURE.md` says how it is shaped. Both are the source of
-truth for every decision below. `tasks/TODO.md` is the build order and the record of what each
-milestone delivered.
+truth for every decision below. `tasks/TODO.md` is the execution plan; what each milestone delivered
+is recorded in `tasks/archive/`.
 
 ## Status
 
-Phase 1 is in progress. Built so far, each milestone played by the owner before the next one starts (M6's remote sensing awaits that play):
+The MVP is built and played: Phase 1 of `PRD.md` §13 is complete but the editor. Each milestone was
+played by the owner before the next one started; the record of each is in
+`tasks/archive/TODO-2026-10-20.md`.
 
 | Milestone | Delivered |
 |---|---|
 | M0 | Workspace, lints, CI |
 | M1 | Walkable dungeon, the automap, golden replays |
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
-| M3 | Party and characters on the SRD 5.1 structure, the bitmap-font canvas UI |
+| M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1, deferred by the owner; planned in `tasks/plans/editor-v1.md` |
+| M5 | Editor v1, deferred by the owner; next (W1 of `tasks/TODO.md`) |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
+| M7 | Town and services, rest, progression, the turn budget and declared reactions |
+| M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |
+| Protocol 2 | Definitions named by string id on the wire; members by identity |
+| Vector adoption | The 3D vector client `omnis-vector` replaces the 2D client at parity (P0 to P9) |
+| M8.5 | Elevation, levels and stairs, objects in data, occluding fills, the camera's pitch, the save model and saves by name across changed packs |
 
-Next is M7: town, services, rest and progression, which closes the Phase 1 loop from PRD §13.
+Next is the plan in `tasks/TODO.md`: the editor (M5), then the look in data, the world's structure
+(M9), the living world (M10, M11) and release (M12), toward the owner building the first locality.
 
 ## Layout
 

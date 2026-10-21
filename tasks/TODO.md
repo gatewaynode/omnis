@@ -49,7 +49,7 @@ horizons have a study each.
 - [x] W0.2 (2026-10-21) `tasks/alt-TODO.md` archived to `tasks/archive/alt-TODO-2026-10-21.md`: every item in it is done
   (Phases A and B, 2026-10-02 to 2026-10-10) or tracked here (Bevy 0.20). presentation-PRD §11's "Report in
   `tasks/alt-TODO.md`" follows the move (owner approves).
-- [ ] W0.3 `README.md`: the Status table stops at M6 and says "Next is M7"; "`tasks/TODO.md` is ... the record of
+- [x] W0.3 (2026-10-21) `README.md`: the Status table stops at M6 and says "Next is M7"; "`tasks/TODO.md` is ... the record of
   what each milestone delivered" now names the archive.
 - [x] W0.4 (2026-10-21, owner: all in one commit) The vision documents brought to this plan:
   - PRD §13's note of 2026-09-12 ("revisit this section once the milestones settle"): revisited; it names this
