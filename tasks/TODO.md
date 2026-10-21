@@ -63,7 +63,7 @@ horizons have a study each.
     done; the list reordered to W2's order.
   - presentation-ARCHITECTURE: the "Vector adoption" pointer in its status line names the archive; §4.3's
     labels are built (`labels.rs`), not "to build"; §7's style system is partly built (the type scale and fonts).
-- [ ] W0.5 Three studies for the far horizons the MVP makes thinkable (owner, 2026-10-21), each a
+- [x] W0.5 (2026-10-21; `tasks/plans/study-{accounts,multiplayer,multi-platform}.md`; the owner's choices pending) Three studies for the far horizons the MVP makes thinkable (owner, 2026-10-21), each a
   `tasks/plans/study-<name>.md` that reads only: what the documents say today, what the code constrains, the
   options with their costs, the proposed PRD rows (a decision, the §2 consumers, §5 non-goals, §13 Later) and
   the earliest phase the work could enter. Nothing is built until the owner chooses from a study.

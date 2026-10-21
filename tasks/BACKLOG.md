@@ -55,6 +55,10 @@ the same day: the `ARCHITECTURE.md` items (§2, §3, §4.9, §9.3, §14, §15, A
 retired Feathers and canvas state in PRD D26, §11.1 and §14, the performance floor's wording in §11.1,
 presentation-PRD §9's "3D features", and the headless-versus-offscreen sentence in presentation-ARCHITECTURE §10.3.
 Left, waiting on a planned change:
+- **The blank seed is clock-based, not OS entropy** (found 2026-10-21 by the accounts study): ARCHITECTURE §11
+  says the client draws a blank seed from OS entropy; `omnis-vector/src/shell/screen.rs:280` draws it from
+  `SystemTime` nanoseconds through `splitmix64`. Harmless for a seed; unusable for a key. `getrandom` 0.4.3 is
+  already in the tree for the day a key needs it (`tasks/plans/study-accounts.md`). Fix the sentence or the call.
 - **The Bevy 0.20 plan changes tonemapping from `None` to `Linear`** (`tasks/plans/bevy-0.20-migration.md`);
   presentation-ARCHITECTURE §3 and §8.6 will need the change when it lands.
 
@@ -104,9 +108,10 @@ What each size costs beyond code:
 - **Docs.** Size 1 fits presentation-PRD X3 ("can grow into meshes"), X20 and VA4 as written. Sizes 2 and 3 are a
   presentation-PRD amendment (the owner's departure adds a direction) and change VA1, VA4 and §8.2.
 - **Testing.** The gate has no GPU. Size 1 keeps the pattern (core tested headless, captures as acceptance on the
-  owner's machine). Sizes 2 and 3 move the look into shaders that no headless test sees; whether GitHub's macOS
-  runners expose a Metal device for offscreen capture is unverified and decides whether CI can ever check the
-  picture.
+  owner's machine). Sizes 2 and 3 move the look into shaders that no headless test sees. Answered 2026-10-21
+  (`tasks/plans/study-multi-platform.md` §2): GitHub's macOS runners do expose Metal; Bevy's own
+  `example-run.yml` captures screenshots on `macos-14`, Linux under `xvfb` with Mesa's Vulkan, Windows with DX12.
+  CI can check the picture when the owner wants it to.
 - **Ordering.** Shader APIs churn between Bevy versions and the 0.20 move is planned. Shaders written on 0.19.1
   are written twice. Do 0.20 first.
 - **Dependencies.** None at any size. Own WGSL in the repo matches the self-supporting rule; no line-rendering
