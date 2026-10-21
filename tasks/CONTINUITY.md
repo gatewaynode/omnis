@@ -1,25 +1,27 @@
 # Continuity notes
 
-Written 2026-10-20, after the owner accepted M8.5 7h7 and TODO.md was archived. Rewrite
-this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-21, at the start of the re-plan toward world building. Rewrite this file every time it is
+used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the files under `assets/`
   and `docs/dnd_supplemental/` (the owner's).
-- **Step 7, the save model (D28):** 7a–7g accepted 2026-10-17/18. **7h, saves by name** (plan
-  `tasks/plans/m8.5-saves-by-name.md`, its "Built" note at the top lists every sub-step's commit and the
-  departures): 7h1 seal, 7h2 schema 9, 7h3 load by name, 7h4 save check and Load screen, 7h5 reload by name,
-  7h6 pack migrations (`c39d019`, accepted 2026-10-20). **7h7 accepted 2026-10-20** (`b9240e0`): ARCHITECTURE §4.1.1
-  (migrations), §4.5, §4.9, §6.1, §6.2, §12, A19; PRD §7.7 (owner's wording; the pre-D28 line removed);
-  `horizons.md` "Saves by name"; api.md §14; a docs pin test. Script `tasks/acceptance/m8.5-7h7.md`.
-- **Gate:** `tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN; clippy clean; Sentrux rules pass, 9001.
+- **The MVP is proven and archived.** Everything through M8.5 step 7 is in `tasks/archive/TODO-2026-10-20.md`.
+  The owner's commits after the archive: `573cb1d` (BACKLOG: GPU-first), `17bc672` (world building assets),
+  `755499e` and `0b3f8bf` (ARCHITECTURE and PRD consistency, the lint's Bevy edge fails closed).
+- **`tasks/TODO.md` refactored (W0.1, 2026-10-21):** the goal "ready for world building" (the Three Kingdoms,
+  `docs/locations/`), phases W0 to W5 with the milestone numbers kept inside them, each phase naming the PRD §13
+  phase it closes. Owner's choices 2026-10-21: the ready bar is the end of W1 (the editor); the accounts study
+  covers all four purposes (identity in multiplayer, signed saves, signed packs, a hosted service).
+- **Gate:** unchanged since 7h7 (`tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN) plus the owner's
+  lint fix; this re-plan touched no code.
 
 ## Next
-- **7h7 accepted 2026-10-20**; M8.5 step 7 closed. `tasks/TODO.md` was archived the same day (owner): everything
-  done moved verbatim to `tasks/archive/TODO-2026-10-20.md`; TODO keeps only the open work.
-- **The owner sets the next phase.** Open: Editor v1 (M5), M8.5 steps 5 (colour roles, biosphere palettes) and 6
-  (mana, needs the owner's intent), the items outside the milestones (README's stale Status table among them),
-  then M9 to M12. Ask.
+- **W0 continues:** W0.2 archive `tasks/alt-TODO.md`; W0.3 the README's Status table; W0.4 the vision-document
+  changes, each approved by the owner first (PRD §13's note, ARCHITECTURE §16 and its stale TODO pointers,
+  presentation-PRD §11 steps 1 and 4, presentation-ARCHITECTURE's status line, §4.3 and §7); W0.5 the three
+  studies (accounts, multiplayer, multi-platform) as `tasks/plans/study-<name>.md`, read-only.
+- **Then W1:** plan M5 Editor v1 in plan mode against the format as built.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -31,7 +33,6 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   actions|verbs|inventory]` (`cargo build -p omnis-vector` first). A capture cannot run a command first.
 - Bug reports: fix directly, with a red test, a lesson in `tasks/LESSONS.md`, then report. Choices with real
   alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode.
-
 
 ## Pins
 - **Replays:** walk `8eab9a1dd95b472d`, fight `79ca2704c92bc312` (rebaselined in 7h2). `SAVE_SCHEMA` 9,
@@ -46,8 +47,6 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - `docs/dnd_supplemental/`: the owner's, in progress; ask before committing anything there.
 - P6 colours unconfirmed; step 5 revisits colour roles (joins, fills, crest, objects, beings).
 - The automap still records the forward cone (§12.5); no objects or beings on it (owner, 2026-10-14).
-- The full log: whether L types an "l" into the filter on the frame it opens was left to the owner's eye
-  (the owner hand-tested the log on 2026-10-17 and reported nothing).
 - Dependencies: the rhai Socket re-audit (ask when); `smartstring` RUSTSEC-2026-0249; `ttf-parser`
   RUSTSEC-2026-0192; Bevy 0.20 not before 2026-11-07.
 
@@ -60,14 +59,14 @@ this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, VERIFY-GREEN, no edits while it runs. Then
   Sentrux `rescan` and `check_rules`.
 - **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
-  in `finally` **by rewriting its text, never by moving a backup back**, which leaves an old mtime and a stale
-  mutant in `target/`; `python3 -u` to a file), then `git status` to confirm the sources are clean. No cargo command and no fixture edit while a mutation run or the gate runs.
-- **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, ARCHITECTURE §4.2's counts, `code-map.md`'s command list (all pinned by `api_doc.rs`), `api_doc.rs` pins
-  and `variants!` lists, the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`
-  (instances, offered, the drift test's index), `common/commands.rs`, the word in `word.rs`, client
-  `labels::refused`.
-- **Commits:** stage new files by name with `git add` first (`--pathspec-from-file` does not add untracked files); build the path list from `git status --short` without `assets/`,
-  `.claude/` or `docs/dnd_supplemental/`, write it to a scratchpad file, `git commit --pathspec-from-file=<file>
-  -F -`. Messages end with the Co-Authored-By line and, when the system gives one, the Claude-Session line. Never push. Owner world docs
-  (`docs/background`, `docs/locations`) go in their own commit, unedited.
+  in `finally` by rewriting its text, never by moving a backup back; `python3 -u` to a file), then `git status`
+  to confirm the sources are clean. No cargo command and no fixture edit while a mutation run or the gate runs.
+- **Each new command, event or rejection** also moves: `docs/api.md` and its count lines, ARCHITECTURE §4.2's
+  counts, `code-map.md`'s command list (all pinned by `api_doc.rs`), `api_doc.rs` pins and `variants!` lists,
+  the MCP schema (`schema.rs` and its `oneOf` count test) and `schema_proof.rs`, `common/commands.rs`, the word
+  in `word.rs`, client `labels::refused`.
+- **Commits:** stage the changed files by name; never `git add -A` on `docs/`, `assets/` or the root; read
+  `git status --short` before `git commit`. Messages end with the Co-Authored-By line and, when the system
+  gives one, the Claude-Session line. Never push. Owner world docs (`docs/background`, `docs/locations`) go in
+  their own commit, unedited. Ask before changing `PRD.md` or `ARCHITECTURE.md`.
 - **Context:** pause and recommend a compact past 350K.

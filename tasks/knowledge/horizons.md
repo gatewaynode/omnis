@@ -214,5 +214,7 @@ defined first in M8.5 step 2. Not chosen for v1, each waiting for the editor's l
 - the editor before objects, authoring them from the start (objects are hand-written RON until the editor).
 
 ## Later phases
-The editor (M5, after M8.5 step 2; the plan is written then), GFDL backgrounds as their own pack,
-procedural generation (M9), the ecosystem (M10), the story engine (M11), packaging (M12).
+Planned in `tasks/TODO.md` (2026-10-21) as phases toward world building: the editor (M5, W1), the look and the
+engine under it (M8.5 steps 5 and 6, set pieces, W2), procedural generation (M9, W3), the ecosystem and the story
+engine (M10, M11, W4), the campaign, GFDL backgrounds and packaging (M12, W5). Accounts, multiplayer and
+multi-platform are studies first (W0.5), then PRD amendments the owner chooses.
