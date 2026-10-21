@@ -63,7 +63,7 @@ horizons have a study each.
     done; the list reordered to W2's order.
   - presentation-ARCHITECTURE: the "Vector adoption" pointer in its status line names the archive; §4.3's
     labels are built (`labels.rs`), not "to build"; §7's style system is partly built (the type scale and fonts).
-- [x] W0.5 (2026-10-21; `tasks/plans/study-{accounts,multiplayer,multi-platform}.md`; the owner's choices pending) Three studies for the far horizons the MVP makes thinkable (owner, 2026-10-21), each a
+- [x] W0.5 (2026-10-21; `tasks/plans/study-{accounts,multiplayer,multi-platform}.md`; the owner chose from them 2026-10-21: PRD D29 to D31, placed in the phases below) Three studies for the far horizons the MVP makes thinkable (owner, 2026-10-21), each a
   `tasks/plans/study-<name>.md` that reads only: what the documents say today, what the code constrains, the
   options with their costs, the proposed PRD rows (a decision, the §2 consumers, §5 non-goals, §13 Later) and
   the earliest phase the work could enter. Nothing is built until the owner chooses from a study.
@@ -85,6 +85,11 @@ horizons have a study each.
     needed; Windows once Phase 1 is playable, ARCHITECTURE §14); packaging and the settings directory arrive
     with M12. The study costs Linux and Windows CI now against at M12, and names what a web or mobile build would
     give up (the lint's own rules make the simulation portable; the client is Bevy's reach).
+- [x] W0.6 (2026-10-21) The Linux CI job, advisory (D31): `.github/workflows/ci.yml` gains a `linux` job with
+  `continue-on-error` and the same steps as the macOS check; the golden replays recorded on macOS reproduce their
+  fingerprints there (ARCHITECTURE §11 tier 3). It reports and never blocks, so no merge waits on a Linux build
+  while no one plays on Linux (owner, 2026-10-21). Verified before the push only as far as a Mac can: the non-Bevy
+  crates type-check for `x86_64-unknown-linux-gnu`; the first run on GitHub is the Bevy build's proof.
 
 ## W1 — The authoring tools (closes PRD §13 Phase 1, D4)
 Done when the Phase 1 content (`packs/test`'s maps and levels) is re-authored in the editor and round-trips with
@@ -105,6 +110,9 @@ no loss, and every later map is built with it.
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.
 - [ ] A bridge probe in the repo: `scripts/mcp-probe.py` drives `target/debug/omnis-mcp` over stdio so a session
   whose MCP client did not launch the bridge still runs the MCP acceptance steps. When needed.
+- [ ] Windows CI at W1's close (D31): a `windows-latest` job with the same steps, the `windows_subsystem` line on
+  the client, 2x minutes; whether it blocks is the owner's call then (the Linux job does not). Captures stay on
+  the owner's machine until the look settles at W2.
 
 ## W2 — The look, and the engine under it (presentation-PRD §11 steps 3 and 5; no PRD §13 phase)
 Done when a region's biosphere sets what the player sees from pack data, the first authored set piece stands in a
@@ -152,6 +160,11 @@ regions on Parva with its authored places in them.
   editor's procgen panel; `gen region`; goldens seed to fingerprint. Generated maps may carry levels and joins.
   The ruins strewn over the Three Kingdoms are what the dungeon and settlement layers fill between the authored
   set pieces.
+- [ ] With M9, the first milestone that opens `World` (D30; `tasks/plans/study-multiplayer.md` §5 requirements 3
+  to 6 and 8): the party's state as one `PartyState` bundle the world holds per party, a world-unique `CharacterId`,
+  a journal entry naming its party, `reconcile_party` taking the party, the party's streams emitted as
+  `party:<id>`; a refactor with one schema bump and a migration, no new behaviour, both replays rebaselined. From
+  W1 on, no new per-party state enters `World` as a bare field: it goes where `Checkpoint` keeps it.
 
 ## W4 — The living world (closes PRD §13 Phases 3 and 4)
 Done when clearing a lair measurably changes encounters and prices in coupled regions on the next contact, visible
@@ -170,21 +183,33 @@ quests appear in every generated town.
 - [ ] **M11 story engine** (`omnis-story`, ARCHITECTURE §7.3, PRD §9.3): quest graphs with Rhai guards and the
   static check at pack load; templates bound to towns, dungeons and populations; the journal over `QuestState`;
   dialogue as data; story points that fold (D28); `story.*` ops; the editor's graph view.
+- [ ] Multiplayer's first step (D30), where in W4 the owner sets: asynchronous play over a shared world folder, a
+  character save per party, the merge fold, parties met as beings by the time model; planned in plan mode. A
+  live transport and command signing wait on D29's keypair; two parties never share a fight in this step.
 
 ## W5 — Release (closes PRD §13 Phase 5)
 Done when external playtesters complete the opening act and a modder outside the team ships a working pack from
 the documentation alone.
 - [ ] **M12 base campaign and release**: the campaign's content (whether the Three Kingdoms is its own pack over
   `packs/base`'s SRD material or `base` itself is decided here), the balancing pass, packaging with the
-  platform's settings directory, mod documentation, the licensing audit, Windows and Linux CI, the credits.
+  platform's settings directory (an own path helper, no `dirs` crate, D31), mod documentation, the licensing audit,
+  the Windows CI job if it has not landed at W1's close (Linux is advisory since W0.6), the credits.
+- [ ] Signed packs and saves (D29), with the mod documentation: `pack seal --sign` on a local Ed25519 keypair
+  (`identity.ron` beside the settings file; `ed25519-compact`, Socket read first, N-1 and 30 days), `signer` and
+  `signature` in `pack.ron`, content hashes to blake3-256 in the same change, every pack resealed once, trust on
+  first use with the project's key pinned for `base`, unsigned packs and unverified saves load with a warning; the
+  save signature as a sidecar alongside, no crate. Verification in the loader and the hosts, never the simulation.
 - [ ] GFDL backgrounds (Farmer, Squire, Metal Worker, Adventurer, Cook in
   `docs/background/opensource_backgrounds_and_skills.md`) as a separate `packs/backgrounds-gfdl` pack with its own
   license text and the GFDL copy; the base pack stays CC-BY-4.0 (owner, 2026-09-19).
 
 ## Far horizons (after the W0.5 studies; the owner schedules them)
-- **Accounts, multiplayer, multi-platform**: each enters the plan as its study proposes and the owner chooses,
-  as a PRD amendment first. Until then every phase keeps what the documents already keep for them: commands carry
-  no client state (ARCHITECTURE §4.6); every party is a holder of its own clock (D25); the character save and the
+- **Accounts, multiplayer, multi-platform**: chosen 2026-10-21 (PRD D29, D30, D31) and placed in the phases above:
+  the Linux advisory job (W0.6), Windows CI (W1), the `PartyState` refactor (M9, W3), multiplayer's first step (W4),
+  signed packs and saves (W5). Still beyond the phases: a live transport and a headless host for several parties, a
+  browser build (a demo at W3 at the soonest, a target after W5), mobile (after touch controls become a goal), Steam
+  Deck verification (after a gamepad layer). Every phase keeps what the documents keep for them: commands carry no
+  client state (ARCHITECTURE §4.6); every party is a holder of its own clock (D25); the character save and the
   world file are apart (D28); the simulation crates stay portable by the lint.
 - From the PRD's §13 Later, unchanged: free agency for important non-player characters (after M10), the hireling
   sidecar (D10), aging (D13), general scripting for mods on the sandboxed engine.

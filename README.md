@@ -95,7 +95,8 @@ world files no save names and deletes them only when asked.
 on every target and on the client's library with and without developer tools, every test, the simulation-crate
 lint, the dependency-duplicate check, and pack validation, and it exits non-zero on any failure.
 CI runs the same steps plus the golden replays
-through the CLI.
+through the CLI, on macOS as the required check and on Linux as an advisory job that reports and never
+blocks (PRD D31).
 
 ```sh
 scripts/verify.sh

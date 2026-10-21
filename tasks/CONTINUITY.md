@@ -1,31 +1,31 @@
 # Continuity notes
 
-Written 2026-10-21, at the start of the re-plan toward world building. Rewrite this file every time it is
+Written 2026-10-21, after the W0.5 decisions and the advisory Linux CI job. Rewrite this file every time it is
 used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `M8.5-tasks`**, not pushed (the owner pushes). Untracked and never staged: the files under `assets/`
   and `docs/dnd_supplemental/` (the owner's).
-- **The MVP is proven and archived.** Everything through M8.5 step 7 is in `tasks/archive/TODO-2026-10-20.md`.
-  The owner's commits after the archive: `573cb1d` (BACKLOG: GPU-first), `17bc672` (world building assets),
-  `755499e` and `0b3f8bf` (ARCHITECTURE and PRD consistency, the lint's Bevy edge fails closed).
-- **`tasks/TODO.md` refactored (W0.1, 2026-10-21):** the goal "ready for world building" (the Three Kingdoms,
-  `docs/locations/`), phases W0 to W5 with the milestone numbers kept inside them, each phase naming the PRD §13
-  phase it closes. Owner's choices 2026-10-21: the ready bar is the end of W1 (the editor); the accounts study
-  covers all four purposes (identity in multiplayer, signed saves, signed packs, a hosted service).
-- **Gate:** unchanged since 7h7 (`tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN) plus the owner's
-  lint fix; this re-plan touched no code.
+- **The MVP is proven and archived** (`tasks/archive/TODO-2026-10-20.md`). `tasks/TODO.md` is the execution plan
+  toward world building, phases W0 to W5; the ready bar is the end of W1 (the editor).
+- **W0 is done, decisions included (2026-10-21):** W0.1 to W0.5 in `1902277`, `efd86b8`, `83d752e`, `80f460f`;
+  the owner settled the three studies as they recommended: PRD D29 (accounts: a local Ed25519 keypair, signed
+  packs at W5, no own hosted service), D30 (multiplayer: several parties by the time model, async over a shared
+  world folder first at W4, the `PartyState` refactor with M9), D31 (platforms: Linux CI advisory now, Windows at
+  W1's close, web deferred, mobile deferred without a milestone). W0.6: the `linux` job in
+  `.github/workflows/ci.yml`, `continue-on-error`, same steps as the macOS check; the owner asked for it to be
+  optional so no merge waits on a Linux build no one uses.
+- **Gate:** unchanged since 7h7 (`tests passed 1020 failed 0 ignored 15`, VERIFY-GREEN) plus the owner's lint
+  fix; W0 touched no Rust. The non-Bevy crates type-check for `x86_64-unknown-linux-gnu` from the Mac; the
+  Bevy build on Linux is proven only by the first GitHub run (the owner reports CI; `gh` is not installed).
 
 ## Next
-- **W0 is done** (2026-10-21): W0.1 `1902277`, W0.2+W0.4 `efd86b8`, W0.3 `83d752e`, W0.5 `80f460f`; gate green on
-  the tree (1020 passed). Not pushed.
-- **Owner decisions pending from the studies:** D29 (accounts: the study recommends nothing in code until W5,
-  signed packs first), D30 (multiplayer: several parties by the time model as the horizon, the one-party
-  `World` refactor folded into M9), D31 (platforms: Linux CI now against the owner's 2026-09-12 deferral,
-  Windows at W1's close, web deferred, mobile deferred without a milestone). Each enters PRD.md as a row when
-  the owner chooses; ask before writing them.
-- **Then W1:** plan M5 Editor v1 in plan mode against the format as built (`tasks/plans/editor-v1.md` §A and
-  §E to reuse; the rest superseded).
+- **The first CI run after the push:** the owner reports whether `linux (advisory, never blocks)` passed. If the
+  apt line is short (a missing `-dev` package shows as a `pkg-config` or linker error in a `-sys` crate's build
+  script), fix the package list; the tree reaches `libudev-sys` (gilrs), `wayland-sys`, `x11-dl` (dlopen) and
+  `sctk-adwaita` on Linux, nothing else that links a system library.
+- **W1:** plan M5 Editor v1 in plan mode against the format as built (`tasks/plans/editor-v1.md` §A and §E to
+  reuse; the rest superseded). From W1 on, no new per-party state enters `World` as a bare field (D30).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -36,7 +36,8 @@ used. Durable knowledge lives in `tasks/knowledge/`.
 - Offscreen captures: `scratchpad/yardshot.sh name x y facing walk [--screen title|new-game|create-party|pause|
   actions|verbs|inventory]` (`cargo build -p omnis-vector` first). A capture cannot run a command first.
 - Bug reports: fix directly, with a red test, a lesson in `tasks/LESSONS.md`, then report. Choices with real
-  alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode.
+  alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode. A study's
+  recommended answers become the owner's choices when the owner says "settle" (2026-10-21).
 
 ## Pins
 - **Replays:** walk `8eab9a1dd95b472d`, fight `79ca2704c92bc312` (rebaselined in 7h2). `SAVE_SCHEMA` 9,
@@ -52,7 +53,7 @@ used. Durable knowledge lives in `tasks/knowledge/`.
 - P6 colours unconfirmed; step 5 revisits colour roles (joins, fills, crest, objects, beings).
 - The automap still records the forward cone (§12.5); no objects or beings on it (owner, 2026-10-14).
 - Dependencies: the rhai Socket re-audit (ask when); `smartstring` RUSTSEC-2026-0249; `ttf-parser`
-  RUSTSEC-2026-0192; Bevy 0.20 not before 2026-11-07.
+  RUSTSEC-2026-0192 (now built by the Linux job; informational); Bevy 0.20 not before 2026-11-07.
 
 ## Process
 - **Cargo and git:** `DEVELOPER_DIR=/Library/Developer/CommandLineTools` for both (git refuses without it:
