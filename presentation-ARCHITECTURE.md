@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | v0.4, 2026-10-10 (§10.3 on 2026-10-20, offscreen is not headless (review, `tasks/BACKLOG.md`); §6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired; §5.6, §8.4 after M8.5 step 1a; §5.2, §5.6, §8.1, §8.4, §10.2 after M8.5 step 4, height drawn; §5.6, §6.6, §7.5, §8.6, §10.5, §12, VA7 after M8.5 step 4b, camera pitch; §8.2, §8.4, §8.6, §10.3, §15.3, VA4 after M8.5 step 3, occluding fills; §8.2, §8.4 after M8.5 step 1c, a stair's direction): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
+| Status | v0.4, 2026-10-10 (2026-10-21: §0's pointer to the archived TODO, §4.3 and §7 brought to their state; §10.3 on 2026-10-20, offscreen is not headless (review, `tasks/BACKLOG.md`); §6, §10.3, §12, §15.1 brought to the code as built after P2; §4.4, §6.1, §6.3, §6.7, §15.1 after P3; §4.2, §6, §6.1–§6.4, §6.6, §6.7 after P4; §4.2, §4.4, §6.1–§6.4, §6.6, §6.7 after P5; §4.2, §4.4, §6.1, §6.3, §6.4, §6.6, §6.7 after P6; §4.4, §6, §6.1, §6.4, §6.5, §6.7, §9 after P7; §3, §6.1–§6.4, §6.7, §7.4, §7.5, §9, §10.5, §10.6 after P8; §0, §3, §4.5, §6.7, §13 after P9, `omnis-app` retired; §5.6, §8.4 after M8.5 step 1a; §5.2, §5.6, §8.1, §8.4, §10.2 after M8.5 step 4, height drawn; §5.6, §6.6, §7.5, §8.6, §10.5, §12, VA7 after M8.5 step 4b, camera pitch; §8.2, §8.4, §8.6, §10.3, §15.3, VA4 after M8.5 step 3, occluding fills; §8.2, §8.4 after M8.5 step 1c, a stair's direction): rewritten as the game client's architecture (X8, X9, X14), derived from `presentation-PRD.md` v0.3, after parity P0 and P1 (the engine boundary, the dev socket). Adds the screen model (§6), the style system (§7) and the renderer's path to occluding fills, height and shaped structures (§8). Owner decisions this version: screens are descriptions (VA10), rules come from views (VA9). (v0.3, 2026-10-03: the Phase B fight screen as built; v0.2, 2026-10-02: wall height, bloom and packs settled; v0.1: the Phase A experiment, "Omnis Alt") |
 | Parent documents | `presentation-PRD.md` (v0.3) for what and why; `ARCHITECTURE.md` (v0.8) for everything not restated here, above all §4.9 (the engine's API), §9 (the dev socket) and A17, A18; `docs/api.md` for the API's reference |
 | Owner | gatewaynode |
 
 Decision numbers prefixed X are `presentation-PRD.md`'s; this document's own are VA1 onward (§14). Each
 section says whether it describes the code **as built** or a design **to build**, and names the step that
-builds it: parity steps P2–P9 (`tasks/TODO.md`, "Vector adoption") or the presentation steps of
+builds it: parity steps P2–P9 (`tasks/archive/TODO-2026-10-20.md`, "Vector adoption") or the presentation steps of
 presentation-PRD §11.
 
 ## 0. Reading order
@@ -146,7 +146,7 @@ function itself.
 - **Growth.** A parity step adds the views its screens read: `service` (`service_view`, built in P4: `None` outside a service), `rest` (`rest_view`, built in P6: each member's hit dice and what a rest would do, with both rests' refusals), `casts` (`cast_view`, built in P5: every member's spells for the road, each with its cost and refusal), `flags` (P8), and `viewport` if the automap needs it (X22). A view used by one rarely open screen may instead be read when that screen's content is built, through a `SimWorld` method, so the per-command refresh stays cheap; the cost decides, measured.
 - **Fixtures.** A test that writes the world through the fixture deref calls `session.refresh()` afterwards.
 
-### 4.3 Labels (to build, P2)
+### 4.3 Labels (built, P2)
 The views name definitions by string id and text by key (protocol 2). One Bevy-free module, `labels.rs`,
 turns them into words, ported from `omnis-app`'s `defs.rs` and `text::Names`:
 
@@ -393,7 +393,7 @@ the parity checklist for each step's plan; `omnis-app` was retired at P9, so the
 | Verbs (built, M8.5 step 2b) | 2b | `Views.objects` (`ObjectsView`: the objects in reach and their `VerbView`s), the faced door, a trial of each command | "Within reach" and Close; "Door" with "Open the door" or "Close the door" when the party faces one; then each object in the order Use reaches it, its name with its state after ("Chest  closed"), and a row per interaction its state offers: the kind's label or the verb ("Force it open", "Extinguish"), after it the checks ("Athletics DC 15") and "N min"; dim with the view's refusal (the engine's `admit`, shared with `Act`) or a trial's, worded by `labels::object_refusal` ("needs Thieves' tools", "something else must be done first": a flag is not named, "done already", "it is shut"); number keys 1 to 9 on the buttons; "Nothing within reach". A verb sends `Door` or `Act` and the screen stays open with its line (`ObjectMessage` worded from the pack's text). The Actions gain "Search here" (`Search`, never the default: it spends ten minutes) and offer "Use..." in place of Use when a trial of `Interact` answers `ChooseVerb` or `VerbRefused`, so the choice or the reason shows and no refused command is sent |
 | Settings (built, P8) | P8 | the applied settings (§10.5), the window's fit | Reduced motion < off | on >, Floor grid < hidden | shown >, Quality < low | medium | high >, Font < built-in | Inter | Alegreya Sans >, Interface scale < 50% … 200% > with "N% fits this window" past the fit; Apply (dim "nothing changed") and Close; "Settings saved to …" / "Could not save settings: …". Changes wait for Apply; Close and Esc drop them (owner) |
 
-## 7. The style system (to build; X18, X19, presentation-PRD §5, §7)
+## 7. The style system (partly built: the type scale and fonts, P8; the roles, biosphere palettes and palette checks wait for M8.5 step 5, `tasks/TODO.md` W2; X18, X19, presentation-PRD §5, §7)
 
 ### 7.1 Roles and channels
 A Bevy-free `style.rs`:

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-20: §9's Bevy features as built, no `3d` group (review, `tasks/BACKLOG.md`). 2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
+| Status | v0.3, accepted by the owner 2026-10-10 ("The PRD looks sufficient") and merged; `PRD.md` v0.8 points here (D27) (2026-10-21: §11's steps 1 and 4 marked done and the order from `tasks/TODO.md` W2; the Phase A report's pointer to the archive. 2026-10-20: §9's Bevy features as built, no `3d` group (review, `tasks/BACKLOG.md`). 2026-10-14: the editor is `bevy_ui`, §2 and §8. 2026-10-12: X11 amended for M8.5 step 1c, a stair's direction. 2026-10-12: X13 built for M8.5 step 3, occluding fills under the lines, and §11 step 2 and §12.6 brought to it. 2026-10-12: X10 and X11 amended again for M8.5 step 1b, levels in one map joined by stairs, ladders and holes. 2026-10-12: X10 and X11 amended by the owner's answers for M8.5 step 1a, elevation: per-cell height in eighths with ramp edges, a climb allowance per terrain, sight with height; §12.1 resolved. v0.3, 2026-10-10: the experiment is adopted as the presentation direction; visual language, world geometry, interface, client and the amendments to the main PRD, X8–X22. v0.2, 2026-10-02: grid triggers during free movement, open-world rendering, a separate 2D combat screen, the crate named `omnis-vector`) |
 | Branch | Merged from `gui-3d-experiment` on 2026-10-10 (branch `vector-adoption`; `tasks/plans/vector-adoption.md`) |
 | Parent documents | `PRD.md` (v0.8), `ARCHITECTURE.md` (v0.8, A18); companion `presentation-ARCHITECTURE.md` (v0.4) |
 | Owner | gatewaynode |
@@ -297,23 +297,30 @@ Three depth levels (X17):
 
 - **Phase A, exploration (2026-10-02/03):** the test pack's maps drawn as lines, free movement and
   mouse look with buttons for every action, the grid binding of §4, a HUD, a 2D minimap, a
-  replayable command log, and window sizing for 5120×1440 and 16:9. Report in `tasks/alt-TODO.md`.
+  replayable command log, and window sizing for 5120×1440 and 16:9. Report in
+  `tasks/archive/alt-TODO-2026-10-21.md`.
 - **Phase B, the fight screen (2026-10-03):** the 2D combat screen with the roll log, the action
   model with targets, the arena layout, the picture window, and the switch between the 3D view and
   the fight. Played by the owner on the ultrawide (B6).
 
 ### Next (proposed; each planned in plan mode when the owner asks)
 
-1. **Merge** with the mechanics work (B7), then amend the main PRD per §2.
+1. **Merge** with the mechanics work (B7), then amend the main PRD per §2. Done 2026-10-10 (`tasks/plans/vector-adoption.md`; `PRD.md` v0.8, D27).
 2. **Occluding fills** (X13): move from gizmos to line meshes over dark solid surfaces, and measure (X20). Built in M8.5 step 3 as fills under the gizmo lines (owner: fills first, then measure); the fills measured at no cost, so line meshes wait for a measurement that needs them.
 3. **The style system** (X18, X19): colour roles, biosphere palettes in pack data, and the first
    non-colour channels, applied to the 3D view, the fight screen and the HUD.
 4. **Terrain height and cliffs** (X10, X11): the data shape with the mechanics work, then relief,
-   the contour grid and the camera following the ground.
+   the contour grid and the camera following the ground. The data shape, the cliffs, levels and stairs, the
+   height drawn and the camera's pitch were built in M8.5 steps 1a, 1b, 1c, 4 and 4b; relief and the contour
+   grid wait for step 5 (`tasks/TODO.md` W2).
 5. **Shaped structures** (X12): shape generators per terrain kind, then the first authored set piece.
 6. **Interface parity** (X14, X15): the screens of §7, then retiring `omnis-app` (done 2026-10-11, P0–P9; Look and Map in the backlog).
 
 The art update (animated figures, the fight screen's scale) fits alongside 3 and 6.
+
+The order from 2026-10-21 (`tasks/TODO.md` W2): the Bevy 0.20 migration, then the rendering direction the
+owner chooses from `tasks/BACKLOG.md` (GPU-first, three sizes), then 3, then 5, with the art update, Look and
+Map, the distant level and the blueprint automap as interface polish the owner sets a time for.
 
 ## 12. Open questions
 
