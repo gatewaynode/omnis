@@ -1,12 +1,14 @@
-//! The editor's columns as kit screens (M5.4): the tools on the left and the inspector on the
-//! right, described like any screen (`crate::screen`) and drawn by the screens' renderer under
-//! the editor's own mark. Bevy-free.
+//! The editor's columns as kit screens (M5.4): the tools on the left (with the brushes, Undo
+//! and Redo, Save and Revert since M5.5) and the inspector on the right, described like any
+//! screen (`crate::screen`) and drawn by the screens' renderer under the editor's own mark.
+//! Bevy-free.
 
+use super::brush::{self, Tool};
 use super::{EditAct, Editor};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::edit::EdgeKind;
+use omnis_sim::omnis_data::{Data, MapDef};
 
 /// The most of the loader's refusals the inspector lists.
 const ERRORS_SHOWN: usize = 6;
@@ -32,11 +34,60 @@ fn level_label(editor: &Editor, data: &Data, level: Level) -> String {
     name.unwrap_or_else(|| level.0.to_string())
 }
 
-/// The tools column: the map and level choices, Open, the zoom, the facing and the menu.
+/// The brush rows: the palette two to a row, the current one marked and the first nine
+/// numbered for the digit keys, then the height's choice.
+fn brush_rows(editor: &Editor, def: Option<&MapDef>, no_map: Option<&str>) -> Vec<Row> {
+    let Some(def) = def else {
+        return vec![Row::controls(vec![dim(
+            Control::button(ControlId::Edit(EditAct::Brush(0)), "Brush"),
+            no_map,
+        )])];
+    };
+    let palette = brush::palette(def);
+    let button = |(i, tool): (usize, &Tool)| {
+        let name = tool.label(def);
+        let digit = if i < 9 {
+            format!("{}  ", i + 1)
+        } else {
+            String::new()
+        };
+        let mark = if *tool == editor.tool { "> " } else { "" };
+        let id = ControlId::Edit(EditAct::Brush(u8::try_from(i).unwrap_or(u8::MAX)));
+        Control::button(id, format!("{mark}{digit}{name}"))
+    };
+    let mut rows: Vec<Row> = palette
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| **t != Tool::Height)
+        .collect::<Vec<_>>()
+        .chunks(2)
+        .map(|pair| Row::controls(pair.iter().map(|p| button(*p)).collect()))
+        .collect();
+    if let Some(at) = palette.iter().position(|t| *t == Tool::Height) {
+        let options: Vec<String> = brush::EIGHTHS.map(|h| h.to_string()).collect();
+        let chosen =
+            usize::try_from(i32::from(editor.eighths) - i32::from(*brush::EIGHTHS.start()))
+                .unwrap_or(0);
+        rows.push(Row::controls(vec![
+            button((at, &Tool::Height)),
+            choice(
+                ControlId::Edit(EditAct::Eighths),
+                "eighths",
+                options,
+                chosen,
+            ),
+        ]));
+    }
+    rows
+}
+
+/// The tools column: the map and level choices, Open, the zoom, the facing, the brushes, the
+/// history, Save and Revert, and the menu.
 #[must_use]
 pub fn tools(editor: &Editor, data: &Data) -> Screen {
-    let status = editor.status(data);
-    let open = editor.map_id().is_some();
+    let status = &editor.status;
+    let def = editor.def();
+    let open = def.is_some();
     let no_map = (!open).then_some("open a map first");
     let maps: Vec<String> = editor
         .maps
@@ -63,44 +114,80 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         if status.dirty { "  *" } else { "" }
     );
     let edit = |act| ControlId::Edit(act);
+    let errors = &status.errors;
+    let invalid = errors.first().map(|first| {
+        format!(
+            "{} error{}: {first}",
+            errors.len(),
+            if errors.len() == 1 { "" } else { "s" }
+        )
+    });
+    let open_label = if status.dirty {
+        "Open (drops changes)"
+    } else {
+        "Open"
+    };
+    let mut rows = vec![
+        Row::controls(vec![
+            dim(
+                choice(edit(EditAct::Map), "Map", maps, editor.chosen),
+                editor.maps.is_empty().then_some("the pack has no maps"),
+            ),
+            dim(Control::button(edit(EditAct::Open), open_label), bad),
+        ]),
+        Row::controls(vec![dim(
+            choice(edit(EditAct::Level), "Level", level_names, at),
+            no_map.or((levels.len() < 2).then_some("one level")),
+        )]),
+        Row::controls(vec![
+            dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
+            dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
+            dim(Control::button(edit(EditAct::Centre), "Centre  C"), no_map),
+        ]),
+        Row::controls(vec![
+            dim(
+                Control::button(edit(EditAct::FaceLeft), "Face left  Q"),
+                no_map,
+            ),
+            dim(
+                Control::button(edit(EditAct::FaceRight), "Face right  E"),
+                no_map,
+            ),
+        ]),
+        Row::text(Span::body(format!(
+            "Zoom {} px a cell",
+            editor.view.scale()
+        ))),
+    ];
+    rows.extend(brush_rows(editor, def.as_ref(), no_map));
+    rows.push(Row::controls(vec![
+        dim(
+            Control::button(edit(EditAct::Undo), "Undo  Cmd Z"),
+            no_map.or((status.undo == 0).then_some("nothing to undo")),
+        ),
+        dim(
+            Control::button(edit(EditAct::Redo), "Redo  Cmd Y"),
+            no_map.or((status.redo == 0).then_some("nothing to redo")),
+        ),
+    ]));
+    rows.push(Row::controls(vec![
+        dim(
+            Control::button(edit(EditAct::Save), "Save  Cmd S"),
+            no_map.or(invalid.as_deref()),
+        ),
+        dim(
+            Control::button(edit(EditAct::Revert), "Revert"),
+            no_map.or((!status.dirty).then_some("no changes")),
+        ),
+    ]));
+    rows.push(Row::controls(vec![Control::button(
+        edit(EditAct::Menu),
+        "Menu  Esc",
+    )]));
     Screen {
         id: ScreenId::EditorTools,
         title: Span::title(title),
-        panels: vec![Panel {
-            rows: vec![
-                Row::controls(vec![
-                    dim(
-                        choice(edit(EditAct::Map), "Map", maps, editor.chosen),
-                        editor.maps.is_empty().then_some("the pack has no maps"),
-                    ),
-                    dim(Control::button(edit(EditAct::Open), "Open"), bad),
-                ]),
-                Row::controls(vec![dim(
-                    choice(edit(EditAct::Level), "Level", level_names, at),
-                    no_map.or((levels.len() < 2).then_some("one level")),
-                )]),
-                Row::controls(vec![
-                    dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
-                    dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
-                    dim(Control::button(edit(EditAct::Centre), "Centre  C"), no_map),
-                ]),
-                Row::controls(vec![
-                    dim(
-                        Control::button(edit(EditAct::FaceLeft), "Face left  Q"),
-                        no_map,
-                    ),
-                    dim(
-                        Control::button(edit(EditAct::FaceRight), "Face right  E"),
-                        no_map,
-                    ),
-                ]),
-                Row::text(Span::body(format!(
-                    "Zoom {} px a cell",
-                    editor.view.scale()
-                ))),
-                Row::controls(vec![Control::button(edit(EditAct::Menu), "Menu  Esc")]),
-            ],
-        }],
+        panels: vec![Panel { rows }],
         keys: Vec::new(),
         message: editor.message.clone().map(Span::alert),
     }
@@ -232,7 +319,7 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
             rows.push(Row::text(Span::body(format!("Lore {}", l.id))));
         }
     }
-    let errors = editor.status(data).errors;
+    let errors = &editor.status.errors;
     if errors.is_empty() {
         rows.push(Row::text(Span::body("The loader takes this map.")));
     } else {

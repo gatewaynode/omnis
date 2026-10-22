@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 
 pub mod app;
+pub mod editor;
 pub mod fight;
 
 use omnis_sim::omnis_core::{CharacterId, Facing, MapId, Position};
@@ -180,5 +181,6 @@ pub fn ctx<'a>(
         },
         prefs: omnis_vector::settings::Prefs::default(),
         fits: omnis_vector::settings::SCALE_MAX,
+        editing: None,
     }
 }

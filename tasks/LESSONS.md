@@ -364,3 +364,16 @@
   before building, and offer the convention as the recommended option. When the owner later reports the
   accident as a bug, the answer is their earlier choice and the alternatives, not a fix to the keys.
 
+
+## 2026-10-22 — A game window launched from the agent's shell never ticks; its socket hangs
+- **What happened**: to look at the editor's new tools column, the game was launched windowed from the
+  sandboxed shell in the background and asked for a screenshot over the dev socket. The listener accepted
+  the connection (the kernel's backlog) and no reply ever came, in the editor and at the title alike; a
+  quarter of an hour went on process hunting (`ps` and `pgrep` are refused in the sandbox) and on a
+  suspected freeze in the new code. The control run at the title hung the same way: the process has no
+  window-server session (`Connection Invalid error for service com.apple.hiservices-xpcservice`), so winit
+  never runs the frame loop, and the socket's system never runs.
+- **Rule**: a visual check of the real window is the owner's, through the acceptance script, or an MCP call
+  on a game the owner started. From this shell, verify with the headless tests and `screen_text`; a
+  windowed launch from here proves only that the binary starts without a panic. Do not debug a socket that
+  gives no reply from such a launch.

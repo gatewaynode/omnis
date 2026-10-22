@@ -5,9 +5,9 @@
 
 use crate::common;
 
-use bevy::input::ButtonState;
 use bevy::prelude::*;
-use common::app::{app_at_title, config, key, set, shell};
+use common::app::{app_at_title, config, set, shell, tap};
+use common::editor::{arrow, editing, in_editor, press_edit};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_vector::editor::plan::{self, Source, View};
 use omnis_vector::editor::{EditAct, Editor};
@@ -15,17 +15,10 @@ use omnis_vector::minimap::WALL;
 use omnis_vector::screen::nav::{Escape, Nav};
 use omnis_vector::screen::{ControlId, ScreenId};
 use omnis_vector::shell::editor::Editing;
-use omnis_vector::shell::screen::{Arrow, EditorPress, Pressable, Screens};
+use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
-use omnis_vector::shell::session::{Config, Session, parse};
+use omnis_vector::shell::session::{Session, parse};
 use std::path::PathBuf;
-
-fn tap(app: &mut App, code: KeyCode) {
-    key(app, code, ButtonState::Pressed);
-    app.update();
-    key(app, code, ButtonState::Released);
-    app.update();
-}
 
 fn press(app: &mut App, id: ControlId) {
     set(app, &Pressable(id), Interaction::Pressed);
@@ -40,56 +33,9 @@ fn press(app: &mut App, id: ControlId) {
     app.update();
 }
 
-/// Press a control of the editor's layer, then let it go.
-fn press_edit(app: &mut App, act: EditAct) {
-    let id = ControlId::Edit(act);
-    set(app, &EditorPress(id), Interaction::Pressed);
-    app.update();
-    let world = app.world_mut();
-    let mut buttons = world.query::<(&EditorPress, &mut Interaction)>();
-    for (p, mut i) in buttons.iter_mut(world) {
-        if p.0 == id {
-            *i = Interaction::None;
-        }
-    }
-    app.update();
-}
-
-/// Step a choice of the editor's layer right (`true`) or left.
-fn arrow(app: &mut App, act: EditAct, right: bool) {
-    let marker = Arrow(ControlId::Edit(act), right);
-    set(app, &marker, Interaction::Pressed);
-    app.update();
-    let world = app.world_mut();
-    let mut arrows = world.query::<(&Arrow, &mut Interaction)>();
-    for (a, mut i) in arrows.iter_mut(world) {
-        if *a == marker {
-            *i = Interaction::None;
-        }
-    }
-    app.update();
-}
-
 fn top(app: &App) -> Option<ScreenId> {
     let game = app.world().get_resource::<Session>().map(|s| &s.views);
     app.world().resource::<Screens>().nav.top(game)
-}
-
-fn editing(app: &App) -> &Editing {
-    app.world().resource::<Editing>()
-}
-
-/// The shell started in the editor with `map` open.
-fn in_editor(map: &str) -> App {
-    let mut app = shell(
-        Config {
-            editor: Some(Some(map.to_owned())),
-            ..config()
-        },
-        false,
-    );
-    app.update();
-    app
 }
 
 #[test]

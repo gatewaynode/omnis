@@ -25,7 +25,7 @@ played by the owner before the next one started; the record of each is in
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
 | M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1 (W1 of `tasks/TODO.md`): M5.0 to M5.4 built, the ops, the MCP tools and the client's plan view; M5.5 to M5.10 next |
+| M5 | Editor v1 (W1 of `tasks/TODO.md`): M5.0 to M5.5 built, the ops, the MCP tools, the client's plan view and painting; M5.6 to M5.10 next |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
 | M7 | Town and services, rest, progression, the turn budget and declared reactions |
 | M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |

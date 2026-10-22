@@ -3,14 +3,17 @@
 //! the tools (a kit screen), the plan (the Bevy-free raster in one image node, with the cursor
 //! as a bordered node over it) and the inspector (a kit screen). Built like the fight screen:
 //! the columns are rebuilt only when their screen changed, the plan repainted only when what
-//! it shows changed. The editor runs with no `Session`, so nothing of the game moves or draws;
-//! its menu is a screen of the kit (`ScreenId::EditorMenu`). Headless-safe: without
-//! `Assets<Image>` the plan is not painted, and the rest stands.
+//! it shows changed. The pointer paints (M5.5): a left click paints the brush at the cell or
+//! the edge under it and a drag is one stroke, a right click picks what is there. The editor
+//! runs with no `Session`, so nothing of the game moves or draws; its menu is a screen of the
+//! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
+//! painted, and the rest stands.
 
 use super::VectorSet;
 use super::screen::{Arrow, Screens};
 use super::screen_draw::{EditorPress, Mark, build, colour, shade};
 use super::session::Packs;
+use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
 use crate::editor::{Asked, EditAct, Editor, view};
 use crate::screen::{ControlId, Screen, ScreenId};
@@ -185,6 +188,29 @@ fn leave(mut commands: Commands, roots: Query<Entity, With<EditorRoot>>, mut dra
     *drawn = Drawn::default();
 }
 
+/// Use a control of the editor: the act applied to the model and, after a Save, the packs
+/// read from disk again (the sealed pack is what a new game walks) and the editor told.
+pub fn act(editing: &mut Editing, packs: &mut Packs, act: EditAct, step: i8) -> Asked {
+    let asked = editing.apply(&packs.data, act, step);
+    if asked == Asked::Saved {
+        match Packs::load(&packs.config) {
+            Ok(fresh) => {
+                packs.data = fresh.data;
+                editing.changed(&packs.data);
+            }
+            Err(e) => editing.message = Some(format!("Saved, but the packs did not reload: {e}")),
+        }
+    }
+    asked
+}
+
+/// Whether the tools column offers `act` now: a dim control takes no press.
+fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> bool {
+    view::tools(editing, data)
+        .control(ControlId::Edit(act))
+        .is_none_or(|c| c.why_not.is_none())
+}
+
 /// The pane's size in logical pixels once laid out; the model's last size before that.
 fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -197,10 +223,26 @@ fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
     }
 }
 
-/// The layer's input: a pressed control or a choice's arrow, a left click on the plan (the
-/// cursor goes to the cell), and the keys while no screen stands over the editor and no field
-/// has the keyboard: the arrows move the cursor, `[` and `]` zoom, C centres, Q and E turn the
-/// facing. Esc is the screens' (`Nav::escape` opens the menu).
+/// The digit keys, for the first nine brushes.
+const DIGITS: [KeyCode; 9] = [
+    KeyCode::Digit1,
+    KeyCode::Digit2,
+    KeyCode::Digit3,
+    KeyCode::Digit4,
+    KeyCode::Digit5,
+    KeyCode::Digit6,
+    KeyCode::Digit7,
+    KeyCode::Digit8,
+    KeyCode::Digit9,
+];
+
+/// The layer's input: a pressed control or a choice's arrow; on the plan, a left click paints
+/// the brush at the cell or the edge under the pointer (the cursor goes there) and a drag is
+/// one stroke, a right click picks what is there; and the keys while no screen stands over the
+/// editor and no field has the keyboard: the arrows move the cursor, Enter paints at it, the
+/// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
+/// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
+/// screens' (`Nav::escape` opens the menu).
 #[allow(clippy::too_many_arguments)]
 fn route(
     buttons: Query<(&Interaction, &EditorPress), Changed<Interaction>>,
@@ -211,7 +253,7 @@ fn route(
     interactions: Query<&Interaction>,
     focus: Option<Res<InputFocus>>,
     fields: Query<(), With<EditableText>>,
-    packs: Res<Packs>,
+    mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
     mut screens: ResMut<Screens>,
 ) {
@@ -220,7 +262,7 @@ fn route(
         .as_ref()
         .and_then(|f| f.get())
         .is_some_and(|e| fields.get(e).is_ok());
-    let data = &packs.data;
+    let data = packs.data.clone();
     let pressed = buttons
         .iter()
         .find(|(i, _)| **i == Interaction::Pressed)
@@ -232,8 +274,11 @@ fn route(
             .map(|(_, a)| (a.0, if a.1 { 1 } else { -1 }))
     };
     let mut asked = Asked::Nothing;
-    if !covered && let Some((ControlId::Edit(act), step)) = pressed.or_else(stepped) {
-        asked = editing.apply(data, act, step);
+    if !covered
+        && let Some((ControlId::Edit(a), step)) = pressed.or_else(stepped)
+        && live(&editing, &data, a)
+    {
+        asked = act(&mut editing, &mut packs, a, step);
     }
     if !covered && !typing {
         let plan = pane.iter().find(|(c, _)| c.cursor_over()).map(|(c, node)| {
@@ -243,35 +288,79 @@ fn route(
             )
         });
         let over_button = interactions.iter().any(|i| *i != Interaction::None);
-        if mouse.just_pressed(MouseButton::Left)
-            && !over_button
-            && let Some((at, size)) = plan
-        {
+        let target = plan.filter(|_| !over_button).and_then(|(at, size)| {
             #[allow(clippy::cast_precision_loss)]
             let (px, py) = (at.x * size.0 as f32, at.y * size.1 as f32);
-            if let Some(cell) = editing.view.hit(editing.size(), px, py) {
-                editing.point(cell);
+            editing.view.target(editing.size(), px, py)
+        });
+        if let Some(target) = target {
+            if mouse.just_pressed(MouseButton::Right) {
+                editing.pick(target);
+            } else if mouse.just_pressed(MouseButton::Left) {
+                editing.paint(&data, target, false);
+            } else if mouse.pressed(MouseButton::Left)
+                && editing.stroke.is_some_and(|last| last != target)
+            {
+                editing.paint(&data, target, true);
             }
         }
-        for (key, facing) in [
-            (KeyCode::ArrowUp, Facing::North),
-            (KeyCode::ArrowRight, Facing::East),
-            (KeyCode::ArrowDown, Facing::South),
-            (KeyCode::ArrowLeft, Facing::West),
-        ] {
-            if keys.just_pressed(key) {
-                editing.step(facing);
-            }
+        if !mouse.pressed(MouseButton::Left) {
+            editing.end_stroke();
         }
-        for (key, act) in [
-            (KeyCode::BracketLeft, EditAct::ZoomOut),
-            (KeyCode::BracketRight, EditAct::ZoomIn),
-            (KeyCode::KeyC, EditAct::Centre),
-            (KeyCode::KeyQ, EditAct::FaceLeft),
-            (KeyCode::KeyE, EditAct::FaceRight),
-        ] {
-            if keys.just_pressed(key) && editing.map_id().is_some() {
-                editing.apply(data, act, 0);
+        let held = |list: [KeyCode; 2]| keys.any_pressed(list);
+        let command = held([KeyCode::SuperLeft, KeyCode::SuperRight])
+            || held([KeyCode::ControlLeft, KeyCode::ControlRight]);
+        let shift = held([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+        let open = editing.map_id().is_some();
+        if command {
+            let key_act = if keys.just_pressed(KeyCode::KeyZ) {
+                Some(if shift { EditAct::Redo } else { EditAct::Undo })
+            } else if keys.just_pressed(KeyCode::KeyY) {
+                Some(EditAct::Redo)
+            } else if keys.just_pressed(KeyCode::KeyS) {
+                Some(EditAct::Save)
+            } else {
+                None
+            };
+            if let Some(a) = key_act
+                && open
+            {
+                act(&mut editing, &mut packs, a, 0);
+            }
+        } else {
+            for (key, facing) in [
+                (KeyCode::ArrowUp, Facing::North),
+                (KeyCode::ArrowRight, Facing::East),
+                (KeyCode::ArrowDown, Facing::South),
+                (KeyCode::ArrowLeft, Facing::West),
+            ] {
+                if keys.just_pressed(key) {
+                    editing.step(facing);
+                }
+            }
+            if open && keys.any_just_pressed([KeyCode::Enter, KeyCode::NumpadEnter]) {
+                let cell = editing.cursor;
+                editing.paint(&data, Target { cell, edge: None }, false);
+                editing.end_stroke();
+            }
+            let digit = DIGITS.iter().position(|k| keys.just_pressed(*k));
+            let stepped = [
+                (KeyCode::BracketLeft, EditAct::ZoomOut, 0),
+                (KeyCode::BracketRight, EditAct::ZoomIn, 0),
+                (KeyCode::KeyC, EditAct::Centre, 0),
+                (KeyCode::KeyQ, EditAct::FaceLeft, 0),
+                (KeyCode::KeyE, EditAct::FaceRight, 0),
+                (KeyCode::Minus, EditAct::Eighths, -1),
+                (KeyCode::Equal, EditAct::Eighths, 1),
+            ]
+            .into_iter()
+            .find(|(key, _, _)| keys.just_pressed(*key))
+            .map(|(_, a, step)| (a, step))
+            .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)));
+            if let Some((a, step)) = stepped
+                && open
+            {
+                editing.apply(&data, a, step);
             }
         }
     }

@@ -113,8 +113,11 @@ no loss, and every later map is built with it.
     on the way, fixed in `9ac9468`).
   - [x] M5.4 (2026-10-22) The client's editor layer: Title "Editor", `--editor [map-id]`, `Nav.editing`, `EditorMenu`, the
     three columns (tools, the plan raster, the inspector), cursor by click and arrows, levels, zoom, facing; the
-    socket answers `editor.*` on the open editor; `tasks/acceptance/m5-4.md`.
-  - [ ] M5.5 Brushes, strokes, pick, undo and redo, Save refused while invalid, Revert.
+    socket answers `editor.*` on the open editor; `tasks/acceptance/m5-4.md`. Accepted by the owner 2026-10-22.
+  - [x] M5.5 (2026-10-22) Brushes (`editor/brush.rs`: the terrains, Wall, Door, Ramp, Open edge, Height, No ground;
+    digits 1-9), a click paints the cell or the edge under the pointer, a drag is one stroke, a right click picks,
+    Enter paints at the cursor, Undo/Redo (Cmd Z, Shift Z, Y), Save (button, Cmd S, the menu) dim in the loader's
+    words while invalid and otherwise writing, resealing and reloading the packs, Revert; `tasks/acceptance/m5-5.md`.
   - [ ] M5.6 Placements, terrains, levels and notes forms.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.

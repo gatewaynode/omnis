@@ -533,6 +533,8 @@ pub enum Effect {
     Settings(crate::settings::Prefs),
     /// Open the editor over the loaded packs, with no game (M5.4).
     OpenEditor,
+    /// The editor's own act, from its menu (M5.5: Save).
+    Editor(crate::editor::EditAct),
 }
 
 /// Why [`apply`] did nothing.
@@ -597,6 +599,19 @@ pub struct Ctx<'a> {
     pub prefs: crate::settings::Prefs,
     /// The largest interface scale the window holds, in percent.
     pub fits: u16,
+    /// The editor, while it is open (M5.5): what its menu says of the document.
+    pub editing: Option<EditingCtx<'a>>,
+}
+
+/// The open editor as its menu reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditingCtx<'a> {
+    /// A map is open.
+    pub open: bool,
+    /// The map differs from its file.
+    pub dirty: bool,
+    /// What the loader would refuse, in its words.
+    pub errors: &'a [String],
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -685,7 +700,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Settings, _) => settings::content(ctx, forms),
         (ScreenId::LoadReport, _) => load_report::content(forms),
-        (ScreenId::EditorMenu, _) => editor_menu::content(),
+        (ScreenId::EditorMenu, _) => editor_menu::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (ScreenId::EditorTools | ScreenId::EditorInspector, _) => empty(id),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),

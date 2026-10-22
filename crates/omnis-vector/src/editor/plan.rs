@@ -3,6 +3,7 @@
 //! are painted, so a map at the largest size never makes a picture larger than the pane. A
 //! click's pixel maps back to its cell (`hit`). Bevy-free.
 
+use super::brush::Target;
 use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, RAMP, WALL};
 use crate::raster::{Raster, edge_key, edge_pixels, join_pixels, line_pixels, tick_pixels};
 use omnis_sim::omnis_core::{Facing, Level};
@@ -106,6 +107,29 @@ impl View {
         );
         let (x, y) = (u16::try_from(col).ok()?, u16::try_from(row).ok()?);
         (x < size.0 && y < size.1).then_some((x, y))
+    }
+
+    /// What pixel `(px, py)` of the pane points at: the cell under it and, when the pixel
+    /// lies within a quarter of the cell's side of one of its borders, that edge (the nearer
+    /// at a corner). None off the map.
+    #[must_use]
+    pub fn target(self, size: (u16, u16), px: f32, py: f32) -> Option<Target> {
+        let cell = self.hit(size, px, py)?;
+        let (left, top, side) = self.cell_rect(cell);
+        #[allow(clippy::cast_precision_loss)]
+        let (fx, fy, s) = (px - left as f32, py - top as f32, side as f32);
+        let band = s / 4.0;
+        let edge = [
+            (Facing::North, fy),
+            (Facing::East, s - fx),
+            (Facing::South, s - fy),
+            (Facing::West, fx),
+        ]
+        .into_iter()
+        .filter(|(_, d)| *d <= band)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(facing, _)| facing);
+        Some(Target { cell, edge })
     }
 
     /// The pixel rectangle of `cell` in the pane, `(left, top, side)`, wherever it falls (a cell

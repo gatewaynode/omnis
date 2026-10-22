@@ -248,6 +248,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
         save: slot(&session.config.save),
         prefs: crate::settings::Prefs::default(),
         fits: crate::settings::SCALE_MAX,
+        editing: None,
     }
 }
 
@@ -258,13 +259,15 @@ fn slot(path: &str) -> Slot<'_> {
     }
 }
 
-/// The context with or without a game, with the settings as applied.
+/// The context with or without a game, with the settings as applied, and the editor when it
+/// is open.
 #[must_use]
 pub fn ctx_with<'a>(
     session: Option<&'a Session>,
     packs: &'a Packs,
     prefs: crate::settings::Prefs,
     fits: u16,
+    editing: Option<&'a super::editor::Editing>,
 ) -> Ctx<'a> {
     let ctx = session.map_or_else(
         || Ctx {
@@ -273,10 +276,21 @@ pub fn ctx_with<'a>(
             save: slot(&packs.config.save),
             prefs,
             fits,
+            editing: None,
         },
         ctx,
     );
-    Ctx { prefs, fits, ..ctx }
+    let editing = editing.map(|e| crate::screen::EditingCtx {
+        open: e.status.map.is_some(),
+        dirty: e.status.dirty,
+        errors: &e.status.errors,
+    });
+    Ctx {
+        prefs,
+        fits,
+        editing,
+        ..ctx
+    }
 }
 
 /// A seed for a game whose seed was left blank: the clock's nanoseconds, mixed.
@@ -292,7 +306,8 @@ fn entropy() -> u64 {
 #[derive(SystemParam)]
 struct Host<'w, 's> {
     commands: Commands<'w, 's>,
-    packs: Res<'w, Packs>,
+    packs: ResMut<'w, Packs>,
+    editing: Option<ResMut<'w, super::editor::Editing>>,
     exit: MessageWriter<'w, AppExit>,
     view: ResMut<'w, NextState<ViewState>>,
     current: ResMut<'w, Current>,
@@ -367,6 +382,7 @@ fn route(
             &host.packs,
             host.current.0,
             host.fitted.0,
+            host.editing.as_deref(),
         );
         let input = Input { used: &used, slid };
         applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
@@ -547,6 +563,15 @@ fn carry_out(
             }
             Err(e) => report(screens, Err(format!("Could not open the editor: {e}"))),
         },
+        Effect::Editor(act) => {
+            if let Some(editing) = host.editing.as_deref_mut() {
+                let asked = super::editor::act(editing, &mut host.packs, act, 0);
+                if asked == crate::editor::Asked::Menu {
+                    screens.nav.open(ScreenId::EditorMenu, None);
+                }
+                screens.forms.message = editing.message.clone().map(Span::body);
+            }
+        }
         Effect::Settings(prefs) => {
             host.current.0 = prefs;
             let path = &host.packs.config.settings;
@@ -728,6 +753,7 @@ fn paint(
     sliders: Query<(Entity, &SliderOf, &SliderValue)>,
     focus: Option<Res<InputFocus>>,
     fields: Query<&Pressable, With<EditableText>>,
+    editing: Option<Res<super::editor::Editing>>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -749,7 +775,13 @@ fn paint(
         }
         return;
     };
-    let ctx = ctx_with(session.as_deref(), &packs, current.0, fitted.0);
+    let ctx = ctx_with(
+        session.as_deref(),
+        &packs,
+        current.0,
+        fitted.0,
+        editing.as_deref(),
+    );
     let screen = screen::content(top, &ctx, &screens.forms);
     let height = size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
