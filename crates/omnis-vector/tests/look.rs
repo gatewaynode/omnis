@@ -1,6 +1,6 @@
 //! Looking up and down (M8.5 step 4b, presentation-ARCHITECTURE §8.6, VA7): the mouse and the
-//! keys pitch the view without limits, the body walks and faces as before, and a step returns
-//! the view to level as the setting says.
+//! keys pitch the view, stopping just short of straight up and down (B8, 2026-10-22), the body
+//! walks and faces as before, and a step returns the view to level as the setting says.
 
 use crate::common;
 
@@ -8,7 +8,7 @@ use bevy::input::ButtonState;
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use common::app::{app, key, set};
-use omnis_vector::look::LevelOnStep;
+use omnis_vector::look::{LevelOnStep, PITCH_LIMIT};
 use omnis_vector::shell::controls::Action;
 use omnis_vector::shell::movement::{Intent, View};
 use omnis_vector::shell::render::rotation;
@@ -72,7 +72,7 @@ fn step(app: &mut App) {
 }
 
 #[test]
-fn the_camera_looks_up_with_a_positive_pitch_and_turns_over_past_the_top() {
+fn the_camera_looks_up_with_a_positive_pitch_and_stays_upright_at_the_limit() {
     let ahead = |yaw: f32, p: f32| rotation(yaw, p) * Vec3::NEG_Z;
     let level = ahead(0.0, 0.0);
     assert!(
@@ -81,10 +81,13 @@ fn the_camera_looks_up_with_a_positive_pitch_and_turns_over_past_the_top() {
     );
     assert!(ahead(0.0, 0.4).y > 0.3, "up");
     assert!(ahead(0.0, -0.4).y < -0.3, "down");
-    let over = ahead(0.0, 2.6);
-    assert!(over.z > 0.0, "over the top, looking back: {over}");
-    let up = rotation(0.0, 2.6) * Vec3::Y;
-    assert!(up.y < 0.0, "and upside down: {up}");
+    let at_limit = ahead(0.0, PITCH_LIMIT);
+    assert!(
+        at_limit.y > 0.999 && at_limit.z < 0.0,
+        "at the limit: nearly straight up, still ahead: {at_limit}"
+    );
+    let up = rotation(0.0, PITCH_LIMIT) * Vec3::Y;
+    assert!(up.y > 0.0, "and upright: {up}");
     // The pitch tips about the body's own right, whichever way it faces.
     let east = ahead(-core::f32::consts::FRAC_PI_2, 0.4);
     assert!(east.x > 0.8 && east.y > 0.3, "east and up: {east}");
@@ -125,7 +128,34 @@ fn the_mouse_and_page_keys_pitch_the_view_and_home_and_the_button_level_it() {
 }
 
 #[test]
-fn upside_down_the_mouse_turns_the_body_the_other_way() {
+fn the_pitch_stops_just_short_of_straight_up_and_down() {
+    let mut app = shell(LevelOnStep::Never, false);
+    looking(&mut app, true);
+    // 14 frames of 160 pixels up: far past straight overhead if nothing stopped it.
+    for _ in 0..14 {
+        mouse(&mut app, 0.0, -160.0);
+        app.update();
+    }
+    let up = pitch(&app);
+    assert_eq!(up, PITCH_LIMIT, "held just short of straight up");
+    let ahead = rotation(0.0, up) * Vec3::NEG_Z;
+    assert!(ahead.z < 0.0, "still looking forward: {ahead}");
+    assert!((rotation(0.0, up) * Vec3::Y).y > 0.0, "still upright");
+    for _ in 0..28 {
+        mouse(&mut app, 0.0, 160.0);
+        app.update();
+    }
+    let down = pitch(&app);
+    assert_eq!(down, -PITCH_LIMIT, "held just short of straight down");
+    // The keys stop at the same place.
+    key(&mut app, KeyCode::PageUp, ButtonState::Pressed);
+    frames(&mut app, 240);
+    key(&mut app, KeyCode::PageUp, ButtonState::Released);
+    assert_eq!(pitch(&app), up, "PageUp held stops where the mouse did");
+}
+
+#[test]
+fn the_mouse_turns_the_body_the_same_way_at_any_pitch() {
     let turned = |p: f32| {
         let mut app = shell(LevelOnStep::Never, false);
         looking(&mut app, true);
@@ -136,8 +166,9 @@ fn upside_down_the_mouse_turns_the_body_the_other_way() {
         app.update();
         app.world().resource::<Session>().pose.yaw - before
     };
-    assert!((turned(0.3) - 0.1).abs() < 1e-4, "upright");
-    assert!((turned(2.8) + 0.1).abs() < 1e-4, "upside down");
+    assert!((turned(0.3) - 0.1).abs() < 1e-4, "level-ish");
+    assert!((turned(PITCH_LIMIT) - 0.1).abs() < 1e-4, "at the top");
+    assert!((turned(-PITCH_LIMIT) - 0.1).abs() < 1e-4, "at the bottom");
 }
 
 #[test]
@@ -198,7 +229,7 @@ fn a_turn_without_a_step_keeps_the_view() {
 
 #[test]
 fn the_pitch_never_reaches_the_body_or_the_rules() {
-    // A full loop over the top, then a walk: the same cells and pose as with no pitch at all.
+    // The view pushed to its limit, then a walk: the same cells and pose as with no pitch at all.
     let walk = |loop_over: bool| {
         let mut app = shell(LevelOnStep::Never, false);
         if loop_over {

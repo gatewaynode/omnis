@@ -295,6 +295,10 @@
 - **Rule**: restore with `open(f, 'w').write(original)` (a fresh mtime), or `touch` the file after restoring.
   After any mutation run, `touch` the mutated files before the gate or a demo. When a demo disagrees with the
   tests, suspect a stale artifact before the code.
+- **Broken again 2026-10-22**: the continuity notes abbreviated this rule to "rewriting its text and `os.utime`",
+  and the runner put the *old* mtime back, so the B8 gate tested the mutant and went red on the very test
+  that had caught it. The mtime after a restore must be new: never `os.utime` back to the original. A
+  continuity note quotes a rule's operative words or points at the lesson; it never paraphrases one.
 
 ## 2026-10-19 — Context is measured, not estimated
 - **What happened**: asked to check context before 7h4, I estimated 200–250k from memory of what I had read;
@@ -346,3 +350,17 @@
   `grep -q VERIFY-GREEN <log> && git commit …` (or the whole gate-and-commit chain runs as one background
   command), never a commit in a command of its own after reading the log by eye. The runner's exit code is
   the wrapper's, not the gate's.
+
+## 2026-10-22 — A control the owner chose against the convention is accepted by stumbling into it, not only by seeking it
+- **What happened**: on 2026-10-12 the owner asked for an unlimited camera pitch, a free head that turns over
+  past straight up. The acceptance script had them look over the top on purpose, and they accepted it. Ten
+  days later, during an unrelated acceptance, mouse look was locked, a mouse move carried the view over the
+  top unnoticed, and W walked the party away from what the screen showed. The report read as a bug in the
+  keys. The convention every first-person game keeps (a clamp short of vertical) exists for exactly that
+  accident, and the first acceptance only tested the deliberate case.
+- **Rule**: when the owner chooses a control behaviour against the genre's convention, name in the plan the
+  accident the convention prevents, and put that accident in the acceptance script: arrive at the state
+  without meaning to, then try the ordinary keys. If the state is confusing arrived at by accident, say so
+  before building, and offer the convention as the recommended option. When the owner later reports the
+  accident as a bug, the answer is their earlier choice and the alternatives, not a fix to the keys.
+

@@ -4,7 +4,7 @@ use super::screen::Showing;
 use super::session::Session;
 use super::settings::Current;
 use super::{VectorSet, ViewState};
-use crate::look::{level, wrap_pitch, yaw_sign};
+use crate::look::{clamp_pitch, level};
 use crate::pose::{Motion, Pose, integrate};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -49,7 +49,7 @@ pub struct Intent {
 /// the binder and the simulation never see it.
 #[derive(Resource, Debug, Default)]
 pub struct View {
-    /// Radians, `(-π, π]`, positive up; past ±π/2 the view has turned over.
+    /// Radians, `[-PITCH_LIMIT, PITCH_LIMIT]`, positive up: just short of straight up or down.
     pub pitch: f32,
     /// Easing back to level after a step.
     pub levelling: bool,
@@ -203,7 +203,7 @@ fn yaw_delta(intent: &mut Intent, dt: f32, snap: bool) -> f32 {
 fn pitch(view: &mut View, intent: &Intent, dt: f32, snap: bool) {
     let tilt = intent.mouse_pitch + intent.tilt * TURN_SPEED * dt;
     if tilt != 0.0 {
-        view.pitch = wrap_pitch(view.pitch + tilt);
+        view.pitch = clamp_pitch(view.pitch + tilt);
         view.levelling = false;
     }
     if intent.level {
@@ -230,8 +230,6 @@ fn advance(
         view.pitch = 0.0;
         view.levelling = false;
     }
-    // Upside down, the mouse turns the other way, so the picture turns the way it moves.
-    intent.mouse_yaw *= yaw_sign(view.pitch);
     let terrain_minutes = session
         .data
         .maps
