@@ -1,45 +1,37 @@
 # Continuity notes
 
-Written 2026-10-21, at the close of the session that planned W1 and built M5.0 to M5.3. Rewrite this file every
+Written 2026-10-22, at the close of the session that built M5.4 and M5.5 of W1. Rewrite this file every
 time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `W1-authoring-tools`**, eight commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0,
-  `4704230` M5.1, `ef3c12b` M5.2, `a303fa8` M5.3 (accepted by the owner 2026-10-22), `9ac9468` B8 (the camera's
-  pitch clamped a degree short of vertical, the owner's choice), `faa797b` continuity, `c8bb62e` **M5.4** (2026-10-22,
-  VERIFY-GREEN, 1067 tests), then this continuity commit. Tree clean. Untracked and never staged: `assets/` and
-  `docs/dnd_supplemental/` (the owner's).
-- **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.4 done.
-- **M5.4 as built** (`tasks/acceptance/m5-4.md`, not yet reported on by the owner): `crates/omnis-vector/src/editor/`
-  (Bevy-free `Editor` over `edit::Session`: `maps`, `chosen`, `level`, `cursor`, `facing`, `view: plan::View`,
-  `pane`, `resolved` (last valid `MapData::resolve`), `revision`; `open`, `changed`, `point`, `step`, `show_level`,
-  `laid_out`, `apply(EditAct, step) -> Asked`; `plan.rs` `View { origin, zoom }`, `ZOOMS` 4..32, `fitted`,
-  `centred_on`, `zoomed`, `hit`, `cell_rect`, `paint(Source, view, pane)`, `fill`; `view.rs` `tools`/`inspector`
-  kit screens with ids `EditorTools`/`EditorInspector`), `shell/editor.rs` (`Editing(Editor)` resource, `EditorPlugin`
-  in `VectorSet::Screens`: `enter`/`leave` on the resource, `route`, `refresh`; `Column::{Tools, Plan, Inspector}`,
-  `PlanImage`, `PlanCursor`; headless-safe, the image only with `Assets<Image>`), `screen/editor_menu.rs`,
-  `Nav.editing` + `edit()`, `ScreenId::{EditorMenu, EditorTools, EditorInspector}`, `ControlId::{Editor, Edit(EditAct)}`,
-  `Effect::OpenEditor`, `Mark::Editor` + `EditorPress`, `Config.editor` (`--editor [map-id]`, refused with a game),
-  `grab_cursor` never locks over the editor, the socket answers `Op::editor()` on `Editing` (`NO_EDITOR` otherwise)
-  and calls `changed` so the layer redraws. `raster.rs` now holds `EdgeKey`, `edge_key`, `tick_pixels`, `line_pixels`,
-  `join_pixels`, `edge_pixels` (the minimap uses them). Tests: `tests/editor.rs` (9) + plan unit tests (4).
-- **Lessons today** (`tasks/LESSONS.md` 2026-10-22): a control chosen against the convention is accepted by stumbling
-  into it; the mutation-restore rule broken again by an abbreviated note (restore with a *fresh* mtime, never
-  `os.utime` back).
+- **Branch `W1-authoring-tools`**, ten commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0,
+  `4704230` M5.1, `ef3c12b` M5.2, `a303fa8` M5.3, `9ac9468` B8, `faa797b` continuity, `c8bb62e` M5.4 (accepted by
+  the owner 2026-10-22), `4e26ac2` continuity, then **M5.5** (2026-10-22, VERIFY-GREEN) and this continuity
+  commit. Tree clean. Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
+- **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.5 done.
+- **M5.5 as built** (`tasks/acceptance/m5-5.md`, not yet reported on by the owner): `editor/brush.rs` (`Tool`,
+  `Target`, `palette`, `Tool::first/label/brush`, `EIGHTHS` −64..=64, `held`), `View::target` (the edge within a
+  quarter of the side), `Editor { tool, eighths, stroke, status (cached EditorStatus, refreshed in changed) }`
+  with `paint(data, target, stroke) -> bool`, `pick`, `end_stroke`, acts `Brush(n)`, `Eighths`, `Undo`, `Redo`,
+  `Save` → `Asked::Saved`, `Revert`; `shell/editor.rs::act` (a Save reloads `Packs` from disk), `route` (left
+  click paints, held button strokes, right click picks, Enter, digits, `-`/`=`, Cmd/Ctrl Z/Shift+Z/Y/S, dim
+  controls refused by `live`); `Ctx.editing: Option<EditingCtx>` and `Effect::Editor(EditAct)` (the menu's Save,
+  carried out through `Host.editing`); the menu says "Discard changes and leave" while dirty. Tests
+  `tests/editor_paint.rs` (6), `brush.rs` (2); helpers in `tests/common/editor.rs`. The loader does not refuse a
+  start or a site on no ground: the invalid edit the tests use is a ramp joining heights more than 16 apart.
+- **Lesson today** (`tasks/LESSONS.md` 2026-10-22): a windowed game launched from this shell never ticks (no
+  window-server session), so its socket never answers; verify headlessly and leave the window to the owner.
 
 ## Next
-1. **The owner's acceptance of M5.4**: `tasks/acceptance/m5-4.md` (13 numbered steps, the levels fixture and the
-   test pack, three over MCP). Bugs: fix with a red test and a lesson first.
-2. **M5.5, brushes and painting** (plan §Client side "Input", steps table row 5): `Brush` rows in the tools column
-   with the current one marked (digits 1-9 pick), left click paints at the cursor's target with the brush, a drag is
-   one stroke (`Document::paint(.., stroke: true)` while the button is held; `Editor` gets `brush`, `stroke_open`),
-   right click picks (never destructive: the brush becomes what is under the pointer), edges: `plan::hit` grows a
-   `Target { Cell | Edge(side) }` by the pixel's distance to the cell's border (≤ scale/4), Undo/Redo buttons and
-   Cmd/Ctrl+Z/Y, the dirty `*` in the title (already shown), Save in the editor's menu dim with "N errors" and the
-   first listed, Revert; after a Save `Packs.data` is reloaded from disk (`Packs::load(&config)` and the `Editing`'s
-   `changed`). Everything M5.4 built is read in `tasks/knowledge/code-map.md` (the editor paragraph) so nothing is
-   re-read; `edit::Document::paint/undo/redo` and `Session::save` are in `crates/omnis-data/src/edit/`.
-3. Then M5.6 to M5.10 per the plan's steps table.
+1. **The owner's acceptance of M5.5**: `tasks/acceptance/m5-5.md` (12 numbered steps on a scratch copy of
+   `packs/test`, one over MCP). Bugs: fix with a red test and a lesson first.
+2. **M5.6, placements, terrains, levels and notes forms** (plan §Client side "Layer" inspector: "placements with
+   Edit/Remove, the brush's form", `Edit`/`Place` requests of `omnis_data::edit`, notes through
+   `Session::set_note` and the kit's `Kind::Text`; forms as kit screens in `editor/view.rs`, the typed text through
+   `Pressable` fields under `Mark::Editor`, which `screen_draw` spawns for `Kind::Text` with `Pressable` today;
+   check how the kit's `applied` reads typed text and whether the editor's `route` needs the same `typed` path).
+   Keep the cached `status` pattern: never call `session.status(data)` per frame.
+3. Then M5.7 to M5.10 per the plan's steps table.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
