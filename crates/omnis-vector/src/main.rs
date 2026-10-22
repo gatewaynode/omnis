@@ -1,6 +1,7 @@
 //! The `omnis` binary (package `omnis-vector`):
 //! `omnis [--pack DIR]... [--seed N] [--save FILE] [--settings FILE] [--screen title|new-game|create-party|pause|actions|verbs|inventory]`
 //! `[--windowed] [--no-vsync] [--frame-stats] [--monitor N] [--log PATH] [--screenshot PATH [--walk N] [--size WxH] [--timing]]`,
+//! `[--editor [MAP-ID]]` (start in the editor, M5.4),
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
 
@@ -18,6 +19,7 @@ use omnis_vector::shell::{
     cinema::CinemaPlugin,
     combat::{CombatPlugin, CombatViewPlugin},
     controls::ControlsPlugin,
+    editor::{Editing, EditorPlugin},
     fonts::FontsPlugin,
     hud::HudPlugin,
     minimap::MinimapPlugin,
@@ -119,6 +121,17 @@ fn main() -> AppExit {
     if let Some(session) = session {
         app.insert_resource(session);
     }
+    if let Some(map) = &config.editor {
+        match open_editor(&packs, map.as_deref()) {
+            Ok(editing) => {
+                app.insert_resource(editing);
+            }
+            Err(e) => {
+                eprintln!("omnis: {e}");
+                return AppExit::error();
+            }
+        }
+    }
     let (prefs, note) = omnis_vector::settings::read(std::path::Path::new("."), &config.settings);
     if let Some(note) = note {
         eprintln!("omnis: {note}; the defaults are used");
@@ -145,6 +158,19 @@ fn main() -> AppExit {
         CombatPlugin,
         CombatViewPlugin,
         CapturePlugin,
+        EditorPlugin,
     ));
     app.run()
+}
+
+/// The editor over the loaded packs, with `map` open when one is named.
+fn open_editor(packs: &Packs, map: Option<&str>) -> Result<Editing, String> {
+    let mut editor = omnis_vector::editor::Editor::new(packs.config.packs.clone())
+        .map_err(|e| format!("the editor cannot open the pack: {e}"))?;
+    if let Some(id) = map {
+        editor
+            .open(id, &packs.data)
+            .map_err(|e| format!("the editor cannot open {id}: {e}"))?;
+    }
+    Ok(Editing(editor))
 }

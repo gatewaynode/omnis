@@ -33,6 +33,11 @@ pub struct Side(pub ControlId);
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FightPress(pub ControlId);
 
+/// A control of the editor's layer (M5.4): pressing it uses the editor's control, never the
+/// top screen's.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EditorPress(pub ControlId);
+
 /// Which router a panel's controls go to, and so how its nodes are marked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mark {
@@ -42,6 +47,8 @@ pub(super) enum Mark {
     Side,
     /// The fight's: `FightPress`, redrawn whole when it changes.
     Fight,
+    /// The editor's columns: `EditorPress`, redrawn whole when they change.
+    Editor,
 }
 
 /// A number's slider: moving it sets the number.
@@ -279,6 +286,7 @@ fn control_node(
                 Mark::Screen => entity.insert(Pressable(c.id)),
                 Mark::Side => entity.insert(Side(c.id)),
                 Mark::Fight => entity.insert(FightPress(c.id)),
+                Mark::Editor => entity.insert(EditorPress(c.id)),
             };
             if c.why_not.is_none() {
                 entity.insert(Button);
@@ -287,7 +295,7 @@ fn control_node(
                 let label = words(&shown_label(keys, c), role, Size::Body, height);
                 match mark {
                     Mark::Screen => b.spawn((LabelOf(c.id), label)),
-                    Mark::Side | Mark::Fight => b.spawn(label),
+                    Mark::Side | Mark::Fight | Mark::Editor => b.spawn(label),
                 };
             });
         }
@@ -403,7 +411,7 @@ fn span_node(
     let text = words(&span.text, span.role, span.size, height);
     match mark {
         Mark::Screen => line.spawn((SpanAt(p, r, s), text)),
-        Mark::Side | Mark::Fight => line.spawn(text),
+        Mark::Side | Mark::Fight | Mark::Editor => line.spawn(text),
     };
 }
 

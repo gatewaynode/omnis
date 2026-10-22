@@ -13,6 +13,7 @@ use omnis_vector::pose::Pose;
 use omnis_vector::shell::ShellPlugin;
 use omnis_vector::shell::combat::CombatPlugin;
 use omnis_vector::shell::controls::{Action, ControlsPlugin};
+use omnis_vector::shell::editor::{Editing, EditorPlugin};
 use omnis_vector::shell::fonts::FontsPlugin;
 use omnis_vector::shell::movement::MovementPlugin;
 use omnis_vector::shell::screen::ScreenPlugin;
@@ -118,11 +119,21 @@ pub fn shell(config: Config, in_game: bool) -> App {
         CombatPlugin,
         SettingsPlugin,
         FontsPlugin,
+        EditorPlugin,
     ))
     .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,
-    )))
-    .insert_resource(Packs::load(&config).expect("the shipped packs load"));
+    )));
+    let packs = Packs::load(&config).expect("the packs load");
+    if let Some(map) = &config.editor {
+        let mut editor =
+            omnis_vector::editor::Editor::new(config.packs.clone()).expect("the editor opens");
+        if let Some(id) = map {
+            editor.open(id, &packs.data).expect("the map opens");
+        }
+        app.insert_resource(Editing(editor));
+    }
+    app.insert_resource(packs);
     if in_game {
         app.insert_resource(Session::start(&config).expect("the shipped packs start a session"));
     }

@@ -109,8 +109,11 @@ no loss, and every later map is built with it.
   - [x] M5.2 (2026-10-21) `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal,
     files, check, write, the notes store); byte-identical layouts on every fixture map; `tasks/acceptance/m5-2.md`.
   - [x] M5.3 (2026-10-21) `editor.*` ops (17, notes among them), seven replies, `OpError::Invalid`, `Headless.editor`,
-    the MCP tools and schemas; counts 27 to 44; `tasks/acceptance/m5-3.md`.
-  - [ ] M5.4 The client's editor layer: Title "Editor", `--editor`, the plan view, cursor, levels, inspector.
+    the MCP tools and schemas; counts 27 to 44; `tasks/acceptance/m5-3.md`. Accepted by the owner 2026-10-22 (B8 found
+    on the way, fixed in `9ac9468`).
+  - [x] M5.4 (2026-10-22) The client's editor layer: Title "Editor", `--editor [map-id]`, `Nav.editing`, `EditorMenu`, the
+    three columns (tools, the plan raster, the inspector), cursor by click and arrows, levels, zoom, facing; the
+    socket answers `editor.*` on the open editor; `tasks/acceptance/m5-4.md`.
   - [ ] M5.5 Brushes, strokes, pick, undo and redo, Save refused while invalid, Revert.
   - [ ] M5.6 Placements, terrains, levels and notes forms.
   - [ ] M5.7 The 3D preview from the cursor.

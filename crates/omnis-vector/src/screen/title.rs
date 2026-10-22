@@ -1,7 +1,7 @@
 //! The title (presentation-ARCHITECTURE §6.3, §6.7): where the program starts when no game is
 //! asked for on the command line. New game opens the form; Load quick save loads the quick
-//! save, dim when there is none; Settings opens the player's settings; Quit stands in its own
-//! row, apart from the others (PRD §7).
+//! save, dim when there is none; Settings opens the player's settings; Editor opens the editor
+//! over the loaded packs (M5.4); Quit stands in its own row, apart from the others (PRD §7).
 
 use super::{Control, ControlId, Ctx, Effect, HostOp, Panel, Row, Screen, ScreenId, Span};
 
@@ -19,6 +19,7 @@ pub fn content(ctx: &Ctx) -> Screen {
                     Control::button(ControlId::NewGame, "New game"),
                     load,
                     Control::button(ControlId::Settings, "Settings"),
+                    Control::button(ControlId::Editor, "Editor"),
                 ]),
                 Row::controls(vec![Control::button(ControlId::Quit, "Quit")]),
             ],
@@ -35,6 +36,7 @@ pub fn apply(control: ControlId) -> Effect {
         ControlId::NewGame => Effect::Open(ScreenId::NewGame),
         ControlId::Load => Effect::Host(HostOp::Load { migrate: false }),
         ControlId::Settings => Effect::Open(ScreenId::Settings),
+        ControlId::Editor => Effect::OpenEditor,
         ControlId::Quit => Effect::Quit,
         _ => Effect::None,
     }

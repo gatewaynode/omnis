@@ -5,6 +5,7 @@ pub mod capture;
 pub mod cinema;
 pub mod combat;
 pub mod controls;
+pub mod editor;
 pub mod fonts;
 pub mod host;
 pub mod hud;

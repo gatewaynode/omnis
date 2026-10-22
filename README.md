@@ -25,7 +25,7 @@ played by the owner before the next one started; the record of each is in
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
 | M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1, deferred by the owner; next (W1 of `tasks/TODO.md`) |
+| M5 | Editor v1 (W1 of `tasks/TODO.md`): M5.0 to M5.4 built, the ops, the MCP tools and the client's plan view; M5.5 to M5.10 next |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
 | M7 | Town and services, rest, progression, the turn budget and declared reactions |
 | M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |
@@ -66,6 +66,7 @@ dev socket, `Dev` commands, the debug panel); a release build turns it off.
 ```sh
 just run                                     # the game, the same as the next line; flags pass through
 cargo run -p omnis-vector                    # the binary omnis: fullscreen, at the title; --windowed, --monitor N, --pack DIR
+cargo run -p omnis-vector -- --windowed --editor test:map:dungeon   # the editor (M5.4), that map open; --editor alone opens none
 cargo run -p omnis-vector -- --seed 7        # straight into a game with a fixed party of four; --save FILE names the quick save
 cargo run -p omnis-vector -- --frame-stats   # log the frame times, vsync off
 cargo build -p omnis-vector --release --no-default-features   # the shipped build: no dev socket, no debug panel

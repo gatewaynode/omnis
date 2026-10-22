@@ -10,6 +10,7 @@ use omnis_sim::world::layer;
 use std::collections::BTreeMap;
 
 pub use crate::raster::Raster;
+use crate::raster::{EdgeKey, edge_key, edge_pixels, join_pixels, tick_pixels};
 
 /// The longest side of the minimap, in pixels, before scaling to whole pixels a cell.
 pub const SIDE: u32 = 192;
@@ -44,20 +45,6 @@ fn shade(rgb: (u8, u8, u8), k: u16) -> [u8; 4] {
     [f(rgb.0), f(rgb.1), f(rgb.2), 230]
 }
 
-/// A known edge: horizontal (a north side) or vertical (a west side), by the column and row of
-/// the cell whose north or west side it is, so an edge shared by two cells has one key.
-type EdgeKey = (bool, i64, i64);
-
-fn key(x: u16, y: u16, facing: Facing) -> EdgeKey {
-    let (x, y) = (i64::from(x), i64::from(y));
-    match facing {
-        Facing::North => (true, x, y),
-        Facing::South => (true, x, y + 1),
-        Facing::West => (false, x, y),
-        Facing::East => (false, x + 1, y),
-    }
-}
-
 /// The known walls and doors, each once, a door on either side winning over a wall: the map
 /// may record a shared edge on one side only (as `geometry::extract` assumes).
 fn edges(known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, bool> {
@@ -66,7 +53,8 @@ fn edges(known: &BTreeMap<(u16, u16), Known>) -> BTreeMap<EdgeKey, bool> {
         for facing in Facing::ALL {
             let door = tile.doors.has(facing);
             if door || tile.walls.has(facing) {
-                *out.entry(key(x, y, facing)).or_insert(door) |= door;
+                *out.entry(edge_key(i64::from(x), i64::from(y), facing))
+                    .or_insert(door) |= door;
             }
         }
     }
@@ -106,89 +94,10 @@ fn rises(
             } else {
                 continue;
             };
-            out.insert(key(x, y, facing), rise);
+            out.insert(edge_key(i64::from(x), i64::from(y), facing), rise);
         }
     }
     out
-}
-
-/// The pixels of a tick across the middle of an edge, half a cell long.
-fn tick_pixels(raster: &Raster, (horizontal, col, row): EdgeKey) -> Vec<(i64, i64)> {
-    let s = i64::from(raster.scale);
-    let (mx, my) = if horizontal {
-        (col * s + s / 2, row * s)
-    } else {
-        (col * s, row * s + s / 2)
-    };
-    (-s / 4..=s / 4)
-        .map(|i| {
-            if horizontal {
-                (mx, my + i)
-            } else {
-                (mx + i, my)
-            }
-        })
-        .collect()
-}
-
-/// The pixels of a straight line from `a` to `b`, both ends included.
-fn line_pixels(a: (i64, i64), b: (i64, i64)) -> Vec<(i64, i64)> {
-    let n = (b.0 - a.0).abs().max((b.1 - a.1).abs()).max(1);
-    (0..=n)
-        .map(|i| (a.0 + (b.0 - a.0) * i / n, a.1 + (b.1 - a.1) * i / n))
-        .collect()
-}
-
-/// The pixels of a join's mark on cell `(x, y)`, drawn like its glyph: a chevron pointing the
-/// way a stair rises (`rise`), with a bar across the foot for a stair down; a ladder's rails and
-/// rungs; a hole's cross.
-fn join_pixels(raster: &Raster, (x, y): (u16, u16), join: Join, rise: Facing) -> Vec<(i64, i64)> {
-    let s = i64::from(raster.scale);
-    let (x0, y0) = (i64::from(x) * s, i64::from(y) * s);
-    let at = |fx: i64, fy: i64| (x0 + s * fx / 8, y0 + s * fy / 8);
-    // A stair's strokes are written rising north, then turned to its rise.
-    let turned = |fx: i64, fy: i64| match rise {
-        Facing::North => at(fx, fy),
-        Facing::East => at(8 - fy, fx),
-        Facing::South => at(8 - fx, 8 - fy),
-        Facing::West => at(fy, 8 - fx),
-    };
-    let chevron = [(turned(2, 5), turned(4, 3)), (turned(4, 3), turned(6, 5))];
-    let strokes = match join {
-        Join::Up => chevron.to_vec(),
-        Join::Down => [chevron.as_slice(), &[(turned(2, 6), turned(6, 6))]].concat(),
-        Join::Ladder => vec![
-            (at(3, 1), at(3, 7)),
-            (at(5, 1), at(5, 7)),
-            (at(3, 2), at(5, 2)),
-            (at(3, 4), at(5, 4)),
-            (at(3, 6), at(5, 6)),
-        ],
-        Join::Hole => vec![(at(2, 2), at(6, 6)), (at(6, 2), at(2, 6))],
-    };
-    strokes
-        .into_iter()
-        .flat_map(|(a, b)| line_pixels(a, b))
-        .collect()
-}
-
-/// The pixels of an edge, `inset` pixels in from each end. An edge on the map's far side is
-/// drawn on the last pixel row or column.
-fn edge_pixels(raster: &Raster, (horizontal, col, row): EdgeKey, inset: i64) -> Vec<(i64, i64)> {
-    let s = i64::from(raster.scale);
-    let (x0, y0) = (
-        (col * s).min(i64::from(raster.width) - 1),
-        (row * s).min(i64::from(raster.height) - 1),
-    );
-    (inset..s - inset)
-        .map(|i| {
-            if horizontal {
-                (col * s + i, y0)
-            } else {
-                (x0, row * s + i)
-            }
-        })
-        .collect()
 }
 
 /// Paint the known tiles of a level of `map` (visited ones brighter than ones only seen), their
@@ -229,8 +138,8 @@ pub fn paint(
     }
     for (edge, rise) in rises(map, level, known) {
         let (pixels, colour) = match rise {
-            Rise::Cliff => (edge_pixels(&out, edge, 0), CLIFF),
-            Rise::Ramp => (tick_pixels(&out, edge), RAMP),
+            Rise::Cliff => (edge_pixels(scale, (out.width, out.height), edge, 0), CLIFF),
+            Rise::Ramp => (tick_pixels(scale, edge), RAMP),
         };
         for (px, py) in pixels {
             out.put(px, py, colour);
@@ -247,13 +156,13 @@ pub fn paint(
         };
         let colour = if join == Join::Hole { HOLE } else { JOIN };
         let rise = map.rise(level, x, y).unwrap_or(Facing::South);
-        for (px, py) in join_pixels(&out, (x, y), join, rise) {
+        for (px, py) in join_pixels(scale, (i64::from(x), i64::from(y)), join, rise) {
             out.put(px, py, colour);
         }
     }
     for (edge, door) in edges(known) {
         let (inset, colour) = if door { (s / 4, DOOR) } else { (0, WALL) };
-        for (px, py) in edge_pixels(&out, edge, inset) {
+        for (px, py) in edge_pixels(scale, (out.width, out.height), edge, inset) {
             out.put(px, py, colour);
         }
     }

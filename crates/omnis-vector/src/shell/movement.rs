@@ -103,7 +103,8 @@ impl Plugin for MovementPlugin {
 
 /// A left click in the view turns mouse look on and another turns it off, leaving the view
 /// where it looks. Space, a right click (the action keys) and Esc turn it off too, and so do
-/// the panel opening and the fight screen (`movement::look`).
+/// the panel opening, the fight screen and the editor (`movement::look`).
+#[allow(clippy::too_many_arguments)]
 fn grab_cursor(
     mouse: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -112,6 +113,7 @@ fn grab_cursor(
     mut intent: ResMut<Intent>,
     showing: Option<Res<Showing>>,
     view: Option<Res<State<ViewState>>>,
+    editing: Option<Res<super::editor::Editing>>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
@@ -124,7 +126,8 @@ fn grab_cursor(
             release: keys.any_just_pressed([KeyCode::Escape, KeyCode::Space])
                 || mouse.just_pressed(MouseButton::Right),
             panel: showing.is_some_and(|s| s.0)
-                || view.is_some_and(|v| *v.get() == ViewState::Fight),
+                || view.is_some_and(|v| *v.get() == ViewState::Fight)
+                || editing.is_some(),
         },
     );
     if next != intent.looking {

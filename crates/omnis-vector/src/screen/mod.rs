@@ -14,6 +14,7 @@ pub mod cast;
 pub mod create_party;
 pub mod debug;
 pub mod defeat;
+pub mod editor_menu;
 pub mod fight;
 pub mod inventory;
 pub mod load_report;
@@ -78,6 +79,12 @@ pub enum ScreenId {
     Log,
     /// A save the loaded packs cannot load, and why (M8.5 7h4).
     LoadReport,
+    /// The editor's menu: Esc over the editor (M5.4).
+    EditorMenu,
+    /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
+    EditorTools,
+    /// The editor's inspector column, as the tools.
+    EditorInspector,
 }
 
 impl ScreenId {
@@ -200,6 +207,10 @@ pub enum ControlId {
     Verb(u8),
     /// The full log's filter.
     LogFilter,
+    /// The title's Editor button (M5.4).
+    Editor,
+    /// A control of the editor's layer (M5.4).
+    Edit(crate::editor::EditAct),
 }
 
 /// A key a screen offers as a shortcut for one of its controls.
@@ -520,6 +531,8 @@ pub enum Effect {
     Quit,
     /// Apply the player's settings and keep them in the settings file.
     Settings(crate::settings::Prefs),
+    /// Open the editor over the loaded packs, with no game (M5.4).
+    OpenEditor,
 }
 
 /// Why [`apply`] did nothing.
@@ -672,6 +685,9 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::NewGame, _) => new_game::content(&forms.new_game),
         (ScreenId::Settings, _) => settings::content(ctx, forms),
         (ScreenId::LoadReport, _) => load_report::content(forms),
+        (ScreenId::EditorMenu, _) => editor_menu::content(),
+        // The editor's columns are built by its layer (`shell/editor.rs`), not here.
+        (ScreenId::EditorTools | ScreenId::EditorInspector, _) => empty(id),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
@@ -734,6 +750,8 @@ pub fn apply(
         (ScreenId::Pause, _) => pause::apply(control),
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
         (ScreenId::LoadReport, _) => load_report::apply(forms, control),
+        (ScreenId::EditorMenu, _) => editor_menu::apply(control),
+        (ScreenId::EditorTools | ScreenId::EditorInspector, _) => Effect::None,
         (ScreenId::Debug, Some(game)) => {
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }

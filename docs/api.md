@@ -1097,8 +1097,9 @@ As of protocol 2:
   every other id a save holds is found again by name).
 - **Later systems.** Region events (M10, `omnis-eco`) and quest events (M11, `omnis-story`) do
   not exist yet, nor the ops `pack.validate`, `eco.region`, `eco.tick`, `story.state`,
-  `story.check`. The `editor.*` ops exist since M5.3; their hosts are `Headless` and, from
-  M5.4, the game's socket while the editor is open.
+  `story.check`. The `editor.*` ops exist since M5.3; their hosts are `Headless` and, since
+  M5.4, the game's socket while its editor is open (they act on the editor the player sees, and
+  answer `Failed` "the editor is not open" otherwise).
 - **Triggers.** `SpellCast` and `EnemyCasts` are raised, but no action can answer them (only
   reaction spells answer, and only `Attacked`, `MemberAttacked`, `MemberWounded`,
   `MemberDying`). `EnemyFlees` and `OwnTurn` have no source; `TacticsView.auto` is stored, not

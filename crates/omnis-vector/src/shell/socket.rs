@@ -15,8 +15,9 @@ use super::VectorSet;
 use super::capture::{ShotRequest, ShotSaved};
 use super::host;
 use super::screen_text::screen_text;
-use super::session::Session;
+use super::session::{Packs, Session};
 use bevy::prelude::*;
+use omnis_sim::omnis_data::edit;
 use omnis_sim::ops::client_path;
 use omnis_sim::{Op, OpError, Reply};
 use serde_json::{Value, json};
@@ -81,6 +82,8 @@ impl Plugin for DevSocketPlugin {
 
 /// The answer to every op but the screen's while no game runs.
 pub const NO_GAME: &str = "no game is running; start one from the title";
+/// What an editor op is refused with while the editor is not open (M5.4).
+pub const NO_EDITOR: &str = "the editor is not open; open it from the title or with --editor";
 
 /// The listener and its one client.
 #[derive(Resource)]
@@ -283,6 +286,8 @@ impl Client {
 fn serve(
     mut socket: ResMut<DevSocket>,
     mut session: Option<ResMut<Session>>,
+    mut editing: Option<ResMut<super::editor::Editing>>,
+    packs: Res<Packs>,
     mut shots: MessageWriter<ShotRequest>,
     mut saved: MessageReader<ShotSaved>,
 ) {
@@ -323,9 +328,19 @@ fn serve(
             Op::ScreenText => socket.wants_text.push(id),
             _ => {
                 let root = socket.root.clone();
-                let result = match session.as_deref_mut() {
-                    Some(session) => host::handle(session, &root, &op),
-                    None => Err(OpError::failed(NO_GAME)),
+                let result = match (op.editor(), editing.as_deref_mut()) {
+                    // The editor's ops act on the editor the player sees (M5.4).
+                    (Some(Err(e)), _) => Err(e),
+                    (Some(Ok(request)), Some(editing)) => {
+                        let answer = edit::answer(&mut editing.0.session, &packs.data, request);
+                        editing.0.changed(&packs.data);
+                        answer.map(Reply::from).map_err(OpError::from)
+                    }
+                    (Some(Ok(_)), None) => Err(OpError::failed(NO_EDITOR)),
+                    (None, _) => match session.as_deref_mut() {
+                        Some(session) => host::handle(session, &root, &op),
+                        None => Err(OpError::failed(NO_GAME)),
+                    },
                 };
                 socket.queue(&id, &result);
             }

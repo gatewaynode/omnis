@@ -13,7 +13,7 @@ use super::controls::Corner;
 use super::hud::Hud;
 use super::minimap::Minimap;
 pub use super::screen_draw::{
-    Arrow, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
+    Arrow, EditorPress, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
 };
 use super::screen_draw::{
     LabelOf, Mark, MessageText, SCROLL_FOOT, SpanAt, TitleText, bars, build, shown_label,
@@ -193,13 +193,16 @@ fn make_room(beside: Res<Beside>, mut layer: Query<&mut Node, With<ScreenLayer>>
     }
 }
 
-/// Open the screen the command line asked for (`--screen`).
+/// Open the screen the command line asked for (`--screen`), or the editor it asked for
+/// (`--editor`, the `Editing` resource inserted before the app runs).
 fn open_start(
     start: Option<Res<StartScreen>>,
     session: Option<Res<Session>>,
+    editing: Option<Res<super::editor::Editing>>,
     mut screens: ResMut<Screens>,
 ) {
     let game = session.as_deref().map(|s| &s.views);
+    screens.nav.edit(editing.is_some());
     screens.reset(game);
     match start.as_deref() {
         Some(StartScreen::NewGame) => screens.nav.open(ScreenId::NewGame, game),
@@ -524,6 +527,8 @@ fn carry_out(
         }
         Effect::ToTitle | Effect::ToNewGame => {
             host.commands.remove_resource::<Session>();
+            host.commands.remove_resource::<super::editor::Editing>();
+            screens.nav.edit(false);
             host.view.set(ViewState::Explore);
             screens.reset(None);
             if effect == Effect::ToNewGame {
@@ -531,6 +536,17 @@ fn carry_out(
             }
         }
         Effect::Host(op) => host_op(op, host, session, screens),
+        Effect::OpenEditor => match crate::editor::Editor::new(host.packs.config.packs.clone()) {
+            Ok(editor) => {
+                host.commands.remove_resource::<Session>();
+                host.view.set(ViewState::Explore);
+                host.commands
+                    .insert_resource(super::editor::Editing(editor));
+                screens.nav.edit(true);
+                screens.reset(None);
+            }
+            Err(e) => report(screens, Err(format!("Could not open the editor: {e}"))),
+        },
         Effect::Settings(prefs) => {
             host.current.0 = prefs;
             let path = &host.packs.config.settings;
