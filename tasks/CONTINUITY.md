@@ -4,8 +4,10 @@ Written 2026-10-21, at the close of the session that planned W1 and built M5.0 t
 time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `W1-authoring-tools`**, four commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0 (the
-  plan), `4704230` M5.1, `ef3c12b` M5.2, `a303fa8` M5.3. Tree clean. Untracked and never staged: the files under
+- **Branch `W1-authoring-tools`**, six commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0 (the
+  plan), `4704230` M5.1, `ef3c12b` M5.2, `a303fa8` M5.3, `fef5fe1` continuity, `9ac9468` B8 (2026-10-22: the
+  camera's pitch clamped a degree short of vertical, the owner's choice after the free head of M8.5 4b left the
+  view upside down during M5.3 acceptance; `tasks/BUGS.md` B8; VERIFY-GREEN, 1054 tests). Tree clean. Untracked and never staged: the files under
   `assets/` and `docs/dnd_supplemental/` (the owner's).
 - **The plan:** `tasks/plans/m5-editor-v1.md` (approved 2026-10-21), ten steps ticked in `tasks/TODO.md` under M5.
   Owner's choices in it: a save reseals and bumps the patch version; the four maps' comments move into notes;
@@ -19,7 +21,8 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   keyed to what it is about; a background gate's verdict is read by `grep -q VERIFY-GREEN` in the commit chain.
 
 ## Next (tomorrow)
-1. **The owner's acceptance of M5.3**: `tasks/acceptance/m5-3.md`, an agent against `omnis-mcp --headless packs/base
+1. **The owner's acceptance of M5.3** (begun 2026-10-22; B8 came out of it, the editor ops themselves not yet
+   reported on): `tasks/acceptance/m5-3.md`, an agent against `omnis-mcp --headless packs/base
    /tmp/omnis-edit` on a copy of `packs/test` (the shipped pack stays sealed). The owner reports; a bug is fixed
    with a red test and a lesson before anything else.
 2. **M5.4, the client's editor layer** (plan §Client side; the design's C1 and C2). Everything it touches was read
@@ -106,7 +109,8 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   && git commit -F -` (lesson 2026-10-21); the runner's exit code is the wrapper's. Then Sentrux `rescan` (first
   `scan` on `/Users/john/code/omnis/crates` in a new session) and `check_rules`.
 - **Tests red first; mutations** with a Python runner in the scratchpad (anchor checked unique, source restored
-  in `finally` by rewriting its text and `os.utime`, never by moving a backup back), then `git status` to confirm
+  in `finally` by rewriting its text with a *fresh* mtime, never `os.utime` back to the old one and never by
+  moving a backup back: lesson 2026-10-18, broken 2026-10-22), then `git status` to confirm
   the sources are clean. No cargo command and no fixture edit while a mutation run or the gate runs.
 - **Each new op** moves: `ops.rs` (`Op`, `is_host`, the `dispatch` HostOnly arm), `api_doc.rs` (`ops!`, `every_op`,
   the lists and literal counts), `replies.rs` (`tag`, `EVERY`, an ask), `tools.rs` (tool + example + count),
