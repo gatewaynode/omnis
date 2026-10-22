@@ -32,7 +32,8 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use omnis_core::{EraId, Level, MapId};
-use omnis_data::limits::{check_asset_path, string_fits};
+use omnis_data::edit::{Brush, Edit, EditorStatus, MapEntry, NewMap, Place as EditPlace};
+use omnis_data::limits::{MAX_FILE_BYTES, check_asset_path, string_fits};
 use omnis_data::{Data, PackFingerprint};
 use omnis_rules::Draft;
 use serde::{Deserialize, Serialize};
@@ -214,6 +215,110 @@ pub enum Op {
         /// The new expression.
         source: String,
     },
+    // ---- The editor (M5.3; `omnis_data::edit`). Host ops: they touch the pack's files. ----
+    /// Host: the editor's state: the open map's shape, dirtiness, and the loader's verdict.
+    #[serde(rename = "editor.status")]
+    EditorStatus,
+    /// Host: the edited pack's map files, with the id each declares.
+    #[serde(rename = "editor.maps")]
+    EditorMaps,
+    /// Host: open a map of the edited pack by id.
+    #[serde(rename = "editor.open")]
+    EditorOpen {
+        /// `pack:map:name`.
+        map: String,
+    },
+    /// Host: start a new map in the edited pack, open and unsaved.
+    #[serde(rename = "editor.new")]
+    EditorNew {
+        /// Its shape.
+        map: NewMap,
+    },
+    /// Host: paint one tile or edge of the open map.
+    #[serde(rename = "editor.paint")]
+    EditorPaint {
+        /// The level; 0 when left out.
+        #[serde(default)]
+        level: Level,
+        /// Column.
+        x: u16,
+        /// Row.
+        y: u16,
+        /// With what.
+        brush: Brush,
+        /// Join the step the last paint opened (a drag undoes as one); a new step when left out.
+        #[serde(default)]
+        stroke: bool,
+    },
+    /// Host: put a placement on the open map, replacing one with the same key, or remove one.
+    #[serde(rename = "editor.place")]
+    EditorPlace {
+        /// Which.
+        place: EditPlace,
+    },
+    /// Host: change the open map's structure: size, fields, a level, a terrain, a stair's rise.
+    #[serde(rename = "editor.edit")]
+    EditorEdit {
+        /// Which.
+        edit: Edit,
+    },
+    /// Host: back one step.
+    #[serde(rename = "editor.undo")]
+    EditorUndo,
+    /// Host: forward one step.
+    #[serde(rename = "editor.redo")]
+    EditorRedo,
+    /// Host: write the open map to its file and reseal the pack at its next patch version.
+    #[serde(rename = "editor.save")]
+    EditorSave,
+    /// Host: every file of the edited pack the loader reads.
+    #[serde(rename = "editor.files")]
+    EditorFiles,
+    /// Host: a file's text.
+    #[serde(rename = "editor.read")]
+    EditorRead {
+        /// Root-relative `.ron` path.
+        path: String,
+    },
+    /// Host: what the loader would say of `text` as the file at `path`; nothing is written.
+    #[serde(rename = "editor.check")]
+    EditorCheck {
+        /// Root-relative `.ron` path.
+        path: String,
+        /// The text, at most `MAX_FILE_BYTES`.
+        text: String,
+    },
+    /// Host: write `text` as the file at `path`, as typed, once the loader's check passes, and
+    /// reseal the pack unless the file is a note.
+    #[serde(rename = "editor.write")]
+    EditorWrite {
+        /// Root-relative `.ron` path.
+        path: String,
+        /// The text, at most `MAX_FILE_BYTES`.
+        text: String,
+    },
+    /// Host: the author's note on a key.
+    #[serde(rename = "editor.note")]
+    EditorNote {
+        /// A content id, or one followed by `/` and a path inside it.
+        key: String,
+    },
+    /// Host: write the author's note on a key, or take it away.
+    #[serde(rename = "editor.note_set")]
+    EditorNoteSet {
+        /// The key.
+        key: String,
+        /// The text, or none to take the note away.
+        #[serde(default)]
+        text: Option<String>,
+    },
+    /// Host: the keys that carry notes, and the orphans among all notes.
+    #[serde(rename = "editor.notes")]
+    EditorNotes {
+        /// Only keys starting with this, when given.
+        #[serde(default)]
+        prefix: Option<String>,
+    },
 }
 
 fn default_tail() -> usize {
@@ -233,6 +338,23 @@ impl Op {
                 | Op::Screenshot { .. }
                 | Op::ScreenText
                 | Op::RulesSet { .. }
+                | Op::EditorStatus
+                | Op::EditorMaps
+                | Op::EditorOpen { .. }
+                | Op::EditorNew { .. }
+                | Op::EditorPaint { .. }
+                | Op::EditorPlace { .. }
+                | Op::EditorEdit { .. }
+                | Op::EditorUndo
+                | Op::EditorRedo
+                | Op::EditorSave
+                | Op::EditorFiles
+                | Op::EditorRead { .. }
+                | Op::EditorCheck { .. }
+                | Op::EditorWrite { .. }
+                | Op::EditorNote { .. }
+                | Op::EditorNoteSet { .. }
+                | Op::EditorNotes { .. }
         )
     }
 }
@@ -357,10 +479,13 @@ pub enum Reply {
         /// The text.
         text: String,
     },
-    /// `save.write` and `screenshot`.
+    /// `save.write`, `screenshot`, `editor.save` and `editor.write`.
     Written {
         /// The file written.
         path: String,
+        /// The version the pack was resealed at, when the write resealed one (M5.3).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        version: Option<String>,
     },
     /// `party.get`.
     Party {
@@ -433,6 +558,47 @@ pub enum Reply {
         /// The report.
         check: SaveCheck,
     },
+    /// The editor's state: `editor.status`, and every editor op that changes the open map.
+    Editor {
+        /// The state.
+        editor: EditorStatus,
+    },
+    /// `editor.maps`.
+    Maps {
+        /// The edited pack's map files.
+        maps: Vec<MapEntry>,
+    },
+    /// `editor.files`.
+    Files {
+        /// Root-relative paths.
+        files: Vec<String>,
+    },
+    /// `editor.read`.
+    File {
+        /// Root-relative.
+        path: String,
+        /// The text.
+        text: String,
+    },
+    /// `editor.check`.
+    Checked {
+        /// The loader's words, one per problem; empty when the text loads.
+        errors: Vec<String>,
+    },
+    /// `editor.note` and `editor.note_set`.
+    Note {
+        /// The key.
+        key: String,
+        /// The text, if there is one.
+        text: Option<String>,
+    },
+    /// `editor.notes`.
+    Notes {
+        /// The keys with notes, sorted.
+        keys: Vec<String>,
+        /// The keys whose target is nowhere, sorted.
+        orphans: Vec<String>,
+    },
 }
 
 /// A failed op. The world is unchanged unless the message says otherwise.
@@ -480,6 +646,12 @@ pub enum OpError {
         /// What went wrong.
         message: String,
     },
+    /// The editor refused: the loader's words for a map or file that would not load (nothing
+    /// was written), or the one rule the edit broke (M5.3).
+    Invalid {
+        /// The problems, one per line.
+        errors: Vec<String>,
+    },
 }
 
 impl fmt::Display for OpError {
@@ -495,6 +667,13 @@ impl fmt::Display for OpError {
             OpError::NoService => f.write_str("the party is not inside a service"),
             OpError::BadRequest { message } => write!(f, "bad request: {message}"),
             OpError::Failed { message } => f.write_str(message),
+            OpError::Invalid { errors } => {
+                write!(f, "{} problem(s)", errors.len())?;
+                for e in errors {
+                    write!(f, "; {e}")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -637,7 +816,24 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         | Op::PackReload { .. }
         | Op::Screenshot { .. }
         | Op::ScreenText
-        | Op::RulesSet { .. } => Err(OpError::HostOnly),
+        | Op::RulesSet { .. }
+        | Op::EditorStatus
+        | Op::EditorMaps
+        | Op::EditorOpen { .. }
+        | Op::EditorNew { .. }
+        | Op::EditorPaint { .. }
+        | Op::EditorPlace { .. }
+        | Op::EditorEdit { .. }
+        | Op::EditorUndo
+        | Op::EditorRedo
+        | Op::EditorSave
+        | Op::EditorFiles
+        | Op::EditorRead { .. }
+        | Op::EditorCheck { .. }
+        | Op::EditorWrite { .. }
+        | Op::EditorNote { .. }
+        | Op::EditorNoteSet { .. }
+        | Op::EditorNotes { .. } => Err(OpError::HostOnly),
     }
 }
 
@@ -792,6 +988,16 @@ pub fn bounded(s: &str) -> Result<(), OpError> {
         Err(OpError::TooLong {
             limit: omnis_data::limits::MAX_STRING_BYTES,
         })
+    }
+}
+
+/// Refuse a file's text longer than the loader would read (`MAX_FILE_BYTES`).
+pub fn bounded_file(text: &str) -> Result<(), OpError> {
+    let limit = usize::try_from(MAX_FILE_BYTES).unwrap_or(usize::MAX);
+    if text.len() <= limit {
+        Ok(())
+    } else {
+        Err(OpError::TooLong { limit })
     }
 }
 

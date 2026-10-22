@@ -108,7 +108,8 @@ no loss, and every later map is built with it.
     `MapData::resolve` (in memory, with the other maps' portals checked both ways); `tasks/acceptance/m5-1.md`.
   - [x] M5.2 (2026-10-21) `omnis_data::edit`: `Grid`, `Document` (undo, redo, strokes), `Session` (open, save, seal,
     files, check, write, the notes store); byte-identical layouts on every fixture map; `tasks/acceptance/m5-2.md`.
-  - [ ] M5.3 `editor.*` ops (14), replies, `OpError::Invalid`, `Headless.editor`, the MCP tools; counts 27 to 41.
+  - [x] M5.3 (2026-10-21) `editor.*` ops (17, notes among them), seven replies, `OpError::Invalid`, `Headless.editor`,
+    the MCP tools and schemas; counts 27 to 44; `tasks/acceptance/m5-3.md`.
   - [ ] M5.4 The client's editor layer: Title "Editor", `--editor`, the plan view, cursor, levels, inspector.
   - [ ] M5.5 Brushes, strokes, pick, undo and redo, Save refused while invalid, Revert.
   - [ ] M5.6 Placements, terrains, levels and notes forms.

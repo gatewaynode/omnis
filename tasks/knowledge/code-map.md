@@ -230,8 +230,8 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,bridge,backend,rpc}.rs`: 27 tools, the hand-written `Command`
-schema (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{main,headless,args,schema,bake,wander,draft}.rs` (`main.rs` has `world tidy [--yes]`, and since M8.5 7h6 `save check` and `migration draft`; `draft.rs` drafts a pack's next migration from what its old version had; `wander.rs` the seeded wandering party, M8.5 7a):
+`omnis-mcp/src/{tools,schema,editor_schema,bridge,backend,rpc}.rs`: 44 tools (17 the editor's, M5.3), the hand-written `Command` and editor argument
+schemas (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{main,headless,args,schema,bake,wander,draft}.rs` (`main.rs` has `world tidy [--yes]`, and since M8.5 7h6 `save check` and `migration draft`; `draft.rs` drafts a pack's next migration from what its old version had; `wander.rs` the seeded wandering party, M8.5 7a):
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
 `omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant; ARCHITECTURE, README and this map state the code's counts, M8.5 7g), `replies.rs`, `schema_proof.rs`,
 `vocabulary.rs` (protocol 2: one meaning per JSON key across commands, rejections, events and views),

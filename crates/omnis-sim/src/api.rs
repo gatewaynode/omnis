@@ -96,6 +96,6 @@ pub use crate::view::{
 // The JSON op protocol.
 pub use crate::ops::{
     ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RulesView,
-    ShotTarget, SlotView, Status, client_path, dispatch, reload, rules_set,
+    ShotTarget, SlotView, Status, bounded_file, client_path, dispatch, reload, rules_set,
 };
 pub use omnis_core::Edges;

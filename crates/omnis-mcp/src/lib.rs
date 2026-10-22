@@ -8,6 +8,7 @@
 pub mod backend;
 pub mod base64;
 pub mod bridge;
+pub mod editor_schema;
 pub mod rpc;
 pub mod schema;
 pub mod tools;

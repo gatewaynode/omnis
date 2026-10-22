@@ -184,9 +184,10 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-27 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+44 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`, `examine`) and the
-rest in `ops.rs` (`reload`, `rules_set`). `BadRequest` can answer any op on the
+rest in `ops.rs` (`reload`, `rules_set`); the editor's (M5.3) over an `omnis_data::edit::Session` the host owns, through
+`Op::editor()` and `edit::answer` (`editor_ops.rs`). `BadRequest` can answer any op on the
 socket and the bridge (malformed request).
 
 | Op | Args | Reply | Errors | Host |
@@ -218,6 +219,22 @@ socket and the bridge (malformed request).
 | `pack.reload` | `migrate` (default false; `args` may be left out) | `done` | `Failed` (packs do not load; they lack a name the world holds, each listed; their migrations change the world and `migrate` is not given; they cannot hold the world; nothing changes) | host. The running world fitted to the packs on disk by name, through their migrations, as a save made on the packs it runs on would be on load (`ops::reload`, M8.5 7h5, 7h6): the `check` says how, and each place changed |
 | `screenshot` | `path` (optional `.png`, default `.omnis/screenshot.png`), `target` (`canvas` default, or `window`; the game captures what its window shows for both, and the window does not update for the few frames the capture takes) | `written` | `TooLong`, `Failed` (headless, no window, bad path) | host, game only |
 | `screen.text` | none | `text`: every text on screen, one per line with its rectangle and `[button]` when pressable | `Failed` (headless) | host, game only |
+| `editor.status` | none | `editor` | | host. The editor's state (M5.3): the pack root (the last pack loaded is the one edited), the open map's id, file, size, levels and terrains, whether it differs from its file, the undo and redo depths, and the loader's words for anything that would stop it loading, through `MapData::resolve` against the loaded packs |
+| `editor.maps` | none | `maps` | `Failed` | host. The edited pack's `data/maps/*.ron`, each with the id it declares or why it does not read |
+| `editor.open` | `map` (`pack:map:name`) | `editor` | `TooLong`, `Invalid` (no file declares the id; its layout does not read) | host. Unsaved changes to the map open before are dropped |
+| `editor.new` | `map` (`NewMap`: `id`, `name`, `kind`, `tileset`, `width`, `height`, `wall`, `door`, `door_open`, `terrain`) | `editor` | `TooLong`, `Invalid` (an id not `<pack>:map:<name>` of the edited pack; `data/maps/<name>.ron` exists) | host. Every tile the terrain, walls round it, the start at (0, 0) facing East; open and unsaved |
+| `editor.paint` | `level` (default 0), `x`, `y`, `brush` (`Brush`: `Tile { glyph, rise }`, `Edge { side, kind }`, `Height { eighths }`, `Clear`), `stroke` (default false) | `editor` | `Invalid` (no such level; outside; no terrain has the glyph; a stair without its rise; a boundary edge that is not a wall; a height beyond ±4096) | host. A stair up or down keeps the `stairs` list consistent; with `stroke` the paint joins the step the last paint opened |
+| `editor.place` | `place` (`Place`: `Start`, `Portal`, `Encounter`, `Random`, `Site`, `RestEvent`, `Object`, `Ground`, `Lore`, or `Remove(Target)`) | `editor` | `Invalid` (a start outside; a collection at its limit; a removal that matches nothing) | host. Upsert by key: a tile for portals, sites and piles, an id for encounters, objects and lore, terrain and rest kind for rest events |
+| `editor.edit` | `edit` (`Edit`: `Resize`, `Map`, `LevelAdd`, `LevelSet`, `LevelRemove`, `TerrainAdd`, `TerrainSet`, `TerrainRemove`, `Rise`) | `editor` | `Invalid` (the edit's rule, one line) | host. The map's structure; what falls outside a resize is dropped and the start clamped; a level removed takes everything on it; a terrain in use cannot go or change its join |
+| `editor.undo`, `editor.redo` | none | `editor` | `Invalid` (nothing to undo; no map open) | host. 100 steps |
+| `editor.save` | none | `written` (`path`, `version`) | `Invalid` (the loader's words; nothing written), `Failed` (I/O, the seal) | host. The map written to its file atomically, then the pack resealed at its next patch version (owner, 2026-10-21), so the game loads it; the running world sees the pack after `pack.reload` |
+| `editor.files` | none | `files` | `Failed` | host. `pack.ron` and the `.ron` files under `data/`, `text/`, `notes/`, `migrations/` |
+| `editor.read` | `path` (root-relative `.ron`) | `file` | `TooLong`, `Failed` (bad path, unreadable) | host |
+| `editor.check` | `path`, `text` (at most `MAX_FILE_BYTES`) | `checked` | `TooLong`, `Failed` (bad path), `Invalid` (a path under no directory the loader reads) | host. By directory, through the loader's own functions; a map is resolved against the loaded packs. Nothing is written |
+| `editor.write` | `path`, `text` | `written` (`version` when the pack was resealed) | `TooLong`, `Invalid` (the loader's words; nothing written), `Failed` | host. As typed, once the check passes; then the pack resealed, unless the file is a note |
+| `editor.note` | `key` (a content id, or one followed by `/` and a path inside it: `test:map:town/0/3,1`, `/level/-1`, `/chest.1`, `/terrain/r`) | `note` | `TooLong` | host. The author's note on the key, if any; the game never reads notes |
+| `editor.note_set` | `key`, `text` (optional; absent takes the note away) | `note` | `TooLong`, `Invalid` (a key of another shape; a text over 4 KiB; a notes file full), `Failed` | host. Written at once to `notes/<map name>.ron` for a map's keys, `notes/<kind>.ron` otherwise; never sealed; a key whose target is not built is allowed |
+| `editor.notes` | `prefix` (optional) | `notes` | `TooLong` | host. The keys with notes (those starting with `prefix`), and the orphans among all: keys whose target is nowhere in the loaded packs nor in the open map |
 
 Notes:
 
@@ -243,7 +260,7 @@ Notes:
 | `events` | `Reply::Events` | `events` (`[Event]`) | `sim.command`, `party.create`, `time.reconcile`, `events.tail` |
 | `automap` | `Reply::Automap` | `map` (string id), `level`, `tiles` (`[KnownTile]`, in `(x, y)` order: column by column) | `automap.get` |
 | `text` | `Reply::Text` | `text` (string) | `map.text`, `screen.text` |
-| `written` | `Reply::Written` | `path` (string) | `save.write`, `screenshot` |
+| `written` | `Reply::Written` | `path` (string), `version` (string; only when the write resealed the pack, M5.3) | `save.write`, `screenshot`, `editor.save`, `editor.write` |
 | `party` | `Reply::Party` | `party` (`PartyView`) | `party.get` |
 | `rules` | `Reply::Rules` | `rules` (`RulesView`: `slots` `[SlotView]`, `values` map name → integer, `tables` map name → `[integer]`) | `rules.list` |
 | `rule` | `Reply::Rule` | `rule` (`SlotView`: `name`, `inputs` `[string]`, `source`) | `rules.get`, `rules.set` |
@@ -257,6 +274,13 @@ Notes:
 | `value` | `Reply::Value` | `value` (string or null) | `world.query` |
 | `done` | `Reply::Done` | `check` (`SaveCheck`, §7.11; the same packs' report when absent) | `pack.reload` |
 | `check` | `Reply::Check` | `check` (`SaveCheck`, §7.11) | `save.check` |
+| `editor` | `Reply::Editor` | `editor` (`EditorStatus`: `root`, `map`, `file`, `width`, `height`, `levels` `[i8]`, `terrains` `[(glyph, name)]`, `dirty`, `undo`, `redo`, `errors` `[string]`) | `editor.status`, `editor.open`, `editor.new`, `editor.paint`, `editor.place`, `editor.edit`, `editor.undo`, `editor.redo` |
+| `maps` | `Reply::Maps` | `maps` (`[MapEntry]`: `id`, `file`, `error`) | `editor.maps` |
+| `files` | `Reply::Files` | `files` (`[string]`, root-relative) | `editor.files` |
+| `file` | `Reply::File` | `path`, `text` | `editor.read` |
+| `checked` | `Reply::Checked` | `errors` (`[string]`, the loader's words; empty when the text loads) | `editor.check` |
+| `note` | `Reply::Note` | `key`, `text` (string or null) | `editor.note`, `editor.note_set` |
+| `notes` | `Reply::Notes` | `keys` (`[string]`), `orphans` (`[string]`) | `editor.notes` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
@@ -996,7 +1020,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoSuchEntry` | `entry` | The default runbook has no entry there. |
 | `Rule` | `RuleError` | A rule formula failed while resolving: bad pack data, reported instead of a panic. |
 
-`OpError` (10 kinds). The world is unchanged unless the message says otherwise.
+`OpError` (11 kinds). The world is unchanged unless the message says otherwise.
 
 | Kind | Fields | Meaning |
 |---|---|---|
@@ -1010,6 +1034,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoService` | | The party is not inside a service. |
 | `BadRequest` | `message` | Malformed request: not JSON, not an op, a line too long, another client connected, no game running; also a `rules.set` that does not compile. |
 | `Failed` | `message` | The host or the data layer failed; the message (English) says how. |
+| `Invalid` | `errors` (`[string]`) | The editor refused (M5.3): the loader's words for a map or file that would not load, nothing written; or the one rule the edit broke. |
 
 ## 11. Limits
 
@@ -1018,7 +1043,7 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `MAX_SCRIPT` | 10,000 commands per `sim.script` | `omnis-sim/src/ops.rs` |
 | `MAX_LINE` | 1 MiB per request line on the dev socket; a longer line drops the client | `omnis-vector/src/shell/socket.rs` |
 | `omnis_data::limits::MAX_STRING_BYTES` | 4 KiB per string argument (`TooLong`) | `omnis-data/src/limits.rs` |
-| `MAX_FILE_BYTES` | 4 MiB per file read (a world folder's files included); symlinks refused | `omnis-data/src/limits.rs`, `ron_io::read_text` |
+| `MAX_FILE_BYTES` | 4 MiB per file read (a world folder's files included); symlinks refused. Also the most an `editor.check` or `editor.write` text may be (`ops::bounded_file`); on the dev socket `MAX_LINE` is the tighter cap | `omnis-data/src/limits.rs`, `ron_io::read_text` |
 | `MAX_SAVE_BYTES` | 8 MiB per character save, read (`ron_io::read_save_under`) or written (`save_files` refuses a larger one). A full log and a full journal measure about 4 MB | `omnis-data/src/limits.rs` |
 | `LOG_CAPACITY` | 16384 events in the party's log (`events.tail`, `history`) | `omnis-sim/src/lib.rs` |
 | Paths | Relative; only ASCII letters, digits, `.`, `_`, `-`, `/`; no `.` or `..` components; the extension checked (`.ron` for saves, `.png` for screenshots) | `ops::client_path` |
@@ -1072,7 +1097,8 @@ As of protocol 2:
   every other id a save holds is found again by name).
 - **Later systems.** Region events (M10, `omnis-eco`) and quest events (M11, `omnis-story`) do
   not exist yet, nor the ops `pack.validate`, `eco.region`, `eco.tick`, `story.state`,
-  `story.check`, `editor.*`.
+  `story.check`. The `editor.*` ops exist since M5.3; their hosts are `Headless` and, from
+  M5.4, the game's socket while the editor is open.
 - **Triggers.** `SpellCast` and `EnemyCasts` are raised, but no action can answer them (only
   reaction spells answer, and only `Attacked`, `MemberAttacked`, `MemberWounded`,
   `MemberDying`). `EnemyFlees` and `OwnTurn` have no source; `TacticsView.auto` is stored, not
@@ -1089,6 +1115,9 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-10-21: the editor's 17 ops `editor.*` (M5.3; `omnis_data::edit`), their seven replies
+  `editor`, `maps`, `files`, `file`, `checked`, `note`, `notes`, the error kind `Invalid`, and
+  `written.version`; the ops to 44, the error kinds to 11.
 - 2026-10-10: `door_open` (Tier 1) and `MemberView.can_fight` (parity P0a).
 - 2026-10-10: `creation.get` and `creation_view` (`CreationView`), bringing the ops to 25
   (parity P3).

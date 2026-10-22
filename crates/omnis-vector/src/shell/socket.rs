@@ -291,7 +291,10 @@ fn serve(
         if let Some(i) = socket.pending.iter().position(|(_, _, f)| *f == shot.path) {
             let (id, asked, _) = socket.pending.remove(i);
             let result = match &shot.error {
-                None => Ok(Reply::Written { path: asked }),
+                None => Ok(Reply::Written {
+                    path: asked,
+                    version: None,
+                }),
                 Some(e) => Err(OpError::failed(e)),
             };
             socket.queue(&id, &result);

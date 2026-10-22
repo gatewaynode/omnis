@@ -55,10 +55,17 @@ fn tag(reply: &Reply) -> &'static str {
         Reply::Value { .. } => "value",
         Reply::Done { .. } => "done",
         Reply::Check { .. } => "check",
+        Reply::Editor { .. } => "editor",
+        Reply::Maps { .. } => "maps",
+        Reply::Files { .. } => "files",
+        Reply::File { .. } => "file",
+        Reply::Checked { .. } => "checked",
+        Reply::Note { .. } => "note",
+        Reply::Notes { .. } => "notes",
     }
 }
 
-const EVERY: usize = 20;
+const EVERY: usize = 27;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
@@ -112,7 +119,37 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
         // The host ops need files; their replies are built as the hosts build them.
         Reply::Written {
             path: client_path("a.ron", &["ron"]).unwrap().into(),
+            version: None,
         },
+        // The editor's, read-only on the shipped pack (M5.3): nothing is written.
+        ask(
+            &mut game,
+            Op::EditorOpen {
+                map: "test:map:town".into(),
+            },
+        ),
+        ask(&mut game, Op::EditorMaps),
+        ask(&mut game, Op::EditorFiles),
+        ask(
+            &mut game,
+            Op::EditorRead {
+                path: "data/maps/town.ron".into(),
+            },
+        ),
+        ask(
+            &mut game,
+            Op::EditorCheck {
+                path: "data/maps/town.ron".into(),
+                text: "(schema: 1)".into(),
+            },
+        ),
+        ask(
+            &mut game,
+            Op::EditorNote {
+                key: "test:map:town".into(),
+            },
+        ),
+        ask(&mut game, Op::EditorNotes { prefix: None }),
         check(&game),
         Reply::Rule {
             rule: SlotView {

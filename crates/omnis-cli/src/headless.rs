@@ -3,6 +3,7 @@
 //! uses it in `--headless` mode. Host ops (files, packs) are handled here; the rest go to
 //! `omnis_sim::dispatch`.
 
+use omnis_data::edit;
 use omnis_data::ron_io::{read_save_under, read_under, write_files};
 use omnis_data::{Data, LoadReport, load_packs};
 use omnis_sim::api::{examine, load_save_with, save_files};
@@ -20,6 +21,9 @@ pub struct Headless {
     pub data: Data,
     /// The world.
     pub world: World,
+    /// The editor over the last pack (M5.3): `editor.*` answer here; a save or a write changes
+    /// the pack on disk, which `pack.reload` brings under the world.
+    pub editor: edit::Session,
 }
 
 /// Why a headless game could not start.
@@ -29,6 +33,8 @@ pub enum HeadlessError {
     Packs(LoadReport),
     /// The packs name no entry map.
     NewGame(NewGameError),
+    /// The editor could not open the last pack: its manifest or notes do not read.
+    Editor(String),
 }
 
 impl fmt::Display for HeadlessError {
@@ -36,6 +42,7 @@ impl fmt::Display for HeadlessError {
         match self {
             HeadlessError::Packs(report) => write!(f, "{report}"),
             HeadlessError::NewGame(e) => write!(f, "{e}"),
+            HeadlessError::Editor(e) => write!(f, "editor: {e}"),
         }
     }
 }
@@ -51,11 +58,23 @@ impl Headless {
             ..Settings::default()
         };
         let world = World::new(&data, seed, settings).map_err(HeadlessError::NewGame)?;
-        Ok(Headless { packs, data, world })
+        let editor =
+            edit::Session::new(packs.clone()).map_err(|e| HeadlessError::Editor(e.to_string()))?;
+        Ok(Headless {
+            packs,
+            data,
+            world,
+            editor,
+        })
     }
 
     /// Answer one op.
     pub fn handle(&mut self, op: &Op) -> Result<Reply, OpError> {
+        if let Some(request) = op.editor() {
+            return edit::answer(&mut self.editor, &self.data, request?)
+                .map(Reply::from)
+                .map_err(OpError::from);
+        }
         match op {
             // A save is a character save beside its world folder (PRD D28, M8.5 7d), under the
             // working directory.
@@ -67,7 +86,10 @@ impl Headless {
                     .map(|f| (f.path.as_str(), f.text.as_str(), f.keep))
                     .collect();
                 write_files(Path::new("."), &list).map_err(OpError::failed)?;
-                Ok(Reply::Written { path: path.clone() })
+                Ok(Reply::Written {
+                    path: path.clone(),
+                    version: None,
+                })
             }
             Op::SaveRead {
                 path,

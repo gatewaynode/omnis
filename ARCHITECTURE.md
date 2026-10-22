@@ -587,7 +587,7 @@ sequenceDiagram
 
 ### 9.3 Tool set (v1)
 
-Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.status` is `game_status`). Built through M8.5 7h4: 27 (`creation.get` in parity P3, `objects.get` in M8.5 step 2a, `save.check` in M8.5 7h4).
+Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.status` is `game_status`). Built through M8.5 7h4: 27 (`creation.get` in parity P3, `objects.get` in M8.5 step 2a, `save.check` in M8.5 7h4); 44 with the editor's 17 (M5.3).
 
 | Op | Purpose |
 |---|---|
@@ -611,7 +611,8 @@ Op names are dotted; the MCP tool is the same name with `_` for `.` (`game.statu
 | `save.check` | what the loaded packs make of a save without loading it: the verdict, each pack as saved and as loaded, the names the packs lack, the migrations offered and the place warnings (M8.5 7h4, §4.1.1) |
 | `screenshot` | PNG of the window as image content (game mode only) |
 | `screen.text` | the open `bevy_ui` panels as text, a line per control, label or text with its rectangle (game mode only; M7) |
-| later | `pack.validate`, `eco.region`, `eco.tick` (M10), `story.state`, `story.check` (M11), `editor.*` (the editor) |
+| `editor.*` | the editor over the last pack loaded (M5.3, `omnis_data::edit`, `docs/api.md` §5): `status`, `maps`, `open`, `new`, `paint`, `place`, `edit`, `undo`, `redo`, `save` (reseals at the next patch), `files`, `read`, `check`, `write` (as typed), `note`, `note_set`, `notes`; hosted by `Headless` and, from M5.4, the game while its editor is open |
+| later | `pack.validate`, `eco.region`, `eco.tick` (M10), `story.state`, `story.check` (M11) |
 
 Every tool has a JSON Schema `inputSchema`. The schemas are hand-written (`omnis-mcp/src/schema.rs`), which keeps a schema generator out of the simulation crates' dependency tree and keeps the descriptions written for the agent that reads them. So that the bridge, the socket, and the docs cannot drift, they are proven against the Rust types by a test: one serialized instance of every `Command` variant, nested variants included, validates against the schema, and an exhaustive `match` fails the build when a variant is added without one (owner decision 2026-09-20; `omnis-mcp/tests/schema_proof.rs`). The proof runs both ways: every instance must validate and read back, and every `oneOf` branch and `enum` value the schema offers must be used by some instance, so a schema arm with no Rust variant behind it fails too. Its validator reads only the keywords the schema uses and refuses any other.
 

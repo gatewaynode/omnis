@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-21, after M5.1 (W1, the editor). Rewrite this file every time it is
+Written 2026-10-21, after M5.3 (W1, the editor). Rewrite this file every time it is
 used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -20,20 +20,17 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Bevy build on Linux is proven only by the first GitHub run (the owner reports CI; `gh` is not installed).
 
 ## Next
-- **W1 is under way on branch `W1-authoring-tools`** (the M8.5 branch merged as PR #13; CI green with the advisory
-  Linux job). The approved M5 plan: `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md`.
-- **M5.1 and M5.2 landed** (`tasks/acceptance/m5-1.md`, `m5-2.md`): the notes store `notes/*.ron` (owner's
-  direction: keyed, never sealed, dangling keys allowed; lesson 2026-10-21), `MapData::resolve`, and
-  `omnis_data::edit` (`Grid`, `Document`, `Session`, `Notes`, `check_text`; 23 tests on the real packs and a
-  scratch copy of `packs/test` via `common::copy_pack`).
-- **Next: M5.3**, the ops: `edit::answer` (`Request`/`Answer` over `Session`), 14 `editor.*` `Op` variants plus
-  notes (`editor.note` get/set, `editor.notes` list with orphans: decide the count), 5 `Reply` variants,
-  `OpError::Invalid`, `omnis-sim/src/editor_ops.rs` (wire glue, keeps `ops.rs` under 1000), `Headless.editor`,
-  the MCP tools and schemas, every pinned count moved (27 to 41+; `api_doc.rs`, `replies.rs` `EVERY`, `tools.rs`,
-  `bridge.rs`, `headless.rs`, `omnis-cli/src/schema.rs`, `docs/api.md`, `README.md`, `code-map.md`,
-  ARCHITECTURE §9.3). The owner tries `editor_open`, `editor_paint`, `editor_status`, `editor_save` on
-  `omnis-mcp --headless`.
-- **Then M5.4 onward** the client (the plan's steps table).
+- **W1 is under way on branch `W1-authoring-tools`** (PR #13 merged; CI green with the advisory Linux job). The
+  approved M5 plan: `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md`.
+- **M5.1 to M5.3 landed** (`tasks/acceptance/m5-1.md` to `m5-3.md`): the notes store, `MapData::resolve`,
+  `omnis_data::edit` (`Grid`, `Document`, `Session`, `Notes`, `Request`/`Answer`), the 17 `editor.*` ops with
+  MCP tools on `Headless`. Pins now: ops 44, MCP tools 44, `Reply` 27, `OpError` 11; `written` carries `version`.
+- **Next: M5.4**, the client's editor layer (the plan's §Client side and C1+C2 of the design): Title "Editor",
+  `--editor [map]`, `Nav.editing`, `ScreenId::EditorMenu`, `shell/editor.rs` layer like `shell/combat.rs`, the
+  Bevy-free `editor/{mod,view,plan}.rs` (raster plan view via `Raster`, `hit`, `cursor_rect`), the socket answering
+  `editor.*` before the `NO_GAME` gate (`Op::editor()` + `edit::answer` over an `Editor` resource's session). The
+  owner tries `just run --windowed --editor test:map:dungeon`.
+- Owner acceptance pending for M5.3 (an agent against `omnis-mcp --headless` on a copy of `packs/test`).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

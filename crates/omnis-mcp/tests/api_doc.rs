@@ -61,11 +61,11 @@ variants!(Rejection, REJECTIONS, rejection_name:
 
 variants!(OpError, ERROR_KINDS, error_kind:
     Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
-    Failed);
+    Failed Invalid);
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Objects Creation Value Done Check);
+    Casts Objects Creation Value Done Check Editor Maps Files File Checked Note Notes);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
 macro_rules! ops {
@@ -90,6 +90,30 @@ ops! {
     RulesGet => "rules.get", TimeClocks => "time.clocks", TimeReconcile => "time.reconcile",
     RestGet => "rest.get", CastGet => "cast.get", CreationGet => "creation.get",
     RulesSet => "rules.set", ObjectsGet => "objects.get",
+    EditorStatus => "editor.status", EditorMaps => "editor.maps", EditorOpen => "editor.open",
+    EditorNew => "editor.new", EditorPaint => "editor.paint", EditorPlace => "editor.place",
+    EditorEdit => "editor.edit", EditorUndo => "editor.undo", EditorRedo => "editor.redo",
+    EditorSave => "editor.save", EditorFiles => "editor.files", EditorRead => "editor.read",
+    EditorCheck => "editor.check", EditorWrite => "editor.write", EditorNote => "editor.note",
+    EditorNoteSet => "editor.note_set", EditorNotes => "editor.notes",
+}
+
+/// A terrain for the ops that carry one.
+fn terrain() -> omnis_cli::omnis_sim::omnis_data::Terrain {
+    omnis_cli::omnis_sim::omnis_data::Terrain {
+        glyph: '.',
+        name: "floor".into(),
+        floor: "floor".into(),
+        ceiling: None,
+        block: None,
+        passable: true,
+        opaque: false,
+        color: (128, 128, 128),
+        visibility_depth: 4,
+        step_minutes: 1,
+        climb: 2,
+        join: None,
+    }
 }
 
 /// One op of every kind, to read its wire name from serde.
@@ -153,6 +177,59 @@ fn every_op() -> Vec<Op> {
             slot: text(),
             source: text(),
         },
+        Op::EditorStatus,
+        Op::EditorMaps,
+        Op::EditorOpen { map: text() },
+        Op::EditorNew {
+            map: omnis_cli::omnis_sim::omnis_data::edit::NewMap {
+                id: text(),
+                name: text(),
+                kind: omnis_cli::omnis_sim::omnis_data::MapKind::Town,
+                tileset: text(),
+                width: 1,
+                height: 1,
+                wall: omnis_cli::omnis_sim::omnis_data::WallSurfaces {
+                    front: text(),
+                    left: text(),
+                    right: text(),
+                },
+                door: text(),
+                door_open: None,
+                terrain: terrain(),
+            },
+        },
+        Op::EditorPaint {
+            level: omnis_cli::omnis_sim::omnis_core::Level::GROUND,
+            x: 0,
+            y: 0,
+            brush: omnis_cli::omnis_sim::omnis_data::edit::Brush::Clear,
+            stroke: false,
+        },
+        Op::EditorPlace {
+            place: omnis_cli::omnis_sim::omnis_data::edit::Place::Random(None),
+        },
+        Op::EditorEdit {
+            edit: omnis_cli::omnis_sim::omnis_data::edit::Edit::TerrainRemove { glyph: 'x' },
+        },
+        Op::EditorUndo,
+        Op::EditorRedo,
+        Op::EditorSave,
+        Op::EditorFiles,
+        Op::EditorRead { path: text() },
+        Op::EditorCheck {
+            path: text(),
+            text: text(),
+        },
+        Op::EditorWrite {
+            path: text(),
+            text: text(),
+        },
+        Op::EditorNote { key: text() },
+        Op::EditorNoteSet {
+            key: text(),
+            text: None,
+        },
+        Op::EditorNotes { prefix: None },
     ]
 }
 
@@ -232,8 +309,8 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (DEV_COMMANDS.len(), "`DevCommand` (14 variants"),
         (EVENTS.len(), "`Event` has 73 variants"),
         (REJECTIONS.len(), "`Rejection` (71 variants)"),
-        (ERROR_KINDS.len(), "`OpError` (10 kinds)"),
-        (OPS.len(), "27 ops."),
+        (ERROR_KINDS.len(), "`OpError` (11 kinds)"),
+        (OPS.len(), "44 ops."),
     ] {
         assert_eq!(
             count,
@@ -300,9 +377,9 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &readme,
             "README.md",
             tools.len(),
-            "The bridge exposes 27 tools",
+            "The bridge exposes 44 tools",
         ),
-        (&map, "code-map.md", tools.len(), "27 tools"),
+        (&map, "code-map.md", tools.len(), "44 tools"),
         (
             &map,
             "code-map.md",
