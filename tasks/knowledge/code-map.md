@@ -28,6 +28,15 @@ BonusAction, Reaction, Free }`, `Uses`, `Recharge`, `FeatureEffect { Heal, Extra
 features carry `effect`, `cost`, `uses`; `monster.rs` `Monster.casting` (`MonsterCasting`: attack,
 DC, caster level, points, spells). The `turn.*` slots are in `rules/combat.ron` (inputs `level`,
 `is_member`).
+The editor's side (M5, 2026-10-21): `notes.rs` (`NotesFile`, `is_note_key`; `notes/*.ron`, read and checked
+by the loader, never hashed, never kept), `map_data.rs` (`MapData::resolve`, `resolve_one`, `MapTargets`,
+`check_inbound`/`check_outbound`: the loader's per-map pass shared with the editor), `loader.rs`
+(`pub(crate) parse_checked`, `check_manifest`, `check_text_file`, `check_id`, `HasSchema`), `edit/`
+(`grid.rs` `Grid`/`EdgeKind`; `kinds.rs` `Brush`, `Place`, `Target`, `Edit`, `NewMap`, `EditorStatus`,
+`MapEntry`, `EditError`; `document.rs` `Document` with `UNDO_CAP` 100 and `Arc<Grid>` per level; `session.rs`
+`Session` (open, new_map, status, save + `seal::seal(root, None)`, files, read, check, write); `files.rs`
+`check_text` by directory; `notes_store.rs` `Notes`; `answer.rs` `Request`/`Answer`/`answer`). `omnis-sim/src/
+editor_ops.rs` is the wire glue (`Op::editor()`, `From<Answer> for Reply`, `From<EditError> for OpError`).
 Base pack rules: `packs/base/data/rules/{casting,combat,creation,items,leveling,rest,sensing,services}.ron`;
 services under `packs/base/data/services/` (seven, one per kind). The test pack depends on the base
 pack and starts in `test:map:town` (the gate at (11, 2) leads to the meadow's start; the meadow's
