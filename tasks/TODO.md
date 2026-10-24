@@ -209,6 +209,10 @@ no loss, and every later map is built with it.
       scene }`, `rebuild`/`place`/`draw` in `VectorSet::Draw`; `Editor.resolved_at`; `Column::Preview` over
       `Column::Inspector` in a right column node; `main.rs` adds `(EditorPlugin, PreviewPlugin)`. Acceptance
       steps 2–5 for the owner's window.
+    - [x] Fix (2026-10-24, the owner's first hand test: "an empty viewport"): the preview's systems were in
+      `VectorSet::Draw`, gated on a game session; now after `VectorSet::Screens` on the editor's own
+      condition, the plugin headless-safe and tested in the shell. "Level…"/"‰" glyphs the font lacks
+      replaced. WASD reported broken: not reproduced (a test with the focus plugins on passes); asked.
     - [ ] Then: activities in the editor (Add → Activity list, icons per `ServiceKind`).
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

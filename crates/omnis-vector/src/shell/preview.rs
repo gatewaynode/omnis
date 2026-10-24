@@ -3,8 +3,10 @@
 //! (`editor::preview`) into an image the editor's right column shows, from the cursor's cell
 //! the way the cursor faces. The scene is rebuilt when the map's resolve changes or the level
 //! does; the camera moves with the cursor; the lines are the view's own, coloured and faded the
-//! same way. Needs a renderer, like the view: the headless shell does without it, and the
-//! scene it would draw is tested Bevy-free.
+//! same way. The picture needs a renderer, like the view; headless the plugin still keeps the
+//! scene (tested), and spawns no camera. The shell's `VectorSet::Draw` runs only while a game
+//! session exists, so the preview's systems run after `VectorSet::Screens` on their own
+//! condition: the editor being open.
 
 use super::VectorSet;
 use super::editor::Editing;
@@ -45,9 +47,11 @@ pub struct PreviewGizmos;
 /// What the preview last drew: the scene for `(resolve, level)`, kept while the map does not
 /// resolve.
 #[derive(Resource, Default)]
-struct Preview {
-    scene_key: Option<(u64, Level)>,
-    scene: Scene,
+pub struct Preview {
+    /// The `Editor.resolved_at` and level the scene was built for.
+    pub scene_key: Option<(u64, Level)>,
+    /// The scene drawn.
+    pub scene: Scene,
 }
 
 /// The camera, the fills and the lines of the preview; on while the editor is.
@@ -55,31 +59,39 @@ pub struct PreviewPlugin;
 
 impl Plugin for PreviewPlugin {
     fn build(&self, app: &mut App) {
+        // Not in `VectorSet::Draw`: that set runs only while a game session exists.
         app.init_resource::<Preview>()
-            .init_gizmo_group::<PreviewGizmos>()
             .add_systems(Startup, spawn)
             .add_systems(
                 Update,
                 (
                     switch::<true>.run_if(resource_added::<Editing>),
                     switch::<false>.run_if(resource_removed::<Editing>),
-                    (rebuild, place, draw)
-                        .chain()
-                        .run_if(resource_exists::<Editing>),
+                    (rebuild, place).chain().run_if(resource_exists::<Editing>),
                 )
-                    .in_set(VectorSet::Draw),
+                    .after(VectorSet::Screens),
             );
+        // The lines need the gizmos, which the headless shell has not.
+        if app.is_plugin_added::<bevy::gizmos::GizmoPlugin>() {
+            app.init_gizmo_group::<PreviewGizmos>()
+                .add_systems(Update, draw.after(place).run_if(resource_exists::<Editing>));
+        }
     }
 }
 
 /// The target image, the camera drawing into it (off until the editor opens), the fills'
-/// entity and the lines' style, all on the preview's layer.
+/// entity and the lines' style, all on the preview's layer. Headless, with no images, materials
+/// or gizmos, nothing is spawned and the editor shows no picture.
 fn spawn(
     mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut store: ResMut<GizmoConfigStore>,
+    images: Option<ResMut<Assets<Image>>>,
+    materials: Option<ResMut<Assets<StandardMaterial>>>,
+    store: Option<ResMut<GizmoConfigStore>>,
 ) {
+    let (Some(mut images), Some(mut materials), Some(mut store)) = (images, materials, store)
+    else {
+        return;
+    };
     let target = images.add(Image::new_target_texture(
         SIZE.0,
         SIZE.1,
@@ -143,7 +155,7 @@ fn rebuild(
     packs: Res<Packs>,
     editing: Res<Editing>,
     mut preview: ResMut<Preview>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    meshes: Option<ResMut<Assets<Mesh>>>,
     fills: Query<Entity, With<PreviewFills>>,
 ) {
     let key = (editing.resolved_at, editing.level);
@@ -155,9 +167,11 @@ fn rebuild(
     };
     preview.scene_key = Some(key);
     preview.scene = preview::scene(&packs.data, map, editing.level);
-    for entity in &fills {
-        let handle = meshes.add(mesh(&preview.scene.fills));
-        commands.entity(entity).insert(Mesh3d(handle));
+    if let Some(mut meshes) = meshes {
+        for entity in &fills {
+            let handle = meshes.add(mesh(&preview.scene.fills));
+            commands.entity(entity).insert(Mesh3d(handle));
+        }
     }
 }
 

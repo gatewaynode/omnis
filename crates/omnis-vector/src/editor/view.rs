@@ -146,7 +146,7 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
                 no_map,
             ),
             dim(
-                Control::button(edit(EditAct::LevelEdit), "Level…"),
+                Control::button(edit(EditAct::LevelEdit), "Level..."),
                 no_map.or(editor
                     .level
                     .is_ground()
@@ -451,7 +451,7 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         let i = u8::try_from(i).unwrap_or(u8::MAX);
         rows.push(Row {
             spans: vec![Span::body(format!(
-                "{} on {:?} rest, {}‰",
+                "{} on {:?} rest, {} per mille",
                 r.terrain, r.rest, r.chance
             ))],
             controls: vec![

@@ -419,3 +419,19 @@
   loader's keys itself before the store's upsert (a taken id, a cell that holds one already), refusing in
   one line with the form standing. After any Apply, say the loader's verdict at once rather than leaving it
   to the Save button's dim reason.
+
+## 2026-10-24 — A system added to a set inherits the set's run conditions
+- **What happened**: the editor's preview systems were put `in_set(VectorSet::Draw)` beside the view's, and
+  `VectorSet::Draw` runs only while a game session exists. In the editor there is none, so the preview's
+  camera never switched on and the picture stayed black; the owner saw "an empty viewport". The headless
+  tests had not caught it because the plugin needs a renderer and was not added to the test shell.
+- **Rule**: before adding a system to a set, read the set's `configure_sets` and quote its condition in a
+  comment at the call; a system for a state the set excludes gets its own ordering (`after(...)`) and its
+  own `run_if`. And a plugin for a window is still made to run headless with `Option` parameters and a
+  `is_plugin_added` check for the parts that need the renderer, so its wiring has a test.
+
+## 2026-10-24 — Interface strings use glyphs the interface font has
+- **What happened**: "Level…" and "0‰" drew a box in the editor: the font lacks the ellipsis and the
+  per-mille sign.
+- **Rule**: interface strings are plain ASCII unless the glyph has been seen rendered; a unit is spelled
+  out ("per mille", "eighths"), an ellipsis is three dots.

@@ -54,9 +54,11 @@ Written 2026-10-24, during M5.7 (the preview), after M5.6 and the icon step were
   picture (`shell/preview.rs`: a layer-2 camera into an 800×450 image shown as `Column::Preview` over the
   inspector; `Editor.resolved_at`; `main.rs` adds `(EditorPlugin, PreviewPlugin)` in a second tuple, a tuple
   holding fifteen plugins at most). `tasks/acceptance/m5-7.md` has five steps; the picture needs the window.
-  Untested in a window by me (a windowed launch from this shell never ticks): the owner's hand test decides;
-  the likely risks are the UI not showing the image (the `ImageNode` of a render target) and the camera
-  order; the scene is proven headless.
+  **Owner's first hand test (2026-10-24): the picture was empty** because the preview's systems sat in
+  `VectorSet::Draw`, which runs only with a `Session`; fixed (own ordering after `VectorSet::Screens`, own
+  `run_if`, headless-safe plugin tested in the shell; lesson recorded). **WASD reported broken** in the
+  editor: not reproduced (a test with `keyboard_on`'s focus plugins passes); the owner was asked whether the
+  arrows move, whether a form had been opened, where the pointer was. Two glyphs the font lacks replaced.
 - **Owner's decision in the M5.7 planning:** activities are an editor grouping (Add → Activity → a list,
   Service site first, an icon per `ServiceKind`: inn, temple, trainer, smith, tavern, bank, guild); the schema
   later when a second kind has engine rules. That is the small step after M5.7's acceptance.
