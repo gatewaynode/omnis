@@ -475,30 +475,40 @@ fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8))
     );
 }
 
-/// An activity's placeholder on the floor of `(x, y)`: a smiley face, its mouth toward the
-/// south so it reads the same way from the plan.
+/// An icon of the set on the floor of `(x, y)` (owner, 2026-10-24): its strokes scaled into the
+/// cell inside `ICON_MARGIN`, at the floor's heights.
+fn icon_on_floor(
+    out: &mut Vec<Segment>,
+    cell: (u16, u16),
+    p: Patch,
+    icon: &omnis_icon::Icon,
+    kind: SegKind,
+    rgb: (u8, u8, u8),
+) {
+    let (x0, z0) = (f32::from(cell.0), f32::from(cell.1));
+    let inner = 1.0 - 2.0 * ICON_MARGIN;
+    let at = |q: [f32; 2]| {
+        let (u, v) = (ICON_MARGIN + q[0], ICON_MARGIN + q[1]);
+        [x0 + u, floor_at(p, u, v), z0 + v]
+    };
+    for [a, b] in icon.segments(inner) {
+        line(out, at(a), at(b), kind, rgb);
+    }
+}
+
+/// The margin an icon leaves inside its cell, as a share of the cell's side.
+const ICON_MARGIN: f32 = 0.15;
+
+/// An activity's placeholder on the floor of `(x, y)`: the activities' icon (`icons::activity`).
 fn activity(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
-    ring(
+    icon_on_floor(
         out,
         cell,
         p,
-        &circle((0.5, 0.5), 0.35, 16),
+        crate::icons::activity(),
         SegKind::Activity,
         rgb,
     );
-    for eye in [(0.38, 0.4), (0.62, 0.4)] {
-        ring(out, cell, p, &circle(eye, 0.04, 6), SegKind::Activity, rgb);
-    }
-    // The mouth: the lower third of a circle, open.
-    let mouth: Vec<(f32, f32)> = circle((0.5, 0.5), 0.22, 16)
-        .into_iter()
-        .filter(|(_, v)| *v > 0.58)
-        .collect();
-    let (x0, z0) = (f32::from(cell.0), f32::from(cell.1));
-    for pair in mouth.windows(2) {
-        let at = |(u, v): (f32, f32)| [x0 + u, floor_at(p, u, v), z0 + v];
-        line(out, at(pair[0]), at(pair[1]), SegKind::Activity, rgb);
-    }
 }
 
 /// The south and east sides of a cell whose neighbour there meets it at other heights: the

@@ -4,10 +4,11 @@
 //! click's pixel maps back to its cell (`hit`). Bevy-free.
 
 use super::brush::Target;
+use crate::icons;
 use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, RAMP, WALL};
 use crate::raster::{
     Raster, edge_key, edge_pixels, join_pixels, line_pixels, portal_pixels, rect_pixels,
-    smiley_pixels, tick_pixels, triangle_pixels,
+    tick_pixels, triangle_pixels,
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{EdgeKind, Grid};
@@ -245,7 +246,8 @@ pub fn marks(def: &MapDef, level: Level) -> Vec<((u16, u16), Mark)> {
     out
 }
 
-/// The pixels of `mark` on cell `(c, r)` of the pane at `scale` pixels a cell, and its colour.
+/// The pixels of `mark` on cell `(c, r)` of the pane at `scale` pixels a cell, and its colour; a
+/// site's mark is an icon (`icons::activity`), drawn by `paint` itself, and has none here.
 #[must_use]
 pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64)>, [u8; 4]) {
     let s = i64::from(scale);
@@ -278,9 +280,12 @@ pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64
             px.extend(line_pixels((x0, y1), (x1, y1)));
             (px, START)
         }
-        Mark::Site => (smiley_pixels(scale, (c, r)), START),
+        Mark::Site => (Vec::new(), START),
     }
 }
+
+/// The margin an icon leaves inside its cell, as a share of the cell's side.
+const ICON_MARGIN: f32 = 0.1;
 
 /// A terrain's fill, brighter the higher the tile stands: level ground at 60%, each wall's
 /// height up adds 10 points, down takes them, within 25% to 100%.
@@ -391,6 +396,19 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
         if c < 0 || r < 0 || c >= cols || r >= rows {
             continue;
         }
+        if *mark == Mark::Site {
+            // The activities' placeholder icon, inset in the cell.
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let margin = (s as f32 * ICON_MARGIN).round() as i64;
+            let inner = u32::try_from(si - 2 * margin).unwrap_or(1).max(1);
+            out.icon(
+                icons::activity(),
+                (c * si + margin, r * si + margin),
+                inner,
+                START,
+            );
+            continue;
+        }
         let (pixels, colour) = mark_pixels(s, (c, r), *mark);
         for (px, py) in pixels {
             out.put(px, py, colour);
@@ -470,7 +488,6 @@ mod tests {
                 Mark::Object,
                 Mark::Ground,
                 Mark::Lore,
-                Mark::Site,
             ] {
                 let (pixels, _) = mark_pixels(scale, (2, 3), mark);
                 assert!(!pixels.is_empty(), "{mark:?} at {scale}");

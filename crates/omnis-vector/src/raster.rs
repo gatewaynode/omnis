@@ -200,31 +200,6 @@ pub fn triangle_pixels(apex: (i64, i64), left: (i64, i64), right: (i64, i64)) ->
     out
 }
 
-/// The pixels of a smiley face on cell `(col, row)`: the activities' placeholder mark (owner,
-/// 2026-10-24): a circle, two eyes and a mouth.
-#[must_use]
-pub fn smiley_pixels(scale: u32, (col, row): (i64, i64)) -> Vec<(i64, i64)> {
-    let s = i64::from(scale);
-    let (cx, cy) = (col * s + s / 2, row * s + s / 2);
-    let r = (s * 3 / 8).max(1);
-    let mut out = circle_pixels((cx, cy), r);
-    let eye = (r / 2).max(1);
-    out.push((cx - eye, cy - eye / 2 - 1));
-    out.push((cx + eye, cy - eye / 2 - 1));
-    if s >= 8 {
-        // The mouth: the lower arc of a smaller circle.
-        let smile = (r * 2 / 3).max(1);
-        out.extend(
-            circle_pixels((cx, cy), smile)
-                .into_iter()
-                .filter(|(x, y)| *y > cy + smile / 2 && (x - cx).abs() <= smile),
-        );
-    } else {
-        out.push((cx, cy + 1));
-    }
-    out
-}
-
 /// An RGBA picture, row-major, four bytes a pixel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Raster {
@@ -289,6 +264,29 @@ impl Raster {
         }
     }
 
+    /// An icon of the set drawn with the round brush: its strokes scaled to `size` pixels a side
+    /// with their top left at `(left, top)`, the brush's radius the icon's stroke width (owner,
+    /// 2026-10-24).
+    pub fn icon(
+        &mut self,
+        icon: &omnis_icon::Icon,
+        (left, top): (i64, i64),
+        size: u32,
+        colour: [u8; 4],
+    ) {
+        #[allow(clippy::cast_precision_loss)]
+        let (size, left, top) = (size as f32, left as f32, top as f32);
+        let radius = (omnis_icon::Icon::width(size) / 2.0).max(0.5);
+        for [a, b] in icon.segments(size) {
+            self.stroke(
+                (left + a[0], top + a[1]),
+                (left + b[0], top + b[1]),
+                radius,
+                colour,
+            );
+        }
+    }
+
     /// A stroke from `a` to `b` in pixels, `radius` pixels either side of the line, lightening.
     pub fn stroke(&mut self, a: (f32, f32), b: (f32, f32), radius: f32, colour: [u8; 4]) {
         let length = (b.0 - a.0).hypot(b.1 - a.1);
@@ -312,5 +310,32 @@ impl Raster {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_icon_draws_inside_its_box_with_the_round_brush() {
+        let icon = omnis_icon::get("square").expect("the square icon");
+        let mut raster = Raster::filled(40, 40, 1, [0, 0, 0, 255]);
+        raster.icon(&icon, (8, 8), 24, [255, 255, 255, 255]);
+        let lit = |x: u32, y: u32| raster.pixel(x, y) == Some([255, 255, 255, 255]);
+        let count = (0..40)
+            .flat_map(|y| (0..40).map(move |x| (x, y)))
+            .filter(|&(x, y)| lit(x, y))
+            .count();
+        assert!(count > 40, "{count}");
+        // Nothing outside the icon's box plus its brush, nothing in the box's hollow middle.
+        for y in 0..40 {
+            for x in 0..40 {
+                if lit(x, y) {
+                    assert!((6..=34).contains(&x) && (6..=34).contains(&y), "({x}, {y})");
+                }
+            }
+        }
+        assert!(!lit(20, 20), "the square is hollow");
     }
 }

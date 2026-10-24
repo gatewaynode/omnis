@@ -37,26 +37,20 @@ Written 2026-10-24, after M5.6 (the attribute bar, the forms, the marks) was acc
 - **Owner's new direction (2026-10-24):** an "activities" category (recorded in `tasks/TODO.md` under M5.6 as a
   proposal; decide the data shape at the next planning).
 
-## In hand: the icon library (owner 2026-10-24, after M5.6, before M5.7; plan approved)
-- Owner's choices: a new crate `omnis-icon`, Bevy-free, no dependencies; the whole Lucide set compiled in
-  (`build.rs` from `assets/svg-icons/icons/*.svg`, 774 KB of text, with the ISC licence). The owner force-added
-  the set, dropped the tarball and said they would revert the `.gitignore` lines.
-- **Commit 1 (this commit)**: the crate as `tasks/acceptance/icons.md` §1 and the code-map say; all 1,903 icons
-  read within their box (a pinned count in `tests/catalogue.rs`: move it with the set); a child's `fill` is
-  the set's radius-½ dot, accepted and pinned to circles ≤ 0.5.
-- **Commit 2 (next)**: `omnis-vector` depends on `omnis-icon`; `Raster::icon(&mut self, &Icon, (left, top), size,
-  colour)` through the round `stroke` with radius `Icon::width(size) / 2`; `shell/icons.rs` an `Icons` resource
-  caching `Handle<Image>` by `(name, size, Role)` through `minimap::image` for UI nodes later; `geometry.rs`
-  `icon_on_floor(out, cell, patch, &Icon, kind, rgb)` scaling the icon's segments into the cell with a 0.15
-  margin at `floor_at` heights; `activity()` and `plan::Mark::Site` draw Lucide `face-grinning` (no `smile` in
-  the set) in place of the hand-made smiley (`raster::smiley_pixels` then goes). Tests: the plan's site mark
-  pixels and the floor's activity segments come from the icon (counts); release size growth under 1.5 MB.
-  Documents: acceptance §2 and steps 3–4, TODO, code-map, continuity; `assets/README.md` is the owner's (the
-  `svg-icons/` row is theirs).
+## Icons, built (owner 2026-10-24, after M5.6, before M5.7; plan approved)
+- Owner's choices: a new crate `omnis-icon`, Bevy-free, no dependencies; the whole Lucide set compiled in. The
+  set itself is `7973dac` (the owner's addition, force-added at their ask, the tarball dropped); the crate
+  `0504374`; the client's use *this commit*: `Raster::icon`, `geometry::icon_on_floor`, `icons::activity()` =
+  `face-grinning` on the plan's site mark and the 3D activity mark. `tasks/acceptance/icons.md` has the four
+  steps. An image cache for UI nodes (`Icons` by name, size and role through `minimap::image`) waits for the
+  first control that takes an icon. The owner's `.gitignore` edit (ignoring `assets/svg-icons/`) was theirs to
+  revert; `assets/README.md`'s row is theirs.
+- History note: the M5.6 acceptance commit had swallowed the staged asset files; the last commits were redone
+  (unpushed) so the set has its own commit, the tree unchanged.
 
 ## Next
-1. Icons commit 2 (above), then report both to the owner with how to try (`cargo run -p omnis-icon --example
-   show -- door-open`; the grinning face on the service cells and the floor).
+1. Report the icon step to the owner (how to try: `cargo run -p omnis-icon --example show -- door-open`; the
+   grinning face on the service cells in the editor and on the floor in the game); await the hand test.
 2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first. Decide the
    **activities** data shape there (`tasks/TODO.md` under M5.6).
 3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).

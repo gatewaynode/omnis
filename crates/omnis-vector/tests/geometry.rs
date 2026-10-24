@@ -391,6 +391,16 @@ fn portals_and_sites_are_marked_on_the_floor() {
     only_on(&segments, SegKind::Portal, &[(11, 2)]);
     let sites: Vec<(u16, u16)> = town.def.sites.iter().map(|s| (s.x, s.y)).collect();
     only_on(&segments, SegKind::Activity, &sites);
+    // Each site carries the activities' icon, line for line.
+    let per_site = omnis_vector::icons::activity().segments(1.0).count();
+    assert!(per_site > 10, "{per_site}");
+    assert_eq!(
+        segments
+            .iter()
+            .filter(|s| s.kind == SegKind::Activity)
+            .count(),
+        per_site * sites.len()
+    );
     // The portal's mark is a ring of four and a circle of sixteen: twenty lines.
     assert_eq!(
         segments

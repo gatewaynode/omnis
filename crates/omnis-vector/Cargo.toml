@@ -28,6 +28,8 @@ test-fixtures = []
 
 [dependencies]
 omnis-sim = { workspace = true }
+# The Lucide icon set as strokes (owner, 2026-10-24); Bevy-free, no dependencies of its own.
+omnis-icon = { workspace = true }
 # The client settings file's derive (presentation-ARCHITECTURE §10.5); already in the tree.
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }

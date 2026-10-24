@@ -188,8 +188,10 @@ no loss, and every later map is built with it.
       ellipses, rounded rects (through the path code), lines, polylines, polygons; `Icon { name, strokes }` with
       `segments(size)`, `width(size)`, `bounds()`. Tests: all 1,903 icons read within their box (a pinned count),
       the shapes, the licence, the path syntax; `examples/show.rs` prints an icon as text.
-    - [ ] 2 The client draws icons: `Raster::icon`, an `Icons` image cache, `icon_on_floor`; `face-grinning` as
-      the activities' placeholder on the plan and the floor; documents.
+    - [x] 2 (2026-10-24) The client draws icons: `omnis-vector` depends on `omnis-icon`; `Raster::icon` (the round
+      brush at any size), `geometry::icon_on_floor`, `icons::activity()` = Lucide `face-grinning` read once; the
+      plan's site mark and the 3D activity mark draw it in place of the hand-made smiley. An image cache for UI
+      nodes waits for the first control that takes an icon (a design pass with the owner).
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

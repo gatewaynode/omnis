@@ -4,7 +4,7 @@
 //! enters becomes a `Step` the simulation processes as in the 2D game, so the grid's rules
 //! (time, the automap, portals, encounters) are the simulation's, never this crate's.
 //!
-//! Bevy-free core: `geom`, `grid`, `ground`, `look`, `pose`, `collide`, `bind`, `geometry`, `minimap`, `party`, `editor`,
+//! Bevy-free core: `geom`, `grid`, `ground`, `look`, `pose`, `collide`, `bind`, `geometry`, `minimap`, `party`, `editor`, `icons`,
 //! `raster`, `rolllog`, `shapes`, `cinema`, `trial`, `combat_menu`, `arena`, and `sim`, which keeps the
 //! world private and reads it through the engine's views (ARCHITECTURE.md A17).
 //! The Bevy shell lives in `shell` and holds only wiring.
@@ -25,6 +25,7 @@ pub mod geometry;
 pub mod grid;
 pub mod ground;
 pub mod history;
+pub mod icons;
 pub mod labels;
 pub mod look;
 pub mod minimap;
