@@ -86,9 +86,10 @@ pub struct ScreenLayer;
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
 pub struct Beside(pub f32);
 
-/// A slider moved since the router last looked: the number it now asks for.
+/// A slider moved since the router last looked: the number it now asks for. With no screen up
+/// it is the editor's (`shell/editor.rs` takes it), else nobody's.
 #[derive(Resource, Debug, Default)]
-struct Slid(Option<(ControlId, i64)>);
+pub(super) struct Slid(pub(super) Option<(ControlId, i64)>);
 
 /// The renderer and the router.
 pub struct ScreenPlugin;
@@ -371,10 +372,13 @@ fn route(
             .forms
             .shown(screens.nav.top(game), screens.nav.base(game));
     }
-    let slid = used.slid.0.take();
     let Some(top) = screens.nav.top(session.as_deref().map(|s| &s.views)) else {
+        if host.editing.is_none() {
+            used.slid.0 = None;
+        }
         return;
     };
+    let slid = used.slid.0.take();
     let effect = {
         let ctx = ctx_with(
             session.as_deref(),

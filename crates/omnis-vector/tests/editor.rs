@@ -137,7 +137,7 @@ fn the_command_line_opens_a_map_in_the_editor() {
     let text = screen_text(app.world());
     assert!(text.contains("test:map:town  12 x 5"), "{text}");
     assert!(text.contains("Cell (10, 2) facing west"), "{text}");
-    assert!(text.contains("Start, facing west"), "{text}");
+    assert!(text.contains("Start (10, 2) facing west"), "{text}");
     assert!(text.contains("The loader takes this map."), "{text}");
 }
 

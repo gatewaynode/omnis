@@ -4,6 +4,7 @@
 //! screens' renderer under the editor's own mark. Bevy-free.
 
 use super::brush::{self, Tool};
+use super::forms::Placing;
 use super::{EditAct, Editor};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
@@ -274,11 +275,15 @@ const fn edge_name(kind: Option<EdgeKind>) -> &'static str {
     }
 }
 
-/// The inspector column: the map, the level, the cursor's cell with its terrain, height, edges
-/// and placements, and the loader's refusals.
+/// The inspector column: the open form first (M5.6), then the map, the level, the cursor's cell
+/// with its terrain, height and edges, the start, the cell's placements with Edit and Remove
+/// and Add for more, the map's random table and rest events, and the loader's refusals.
 #[must_use]
 pub fn inspector(editor: &Editor, data: &Data) -> Screen {
     let mut rows = Vec::new();
+    if let Some(form) = &editor.form {
+        rows.extend(form.rows());
+    }
     let Some(def) = editor.def() else {
         rows.push(Row::text(Span::body("No map is open.")));
         return Screen {
@@ -341,45 +346,79 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
             .collect();
         rows.push(Row::text(Span::body(edges.join("  "))));
     }
-    if level.is_ground() && def.start.0 == x && def.start.1 == y {
-        rows.push(Row::text(Span::body(format!(
-            "Start, facing {}",
+    let edit = |act| ControlId::Edit(act);
+    // The start, and the button that moves it here.
+    let start_here = level.is_ground() && def.start.0 == x && def.start.1 == y;
+    rows.push(Row {
+        spans: vec![Span::body(format!(
+            "Start ({}, {}) facing {}",
+            def.start.0,
+            def.start.1,
             facing_name(def.start.2)
-        ))));
+        ))],
+        controls: vec![dim(
+            Control::button(edit(EditAct::SetStart), "Set start here"),
+            (!level.is_ground())
+                .then_some("the start is on the ground level")
+                .or((start_here && def.start.2 == editor.facing).then_some("the start is here")),
+        )],
+        ..Row::default()
+    });
+    // What is placed on the cell, each with Edit and Remove, and Add for more.
+    for (i, here) in editor.here().iter().enumerate() {
+        let i = u8::try_from(i).unwrap_or(u8::MAX);
+        rows.push(Row {
+            spans: vec![Span::body(here.label.clone())],
+            controls: vec![
+                Control::button(edit(EditAct::EditAt(i)), "Edit"),
+                Control::button(edit(EditAct::RemoveAt(i)), "Remove"),
+            ],
+            ..Row::default()
+        });
     }
-    let here = |l: Level, px: u16, py: u16| l == level && px == x && py == y;
-    for p in &def.portals {
-        if here(p.level, p.x, p.y) {
-            rows.push(Row::text(Span::body(format!("Portal to {}", p.to_map))));
-        }
-    }
-    for e in &def.encounters {
-        if here(e.level, e.x, e.y) {
-            rows.push(Row::text(Span::body(format!("Encounter {}", e.id))));
-        }
-    }
-    for s in &def.sites {
-        if here(s.level, s.x, s.y) {
-            rows.push(Row::text(Span::body(format!("Site {}", s.service))));
-        }
-    }
-    for o in &def.objects {
-        if here(o.level, o.x, o.y) {
-            rows.push(Row::text(Span::body(format!(
-                "Object {} ({})",
-                o.id, o.kind
-            ))));
-        }
-    }
-    for g in &def.ground {
-        if here(g.level, g.x, g.y) {
-            rows.push(Row::text(Span::body("Ground pile")));
-        }
-    }
-    for l in &def.lore {
-        if here(l.level, l.x, l.y) {
-            rows.push(Row::text(Span::body(format!("Lore {}", l.id))));
-        }
+    rows.push(Row::controls(vec![
+        choice(
+            edit(EditAct::PlaceKind),
+            "Add",
+            Placing::ALL.iter().map(|k| k.label().to_owned()).collect(),
+            editor.place_kind,
+        ),
+        Control::button(edit(EditAct::Add), "Add here"),
+    ]));
+    // The map's own: the random table and the rest events.
+    rows.push(Row {
+        spans: vec![Span::body(def.random.as_ref().map_or_else(
+            || "No random encounters".to_owned(),
+            |r| {
+                format!(
+                    "Random encounters: {} entr{} at {}%",
+                    r.entries.len(),
+                    if r.entries.len() == 1 { "y" } else { "ies" },
+                    r.chance_percent
+                )
+            },
+        ))],
+        controls: vec![Control::button(edit(EditAct::Random), "Edit")],
+        ..Row::default()
+    });
+    rows.push(Row {
+        spans: vec![Span::body("Rest events")],
+        controls: vec![Control::button(edit(EditAct::RestAdd), "Add")],
+        ..Row::default()
+    });
+    for (i, r) in def.rest_events.iter().enumerate() {
+        let i = u8::try_from(i).unwrap_or(u8::MAX);
+        rows.push(Row {
+            spans: vec![Span::body(format!(
+                "{} on {:?} rest, {}‰",
+                r.terrain, r.rest, r.chance
+            ))],
+            controls: vec![
+                Control::button(edit(EditAct::RestEdit(i)), "Edit"),
+                Control::button(edit(EditAct::RestRemove(i)), "Remove"),
+            ],
+            ..Row::default()
+        });
     }
     let errors = &editor.status.errors;
     if errors.is_empty() {

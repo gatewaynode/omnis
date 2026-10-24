@@ -1,51 +1,48 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.6a (the attribute bar) was built; M5.5 accepted the same day. Rewrite this file
-every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.6b (the forms and the placements) was built; 6a and M5.5's acceptance the same
+day. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
-  2026-10-24 after three fixes from the hand tests: `cc5bd9c` pointer convention + WASD, `4736b01` nearest-side
-  edge aim + hover, `429de34` scroll kept; acceptance recorded in `34d3986`). Untracked and never staged:
-  `assets/` and `docs/dnd_supplemental/` (the owner's).
-- **M5.6 planned and approved 2026-10-24** (plan mode; the plan file is Claude's, the decisions are in
-  `tasks/TODO.md` under M5.6): three commits 6a/6b/6c, `tasks/acceptance/m5-6.md` grows with them. Owner's
-  choices: the attribute bar **above the plan**; list fields (stacks, contents, items, the random table's
-  entries) as **dedicated row editors** with Add row / Remove, not RON text (over my recommendation).
-- **M5.6a built** (this commit): `view::bar` over the plan (`Column::Bar`, `ScreenId::EditorBar`): the cursor's
-  cell's Terrain (round through no ground), Height (−64..64 by one) and Rise (stair cells only), each step one
-  undo step through `Editor::brushed`/`edited`; `refresh` rewrites words in place when a column's shape stands
-  (`need` → `Need::{Nothing, Words, Nodes}`, `screen_draw::sync` filtered by `OfScreen(ScreenId)`), rebuilds
-  with `keep` = the focused editor field else the column's first field; a plan click clears `InputFocus`;
-  `Kind::Text.lines` (multi-line through Bevy's `EditableText.allow_newlines`/`visible_lines`); editor text
-  fields carry `EditorPress`, so the game router never sees them; `Spawn { id, height, mark, keep }` threads
-  through `rows`/`control_node`/`span_node` (roster passes `id: None`). Tests `tests/editor_forms.rs` (3), the
-  M5.5 scroll test now asserts the words-only path keeps the nodes and a shape change rebuilds in place.
-- **Design for 6b (next):** `editor/form.rs` generic `Form { kind, fields: Vec<Field { label, value: Value,
-  slot: Slot::Top | Row(list, row) }>, lists: Vec<List { label, template, rows, max }>, existing }` with
-  `rows() -> Vec<Row>` (one control per field; per list a heading + `[Add row]`, per entry its fields + `[Remove]`;
-  then `[Apply] [Cancel] [Remove <kind>]`), `typed(i, text)`, `step(i, ±1)`, `add_row`, `remove_row`, parse helpers
-  (`id`, `dice` `NdS[+M]`, `choice`); `editor/forms.rs` per kind `Form::open(kind, def, at, existing)` and
-  `request(def) -> Result<Change { Place | Edit | Note }, String>`; `Editor.form`, acts `Field(u8)`, `ListAdd(u8)`,
-  `ListRemove(u8, u8)`, `Apply`, `Cancel`, `Discard`, `SetStart`, `PlaceKind`, `Add`, `EditAt(u8)`, `RemoveAt(u8)`,
-  `Random`, `RestAdd/RestEdit/RestRemove`; `here()` the placements at the cursor; the inspector shows the form
-  first, then the cell lines, `[Set start here]`, the `here()` rows with Edit/Remove, `Add [< kind >] [Add]`, the
-  map section (random table, rest events). Layer: `route` reads `Query<(Ref<EditableText>, &EditorPress)>` and
-  calls `editing.typed(i, text)` on a change (no revision bump: words-in-place keeps the caret); `keep`'s
-  first-field fallback should apply only to a form just opened (a `fresh` flag) so a rebuild after a plan click
-  does not retake the keyboard. The random entry's inner stacks stay one text column (`goblin 1d4, wolf 2d6`).
-  Payload field tables: see the plan in `tasks/TODO.md`'s M5.6 note and the data types in
-  `crates/omnis-data/src/{map,encounter,service,rest_event,placement,lore}.rs`; `Place`/`Edit`/`Target` in
-  `crates/omnis-data/src/edit/kinds.rs`; `Document::place/edit` one undo step each; `Session::set_note` written at
-  once, not undone; note keys `<map>/<level>/<x>,<y>`, `<map>/level/<n>`, `<map>`.
+  2026-10-24 after three fixes from the hand tests; acceptance recorded in `34d3986`). Untracked and never
+  staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
+- **M5.6 planned and approved 2026-10-24** (plan mode; the decisions are in `tasks/TODO.md` under M5.6): three
+  commits 6a/6b/6c, `tasks/acceptance/m5-6.md` grows with them. Owner's choices: the attribute bar **above
+  the plan**; list fields as **dedicated row editors** with Add row / Remove, not RON text.
+- **M5.6a `7906f8e`**: `view::bar` over the plan (`Column::Bar`, `ScreenId::EditorBar`): the cursor's cell's
+  Terrain, Height and Rise, one undo step each; `refresh` rewrites words in place when a column's shape
+  stands (`need`, `screen_draw::sync` filtered by `OfScreen`), rebuilds with `keep`; a plan click clears
+  `InputFocus`; `Kind::Text.lines`; editor text fields carry `EditorPress`; `Spawn { id, height, mark, keep }`.
+- **M5.6b (this commit)**: `editor/form.rs` (generic `Form`, `Value`, `Slot`, `List`, rows added/removed, `id`
+  and `dice` parsers, lookups by label) and `editor/forms.rs` (`Placing`, `Form::placing/existing/random/
+  rest_event/request -> Place`, `find`); `Editor { form, place_kind }`, `here()`, `placed`/`took`, `typed`,
+  `set_field`, `open_form`, `apply_form`, the acts `SetStart`, `PlaceKind`, `Add`, `EditAt`, `RemoveAt`,
+  `Random`, `RestAdd/Edit/Remove`, `Field`, `ListAdd`, `ListRemove`, `Apply`, `Cancel`, `Discard`; the
+  inspector's form, start, placement, Add and map rows; `route` reads editor fields into `typed` and takes
+  `screen::Slid` (left by the screen router when no screen is up) into `set_field`; the editor's columns
+  give the keyboard only to a named field (`keep`: the focused one, else a `fresh` form's first). Tests
+  `tests/editor_forms.rs` (6, the portal typed on Bevy's keyboard path with `common::app::keyboard_on`),
+  `form.rs` unit (2); nine mutations killed over 6a and 6b. A portal, site, pile are placed at the cell the
+  form opened on (cell-keyed); encounter, object, lore carry x, y fields (id-keyed).
+- **6c (next):** Terrain form (`Edit::TerrainAdd`/`TerrainSet { glyph: old, terrain }`/`TerrainRemove`; fields
+  glyph (1 char), name, floor, ceiling, block, passable, opaque, colour r/g/b, visibility_depth 1..32,
+  step_minutes, climb, join none/Up/Down/Ladder/Hole; entry `[Add terrain] [Edit terrain]` after the brush
+  rows, Edit for the brush's terrain), levels (`Edit::LevelAdd { level, name, base }`, `LevelSet`,
+  `LevelRemove`; `[Add level] [Level…]` on the Level row, dim on level 0 "the ground level is the map"),
+  notes (`Session::set_note(key, Option<&str>)`, keys `<map>/<level>/<x>,<y>`, `<map>/level/<n>`, `<map>`;
+  a 4-line `form::lines` field, `MAX_STRING_BYTES`; written at once, not undone: say so in the form; the
+  inspector's `Note: <first line or none> [Edit note]`, `Map note [Edit]`, `Level note [Edit]`). `Form::request`
+  returns `Place` today: widen to `Change { Place, Edit, Note { key, text } }` and route in `apply_form`.
+  `FormKind` gains `Terrain(Option<char>)`, `LevelAdd`, `Level(i8)`, `Note(String)`. Then documents: the
+  acceptance steps, TODO 6c, code-map, the plan's row 6 note, continuity.
 - **Lessons 2026-10-24** (`tasks/LESSONS.md`): framework conventions tested through the framework's own
   systems; no mouse action on hidden state; a layer that rebuilds nodes carries transient state across.
 - **Lesson 2026-10-22**: a windowed game launched from this shell never ticks; verify headlessly.
 
 ## Next
-1. **Report 6a to the owner** (how to try: open the town, click a cell, step the bar's Height; the tools column
-   does not move), then **6b** as designed above, red tests first (`tests/editor_forms.rs`), then **6c**
-   (terrains, levels, notes; documents: acceptance steps, TODO, code-map, the plan's row 6 note on row editors).
+1. **Report 6a and 6b to the owner** (how to try: the bar's Height arrow; Add here → Portal → type the marker,
+   step to map, Apply; Edit/Remove on the row), then **6c** as above, red tests first, then the documents.
 2. Then M5.7 to M5.10 per the plan's steps table. Boundary tools after M5.6 at the earliest (owner).
 
 ## The owner's way of working (keep)

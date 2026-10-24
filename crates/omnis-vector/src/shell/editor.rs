@@ -12,7 +12,7 @@
 //! painted, and the rest stands.
 
 use super::VectorSet;
-use super::screen::{Arrow, Screens};
+use super::screen::{Arrow, Screens, Slid};
 use super::screen_draw::{EditorPress, Mark, Placed, Scrolls, build, colour, shade, sync};
 use super::session::Packs;
 use crate::editor::brush::Target;
@@ -384,7 +384,8 @@ fn route(
     pane: Query<(&RelativeCursorPosition, &ComputedNode), With<Column>>,
     interactions: Query<&Interaction>,
     focus: Option<ResMut<InputFocus>>,
-    fields: Query<(), With<EditableText>>,
+    fields: Query<(Ref<EditableText>, &EditorPress)>,
+    mut slid: ResMut<Slid>,
     mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
     mut screens: ResMut<Screens>,
@@ -395,6 +396,26 @@ fn route(
         .and_then(|f| f.get())
         .is_some_and(|e| fields.get(e).is_ok());
     let data = packs.data.clone();
+    if !covered {
+        // Typed text goes to the open form's field; the words on screen are the field's own.
+        for (field, press) in &fields {
+            if let ControlId::Edit(EditAct::Field(i)) = press.0
+                && field.is_changed()
+            {
+                let text = field.value().to_string();
+                if editing
+                    .form
+                    .as_ref()
+                    .is_some_and(|f| f.text(usize::from(i)) != text)
+                {
+                    editing.typed(i, text);
+                }
+            }
+        }
+        if let Some((ControlId::Edit(EditAct::Field(i)), n)) = slid.0.take() {
+            editing.set_field(i, n);
+        }
+    }
     let pressed = buttons
         .iter()
         .find(|(i, _)| **i == Interaction::Pressed)
@@ -587,10 +608,17 @@ fn refresh(
             continue;
         }
         // The field that has the keyboard keeps it through the rebuild when the column still
-        // has it; a column drawn with fields anew gives it to the first.
+        // has it; a form just opened gives it to its first field. (A rebuild for any other
+        // reason leaves the keyboard where the owner put it, which may be nowhere.)
+        let fresh = editing.form.as_ref().is_some_and(|f| f.fresh);
         let keep = focused
             .filter(|id| want.control(*id).is_some())
-            .or_else(|| first_field(want));
+            .or_else(|| fresh.then(|| first_field(want)).flatten());
+        if *column == Column::Inspector
+            && let Some(form) = &mut editing.form
+        {
+            form.fresh = false;
+        }
         if let Some(y) = panels
             .iter()
             .find(|(p, _)| column_of(*p) == Some(*column))

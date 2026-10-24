@@ -139,6 +139,45 @@ fn over_plan(app: &mut App, at: Option<Vec2>) {
     assert!(found, "the plan's pane");
 }
 
+/// Type `text` into the editor's field `act`, as the field's editing would leave it, then a
+/// frame for the layer to read it.
+pub fn type_into(app: &mut App, act: EditAct, text: &str) {
+    let id = ControlId::Edit(act);
+    let world = app.world_mut();
+    let mut fields = world.query::<(Entity, &EditorPress, &bevy::text::EditableText)>();
+    let field = fields
+        .iter(world)
+        .find(|(_, p, _)| p.0 == id)
+        .map(|(e, _, _)| e)
+        .unwrap_or_else(|| panic!("the {id:?} field"));
+    world
+        .entity_mut(field)
+        .insert(bevy::text::EditableText::new(text));
+    app.update();
+}
+
+/// The entity of the editor's field `act`, if it is drawn.
+pub fn field_entity(app: &mut App, act: EditAct) -> Option<Entity> {
+    let id = ControlId::Edit(act);
+    let world = app.world_mut();
+    let mut fields = world.query::<(Entity, &EditorPress, &bevy::text::EditableText)>();
+    fields
+        .iter(world)
+        .find(|(_, p, _)| p.0 == id)
+        .map(|(e, _, _)| e)
+}
+
+/// The index of `form`'s own field `label`, as `EditAct::Field` counts it (a form's own fields
+/// come first and stay put while rows come and go).
+pub fn field_of(form: &omnis_vector::editor::form::Form, label: &str) -> u8 {
+    let i = form
+        .fields
+        .iter()
+        .position(|f| f.slot == omnis_vector::editor::form::Slot::Top && f.label == label)
+        .unwrap_or_else(|| panic!("the form has a field {label}"));
+    u8::try_from(i).unwrap()
+}
+
 /// A mouse button pressed or released, then a frame.
 pub fn mouse(app: &mut App, button: MouseButton, state: ButtonState) {
     app.world_mut().write_message(MouseButtonInput {

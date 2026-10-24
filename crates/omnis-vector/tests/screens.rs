@@ -7,7 +7,7 @@ use crate::common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use bevy::ui_widgets::ValueChange;
-use common::app::{app, app_at_title, app_in_game, key, met_with, set};
+use common::app::{app, app_at_title, app_in_game, key, keyboard, keyboard_on, met_with, set};
 use common::fight::met;
 use omnis_sim::omnis_core::rng::fnv1a64;
 use omnis_sim::omnis_core::{Direction, Facing};
@@ -760,45 +760,6 @@ fn start_again_makes_the_same_party_and_after_a_load_the_save_s_game_anew() {
 /// input observers and the edits applied, so a test types as a player does.
 fn keyboard_shell(save: &str) -> (App, Entity) {
     keyboard_on(app_at_title(save))
-}
-
-/// `app` with the window's keyboard path to a text field, as [`keyboard_shell`].
-fn keyboard_on(mut app: App) -> (App, Entity) {
-    use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
-    app.add_plugins((
-        bevy::asset::AssetPlugin::default(),
-        InputFocusPlugin,
-        InputDispatchPlugin,
-        bevy::text::TextPlugin,
-        bevy::ui_widgets::EditableTextInputPlugin,
-    ))
-    .add_message::<bevy::window::Ime>()
-    .add_message::<bevy::picking::events::Pointer<bevy::picking::events::Release>>()
-    .init_resource::<bevy::ui::UiScale>();
-    let window = app
-        .world_mut()
-        .spawn((Window::default(), bevy::window::PrimaryWindow))
-        .id();
-    (app, window)
-}
-
-/// Type `text` on the keyboard, one key at a time, to whatever has focus.
-fn keyboard(app: &mut App, window: Entity, text: &str) {
-    use bevy::input::ButtonState;
-    use bevy::input::keyboard::{Key, KeyboardInput};
-    for c in text.chars() {
-        for state in [ButtonState::Pressed, ButtonState::Released] {
-            app.world_mut().write_message(KeyboardInput {
-                key_code: KeyCode::KeyA,
-                logical_key: Key::Character(c.to_string().into()),
-                state,
-                text: Some(c.to_string().into()),
-                repeat: false,
-                window,
-            });
-            app.update();
-        }
-    }
 }
 
 #[test]

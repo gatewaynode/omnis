@@ -321,8 +321,8 @@ pub(super) fn thumbs(
 /// A control's nodes. A button is a bordered box with its words; a dim one has no `Button`, so it
 /// takes no clicks, and is drawn in the dim role. A choice is its name, two arrows and the
 /// current option between them; a number adds a slider. A text field is its name and an
-/// editable line, which takes the keyboard when drawn unless `keep` names another field: the
-/// field that had it when the screen was drawn anew keeps it.
+/// editable line, which takes the keyboard when drawn if `keep` names it, or names nothing and
+/// the field is the top screen's: the field that had it when the screen was drawn anew keeps it.
 fn control_node(
     parent: &mut ChildSpawnerCommands,
     keys: &[(Key, ControlId)],
@@ -418,7 +418,14 @@ fn control_node(
                     Mark::Editor => field.insert(EditorPress(c.id)),
                     Mark::Screen | Mark::Side | Mark::Fight => field.insert(Pressable(c.id)),
                 };
-                if keep.is_none_or(|kept| kept == c.id) {
+                // The top screen's own field takes the keyboard when none is named; the
+                // editor's columns give it only to the field named (a rebuild for any other
+                // reason leaves it where it was, which may be nowhere).
+                let takes = match keep {
+                    Some(kept) => kept == c.id,
+                    None => mark != Mark::Editor,
+                };
+                if takes {
                     field.insert(AutoFocus);
                 }
             });

@@ -147,8 +147,15 @@ no loss, and every later map is built with it.
       (`OfScreen` markers, `sync` shared with the screens); the field with the keyboard keeps it through a
       rebuild; a plan click takes the keyboard from a field. `Kind::Text.lines`; editor fields carry
       `EditorPress`. Tests `tests/editor_forms.rs` (3), four mutations killed.
-    - [ ] 6b The generic form (`editor/form.rs`) and the placements (`forms.rs`): Add/Edit/Remove at the cursor,
-      Set start here, the random table, rest events; typed text to the editor.
+    - [x] 6b (2026-10-24) The generic form (`editor/form.rs`: `Form { kind, heading, at, fields, lists, remove,
+      fresh }`, `Value::{Text, Choice, Number, Flag}`, `Slot::{Top, Row}`, rows added and removed, `id`/`dice`
+      parsers) and the placements (`forms.rs`: `Placing`, `Form::placing/existing/random/rest_event/request`,
+      `find`); `Editor { form, place_kind }`, `here()`, acts `SetStart`, `PlaceKind`, `Add`, `EditAt`, `RemoveAt`,
+      `Random`, `RestAdd/Edit/Remove`, `Field`, `ListAdd`, `ListRemove`, `Apply`, `Cancel`, `Discard`; the
+      inspector's start, placement, Add and map rows; `route` reads editor fields and the slider's `Slid` (left
+      by the screen router when no screen is up); the editor's columns give the keyboard only to a named
+      field. Tests: three in `tests/editor_forms.rs` (the portal typed on Bevy's keyboard path), two unit;
+      five mutations killed.
     - [ ] 6c Terrain add/edit/remove, levels add/edit/remove, notes (cell, level, map) on the multi-line field;
       documents.
   - [ ] M5.7 The 3D preview from the cursor.

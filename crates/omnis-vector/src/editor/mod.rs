@@ -5,12 +5,18 @@
 //! (`shell/editor.rs`) draws it and routes the pointer and the keys to it.
 
 pub mod brush;
+pub mod form;
+pub mod forms;
 pub mod plan;
 pub mod view;
 
 use brush::{Target, Tool};
+use form::{At, Form};
+use forms::Placing;
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::edit::{Brush, Edit, EditError, EditorStatus, Grid, MapEntry, Session};
+use omnis_sim::omnis_data::edit::{
+    Brush, Edit, EditError, EditorStatus, Grid, MapEntry, Place, Session, Target as PlaceKey,
+};
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
 use std::path::PathBuf;
 
@@ -44,6 +50,36 @@ pub enum EditAct {
     CellHeight,
     /// The bar's rise choice: turns the way the stair on the cursor's cell climbs.
     CellRise,
+    /// Put the map's start on the cursor's cell, facing as the cursor does (M5.6).
+    SetStart,
+    /// The inspector's choice of what Add places.
+    PlaceKind,
+    /// Open the form to place the chosen kind at the cursor.
+    Add,
+    /// Open the form of the placement at the cursor at this position of the inspector's list.
+    EditAt(u8),
+    /// Remove the placement at the cursor at this position of the inspector's list.
+    RemoveAt(u8),
+    /// Open the form of the map's random encounter table.
+    Random,
+    /// Open the form for a new rest event of the map.
+    RestAdd,
+    /// Open the form of the map's rest event at this position.
+    RestEdit(u8),
+    /// Remove the map's rest event at this position.
+    RestRemove(u8),
+    /// A field of the open form, by its position (`form::Form::fields`).
+    Field(u8),
+    /// Add a row to this list of the open form.
+    ListAdd(u8),
+    /// Remove this row of this list of the open form.
+    ListRemove(u8, u8),
+    /// Make the open form's change, one undo step.
+    Apply,
+    /// Close the open form, changing nothing.
+    Cancel,
+    /// Remove what the open form edits, one undo step, and close it.
+    Discard,
     /// Back one step.
     Undo,
     /// Forward one step.
@@ -105,6 +141,19 @@ pub struct Editor {
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
+    /// The form being filled at the top of the inspector, if one is (M5.6).
+    pub form: Option<Form>,
+    /// What the inspector's Add places: an index into `forms::Placing::ALL`.
+    pub place_kind: usize,
+}
+
+/// A placement at the cursor, as the inspector lists it: its words and the key that names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Here {
+    /// What it is, in a line.
+    pub label: String,
+    /// The key `Place::Remove` and the forms find it by.
+    pub key: PlaceKey,
 }
 
 impl Editor {
@@ -136,6 +185,8 @@ impl Editor {
             stroke: None,
             hover: None,
             status,
+            form: None,
+            place_kind: 0,
         })
     }
 
@@ -161,6 +212,7 @@ impl Editor {
         self.stroke = None;
         self.message = None;
         self.resolved = None;
+        self.form = None;
         self.changed(data);
         Ok(())
     }
@@ -238,6 +290,66 @@ impl Editor {
     pub fn cell_height(&self) -> i16 {
         let (x, y) = self.cursor;
         self.grid().and_then(|g| g.height_at(x, y)).unwrap_or(0)
+    }
+
+    /// Where a form opened now places: the shown level, the cursor and its facing.
+    #[must_use]
+    pub fn at(&self) -> At {
+        At {
+            level: self.level,
+            x: self.cursor.0,
+            y: self.cursor.1,
+            facing: self.facing,
+        }
+    }
+
+    /// The placements on the cursor's cell of the shown level, in the file's order: portals,
+    /// encounters, sites, objects, piles, lore.
+    #[must_use]
+    pub fn here(&self) -> Vec<Here> {
+        let Some(def) = self.def() else {
+            return Vec::new();
+        };
+        let (level, (x, y)) = (self.level, self.cursor);
+        let is_here = |l: Level, px: u16, py: u16| l == level && px == x && py == y;
+        let mut out = Vec::new();
+        for p in def.portals.iter().filter(|p| is_here(p.level, p.x, p.y)) {
+            out.push(Here {
+                label: format!("Portal to {}", p.to_map),
+                key: PlaceKey::Portal { level, x, y },
+            });
+        }
+        for e in def.encounters.iter().filter(|e| is_here(e.level, e.x, e.y)) {
+            out.push(Here {
+                label: format!("Encounter {}", e.id),
+                key: PlaceKey::Encounter { id: e.id.clone() },
+            });
+        }
+        for s in def.sites.iter().filter(|s| is_here(s.level, s.x, s.y)) {
+            out.push(Here {
+                label: format!("Site {}", s.service),
+                key: PlaceKey::Site { level, x, y },
+            });
+        }
+        for o in def.objects.iter().filter(|o| is_here(o.level, o.x, o.y)) {
+            out.push(Here {
+                label: format!("Object {} ({})", o.id, o.kind),
+                key: PlaceKey::Object { id: o.id.clone() },
+            });
+        }
+        for _ in def.ground.iter().filter(|g| is_here(g.level, g.x, g.y)) {
+            out.push(Here {
+                label: "Ground pile".to_owned(),
+                key: PlaceKey::Ground { level, x, y },
+            });
+        }
+        for l in def.lore.iter().filter(|l| is_here(l.level, l.x, l.y)) {
+            out.push(Here {
+                label: format!("Lore {}", l.id),
+                key: PlaceKey::Lore { id: l.id.clone() },
+            });
+        }
+        out
     }
 
     /// The way the stair on the cursor's cell climbs, when the cell is one.
@@ -349,6 +461,18 @@ impl Editor {
     /// the map changed.
     fn edited(&mut self, data: &Data, edit: Edit) -> bool {
         let result = self.session.document_mut().and_then(|d| d.edit(edit));
+        self.took(data, result)
+    }
+
+    /// Place, replace or remove with `place`, one undo step. A refusal is said and changes
+    /// nothing. Whether the map changed.
+    fn placed(&mut self, data: &Data, place: Place) -> bool {
+        let result = self.session.document_mut().and_then(|d| d.place(place));
+        self.took(data, result)
+    }
+
+    /// A change's outcome: taken, the map is read again; refused, the refusal is said.
+    fn took(&mut self, data: &Data, result: Result<(), EditError>) -> bool {
         self.stroke = None;
         match result {
             Ok(()) => {
@@ -360,6 +484,47 @@ impl Editor {
                 self.message = Some(e.to_string());
                 false
             }
+        }
+    }
+
+    /// Field `i` of the open form was typed into: the form holds `text` now. The words on
+    /// screen do not change (the field shows them), so nothing asks for a redraw.
+    pub fn typed(&mut self, i: u8, text: String) {
+        if let Some(form) = &mut self.form {
+            form.typed(usize::from(i), text);
+        }
+    }
+
+    /// Number field `i` of the open form was set outright (a slider).
+    pub fn set_field(&mut self, i: u8, n: i64) {
+        if let Some(form) = &mut self.form {
+            form.set(usize::from(i), n);
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    /// Open `form` at the top of the inspector, in place of any open one.
+    fn open_form(&mut self, form: Form) {
+        self.message = self
+            .form
+            .as_ref()
+            .map(|_| "the open form was replaced".to_owned());
+        self.form = Some(form);
+    }
+
+    /// The open form's Apply: its request made, one undo step, and the form closed; a field
+    /// that does not read, or a refusal, is said and the form stands.
+    fn apply_form(&mut self, data: &Data) {
+        let Some((form, def)) = self.form.as_ref().zip(self.def()) else {
+            return;
+        };
+        match form.request(&def) {
+            Ok(place) => {
+                if self.placed(data, place) {
+                    self.form = None;
+                }
+            }
+            Err(why) => self.message = Some(why),
         }
     }
 
@@ -548,6 +713,102 @@ impl Editor {
                     let (x, y) = self.cursor;
                     let level = self.level;
                     self.edited(data, Edit::Rise { level, x, y, rise });
+                }
+            }
+            EditAct::SetStart => {
+                let (x, y) = self.cursor;
+                let facing = self.facing;
+                self.placed(data, Place::Start { x, y, facing });
+            }
+            EditAct::PlaceKind => {
+                let n = i64::try_from(Placing::ALL.len()).unwrap_or(1);
+                let at = i64::try_from(self.place_kind).unwrap_or(0)
+                    + i64::from(if step == 0 { 1 } else { step });
+                self.place_kind = usize::try_from(at.rem_euclid(n)).unwrap_or(0);
+            }
+            EditAct::Add => {
+                if let Some(def) = self.def()
+                    && let Some(kind) = Placing::ALL.get(self.place_kind)
+                {
+                    self.open_form(Form::placing(*kind, &def, data, self.at()));
+                }
+            }
+            EditAct::EditAt(i) => {
+                let found = self
+                    .here()
+                    .get(usize::from(i))
+                    .zip(self.def())
+                    .and_then(|(here, def)| Form::existing(&here.key, &def, data, self.facing));
+                if let Some(form) = found {
+                    self.open_form(form);
+                }
+            }
+            EditAct::RemoveAt(i) => {
+                if let Some(here) = self.here().get(usize::from(i)) {
+                    let key = here.key.clone();
+                    self.placed(data, Place::Remove(key));
+                }
+            }
+            EditAct::Random => {
+                if let Some(def) = self.def() {
+                    self.open_form(Form::random(&def, self.at()));
+                }
+            }
+            EditAct::RestAdd => {
+                if let Some(def) = self.def() {
+                    self.open_form(Form::rest_event(&def, self.at()));
+                }
+            }
+            EditAct::RestEdit(i) => {
+                let found = self.def().and_then(|def| {
+                    let r = def.rest_events.get(usize::from(i))?;
+                    let key = PlaceKey::RestEvent {
+                        terrain: r.terrain.clone(),
+                        rest: r.rest,
+                    };
+                    Form::existing(&key, &def, data, self.facing)
+                });
+                if let Some(form) = found {
+                    self.open_form(form);
+                }
+            }
+            EditAct::RestRemove(i) => {
+                let key = self.def().and_then(|def| {
+                    def.rest_events
+                        .get(usize::from(i))
+                        .map(|r| PlaceKey::RestEvent {
+                            terrain: r.terrain.clone(),
+                            rest: r.rest,
+                        })
+                });
+                if let Some(key) = key {
+                    self.placed(data, Place::Remove(key));
+                }
+            }
+            EditAct::Field(i) => {
+                if let Some(form) = &mut self.form {
+                    form.step(usize::from(i), step);
+                }
+            }
+            EditAct::ListAdd(l) => {
+                if let Some(form) = &mut self.form
+                    && let Err(why) = form.add_row(l)
+                {
+                    self.message = Some(why);
+                }
+            }
+            EditAct::ListRemove(l, r) => {
+                if let Some(form) = &mut self.form {
+                    form.remove_row(l, r);
+                }
+            }
+            EditAct::Apply => self.apply_form(data),
+            EditAct::Cancel => self.form = None,
+            EditAct::Discard => {
+                if let Some(place) = self.form.as_ref().and_then(|f| f.remove.clone())
+                    && self.placed(data, place)
+                {
+                    self.form = None;
                 }
             }
             EditAct::Undo => self.walk(data, true),

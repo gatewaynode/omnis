@@ -241,3 +241,43 @@ pub fn top(app: &App) -> Option<omnis_vector::screen::ScreenId> {
         .nav
         .top(Some(&session.views))
 }
+
+/// `app` with the window's keyboard path to a text field: focus, dispatch and Bevy's text
+/// input, and a primary window to send the keys from.
+pub fn keyboard_on(mut app: App) -> (App, Entity) {
+    use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
+    app.add_plugins((
+        bevy::asset::AssetPlugin::default(),
+        InputFocusPlugin,
+        InputDispatchPlugin,
+        bevy::text::TextPlugin,
+        bevy::ui_widgets::EditableTextInputPlugin,
+    ))
+    .add_message::<bevy::window::Ime>()
+    .add_message::<bevy::picking::events::Pointer<bevy::picking::events::Release>>()
+    .init_resource::<bevy::ui::UiScale>();
+    let window = app
+        .world_mut()
+        .spawn((Window::default(), bevy::window::PrimaryWindow))
+        .id();
+    (app, window)
+}
+
+/// Type `text` on the keyboard, one key at a time, to whatever has focus.
+pub fn keyboard(app: &mut App, window: Entity, text: &str) {
+    use bevy::input::ButtonState;
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    for c in text.chars() {
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: KeyCode::KeyA,
+                logical_key: Key::Character(c.to_string().into()),
+                state,
+                text: Some(c.to_string().into()),
+                repeat: false,
+                window,
+            });
+            app.update();
+        }
+    }
+}
