@@ -61,12 +61,15 @@ Written 2026-10-24, after M5.7 (the preview) was accepted. Rewrite this file eve
   later when a second kind has engine rules.
 
 ## Next
-1. **Activities in the editor built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/
-   activities.md`: the icons per service kind on the plan and the floor; Add → Activity → Service site).
-2. **M5.8 Playtest** (plan §Client side "Playtest": `Playtesting`, `Session::with_party(&temp, …,
-   party::fixed())` on a cloned `Packs.data` with the resolved map inserted, `DevCommand::Teleport` to the
-   cursor, Pause/Defeat "Back to editor"). Plan mode first.
-3. M5.9 the RON text editor, M5.10 re-authoring. Boundary tools after (owner, 2026-10-24).
+1. **M5.8 Playtest** (plan mode first; plan §Client side "Playtest": lit when the map is valid, the id is
+   interned, devtools built in, and the cursor's cell has ground and is passable; clone `Packs.data`
+   (`Arc::make_mut`), insert the resolved map, `Session::with_party(&temp, seed, settings, &party::fixed())`,
+   `DevCommand::Teleport` to the cursor, insert `Session` + `Playtesting`, `nav.edit(false)`; `Ctx.playtest`
+   dims Save ("a playtest is not saved") and Load on Pause; Pause/Defeat show "Back to editor"
+   (`Effect::ToEditor`: remove `Session`, `nav.edit(true)`); the `Editor` resource untouched; after an editor
+   Save `Packs.data` is reloaded from disk). The activities step was accepted 2026-10-24 ("much better
+   placeholders"); the owner checked out the pack files their hand test had written.
+2. M5.9 the RON text editor, M5.10 re-authoring. Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

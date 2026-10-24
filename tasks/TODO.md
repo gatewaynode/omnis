@@ -219,7 +219,7 @@ no loss, and every later map is built with it.
       `Site` in the Add choice; the site form names its kind ("Service site", `ACTIVITIES`) and service;
       `plan::Mark::Activity(Option<ServiceKind>)` and `geometry::activities(data, map, level, ground)` (from
       `scene::level_of`) draw `icons::service(kind)` (bed, church, dumbbell, anvil, beer, coins, shield), the
-      grinning face for a service the packs lack. Awaiting the owner's hand test.
+      grinning face for a service the packs lack. **Accepted by the owner 2026-10-24.**
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).
   - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.

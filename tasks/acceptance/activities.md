@@ -5,7 +5,7 @@ activities", the things that take the party out of its stride into a decision, e
 in the game. Decided at the M5.7 planning: an editor grouping now, the data's `sites` kept until a second
 kind has engine rules.
 
-**Accepted:** pending the owner's hand test.
+**Accepted by the owner 2026-10-24** ("much better placeholders").
 
 ## What was built
 - **Add → Activity.** The inspector's Add choice reads Portal, Encounter, **Activity**, Object, Ground pile,
