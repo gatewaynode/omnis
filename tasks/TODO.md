@@ -195,7 +195,8 @@ no loss, and every later map is built with it.
       brush at any size), `geometry::icon_on_floor`, `icons::activity()` = Lucide `face-grinning` read once; the
       plan's site mark and the 3D activity mark draw it in place of the hand-made smiley. An image cache for UI
       nodes waits for the first control that takes an icon (a design pass with the owner).
-  - [ ] M5.7 The 3D preview from the cursor; `tasks/acceptance/m5-7.md`. Planned and approved 2026-10-24: an
+  - [x] M5.7 The 3D preview from the cursor; `tasks/acceptance/m5-7.md`. **Accepted by the owner 2026-10-24**
+    after the gating fix ("Arrows, WASD, and 3D view work"). Planned and approved 2026-10-24: an
     `Occupancy` trait so the scene builds with no world, `AsPlaced` for the editor, a second camera on layer 2
     drawing into an image the right column shows. Owner's decision in the planning: **activities** are an editor
     grouping now (Add → Activity → a list, Service site first, an icon per `ServiceKind`), the schema later when
@@ -212,7 +213,8 @@ no loss, and every later map is built with it.
     - [x] Fix (2026-10-24, the owner's first hand test: "an empty viewport"): the preview's systems were in
       `VectorSet::Draw`, gated on a game session; now after `VectorSet::Screens` on the editor's own
       condition, the plugin headless-safe and tested in the shell. "Level…"/"‰" glyphs the font lacks
-      replaced. WASD reported broken: not reproduced (a test with the focus plugins on passes); asked.
+      replaced. WASD reported broken: not reproduced (a test with the focus plugins on passes); the owner
+      found it working after the fix.
     - [ ] Then: activities in the editor (Add → Activity list, icons per `ServiceKind`).
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

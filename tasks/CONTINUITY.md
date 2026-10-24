@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, during M5.7 (the preview), after M5.6 and the icon step were accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.7 (the preview) was accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -48,26 +48,26 @@ Written 2026-10-24, during M5.7 (the preview), after M5.6 and the icon step were
 - History note: the M5.6 acceptance commit had swallowed the staged asset files; the last commits were redone
   (unpushed) so the set has its own commit, the tree unchanged.
 
-## M5.7 built (2026-10-24), awaiting the owner's hand test
-- `45fad59` the scene with no world (`scene::Occupancy`, `Scene::build_from`, `api::placed_on_level`/
-  `standing_as_placed`, `editor/preview.rs`, `render::{colour, fade, fog_end, CREST}` shared); *this commit* the
-  picture (`shell/preview.rs`: a layer-2 camera into an 800×450 image shown as `Column::Preview` over the
-  inspector; `Editor.resolved_at`; `main.rs` adds `(EditorPlugin, PreviewPlugin)` in a second tuple, a tuple
-  holding fifteen plugins at most). `tasks/acceptance/m5-7.md` has five steps; the picture needs the window.
-  **Owner's first hand test (2026-10-24): the picture was empty** because the preview's systems sat in
-  `VectorSet::Draw`, which runs only with a `Session`; fixed (own ordering after `VectorSet::Screens`, own
-  `run_if`, headless-safe plugin tested in the shell; lesson recorded). **WASD reported broken** in the
-  editor: not reproduced (a test with `keyboard_on`'s focus plugins passes); the owner was asked whether the
-  arrows move, whether a form had been opened, where the pointer was. Two glyphs the font lacks replaced.
+## M5.7 accepted (2026-10-24)
+- `45fad59` the scene with no world, `7b19865` the picture, `6438668` the fix (the preview's systems had sat
+  in `VectorSet::Draw`, gated on a `Session`; now after `VectorSet::Screens` on the editor's own condition,
+  the plugin headless-safe and tested in the shell; two glyphs the font lacks replaced). The owner: "Arrows,
+  WASD, and 3D view work" (the WASD report did not reproduce; a focus-plugins test is kept).
+- The owner's hand test saved the town onto `packs/test` itself (canonical layout, comments dropped, resealed
+  0.1.2): told, left to the owner to revert (`git checkout -- packs/test/...`); the gate ran with those two
+  files stashed and restored. Their `.gitignore` and `assets/svg-icons/README.md` edits are theirs.
 - **Owner's decision in the M5.7 planning:** activities are an editor grouping (Add → Activity → a list,
   Service site first, an icon per `ServiceKind`: inn, temple, trainer, smith, tavern, bank, guild); the schema
-  later when a second kind has engine rules. That is the small step after M5.7's acceptance.
+  later when a second kind has engine rules.
 
 ## Next
-1. Report M5.7 (how to try: open the town; the picture at the top right; click cells, Q/E; paint a wall) and
-   await the hand test; bugs with a red test and a lesson.
-2. Activities in the editor; then M5.8 Playtest (plan §Client side "Playtest": `Playtesting`, `Session::
-   with_party(&temp, …, party::fixed())` on a cloned `Packs.data` with the resolved map inserted, Back to editor).
+1. **Activities in the editor** (small step; plan mode first): the inspector's Add choice gains "Activity";
+   choosing it opens a list of kinds (Service site today), the Site form as now; a site's mark on the plan
+   and the floor becomes the icon of its service's `ServiceKind` (propose: inn `bed`, temple `church`, trainer
+   `dumbbell`, smith `hammer`, tavern `beer`, bank `landmark`, guild `shield`; the owner may rename) with the
+   grinning face kept for a service the packs lack. Then M5.8 Playtest (plan §Client side "Playtest").
+2. M5.9 the RON text editor, M5.10 re-authoring (the four maps' comments to notes: the owner's accidental
+   save shows the layout the writer makes). Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
