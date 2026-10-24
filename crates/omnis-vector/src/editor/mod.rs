@@ -151,6 +151,9 @@ pub struct Editor {
     pub resolved: Option<MapData>,
     /// Counts every change the layer should redraw for.
     pub revision: u64,
+    /// The revision at which `resolved` last changed: the preview's scene is rebuilt on it, not
+    /// on every move of the cursor (M5.7).
+    pub resolved_at: u64,
     /// The brush a click paints with.
     pub tool: Tool,
     /// The height brush's height, in eighths.
@@ -202,6 +205,7 @@ impl Editor {
             message: None,
             resolved: None,
             revision: 0,
+            resolved_at: 0,
             tool: Tool::Clear,
             eighths: 0,
             stroke: None,
@@ -250,7 +254,10 @@ impl Editor {
             return;
         };
         match MapData::resolve(&def, data) {
-            Ok(map) => self.resolved = Some(map),
+            Ok(map) => {
+                self.resolved = Some(map);
+                self.resolved_at = self.revision;
+            }
             Err(errors) => {
                 if let Some(first) = errors.first() {
                     self.message = Some(first.to_string());

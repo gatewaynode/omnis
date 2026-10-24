@@ -204,8 +204,11 @@ no loss, and every later map is built with it.
       &dyn Occupancy)`; `api::placed_on_level`/`standing_as_placed` (hidden objects shown); `editor/preview.rs`
       (`AsPlaced`, `scene`, `map_id`, `pose`, `look`, `SIGHT`); `render::{colour, fade, fog_end, CREST}` shared.
       Tests `tests/editor_preview.rs` (3), the engine's as-placed test.
-    - [ ] 2 `shell/preview.rs` (layer 2 camera into an image, `PreviewGizmos`, `Preview` resource keyed on
-      revision, level, cursor, facing), the preview node over the inspector; acceptance steps.
+    - [x] 2 (2026-10-24) `shell/preview.rs`: `PreviewTarget`, `PreviewCamera` (layer 2, into an 800×450 image,
+      on while `Editing` exists), `PreviewGizmos`, `PreviewFills`, `Preview { scene_key: (resolved_at, level),
+      scene }`, `rebuild`/`place`/`draw` in `VectorSet::Draw`; `Editor.resolved_at`; `Column::Preview` over
+      `Column::Inspector` in a right column node; `main.rs` adds `(EditorPlugin, PreviewPlugin)`. Acceptance
+      steps 2–5 for the owner's window.
     - [ ] Then: activities in the editor (Add → Activity list, icons per `ServiceKind`).
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

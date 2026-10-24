@@ -57,6 +57,8 @@ pub enum Column {
     Plan,
     /// The attribute bar over the plan (M5.6).
     Bar,
+    /// The preview's picture over the inspector (M5.7); only with a renderer.
+    Preview,
     /// The inspector, right.
     Inspector,
 }
@@ -119,8 +121,13 @@ impl Plugin for EditorPlugin {
     }
 }
 
-fn enter(mut commands: Commands, mut drawn: ResMut<Drawn>) {
+fn enter(
+    mut commands: Commands,
+    mut drawn: ResMut<Drawn>,
+    picture: Option<Res<super::preview::PreviewTarget>>,
+) {
     *drawn = Drawn::default();
+    let picture = picture.map(|p| p.0.clone());
     commands
         .spawn((
             EditorRoot,
@@ -184,20 +191,53 @@ fn enter(mut commands: Commands, mut drawn: ResMut<Drawn>) {
                     ))
                     .with_children(plan_nodes);
             });
+            // The right: the preview's picture (with a renderer) over the inspector.
             root.spawn((
-                Column::Inspector,
                 Node {
                     flex_direction: FlexDirection::Column,
                     flex_shrink: 0.0,
                     width: Val::Px(INSPECTOR),
-                    padding: UiRect::all(Val::Px(12.0)),
-                    row_gap: Val::Px(8.0),
+                    min_height: Val::Px(0.0),
                     border: UiRect::left(Val::Px(1.0)),
-                    overflow: Overflow::clip(),
                     ..default()
                 },
                 BorderColor::all(colour(Role::Dim)),
-            ));
+            ))
+            .with_children(|right| {
+                if let Some(image) = picture {
+                    let width = INSPECTOR - 24.0;
+                    right.spawn((
+                        Column::Preview,
+                        ImageNode::new(image),
+                        Node {
+                            width: Val::Px(width),
+                            height: Val::Px(super::preview::picture_height(width)),
+                            margin: UiRect::new(
+                                Val::Px(12.0),
+                                Val::Px(12.0),
+                                Val::Px(12.0),
+                                Val::Px(0.0),
+                            ),
+                            flex_shrink: 0.0,
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BorderColor::all(colour(Role::Dim)),
+                    ));
+                }
+                right.spawn((
+                    Column::Inspector,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        min_height: Val::Px(0.0),
+                        padding: UiRect::all(Val::Px(12.0)),
+                        row_gap: Val::Px(8.0),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    },
+                ));
+            });
         });
 }
 
@@ -596,7 +636,7 @@ fn refresh(
             Column::Tools => (&tools, &mut drawn.tools),
             Column::Bar => (&bar, &mut drawn.bar),
             Column::Inspector => (&inspector, &mut drawn.inspector),
-            Column::Plan => continue,
+            Column::Plan | Column::Preview => continue,
         };
         let need = need(last.as_ref(), want, bucket);
         if need == Need::Nothing {

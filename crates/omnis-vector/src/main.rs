@@ -24,6 +24,7 @@ use omnis_vector::shell::{
     hud::HudPlugin,
     minimap::MinimapPlugin,
     movement::MovementPlugin,
+    preview::PreviewPlugin,
     render::RenderPlugin,
     screen::ScreenPlugin,
     settings::{Current, SettingsPlugin},
@@ -158,8 +159,9 @@ fn main() -> AppExit {
         CombatPlugin,
         CombatViewPlugin,
         CapturePlugin,
-        EditorPlugin,
     ));
+    // The editor and its preview (M5.4, M5.7); a tuple of plugins holds fifteen at most.
+    app.add_plugins((EditorPlugin, PreviewPlugin));
     app.run()
 }
 

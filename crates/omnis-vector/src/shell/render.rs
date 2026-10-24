@@ -22,14 +22,14 @@ use omnis_sim::omnis_core::{Level, MapId};
 /// Cells beyond the visibility depth before a line has faded out completely.
 const FOG_EXTRA: f32 = 2.0;
 /// Line width in logical pixels.
-const LINE_WIDTH: f32 = 2.0;
+pub(super) const LINE_WIDTH: f32 = 2.0;
 /// How far the lines are drawn toward the camera, so a wall's own edges and the floor grid are
 /// not hidden by the face they lie on: the gizmos' bias, a power of the depth (presentation-
 /// ARCHITECTURE.md §8.2). Tuned on the captures.
-const LINE_DEPTH_BIAS: f32 = -0.002;
+pub(super) const LINE_DEPTH_BIAS: f32 = -0.002;
 /// Vertical field of view, radians: about 55°, which gives roughly 90° across 16:9 and 128°
 /// across 32:9.
-const FOV: f32 = 0.96;
+pub(super) const FOV: f32 = 0.96;
 
 /// The party's level of the current map with its neighbours, rebuilt when the map or the level
 /// changes or a door moves.

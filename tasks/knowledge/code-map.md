@@ -270,4 +270,10 @@ is the body, `Scene::build` the game's wrapper. Engine: `objects_view::placed_on
 (placed state, hidden shown, the map's piles) and `beings::standing_as_placed`, both in `api`. `editor/preview.rs`:
 `AsPlaced { map }`, `SIGHT` 8, `map_id(data, map)`, `scene(data, map, level)`, `pose(cursor, facing)`,
 `look(scene, pose) -> (eye, yaw)`. `shell/render.rs`: `colour`, `CREST`, `fog_end`, `fade(distance, sight)` are
-`pub(super)` for the preview's draw. Tests `tests/editor_preview.rs`.
+`pub(super)` for the preview's draw. Tests `tests/editor_preview.rs`. `shell/preview.rs`:
+`PreviewTarget(Handle<Image>)`, `PreviewCamera` (layer `LAYER` 2, `SIZE` 800×450, `Camera { is_active, order: -1 }`
+switched by `switch::<ON>` on `Editing` added/removed), `PreviewGizmos`, `PreviewFills`, `Preview { scene_key:
+(resolved_at, level), scene }`; `rebuild` → `preview::scene`, `place` → `preview::look` + `render::rotation`,
+`draw` → `render::{colour, fade, fog_end, CREST}` with `preview::SIGHT`; `picture_height(width)`. `Editor.resolved_at`
+stamps the revision at which `resolved` last changed. The editor's right column is a node holding `Column::Preview`
+(an `ImageNode` of the target when `PreviewTarget` exists) over `Column::Inspector`.

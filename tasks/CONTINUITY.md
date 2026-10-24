@@ -48,27 +48,24 @@ Written 2026-10-24, during M5.7 (the preview), after M5.6 and the icon step were
 - History note: the M5.6 acceptance commit had swallowed the staged asset files; the last commits were redone
   (unpushed) so the set has its own commit, the tree unchanged.
 
-## In hand: M5.7, the 3D preview (plan approved 2026-10-24)
-- **Commit 1 (this commit)**: the scene with no world, as `tasks/acceptance/m5-7.md` §1 and the code-map say.
-- **Commit 2 (next)**: `shell/preview.rs` (windowed-only, added in `main.rs` beside `RenderPlugin`):
-  `PreviewTarget(Handle<Image>)` at startup (`Image::new_target_texture(800, 450, Bgra8UnormSrgb, None)`);
-  `PreviewCamera` (`Camera3d`, `Camera { is_active: false, order: -1, target: RenderTarget::Image(..) }`, `Hdr`,
-  `Tonemapping::None`, the view's `Bloom` and `Projection`, `RenderLayers::layer(2)`), active while `Editing`
-  exists, never `IsDefaultUiCamera`; `PreviewGizmos` group (`render_layers` layer 2, width 2, the view's depth
-  bias); `PreviewFills` (the view's black unlit mesh, layer 2); `Preview { key: Option<(u64, Level, (u16, u16),
-  Facing)>, scene }`; systems in `VectorSet::Draw` while `Editing` exists: `rebuild` (key = revision, level,
-  cursor, facing; `preview::scene` from `editing.resolved` when some), `place` (the camera at `preview::look`, no
-  easing), `draw` (`Gizmos<PreviewGizmos>`, `render::colour`, `render::fade` with `preview::SIGHT`, the crests
-  with `fog_end`). The editor's right column (`shell/editor.rs::enter`) becomes a column node: `Column::Preview`
-  (an `ImageNode` of the target when `PreviewTarget` exists, width `INSPECTOR − 24`, height 9/16, a dim border;
-  headless no node) above `Column::Inspector`. The fight camera (`shell/combat.rs`, layer 1, `CombatGizmos`,
-  `cameras::<FIGHT>`) is the precedent. Then the acceptance's §2 and steps 2–4, TODO, code-map, continuity.
-- **After M5.7**: activities in the editor (Add → Activity list, icons per `ServiceKind`: inn, temple, trainer,
-  smith, tavern, bank, guild); then M5.8 Playtest.
+## M5.7 built (2026-10-24), awaiting the owner's hand test
+- `45fad59` the scene with no world (`scene::Occupancy`, `Scene::build_from`, `api::placed_on_level`/
+  `standing_as_placed`, `editor/preview.rs`, `render::{colour, fade, fog_end, CREST}` shared); *this commit* the
+  picture (`shell/preview.rs`: a layer-2 camera into an 800×450 image shown as `Column::Preview` over the
+  inspector; `Editor.resolved_at`; `main.rs` adds `(EditorPlugin, PreviewPlugin)` in a second tuple, a tuple
+  holding fifteen plugins at most). `tasks/acceptance/m5-7.md` has five steps; the picture needs the window.
+  Untested in a window by me (a windowed launch from this shell never ticks): the owner's hand test decides;
+  the likely risks are the UI not showing the image (the `ImageNode` of a render target) and the camera
+  order; the scene is proven headless.
+- **Owner's decision in the M5.7 planning:** activities are an editor grouping (Add → Activity → a list,
+  Service site first, an icon per `ServiceKind`: inn, temple, trainer, smith, tavern, bank, guild); the schema
+  later when a second kind has engine rules. That is the small step after M5.7's acceptance.
 
 ## Next
-1. M5.7 commit 2 (above), then report with how to try (open the town, click cells, Q/E; paint a wall).
-2. Activities in the editor; M5.8 to M5.10. Boundary tools after (owner, 2026-10-24).
+1. Report M5.7 (how to try: open the town; the picture at the top right; click cells, Q/E; paint a wall) and
+   await the hand test; bugs with a red test and a lesson.
+2. Activities in the editor; then M5.8 Playtest (plan §Client side "Playtest": `Playtesting`, `Session::
+   with_party(&temp, …, party::fixed())` on a cloned `Packs.data` with the resolved map inserted, Back to editor).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
