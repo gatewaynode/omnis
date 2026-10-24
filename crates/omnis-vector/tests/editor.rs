@@ -199,13 +199,16 @@ fn a_rebuilt_tools_column_keeps_its_scroll() {
         .0
         .y = 120.0;
     app.update();
-    // Stepping the height changes the column's screen, which rebuilds the column.
+    // Stepping the height changes the column's words only (M5.6): its nodes stand, scrolled.
     arrow(&mut app, EditAct::Eighths, true);
     assert_eq!(editing(&app).eighths, 1);
+    assert_eq!(tools_panel(&mut app), (panel, 120.0), "the nodes stand");
+    // A paint wakes Undo, which changes the column's shape: it is rebuilt where it stood.
+    arrow(&mut app, EditAct::CellHeight, true);
     let (rebuilt, y) = tools_panel(&mut app);
     assert_ne!(rebuilt, panel, "the column was rebuilt");
     assert_eq!(y, 120.0, "where it stood");
-    // By key too, and again.
+    // By key too, on the rebuilt column.
     tap(&mut app, KeyCode::Equal);
     app.update();
     assert_eq!(editing(&app).eighths, 2);

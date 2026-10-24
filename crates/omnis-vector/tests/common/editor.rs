@@ -11,13 +11,24 @@ use omnis_sim::omnis_core::Facing;
 use omnis_vector::editor::EditAct;
 use omnis_vector::screen::ControlId;
 use omnis_vector::shell::editor::{Column, Editing};
-use omnis_vector::shell::screen::{Arrow, EditorPress};
+use omnis_vector::shell::screen::{Arrow, EditorPress, Scrolls};
 use omnis_vector::shell::session::Config;
+use std::path::PathBuf;
 
 /// The shell started in the editor with `map` open, on the shipped packs.
 pub fn in_editor(map: &str) -> App {
+    in_editor_on(&[], map)
+}
+
+/// The shell started in the editor with `map` open, on the shipped packs and the fixture
+/// packs at `extra` (paths from the repository's root).
+pub fn in_editor_on(extra: &[&str], map: &str) -> App {
+    let mut packs = config().packs;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    packs.extend(extra.iter().map(|p| root.join(p)));
     let mut app = shell(
         Config {
+            packs,
             editor: Some(Some(map.to_owned())),
             ..config()
         },
@@ -25,6 +36,23 @@ pub fn in_editor(map: &str) -> App {
     );
     app.update();
     app
+}
+
+/// The scrolling panel of `column`, and how far it is scrolled.
+pub fn panel(app: &mut App, column: Column) -> (Entity, f32) {
+    let world = app.world_mut();
+    let mut panels = world.query_filtered::<(Entity, &ScrollPosition), With<Scrolls>>();
+    let found: Vec<(Entity, f32)> = panels.iter(world).map(|(e, at)| (e, at.0.y)).collect();
+    for (panel, y) in found {
+        let mut up = panel;
+        while let Some(parent) = world.get::<ChildOf>(up) {
+            up = parent.0;
+            if world.get::<Column>(up) == Some(&column) {
+                return (panel, y);
+            }
+        }
+    }
+    panic!("the {column:?} column has a scrolling panel")
 }
 
 pub fn editing(app: &App) -> &Editing {

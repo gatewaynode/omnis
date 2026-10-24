@@ -446,6 +446,7 @@ impl<'a> Look<'a> {
             kind: Kind::Text {
                 value: self.text(num),
                 max: DIGITS,
+                lines: 1,
             },
             why_not: None,
         }

@@ -129,15 +129,28 @@ no loss, and every later map is built with it.
     - [x] Fix (2026-10-24, the owner's third report): every height step rebuilt the tools column unscrolled;
       a rebuilt column keeps its panel's scroll (`Drawn.scrolls`, restored to the panel added next frame).
       Red test `a_rebuilt_tools_column_keeps_its_scroll`.
-    - [ ] Proposed (owner 2026-10-24), for the M5.6 plan: a **fixed tool bar** carrying the attributes every
+    - [x] Proposed (owner 2026-10-24), for the M5.6 plan: a **fixed tool bar** carrying the attributes every
       cell has (height first, later the rest), always in reach instead of a row among the brushes; the
-      owner suggested the top of the window. Decide its place and contents with M5.6's forms.
+      owner suggested the top of the window. Built as M5.6a, the attribute bar over the plan (owner's choice
+      of place 2026-10-24).
     - [ ] Deferred (owner 2026-10-24, after M5.6 at the earliest): **boundary tools** beyond the edge brush. The
       owner wants both a **point-by-point** tool (click corner after corner, the run of walls follows) and a
       **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the
       line is snapped to the grid's corners and rasterised onto cell sides, the result previewed in the hover
       colour before it is taken, one undo step. The nearest-side edge brush and its hover stand meanwhile.
-  - [ ] M5.6 Placements, terrains, levels and notes forms.
+  - [ ] M5.6 Placements, terrains, levels and notes forms; `tasks/acceptance/m5-6.md`. Planned 2026-10-24 (plan
+    mode, approved): the owner chose the bar above the plan and **dedicated row editors** for list fields
+    (stacks, contents, items, the random table) over RON text.
+    - [x] 6a (2026-10-24) The attribute bar over the plan (`view::bar`, `Column::Bar`, `ScreenId::EditorBar`):
+      the cursor's cell's terrain, height and stair rise stepped where they stand, one undo step each
+      (`EditAct::{CellTerrain, CellHeight, CellRise}`). A column whose words change keeps its nodes
+      (`OfScreen` markers, `sync` shared with the screens); the field with the keyboard keeps it through a
+      rebuild; a plan click takes the keyboard from a field. `Kind::Text.lines`; editor fields carry
+      `EditorPress`. Tests `tests/editor_forms.rs` (3), four mutations killed.
+    - [ ] 6b The generic form (`editor/form.rs`) and the placements (`forms.rs`): Add/Edit/Remove at the cursor,
+      Set start here, the random table, rest events; typed text to the editor.
+    - [ ] 6c Terrain add/edit/remove, levels add/edit/remove, notes (cell, level, map) on the multi-line field;
+      documents.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

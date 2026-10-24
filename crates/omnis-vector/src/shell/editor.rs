@@ -1,9 +1,10 @@
 //! The editor's layer (M5.4; `tasks/plans/m5-editor-v1.md` §Client side, presentation-ARCHITECTURE
 //! §6): while the `Editing` resource is there, three columns stand in place of the 3D view:
 //! the tools (a kit screen), the plan (the Bevy-free raster in one image node, with the cursor
-//! as a bordered node over it) and the inspector (a kit screen). Built like the fight screen:
-//! the columns are rebuilt only when their screen changed, the plan repainted only when what
-//! it shows changed. The pointer paints (M5.5): a left click paints the brush at what the
+//! as a bordered node over it, and since M5.6 the attribute bar over it, a kit screen) and the
+//! inspector (a kit screen). Built like the fight screen: a column is rebuilt only when its
+//! screen's shape changed and its words are rewritten in place when only they did (so a
+//! field keeps its caret), the plan repainted only when what it shows changed. The pointer paints (M5.5): a left click paints the brush at what the
 //! pointer aims at (`Editor::aim`, shown as a hover over the plan before the click) and a drag
 //! is one stroke, a right click picks what is there. The editor
 //! runs with no `Session`, so nothing of the game moves or draws; its menu is a screen of the
@@ -12,12 +13,12 @@
 
 use super::VectorSet;
 use super::screen::{Arrow, Screens};
-use super::screen_draw::{EditorPress, Mark, Scrolls, build, colour, shade};
+use super::screen_draw::{EditorPress, Mark, Placed, Scrolls, build, colour, shade, sync};
 use super::session::Packs;
 use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
 use crate::editor::{Asked, EditAct, Editor, view};
-use crate::screen::{ControlId, Screen, ScreenId};
+use crate::screen::{ControlId, Kind, Screen, ScreenId};
 use crate::style::{Role, scaled};
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
@@ -54,6 +55,8 @@ pub enum Column {
     Tools,
     /// The plan's pane, centre.
     Plan,
+    /// The attribute bar over the plan (M5.6).
+    Bar,
     /// The inspector, right.
     Inspector,
 }
@@ -84,6 +87,7 @@ type Hover = (&'static mut Node, &'static mut BackgroundColor);
 #[derive(Resource, Debug, Default)]
 struct Drawn {
     tools: Option<(Screen, u32)>,
+    bar: Option<(Screen, u32)>,
     inspector: Option<(Screen, u32)>,
     plan: Option<(u64, (u32, u32))>,
     hover: Option<(Option<Target>, u64, (u32, u32))>,
@@ -144,50 +148,41 @@ fn enter(mut commands: Commands, mut drawn: ResMut<Drawn>) {
                 },
                 BorderColor::all(colour(Role::Dim)),
             ));
-            root.spawn((
-                Column::Plan,
-                RelativeCursorPosition::default(),
-                Node {
-                    flex_grow: 1.0,
-                    min_width: Val::Px(0.0),
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
-                BackgroundColor(Color::BLACK),
-            ))
-            .with_children(|pane| {
-                pane.spawn((
-                    PlanImage,
-                    ImageNode::default(),
+            // The centre: the bar over the plan.
+            root.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                flex_grow: 1.0,
+                min_width: Val::Px(0.0),
+                ..default()
+            })
+            .with_children(|centre| {
+                centre.spawn((
+                    Column::Bar,
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(0.0),
-                        top: Val::Px(0.0),
+                        flex_direction: FlexDirection::Column,
+                        flex_shrink: 0.0,
+                        padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                        row_gap: Val::Px(6.0),
+                        border: UiRect::bottom(Val::Px(1.0)),
+                        overflow: Overflow::clip(),
                         ..default()
                     },
+                    BorderColor::all(colour(Role::Dim)),
                 ));
-                pane.spawn((
-                    PlanCursor,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        border: UiRect::all(Val::Px(2.0)),
-                        display: Display::None,
-                        ..default()
-                    },
-                    BorderColor::all(colour(Role::Interface)),
-                    Pickable::IGNORE,
-                ));
-                pane.spawn((
-                    PlanHover,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        display: Display::None,
-                        ..default()
-                    },
-                    BorderColor::all(colour(Role::Caution)),
-                    BackgroundColor(Color::NONE),
-                    Pickable::IGNORE,
-                ));
+                centre
+                    .spawn((
+                        Column::Plan,
+                        RelativeCursorPosition::default(),
+                        Node {
+                            flex_grow: 1.0,
+                            min_width: Val::Px(0.0),
+                            min_height: Val::Px(0.0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                    ))
+                    .with_children(plan_nodes);
             });
             root.spawn((
                 Column::Inspector,
@@ -204,6 +199,42 @@ fn enter(mut commands: Commands, mut drawn: ResMut<Drawn>) {
                 BorderColor::all(colour(Role::Dim)),
             ));
         });
+}
+
+/// The plan's nodes under its pane: the picture, the cursor and the hover.
+fn plan_nodes(pane: &mut ChildSpawnerCommands) {
+    pane.spawn((
+        PlanImage,
+        ImageNode::default(),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            top: Val::Px(0.0),
+            ..default()
+        },
+    ));
+    pane.spawn((
+        PlanCursor,
+        Node {
+            position_type: PositionType::Absolute,
+            border: UiRect::all(Val::Px(2.0)),
+            display: Display::None,
+            ..default()
+        },
+        BorderColor::all(colour(Role::Interface)),
+        Pickable::IGNORE,
+    ));
+    pane.spawn((
+        PlanHover,
+        Node {
+            position_type: PositionType::Absolute,
+            display: Display::None,
+            ..default()
+        },
+        BorderColor::all(colour(Role::Caution)),
+        BackgroundColor(Color::NONE),
+        Pickable::IGNORE,
+    ));
 }
 
 fn leave(mut commands: Commands, roots: Query<Entity, With<EditorRoot>>, mut drawn: ResMut<Drawn>) {
@@ -229,11 +260,49 @@ pub fn act(editing: &mut Editing, packs: &mut Packs, act: EditAct, step: i8) -> 
     asked
 }
 
-/// Whether the tools column offers `act` now: a dim control takes no press.
+/// Whether the columns offer `act` now: a dim control takes no press.
 fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> bool {
-    view::tools(editing, data)
-        .control(ControlId::Edit(act))
-        .is_none_or(|c| c.why_not.is_none())
+    let id = ControlId::Edit(act);
+    [
+        view::tools(editing, data),
+        view::bar(editing, data),
+        view::inspector(editing, data),
+    ]
+    .iter()
+    .find_map(|s| s.control(id).map(|c| c.why_not.is_none()))
+    .unwrap_or(true)
+}
+
+/// The first text field of `screen`, which takes the keyboard when the screen is drawn anew.
+fn first_field(screen: &Screen) -> Option<ControlId> {
+    screen
+        .controls()
+        .find(|c| matches!(c.kind, Kind::Text { .. }))
+        .map(|c| c.id)
+}
+
+/// What a column needs this frame: nothing, its words rewritten, or its nodes built anew.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Need {
+    Nothing,
+    Words,
+    Nodes,
+}
+
+/// Whether the column drawn as `last` shows `want` already, needs only its words rewritten
+/// (the same shape and height bucket, an outcome line in both or neither) or is built anew.
+fn need(last: Option<&(Screen, u32)>, want: &Screen, bucket: u32) -> Need {
+    match last {
+        Some((s, h)) if *h == bucket && s == want => Need::Nothing,
+        Some((s, h))
+            if *h == bucket
+                && s.shape() == want.shape()
+                && s.message.is_some() == want.message.is_some() =>
+        {
+            Need::Words
+        }
+        _ => Need::Nodes,
+    }
 }
 
 /// The hover node over `aim`: a cell's rectangle as a thin outline, an edge as a filled bar
@@ -304,7 +373,8 @@ const DIGITS: [KeyCode; 9] = [
 /// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it, the
 /// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
-/// screens' (`Nav::escape` opens the menu).
+/// screens' (`Nav::escape` opens the menu). A click on the plan while a field has the keyboard
+/// takes it from the field: clicking elsewhere is the way out of a field.
 #[allow(clippy::too_many_arguments)]
 fn route(
     buttons: Query<(&Interaction, &EditorPress), Changed<Interaction>>,
@@ -313,7 +383,7 @@ fn route(
     mouse: Res<ButtonInput<MouseButton>>,
     pane: Query<(&RelativeCursorPosition, &ComputedNode), With<Column>>,
     interactions: Query<&Interaction>,
-    focus: Option<Res<InputFocus>>,
+    focus: Option<ResMut<InputFocus>>,
     fields: Query<(), With<EditableText>>,
     mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
@@ -342,7 +412,7 @@ fn route(
     {
         asked = act(&mut editing, &mut packs, a, step);
     }
-    if !covered && !typing {
+    if !covered {
         let plan = pane.iter().find(|(c, _)| c.cursor_over()).map(|(c, node)| {
             (
                 c.normalized.unwrap_or_default(),
@@ -361,6 +431,14 @@ fn route(
             editing.hover = target;
         }
         if let Some(target) = target {
+            let clicked =
+                mouse.just_pressed(MouseButton::Left) || mouse.just_pressed(MouseButton::Right);
+            if clicked
+                && typing
+                && let Some(mut focus) = focus
+            {
+                focus.clear();
+            }
             if mouse.just_pressed(MouseButton::Right) {
                 editing.pick(target);
             } else if mouse.just_pressed(MouseButton::Left) {
@@ -374,6 +452,8 @@ fn route(
         if !mouse.pressed(MouseButton::Left) {
             editing.end_stroke();
         }
+    }
+    if !covered && !typing {
         let held = |list: [KeyCode; 2]| keys.any_pressed(list);
         let command = held([KeyCode::SuperLeft, KeyCode::SuperRight])
             || held([KeyCode::ControlLeft, KeyCode::ControlRight]);
@@ -436,7 +516,9 @@ fn route(
     }
 }
 
-/// Rebuild a column whose screen changed, and repaint the plan when what it shows changed.
+/// Redraw a column whose screen changed (its words in place when its shape stands, its nodes
+/// anew otherwise; the field with the keyboard keeps it), and repaint the plan when what it
+/// shows changed.
 #[allow(clippy::too_many_arguments)]
 fn refresh(
     mut commands: Commands,
@@ -452,6 +534,9 @@ fn refresh(
     mut hovers: Query<Hover, With<PlanHover>>,
     mut panels: Query<(Entity, &mut ScrollPosition), With<Scrolls>>,
     parents: Query<&ChildOf>,
+    mut placed: Query<Placed>,
+    focus: Option<Res<InputFocus>>,
+    fields: Query<&EditorPress, With<EditableText>>,
 ) {
     let column_of = |panel: Entity| {
         parents
@@ -478,20 +563,34 @@ fn refresh(
     let pane = pane_size(pane_node, &editing);
     editing.laid_out(pane);
     let tools = view::tools(&editing, data);
+    let bar = view::bar(&editing, data);
     let inspector = view::inspector(&editing, data);
+    let focused = focus
+        .as_ref()
+        .and_then(|f| f.get())
+        .and_then(|e| fields.get(e).ok())
+        .map(|p| p.0);
     for (entity, column, _) in &columns {
         let (want, last) = match column {
             Column::Tools => (&tools, &mut drawn.tools),
+            Column::Bar => (&bar, &mut drawn.bar),
             Column::Inspector => (&inspector, &mut drawn.inspector),
             Column::Plan => continue,
         };
-        if last
-            .as_ref()
-            .is_some_and(|(s, h)| s == want && *h == bucket)
-        {
+        let need = need(last.as_ref(), want, bucket);
+        if need == Need::Nothing {
             continue;
         }
         *last = Some((want.clone(), bucket));
+        if need == Need::Words {
+            sync(want, &mut placed);
+            continue;
+        }
+        // The field that has the keyboard keeps it through the rebuild when the column still
+        // has it; a column drawn with fields anew gives it to the first.
+        let keep = focused
+            .filter(|id| want.control(*id).is_some())
+            .or_else(|| first_field(want));
         if let Some(y) = panels
             .iter()
             .find(|(p, _)| column_of(*p) == Some(*column))
@@ -503,7 +602,7 @@ fn refresh(
         commands.entity(entity).despawn_related::<Children>();
         commands
             .entity(entity)
-            .with_children(|p| build(p, want, (height, Mark::Editor), None));
+            .with_children(|p| build(p, want, (height, Mark::Editor), keep));
     }
     let hover_key = (editing.hover, editing.revision, pane);
     if drawn.hover != Some(hover_key) {

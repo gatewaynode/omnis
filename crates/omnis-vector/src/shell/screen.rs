@@ -16,8 +16,7 @@ pub use super::screen_draw::{
     Arrow, EditorPress, FightPress, Pressable, Scrolls, Side, SliderOf, colour, shade,
 };
 use super::screen_draw::{
-    LabelOf, Mark, MessageText, SCROLL_FOOT, SpanAt, TitleText, bars, build, shown_label,
-    text_field, thumbs, wheel, width,
+    Mark, Placed, SCROLL_FOOT, bars, build, sync, text_field, thumbs, wheel, width,
 };
 use super::session::{Packs, Session, StartScreen};
 use super::settings::{Current, Fitted};
@@ -449,13 +448,15 @@ fn applied(
         Err(_) if matches!(payload, Payload::Text(_)) => {
             // Text the form refused: the field shows what the form holds again.
             if let Some(Control {
-                kind: Kind::Text { value, max },
+                kind: Kind::Text { value, max, lines },
                 ..
             }) = screen.control(id)
             {
                 for (entity, _, p) in &used.fields {
                     if p.0 == id {
-                        commands.entity(entity).insert(text_field(value, *max));
+                        commands
+                            .entity(entity)
+                            .insert(text_field(value, *max, *lines));
                     }
                 }
             }
@@ -725,16 +726,6 @@ fn host_op(
     }
 }
 
-/// A screen's words on screen: the heading, a span, a control's label or the outcome, by marker.
-type Placed = (
-    &'static mut Text,
-    &'static mut TextColor,
-    Option<&'static TitleText>,
-    Option<&'static SpanAt>,
-    Option<&'static LabelOf>,
-    Option<&'static MessageText>,
-);
-
 /// Draw the top screen: rebuilt when its shape, its outcome line or the window height changed,
 /// its words rewritten in place when only they did.
 #[allow(clippy::too_many_arguments)]
@@ -826,46 +817,6 @@ fn paint(
         }
     }
     screens.drawn = Some((screen, bucket));
-}
-
-/// The words and role a placed text should show now, or `None` when the screen has no such text.
-fn wanted(
-    screen: &Screen,
-    title: Option<&TitleText>,
-    span: Option<&SpanAt>,
-    label: Option<&LabelOf>,
-    message: Option<&MessageText>,
-) -> Option<(String, Role)> {
-    if title.is_some() {
-        return Some((screen.title.text.clone(), screen.title.role));
-    }
-    if let Some(at) = span {
-        let span = screen.panels.get(at.0)?.rows.get(at.1)?.span(at.2)?;
-        return Some((span.text.clone(), span.role));
-    }
-    if let Some(of) = label {
-        let c = screen.control(of.0)?;
-        let role = if c.why_not.is_some() {
-            Role::Dim
-        } else {
-            Role::Interface
-        };
-        return Some((shown_label(&screen.keys, c), role));
-    }
-    message?;
-    screen.message.as_ref().map(|m| (m.text.clone(), m.role))
-}
-
-/// Rewrite the words of a screen whose shape is unchanged.
-fn sync(screen: &Screen, placed: &mut Query<Placed>) {
-    for (mut text, mut tint, title, span, label, message) in placed.iter_mut() {
-        if let Some((words, role)) = wanted(screen, title, span, label, message) {
-            if text.0 != words {
-                text.0 = words;
-            }
-            tint.0 = colour(role);
-        }
-    }
 }
 
 /// Set each slider to the number its control holds, so a slider follows the arrows and a move

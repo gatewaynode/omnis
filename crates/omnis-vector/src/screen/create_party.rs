@@ -147,6 +147,7 @@ pub fn content(data: &Data, game: Game, form: &CreateForm) -> Screen {
             kind: Kind::Text {
                 value: form.name.clone(),
                 max: view.name_max,
+                lines: 1,
             },
             why_not: None,
         }]),

@@ -1,7 +1,7 @@
 //! The editor's columns as kit screens (M5.4): the tools on the left (with the brushes, Undo
-//! and Redo, Save and Revert since M5.5) and the inspector on the right, described like any
-//! screen (`crate::screen`) and drawn by the screens' renderer under the editor's own mark.
-//! Bevy-free.
+//! and Redo, Save and Revert since M5.5), the attribute bar over the plan (M5.6) and the
+//! inspector on the right, described like any screen (`crate::screen`) and drawn by the
+//! screens' renderer under the editor's own mark. Bevy-free.
 
 use super::brush::{self, Tool};
 use super::{EditAct, Editor};
@@ -190,6 +190,68 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         panels: vec![Panel { rows }],
         keys: Vec::new(),
         message: editor.message.clone().map(Span::alert),
+    }
+}
+
+/// The attribute bar over the plan (M5.6): the cursor's cell and the attributes every cell has,
+/// always in reach wherever the tools column is scrolled: its terrain (or no ground), its
+/// height in eighths and, when it is a stair, the way it climbs. A step paints the cell, one
+/// undo step each.
+#[must_use]
+pub fn bar(editor: &Editor, data: &Data) -> Screen {
+    let def = editor.def();
+    let no_map = def.is_none().then_some("open a map first");
+    let (x, y) = editor.cursor;
+    let title = match &def {
+        Some(_) => format!(
+            "Cell ({x}, {y})  level {}",
+            level_label(editor, data, editor.level)
+        ),
+        None => "No map is open.".to_owned(),
+    };
+    let mut terrains: Vec<String> = def
+        .as_ref()
+        .map(|d| {
+            d.terrains
+                .iter()
+                .map(|t| format!("{} {}", t.glyph, t.name))
+                .collect()
+        })
+        .unwrap_or_default();
+    let at = editor.cell_terrain().map_or(terrains.len(), usize::from);
+    terrains.push("no ground".to_owned());
+    let heights: Vec<String> = brush::EIGHTHS.map(|h| h.to_string()).collect();
+    let height_at = usize::try_from(
+        i32::from(brush::held(editor.cell_height())) - i32::from(*brush::EIGHTHS.start()),
+    )
+    .unwrap_or(0);
+    let edit = |act| ControlId::Edit(act);
+    let mut controls = vec![
+        dim(
+            choice(edit(EditAct::CellTerrain), "Terrain", terrains, at),
+            no_map,
+        ),
+        dim(
+            choice(edit(EditAct::CellHeight), "Height", heights, height_at),
+            no_map,
+        ),
+    ];
+    if let Some(rise) = editor.cell_rise() {
+        let options = Facing::ALL
+            .iter()
+            .map(|f| facing_name(*f).to_owned())
+            .collect();
+        let at = Facing::ALL.iter().position(|f| *f == rise).unwrap_or(0);
+        controls.push(choice(edit(EditAct::CellRise), "Rise", options, at));
+    }
+    Screen {
+        id: ScreenId::EditorBar,
+        title: Span::title(title),
+        panels: vec![Panel {
+            rows: vec![Row::controls(controls)],
+        }],
+        keys: Vec::new(),
+        message: None,
     }
 }
 

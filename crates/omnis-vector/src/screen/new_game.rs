@@ -67,6 +67,7 @@ pub fn content(form: &NewGameForm) -> Screen {
         kind: Kind::Text {
             value: form.seed_text.clone(),
             max: SEED_MAX,
+            lines: 1,
         },
         why_not: None,
     };

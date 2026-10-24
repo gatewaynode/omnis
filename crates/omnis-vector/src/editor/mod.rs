@@ -1,8 +1,8 @@
 //! The editor's model (M5 Editor v1 from M5.4; ARCHITECTURE §8.2, `tasks/plans/m5-editor-v1.md`
 //! §Client side): the document session over the pack being edited, the open map's level,
-//! cursor and facing, the plan view, the brush (M5.5) and the acts the layer's controls ask
-//! for. Bevy-free: the shell (`shell/editor.rs`) draws it and routes the pointer and the keys
-//! to it.
+//! cursor and facing, the plan view, the brush (M5.5), the cursor's cell as the attribute bar
+//! edits it (M5.6) and the acts the layer's controls ask for. Bevy-free: the shell
+//! (`shell/editor.rs`) draws it and routes the pointer and the keys to it.
 
 pub mod brush;
 pub mod plan;
@@ -10,7 +10,7 @@ pub mod view;
 
 use brush::{Target, Tool};
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::edit::{EditError, EditorStatus, Grid, MapEntry, Session};
+use omnis_sim::omnis_data::edit::{Brush, Edit, EditError, EditorStatus, Grid, MapEntry, Session};
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
 use std::path::PathBuf;
 
@@ -37,6 +37,13 @@ pub enum EditAct {
     Brush(u8),
     /// The height choice: steps the height brush's eighths.
     Eighths,
+    /// The bar's terrain choice (M5.6): steps the cursor's cell through the terrains and no
+    /// ground.
+    CellTerrain,
+    /// The bar's height choice: steps the cursor's cell's height by an eighth.
+    CellHeight,
+    /// The bar's rise choice: turns the way the stair on the cursor's cell climbs.
+    CellRise,
     /// Back one step.
     Undo,
     /// Forward one step.
@@ -218,6 +225,33 @@ impl Editor {
         self.session.document().and_then(|d| d.grid(self.level))
     }
 
+    /// The cursor's cell's terrain, as an index into the map's list; none on no ground or
+    /// with no map.
+    #[must_use]
+    pub fn cell_terrain(&self) -> Option<u8> {
+        let (x, y) = self.cursor;
+        self.grid().and_then(|g| g.tile(x, y).flatten())
+    }
+
+    /// The cursor's cell's height in eighths; 0 with no ground or no map.
+    #[must_use]
+    pub fn cell_height(&self) -> i16 {
+        let (x, y) = self.cursor;
+        self.grid().and_then(|g| g.height_at(x, y)).unwrap_or(0)
+    }
+
+    /// The way the stair on the cursor's cell climbs, when the cell is one.
+    #[must_use]
+    pub fn cell_rise(&self) -> Option<Facing> {
+        let (x, y) = self.cursor;
+        self.def().and_then(|def| {
+            def.stairs
+                .iter()
+                .find(|s| Level(s.level) == self.level && s.x == x && s.y == y)
+                .map(|s| s.rise)
+        })
+    }
+
     /// Put the cursor on `cell` when it is on the map.
     pub fn point(&mut self, cell: (u16, u16)) {
         let (w, h) = self.size();
@@ -283,18 +317,42 @@ impl Editor {
         let Some(brush) = self.tool.brush(&def, target, self.facing, self.eighths) else {
             return false;
         };
-        let (level, (x, y)) = (self.level, target.cell);
         let joined = stroke && self.stroke.is_some();
+        // The same target is not painted again while the button is held, even one refused.
+        self.stroke = Some(target);
+        self.brushed(data, target.cell, &brush, joined)
+    }
+
+    /// Paint `brush` on `cell` of the shown level and put the cursor there, joined to the open
+    /// stroke when `joined`. A refusal is said and changes nothing. Whether the map changed.
+    fn brushed(&mut self, data: &Data, cell: (u16, u16), brush: &Brush, joined: bool) -> bool {
+        let (level, (x, y)) = (self.level, cell);
         let result = self
             .session
             .document_mut()
-            .and_then(|d| d.paint(level, x, y, &brush, joined));
-        // The same target is not painted again while the button is held, even one refused.
-        self.stroke = Some(target);
+            .and_then(|d| d.paint(level, x, y, brush, joined));
         match result {
             Ok(()) => {
                 self.message = None;
-                self.cursor = target.cell;
+                self.cursor = cell;
+                self.changed(data);
+                true
+            }
+            Err(e) => {
+                self.message = Some(e.to_string());
+                false
+            }
+        }
+    }
+
+    /// Make `edit` to the map, one undo step. A refusal is said and changes nothing. Whether
+    /// the map changed.
+    fn edited(&mut self, data: &Data, edit: Edit) -> bool {
+        let result = self.session.document_mut().and_then(|d| d.edit(edit));
+        self.stroke = None;
+        match result {
+            Ok(()) => {
+                self.message = None;
                 self.changed(data);
                 true
             }
@@ -459,6 +517,38 @@ impl Editor {
                 // A press steps right, as a choice does.
                 let by = if step == 0 { 1 } else { i16::from(step) };
                 self.eighths = brush::held(self.eighths.saturating_add(by));
+            }
+            EditAct::CellTerrain => {
+                let Some(def) = self.def() else {
+                    return Asked::Nothing;
+                };
+                // The terrains in their order, then no ground, round.
+                let n = def.terrains.len();
+                let at = self.cell_terrain().map_or(n, usize::from);
+                let at =
+                    i64::try_from(at).unwrap_or(0) + i64::from(if step == 0 { 1 } else { step });
+                let at = at.rem_euclid(i64::try_from(n + 1).unwrap_or(1));
+                let brush = match usize::try_from(at).ok().and_then(|i| def.terrains.get(i)) {
+                    Some(t) => Brush::Tile {
+                        glyph: t.glyph,
+                        rise: Some(self.facing),
+                    },
+                    None => Brush::Clear,
+                };
+                self.brushed(data, self.cursor, &brush, false);
+            }
+            EditAct::CellHeight => {
+                let by = if step == 0 { 1 } else { i16::from(step) };
+                let eighths = brush::held(self.cell_height().saturating_add(by));
+                self.brushed(data, self.cursor, &Brush::Height { eighths }, false);
+            }
+            EditAct::CellRise => {
+                if let Some(rise) = self.cell_rise() {
+                    let rise = if step < 0 { rise.left() } else { rise.right() };
+                    let (x, y) = self.cursor;
+                    let level = self.level;
+                    self.edited(data, Edit::Rise { level, x, y, rise });
+                }
             }
             EditAct::Undo => self.walk(data, true),
             EditAct::Redo => self.walk(data, false),

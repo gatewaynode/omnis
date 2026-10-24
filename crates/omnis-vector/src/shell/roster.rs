@@ -7,7 +7,7 @@ use super::capture::CaptureSize;
 use super::combat::size;
 use super::minimap::Minimap;
 use super::screen::{Beside, Screens, Showing, Side, colour, ctx, shade};
-use super::screen_draw::{Mark, rows};
+use super::screen_draw::{Mark, Spawn, rows};
 use super::session::Session;
 use crate::arena::{BUTTONS, MARGIN, layout, zoom};
 use crate::screen::roster::{self, RosterEffect};
@@ -192,8 +192,14 @@ pub(super) fn paint(
     node.max_height = Val::Px((place.room - place.top - place.bottom).max(0.0));
     node.padding = UiRect::all(Val::Px(scaled(10.0, place.height)));
     node.row_gap = Val::Px(scaled(6.0, place.height));
-    commands
-        .entity(entity)
-        .with_children(|column| rows(column, 0, &panel, &[], (place.height, Mark::Side), None));
+    commands.entity(entity).with_children(|column| {
+        let spawn = Spawn {
+            id: None,
+            height: place.height,
+            mark: Mark::Side,
+            keep: None,
+        };
+        rows(column, 0, &panel, &[], spawn);
+    });
     drawn.0 = Some((panel, place));
 }

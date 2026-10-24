@@ -45,6 +45,7 @@ pub fn content(game: Game, forms: &Forms) -> Screen {
         kind: Kind::Text {
             value: forms.log_filter.clone(),
             max: FILTER_MAX,
+            lines: 1,
         },
         why_not: None,
     };

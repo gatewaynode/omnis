@@ -16,6 +16,7 @@ mod common;
 mod create_party;
 mod debug;
 mod editor;
+mod editor_forms;
 mod editor_paint;
 mod editor_pointer;
 mod fight;

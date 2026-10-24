@@ -1,55 +1,52 @@
 # Continuity notes
 
-Written 2026-10-24, after the owner accepted M5.5 (three fixes from the hand tests: `cc5bd9c`, `4736b01`, `429de34`). Rewrite
-this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.6a (the attribute bar) was built; M5.5 accepted the same day. Rewrite this file
+every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `W1-authoring-tools`**, ten commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0,
-  `4704230` M5.1, `ef3c12b` M5.2, `a303fa8` M5.3, `9ac9468` B8, `faa797b` continuity, `c8bb62e` M5.4 (accepted by
-  the owner 2026-10-22), `4e26ac2` continuity, `00a09e9` **M5.5** (2026-10-22, VERIFY-GREEN), `166b199`
-  continuity, `cc5bd9c` **M5.5 fix** (2026-10-24: the plan's pointer read Bevy's `normalized` as 0..1, it is
-  −0.5..0.5, so the mouse did nothing in the window; WASD moves the cursor; `tests/editor_pointer.rs` drives a
-  click through Bevy's own UI layout and focus with no renderer), `4736b01` **M5.5 fix 2** (2026-10-24: an edge
-  brush aims at the nearest side of the cell wherever the click lands, `Editor::aim`/`View::edge_target`; the
-  aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), `429de34` **M5.5 fix 3**
-  (a rebuilt column keeps its panel's scroll, `Drawn.scrolls`), `2a59bbf` continuity, and the acceptance commit.
-  **M5.5 accepted by the owner 2026-10-24.** Tree clean.
-  **Open for the M5.6 plan (owner 2026-10-24):** a fixed tool bar for the attributes every cell has (height
-  first), the owner suggested the top of the window; decide with M5.6's forms (`tasks/TODO.md` under M5.5). **Deferred by the owner (2026-10-24):** boundary tools beyond the edge brush, later than
-  M5.6: both a point-by-point tool and a freehand tool, with a normalisation of the drawn lines to the map's
-  granularity (snap to corners, rasterise onto cell sides, preview before taking); `tasks/TODO.md` under M5.5.
-  The owner called the nearest-side edge brush "clever" and it "works for now". Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
-- **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.5 done.
-- **M5.5 as built** (`tasks/acceptance/m5-5.md`, accepted): `editor/brush.rs` (`Tool`,
-  `Target`, `palette`, `Tool::first/label/brush`, `EIGHTHS` −64..=64, `held`), `View::target` (the edge within a
-  quarter of the side), `Editor { tool, eighths, stroke, status (cached EditorStatus, refreshed in changed) }`
-  with `paint(data, target, stroke) -> bool`, `pick`, `end_stroke`, acts `Brush(n)`, `Eighths`, `Undo`, `Redo`,
-  `Save` → `Asked::Saved`, `Revert`; `shell/editor.rs::act` (a Save reloads `Packs` from disk), `route` (left
-  click paints, held button strokes, right click picks, Enter, digits, `-`/`=`, Cmd/Ctrl Z/Shift+Z/Y/S, dim
-  controls refused by `live`); `Ctx.editing: Option<EditingCtx>` and `Effect::Editor(EditAct)` (the menu's Save,
-  carried out through `Host.editing`); the menu says "Discard changes and leave" while dirty. Tests
-  `tests/editor_paint.rs` (6), `brush.rs` (2); helpers in `tests/common/editor.rs`. The loader does not refuse a
-  start or a site on no ground: the invalid edit the tests use is a ramp joining heights more than 16 apart.
-- **Lessons 2026-10-24** (`tasks/LESSONS.md`): a test that writes a framework's component must use the framework's
-  convention, and one test per such path goes through the framework's own systems (`editor_pointer`); a mouse
-  action must never depend on a hidden state (show the aim before the click).
-- **Lesson 2026-10-22** (`tasks/LESSONS.md`): a windowed game launched from this shell never ticks (no
-  window-server session), so its socket never answers; verify headlessly and leave the window to the owner.
+- **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
+  2026-10-24 after three fixes from the hand tests: `cc5bd9c` pointer convention + WASD, `4736b01` nearest-side
+  edge aim + hover, `429de34` scroll kept; acceptance recorded in `34d3986`). Untracked and never staged:
+  `assets/` and `docs/dnd_supplemental/` (the owner's).
+- **M5.6 planned and approved 2026-10-24** (plan mode; the plan file is Claude's, the decisions are in
+  `tasks/TODO.md` under M5.6): three commits 6a/6b/6c, `tasks/acceptance/m5-6.md` grows with them. Owner's
+  choices: the attribute bar **above the plan**; list fields (stacks, contents, items, the random table's
+  entries) as **dedicated row editors** with Add row / Remove, not RON text (over my recommendation).
+- **M5.6a built** (this commit): `view::bar` over the plan (`Column::Bar`, `ScreenId::EditorBar`): the cursor's
+  cell's Terrain (round through no ground), Height (−64..64 by one) and Rise (stair cells only), each step one
+  undo step through `Editor::brushed`/`edited`; `refresh` rewrites words in place when a column's shape stands
+  (`need` → `Need::{Nothing, Words, Nodes}`, `screen_draw::sync` filtered by `OfScreen(ScreenId)`), rebuilds
+  with `keep` = the focused editor field else the column's first field; a plan click clears `InputFocus`;
+  `Kind::Text.lines` (multi-line through Bevy's `EditableText.allow_newlines`/`visible_lines`); editor text
+  fields carry `EditorPress`, so the game router never sees them; `Spawn { id, height, mark, keep }` threads
+  through `rows`/`control_node`/`span_node` (roster passes `id: None`). Tests `tests/editor_forms.rs` (3), the
+  M5.5 scroll test now asserts the words-only path keeps the nodes and a shape change rebuilds in place.
+- **Design for 6b (next):** `editor/form.rs` generic `Form { kind, fields: Vec<Field { label, value: Value,
+  slot: Slot::Top | Row(list, row) }>, lists: Vec<List { label, template, rows, max }>, existing }` with
+  `rows() -> Vec<Row>` (one control per field; per list a heading + `[Add row]`, per entry its fields + `[Remove]`;
+  then `[Apply] [Cancel] [Remove <kind>]`), `typed(i, text)`, `step(i, ±1)`, `add_row`, `remove_row`, parse helpers
+  (`id`, `dice` `NdS[+M]`, `choice`); `editor/forms.rs` per kind `Form::open(kind, def, at, existing)` and
+  `request(def) -> Result<Change { Place | Edit | Note }, String>`; `Editor.form`, acts `Field(u8)`, `ListAdd(u8)`,
+  `ListRemove(u8, u8)`, `Apply`, `Cancel`, `Discard`, `SetStart`, `PlaceKind`, `Add`, `EditAt(u8)`, `RemoveAt(u8)`,
+  `Random`, `RestAdd/RestEdit/RestRemove`; `here()` the placements at the cursor; the inspector shows the form
+  first, then the cell lines, `[Set start here]`, the `here()` rows with Edit/Remove, `Add [< kind >] [Add]`, the
+  map section (random table, rest events). Layer: `route` reads `Query<(Ref<EditableText>, &EditorPress)>` and
+  calls `editing.typed(i, text)` on a change (no revision bump: words-in-place keeps the caret); `keep`'s
+  first-field fallback should apply only to a form just opened (a `fresh` flag) so a rebuild after a plan click
+  does not retake the keyboard. The random entry's inner stacks stay one text column (`goblin 1d4, wolf 2d6`).
+  Payload field tables: see the plan in `tasks/TODO.md`'s M5.6 note and the data types in
+  `crates/omnis-data/src/{map,encounter,service,rest_event,placement,lore}.rs`; `Place`/`Edit`/`Target` in
+  `crates/omnis-data/src/edit/kinds.rs`; `Document::place/edit` one undo step each; `Session::set_note` written at
+  once, not undone; note keys `<map>/<level>/<x>,<y>`, `<map>/level/<n>`, `<map>`.
+- **Lessons 2026-10-24** (`tasks/LESSONS.md`): framework conventions tested through the framework's own
+  systems; no mouse action on hidden state; a layer that rebuilds nodes carries transient state across.
+- **Lesson 2026-10-22**: a windowed game launched from this shell never ticks; verify headlessly.
 
 ## Next
-1. **Plan M5.6, placements, terrains, levels and notes forms** (plan row 6: forms per kind: start, portal,
-   encounter + random, site, rest event, object with pos pad, ground, lore, stairs rise; terrain editor; level
-   add/remove/base/name; notes in a multi-line widget; plan §Client side "Layer" inspector: "placements with
-   Edit/Remove, the brush's form"; `Edit`/`Place` requests of `omnis_data::edit`; notes through
-   `Session::set_note` and the kit's `Kind::Text`). Plan mode, check in before building. Settle in the plan: the
-   owner's **fixed tool bar** (where: above the plan or a fixed strip atop the tools column; what: a brush with a
-   value as today, or a direct editor of the cursor's cell like the inspector) together with the forms' model;
-   forms as kit screens in `editor/view.rs`, the typed text through `Pressable` fields under `Mark::Editor`
-   (`screen_draw` spawns `Kind::Text` with `Pressable` today; check how the kit's `applied` reads typed text and
-   whether the editor's `route` needs the same `typed` path). Keep the cached `status` pattern: never call
-   `session.status(data)` per frame.
-2. Then M5.7 to M5.10 per the plan's steps table. Boundary tools (point-by-point, freehand, normalisation) after
-   M5.6 at the earliest, by the owner's direction.
+1. **Report 6a to the owner** (how to try: open the town, click a cell, step the bar's Height; the tools column
+   does not move), then **6b** as designed above, red tests first (`tests/editor_forms.rs`), then **6c**
+   (terrains, levels, notes; documents: acceptance steps, TODO, code-map, the plan's row 6 note on row editors).
+2. Then M5.7 to M5.10 per the plan's steps table. Boundary tools after M5.6 at the earliest (owner).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
