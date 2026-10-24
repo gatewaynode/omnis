@@ -116,6 +116,115 @@ pub fn edge_pixels(
         .collect()
 }
 
+/// The pixels of the outline of cell `(col, row)`'s square at `scale` pixels a cell, `inset`
+/// pixels in from each side.
+#[must_use]
+pub fn rect_pixels(scale: u32, (col, row): (i64, i64), inset: i64) -> Vec<(i64, i64)> {
+    let s = i64::from(scale);
+    let (left, top) = (col * s + inset, row * s + inset);
+    let (right, bottom) = (col * s + s - 1 - inset, row * s + s - 1 - inset);
+    if right <= left || bottom <= top {
+        return vec![(col * s + s / 2, row * s + s / 2)];
+    }
+    let mut out = Vec::new();
+    out.extend(line_pixels((left, top), (right, top)));
+    out.extend(line_pixels((right, top), (right, bottom)));
+    out.extend(line_pixels((right, bottom), (left, bottom)));
+    out.extend(line_pixels((left, bottom), (left, top)));
+    out
+}
+
+/// The pixels of a circle of `radius` about `centre` (the midpoint algorithm); a point when the
+/// radius is nought.
+#[must_use]
+pub fn circle_pixels((cx, cy): (i64, i64), radius: i64) -> Vec<(i64, i64)> {
+    if radius <= 0 {
+        return vec![(cx, cy)];
+    }
+    let mut out = Vec::new();
+    let (mut x, mut y, mut d) = (radius, 0_i64, 1 - radius);
+    while x >= y {
+        for (dx, dy) in [
+            (x, y),
+            (y, x),
+            (-y, x),
+            (-x, y),
+            (-x, -y),
+            (-y, -x),
+            (y, -x),
+            (x, -y),
+        ] {
+            out.push((cx + dx, cy + dy));
+        }
+        y += 1;
+        if d < 0 {
+            d += 2 * y + 1;
+        } else {
+            x -= 1;
+            d += 2 * (y - x) + 1;
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// The pixels of a portal's mark on cell `(col, row)`: a rectangle a quarter in from each side
+/// with a circle in the middle (owner, 2026-10-24; a door keeps its cross).
+#[must_use]
+pub fn portal_pixels(scale: u32, cell: (i64, i64)) -> Vec<(i64, i64)> {
+    let s = i64::from(scale);
+    let mut out = rect_pixels(scale, cell, s / 4);
+    let centre = (cell.0 * s + s / 2, cell.1 * s + s / 2);
+    out.extend(circle_pixels(centre, (s / 4).max(1)));
+    out
+}
+
+/// The pixels of a filled triangle with its apex at `apex` and its base from `left` to `right`
+/// on one row (`left.1 == right.1`), scanline by scanline.
+#[must_use]
+pub fn triangle_pixels(apex: (i64, i64), left: (i64, i64), right: (i64, i64)) -> Vec<(i64, i64)> {
+    let mut out = Vec::new();
+    let rows = left.1 - apex.1;
+    if rows == 0 {
+        return line_pixels(left, right);
+    }
+    for y in apex.1.min(left.1)..=apex.1.max(left.1) {
+        let t = (y - apex.1) * 1000 / rows;
+        let x0 = apex.0 + (left.0 - apex.0) * t / 1000;
+        let x1 = apex.0 + (right.0 - apex.0) * t / 1000;
+        for x in x0.min(x1)..=x0.max(x1) {
+            out.push((x, y));
+        }
+    }
+    out
+}
+
+/// The pixels of a smiley face on cell `(col, row)`: the activities' placeholder mark (owner,
+/// 2026-10-24): a circle, two eyes and a mouth.
+#[must_use]
+pub fn smiley_pixels(scale: u32, (col, row): (i64, i64)) -> Vec<(i64, i64)> {
+    let s = i64::from(scale);
+    let (cx, cy) = (col * s + s / 2, row * s + s / 2);
+    let r = (s * 3 / 8).max(1);
+    let mut out = circle_pixels((cx, cy), r);
+    let eye = (r / 2).max(1);
+    out.push((cx - eye, cy - eye / 2 - 1));
+    out.push((cx + eye, cy - eye / 2 - 1));
+    if s >= 8 {
+        // The mouth: the lower arc of a smaller circle.
+        let smile = (r * 2 / 3).max(1);
+        out.extend(
+            circle_pixels((cx, cy), smile)
+                .into_iter()
+                .filter(|(x, y)| *y > cy + smile / 2 && (x - cx).abs() <= smile),
+        );
+    } else {
+        out.push((cx, cy + 1));
+    }
+    out
+}
+
 /// An RGBA picture, row-major, four bytes a pixel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Raster {

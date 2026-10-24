@@ -10,7 +10,7 @@ use omnis_sim::world::layer;
 use std::collections::BTreeMap;
 
 pub use crate::raster::Raster;
-use crate::raster::{EdgeKey, edge_key, edge_pixels, join_pixels, tick_pixels};
+use crate::raster::{EdgeKey, edge_key, edge_pixels, join_pixels, portal_pixels, tick_pixels};
 
 /// The longest side of the minimap, in pixels, before scaling to whole pixels a cell.
 pub const SIDE: u32 = 192;
@@ -158,6 +158,15 @@ pub fn paint(
         let rise = map.rise(level, x, y).unwrap_or(Facing::South);
         for (px, py) in join_pixels(scale, (i64::from(x), i64::from(y)), join, rise) {
             out.put(px, py, colour);
+        }
+    }
+    // A portal on a tile the party has seen: a rectangle with a circle, in the door colour
+    // (owner, 2026-10-24). A portal is the map's, so a known tile is enough to show it.
+    for &(x, y) in known.keys() {
+        if map.portal_at(level, x, y).is_some() {
+            for (px, py) in portal_pixels(scale, (i64::from(x), i64::from(y))) {
+                out.put(px, py, DOOR);
+            }
         }
     }
     for (edge, door) in edges(known) {

@@ -162,6 +162,17 @@ no loss, and every later map is built with it.
       `change()`; the tools' Add/Edit terrain and Add level/Level… buttons, the inspector's note rows; a note
       written at once through `Session::set_note`, said as not undone. Tests: three more in
       `tests/editor_forms.rs` (the note on a scratch pack), mutations killed.
+    - [x] Marks in the game (2026-10-24, owner's direction): the minimap (on any known tile, derived from the
+      map) and the 3D floor mark a portal with a rectangle and a circle (doors keep the cross); a site's cell
+      carries the activities' placeholder smiley on the floor. A stored automap bit was tried and backed out:
+      it would fold every older save on load.
+    - [ ] Proposed (owner 2026-10-24): an **activities** category of map item, the town services first, later
+      fountains, fixed NPCs, mechanisms, anomalies: what takes the party out of its stride into a decision. In
+      the editor one Add choice "Activity" opening a list of what to create; each needs a representation in the
+      game (a placeholder smiley for now). The owner's problem: the town's services take up too much of the map
+      for one-time placements (building terrains three cells wide for one site each). Decide with the owner at
+      the next planning: whether `Site` becomes one kind of a wider `Activity` placement in the data (a schema
+      move, M5.10 re-authors the maps anyway) or stays as is with the editor grouping only.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

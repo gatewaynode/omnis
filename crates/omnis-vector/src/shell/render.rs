@@ -215,6 +215,10 @@ fn colour(segment: &Segment) -> (f32, f32, f32) {
     match segment.kind {
         SegKind::Wall => (0.15, 3.0, 0.5),
         SegKind::Door => (3.2, 1.6, 0.2),
+        // A portal's floor mark in the doors' amber (owner, 2026-10-24); an activity's
+        // placeholder smiley in a plain gold until it has a look of its own.
+        SegKind::Portal => (3.2, 1.6, 0.2),
+        SegKind::Activity => (2.6, 2.3, 0.5),
         SegKind::Block => t(3.0),
         SegKind::Barrier => t(2.5),
         SegKind::Floor => t(0.6),

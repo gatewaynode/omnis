@@ -26,6 +26,22 @@ accepted the same day. Rewrite this file every time it is used. Durable knowledg
   systems; no mouse action on hidden state; a layer that rebuilds nodes carries transient state across.
 - **Lesson 2026-10-22**: a windowed game launched from this shell never ticks; verify headlessly.
 
+## In hand (2026-10-24, after the M5.6 report; plan approved)
+- **Marks and defaults**, two commits: (1) *this commit* the minimap and the 3D floor mark portals (rectangle +
+  circle, door colour) and a site's cell the activities' placeholder smiley (`SegKind::Portal`/`Activity`,
+  `raster::{rect,circle,portal,triangle,smiley}_pixels`). The mark is derived in the client from the map on a
+  known tile: a stored automap bit (`layer::PORTAL`) was built and backed out the same day, because every save
+  made before it would have needed a fix-up and a fold on load, and the frozen schema-9 fixture's journal
+  comparison breaks on a fold; the engine, the replays and the save schema are untouched. (2) *next*: `plan::Mark` and
+  `plan::marks(def, level)` drawn on the editor's plan (portal rectangle+circle in DOOR; encounter a filled
+  triangle, object an outlined square, pile a dot, lore a corner, site a smiley, in START white); encounters
+  start valid (`forms::encounter` prefilled: id `encounter_<x>_<y>`, one stack of the first loaded monster, the
+  Stacks list max `MAX_STACKS`; `Form::request` refuses a taken encounter/object/lore id and a second encounter
+  on a cell for a new form; `apply_form` says the loader's first error after a successful change); acceptance
+  steps 16-17, TODO, code-map, a LESSONS entry (a creation form starts valid), continuity.
+- **Owner's new direction (2026-10-24):** an "activities" category (recorded in `tasks/TODO.md` under M5.6 as a
+  proposal; decide the data shape at the next planning).
+
 ## Next
 1. **Report M5.6 to the owner** with how to try it (the bar's Height arrow; Add here → Portal; Add terrain;
    Edit note) and await the hand test. Bugs: fix with a red test and a lesson first.

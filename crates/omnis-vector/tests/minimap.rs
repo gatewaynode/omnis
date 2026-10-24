@@ -3,8 +3,8 @@
 
 use crate::common;
 
-use common::{data, drive, session};
-use omnis_vector::minimap::{BACKGROUND, MARKER, Raster, WALL, paint, scale_for};
+use common::{data, drive, map, session};
+use omnis_vector::minimap::{BACKGROUND, DOOR, MARKER, Raster, WALL, paint, scale_for};
 use omnis_vector::pose::Pose;
 
 fn painted(raster: &Raster) -> usize {
@@ -324,4 +324,44 @@ fn a_stair_s_mark_points_the_way_it_rises() {
     // The courtyard's rises north: a chevron pointing north.
     assert_eq!(at((4, 3), (6, 5)), Some(JOIN));
     assert_ne!(at((4, 3), (5, 6)), Some(JOIN));
+}
+
+/// A portal on a tile the party has seen is marked with a rectangle and a circle in the door
+/// colour (owner, 2026-10-24); an unseen portal and a tile without one get no mark.
+#[test]
+fn a_seen_portal_is_marked_with_a_rectangle_and_a_circle() {
+    let data = data();
+    let town = &data.maps[&map(&data, "test:map:town")];
+    let known = all_known(town);
+    let pose = Pose::at(omnis_sim::omnis_core::Position {
+        map: map(&data, "test:map:town"),
+        level: omnis_sim::omnis_core::Level::GROUND,
+        x: 3,
+        y: 3,
+        facing: omnis_sim::omnis_core::Facing::North,
+    });
+    let raster = paint(
+        town,
+        omnis_sim::omnis_core::Level::GROUND,
+        Some(&known),
+        pose,
+    );
+    let marked = in_cell(&raster, (11, 2), DOOR);
+    assert!(marked > 0, "the portal's cell carries the mark");
+    // The cell's middle is inside the circle, not on it; a corner is outside the rectangle.
+    let s = raster.scale;
+    assert_ne!(raster.pixel(11 * s + s / 2, 2 * s + s / 2), Some(DOOR));
+    assert_ne!(raster.pixel(11 * s, 2 * s), Some(DOOR));
+    // A street cell with no portal and no door has none of the colour.
+    assert_eq!(in_cell(&raster, (6, 3), DOOR), 0);
+    // Unseen, the portal's tile shows nothing.
+    let mut unseen = known;
+    unseen.remove(&(11, 2));
+    let raster = paint(
+        town,
+        omnis_sim::omnis_core::Level::GROUND,
+        Some(&unseen),
+        pose,
+    );
+    assert_eq!(in_cell(&raster, (11, 2), DOOR), 0);
 }

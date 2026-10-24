@@ -25,6 +25,12 @@ pub enum SegKind {
     Floor,
     /// Impassable open terrain (water), crossed on the floor.
     Barrier,
+    /// A portal's mark on the floor: a rectangle with a circle in it (owner, 2026-10-24); a door
+    /// keeps its frame and cross.
+    Portal,
+    /// An activity's placeholder mark on the floor, a smiley face (owner, 2026-10-24): a town
+    /// service's site today, the things that take the party out of its stride later.
+    Activity,
     /// The ceiling grid.
     Ceiling,
     /// A cliff's rock face: hatching between the two rims.
@@ -112,6 +118,17 @@ pub fn extract(
                 h,
             );
             rims(&mut out, ground, (x, y), patch, terrain.color);
+            if map.portal_at(level, x, y).is_some() {
+                portal(&mut out, (x, y), patch, terrain.color);
+            }
+            if map
+                .def
+                .sites
+                .iter()
+                .any(|s| s.level == level && s.x == x && s.y == y)
+            {
+                activity(&mut out, (x, y), patch, terrain.color);
+            }
             if let Some(join) = terrain.join {
                 let beyond = |up: bool| {
                     map.beyond(level, up)
@@ -397,6 +414,90 @@ fn cells(
     } else if !passable {
         line(out, [x0, c[NW], z0], [x1, c[SE], z1], SegKind::Barrier, rgb);
         line(out, [x1, c[NE], z0], [x0, c[SW], z1], SegKind::Barrier, rgb);
+    }
+}
+
+/// The floor's height at `(u, v)` across the cell (0 to 1 each) of `p`, between its corners.
+fn floor_at(p: Patch, u: f32, v: f32) -> f32 {
+    let c = p.corners;
+    let north = c[NW] + (c[NE] - c[NW]) * u;
+    let south = c[SW] + (c[SE] - c[SW]) * u;
+    north + (south - north) * v
+}
+
+/// A closed ring of `kind` on cell `(x, y)`'s floor through the points `(u, v)` given.
+fn ring(
+    out: &mut Vec<Segment>,
+    (x, y): (u16, u16),
+    p: Patch,
+    points: &[(f32, f32)],
+    kind: SegKind,
+    rgb: (u8, u8, u8),
+) {
+    let (x0, z0) = (f32::from(x), f32::from(y));
+    let at = |(u, v): (f32, f32)| [x0 + u, floor_at(p, u, v), z0 + v];
+    for (i, from) in points.iter().enumerate() {
+        let to = points[(i + 1) % points.len()];
+        line(out, at(*from), at(to), kind, rgb);
+    }
+}
+
+/// The points of a circle of `radius` about `(cu, cv)` in `sides` segments.
+fn circle((cu, cv): (f32, f32), radius: f32, sides: usize) -> Vec<(f32, f32)> {
+    (0..sides)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let a = core::f32::consts::TAU * i as f32 / sides as f32;
+            (cu + radius * a.cos(), cv + radius * a.sin())
+        })
+        .collect()
+}
+
+/// A portal's mark on the floor of `(x, y)`: a rectangle a fifth in from each side with a
+/// circle in the middle, at the floor's heights.
+fn portal(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+    let i = 0.2;
+    ring(
+        out,
+        cell,
+        p,
+        &[(i, i), (1.0 - i, i), (1.0 - i, 1.0 - i), (i, 1.0 - i)],
+        SegKind::Portal,
+        rgb,
+    );
+    ring(
+        out,
+        cell,
+        p,
+        &circle((0.5, 0.5), 0.25, 16),
+        SegKind::Portal,
+        rgb,
+    );
+}
+
+/// An activity's placeholder on the floor of `(x, y)`: a smiley face, its mouth toward the
+/// south so it reads the same way from the plan.
+fn activity(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
+    ring(
+        out,
+        cell,
+        p,
+        &circle((0.5, 0.5), 0.35, 16),
+        SegKind::Activity,
+        rgb,
+    );
+    for eye in [(0.38, 0.4), (0.62, 0.4)] {
+        ring(out, cell, p, &circle(eye, 0.04, 6), SegKind::Activity, rgb);
+    }
+    // The mouth: the lower third of a circle, open.
+    let mouth: Vec<(f32, f32)> = circle((0.5, 0.5), 0.22, 16)
+        .into_iter()
+        .filter(|(_, v)| *v > 0.58)
+        .collect();
+    let (x0, z0) = (f32::from(cell.0), f32::from(cell.1));
+    for pair in mouth.windows(2) {
+        let at = |(u, v): (f32, f32)| [x0 + u, floor_at(p, u, v), z0 + v];
+        line(out, at(pair[0]), at(pair[1]), SegKind::Activity, rgb);
     }
 }
 
