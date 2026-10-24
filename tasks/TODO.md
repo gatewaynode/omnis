@@ -121,6 +121,13 @@ no loss, and every later map is built with it.
     - [x] Fix (2026-10-24, the owner's first hand test): the plan's pointer read Bevy's `normalized` as 0..1
       (it is −0.5..0.5), so the mouse did nothing; WASD moves the cursor like the arrows. Red tests:
       `tests/editor_pointer.rs` (a click through Bevy's own UI layout and focus) and `wasd_moves_the_cursor`.
+    - [x] Fix (2026-10-24, the owner's second report: doors direction-sensitive and unremovable, walls hard):
+      an edge brush aims at the nearest side of the cell wherever the click lands (`Editor::aim`,
+      `View::edge_target`), never the facing; the aim is a yellow hover (`PlanHover`) before the click; the
+      pick follows it; "Open edge (erase)". Red test `an_edge_brush_aims_at_the_nearest_side…`.
+    - [ ] Proposed (owner 2026-10-24): wall drawing tools beyond the brush. The owner asked for a freehand or
+      bezier line tool. Grid-native equivalents to decide on: a **Line** (drag corner to corner, walls along
+      the straight run), a **Room** (drag a rectangle, walls around it), each one undo step. See the report.
   - [ ] M5.6 Placements, terrains, levels and notes forms.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.

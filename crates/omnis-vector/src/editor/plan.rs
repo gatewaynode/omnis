@@ -114,11 +114,25 @@ impl View {
     /// at a corner). None off the map.
     #[must_use]
     pub fn target(self, size: (u16, u16), px: f32, py: f32) -> Option<Target> {
+        self.aimed(size, px, py, 0.25)
+    }
+
+    /// What an edge brush at pixel `(px, py)` aims at: the cell under it and its nearest side,
+    /// wherever in the cell the pixel lies (the first of North, East, South, West at a tie).
+    /// None off the map.
+    #[must_use]
+    pub fn edge_target(self, size: (u16, u16), px: f32, py: f32) -> Option<Target> {
+        self.aimed(size, px, py, 0.5)
+    }
+
+    /// The cell under the pixel and its nearest side when that side is within `band` of the
+    /// cell's side away.
+    fn aimed(self, size: (u16, u16), px: f32, py: f32, band: f32) -> Option<Target> {
         let cell = self.hit(size, px, py)?;
         let (left, top, side) = self.cell_rect(cell);
         #[allow(clippy::cast_precision_loss)]
         let (fx, fy, s) = (px - left as f32, py - top as f32, side as f32);
-        let band = s / 4.0;
+        let band = s * band;
         let edge = [
             (Facing::North, fy),
             (Facing::East, s - fx),

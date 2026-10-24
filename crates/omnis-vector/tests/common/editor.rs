@@ -66,31 +66,45 @@ pub fn arrow(app: &mut App, act: EditAct, right: bool) {
 /// runs from (-0.5, -0.5) at the top left to (0.5, 0.5) at the bottom right. The pointer's
 /// path through Bevy's own layout and focus is `editor_pointer`'s.
 pub fn point_at(app: &mut App, cell: (u16, u16), side: Option<Facing>) {
+    let s = editing(app).view.cell_rect(cell).2 as f32;
+    let (dx, dy) = match side {
+        None => (0.5, 0.5),
+        Some(Facing::North) => (0.5, 0.0),
+        Some(Facing::East) => ((s - 1.0) / s, 0.5),
+        Some(Facing::South) => (0.5, (s - 1.0) / s),
+        Some(Facing::West) => (0.0, 0.5),
+    };
+    point_frac(app, cell, dx, dy);
+}
+
+/// The pointer over the plan at the point `fx` across and `fy` down `cell` (0 to 1 of its side).
+pub fn point_frac(app: &mut App, cell: (u16, u16), fx: f32, fy: f32) {
     let (pane, view) = {
         let e = editing(app);
         (e.pane, e.view)
     };
     let (left, top, s) = view.cell_rect(cell);
-    let s = i64::from(s);
-    let (dx, dy) = match side {
-        None => (s / 2, s / 2),
-        Some(Facing::North) => (s / 2, 0),
-        Some(Facing::East) => (s - 1, s / 2),
-        Some(Facing::South) => (s / 2, s - 1),
-        Some(Facing::West) => (0, s / 2),
-    };
     #[allow(clippy::cast_precision_loss)]
     let at = Vec2::new(
-        (left + dx) as f32 / pane.0 as f32,
-        (top + dy) as f32 / pane.1 as f32,
+        (left as f32 + s as f32 * fx) / pane.0 as f32,
+        (top as f32 + s as f32 * fy) / pane.1 as f32,
     ) - Vec2::splat(0.5);
+    over_plan(app, Some(at));
+}
+
+/// The pointer off the plan.
+pub fn leave_plan(app: &mut App) {
+    over_plan(app, None);
+}
+
+fn over_plan(app: &mut App, at: Option<Vec2>) {
     let world = app.world_mut();
     let mut panes = world.query::<(&Column, &mut RelativeCursorPosition)>();
     let mut found = false;
     for (column, mut position) in panes.iter_mut(world) {
         if *column == Column::Plan {
-            position.cursor_over = true;
-            position.normalized = Some(at);
+            position.cursor_over = at.is_some();
+            position.normalized = at;
             found = true;
         }
     }

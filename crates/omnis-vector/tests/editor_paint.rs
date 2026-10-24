@@ -10,14 +10,16 @@ use crate::common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::{config, key, set, shell, tap};
-use common::editor::{arrow, editing, in_editor, mouse, point_at, press_edit};
+use common::editor::{
+    arrow, editing, in_editor, leave_plan, mouse, point_at, point_frac, press_edit,
+};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::edit::EdgeKind;
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::brush::{self, Target, Tool};
 use omnis_vector::editor::plan::View;
 use omnis_vector::screen::{ControlId, ScreenId};
-use omnis_vector::shell::editor::Editing;
+use omnis_vector::shell::editor::{Editing, PlanHover};
 use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Packs;
@@ -172,7 +174,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
     let text = screen_text(app.world());
     assert!(text.contains("E wall"), "the inspector: {text}");
 
-    // Over the cell's middle, an edge brush paints the side the cursor faces: the keys' way too.
+    // From the keys, an edge brush paints the side the cursor faces.
     let cell = open_edge(&app, Facing::West);
     choose(&mut app, Tool::Edge(EdgeKind::Door));
     app.world_mut().resource_mut::<Editing>().point(cell);
@@ -186,7 +188,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
         Some(EdgeKind::Door)
     );
     choose(&mut app, Tool::Edge(EdgeKind::Open));
-    click_at(&mut app, cell, None);
+    click_at(&mut app, cell, Some(Facing::West));
     assert_eq!(
         editing(&app)
             .grid()
@@ -535,4 +537,117 @@ fn revert_reopens_the_file_and_the_menu_warns_before_leaving_with_changes() {
     app.update();
     // With a modifier held, C is not Centre and Z is not a brush: nothing else moved.
     assert_eq!(editing(&app).cursor, (1, 1));
+}
+
+/// The hover node's place and whether it shows.
+fn hover_node(app: &mut App) -> Node {
+    let world = app.world_mut();
+    let mut hovers = world.query_filtered::<&Node, With<PlanHover>>();
+    hovers.single(world).expect("one hover node").clone()
+}
+
+fn px(v: Val) -> f32 {
+    match v {
+        Val::Px(p) => p,
+        other => panic!("{other:?} is not in pixels"),
+    }
+}
+
+#[test]
+fn an_edge_brush_aims_at_the_nearest_side_wherever_the_click_lands_and_the_hover_shows_it() {
+    let mut app = in_editor("test:map:town");
+    let cell = open_edge(&app, Facing::West);
+    #[allow(clippy::cast_precision_loss)]
+    let (left, top, side) = {
+        let (l, t, s) = editing(&app).view.cell_rect(cell);
+        (l as f32, t as f32, s as f32)
+    };
+    // Past the quarter band, nearer the west side than any other: the aim is that side, and
+    // the hover is a bar along it before anything is clicked.
+    choose(&mut app, Tool::Edge(EdgeKind::Wall));
+    point_frac(&mut app, cell, 0.35, 0.5);
+    app.update();
+    assert_eq!(
+        editing(&app).hover,
+        Some(Target {
+            cell,
+            edge: Some(Facing::West)
+        })
+    );
+    let bar = hover_node(&mut app);
+    assert_eq!(bar.display, Display::Flex);
+    assert_eq!(px(bar.height), side, "as tall as the cell");
+    assert!(
+        px(bar.width) < side / 2.0,
+        "a bar, not a cell: {:?}",
+        bar.width
+    );
+    assert!(
+        (px(bar.left) - left).abs() <= side / 8.0 + 1.0,
+        "{:?}",
+        bar.left
+    );
+    assert_eq!(px(bar.top), top);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    let e = editing(&app);
+    assert_eq!(
+        e.grid().unwrap().edge(cell.0, cell.1, Facing::West),
+        Some(EdgeKind::Wall),
+        "{:?}",
+        e.message
+    );
+    assert_eq!(
+        e.facing,
+        Facing::West,
+        "the start's facing, never consulted"
+    );
+
+    // The eraser works the same way, and is named for it.
+    choose(&mut app, Tool::Edge(EdgeKind::Open));
+    assert!(
+        screen_text(app.world()).contains("Open edge (erase)"),
+        "the eraser says what it does"
+    );
+    point_frac(&mut app, cell, 0.3, 0.5);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert_eq!(
+        editing(&app)
+            .grid()
+            .unwrap()
+            .edge(cell.0, cell.1, Facing::West),
+        Some(EdgeKind::Open)
+    );
+
+    // Nearer the top: the north side.
+    point_frac(&mut app, cell, 0.5, 0.2);
+    app.update();
+    assert_eq!(editing(&app).hover.unwrap().edge, Some(Facing::North));
+
+    // A terrain brush at the same point aims at the cell: the hover is its outline.
+    choose(&mut app, Tool::Terrain(0));
+    point_frac(&mut app, cell, 0.35, 0.5);
+    app.update();
+    assert_eq!(editing(&app).hover, Some(Target { cell, edge: None }));
+    let outline = hover_node(&mut app);
+    assert_eq!((px(outline.left), px(outline.top)), (left, top));
+    assert_eq!((px(outline.width), px(outline.height)), (side, side));
+
+    // A right click picks what the hover shows: with an edge brush, the nearest side's kind.
+    choose(&mut app, Tool::Edge(EdgeKind::Door));
+    point_frac(&mut app, cell, 0.35, 0.5);
+    mouse(&mut app, MouseButton::Right, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Right, ButtonState::Released);
+    assert_eq!(
+        editing(&app).tool,
+        Tool::Edge(EdgeKind::Open),
+        "the west side is open"
+    );
+
+    // Off the plan, no aim and no hover.
+    leave_plan(&mut app);
+    app.update();
+    assert_eq!(editing(&app).hover, None);
+    assert_eq!(hover_node(&mut app).display, Display::None);
 }

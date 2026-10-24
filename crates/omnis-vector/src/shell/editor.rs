@@ -3,8 +3,9 @@
 //! the tools (a kit screen), the plan (the Bevy-free raster in one image node, with the cursor
 //! as a bordered node over it) and the inspector (a kit screen). Built like the fight screen:
 //! the columns are rebuilt only when their screen changed, the plan repainted only when what
-//! it shows changed. The pointer paints (M5.5): a left click paints the brush at the cell or
-//! the edge under it and a drag is one stroke, a right click picks what is there. The editor
+//! it shows changed. The pointer paints (M5.5): a left click paints the brush at what the
+//! pointer aims at (`Editor::aim`, shown as a hover over the plan before the click) and a drag
+//! is one stroke, a right click picks what is there. The editor
 //! runs with no `Session`, so nothing of the game moves or draws; its menu is a screen of the
 //! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
 //! painted, and the rest stands.
@@ -65,10 +66,19 @@ pub struct PlanImage;
 #[derive(Component)]
 pub struct PlanCursor;
 
+/// The aim under the pointer, over the plan: a cell's outline, or a bar along the side an edge
+/// brush would paint.
+#[derive(Component)]
+pub struct PlanHover;
+
 /// The plan's picture node: its image and its size.
 type Picture = (&'static mut ImageNode, &'static mut Node);
 /// Which node the picture is.
-type IsPicture = (With<PlanImage>, Without<PlanCursor>);
+type IsPicture = (With<PlanImage>, Without<PlanCursor>, Without<PlanHover>);
+/// Which node the cursor is.
+type IsCursor = (With<PlanCursor>, Without<PlanHover>);
+/// The hover node: its place and its fill.
+type Hover = (&'static mut Node, &'static mut BackgroundColor);
 
 /// What the layer last drew.
 #[derive(Resource, Debug, Default)]
@@ -76,6 +86,7 @@ struct Drawn {
     tools: Option<(Screen, u32)>,
     inspector: Option<(Screen, u32)>,
     plan: Option<(u64, (u32, u32))>,
+    hover: Option<(Option<Target>, u64, (u32, u32))>,
 }
 
 /// The tools column's width at the reference height.
@@ -163,6 +174,17 @@ fn enter(mut commands: Commands, mut drawn: ResMut<Drawn>) {
                     BorderColor::all(colour(Role::Interface)),
                     Pickable::IGNORE,
                 ));
+                pane.spawn((
+                    PlanHover,
+                    Node {
+                        position_type: PositionType::Absolute,
+                        display: Display::None,
+                        ..default()
+                    },
+                    BorderColor::all(colour(Role::Caution)),
+                    BackgroundColor(Color::NONE),
+                    Pickable::IGNORE,
+                ));
             });
             root.spawn((
                 Column::Inspector,
@@ -211,6 +233,42 @@ fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> 
         .is_none_or(|c| c.why_not.is_none())
 }
 
+/// The hover node over `aim`: a cell's rectangle as a thin outline, an edge as a filled bar
+/// along that side, a sixth of the side thick; hidden with no aim.
+fn place_hover(
+    node: &mut Node,
+    fill: &mut BackgroundColor,
+    aim: Option<((i64, i64, u32), Option<Facing>)>,
+) {
+    let Some(((left, top, side), edge)) = aim else {
+        node.display = Display::None;
+        return;
+    };
+    let side = i64::from(side);
+    let thick = (side / 6).max(2);
+    let (x, y, w, h) = match edge {
+        None => (left, top, side, side),
+        Some(Facing::North) => (left, top - thick / 2, side, thick),
+        Some(Facing::South) => (left, top + side - thick / 2, side, thick),
+        Some(Facing::West) => (left - thick / 2, top, thick, side),
+        Some(Facing::East) => (left + side - thick / 2, top, thick, side),
+    };
+    #[allow(clippy::cast_precision_loss)]
+    {
+        node.left = Val::Px(x as f32);
+        node.top = Val::Px(y as f32);
+        node.width = Val::Px(w as f32);
+        node.height = Val::Px(h as f32);
+    }
+    node.border = UiRect::all(Val::Px(if edge.is_some() { 0.0 } else { 1.0 }));
+    fill.0 = if edge.is_some() {
+        colour(Role::Caution)
+    } else {
+        Color::NONE
+    };
+    node.display = Display::Flex;
+}
+
 /// The pane's size in logical pixels once laid out; the model's last size before that.
 fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -236,9 +294,10 @@ const DIGITS: [KeyCode; 9] = [
     KeyCode::Digit9,
 ];
 
-/// The layer's input: a pressed control or a choice's arrow; on the plan, a left click paints
-/// the brush at the cell or the edge under the pointer (the cursor goes there) and a drag is
-/// one stroke, a right click picks what is there; and the keys while no screen stands over the
+/// The layer's input: a pressed control or a choice's arrow; on the plan, the pointer's aim
+/// (`Editor::aim`: the cell under it, or with an edge brush its nearest side) is kept as the
+/// hover, a left click paints the brush there (the cursor goes to the cell) and a drag is one
+/// stroke, a right click picks what is there; and the keys while no screen stands over the
 /// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it, the
 /// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
@@ -293,8 +352,11 @@ fn route(
         let target = plan.filter(|_| !over_button).and_then(|(at, size)| {
             #[allow(clippy::cast_precision_loss)]
             let (px, py) = ((at.x + 0.5) * size.0 as f32, (at.y + 0.5) * size.1 as f32);
-            editing.view.target(editing.size(), px, py)
+            editing.aim(px, py)
         });
+        if editing.hover != target {
+            editing.hover = target;
+        }
         if let Some(target) = target {
             if mouse.just_pressed(MouseButton::Right) {
                 editing.pick(target);
@@ -383,7 +445,8 @@ fn refresh(
     columns: Query<(Entity, &Column, Option<&ComputedNode>)>,
     images: Option<ResMut<Assets<Image>>>,
     mut picture: Query<Picture, IsPicture>,
-    mut cursor: Query<&mut Node, With<PlanCursor>>,
+    mut cursor: Query<&mut Node, IsCursor>,
+    mut hovers: Query<Hover, With<PlanHover>>,
 ) {
     let height = super::combat::size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -414,6 +477,18 @@ fn refresh(
         commands
             .entity(entity)
             .with_children(|p| build(p, want, (height, Mark::Editor), None));
+    }
+    let hover_key = (editing.hover, editing.revision, pane);
+    if drawn.hover != Some(hover_key) {
+        drawn.hover = Some(hover_key);
+        let aim = editing.hover.filter(|_| editing.grid().is_some());
+        for (mut node, mut fill) in &mut hovers {
+            place_hover(
+                &mut node,
+                &mut fill,
+                aim.map(|t| (editing.view.cell_rect(t.cell), t.edge)),
+            );
+        }
     }
     let key = (editing.revision, pane);
     if drawn.plan == Some(key) {

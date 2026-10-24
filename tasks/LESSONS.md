@@ -390,3 +390,12 @@
   framework's own systems, so the hand-written helper is checked against what the framework really writes.
 - **Also**: the owner reached for the game's movement keys (WASD) in the editor. Wherever a cursor moves,
   bind the game's keys beside the arrows.
+
+## 2026-10-24 — A mouse action must never depend on a hidden state
+- **What happened**: an edge brush painted the side the pointer was near only within a thin band; anywhere
+  else in the cell it painted the side the cursor *faced*, set by Q and E. The owner found doors "very
+  careful about the direction" and could not remove them, and walls hard: the rule was invisible, and the
+  outcome depended on a state the pointer gave no sign of.
+- **Rule**: what a click will do must be visible before the click (a hover of the aim), and a pointer action
+  decides from the pointer alone; keyboard state steers keyboard actions. When a report says a tool is
+  "fiddly" or "direction-sensitive", look first for a hidden input in the rule.

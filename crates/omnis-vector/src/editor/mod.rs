@@ -92,6 +92,9 @@ pub struct Editor {
     pub eighths: i16,
     /// The last target painted in the stroke the held button keeps open; none between strokes.
     pub stroke: Option<Target>,
+    /// What a click would act on now: the aim under the pointer (`aim`), shown over the plan;
+    /// none while the pointer is off the plan or over a control.
+    pub hover: Option<Target>,
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
@@ -124,6 +127,7 @@ impl Editor {
             tool: Tool::Clear,
             eighths: 0,
             stroke: None,
+            hover: None,
             status,
         })
     }
@@ -252,6 +256,19 @@ impl Editor {
                 self.view = plan::View::fitted(self.size(), pane);
             }
             self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    /// What a click at pane pixel `(px, py)` acts on: with an edge brush the cell under it and
+    /// its nearest side, wherever in the cell the pixel lies (never the facing: the mouse shows
+    /// what it will do); otherwise the cell, or its edge when the pixel is within a quarter of
+    /// the side of that border. None off the map.
+    #[must_use]
+    pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
+        let size = self.size();
+        match self.tool {
+            Tool::Edge(_) => self.view.edge_target(size, px, py),
+            _ => self.view.target(size, px, py),
         }
     }
 

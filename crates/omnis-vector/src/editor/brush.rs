@@ -75,7 +75,7 @@ impl Tool {
             Tool::Edge(EdgeKind::Wall) => "Wall".to_owned(),
             Tool::Edge(EdgeKind::Door) => "Door".to_owned(),
             Tool::Edge(EdgeKind::Ramp) => "Ramp".to_owned(),
-            Tool::Edge(EdgeKind::Open) => "Open edge".to_owned(),
+            Tool::Edge(EdgeKind::Open) => "Open edge (erase)".to_owned(),
             Tool::Height => "Height".to_owned(),
             Tool::Clear => "No ground".to_owned(),
         }
