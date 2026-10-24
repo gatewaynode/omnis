@@ -4,6 +4,9 @@ The owner added the Lucide icon set (ISC) under `assets/svg-icons/` on 2026-10-2
 "a self contained library" of our own, its own step after M5.6 and before M5.7. Two commits: the crate, then the
 client drawing icons.
 
+**Accepted by the owner 2026-10-24** ("Manually tested. Having these icons handy should make the map and UI
+work easier as we can start to abstract it away from text where it makes sense.").
+
 ## What was built
 
 ### 1. `omnis-icon` (2026-10-24)

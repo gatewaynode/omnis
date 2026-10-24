@@ -180,8 +180,11 @@ no loss, and every later map is built with it.
       for one-time placements (building terrains three cells wide for one site each). Decide with the owner at
       the next planning: whether `Site` becomes one kind of a wider `Activity` placement in the data (a schema
       move, M5.10 re-authors the maps anyway) or stays as is with the editor grouping only.
-  - [ ] **Icons** (owner 2026-10-24: "its own step after M5.6"; planned and approved the same day: a new crate
-    `omnis-icon`, the whole Lucide set compiled in; `tasks/acceptance/icons.md`):
+  - [x] **Icons** (owner 2026-10-24: "its own step after M5.6"; planned and approved the same day: a new crate
+    `omnis-icon`, the whole Lucide set compiled in; `tasks/acceptance/icons.md`). **Accepted by the owner
+    2026-10-24** ("Manually tested"). Owner's direction for what follows: with the icons handy, the map and the UI
+    are to move away from text where it makes sense: a design pass on which controls, marks and HUD lines
+    become icons, planned with M5.7's forms or as its own step.
     - [x] 1 (2026-10-24) `crates/omnis-icon`: `build.rs` compiles `assets/svg-icons/icons/*.svg` and the ISC
       licence in (`catalogue::{get, names, text, count, LICENSE}`); `svg.rs` reads the set's subset and refuses
       the rest; `path.rs` every command, implicit repeats, the compact syntax, arcs by F.6.5; `shape.rs` circles,

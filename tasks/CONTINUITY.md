@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.6 (the attribute bar, the forms, the marks) was accepted by the owner. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.6 and the icon step were accepted by the owner. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -49,8 +49,9 @@ Written 2026-10-24, after M5.6 (the attribute bar, the forms, the marks) was acc
   (unpushed) so the set has its own commit, the tree unchanged.
 
 ## Next
-1. Report the icon step to the owner (how to try: `cargo run -p omnis-icon --example show -- door-open`; the
-   grinning face on the service cells in the editor and on the floor in the game); await the hand test.
+1. **Icons accepted (2026-10-24).** Owner's direction: the map and the UI move away from text where it makes
+   sense, now that the icons are handy. A design pass with the owner on which controls, marks and HUD lines
+   become icons; the image cache for UI nodes (`Icons` by name, size and role) comes with the first of them.
 2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first. Decide the
    **activities** data shape there (`tasks/TODO.md` under M5.6).
 3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).
