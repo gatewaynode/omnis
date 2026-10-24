@@ -4,11 +4,13 @@
 //! screens' renderer under the editor's own mark. Bevy-free.
 
 use super::brush::{self, Tool};
+use super::files::Mode;
 use super::forms::Placing;
 use super::{EditAct, Editor, NoteOf};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::EdgeKind;
+use omnis_sim::omnis_data::limits::MAX_FILE_BYTES;
 use omnis_sim::omnis_data::{Data, MapDef};
 
 /// The most of the loader's refusals the inspector lists.
@@ -104,7 +106,6 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         .and_then(|m| m.error.as_deref())
         .map(|_| "that file does not read");
     let levels = editor.levels();
-    let at = levels.iter().position(|l| *l == editor.level).unwrap_or(0);
     let level_names: Vec<String> = levels
         .iter()
         .map(|l| level_label(editor, data, *l))
@@ -128,7 +129,18 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     } else {
         "Open"
     };
+    let marked = |mode: Mode, label: &str| {
+        if editor.mode == mode {
+            format!("> {label}")
+        } else {
+            label.to_owned()
+        }
+    };
     let mut rows = vec![
+        Row::controls(vec![
+            Control::button(edit(EditAct::Plan), marked(Mode::Plan, "Plan")),
+            Control::button(edit(EditAct::Files), marked(Mode::Files, "Files")),
+        ]),
         Row::controls(vec![
             dim(
                 choice(edit(EditAct::Map), "Map", maps, editor.chosen),
@@ -136,55 +148,19 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
             ),
             dim(Control::button(edit(EditAct::Open), open_label), bad),
         ]),
-        Row::controls(vec![
-            dim(
-                choice(edit(EditAct::Level), "Level", level_names, at),
-                no_map.or((levels.len() < 2).then_some("one level")),
-            ),
-            dim(
-                Control::button(edit(EditAct::LevelAdd), "Add level"),
-                no_map,
-            ),
-            dim(
-                Control::button(edit(EditAct::LevelEdit), "Level..."),
-                no_map.or(editor
-                    .level
-                    .is_ground()
-                    .then_some("the ground level is the map")),
-            ),
-        ]),
-        Row::controls(vec![
-            dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
-            dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
-            dim(Control::button(edit(EditAct::Centre), "Centre  C"), no_map),
-        ]),
-        Row::controls(vec![
-            dim(
-                Control::button(edit(EditAct::FaceLeft), "Face left  Q"),
-                no_map,
-            ),
-            dim(
-                Control::button(edit(EditAct::FaceRight), "Face right  E"),
-                no_map,
-            ),
-        ]),
-        Row::text(Span::body(format!(
-            "Zoom {} px a cell",
-            editor.view.scale()
-        ))),
     ];
-    rows.extend(brush_rows(editor, def.as_ref(), no_map));
-    rows.push(Row::controls(vec![
-        dim(
-            Control::button(edit(EditAct::TerrainAdd), "Add terrain"),
+    if editor.mode == Mode::Files {
+        rows.extend(file_rows(editor));
+    } else {
+        rows.extend(plan_rows(
+            editor,
+            data,
+            def.as_ref(),
             no_map,
-        ),
-        dim(
-            Control::button(edit(EditAct::TerrainEdit), "Edit terrain"),
-            no_map
-                .or((!matches!(editor.tool, Tool::Terrain(_))).then_some("choose a terrain brush")),
-        ),
-    ]));
+            &levels,
+            &level_names,
+        ));
+    }
     rows.push(Row::controls(vec![
         dim(
             Control::button(edit(EditAct::Undo), "Undo  Cmd Z"),
@@ -222,6 +198,141 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         message: editor.message.clone().map(Span::alert),
     }
 }
+
+/// The plan's rows of the tools column: the level, the zoom, the facing, the brushes and the
+/// terrain buttons.
+fn plan_rows(
+    editor: &Editor,
+    _data: &Data,
+    def: Option<&MapDef>,
+    no_map: Option<&str>,
+    levels: &[Level],
+    level_names: &[String],
+) -> Vec<Row> {
+    let edit = |act| ControlId::Edit(act);
+    let at = levels.iter().position(|l| *l == editor.level).unwrap_or(0);
+    let mut rows = vec![
+        Row::controls(vec![
+            dim(
+                choice(edit(EditAct::Level), "Level", level_names.to_vec(), at),
+                no_map.or((levels.len() < 2).then_some("one level")),
+            ),
+            dim(
+                Control::button(edit(EditAct::LevelAdd), "Add level"),
+                no_map,
+            ),
+            dim(
+                Control::button(edit(EditAct::LevelEdit), "Level..."),
+                no_map.or(editor
+                    .level
+                    .is_ground()
+                    .then_some("the ground level is the map")),
+            ),
+        ]),
+        Row::controls(vec![
+            dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
+            dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
+            dim(Control::button(edit(EditAct::Centre), "Centre  C"), no_map),
+        ]),
+        Row::controls(vec![
+            dim(
+                Control::button(edit(EditAct::FaceLeft), "Face left  Q"),
+                no_map,
+            ),
+            dim(
+                Control::button(edit(EditAct::FaceRight), "Face right  E"),
+                no_map,
+            ),
+        ]),
+        Row::text(Span::body(format!(
+            "Zoom {} px a cell",
+            editor.view.scale()
+        ))),
+    ];
+    rows.extend(brush_rows(editor, def, no_map));
+    rows.push(Row::controls(vec![
+        dim(
+            Control::button(edit(EditAct::TerrainAdd), "Add terrain"),
+            no_map,
+        ),
+        dim(
+            Control::button(edit(EditAct::TerrainEdit), "Edit terrain"),
+            no_map
+                .or((!matches!(editor.tool, Tool::Terrain(_))).then_some("choose a terrain brush")),
+        ),
+    ]));
+    rows
+}
+
+/// The files' rows of the tools column (M5.9): one button per pack file, the open one marked,
+/// then Check, Save file and Revert file with their reasons.
+fn file_rows(editor: &Editor) -> Vec<Row> {
+    let edit = |act| ControlId::Edit(act);
+    let open = editor.file.as_ref().map(|f| f.rel.as_str());
+    let mut rows: Vec<Row> = editor
+        .files
+        .iter()
+        .enumerate()
+        .map(|(i, rel)| {
+            let mark = if open == Some(rel.as_str()) { "> " } else { "" };
+            Row::controls(vec![Control::button(
+                edit(EditAct::File(u16::try_from(i).unwrap_or(u16::MAX))),
+                format!("{mark}{rel}"),
+            )])
+        })
+        .collect();
+    if rows.is_empty() {
+        rows.push(Row::text(Span::body("The pack has no files.")));
+    }
+    let none = open.is_none().then_some("choose a file");
+    let file = editor.file.as_ref();
+    let blocked = file.and_then(super::files::FileEdit::blocked_save);
+    rows.push(Row::controls(vec![
+        dim(Control::button(edit(EditAct::Check), "Check"), none),
+        dim(
+            Control::button(edit(EditAct::WriteFile), "Save file"),
+            none.or(blocked.as_deref()),
+        ),
+        dim(
+            Control::button(edit(EditAct::RevertFile), "Revert file"),
+            none.or(file.is_some_and(|f| !f.dirty()).then_some("no changes")),
+        ),
+    ]));
+    rows
+}
+
+/// The centre's text screen (M5.9): the open file as one field of many lines, or a word when
+/// none is open.
+#[must_use]
+pub fn text(editor: &Editor) -> Screen {
+    let (title, rows) = match &editor.file {
+        Some(file) => (
+            file.rel.clone(),
+            vec![Row::controls(vec![Control {
+                kind: Kind::Text {
+                    value: file.text.clone(),
+                    max: usize::try_from(MAX_FILE_BYTES).unwrap_or(usize::MAX),
+                    lines: TEXT_LINES,
+                },
+                ..Control::button(ControlId::Edit(EditAct::FileText), "")
+            }])],
+        ),
+        None => (
+            "FILES".to_owned(),
+            vec![Row::text(Span::body("Choose a file in the tools column."))],
+        ),
+    };
+    Screen {
+        id: ScreenId::EditorText,
+        title: Span::title(title),
+        panels: vec![Panel { rows }],
+        keys: Vec::new(),
+        message: None,
+    }
+}
+
+/// The lines the file's field shows at once; the panel scrolls for the rest.
+const TEXT_LINES: u8 = 40;
 
 /// The attribute bar over the plan (M5.6): the cursor's cell and the attributes every cell has,
 /// always in reach wherever the tools column is scrolled: its terrain (or no ground), its
@@ -323,6 +434,37 @@ const fn edge_name(kind: Option<EdgeKind>) -> &'static str {
 #[must_use]
 pub fn inspector(editor: &Editor, data: &Data) -> Screen {
     let mut rows = Vec::new();
+    if editor.mode == Mode::Files {
+        // The file's verdict (M5.9): the loader's words on the text as typed.
+        match &editor.file {
+            None => rows.push(Row::text(Span::body("No file is open."))),
+            Some(file) => {
+                rows.push(Row::text(Span::body(format!(
+                    "{}  {} bytes{}",
+                    file.rel,
+                    file.text.len(),
+                    if file.dirty() { "  *" } else { "" }
+                ))));
+                let verdict = file.verdict();
+                match &file.errors {
+                    Some(errors) if !errors.is_empty() => {
+                        rows.push(Row::text(Span::alert(verdict)));
+                        for e in errors.iter().take(ERRORS_SHOWN) {
+                            rows.push(Row::text(Span::alert(e.clone())));
+                        }
+                    }
+                    _ => rows.push(Row::text(Span::body(verdict))),
+                }
+            }
+        }
+        return Screen {
+            id: ScreenId::EditorInspector,
+            title: Span::title("INSPECTOR"),
+            panels: vec![Panel { rows }],
+            keys: Vec::new(),
+            message: None,
+        };
+    }
     if let Some(form) = &editor.form {
         rows.extend(form.rows());
     }

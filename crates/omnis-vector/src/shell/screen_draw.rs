@@ -201,20 +201,25 @@ pub(super) fn words(
     )
 }
 
+/// A control's box node.
+fn boxed_node(height: f32) -> Node {
+    Node {
+        min_width: Val::Px(scaled(150.0, height)),
+        // At least this tall; a long reason wraps inside the box rather than out of it.
+        min_height: Val::Px(scaled(34.0, height)),
+        padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
+        border: UiRect::all(Val::Px(1.0)),
+        column_gap: Val::Px(scaled(10.0, height)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    }
+}
+
 /// A bordered box, as every control is drawn.
 fn boxed(role: Role, height: f32) -> impl Bundle {
     (
-        Node {
-            min_width: Val::Px(scaled(150.0, height)),
-            // At least this tall; a long reason wraps inside the box rather than out of it.
-            min_height: Val::Px(scaled(34.0, height)),
-            padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
-            border: UiRect::all(Val::Px(1.0)),
-            column_gap: Val::Px(scaled(10.0, height)),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        },
+        boxed_node(height),
         BorderColor::all(colour(role)),
         BackgroundColor(shade(0)),
     )
@@ -393,8 +398,19 @@ fn control_node(
             });
         }
         Kind::Text { value, max, lines } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
-                b.spawn(words(&c.label, role, Size::Body, height));
+            let mut boxed = parent.spawn(boxed(role, height));
+            if *lines > 1 {
+                boxed.insert(Node {
+                    flex_grow: 1.0,
+                    width: Val::Percent(100.0),
+                    align_items: AlignItems::FlexStart,
+                    ..boxed_node(height)
+                });
+            }
+            boxed.with_children(|b| {
+                if !c.label.is_empty() {
+                    b.spawn(words(&c.label, role, Size::Body, height));
+                }
                 let mut field = b.spawn((
                     text_field(value, *max, *lines),
                     TextFont {
@@ -405,9 +421,16 @@ fn control_node(
                     // Without a style no cursor is drawn; Bevy's default is too dark to see here.
                     cursor_style(),
                     // Underlined, so an empty field still shows where to type; a field of
-                    // several lines stands wider.
+                    // several lines takes its row's width (a note across the inspector, a
+                    // file's text across the centre, M5.9).
                     Node {
-                        min_width: Val::Px(scaled(if *lines > 1 { 360.0 } else { 260.0 }, height)),
+                        min_width: Val::Px(scaled(260.0, height)),
+                        width: if *lines > 1 {
+                            Val::Percent(100.0)
+                        } else {
+                            Val::Auto
+                        },
+                        flex_grow: if *lines > 1 { 1.0 } else { 0.0 },
                         border: UiRect::bottom(Val::Px(1.0)),
                         ..default()
                     },

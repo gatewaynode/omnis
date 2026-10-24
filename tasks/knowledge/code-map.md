@@ -293,3 +293,15 @@ under the cursor; no dev tools), `data_for(editor, data) -> Option<Arc<Data>>` (
 `screen/mod.rs`: `Ctx.playtest` (from `Host.playtesting`/`paint`), `ControlId::BackToEditor`, `Effect::ToEditor`
 (`carry_out`: the session removed, the parked editor re-inserted, `nav.edit(true)`; `ToTitle` also removes
 `Playtesting`). `pause.rs`/`defeat.rs` branch on `ctx.playtest`. Tests `tests/editor_playtest.rs`.
+
+## M5.9 RON text editor (2026-10-24)
+`editor/files.rs`: `Mode { Plan, Files }`, `FileEdit { rel, text, disk, errors: Option<Vec<String>>, fresh }` with
+`read`, `dirty`, `typed`, `checked`, `blocked_save`, `verdict`, `revert`, `written`. `Editor { mode, files, file }`,
+`typed_file`, `open_file`, `write_file` (`session.write`, `reopen` when the file is the document's own), `reopen`
+(shared with `revert`); acts `Plan`, `Files` (`session.files()`), `File(u16)`, `FileText`, `Check`
+(`session.check`), `WriteFile`, `RevertFile`. `view::tools` = the Plan|Files row, the Map row, then `plan_rows` or
+`file_rows`, then Undo/Redo, Save/Revert, Playtest, Menu; `view::text` (`ScreenId::EditorText`, `TEXT_LINES` 40,
+`MAX_FILE_BYTES`); the inspector's Files branch. `shell/editor.rs`: `Column::Text` in the centre, shown by `mode`
+(`Display` toggled in `refresh`, `column_entity`), `Drawn.text`, `PlanNodes` system param (a system takes sixteen
+parameters at most), the `fresh` keep for a file as for a form, `route` sends `EditAct::FileText` to `typed_file`.
+`screen_draw.rs`: a `Kind::Text` of several lines takes its row's width (`boxed_node`). Tests `tests/editor_files.rs`.

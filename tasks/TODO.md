@@ -229,7 +229,13 @@ no loss, and every later map is built with it.
     `ControlId::BackToEditor`, `Effect::ToEditor` (the game removed, the parked editor re-inserted); Pause and
     Defeat in a playtest. `refresh` tolerates the frame the editor is taken away. Tests
     `tests/editor_playtest.rs` (3); three mutations killed.
-  - [ ] M5.9 The RON text editor (Check, Save verbatim).
+  - [ ] M5.9 The RON text editor (Check, Save verbatim); `tasks/acceptance/m5-9.md`. Built 2026-10-24 (plan mode,
+    approved): `editor/files.rs` (`Mode`, `FileEdit { rel, text, disk, errors, fresh }`, `blocked_save`, `verdict`),
+    `Editor { mode, files, file }`, acts `Plan`, `Files`, `File(n)`, `FileText`, `Check`, `WriteFile` (→ `Asked::Saved`,
+    the map's own file reopening the document), `RevertFile`; `view::tools` with the Plan|Files row and `file_rows`,
+    `view::text` (`ScreenId::EditorText`, one forty-line field), the inspector's verdict; `Column::Text` shown by
+    mode in the centre; a field of several lines takes its row's width. Tests `tests/editor_files.rs` (3) and the
+    unit test. Awaiting the owner's hand test.
   - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in

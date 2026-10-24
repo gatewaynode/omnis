@@ -87,6 +87,8 @@ pub enum ScreenId {
     EditorInspector,
     /// The editor's attribute bar over the plan (M5.6), as the tools.
     EditorBar,
+    /// The editor's file text in the centre (M5.9), as the tools.
+    EditorText,
 }
 
 impl ScreenId {
@@ -712,7 +714,13 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::LoadReport, _) => load_report::content(forms),
         (ScreenId::EditorMenu, _) => editor_menu::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
-        (ScreenId::EditorTools | ScreenId::EditorInspector | ScreenId::EditorBar, _) => empty(id),
+        (
+            ScreenId::EditorTools
+            | ScreenId::EditorInspector
+            | ScreenId::EditorBar
+            | ScreenId::EditorText,
+            _,
+        ) => empty(id),
         (ScreenId::Debug, Some(game)) => debug::content(ctx.data, game, &forms.debug),
         (ScreenId::Pause, Some(game)) => pause::content(ctx, game),
         (ScreenId::Actions, Some(game)) => actions::content(ctx.data, game),
@@ -776,9 +784,13 @@ pub fn apply(
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
         (ScreenId::LoadReport, _) => load_report::apply(forms, control),
         (ScreenId::EditorMenu, _) => editor_menu::apply(control),
-        (ScreenId::EditorTools | ScreenId::EditorInspector | ScreenId::EditorBar, _) => {
-            Effect::None
-        }
+        (
+            ScreenId::EditorTools
+            | ScreenId::EditorInspector
+            | ScreenId::EditorBar
+            | ScreenId::EditorText,
+            _,
+        ) => Effect::None,
         (ScreenId::Debug, Some(game)) => {
             debug::apply(ctx.data, game, &mut forms.debug, control, payload)?
         }

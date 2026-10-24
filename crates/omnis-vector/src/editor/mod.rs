@@ -5,6 +5,7 @@
 //! (`shell/editor.rs`) draws it and routes the pointer and the keys to it.
 
 pub mod brush;
+pub mod files;
 pub mod form;
 pub mod forms;
 pub mod plan;
@@ -13,6 +14,7 @@ pub mod preview;
 pub mod view;
 
 use brush::{Target, Tool};
+use files::{FileEdit, Mode};
 use form::{At, Change, Form};
 use forms::Placing;
 use omnis_sim::omnis_core::{Facing, Level};
@@ -104,6 +106,20 @@ pub enum EditAct {
     Menu,
     /// Start a game on the edited map at the cursor (M5.8).
     Playtest,
+    /// Show the map's plan (M5.9).
+    Plan,
+    /// Show the pack's files as text (M5.9).
+    Files,
+    /// Open the nth file of the list as text.
+    File(u16),
+    /// The open file's text, as typed.
+    FileText,
+    /// Ask the loader about the open file's text.
+    Check,
+    /// Write the open file's text exactly as typed and reseal the pack.
+    WriteFile,
+    /// Put the file's text back as the file holds it.
+    RevertFile,
 }
 
 /// Whose note: the cursor's cell's, the shown level's or the map's.
@@ -175,6 +191,12 @@ pub struct Editor {
     pub form: Option<Form>,
     /// What the inspector's Add places: an index into `forms::Placing::ALL`.
     pub place_kind: usize,
+    /// What the centre shows: the plan or a file's text (M5.9).
+    pub mode: Mode,
+    /// The pack's files, listed when Files mode was entered.
+    pub files: Vec<String>,
+    /// The file open as text, if one is.
+    pub file: Option<FileEdit>,
 }
 
 /// A placement at the cursor, as the inspector lists it: its words and the key that names it.
@@ -218,6 +240,9 @@ impl Editor {
             status,
             form: None,
             place_kind: 0,
+            mode: Mode::Plan,
+            files: Vec::new(),
+            file: None,
         })
     }
 
@@ -549,6 +574,101 @@ impl Editor {
         }
     }
 
+    /// The open file's text was typed into (M5.9): the model holds it, the verdict no longer
+    /// holds, and the tools column's Save file follows.
+    pub fn typed_file(&mut self, text: String) {
+        if let Some(file) = &mut self.file
+            && file.typed(text)
+        {
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    /// Open the nth listed file as text, fresh (its field takes the keyboard).
+    fn open_file(&mut self, n: usize) {
+        let Some(rel) = self.files.get(n).cloned() else {
+            return;
+        };
+        match self.session.read(&rel) {
+            Ok(text) => {
+                self.file = Some(FileEdit::read(rel, text));
+                self.message = None;
+            }
+            Err(e) => self.message = Some(format!("Cannot read {rel}: {e}")),
+        }
+    }
+
+    /// Write the open file exactly as typed, reseal the pack, and reopen the document when the
+    /// file is the open map's own, so the plan shows what was written.
+    fn write_file(&mut self, data: &Data) -> Asked {
+        let Some(file) = self.file.as_ref() else {
+            return Asked::Nothing;
+        };
+        if let Some(why) = file.blocked_save() {
+            self.message = Some(format!("Not written: {why}"));
+            return Asked::Nothing;
+        }
+        let (rel, text) = (file.rel.clone(), file.text.clone());
+        match self.session.write(&rel, &text, data) {
+            Ok(sealed) => {
+                if let Some(file) = &mut self.file {
+                    file.written();
+                }
+                self.message = Some(match sealed {
+                    Some(s) => format!(
+                        "Wrote {rel}; {} sealed at {}",
+                        self.session.pack(),
+                        s.version
+                    ),
+                    None => format!("Wrote {rel} (a note: not sealed)"),
+                });
+                let own = self.session.document().is_some_and(|d| d.file() == rel);
+                if own {
+                    self.reopen(data);
+                }
+                Asked::Saved
+            }
+            Err(EditError::Invalid(errors)) => {
+                if let Some(file) = &mut self.file {
+                    file.checked(errors.iter().map(ToString::to_string).collect());
+                }
+                self.message = Some("Not written: the loader refuses it".to_owned());
+                Asked::Nothing
+            }
+            Err(e) => {
+                self.message = Some(format!("Not written: {e}"));
+                Asked::Nothing
+            }
+        }
+    }
+
+    /// The open map read again from its file, keeping the cursor, the level, the view, the
+    /// facing and the brush.
+    fn reopen(&mut self, data: &Data) {
+        let Some(id) = self.map_id() else {
+            return;
+        };
+        let (cursor, level, facing, view, tool, eighths) = (
+            self.cursor,
+            self.level,
+            self.facing,
+            self.view,
+            self.tool,
+            self.eighths,
+        );
+        if let Err(e) = self.open(&id, data) {
+            self.message = Some(format!("The map did not reopen: {e}"));
+            return;
+        }
+        self.cursor = cursor;
+        self.facing = facing;
+        self.view = view;
+        self.tool = tool;
+        self.eighths = eighths;
+        self.show_level(level);
+        self.changed(data);
+    }
+
     /// Number field `i` of the open form was set outright (a slider).
     pub fn set_field(&mut self, i: u8, n: i64) {
         if let Some(form) = &mut self.form {
@@ -702,26 +822,9 @@ impl Editor {
         let Some(id) = self.map_id() else {
             return;
         };
-        let (cursor, level, facing, view, tool, eighths) = (
-            self.cursor,
-            self.level,
-            self.facing,
-            self.view,
-            self.tool,
-            self.eighths,
-        );
-        match self.open(&id, data) {
-            Ok(()) => {
-                self.cursor = cursor;
-                self.facing = facing;
-                self.view = view;
-                self.tool = tool;
-                self.eighths = eighths;
-                self.show_level(level);
-                self.changed(data);
-                self.message = Some(format!("Reverted {id} to its file"));
-            }
-            Err(e) => self.message = Some(format!("Not reverted: {e}")),
+        self.reopen(data);
+        if self.message.is_none() {
+            self.message = Some(format!("Reverted {id} to its file"));
         }
     }
 
@@ -944,6 +1047,41 @@ impl Editor {
             EditAct::Revert => self.revert(data),
             EditAct::Menu => return Asked::Menu,
             EditAct::Playtest => return Asked::Playtest,
+            EditAct::Plan => self.mode = Mode::Plan,
+            EditAct::Files => {
+                self.mode = Mode::Files;
+                match self.session.files() {
+                    Ok(files) => self.files = files,
+                    Err(e) => self.message = Some(format!("Cannot list the files: {e}")),
+                }
+            }
+            EditAct::File(n) => self.open_file(usize::from(n)),
+            EditAct::FileText => {}
+            EditAct::Check => {
+                let Some(file) = self.file.as_ref() else {
+                    return Asked::Nothing;
+                };
+                match self.session.check(&file.rel, &file.text, data) {
+                    Ok(errors) => {
+                        let words: Vec<String> = errors.iter().map(ToString::to_string).collect();
+                        self.message = Some(match words.first() {
+                            None => format!("The loader takes {}", file.rel),
+                            Some(first) => format!("{} error(s); the first: {first}", words.len()),
+                        });
+                        if let Some(file) = &mut self.file {
+                            file.checked(words);
+                        }
+                    }
+                    Err(e) => self.message = Some(format!("Not checked: {e}")),
+                }
+            }
+            EditAct::WriteFile => return self.write_file(data),
+            EditAct::RevertFile => {
+                if let Some(file) = &mut self.file {
+                    file.revert();
+                    self.message = Some(format!("{} as the file holds it", file.rel));
+                }
+            }
         }
         Asked::Nothing
     }

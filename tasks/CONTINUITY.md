@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.8 (Playtest) was accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.9 (the RON text editor) was built. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -61,12 +61,15 @@ Written 2026-10-24, after M5.8 (Playtest) was accepted. Rewrite this file every 
   later when a second kind has engine rules.
 
 ## Next
-1. **M5.9 the RON text editor** (plan mode first; plan §Client side "RON editor": `Mode::Files`, a file list
-   from `Session::files()`, one tall `EditableText` with newlines (`Kind::Text.lines` since M5.6a), Check
-   through `Session::check(rel, text, data)` listing the loader's errors, Save verbatim through
-   `Session::write` (atomic, reseal), wheel scroll; limits `MAX_FILE_BYTES` 4 MiB). M5.8 accepted 2026-10-24.
-2. M5.10 re-authoring (the four maps' comments to notes, resealed, replays rebaselined, documents as built).
-   Boundary tools after (owner, 2026-10-24).
+1. **M5.9 built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, six steps on a
+   scratch copy).
+2. **M5.10 re-authoring and close** (plan row 10: `tests/edit_authoring.rs` builds each `packs/test` map from
+   blank with ops only and matches the loaded def; the four maps' comments moved to notes and the files
+   rewritten through the editor; `packs/test` resealed; both replays rebaselined; documents as built
+   (ARCHITECTURE §8.2, presentation-ARCHITECTURE §6/§8, PRD §10 status, code-map, README); TODO M5 ticked).
+   Plan mode first. The owner's accidental save of the town (still in their tree) shows the writer's layout.
+3. Boundary tools after (owner, 2026-10-24); the UI icon design pass; the activities schema when a second
+   kind has rules.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

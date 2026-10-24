@@ -22,6 +22,7 @@ use crate::pose::Pose;
 use crate::screen::{ControlId, Kind, Screen, ScreenId};
 use crate::sim::game_settings;
 use crate::style::{Role, scaled};
+use bevy::ecs::system::SystemParam;
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::EditableText;
@@ -66,6 +67,8 @@ pub enum Column {
     Plan,
     /// The attribute bar over the plan (M5.6).
     Bar,
+    /// A file's text in the centre, in Files mode (M5.9).
+    Text,
     /// The preview's picture over the inspector (M5.7); only with a renderer.
     Preview,
     /// The inspector, right.
@@ -93,12 +96,20 @@ type IsPicture = (With<PlanImage>, Without<PlanCursor>, Without<PlanHover>);
 type IsCursor = (With<PlanCursor>, Without<PlanHover>);
 /// The hover node: its place and its fill.
 type Hover = (&'static mut Node, &'static mut BackgroundColor);
+/// Which nodes are the columns, apart from the plan's own.
+type IsColumn = (
+    With<Column>,
+    Without<PlanImage>,
+    Without<PlanCursor>,
+    Without<PlanHover>,
+);
 
 /// What the layer last drew.
 #[derive(Resource, Debug, Default)]
 struct Drawn {
     tools: Option<(Screen, u32)>,
     bar: Option<(Screen, u32)>,
+    text: Option<(Screen, u32)>,
     inspector: Option<(Screen, u32)>,
     plan: Option<(u64, (u32, u32))>,
     hover: Option<(Option<Target>, u64, (u32, u32))>,
@@ -199,6 +210,21 @@ fn enter(
                         BackgroundColor(Color::BLACK),
                     ))
                     .with_children(plan_nodes);
+                // A file's text in Files mode (M5.9), in place of the bar and the plan.
+                centre.spawn((
+                    Column::Text,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        flex_grow: 1.0,
+                        min_width: Val::Px(0.0),
+                        min_height: Val::Px(0.0),
+                        padding: UiRect::all(Val::Px(12.0)),
+                        row_gap: Val::Px(8.0),
+                        overflow: Overflow::clip(),
+                        display: Display::None,
+                        ..default()
+                    },
+                ));
             });
             // The right: the preview's picture (with a renderer) over the inspector.
             root.spawn((
@@ -248,6 +274,16 @@ fn enter(
                 ));
             });
         });
+}
+
+/// The plan's drawn nodes and the images they are painted into, for `refresh` (a system takes
+/// sixteen parameters at most).
+#[derive(SystemParam)]
+struct PlanNodes<'w, 's> {
+    images: Option<ResMut<'w, Assets<Image>>>,
+    picture: Query<'w, 's, Picture, IsPicture>,
+    cursor: Query<'w, 's, &'static mut Node, IsCursor>,
+    hovers: Query<'w, 's, Hover, With<PlanHover>>,
 }
 
 /// The plan's nodes under its pane: the picture, the cursor and the hover.
@@ -417,6 +453,18 @@ fn place_hover(
     node.display = Display::Flex;
 }
 
+/// The entity of `column` among `columns`; a placeholder when it is not spawned (headless, the
+/// preview).
+fn column_entity(
+    columns: &Query<(Entity, &Column, Option<&ComputedNode>)>,
+    column: Column,
+) -> Entity {
+    columns
+        .iter()
+        .find(|(_, c, _)| **c == column)
+        .map_or(Entity::PLACEHOLDER, |(e, _, _)| e)
+}
+
 /// The pane's size in logical pixels once laid out; the model's last size before that.
 fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -475,19 +523,30 @@ fn route(
         .is_some_and(|e| fields.get(e).is_ok());
     let data = packs.data.clone();
     if !covered {
-        // Typed text goes to the open form's field; the words on screen are the field's own.
+        // Typed text goes to the open form's field, or the open file (M5.9); the words on
+        // screen are the field's own.
         for (field, press) in &fields {
-            if let ControlId::Edit(EditAct::Field(i)) = press.0
-                && field.is_changed()
-            {
-                let text = field.value().to_string();
-                if editing
-                    .form
-                    .as_ref()
-                    .is_some_and(|f| f.text(usize::from(i)) != text)
-                {
-                    editing.typed(i, text);
+            if !field.is_changed() {
+                continue;
+            }
+            match press.0 {
+                ControlId::Edit(EditAct::Field(i)) => {
+                    let text = field.value().to_string();
+                    if editing
+                        .form
+                        .as_ref()
+                        .is_some_and(|f| f.text(usize::from(i)) != text)
+                    {
+                        editing.typed(i, text);
+                    }
                 }
+                ControlId::Edit(EditAct::FileText) => {
+                    let text = field.value().to_string();
+                    if editing.file.as_ref().is_some_and(|f| f.text != text) {
+                        editing.typed_file(text);
+                    }
+                }
+                _ => {}
             }
         }
         if let Some((ControlId::Edit(EditAct::Field(i)), n)) = slid.0.take() {
@@ -644,15 +703,13 @@ fn refresh(
     window: Query<&Window, With<PrimaryWindow>>,
     capture: Option<Res<super::capture::CaptureSize>>,
     columns: Query<(Entity, &Column, Option<&ComputedNode>)>,
-    images: Option<ResMut<Assets<Image>>>,
-    mut picture: Query<Picture, IsPicture>,
-    mut cursor: Query<&mut Node, IsCursor>,
-    mut hovers: Query<Hover, With<PlanHover>>,
+    mut plan_nodes: PlanNodes,
     mut panels: Query<(Entity, &mut ScrollPosition), With<Scrolls>>,
     parents: Query<&ChildOf>,
     mut placed: Query<Placed>,
     focus: Option<Res<InputFocus>>,
     fields: Query<&EditorPress, With<EditableText>>,
+    mut nodes: Query<&mut Node, IsColumn>,
 ) {
     // `route` runs before this under one condition; when it starts a playtest it takes the
     // editor away in between (M5.8), and there is nothing to draw this frame.
@@ -685,7 +742,23 @@ fn refresh(
     editing.laid_out(pane);
     let tools = view::tools(&editing, data);
     let bar = view::bar(&editing, data);
+    let text = view::text(&editing);
     let inspector = view::inspector(&editing, data);
+    // The centre shows the plan or the file's text, by the mode (M5.9).
+    let files = editing.mode == crate::editor::files::Mode::Files;
+    for (_, column, _) in &columns {
+        let shown = match column {
+            Column::Bar | Column::Plan => !files,
+            Column::Text => files,
+            _ => continue,
+        };
+        let want = if shown { Display::Flex } else { Display::None };
+        if let Ok(mut node) = nodes.get_mut(column_entity(&columns, *column))
+            && node.display != want
+        {
+            node.display = want;
+        }
+    }
     let focused = focus
         .as_ref()
         .and_then(|f| f.get())
@@ -695,6 +768,7 @@ fn refresh(
         let (want, last) = match column {
             Column::Tools => (&tools, &mut drawn.tools),
             Column::Bar => (&bar, &mut drawn.bar),
+            Column::Text => (&text, &mut drawn.text),
             Column::Inspector => (&inspector, &mut drawn.inspector),
             Column::Plan | Column::Preview => continue,
         };
@@ -710,7 +784,11 @@ fn refresh(
         // The field that has the keyboard keeps it through the rebuild when the column still
         // has it; a form just opened gives it to its first field. (A rebuild for any other
         // reason leaves the keyboard where the owner put it, which may be nowhere.)
-        let fresh = editing.form.as_ref().is_some_and(|f| f.fresh);
+        let fresh = match column {
+            Column::Inspector => editing.form.as_ref().is_some_and(|f| f.fresh),
+            Column::Text => editing.file.as_ref().is_some_and(|f| f.fresh),
+            _ => false,
+        };
         let keep = focused
             .filter(|id| want.control(*id).is_some())
             .or_else(|| fresh.then(|| first_field(want)).flatten());
@@ -718,6 +796,11 @@ fn refresh(
             && let Some(form) = &mut editing.form
         {
             form.fresh = false;
+        }
+        if *column == Column::Text
+            && let Some(file) = &mut editing.file
+        {
+            file.fresh = false;
         }
         if let Some(y) = panels
             .iter()
@@ -736,7 +819,7 @@ fn refresh(
     if drawn.hover != Some(hover_key) {
         drawn.hover = Some(hover_key);
         let aim = editing.hover.filter(|_| editing.grid().is_some());
-        for (mut node, mut fill) in &mut hovers {
+        for (mut node, mut fill) in &mut plan_nodes.hovers {
             place_hover(
                 &mut node,
                 &mut fill,
@@ -751,7 +834,7 @@ fn refresh(
     drawn.plan = Some(key);
     let (def, grid) = (editing.def(), editing.grid());
     let Some((def, grid)) = def.zip(grid) else {
-        for mut node in &mut cursor {
+        for mut node in &mut plan_nodes.cursor {
             node.display = Display::None;
         }
         return;
@@ -774,8 +857,8 @@ fn refresh(
         editing.view,
         pane,
     );
-    if let Some(mut images) = images
-        && let Ok((mut image, mut node)) = picture.single_mut()
+    if let Some(images) = plan_nodes.images.as_mut()
+        && let Ok((mut image, mut node)) = plan_nodes.picture.single_mut()
     {
         #[allow(clippy::cast_precision_loss)]
         {
@@ -785,7 +868,7 @@ fn refresh(
         image.image = images.add(super::minimap::image(&raster));
     }
     let (left, top, side) = editing.view.cell_rect(editing.cursor);
-    for mut node in &mut cursor {
+    for mut node in &mut plan_nodes.cursor {
         #[allow(clippy::cast_precision_loss)]
         {
             node.left = Val::Px(left as f32);
