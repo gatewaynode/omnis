@@ -125,6 +125,12 @@ no loss, and every later map is built with it.
       an edge brush aims at the nearest side of the cell wherever the click lands (`Editor::aim`,
       `View::edge_target`), never the facing; the aim is a yellow hover (`PlanHover`) before the click; the
       pick follows it; "Open edge (erase)". Red test `an_edge_brush_aims_at_the_nearest_side…`.
+    - [x] Fix (2026-10-24, the owner's third report): every height step rebuilt the tools column unscrolled;
+      a rebuilt column keeps its panel's scroll (`Drawn.scrolls`, restored to the panel added next frame).
+      Red test `a_rebuilt_tools_column_keeps_its_scroll`.
+    - [ ] Proposed (owner 2026-10-24), for the M5.6 plan: a **fixed tool bar** carrying the attributes every
+      cell has (height first, later the rest), always in reach instead of a row among the brushes; the
+      owner suggested the top of the window. Decide its place and contents with M5.6's forms.
     - [ ] Deferred (owner 2026-10-24, after M5.6 at the earliest): **boundary tools** beyond the edge brush. The
       owner wants both a **point-by-point** tool (click corner after corner, the run of walls follows) and a
       **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the

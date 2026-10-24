@@ -14,8 +14,8 @@ use omnis_vector::editor::{EditAct, Editor};
 use omnis_vector::minimap::WALL;
 use omnis_vector::screen::nav::{Escape, Nav};
 use omnis_vector::screen::{ControlId, ScreenId};
-use omnis_vector::shell::editor::Editing;
-use omnis_vector::shell::screen::{Pressable, Screens};
+use omnis_vector::shell::editor::{Column, Editing};
+use omnis_vector::shell::screen::{Pressable, Screens, Scrolls};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::{Session, parse};
 use std::path::PathBuf;
@@ -169,6 +169,47 @@ fn the_arrow_keys_move_the_cursor_and_the_inspector_follows() {
     tap(&mut app, KeyCode::Escape);
     tap(&mut app, KeyCode::ArrowUp);
     assert_eq!(editing(&app).cursor, (9, 4), "the menu holds the keys");
+}
+
+/// The scrolling panel of the tools column, and how far it is scrolled.
+fn tools_panel(app: &mut App) -> (Entity, f32) {
+    let world = app.world_mut();
+    let mut panels = world.query_filtered::<(Entity, &ScrollPosition), With<Scrolls>>();
+    let found: Vec<(Entity, f32)> = panels.iter(world).map(|(e, at)| (e, at.0.y)).collect();
+    for (panel, y) in found {
+        let mut up = panel;
+        while let Some(parent) = world.get::<ChildOf>(up) {
+            up = parent.0;
+            if world.get::<Column>(up) == Some(&Column::Tools) {
+                return (panel, y);
+            }
+        }
+    }
+    panic!("the tools column has a scrolling panel")
+}
+
+#[test]
+fn a_rebuilt_tools_column_keeps_its_scroll() {
+    let mut app = in_editor("test:map:town");
+    // Scrolled down to the brushes, as the wheel would.
+    let (panel, _) = tools_panel(&mut app);
+    app.world_mut()
+        .get_mut::<ScrollPosition>(panel)
+        .expect("the panel")
+        .0
+        .y = 120.0;
+    app.update();
+    // Stepping the height changes the column's screen, which rebuilds the column.
+    arrow(&mut app, EditAct::Eighths, true);
+    assert_eq!(editing(&app).eighths, 1);
+    let (rebuilt, y) = tools_panel(&mut app);
+    assert_ne!(rebuilt, panel, "the column was rebuilt");
+    assert_eq!(y, 120.0, "where it stood");
+    // By key too, and again.
+    tap(&mut app, KeyCode::Equal);
+    app.update();
+    assert_eq!(editing(&app).eighths, 2);
+    assert_eq!(tools_panel(&mut app).1, 120.0);
 }
 
 #[test]

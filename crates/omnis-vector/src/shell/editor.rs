@@ -12,7 +12,7 @@
 
 use super::VectorSet;
 use super::screen::{Arrow, Screens};
-use super::screen_draw::{EditorPress, Mark, build, colour, shade};
+use super::screen_draw::{EditorPress, Mark, Scrolls, build, colour, shade};
 use super::session::Packs;
 use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
@@ -87,6 +87,9 @@ struct Drawn {
     inspector: Option<(Screen, u32)>,
     plan: Option<(u64, (u32, u32))>,
     hover: Option<(Option<Target>, u64, (u32, u32))>,
+    /// The scroll of a column rebuilt last frame, for its new panel: a column is rebuilt where
+    /// it stood, so stepping the height never sends the brushes back to the top.
+    scrolls: Vec<(Column, f32)>,
 }
 
 /// The tools column's width at the reference height.
@@ -447,7 +450,23 @@ fn refresh(
     mut picture: Query<Picture, IsPicture>,
     mut cursor: Query<&mut Node, IsCursor>,
     mut hovers: Query<Hover, With<PlanHover>>,
+    mut panels: Query<(Entity, &mut ScrollPosition), With<Scrolls>>,
+    parents: Query<&ChildOf>,
 ) {
+    let column_of = |panel: Entity| {
+        parents
+            .iter_ancestors(panel)
+            .find_map(|a| columns.get(a).ok().map(|(_, c, _)| *c))
+    };
+    // A panel built last frame takes the scroll of the one it replaced.
+    for (panel, mut at) in &mut panels {
+        if at.is_added()
+            && let Some(column) = column_of(panel)
+            && let Some(i) = drawn.scrolls.iter().position(|(c, _)| *c == column)
+        {
+            at.0.y = drawn.scrolls.swap_remove(i).1;
+        }
+    }
     let height = super::combat::size(window.single().ok(), capture.as_deref()).1;
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let bucket = height as u32;
@@ -473,6 +492,14 @@ fn refresh(
             continue;
         }
         *last = Some((want.clone(), bucket));
+        if let Some(y) = panels
+            .iter()
+            .find(|(p, _)| column_of(*p) == Some(*column))
+            .map(|(_, at)| at.0.y)
+        {
+            drawn.scrolls.retain(|(c, _)| c != column);
+            drawn.scrolls.push((*column, y));
+        }
         commands.entity(entity).despawn_related::<Children>();
         commands
             .entity(entity)

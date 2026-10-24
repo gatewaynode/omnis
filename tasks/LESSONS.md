@@ -399,3 +399,11 @@
 - **Rule**: what a click will do must be visible before the click (a hover of the aim), and a pointer action
   decides from the pointer alone; keyboard state steers keyboard actions. When a report says a tool is
   "fiddly" or "direction-sensitive", look first for a hidden input in the rule.
+
+## 2026-10-24 — A layer that rebuilds its nodes must carry their transient state across
+- **What happened**: the editor's tools column is rebuilt whenever its screen changes; the eighths choice is
+  part of that screen, so each step of the height rebuilt the column unscrolled and the owner had to scroll
+  back to the Height row for the next step, or step blind from the keys.
+- **Rule**: when a change redraws nodes from a description, the state that is not in the description (a
+  panel's scroll, the field with the keyboard, a hover) is read before the despawn and given to what is built
+  in its place. Check it with a test that scrolls, changes the content and reads the new panel.
