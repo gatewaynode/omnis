@@ -252,3 +252,13 @@ the helpers in `tests/common/`; `omnis-cli` `headless` and `omnis-sim` `measure`
 their own binaries (verification.md, "Test binaries").
 `bake.rs`: `BakeSpec.key` (colour key for `Object` crops), `SurfaceSpec.size` in tiles,
 `surface_texture`, `standee` (an `Object` upright at the tile's centre).
+
+## `omnis-icon` (2026-10-24)
+`crates/omnis-icon`: the Lucide set compiled in (`build.rs` → `$OUT_DIR/catalogue.rs`: `ICONS: &[(&str, &str)]`
+sorted, `LICENSE`). `svg.rs` (`read(text) -> Vec<Element { name, attrs }>`, `Element::attr/number`, the allowed
+root attributes `ROOT_ATTRS` and children `CHILDREN`, `Error::{UnknownElement, UnknownAttribute, Malformed}`),
+`path.rs` (`parse(d) -> Vec<Stroke>`, `arc(...)` F.6.5, `PIECE` 0.25, `PIECES_MAX` 16, `ARC_STEP_DEG` 15),
+`shape.rs` (`strokes(&Element)`, `SIDES` 32, a rounded rect through `path::parse`), `icon.rs` (`Icon { name,
+strokes }`, `Stroke { points, closed }`, `SIDE` 24, `WIDTH` 2, `Icon::parse`, `segments(size)`, `width(size)`,
+`bounds()`), `catalogue.rs` (`get`, `names`, `text`, `count`). Tests `tests/{catalogue,path}.rs`; the set's
+size 1,903 is pinned there. `examples/show.rs` prints an icon as text.

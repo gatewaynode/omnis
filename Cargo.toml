@@ -13,6 +13,9 @@ members = [
     "crates/omnis-mcp",
     # The game client (presentation-PRD.md, ARCHITECTURE A18); not a simulation crate.
     "crates/omnis-vector",
+    # The Lucide icon set compiled in and read as strokes (owner, 2026-10-24); no dependencies, not
+    # a simulation crate.
+    "crates/omnis-icon",
 ]
 
 [workspace.package]
@@ -37,6 +40,7 @@ omnis-eco = { path = "crates/omnis-eco" }
 omnis-story = { path = "crates/omnis-story" }
 omnis-sim = { path = "crates/omnis-sim" }
 omnis-cli = { path = "crates/omnis-cli" }
+omnis-icon = { path = "crates/omnis-icon" }
 
 bevy = { version = "=0.19.1", default-features = false }
 serde = { version = "=1.0.228", default-features = false, features = ["derive", "alloc"] }

@@ -180,6 +180,16 @@ no loss, and every later map is built with it.
       for one-time placements (building terrains three cells wide for one site each). Decide with the owner at
       the next planning: whether `Site` becomes one kind of a wider `Activity` placement in the data (a schema
       move, M5.10 re-authors the maps anyway) or stays as is with the editor grouping only.
+  - [ ] **Icons** (owner 2026-10-24: "its own step after M5.6"; planned and approved the same day: a new crate
+    `omnis-icon`, the whole Lucide set compiled in; `tasks/acceptance/icons.md`):
+    - [x] 1 (2026-10-24) `crates/omnis-icon`: `build.rs` compiles `assets/svg-icons/icons/*.svg` and the ISC
+      licence in (`catalogue::{get, names, text, count, LICENSE}`); `svg.rs` reads the set's subset and refuses
+      the rest; `path.rs` every command, implicit repeats, the compact syntax, arcs by F.6.5; `shape.rs` circles,
+      ellipses, rounded rects (through the path code), lines, polylines, polygons; `Icon { name, strokes }` with
+      `segments(size)`, `width(size)`, `bounds()`. Tests: all 1,903 icons read within their box (a pinned count),
+      the shapes, the licence, the path syntax; `examples/show.rs` prints an icon as text.
+    - [ ] 2 The client draws icons: `Raster::icon`, an `Icons` image cache, `icon_on_floor`; `face-grinning` as
+      the activities' placeholder on the plan and the floor; documents.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

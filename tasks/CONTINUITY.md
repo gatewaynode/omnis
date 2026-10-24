@@ -37,20 +37,29 @@ Written 2026-10-24, after M5.6 (the attribute bar, the forms, the marks) was acc
 - **Owner's new direction (2026-10-24):** an "activities" category (recorded in `tasks/TODO.md` under M5.6 as a
   proposal; decide the data shape at the next planning).
 
+## In hand: the icon library (owner 2026-10-24, after M5.6, before M5.7; plan approved)
+- Owner's choices: a new crate `omnis-icon`, Bevy-free, no dependencies; the whole Lucide set compiled in
+  (`build.rs` from `assets/svg-icons/icons/*.svg`, 774 KB of text, with the ISC licence). The owner force-added
+  the set, dropped the tarball and said they would revert the `.gitignore` lines.
+- **Commit 1 (this commit)**: the crate as `tasks/acceptance/icons.md` §1 and the code-map say; all 1,903 icons
+  read within their box (a pinned count in `tests/catalogue.rs`: move it with the set); a child's `fill` is
+  the set's radius-½ dot, accepted and pinned to circles ≤ 0.5.
+- **Commit 2 (next)**: `omnis-vector` depends on `omnis-icon`; `Raster::icon(&mut self, &Icon, (left, top), size,
+  colour)` through the round `stroke` with radius `Icon::width(size) / 2`; `shell/icons.rs` an `Icons` resource
+  caching `Handle<Image>` by `(name, size, Role)` through `minimap::image` for UI nodes later; `geometry.rs`
+  `icon_on_floor(out, cell, patch, &Icon, kind, rgb)` scaling the icon's segments into the cell with a 0.15
+  margin at `floor_at` heights; `activity()` and `plan::Mark::Site` draw Lucide `face-grinning` (no `smile` in
+  the set) in place of the hand-made smiley (`raster::smiley_pixels` then goes). Tests: the plan's site mark
+  pixels and the floor's activity segments come from the icon (counts); release size growth under 1.5 MB.
+  Documents: acceptance §2 and steps 3–4, TODO, code-map, continuity; `assets/README.md` is the owner's (the
+  `svg-icons/` row is theirs).
+
 ## Next
-1. **Plan the icon library** (owner 2026-10-24: "as its own step after M5.6", before M5.7): Lucide, ISC, in
-   `assets/svg-icons/` (force-added by the owner's ask; 1,903 icons in `icons/`, each an SVG and a JSON of
-   tags, `lab/` the experimental ones, a tarball duplicate). The owner asked whether rendering is "fairly
-   straightforward to build out ourselves in a self contained library": yes; the assessment given: a flat
-   attribute-only XML subset (path, circle, rect, line, ellipse, polyline, polygon), path commands with arcs
-   second most common, stroke-only width 2 round caps and joins, 24×24; parse + flatten (arcs by the SVG
-   appendix's centre conversion) + stroke to `Raster` (UI) and to line segments (3D); 500 to 700 lines,
-   Bevy-free, a test over all 1,903 files; `tiny-skia` is already a transitive dependency if anti-aliasing is
-   ever wanted. First customers: the activities placeholder (Lucide `smile`), the plan marks, the 3D floor
-   marks, later the activities' per-kind icons. Plan mode, then build.
-2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first.
-3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24). The **activities**
-   category: decide the data shape at the M5.7 planning (`tasks/TODO.md` under M5.6).
+1. Icons commit 2 (above), then report both to the owner with how to try (`cargo run -p omnis-icon --example
+   show -- door-open`; the grinning face on the service cells and the floor).
+2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first. Decide the
+   **activities** data shape there (`tasks/TODO.md` under M5.6).
+3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
