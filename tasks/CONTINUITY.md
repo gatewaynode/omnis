@@ -12,9 +12,10 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   click through Bevy's own UI layout and focus with no renderer), `4736b01` **M5.5 fix 2** (2026-10-24: an edge
   brush aims at the nearest side of the cell wherever the click lands, `Editor::aim`/`View::edge_target`; the
   aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), and this continuity
-  commit. Tree clean. **Open with the owner:** a wall drawing tool beyond the brush (they asked for a freehand
-  or bezier line); proposed grid-native Line (corner to corner) and Room (a rectangle) tools, each one undo
-  step, recorded in `tasks/TODO.md` under M5.5; the owner decides whether it comes before M5.6. Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
+  commit. Tree clean. **Deferred by the owner (2026-10-24):** boundary tools beyond the edge brush, later than
+  M5.6: both a point-by-point tool and a freehand tool, with a normalisation of the drawn lines to the map's
+  granularity (snap to corners, rasterise onto cell sides, preview before taking); `tasks/TODO.md` under M5.5.
+  The owner called the nearest-side edge brush "clever" and it "works for now". Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
 - **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.5 done.
 - **M5.5 as built** (`tasks/acceptance/m5-5.md`, not yet reported on by the owner): `editor/brush.rs` (`Tool`,
   `Target`, `palette`, `Tool::first/label/brush`, `EIGHTHS` −64..=64, `held`), `View::target` (the edge within a

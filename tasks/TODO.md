@@ -125,9 +125,11 @@ no loss, and every later map is built with it.
       an edge brush aims at the nearest side of the cell wherever the click lands (`Editor::aim`,
       `View::edge_target`), never the facing; the aim is a yellow hover (`PlanHover`) before the click; the
       pick follows it; "Open edge (erase)". Red test `an_edge_brush_aims_at_the_nearest_side…`.
-    - [ ] Proposed (owner 2026-10-24): wall drawing tools beyond the brush. The owner asked for a freehand or
-      bezier line tool. Grid-native equivalents to decide on: a **Line** (drag corner to corner, walls along
-      the straight run), a **Room** (drag a rectangle, walls around it), each one undo step. See the report.
+    - [ ] Deferred (owner 2026-10-24, after M5.6 at the earliest): **boundary tools** beyond the edge brush. The
+      owner wants both a **point-by-point** tool (click corner after corner, the run of walls follows) and a
+      **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the
+      line is snapped to the grid's corners and rasterised onto cell sides, the result previewed in the hover
+      colour before it is taken, one undo step. The nearest-side edge brush and its hover stand meanwhile.
   - [ ] M5.6 Placements, terrains, levels and notes forms.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
