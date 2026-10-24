@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after the owner's first hand test of M5.5 and its fix (`cc5bd9c`). Rewrite this file every
+Written 2026-10-24, after the owner's hand tests of M5.5 and the two fixes (`cc5bd9c`, `4736b01`). Rewrite this file every
 time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -9,7 +9,12 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   the owner 2026-10-22), `4e26ac2` continuity, `00a09e9` **M5.5** (2026-10-22, VERIFY-GREEN), `166b199`
   continuity, `cc5bd9c` **M5.5 fix** (2026-10-24: the plan's pointer read Bevy's `normalized` as 0..1, it is
   −0.5..0.5, so the mouse did nothing in the window; WASD moves the cursor; `tests/editor_pointer.rs` drives a
-  click through Bevy's own UI layout and focus with no renderer), and this continuity commit. Tree clean. Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
+  click through Bevy's own UI layout and focus with no renderer), `4736b01` **M5.5 fix 2** (2026-10-24: an edge
+  brush aims at the nearest side of the cell wherever the click lands, `Editor::aim`/`View::edge_target`; the
+  aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), and this continuity
+  commit. Tree clean. **Open with the owner:** a wall drawing tool beyond the brush (they asked for a freehand
+  or bezier line); proposed grid-native Line (corner to corner) and Room (a rectangle) tools, each one undo
+  step, recorded in `tasks/TODO.md` under M5.5; the owner decides whether it comes before M5.6. Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
 - **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.5 done.
 - **M5.5 as built** (`tasks/acceptance/m5-5.md`, not yet reported on by the owner): `editor/brush.rs` (`Tool`,
   `Target`, `palette`, `Tool::first/label/brush`, `EIGHTHS` −64..=64, `held`), `View::target` (the edge within a
@@ -21,8 +26,9 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   carried out through `Host.editing`); the menu says "Discard changes and leave" while dirty. Tests
   `tests/editor_paint.rs` (6), `brush.rs` (2); helpers in `tests/common/editor.rs`. The loader does not refuse a
   start or a site on no ground: the invalid edit the tests use is a ramp joining heights more than 16 apart.
-- **Lesson 2026-10-24** (`tasks/LESSONS.md`): a test that writes a framework's component must use the framework's
-  convention, and one test per such path goes through the framework's own systems (`editor_pointer`).
+- **Lessons 2026-10-24** (`tasks/LESSONS.md`): a test that writes a framework's component must use the framework's
+  convention, and one test per such path goes through the framework's own systems (`editor_pointer`); a mouse
+  action must never depend on a hidden state (show the aim before the click).
 - **Lesson 2026-10-22** (`tasks/LESSONS.md`): a windowed game launched from this shell never ticks (no
   window-server session), so its socket never answers; verify headlessly and leave the window to the owner.
 
