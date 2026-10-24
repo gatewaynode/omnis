@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after the owner's hand tests of M5.5 and the two fixes (`cc5bd9c`, `4736b01`). Rewrite this file every
+Written 2026-10-24, after the owner's hand tests of M5.5 and three fixes (`cc5bd9c`, `4736b01`, `429de34`). Rewrite this file every
 time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -11,8 +11,10 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   −0.5..0.5, so the mouse did nothing in the window; WASD moves the cursor; `tests/editor_pointer.rs` drives a
   click through Bevy's own UI layout and focus with no renderer), `4736b01` **M5.5 fix 2** (2026-10-24: an edge
   brush aims at the nearest side of the cell wherever the click lands, `Editor::aim`/`View::edge_target`; the
-  aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), and this continuity
-  commit. Tree clean. **Deferred by the owner (2026-10-24):** boundary tools beyond the edge brush, later than
+  aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), `429de34` **M5.5 fix 3**
+  (a rebuilt column keeps its panel's scroll, `Drawn.scrolls`), and this continuity commit. Tree clean.
+  **Open for the M5.6 plan (owner 2026-10-24):** a fixed tool bar for the attributes every cell has (height
+  first), the owner suggested the top of the window; decide with M5.6's forms (`tasks/TODO.md` under M5.5). **Deferred by the owner (2026-10-24):** boundary tools beyond the edge brush, later than
   M5.6: both a point-by-point tool and a freehand tool, with a normalisation of the drawn lines to the map's
   granularity (snap to corners, rasterise onto cell sides, preview before taking); `tasks/TODO.md` under M5.5.
   The owner called the nearest-side edge brush "clever" and it "works for now". Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
