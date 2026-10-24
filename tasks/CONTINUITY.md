@@ -1,7 +1,7 @@
 # Continuity notes
 
-Written 2026-10-24, after the owner's hand tests of M5.5 and three fixes (`cc5bd9c`, `4736b01`, `429de34`). Rewrite this file every
-time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after the owner accepted M5.5 (three fixes from the hand tests: `cc5bd9c`, `4736b01`, `429de34`). Rewrite
+this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, ten commits ahead of `main`, not pushed (the owner pushes): `5c65ee0` M5.0,
@@ -12,14 +12,15 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   click through Bevy's own UI layout and focus with no renderer), `4736b01` **M5.5 fix 2** (2026-10-24: an edge
   brush aims at the nearest side of the cell wherever the click lands, `Editor::aim`/`View::edge_target`; the
   aim is a yellow `PlanHover` before the click; the pick follows it; "Open edge (erase)"), `429de34` **M5.5 fix 3**
-  (a rebuilt column keeps its panel's scroll, `Drawn.scrolls`), and this continuity commit. Tree clean.
+  (a rebuilt column keeps its panel's scroll, `Drawn.scrolls`), `2a59bbf` continuity, and the acceptance commit.
+  **M5.5 accepted by the owner 2026-10-24.** Tree clean.
   **Open for the M5.6 plan (owner 2026-10-24):** a fixed tool bar for the attributes every cell has (height
   first), the owner suggested the top of the window; decide with M5.6's forms (`tasks/TODO.md` under M5.5). **Deferred by the owner (2026-10-24):** boundary tools beyond the edge brush, later than
   M5.6: both a point-by-point tool and a freehand tool, with a normalisation of the drawn lines to the map's
   granularity (snap to corners, rasterise onto cell sides, preview before taking); `tasks/TODO.md` under M5.5.
   The owner called the nearest-side edge brush "clever" and it "works for now". Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
 - **The plan:** `tasks/plans/m5-editor-v1.md`, ten steps ticked in `tasks/TODO.md` under M5; M5.0 to M5.5 done.
-- **M5.5 as built** (`tasks/acceptance/m5-5.md`, not yet reported on by the owner): `editor/brush.rs` (`Tool`,
+- **M5.5 as built** (`tasks/acceptance/m5-5.md`, accepted): `editor/brush.rs` (`Tool`,
   `Target`, `palette`, `Tool::first/label/brush`, `EIGHTHS` −64..=64, `held`), `View::target` (the edge within a
   quarter of the side), `Editor { tool, eighths, stroke, status (cached EditorStatus, refreshed in changed) }`
   with `paint(data, target, stroke) -> bool`, `pick`, `end_stroke`, acts `Brush(n)`, `Eighths`, `Undo`, `Redo`,
@@ -36,15 +37,19 @@ time it is used. Durable knowledge lives in `tasks/knowledge/`.
   window-server session), so its socket never answers; verify headlessly and leave the window to the owner.
 
 ## Next
-1. **The owner's acceptance of M5.5**: `tasks/acceptance/m5-5.md` (12 numbered steps on a scratch copy of
-   `packs/test`, one over MCP). Bugs: fix with a red test and a lesson first.
-2. **M5.6, placements, terrains, levels and notes forms** (plan §Client side "Layer" inspector: "placements with
-   Edit/Remove, the brush's form", `Edit`/`Place` requests of `omnis_data::edit`, notes through
-   `Session::set_note` and the kit's `Kind::Text`; forms as kit screens in `editor/view.rs`, the typed text through
-   `Pressable` fields under `Mark::Editor`, which `screen_draw` spawns for `Kind::Text` with `Pressable` today;
-   check how the kit's `applied` reads typed text and whether the editor's `route` needs the same `typed` path).
-   Keep the cached `status` pattern: never call `session.status(data)` per frame.
-3. Then M5.7 to M5.10 per the plan's steps table.
+1. **Plan M5.6, placements, terrains, levels and notes forms** (plan row 6: forms per kind: start, portal,
+   encounter + random, site, rest event, object with pos pad, ground, lore, stairs rise; terrain editor; level
+   add/remove/base/name; notes in a multi-line widget; plan §Client side "Layer" inspector: "placements with
+   Edit/Remove, the brush's form"; `Edit`/`Place` requests of `omnis_data::edit`; notes through
+   `Session::set_note` and the kit's `Kind::Text`). Plan mode, check in before building. Settle in the plan: the
+   owner's **fixed tool bar** (where: above the plan or a fixed strip atop the tools column; what: a brush with a
+   value as today, or a direct editor of the cursor's cell like the inspector) together with the forms' model;
+   forms as kit screens in `editor/view.rs`, the typed text through `Pressable` fields under `Mark::Editor`
+   (`screen_draw` spawns `Kind::Text` with `Pressable` today; check how the kit's `applied` reads typed text and
+   whether the editor's `route` needs the same `typed` path). Keep the cached `status` pattern: never call
+   `session.status(data)` per frame.
+2. Then M5.7 to M5.10 per the plan's steps table. Boundary tools (point-by-point, freehand, normalisation) after
+   M5.6 at the earliest, by the owner's direction.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

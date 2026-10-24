@@ -118,6 +118,7 @@ no loss, and every later map is built with it.
     digits 1-9), a click paints the cell or the edge under the pointer, a drag is one stroke, a right click picks,
     Enter paints at the cursor, Undo/Redo (Cmd Z, Shift Z, Y), Save (button, Cmd S, the menu) dim in the loader's
     words while invalid and otherwise writing, resealing and reloading the packs, Revert; `tasks/acceptance/m5-5.md`.
+    Accepted by the owner 2026-10-24 after three fixes from the hand tests (below).
     - [x] Fix (2026-10-24, the owner's first hand test): the plan's pointer read Bevy's `normalized` as 0..1
       (it is −0.5..0.5), so the mouse did nothing; WASD moves the cursor like the arrows. Red tests:
       `tests/editor_pointer.rs` (a click through Bevy's own UI layout and focus) and `wasd_moves_the_cursor`.
