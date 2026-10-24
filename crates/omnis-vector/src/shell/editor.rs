@@ -239,7 +239,7 @@ const DIGITS: [KeyCode; 9] = [
 /// The layer's input: a pressed control or a choice's arrow; on the plan, a left click paints
 /// the brush at the cell or the edge under the pointer (the cursor goes there) and a drag is
 /// one stroke, a right click picks what is there; and the keys while no screen stands over the
-/// editor and no field has the keyboard: the arrows move the cursor, Enter paints at it, the
+/// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it, the
 /// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
 /// screens' (`Nav::escape` opens the menu).
@@ -288,9 +288,11 @@ fn route(
             )
         });
         let over_button = interactions.iter().any(|i| *i != Interaction::None);
+        // Bevy's `normalized` runs from (-0.5, -0.5) at the pane's top left to (0.5, 0.5) at its
+        // bottom right; the plan's pixels run from its top left.
         let target = plan.filter(|_| !over_button).and_then(|(at, size)| {
             #[allow(clippy::cast_precision_loss)]
-            let (px, py) = (at.x * size.0 as f32, at.y * size.1 as f32);
+            let (px, py) = ((at.x + 0.5) * size.0 as f32, (at.y + 0.5) * size.1 as f32);
             editing.view.target(editing.size(), px, py)
         });
         if let Some(target) = target {
@@ -328,13 +330,13 @@ fn route(
                 act(&mut editing, &mut packs, a, 0);
             }
         } else {
-            for (key, facing) in [
-                (KeyCode::ArrowUp, Facing::North),
-                (KeyCode::ArrowRight, Facing::East),
-                (KeyCode::ArrowDown, Facing::South),
-                (KeyCode::ArrowLeft, Facing::West),
+            for (keys_for, facing) in [
+                ([KeyCode::ArrowUp, KeyCode::KeyW], Facing::North),
+                ([KeyCode::ArrowRight, KeyCode::KeyD], Facing::East),
+                ([KeyCode::ArrowDown, KeyCode::KeyS], Facing::South),
+                ([KeyCode::ArrowLeft, KeyCode::KeyA], Facing::West),
             ] {
-                if keys.just_pressed(key) {
+                if keys.any_just_pressed(keys_for) {
                     editing.step(facing);
                 }
             }

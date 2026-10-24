@@ -62,7 +62,9 @@ pub fn arrow(app: &mut App, act: EditAct, right: bool) {
 }
 
 /// The pointer over the plan at `cell`'s middle, or a pixel in from its `side`, as the layout
-/// would report it to the pane (headless, the pane keeps the model's size).
+/// would report it to the pane (headless, the pane keeps the model's size): Bevy's `normalized`
+/// runs from (-0.5, -0.5) at the top left to (0.5, 0.5) at the bottom right. The pointer's
+/// path through Bevy's own layout and focus is `editor_pointer`'s.
 pub fn point_at(app: &mut App, cell: (u16, u16), side: Option<Facing>) {
     let (pane, view) = {
         let e = editing(app);
@@ -81,7 +83,7 @@ pub fn point_at(app: &mut App, cell: (u16, u16), side: Option<Facing>) {
     let at = Vec2::new(
         (left + dx) as f32 / pane.0 as f32,
         (top + dy) as f32 / pane.1 as f32,
-    );
+    ) - Vec2::splat(0.5);
     let world = app.world_mut();
     let mut panes = world.query::<(&Column, &mut RelativeCursorPosition)>();
     let mut found = false;

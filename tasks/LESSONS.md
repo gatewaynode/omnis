@@ -377,3 +377,16 @@
   on a game the owner started. From this shell, verify with the headless tests and `screen_text`; a
   windowed launch from here proves only that the binary starts without a panic. Do not debug a socket that
   gives no reply from such a launch.
+
+## 2026-10-24 — A test that writes a framework's component must use the framework's convention
+- **What happened**: the editor's pointer tests wrote `RelativeCursorPosition.normalized` as 0..1 from the
+  pane's top left, and the router read it the same way. Bevy fills it from −0.5 to 0.5 about the centre, so
+  in the real window every click fell off the map and the mouse did nothing; fifteen tests were green on a
+  convention nobody had checked. The owner found it in the first hand test. A test through Bevy's own
+  `UiPlugin`, layout and focus systems (`tests/editor_pointer.rs`, no renderer: a `Window`, a `Camera2d` and
+  a stand-in for the camera's target info) went red at once.
+- **Rule**: when a test writes a component the framework normally fills, read the framework's source for its
+  convention first and quote it in the helper's doc. Keep one test per such path that goes through the
+  framework's own systems, so the hand-written helper is checked against what the framework really writes.
+- **Also**: the owner reached for the game's movement keys (WASD) in the editor. Wherever a cursor moves,
+  bind the game's keys beside the arrows.

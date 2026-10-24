@@ -172,6 +172,21 @@ fn the_arrow_keys_move_the_cursor_and_the_inspector_follows() {
 }
 
 #[test]
+fn wasd_moves_the_cursor_like_the_arrows() {
+    let mut app = in_editor("test:map:town");
+    tap(&mut app, KeyCode::KeyA);
+    assert_eq!(editing(&app).cursor, (9, 2), "A is west");
+    tap(&mut app, KeyCode::KeyS);
+    assert_eq!(editing(&app).cursor, (9, 3), "S is south");
+    tap(&mut app, KeyCode::KeyD);
+    assert_eq!(editing(&app).cursor, (10, 3), "D is east");
+    tap(&mut app, KeyCode::KeyW);
+    assert_eq!(editing(&app).cursor, (10, 2), "W is north");
+    let text = screen_text(app.world());
+    assert!(text.contains("Cell (10, 2) facing west"), "{text}");
+}
+
+#[test]
 fn the_tools_choose_and_open_a_map_and_the_level_choice_steps_through_levels() {
     let mut app = app_at_title(".omnis/test-saves/editor-none.ron");
     app.update();
