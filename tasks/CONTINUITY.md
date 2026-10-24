@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.8 (Playtest) was built. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.8 (Playtest) was accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -61,13 +61,11 @@ Written 2026-10-24, after M5.8 (Playtest) was built. Rewrite this file every tim
   later when a second kind has engine rules.
 
 ## Next
-1. **M5.8 built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/m5-8.md`, five steps). The
-   hazard met: `(route, refresh).chain().run_if(resource_exists::<Editing>)` evaluates its condition once, so
-   when `route` takes `Editing` away `refresh` runs without it; `refresh` takes `Option<ResMut<Editing>>`.
-2. **M5.9 the RON text editor** (plan §Client side "RON editor": `Mode::Files`, file list, one tall
-   `EditableText` with newlines (`Kind::Text.lines` exists since M5.6a), Check through `Session::check`, Save
-   verbatim through `Session::write`, wheel scroll). Plan mode first.
-3. M5.10 re-authoring (the four maps' comments to notes, resealed, replays rebaselined, documents as built).
+1. **M5.9 the RON text editor** (plan mode first; plan §Client side "RON editor": `Mode::Files`, a file list
+   from `Session::files()`, one tall `EditableText` with newlines (`Kind::Text.lines` since M5.6a), Check
+   through `Session::check(rel, text, data)` listing the loader's errors, Save verbatim through
+   `Session::write` (atomic, reseal), wheel scroll; limits `MAX_FILE_BYTES` 4 MiB). M5.8 accepted 2026-10-24.
+2. M5.10 re-authoring (the four maps' comments to notes, resealed, replays rebaselined, documents as built).
    Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
