@@ -184,6 +184,7 @@ fn title_ctx(data: &omnis_sim::omnis_data::Data, prefs: Prefs) -> screen::Ctx<'_
         prefs,
         fits: omnis_vector::settings::SCALE_MAX,
         editing: None,
+        playtest: false,
     }
 }
 

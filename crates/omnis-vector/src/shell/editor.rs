@@ -11,14 +11,16 @@
 //! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
 //! painted, and the rest stands.
 
-use super::VectorSet;
 use super::screen::{Arrow, Screens, Slid};
 use super::screen_draw::{EditorPress, Mark, Placed, Scrolls, build, colour, shade, sync};
-use super::session::Packs;
+use super::session::{Packs, Session};
+use super::{VectorSet, ViewState};
 use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
-use crate::editor::{Asked, EditAct, Editor, view};
+use crate::editor::{Asked, EditAct, Editor, playtest, view};
+use crate::pose::Pose;
 use crate::screen::{ControlId, Kind, Screen, ScreenId};
+use crate::sim::game_settings;
 use crate::style::{Role, scaled};
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
@@ -26,6 +28,7 @@ use bevy::text::EditableText;
 use bevy::ui::RelativeCursorPosition;
 use bevy::window::PrimaryWindow;
 use omnis_sim::omnis_core::Facing;
+use omnis_sim::{Command, Settings};
 
 /// The editor, while it is open. Wraps the Bevy-free model.
 #[derive(Resource, Debug)]
@@ -43,6 +46,12 @@ impl core::ops::DerefMut for Editing {
         &mut self.0
     }
 }
+
+/// The editor parked while its playtest runs (M5.8): the whole model, untouched, so Back to
+/// editor brings it back as it was left. Removing `Editing` takes the layer and the preview
+/// down through their own hooks; inserting it again rebuilds them from this.
+#[derive(Resource, Debug)]
+pub struct Playtesting(pub Editor);
 
 /// Marks the layer's root; everything of the editor is under it.
 #[derive(Component)]
@@ -300,6 +309,33 @@ pub fn act(editing: &mut Editing, packs: &mut Packs, act: EditAct, step: i8) -> 
     asked
 }
 
+/// A game on the edited map as the editor holds it, the fixed party standing on the cursor's
+/// cell facing as the cursor does (M5.8). The packs are copied with the map put in, never
+/// changed.
+///
+/// # Errors
+/// What stops it (`playtest::blocked`), a game that will not start, or a teleport refused.
+pub fn start_playtest(editing: &Editor, packs: &Packs) -> Result<Session, String> {
+    if let Some(why) = playtest::blocked(editing) {
+        return Err(why);
+    }
+    let data = playtest::data_for(editing, &packs.data).ok_or("the map has not loaded")?;
+    let temp = Packs {
+        data,
+        config: packs.config.clone(),
+    };
+    let mut session = Session::with_party(
+        &temp,
+        packs.config.seed,
+        game_settings(Settings::default()),
+        &crate::party::fixed(),
+    )?;
+    let step = playtest::teleport(editing).ok_or("open a map first")?;
+    session.ordered(Command::Dev(step))?;
+    session.pose = Pose::at(session.views.position);
+    Ok(session)
+}
+
 /// Whether the columns offer `act` now: a dim control takes no press.
 fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> bool {
     let id = ControlId::Edit(act);
@@ -429,6 +465,8 @@ fn route(
     mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
     mut screens: ResMut<Screens>,
+    mut commands: Commands,
+    mut view: ResMut<NextState<ViewState>>,
 ) {
     let covered = screens.nav.top(None).is_some();
     let typing = focus
@@ -575,6 +613,23 @@ fn route(
     if asked == Asked::Menu {
         screens.nav.open(ScreenId::EditorMenu, None);
     }
+    if asked == Asked::Playtest {
+        match start_playtest(&editing, &packs) {
+            Ok(session) => {
+                // The editor is parked whole; the game takes its place until Back to editor.
+                commands.queue(|world: &mut World| {
+                    if let Some(parked) = world.remove_resource::<Editing>() {
+                        world.insert_resource(Playtesting(parked.0));
+                    }
+                });
+                screens.reset(Some(&session.views));
+                screens.nav.edit(false);
+                view.set(ViewState::Explore);
+                commands.insert_resource(session);
+            }
+            Err(why) => editing.message = Some(format!("No playtest: {why}")),
+        }
+    }
 }
 
 /// Redraw a column whose screen changed (its words in place when its shape stands, its nodes
@@ -584,7 +639,7 @@ fn route(
 fn refresh(
     mut commands: Commands,
     packs: Res<Packs>,
-    mut editing: ResMut<Editing>,
+    editing: Option<ResMut<Editing>>,
     mut drawn: ResMut<Drawn>,
     window: Query<&Window, With<PrimaryWindow>>,
     capture: Option<Res<super::capture::CaptureSize>>,
@@ -599,6 +654,11 @@ fn refresh(
     focus: Option<Res<InputFocus>>,
     fields: Query<&EditorPress, With<EditableText>>,
 ) {
+    // `route` runs before this under one condition; when it starts a playtest it takes the
+    // editor away in between (M5.8), and there is nothing to draw this frame.
+    let Some(mut editing) = editing else {
+        return;
+    };
     let column_of = |panel: Entity| {
         parents
             .iter_ancestors(panel)

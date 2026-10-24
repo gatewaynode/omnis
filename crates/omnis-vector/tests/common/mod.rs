@@ -182,5 +182,6 @@ pub fn ctx<'a>(
         prefs: omnis_vector::settings::Prefs::default(),
         fits: omnis_vector::settings::SCALE_MAX,
         editing: None,
+        playtest: false,
     }
 }

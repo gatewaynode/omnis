@@ -138,6 +138,8 @@ pub enum ControlId {
     SaveLog,
     /// End the game and go back to the title.
     QuitToTitle,
+    /// End a playtest and go back to the editor as it was left (M5.8).
+    BackToEditor,
     /// Leave the program.
     Quit,
     /// The draft's name.
@@ -539,6 +541,8 @@ pub enum Effect {
     OpenEditor,
     /// The editor's own act, from its menu (M5.5: Save).
     Editor(crate::editor::EditAct),
+    /// End a playtest and bring the parked editor back (M5.8).
+    ToEditor,
 }
 
 /// Why [`apply`] did nothing.
@@ -605,6 +609,8 @@ pub struct Ctx<'a> {
     pub fits: u16,
     /// The editor, while it is open (M5.5): what its menu says of the document.
     pub editing: Option<EditingCtx<'a>>,
+    /// The game is a playtest from the editor (M5.8): not saved, and it goes back to the editor.
+    pub playtest: bool,
 }
 
 /// The open editor as its menu reads it.

@@ -281,3 +281,15 @@ stamps the revision at which `resolved` last changed. The editor's right column 
 `Service <id>`; `icons::{KINDS, service_icon(kind), service(kind), activity_of(Option<ServiceKind>)}`;
 `plan::Mark::Activity(Option<ServiceKind>)` with `plan::marks(def, data, level)`; `geometry::activities(data, map,
 level, ground)` draws each resolved site's icon (called from `scene::level_of`; `extract` no longer draws sites).
+
+## M5.8 Playtest (2026-10-24)
+`editor/playtest.rs`: `blocked(editor) -> Option<String>` (no map; the loader's errors; no ground or impassable
+under the cursor; no dev tools), `data_for(editor, data) -> Option<Arc<Data>>` (a clone, `registry.maps.intern`,
+`maps.insert` of `resolved`), `teleport(editor) -> Option<DevCommand>`. `shell/editor.rs`: `Playtesting(pub Editor)`
+(the editor parked; `route` on `Asked::Playtest` runs `start_playtest(&Editor, &Packs) -> Result<Session, String>`
+(`Session::with_party(&temp Packs, seed, game_settings, &party::fixed())`, `ordered(Command::Dev(teleport))`,
+`pose = Pose::at(views.position)`), then a queued command moves `Editing` into `Playtesting`, `screens.reset`,
+`nav.edit(false)`, `ViewState::Explore`, the session inserted; `refresh` takes `Option<ResMut<Editing>>`).
+`screen/mod.rs`: `Ctx.playtest` (from `Host.playtesting`/`paint`), `ControlId::BackToEditor`, `Effect::ToEditor`
+(`carry_out`: the session removed, the parked editor re-inserted, `nav.edit(true)`; `ToTitle` also removes
+`Playtesting`). `pause.rs`/`defeat.rs` branch on `ctx.playtest`. Tests `tests/editor_playtest.rs`.

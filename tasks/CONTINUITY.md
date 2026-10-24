@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.7 (the preview) was accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.8 (Playtest) was built. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -61,15 +61,14 @@ Written 2026-10-24, after M5.7 (the preview) was accepted. Rewrite this file eve
   later when a second kind has engine rules.
 
 ## Next
-1. **M5.8 Playtest** (plan mode first; plan §Client side "Playtest": lit when the map is valid, the id is
-   interned, devtools built in, and the cursor's cell has ground and is passable; clone `Packs.data`
-   (`Arc::make_mut`), insert the resolved map, `Session::with_party(&temp, seed, settings, &party::fixed())`,
-   `DevCommand::Teleport` to the cursor, insert `Session` + `Playtesting`, `nav.edit(false)`; `Ctx.playtest`
-   dims Save ("a playtest is not saved") and Load on Pause; Pause/Defeat show "Back to editor"
-   (`Effect::ToEditor`: remove `Session`, `nav.edit(true)`); the `Editor` resource untouched; after an editor
-   Save `Packs.data` is reloaded from disk). The activities step was accepted 2026-10-24 ("much better
-   placeholders"); the owner checked out the pack files their hand test had written.
-2. M5.9 the RON text editor, M5.10 re-authoring. Boundary tools after (owner, 2026-10-24).
+1. **M5.8 built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/m5-8.md`, five steps). The
+   hazard met: `(route, refresh).chain().run_if(resource_exists::<Editing>)` evaluates its condition once, so
+   when `route` takes `Editing` away `refresh` runs without it; `refresh` takes `Option<ResMut<Editing>>`.
+2. **M5.9 the RON text editor** (plan §Client side "RON editor": `Mode::Files`, file list, one tall
+   `EditableText` with newlines (`Kind::Text.lines` exists since M5.6a), Check through `Session::check`, Save
+   verbatim through `Session::write`, wheel scroll). Plan mode first.
+3. M5.10 re-authoring (the four maps' comments to notes, resealed, replays rebaselined, documents as built).
+   Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

@@ -8,6 +8,7 @@ pub mod brush;
 pub mod form;
 pub mod forms;
 pub mod plan;
+pub mod playtest;
 pub mod preview;
 pub mod view;
 
@@ -101,6 +102,8 @@ pub enum EditAct {
     Revert,
     /// Open the editor's menu.
     Menu,
+    /// Start a game on the edited map at the cursor (M5.8).
+    Playtest,
 }
 
 /// Whose note: the cursor's cell's, the shown level's or the map's.
@@ -123,6 +126,8 @@ pub enum Asked {
     Menu,
     /// The map was written: the packs are read from disk again, so a new game walks it.
     Saved,
+    /// Start a playtest: the shell builds the game and parks the editor (M5.8).
+    Playtest,
 }
 
 /// The editor as the layer reads and changes it.
@@ -938,6 +943,7 @@ impl Editor {
             EditAct::Save => return self.save(data),
             EditAct::Revert => self.revert(data),
             EditAct::Menu => return Asked::Menu,
+            EditAct::Playtest => return Asked::Playtest,
         }
         Asked::Nothing
     }

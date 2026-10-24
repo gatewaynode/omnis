@@ -18,6 +18,7 @@ mod debug;
 mod editor;
 mod editor_forms;
 mod editor_paint;
+mod editor_playtest;
 mod editor_pointer;
 mod editor_preview;
 mod fight;

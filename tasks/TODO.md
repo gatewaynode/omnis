@@ -220,7 +220,14 @@ no loss, and every later map is built with it.
       `plan::Mark::Activity(Option<ServiceKind>)` and `geometry::activities(data, map, level, ground)` (from
       `scene::level_of`) draw `icons::service(kind)` (bed, church, dumbbell, anvil, beer, coins, shield), the
       grinning face for a service the packs lack. **Accepted by the owner 2026-10-24.**
-  - [ ] M5.8 Playtest and Back to editor.
+  - [ ] M5.8 Playtest and Back to editor; `tasks/acceptance/m5-8.md`. Built 2026-10-24 (plan mode, approved):
+    `editor/playtest.rs` (`blocked`, `data_for` (a copy of the packs with the edited map interned and put in),
+    `teleport`), `EditAct::Playtest` → `Asked::Playtest`, `shell/editor.rs::start_playtest` (`Session::with_party`
+    with `party::fixed()`, the teleport ordered, the pose set) and the editor parked in `Playtesting(Editor)`
+    (moved out, not cloned; its layer and preview go down on the resource's removal); `Ctx.playtest`,
+    `ControlId::BackToEditor`, `Effect::ToEditor` (the game removed, the parked editor re-inserted); Pause and
+    Defeat in a playtest. `refresh` tolerates the frame the editor is taken away. Tests
+    `tests/editor_playtest.rs` (3); three mutations killed. Awaiting the owner's hand test.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).
   - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an

@@ -249,6 +249,7 @@ pub fn ctx(session: &Session) -> Ctx<'_> {
         prefs: crate::settings::Prefs::default(),
         fits: crate::settings::SCALE_MAX,
         editing: None,
+        playtest: false,
     }
 }
 
@@ -259,8 +260,8 @@ fn slot(path: &str) -> Slot<'_> {
     }
 }
 
-/// The context with or without a game, with the settings as applied, and the editor when it
-/// is open.
+/// The context with or without a game, with the settings as applied, the editor when it is
+/// open, and whether the game is the editor's playtest (M5.8).
 #[must_use]
 pub fn ctx_with<'a>(
     session: Option<&'a Session>,
@@ -268,6 +269,7 @@ pub fn ctx_with<'a>(
     prefs: crate::settings::Prefs,
     fits: u16,
     editing: Option<&'a super::editor::Editing>,
+    playtest: bool,
 ) -> Ctx<'a> {
     let ctx = session.map_or_else(
         || Ctx {
@@ -277,6 +279,7 @@ pub fn ctx_with<'a>(
             prefs,
             fits,
             editing: None,
+            playtest: false,
         },
         ctx,
     );
@@ -289,6 +292,7 @@ pub fn ctx_with<'a>(
         prefs,
         fits,
         editing,
+        playtest,
         ..ctx
     }
 }
@@ -308,6 +312,7 @@ struct Host<'w, 's> {
     commands: Commands<'w, 's>,
     packs: ResMut<'w, Packs>,
     editing: Option<ResMut<'w, super::editor::Editing>>,
+    playtesting: Option<Res<'w, super::editor::Playtesting>>,
     exit: MessageWriter<'w, AppExit>,
     view: ResMut<'w, NextState<ViewState>>,
     current: ResMut<'w, Current>,
@@ -386,6 +391,7 @@ fn route(
             host.current.0,
             host.fitted.0,
             host.editing.as_deref(),
+            host.playtesting.is_some(),
         );
         let input = Input { used: &used, slid };
         applied(&input, &ctx, top, &mut screens.forms, &mut host.commands)
@@ -549,6 +555,8 @@ fn carry_out(
         Effect::ToTitle | Effect::ToNewGame => {
             host.commands.remove_resource::<Session>();
             host.commands.remove_resource::<super::editor::Editing>();
+            host.commands
+                .remove_resource::<super::editor::Playtesting>();
             screens.nav.edit(false);
             host.view.set(ViewState::Explore);
             screens.reset(None);
@@ -568,6 +576,18 @@ fn carry_out(
             }
             Err(e) => report(screens, Err(format!("Could not open the editor: {e}"))),
         },
+        // A playtest ends: the game goes, the parked editor comes back as it was left (M5.8).
+        Effect::ToEditor => {
+            host.commands.remove_resource::<Session>();
+            host.commands.queue(|world: &mut World| {
+                if let Some(parked) = world.remove_resource::<super::editor::Playtesting>() {
+                    world.insert_resource(super::editor::Editing(parked.0));
+                }
+            });
+            screens.nav.edit(true);
+            host.view.set(ViewState::Explore);
+            screens.reset(None);
+        }
         Effect::Editor(act) => {
             if let Some(editing) = host.editing.as_deref_mut() {
                 let asked = super::editor::act(editing, &mut host.packs, act, 0);
@@ -749,6 +769,7 @@ fn paint(
     focus: Option<Res<InputFocus>>,
     fields: Query<&Pressable, With<EditableText>>,
     editing: Option<Res<super::editor::Editing>>,
+    playtesting: Option<Res<super::editor::Playtesting>>,
 ) {
     let Ok((entity, mut node)) = root.single_mut() else {
         return;
@@ -776,6 +797,7 @@ fn paint(
         current.0,
         fitted.0,
         editing.as_deref(),
+        playtesting.is_some(),
     );
     let screen = screen::content(top, &ctx, &screens.forms);
     let height = size(window.single().ok(), capture.as_deref()).1;

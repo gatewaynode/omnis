@@ -205,6 +205,11 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
             no_map.or((!status.dirty).then_some("no changes")),
         ),
     ]));
+    let blocked = super::playtest::blocked(editor);
+    rows.push(Row::controls(vec![dim(
+        Control::button(edit(EditAct::Playtest), "Playtest"),
+        blocked.as_deref(),
+    )]));
     rows.push(Row::controls(vec![Control::button(
         edit(EditAct::Menu),
         "Menu  Esc",
