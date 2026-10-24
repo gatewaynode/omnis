@@ -1,7 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.6 (the attribute bar and the forms) was built in three commits and M5.5 was
-accepted the same day. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.6 (the attribute bar, the forms, the marks) was accepted by the owner. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -39,12 +38,19 @@ accepted the same day. Rewrite this file every time it is used. Durable knowledg
   proposal; decide the data shape at the next planning).
 
 ## Next
-1. **Report M5.6 to the owner** with how to try it (the bar's Height arrow; Add here → Portal; Add terrain;
-   Edit note) and await the hand test. Bugs: fix with a red test and a lesson first.
-2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview": `scene::Occupancy`, `editor/preview.rs`
-   `AsPlaced`, `render.rs` split `camera_at`/`draw_scene`, a `PreviewCamera` on render layer 2 into an `Image`
-   in the inspector column; rebuilt on revision or level when `MapData::resolve` succeeds). Plan mode first.
-3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).
+1. **Plan the icon library** (owner 2026-10-24: "as its own step after M5.6", before M5.7): Lucide, ISC, in
+   `assets/svg-icons/` (force-added by the owner's ask; 1,903 icons in `icons/`, each an SVG and a JSON of
+   tags, `lab/` the experimental ones, a tarball duplicate). The owner asked whether rendering is "fairly
+   straightforward to build out ourselves in a self contained library": yes; the assessment given: a flat
+   attribute-only XML subset (path, circle, rect, line, ellipse, polyline, polygon), path commands with arcs
+   second most common, stroke-only width 2 round caps and joins, 24×24; parse + flatten (arcs by the SVG
+   appendix's centre conversion) + stroke to `Raster` (UI) and to line segments (3D); 500 to 700 lines,
+   Bevy-free, a test over all 1,903 files; `tiny-skia` is already a transitive dependency if anti-aliasing is
+   ever wanted. First customers: the activities placeholder (Lucide `smile`), the plan marks, the 3D floor
+   marks, later the activities' per-kind icons. Plan mode, then build.
+2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first.
+3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24). The **activities**
+   category: decide the data shape at the M5.7 planning (`tasks/TODO.md` under M5.6).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

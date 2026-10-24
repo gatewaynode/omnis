@@ -138,9 +138,10 @@ no loss, and every later map is built with it.
       **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the
       line is snapped to the grid's corners and rasterised onto cell sides, the result previewed in the hover
       colour before it is taken, one undo step. The nearest-side edge brush and its hover stand meanwhile.
-  - [ ] M5.6 Placements, terrains, levels and notes forms; `tasks/acceptance/m5-6.md`. Planned 2026-10-24 (plan
+  - [x] M5.6 Placements, terrains, levels and notes forms; `tasks/acceptance/m5-6.md`. Planned 2026-10-24 (plan
     mode, approved): the owner chose the bar above the plan and **dedicated row editors** for list fields
-    (stacks, contents, items, the random table) over RON text.
+    (stacks, contents, items, the random table) over RON text. **Accepted by the owner 2026-10-24** after the
+    marks and the encounter defaults below ("walked a party around the map and things look pretty good").
     - [x] 6a (2026-10-24) The attribute bar over the plan (`view::bar`, `Column::Bar`, `ScreenId::EditorBar`):
       the cursor's cell's terrain, height and stair rise stepped where they stand, one undo step each
       (`EditAct::{CellTerrain, CellHeight, CellRise}`). A column whose words change keeps its nodes
