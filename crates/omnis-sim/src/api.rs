@@ -67,10 +67,11 @@ pub use crate::objects::{ObjectState, blocks_step as object_blocks};
 // What a client reads of objects: `objects.get`'s view, and what it draws of a whole level.
 pub use crate::objects_view::{
     CheckView, ItemCount, ObjectView, ObjectsView, PileView, SeenObject, VerbView, objects_view,
-    on_level as objects_on_level,
+    on_level as objects_on_level, placed_on_level,
 };
-// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level.
-pub use crate::beings::{BeingView, on_level as beings_on_level};
+// Groups standing in view (M8.5 step 2c), and what a client draws of a whole level; and, for an
+// editor's preview with no world (M5.7), what a map places.
+pub use crate::beings::{BeingView, on_level as beings_on_level, standing_as_placed};
 pub use crate::journal::{Change, apply_changes, archive_len, journal_len};
 pub use crate::log::{Logged, history, told};
 pub use crate::query::{

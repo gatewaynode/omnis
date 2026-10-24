@@ -246,6 +246,51 @@ pub fn on_level(
     (objects, piles)
 }
 
+/// Every object and pile of `level` of `map` as the map places them, for an editor's preview
+/// (M5.7): each object in its placed state, none removed, hidden ones shown (an author sees
+/// everything), and the piles the map lays down. The map need not be among `data`'s (an edited
+/// one). Objects in file order, piles north to south, then west to east.
+#[must_use]
+pub fn placed_on_level(
+    data: &Data,
+    map: &omnis_data::MapData,
+    level: Level,
+) -> (Vec<SeenObject>, Vec<PileView>) {
+    let objects = map
+        .objects
+        .iter()
+        .filter(|p| p.level == level)
+        .filter_map(|p| {
+            let kind = data.objects.get(&p.kind)?;
+            let (look, blocks, _) = in_state(kind, &p.state);
+            Some(SeenObject {
+                object: p.id.clone(),
+                object_kind: id_of(&data.registry.objects, p.kind),
+                x: p.x,
+                y: p.y,
+                pos: p.pos,
+                facing: p.facing,
+                state: p.state.clone(),
+                look: *look,
+                blocks,
+            })
+        })
+        .collect();
+    let mut piles: Vec<PileView> = map
+        .ground
+        .iter()
+        .filter(|((l, _, _), pile)| *l == level && !pile.items.is_empty())
+        .map(|(&(_, x, y), pile)| PileView {
+            x,
+            y,
+            pos: pile.pos,
+            items: counted(data, &pile.items),
+        })
+        .collect();
+    piles.sort_by_key(|p| (p.y, p.x));
+    (objects, piles)
+}
+
 /// A placement as drawn, unless removed or still hidden.
 fn drawn(world: &World, map: MapId, data: &Data, p: &ResolvedPlacement) -> Option<SeenObject> {
     let state = world.maps.get(&map);

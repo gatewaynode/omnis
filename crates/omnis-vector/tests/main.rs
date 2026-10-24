@@ -19,6 +19,7 @@ mod editor;
 mod editor_forms;
 mod editor_paint;
 mod editor_pointer;
+mod editor_preview;
 mod fight;
 mod fight_screen;
 mod fill;

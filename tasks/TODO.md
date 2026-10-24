@@ -195,7 +195,18 @@ no loss, and every later map is built with it.
       brush at any size), `geometry::icon_on_floor`, `icons::activity()` = Lucide `face-grinning` read once; the
       plan's site mark and the 3D activity mark draw it in place of the hand-made smiley. An image cache for UI
       nodes waits for the first control that takes an icon (a design pass with the owner).
-  - [ ] M5.7 The 3D preview from the cursor.
+  - [ ] M5.7 The 3D preview from the cursor; `tasks/acceptance/m5-7.md`. Planned and approved 2026-10-24: an
+    `Occupancy` trait so the scene builds with no world, `AsPlaced` for the editor, a second camera on layer 2
+    drawing into an image the right column shows. Owner's decision in the planning: **activities** are an editor
+    grouping now (Add → Activity → a list, Service site first, an icon per `ServiceKind`), the schema later when
+    a second kind has engine rules (the small step after M5.7).
+    - [x] 1 (2026-10-24) `scene::Occupancy` (+ `impl for SimWorld`), `Scene::build_from(data, &MapData, id, level,
+      &dyn Occupancy)`; `api::placed_on_level`/`standing_as_placed` (hidden objects shown); `editor/preview.rs`
+      (`AsPlaced`, `scene`, `map_id`, `pose`, `look`, `SIGHT`); `render::{colour, fade, fog_end, CREST}` shared.
+      Tests `tests/editor_preview.rs` (3), the engine's as-placed test.
+    - [ ] 2 `shell/preview.rs` (layer 2 camera into an image, `PreviewGizmos`, `Preview` resource keyed on
+      revision, level, cursor, facing), the preview node over the inspector; acceptance steps.
+    - [ ] Then: activities in the editor (Add → Activity list, icons per `ServiceKind`).
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).
   - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.

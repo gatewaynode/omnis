@@ -8,6 +8,7 @@ pub mod brush;
 pub mod form;
 pub mod forms;
 pub mod plan;
+pub mod preview;
 pub mod view;
 
 use brush::{Target, Tool};

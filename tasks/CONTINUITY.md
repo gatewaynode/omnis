@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.6 and the icon step were accepted by the owner. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, during M5.7 (the preview), after M5.6 and the icon step were accepted. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -48,13 +48,27 @@ Written 2026-10-24, after M5.6 and the icon step were accepted by the owner. Rew
 - History note: the M5.6 acceptance commit had swallowed the staged asset files; the last commits were redone
   (unpushed) so the set has its own commit, the tree unchanged.
 
+## In hand: M5.7, the 3D preview (plan approved 2026-10-24)
+- **Commit 1 (this commit)**: the scene with no world, as `tasks/acceptance/m5-7.md` §1 and the code-map say.
+- **Commit 2 (next)**: `shell/preview.rs` (windowed-only, added in `main.rs` beside `RenderPlugin`):
+  `PreviewTarget(Handle<Image>)` at startup (`Image::new_target_texture(800, 450, Bgra8UnormSrgb, None)`);
+  `PreviewCamera` (`Camera3d`, `Camera { is_active: false, order: -1, target: RenderTarget::Image(..) }`, `Hdr`,
+  `Tonemapping::None`, the view's `Bloom` and `Projection`, `RenderLayers::layer(2)`), active while `Editing`
+  exists, never `IsDefaultUiCamera`; `PreviewGizmos` group (`render_layers` layer 2, width 2, the view's depth
+  bias); `PreviewFills` (the view's black unlit mesh, layer 2); `Preview { key: Option<(u64, Level, (u16, u16),
+  Facing)>, scene }`; systems in `VectorSet::Draw` while `Editing` exists: `rebuild` (key = revision, level,
+  cursor, facing; `preview::scene` from `editing.resolved` when some), `place` (the camera at `preview::look`, no
+  easing), `draw` (`Gizmos<PreviewGizmos>`, `render::colour`, `render::fade` with `preview::SIGHT`, the crests
+  with `fog_end`). The editor's right column (`shell/editor.rs::enter`) becomes a column node: `Column::Preview`
+  (an `ImageNode` of the target when `PreviewTarget` exists, width `INSPECTOR − 24`, height 9/16, a dim border;
+  headless no node) above `Column::Inspector`. The fight camera (`shell/combat.rs`, layer 1, `CombatGizmos`,
+  `cameras::<FIGHT>`) is the precedent. Then the acceptance's §2 and steps 2–4, TODO, code-map, continuity.
+- **After M5.7**: activities in the editor (Add → Activity list, icons per `ServiceKind`: inn, temple, trainer,
+  smith, tavern, bank, guild); then M5.8 Playtest.
+
 ## Next
-1. **Icons accepted (2026-10-24).** Owner's direction: the map and the UI move away from text where it makes
-   sense, now that the icons are handy. A design pass with the owner on which controls, marks and HUD lines
-   become icons; the image cache for UI nodes (`Icons` by name, size and role) comes with the first of them.
-2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview"). Plan mode first. Decide the
-   **activities** data shape there (`tasks/TODO.md` under M5.6).
-3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).
+1. M5.7 commit 2 (above), then report with how to try (open the town, click cells, Q/E; paint a wall).
+2. Activities in the editor; M5.8 to M5.10. Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

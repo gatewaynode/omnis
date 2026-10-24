@@ -3,7 +3,9 @@
 //! heights, so a bridge shows over the road and the cellar through a hole. The rules stay per
 //! level; only the drawing crosses. Each level brings its fills (M8.5 step 3), so the party's
 //! floors and ceilings hide its neighbours except through open air, holes and shafts. Each
-//! level's objects and piles stand on its ground (M8.5 step 2b, `shapes`).
+//! level's objects and piles stand on its ground (M8.5 step 2b, `shapes`). What the scene asks
+//! of the world is an `Occupancy` (M5.7): the game's world answers from its state, the editor's
+//! preview as the map is placed, so the same lines are drawn with no game running.
 //! Bevy-free, so it is tested directly.
 
 use crate::fill::{Tri, fills};
@@ -11,8 +13,22 @@ use crate::geometry::{SegKind, Segment, extract};
 use crate::ground::Ground;
 use crate::shapes::{figures, shapes};
 use crate::sim::SimWorld;
-use omnis_sim::omnis_core::{Level, MapId};
+use omnis_sim::api::{BeingView, PileView, SeenObject};
+use omnis_sim::omnis_core::{Facing, Level, MapId};
 use omnis_sim::omnis_data::{Data, MapData};
+
+/// What the scene asks of a world about a map: the doors' state and what stands on a level.
+/// The game answers from its world (`SimWorld`); the editor's preview as the map is placed
+/// (`crate::editor::preview::AsPlaced`).
+pub trait Occupancy {
+    /// Whether the door on this edge stands open.
+    fn door_open(&self, map: MapId, level: Level, x: u16, y: u16, facing: Facing) -> bool;
+    /// Every object and pile on the level, as drawn.
+    fn objects_on(&self, data: &Data, map: MapId, level: Level)
+    -> (Vec<SeenObject>, Vec<PileView>);
+    /// Every group standing on the level, as drawn.
+    fn beings_on(&self, data: &Data, map: MapId, level: Level) -> Vec<BeingView>;
+}
 
 /// How bright a neighbouring level's lines are against the party's own (provisional until the
 /// colour roles, M8.5 step 5).
@@ -39,6 +55,20 @@ impl Scene {
         let Some(map) = data.maps.get(&map_id) else {
             return Scene::default();
         };
+        Scene::build_from(data, map, map_id, level, world)
+    }
+
+    /// `level` of `map` (which need not be among `data`'s: an edited map, M5.7) and the levels
+    /// beside it, doors and objects as `world` has them; `map_id` names the map in what is
+    /// drawn.
+    #[must_use]
+    pub fn build_from(
+        data: &Data,
+        map: &MapData,
+        map_id: MapId,
+        level: Level,
+        world: &dyn Occupancy,
+    ) -> Scene {
         let ground = Ground::from_map(map, level);
         let (own, mut all) = level_of(data, map, (map_id, level), world, &ground);
         let mut neighbours = Vec::new();
@@ -74,7 +104,7 @@ fn level_of(
     data: &Data,
     map: &MapData,
     (map_id, level): (MapId, Level),
-    world: &SimWorld,
+    world: &dyn Occupancy,
     ground: &Ground,
 ) -> (Vec<Segment>, Vec<Tri>) {
     let mut lines = extract(map, map_id, level, world, ground);

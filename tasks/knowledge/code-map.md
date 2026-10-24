@@ -262,3 +262,12 @@ root attributes `ROOT_ATTRS` and children `CHILDREN`, `Error::{UnknownElement, U
 strokes }`, `Stroke { points, closed }`, `SIDE` 24, `WIDTH` 2, `Icon::parse`, `segments(size)`, `width(size)`,
 `bounds()`), `catalogue.rs` (`get`, `names`, `text`, `count`). Tests `tests/{catalogue,path}.rs`; the set's
 size 1,903 is pinned there. `examples/show.rs` prints an icon as text.
+
+## M5.7 preview (2026-10-24)
+`scene::Occupancy` (`door_open`, `objects_on`, `beings_on`; `impl for SimWorld` in `sim.rs`) is what `extract`,
+`edges`, `fills` and `level_of` take (`&dyn Occupancy`); `Scene::build_from(data, &MapData, map_id, level, occupancy)`
+is the body, `Scene::build` the game's wrapper. Engine: `objects_view::placed_on_level(data, &MapData, level)`
+(placed state, hidden shown, the map's piles) and `beings::standing_as_placed`, both in `api`. `editor/preview.rs`:
+`AsPlaced { map }`, `SIGHT` 8, `map_id(data, map)`, `scene(data, map, level)`, `pose(cursor, facing)`,
+`look(scene, pose) -> (eye, yaw)`. `shell/render.rs`: `colour`, `CREST`, `fog_end`, `fade(distance, sight)` are
+`pub(super)` for the preview's draw. Tests `tests/editor_preview.rs`.

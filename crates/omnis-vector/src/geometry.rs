@@ -7,7 +7,7 @@
 
 use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
-use crate::sim::SimWorld;
+use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
 use omnis_sim::omnis_data::{Join, MapData};
 use std::collections::BTreeMap;
@@ -93,7 +93,7 @@ pub fn extract(
     map: &MapData,
     map_id: MapId,
     level: Level,
-    world: &SimWorld,
+    world: &dyn Occupancy,
     ground: &Ground,
 ) -> Vec<Segment> {
     let mut out = Vec::new();
@@ -165,7 +165,7 @@ pub(crate) fn edges(
     map: &MapData,
     map_id: MapId,
     level: Level,
-    world: &SimWorld,
+    world: &dyn Occupancy,
 ) -> BTreeMap<EdgeKey, EdgeLook> {
     let mut edges: BTreeMap<EdgeKey, EdgeLook> = BTreeMap::new();
     for y in 0..map.def.height {
