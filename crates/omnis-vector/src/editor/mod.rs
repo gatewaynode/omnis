@@ -562,8 +562,18 @@ impl Editor {
         };
         match form.request(&def) {
             Ok(change) => {
+                let what = match &change {
+                    Change::Place(_) => "Placed",
+                    Change::Edit(_) => "Changed",
+                    Change::Note { .. } => "Written",
+                };
                 if self.change(data, change) {
                     self.form = None;
+                    // The loader's verdict at once, so what was just made saves (owner,
+                    // 2026-10-24): Save is dim with the same words meanwhile.
+                    if let Some(first) = self.status.errors.first() {
+                        self.message = Some(format!("{what}; the loader says: {first}"));
+                    }
                 }
             }
             Err(why) => self.message = Some(why),

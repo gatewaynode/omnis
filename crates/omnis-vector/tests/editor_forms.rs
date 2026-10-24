@@ -256,10 +256,11 @@ fn an_encounter_s_stacks_are_rows_and_a_bad_id_is_refused_with_the_form_standing
         editing(&app).message
     );
     type_into(&mut app, EditAct::Field(field_of(&form, "id")), "rats");
-    // Two rows added, the second removed.
+    // A new encounter starts with one stack; two rows added, then the last two removed.
     press_edit(&mut app, EditAct::ListAdd(0));
     press_edit(&mut app, EditAct::ListAdd(0));
-    assert_eq!(editing(&app).form.as_ref().unwrap().rows_of(0).len(), 2);
+    assert_eq!(editing(&app).form.as_ref().unwrap().rows_of(0).len(), 3);
+    press_edit(&mut app, EditAct::ListRemove(0, 2));
     press_edit(&mut app, EditAct::ListRemove(0, 1));
     let rows = editing(&app).form.as_ref().unwrap().rows_of(0);
     assert_eq!(rows.len(), 1);
@@ -561,4 +562,198 @@ fn a_note_is_written_to_the_pack_at_once_outside_the_history_and_cleared() {
         !written.contains("quiet corner") && written.contains("The town."),
         "{written}"
     );
+}
+
+// ---- marks on the plan; encounters that start valid (owner, 2026-10-24) ----
+
+/// How many pixels of `colour` lie in the plan's cell `cell` of `raster`.
+fn in_plan_cell(
+    app: &App,
+    raster: &omnis_vector::minimap::Raster,
+    cell: (u16, u16),
+    colour: [u8; 4],
+) -> usize {
+    let (left, top, side) = editing(app).view.cell_rect(cell);
+    let mut n = 0;
+    for y in top..top + i64::from(side) {
+        for x in left..left + i64::from(side) {
+            if let (Ok(x), Ok(y)) = (u32::try_from(x), u32::try_from(y))
+                && raster.pixel(x, y) == Some(colour)
+            {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+/// The plan painted as the layer paints it, with the placements' marks.
+fn painted(app: &App) -> omnis_vector::minimap::Raster {
+    use omnis_vector::editor::plan::{self, Source};
+    let e = editing(app);
+    let def = e.def().expect("a map");
+    let marks = plan::marks(&def, e.level);
+    plan::paint(
+        Source {
+            grid: e.grid().expect("a grid"),
+            terrains: &def.terrains,
+            size: (def.width, def.height),
+            level: e.level,
+            resolved: e.resolved.as_ref(),
+            start: None,
+            marks: &marks,
+        },
+        e.view,
+        e.pane,
+    )
+}
+
+#[test]
+fn the_plan_marks_placements_on_their_cells() {
+    use omnis_sim::omnis_core::Level;
+    use omnis_vector::editor::plan::{self, Mark, START};
+    use omnis_vector::minimap::DOOR;
+    let mut app = in_editor("test:map:town");
+    let def = editing(&app).def().unwrap();
+    let marks = plan::marks(&def, Level::GROUND);
+    assert!(marks.contains(&((11, 2), Mark::Portal)), "{marks:?}");
+    let site = def.sites[0].clone();
+    assert!(marks.contains(&((site.x, site.y), Mark::Site)), "{marks:?}");
+    let raster = painted(&app);
+    assert!(
+        in_plan_cell(&app, &raster, (11, 2), DOOR) > 0,
+        "the portal's rectangle and circle"
+    );
+    assert!(
+        in_plan_cell(&app, &raster, (site.x, site.y), START) > 0,
+        "the site's smiley"
+    );
+    assert_eq!(
+        in_plan_cell(&app, &raster, (3, 4), START),
+        0,
+        "a plain cell"
+    );
+    // An encounter placed marks its cell at once.
+    app.world_mut().resource_mut::<Editing>().point((3, 4));
+    app.update();
+    arrow(&mut app, EditAct::PlaceKind, true);
+    press_edit(&mut app, EditAct::Add);
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    let raster = painted(&app);
+    assert!(
+        in_plan_cell(&app, &raster, (3, 4), START) > 0,
+        "the encounter's triangle"
+    );
+}
+
+#[test]
+fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
+    use common::editor::{field_of, type_into};
+    use omnis_vector::editor::view;
+    use omnis_vector::screen::ControlId;
+    use omnis_vector::shell::session::Packs;
+    let mut app = in_editor("test:map:town");
+    app.world_mut().resource_mut::<Editing>().point((3, 4));
+    app.update();
+    arrow(&mut app, EditAct::PlaceKind, true);
+    press_edit(&mut app, EditAct::Add);
+    let form = editing(&app).form.clone().expect("the encounter form");
+    assert_eq!(form.text_of("id"), "encounter_3_4");
+    let rows = form.rows_of(0);
+    assert_eq!(rows.len(), 1, "one stack to start");
+    let creature = form.text(rows[0][0]).to_owned();
+    let data = app.world().resource::<Packs>().data.clone();
+    assert!(
+        data.monsters.values().any(|m| m.id == creature),
+        "{creature}"
+    );
+    // Apply with nothing typed: placed, the loader takes the map, Save is live.
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    assert!(
+        editing(&app).status.errors.is_empty(),
+        "{:?}",
+        editing(&app).status.errors
+    );
+    let save = view::tools(editing(&app), &data)
+        .control(ControlId::Edit(EditAct::Save))
+        .expect("Save")
+        .clone();
+    assert_eq!(save.why_not, None, "Save is live");
+    // A second encounter on the cell is refused before the document would replace anything.
+    press_edit(&mut app, EditAct::Add);
+    assert_eq!(
+        editing(&app).form.as_ref().unwrap().text_of("id"),
+        "encounter_3_4_2",
+        "a free id"
+    );
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_some(), "the form stands");
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains("already has an encounter")),
+        "{:?}",
+        editing(&app).message
+    );
+    press_edit(&mut app, EditAct::Cancel);
+    // A taken id on another cell is refused too.
+    app.world_mut().resource_mut::<Editing>().point((4, 4));
+    app.update();
+    press_edit(&mut app, EditAct::Add);
+    let form = editing(&app).form.clone().unwrap();
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "id")),
+        "encounter_3_4",
+    );
+    press_edit(&mut app, EditAct::Apply);
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains("already on the map")),
+        "{:?}",
+        editing(&app).message
+    );
+    // The stacks stop at the loader's four.
+    for _ in 0..3 {
+        press_edit(&mut app, EditAct::ListAdd(0));
+    }
+    assert_eq!(editing(&app).form.as_ref().unwrap().rows_of(0).len(), 4);
+    press_edit(&mut app, EditAct::ListAdd(0));
+    assert_eq!(editing(&app).form.as_ref().unwrap().rows_of(0).len(), 4);
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains("at most 4")),
+        "{:?}",
+        editing(&app).message
+    );
+    press_edit(&mut app, EditAct::Cancel);
+    // A creature nothing answers to is placed, and the loader's words are said at once.
+    press_edit(&mut app, EditAct::Add);
+    let form = editing(&app).form.clone().unwrap();
+    let rows = form.rows_of(0);
+    type_into(
+        &mut app,
+        EditAct::Field(u8::try_from(rows[0][0]).unwrap()),
+        "test:monster:nobody",
+    );
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none());
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.starts_with("Placed; the loader says:")),
+        "{:?}",
+        editing(&app).message
+    );
+    assert!(!editing(&app).status.errors.is_empty());
+    press_edit(&mut app, EditAct::Undo);
+    assert!(editing(&app).status.errors.is_empty());
 }

@@ -5,10 +5,13 @@
 
 use super::brush::Target;
 use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, RAMP, WALL};
-use crate::raster::{Raster, edge_key, edge_pixels, join_pixels, line_pixels, tick_pixels};
+use crate::raster::{
+    Raster, edge_key, edge_pixels, join_pixels, line_pixels, portal_pixels, rect_pixels,
+    smiley_pixels, tick_pixels, triangle_pixels,
+};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{EdgeKind, Grid};
-use omnis_sim::omnis_data::{Join, MapData, Terrain};
+use omnis_sim::omnis_data::{Join, MapData, MapDef, Terrain};
 
 /// The zooms, in pixels a cell.
 pub const ZOOMS: [u32; 6] = [4, 8, 12, 16, 24, 32];
@@ -175,6 +178,108 @@ pub struct Source<'a> {
     pub resolved: Option<&'a MapData>,
     /// The map's start, marked when it is on this level.
     pub start: Option<(u16, u16)>,
+    /// The placements on this level, each marked on its cell (`marks`).
+    pub marks: &'a [((u16, u16), Mark)],
+}
+
+/// What a placement marks its cell with on the plan (owner, 2026-10-24): a portal the
+/// rectangle with a circle the game draws, an encounter a filled triangle (a being, as the
+/// minimap's party), an object an outlined square, a pile a dot, a lore a corner, a site the
+/// activities' placeholder smiley.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mark {
+    /// A portal to another map.
+    Portal,
+    /// A fixed encounter.
+    Encounter,
+    /// A placed object.
+    Object,
+    /// A ground pile.
+    Ground,
+    /// A cell's lore.
+    Lore,
+    /// A service's site: an activity.
+    Site,
+}
+
+/// The marks of `def`'s placements on `level`, in the file's order.
+#[must_use]
+pub fn marks(def: &MapDef, level: Level) -> Vec<((u16, u16), Mark)> {
+    let mut out = Vec::new();
+    out.extend(
+        def.portals
+            .iter()
+            .filter(|p| p.level == level)
+            .map(|p| ((p.x, p.y), Mark::Portal)),
+    );
+    out.extend(
+        def.encounters
+            .iter()
+            .filter(|e| e.level == level)
+            .map(|e| ((e.x, e.y), Mark::Encounter)),
+    );
+    out.extend(
+        def.sites
+            .iter()
+            .filter(|s| s.level == level)
+            .map(|s| ((s.x, s.y), Mark::Site)),
+    );
+    out.extend(
+        def.objects
+            .iter()
+            .filter(|o| o.level == level)
+            .map(|o| ((o.x, o.y), Mark::Object)),
+    );
+    out.extend(
+        def.ground
+            .iter()
+            .filter(|g| g.level == level)
+            .map(|g| ((g.x, g.y), Mark::Ground)),
+    );
+    out.extend(
+        def.lore
+            .iter()
+            .filter(|l| l.level == level)
+            .map(|l| ((l.x, l.y), Mark::Lore)),
+    );
+    out
+}
+
+/// The pixels of `mark` on cell `(c, r)` of the pane at `scale` pixels a cell, and its colour.
+#[must_use]
+pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64)>, [u8; 4]) {
+    let s = i64::from(scale);
+    let (left, top) = (c * s, r * s);
+    let q = s / 4;
+    match mark {
+        Mark::Portal => (portal_pixels(scale, (c, r)), DOOR),
+        Mark::Encounter => (
+            triangle_pixels(
+                (left + s / 2, top + q),
+                (left + q, top + s - q - 1),
+                (left + s - q - 1, top + s - q - 1),
+            ),
+            START,
+        ),
+        Mark::Object => (rect_pixels(scale, (c, r), s / 3), START),
+        Mark::Ground => {
+            let dot = (s / 8).max(1);
+            let (cx, cy) = (left + s / 2, top + s / 2);
+            (
+                (cy - dot / 2..cy - dot / 2 + dot.max(2))
+                    .flat_map(|y| (cx - dot / 2..cx - dot / 2 + dot.max(2)).map(move |x| (x, y)))
+                    .collect(),
+                START,
+            )
+        }
+        Mark::Lore => {
+            let (x0, y0, y1, x1) = (left + q, top + q, top + s - q - 1, left + s - q - 1);
+            let mut px = line_pixels((x0, y0), (x0, y1));
+            px.extend(line_pixels((x0, y1), (x1, y1)));
+            (px, START)
+        }
+        Mark::Site => (smiley_pixels(scale, (c, r)), START),
+    }
 }
 
 /// A terrain's fill, brighter the higher the tile stands: level ground at 60%, each wall's
@@ -194,8 +299,8 @@ pub const OUTSIDE: [u8; 4] = [0, 0, 0, 255];
 pub const START: [u8; 4] = [255, 255, 255, 255];
 
 /// Paint the cells of `source` the pane shows under `view`: terrain fills shaded by height, no
-/// ground, the map's edge, then ramps and cliffs, joins, walls and doors over them, and the
-/// start's mark.
+/// ground, the map's edge, then ramps and cliffs, joins, walls and doors over them, the
+/// placements' marks, and the start's mark.
 #[must_use]
 pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
     let s = view.scale();
@@ -281,6 +386,16 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
             }
         }
     }
+    for ((x, y), mark) in source.marks {
+        let (c, r) = (i64::from(*x) - view.origin.0, i64::from(*y) - view.origin.1);
+        if c < 0 || r < 0 || c >= cols || r >= rows {
+            continue;
+        }
+        let (pixels, colour) = mark_pixels(s, (c, r), *mark);
+        for (px, py) in pixels {
+            out.put(px, py, colour);
+        }
+    }
     if let Some(start) = source.start {
         let (left, top, side) = view.cell_rect(start);
         let side = i64::from(side);
@@ -343,6 +458,30 @@ mod tests {
         let farthest = view.zoomed(-9, pane);
         assert_eq!(farthest.scale(), 4, "stops at the smallest");
         assert_eq!(view.zoomed(9, pane).scale(), 32, "and the largest");
+    }
+
+    #[test]
+    fn every_mark_draws_inside_its_cell_at_every_zoom() {
+        for scale in ZOOMS {
+            let s = i64::from(scale);
+            for mark in [
+                Mark::Portal,
+                Mark::Encounter,
+                Mark::Object,
+                Mark::Ground,
+                Mark::Lore,
+                Mark::Site,
+            ] {
+                let (pixels, _) = mark_pixels(scale, (2, 3), mark);
+                assert!(!pixels.is_empty(), "{mark:?} at {scale}");
+                for (x, y) in pixels {
+                    assert!(
+                        (2 * s..3 * s).contains(&x) && (3 * s..4 * s).contains(&y),
+                        "{mark:?} at {scale}: ({x}, {y}) off the cell"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

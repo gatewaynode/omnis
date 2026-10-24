@@ -660,6 +660,7 @@ fn refresh(
         .level
         .is_ground()
         .then_some((def.start.0, def.start.1));
+    let marks = plan::marks(&def, editing.level);
     let raster = plan::paint(
         Source {
             grid,
@@ -668,6 +669,7 @@ fn refresh(
             level: editing.level,
             resolved: editing.resolved.as_ref(),
             start,
+            marks: &marks,
         },
         editing.view,
         pane,

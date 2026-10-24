@@ -13,7 +13,7 @@ use omnis_sim::omnis_data::encounter::{
 };
 use omnis_sim::omnis_data::levels::LevelDef;
 use omnis_sim::omnis_data::limits::{
-    MAX_HEIGHT, MAX_MAP_SIDE, MAX_STRING_BYTES, MAX_VISIBILITY_DEPTH,
+    MAX_HEIGHT, MAX_MAP_SIDE, MAX_STACKS, MAX_STRING_BYTES, MAX_VISIBILITY_DEPTH,
 };
 use omnis_sim::omnis_data::lore::{CellLore, Lore};
 use omnis_sim::omnis_data::map::{Join, Terrain};
@@ -198,16 +198,29 @@ fn pairs<N: Copy + Into<i64>>(items: &[(String, N)]) -> Vec<Vec<Value>> {
         .collect()
 }
 
-/// A list of (id, count) rows.
-fn pair_list(label: &'static str, what: &'static str, max: i64) -> List {
+/// A list of (id, count) rows, at most `rows` of them.
+fn pair_list(label: &'static str, what: &'static str, max: i64, rows: u8) -> List {
     List {
         label,
         template: vec![
             form::text(what, "", ID_MAX),
             form::number("count", 1, 1, max),
         ],
-        max: form::MAX_ROWS,
+        max: rows,
     }
+}
+
+/// An id for a new thing at `(x, y)` that nothing on the map has yet: `<what>_<x>_<y>`, then
+/// `_2`, `_3` and so on.
+fn free_id(what: &str, (x, y): (u16, u16), taken: impl Fn(&str) -> bool) -> String {
+    let base = format!("{what}_{x}_{y}");
+    if !taken(&base) {
+        return base;
+    }
+    (2..)
+        .map(|n| format!("{base}_{n}"))
+        .find(|id| !taken(id))
+        .unwrap_or(base)
 }
 
 /// The (id, count) pairs of list `l`, each id one word.
@@ -304,7 +317,7 @@ impl Form {
     pub fn placing(kind: Placing, def: &MapDef, data: &Data, at: At) -> Form {
         match kind {
             Placing::Portal => portal(data, at, None),
-            Placing::Encounter => encounter(def, at, None),
+            Placing::Encounter => encounter(def, data, at, None),
             Placing::Site => site(data, at, None),
             Placing::Object => object(def, data, at, None),
             Placing::Ground => ground(at, None),
@@ -323,7 +336,7 @@ impl Form {
         };
         let mut form = match find(def, key)? {
             Found::Portal(p) => portal(data, at(p.level, p.x, p.y), Some(p)),
-            Found::Encounter(e) => encounter(def, at(e.level, e.x, e.y), Some(e)),
+            Found::Encounter(e) => encounter(def, data, at(e.level, e.x, e.y), Some(e)),
             Found::Site(s) => site(data, at(s.level, s.x, s.y), Some(s)),
             Found::RestEvent(r) => rest_event(def, at(Level::GROUND, 0, 0), Some(r)),
             Found::Object(o) => object(def, data, at(o.level, o.x, o.y), Some(o)),
@@ -419,12 +432,60 @@ impl Form {
         rest_event(def, at, None)
     }
 
+    /// The id of what the form edits, when it edits something named (from what Remove sends).
+    fn original_id(&self) -> Option<&str> {
+        match &self.remove {
+            Some(Change::Place(Place::Remove(
+                Target::Encounter { id } | Target::Object { id } | Target::Lore { id },
+            ))) => Some(id),
+            _ => None,
+        }
+    }
+
+    /// The loader's keys, checked before the document's upsert would replace something
+    /// silently: an id another encounter, object or lore has, a second encounter on a cell.
+    fn keys(&self, def: &MapDef) -> Result<(), String> {
+        let original = self.original_id();
+        let other = |id: &str| original != Some(id);
+        match self.kind {
+            FormKind::Encounter => {
+                let id = form::id(self.text_of("id"))?;
+                if def.encounters.iter().any(|e| e.id == id && other(&e.id)) {
+                    return Err(format!("an encounter {id} is already on the map"));
+                }
+                let (x, y) = (u16_of(self.number_of("x")), u16_of(self.number_of("y")));
+                if def
+                    .encounters
+                    .iter()
+                    .any(|e| other(&e.id) && e.level == self.at.level && e.x == x && e.y == y)
+                {
+                    return Err(format!("cell ({x}, {y}) already has an encounter"));
+                }
+            }
+            FormKind::Object => {
+                let id = form::id(self.text_of("id"))?;
+                if def.objects.iter().any(|o| o.id == id && other(&o.id)) {
+                    return Err(format!("an object {id} is already on the map"));
+                }
+            }
+            FormKind::Lore => {
+                let id = form::id(self.text_of("id"))?;
+                if def.lore.iter().any(|l| l.id == id && other(&l.id)) {
+                    return Err(format!("a lore {id} is already on the map"));
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// The request this form's Apply makes.
     ///
     /// # Errors
-    /// A field that does not read: said in one line, the form standing.
+    /// A field that does not read, or a key the map has: said in one line, the form standing.
     pub fn request(&self, def: &MapDef) -> Result<Change, String> {
         let at = self.at;
+        self.keys(def)?;
         match &self.kind {
             FormKind::Terrain(glyph) => {
                 let terrain = self.terrain_fields()?;
@@ -703,9 +764,20 @@ fn portal(data: &Data, at: At, was: Option<&Portal>) -> Form {
     )
 }
 
-fn encounter(def: &MapDef, at: At, was: Option<&FixedEncounter>) -> Form {
+/// An encounter's form. A new one starts valid (owner, 2026-10-24): an id nothing on the map
+/// has, one stack of the first loaded monster, hostile; Apply at once gives a map the loader
+/// takes.
+fn encounter(def: &MapDef, data: &Data, at: At, was: Option<&FixedEncounter>) -> Form {
     let stand = was.and_then(|e| e.stand.as_ref());
     let offset = i64::from(MAX_OFFSET);
+    let id = was.map_or_else(
+        || {
+            free_id("encounter", (at.x, at.y), |id| {
+                def.encounters.iter().any(|e| e.id == id)
+            })
+        },
+        |e| e.id.clone(),
+    );
     let mut form = Form::new(
         FormKind::Encounter,
         was.map_or_else(
@@ -714,7 +786,7 @@ fn encounter(def: &MapDef, at: At, was: Option<&FixedEncounter>) -> Form {
         ),
         at,
         vec![
-            form::text("id", was.map_or("", |e| e.id.as_str()), ID_MAX),
+            form::text("id", &id, ID_MAX),
             coordinate("x", at.x, def.width),
             coordinate("y", at.y, def.height),
             dispositions(was.map_or(Disposition::default(), |e| e.disposition)),
@@ -734,10 +806,20 @@ fn encounter(def: &MapDef, at: At, was: Option<&FixedEncounter>) -> Form {
             ),
             facings(stand.map_or(at.facing, |s| s.facing)),
         ],
-        vec![pair_list("Stacks", "creature", COUNT_MAX)],
+        vec![pair_list(
+            "Stacks",
+            "creature",
+            COUNT_MAX,
+            u8::try_from(MAX_STACKS).unwrap_or(u8::MAX),
+        )],
     );
-    if let Some(e) = was {
-        form.fill(0, pairs(&e.stacks));
+    match was {
+        Some(e) => form.fill(0, pairs(&e.stacks)),
+        None => {
+            if let Some(first) = data.monsters.values().map(|m| m.id.clone()).min() {
+                form.fill(0, pairs(&[(first, 1_u8)]));
+            }
+        }
     }
     form
 }
@@ -890,7 +972,7 @@ fn object(def: &MapDef, data: &Data, at: At, was: Option<&Placement>) -> Form {
             ),
             form::flag("lore once", lore.is_some_and(|l| l.once)),
         ],
-        vec![pair_list("Contents", "item", ITEMS_MAX)],
+        vec![pair_list("Contents", "item", ITEMS_MAX, form::MAX_ROWS)],
     );
     if let Some(o) = was {
         form.fill(0, pairs(&o.contents));
@@ -918,7 +1000,7 @@ fn ground(at: At, was: Option<&GroundDef>) -> Form {
                 offset,
             ),
         ],
-        vec![pair_list("Items", "item", ITEMS_MAX)],
+        vec![pair_list("Items", "item", ITEMS_MAX, form::MAX_ROWS)],
     );
     if let Some(g) = was {
         form.fill(0, pairs(&g.items));

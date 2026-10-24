@@ -407,3 +407,15 @@
 - **Rule**: when a change redraws nodes from a description, the state that is not in the description (a
   panel's scroll, the field with the keyboard, a hover) is read before the despawn and given to what is built
   in its place. Check it with a test that scrolls, changes the content and reads the new panel.
+
+## 2026-10-24 — A creation form starts valid and keeps the loader's keys
+- **What happened**: the editor's Add → Encounter opened an empty form: Apply with nothing typed gave an
+  encounter with no id and no stacks, which the loader refused, so the map could not be saved until the
+  author had filled every field right; and an id already on the map would have replaced the other encounter
+  silently, since the document places by upsert. The owner asked for a minimal default and for the
+  validation to be checked at creation, "so we can be sure it saves before the editing is done".
+- **Rule**: a form that creates a thing opens filled with defaults the loader takes (a free id, the one
+  required row, the plain choice), so Apply at once leaves the map saveable; and the form checks the
+  loader's keys itself before the store's upsert (a taken id, a cell that holds one already), refusing in
+  one line with the form standing. After any Apply, say the loader's verdict at once rather than leaving it
+  to the Save button's dim reason.

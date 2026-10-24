@@ -166,6 +166,12 @@ no loss, and every later map is built with it.
       map) and the 3D floor mark a portal with a rectangle and a circle (doors keep the cross); a site's cell
       carries the activities' placeholder smiley on the floor. A stored automap bit was tried and backed out:
       it would fold every older save on load.
+    - [x] Marks on the plan and encounters that start valid (2026-10-24, owner's direction): `plan::Mark` and
+      `plan::marks(def, level)` (portal rectangle+circle, encounter triangle, object square, pile dot, lore
+      corner, site smiley); `forms::encounter` prefilled with a free id and one stack of the first loaded
+      monster, the Stacks list at `MAX_STACKS`; `Form::keys` refuses a taken encounter/object/lore id and a second
+      encounter on a cell; `apply_form` says the loader's first error after a change. Tests in
+      `tests/editor_forms.rs` and `plan.rs`.
     - [ ] Proposed (owner 2026-10-24): an **activities** category of map item, the town services first, later
       fountains, fixed NPCs, mechanisms, anomalies: what takes the party out of its stride into a decision. In
       the editor one Add choice "Activity" opening a list of what to create; each needs a representation in the
