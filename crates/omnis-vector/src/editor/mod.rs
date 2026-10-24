@@ -108,9 +108,11 @@ pub enum EditAct {
     Playtest,
     /// Show the map's plan (M5.9).
     Plan,
-    /// Show the pack's files as text (M5.9).
+    /// Show the open file's text (M5.9).
     Files,
-    /// Open the nth file of the list as text.
+    /// List the pack's files and open the picker over the editor (M5.9b).
+    OpenFile,
+    /// Open the nth listed file as text, or show the open one again.
     File(u16),
     /// The open file's text, as typed.
     FileText,
@@ -133,7 +135,8 @@ pub enum NoteOf {
     Map,
 }
 
-/// What the layer does after an act: nothing more, open the menu, or reload the packs.
+/// What the layer does after an act: nothing more, open the menu or the file picker, close the
+/// picker, reload the packs, or start a playtest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Asked {
     /// Nothing beyond the model's change.
@@ -144,6 +147,10 @@ pub enum Asked {
     Saved,
     /// Start a playtest: the shell builds the game and parks the editor (M5.8).
     Playtest,
+    /// Open the file picker over the editor (M5.9b).
+    Pick,
+    /// A file was picked: the picker closes.
+    Picked,
 }
 
 /// The editor as the layer reads and changes it.
@@ -584,17 +591,35 @@ impl Editor {
         }
     }
 
-    /// Open the nth listed file as text, fresh (its field takes the keyboard).
-    fn open_file(&mut self, n: usize) {
+    /// Open the nth listed file as text, fresh (its field takes the keyboard), and show it. The
+    /// open file picked again is shown as it stands, typed text kept; another file is refused
+    /// while the open one has unsaved text (the picker says so before the click). Whether a file
+    /// is shown.
+    fn open_file(&mut self, n: usize) -> bool {
         let Some(rel) = self.files.get(n).cloned() else {
-            return;
+            return false;
         };
+        if let Some(file) = &self.file {
+            if file.rel == rel {
+                self.mode = Mode::Files;
+                return true;
+            }
+            if file.dirty() {
+                self.message = Some(format!("save or revert {} first", file.rel));
+                return false;
+            }
+        }
         match self.session.read(&rel) {
             Ok(text) => {
                 self.file = Some(FileEdit::read(rel, text));
                 self.message = None;
+                self.mode = Mode::Files;
+                true
             }
-            Err(e) => self.message = Some(format!("Cannot read {rel}: {e}")),
+            Err(e) => {
+                self.message = Some(format!("Cannot read {rel}: {e}"));
+                false
+            }
         }
     }
 
@@ -1049,13 +1074,22 @@ impl Editor {
             EditAct::Playtest => return Asked::Playtest,
             EditAct::Plan => self.mode = Mode::Plan,
             EditAct::Files => {
-                self.mode = Mode::Files;
-                match self.session.files() {
-                    Ok(files) => self.files = files,
-                    Err(e) => self.message = Some(format!("Cannot list the files: {e}")),
+                if self.file.is_some() {
+                    self.mode = Mode::Files;
                 }
             }
-            EditAct::File(n) => self.open_file(usize::from(n)),
+            EditAct::OpenFile => match self.session.files() {
+                Ok(files) => {
+                    self.files = files;
+                    return Asked::Pick;
+                }
+                Err(e) => self.message = Some(format!("Cannot list the files: {e}")),
+            },
+            EditAct::File(n) => {
+                if self.open_file(usize::from(n)) {
+                    return Asked::Picked;
+                }
+            }
             EditAct::FileText => {}
             EditAct::Check => {
                 let Some(file) = self.file.as_ref() else {

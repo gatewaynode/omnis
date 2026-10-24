@@ -14,6 +14,7 @@ pub mod cast;
 pub mod create_party;
 pub mod debug;
 pub mod defeat;
+pub mod editor_files;
 pub mod editor_menu;
 pub mod fight;
 pub mod inventory;
@@ -81,6 +82,8 @@ pub enum ScreenId {
     LoadReport,
     /// The editor's menu: Esc over the editor (M5.4).
     EditorMenu,
+    /// The editor's file picker: a modal over the editor (M5.9b).
+    EditorFiles,
     /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
     EditorTools,
     /// The editor's inspector column, as the tools.
@@ -624,6 +627,10 @@ pub struct EditingCtx<'a> {
     pub dirty: bool,
     /// What the loader would refuse, in its words.
     pub errors: &'a [String],
+    /// The pack's files the picker lists (M5.9b), as the data layer lists them.
+    pub files: &'a [String],
+    /// The file open as text, and whether its text is unsaved.
+    pub file: Option<(&'a str, bool)>,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -713,6 +720,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::Settings, _) => settings::content(ctx, forms),
         (ScreenId::LoadReport, _) => load_report::content(forms),
         (ScreenId::EditorMenu, _) => editor_menu::content(ctx),
+        (ScreenId::EditorFiles, _) => editor_files::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (
             ScreenId::EditorTools
@@ -784,6 +792,7 @@ pub fn apply(
         (ScreenId::Settings, _) => settings::apply(ctx, forms, control, payload),
         (ScreenId::LoadReport, _) => load_report::apply(forms, control),
         (ScreenId::EditorMenu, _) => editor_menu::apply(control),
+        (ScreenId::EditorFiles, _) => editor_files::apply(control),
         (
             ScreenId::EditorTools
             | ScreenId::EditorInspector

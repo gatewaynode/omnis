@@ -672,6 +672,9 @@ fn route(
     if asked == Asked::Menu {
         screens.nav.open(ScreenId::EditorMenu, None);
     }
+    if asked == Asked::Pick {
+        screens.nav.open(ScreenId::EditorFiles, None);
+    }
     if asked == Asked::Playtest {
         match start_playtest(&editing, &packs) {
             Ok(session) => {

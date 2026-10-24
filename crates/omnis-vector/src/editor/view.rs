@@ -139,7 +139,11 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     let mut rows = vec![
         Row::controls(vec![
             Control::button(edit(EditAct::Plan), marked(Mode::Plan, "Plan")),
-            Control::button(edit(EditAct::Files), marked(Mode::Files, "Files")),
+            dim(
+                Control::button(edit(EditAct::Files), marked(Mode::Files, "Text")),
+                editor.file.is_none().then_some("open a file first"),
+            ),
+            Control::button(edit(EditAct::OpenFile), "Open file..."),
         ]),
         Row::controls(vec![
             dim(
@@ -264,26 +268,17 @@ fn plan_rows(
     rows
 }
 
-/// The files' rows of the tools column (M5.9): one button per pack file, the open one marked,
-/// then Check, Save file and Revert file with their reasons.
+/// The file's rows of the tools column (M5.9): the open file's name (`*` while its text is
+/// unsaved), then Check, Save file and Revert file with their reasons. The list itself is the
+/// picker's (M5.9b).
 fn file_rows(editor: &Editor) -> Vec<Row> {
     let edit = |act| ControlId::Edit(act);
     let open = editor.file.as_ref().map(|f| f.rel.as_str());
-    let mut rows: Vec<Row> = editor
-        .files
-        .iter()
-        .enumerate()
-        .map(|(i, rel)| {
-            let mark = if open == Some(rel.as_str()) { "> " } else { "" };
-            Row::controls(vec![Control::button(
-                edit(EditAct::File(u16::try_from(i).unwrap_or(u16::MAX))),
-                format!("{mark}{rel}"),
-            )])
-        })
-        .collect();
-    if rows.is_empty() {
-        rows.push(Row::text(Span::body("The pack has no files.")));
-    }
+    let mut rows = vec![Row::text(Span::body(match &editor.file {
+        Some(f) if f.dirty() => format!("{}  *", f.rel),
+        Some(f) => f.rel.clone(),
+        None => "No file open.".to_owned(),
+    }))];
     let none = open.is_none().then_some("choose a file");
     let file = editor.file.as_ref();
     let blocked = file.and_then(super::files::FileEdit::blocked_save);
@@ -319,7 +314,7 @@ pub fn text(editor: &Editor) -> Screen {
         ),
         None => (
             "FILES".to_owned(),
-            vec![Row::text(Span::body("Choose a file in the tools column."))],
+            vec![Row::text(Span::body("Open a file from the tools column."))],
         ),
     };
     Screen {

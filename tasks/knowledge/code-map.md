@@ -305,3 +305,11 @@ under the cursor; no dev tools), `data_for(editor, data) -> Option<Arc<Data>>` (
 (`Display` toggled in `refresh`, `column_entity`), `Drawn.text`, `PlanNodes` system param (a system takes sixteen
 parameters at most), the `fresh` keep for a file as for a form, `route` sends `EditAct::FileText` to `typed_file`.
 `screen_draw.rs`: a `Kind::Text` of several lines takes its row's width (`boxed_node`). Tests `tests/editor_files.rs`.
+M5.9b (owner, 2026-10-24): the file list is a modal over the editor, `screen/editor_files.rs` (`ScreenId::EditorFiles`,
+allowed over the editor only, pausing it; built from `EditingCtx { files, file: Option<(rel, dirty)> }`; the files
+grouped under their folders, `ControlId::Edit(EditAct::File(n))` each, the others dim "save or revert <rel> first"
+while the open file is unsaved; Cancel = `Resume` → `Effect::Back`); the tools' first row is Plan | Text (dim until
+a file is open) | Open file... (`EditAct::OpenFile` lists through `Session::files` and returns `Asked::Pick`, the
+layer or the router opens the picker; `File(n)` returns `Asked::Picked` and the router closes it; the open file
+picked again is shown without a reread, another is refused in the model while the open one is dirty). A fresh form
+or file always rebuilds its column (`f826536`: the words' sync leaves a field's text alone).

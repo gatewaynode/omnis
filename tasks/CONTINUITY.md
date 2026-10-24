@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.9 (the RON text editor) was built. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.9b (the file picker modal) was built. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -61,8 +61,12 @@ Written 2026-10-24, after M5.9 (the RON text editor) was built. Rewrite this fil
   later when a second kind has engine rules.
 
 ## Next
-1. **M5.9 built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, six steps on a
-   scratch copy).
+1. **M5.9 built** (`60ba22a`); the owner's first round found the second file showing the first's text, fixed
+   in `f826536` (a fresh form or file rebuilds its column; lesson in LESSONS). The owner then asked for the
+   file list as a modal picker: **M5.9b (this commit)**, `screen/editor_files.rs`, Plan | Text | Open file...
+   in the tools column, the unsaved guard. Awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, six
+   steps on a scratch copy). After acceptance: a memory note that the owner wants pickers as modals over the
+   editor, not lists in a column.
 2. **M5.10 re-authoring and close** (plan row 10: `tests/edit_authoring.rs` builds each `packs/test` map from
    blank with ops only and matches the loaded def; the four maps' comments moved to notes and the files
    rewritten through the editor; `packs/test` resealed; both replays rebaselined; documents as built

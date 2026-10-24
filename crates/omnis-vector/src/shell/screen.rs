@@ -287,6 +287,8 @@ pub fn ctx_with<'a>(
         open: e.status.map.is_some(),
         dirty: e.status.dirty,
         errors: &e.status.errors,
+        files: &e.files,
+        file: e.file.as_ref().map(|f| (f.rel.as_str(), f.dirty())),
     });
     Ctx {
         prefs,
@@ -591,8 +593,15 @@ fn carry_out(
         Effect::Editor(act) => {
             if let Some(editing) = host.editing.as_deref_mut() {
                 let asked = super::editor::act(editing, &mut host.packs, act, 0);
-                if asked == crate::editor::Asked::Menu {
-                    screens.nav.open(ScreenId::EditorMenu, None);
+                match asked {
+                    crate::editor::Asked::Menu => screens.nav.open(ScreenId::EditorMenu, None),
+                    crate::editor::Asked::Pick => screens.nav.open(ScreenId::EditorFiles, None),
+                    crate::editor::Asked::Picked
+                        if screens.nav.top(None) == Some(ScreenId::EditorFiles) =>
+                    {
+                        screens.nav.back();
+                    }
+                    _ => {}
                 }
                 screens.forms.message = editing.message.clone().map(Span::body);
             }

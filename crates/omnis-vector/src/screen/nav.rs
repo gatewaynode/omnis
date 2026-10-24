@@ -69,7 +69,7 @@ impl Nav {
         match (id, game) {
             (ScreenId::NewGame, None) => !self.editing,
             // Over the editor only.
-            (ScreenId::EditorMenu, None) => self.editing,
+            (ScreenId::EditorMenu | ScreenId::EditorFiles, None) => self.editing,
             // Wherever Load is: the title, the pause, the fallen party's screen.
             (ScreenId::LoadReport, _) => true,
             // From the title, or from the pause wherever it is allowed.
@@ -152,6 +152,7 @@ impl Nav {
                     | ScreenId::Log
                     | ScreenId::LoadReport
                     | ScreenId::EditorMenu
+                    | ScreenId::EditorFiles
             )
         )
     }

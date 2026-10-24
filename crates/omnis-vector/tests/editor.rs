@@ -90,10 +90,15 @@ fn the_navigation_treats_the_editor_as_the_base_with_no_game() {
     let mut nav = Nav::default();
     assert_eq!(nav.base(None), Some(ScreenId::Title));
     assert!(!nav.allowed(ScreenId::EditorMenu, None));
+    assert!(!nav.allowed(ScreenId::EditorFiles, None));
     nav.edit(true);
     assert!(nav.editing());
     assert_eq!(nav.base(None), None);
     assert!(nav.allowed(ScreenId::EditorMenu, None));
+    assert!(nav.allowed(ScreenId::EditorFiles, None), "the picker too");
+    nav.open(ScreenId::EditorFiles, None);
+    assert!(nav.paused(None), "the editor waits under the picker");
+    assert_eq!(nav.escape(None, true), Escape::Closed);
     assert!(nav.allowed(ScreenId::Settings, None));
     assert!(
         !nav.allowed(ScreenId::NewGame, None),

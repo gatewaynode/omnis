@@ -5,14 +5,21 @@
 use crate::common;
 
 use bevy::prelude::*;
+use common::app::press_ui;
 use common::editor::{editing, field_entity, in_editor, in_editor_scratch, press_edit, type_into};
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::files::Mode;
 use omnis_vector::editor::view;
-use omnis_vector::screen::ControlId;
+use omnis_vector::screen::{ControlId, ScreenId};
 use omnis_vector::shell::editor::{Column, Editing};
+use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Packs;
+
+/// The screen on top of the editor, if any.
+fn top(app: &App) -> Option<ScreenId> {
+    app.world().resource::<Screens>().nav.top(None)
+}
 
 fn reason(app: &App, act: EditAct) -> Option<String> {
     let data = app.world().resource::<Packs>().data.clone();
@@ -32,10 +39,15 @@ fn file_index(app: &App, rel: &str) -> u16 {
     u16::try_from(i).unwrap()
 }
 
-/// Open the listed file `rel` as text.
+/// Open the file `rel` as text through the picker: Open file... lists the pack's files over the
+/// editor, the file's button opens it and the picker closes.
 fn open_file(app: &mut App, rel: &str) {
+    press_edit(app, EditAct::OpenFile);
+    assert_eq!(top(app), Some(ScreenId::EditorFiles), "the picker is up");
     let i = file_index(app, rel);
-    press_edit(app, EditAct::File(i));
+    press_ui(app, Pressable(ControlId::Edit(EditAct::File(i))));
+    assert_eq!(top(app), None, "the picker closed");
+    assert_eq!(editing(app).mode, Mode::Files);
 }
 
 /// The text the open file's field shows.
@@ -58,13 +70,19 @@ fn display(app: &mut App, column: Column) -> Display {
 }
 
 #[test]
-fn files_mode_lists_the_pack_s_files_and_opens_one_as_text_in_the_centre() {
+fn the_picker_lists_the_pack_s_files_by_folder_and_opens_one_as_text_in_the_centre() {
     let mut app = in_editor("test:map:town");
     assert_eq!(editing(&app).mode, Mode::Plan);
     assert_eq!(display(&mut app, Column::Plan), Display::Flex);
     assert_eq!(display(&mut app, Column::Text), Display::None);
-    press_edit(&mut app, EditAct::Files);
-    assert_eq!(editing(&app).mode, Mode::Files);
+    // No file open: Text is dim and says so (a dim control has no press).
+    assert_eq!(
+        reason(&app, EditAct::Files).as_deref(),
+        Some("open a file first")
+    );
+    // Open file... lists the pack's own files over the editor, grouped by folder.
+    press_edit(&mut app, EditAct::OpenFile);
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles));
     let files = editing(&app).files.clone();
     assert_eq!(files[0], "pack.ron");
     assert!(
@@ -78,23 +96,38 @@ fn files_mode_lists_the_pack_s_files_and_opens_one_as_text_in_the_centre() {
     assert!(files.iter().all(|f| f.ends_with(".ron")));
     let text = screen_text(app.world());
     assert!(
-        text.contains("text/en/spells.ron") && text.contains("Choose a file"),
+        text.contains("OPEN A FILE")
+            && text.contains("pack.ron")
+            && text.contains("text/en/")
+            && text.contains("\"spells.ron\"")
+            && text.contains("data/maps/")
+            && text.contains("\"town.ron\"")
+            && text.contains("Cancel"),
         "{text}"
     );
+    let shown = |text: &str, rel: &str| text.contains(&format!("\"{rel}\""));
+    assert!(
+        !shown(&text, "text/en/spells.ron"),
+        "named under its folder: {text}"
+    );
+    // Cancel closes it with nothing opened; so does Esc.
+    press_ui(&mut app, Pressable(ControlId::Resume));
+    assert_eq!(top(&app), None);
+    assert!(editing(&app).file.is_none());
+    press_edit(&mut app, EditAct::OpenFile);
+    common::app::tap(&mut app, KeyCode::Escape);
+    assert_eq!(top(&app), None, "Esc closes the picker");
+    assert_eq!(editing(&app).mode, Mode::Plan);
+    // Open the spells' text: the model holds the file, the centre shows it, the plan is hidden.
+    open_file(&mut app, "text/en/spells.ron");
     assert_eq!(display(&mut app, Column::Plan), Display::None);
     assert_eq!(display(&mut app, Column::Text), Display::Flex);
-    assert_eq!(
-        reason(&app, EditAct::Check).as_deref(),
-        Some("choose a file")
-    );
-    // Open the spells' text: the model holds the file, the centre shows it.
-    open_file(&mut app, "text/en/spells.ron");
     let file = editing(&app).file.clone().expect("the file");
     assert_eq!(file.rel, "text/en/spells.ron");
     assert_eq!(file.text, file.disk);
     assert!(file.text.contains("ward"), "{}", file.text);
     let text = screen_text(app.world());
-    assert!(text.contains("> text/en/spells.ron"), "{text}");
+    assert!(text.contains("text/en/spells.ron"), "{text}");
     assert!(text.contains("ward"), "the text in the centre: {text}");
     assert_eq!(
         reason(&app, EditAct::WriteFile).as_deref(),
@@ -104,11 +137,64 @@ fn files_mode_lists_the_pack_s_files_and_opens_one_as_text_in_the_centre() {
         reason(&app, EditAct::RevertFile).as_deref(),
         Some("no changes")
     );
-    // Plan returns to the map; the file stays open for next time.
+    // Plan returns to the map; the file stays open and Text shows it again.
     press_edit(&mut app, EditAct::Plan);
     assert_eq!(editing(&app).mode, Mode::Plan);
     assert_eq!(display(&mut app, Column::Plan), Display::Flex);
     assert!(editing(&app).file.is_some());
+    assert_eq!(reason(&app, EditAct::Files), None);
+    press_edit(&mut app, EditAct::Files);
+    assert_eq!(editing(&app).mode, Mode::Files);
+    assert_eq!(display(&mut app, Column::Text), Display::Flex);
+}
+
+/// The picker guards unsaved text: while the open file differs from disk, every other file is
+/// dim with the reason and the model refuses it too; the open file picked again is shown as it
+/// stands, typed text kept, with no reread.
+#[test]
+fn the_picker_dims_other_files_while_the_open_one_is_unsaved_and_keeps_its_text() {
+    let mut app = in_editor("test:map:town");
+    open_file(&mut app, "text/en/spells.ron");
+    let disk = editing(&app).file.clone().unwrap().disk;
+    let typed = format!("// Typed.\n{disk}");
+    type_into(&mut app, EditAct::FileText, &typed);
+    let text = screen_text(app.world());
+    assert!(text.contains("text/en/spells.ron  *"), "{text}");
+    press_edit(&mut app, EditAct::OpenFile);
+    let text = screen_text(app.world());
+    assert!(text.contains("> * spells.ron"), "{text}");
+    assert!(
+        text.contains("maps.ron: save or revert text/en/spells.ron first"),
+        "{text}"
+    );
+    // The model refuses another file while this one is unsaved.
+    let maps = file_index(&app, "text/en/maps.ron");
+    let data = app.world().resource::<Packs>().data.clone();
+    let asked = app
+        .world_mut()
+        .resource_scope(|world, mut editing: Mut<Editing>| {
+            let mut packs = world.resource_mut::<Packs>();
+            omnis_vector::shell::editor::act(&mut editing, &mut packs, EditAct::File(maps), 0)
+        });
+    assert_eq!(asked, omnis_vector::editor::Asked::Nothing);
+    let file = editing(&app).file.clone().unwrap();
+    assert_eq!(file.rel, "text/en/spells.ron");
+    assert_eq!(file.text, typed, "the typed text stands");
+    assert_eq!(
+        editing(&app).message.as_deref(),
+        Some("save or revert text/en/spells.ron first")
+    );
+    drop(data);
+    // The open file picked again: shown as it stands, not reread.
+    let spells = file_index(&app, "text/en/spells.ron");
+    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::File(spells))));
+    assert_eq!(top(&app), None, "the picker closed");
+    assert_eq!(editing(&app).file.as_ref().unwrap().text, typed);
+    assert_eq!(field_text(&mut app), typed);
+    // Reverted, the others open again.
+    press_edit(&mut app, EditAct::RevertFile);
+    open_file(&mut app, "text/en/maps.ron");
+    assert_eq!(editing(&app).file.as_ref().unwrap().rel, "text/en/maps.ron");
 }
 
 /// A second file opened shows its own text, not the first's (the owner's report, 2026-10-24:
@@ -117,7 +203,6 @@ fn files_mode_lists_the_pack_s_files_and_opens_one_as_text_in_the_centre() {
 #[test]
 fn a_second_file_opened_shows_its_own_text_in_the_field() {
     let mut app = in_editor("test:map:town");
-    press_edit(&mut app, EditAct::Files);
     open_file(&mut app, "text/en/spells.ron");
     let spells = editing(&app).file.clone().unwrap().text;
     assert_eq!(field_text(&mut app), spells);
@@ -131,7 +216,7 @@ fn a_second_file_opened_shows_its_own_text_in_the_field() {
         "the field shows the second file"
     );
     let text = screen_text(app.world());
-    assert!(text.contains("> text/en/maps.ron"), "{text}");
+    assert!(text.contains("text/en/maps.ron"), "{text}");
     // Typing then carries the second file's text on, never the first's.
     type_into(&mut app, EditAct::FileText, &format!("{} ", maps.text));
     assert_eq!(
@@ -143,7 +228,6 @@ fn a_second_file_opened_shows_its_own_text_in_the_field() {
 #[test]
 fn a_broken_edit_is_checked_in_the_loader_s_words_and_reverted() {
     let mut app = in_editor("test:map:town");
-    press_edit(&mut app, EditAct::Files);
     open_file(&mut app, "text/en/spells.ron");
     let disk = editing(&app).file.clone().unwrap().disk;
     let broken = disk.replacen('"', "", 1);
@@ -199,7 +283,6 @@ fn a_checked_edit_is_written_as_typed_and_resealed_and_the_map_s_own_file_reopen
             .unwrap()
     };
     let before = version(&app);
-    press_edit(&mut app, EditAct::Files);
     open_file(&mut app, "text/en/spells.ron");
     let disk = editing(&app).file.clone().unwrap().disk;
     // A comment at the top: the text differs, the file still loads, and the comment survives.
@@ -274,7 +357,6 @@ fn a_checked_edit_is_written_as_typed_and_resealed_and_the_map_s_own_file_reopen
         "(\n    schema: 1,\n    entries: {},\n)\n",
     )
     .unwrap();
-    press_edit(&mut app, EditAct::Files);
     open_file(&mut app, "notes/town.ron");
     let typed = "(\n    schema: 1,\n    entries: {\n        \"test:map:town/0/3,3\": \"A note.\",\n    },\n)\n";
     type_into(&mut app, EditAct::FileText, typed);
