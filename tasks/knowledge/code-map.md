@@ -276,4 +276,8 @@ switched by `switch::<ON>` on `Editing` added/removed), `PreviewGizmos`, `Previe
 (resolved_at, level), scene }`; `rebuild` → `preview::scene`, `place` → `preview::look` + `render::rotation`,
 `draw` → `render::{colour, fade, fog_end, CREST}` with `preview::SIGHT`; `picture_height(width)`. `Editor.resolved_at`
 stamps the revision at which `resolved` last changed. The editor's right column is a node holding `Column::Preview`
-(an `ImageNode` of the target when `PreviewTarget` exists) over `Column::Inspector`.
+(an `ImageNode` of the target when `PreviewTarget` exists) over `Column::Inspector`. **Activities (2026-10-24):** `forms::Placing::Activity` (label "Activity") opens the site form
+(`FormKind::Site`, fields `kind` over `ACTIVITIES` = ["Service site"] and `service`); `here()` labels a site
+`Service <id>`; `icons::{KINDS, service_icon(kind), service(kind), activity_of(Option<ServiceKind>)}`;
+`plan::Mark::Activity(Option<ServiceKind>)` with `plan::marks(def, data, level)`; `geometry::activities(data, map,
+level, ground)` draws each resolved site's icon (called from `scene::level_of`; `extract` no longer draws sites).

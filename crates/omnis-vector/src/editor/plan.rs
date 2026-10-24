@@ -12,7 +12,7 @@ use crate::raster::{
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{EdgeKind, Grid};
-use omnis_sim::omnis_data::{Join, MapData, MapDef, Terrain};
+use omnis_sim::omnis_data::{Data, Join, MapData, MapDef, ServiceKind, Terrain};
 
 /// The zooms, in pixels a cell.
 pub const ZOOMS: [u32; 6] = [4, 8, 12, 16, 24, 32];
@@ -199,13 +199,15 @@ pub enum Mark {
     Ground,
     /// A cell's lore.
     Lore,
-    /// A service's site: an activity.
-    Site,
+    /// An activity (owner, 2026-10-24: a service's site today), drawn as its kind's icon, or
+    /// the placeholder for a service the packs lack.
+    Activity(Option<ServiceKind>),
 }
 
-/// The marks of `def`'s placements on `level`, in the file's order.
+/// The marks of `def`'s placements on `level`, in the file's order; a site's is its service's
+/// kind as `data` knows it.
 #[must_use]
-pub fn marks(def: &MapDef, level: Level) -> Vec<((u16, u16), Mark)> {
+pub fn marks(def: &MapDef, data: &Data, level: Level) -> Vec<((u16, u16), Mark)> {
     let mut out = Vec::new();
     out.extend(
         def.portals
@@ -219,12 +221,14 @@ pub fn marks(def: &MapDef, level: Level) -> Vec<((u16, u16), Mark)> {
             .filter(|e| e.level == level)
             .map(|e| ((e.x, e.y), Mark::Encounter)),
     );
-    out.extend(
-        def.sites
-            .iter()
-            .filter(|s| s.level == level)
-            .map(|s| ((s.x, s.y), Mark::Site)),
-    );
+    out.extend(def.sites.iter().filter(|s| s.level == level).map(|s| {
+        let kind = data
+            .services
+            .values()
+            .find(|d| d.id == s.service)
+            .map(|d| d.kind);
+        ((s.x, s.y), Mark::Activity(kind))
+    }));
     out.extend(
         def.objects
             .iter()
@@ -246,8 +250,8 @@ pub fn marks(def: &MapDef, level: Level) -> Vec<((u16, u16), Mark)> {
     out
 }
 
-/// The pixels of `mark` on cell `(c, r)` of the pane at `scale` pixels a cell, and its colour; a
-/// site's mark is an icon (`icons::activity`), drawn by `paint` itself, and has none here.
+/// The pixels of `mark` on cell `(c, r)` of the pane at `scale` pixels a cell, and its colour; an
+/// activity's mark is an icon (`icons::activity_of`), drawn by `paint` itself, and has none here.
 #[must_use]
 pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64)>, [u8; 4]) {
     let s = i64::from(scale);
@@ -280,7 +284,7 @@ pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64
             px.extend(line_pixels((x0, y1), (x1, y1)));
             (px, START)
         }
-        Mark::Site => (Vec::new(), START),
+        Mark::Activity(_) => (Vec::new(), START),
     }
 }
 
@@ -396,13 +400,13 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
         if c < 0 || r < 0 || c >= cols || r >= rows {
             continue;
         }
-        if *mark == Mark::Site {
-            // The activities' placeholder icon, inset in the cell.
+        if let Mark::Activity(kind) = mark {
+            // The activity's icon, inset in the cell.
             #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
             let margin = (s as f32 * ICON_MARGIN).round() as i64;
             let inner = u32::try_from(si - 2 * margin).unwrap_or(1).max(1);
             out.icon(
-                icons::activity(),
+                icons::activity_of(*kind),
                 (c * si + margin, r * si + margin),
                 inner,
                 START,

@@ -9,7 +9,7 @@
 //! Bevy-free, so it is tested directly.
 
 use crate::fill::{Tri, fills};
-use crate::geometry::{SegKind, Segment, extract};
+use crate::geometry::{SegKind, Segment, activities, extract};
 use crate::ground::Ground;
 use crate::shapes::{figures, shapes};
 use crate::sim::SimWorld;
@@ -109,6 +109,7 @@ fn level_of(
 ) -> (Vec<Segment>, Vec<Tri>) {
     let mut lines = extract(map, map_id, level, world, ground);
     lines.retain(|s| !hidden_ceiling(map, level, s));
+    lines.extend(activities(data, map, level, ground));
     let mut tris = fills(map, map_id, level, world, ground);
     let (objects, piles) = world.objects_on(data, map_id, level);
     let (shape_lines, shape_fills) = shapes(&objects, &piles, ground);

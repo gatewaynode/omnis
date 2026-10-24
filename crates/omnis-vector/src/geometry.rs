@@ -9,7 +9,7 @@ use crate::geom::wall_height;
 use crate::ground::{Ground, NE, NW, Patch, SE, SW, joined};
 use crate::scene::Occupancy;
 use omnis_sim::omnis_core::{Facing, Level, MapId};
-use omnis_sim::omnis_data::{Join, MapData};
+use omnis_sim::omnis_data::{Data, Join, MapData};
 use std::collections::BTreeMap;
 
 /// What a segment belongs to; the renderer picks the colour from it.
@@ -120,14 +120,6 @@ pub fn extract(
             rims(&mut out, ground, (x, y), patch, terrain.color);
             if map.portal_at(level, x, y).is_some() {
                 portal(&mut out, (x, y), patch, terrain.color);
-            }
-            if map
-                .def
-                .sites
-                .iter()
-                .any(|s| s.level == level && s.x == x && s.y == y)
-            {
-                activity(&mut out, (x, y), patch, terrain.color);
             }
             if let Some(join) = terrain.join {
                 let beyond = |up: bool| {
@@ -499,16 +491,28 @@ fn icon_on_floor(
 /// The margin an icon leaves inside its cell, as a share of the cell's side.
 const ICON_MARGIN: f32 = 0.15;
 
-/// An activity's placeholder on the floor of `(x, y)`: the activities' icon (`icons::activity`).
-fn activity(out: &mut Vec<Segment>, cell: (u16, u16), p: Patch, rgb: (u8, u8, u8)) {
-    icon_on_floor(
-        out,
-        cell,
-        p,
-        crate::icons::activity(),
-        SegKind::Activity,
-        rgb,
-    );
+/// The activities' icons on the floor of `level` (owner, 2026-10-24: a service's site drawn as
+/// its kind's icon, the placeholder for a service `data` lacks), each inside its cell at the
+/// floor's heights.
+#[must_use]
+pub fn activities(data: &Data, map: &MapData, level: Level, ground: &Ground) -> Vec<Segment> {
+    let mut out = Vec::new();
+    for site in map.sites.iter().filter(|s| s.level == level) {
+        let Some(cell) = map.cell(level, site.x, site.y) else {
+            continue;
+        };
+        let kind = data.services.get(&site.service).map(|s| s.kind);
+        let patch = ground.patch(site.x, site.y).unwrap_or_default();
+        icon_on_floor(
+            &mut out,
+            (site.x, site.y),
+            patch,
+            crate::icons::activity_of(kind),
+            SegKind::Activity,
+            map.terrain(cell).color,
+        );
+    }
+    out
 }
 
 /// The south and east sides of a cell whose neighbour there meets it at other heights: the

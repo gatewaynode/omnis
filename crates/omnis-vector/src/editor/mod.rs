@@ -356,7 +356,7 @@ impl Editor {
         }
         for s in def.sites.iter().filter(|s| is_here(s.level, s.x, s.y)) {
             out.push(Here {
-                label: format!("Site {}", s.service),
+                label: format!("Service {}", s.service),
                 key: PlaceKey::Site { level, x, y },
             });
         }

@@ -592,7 +592,12 @@ fn painted(app: &App) -> omnis_vector::minimap::Raster {
     use omnis_vector::editor::plan::{self, Source};
     let e = editing(app);
     let def = e.def().expect("a map");
-    let marks = plan::marks(&def, e.level);
+    let data = app
+        .world()
+        .resource::<omnis_vector::shell::session::Packs>()
+        .data
+        .clone();
+    let marks = plan::marks(&def, &data, e.level);
     plan::paint(
         Source {
             grid: e.grid().expect("a grid"),
@@ -615,10 +620,23 @@ fn the_plan_marks_placements_on_their_cells() {
     use omnis_vector::minimap::DOOR;
     let mut app = in_editor("test:map:town");
     let def = editing(&app).def().unwrap();
-    let marks = plan::marks(&def, Level::GROUND);
+    let data = app
+        .world()
+        .resource::<omnis_vector::shell::session::Packs>()
+        .data
+        .clone();
+    let marks = plan::marks(&def, &data, Level::GROUND);
     assert!(marks.contains(&((11, 2), Mark::Portal)), "{marks:?}");
+    // The inn's site is an activity of the inn's kind: its icon, a bed.
     let site = def.sites[0].clone();
-    assert!(marks.contains(&((site.x, site.y), Mark::Site)), "{marks:?}");
+    assert_eq!(site.service, "base:service:inn");
+    assert!(
+        marks.contains(&(
+            (site.x, site.y),
+            Mark::Activity(Some(omnis_sim::omnis_data::ServiceKind::Inn))
+        )),
+        "{marks:?}"
+    );
     let raster = painted(&app);
     assert!(
         in_plan_cell(&app, &raster, (11, 2), DOOR) > 0,
@@ -626,7 +644,7 @@ fn the_plan_marks_placements_on_their_cells() {
     );
     assert!(
         in_plan_cell(&app, &raster, (site.x, site.y), START) > 0,
-        "the site's smiley"
+        "the site's icon"
     );
     assert_eq!(
         in_plan_cell(&app, &raster, (3, 4), START),
@@ -756,4 +774,59 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     assert!(!editing(&app).status.errors.is_empty());
     press_edit(&mut app, EditAct::Undo);
     assert!(editing(&app).status.errors.is_empty());
+}
+
+/// Add offers "Activity" (owner, 2026-10-24: the category the services fall under); its form
+/// names the kind, a service's site today, and places a site the inspector lists as a service.
+#[test]
+fn an_activity_is_placed_from_the_add_choice_as_a_service_s_site() {
+    use omnis_vector::editor::form::FormKind;
+    use omnis_vector::editor::forms::Placing;
+    let mut app = in_editor("test:map:town");
+    app.world_mut().resource_mut::<Editing>().point((3, 4));
+    app.update();
+    let text = form_text(&app);
+    assert!(
+        !text.contains("Site"),
+        "the word Site is gone from the Add choice: {text}"
+    );
+    while Placing::ALL[editing(&app).place_kind] != Placing::Activity {
+        arrow(&mut app, EditAct::PlaceKind, true);
+    }
+    assert!(form_text(&app).contains("Activity"));
+    press_edit(&mut app, EditAct::Add);
+    let form = editing(&app).form.clone().expect("the activity form");
+    assert_eq!(form.kind, FormKind::Site);
+    assert_eq!(form.choice_of("kind"), "Service site");
+    assert!(form.choice_of("service").starts_with("base:service:"));
+    assert!(form_text(&app).contains("Activity at (3, 4)"));
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    let def = editing(&app).def().unwrap();
+    let placed = def
+        .sites
+        .iter()
+        .find(|s| s.x == 3 && s.y == 4)
+        .expect("the site");
+    assert_eq!(placed.service, form.choice_of("service"));
+    let text = form_text(&app);
+    assert!(
+        text.contains(&format!("Service {}", placed.service)),
+        "{text}"
+    );
+    // Its mark on the plan is its service's icon.
+    let data = app
+        .world()
+        .resource::<omnis_vector::shell::session::Packs>()
+        .data
+        .clone();
+    let kind = data
+        .services
+        .values()
+        .find(|s| s.id == placed.service)
+        .map(|s| s.kind);
+    assert!(kind.is_some());
+    let marks =
+        omnis_vector::editor::plan::marks(&def, &data, omnis_sim::omnis_core::Level::GROUND);
+    assert!(marks.contains(&((3, 4), omnis_vector::editor::plan::Mark::Activity(kind))));
 }

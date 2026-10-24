@@ -387,19 +387,36 @@ fn portals_and_sites_are_marked_on_the_floor() {
     let id = map(&data, "test:map:town");
     let town = &data.maps[&id];
     let level = omnis_sim::omnis_core::Level::GROUND;
-    let segments = extract(town, id, level, &world, &Ground::from_map(town, level));
+    // The scene's own lines: the activities' icons are the scene's, drawn with the data.
+    let segments = omnis_vector::scene::Scene::build(&data, id, level, &world).own;
     only_on(&segments, SegKind::Portal, &[(11, 2)]);
     let sites: Vec<(u16, u16)> = town.def.sites.iter().map(|s| (s.x, s.y)).collect();
     only_on(&segments, SegKind::Activity, &sites);
-    // Each site carries the activities' icon, line for line.
-    let per_site = omnis_vector::icons::activity().segments(1.0).count();
-    assert!(per_site > 10, "{per_site}");
+    // Each site carries its service's kind's icon, line for line (the inn a bed, the smith an
+    // anvil: different icons), none the placeholder.
+    let expected: usize = town
+        .sites
+        .iter()
+        .map(|s| {
+            let kind = data
+                .services
+                .get(&s.service)
+                .map(|d| d.kind)
+                .expect("a known service");
+            omnis_vector::icons::service(kind).segments(1.0).count()
+        })
+        .sum();
+    assert!(expected > 10 * sites.len(), "{expected}");
     assert_eq!(
         segments
             .iter()
             .filter(|s| s.kind == SegKind::Activity)
             .count(),
-        per_site * sites.len()
+        expected
+    );
+    assert_ne!(
+        omnis_vector::icons::service(omnis_sim::omnis_data::ServiceKind::Inn).name,
+        omnis_vector::icons::service(omnis_sim::omnis_data::ServiceKind::Smith).name
     );
     // The portal's mark is a ring of four and a circle of sixteen: twenty lines.
     assert_eq!(

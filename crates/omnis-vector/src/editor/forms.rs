@@ -29,8 +29,9 @@ pub enum Placing {
     Portal,
     /// A fixed encounter.
     Encounter,
-    /// A town service's site.
-    Site,
+    /// An activity (owner, 2026-10-24): what takes the party out of its stride into a decision;
+    /// a town service's site today, more kinds as the engine gains their rules.
+    Activity,
     /// A placed object.
     Object,
     /// A ground pile.
@@ -44,7 +45,7 @@ impl Placing {
     pub const ALL: [Placing; 6] = [
         Placing::Portal,
         Placing::Encounter,
-        Placing::Site,
+        Placing::Activity,
         Placing::Object,
         Placing::Ground,
         Placing::Lore,
@@ -56,7 +57,7 @@ impl Placing {
         match self {
             Placing::Portal => "Portal",
             Placing::Encounter => "Encounter",
-            Placing::Site => "Site",
+            Placing::Activity => "Activity",
             Placing::Object => "Object",
             Placing::Ground => "Ground pile",
             Placing::Lore => "Lore",
@@ -318,7 +319,7 @@ impl Form {
         match kind {
             Placing::Portal => portal(data, at, None),
             Placing::Encounter => encounter(def, data, at, None),
-            Placing::Site => site(data, at, None),
+            Placing::Activity => site(data, at, None),
             Placing::Object => object(def, data, at, None),
             Placing::Ground => ground(at, None),
             Placing::Lore => lore(def, at, None),
@@ -871,14 +872,26 @@ fn random(was: Option<&RandomEncounters>, at: At) -> Form {
     form
 }
 
+/// The kinds of activity the editor places: a service's site today; the list the owner's
+/// category grows by (fountains, fixed NPCs, mechanisms, anomalies) as the engine gains rules.
+const ACTIVITIES: [&str; 1] = ["Service site"];
+
+/// An activity's form: its kind, then what the kind needs (a service's id for a site).
 fn site(data: &Data, at: At, was: Option<&Site>) -> Form {
     let services = data.services.values().map(|s| s.id.clone()).collect();
     let (options, chosen) = among(services, was.map(|s| s.service.as_str()));
     Form::new(
         FormKind::Site,
-        format!("Site at ({}, {})", at.x, at.y),
+        format!("Activity at ({}, {})", at.x, at.y),
         at,
-        vec![form::choice("service", options, chosen)],
+        vec![
+            form::choice(
+                "kind",
+                ACTIVITIES.iter().map(|k| (*k).to_owned()).collect(),
+                0,
+            ),
+            form::choice("service", options, chosen),
+        ],
         Vec::new(),
     )
 }

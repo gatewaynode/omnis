@@ -61,13 +61,12 @@ Written 2026-10-24, after M5.7 (the preview) was accepted. Rewrite this file eve
   later when a second kind has engine rules.
 
 ## Next
-1. **Activities in the editor** (small step; plan mode first): the inspector's Add choice gains "Activity";
-   choosing it opens a list of kinds (Service site today), the Site form as now; a site's mark on the plan
-   and the floor becomes the icon of its service's `ServiceKind` (propose: inn `bed`, temple `church`, trainer
-   `dumbbell`, smith `hammer`, tavern `beer`, bank `landmark`, guild `shield`; the owner may rename) with the
-   grinning face kept for a service the packs lack. Then M5.8 Playtest (plan §Client side "Playtest").
-2. M5.9 the RON text editor, M5.10 re-authoring (the four maps' comments to notes: the owner's accidental
-   save shows the layout the writer makes). Boundary tools after (owner, 2026-10-24).
+1. **Activities in the editor built (this commit)**, awaiting the owner's hand test (`tasks/acceptance/
+   activities.md`: the icons per service kind on the plan and the floor; Add → Activity → Service site).
+2. **M5.8 Playtest** (plan §Client side "Playtest": `Playtesting`, `Session::with_party(&temp, …,
+   party::fixed())` on a cloned `Packs.data` with the resolved map inserted, `DevCommand::Teleport` to the
+   cursor, Pause/Defeat "Back to editor"). Plan mode first.
+3. M5.9 the RON text editor, M5.10 re-authoring. Boundary tools after (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
