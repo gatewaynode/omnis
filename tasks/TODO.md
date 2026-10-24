@@ -156,8 +156,12 @@ no loss, and every later map is built with it.
       by the screen router when no screen is up); the editor's columns give the keyboard only to a named
       field. Tests: three in `tests/editor_forms.rs` (the portal typed on Bevy's keyboard path), two unit;
       five mutations killed.
-    - [ ] 6c Terrain add/edit/remove, levels add/edit/remove, notes (cell, level, map) on the multi-line field;
-      documents.
+    - [x] 6c (2026-10-24) `FormKind::{Terrain(Option<char>), LevelAdd, Level(i8), Note(key)}`, `Change::{Place,
+      Edit, Note}` as a form's request; `Form::terrain/level_add/level/note`; acts `TerrainAdd`, `TerrainEdit`
+      (the brush's terrain), `LevelAdd`, `LevelEdit`, `Note(NoteOf::{Cell, Level, Map})`; `Editor::note_key/note`,
+      `change()`; the tools' Add/Edit terrain and Add level/Level… buttons, the inspector's note rows; a note
+      written at once through `Session::set_note`, said as not undone. Tests: three more in
+      `tests/editor_forms.rs` (the note on a scratch pack), mutations killed.
   - [ ] M5.7 The 3D preview from the cursor.
   - [ ] M5.8 Playtest and Back to editor.
   - [ ] M5.9 The RON text editor (Check, Save verbatim).

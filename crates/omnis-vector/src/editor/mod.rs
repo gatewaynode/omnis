@@ -11,7 +11,7 @@ pub mod plan;
 pub mod view;
 
 use brush::{Target, Tool};
-use form::{At, Form};
+use form::{At, Change, Form};
 use forms::Placing;
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{
@@ -80,6 +80,16 @@ pub enum EditAct {
     Cancel,
     /// Remove what the open form edits, one undo step, and close it.
     Discard,
+    /// Open the form for a new terrain of the map (6c).
+    TerrainAdd,
+    /// Open the form of the brush's terrain.
+    TerrainEdit,
+    /// Open the form for a new level of the map.
+    LevelAdd,
+    /// Open the form of the shown level (never the ground, which is the map itself).
+    LevelEdit,
+    /// Open the form of the author's note on the cell, the level or the map.
+    Note(NoteOf),
     /// Back one step.
     Undo,
     /// Forward one step.
@@ -90,6 +100,17 @@ pub enum EditAct {
     Revert,
     /// Open the editor's menu.
     Menu,
+}
+
+/// Whose note: the cursor's cell's, the shown level's or the map's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NoteOf {
+    /// The cursor's cell on the shown level: `<map>/<level>/<x>,<y>`.
+    Cell,
+    /// The shown level: `<map>/level/<n>`.
+    Level,
+    /// The map: its id.
+    Map,
 }
 
 /// What the layer does after an act: nothing more, open the menu, or reload the packs.
@@ -352,6 +373,26 @@ impl Editor {
         out
     }
 
+    /// The key of the author's note on `of`; none with no map open.
+    #[must_use]
+    pub fn note_key(&self, of: NoteOf) -> Option<String> {
+        let id = self.map_id()?;
+        let (x, y) = self.cursor;
+        let level = self.level.0;
+        Some(match of {
+            NoteOf::Cell => format!("{id}/{level}/{x},{y}"),
+            NoteOf::Level => format!("{id}/level/{level}"),
+            NoteOf::Map => id,
+        })
+    }
+
+    /// The author's note on `of`, if one is written.
+    #[must_use]
+    pub fn note(&self, of: NoteOf) -> Option<&str> {
+        let key = self.note_key(of)?;
+        self.session.notes().get(&key)
+    }
+
     /// The way the stair on the cursor's cell climbs, when the cell is one.
     #[must_use]
     pub fn cell_rise(&self) -> Option<Facing> {
@@ -512,19 +553,46 @@ impl Editor {
         self.form = Some(form);
     }
 
-    /// The open form's Apply: its request made, one undo step, and the form closed; a field
-    /// that does not read, or a refusal, is said and the form stands.
+    /// The open form's Apply: its request made (a place or an edit one undo step, a note
+    /// written at once) and the form closed; a field that does not read, or a refusal, is said
+    /// and the form stands.
     fn apply_form(&mut self, data: &Data) {
         let Some((form, def)) = self.form.as_ref().zip(self.def()) else {
             return;
         };
         match form.request(&def) {
-            Ok(place) => {
-                if self.placed(data, place) {
+            Ok(change) => {
+                if self.change(data, change) {
                     self.form = None;
                 }
             }
             Err(why) => self.message = Some(why),
+        }
+    }
+
+    /// Make `change`: whether it was taken.
+    fn change(&mut self, data: &Data, change: Change) -> bool {
+        match change {
+            Change::Place(place) => self.placed(data, place),
+            Change::Edit(edit) => self.edited(data, edit),
+            Change::Note { key, text } => {
+                let result = self.session.set_note(&key, text.as_deref());
+                self.revision = self.revision.wrapping_add(1);
+                match result {
+                    Ok(()) => {
+                        self.message = Some(if text.is_some() {
+                            format!("Note on {key} written")
+                        } else {
+                            format!("Note on {key} cleared")
+                        });
+                        true
+                    }
+                    Err(e) => {
+                        self.message = Some(format!("Note not written: {e}"));
+                        false
+                    }
+                }
+            }
         }
     }
 
@@ -805,10 +873,46 @@ impl Editor {
             EditAct::Apply => self.apply_form(data),
             EditAct::Cancel => self.form = None,
             EditAct::Discard => {
-                if let Some(place) = self.form.as_ref().and_then(|f| f.remove.clone())
-                    && self.placed(data, place)
+                if let Some(change) = self.form.as_ref().and_then(|f| f.remove.clone())
+                    && self.change(data, change)
                 {
                     self.form = None;
+                }
+            }
+            EditAct::TerrainAdd => {
+                if let Some(def) = self.def() {
+                    self.open_form(Form::terrain(&def, None, self.at()));
+                }
+            }
+            EditAct::TerrainEdit => {
+                if let (Some(def), Tool::Terrain(i)) = (self.def(), self.tool)
+                    && let Some(glyph) = def.terrains.get(usize::from(i)).map(|t| t.glyph)
+                {
+                    self.open_form(Form::terrain(&def, Some(glyph), self.at()));
+                }
+            }
+            EditAct::LevelAdd => {
+                if let Some(def) = self.def() {
+                    self.open_form(Form::level_add(&def, self.at()));
+                }
+            }
+            EditAct::LevelEdit => {
+                if let Some(form) = self
+                    .def()
+                    .and_then(|def| Form::level(&def, self.level.0, self.at()))
+                {
+                    self.open_form(form);
+                }
+            }
+            EditAct::Note(of) => {
+                if let Some(key) = self.note_key(of) {
+                    let heading = match of {
+                        NoteOf::Cell => format!("Note on ({}, {})", self.cursor.0, self.cursor.1),
+                        NoteOf::Level => format!("Note on level {}", self.level.0),
+                        NoteOf::Map => "Note on the map".to_owned(),
+                    };
+                    let text = self.note(of).map(str::to_owned);
+                    self.open_form(Form::note(key, heading, text.as_deref(), self.at()));
                 }
             }
             EditAct::Undo => self.walk(data, true),

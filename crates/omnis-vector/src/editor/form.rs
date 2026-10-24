@@ -10,7 +10,23 @@ use crate::screen::{Control, ControlId, Kind, Row, Span};
 use crate::style::{Role, Size};
 use omnis_sim::omnis_core::rng::Dice;
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::edit::Place;
+use omnis_sim::omnis_data::edit::{Edit, Place};
+
+/// What a form's Apply or Remove asks of the editor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Change {
+    /// Place, replace or remove a placement: one undo step.
+    Place(Place),
+    /// Change the map's terrains or levels: one undo step.
+    Edit(Edit),
+    /// Write a note, or clear it with none: at once, outside the history.
+    Note {
+        /// The note's key.
+        key: String,
+        /// The note, or none to clear it.
+        text: Option<String>,
+    },
+}
 
 /// What a field holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,7 +92,7 @@ pub struct List {
 }
 
 /// Which kind of thing a form edits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FormKind {
     /// A portal to another map.
     Portal,
@@ -94,6 +110,14 @@ pub enum FormKind {
     Ground,
     /// A cell's lore.
     Lore,
+    /// A terrain of the map's list, by its glyph; none for a new one (6c).
+    Terrain(Option<char>),
+    /// A new level.
+    LevelAdd,
+    /// A level of the map, by its number.
+    Level(i8),
+    /// The author's note on this key.
+    Note(String),
 }
 
 /// Where a form places: the shown level, the cursor's cell and its facing.
@@ -116,14 +140,16 @@ pub struct Form {
     pub kind: FormKind,
     /// The heading over the fields: what is edited and where.
     pub heading: String,
+    /// A line under the heading, when something must be said (a note is not undone).
+    pub hint: Option<&'static str>,
     /// Where it was opened.
     pub at: At,
     /// The fields, the form's own first, then the lists' rows in order.
     pub fields: Vec<Field>,
     /// The lists.
     pub lists: Vec<List>,
-    /// What Remove sends when the form edits something already there; none for a new one.
-    pub remove: Option<Place>,
+    /// What Remove asks when the form edits something already there; none for a new one.
+    pub remove: Option<Change>,
     /// Just opened: its first field takes the keyboard when it is drawn.
     pub fresh: bool,
 }
@@ -206,11 +232,22 @@ impl Form {
         Form {
             kind,
             heading,
+            hint: None,
             at,
             fields,
             lists,
             remove: None,
             fresh: true,
+        }
+    }
+
+    /// The words on the button that asks `remove`.
+    fn remove_label(&self) -> &'static str {
+        match self.kind {
+            FormKind::Note(_) => "Clear note",
+            FormKind::Terrain(_) => "Remove terrain",
+            FormKind::Level(_) => "Remove level",
+            _ => "Remove",
         }
     }
 
@@ -374,6 +411,9 @@ impl Form {
             role: Role::Title,
             size: Size::Body,
         })];
+        if let Some(hint) = self.hint {
+            rows.push(Row::text(Span::body(hint)));
+        }
         for (i, f) in self.fields.iter().enumerate() {
             if f.slot == Slot::Top {
                 rows.push(Row::controls(vec![f.control(i)]));
@@ -399,7 +439,7 @@ impl Form {
             Control::button(edit(EditAct::Cancel), "Cancel"),
         ];
         if self.remove.is_some() {
-            last.push(Control::button(edit(EditAct::Discard), "Remove"));
+            last.push(Control::button(edit(EditAct::Discard), self.remove_label()));
         }
         rows.push(Row::controls(last));
         rows
@@ -580,5 +620,7 @@ mod tests {
         assert_eq!(id(" wolf ").unwrap(), "wolf");
         // The kit rows: the heading, the id, the list's heading, its row, the buttons.
         assert_eq!(form.rows().len(), 5);
+        form.hint = Some("said");
+        assert_eq!(form.rows().len(), 6);
     }
 }

@@ -1,17 +1,22 @@
-//! The forms' kinds (M5.6): the fields each placement needs, filled from what is there when one
-//! is edited, and the request its Apply makes (`Place`, one undo step in the document). A
-//! placement keyed by its cell (a portal, a site, a pile) is placed where the form was opened;
-//! one keyed by an id (an encounter, an object, a lore) may be moved. Bevy-free.
+//! The forms' kinds (M5.6): the fields each placement, terrain, level or note needs, filled
+//! from what is there when one is edited, and the request its Apply makes (`Change`: a place or
+//! an edit is one undo step in the document, a note is written at once). A placement keyed by
+//! its cell (a portal, a site, a pile) is placed where the form was opened; one keyed by an id
+//! (an encounter, an object, a lore) may be moved. Bevy-free.
 
-use super::form::{self, At, Form, FormKind, List, Value};
+use super::form::{self, At, Change, Form, FormKind, List, Value};
 use omnis_sim::omnis_core::rng::Dice;
 use omnis_sim::omnis_core::{Facing, Level};
-use omnis_sim::omnis_data::edit::{Place, Target};
+use omnis_sim::omnis_data::edit::{Edit, Place, Target};
 use omnis_sim::omnis_data::encounter::{
     Disposition, FixedEncounter, RandomEncounters, RandomEntry, Stand,
 };
-use omnis_sim::omnis_data::limits::MAX_MAP_SIDE;
+use omnis_sim::omnis_data::levels::LevelDef;
+use omnis_sim::omnis_data::limits::{
+    MAX_HEIGHT, MAX_MAP_SIDE, MAX_STRING_BYTES, MAX_VISIBILITY_DEPTH,
+};
 use omnis_sim::omnis_data::lore::{CellLore, Lore};
+use omnis_sim::omnis_data::map::{Join, Terrain};
 use omnis_sim::omnis_data::placement::{GroundDef, MAX_OFFSET, Placement};
 use omnis_sim::omnis_data::rest_event::{RestEventDef, RestKind};
 use omnis_sim::omnis_data::service::Site;
@@ -75,6 +80,22 @@ const HIDDEN_MAX: i64 = 30;
 const WEIGHT_MAX: i64 = 65_535;
 /// The rest events' chance scale: per mille.
 const PER_MILLE: i64 = 1000;
+/// The most minutes a step on a terrain may take.
+const STEP_MINUTES_MAX: i64 = 1440;
+/// The most a terrain's climb may be, in eighths.
+const CLIMB_MAX: i64 = 64;
+/// The levels a map may have, above and below the ground.
+const LEVEL_SPAN: i64 = 16;
+/// The lines a note's field shows.
+const NOTE_LINES: u8 = 4;
+
+const JOINS: [Option<Join>; 5] = [
+    None,
+    Some(Join::Up),
+    Some(Join::Down),
+    Some(Join::Ladder),
+    Some(Join::Hole),
+];
 
 const DISPOSITIONS: [Disposition; 4] = [
     Disposition::Hostile,
@@ -309,8 +330,81 @@ impl Form {
             Found::Ground(g) => ground(at(g.level, g.x, g.y), Some(g)),
             Found::Lore(l) => lore(def, at(l.level, l.x, l.y), Some(l)),
         };
-        form.remove = Some(Place::Remove(key.clone()));
+        form.remove = Some(Change::Place(Place::Remove(key.clone())));
         Some(form)
+    }
+
+    /// A form for a terrain of `def`: the one with `glyph`, or a new one.
+    #[must_use]
+    pub fn terrain(def: &MapDef, glyph: Option<char>, at: At) -> Form {
+        let was = glyph.and_then(|g| def.terrains.iter().find(|t| t.glyph == g));
+        terrain(was, at)
+    }
+
+    /// A form for a new level of `def`: the first free number above the ground offered.
+    #[must_use]
+    pub fn level_add(def: &MapDef, at: At) -> Form {
+        let free = (1..=i8::try_from(LEVEL_SPAN).unwrap_or(i8::MAX))
+            .find(|n| !def.levels.iter().any(|l| l.level == *n))
+            .unwrap_or(1);
+        Form::new(
+            FormKind::LevelAdd,
+            "New level".to_owned(),
+            at,
+            vec![
+                form::number("level", i64::from(free), -LEVEL_SPAN, LEVEL_SPAN),
+                form::text("name", "", ID_MAX),
+                form::number("base", 0, -i64::from(MAX_HEIGHT), i64::from(MAX_HEIGHT)),
+            ],
+            Vec::new(),
+        )
+    }
+
+    /// A form for level `level` of `def` (never the ground, which is the map itself); none when
+    /// the map has no such level.
+    #[must_use]
+    pub fn level(def: &MapDef, level: i8, at: At) -> Option<Form> {
+        let was: &LevelDef = def.levels.iter().find(|l| l.level == level)?;
+        let mut form = Form::new(
+            FormKind::Level(level),
+            format!("Level {level}"),
+            at,
+            vec![
+                form::text("name", &was.name, ID_MAX),
+                form::number(
+                    "base",
+                    i64::from(was.base),
+                    -i64::from(MAX_HEIGHT),
+                    i64::from(MAX_HEIGHT),
+                ),
+            ],
+            Vec::new(),
+        );
+        form.remove = Some(Change::Edit(Edit::LevelRemove { level }));
+        Some(form)
+    }
+
+    /// A form for the author's note on `key`, headed `heading`, holding `text` when there is
+    /// one.
+    #[must_use]
+    pub fn note(key: String, heading: String, text: Option<&str>, at: At) -> Form {
+        let mut form = Form::new(
+            FormKind::Note(key.clone()),
+            heading,
+            at,
+            vec![form::lines(
+                "note",
+                text.unwrap_or(""),
+                MAX_STRING_BYTES,
+                NOTE_LINES,
+            )],
+            Vec::new(),
+        );
+        form.hint = Some("Written to the pack at once; not undone.");
+        if text.is_some() {
+            form.remove = Some(Change::Note { key, text: None });
+        }
+        form
     }
 
     /// The form of the map's random encounter table, filled from it when there is one.
@@ -329,9 +423,42 @@ impl Form {
     ///
     /// # Errors
     /// A field that does not read: said in one line, the form standing.
-    pub fn request(&self, def: &MapDef) -> Result<Place, String> {
+    pub fn request(&self, def: &MapDef) -> Result<Change, String> {
         let at = self.at;
-        Ok(match self.kind {
+        match &self.kind {
+            FormKind::Terrain(glyph) => {
+                let terrain = self.terrain_fields()?;
+                return Ok(Change::Edit(match glyph {
+                    Some(glyph) => Edit::TerrainSet {
+                        glyph: *glyph,
+                        terrain,
+                    },
+                    None => Edit::TerrainAdd(terrain),
+                }));
+            }
+            FormKind::LevelAdd => {
+                return Ok(Change::Edit(Edit::LevelAdd {
+                    level: i8_of(self.number_of("level")),
+                    name: optional(self.text_of("name")).ok_or("a level needs its name key")?,
+                    base: i16::try_from(self.number_of("base")).unwrap_or(0),
+                }));
+            }
+            FormKind::Level(level) => {
+                return Ok(Change::Edit(Edit::LevelSet {
+                    level: *level,
+                    name: Some(optional(self.text_of("name")).ok_or("a level needs its name key")?),
+                    base: Some(i16::try_from(self.number_of("base")).unwrap_or(0)),
+                }));
+            }
+            FormKind::Note(key) => {
+                return Ok(Change::Note {
+                    key: key.clone(),
+                    text: optional(self.text_of("note")),
+                });
+            }
+            _ => {}
+        }
+        Ok(Change::Place(match self.kind {
             FormKind::Portal => Place::Portal(Portal {
                 level: at.level,
                 x: at.x,
@@ -452,8 +579,101 @@ impl Form {
                     once: self.flag_of("once"),
                 })
             }
+            FormKind::Terrain(_) | FormKind::LevelAdd | FormKind::Level(_) | FormKind::Note(_) => {
+                unreachable!("answered above")
+            }
+        }))
+    }
+
+    /// The terrain the form's fields describe.
+    fn terrain_fields(&self) -> Result<Terrain, String> {
+        let mut glyphs = self.text_of("glyph").trim().chars();
+        let glyph = match (glyphs.next(), glyphs.next()) {
+            (Some(g), None) => g,
+            _ => return Err("a glyph is one character".to_owned()),
+        };
+        let colour = |c: &str| u8_of(self.number_of(c));
+        Ok(Terrain {
+            glyph,
+            name: optional(self.text_of("name")).ok_or("a terrain needs a name")?,
+            floor: optional(self.text_of("floor")).ok_or("a terrain needs its floor surface")?,
+            ceiling: optional(self.text_of("ceiling")),
+            block: optional(self.text_of("block")),
+            passable: self.flag_of("passable"),
+            opaque: self.flag_of("opaque"),
+            color: (colour("red"), colour("green"), colour("blue")),
+            visibility_depth: u8_of(self.number_of("visibility depth")),
+            step_minutes: u32::try_from(self.number_of("step minutes")).unwrap_or(1),
+            climb: u16_of(self.number_of("climb")),
+            join: JOINS.get(self.chosen_of("join")).copied().flatten(),
         })
     }
+}
+
+fn terrain(was: Option<&Terrain>, at: At) -> Form {
+    let join_at = JOINS
+        .iter()
+        .position(|j| *j == was.and_then(|t| t.join))
+        .unwrap_or(0);
+    let colour = |pick: fn(&Terrain) -> u8| was.map_or(128, |t| i64::from(pick(t)));
+    let mut form = Form::new(
+        FormKind::Terrain(was.map(|t| t.glyph)),
+        was.map_or_else(
+            || "New terrain".to_owned(),
+            |t| format!("Terrain {} {}", t.glyph, t.name),
+        ),
+        at,
+        vec![
+            form::text(
+                "glyph",
+                &was.map_or(String::new(), |t| t.glyph.to_string()),
+                4,
+            ),
+            form::text("name", was.map_or("", |t| t.name.as_str()), ID_MAX),
+            form::text("floor", was.map_or("", |t| t.floor.as_str()), ID_MAX),
+            form::text(
+                "ceiling",
+                was.and_then(|t| t.ceiling.as_deref()).unwrap_or(""),
+                ID_MAX,
+            ),
+            form::text(
+                "block",
+                was.and_then(|t| t.block.as_deref()).unwrap_or(""),
+                ID_MAX,
+            ),
+            form::flag("passable", was.is_none_or(|t| t.passable)),
+            form::flag("opaque", was.is_some_and(|t| t.opaque)),
+            form::number("red", colour(|t| t.color.0), 0, 255),
+            form::number("green", colour(|t| t.color.1), 0, 255),
+            form::number("blue", colour(|t| t.color.2), 0, 255),
+            form::number(
+                "visibility depth",
+                was.map_or(6, |t| i64::from(t.visibility_depth)),
+                1,
+                i64::from(MAX_VISIBILITY_DEPTH),
+            ),
+            form::number(
+                "step minutes",
+                was.map_or(1, |t| i64::from(t.step_minutes)),
+                0,
+                STEP_MINUTES_MAX,
+            ),
+            form::number("climb", was.map_or(2, |t| i64::from(t.climb)), 0, CLIMB_MAX),
+            form::choice(
+                "join",
+                JOINS
+                    .iter()
+                    .map(|j| j.map_or_else(|| "none".to_owned(), |j| format!("{j:?}")))
+                    .collect(),
+                join_at,
+            ),
+        ],
+        Vec::new(),
+    );
+    if let Some(t) = was {
+        form.remove = Some(Change::Edit(Edit::TerrainRemove { glyph: t.glyph }));
+    }
+    form
 }
 
 fn portal(data: &Data, at: At, was: Option<&Portal>) -> Form {
@@ -564,7 +784,7 @@ fn random(was: Option<&RandomEncounters>, at: At) -> Form {
             })
             .collect();
         form.fill(0, rows);
-        form.remove = Some(Place::Random(None));
+        form.remove = Some(Change::Place(Place::Random(None)));
     }
     form
 }

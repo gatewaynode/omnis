@@ -5,7 +5,7 @@
 
 use super::brush::{self, Tool};
 use super::forms::Placing;
-use super::{EditAct, Editor};
+use super::{EditAct, Editor, NoteOf};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::EdgeKind;
@@ -136,10 +136,23 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
             ),
             dim(Control::button(edit(EditAct::Open), open_label), bad),
         ]),
-        Row::controls(vec![dim(
-            choice(edit(EditAct::Level), "Level", level_names, at),
-            no_map.or((levels.len() < 2).then_some("one level")),
-        )]),
+        Row::controls(vec![
+            dim(
+                choice(edit(EditAct::Level), "Level", level_names, at),
+                no_map.or((levels.len() < 2).then_some("one level")),
+            ),
+            dim(
+                Control::button(edit(EditAct::LevelAdd), "Add level"),
+                no_map,
+            ),
+            dim(
+                Control::button(edit(EditAct::LevelEdit), "Level…"),
+                no_map.or(editor
+                    .level
+                    .is_ground()
+                    .then_some("the ground level is the map")),
+            ),
+        ]),
         Row::controls(vec![
             dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
             dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
@@ -161,6 +174,17 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         ))),
     ];
     rows.extend(brush_rows(editor, def.as_ref(), no_map));
+    rows.push(Row::controls(vec![
+        dim(
+            Control::button(edit(EditAct::TerrainAdd), "Add terrain"),
+            no_map,
+        ),
+        dim(
+            Control::button(edit(EditAct::TerrainEdit), "Edit terrain"),
+            no_map
+                .or((!matches!(editor.tool, Tool::Terrain(_))).then_some("choose a terrain brush")),
+        ),
+    ]));
     rows.push(Row::controls(vec![
         dim(
             Control::button(edit(EditAct::Undo), "Undo  Cmd Z"),
@@ -256,6 +280,19 @@ pub fn bar(editor: &Editor, data: &Data) -> Screen {
     }
 }
 
+/// A row for the author's note on `of`: `label: <its first line, or none>` and the button to
+/// write it.
+fn note_row(editor: &Editor, of: NoteOf, label: &str, button: &str) -> Row {
+    let first = editor
+        .note(of)
+        .map_or("none", |n| n.lines().next().unwrap_or(""));
+    Row {
+        spans: vec![Span::body(format!("{label}: {first}"))],
+        controls: vec![Control::button(ControlId::Edit(EditAct::Note(of)), button)],
+        ..Row::default()
+    }
+}
+
 const fn facing_name(facing: Facing) -> &'static str {
     match facing {
         Facing::North => "north",
@@ -347,6 +384,8 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         rows.push(Row::text(Span::body(edges.join("  "))));
     }
     let edit = |act| ControlId::Edit(act);
+    // The author's note on the cell: its first line, and the form to write it.
+    rows.push(note_row(editor, NoteOf::Cell, "Note", "Edit note"));
     // The start, and the button that moves it here.
     let start_here = level.is_ground() && def.start.0 == x && def.start.1 == y;
     rows.push(Row {
@@ -401,6 +440,8 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         controls: vec![Control::button(edit(EditAct::Random), "Edit")],
         ..Row::default()
     });
+    rows.push(note_row(editor, NoteOf::Map, "Map note", "Edit"));
+    rows.push(note_row(editor, NoteOf::Level, "Level note", "Edit"));
     rows.push(Row {
         spans: vec![Span::body("Rest events")],
         controls: vec![Control::button(edit(EditAct::RestAdd), "Add")],

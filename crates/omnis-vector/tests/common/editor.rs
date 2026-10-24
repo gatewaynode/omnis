@@ -178,6 +178,47 @@ pub fn field_of(form: &omnis_vector::editor::form::Form, label: &str) -> u8 {
     u8::try_from(i).unwrap()
 }
 
+/// A scratch copy of the shipped test pack under the target directory, named `name`: what a
+/// test that saves or writes notes edits, never `packs/test` itself.
+pub fn scratch_pack(name: &str) -> PathBuf {
+    fn copy_dir(src: &std::path::Path, dst: &std::path::Path) {
+        let Ok(entries) = std::fs::read_dir(src) else {
+            return;
+        };
+        std::fs::create_dir_all(dst).unwrap();
+        for entry in entries.map(Result::unwrap) {
+            let to = dst.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir(&entry.path(), &to);
+            } else {
+                std::fs::copy(entry.path(), to).unwrap();
+            }
+        }
+    }
+    let src = config().packs.pop().unwrap();
+    let dst = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let _ = std::fs::remove_dir_all(&dst);
+    std::fs::create_dir_all(&dst).unwrap();
+    std::fs::copy(src.join("pack.ron"), dst.join("pack.ron")).unwrap();
+    for dir in ["data", "text", "notes", "migrations"] {
+        copy_dir(&src.join(dir), &dst.join(dir));
+    }
+    dst
+}
+
+/// The shell started in the editor with `map` of a scratch copy of the test pack (`name`) open,
+/// and the copy's root.
+pub fn in_editor_scratch(name: &str, map: &str) -> (App, PathBuf) {
+    let scratch = scratch_pack(name);
+    let mut config = config();
+    config.packs.pop();
+    config.packs.push(scratch.clone());
+    config.editor = Some(Some(map.to_owned()));
+    let mut app = shell(config, false);
+    app.update();
+    (app, scratch)
+}
+
 /// A mouse button pressed or released, then a frame.
 pub fn mouse(app: &mut App, button: MouseButton, state: ButtonState) {
     app.world_mut().write_message(MouseButtonInput {

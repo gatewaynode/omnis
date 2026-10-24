@@ -374,3 +374,191 @@ fn the_start_the_random_table_and_the_rest_events_have_their_rows() {
     press_edit(&mut app, EditAct::RestRemove(1));
     assert_eq!(editing(&app).def().unwrap().rest_events.len(), 1);
 }
+
+// ---- 6c: terrains, levels and notes ----
+
+#[test]
+fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
+    use common::editor::{field_of, type_into};
+    use omnis_vector::editor::brush::Tool;
+    let mut app = in_editor("test:map:town");
+    let before = editing(&app).def().unwrap().terrains.len();
+    press_edit(&mut app, EditAct::TerrainAdd);
+    let form = editing(&app).form.clone().expect("the terrain form");
+    assert!(form_text(&app).contains("New terrain"));
+    type_into(&mut app, EditAct::Field(field_of(&form, "glyph")), "m");
+    type_into(&mut app, EditAct::Field(field_of(&form, "name")), "mud");
+    type_into(&mut app, EditAct::Field(field_of(&form, "floor")), "grass");
+    // A colour set outright, as the slider would.
+    app.world_mut()
+        .resource_mut::<Editing>()
+        .set_field(field_of(&form, "red"), 90);
+    arrow(&mut app, EditAct::Field(field_of(&form, "join")), true);
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    let def = editing(&app).def().unwrap();
+    assert_eq!(def.terrains.len(), before + 1);
+    let mud = def.terrains.last().unwrap();
+    assert_eq!(
+        (mud.glyph, mud.name.as_str(), mud.floor.as_str()),
+        ('m', "mud", "grass")
+    );
+    assert_eq!(mud.color, (90, 128, 128));
+    assert_eq!(mud.join, Some(omnis_sim::omnis_data::map::Join::Up));
+    assert!(mud.passable);
+    let text = form_text(&app);
+    assert!(text.contains("m mud"), "the new brush: {text}");
+    // Edit terrain works on the brush's terrain; a taken glyph is refused by the document.
+    press_edit(&mut app, EditAct::Brush(u8::try_from(before).unwrap()));
+    assert_eq!(
+        editing(&app).tool,
+        Tool::Terrain(u8::try_from(before).unwrap())
+    );
+    press_edit(&mut app, EditAct::TerrainEdit);
+    let form = editing(&app).form.clone().expect("the mud form");
+    assert!(form_text(&app).contains("Terrain m mud"));
+    assert_eq!(form.text_of("name"), "mud");
+    type_into(&mut app, EditAct::Field(field_of(&form, "glyph")), "r");
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_some(), "refused: the form stands");
+    assert!(editing(&app).message.is_some());
+    type_into(&mut app, EditAct::Field(field_of(&form, "glyph")), "m");
+    type_into(&mut app, EditAct::Field(field_of(&form, "name")), "marsh");
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    assert_eq!(
+        editing(&app).def().unwrap().terrains.last().unwrap().name,
+        "marsh"
+    );
+    // Remove: an unused terrain goes; one in use is refused in the document's words.
+    press_edit(&mut app, EditAct::TerrainEdit);
+    press_edit(&mut app, EditAct::Discard);
+    assert!(editing(&app).form.is_none());
+    assert_eq!(editing(&app).def().unwrap().terrains.len(), before);
+    press_edit(&mut app, EditAct::Brush(0));
+    press_edit(&mut app, EditAct::TerrainEdit);
+    press_edit(&mut app, EditAct::Discard);
+    assert!(editing(&app).form.is_some(), "the street is in use");
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains("use")),
+        "{:?}",
+        editing(&app).message
+    );
+    press_edit(&mut app, EditAct::Cancel);
+    // Each change was one undo step: the removal, the rename, the addition.
+    for _ in 0..3 {
+        press_edit(&mut app, EditAct::Undo);
+    }
+    assert_eq!(editing(&app).def().unwrap().terrains.len(), before);
+    assert!(!form_text(&app).contains("mud"));
+}
+
+#[test]
+fn a_level_is_added_named_and_removed_and_the_ground_has_no_form() {
+    use common::editor::{field_of, type_into};
+    use omnis_sim::omnis_core::Level;
+    let mut app = in_editor("test:map:town");
+    // The ground level is the map itself: its button is dim with the reason (and takes no press).
+    let text = form_text(&app);
+    assert!(text.contains("the ground level is the map"), "{text}");
+    press_edit(&mut app, EditAct::LevelAdd);
+    let form = editing(&app).form.clone().expect("the level form");
+    assert_eq!(form.number_of("level"), 1, "the first free level above");
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "name")),
+        "test:text:map.town.loft",
+    );
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    assert_eq!(editing(&app).levels(), vec![Level::GROUND, Level(1)]);
+    arrow(&mut app, EditAct::Level, true);
+    assert_eq!(editing(&app).level, Level(1));
+    let text = form_text(&app);
+    assert!(
+        text.contains("Level 1") || text.contains("level 1"),
+        "{text}"
+    );
+    press_edit(&mut app, EditAct::LevelEdit);
+    let form = editing(&app).form.clone().expect("level 1's form");
+    assert_eq!(form.text_of("name"), "test:text:map.town.loft");
+    arrow(&mut app, EditAct::Field(field_of(&form, "base")), true);
+    press_edit(&mut app, EditAct::Apply);
+    let def = editing(&app).def().unwrap();
+    assert_eq!(def.levels[0].base, 1);
+    press_edit(&mut app, EditAct::LevelEdit);
+    press_edit(&mut app, EditAct::Discard);
+    assert_eq!(editing(&app).levels(), vec![Level::GROUND]);
+    assert_eq!(editing(&app).level, Level::GROUND, "shown again");
+}
+
+#[test]
+fn a_note_is_written_to_the_pack_at_once_outside_the_history_and_cleared() {
+    use bevy::text::EditableText;
+    use common::editor::{field_entity, field_of, in_editor_scratch, type_into};
+    use omnis_vector::editor::NoteOf;
+    let (mut app, scratch) = in_editor_scratch("editor-forms-notes", "test:map:town");
+    let undo = editing(&app).status.undo;
+    let text = form_text(&app);
+    assert!(
+        text.contains("Note: none") && text.contains("Map note: none"),
+        "{text}"
+    );
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    let form = editing(&app).form.clone().expect("the note form");
+    assert!(form.remove.is_none(), "nothing to clear yet");
+    let field = EditAct::Field(field_of(&form, "note"));
+    let entity = field_entity(&mut app, field).expect("the note field");
+    assert!(
+        app.world()
+            .get::<EditableText>(entity)
+            .unwrap()
+            .allow_newlines,
+        "several lines"
+    );
+    type_into(&mut app, field, "A quiet corner.\nThe well is dry.");
+    press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    assert_eq!(
+        editing(&app).note(NoteOf::Cell),
+        Some("A quiet corner.\nThe well is dry.")
+    );
+    assert_eq!(
+        editing(&app).note_key(NoteOf::Cell).as_deref(),
+        Some("test:map:town/0/10,2")
+    );
+    let file = scratch.join("notes/town.ron");
+    let written = std::fs::read_to_string(&file).expect("the note file");
+    assert!(written.contains("quiet corner"), "{written}");
+    assert_eq!(editing(&app).status.undo, undo, "outside the history");
+    assert!(!editing(&app).status.dirty, "not a change to the map");
+    let text = form_text(&app);
+    assert!(text.contains("Note: A quiet corner."), "{text}");
+    // The map's and the level's notes have their own keys.
+    press_edit(&mut app, EditAct::Note(NoteOf::Map));
+    let form = editing(&app).form.clone().unwrap();
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "note")),
+        "The town.",
+    );
+    press_edit(&mut app, EditAct::Apply);
+    assert_eq!(editing(&app).note(NoteOf::Map), Some("The town."));
+    assert_eq!(
+        editing(&app).note_key(NoteOf::Level).as_deref(),
+        Some("test:map:town/level/0")
+    );
+    // Clear note takes the cell's away; the file keeps the map's.
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    assert!(editing(&app).form.as_ref().unwrap().remove.is_some());
+    press_edit(&mut app, EditAct::Discard);
+    assert_eq!(editing(&app).note(NoteOf::Cell), None);
+    let written = std::fs::read_to_string(&file).expect("the note file");
+    assert!(
+        !written.contains("quiet corner") && written.contains("The town."),
+        "{written}"
+    );
+}

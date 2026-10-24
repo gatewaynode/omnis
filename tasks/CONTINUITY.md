@@ -1,49 +1,38 @@
 # Continuity notes
 
-Written 2026-10-24, after M5.6b (the forms and the placements) was built; 6a and M5.5's acceptance the same
-day. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-24, after M5.6 (the attribute bar and the forms) was built in three commits and M5.5 was
+accepted the same day. Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
-  2026-10-24 after three fixes from the hand tests; acceptance recorded in `34d3986`). Untracked and never
-  staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
-- **M5.6 planned and approved 2026-10-24** (plan mode; the decisions are in `tasks/TODO.md` under M5.6): three
-  commits 6a/6b/6c, `tasks/acceptance/m5-6.md` grows with them. Owner's choices: the attribute bar **above
-  the plan**; list fields as **dedicated row editors** with Add row / Remove, not RON text.
-- **M5.6a `7906f8e`**: `view::bar` over the plan (`Column::Bar`, `ScreenId::EditorBar`): the cursor's cell's
-  Terrain, Height and Rise, one undo step each; `refresh` rewrites words in place when a column's shape
-  stands (`need`, `screen_draw::sync` filtered by `OfScreen`), rebuilds with `keep`; a plan click clears
-  `InputFocus`; `Kind::Text.lines`; editor text fields carry `EditorPress`; `Spawn { id, height, mark, keep }`.
-- **M5.6b (this commit)**: `editor/form.rs` (generic `Form`, `Value`, `Slot`, `List`, rows added/removed, `id`
-  and `dice` parsers, lookups by label) and `editor/forms.rs` (`Placing`, `Form::placing/existing/random/
-  rest_event/request -> Place`, `find`); `Editor { form, place_kind }`, `here()`, `placed`/`took`, `typed`,
-  `set_field`, `open_form`, `apply_form`, the acts `SetStart`, `PlaceKind`, `Add`, `EditAt`, `RemoveAt`,
-  `Random`, `RestAdd/Edit/Remove`, `Field`, `ListAdd`, `ListRemove`, `Apply`, `Cancel`, `Discard`; the
-  inspector's form, start, placement, Add and map rows; `route` reads editor fields into `typed` and takes
-  `screen::Slid` (left by the screen router when no screen is up) into `set_field`; the editor's columns
-  give the keyboard only to a named field (`keep`: the focused one, else a `fresh` form's first). Tests
-  `tests/editor_forms.rs` (6, the portal typed on Bevy's keyboard path with `common::app::keyboard_on`),
-  `form.rs` unit (2); nine mutations killed over 6a and 6b. A portal, site, pile are placed at the cell the
-  form opened on (cell-keyed); encounter, object, lore carry x, y fields (id-keyed).
-- **6c (next):** Terrain form (`Edit::TerrainAdd`/`TerrainSet { glyph: old, terrain }`/`TerrainRemove`; fields
-  glyph (1 char), name, floor, ceiling, block, passable, opaque, colour r/g/b, visibility_depth 1..32,
-  step_minutes, climb, join none/Up/Down/Ladder/Hole; entry `[Add terrain] [Edit terrain]` after the brush
-  rows, Edit for the brush's terrain), levels (`Edit::LevelAdd { level, name, base }`, `LevelSet`,
-  `LevelRemove`; `[Add level] [Level…]` on the Level row, dim on level 0 "the ground level is the map"),
-  notes (`Session::set_note(key, Option<&str>)`, keys `<map>/<level>/<x>,<y>`, `<map>/level/<n>`, `<map>`;
-  a 4-line `form::lines` field, `MAX_STRING_BYTES`; written at once, not undone: say so in the form; the
-  inspector's `Note: <first line or none> [Edit note]`, `Map note [Edit]`, `Level note [Edit]`). `Form::request`
-  returns `Place` today: widen to `Change { Place, Edit, Note { key, text } }` and route in `apply_form`.
-  `FormKind` gains `Terrain(Option<char>)`, `LevelAdd`, `Level(i8)`, `Note(String)`. Then documents: the
-  acceptance steps, TODO 6c, code-map, the plan's row 6 note, continuity.
+  2026-10-24, `34d3986`). Untracked and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's).
+- **M5.6 built, awaiting the owner's hand test** (`tasks/acceptance/m5-6.md`, 14 steps on a scratch copy):
+  `7906f8e` 6a the attribute bar over the plan (`view::bar`, `Column::Bar`; the cursor's cell's Terrain, Height,
+  Rise, one undo step each; `refresh` rewrites words in place by `Screen::shape` with `OfScreen` markers and
+  `screen_draw::sync`; `keep` for the keyboard; a plan click clears `InputFocus`; `Kind::Text.lines`; editor
+  fields carry `EditorPress`); `dedbc6a` 6b the generic `Form` (`editor/form.rs`) and the placement kinds
+  (`editor/forms.rs`: portal, encounter with stacks rows, random table with entry rows, site, rest event,
+  object with contents rows and lore, ground pile, lore), `Editor { form, place_kind }`, `here()`, the
+  inspector's start/placement/Add/map rows, `route` reading editor fields and `screen::Slid`; **6c (this
+  commit)** terrains, levels and notes (`FormKind::{Terrain, LevelAdd, Level, Note}`, `Change::{Place, Edit,
+  Note}`, `Editor::change`/`note_key`/`note`, tools' Add/Edit terrain and Add level/Level… buttons, the
+  inspector's note rows; notes through `Session::set_note` at once, outside the history). Owner's choices in
+  the plan: the bar above the plan; list fields as row editors. Tests `tests/editor_forms.rs` (9), `form.rs`
+  unit (2); mutations killed per commit (4, 5, and 6c's).
+- **Not in M5.6** (said in the acceptance's Known): map fields (`Edit::Map`), Resize, New map have no form;
+  a random entry's creatures are one typed line; editing a rest event's key makes a new entry; the slider's
+  thumb is not re-synced after a refused value in the editor (the kit's `slide` is the screen router's).
 - **Lessons 2026-10-24** (`tasks/LESSONS.md`): framework conventions tested through the framework's own
   systems; no mouse action on hidden state; a layer that rebuilds nodes carries transient state across.
 - **Lesson 2026-10-22**: a windowed game launched from this shell never ticks; verify headlessly.
 
 ## Next
-1. **Report 6a and 6b to the owner** (how to try: the bar's Height arrow; Add here → Portal → type the marker,
-   step to map, Apply; Edit/Remove on the row), then **6c** as above, red tests first, then the documents.
-2. Then M5.7 to M5.10 per the plan's steps table. Boundary tools after M5.6 at the earliest (owner).
+1. **Report M5.6 to the owner** with how to try it (the bar's Height arrow; Add here → Portal; Add terrain;
+   Edit note) and await the hand test. Bugs: fix with a red test and a lesson first.
+2. **M5.7, the 3D preview from the cursor** (plan §Client side "Preview": `scene::Occupancy`, `editor/preview.rs`
+   `AsPlaced`, `render.rs` split `camera_at`/`draw_scene`, a `PreviewCamera` on render layer 2 into an `Image`
+   in the inspector column; rebuilt on revision or level when `MapData::resolve` succeeds). Plan mode first.
+3. Then M5.8 to M5.10. Boundary tools after M5.6 at the earliest (owner, 2026-10-24).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

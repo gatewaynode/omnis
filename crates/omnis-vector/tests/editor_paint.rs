@@ -11,7 +11,7 @@ use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::{config, key, set, shell, tap};
 use common::editor::{
-    arrow, editing, in_editor, leave_plan, mouse, point_at, point_frac, press_edit,
+    arrow, editing, in_editor, leave_plan, mouse, point_at, point_frac, press_edit, scratch_pack,
 };
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::edit::EdgeKind;
@@ -23,7 +23,6 @@ use omnis_vector::shell::editor::{Editing, PlanHover};
 use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Packs;
-use std::path::{Path, PathBuf};
 
 /// Choose `tool` by its button in the tools column.
 fn choose(app: &mut App, tool: Tool) {
@@ -311,32 +310,6 @@ fn a_right_click_picks_what_is_under_the_pointer_and_paints_nothing() {
 }
 
 /// A copy of the test pack to save into.
-fn scratch_pack(name: &str) -> PathBuf {
-    fn copy_dir(src: &Path, dst: &Path) {
-        let Ok(entries) = std::fs::read_dir(src) else {
-            return;
-        };
-        std::fs::create_dir_all(dst).unwrap();
-        for entry in entries.map(Result::unwrap) {
-            let to = dst.join(entry.file_name());
-            if entry.file_type().unwrap().is_dir() {
-                copy_dir(&entry.path(), &to);
-            } else {
-                std::fs::copy(entry.path(), to).unwrap();
-            }
-        }
-    }
-    let src = config().packs.pop().unwrap();
-    let dst = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
-    let _ = std::fs::remove_dir_all(&dst);
-    std::fs::create_dir_all(&dst).unwrap();
-    std::fs::copy(src.join("pack.ron"), dst.join("pack.ron")).unwrap();
-    for dir in ["data", "text", "notes", "migrations"] {
-        copy_dir(&src.join(dir), &dst.join(dir));
-    }
-    dst
-}
-
 fn test_version(app: &App) -> String {
     app.world()
         .resource::<Packs>()
