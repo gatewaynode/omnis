@@ -435,3 +435,15 @@
   per-mille sign.
 - **Rule**: interface strings are plain ASCII unless the glyph has been seen rendered; a unit is spelled
   out ("per mille", "eighths"), an ellipsis is three dots.
+
+## 2026-10-24 — A field's text is not a word: a new value from the model needs a new field
+- **What happened**: the RON editor's second file opened showed the first file's text (the owner's
+  report); Revert file left the broken text in the field; a note's form replaced by another cell's kept
+  the first cell's words. The kit rewrites a column's words in place when its shape stands, and a text
+  field's content is deliberately not among them, since what is typed there is the model's already. A
+  change that comes from the model (a file opened, a revert, a form replaced) left the field as it was,
+  with the model holding other text: a keystroke would have carried the first file's text into the second.
+- **Rule**: a field's text flows one way, from the field to the model, while the field stands. Whenever
+  the model sets a field's text itself, it marks the thing `fresh` and the layer rebuilds that column
+  whatever the shape. Any new path that sets a field's text in the model (open, revert, reset, a form
+  replaced) sets `fresh`, and its test reads the drawn field's `value()`, not the model.

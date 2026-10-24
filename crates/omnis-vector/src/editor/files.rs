@@ -24,7 +24,7 @@ pub struct FileEdit {
     pub disk: String,
     /// The loader's words on the text as typed; none until Check runs on it (typing clears it).
     pub errors: Option<Vec<String>>,
-    /// Just opened: its field takes the keyboard when it is drawn.
+    /// Just opened or reverted: its field is drawn anew with the text and takes the keyboard.
     pub fresh: bool,
 }
 
@@ -91,10 +91,11 @@ impl FileEdit {
         }
     }
 
-    /// Back to the file's text; the verdict goes with the change.
+    /// Back to the file's text, fresh in its field; the verdict goes with the change.
     pub fn revert(&mut self) {
         self.text.clone_from(&self.disk);
         self.errors = None;
+        self.fresh = true;
     }
 
     /// Written: the file holds the text now.
@@ -123,8 +124,10 @@ mod tests {
         f.written();
         assert!(!f.dirty(), "the file holds the text now");
         f.typed("(a: 3)".into());
+        f.fresh = false;
         f.revert();
         assert_eq!(f.text, "(a: 2)", "back to what the file holds");
+        assert!(f.fresh, "drawn anew with the file's text");
         assert_eq!(f.verdict(), "not checked since the last change");
     }
 }

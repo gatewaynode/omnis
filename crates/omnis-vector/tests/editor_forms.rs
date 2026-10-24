@@ -496,6 +496,58 @@ fn a_level_is_added_named_and_removed_and_the_ground_has_no_form() {
     assert_eq!(editing(&app).level, Level::GROUND, "shown again");
 }
 
+/// A form replaced by another of the same shape (a note's form at another cell, with the
+/// message already standing) draws the new form's values: the kit rewrites words in place when
+/// the shape stands, and a field's text is not a word (2026-10-24, with the RON editor's report).
+#[test]
+fn a_form_replaced_by_one_of_the_same_shape_shows_the_new_form_s_values() {
+    use bevy::text::EditableText;
+    use common::editor::{field_entity, field_of, type_into};
+    use omnis_vector::editor::NoteOf;
+    let mut app = in_editor("test:map:town");
+    let shown = |app: &mut App| {
+        let form = editing(app).form.clone().expect("a note form");
+        let field = EditAct::Field(field_of(&form, "note"));
+        let entity = field_entity(app, field).expect("the note field");
+        app.world()
+            .get::<EditableText>(entity)
+            .unwrap()
+            .value()
+            .to_string()
+    };
+    app.world_mut().resource_mut::<Editing>().point((2, 2));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    let form = editing(&app).form.clone().unwrap();
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "note")),
+        "First cell.",
+    );
+    assert_eq!(shown(&mut app), "First cell.");
+    app.world_mut().resource_mut::<Editing>().point((3, 2));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    assert_eq!(
+        editing(&app).message.as_deref(),
+        Some("the open form was replaced")
+    );
+    assert_eq!(editing(&app).form.as_ref().unwrap().text_of("note"), "");
+    assert_eq!(shown(&mut app), "", "the second cell's form is empty");
+    let form = editing(&app).form.clone().unwrap();
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "note")),
+        "Second cell.",
+    );
+    // A third, with the message standing: the same shape again.
+    app.world_mut().resource_mut::<Editing>().point((4, 2));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    assert_eq!(editing(&app).form.as_ref().unwrap().text_of("note"), "");
+    assert_eq!(shown(&mut app), "", "the third cell's form is empty");
+}
+
 #[test]
 fn a_note_is_written_to_the_pack_at_once_outside_the_history_and_cleared() {
     use bevy::text::EditableText;

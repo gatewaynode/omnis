@@ -772,7 +772,20 @@ fn refresh(
             Column::Inspector => (&inspector, &mut drawn.inspector),
             Column::Plan | Column::Preview => continue,
         };
-        let need = need(last.as_ref(), want, bucket);
+        // A form or a file just opened (or a file reverted) is drawn anew whatever the shape:
+        // the words' sync leaves a field's text alone, since what is typed in it is the model's
+        // already, so a new text from the model needs a new field (the owner's report,
+        // 2026-10-24: the second file opened showed the first's text).
+        let fresh = match column {
+            Column::Inspector => editing.form.as_ref().is_some_and(|f| f.fresh),
+            Column::Text => editing.file.as_ref().is_some_and(|f| f.fresh),
+            _ => false,
+        };
+        let need = if fresh {
+            Need::Nodes
+        } else {
+            need(last.as_ref(), want, bucket)
+        };
         if need == Need::Nothing {
             continue;
         }
@@ -784,11 +797,6 @@ fn refresh(
         // The field that has the keyboard keeps it through the rebuild when the column still
         // has it; a form just opened gives it to its first field. (A rebuild for any other
         // reason leaves the keyboard where the owner put it, which may be nowhere.)
-        let fresh = match column {
-            Column::Inspector => editing.form.as_ref().is_some_and(|f| f.fresh),
-            Column::Text => editing.file.as_ref().is_some_and(|f| f.fresh),
-            _ => false,
-        };
         let keep = focused
             .filter(|id| want.control(*id).is_some())
             .or_else(|| fresh.then(|| first_field(want)).flatten());

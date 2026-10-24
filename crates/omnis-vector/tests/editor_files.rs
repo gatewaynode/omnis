@@ -5,7 +5,7 @@
 use crate::common;
 
 use bevy::prelude::*;
-use common::editor::{editing, in_editor, in_editor_scratch, press_edit, type_into};
+use common::editor::{editing, field_entity, in_editor, in_editor_scratch, press_edit, type_into};
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::files::Mode;
 use omnis_vector::editor::view;
@@ -36,6 +36,16 @@ fn file_index(app: &App, rel: &str) -> u16 {
 fn open_file(app: &mut App, rel: &str) {
     let i = file_index(app, rel);
     press_edit(app, EditAct::File(i));
+}
+
+/// The text the open file's field shows.
+fn field_text(app: &mut App) -> String {
+    let entity = field_entity(app, EditAct::FileText).expect("the file's field");
+    app.world()
+        .get::<bevy::text::EditableText>(entity)
+        .unwrap()
+        .value()
+        .to_string()
 }
 
 fn display(app: &mut App, column: Column) -> Display {
@@ -101,6 +111,35 @@ fn files_mode_lists_the_pack_s_files_and_opens_one_as_text_in_the_centre() {
     assert!(editing(&app).file.is_some());
 }
 
+/// A second file opened shows its own text, not the first's (the owner's report, 2026-10-24:
+/// "any subsequently chosen file just reloads the first file in the editor again"). The field's
+/// shape is the same, so the words alone were rewritten and the field kept the first text.
+#[test]
+fn a_second_file_opened_shows_its_own_text_in_the_field() {
+    let mut app = in_editor("test:map:town");
+    press_edit(&mut app, EditAct::Files);
+    open_file(&mut app, "text/en/spells.ron");
+    let spells = editing(&app).file.clone().unwrap().text;
+    assert_eq!(field_text(&mut app), spells);
+    open_file(&mut app, "text/en/maps.ron");
+    let maps = editing(&app).file.clone().unwrap();
+    assert_eq!(maps.rel, "text/en/maps.ron");
+    assert_ne!(maps.text, spells);
+    assert_eq!(
+        field_text(&mut app),
+        maps.text,
+        "the field shows the second file"
+    );
+    let text = screen_text(app.world());
+    assert!(text.contains("> text/en/maps.ron"), "{text}");
+    // Typing then carries the second file's text on, never the first's.
+    type_into(&mut app, EditAct::FileText, &format!("{} ", maps.text));
+    assert_eq!(
+        editing(&app).file.as_ref().unwrap().text,
+        format!("{} ", maps.text)
+    );
+}
+
 #[test]
 fn a_broken_edit_is_checked_in_the_loader_s_words_and_reverted() {
     let mut app = in_editor("test:map:town");
@@ -139,6 +178,11 @@ fn a_broken_edit_is_checked_in_the_loader_s_words_and_reverted() {
     let file = editing(&app).file.clone().unwrap();
     assert_eq!(file.text, disk);
     assert!(!file.dirty() && file.errors.is_none());
+    assert_eq!(
+        field_text(&mut app),
+        disk,
+        "the field shows the file's text again"
+    );
 }
 
 #[test]
