@@ -4,115 +4,14 @@
 //! The other editor tests write that component themselves; this one checks the convention they
 //! write is the one Bevy fills (`normalized` runs from -0.5 to 0.5, not 0 to 1).
 
-use super::common::app::config;
-use bevy::camera::{Camera, Camera2d, RenderTargetInfo};
+use super::common::app::ui_editor_app;
 use bevy::input::ButtonState;
-use bevy::input::InputPlugin;
 use bevy::input::mouse::MouseButtonInput;
 use bevy::prelude::*;
-use bevy::state::app::StatesPlugin;
-use bevy::time::TimeUpdateStrategy;
-use bevy::ui::{ComputedNode, IsDefaultUiCamera, UiGlobalTransform, UiSystems};
-use bevy::window::{ExitCondition, PrimaryWindow, WindowPlugin, WindowResolution};
+use bevy::ui::{ComputedNode, UiGlobalTransform};
 use omnis_vector::editor::EditAct;
-use omnis_vector::shell::ShellPlugin;
-use omnis_vector::shell::combat::CombatPlugin;
-use omnis_vector::shell::controls::ControlsPlugin;
-use omnis_vector::shell::editor::{Column, Editing, EditorPlugin};
-use omnis_vector::shell::fonts::FontsPlugin;
-use omnis_vector::shell::movement::MovementPlugin;
-use omnis_vector::shell::screen::ScreenPlugin;
-use omnis_vector::shell::session::{Config, Packs};
-use omnis_vector::shell::settings::SettingsPlugin;
-use std::time::Duration;
-
-/// The window's physical size and scale: a Retina-like window, so logical and physical pixels
-/// differ.
-const PHYSICAL: (u32, u32) = (2400, 1400);
-const SCALE: f32 = 2.0;
-
-/// Without a renderer no system fills the camera's target: this stands in for it, so the UI
-/// lays out to the window.
-fn target_info(windows: Query<&Window, With<PrimaryWindow>>, mut cameras: Query<&mut Camera>) {
-    let Ok(window) = windows.single() else {
-        return;
-    };
-    for mut camera in &mut cameras {
-        camera.computed.target_info = Some(RenderTargetInfo {
-            physical_size: window.physical_size(),
-            scale_factor: window.scale_factor(),
-        });
-    }
-}
-
-/// The shell in the editor with the town open, under Bevy's UI layout and focus (no renderer),
-/// with a window and a camera; the window's entity.
-fn ui_app() -> (App, Entity) {
-    let config = Config {
-        editor: Some(Some("test:map:town".to_owned())),
-        ..config()
-    };
-    let mut app = App::new();
-    app.add_plugins((
-        MinimalPlugins,
-        InputPlugin,
-        StatesPlugin,
-        WindowPlugin {
-            primary_window: None,
-            primary_cursor_options: None,
-            exit_condition: ExitCondition::DontExit,
-            close_when_requested: false,
-        },
-        bevy::asset::AssetPlugin::default(),
-        bevy::text::TextPlugin,
-        bevy::camera::CameraPlugin,
-        bevy::picking::DefaultPickingPlugins,
-        bevy::ui::UiPlugin,
-    ));
-    // The assets those plugins' systems read and no plugin here provides.
-    app.init_asset::<Image>()
-        .init_asset::<bevy::image::TextureAtlasLayout>()
-        .init_asset::<bevy::mesh::Mesh>()
-        .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
-    app.add_plugins((
-        ShellPlugin,
-        MovementPlugin,
-        ControlsPlugin,
-        ScreenPlugin,
-        CombatPlugin,
-        SettingsPlugin,
-        FontsPlugin,
-        EditorPlugin,
-    ))
-    .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
-        16,
-    )))
-    .add_systems(PostUpdate, target_info.before(UiSystems::Prepare));
-    let packs = Packs::load(&config).expect("the packs load");
-    let mut editor =
-        omnis_vector::editor::Editor::new(config.packs.clone()).expect("the editor opens");
-    editor
-        .open("test:map:town", &packs.data)
-        .expect("the town opens");
-    app.insert_resource(Editing(editor));
-    app.insert_resource(packs);
-    let window = app
-        .world_mut()
-        .spawn((
-            Window {
-                resolution: WindowResolution::new(PHYSICAL.0, PHYSICAL.1)
-                    .with_scale_factor_override(SCALE),
-                ..default()
-            },
-            PrimaryWindow,
-        ))
-        .id();
-    app.world_mut().spawn((Camera2d, IsDefaultUiCamera));
-    for _ in 0..4 {
-        app.update();
-    }
-    (app, window)
-}
+use omnis_vector::shell::editor::{Column, Editing};
+use omnis_vector::shell::session::Packs;
 
 /// The window's logical cursor position over `cell`'s middle, from the plan's laid-out
 /// rectangle and the model's view.
@@ -158,7 +57,7 @@ fn click(app: &mut App, window: Entity, button: MouseButton, at: Vec2) {
 
 #[test]
 fn a_click_in_the_window_lands_on_the_cell_under_the_pointer() {
-    let (mut app, window) = ui_app();
+    let (mut app, window) = ui_editor_app();
     let pane = app.world().resource::<Editing>().pane;
     assert!(
         pane.0 > 100 && pane.1 > 100,

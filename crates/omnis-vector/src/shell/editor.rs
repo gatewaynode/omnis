@@ -389,7 +389,7 @@ fn live(editing: &Editing, data: &omnis_sim::omnis_data::Data, act: EditAct) -> 
 fn first_field(screen: &Screen) -> Option<ControlId> {
     screen
         .controls()
-        .find(|c| matches!(c.kind, Kind::Text { .. }))
+        .find(|c| matches!(c.kind, Kind::Text { .. } | Kind::Document { .. }))
         .map(|c| c.id)
 }
 

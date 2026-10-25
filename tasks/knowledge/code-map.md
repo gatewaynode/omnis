@@ -312,4 +312,16 @@ while the open file is unsaved; Cancel = `Resume` → `Effect::Back`); the tools
 a file is open) | Open file... (`EditAct::OpenFile` lists through `Session::files` and returns `Asked::Pick`, the
 layer or the router opens the picker; `File(n)` returns `Asked::Picked` and the router closes it; the open file
 picked again is shown without a reread, another is refused in the model while the open one is dirty). A fresh form
-or file always rebuilds its column (`f826536`: the words' sync leaves a field's text alone).
+or file always rebuilds its column (`f826536`: the words' sync leaves a field's text alone), and `route` ignores a
+field while its form or file is `fresh` (`9e38b8c`: in the window Bevy marks every field changed every frame; the
+test helper `common::app::churn_fields` reproduces that). M5.9c (owner, 2026-10-24): `EditAct::OpenFile` closes a
+clean file and lists, or lists with the picker on a question for an unsaved one (`FileSaveClose` = check, write,
+close; `FileDiscard`; Cancel keeps it; the re-pick branch gone, `Editor::check_file` shared with `Check`).
+`Kind::Document { value, max }` is the whole-file control: `shell/document.rs` (`spawn`: a `Scrolls` area with
+`Overflow::scroll()` holding the `Gutter(field)` numbers and the `DocumentField` (`document_field`: every line
+visible, `visible_width` the longest line + 1, `TextLayout` NoWrap), a `Scrollbar` per axis; `size_documents`
+keeps the sizes and numbers to the text; `follow_caret` moves the area's `ScrollPosition` by the pure `follow(view,
+caret, scroll)` when the field's `EditableTextGeneration` changes; `lines`, `longest_line`, `numbers`);
+`screen_draw::rows` lets a document's row take the panel's height, `bars` shows a bar on either axis, `wheel`
+scrolls x by the wheel's x or Shift + y. `view::text` is one Document row. Test helper `common::app::ui_editor_app`
+(the pointer test's layout app, shared).

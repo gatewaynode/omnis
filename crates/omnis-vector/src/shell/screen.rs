@@ -117,6 +117,8 @@ impl Plugin for ScreenPlugin {
                     thumbs,
                     bars,
                     wheel,
+                    super::document::size_documents,
+                    super::document::follow_caret,
                     chrome,
                 )
                     .chain()
@@ -435,7 +437,7 @@ fn applied(
     let typed = || {
         used.fields.iter().find_map(|(_, field, p)| {
             let Some(Control {
-                kind: Kind::Text { value, .. },
+                kind: Kind::Text { value, .. } | Kind::Document { value, .. },
                 ..
             }) = screen.control(p.0)
             else {
@@ -459,18 +461,26 @@ fn applied(
         Ok(effect) => Some(effect),
         Err(_) if matches!(payload, Payload::Text(_)) => {
             // Text the form refused: the field shows what the form holds again.
-            if let Some(Control {
-                kind: Kind::Text { value, max, lines },
-                ..
-            }) = screen.control(id)
-            {
-                for (entity, _, p) in &used.fields {
-                    if p.0 == id {
-                        commands
-                            .entity(entity)
-                            .insert(text_field(value, *max, *lines));
+            match screen.control(id).map(|c| &c.kind) {
+                Some(Kind::Text { value, max, lines }) => {
+                    for (entity, _, p) in &used.fields {
+                        if p.0 == id {
+                            commands
+                                .entity(entity)
+                                .insert(text_field(value, *max, *lines));
+                        }
                     }
                 }
+                Some(Kind::Document { value, max }) => {
+                    for (entity, _, p) in &used.fields {
+                        if p.0 == id {
+                            commands
+                                .entity(entity)
+                                .insert(super::document::document_field(value, *max));
+                        }
+                    }
+                }
+                _ => {}
             }
             None
         }

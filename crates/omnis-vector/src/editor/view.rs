@@ -296,18 +296,17 @@ fn file_rows(editor: &Editor) -> Vec<Row> {
     rows
 }
 
-/// The centre's text screen (M5.9): the open file as one field of many lines, or a word when
-/// none is open.
+/// The centre's text screen (M5.9): the open file as one document (numbered lines, both
+/// scrollbars, M5.9c), or a word when none is open.
 #[must_use]
 pub fn text(editor: &Editor) -> Screen {
     let (title, rows) = match &editor.file {
         Some(file) => (
             file.rel.clone(),
             vec![Row::controls(vec![Control {
-                kind: Kind::Text {
+                kind: Kind::Document {
                     value: file.text.clone(),
                     max: usize::try_from(MAX_FILE_BYTES).unwrap_or(usize::MAX),
-                    lines: TEXT_LINES,
                 },
                 ..Control::button(ControlId::Edit(EditAct::FileText), "")
             }])],
@@ -325,9 +324,6 @@ pub fn text(editor: &Editor) -> Screen {
         message: None,
     }
 }
-
-/// The lines the file's field shows at once; the panel scrolls for the rest.
-const TEXT_LINES: u8 = 40;
 
 /// The attribute bar over the plan (M5.6): the cursor's cell and the attributes every cell has,
 /// always in reach wherever the tools column is scrolled: its terrain (or no ground), its

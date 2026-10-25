@@ -473,3 +473,91 @@ fn a_second_file_through_the_picker_under_the_window_s_churn_keeps_its_own_text(
     );
     assert_eq!(file.text.len(), maps.disk.len() + 1);
 }
+
+/// The document control under Bevy's layout (M5.9c): the open file is one field with every line
+/// shown and no wrapping, its line numbers beside it in the same scrolling area, a scrollbar on
+/// each axis; typing a line adds a number and a line.
+#[test]
+fn the_document_is_numbered_unwrapped_and_scrolls_on_both_axes() {
+    use bevy::text::{EditableText, LineBreak, TextLayout};
+    use bevy::ui_widgets::{ControlOrientation, Scrollbar};
+    use common::app::ui_editor_app;
+    use omnis_vector::shell::document::{DocumentField, Gutter, lines, longest_line, numbers};
+    use omnis_vector::shell::screen::Scrolls;
+    let (mut app, _window) = ui_editor_app();
+    // Under Bevy's picking a faked press is reset before the route reads it: the model is
+    // driven directly here, the picker's own path being the other tests'.
+    let open = |app: &mut App, act: EditAct| {
+        app.world_mut()
+            .resource_scope(|world, mut editing: Mut<Editing>| {
+                let mut packs = world.resource_mut::<Packs>();
+                omnis_vector::shell::editor::act(&mut editing, &mut packs, act, 0)
+            })
+    };
+    open(&mut app, EditAct::OpenFile);
+    let i = file_index(&app, "text/en/spells.ron");
+    open(&mut app, EditAct::File(i));
+    assert_eq!(editing(&app).mode, Mode::Files);
+    for _ in 0..3 {
+        app.update();
+    }
+    let field = field_entity(&mut app, EditAct::FileText).expect("the file's field");
+    let text = editing(&app).file.clone().unwrap().text;
+    let world = app.world_mut();
+    assert!(world.get::<DocumentField>(field).is_some());
+    let editable = world.get::<EditableText>(field).unwrap();
+    assert_eq!(editable.visible_lines, Some(lines(&text) as f32));
+    assert_eq!(
+        editable.visible_width,
+        Some(longest_line(&text) as f32 + 1.0)
+    );
+    assert!(editable.allow_newlines);
+    assert_eq!(
+        world.get::<TextLayout>(field).unwrap().linebreak,
+        LineBreak::NoWrap
+    );
+    // The gutter numbers the field's lines, in the same scrolling area.
+    let area = world.get::<ChildOf>(field).unwrap().parent();
+    assert!(world.get::<Scrolls>(area).is_some(), "the area scrolls");
+    assert!(world.get::<ScrollPosition>(area).is_some());
+    assert_eq!(
+        world.get::<Node>(area).unwrap().overflow,
+        Overflow::scroll()
+    );
+    let mut gutters = world.query::<(&Gutter, &Text, &ChildOf)>();
+    let (_, words, of) = gutters
+        .iter(world)
+        .find(|(g, _, _)| g.0 == field)
+        .expect("the gutter");
+    assert_eq!(words.0, numbers(lines(&text)));
+    assert_eq!(of.parent(), area, "beside the field");
+    // A scrollbar on each axis, both for the area.
+    let mut bars = world.query::<&Scrollbar>();
+    let along: Vec<ControlOrientation> = bars
+        .iter(world)
+        .filter(|b| b.target == area)
+        .map(|b| b.orientation)
+        .collect();
+    assert_eq!(along.len(), 2, "{along:?}");
+    assert!(along.contains(&ControlOrientation::Vertical));
+    assert!(along.contains(&ControlOrientation::Horizontal));
+    // Laid out: the area has a size, and the field is as tall as its lines.
+    let area_size = world.get::<ComputedNode>(area).unwrap().size();
+    assert!(area_size.x > 0.0 && area_size.y > 0.0, "{area_size}");
+    // A line typed: one more number, one more visible line, a wider field for a longer line.
+    let longer =
+        format!("{text}\n// A new last line that is rather longer than the others in this file.");
+    type_into(&mut app, EditAct::FileText, &longer);
+    app.update();
+    let world = app.world_mut();
+    let editable = world.get::<EditableText>(field).unwrap();
+    assert_eq!(editable.visible_lines, Some(lines(&longer) as f32));
+    assert_eq!(
+        editable.visible_width,
+        Some(longest_line(&longer) as f32 + 1.0)
+    );
+    let mut gutters = world.query::<(&Gutter, &Text)>();
+    let (_, words) = gutters.iter(world).find(|(g, _)| g.0 == field).unwrap();
+    assert_eq!(words.0, numbers(lines(&longer)));
+    assert_eq!(editing(&app).file.as_ref().unwrap().text, longer);
+}

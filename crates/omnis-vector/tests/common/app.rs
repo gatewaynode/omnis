@@ -296,3 +296,95 @@ pub fn churn_fields(app: &mut App) {
         },
     );
 }
+
+/// The window's physical size and scale: a Retina-like window, so logical and physical pixels
+/// differ.
+pub const UI_PHYSICAL: (u32, u32) = (2400, 1400);
+pub const UI_SCALE: f32 = 2.0;
+
+/// Without a renderer no system fills the camera's target: this stands in for it, so the UI
+/// lays out to the window.
+fn target_info(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut cameras: Query<&mut bevy::camera::Camera>,
+) {
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    for mut camera in &mut cameras {
+        camera.computed.target_info = Some(bevy::camera::RenderTargetInfo {
+            physical_size: window.physical_size(),
+            scale_factor: window.scale_factor(),
+        });
+    }
+}
+
+/// The shell in the editor with the town open, under Bevy's UI layout and focus (no renderer),
+/// with a window and a camera; the window's entity. Shared by the pointer and layout tests.
+pub fn ui_editor_app() -> (App, Entity) {
+    let config = Config {
+        editor: Some(Some("test:map:town".to_owned())),
+        ..config()
+    };
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        InputPlugin,
+        StatesPlugin,
+        bevy::window::WindowPlugin {
+            primary_window: None,
+            primary_cursor_options: None,
+            exit_condition: bevy::window::ExitCondition::DontExit,
+            close_when_requested: false,
+        },
+        bevy::asset::AssetPlugin::default(),
+        bevy::text::TextPlugin,
+        bevy::camera::CameraPlugin,
+        bevy::picking::DefaultPickingPlugins,
+        bevy::ui::UiPlugin,
+    ));
+    // The assets those plugins' systems read and no plugin here provides.
+    app.init_asset::<Image>()
+        .init_asset::<bevy::image::TextureAtlasLayout>()
+        .init_asset::<bevy::mesh::Mesh>()
+        .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
+    app.add_plugins((
+        ShellPlugin,
+        MovementPlugin,
+        ControlsPlugin,
+        ScreenPlugin,
+        CombatPlugin,
+        SettingsPlugin,
+        FontsPlugin,
+        EditorPlugin,
+    ))
+    .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+        16,
+    )))
+    .add_systems(PostUpdate, target_info.before(bevy::ui::UiSystems::Prepare));
+    let packs = Packs::load(&config).expect("the packs load");
+    let mut editor =
+        omnis_vector::editor::Editor::new(config.packs.clone()).expect("the editor opens");
+    editor
+        .open("test:map:town", &packs.data)
+        .expect("the town opens");
+    app.insert_resource(Editing(editor));
+    app.insert_resource(packs);
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                resolution: bevy::window::WindowResolution::new(UI_PHYSICAL.0, UI_PHYSICAL.1)
+                    .with_scale_factor_override(UI_SCALE),
+                ..default()
+            },
+            bevy::window::PrimaryWindow,
+        ))
+        .id();
+    app.world_mut()
+        .spawn((bevy::camera::Camera2d, bevy::ui::IsDefaultUiCamera));
+    for _ in 0..4 {
+        app.update();
+    }
+    (app, window)
+}

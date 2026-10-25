@@ -303,6 +303,14 @@ pub enum Kind {
         /// The lines it shows; above one, Enter breaks a line.
         lines: u8,
     },
+    /// A whole file as text (M5.9c): every line shown and numbered, no wrapping, scrolled on both
+    /// axes, the view following the caret.
+    Document {
+        /// The text.
+        value: String,
+        /// The most bytes it takes.
+        max: usize,
+    },
 }
 
 /// A control: what it is, what it says, and why it cannot be used now, if it cannot.
@@ -778,7 +786,7 @@ pub fn apply(
                 return Err(Refused::OutOfRange);
             }
         }
-        (Kind::Text { max, .. }, Payload::Text(text)) => {
+        (Kind::Text { max, .. } | Kind::Document { max, .. }, Payload::Text(text)) => {
             if text.len() > *max {
                 return Err(Refused::TooLong(*max));
             }

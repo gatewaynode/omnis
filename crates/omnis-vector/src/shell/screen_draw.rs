@@ -173,7 +173,7 @@ pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> Strin
     match &control.kind {
         Kind::Choice { options, at } => return options.get(*at).cloned().unwrap_or_default(),
         Kind::Number { value, .. } => return value.to_string(),
-        Kind::Button | Kind::Text { .. } => {}
+        Kind::Button | Kind::Text { .. } | Kind::Document { .. } => {}
     }
     match &control.why_not {
         Some(why) => format!("{}: {why}", control.label),
@@ -453,6 +453,21 @@ fn control_node(
                 }
             });
         }
+        Kind::Document { value, max } => {
+            let takes = match keep {
+                Some(kept) => kept == c.id,
+                None => mark != Mark::Editor,
+            };
+            super::document::spawn(parent, value, *max, height, |field| {
+                match mark {
+                    Mark::Editor => field.insert(EditorPress(c.id)),
+                    Mark::Screen | Mark::Side | Mark::Fight => field.insert(Pressable(c.id)),
+                };
+                if takes {
+                    field.insert(AutoFocus);
+                }
+            });
+        }
     }
 }
 
@@ -475,10 +490,25 @@ pub(super) fn rows(
 ) {
     let gap = Val::Px(scaled(6.0, spawn.height));
     for (r, row) in panel.rows.iter().enumerate() {
+        // A document's row takes the panel's remaining height (the document scrolls inside it).
+        let fills = row
+            .controls
+            .iter()
+            .any(|c| matches!(c.kind, Kind::Document { .. }));
         column
             .spawn(Node {
-                flex_wrap: FlexWrap::Wrap,
-                align_items: AlignItems::Center,
+                flex_wrap: if fills {
+                    FlexWrap::NoWrap
+                } else {
+                    FlexWrap::Wrap
+                },
+                align_items: if fills {
+                    AlignItems::Stretch
+                } else {
+                    AlignItems::Center
+                },
+                flex_grow: if fills { 1.0 } else { 0.0 },
+                min_height: Val::Px(0.0),
                 column_gap: gap,
                 row_gap: gap,
                 ..default()
@@ -568,28 +598,43 @@ pub fn wheeled(at: f32, dy: f32, max: f32) -> f32 {
 /// A scroll position past any foot: the layout shows the panel's foot (the full log's lines).
 pub const SCROLL_FOOT: f32 = f32::MAX;
 
-/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out.
+/// The mouse wheel scrolls the panel under the cursor, inside its rows once it is laid out; its
+/// sideways motion, or Shift with it, scrolls a document across (M5.9c).
 pub(super) fn wheel(
     scroll: Res<AccumulatedMouseScroll>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut panels: Query<(&RelativeCursorPosition, &ComputedNode, &mut ScrollPosition), With<Scrolls>>,
 ) {
-    let dy = match scroll.unit {
-        MouseScrollUnit::Line => scroll.delta.y * WHEEL_LINE,
-        MouseScrollUnit::Pixel => scroll.delta.y,
+    let unit = match scroll.unit {
+        MouseScrollUnit::Line => WHEEL_LINE,
+        MouseScrollUnit::Pixel => 1.0,
     };
-    if dy == 0.0 {
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    let (dx, dy) = if shift {
+        (scroll.delta.y * unit, 0.0)
+    } else {
+        (scroll.delta.x * unit, scroll.delta.y * unit)
+    };
+    if dx == 0.0 && dy == 0.0 {
         return;
     }
     for (cursor, node, mut at) in &mut panels {
         if cursor.cursor_over() {
-            // How far the rows run past the foot, in logical pixels; unbounded until laid out.
-            let max = if node.size.y > 0.0 {
-                ((node.content_size.y - node.size.y) * node.inverse_scale_factor).max(0.0)
-            } else {
-                f32::INFINITY
+            // How far the content runs past the area, in logical pixels; unbounded until laid out.
+            let past = |content: f32, size: f32| {
+                if size > 0.0 {
+                    ((content - size) * node.inverse_scale_factor).max(0.0)
+                } else {
+                    f32::INFINITY
+                }
             };
-            // Wheel up (a positive delta) shows what is above.
-            at.0.y = wheeled(at.0.y, dy, max);
+            // Wheel up (a positive delta) shows what is above; wheel left what is to the left.
+            if dy != 0.0 {
+                at.0.y = wheeled(at.0.y, dy, past(node.content_size.y, node.size.y));
+            }
+            if dx != 0.0 {
+                at.0.x = wheeled(at.0.x, dx, past(node.content_size.x, node.size.x));
+            }
         }
     }
 }
@@ -629,7 +674,10 @@ pub(super) fn bars(
             continue;
         };
         // Half a pixel of slack, so rounding never shows a bar with nothing to scroll.
-        let over = area.content_size().y > area.size().y + 0.5;
+        let over = match bar.orientation {
+            ControlOrientation::Vertical => area.content_size().y > area.size().y + 0.5,
+            ControlOrientation::Horizontal => area.content_size().x > area.size().x + 0.5,
+        };
         shown.set_if_neq(if over {
             Visibility::Visible
         } else {
