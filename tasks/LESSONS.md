@@ -468,3 +468,13 @@
 - **Rule**: a decision the owner must make belongs at the action that needs it, asked once with the ways
   out (Save and continue, Discard changes, Cancel), not spread over the choices as dim reasons. Dimming
   with a reason suits one control that cannot act now; it does not suit a whole list.
+
+## 2026-10-25 — A mode is state the opening action must set, not state it inherits
+- **What happened**: the editor's centre shows the plan or a file's text by a `mode` flag. `Editor::open`
+  reset the cursor, the view, the brush, the stroke, the form and the message, and left the mode alone: a
+  map opened from the tools while a file was showing stayed on the text ("I don't get the map editing view
+  in the central column"). The field was added for the file view and the older action was never revisited.
+- **Rule**: when a flag that chooses what a pane shows is added, every action that opens something into
+  that pane is read again and sets the flag it needs; the one action that restores (reopen after a save or
+  revert) saves and restores it with the rest of the carried state. A test opens the thing from the other
+  mode, not only from the default one.

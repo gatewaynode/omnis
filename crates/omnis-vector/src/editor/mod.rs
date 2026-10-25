@@ -259,7 +259,8 @@ impl Editor {
     }
 
     /// Open the map `id`, putting the cursor at its start, fitting the plan to the pane and
-    /// taking its first terrain as the brush.
+    /// taking its first terrain as the brush. The plan shows, whatever the centre showed before;
+    /// an open text file stays open behind it.
     ///
     /// # Errors
     /// The session's: no such map, or its layout does not read.
@@ -281,6 +282,7 @@ impl Editor {
         self.message = None;
         self.resolved = None;
         self.form = None;
+        self.mode = Mode::Plan;
         self.changed(data);
         Ok(())
     }
@@ -693,18 +695,19 @@ impl Editor {
     }
 
     /// The open map read again from its file, keeping the cursor, the level, the view, the
-    /// facing and the brush.
+    /// facing, the brush and what the centre shows.
     fn reopen(&mut self, data: &Data) {
         let Some(id) = self.map_id() else {
             return;
         };
-        let (cursor, level, facing, view, tool, eighths) = (
+        let (cursor, level, facing, view, tool, eighths, mode) = (
             self.cursor,
             self.level,
             self.facing,
             self.view,
             self.tool,
             self.eighths,
+            self.mode,
         );
         if let Err(e) = self.open(&id, data) {
             self.message = Some(format!("The map did not reopen: {e}"));
@@ -715,6 +718,7 @@ impl Editor {
         self.view = view;
         self.tool = tool;
         self.eighths = eighths;
+        self.mode = mode;
         self.show_level(level);
         self.changed(data);
     }

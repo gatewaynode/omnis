@@ -6,7 +6,9 @@ use crate::common;
 
 use bevy::prelude::*;
 use common::app::press_ui;
-use common::editor::{editing, field_entity, in_editor, in_editor_scratch, press_edit, type_into};
+use common::editor::{
+    arrow, editing, field_entity, in_editor, in_editor_scratch, press_edit, type_into,
+};
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::files::Mode;
 use omnis_vector::editor::view;
@@ -287,6 +289,41 @@ fn a_second_file_opened_shows_its_own_text_in_the_field() {
     );
 }
 
+/// Opening a map from the tools shows its plan in the centre, whatever was shown before (the
+/// owner, 2026-10-25: "when I switch to opening a map with the map selector to edit the old .ron
+/// file editor remains and I don't get the map editing view in the central column"). The open
+/// text file stays open behind the plan, a press on Text away.
+#[test]
+fn opening_a_map_from_the_tools_shows_its_plan_over_the_open_file() {
+    let mut app = in_editor("test:map:town");
+    open_file(&mut app, "text/en/spells.ron");
+    assert_eq!(display(&mut app, Column::Text), Display::Flex);
+    let first = editing(&app).chosen;
+    arrow(&mut app, EditAct::Map, true);
+    let at = editing(&app).chosen;
+    assert_ne!(at, first, "the choice stepped");
+    let chosen = editing(&app).maps[at].id.clone();
+    assert_ne!(Some(chosen.clone()), editing(&app).map_id());
+    press_edit(&mut app, EditAct::Open);
+    assert_eq!(editing(&app).map_id(), Some(chosen));
+    assert_eq!(
+        editing(&app).mode,
+        Mode::Plan,
+        "the map opened: its plan shows"
+    );
+    assert_eq!(display(&mut app, Column::Plan), Display::Flex);
+    assert_eq!(display(&mut app, Column::Text), Display::None);
+    // The file is still open: Text brings it back as it was.
+    assert_eq!(reason(&app, EditAct::Files), None);
+    press_edit(&mut app, EditAct::Files);
+    assert_eq!(editing(&app).mode, Mode::Files);
+    assert_eq!(display(&mut app, Column::Text), Display::Flex);
+    assert_eq!(
+        editing(&app).file.as_ref().map(|f| f.rel.as_str()),
+        Some("text/en/spells.ron")
+    );
+}
+
 #[test]
 fn a_broken_edit_is_checked_in_the_loader_s_words_and_reverted() {
     let mut app = in_editor("test:map:town");
@@ -397,6 +434,7 @@ fn a_checked_edit_is_written_as_typed_and_resealed_and_the_map_s_own_file_reopen
     press_edit(&mut app, EditAct::WriteFile);
     let e = editing(&app);
     assert_eq!(e.cursor, (3, 3), "the cursor kept");
+    assert_eq!(e.mode, Mode::Files, "the text stays in the centre");
     assert!(!e.status.dirty, "the document is the file's again");
     assert_eq!(
         e.grid()
