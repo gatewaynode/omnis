@@ -1,7 +1,8 @@
-//! The move tool (the owner's drawing-GUI column, step 2, 2026-10-25): a press on a cell with a
-//! placement takes the first listed, the drag carries it and letting go puts it on the cell
-//! under the pointer, a removal and a placement in one step (`Document::place_many`); a press
-//! anywhere else drags the plan itself by whole cells (`View::origin`). The middle button drags
+//! The move tool (the owner's drawing-GUI column, step 2, 2026-10-25): a press on a cell takes
+//! what the inspector lists there first, the map's start or a placement, the drag carries it and
+//! letting go puts it on the cell under the pointer (a start in one `Place::Start`, a placement
+//! as a removal and a placement in one step, `Document::place_many`); a press anywhere else drags
+//! the plan itself by whole cells (`View::origin`). The middle button drags
 //! the plan with any tool, a shortcut for Move's pan. What the pointer holds is what was under
 //! it at the press, as the owner chose (a chosen selection comes with the lasso). Bevy-free.
 
@@ -10,13 +11,34 @@ use super::{Editor, Here, PlaceKey};
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::edit::Place;
 
+/// What a press under the Move tool took: the map's start, or a placement as the inspector lists
+/// it. The start is listed first, so a cell that has both gives the start.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Held {
+    /// The map's start (the owner could not move it in the step's hand test, 2026-10-25).
+    Start,
+    /// The first placement the inspector lists on the cell.
+    Place(Here),
+}
+
+impl Held {
+    /// What it is, in a line.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        match self {
+            Held::Start => "Start",
+            Held::Place(here) => &here.label,
+        }
+    }
+}
+
 /// A drag in progress under the Move tool or the middle button.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Grab {
     /// The cell pressed on, when the press was on the map.
     pub from: Option<(u16, u16)>,
-    /// The placement carried, if the press took one; none pans the plan.
-    pub held: Option<Here>,
+    /// What is carried, if the press took anything; none pans the plan.
+    pub held: Option<Held>,
     /// The pane pixel of the press.
     pub press: (f32, f32),
     /// Where the plan looked at the press.
@@ -71,12 +93,12 @@ impl Editor {
         Some(false)
     }
 
-    /// Start a drag at pane pixel `pixel`: of the first placement on the cell under it, unless
-    /// `pan` or the cell has none, when the plan itself is dragged. The cursor goes to the cell.
+    /// Start a drag at pane pixel `pixel`: of what is under it (`under`), unless `pan` or the
+    /// cell has nothing, when the plan itself is dragged. The cursor goes to the cell.
     fn start_grab(&mut self, pixel: (f32, f32), pan: bool) {
         let from = self.view.hit(self.size(), pixel.0, pixel.1);
         let held = match from {
-            Some(cell) if !pan => self.here_at(cell).into_iter().next(),
+            Some(cell) if !pan => self.under(cell),
             _ => None,
         };
         if let Some(cell) = from
@@ -91,6 +113,19 @@ impl Editor {
             origin: self.view.origin,
             middle: pan,
         });
+    }
+
+    /// What the Move tool takes on `cell` of the shown level, as the inspector lists it: the
+    /// start when it is here (it is on the ground level), else the first listed placement; none
+    /// on a bare cell.
+    fn under(&self, cell: (u16, u16)) -> Option<Held> {
+        let start_here = self
+            .def()
+            .is_some_and(|d| self.level.is_ground() && (d.start.0, d.start.1) == cell);
+        if start_here {
+            return Some(Held::Start);
+        }
+        self.here_at(cell).into_iter().next().map(Held::Place)
     }
 
     /// The button is still held at `pixel`: a carried placement's cursor follows the cell under
@@ -128,20 +163,42 @@ impl Editor {
         let Some(grab) = self.grab.take() else {
             return;
         };
-        let (Some(here), Some((px, py))) = (grab.held, pixel) else {
+        let (Some(held), Some((px, py))) = (grab.held, pixel) else {
             return;
         };
         if let Some(to) = self.view.hit(self.size(), px, py)
             && Some(to) != grab.from
         {
-            self.moved(data, &here, to);
+            self.moved(data, &held, to);
         }
     }
 
-    /// Put the placement `here` names on `to` of the shown level: a removal and a placement in
-    /// one step, the cursor on `to`. A tile-keyed kind (a portal, a site, a ground pile) is
-    /// refused where one of its kind already is; the refusal is said. Whether the map changed.
-    pub fn moved(&mut self, data: &Data, here: &Here, to: (u16, u16)) -> bool {
+    /// Put what `held` names on `to` of the shown level: the start keeps its facing (one
+    /// `Place::Start`); a placement is a removal and a placement in one step, a tile-keyed kind
+    /// (a portal, a site, a ground pile) refused where one of its kind already is, the refusal
+    /// said. The cursor goes to `to`. Whether the map changed.
+    pub fn moved(&mut self, data: &Data, held: &Held, to: (u16, u16)) -> bool {
+        let (x, y) = to;
+        let taken = match held {
+            Held::Start => {
+                let Some(facing) = self.def().map(|d| d.start.2) else {
+                    return false;
+                };
+                self.placed(data, Place::Start { x, y, facing })
+            }
+            Held::Place(here) => self.moved_place(data, here, to),
+        };
+        if !taken {
+            return false;
+        }
+        self.cursor = to;
+        self.message = Some(format!("{} moved to ({x}, {y})", held.label()));
+        true
+    }
+
+    /// The placement `here` names put on `to`: `Place::Remove` and the def at the new cell in one
+    /// `place_many`; the refusals of `moved`. Whether the map changed.
+    fn moved_place(&mut self, data: &Data, here: &Here, to: (u16, u16)) -> bool {
         let Some(def) = self.def() else {
             return false;
         };
@@ -238,11 +295,6 @@ impl Editor {
             .session
             .document_mut()
             .and_then(|d| d.place_many(places));
-        if !self.took(data, result) {
-            return false;
-        }
-        self.cursor = to;
-        self.message = Some(format!("{} moved to ({x}, {y})", here.label));
-        true
+        self.took(data, result)
     }
 }

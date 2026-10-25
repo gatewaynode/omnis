@@ -374,8 +374,9 @@ ramp bounds; the boundary is walls); `Editor::fill(data, cell) -> bool` maps the
 (`Entry::brush`, a terrain rising the way faced, or the height held) and `Document::paint_many`s them as one
 step, the cursor on the cell, "N cells filled with r street" / "N cells set to height 3"; a terrain the region
 already is says "already r street" and paints nothing; an edge entry is refused ("the fill takes a terrain or
-the height"; `apply` keeps it from happening). `grab.rs`: `Grab { from: Option<cell>, held: Option<Here>,
-press, origin, middle }` in `Editor.grab`; `Editor::grabbing(data, Pointer) -> Option<bool>` is read first by
+the height"; `apply` keeps it from happening). `grab.rs`: `Held { Start, Place(Here) }` (`label`; `Editor::under(cell)`: the start when it is on the
+cell of the ground level, else the first of `here_at`, the inspector's order), `Grab { from: Option<cell>,
+held: Option<Held>, press, origin, middle }` in `Editor.grab`; `Editor::grabbing(data, Pointer) -> Option<bool>` is read first by
 `run::Editor::pointer`: a grab in progress follows its button (`drag_grab`: a held placement moves the cursor
 to the cell under the pointer, a pan sets `View::origin` to the press's origin less the whole cells crossed,
 `trunc`), lets go on Up (`end_grab`: a held placement on a map cell other than `from` → `moved`); the middle

@@ -500,3 +500,13 @@
   (`seal::status`), a count is the shipped count plus the test's own, a key is asserted present, not the
   only one. A literal is for what only a commit can move (a schema, a protocol, a golden fingerprint), and
   those are rebaselined in the same commit as the change.
+
+## 2026-10-25 — A tool over "what is under the pointer" enumerates what the plan draws there, not one list
+- **What happened**: the Move tool took `here_at(cell)`, the inspector's placements, as the eraser does. The
+  map's start is drawn on the plan and listed by the inspector, but it is a field of the map, not a
+  placement, and so not in that list: a press on the start marker panned the plan ("I couldn't move the start
+  marker"). The tests moved a portal and a site and never pressed the start.
+- **Rule**: a tool that acts on what is under the pointer is written from what the plan draws on a cell
+  (`plan::Source`: the start, the marks, the cursor, the edges) and what the inspector lists there, with one
+  arm per kind, even the kind that has no key in the placements list; its test presses each drawn kind once.
+  Where kinds share a cell, the tool takes them in the inspector's order, so the owner can predict it.

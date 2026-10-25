@@ -22,7 +22,9 @@ day ("This is good, accepted."). Rewrite this file every time it is used. Durabl
   entry or the eraser; `EditAct::Tool`; `run::paints(size, sides, kind)`; keys V B P N X). Owner's choices in the
   planning: view controls on the bar, details under the palette, no Fill yet, the eraser by what is under the
   pointer.
-- **Step 2, Fill and Move (2026-10-25, built, not yet hand-tested; `tasks/acceptance/editor-column-2.md`):**
+- **Step 2, Fill and Move (2026-10-25, built; the owner's hand test found one fault, fixed the same day:
+  Move did not take the start marker, since it took `here_at`'s placements only; now `grab::Held { Start,
+  Place(Here) }` through `Editor::under`, the inspector's order; `tasks/acceptance/editor-column-2.md`):**
   `editor/fill.rs` (`region(grid, start)`: one ground joined through open sides, every closed side a bound;
   `Editor::fill` → `paint_many`, "N cells filled with r street"), `editor/grab.rs` (`Grab`, `Editor.grab`,
   `grabbing` read first by `pointer`; a press on a placement carries it, `moved` → `Document::place_many`
@@ -36,8 +38,8 @@ day ("This is good, accepted."). Rewrite this file every time it is used. Durabl
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **The owner's hand test of step 2** (`tasks/acceptance/editor-column-2.md`); on acceptance, a prose commit
-   under `tasks/` as for step 1. Then **step 3 (placements as palette stamps) in plan mode** when the owner
+1. **The owner's verdict on step 2** after the start-marker fix (`tasks/acceptance/editor-column-2.md`,
+   step 4's last lines); on acceptance, a prose commit under `tasks/` as for step 1. Then **step 3 (placements as palette stamps) in plan mode** when the owner
    asks (TODO: steps 3 to 5). The owner's order of 2026-10-24 otherwise: the activities schema when a second
    kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: a smooth (sub-cell) pan; a fill's region previewed on hover; the map's own fields (`Edit::Map`),

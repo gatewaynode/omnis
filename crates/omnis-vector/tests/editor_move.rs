@@ -1,6 +1,6 @@
-//! The move tool (the editor's column, step 2, 2026-10-25): a press on a cell with a placement
-//! carries the first listed to the cell let go on, a removal and a placement in one undo step,
-//! refused where one of its kind already is; a press elsewhere pans the plan by whole cells, as
+//! The move tool (the editor's column, step 2, 2026-10-25): a press on a cell carries what the
+//! inspector lists there first, the start or a placement, to the cell let go on (a placement as a
+//! removal and a placement in one undo step, refused where one of its kind already is); a press elsewhere pans the plan by whole cells, as
 //! a drag with the middle button does under any tool. Headless on the town: the portal on
 //! (11, 2), the sites on the shops' door cells.
 
@@ -60,7 +60,7 @@ fn a_move_carries_the_placement_under_the_press_to_the_cell_let_go_on_as_one_ste
     assert!(
         grab.held
             .as_ref()
-            .is_some_and(|h| h.label.starts_with("Portal"))
+            .is_some_and(|h| h.label().starts_with("Portal"))
     );
     assert_eq!(editing(&app).cursor, (11, 2));
     point_at(&mut app, (9, 2), None);
@@ -172,4 +172,47 @@ fn a_press_on_a_bare_cell_pans_the_plan_by_whole_cells_as_the_middle_button_does
     press_edit(&mut app, EditAct::Centre);
     assert!(editing(&app).grab.is_none());
     mouse(&mut app, MouseButton::Middle, ButtonState::Released);
+}
+
+#[test]
+fn a_move_carries_the_start_marker_as_it_carries_a_placement() {
+    // Owner, 2026-10-25, hand-testing step 2: "I couldn't move the start marker". The town starts
+    // on (10, 2) facing west, a bare street cell: a press there panned the plan instead.
+    let mut app = in_editor("test:map:town");
+    let steps = depth(&app);
+    let start = |app: &App| editing(app).def().expect("open").start;
+    assert_eq!(start(&app).0, 10);
+    assert_eq!(start(&app).1, 2);
+    let facing = start(&app).2;
+    press_edit(&mut app, EditAct::Tool(Tool::Move));
+    let origin = editing(&app).view.origin;
+    point_at(&mut app, (10, 2), None);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    assert!(
+        editing(&app)
+            .grab
+            .as_ref()
+            .is_some_and(|g| g.held.as_ref().is_some_and(|h| h.label() == "Start")),
+        "the press takes the start, not the plan"
+    );
+    point_at(&mut app, (8, 2), None);
+    app.update();
+    assert_eq!(editing(&app).view.origin, origin, "the plan does not pan");
+    assert_eq!(editing(&app).cursor, (8, 2), "the cursor follows");
+    point_at(&mut app, (5, 2), None);
+    app.update();
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert_eq!(start(&app), (5, 2, facing), "moved, facing as before");
+    assert_eq!(depth(&app), steps + 1, "one step");
+    assert_eq!(
+        editing(&app).message.as_deref(),
+        Some("Start moved to (5, 2)")
+    );
+    press_edit(&mut app, EditAct::Undo);
+    assert_eq!(start(&app), (10, 2, facing));
+    assert_eq!(depth(&app), steps);
+    // Let go on its own cell: nothing.
+    drag(&mut app, MouseButton::Left, (10, 2), &[(9, 2), (10, 2)]);
+    assert_eq!(start(&app), (10, 2, facing));
+    assert_eq!(depth(&app), steps);
 }
