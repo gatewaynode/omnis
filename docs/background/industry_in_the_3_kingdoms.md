@@ -1,6 +1,9 @@
+# Industry and the problem with Magic
+Since Toel is an unstable high magic world, the normal path to industrialization through magic is not safe for settlements and civilizations.  The leaders of the kingdoms value magic neutral approaches such as beasts of burden and mechanical solutions.
+
 # Domesticated Animal Labor
 
-The 3 kingdoms looks tranquilic from a distance, but it is an area only relatively recently recovered from one of the devestating cataclysms so common on Toel.  Common live stocks were mostly wiped out, with only chickens and goats commonly living among the survivors.  The three kingdoms have each filled in the typical rokes for beasts of burden and labor in interesting ways.  The settlement of Resdie stands apart though as a refugee group the greater rift that brought them to Toel also carried cattle and horses, though the numbers of their livestock are just now recovering and either is rare outside of Resdie itself.
+The 3 kingdoms looks tranquilic from a distance, but it is an area only relatively recently recovered from one of the devestating cataclysms so common on Toel.  Common live stocks were mostly wiped out, with only chickens and goats are commonly raised among the survivoring settlements.  The three kingdoms have each filled in the typical roles for beasts of burden and labor in interesting ways.  The settlement of Resdie stands apart though as a refugee group the greater rift that brought them to Toel also carried cattle and horses, though the numbers of their livestock are just now recovering and either is rare outside of Resdie itself.
 
 ## Sheep variants
 The halflings of the lower respite, just outside of the 3 kingdoms have been widely successful at raising horned sheep, though there is no history of how they came across sheep in the recovering area of the 3 kingdoms.  The halflings sheep are mostly similar to the human domesticated variety, though the males have been bread to be stronger and bigger than normal.  
