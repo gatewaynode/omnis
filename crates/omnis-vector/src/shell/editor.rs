@@ -12,7 +12,9 @@
 //! painted, and the rest stands.
 
 use super::screen::{Arrow, Screens, Slid};
-use super::screen_draw::{EditorPress, Mark, Placed, Scrolls, build, colour, shade, sync};
+use super::screen_draw::{
+    EditorPress, Mark, Placed, Scrolls, WHEEL_LINE, build, colour, shade, sync,
+};
 use super::session::{Packs, Session};
 use super::{VectorSet, ViewState};
 use crate::editor::brush::Target;
@@ -23,6 +25,7 @@ use crate::screen::{ControlId, Kind, Screen, ScreenId};
 use crate::sim::game_settings;
 use crate::style::{Role, scaled};
 use bevy::ecs::system::SystemParam;
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::text::EditableText;
@@ -123,21 +126,28 @@ const TOOLS: f32 = 330.0;
 /// The inspector column's width at the reference height.
 const INSPECTOR: f32 = 400.0;
 
+/// The wheel's motion over the plan not yet turned into a zoom step (M5.9d): a notch is a step,
+/// a trackpad's pixels add up to the kit's line first.
+#[derive(Resource, Default)]
+pub struct Zooming(pub f32);
+
 /// The layer, its input and its drawing.
 pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Drawn>().add_systems(
-            Update,
-            (
-                enter.run_if(resource_added::<Editing>),
-                leave.run_if(resource_removed::<Editing>),
-                (route, refresh).chain().run_if(resource_exists::<Editing>),
-            )
-                .chain()
-                .in_set(VectorSet::Screens),
-        );
+        app.init_resource::<Drawn>()
+            .init_resource::<Zooming>()
+            .add_systems(
+                Update,
+                (
+                    enter.run_if(resource_added::<Editing>),
+                    leave.run_if(resource_removed::<Editing>),
+                    (route, refresh).chain().run_if(resource_exists::<Editing>),
+                )
+                    .chain()
+                    .in_set(VectorSet::Screens),
+            );
     }
 }
 
@@ -510,6 +520,8 @@ fn route(
     focus: Option<ResMut<InputFocus>>,
     fields: Query<(Ref<EditableText>, &EditorPress)>,
     mut slid: ResMut<Slid>,
+    scroll: Res<AccumulatedMouseScroll>,
+    mut zooming: ResMut<Zooming>,
     mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
     mut screens: ResMut<Screens>,
@@ -588,11 +600,33 @@ fn route(
         let over_button = interactions.iter().any(|i| *i != Interaction::None);
         // Bevy's `normalized` runs from (-0.5, -0.5) at the pane's top left to (0.5, 0.5) at its
         // bottom right; the plan's pixels run from its top left.
-        let target = plan.filter(|_| !over_button).and_then(|(at, size)| {
+        let pixel = plan.filter(|_| !over_button).map(|(at, size)| {
             #[allow(clippy::cast_precision_loss)]
-            let (px, py) = ((at.x + 0.5) * size.0 as f32, (at.y + 0.5) * size.1 as f32);
-            editing.aim(px, py)
+            ((at.x + 0.5) * size.0 as f32, (at.y + 0.5) * size.1 as f32)
         });
+        // The wheel over the plan zooms about the pointer (M5.9d): a notch a step, up is in; a
+        // trackpad's pixels add up to a line first. Off the plan the remainder is dropped.
+        match pixel {
+            Some((px, py)) => {
+                if scroll.delta.y != 0.0 {
+                    zooming.0 += match scroll.unit {
+                        MouseScrollUnit::Line => scroll.delta.y,
+                        MouseScrollUnit::Pixel => scroll.delta.y / WHEEL_LINE,
+                    };
+                }
+                while zooming.0 >= 1.0 {
+                    zooming.0 -= 1.0;
+                    editing.zoom_at(1, px, py);
+                }
+                while zooming.0 <= -1.0 {
+                    zooming.0 += 1.0;
+                    editing.zoom_at(-1, px, py);
+                }
+            }
+            None if zooming.0 != 0.0 => zooming.0 = 0.0,
+            None => {}
+        }
+        let target = pixel.and_then(|(px, py)| editing.aim(px, py));
         if editing.hover != target {
             editing.hover = target;
         }

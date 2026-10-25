@@ -511,6 +511,21 @@ impl Editor {
         }
     }
 
+    /// Zoom one step in (`by` 1) or out (-1) about pane pixel `(px, py)`, the cell under it kept
+    /// there (M5.9d: the wheel over the plan). Nothing without a map.
+    pub fn zoom_at(&mut self, by: i8, px: f32, py: f32) {
+        if self.def().is_none() {
+            return;
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let at = (px.max(0.0) as u32, py.max(0.0) as u32);
+        let view = self.view.zoomed_at(by, at);
+        if view != self.view {
+            self.view = view;
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
     /// Paint the brush at `target` on the shown level and put the cursor on its cell. With
     /// `stroke` the paint joins the stroke the held button keeps open, so a drag undoes as
     /// one. A refusal is said and changes nothing. Whether the map changed.

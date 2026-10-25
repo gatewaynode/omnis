@@ -454,3 +454,101 @@ mod socket {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+/// The wheel over the plan zooms about the pointer (M5.9d, the owner's ask): the cell under
+/// the mouse stays under it, a notch a step, down out and up in. The buttons and keys still zoom
+/// about the centre.
+#[test]
+fn the_wheel_over_the_plan_zooms_about_the_pointer() {
+    use bevy::input::mouse::MouseScrollUnit::Line;
+    use common::app::wheel;
+    use common::editor::point_at;
+    let mut app = in_editor("test:map:dungeon");
+    app.update();
+    let (before, pane) = {
+        let e = editing(&app);
+        (e.view, e.pane)
+    };
+    // A cell off the pane's middle.
+    let cell = (1, 1);
+    point_at(&mut app, cell, None);
+    app.update();
+    assert_eq!(editing(&app).hover.map(|t| t.cell), Some(cell));
+    wheel(&mut app, -1.0, Line);
+    let e = editing(&app);
+    assert!(
+        e.view.scale() < before.scale(),
+        "a notch down zooms out: {} < {}",
+        e.view.scale(),
+        before.scale()
+    );
+    assert_eq!(
+        e.hover.map(|t| t.cell),
+        Some(cell),
+        "the cell under the pointer stays under it"
+    );
+    assert_ne!(e.view, before.zoomed(-1, pane), "not about the centre");
+    wheel(&mut app, 1.0, Line);
+    assert_eq!(editing(&app).view, before, "a notch up brings it back");
+    assert_eq!(editing(&app).hover.map(|t| t.cell), Some(cell));
+    for _ in 0..plan::ZOOMS.len() {
+        wheel(&mut app, 1.0, Line);
+    }
+    assert_eq!(editing(&app).view.scale(), *plan::ZOOMS.last().unwrap());
+    wheel(&mut app, 1.0, Line);
+    assert_eq!(
+        editing(&app).view.scale(),
+        *plan::ZOOMS.last().unwrap(),
+        "the largest holds"
+    );
+}
+
+/// A trackpad's pixels add up to one step a line; the fraction left is dropped when the pointer
+/// leaves the plan. Off the plan, or under a screen, the wheel zooms nothing.
+#[test]
+fn a_trackpad_s_pixels_add_up_to_a_step_and_the_wheel_off_the_plan_zooms_nothing() {
+    use bevy::input::mouse::MouseScrollUnit::{Line, Pixel};
+    use common::app::wheel;
+    use common::editor::{leave_plan, point_at};
+    let mut app = in_editor("test:map:dungeon");
+    app.update();
+    let scale = editing(&app).view.scale();
+    point_at(&mut app, (1, 1), None);
+    wheel(&mut app, -15.0, Pixel);
+    wheel(&mut app, -15.0, Pixel);
+    assert_eq!(
+        editing(&app).view.scale(),
+        scale,
+        "30 px is short of a line"
+    );
+    wheel(&mut app, -15.0, Pixel);
+    let stepped = editing(&app).view.scale();
+    assert!(stepped < scale, "45 px is a step: {stepped} < {scale}");
+    wheel(&mut app, -15.0, Pixel);
+    assert_eq!(
+        editing(&app).view.scale(),
+        stepped,
+        "20 px carried, no step"
+    );
+    leave_plan(&mut app);
+    wheel(&mut app, -1.0, Line);
+    assert_eq!(editing(&app).view.scale(), stepped, "off the plan, nothing");
+    point_at(&mut app, (1, 1), None);
+    wheel(&mut app, -30.0, Pixel);
+    assert_eq!(
+        editing(&app).view.scale(),
+        stepped,
+        "the 20 px were dropped off the plan: 30 px is short of a line"
+    );
+    press_edit(&mut app, EditAct::OpenFile);
+    assert_eq!(
+        app.world().resource::<Screens>().nav.top(None),
+        Some(ScreenId::EditorFiles)
+    );
+    wheel(&mut app, -1.0, Line);
+    assert_eq!(
+        editing(&app).view.scale(),
+        stepped,
+        "under the picker, nothing"
+    );
+}

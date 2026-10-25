@@ -128,7 +128,7 @@ pub(super) type Placed = (
 pub struct Scrolls;
 
 /// How far one line of a mouse wheel scrolls a panel, in logical pixels.
-const WHEEL_LINE: f32 = 40.0;
+pub(super) const WHEEL_LINE: f32 = 40.0;
 
 /// `role`'s colour.
 #[must_use]

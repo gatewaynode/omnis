@@ -2,7 +2,8 @@
 //! input a window would send.
 
 use bevy::input::keyboard::{Key, KeyboardInput};
-use bevy::input::mouse::MouseButtonInput;
+use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
+use bevy::input::touch::TouchPhase;
 use bevy::input::{ButtonState, InputPlugin};
 use bevy::prelude::*;
 use bevy::state::app::StatesPlugin;
@@ -230,6 +231,19 @@ pub fn tap(app: &mut App, code: KeyCode) {
     key(app, code, ButtonState::Pressed);
     app.update();
     key(app, code, ButtonState::Released);
+    app.update();
+}
+
+/// The mouse wheel turned by `y` (notches with `MouseScrollUnit::Line`, pixels with `Pixel`;
+/// up is positive), then a frame.
+pub fn wheel(app: &mut App, y: f32, unit: MouseScrollUnit) {
+    app.world_mut().write_message(MouseWheel {
+        unit,
+        x: 0.0,
+        y,
+        window: Entity::PLACEHOLDER,
+        phase: TouchPhase::Moved,
+    });
     app.update();
 }
 

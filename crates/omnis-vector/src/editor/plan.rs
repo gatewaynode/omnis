@@ -43,22 +43,33 @@ impl View {
         ZOOMS[self.zoom.min(ZOOMS.len() - 1)]
     }
 
-    /// One zoom in, keeping the cell at the pane's centre there.
+    /// One zoom step, keeping the cell at the pane's centre there.
     #[must_use]
     pub fn zoomed(self, by: i8, pane: (u32, u32)) -> View {
+        self.zoomed_at(by, (pane.0 / 2, pane.1 / 2))
+    }
+
+    /// One zoom step (`by` 1 in, -1 out; the ends hold), keeping the cell under pixel `at` of
+    /// the pane under it (M5.9d: the wheel zooms about the pointer).
+    #[must_use]
+    pub fn zoomed_at(self, by: i8, at: (u32, u32)) -> View {
         let next = usize::try_from(i64::try_from(self.zoom).unwrap_or(0) + i64::from(by))
             .unwrap_or(0)
             .min(ZOOMS.len() - 1);
         if next == self.zoom {
             return self;
         }
-        let (cx, cy) = self.centre_cell(pane);
-        let mut out = View { zoom: next, ..self };
-        out.origin = (
-            cx - i64::from(pane.0 / out.scale() / 2),
-            cy - i64::from(pane.1 / out.scale() / 2),
+        let s = self.scale();
+        let cell = (
+            self.origin.0 + i64::from(at.0 / s),
+            self.origin.1 + i64::from(at.1 / s),
         );
-        out
+        let out = View { zoom: next, ..self };
+        let n = out.scale();
+        View {
+            origin: (cell.0 - i64::from(at.0 / n), cell.1 - i64::from(at.1 / n)),
+            ..out
+        }
     }
 
     /// The cell at the pane's middle.
@@ -480,6 +491,34 @@ mod tests {
         let farthest = view.zoomed(-9, pane);
         assert_eq!(farthest.scale(), 4, "stops at the smallest");
         assert_eq!(view.zoomed(9, pane).scale(), 32, "and the largest");
+    }
+
+    #[test]
+    fn zooming_about_a_pixel_keeps_the_cell_under_it() {
+        let pane = (160, 80);
+        let size = (64, 64);
+        let view = View::default().centred_on((20, 20), pane);
+        assert_eq!(view.origin, (15, 18));
+        let at = (37, 11);
+        let under = view.hit(size, 37.0, 11.0).expect("on the map");
+        let closer = view.zoomed_at(1, at);
+        assert_eq!(closer.scale(), 24);
+        assert_eq!(closer.hit(size, 37.0, 11.0), Some(under));
+        let farther = view.zoomed_at(-1, at);
+        assert_eq!(farther.scale(), 12);
+        assert_eq!(farther.hit(size, 37.0, 11.0), Some(under));
+        assert_ne!(closer, view.zoomed(1, pane), "not about the centre");
+        assert_eq!(
+            view.zoomed_at(1, (80, 40)),
+            view.zoomed(1, pane),
+            "the centre pixel is the centre zoom"
+        );
+        let largest = View {
+            zoom: ZOOMS.len() - 1,
+            ..view
+        };
+        assert_eq!(largest.zoomed_at(1, at), largest, "the ends hold");
+        assert_eq!(View { zoom: 0, ..view }.zoomed_at(-1, at).zoom, 0);
     }
 
     #[test]

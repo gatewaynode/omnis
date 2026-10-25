@@ -1,6 +1,6 @@
 # Continuity notes
 
-Written 2026-10-25, after the M5.9c third-round fixes (a map opened from the tools shows its plan; rows keep their height). Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-25, after M5.9d (the wheel zooms the plan about the pointer). Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). M5.0 to M5.5 done and accepted (M5.5 on
@@ -71,7 +71,9 @@ Written 2026-10-25, after the M5.9c third-round fixes (a map opened from the too
    (2026-10-25): the file picker works; a map opened from the tools kept the text in the centre, fixed (open
    sets `Mode::Plan`, reopen keeps the mode; `b94a13b`), and the tools column's rows overlapped (the document
    row's `min_height: 0` had reached every row; fixed with a layout test under `ui_editor_app`; both lessons
-   in LESSONS). Awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, steps 7 and 8 are the new ones). After acceptance: a memory note that the owner wants pickers
+   in LESSONS; both accepted). **M5.9d** (owner's ask, 2026-10-25): the wheel over the plan zooms about the
+   pointer (`View::zoomed_at`, `Editor::zoom_at`, `Zooming` in `shell/editor.rs`; in the M5 design since row 4,
+   built now). Awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, step 9). After acceptance: a memory note that the owner wants pickers
    as modals over the editor, not lists in a column, and decisions asked at the action, not spread as dim reasons.
    The 4 MiB file cap stays a soft cap (owner, 2026-10-24: "we have ways of working around the limitations").
 2. **M5.10 re-authoring and close** (plan row 10: `tests/edit_authoring.rs` builds each `packs/test` map from
