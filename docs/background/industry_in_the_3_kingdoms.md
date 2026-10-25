@@ -18,7 +18,9 @@ The dwarves breed some of their oxen as war mounts that are as formidable as any
 An ancient technology kept alive by both the Dwarves in Karinguard and the Gnomes in Shoentran where mechanical force is captured in mundane pressure based mechanisms and utilized with gears, pistons and levers.  Unlike many of the lost magical arts that succumb to the divine wars that criss cross the surface of Toel periodically, torsioncraft only uses magic to convert energy into a storable form in often non-magical apparatus.  Being mundane in implementation means examples of this technology haven't suffered the extreme magical onslaughts of the turbulent world.  Torsioncraft apparati sometimes survive vast periods of time still working or can be repaired or replicated far more easily than destroyed or empty magic items.
 
 ## Hybrid Mechanisms
-While the basics of Torsioncraft produce mundane mechnisms with stored potential power, hybrid systems use magical energy to provide even more power and capability.  Hybrid systems have all the failings of magical advancements on Toel and are often 
+While the basics of Torsioncraft produce mundane mechnisms with stored potential power, hybrid systems use magical energy to provide even more power and capability.  Hybrid systems have all the failings of magical advancements on Toel such advanced mechanisms and apparati are often lost to time often to be rediscovered by new civilizations.  
+
+The ruins of great hybrid mechanisms and apparati are everywhere, their workings and purposes are often truly mysterious to the current inhabitants.
 
 # Hylomancy
-A magical school of animating basic or prime substances, similar to Golems or animated statues.  This school of magic is impractical on most worlds as being too magical energy intensive to use widely, but on Toel this is commonly explored area of endevour.
+A magical school of animating basic or prime substances, similar to Golems or animated statues.  This school of magic is impractical on most worlds as being too magical energy intensive to use widely, but on Toel this is commonly explored area of endevour.  The abundance of magical energy makes this school one of the most commonly rediscovered school in rising civilizations on Toel.  Advancing civilizations often adopt magically animated constructs to do all manner of work.

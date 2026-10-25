@@ -27,12 +27,13 @@ Toel is sometimes referred to as the ladder to godhood due to its abundance of m
 The stories of the people of Toel are often shot through with adventure and heroism.  The struggle for life and prosperity amonst the sscension struggles makes for a strong and determined common folk.
 
 ### Arcane Backwash
-The world thrums with magic, the very stability of reality is often a fragile facade over powerful currents.  Magic ripples underneath reality like raindrops on a pond.  Most of the time these ripples are like a gentle wind, easily managed, at other times they are like choppy waters in a terrible storm that challenge all beings.  Most of Toel sits at a fragile balance between a stable reality and magical chaos that can be tipped into chaos through excessive magic use or the opposite.  The tension of forces leaves stable parts of the world carefully balanced and the use of unbalanced magic in said parts can create disturbances that sometimes gather like floatsam, or sometimes like altering waves.  The effects of such disturbances leave traces like sedimentary wash layers in the surrounds, and sometimes little areas of strong adulteration.
+The world thrums with magic, the very stability of reality is often a fragile facade over powerful currents.  Magic ripples underneath reality like raindrops on a pond.  Most of the time these ripples are like a gentle wind on a pond, easily managed, at other times they are like choppy waters in a terrible storm that challenge all beings.  Most of Toel sits at a fragile balance between a stable reality and magical chaos that can be tipped into chaos through excessive magic use or the opposite.  The tension of forces leaves stable parts of the world carefully balanced and the use of unbalanced magic in said parts can create disturbances that sometimes gather like floatsam, or sometimes like altering waves.  The effects of such disturbances leave traces like sedimentary wash layers in the surrounds, and sometimes little areas of strong adulteration.
 
 Across the whole world societies and ecosystems have evolved or developed to counteract the effects of arcane backwash.  Various groups of have formed to clean and rebalance areas effected by heavy magic use.  Most magic schools teach restraint, ways to minimize cascading effects and ways to clean up unbalanced magic use.  Animals and ecosystems have evolved to maintain their living spaces, sometimes even agressively responding to unbalanced magic.
 
 ## Magic Profusion
 In Toel magic strongly permeates everything and everyone, the people and animals have adapated or are quickly changed by this profusion of magic.  
 - People are cant fluent, almost everyone can cast detect magic and usually knows a cantrip or two.
-- Rare people are born with permanent spells, these are known as boons and are usually beneficial (for dark reasons)
-- 
+- Rare people are born with permanent spells, these are known as boons and are usually beneficial (for dark reasons).
+- Inanimate objects regularly become enchanted with magical attributes, sometimes beneficial to their purpose, other times quite the opposite.
+- Mundane animals often adapt to use magic themselves, such as the notorious *phase mice* and their "natural" predators *null cats*.
