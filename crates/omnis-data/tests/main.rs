@@ -4,6 +4,7 @@
 mod bad_packs;
 mod beings;
 mod common;
+mod edit_authoring;
 mod edit_document;
 mod edit_grid;
 mod edit_session;

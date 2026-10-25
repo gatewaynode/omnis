@@ -300,12 +300,22 @@ fn scratch_pack(name: &str) -> PathBuf {
     dst
 }
 
+/// The version the scratch pack names, and the patch one higher its next save seals at: read
+/// from the pack, not pinned, since the owner's saves through the editor move it (M5.10).
+fn versions(root: &Path) -> (String, String) {
+    let version = omnis_data::seal::status(root).unwrap().version;
+    let (rest, patch) = version.rsplit_once('.').unwrap();
+    let next = format!("{rest}.{}", patch.parse::<u32>().unwrap() + 1);
+    (version, next)
+}
+
 /// The editor's ops through `Headless` (M5.3): open, paint, status, save, reload; a bad text
 /// refused in the loader's words and nothing written; notes written at once; `dispatch` refuses
 /// every editor op as host-only.
 #[test]
 fn headless_edits_a_pack_and_reloads_it() {
     let scratch = scratch_pack("headless-editor");
+    let (shipped, next) = versions(&scratch);
     let mut game = Headless::new(vec![base_pack(), scratch.clone()], 1).unwrap();
     let status = |game: &mut Headless| match game.handle(&Op::EditorStatus).unwrap() {
         Reply::Editor { editor } => editor,
@@ -343,15 +353,15 @@ fn headless_edits_a_pack_and_reloads_it() {
     match game.handle(&Op::EditorSave).unwrap() {
         Reply::Written { path, version } => {
             assert_eq!(path, "data/maps/town.ron");
-            assert_eq!(version.as_deref(), Some("0.1.2"));
+            assert_eq!(version.as_deref(), Some(next.as_str()));
         }
         other => panic!("{other:?}"),
     }
     assert!(!status(&mut game).dirty);
     // The world runs on the packs as loaded until they are reloaded.
-    assert_eq!(game.data.fingerprints[1].version, "0.1.1");
+    assert_eq!(game.data.fingerprints[1].version, shipped);
     game.handle(&Op::PackReload { migrate: false }).unwrap();
-    assert_eq!(game.data.fingerprints[1].version, "0.1.2");
+    assert_eq!(game.data.fingerprints[1].version, next);
     let town = game.data.registry.maps.get("test:map:town").unwrap();
     assert!(
         game.data.maps[&town].def.layout[3].contains(':'),
@@ -402,7 +412,7 @@ fn headless_edits_a_pack_and_reloads_it() {
     .unwrap();
     match game.handle(&Op::EditorNotes { prefix: None }).unwrap() {
         Reply::Notes { keys, orphans } => {
-            assert_eq!(keys, ["test:map:town/0/1,1"]);
+            assert!(keys.contains(&"test:map:town/0/1,1".to_owned()), "{keys:?}");
             assert!(orphans.is_empty());
         }
         other => panic!("{other:?}"),

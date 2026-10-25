@@ -1,6 +1,7 @@
 (
     schema: 1,
     entries: {
+        "test:map:town": "A 12x5 town: a street with seven services behind doors, four to the north and three to the south, a green at the south-east corner, and the road out to the meadow at the east end. Each service\'s rooms have their own terrain so the automap tells them apart; the site is the tile just inside the door.\n\nWhat may happen while the party rests here: placeholders at chance 0 (per mille) until the owner\'s ideas fill them.",
         "test:map:town/0/11,2": "A path to the great wide open.",
     },
 )

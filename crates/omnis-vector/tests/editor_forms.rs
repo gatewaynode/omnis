@@ -593,7 +593,7 @@ fn a_note_is_written_to_the_pack_at_once_outside_the_history_and_cleared() {
     let undo = editing(&app).status.undo;
     let text = form_text(&app);
     assert!(
-        text.contains("Note: none") && text.contains("Map note: none"),
+        text.contains("Note: none") && text.contains("Map note: A 12x5 town"),
         "{text}"
     );
     press_edit(&mut app, EditAct::Note(NoteOf::Cell));

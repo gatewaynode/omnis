@@ -6,7 +6,7 @@
 use crate::common::{base_pack, copy_pack, load_test_packs, test_pack};
 use omnis_core::{Facing, Level};
 use omnis_data::edit::{Brush, EdgeKind, EditError, Place, Session};
-use omnis_data::{Data, RestEventDef, RestKind, load_packs};
+use omnis_data::{Data, RestEventDef, RestKind, load_packs, seal};
 use std::path::{Path, PathBuf};
 
 fn session(name: &str) -> (Session, PathBuf, Data) {
@@ -18,6 +18,19 @@ fn session(name: &str) -> (Session, PathBuf, Data) {
 
 fn reload(scratch: &Path) -> Result<Data, String> {
     load_packs(&[&base_pack(), scratch]).map_err(|r| r.to_string())
+}
+
+/// The version `pack.ron` names now.
+fn version_of(root: &Path) -> String {
+    seal::status(root).unwrap().version
+}
+
+/// The version the next save or write seals at, the patch one higher: read from the pack,
+/// not pinned, since the owner's own saves through the editor move it (M5.10).
+fn next_patch(root: &Path) -> String {
+    let version = version_of(root);
+    let (rest, patch) = version.rsplit_once('.').unwrap();
+    format!("{rest}.{}", patch.parse::<u32>().unwrap() + 1)
 }
 
 #[test]
@@ -101,9 +114,10 @@ fn a_save_writes_the_map_reseals_at_the_next_patch_and_the_pack_loads_again() {
         .paint(Level::GROUND, 1, 1, &wall, false)
         .unwrap();
     let def = session.document().unwrap().def();
+    let next = next_patch(&scratch);
     let sealed = session.save(&data).unwrap();
     assert_eq!(
-        sealed.version, "0.1.2",
+        sealed.version, next,
         "the owner's choice: a save raises the patch"
     );
     assert!(sealed.changed);
@@ -111,13 +125,13 @@ fn a_save_writes_the_map_reseals_at_the_next_patch_and_the_pack_loads_again() {
     let again = reload(&scratch).unwrap_or_else(|e| panic!("{e}"));
     let id = again.registry.maps.get("test:map:dungeon").unwrap();
     assert_eq!(again.maps[&id].def, def);
-    assert_eq!(again.fingerprints[1].version, "0.1.2");
+    assert_eq!(again.fingerprints[1].version, next);
     let text = std::fs::read_to_string(scratch.join("pack.ron")).unwrap();
     assert!(text.starts_with("//"), "pack.ron keeps its comment: {text}");
     // Saving again without a change writes nothing new.
     let sealed = session.save(&data).unwrap();
     assert!(!sealed.changed);
-    assert_eq!(sealed.version, "0.1.2");
+    assert_eq!(sealed.version, next);
 }
 
 #[test]
@@ -233,11 +247,12 @@ fn every_file_reads_checks_clean_and_a_broken_one_is_refused_in_the_loaders_word
     }
     // Written as typed: a comment survives, and the pack is resealed.
     let commented = format!("// A note the writer keeps.\n{meadow}");
+    let next = next_patch(&scratch);
     let sealed = session
         .write("data/maps/meadow.ron", &commented, &data)
         .unwrap()
         .unwrap();
-    assert_eq!(sealed.version, "0.1.2");
+    assert_eq!(sealed.version, next);
     assert_eq!(session.read("data/maps/meadow.ron").unwrap(), commented);
     reload(&scratch).unwrap_or_else(|e| panic!("{e}"));
 }
@@ -245,7 +260,12 @@ fn every_file_reads_checks_clean_and_a_broken_one_is_refused_in_the_loaders_word
 #[test]
 fn notes_are_written_at_once_never_sealed_and_orphans_are_told_apart() {
     let (mut session, scratch, data) = session("edit-session-notes");
-    assert!(session.notes().is_empty());
+    // The shipped pack carries notes (M5.10: the maps' comments, and the owner's on the
+    // town's portal cell): the test counts from them, and its map note replaces the town's.
+    let shipped = session.notes().len();
+    let shipped_town = session.notes().with_prefix("test:map:town").len();
+    assert!(session.notes().get("test:map:town").is_some());
+    let version = version_of(&scratch);
     let seal_before = std::fs::read_to_string(scratch.join("pack.ron")).unwrap();
     assert_eq!(
         session.set_note("Not a key", Some("x")),
@@ -273,12 +293,15 @@ fn notes_are_written_at_once_never_sealed_and_orphans_are_told_apart() {
     session
         .set_note("test:monster:dragon", Some("Planned for the depths."))
         .unwrap();
-    assert_eq!(session.notes().len(), 5);
+    assert_eq!(session.notes().len(), shipped + 4);
     assert_eq!(
         session.notes().get("test:map:town/0/1,1"),
         Some("The inn's front room.")
     );
-    assert_eq!(session.notes().with_prefix("test:map:town").len(), 3);
+    assert_eq!(
+        session.notes().with_prefix("test:map:town").len(),
+        shipped_town + 2
+    );
     assert!(
         scratch.join("notes/town.ron").is_file(),
         "a map's notes in its own file"
@@ -298,15 +321,15 @@ fn notes_are_written_at_once_never_sealed_and_orphans_are_told_apart() {
     );
     let data = reload(&scratch).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
-        data.fingerprints[1].version, "0.1.1",
+        data.fingerprints[1].version, version,
         "the pack loads unchanged"
     );
     // A second session reads the files back; taking the last note of a file removes the file.
     let again = Session::new(vec![base_pack(), scratch.clone()]).unwrap();
-    assert_eq!(again.notes().len(), 5);
+    assert_eq!(again.notes().len(), shipped + 4);
     session.set_note("base:item:mace", None).unwrap();
     assert!(!scratch.join("notes/item.ron").exists());
-    assert_eq!(session.notes().len(), 4);
+    assert_eq!(session.notes().len(), shipped + 3);
     // The RON view writes a notes file as typed too, with no reseal.
     let text = session.read("notes/town.ron").unwrap();
     assert_eq!(session.write("notes/town.ron", &text, &data).unwrap(), None);

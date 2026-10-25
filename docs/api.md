@@ -1116,6 +1116,9 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-10-25: no wire change. `packs/test` re-authored through the editor (M5.10): the four maps in
+  the writer's layout, their comments as `notes/`, sealed at 0.2.0, so the goldens moved: walk
+  `c5ce78d4a5d9655a`, fight `f90c92e47e6b2777`.
 - 2026-10-21: the editor's 17 ops `editor.*` (M5.3; `omnis_data::edit`), their seven replies
   `editor`, `maps`, `files`, `file`, `checked`, `note`, `notes`, the error kind `Invalid`, and
   `written.version`; the ops to 44, the error kinds to 11.
