@@ -1,0 +1,248 @@
+//! The move tool (the owner's drawing-GUI column, step 2, 2026-10-25): a press on a cell with a
+//! placement takes the first listed, the drag carries it and letting go puts it on the cell
+//! under the pointer, a removal and a placement in one step (`Document::place_many`); a press
+//! anywhere else drags the plan itself by whole cells (`View::origin`). The middle button drags
+//! the plan with any tool, a shortcut for Move's pan. What the pointer holds is what was under
+//! it at the press, as the owner chose (a chosen selection comes with the lasso). Bevy-free.
+
+use super::run::{Pointer, Press};
+use super::{Editor, Here, PlaceKey};
+use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::edit::Place;
+
+/// A drag in progress under the Move tool or the middle button.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Grab {
+    /// The cell pressed on, when the press was on the map.
+    pub from: Option<(u16, u16)>,
+    /// The placement carried, if the press took one; none pans the plan.
+    pub held: Option<Here>,
+    /// The pane pixel of the press.
+    pub press: (f32, f32),
+    /// Where the plan looked at the press.
+    pub origin: (i64, i64),
+    /// Whether the middle button holds it (the left otherwise).
+    pub middle: bool,
+}
+
+impl Editor {
+    /// The plan's pointer for a drag: a grab in progress follows its button; the middle button
+    /// going down starts a pan with any tool; with the Move tool a left press starts a grab of
+    /// what is under it and a right click picks as elsewhere. Some when this frame was a drag's
+    /// (whether a button went down on the plan), None for the tool's own pointer rules.
+    pub(super) fn grabbing(&mut self, data: &Data, p: Pointer) -> Option<bool> {
+        if let Some(grab) = &self.grab {
+            let button = if grab.middle { p.middle } else { p.left };
+            match button {
+                Press::Held => self.drag_grab(p.pixel),
+                Press::Up | Press::Down => self.end_grab(data, p.pixel),
+            }
+            return Some(false);
+        }
+        if p.middle == Press::Down
+            && let Some(pixel) = p.pixel
+        {
+            self.start_grab(pixel, true);
+            return Some(true);
+        }
+        if self.tool != super::Tool::Move {
+            return None;
+        }
+        if self.corner.is_some() {
+            self.corner = None;
+            self.revision = self.revision.wrapping_add(1);
+        }
+        let target = p.pixel.and_then(|(px, py)| self.aim(px, py));
+        if self.hover != target {
+            self.hover = target;
+        }
+        if p.right_down
+            && let Some(target) = target
+        {
+            self.pick(target);
+            return Some(true);
+        }
+        if p.left == Press::Down
+            && let Some(pixel) = p.pixel
+        {
+            self.start_grab(pixel, false);
+            return Some(true);
+        }
+        Some(false)
+    }
+
+    /// Start a drag at pane pixel `pixel`: of the first placement on the cell under it, unless
+    /// `pan` or the cell has none, when the plan itself is dragged. The cursor goes to the cell.
+    fn start_grab(&mut self, pixel: (f32, f32), pan: bool) {
+        let from = self.view.hit(self.size(), pixel.0, pixel.1);
+        let held = match from {
+            Some(cell) if !pan => self.here_at(cell).into_iter().next(),
+            _ => None,
+        };
+        if let Some(cell) = from
+            && !pan
+        {
+            self.point(cell);
+        }
+        self.grab = Some(Grab {
+            from,
+            held,
+            press: pixel,
+            origin: self.view.origin,
+            middle: pan,
+        });
+    }
+
+    /// The button is still held at `pixel`: a carried placement's cursor follows the cell under
+    /// the pointer; a pan moves the plan by the whole cells the pointer has crossed since the
+    /// press. Off the plan nothing moves.
+    fn drag_grab(&mut self, pixel: Option<(f32, f32)>) {
+        let (Some(grab), Some((px, py))) = (self.grab.clone(), pixel) else {
+            return;
+        };
+        if grab.held.is_some() {
+            if let Some(cell) = self.view.hit(self.size(), px, py) {
+                self.point(cell);
+            }
+            return;
+        }
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+        let crossed = {
+            let s = self.view.scale() as f32;
+            (
+                ((px - grab.press.0) / s).trunc() as i64,
+                ((py - grab.press.1) / s).trunc() as i64,
+            )
+        };
+        let origin = (grab.origin.0 - crossed.0, grab.origin.1 - crossed.1);
+        if self.view.origin != origin {
+            self.view.origin = origin;
+            self.revision = self.revision.wrapping_add(1);
+        }
+    }
+
+    /// The button is let go at `pixel`: a carried placement lands on the cell under the pointer
+    /// when that is a cell of the map other than the one it came from; elsewhere, or a pan,
+    /// nothing more happens.
+    fn end_grab(&mut self, data: &Data, pixel: Option<(f32, f32)>) {
+        let Some(grab) = self.grab.take() else {
+            return;
+        };
+        let (Some(here), Some((px, py))) = (grab.held, pixel) else {
+            return;
+        };
+        if let Some(to) = self.view.hit(self.size(), px, py)
+            && Some(to) != grab.from
+        {
+            self.moved(data, &here, to);
+        }
+    }
+
+    /// Put the placement `here` names on `to` of the shown level: a removal and a placement in
+    /// one step, the cursor on `to`. A tile-keyed kind (a portal, a site, a ground pile) is
+    /// refused where one of its kind already is; the refusal is said. Whether the map changed.
+    pub fn moved(&mut self, data: &Data, here: &Here, to: (u16, u16)) -> bool {
+        let Some(def) = self.def() else {
+            return false;
+        };
+        let (level, (x, y)) = (self.level, to);
+        let there = |l, px, py| (l, px, py) == (level, x, y);
+        let occupied = |what: &str| format!("{what} is already at ({x}, {y})");
+        let new = match &here.key {
+            PlaceKey::Portal {
+                level: l,
+                x: fx,
+                y: fy,
+            } => {
+                if def.portals.iter().any(|p| there(p.level, p.x, p.y)) {
+                    self.message = Some(occupied("a portal"));
+                    return false;
+                }
+                def.portals
+                    .iter()
+                    .find(|p| (p.level, p.x, p.y) == (*l, *fx, *fy))
+                    .cloned()
+                    .map(|mut p| {
+                        (p.x, p.y) = (x, y);
+                        Place::Portal(p)
+                    })
+            }
+            PlaceKey::Site {
+                level: l,
+                x: fx,
+                y: fy,
+            } => {
+                if def.sites.iter().any(|s| there(s.level, s.x, s.y)) {
+                    self.message = Some(occupied("a site"));
+                    return false;
+                }
+                def.sites
+                    .iter()
+                    .find(|s| (s.level, s.x, s.y) == (*l, *fx, *fy))
+                    .cloned()
+                    .map(|mut s| {
+                        (s.x, s.y) = (x, y);
+                        Place::Site(s)
+                    })
+            }
+            PlaceKey::Ground {
+                level: l,
+                x: fx,
+                y: fy,
+            } => {
+                if def.ground.iter().any(|g| there(g.level, g.x, g.y)) {
+                    self.message = Some(occupied("a ground pile"));
+                    return false;
+                }
+                def.ground
+                    .iter()
+                    .find(|g| (g.level, g.x, g.y) == (*l, *fx, *fy))
+                    .cloned()
+                    .map(|mut g| {
+                        (g.x, g.y) = (x, y);
+                        Place::Ground(g)
+                    })
+            }
+            PlaceKey::Encounter { id } => {
+                def.encounters
+                    .iter()
+                    .find(|e| e.id == *id)
+                    .cloned()
+                    .map(|mut e| {
+                        (e.x, e.y) = (x, y);
+                        Place::Encounter(e)
+                    })
+            }
+            PlaceKey::Object { id } => {
+                def.objects
+                    .iter()
+                    .find(|o| o.id == *id)
+                    .cloned()
+                    .map(|mut o| {
+                        (o.x, o.y) = (x, y);
+                        Place::Object(o)
+                    })
+            }
+            PlaceKey::Lore { id } => def.lore.iter().find(|l| l.id == *id).cloned().map(|mut l| {
+                (l.x, l.y) = (x, y);
+                Place::Lore(l)
+            }),
+            PlaceKey::RestEvent { .. } => None,
+        };
+        let Some(new) = new else {
+            self.message = Some(format!("nothing to move: {}", here.label));
+            return false;
+        };
+        let places = vec![Place::Remove(here.key.clone()), new];
+        let result = self
+            .session
+            .document_mut()
+            .and_then(|d| d.place_many(places));
+        if !self.took(data, result) {
+            return false;
+        }
+        self.cursor = to;
+        self.message = Some(format!("{} moved to ({x}, {y})", here.label));
+        true
+    }
+}

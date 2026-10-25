@@ -6,7 +6,8 @@
 //! screen's shape changed and its words are rewritten in place when only they did (so a
 //! field keeps its caret), the plan repainted only when what it shows changed. The pointer paints (M5.5): a left click paints the brush at what the
 //! pointer aims at (`Editor::aim`, shown as a hover over the plan before the click) and a drag
-//! is one stroke, a right click picks what is there. The editor
+//! is one stroke, a right click picks what is there; a drag with the Move tool carries a
+//! placement or pans the plan, as the middle button does with any tool (step 2, 2026-10-25). The editor
 //! runs with no `Session`, so nothing of the game moves or draws; its menu is a screen of the
 //! kit (`ScreenId::EditorMenu`). Headless-safe: without `Assets<Image>` the plan is not
 //! painted, and the rest stands.
@@ -633,19 +634,22 @@ fn route(
         }
         // The pointer's rules are the model's (`Editor::pointer`): the hover, a click's paint
         // or pick, a drag's stroke, and the run tools' corners.
-        let left = if mouse.just_pressed(MouseButton::Left) {
-            Press::Down
-        } else if mouse.pressed(MouseButton::Left) {
-            Press::Held
-        } else {
-            Press::Up
+        let press = |button| {
+            if mouse.just_pressed(button) {
+                Press::Down
+            } else if mouse.pressed(button) {
+                Press::Held
+            } else {
+                Press::Up
+            }
         };
         let clicked = editing.pointer(
             &data,
             Pointer {
                 pixel,
-                left,
+                left: press(MouseButton::Left),
                 right_down: mouse.just_pressed(MouseButton::Right),
+                middle: press(MouseButton::Middle),
             },
         );
         if clicked
@@ -714,10 +718,13 @@ fn route(
             .map(|(_, a, step)| (a, step))
             .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)))
             .or_else(|| {
-                // The tools' keys (V, B, P, N, X: `Tool::key`), shortcuts for the grid's icons.
+                // The tools' keys (V, B, M, F, P, N, X: `Tool::key`), shortcuts for the grid's
+                // icons.
                 [
                     (KeyCode::KeyV, Tool::Select),
                     (KeyCode::KeyB, Tool::Brush),
+                    (KeyCode::KeyM, Tool::Move),
+                    (KeyCode::KeyF, Tool::Fill),
                     (KeyCode::KeyP, Tool::Corners),
                     (KeyCode::KeyN, Tool::Freehand),
                     (KeyCode::KeyX, Tool::Eraser),

@@ -1,7 +1,8 @@
 # Continuity notes
 
-Written 2026-10-25, after step 1 of the editor's column as a drawing GUI (`96237cbf`, `289d86d5`, accepted
-by the owner: "This is good, accepted."). Rewrite this file every time it is used. Durable knowledge lives in
+Written 2026-10-25, after step 2 of the editor's column as a drawing GUI (Fill and Move, one commit, built
+and gated; awaiting the owner's hand test, `tasks/acceptance/editor-column-2.md`). Step 1 was accepted the same
+day ("This is good, accepted."). Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
 ## Where we are
@@ -20,20 +21,30 @@ by the owner: "This is good, accepted."). Rewrite this file every time it is use
   the inspector's Add level and Level...; `Editor::paint` dispatches by tool, `here_at(cell)`, `pick` → brush +
   entry or the eraser; `EditAct::Tool`; `run::paints(size, sides, kind)`; keys V B P N X). Owner's choices in the
   planning: view controls on the bar, details under the palette, no Fill yet, the eraser by what is under the
-  pointer. Later steps in TODO: Fill and Move; placements as stamps; Lasso and terrain runs; a history list.
+  pointer.
+- **Step 2, Fill and Move (2026-10-25, built, not yet hand-tested; `tasks/acceptance/editor-column-2.md`):**
+  `editor/fill.rs` (`region(grid, start)`: one ground joined through open sides, every closed side a bound;
+  `Editor::fill` → `paint_many`, "N cells filled with r street"), `editor/grab.rs` (`Grab`, `Editor.grab`,
+  `grabbing` read first by `pointer`; a press on a placement carries it, `moved` → `Document::place_many`
+  (new, beside `paint_many`), refused where a tile-keyed kind already is; a press elsewhere or the middle
+  button pans `View::origin` by whole cells); `Tool::{Move, Fill}` (icons `move`, `paint-bucket`; keys M, F);
+  `apply` clears `grab`; `Tool(Fill)` with an edge chooses the first terrain; `Brush(i)` keeps Fill for a
+  terrain or the height. Owner's choices: Move grabs what is under the pointer, any closed side bounds, whole
+  cells. Later steps in TODO: placements as stamps (3); Lasso and terrain runs (4); a history list (5).
 - **Observed, not fixed (told the owner 2026-10-25):** with the map's own file open as text and typed into, a
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **Step 2 of the column (Fill and Move) in plan mode**, when the owner asks (TODO lists steps 2 to 5: Fill
-   and Move; placements as stamps; Lasso and terrain runs; a history list). The owner's order of 2026-10-24
-   otherwise: the activities schema when a second kind has engine rules;
-   then the plan in `tasks/TODO.md`: the look in data, M9.
-2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows;
-   the slider's thumb re-synced after a refused value; plan edges one pixel at every zoom (may read thin at
-   128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner); an `editor.run` op; the
-   icons' keys shown somewhere (a dim icon shows no reason).
+1. **The owner's hand test of step 2** (`tasks/acceptance/editor-column-2.md`); on acceptance, a prose commit
+   under `tasks/` as for step 1. Then **step 3 (placements as palette stamps) in plan mode** when the owner
+   asks (TODO: steps 3 to 5). The owner's order of 2026-10-24 otherwise: the activities schema when a second
+   kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
+2. Later: a smooth (sub-cell) pan; a fill's region previewed on hover; the map's own fields (`Edit::Map`),
+   Resize and New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a
+   refused value; plan edges one pixel at every zoom (may read thin at 128); the stale-text-over-paint rule
+   above; the 4 MiB file cap stays soft (owner); an `editor.run` op (and now a fill and a move); the icons'
+   keys shown somewhere (a dim icon shows no reason).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -61,7 +72,8 @@ by the owner: "This is good, accepted."). Rewrite this file every time it is use
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
-  terrains plus 4 (`brush::palette`: Wall, Door, Ramp, Height); `Tool::ALL` 5; the kit's `Kind` has 7 members.
+  terrains plus 4 (`brush::palette`: Wall, Door, Ramp, Height); `Tool::ALL` 7 (Select, Brush, Move, Fill, Corners,
+  Freehand, Eraser); the kit's `Kind` has 7 members.
 - **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}`; a test that edits a
   pack works on a scratch copy (`omnis-data/tests/common::copy_pack`, `omnis-cli/tests/headless.rs::scratch_pack`,
   `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and reseals it; the bad-pack corpus `broken` carries
@@ -78,7 +90,8 @@ by the owner: "This is good, accepted."). Rewrite this file every time it is use
   for a layout test: crowd the column with content instead), `tests/common/editor.rs` (`in_editor`,
   `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`, `type_into`,
   `field_entity`, `field_of`, `panel`). A written `RelativeCursorPosition` reaches the model on the next
-  `app.update()`: point, then update, then read. Under Bevy picking a faked `Interaction::Pressed` is reset
+  `app.update()`: point, then update, then read; `mouse(app, button, state)` writes the button and runs a frame
+  (the middle button too). Under Bevy picking a faked `Interaction::Pressed` is reset
   before the route reads it: drive the model through `shell::editor::act` in `ui_editor_app` tests. Dim kit
   controls carry no press marker (an Undo at depth 0 cannot be pressed). `tap` sends no character: dirty a field
   with `keyboard`. `omnis-cli/tests/headless.rs` is its own test binary (`--test headless`). `screen_text`

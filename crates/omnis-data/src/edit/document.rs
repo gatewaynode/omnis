@@ -338,6 +338,24 @@ impl Document {
         self.change(false, |state| apply_place(&mut state.def, place))
     }
 
+    /// Place, replace or remove with every `Place` of `places` in order, as one step: every
+    /// one lands or none does (a placement moved by the editor is a removal and a placement).
+    /// Closes any open stroke. An empty list changes nothing and is no step.
+    ///
+    /// # Errors
+    /// The places' rules, as `place`.
+    pub fn place_many(&mut self, places: Vec<Place>) -> Result<(), EditError> {
+        self.in_stroke = false;
+        if places.is_empty() {
+            return Ok(());
+        }
+        self.change(false, |state| {
+            places
+                .into_iter()
+                .try_for_each(|place| apply_place(&mut state.def, place))
+        })
+    }
+
     /// Change the map's structure: its size, its fields, a level or a terrain.
     ///
     /// # Errors

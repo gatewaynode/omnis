@@ -51,6 +51,8 @@ pub struct Pointer {
     pub left: Press,
     /// The right button went down this frame.
     pub right_down: bool,
+    /// The middle button: held, it drags the plan with any tool (`super::grab`).
+    pub middle: Press,
 }
 
 /// A button's state this frame.
@@ -141,9 +143,13 @@ impl Editor {
     /// aim is the grid corner nearest the pointer: by corners, a click starts the run or adds
     /// the corner, and a click on the run's last corner takes it; freehand, a press starts
     /// the run, the held button adds each corner passed and letting go takes it; a right click
-    /// picks the nearest side as with an edge brush. Whether a button went down on the plan
-    /// (the shell takes the keyboard from a field then).
+    /// picks the nearest side as with an edge brush. A drag in progress, the middle button and
+    /// the Move tool are `grabbing`'s first. Whether a button went down on the plan (the shell
+    /// takes the keyboard from a field then).
     pub fn pointer(&mut self, data: &Data, p: Pointer) -> bool {
+        if let Some(down) = self.grabbing(data, p) {
+            return down;
+        }
         if !self.tool.is_run() {
             if self.corner.is_some() {
                 self.corner = None;

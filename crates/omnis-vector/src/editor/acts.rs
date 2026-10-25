@@ -129,6 +129,8 @@ impl Editor {
     /// pending wall run is dropped when the act changed the tool, the level, the map or its
     /// history: a run belongs to the place and the tool it was drawn with.
     pub fn apply(&mut self, data: &Data, act: EditAct, step: i8) -> Asked {
+        // Any act ends a drag: what it held is let go where it is.
+        self.grab = None;
         let before = self.run_holds();
         let asked = self.act(data, act, step);
         if self.run.is_some() && self.run_holds() != before {
@@ -196,6 +198,14 @@ impl Editor {
                 if tool.is_run() && !self.entry.is_edge() {
                     self.entry = Entry::Edge(EdgeKind::Wall);
                 }
+                // A fill takes a terrain or the height: choosing it with an edge chosen chooses
+                // the first terrain (the height on a map without one).
+                if tool == Tool::Fill && self.entry.is_edge() {
+                    self.entry = match self.def().map(|def| Entry::first(&def)) {
+                        Some(first) if !first.is_edge() => first,
+                        _ => Entry::Height,
+                    };
+                }
             }
             EditAct::Brush(i) => {
                 if let Some(entry) = self
@@ -203,8 +213,11 @@ impl Editor {
                     .and_then(|def| brush::palette(&def).get(usize::from(i)).copied())
                 {
                     self.entry = entry;
-                    // Choosing what to paint is choosing to paint, unless a run tool can take it.
-                    if !(self.tool.is_run() && entry.is_edge()) {
+                    // Choosing what to paint is choosing to paint, unless the tool can take
+                    // the entry: a run an edge, the fill a terrain or the height.
+                    let keeps = (self.tool.is_run() && entry.is_edge())
+                        || (self.tool == Tool::Fill && !entry.is_edge());
+                    if !keeps {
                         self.tool = Tool::Brush;
                     }
                 }

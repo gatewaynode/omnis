@@ -47,7 +47,7 @@ fn the_column_is_a_tool_grid_a_palette_grid_the_details_the_files_and_the_button
     let app = in_editor("test:map:town");
     let def = editing(&app).def().expect("open");
     let screen = tools(&app);
-    // The tool grid: five tools as icons, the brush chosen to begin, then undo and redo.
+    // The tool grid: seven tools as icons, the brush chosen to begin, then undo and redo.
     for tool in Tool::ALL {
         let c = screen
             .control(ControlId::Edit(EditAct::Tool(tool)))

@@ -7,8 +7,10 @@
 pub mod acts;
 pub mod brush;
 pub mod files;
+pub mod fill;
 pub mod form;
 pub mod forms;
+pub mod grab;
 pub mod plan;
 pub mod playtest;
 pub mod preview;
@@ -19,6 +21,7 @@ pub use acts::EditAct;
 use brush::{Entry, Target, Tool};
 use files::{FileEdit, Mode};
 use form::{At, Change, Form};
+use grab::Grab;
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{
     Brush, EdgeKind, Edit, EditError, EditorStatus, Grid, MapEntry, Place, Session,
@@ -101,6 +104,8 @@ pub struct Editor {
     pub corner: Option<Corner>,
     /// The wall run being drawn, if one is: pending by corners, or under a freehand drag.
     pub run: Option<Run>,
+    /// The drag under the Move tool or the middle button, while a button holds it (`grab`).
+    pub grab: Option<Grab>,
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
@@ -157,6 +162,7 @@ impl Editor {
             hover: None,
             corner: None,
             run: None,
+            grab: None,
             status,
             form: None,
             place_kind: 0,
@@ -190,6 +196,7 @@ impl Editor {
             .as_ref()
             .map_or(Entry::Edge(EdgeKind::Wall), Entry::first);
         self.stroke = None;
+        self.grab = None;
         self.message = None;
         self.resolved = None;
         self.form = None;
@@ -418,13 +425,14 @@ impl Editor {
     /// What a click at pane pixel `(px, py)` acts on: with the brush and an edge entry the cell
     /// under it and its nearest side, wherever in the cell the pixel lies (never the facing: the
     /// mouse shows what it will do); with the brush otherwise and the eraser the cell, or its
-    /// edge when the pixel is within a quarter of the side of that border; with select the cell.
-    /// None off the map, and with a run tool, which aims at a corner (`run::Editor::pointer`).
+    /// edge when the pixel is within a quarter of the side of that border; with select, move
+    /// and fill the cell. None off the map, and with a run tool, which aims at a corner
+    /// (`run::Editor::pointer`).
     #[must_use]
     pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
         let size = self.size();
         match (self.tool, self.entry) {
-            (Tool::Select, _) => self
+            (Tool::Select | Tool::Move | Tool::Fill, _) => self
                 .view
                 .hit(size, px, py)
                 .map(|cell| Target { cell, edge: None }),
@@ -450,7 +458,8 @@ impl Editor {
     }
 
     /// Use the tool at `target` on the shown level and put the cursor on its cell: the brush
-    /// paints the palette's entry; the eraser opens the edge, removes the first placement on the
+    /// paints the palette's entry; the fill paints it over the cell's region (`fill`, one step
+    /// of its own, once a click); the eraser opens the edge, removes the first placement on the
     /// cell (one step of its own) or clears its ground; select only moves the cursor. With
     /// `stroke` a paint joins the stroke the held button keeps open, so a drag undoes as one. A
     /// refusal is said and changes nothing. Whether the map changed.
@@ -464,6 +473,7 @@ impl Editor {
                 self.point(target.cell);
                 return false;
             }
+            Tool::Fill => return self.fill(data, target.cell),
             Tool::Brush => self.entry.brush(&def, target, self.facing, self.eighths),
             Tool::Eraser => match target.edge {
                 Some(side) => Some(Brush::Edge {
@@ -478,7 +488,8 @@ impl Editor {
                     None => Some(Brush::Clear),
                 },
             },
-            Tool::Corners | Tool::Freehand => None,
+            // Move's drag never comes this way (`grab::Editor::grabbing`).
+            Tool::Move | Tool::Corners | Tool::Freehand => None,
         };
         let Some(brush) = brush else {
             return false;

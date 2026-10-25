@@ -278,8 +278,13 @@ no loss, and every later map is built with it.
     the view icons and the level choice, the inspector Add level and Level...; keys V, B, P, N, X; Select moves
     the cursor; the Eraser opens an edge, removes the first placement or clears the ground under the pointer; a
     run takes the entry's edge kind ("3 sides set to door").
-  - [ ] Step 2: Fill (the connected same-terrain region bounded by walls and doors, one step) and Move (a
-    selected placement, or the map panned when none is selected).
+  - [x] Step 2 (2026-10-25, one commit; `tasks/acceptance/editor-column-2.md`): Fill (the region of one ground
+    under the click, joined through open sides, every closed side a bound, one step; a terrain or the height) and
+    Move (the placement under the press carried to the cell let go on, one step, refused where one of its kind
+    already is; a press elsewhere pans the plan by whole cells, as the middle button does under any tool).
+    Owner's choices in the planning: Move grabs what is under the pointer (no selection until the lasso), any
+    closed side bounds a fill, the pan moves by whole cells. Later: a smooth (sub-cell) pan; a fill's region
+    previewed on hover.
   - [ ] Step 3: placements as palette stamps (an encounter, an object, an activity placed with a click, its
     details edited in the inspector).
   - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).

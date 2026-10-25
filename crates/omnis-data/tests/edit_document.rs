@@ -175,6 +175,69 @@ fn many_paints_are_one_step_and_fail_together() {
 }
 
 #[test]
+fn many_places_are_one_step_and_fail_together() {
+    let data = load_test_packs();
+    let mut doc = open(&data, "test:map:town");
+    let site_at = |doc: &Document, x: u16, y: u16| {
+        doc.def()
+            .sites
+            .iter()
+            .find(|s| (s.level, s.x, s.y) == (G, x, y))
+            .cloned()
+    };
+    let inn = site_at(&doc, 1, 1).expect("the inn's site");
+    let mut moved = inn.clone();
+    moved.x = 2;
+    let places = vec![
+        Place::Remove(Target::Site {
+            level: G,
+            x: 1,
+            y: 1,
+        }),
+        Place::Site(moved),
+    ];
+    assert_eq!(doc.place_many(places), Ok(()));
+    assert_eq!(doc.undo_depth(), 1, "a removal and a placement, one step");
+    assert!(site_at(&doc, 1, 1).is_none());
+    assert_eq!(
+        site_at(&doc, 2, 1).map(|s| s.service),
+        Some(inn.service.clone())
+    );
+    // A refusal in the list lands nothing: the placement before it is not kept.
+    let mut temple = site_at(&doc, 4, 1).expect("the temple's site");
+    temple.x = 5;
+    let mixed = vec![
+        Place::Site(temple),
+        Place::Remove(Target::Site {
+            level: G,
+            x: 9,
+            y: 9,
+        }),
+    ];
+    assert!(matches!(
+        doc.place_many(mixed),
+        Err(EditError::NoSuchTarget(_))
+    ));
+    assert_eq!(doc.undo_depth(), 1);
+    assert!(site_at(&doc, 5, 1).is_none());
+    assert!(site_at(&doc, 4, 1).is_some());
+    // It closes an open stroke, and an empty list is no step.
+    let glyph = doc.def().terrains[1].glyph;
+    let tile = Brush::Tile { glyph, rise: None };
+    doc.paint(G, 2, 2, &tile, false).unwrap();
+    assert_eq!(doc.undo_depth(), 2);
+    assert_eq!(doc.place_many(Vec::new()), Ok(()));
+    assert_eq!(doc.undo_depth(), 2);
+    doc.paint(G, 3, 2, &tile, true).unwrap();
+    assert_eq!(doc.undo_depth(), 3, "the list closed the stroke");
+    // One undo returns the site.
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    assert_eq!(site_at(&doc, 1, 1), Some(inn));
+}
+
+#[test]
 fn the_undo_cap_holds() {
     let data = load_test_packs();
     let mut doc = open(&data, "test:map:town");

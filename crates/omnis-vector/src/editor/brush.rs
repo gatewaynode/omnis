@@ -21,6 +21,12 @@ pub enum Tool {
     Select,
     /// A click paints the palette's entry at the target; a drag is one stroke.
     Brush,
+    /// A drag carries the first placement under the press to the cell let go on, or pans the
+    /// plan when the press took none (`super::grab`).
+    Move,
+    /// A click fills the region of one ground under it with the entry, bounded by every closed
+    /// side (`super::fill`).
+    Fill,
     /// A run of edges drawn corner by corner, taken by a click on its last corner (`super::run`).
     Corners,
     /// A run of edges drawn freehand, taken when the button is let go.
@@ -31,9 +37,11 @@ pub enum Tool {
 
 impl Tool {
     /// Every tool, in the grid's order.
-    pub const ALL: [Tool; 5] = [
+    pub const ALL: [Tool; 7] = [
         Tool::Select,
         Tool::Brush,
+        Tool::Move,
+        Tool::Fill,
         Tool::Corners,
         Tool::Freehand,
         Tool::Eraser,
@@ -45,6 +53,8 @@ impl Tool {
         match self {
             Tool::Select => "Select",
             Tool::Brush => "Brush",
+            Tool::Move => "Move",
+            Tool::Fill => "Fill",
             Tool::Corners => "Run by corners",
             Tool::Freehand => "Freehand run",
             Tool::Eraser => "Eraser",
@@ -57,6 +67,8 @@ impl Tool {
         match self {
             Tool::Select => "mouse-pointer-2",
             Tool::Brush => "brush",
+            Tool::Move => "move",
+            Tool::Fill => "paint-bucket",
             Tool::Corners => "pen-tool",
             Tool::Freehand => "pencil",
             Tool::Eraser => "eraser",
@@ -69,6 +81,8 @@ impl Tool {
         match self {
             Tool::Select => 'V',
             Tool::Brush => 'B',
+            Tool::Move => 'M',
+            Tool::Fill => 'F',
             Tool::Corners => 'P',
             Tool::Freehand => 'N',
             Tool::Eraser => 'X',
@@ -257,6 +271,7 @@ mod tests {
 
     #[test]
     fn every_tool_has_a_name_an_icon_of_the_set_and_a_key() {
+        assert_eq!(Tool::ALL.len(), 7);
         let mut keys = Vec::new();
         for tool in Tool::ALL {
             assert!(tool.label().is_ascii());
@@ -266,6 +281,7 @@ mod tests {
         }
         assert!(Tool::Corners.is_run() && Tool::Freehand.is_run());
         assert!(!Tool::Brush.is_run() && !Tool::Eraser.is_run() && !Tool::Select.is_run());
+        assert!(!Tool::Move.is_run() && !Tool::Fill.is_run());
     }
 
     #[test]
