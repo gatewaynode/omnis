@@ -10,6 +10,7 @@ pub mod editor;
 pub mod fonts;
 pub mod host;
 pub mod hud;
+pub mod icons;
 pub mod minimap;
 pub mod movement;
 pub mod notice;
@@ -81,6 +82,7 @@ impl Plugin for ShellPlugin {
         .configure_sets(
             Update,
             VectorSet::Draw.run_if(resource_exists::<session::Session>),
-        );
+        )
+        .add_plugins(icons::IconsPlugin);
     }
 }

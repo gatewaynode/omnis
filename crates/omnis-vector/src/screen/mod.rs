@@ -311,6 +311,15 @@ pub enum Kind {
         /// The most bytes it takes.
         max: usize,
     },
+    /// A square button showing the Lucide icon `name` (the owner's drawing-GUI column, 2026-10-25);
+    /// pressed like a button. `chosen` is the one pressed state of a grid of them: framed and drawn
+    /// white. The label is the icon's name for the text readers and is not drawn.
+    Icon {
+        /// The icon's name in the set.
+        name: &'static str,
+        /// Whether this is the grid's current one.
+        chosen: bool,
+    },
 }
 
 /// A control: what it is, what it says, and why it cannot be used now, if it cannot.
@@ -424,9 +433,9 @@ impl Screen {
         self.keys.iter().find(|(k, _)| *k == key).map(|(_, c)| *c)
     }
 
-    /// A hash of the screen's shape: its panels, rows, spans' count and controls' ids, kinds and
-    /// whether they are live, not their words. The renderer rebuilds its nodes only when the
-    /// shape changes, and rewrites the words in place otherwise.
+    /// A hash of the screen's shape: its panels, rows, spans' count and controls' ids, kinds,
+    /// whether they are live and which icon is chosen, not their words. The renderer rebuilds its
+    /// nodes only when the shape changes, and rewrites the words in place otherwise.
     #[must_use]
     pub fn shape(&self) -> u64 {
         let mut h = Fnv(0xcbf2_9ce4_8422_2325);
@@ -436,7 +445,14 @@ impl Screen {
             for row in &panel.rows {
                 row.spans.len().hash(&mut h);
                 for c in &row.controls {
-                    (c.id, core::mem::discriminant(&c.kind), c.why_not.is_some()).hash(&mut h);
+                    let chosen = matches!(c.kind, Kind::Icon { chosen: true, .. });
+                    (
+                        c.id,
+                        core::mem::discriminant(&c.kind),
+                        c.why_not.is_some(),
+                        chosen,
+                    )
+                        .hash(&mut h);
                 }
                 row.after.len().hash(&mut h);
                 row.tint.hash(&mut h);
@@ -778,7 +794,7 @@ pub fn apply(
         return Err(Refused::Dim(why.clone()));
     }
     match (&found.kind, payload) {
-        (Kind::Button, Payload::Press)
+        (Kind::Button | Kind::Icon { .. }, Payload::Press)
         | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { min, max, .. }, Payload::Set(n)) => {

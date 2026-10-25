@@ -31,6 +31,7 @@ mod game_io;
 mod geometry;
 mod ground;
 mod inventory;
+mod kit_icons;
 mod labels;
 mod levels;
 mod load_report;

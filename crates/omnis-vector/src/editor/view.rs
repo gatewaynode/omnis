@@ -225,8 +225,8 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     }
 }
 
-/// The plan's rows of the tools column: the level, the zoom, the facing, the brushes and the
-/// terrain buttons.
+/// The plan's rows of the tools column: the level, the brushes and the terrain buttons (the
+/// zoom and the facing are the bar's, 2026-10-25).
 fn plan_rows(
     editor: &Editor,
     _data: &Data,
@@ -237,44 +237,23 @@ fn plan_rows(
 ) -> Vec<Row> {
     let edit = |act| ControlId::Edit(act);
     let at = levels.iter().position(|l| *l == editor.level).unwrap_or(0);
-    let mut rows = vec![
-        Row::controls(vec![
-            dim(
-                choice(edit(EditAct::Level), "Level", level_names.to_vec(), at),
-                no_map.or((levels.len() < 2).then_some("one level")),
-            ),
-            dim(
-                Control::button(edit(EditAct::LevelAdd), "Add level"),
-                no_map,
-            ),
-            dim(
-                Control::button(edit(EditAct::LevelEdit), "Level..."),
-                no_map.or(editor
-                    .level
-                    .is_ground()
-                    .then_some("the ground level is the map")),
-            ),
-        ]),
-        Row::controls(vec![
-            dim(Control::button(edit(EditAct::ZoomOut), "Zoom -  ["), no_map),
-            dim(Control::button(edit(EditAct::ZoomIn), "Zoom +  ]"), no_map),
-            dim(Control::button(edit(EditAct::Centre), "Centre  C"), no_map),
-        ]),
-        Row::controls(vec![
-            dim(
-                Control::button(edit(EditAct::FaceLeft), "Face left  Q"),
-                no_map,
-            ),
-            dim(
-                Control::button(edit(EditAct::FaceRight), "Face right  E"),
-                no_map,
-            ),
-        ]),
-        Row::text(Span::body(format!(
-            "Zoom {} px a cell",
-            editor.view.scale()
-        ))),
-    ];
+    let mut rows = vec![Row::controls(vec![
+        dim(
+            choice(edit(EditAct::Level), "Level", level_names.to_vec(), at),
+            no_map.or((levels.len() < 2).then_some("one level")),
+        ),
+        dim(
+            Control::button(edit(EditAct::LevelAdd), "Add level"),
+            no_map,
+        ),
+        dim(
+            Control::button(edit(EditAct::LevelEdit), "Level..."),
+            no_map.or(editor
+                .level
+                .is_ground()
+                .then_some("the ground level is the map")),
+        ),
+    ])];
     rows.extend(brush_rows(editor, def, no_map));
     rows.extend(run_rows(editor));
     rows.push(Row::controls(vec![
@@ -381,6 +360,35 @@ pub fn bar(editor: &Editor, data: &Data) -> Screen {
     )
     .unwrap_or(0);
     let edit = |act| ControlId::Edit(act);
+    let view = |act, name| {
+        dim(
+            Control {
+                kind: Kind::Icon {
+                    name,
+                    chosen: false,
+                },
+                ..Control::button(edit(act), name)
+            },
+            no_map,
+        )
+    };
+    // The view's controls (the owner's drawing-GUI column, 2026-10-25: the view is the bar's,
+    // the column holds the tools): zoom out and in, centre, turn left and right, as icons; the
+    // keys are their shortcuts.
+    let views = Row {
+        controls: vec![
+            view(EditAct::ZoomOut, "zoom-out"),
+            view(EditAct::ZoomIn, "zoom-in"),
+            view(EditAct::Centre, "focus"),
+            view(EditAct::FaceLeft, "rotate-ccw"),
+            view(EditAct::FaceRight, "rotate-cw"),
+        ],
+        after: vec![Span::body(format!(
+            "{} px a cell   keys [ ] C Q E",
+            editor.view.scale()
+        ))],
+        ..Row::default()
+    };
     let mut controls = vec![
         dim(
             choice(edit(EditAct::CellTerrain), "Terrain", terrains, at),
@@ -403,7 +411,7 @@ pub fn bar(editor: &Editor, data: &Data) -> Screen {
         id: ScreenId::EditorBar,
         title: Span::title(title),
         panels: vec![Panel {
-            rows: vec![Row::controls(controls)],
+            rows: vec![views, Row::controls(controls)],
         }],
         keys: Vec::new(),
         message: None,

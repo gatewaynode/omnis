@@ -1,9 +1,11 @@
 //! A screen's nodes (presentation-ARCHITECTURE §6.4): the heading, the panels side by side, each
 //! row's text and controls, and the outcome line, drawn in the style's roles and sizes. A button
 //! is a bordered box; a choice its name between two arrows; a number its name, arrows and a
-//! slider; a text field an underlined editable line. The markers here let the router find what
+//! slider; a text field an underlined editable line; an icon a square box with its image
+//! (`shell/icons.rs` draws and keeps the images). The markers here let the router find what
 //! was used and the renderer rewrite words in place. Headless-safe.
 
+use super::icons::{self, IconOf, NeedsIcon};
 use crate::screen::{Control, ControlId, Key, Kind, Panel, Screen, ScreenId};
 use crate::style::{Role, SHADES, Size, scaled};
 use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
@@ -173,6 +175,7 @@ pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> Strin
     match &control.kind {
         Kind::Choice { options, at } => return options.get(*at).cloned().unwrap_or_default(),
         Kind::Number { value, .. } => return value.to_string(),
+        Kind::Icon { name, .. } => return (*name).to_owned(),
         Kind::Button | Kind::Text { .. } | Kind::Document { .. } => {}
     }
     match &control.why_not {
@@ -201,10 +204,20 @@ pub(super) fn words(
     )
 }
 
+/// The least width of a control's box: 150 for every screen, and 120 under the editor's mark,
+/// the one exception: its tools column is 330 px and holds its buttons two to a row (the
+/// owner's column, 2026-10-25).
+fn least_width(mark: Mark) -> f32 {
+    match mark {
+        Mark::Editor => 120.0,
+        Mark::Screen | Mark::Side | Mark::Fight => 150.0,
+    }
+}
+
 /// A control's box node.
-fn boxed_node(height: f32) -> Node {
+fn boxed_node(height: f32, mark: Mark) -> Node {
     Node {
-        min_width: Val::Px(scaled(150.0, height)),
+        min_width: Val::Px(scaled(least_width(mark), height)),
         // At least this tall; a long reason wraps inside the box rather than out of it.
         min_height: Val::Px(scaled(34.0, height)),
         padding: UiRect::horizontal(Val::Px(scaled(10.0, height))),
@@ -217,12 +230,73 @@ fn boxed_node(height: f32) -> Node {
 }
 
 /// A bordered box, as every control is drawn.
-fn boxed(role: Role, height: f32) -> impl Bundle {
+fn boxed(role: Role, height: f32, mark: Mark) -> impl Bundle {
     (
-        boxed_node(height),
+        boxed_node(height, mark),
         BorderColor::all(colour(role)),
         BackgroundColor(shade(0)),
     )
+}
+
+/// The marker of `mark`'s router on a pressable node.
+fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
+    match mark {
+        Mark::Screen => entity.insert(Pressable(id)),
+        Mark::Side => entity.insert(Side(id)),
+        Mark::Fight => entity.insert(FightPress(id)),
+        Mark::Editor => entity.insert(EditorPress(id)),
+    };
+}
+
+/// An icon control's nodes: a square box, framed twice as thick when chosen, holding the icon's
+/// image (asked for through `NeedsIcon`, white when chosen, else the role's colour) named by
+/// `IconOf` for the text readers. A dim one has no `Button`.
+fn icon_node(
+    parent: &mut ChildSpawnerCommands,
+    c: &Control,
+    name: &'static str,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) {
+    let height = spawn.height;
+    let side = scaled(44.0, height);
+    let mut entity = parent.spawn((
+        Node {
+            width: Val::Px(side),
+            height: Val::Px(side),
+            flex_shrink: 0.0,
+            border: UiRect::all(Val::Px(if chosen { 2.0 } else { 1.0 })),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BorderColor::all(colour(role)),
+        BackgroundColor(shade(0)),
+    ));
+    pressed_by(&mut entity, spawn.mark, c.id);
+    if c.why_not.is_none() {
+        entity.insert(Button);
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let px = scaled(28.0, height).round().max(1.0) as u32;
+    let colour = if chosen {
+        icons::CHOSEN
+    } else {
+        icons::tint(role)
+    };
+    entity.with_children(|b| {
+        #[allow(clippy::cast_precision_loss)]
+        b.spawn((
+            Node {
+                width: Val::Px(px as f32),
+                height: Val::Px(px as f32),
+                ..default()
+            },
+            IconOf(name),
+            NeedsIcon { name, px, colour },
+        ));
+    });
 }
 
 /// A choice's or a number's arrow: a small pressable box.
@@ -344,14 +418,10 @@ fn control_node(
         tint.unwrap_or(Role::Interface)
     };
     match &c.kind {
+        Kind::Icon { name, chosen } => icon_node(parent, c, name, *chosen, role, spawn),
         Kind::Button => {
-            let mut entity = parent.spawn(boxed(role, height));
-            match mark {
-                Mark::Screen => entity.insert(Pressable(c.id)),
-                Mark::Side => entity.insert(Side(c.id)),
-                Mark::Fight => entity.insert(FightPress(c.id)),
-                Mark::Editor => entity.insert(EditorPress(c.id)),
-            };
+            let mut entity = parent.spawn(boxed(role, height, mark));
+            pressed_by(&mut entity, mark, c.id);
             if c.why_not.is_none() {
                 entity.insert(Button);
             }
@@ -365,7 +435,7 @@ fn control_node(
             });
         }
         Kind::Choice { .. } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
+            parent.spawn(boxed(role, height, mark)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
                 labelled(
@@ -378,7 +448,7 @@ fn control_node(
             });
         }
         Kind::Number { value, min, max } => {
-            parent.spawn(boxed(role, height)).with_children(|b| {
+            parent.spawn(boxed(role, height, mark)).with_children(|b| {
                 b.spawn(words(&c.label, role, Size::Body, height));
                 arrow(b, c.id, false, height);
                 slider(b, c.id, *value, (*min, *max), height);
@@ -398,13 +468,13 @@ fn control_node(
             });
         }
         Kind::Text { value, max, lines } => {
-            let mut boxed = parent.spawn(boxed(role, height));
+            let mut boxed = parent.spawn(boxed(role, height, mark));
             if *lines > 1 {
                 boxed.insert(Node {
                     flex_grow: 1.0,
                     width: Val::Percent(100.0),
                     align_items: AlignItems::FlexStart,
-                    ..boxed_node(height)
+                    ..boxed_node(height, mark)
                 });
             }
             boxed.with_children(|b| {

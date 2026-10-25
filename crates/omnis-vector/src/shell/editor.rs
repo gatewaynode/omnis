@@ -144,7 +144,9 @@ impl Plugin for EditorPlugin {
                 (
                     enter.run_if(resource_added::<Editing>),
                     leave.run_if(resource_removed::<Editing>),
-                    (route, refresh).chain().run_if(resource_exists::<Editing>),
+                    (route, refresh, super::controls::shade)
+                        .chain()
+                        .run_if(resource_exists::<Editing>),
                 )
                     .chain()
                     .in_set(VectorSet::Screens),

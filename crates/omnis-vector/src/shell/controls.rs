@@ -279,7 +279,12 @@ fn light(
     }
 }
 
-fn shade(mut buttons: Query<(&Interaction, &mut BackgroundColor), Changed<Interaction>>) {
+/// The buttons whose shade changed: a `Button` whose `Interaction` moved this frame.
+type Shaded = (Changed<Interaction>, With<Button>);
+
+/// A button's background follows the pointer: at rest, hovered, pressed. Run while a game plays
+/// (this plugin) and while the editor is open (`shell/editor.rs`), which has no game.
+pub(super) fn shade(mut buttons: Query<(&Interaction, &mut BackgroundColor), Shaded>) {
     for (interaction, mut colour) in &mut buttons {
         colour.0 = match interaction {
             Interaction::None => SHADES[0],
