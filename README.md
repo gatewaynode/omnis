@@ -14,7 +14,7 @@ is recorded in `tasks/archive/`.
 
 ## Status
 
-The MVP is built and played: Phase 1 of `PRD.md` §13 is complete but the editor. Each milestone was
+The MVP is built and played: Phase 1 of `PRD.md` §13 is complete, the editor included (M5, 2026-10-25). Each milestone was
 played by the owner before the next one started; the record of each is in
 `tasks/archive/TODO-2026-10-20.md`.
 
@@ -25,7 +25,7 @@ played by the owner before the next one started; the record of each is in
 | M2 | Live instrumentation: the CLI, the dev socket, the MCP bridge |
 | M3 | Party and characters on the SRD 5.1 structure |
 | M4 | Turn-based combat with a dice log |
-| M5 | Editor v1 (W1 of `tasks/TODO.md`): M5.0 to M5.5 built, the ops, the MCP tools, the client's plan view and painting; M5.6 to M5.10 next |
+| M5 | Editor v1 (W1 of `tasks/TODO.md`): the ops and MCP tools, the plan view and brushes, forms for every placement, the author's notes, a 3D preview, Playtest, the RON text editor; `packs/test` re-authored through it (M5.10) |
 | M6 | Spells, items and equipment, remote sensing through a spyglass, a debug menu |
 | M7 | Town and services, rest, progression, the turn budget and declared reactions |
 | M8 | Subjective time with reconciliation, the signal bus, the engine's API (`docs/api.md`) |
@@ -33,8 +33,8 @@ played by the owner before the next one started; the record of each is in
 | Vector adoption | The 3D vector client `omnis-vector` replaces the 2D client at parity (P0 to P9) |
 | M8.5 | Elevation, levels and stairs, objects in data, occluding fills, the camera's pitch, the save model and saves by name across changed packs |
 
-Next is the plan in `tasks/TODO.md`: the editor (M5), then the look in data, the world's structure
-(M9), the living world (M10, M11) and release (M12), toward the owner building the first locality.
+Next is the plan in `tasks/TODO.md`: the look in data, the world's structure (M9), the living world
+(M10, M11) and release (M12), toward the owner building the first locality.
 
 ## Layout
 

@@ -489,3 +489,14 @@
   a crowded panel under Bevy's layout (`ui_editor_app`: the tools column overflows at the test window's
   height), asserting every row is at least as tall as its tallest control.
 
+
+## 2026-10-25 — A literal about a fixture the owner edits through the product is a test that breaks on use
+- **What happened**: four tests pinned the test pack's next seal as the literal `"0.1.2"`, one expected an
+  empty notes store. The owner saved the town through the editor and committed it (0.1.3, a note added):
+  eight tests went red on a tree the owner had every right to produce, and the gate could not run green
+  until M5.10 reconciled it.
+- **Rule**: a fixture the product itself can change (a pack the editor saves, a store it writes) is read
+  by the test, never pinned: the version expected after a save is the manifest's patch one higher
+  (`seal::status`), a count is the shipped count plus the test's own, a key is asserted present, not the
+  only one. A literal is for what only a commit can move (a schema, a protocol, a golden fingerprint), and
+  those are rebaselined in the same commit as the change.

@@ -94,7 +94,7 @@ horizons have a study each.
 ## W1 — The authoring tools (closes PRD §13 Phase 1, D4)
 Done when the Phase 1 content (`packs/test`'s maps and levels) is re-authored in the editor and round-trips with
 no loss, and every later map is built with it.
-- [ ] **M5 Editor v1** (deferred 2026-09-19; settled 2026-10-14: `bevy_ui` in the neon style, a top-down plan one
+- [x] **M5 Editor v1** (closed 2026-10-25 at M5.10; deferred 2026-09-19; settled 2026-10-14: `bevy_ui` in the neon style, a top-down plan one
   level at a time with the 3D view as preview and Playtest, maps plus a RON text editor checked by the loader for
   every other file, a `notes` text on maps and levels; PRD §10, ARCHITECTURE §8.2; `tasks/plans/editor-v1.md` is
   superseded for planning and keeps §A, the document model, and §E's kinds and limits to reuse). Planned in
@@ -229,14 +229,25 @@ no loss, and every later map is built with it.
     `ControlId::BackToEditor`, `Effect::ToEditor` (the game removed, the parked editor re-inserted); Pause and
     Defeat in a playtest. `refresh` tolerates the frame the editor is taken away. Tests
     `tests/editor_playtest.rs` (3); three mutations killed.
-  - [ ] M5.9 The RON text editor (Check, Save verbatim); `tasks/acceptance/m5-9.md`. Built 2026-10-24 (plan mode,
+  - [x] M5.9 The RON text editor (Check, Save verbatim); `tasks/acceptance/m5-9.md`. Built 2026-10-24 (plan mode,
     approved): `editor/files.rs` (`Mode`, `FileEdit { rel, text, disk, errors, fresh }`, `blocked_save`, `verdict`),
     `Editor { mode, files, file }`, acts `Plan`, `Files`, `File(n)`, `FileText`, `Check`, `WriteFile` (→ `Asked::Saved`,
     the map's own file reopening the document), `RevertFile`; `view::tools` with the Plan|Files row and `file_rows`,
     `view::text` (`ScreenId::EditorText`, one forty-line field), the inspector's verdict; `Column::Text` shown by
     mode in the centre; a field of several lines takes its row's width. Tests `tests/editor_files.rs` (3) and the
-    unit test. Awaiting the owner's hand test.
-  - [ ] M5.10 The four maps re-authored (comments to notes), pack resealed, replays rebaselined, documents as built.
+    unit test. Accepted 2026-10-25 after M5.9b (the file picker as a modal over the editor,
+    `screen/editor_files.rs`), M5.9c (Open file... asks about unsaved text; `Kind::Document` with line numbers
+    and both scrollbars) and M5.9d (the wheel zooms the plan about the pointer; the zooms run to 128 px a cell).
+  - [x] M5.10 (2026-10-25) The four maps re-authored (comments to notes), pack resealed, replays rebaselined,
+    documents as built; `tasks/acceptance/m5-10.md`. Built in three commits: the pack (`tests/edit_authoring.rs`
+    builds every shipped map from blank with the editor's requests alone and the save writes the shipped bytes;
+    the ignored rewrite; `notes/<map>.ron`; sealed 0.2.0 and the bank cells restored, the owner's choices;
+    tests read the manifest's version instead of a literal; replays rebaselined), the split of `editor/mod.rs`
+    and `editor/forms.rs` (`acts.rs`, `forms/fields.rs`), the documents (ARCHITECTURE §8.2,
+    presentation-ARCHITECTURE §6.1–§6.4 and §8.6, PRD §10 and §13, README, code-map).
+    **Review:** M5 closed, ten steps from 2026-10-21 to 2026-10-25, each accepted by the owner's hand test;
+    the proof of the "done when" is the authoring test. Left as follow-ons: the boundary tools and the
+    activities schema below, the map's own fields with Resize and New map as forms, the icon design pass.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.
