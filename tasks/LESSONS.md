@@ -447,3 +447,15 @@
   the model sets a field's text itself, it marks the thing `fresh` and the layer rebuilds that column
   whatever the shape. Any new path that sets a field's text in the model (open, revert, reset, a form
   replaced) sets `fresh`, and its test reads the drawn field's `value()`, not the model.
+
+## 2026-10-24 — "Changed" is not "typed": a framework system marks a component changed every frame
+- **What happened**: in the window, Bevy's text layout takes every `EditableText` mutably every frame, so
+  every field reads as changed every frame. The editor's route read any changed field into the model when
+  its text differed; in the frame a file was picked, the screen router had set the model to the second
+  file and the route then typed the old field's text (the first file's) into it. The owner saw the first
+  file's text under the second file's name, and Revert "revealed" the second file. Headless nothing touches
+  a field without an edit, so the tests passed, and a first fix (rebuilding the column) did not help.
+- **Rule**: a change filter on a component a framework system also writes is not a signal of an edit; the
+  route decides from the model's state (here `fresh`: the drawn field is stale until the rebuild) and never
+  from "it changed". A test of such a route runs under a churn system that marks the components changed
+  every frame (`common::app::churn_fields`), so the headless test meets the window's condition.

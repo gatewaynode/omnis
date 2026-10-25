@@ -369,3 +369,45 @@ fn a_checked_edit_is_written_as_typed_and_resealed_and_the_map_s_own_file_reopen
         "the note reads back"
     );
 }
+
+/// The owner's path (2026-10-24, second round), under the window's condition: Bevy's layout marks
+/// every field changed every frame, so in the frame of the pick the old field, still showing the
+/// first file, read as typed into the second ("pressing revert removes the first loaded file and
+/// reveals the second selected file"). A field drawn for an older document is stale: its text
+/// never flows into a fresh one.
+#[test]
+fn a_second_file_through_the_picker_under_the_window_s_churn_keeps_its_own_text() {
+    use common::app::{churn_fields, keyboard, keyboard_on};
+    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
+    churn_fields(&mut app);
+    app.update();
+    open_file(&mut app, "text/en/spells.ron");
+    let spells = editing(&app).file.clone().unwrap().text;
+    assert_eq!(field_text(&mut app), spells);
+    open_file(&mut app, "text/en/maps.ron");
+    for _ in 0..3 {
+        app.update();
+    }
+    let maps = editing(&app).file.clone().unwrap();
+    assert_eq!(maps.rel, "text/en/maps.ron");
+    assert_eq!(
+        maps.text, maps.disk,
+        "the second file's own text, not the first's"
+    );
+    assert!(!maps.dirty());
+    assert_eq!(
+        field_text(&mut app),
+        maps.disk,
+        "the field shows the second file"
+    );
+    // The field has the keyboard: a character typed is the file's text now.
+    keyboard(&mut app, window, "w");
+    app.update();
+    let file = editing(&app).file.clone().unwrap();
+    assert!(
+        file.dirty(),
+        "a key typed edits the file: {:?}",
+        file.text.len()
+    );
+    assert_eq!(file.text.len(), maps.disk.len() + 1);
+}

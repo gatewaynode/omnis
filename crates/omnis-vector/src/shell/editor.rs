@@ -525,6 +525,10 @@ fn route(
     if !covered {
         // Typed text goes to the open form's field, or the open file (M5.9); the words on
         // screen are the field's own.
+        // A field reads as changed every frame in the window (Bevy's layout takes it mutably),
+        // so "changed" is not "typed". A field drawn for an older form or file is stale while the
+        // model is `fresh` and the rebuild has not run: its text never flows into the model (the
+        // owner's report, 2026-10-24: the first file's text typed into the second at the pick).
         for (field, press) in &fields {
             if !field.is_changed() {
                 continue;
@@ -535,14 +539,18 @@ fn route(
                     if editing
                         .form
                         .as_ref()
-                        .is_some_and(|f| f.text(usize::from(i)) != text)
+                        .is_some_and(|f| !f.fresh && f.text(usize::from(i)) != text)
                     {
                         editing.typed(i, text);
                     }
                 }
                 ControlId::Edit(EditAct::FileText) => {
                     let text = field.value().to_string();
-                    if editing.file.as_ref().is_some_and(|f| f.text != text) {
+                    if editing
+                        .file
+                        .as_ref()
+                        .is_some_and(|f| !f.fresh && f.text != text)
+                    {
                         editing.typed_file(text);
                     }
                 }

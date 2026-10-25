@@ -548,6 +548,42 @@ fn a_form_replaced_by_one_of_the_same_shape_shows_the_new_form_s_values() {
     assert_eq!(shown(&mut app), "", "the third cell's form is empty");
 }
 
+/// The same under the window's churn (every field changed every frame): the first cell's typed
+/// note never flows into the second cell's fresh form.
+#[test]
+fn a_form_replaced_under_the_window_s_churn_keeps_the_new_form_s_values() {
+    use common::app::churn_fields;
+    use common::editor::{field_of, type_into};
+    use omnis_vector::editor::NoteOf;
+    let mut app = in_editor("test:map:town");
+    churn_fields(&mut app);
+    app.update();
+    app.world_mut().resource_mut::<Editing>().point((2, 2));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    let form = editing(&app).form.clone().unwrap();
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "note")),
+        "First cell.",
+    );
+    assert_eq!(
+        editing(&app).form.as_ref().unwrap().text_of("note"),
+        "First cell."
+    );
+    app.world_mut().resource_mut::<Editing>().point((3, 2));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    for _ in 0..3 {
+        app.update();
+    }
+    assert_eq!(
+        editing(&app).form.as_ref().unwrap().text_of("note"),
+        "",
+        "the second cell's form stays empty"
+    );
+}
+
 #[test]
 fn a_note_is_written_to_the_pack_at_once_outside_the_history_and_cleared() {
     use bevy::text::EditableText;

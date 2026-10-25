@@ -281,3 +281,18 @@ pub fn keyboard(app: &mut App, window: Entity, text: &str) {
         }
     }
 }
+
+/// Run `app` under the window's condition for text fields: Bevy's layout takes every
+/// `EditableText` mutably every frame there, so every field reads as changed every frame whether
+/// or not anything was typed (lesson 2026-10-24). Headless nothing touches a field, so a route that
+/// reads changed fields is tested with this churn on.
+pub fn churn_fields(app: &mut App) {
+    app.add_systems(
+        PreUpdate,
+        |mut fields: Query<&mut bevy::text::EditableText>| {
+            for mut field in &mut fields {
+                field.set_changed();
+            }
+        },
+    );
+}
