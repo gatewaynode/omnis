@@ -522,3 +522,12 @@
   that one question or read the running game over the dev socket (`editor_status`, `screen_text`) while the
   owner holds it open. A fix for a window report is "done" when the owner's run agrees, not when the test is
   green; say "built, please try" rather than "fixed".
+
+## 2026-10-25 — An edit that changes a key is a removal and a placement, not a put
+- **What happened**: a placement's form (M5.6) made its Apply as `Document::place` of the request, which
+  puts by key. Renaming an encounter's id in its form left the old entry beside the new one; the loader
+  then refused the two on one tile. Nothing had tested a rename for the count on the cell, only for the
+  new id's presence. Found by the object stamp's test (step 3), which renamed an encounter to take an id.
+- **Rule**: an edit of something keyed (an id, a tile) is made as `[Remove(old key), new]` in one step
+  whenever the request's key differs from the one the form opened on (`Place::key`), and a test that
+  renames or moves asserts the count where it was and where it is, then the loader's verdict.

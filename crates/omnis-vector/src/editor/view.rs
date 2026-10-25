@@ -5,7 +5,6 @@
 
 use super::brush::{self, Entry, Tool};
 use super::files::Mode;
-use super::forms::Placing;
 use super::{EditAct, Editor, NoteOf};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
@@ -69,10 +68,11 @@ fn tool_rows(editor: &Editor, no_map: Option<&str>) -> Vec<Row> {
 }
 
 /// The palette grid: a swatch a terrain (its colour and glyph), then the wall, the door, the
-/// ramp and the height as icons, the current one chosen; under it the entry's details (its
-/// words, with its digit while the keys reach it; the height's eighths choice; Edit terrain for
-/// a terrain; Add terrain), then the run's rows while one is pending.
-fn palette_rows(editor: &Editor, def: &MapDef) -> Vec<Row> {
+/// ramp, the height and a stamp a placement kind as icons, the current one chosen; under it the
+/// entry's details (its words, with its digit while the keys reach it; the height's eighths
+/// choice; a stamp's detail choice; Edit terrain for a terrain; Add terrain), then the run's rows
+/// while one is pending.
+fn palette_rows(editor: &Editor, data: &Data, def: &MapDef) -> Vec<Row> {
     let edit = |act| ControlId::Edit(act);
     let palette = brush::palette(def);
     let grid: Vec<Control> = palette
@@ -90,7 +90,7 @@ fn palette_rows(editor: &Editor, def: &MapDef) -> Vec<Row> {
                         chosen,
                     }
                 }
-                Entry::Edge(_) | Entry::Height => Kind::Icon {
+                Entry::Edge(_) | Entry::Height | Entry::Stamp(_) => Kind::Icon {
                     name: entry.icon().unwrap_or("square-dashed"),
                     chosen,
                 },
@@ -119,6 +119,16 @@ fn palette_rows(editor: &Editor, def: &MapDef) -> Vec<Row> {
         let at = usize::try_from(i32::from(editor.eighths) - i32::from(*brush::EIGHTHS.start()))
             .unwrap_or(0);
         details.push(choice(edit(EditAct::Eighths), "eighths", options, at));
+    }
+    if let Entry::Stamp(kind) = editor.entry {
+        let (options, at) = editor.stamps.chosen(kind, data);
+        let none = options
+            .is_empty()
+            .then(|| format!("the packs have no {}", kind.what()));
+        details.push(dim(
+            choice(edit(EditAct::Stamp), kind.detail(), options, at),
+            none.as_deref(),
+        ));
     }
     if matches!(editor.entry, Entry::Terrain(_)) {
         details.push(Control::button(edit(EditAct::TerrainEdit), "Edit terrain"));
@@ -157,7 +167,6 @@ fn run_rows(editor: &Editor) -> Vec<Row> {
 /// the menu. The view's controls are the bar's, the level's edits the inspector's.
 #[must_use]
 pub fn tools(editor: &Editor, data: &Data) -> Screen {
-    let _ = data;
     let status = &editor.status;
     let def = editor.def();
     let open = def.is_some();
@@ -205,7 +214,7 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     if editor.mode == Mode::Files {
         rows.extend(file_rows(editor));
     } else if let Some(def) = &def {
-        rows.extend(palette_rows(editor, def));
+        rows.extend(palette_rows(editor, data, def));
     } else {
         rows.push(Row::text(Span::body("No map is open.")));
     }
@@ -443,7 +452,8 @@ const fn edge_name(kind: Option<EdgeKind>) -> &'static str {
 
 /// The inspector column: the open form first (M5.6), then the map, the level, the cursor's cell
 /// with its terrain, height and edges, the start, the cell's placements with Edit and Remove
-/// and Add for more, the map's random table and rest events, and the loader's refusals.
+/// (the palette's stamps place more), the map's random table and rest events, and the loader's
+/// refusals.
 #[must_use]
 pub fn inspector(editor: &Editor, data: &Data) -> Screen {
     let mut rows = Vec::new();
@@ -573,7 +583,7 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         )],
         ..Row::default()
     });
-    // What is placed on the cell, each with Edit and Remove, and Add for more.
+    // What is placed on the cell, each with Edit and Remove (a stamp of the palette adds).
     for (i, here) in editor.here().iter().enumerate() {
         let i = u8::try_from(i).unwrap_or(u8::MAX);
         rows.push(Row {
@@ -585,15 +595,6 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
             ..Row::default()
         });
     }
-    rows.push(Row::controls(vec![
-        choice(
-            edit(EditAct::PlaceKind),
-            "Add",
-            Placing::ALL.iter().map(|k| k.label().to_owned()).collect(),
-            editor.place_kind,
-        ),
-        Control::button(edit(EditAct::Add), "Add here"),
-    ]));
     // The map's own: the random table and the rest events.
     rows.push(Row {
         spans: vec![Span::body(def.random.as_ref().map_or_else(

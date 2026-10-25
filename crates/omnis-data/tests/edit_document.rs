@@ -564,3 +564,49 @@ fn a_snapshot_copies_only_the_level_it_changed() {
         .unwrap();
     assert_eq!(doc.grid_bytes(), one * 6);
 }
+
+#[test]
+fn a_place_names_the_key_it_is_put_by() {
+    let data = load_test_packs();
+    let doc = open(&data, "test:map:town");
+    let def = doc.def();
+    let inn = def.sites[0].clone();
+    assert_eq!(
+        Place::Site(inn.clone()).key(),
+        Some(Target::Site {
+            level: inn.level,
+            x: inn.x,
+            y: inn.y,
+        })
+    );
+    let portal = def.portals[0].clone();
+    assert_eq!(
+        Place::Portal(portal.clone()).key(),
+        Some(Target::Portal {
+            level: portal.level,
+            x: portal.x,
+            y: portal.y,
+        })
+    );
+    let mut renamed = inn;
+    renamed.x += 1;
+    assert_ne!(
+        Place::Site(renamed).key(),
+        Place::Site(def.sites[0].clone()).key(),
+        "a moved tile is another key"
+    );
+    assert_eq!(
+        Place::Start {
+            x: 0,
+            y: 0,
+            facing: Facing::North,
+        }
+        .key(),
+        None
+    );
+    assert_eq!(Place::Random(None).key(), None);
+    assert_eq!(
+        Place::Remove(Target::Encounter { id: "x".to_owned() }).key(),
+        None
+    );
+}

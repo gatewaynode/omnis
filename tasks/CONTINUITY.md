@@ -1,11 +1,9 @@
 # Continuity notes
 
-Written 2026-10-25, after step 2 of the editor's column as a drawing GUI (Fill and Move; `54161815`, the
-start-marker fix `40863b52`, the open report recorded in the commit after it) and the owner's hand test of it:
-"Most things are working as expected" but Move does not carry the start marker in the owner's window, left for
-later with the entrances and exits work (owner: "we are going to have to enhance the entrance/exits later
-anyway"). Step 1 was accepted the same day. Rewrite this file every time it is used. Durable knowledge lives in
-`tasks/knowledge/`.
+Written 2026-10-25, after step 3 of the editor's column as a drawing GUI (placements as palette stamps; one
+commit, built and tested, awaiting the owner's hand test; `tasks/acceptance/editor-column-3.md`). Steps 1 and 2
+were accepted the same day (`c5e6dd8e` the step-2 acceptance). Rewrite this file every time it is used. Durable
+knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
@@ -47,20 +45,38 @@ anyway"). Step 1 was accepted the same day. Rewrite this file every time it is u
   `apply` clears `grab`; `Tool(Fill)` with an edge chooses the first terrain; `Brush(i)` keeps Fill for a
   terrain or the height. Owner's choices: Move grabs what is under the pointer, any closed side bounds, whole
   cells. Later steps in TODO: placements as stamps (3); Lasso and terrain runs (4); a history list (5).
+- **Step 3, placements as palette stamps (2026-10-25, one commit, awaiting the hand test;
+  `tasks/acceptance/editor-column-3.md`).** `editor/stamp.rs` (`Stamps` on `Editor.stamps`, `options(kind, data)`,
+  `of_here`, `Editor::stamp` → `Form::placing(.., Some(detail))` → `request` → `change`, `Editor::report`);
+  `Entry::Stamp(Placing)` last in the palette (icons door-open, swords, face-grinning, package, layers,
+  scroll-text; `fills()`, `stamp()`); `EditAct::Stamp` the detail choice under the palette; `EditAct::{PlaceKind,
+  Add}` and `Editor.place_kind` gone with the inspector's Add row; `pick` takes a placement's stamp and detail
+  first; a drag stamps once (`paint` returns before `stroke`). Every placing form now starts valid (portal: the
+  chosen map's start and a marker choice over the tileset's Object surfaces; object: `free_id` over objects and
+  encounters; pile: one item; lore: `free_id` and a text-key choice); `Form::keys` refuses a second portal, site
+  or pile on a new form's tile. **Fixed on the way:** an edit under a new id left the old entry; `apply_form`
+  now goes `[Remove(old), new]` through `place_many` when `Place::key` (new, `omnis-data` kinds.rs) differs
+  (lesson 2026-10-25). The forms' Apply now always says "Placed"/"Changed"/"Written". Owner's choices: places at
+  once; one detail per stamp; the Add row goes; an occupied tile refuses. The object stamp needs a pack with
+  object kinds (the shipped packs have none: "nothing to stamp: the packs have no object kind"); the test uses
+  `crates/omnis-sim/tests/packs/objects` and the yard. Later: a stamp's mark previewed under the pointer; a
+  modal picker for a long detail list (the text keys).
 - **Observed, not fixed (told the owner 2026-10-25):** with the map's own file open as text and typed into, a
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **Step 3 of the column (placements as palette stamps) in plan mode**, asked by the owner on accepting step 2
-   (TODO: steps 3 to 5). The entrances and exits enhancement the owner named is where the start marker's move
-   is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when a second
-   kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
-2. Later: a smooth (sub-cell) pan; a fill's region previewed on hover; the map's own fields (`Edit::Map`),
-   Resize and New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a
-   refused value; plan edges one pixel at every zoom (may read thin at 128); the stale-text-over-paint rule
-   above; the 4 MiB file cap stays soft (owner); an `editor.run` op (and now a fill and a move); the icons'
-   keys shown somewhere (a dim icon shows no reason).
+1. **The owner's hand test of step 3** (`tasks/acceptance/editor-column-3.md`, nine steps; a fresh scratch copy of
+   `packs/test`; the object stamp on the yard with the objects pack). On "accepted": the acceptance commit (prose
+   under `tasks/` only, as `c5e6dd8e`). Then **step 4 (Lasso and moving a selection; runs that take a terrain
+   entry) in plan mode**, or the entrances and exits enhancement where the start marker's move is taken up
+   again. The owner's order of 2026-10-24 otherwise: the activities schema when a second kind has engine rules;
+   then the plan in `tasks/TODO.md`: the look in data, M9.
+2. Later: a smooth (sub-cell) pan; a fill's region and a stamp's mark previewed on hover; a modal picker for a
+   long detail list; the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures
+   as rows; the slider's thumb re-synced after a refused value; plan edges one pixel at every zoom (may read
+   thin at 128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner); an `editor.run` op
+   (and now a fill, a move and a stamp); the icons' keys shown somewhere (a dim icon shows no reason).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -88,9 +104,11 @@ anyway"). Step 1 was accepted the same day. Rewrite this file every time it is u
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
-  terrains plus 4 (`brush::palette`: Wall, Door, Ramp, Height); `Tool::ALL` 7 (Select, Brush, Move, Fill, Corners,
-  Freehand, Eraser); the kit's `Kind` has 7 members.
-- **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}`; a test that edits a
+  terrains plus 10 (`brush::palette`: Wall, Door, Ramp, Height, then `Placing::ALL`'s six stamps; `tests/
+  editor_fill.rs` pins WALL 9, DOOR 10, HEIGHT 12 on the town's nine terrains); `Tool::ALL` 7 (Select, Brush,
+  Move, Fill, Corners, Freehand, Eraser); `Placing::ALL` 6; the kit's `Kind` has 7 members.
+- **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}` (the shipped
+  packs have no object kinds: a test that places an object opens `objects:map:yard` with the objects pack); a test that edits a
   pack works on a scratch copy (`omnis-data/tests/common::copy_pack`, `omnis-cli/tests/headless.rs::scratch_pack`,
   `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and reseals it; the bad-pack corpus `broken` carries
   `notes/bad.ron` (not hashed: no reseal was needed). `packs/test` ships notes on all four maps and on the town's
@@ -105,7 +123,8 @@ anyway"). Step 1 was accepted the same day. Rewrite this file every time it is u
   `churn_fields`, `wheel`, `ui_editor_app` with `UI_PHYSICAL` 2400×1400 at scale 2; its window cannot be resized
   for a layout test: crowd the column with content instead), `tests/common/editor.rs` (`in_editor`,
   `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`, `type_into`,
-  `field_entity`, `field_of`, `panel`); `editor_pointer.rs` has `over` (a window cursor position over a cell),
+  `field_entity`, `field_of`, `panel`); `editor_stamp.rs` has `choose(entry)`, `detail_to(kind, id)` (a choice steps by `arrow`, never
+  `press_edit`), `click`, `right_click`, `bare_cells`; `editor_pointer.rs` has `over` (a window cursor position over a cell),
   `click` and `drag_in_window` (the real UI path: set the `Window` cursor, write `MouseButtonInput`). A written `RelativeCursorPosition` reaches the model on the next
   `app.update()`: point, then update, then read; `mouse(app, button, state)` writes the button and runs a frame
   (the middle button too). Under Bevy picking a faked `Interaction::Pressed` is reset

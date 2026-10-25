@@ -15,6 +15,7 @@ pub mod plan;
 pub mod playtest;
 pub mod preview;
 pub mod run;
+pub mod stamp;
 pub mod view;
 
 pub use acts::EditAct;
@@ -29,6 +30,7 @@ use omnis_sim::omnis_data::edit::{
 };
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
 use run::{Corner, Run};
+use stamp::Stamps;
 use std::path::PathBuf;
 
 /// Whose note: the cursor's cell's, the shown level's or the map's.
@@ -111,8 +113,8 @@ pub struct Editor {
     pub status: EditorStatus,
     /// The form being filled at the top of the inspector, if one is (M5.6).
     pub form: Option<Form>,
-    /// What the inspector's Add places: an index into `forms::Placing::ALL`.
-    pub place_kind: usize,
+    /// The detail each stamp of the palette places (the owner's column, step 3; `stamp`).
+    pub stamps: Stamps,
     /// What the centre shows: the plan or a file's text (M5.9).
     pub mode: Mode,
     /// The pack's files, listed when Files mode was entered.
@@ -165,7 +167,7 @@ impl Editor {
             grab: None,
             status,
             form: None,
-            place_kind: 0,
+            stamps: Stamps::default(),
             mode: Mode::Plan,
             files: Vec::new(),
             file: None,
@@ -425,14 +427,14 @@ impl Editor {
     /// What a click at pane pixel `(px, py)` acts on: with the brush and an edge entry the cell
     /// under it and its nearest side, wherever in the cell the pixel lies (never the facing: the
     /// mouse shows what it will do); with the brush otherwise and the eraser the cell, or its
-    /// edge when the pixel is within a quarter of the side of that border; with select, move
-    /// and fill the cell. None off the map, and with a run tool, which aims at a corner
+    /// edge when the pixel is within a quarter of the side of that border; with select, move,
+    /// fill and a stamp the cell. None off the map, and with a run tool, which aims at a corner
     /// (`run::Editor::pointer`).
     #[must_use]
     pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
         let size = self.size();
         match (self.tool, self.entry) {
-            (Tool::Select | Tool::Move | Tool::Fill, _) => self
+            (Tool::Select | Tool::Move | Tool::Fill, _) | (Tool::Brush, Entry::Stamp(_)) => self
                 .view
                 .hit(size, px, py)
                 .map(|cell| Target { cell, edge: None }),
@@ -458,11 +460,12 @@ impl Editor {
     }
 
     /// Use the tool at `target` on the shown level and put the cursor on its cell: the brush
-    /// paints the palette's entry; the fill paints it over the cell's region (`fill`, one step
-    /// of its own, once a click); the eraser opens the edge, removes the first placement on the
-    /// cell (one step of its own) or clears its ground; select only moves the cursor. With
-    /// `stroke` a paint joins the stroke the held button keeps open, so a drag undoes as one. A
-    /// refusal is said and changes nothing. Whether the map changed.
+    /// paints the palette's entry, or places its stamp (`stamp`, one step of its own, once a
+    /// click); the fill paints it over the cell's region (`fill`, one step of its own, once a
+    /// click); the eraser opens the edge, removes the first placement on the cell (one step of
+    /// its own) or clears its ground; select only moves the cursor. With `stroke` a paint joins
+    /// the stroke the held button keeps open, so a drag undoes as one. A refusal is said and
+    /// changes nothing. Whether the map changed.
     pub fn paint(&mut self, data: &Data, target: Target, stroke: bool) -> bool {
         let Some(def) = self.def() else {
             self.message = Some("open a map first".to_owned());
@@ -474,6 +477,7 @@ impl Editor {
                 return false;
             }
             Tool::Fill => return self.fill(data, target.cell),
+            Tool::Brush if self.entry.stamp().is_some() => return self.stamp(data, target.cell),
             Tool::Brush => self.entry.brush(&def, target, self.facing, self.eighths),
             Tool::Eraser => match target.edge {
                 Some(side) => Some(Brush::Edge {
@@ -716,29 +720,52 @@ impl Editor {
 
     /// The open form's Apply: its request made (a place or an edit one undo step, a note
     /// written at once) and the form closed; a field that does not read, or a refusal, is said
-    /// and the form stands.
+    /// and the form stands. A placement edited under a new key (an id typed anew) takes its old
+    /// entry out in the same step: the document puts by key and would keep both.
     fn apply_form(&mut self, data: &Data) {
         let Some((form, def)) = self.form.as_ref().zip(self.def()) else {
             return;
         };
-        match form.request(&def) {
+        let request = form.request(&def);
+        let old = match &form.remove {
+            Some(Change::Place(Place::Remove(key))) => Some(key.clone()),
+            _ => None,
+        };
+        match request {
             Ok(change) => {
                 let what = match &change {
                     Change::Place(_) => "Placed",
                     Change::Edit(_) => "Changed",
                     Change::Note { .. } => "Written",
                 };
-                if self.change(data, change) {
-                    self.form = None;
-                    // The loader's verdict at once, so what was just made saves (owner,
-                    // 2026-10-24): Save is dim with the same words meanwhile.
-                    if let Some(first) = self.status.errors.first() {
-                        self.message = Some(format!("{what}; the loader says: {first}"));
+                let taken = match (change, old) {
+                    (Change::Place(new), Some(old)) if new.key().is_some_and(|k| k != old) => {
+                        let places = vec![Place::Remove(old), new];
+                        let result = self
+                            .session
+                            .document_mut()
+                            .and_then(|d| d.place_many(places));
+                        self.took(data, result)
                     }
+                    (change, _) => self.change(data, change),
+                };
+                if taken {
+                    self.form = None;
+                    self.report(what.to_owned());
                 }
             }
             Err(why) => self.message = Some(why),
         }
+    }
+
+    /// Say `what` was made, with the loader's first word on the map as it now stands (owner,
+    /// 2026-10-24: the verdict at once, so what was just made saves; Save is dim with the same
+    /// words meanwhile).
+    fn report(&mut self, what: String) {
+        self.message = Some(match self.status.errors.first() {
+            Some(first) => format!("{what}; the loader says: {first}"),
+            None => what,
+        });
     }
 
     /// Make `change`: whether it was taken.
@@ -772,27 +799,41 @@ impl Editor {
         self.stroke = None;
     }
 
-    /// Take what is under `target` as the brush and its entry: the edge's kind or the cell's
-    /// terrain, and the cell's height; an open edge or no ground is the eraser. The cursor goes
-    /// there. Never changes the map. A pending run is dropped with its tool.
+    /// Take what is under `target` as the brush and its entry: the edge's kind, or the first
+    /// placement the inspector lists on the cell as its stamp with that placement's detail
+    /// (`stamp::of_here`), or the cell's terrain, and the cell's height; an open edge or no
+    /// ground is the eraser. The cursor goes there. Never changes the map. A pending run is
+    /// dropped with its tool.
     pub fn pick(&mut self, target: Target) {
         self.run = None;
+        let (x, y) = target.cell;
+        let stamped = match (target.edge, self.def()) {
+            (None, Some(def)) => self
+                .here_at((x, y))
+                .iter()
+                .find_map(|here| stamp::of_here(&def, here)),
+            _ => None,
+        };
         let Some(grid) = self.grid() else {
             return;
         };
-        let (x, y) = target.cell;
         let (tool, entry) = match target.edge {
             Some(side) => match grid.edge(x, y, side).unwrap_or_default() {
                 EdgeKind::Open => (Tool::Eraser, self.entry),
                 kind => (Tool::Brush, Entry::Edge(kind)),
             },
-            None => match grid.tile(x, y).flatten() {
-                Some(t) => (Tool::Brush, Entry::Terrain(t)),
-                None => (Tool::Eraser, self.entry),
+            None => match (&stamped, grid.tile(x, y).flatten()) {
+                (Some((kind, _)), _) => (Tool::Brush, Entry::Stamp(*kind)),
+                (None, Some(t)) => (Tool::Brush, Entry::Terrain(t)),
+                (None, None) => (Tool::Eraser, self.entry),
             },
         };
-        if let Some(height) = grid.height_at(x, y) {
+        let height = grid.height_at(x, y);
+        if let Some(height) = height {
             self.eighths = brush::held(height);
+        }
+        if let Some((kind, Some(detail))) = stamped {
+            self.stamps.set(kind, detail);
         }
         self.tool = tool;
         self.entry = entry;

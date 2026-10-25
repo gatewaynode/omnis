@@ -5,7 +5,6 @@
 use super::brush::{self, Entry, Tool};
 use super::files::Mode;
 use super::form::Form;
-use super::forms::Placing;
 use super::{Asked, Editor, NoteOf};
 use omnis_sim::omnis_core::Level;
 use omnis_sim::omnis_data::Data;
@@ -42,6 +41,9 @@ pub enum EditAct {
     DropRun,
     /// The height choice: steps the height brush's eighths.
     Eighths,
+    /// The stamp's detail choice under the palette: steps what the chosen stamp places (the
+    /// owner's column, step 3).
+    Stamp,
     /// The bar's terrain choice (M5.6): steps the cursor's cell through the terrains and no
     /// ground.
     CellTerrain,
@@ -51,10 +53,6 @@ pub enum EditAct {
     CellRise,
     /// Put the map's start on the cursor's cell, facing as the cursor does (M5.6).
     SetStart,
-    /// The inspector's choice of what Add places.
-    PlaceKind,
-    /// Open the form to place the chosen kind at the cursor.
-    Add,
     /// Open the form of the placement at the cursor at this position of the inspector's list.
     EditAt(u8),
     /// Remove the placement at the cursor at this position of the inspector's list.
@@ -198,9 +196,9 @@ impl Editor {
                 if tool.is_run() && !self.entry.is_edge() {
                     self.entry = Entry::Edge(EdgeKind::Wall);
                 }
-                // A fill takes a terrain or the height: choosing it with an edge chosen chooses
-                // the first terrain (the height on a map without one).
-                if tool == Tool::Fill && self.entry.is_edge() {
+                // A fill takes a terrain or the height: choosing it with an edge or a stamp
+                // chosen chooses the first terrain (the height on a map without one).
+                if tool == Tool::Fill && !self.entry.fills() {
                     self.entry = match self.def().map(|def| Entry::first(&def)) {
                         Some(first) if !first.is_edge() => first,
                         _ => Entry::Height,
@@ -216,7 +214,7 @@ impl Editor {
                     // Choosing what to paint is choosing to paint, unless the tool can take
                     // the entry: a run an edge, the fill a terrain or the height.
                     let keeps = (self.tool.is_run() && entry.is_edge())
-                        || (self.tool == Tool::Fill && !entry.is_edge());
+                        || (self.tool == Tool::Fill && entry.fills());
                     if !keeps {
                         self.tool = Tool::Brush;
                     }
@@ -267,17 +265,10 @@ impl Editor {
                 let facing = self.facing;
                 self.placed(data, Place::Start { x, y, facing });
             }
-            EditAct::PlaceKind => {
-                let n = i64::try_from(Placing::ALL.len()).unwrap_or(1);
-                let at = i64::try_from(self.place_kind).unwrap_or(0)
-                    + i64::from(if step == 0 { 1 } else { step });
-                self.place_kind = usize::try_from(at.rem_euclid(n)).unwrap_or(0);
-            }
-            EditAct::Add => {
-                if let Some(def) = self.def()
-                    && let Some(kind) = Placing::ALL.get(self.place_kind)
-                {
-                    self.open_form(Form::placing(*kind, &def, data, self.at()));
+            EditAct::Stamp => {
+                if let Entry::Stamp(kind) = self.entry {
+                    let by = if step == 0 { 1 } else { step };
+                    self.stamps.step(kind, data, by);
                 }
             }
             EditAct::EditAt(i) => {

@@ -249,7 +249,7 @@ impl Editor {
         };
         let kind = match self.entry {
             Entry::Edge(kind) => kind,
-            Entry::Terrain(_) | Entry::Height => EdgeKind::Wall,
+            Entry::Terrain(_) | Entry::Height | Entry::Stamp(_) => EdgeKind::Wall,
         };
         let all: Vec<Side> = run_sides(&run.corners).collect();
         let (walls, boundary) = paints(self.size(), &all, kind);

@@ -1,11 +1,13 @@
 //! The pointer states and the palette (the owner's drawing-GUI column, 2026-10-25, after M5.5's
 //! brushes): what the pointer does is a `Tool` (select, brush, a run by corners, a freehand run,
 //! the eraser), what it paints is an `Entry` of the palette (the open map's terrains in their
-//! order, then wall, door, ramp and the height). A click paints the entry at a target: a cell, or
-//! one of its edges when the pointer is within a quarter of the cell's side of that border
-//! (`plan::View::target`), the nearest side for an edge entry. The eraser needs no entry: it
-//! opens an edge, removes a placement or clears the ground under the pointer. Bevy-free.
+//! order, then wall, door, ramp and the height, then a stamp per placement kind, step 3). A click
+//! paints the entry at a target: a cell, or one of its edges when the pointer is within a quarter
+//! of the cell's side of that border (`plan::View::target`), the nearest side for an edge entry;
+//! a stamp places a placement on the cell (`super::stamp`). The eraser needs no entry: it opens
+//! an edge, removes a placement or clears the ground under the pointer. Bevy-free.
 
+use super::forms::Placing;
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::MapDef;
 use omnis_sim::omnis_data::edit::{Brush, EdgeKind};
@@ -114,10 +116,13 @@ pub enum Entry {
     Edge(EdgeKind),
     /// The height the details hold.
     Height,
+    /// A placement of this kind, placed on the cell with the detail the palette holds (the
+    /// owner's column, step 3, 2026-10-25; `super::stamp`).
+    Stamp(Placing),
 }
 
-/// The palette of `def`: its terrains, then wall, door and ramp, and the height. (An open edge
-/// and no ground are the eraser's.)
+/// The palette of `def`: its terrains, then wall, door and ramp, the height, and a stamp a
+/// placement kind. (An open edge and no ground are the eraser's.)
 #[must_use]
 pub fn palette(def: &MapDef) -> Vec<Entry> {
     let mut out: Vec<Entry> = (0..def.terrains.len())
@@ -130,6 +135,7 @@ pub fn palette(def: &MapDef) -> Vec<Entry> {
         Entry::Edge(EdgeKind::Ramp),
         Entry::Height,
     ]);
+    out.extend(Placing::ALL.iter().map(|kind| Entry::Stamp(*kind)));
     out
 }
 
@@ -157,6 +163,7 @@ impl Entry {
             Entry::Edge(EdgeKind::Ramp) => "Ramp".to_owned(),
             Entry::Edge(EdgeKind::Open) => "Open edge".to_owned(),
             Entry::Height => "Height".to_owned(),
+            Entry::Stamp(kind) => kind.label().to_owned(),
         }
     }
 
@@ -170,6 +177,7 @@ impl Entry {
             Entry::Edge(EdgeKind::Ramp) => "Ramp: a slope over the side".to_owned(),
             Entry::Edge(EdgeKind::Open) => "Open edge: nothing in the side".to_owned(),
             Entry::Height => "Height: the cell's floor, in eighths".to_owned(),
+            Entry::Stamp(kind) => format!("{}, placed with a click", stamp_words(kind)),
         }
     }
 
@@ -183,6 +191,12 @@ impl Entry {
             Entry::Edge(EdgeKind::Ramp) => Some("triangle-right"),
             Entry::Edge(EdgeKind::Open) => Some("square-dashed"),
             Entry::Height => Some("mountain"),
+            Entry::Stamp(Placing::Portal) => Some("door-open"),
+            Entry::Stamp(Placing::Encounter) => Some("swords"),
+            Entry::Stamp(Placing::Activity) => Some(crate::icons::ACTIVITY),
+            Entry::Stamp(Placing::Object) => Some("package"),
+            Entry::Stamp(Placing::Ground) => Some("layers"),
+            Entry::Stamp(Placing::Lore) => Some("scroll-text"),
         }
     }
 
@@ -192,9 +206,25 @@ impl Entry {
         matches!(self, Entry::Edge(_))
     }
 
+    /// Whether it is a terrain or the height, which the fill takes.
+    #[must_use]
+    pub const fn fills(self) -> bool {
+        matches!(self, Entry::Terrain(_) | Entry::Height)
+    }
+
+    /// The placement kind it stamps, when it is a stamp.
+    #[must_use]
+    pub const fn stamp(self) -> Option<Placing> {
+        match self {
+            Entry::Stamp(kind) => Some(kind),
+            Entry::Terrain(_) | Entry::Edge(_) | Entry::Height => None,
+        }
+    }
+
     /// The brush this entry paints at `target`: a terrain on the cell (a stair rising the way
     /// the cursor `facing`s), an edge on the target's side or, from the keys, the side faced, or
-    /// the height in `eighths`. None for a terrain the map no longer has.
+    /// the height in `eighths`. None for a terrain the map no longer has, and for a stamp, which
+    /// places rather than paints (`super::stamp`).
     #[must_use]
     pub fn brush(
         self,
@@ -213,7 +243,20 @@ impl Entry {
                 kind,
             },
             Entry::Height => Brush::Height { eighths },
+            Entry::Stamp(_) => return None,
         })
+    }
+}
+
+/// What a stamp places, for the details under the palette.
+const fn stamp_words(kind: Placing) -> &'static str {
+    match kind {
+        Placing::Portal => "Portal: a way to another map",
+        Placing::Encounter => "Encounter: creatures that stand on the cell",
+        Placing::Activity => "Activity: a service's site",
+        Placing::Object => "Object: a thing placed on the cell",
+        Placing::Ground => "Ground pile: items on the floor",
+        Placing::Lore => "Lore: a text a search turns up",
     }
 }
 
@@ -238,16 +281,28 @@ mod tests {
     }
 
     #[test]
-    fn the_palette_is_the_terrains_then_wall_door_ramp_and_the_height() {
+    fn the_palette_is_the_terrains_then_wall_door_ramp_the_height_and_a_stamp_a_kind() {
         let def = town();
         let palette = palette(&def);
         let n = def.terrains.len();
-        assert_eq!(palette.len(), n + 4);
+        assert_eq!(palette.len(), n + 4 + Placing::ALL.len());
         assert_eq!(palette[0], Entry::Terrain(0));
         assert_eq!(palette[n], Entry::Edge(EdgeKind::Wall));
         assert_eq!(palette[n + 1], Entry::Edge(EdgeKind::Door));
         assert_eq!(palette[n + 2], Entry::Edge(EdgeKind::Ramp));
         assert_eq!(palette[n + 3], Entry::Height);
+        for (i, kind) in Placing::ALL.iter().enumerate() {
+            assert_eq!(palette[n + 4 + i], Entry::Stamp(*kind));
+            assert_eq!(Entry::Stamp(*kind).stamp(), Some(*kind));
+            assert!(!Entry::Stamp(*kind).fills() && !Entry::Stamp(*kind).is_edge());
+        }
+        assert!(Entry::Terrain(0).fills() && Entry::Height.fills());
+        assert!(!Entry::Edge(EdgeKind::Door).fills());
+        assert_eq!(Entry::Height.stamp(), None);
+        assert_eq!(
+            Entry::Stamp(Placing::Activity).describes(&def),
+            "Activity: a service's site, placed with a click"
+        );
         assert_eq!(Entry::first(&def), Entry::Terrain(0));
         let first = &def.terrains[0];
         assert_eq!(
@@ -319,6 +374,11 @@ mod tests {
         assert_eq!(
             Entry::Terrain(200).brush(&def, cell, Facing::North, 0),
             None
+        );
+        assert_eq!(
+            Entry::Stamp(Placing::Lore).brush(&def, cell, Facing::North, 0),
+            None,
+            "a stamp places, it does not paint"
         );
         assert_eq!(
             Entry::Height.brush(&def, cell, Facing::North, -5),

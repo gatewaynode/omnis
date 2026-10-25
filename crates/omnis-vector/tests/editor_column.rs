@@ -65,7 +65,8 @@ fn the_column_is_a_tool_grid_a_palette_grid_the_details_the_files_and_the_button
         assert!(matches!(c.kind, Kind::Icon { name: n, .. } if n == name));
         assert!(c.why_not.is_some(), "nothing to undo yet");
     }
-    // The palette grid: a swatch a terrain in its colour with its glyph, then four icons.
+    // The palette grid: a swatch a terrain in its colour with its glyph, then ten icons (the
+    // wall, the door, the ramp, the height, a stamp a placement kind).
     let palette = brush::palette(&def);
     for (i, entry) in palette.iter().enumerate() {
         let c = screen

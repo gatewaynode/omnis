@@ -138,66 +138,79 @@ fn form_text(app: &App) -> String {
     screen_text(app.world())
 }
 
-#[test]
-fn a_portal_is_placed_from_the_form_then_edited_and_removed() {
+/// Place a `kind` with its palette stamp by a click on `cell` (the editor's column, step 3): the
+/// stamp chosen by its position in the palette, the detail as it stands.
+fn stamp(app: &mut App, kind: omnis_vector::editor::forms::Placing, cell: (u16, u16)) {
     use bevy::input::ButtonState;
-    use common::app::{keyboard, keyboard_on};
-    use common::editor::{field_entity, field_of, mouse, point_at};
+    use common::editor::{mouse, point_at};
+    use omnis_vector::editor::brush::{self, Entry};
+    let def = editing(app).def().expect("a map");
+    let i = brush::palette(&def)
+        .iter()
+        .position(|e| *e == Entry::Stamp(kind))
+        .expect("the stamp");
+    press_edit(app, EditAct::Brush(u8::try_from(i).unwrap()));
+    point_at(app, cell, None);
+    mouse(app, MouseButton::Left, ButtonState::Pressed);
+    mouse(app, MouseButton::Left, ButtonState::Released);
+}
+
+#[test]
+fn a_portal_stamp_lands_at_the_chosen_map_s_start_then_its_form_edits_and_removes_it() {
+    use common::editor::field_of;
     use omnis_vector::editor::form::FormKind;
-    use omnis_vector::shell::screen::Pressable;
-    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
-    app.update();
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
-    // Add places the chosen kind; a portal is the first.
-    assert_eq!(editing(&app).place_kind, 0);
-    press_edit(&mut app, EditAct::Add);
-    let form = editing(&app).form.clone().expect("a form opened");
+    use omnis_vector::editor::forms::Placing;
+    use omnis_vector::shell::session::Packs;
+    let mut app = in_editor("test:map:town");
+    let data = app.world().resource::<Packs>().data.clone();
+    app.world_mut()
+        .resource_mut::<Editing>()
+        .stamps
+        .set(Placing::Portal, "test:map:meadow".to_owned());
+    stamp(&mut app, Placing::Portal, (3, 4));
+    assert!(editing(&app).form.is_none(), "a stamp opens no form");
+    let def = editing(&app).def().unwrap();
+    let portal = def
+        .portals
+        .iter()
+        .find(|p| p.x == 3 && p.y == 4)
+        .expect("the portal");
+    assert_eq!(portal.to_map, "test:map:meadow");
+    let meadow = data
+        .maps
+        .values()
+        .find(|m| m.def.id == "test:map:meadow")
+        .unwrap();
+    assert_eq!(
+        (portal.to_x, portal.to_y, portal.to_facing),
+        meadow.def.start,
+        "a new portal lands at the map's start"
+    );
+    let marker = portal.marker.clone().expect("a marker of the tileset");
+    // The inspector lists it at its cell, with Edit and Remove; its form holds what landed.
+    let text = form_text(&app);
+    assert!(text.contains("Portal to test:map:meadow"), "{text}");
+    press_edit(&mut app, EditAct::EditAt(0));
+    let form = editing(&app).form.clone().expect("the portal's form");
     assert_eq!(form.kind, FormKind::Portal);
+    assert_eq!(form.choice_of("to map"), "test:map:meadow");
+    assert_eq!(form.choice_of("marker"), marker);
+    assert!(form.remove.is_some(), "Remove is offered");
     let text = form_text(&app);
     assert!(
         text.contains("Portal at (3, 4)") && text.contains("to map") && text.contains("marker"),
         "{text}"
     );
-    // Its first text field has the keyboard, and the game's router never sees it.
-    let marker = EditAct::Field(field_of(&form, "marker"));
-    let field = field_entity(&mut app, marker).expect("the marker field");
-    let focused = app.world().resource::<InputFocus>().get();
-    assert_eq!(focused, Some(field), "the first field takes the keyboard");
-    assert!(
-        app.world().get::<Pressable>(field).is_none(),
-        "an editor field"
-    );
-    // Typing on the keyboard reaches the form without rebuilding the field.
-    keyboard(&mut app, window, "signpost");
-    app.update();
-    assert_eq!(
-        editing(&app).form.as_ref().unwrap().text_of("marker"),
-        "signpost"
-    );
-    assert_eq!(
-        field_entity(&mut app, marker),
-        Some(field),
-        "the field stands"
-    );
-    // The choice and the numbers step with the arrows.
+    // The choice and the numbers step with the arrows; Apply changes it in one step.
     let to_map = EditAct::Field(field_of(&form, "to map"));
-    while editing(&app).form.as_ref().unwrap().choice_of("to map") != "test:map:meadow" {
+    while editing(&app).form.as_ref().unwrap().choice_of("to map") != "test:map:town" {
         arrow(&mut app, to_map, true);
     }
     let to_x = EditAct::Field(field_of(&form, "to x"));
     for _ in 0..3 {
         arrow(&mut app, to_x, true);
     }
-    // A plan click takes the keyboard from the field; the form stands.
-    point_at(&mut app, (5, 3), None);
-    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
-    mouse(&mut app, MouseButton::Left, ButtonState::Released);
-    assert_eq!(editing(&app).cursor, (5, 3));
-    assert_eq!(app.world().resource::<InputFocus>().get(), None);
-    assert!(editing(&app).form.is_some(), "the form stands");
-    assert_eq!(field_entity(&mut app, marker), Some(field), "unrebuilt");
-    // Apply places it where the form was opened, one undo step.
+    let steps = editing(&app).status.undo;
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
     let def = editing(&app).def().unwrap();
@@ -206,42 +219,77 @@ fn a_portal_is_placed_from_the_form_then_edited_and_removed() {
         .iter()
         .find(|p| p.x == 3 && p.y == 4)
         .expect("the portal");
-    assert_eq!(portal.to_map, "test:map:meadow");
-    assert_eq!((portal.to_x, portal.to_y), (3, 0));
-    assert_eq!(portal.marker.as_deref(), Some("signpost"));
-    // The inspector lists it at its cell, with Edit and Remove.
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
-    let text = form_text(&app);
-    assert!(text.contains("Portal to test:map:meadow"), "{text}");
-    press_edit(&mut app, EditAct::EditAt(0));
-    let form = editing(&app).form.clone().expect("the portal's form");
-    assert_eq!(form.text_of("marker"), "signpost");
-    assert_eq!(form.choice_of("to map"), "test:map:meadow");
-    assert!(form.remove.is_some(), "Remove is offered");
-    press_edit(&mut app, EditAct::Cancel);
-    assert!(editing(&app).form.is_none());
+    assert_eq!(portal.to_map, "test:map:town");
+    assert_eq!(portal.to_x, meadow.def.start.0 + 3);
+    assert_eq!(editing(&app).status.undo, steps + 1);
     press_edit(&mut app, EditAct::RemoveAt(0));
     assert!(editing(&app).here().is_empty());
     press_edit(&mut app, EditAct::Undo);
     assert_eq!(editing(&app).here().len(), 1, "the removal undone");
     press_edit(&mut app, EditAct::Undo);
-    assert!(editing(&app).here().is_empty(), "the placing undone");
+    press_edit(&mut app, EditAct::Undo);
+    assert!(
+        editing(&app).here().is_empty(),
+        "the edit and the placing undone"
+    );
+}
+
+/// The first text field of a form takes the keyboard when the form opens; typing reaches the
+/// form without rebuilding the field; a plan click takes the keyboard back and the form stands.
+#[test]
+fn the_first_text_field_takes_the_keyboard_and_a_plan_click_takes_it_back() {
+    use bevy::input::ButtonState;
+    use common::app::{keyboard, keyboard_on};
+    use common::editor::{field_entity, field_of, mouse, point_at};
+    use omnis_vector::editor::NoteOf;
+    use omnis_vector::shell::screen::Pressable;
+    let (mut app, window) = keyboard_on(in_editor("test:map:town"));
+    app.update();
+    app.world_mut().resource_mut::<Editing>().point((3, 4));
+    app.update();
+    press_edit(&mut app, EditAct::Note(NoteOf::Cell));
+    let form = editing(&app).form.clone().expect("the note's form");
+    let note = EditAct::Field(field_of(&form, "note"));
+    let field = field_entity(&mut app, note).expect("the note field");
+    let focused = app.world().resource::<InputFocus>().get();
+    assert_eq!(focused, Some(field), "the first field takes the keyboard");
+    assert!(
+        app.world().get::<Pressable>(field).is_none(),
+        "an editor field"
+    );
+    keyboard(&mut app, window, "signpost");
+    app.update();
+    assert_eq!(
+        editing(&app).form.as_ref().unwrap().text_of("note"),
+        "signpost"
+    );
+    assert_eq!(
+        field_entity(&mut app, note),
+        Some(field),
+        "the field stands"
+    );
+    point_at(&mut app, (5, 3), None);
+    mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
+    mouse(&mut app, MouseButton::Left, ButtonState::Released);
+    assert_eq!(editing(&app).cursor, (5, 3));
+    assert_eq!(app.world().resource::<InputFocus>().get(), None);
+    assert!(editing(&app).form.is_some(), "the form stands");
+    assert_eq!(field_entity(&mut app, note), Some(field), "unrebuilt");
+    press_edit(&mut app, EditAct::Cancel);
 }
 
 #[test]
 fn an_encounter_s_stacks_are_rows_and_a_bad_id_is_refused_with_the_form_standing() {
     use common::editor::{field_of, type_into};
     use omnis_sim::omnis_data::Disposition;
+    use omnis_vector::editor::forms::Placing;
     let mut app = in_editor("test:map:town");
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
-    arrow(&mut app, EditAct::PlaceKind, true);
-    press_edit(&mut app, EditAct::Add);
+    stamp(&mut app, Placing::Encounter, (3, 4));
+    press_edit(&mut app, EditAct::EditAt(0));
     let form = editing(&app).form.clone().expect("a form opened");
     let text = form_text(&app);
     assert!(
-        text.contains("Encounter at (3, 4)") && text.contains("Stacks"),
+        text.contains("Encounter encounter_3_4") && text.contains("Stacks"),
         "{text}"
     );
     type_into(&mut app, EditAct::Field(field_of(&form, "id")), "two words");
@@ -255,8 +303,12 @@ fn an_encounter_s_stacks_are_rows_and_a_bad_id_is_refused_with_the_form_standing
         "{:?}",
         editing(&app).message
     );
-    type_into(&mut app, EditAct::Field(field_of(&form, "id")), "rats");
-    // A new encounter starts with one stack; two rows added, then the last two removed.
+    type_into(
+        &mut app,
+        EditAct::Field(field_of(&form, "id")),
+        "encounter_3_4",
+    );
+    // An encounter starts with one stack; two rows added, then the last two removed.
     press_edit(&mut app, EditAct::ListAdd(0));
     press_edit(&mut app, EditAct::ListAdd(0));
     assert_eq!(editing(&app).form.as_ref().unwrap().rows_of(0).len(), 3);
@@ -281,12 +333,19 @@ fn an_encounter_s_stacks_are_rows_and_a_bad_id_is_refused_with_the_form_standing
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
     let def = editing(&app).def().unwrap();
+    assert_eq!(
+        def.encounters
+            .iter()
+            .filter(|e| (e.x, e.y) == (3, 4))
+            .count(),
+        1,
+        "the one encounter, changed"
+    );
     let e = def
         .encounters
         .iter()
-        .find(|e| e.id == "rats")
+        .find(|e| e.id == "encounter_3_4")
         .expect("placed");
-    assert_eq!((e.x, e.y), (3, 4));
     assert_eq!(e.stacks, vec![("test:monster:giant_rat".to_owned(), 2)]);
     assert_eq!(e.disposition, Disposition::Wary);
     assert!(e.once && e.stand.is_none());
@@ -759,13 +818,22 @@ fn the_plan_marks_placements_on_their_cells() {
         0,
         "a plain cell"
     );
-    // An encounter placed marks its cell at once.
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
-    arrow(&mut app, EditAct::PlaceKind, true);
-    press_edit(&mut app, EditAct::Add);
-    press_edit(&mut app, EditAct::Apply);
-    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    // An encounter stamped marks its cell at once.
+    stamp(
+        &mut app,
+        omnis_vector::editor::forms::Placing::Encounter,
+        (3, 4),
+    );
+    assert!(
+        editing(&app)
+            .def()
+            .unwrap()
+            .encounters
+            .iter()
+            .any(|e| (e.x, e.y) == (3, 4)),
+        "{:?}",
+        editing(&app).message
+    );
     let raster = painted(&app);
     assert!(
         in_plan_cell(&app, &raster, (3, 4), START) > 0,
@@ -776,27 +844,28 @@ fn the_plan_marks_placements_on_their_cells() {
 #[test]
 fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     use common::editor::{field_of, type_into};
+    use omnis_vector::editor::forms::Placing;
     use omnis_vector::editor::view;
     use omnis_vector::screen::ControlId;
     use omnis_vector::shell::session::Packs;
     let mut app = in_editor("test:map:town");
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
-    arrow(&mut app, EditAct::PlaceKind, true);
-    press_edit(&mut app, EditAct::Add);
-    let form = editing(&app).form.clone().expect("the encounter form");
-    assert_eq!(form.text_of("id"), "encounter_3_4");
-    let rows = form.rows_of(0);
-    assert_eq!(rows.len(), 1, "one stack to start");
-    let creature = form.text(rows[0][0]).to_owned();
     let data = app.world().resource::<Packs>().data.clone();
+    // Stamped with nothing typed: a free id, one stack of a loaded monster, the loader takes
+    // the map, Save is live.
+    stamp(&mut app, Placing::Encounter, (3, 4));
+    let def = editing(&app).def().unwrap();
+    let e = def
+        .encounters
+        .iter()
+        .find(|e| (e.x, e.y) == (3, 4))
+        .expect("the encounter");
+    assert_eq!(e.id, "encounter_3_4");
+    assert_eq!(e.stacks.len(), 1, "one stack to start");
     assert!(
-        data.monsters.values().any(|m| m.id == creature),
-        "{creature}"
+        data.monsters.values().any(|m| m.id == e.stacks[0].0),
+        "{}",
+        e.stacks[0].0
     );
-    // Apply with nothing typed: placed, the loader takes the map, Save is live.
-    press_edit(&mut app, EditAct::Apply);
-    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
     assert!(
         editing(&app).status.errors.is_empty(),
         "{:?}",
@@ -808,14 +877,8 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
         .clone();
     assert_eq!(save.why_not, None, "Save is live");
     // A second encounter on the cell is refused before the document would replace anything.
-    press_edit(&mut app, EditAct::Add);
-    assert_eq!(
-        editing(&app).form.as_ref().unwrap().text_of("id"),
-        "encounter_3_4_2",
-        "a free id"
-    );
-    press_edit(&mut app, EditAct::Apply);
-    assert!(editing(&app).form.is_some(), "the form stands");
+    let steps = editing(&app).status.undo;
+    stamp(&mut app, Placing::Encounter, (3, 4));
     assert!(
         editing(&app)
             .message
@@ -824,18 +887,19 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
         "{:?}",
         editing(&app).message
     );
-    press_edit(&mut app, EditAct::Cancel);
-    // A taken id on another cell is refused too.
-    app.world_mut().resource_mut::<Editing>().point((4, 4));
-    app.update();
-    press_edit(&mut app, EditAct::Add);
-    let form = editing(&app).form.clone().unwrap();
+    assert_eq!(editing(&app).status.undo, steps);
+    // A taken id on another cell is refused too, the form standing.
+    stamp(&mut app, Placing::Encounter, (4, 4));
+    press_edit(&mut app, EditAct::EditAt(0));
+    let form = editing(&app).form.clone().expect("the form");
+    assert_eq!(form.text_of("id"), "encounter_4_4", "a free id");
     type_into(
         &mut app,
         EditAct::Field(field_of(&form, "id")),
         "encounter_3_4",
     );
     press_edit(&mut app, EditAct::Apply);
+    assert!(editing(&app).form.is_some(), "the form stands");
     assert!(
         editing(&app)
             .message
@@ -861,7 +925,7 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     );
     press_edit(&mut app, EditAct::Cancel);
     // A creature nothing answers to is placed, and the loader's words are said at once.
-    press_edit(&mut app, EditAct::Add);
+    press_edit(&mut app, EditAct::EditAt(0));
     let form = editing(&app).form.clone().unwrap();
     let rows = form.rows_of(0);
     type_into(
@@ -884,50 +948,46 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     assert!(editing(&app).status.errors.is_empty());
 }
 
-/// Add offers "Activity" (owner, 2026-10-24: the category the services fall under); its form
-/// names the kind, a service's site today, and places a site the inspector lists as a service.
+/// The palette offers "Activity" (owner, 2026-10-24: the category the services fall under) as a
+/// stamp; a click places a service's site the inspector lists as a service, and its form names
+/// the kind.
 #[test]
-fn an_activity_is_placed_from_the_add_choice_as_a_service_s_site() {
+fn an_activity_stamp_places_a_service_s_site_the_inspector_lists() {
     use omnis_vector::editor::form::FormKind;
     use omnis_vector::editor::forms::Placing;
+    use omnis_vector::shell::session::Packs;
     let mut app = in_editor("test:map:town");
-    app.world_mut().resource_mut::<Editing>().point((3, 4));
-    app.update();
     let text = form_text(&app);
     assert!(
-        !text.contains("Site"),
-        "the word Site is gone from the Add choice: {text}"
+        !text.contains("Site") && !text.contains("Add here"),
+        "the word Site and the Add row are gone: {text}"
     );
-    while Placing::ALL[editing(&app).place_kind] != Placing::Activity {
-        arrow(&mut app, EditAct::PlaceKind, true);
-    }
-    assert!(form_text(&app).contains("Activity"));
-    press_edit(&mut app, EditAct::Add);
-    let form = editing(&app).form.clone().expect("the activity form");
-    assert_eq!(form.kind, FormKind::Site);
-    assert_eq!(form.choice_of("kind"), "Service site");
-    assert!(form.choice_of("service").starts_with("base:service:"));
-    assert!(form_text(&app).contains("Activity at (3, 4)"));
-    press_edit(&mut app, EditAct::Apply);
-    assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
+    let data = app.world().resource::<Packs>().data.clone();
+    stamp(&mut app, Placing::Activity, (3, 4));
     let def = editing(&app).def().unwrap();
     let placed = def
         .sites
         .iter()
         .find(|s| s.x == 3 && s.y == 4)
         .expect("the site");
-    assert_eq!(placed.service, form.choice_of("service"));
+    assert_eq!(
+        Some(placed.service.clone()),
+        editing(&app).stamps.detail(Placing::Activity, &data)
+    );
+    assert!(placed.service.starts_with("base:service:"));
     let text = form_text(&app);
     assert!(
         text.contains(&format!("Service {}", placed.service)),
         "{text}"
     );
+    press_edit(&mut app, EditAct::EditAt(0));
+    let form = editing(&app).form.clone().expect("the activity form");
+    assert_eq!(form.kind, FormKind::Site);
+    assert_eq!(form.choice_of("kind"), "Service site");
+    assert_eq!(form.choice_of("service"), placed.service);
+    assert!(form_text(&app).contains("Activity at (3, 4)"));
+    press_edit(&mut app, EditAct::Cancel);
     // Its mark on the plan is its service's icon.
-    let data = app
-        .world()
-        .resource::<omnis_vector::shell::session::Packs>()
-        .data
-        .clone();
     let kind = data
         .services
         .values()

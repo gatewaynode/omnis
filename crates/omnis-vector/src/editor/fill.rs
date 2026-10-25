@@ -69,7 +69,7 @@ impl Editor {
             }
             Entry::Terrain(_) => format!("filled with {}", entry.label(&def)),
             Entry::Height => format!("set to height {}", self.eighths),
-            Entry::Edge(_) => {
+            Entry::Edge(_) | Entry::Stamp(_) => {
                 self.message = Some("the fill takes a terrain or the height".to_owned());
                 return false;
             }

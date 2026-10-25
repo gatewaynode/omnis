@@ -27,9 +27,10 @@ use omnis_sim::omnis_data::map::Terrain;
 use omnis_sim::omnis_data::placement::{GroundDef, MAX_OFFSET, Placement};
 use omnis_sim::omnis_data::rest_event::{RestEventDef, RestKind};
 use omnis_sim::omnis_data::service::Site;
-use omnis_sim::omnis_data::{Data, MapDef, Portal};
+use omnis_sim::omnis_data::{Data, MapDef, Portal, SlotKind};
 
-/// The kinds the inspector's Add places at the cursor, in the order of its choice.
+/// The placement kinds, in the palette's order: each is a stamp of the palette (the owner's
+/// column, step 3, 2026-10-25; `super::stamp`), placed on a cell by a click with one detail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Placing {
     /// A portal to another map.
@@ -58,7 +59,7 @@ impl Placing {
         Placing::Lore,
     ];
 
-    /// Its name in the choice.
+    /// Its name in the palette.
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
@@ -68,6 +69,38 @@ impl Placing {
             Placing::Object => "Object",
             Placing::Ground => "Ground pile",
             Placing::Lore => "Lore",
+        }
+    }
+
+    /// Its position in `ALL`.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The detail its stamp holds, as the choice under the palette names it.
+    #[must_use]
+    pub const fn detail(self) -> &'static str {
+        match self {
+            Placing::Portal => "to map",
+            Placing::Encounter => "monster",
+            Placing::Activity => "service",
+            Placing::Object => "kind",
+            Placing::Ground => "item",
+            Placing::Lore => "text",
+        }
+    }
+
+    /// What the detail is one of, in a refusal ("the packs have no object kind").
+    #[must_use]
+    pub const fn what(self) -> &'static str {
+        match self {
+            Placing::Portal => "map",
+            Placing::Encounter => "monster",
+            Placing::Activity => "service",
+            Placing::Object => "object kind",
+            Placing::Ground => "item",
+            Placing::Lore => "text key",
         }
     }
 }
@@ -126,16 +159,18 @@ pub fn find<'a>(def: &'a MapDef, key: &Target) -> Option<Found<'a>> {
 }
 
 impl Form {
-    /// A form to place a new `kind` at `at`.
+    /// A form to place a new `kind` at `at`, valid as it opens: `detail` is what the stamp holds
+    /// (the map a portal leads to, an encounter's monster, a site's service, an object's kind, a
+    /// pile's item, a lore's text key), the first of the packs' when none.
     #[must_use]
-    pub fn placing(kind: Placing, def: &MapDef, data: &Data, at: At) -> Form {
+    pub fn placing(kind: Placing, def: &MapDef, data: &Data, at: At, detail: Option<&str>) -> Form {
         match kind {
-            Placing::Portal => portal(data, at, None),
-            Placing::Encounter => encounter(def, data, at, None),
-            Placing::Activity => site(data, at, None),
-            Placing::Object => object(def, data, at, None),
-            Placing::Ground => ground(at, None),
-            Placing::Lore => lore(def, at, None),
+            Placing::Portal => portal(def, data, at, None, detail),
+            Placing::Encounter => encounter(def, data, at, None, detail),
+            Placing::Activity => site(data, at, None, detail),
+            Placing::Object => object(def, data, at, None, detail),
+            Placing::Ground => ground(data, at, None, detail),
+            Placing::Lore => lore(def, data, at, None, detail),
         }
     }
 
@@ -149,13 +184,13 @@ impl Form {
             facing,
         };
         let mut form = match find(def, key)? {
-            Found::Portal(p) => portal(data, at(p.level, p.x, p.y), Some(p)),
-            Found::Encounter(e) => encounter(def, data, at(e.level, e.x, e.y), Some(e)),
-            Found::Site(s) => site(data, at(s.level, s.x, s.y), Some(s)),
+            Found::Portal(p) => portal(def, data, at(p.level, p.x, p.y), Some(p), None),
+            Found::Encounter(e) => encounter(def, data, at(e.level, e.x, e.y), Some(e), None),
+            Found::Site(s) => site(data, at(s.level, s.x, s.y), Some(s), None),
             Found::RestEvent(r) => rest_event(def, at(Level::GROUND, 0, 0), Some(r)),
-            Found::Object(o) => object(def, data, at(o.level, o.x, o.y), Some(o)),
-            Found::Ground(g) => ground(at(g.level, g.x, g.y), Some(g)),
-            Found::Lore(l) => lore(def, at(l.level, l.x, l.y), Some(l)),
+            Found::Object(o) => object(def, data, at(o.level, o.x, o.y), Some(o), None),
+            Found::Ground(g) => ground(data, at(g.level, g.x, g.y), Some(g), None),
+            Found::Lore(l) => lore(def, data, at(l.level, l.x, l.y), Some(l), None),
         };
         form.remove = Some(Change::Place(Place::Remove(key.clone())));
         Some(form)
@@ -257,10 +292,36 @@ impl Form {
     }
 
     /// The loader's keys, checked before the document's upsert would replace something
-    /// silently: an id another encounter, object or lore has, a second encounter on a cell.
+    /// silently: an id another encounter, object or lore has, a second encounter on a cell, a
+    /// second portal, site or pile on a tile (a new one; editing keeps its own tile).
     fn keys(&self, def: &MapDef) -> Result<(), String> {
         let original = self.original_id();
         let other = |id: &str| original != Some(id);
+        if self.remove.is_none() {
+            let (level, x, y) = (self.at.level, self.at.x, self.at.y);
+            let there = |l: Level, px: u16, py: u16| (l, px, py) == (level, x, y);
+            let taken = match self.kind {
+                FormKind::Portal => def
+                    .portals
+                    .iter()
+                    .any(|p| there(p.level, p.x, p.y))
+                    .then_some("a portal"),
+                FormKind::Site => def
+                    .sites
+                    .iter()
+                    .any(|s| there(s.level, s.x, s.y))
+                    .then_some("a site"),
+                FormKind::Ground => def
+                    .ground
+                    .iter()
+                    .any(|g| there(g.level, g.x, g.y))
+                    .then_some("a ground pile"),
+                _ => None,
+            };
+            if let Some(what) = taken {
+                return Err(format!("{what} is already at ({x}, {y})"));
+            }
+        }
         match self.kind {
             FormKind::Encounter => {
                 let id = form::id(self.text_of("id"))?;
@@ -343,7 +404,7 @@ impl Form {
                 to_x: u16_of(self.number_of("to x")),
                 to_y: u16_of(self.number_of("to y")),
                 to_facing: facing_of(self, "facing"),
-                marker: Some(optional(self.text_of("marker")).ok_or("a portal needs a marker")?),
+                marker: Some(optional(self.choice_of("marker")).ok_or("a portal needs a marker")?),
             }),
             FormKind::Encounter => Place::Encounter(FixedEncounter {
                 id: form::id(self.text_of("id"))?,
@@ -449,7 +510,7 @@ impl Form {
                     level: at.level,
                     x: u16_of(self.number_of("x")),
                     y: u16_of(self.number_of("y")),
-                    text: optional(self.text_of("text")).ok_or("a lore needs its text")?,
+                    text: optional(self.choice_of("text")).ok_or("a lore needs its text")?,
                     dc: (dc > 0).then_some(dc),
                     once: self.flag_of("once"),
                 })
@@ -551,28 +612,48 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
     form
 }
 
-fn portal(data: &Data, at: At, was: Option<&Portal>) -> Form {
+/// A portal's form: the map it leads to and where it lands there (a new one at that map's
+/// start), and its marker, a surface of the map's tileset the game draws on its cell.
+fn portal(def: &MapDef, data: &Data, at: At, was: Option<&Portal>, detail: Option<&str>) -> Form {
     let side = i64::from(MAX_MAP_SIDE - 1);
+    let to_map = was
+        .map(|p| p.to_map.clone())
+        .or_else(|| detail.map(str::to_owned))
+        .or_else(|| data.maps.values().map(|m| m.def.id.clone()).min());
+    let landing = to_map
+        .as_deref()
+        .and_then(|id| data.registry.maps.get(id))
+        .and_then(|id| data.maps.get(&id))
+        .map(|m| m.def.start);
+    let (to_level, to_x, to_y, to_facing) = was.map_or_else(
+        || landing.map_or((0, 0, 0, at.facing), |(x, y, f)| (0, x, y, f)),
+        |p| (p.to_level.0, p.to_x, p.to_y, p.to_facing),
+    );
+    let markers: Vec<String> = data
+        .registry
+        .tilesets
+        .get(&def.tileset)
+        .and_then(|id| data.tilesets.get(&id))
+        .map(|t| {
+            t.surfaces
+                .iter()
+                .filter(|(_, s)| matches!(s.kind, SlotKind::Object))
+                .map(|(name, _)| name.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+    let (markers, marker) = among(markers, was.and_then(|p| p.marker.as_deref()));
     Form::new(
         FormKind::Portal,
         format!("Portal at ({}, {})", at.x, at.y),
         at,
         vec![
-            map_choice(data, was.map(|p| p.to_map.as_str())),
-            form::number(
-                "to level",
-                was.map_or(0, |p| i64::from(p.to_level.0)),
-                -16,
-                16,
-            ),
-            form::number("to x", was.map_or(0, |p| i64::from(p.to_x)), 0, side),
-            form::number("to y", was.map_or(0, |p| i64::from(p.to_y)), 0, side),
-            facings(was.map_or(at.facing, |p| p.to_facing)),
-            form::text(
-                "marker",
-                was.and_then(|p| p.marker.as_deref()).unwrap_or(""),
-                ID_MAX,
-            ),
+            map_choice(data, to_map.as_deref()),
+            form::number("to level", i64::from(to_level), -16, 16),
+            form::number("to x", i64::from(to_x), 0, side),
+            form::number("to y", i64::from(to_y), 0, side),
+            facings(to_facing),
+            form::choice("marker", markers, marker),
         ],
         Vec::new(),
     )
@@ -581,7 +662,13 @@ fn portal(data: &Data, at: At, was: Option<&Portal>) -> Form {
 /// An encounter's form. A new one starts valid (owner, 2026-10-24): an id nothing on the map
 /// has, one stack of the first loaded monster, hostile; Apply at once gives a map the loader
 /// takes.
-fn encounter(def: &MapDef, data: &Data, at: At, was: Option<&FixedEncounter>) -> Form {
+fn encounter(
+    def: &MapDef,
+    data: &Data,
+    at: At,
+    was: Option<&FixedEncounter>,
+    detail: Option<&str>,
+) -> Form {
     let stand = was.and_then(|e| e.stand.as_ref());
     let offset = i64::from(MAX_OFFSET);
     let id = was.map_or_else(
@@ -630,7 +717,10 @@ fn encounter(def: &MapDef, data: &Data, at: At, was: Option<&FixedEncounter>) ->
     match was {
         Some(e) => form.fill(0, pairs(&e.stacks)),
         None => {
-            if let Some(first) = data.monsters.values().map(|m| m.id.clone()).min() {
+            let first = detail
+                .map(str::to_owned)
+                .or_else(|| data.monsters.values().map(|m| m.id.clone()).min());
+            if let Some(first) = first {
                 form.fill(0, pairs(&[(first, 1_u8)]));
             }
         }
@@ -690,9 +780,9 @@ fn random(was: Option<&RandomEncounters>, at: At) -> Form {
 const ACTIVITIES: [&str; 1] = ["Service site"];
 
 /// An activity's form: its kind, then what the kind needs (a service's id for a site).
-fn site(data: &Data, at: At, was: Option<&Site>) -> Form {
+fn site(data: &Data, at: At, was: Option<&Site>, detail: Option<&str>) -> Form {
     let services = data.services.values().map(|s| s.id.clone()).collect();
-    let (options, chosen) = among(services, was.map(|s| s.service.as_str()));
+    let (options, chosen) = among(services, was.map(|s| s.service.as_str()).or(detail));
     Form::new(
         FormKind::Site,
         format!("Activity at ({}, {})", at.x, at.y),
@@ -743,11 +833,27 @@ fn rest_event(def: &MapDef, at: At, was: Option<&RestEventDef>) -> Form {
     )
 }
 
-fn object(def: &MapDef, data: &Data, at: At, was: Option<&Placement>) -> Form {
+/// An object's form; a new one takes a free id (objects and encounters share one id space, the
+/// loader's rule) and the kind `detail` names.
+fn object(
+    def: &MapDef,
+    data: &Data,
+    at: At,
+    was: Option<&Placement>,
+    detail: Option<&str>,
+) -> Form {
     let kinds = data.objects.values().map(|k| k.id.clone()).collect();
-    let (options, chosen) = among(kinds, was.map(|o| o.kind.as_str()));
+    let (options, chosen) = among(kinds, was.map(|o| o.kind.as_str()).or(detail));
     let lore = was.and_then(|o| o.lore.as_ref());
     let offset = i64::from(MAX_OFFSET);
+    let id = was.map_or_else(
+        || {
+            free_id("object", (at.x, at.y), |id| {
+                def.objects.iter().any(|o| o.id == id) || def.encounters.iter().any(|e| e.id == id)
+            })
+        },
+        |o| o.id.clone(),
+    );
     let mut form = Form::new(
         FormKind::Object,
         was.map_or_else(
@@ -756,7 +862,7 @@ fn object(def: &MapDef, data: &Data, at: At, was: Option<&Placement>) -> Form {
         ),
         at,
         vec![
-            form::text("id", was.map_or("", |o| o.id.as_str()), ID_MAX),
+            form::text("id", &id, ID_MAX),
             form::choice("kind", options, chosen),
             coordinate("x", at.x, def.width),
             coordinate("y", at.y, def.height),
@@ -806,7 +912,8 @@ fn object(def: &MapDef, data: &Data, at: At, was: Option<&Placement>) -> Form {
     form
 }
 
-fn ground(at: At, was: Option<&GroundDef>) -> Form {
+/// A pile's form; a new one holds one of the item `detail` names (the packs' first when none).
+fn ground(data: &Data, at: At, was: Option<&GroundDef>, detail: Option<&str>) -> Form {
     let offset = i64::from(MAX_OFFSET);
     let mut form = Form::new(
         FormKind::Ground,
@@ -828,13 +935,33 @@ fn ground(at: At, was: Option<&GroundDef>) -> Form {
         ],
         vec![pair_list("Items", "item", ITEMS_MAX, form::MAX_ROWS)],
     );
-    if let Some(g) = was {
-        form.fill(0, pairs(&g.items));
+    match was {
+        Some(g) => form.fill(0, pairs(&g.items)),
+        None => {
+            let first = detail
+                .map(str::to_owned)
+                .or_else(|| data.items.values().map(|i| i.id.clone()).min());
+            if let Some(first) = first {
+                form.fill(0, pairs(&[(first, 1_u16)]));
+            }
+        }
     }
     form
 }
 
-fn lore(def: &MapDef, at: At, was: Option<&CellLore>) -> Form {
+/// A lore's form; a new one takes a free id and the text key `detail` names, chosen among the
+/// packs' defined keys.
+fn lore(def: &MapDef, data: &Data, at: At, was: Option<&CellLore>, detail: Option<&str>) -> Form {
+    let id = was.map_or_else(
+        || {
+            free_id("lore", (at.x, at.y), |id| {
+                def.lore.iter().any(|l| l.id == id)
+            })
+        },
+        |l| l.id.clone(),
+    );
+    let keys: Vec<String> = data.registry.text.names().map(str::to_owned).collect();
+    let (keys, key) = among(keys, was.map(|l| l.text.as_str()).or(detail));
     Form::new(
         FormKind::Lore,
         was.map_or_else(
@@ -843,10 +970,10 @@ fn lore(def: &MapDef, at: At, was: Option<&CellLore>) -> Form {
         ),
         at,
         vec![
-            form::text("id", was.map_or("", |l| l.id.as_str()), ID_MAX),
+            form::text("id", &id, ID_MAX),
             coordinate("x", at.x, def.width),
             coordinate("y", at.y, def.height),
-            form::text("text", was.map_or("", |l| l.text.as_str()), ID_MAX),
+            form::choice("text", keys, key),
             form::number("DC", was.and_then(|l| l.dc).map_or(0, i64::from), 0, DC_MAX),
             form::flag("once", was.is_some_and(|l| l.once)),
         ],

@@ -228,6 +228,39 @@ pub enum Place {
     Remove(Target),
 }
 
+impl Place {
+    /// The key this placement is put or replaced by (`Document::place`); none for the start, the
+    /// random table and a removal, which name no entry of a list.
+    #[must_use]
+    pub fn key(&self) -> Option<Target> {
+        Some(match self {
+            Place::Portal(p) => Target::Portal {
+                level: p.level,
+                x: p.x,
+                y: p.y,
+            },
+            Place::Encounter(e) => Target::Encounter { id: e.id.clone() },
+            Place::Site(s) => Target::Site {
+                level: s.level,
+                x: s.x,
+                y: s.y,
+            },
+            Place::RestEvent(r) => Target::RestEvent {
+                terrain: r.terrain.clone(),
+                rest: r.rest,
+            },
+            Place::Object(o) => Target::Object { id: o.id.clone() },
+            Place::Ground(g) => Target::Ground {
+                level: g.level,
+                x: g.x,
+                y: g.y,
+            },
+            Place::Lore(l) => Target::Lore { id: l.id.clone() },
+            Place::Start { .. } | Place::Random(_) | Place::Remove(_) => return None,
+        })
+    }
+}
+
 /// The map's own fields, each changed when given.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapFields {

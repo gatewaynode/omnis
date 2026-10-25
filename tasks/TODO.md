@@ -292,8 +292,16 @@ no loss, and every later map is built with it.
     open after an attempt, read the undo depth and the message over the dev socket; ask whether the plan pans
     (the press misses the start: look at the pack and level the window has) or the cursor follows and nothing
     lands (the release fails).
-  - [ ] Step 3: placements as palette stamps (an encounter, an object, an activity placed with a click, its
-    details edited in the inspector).
+  - [x] Step 3 (2026-10-25, one commit; `tasks/acceptance/editor-column-3.md`): placements as palette stamps.
+    The palette ends in a stamp a placement kind (portal, encounter, activity, object, ground pile, lore), each
+    with one detail chosen under the palette (the map, the monster, the service, the object kind, the item, the
+    text key); a click with the brush places one at once through the kind's form, valid as it lands, refused
+    where its kind already is, one undo step; a drag places once; the inspector's Add row is gone (Edit and
+    Remove stay); a right click on a placement picks its stamp and detail. Owner's choices in the planning:
+    places at once; one detail per stamp; the Add row goes; an occupied tile refuses. Found and fixed on the
+    way: a placement edited under a new id left its old entry (now `[Remove(old), new]` in one step,
+    `Place::key`; lesson in LESSONS). Later: a stamp's mark previewed under the pointer; the detail as a modal
+    picker when the list is long (the text keys).
   - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).
   - [ ] Step 5: Undo as a history list.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
