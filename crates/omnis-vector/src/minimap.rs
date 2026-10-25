@@ -23,6 +23,9 @@ pub const BACKGROUND: [u8; 4] = [0, 10, 4, 190];
 pub const WALL: [u8; 4] = [60, 255, 120, 255];
 /// A known door.
 pub const DOOR: [u8; 4] = [255, 170, 40, 255];
+/// A wall run previewed on the editor's plan before it is taken: the caution colour,
+/// `style::Role::Caution`, as the hover.
+pub const PREVIEW: [u8; 4] = [255, 217, 77, 255];
 /// A known cliff edge (provisional until the colour roles, M8.5 step 5).
 pub const CLIFF: [u8; 4] = [230, 150, 60, 255];
 /// A known ramp edge's tick.

@@ -300,44 +300,32 @@ impl Document {
         stroke: bool,
     ) -> Result<(), EditError> {
         let coalesce = stroke && self.in_stroke;
-        let result = self.change(coalesce, |state| match brush {
-            Brush::Tile { glyph, rise } => {
-                let index = *state
-                    .glyphs()
-                    .get(glyph)
-                    .ok_or(EditError::UnknownGlyph(*glyph))?;
-                let stair = matches!(
-                    state.def.terrains[usize::from(index)].join,
-                    Some(Join::Up | Join::Down)
-                );
-                let rise = match (stair, rise) {
-                    (true, None) => return Err(EditError::NeedsRise),
-                    (true, Some(rise)) => Some(*rise),
-                    (false, _) => None,
-                };
-                state.grid_mut(level)?.set_tile(x, y, Some(index))?;
-                drop_stair(&mut state.def, level, x, y);
-                if let Some(rise) = rise {
-                    state.def.stairs.push(StairDef {
-                        level: level.0,
-                        x,
-                        y,
-                        rise,
-                    });
-                }
-                Ok(())
-            }
-            Brush::Edge { side, kind } => state.grid_mut(level)?.set_edge(x, y, *side, *kind),
-            Brush::Height { eighths } => state.grid_mut(level)?.set_height(x, y, *eighths),
-            Brush::Clear => {
-                state.grid_mut(level)?.set_tile(x, y, None)?;
-                drop_stair(&mut state.def, level, x, y);
-                Ok(())
-            }
-        });
+        let result = self.change(coalesce, |state| apply_brush(state, level, x, y, brush));
         // A paint leaves a stroke open for the next paint to join; anything else closes it.
         self.in_stroke = result.is_ok();
         result
+    }
+
+    /// Paint many tiles or edges of `level` as one step: every paint lands or none does (a
+    /// wall run drawn by the editor's boundary tools). Closes any open stroke. An empty list
+    /// changes nothing and is no step.
+    ///
+    /// # Errors
+    /// The brush's rules, as `paint`.
+    pub fn paint_many(
+        &mut self,
+        level: Level,
+        paints: &[((u16, u16), Brush)],
+    ) -> Result<(), EditError> {
+        self.in_stroke = false;
+        if paints.is_empty() {
+            return Ok(());
+        }
+        self.change(false, |state| {
+            paints
+                .iter()
+                .try_for_each(|((x, y), brush)| apply_brush(state, level, *x, *y, brush))
+        })
     }
 
     /// Put a placement on the map, replacing one with the same key, or remove one.
@@ -379,6 +367,52 @@ impl Document {
         let next = self.redo.pop().ok_or(EditError::NothingToUndo)?;
         self.undo.push(std::mem::replace(&mut self.state, next));
         Ok(())
+    }
+}
+
+/// Paint one tile or edge of `level` on `state`: a tile (a stair rising `rise`, the stairs
+/// list following), an edge, a height or no ground.
+fn apply_brush(
+    state: &mut State,
+    level: Level,
+    x: u16,
+    y: u16,
+    brush: &Brush,
+) -> Result<(), EditError> {
+    match brush {
+        Brush::Tile { glyph, rise } => {
+            let index = *state
+                .glyphs()
+                .get(glyph)
+                .ok_or(EditError::UnknownGlyph(*glyph))?;
+            let stair = matches!(
+                state.def.terrains[usize::from(index)].join,
+                Some(Join::Up | Join::Down)
+            );
+            let rise = match (stair, rise) {
+                (true, None) => return Err(EditError::NeedsRise),
+                (true, Some(rise)) => Some(*rise),
+                (false, _) => None,
+            };
+            state.grid_mut(level)?.set_tile(x, y, Some(index))?;
+            drop_stair(&mut state.def, level, x, y);
+            if let Some(rise) = rise {
+                state.def.stairs.push(StairDef {
+                    level: level.0,
+                    x,
+                    y,
+                    rise,
+                });
+            }
+            Ok(())
+        }
+        Brush::Edge { side, kind } => state.grid_mut(level)?.set_edge(x, y, *side, *kind),
+        Brush::Height { eighths } => state.grid_mut(level)?.set_height(x, y, *eighths),
+        Brush::Clear => {
+            state.grid_mut(level)?.set_tile(x, y, None)?;
+            drop_stair(&mut state.def, level, x, y);
+            Ok(())
+        }
     }
 }
 

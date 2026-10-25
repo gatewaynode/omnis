@@ -695,6 +695,7 @@ fn painted(app: &App) -> omnis_vector::minimap::Raster {
             resolved: e.resolved.as_ref(),
             start: None,
             marks: &marks,
+            preview: None,
         },
         e.view,
         e.pane,

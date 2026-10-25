@@ -12,6 +12,7 @@ pub mod forms;
 pub mod plan;
 pub mod playtest;
 pub mod preview;
+pub mod run;
 pub mod view;
 
 pub use acts::EditAct;
@@ -23,6 +24,7 @@ use omnis_sim::omnis_data::edit::{
     Brush, Edit, EditError, EditorStatus, Grid, MapEntry, Place, Session, Target as PlaceKey,
 };
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
+use run::{Corner, Run};
 use std::path::PathBuf;
 
 /// Whose note: the cursor's cell's, the shown level's or the map's.
@@ -90,8 +92,12 @@ pub struct Editor {
     /// The last target painted in the stroke the held button keeps open; none between strokes.
     pub stroke: Option<Target>,
     /// What a click would act on now: the aim under the pointer (`aim`), shown over the plan;
-    /// none while the pointer is off the plan or over a control.
+    /// none while the pointer is off the plan or over a control, and with a run tool.
     pub hover: Option<Target>,
+    /// With a run tool, the grid corner nearest the pointer (`run`); none otherwise.
+    pub corner: Option<Corner>,
+    /// The wall run being drawn, if one is: pending by corners, or under a freehand drag.
+    pub run: Option<Run>,
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
@@ -145,6 +151,8 @@ impl Editor {
             eighths: 0,
             stroke: None,
             hover: None,
+            corner: None,
+            run: None,
             status,
             form: None,
             place_kind: 0,
@@ -397,12 +405,14 @@ impl Editor {
     /// What a click at pane pixel `(px, py)` acts on: with an edge brush the cell under it and
     /// its nearest side, wherever in the cell the pixel lies (never the facing: the mouse shows
     /// what it will do); otherwise the cell, or its edge when the pixel is within a quarter of
-    /// the side of that border. None off the map.
+    /// the side of that border. None off the map, and with a run tool, which aims at a corner
+    /// (`run::Editor::pointer`).
     #[must_use]
     pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
         let size = self.size();
         match self.tool {
             Tool::Edge(_) => self.view.edge_target(size, px, py),
+            Tool::Corners | Tool::Freehand => None,
             _ => self.view.target(size, px, py),
         }
     }
@@ -710,8 +720,10 @@ impl Editor {
     }
 
     /// Take what is under `target` as the brush: the edge's kind, the cell's terrain or no
-    /// ground, and the cell's height; the cursor goes there. Never changes the map.
+    /// ground, and the cell's height; the cursor goes there. Never changes the map. A pending
+    /// run is dropped with its tool.
     pub fn pick(&mut self, target: Target) {
+        self.run = None;
         let Some(grid) = self.grid() else {
             return;
         };

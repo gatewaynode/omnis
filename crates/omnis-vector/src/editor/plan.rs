@@ -4,8 +4,9 @@
 //! click's pixel maps back to its cell (`hit`). Bevy-free.
 
 use super::brush::Target;
+use super::run::{Corner, Preview};
 use crate::icons;
-use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, RAMP, WALL};
+use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, PREVIEW, RAMP, WALL};
 use crate::raster::{
     Raster, edge_key, edge_pixels, join_pixels, line_pixels, portal_pixels, rect_pixels,
     tick_pixels, triangle_pixels,
@@ -141,6 +142,20 @@ impl View {
         self.aimed(size, px, py, 0.5)
     }
 
+    /// The grid corner nearest pixel `(px, py)` of the pane, when it lies on the map or within
+    /// half a cell of its boundary: `0..=width` across, `0..=height` down. What a run tool
+    /// aims at.
+    #[must_use]
+    pub fn corner(self, size: (u16, u16), px: f32, py: f32) -> Option<Corner> {
+        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+        let (col, row) = (
+            self.origin.0 + (px / self.scale() as f32).round() as i64,
+            self.origin.1 + (py / self.scale() as f32).round() as i64,
+        );
+        let (x, y) = (u16::try_from(col).ok()?, u16::try_from(row).ok()?);
+        (x <= size.0 && y <= size.1).then_some((x, y))
+    }
+
     /// The cell under the pixel and its nearest side when that side is within `band` of the
     /// cell's side away.
     fn aimed(self, size: (u16, u16), px: f32, py: f32, band: f32) -> Option<Target> {
@@ -193,6 +208,8 @@ pub struct Source<'a> {
     pub start: Option<(u16, u16)>,
     /// The placements on this level, each marked on its cell (`marks`).
     pub marks: &'a [((u16, u16), Mark)],
+    /// A wall run being drawn and the corner under the pointer, previewed over everything.
+    pub preview: Option<&'a Preview>,
 }
 
 /// What a placement marks its cell with on the plan (owner, 2026-10-24): a portal the
@@ -321,7 +338,8 @@ pub const START: [u8; 4] = [255, 255, 255, 255];
 
 /// Paint the cells of `source` the pane shows under `view`: terrain fills shaded by height, no
 /// ground, the map's edge, then ramps and cliffs, joins, walls and doors over them, the
-/// placements' marks, and the start's mark.
+/// placements' marks, the start's mark, and a run's preview over all (a bar a sixth of a cell
+/// thick along each side, a square on the corner aimed at, in the caution colour).
 #[must_use]
 pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
     let s = view.scale();
@@ -447,6 +465,37 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
             }
         }
     }
+    if let Some(preview) = source.preview {
+        let thick = (si / 6).max(2);
+        let across = -thick / 2..thick - thick / 2;
+        for (horizontal, x, y) in &preview.sides {
+            let (x0, y0) = (
+                (i64::from(*x) - view.origin.0) * si,
+                (i64::from(*y) - view.origin.1) * si,
+            );
+            for along in 0..=si {
+                for t in across.clone() {
+                    let (px, py) = if *horizontal {
+                        (x0 + along, y0 + t)
+                    } else {
+                        (x0 + t, y0 + along)
+                    };
+                    out.put(px, py, PREVIEW);
+                }
+            }
+        }
+        if let Some((x, y)) = preview.corner {
+            let (cx, cy) = (
+                (i64::from(x) - view.origin.0) * si,
+                (i64::from(y) - view.origin.1) * si,
+            );
+            for dy in -thick..=thick {
+                for dx in -thick..=thick {
+                    out.put(cx + dx, cy + dy, PREVIEW);
+                }
+            }
+        }
+    }
     out
 }
 
@@ -485,6 +534,53 @@ mod tests {
         assert_eq!(view.hit((10, 10), 8.0, 64.0), None, "past the last row");
         assert_eq!(view.hit((10, 10), -1.0, 5.0), None);
         assert_eq!(view.cell_rect((0, 2)), (8, 0, 8));
+    }
+
+    #[test]
+    fn a_pixel_snaps_to_its_nearest_corner_up_to_half_a_cell_past_the_boundary() {
+        let view = View {
+            origin: (-1, 2),
+            zoom: 1,
+        };
+        let size = (10, 10);
+        assert_eq!(
+            view.corner(size, 8.0, 0.0),
+            Some((0, 2)),
+            "a corner exactly"
+        );
+        assert_eq!(
+            view.corner(size, 11.0, 0.0),
+            Some((0, 2)),
+            "0.4 across snaps back"
+        );
+        assert_eq!(
+            view.corner(size, 13.0, 0.0),
+            Some((1, 2)),
+            "0.6 across snaps on"
+        );
+        assert_eq!(
+            view.corner(size, 12.0, 20.0),
+            Some((1, 5)),
+            "a tie rounds on"
+        );
+        assert_eq!(
+            view.corner(size, 5.0, 0.0),
+            Some((0, 2)),
+            "within half a cell outside"
+        );
+        assert_eq!(view.corner(size, 3.0, 0.0), None, "further out");
+        assert_eq!(
+            view.corner(size, 8.0 + 80.0, 0.0),
+            Some((10, 2)),
+            "the east boundary"
+        );
+        assert_eq!(view.corner(size, 8.0 + 85.0, 0.0), None);
+        assert_eq!(
+            view.corner(size, 8.0, 66.0),
+            Some((0, 10)),
+            "the south boundary"
+        );
+        assert_eq!(view.corner(size, 8.0, 70.0), None);
     }
 
     #[test]

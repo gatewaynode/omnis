@@ -2,7 +2,9 @@
 //! The palette is the open map's terrains in their order, the four kinds of edge, a height
 //! and no ground; the tools column marks the current one and the first nine answer the digit
 //! keys. What is painted is a target: a cell, or one of its edges when the pointer is within a
-//! quarter of the cell's side of that border (`plan::View::target`). Bevy-free.
+//! quarter of the cell's side of that border (`plan::View::target`). The two run tools
+//! (`Corners`, `Freehand`) paint no target: they draw wall runs between grid corners
+//! (`super::run`). Bevy-free.
 
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::MapDef;
@@ -23,6 +25,10 @@ pub enum Tool {
     Height,
     /// No ground.
     Clear,
+    /// A wall run drawn corner by corner, taken by a click on its last corner (`super::run`).
+    Corners,
+    /// A wall run drawn freehand, taken when the button is let go.
+    Freehand,
 }
 
 /// Where a click lands: a cell, and the edge of it when the pointer is near that border.
@@ -34,8 +40,8 @@ pub struct Target {
     pub edge: Option<Facing>,
 }
 
-/// The palette of `def`: its terrains, then wall, door, ramp and open edge, the height and no
-/// ground.
+/// The palette of `def`: its terrains, then wall, door, ramp and open edge, the two wall runs,
+/// the height and no ground.
 #[must_use]
 pub fn palette(def: &MapDef) -> Vec<Tool> {
     let mut out: Vec<Tool> = (0..def.terrains.len())
@@ -47,6 +53,8 @@ pub fn palette(def: &MapDef) -> Vec<Tool> {
         Tool::Edge(EdgeKind::Door),
         Tool::Edge(EdgeKind::Ramp),
         Tool::Edge(EdgeKind::Open),
+        Tool::Corners,
+        Tool::Freehand,
         Tool::Height,
         Tool::Clear,
     ]);
@@ -78,12 +86,21 @@ impl Tool {
             Tool::Edge(EdgeKind::Open) => "Open edge (erase)".to_owned(),
             Tool::Height => "Height".to_owned(),
             Tool::Clear => "No ground".to_owned(),
+            Tool::Corners => "Walls by corners".to_owned(),
+            Tool::Freehand => "Walls freehand".to_owned(),
         }
+    }
+
+    /// Whether this is a run tool, which aims at grid corners and paints through `take_run`.
+    #[must_use]
+    pub fn is_run(self) -> bool {
+        matches!(self, Tool::Corners | Tool::Freehand)
     }
 
     /// The brush this tool paints at `target`: a terrain on the cell (a stair rising the way
     /// the cursor `facing`s), an edge on the target's side or, from the keys, the side faced,
-    /// the height in `eighths`, or no ground. None for a terrain the map no longer has.
+    /// the height in `eighths`, or no ground. None for a terrain the map no longer has, and
+    /// for a run tool, which paints no single target.
     #[must_use]
     pub fn brush(
         self,
@@ -103,6 +120,7 @@ impl Tool {
             },
             Tool::Height => Brush::Height { eighths },
             Tool::Clear => Brush::Clear,
+            Tool::Corners | Tool::Freehand => return None,
         })
     }
 }
@@ -132,11 +150,17 @@ mod tests {
         let def = town();
         let palette = palette(&def);
         let n = def.terrains.len();
-        assert_eq!(palette.len(), n + 6);
+        assert_eq!(palette.len(), n + 8);
         assert_eq!(palette[0], Tool::Terrain(0));
         assert_eq!(palette[n], Tool::Edge(EdgeKind::Wall));
-        assert_eq!(palette[n + 4], Tool::Height);
-        assert_eq!(palette[n + 5], Tool::Clear);
+        assert_eq!(palette[n + 4], Tool::Corners);
+        assert_eq!(palette[n + 5], Tool::Freehand);
+        assert_eq!(palette[n + 6], Tool::Height);
+        assert_eq!(palette[n + 7], Tool::Clear);
+        assert!(Tool::Corners.is_run() && Tool::Freehand.is_run());
+        assert!(!Tool::Height.is_run() && !Tool::Edge(EdgeKind::Wall).is_run());
+        assert_eq!(Tool::Corners.label(&def), "Walls by corners");
+        assert!(Tool::Freehand.label(&def).is_ascii());
         assert_eq!(Tool::first(&def), Tool::Terrain(0));
         let first = &def.terrains[0];
         assert_eq!(
@@ -190,6 +214,8 @@ mod tests {
             Tool::Clear.brush(&def, cell, Facing::North, 0),
             Some(Brush::Clear)
         );
+        assert_eq!(Tool::Corners.brush(&def, cell, Facing::North, 0), None);
+        assert_eq!(Tool::Freehand.brush(&def, east, Facing::North, 0), None);
         assert_eq!(held(1000), 64);
         assert_eq!(held(-1000), -64);
         assert_eq!(held(3), 3);

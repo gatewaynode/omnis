@@ -84,6 +84,28 @@ fn brush_rows(editor: &Editor, def: Option<&MapDef>, no_map: Option<&str>) -> Ve
     rows
 }
 
+/// The run's rows while a wall run is pending (the boundary tools): how many corners it has,
+/// then Take run, Drop run and Drop corner, with their keys. Nothing while no run is drawn.
+fn run_rows(editor: &Editor) -> Vec<Row> {
+    let Some(run) = &editor.run else {
+        return Vec::new();
+    };
+    let edit = |act| ControlId::Edit(act);
+    let n = run.corners.len();
+    let corners = if n == 1 { "corner" } else { "corners" };
+    vec![
+        Row::text(Span::body(format!("Run: {n} {corners}"))),
+        Row::controls(vec![
+            Control::button(edit(EditAct::TakeRun), "Take run  Enter"),
+            Control::button(edit(EditAct::DropRun), "Drop run"),
+        ]),
+        Row::controls(vec![Control::button(
+            edit(EditAct::DropCorner),
+            "Drop corner  Backspace",
+        )]),
+    ]
+}
+
 /// The tools column: the map and level choices, Open, the zoom, the facing, the brushes, the
 /// history, Save and Revert, and the menu.
 #[must_use]
@@ -254,6 +276,7 @@ fn plan_rows(
         ))),
     ];
     rows.extend(brush_rows(editor, def, no_map));
+    rows.extend(run_rows(editor));
     rows.push(Row::controls(vec![
         dim(
             Control::button(edit(EditAct::TerrainAdd), "Add terrain"),

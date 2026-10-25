@@ -121,6 +121,60 @@ fn a_stroke_of_paints_is_one_step_and_a_refusal_changes_nothing() {
 }
 
 #[test]
+fn many_paints_are_one_step_and_fail_together() {
+    let data = load_test_packs();
+    let mut doc = open(&data, "test:map:meadow");
+    let wall = |side| Brush::Edge {
+        side,
+        kind: EdgeKind::Wall,
+    };
+    let run = [
+        ((2, 2), wall(Facing::North)),
+        ((3, 2), wall(Facing::North)),
+        ((4, 2), wall(Facing::West)),
+    ];
+    assert_eq!(doc.paint_many(G, &run), Ok(()));
+    assert_eq!(doc.undo_depth(), 1, "three paints, one step");
+    let grid = doc.grid(G).unwrap();
+    assert_eq!(grid.edge(2, 2, Facing::North), Some(EdgeKind::Wall));
+    assert_eq!(grid.edge(3, 2, Facing::North), Some(EdgeKind::Wall));
+    assert_eq!(grid.edge(4, 2, Facing::West), Some(EdgeKind::Wall));
+    // A refusal in the middle lands nothing: the first paint is not kept.
+    let mixed = [
+        ((5, 2), wall(Facing::North)),
+        (
+            (0, 2),
+            Brush::Edge {
+                side: Facing::West,
+                kind: EdgeKind::Door,
+            },
+        ),
+        ((6, 2), wall(Facing::North)),
+    ];
+    assert_eq!(doc.paint_many(G, &mixed), Err(EditError::BoundaryEdge));
+    assert_eq!(doc.undo_depth(), 1);
+    let grid = doc.grid(G).unwrap();
+    assert_eq!(grid.edge(5, 2, Facing::North), Some(EdgeKind::Open));
+    assert_eq!(grid.edge(6, 2, Facing::North), Some(EdgeKind::Open));
+    // It closes an open stroke: a joined paint after it is a new step.
+    let glyph = doc.def().terrains[1].glyph;
+    let tile = Brush::Tile { glyph, rise: None };
+    doc.paint(G, 2, 3, &tile, false).unwrap();
+    assert_eq!(doc.undo_depth(), 2);
+    assert_eq!(doc.paint_many(G, &[((3, 3), tile.clone())]), Ok(()));
+    assert_eq!(doc.undo_depth(), 3);
+    doc.paint(G, 4, 3, &tile, true).unwrap();
+    assert_eq!(doc.undo_depth(), 4, "the run closed the stroke");
+    // An empty list changes nothing and is no step.
+    assert_eq!(doc.paint_many(G, &[]), Ok(()));
+    assert_eq!(doc.undo_depth(), 4);
+    for _ in 0..4 {
+        doc.undo().unwrap();
+    }
+    assert!(!doc.dirty());
+}
+
+#[test]
 fn the_undo_cap_holds() {
     let data = load_test_packs();
     let mut doc = open(&data, "test:map:town");

@@ -1,43 +1,36 @@
 # Continuity notes
 
-Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit). Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-25, after the boundary tools (the first item after M5 Editor v1, which closed the same day).
+Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
-- **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed**: M5.0 to M5.10 built,
-  every step accepted by the owner's hand test (M5.10 on 2026-10-25, `tasks/acceptance/m5-10.md`). Untracked
-  and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background`
-  that appear modified or new are committed at once, unedited, in their own commit (`01825db`, `2874be2`, `50796e0`).
-- **M5.10 as built (2026-10-25):** `334243a8` M5.10a the pack: `packs/test`'s four maps in the writer's layout,
-  their comments as `notes/<map>.ron` (the map's key; the dungeon's portal comment on its cell 23,23), sealed
-  **0.2.0** (owner's choice), the town's bank cells (7,3) and (7,4) restored (the owner's checkpoint `6343c145`
-  had painted them street by accident and committed a save at 0.1.3 with a note on the portal cell, which stays);
-  `omnis-data/tests/edit_authoring.rs` (`requests_for(def)` derives the editor's requests from the map's own def;
-  the test rebuilds each shipped map from blank on a scratch copy, saves, and compares the def, the reload and the
-  file's bytes to the shipped pack; the ignored `rewrite_the_shipped_maps_through_the_editor` is the rewrite, run
-  once); tests read the manifest's version (`seal::status`, the patch one higher after a save) and count notes from
-  the shipped ones instead of pinning literals (`edit_session.rs`, `omnis-cli/tests/headless.rs`,
-  `editor_forms.rs` expects the town's map note); replays rebaselined. `a7eb3a86` M5.10b: `editor/acts.rs`
-  (`EditAct`, `Editor::apply`, re-exported) and `editor/forms/fields.rs` (the forms' limits, shared choice fields
-  and readers) split from `mod.rs` (now 796 lines) and `forms.rs` (856); pure moves. M5.10c (this commit): the
-  documents (ARCHITECTURE §8.2 as built, presentation-ARCHITECTURE §6.1–§6.4 and §8.6, PRD §10 and §13 flagged as
-  the plan row's direction, README, code-map header and a M5.10 section, TODO M5 ticked with a review, plan row
-  10, `tasks/acceptance/m5-10.md`, a lesson).
+- **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
+  every step accepted; `tasks/acceptance/m5-10.md`). Untracked and never staged: `assets/` and
+  `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` that appear modified or new
+  are committed at once, unedited, in their own commit (`01825db`, `2874be2`, `50796e0`, `9a51bf4`, `3d5e6e5`).
+- **Boundary tools (2026-10-25, this commit; `tasks/acceptance/boundary-tools.md`, awaiting the owner's hand
+  test):** two palette entries after Open edge, "Walls by corners" and "Walls freehand" (owner's choices: walls
+  only; freehand taken on release; a corner run pending until a click on its last corner, Enter or Take run;
+  Backspace drops a corner). `editor/run.rs`: `sides(a, b)` (the grid-line walk, a staircase hugging a slanted
+  line, horizontal at a tie), `paints` (each side once, the boundary dropped and counted), `Editor::pointer`
+  (the plan's pointer for every tool, moved from `shell::editor::route`; `Pointer { pixel, left: Press, right_down
+  }`), `take_run` through the new `Document::paint_many` (one change, all or nothing; `apply_brush` extracted
+  from `paint`), `preview` into `plan::Source.preview` drawn last in the caution colour (`minimap::PREVIEW`);
+  `View::corner`; `EditAct::{TakeRun, DropCorner, DropRun}`, `view::run_rows`; `Editor::apply` wraps `act` and
+  drops a pending run when `run_holds` (tool, level, map, depths) changed; `pick` drops it. Not an op: a headless
+  author paints a run with `stroke`; an `editor.run` op is a follow-on when asked (TODO).
 - **Observed, not fixed (told the owner 2026-10-25):** with the map's own file open as text and typed into, a
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
-- **Lessons 2026-10-24/25** (`tasks/LESSONS.md`): a field's text is not a word (fresh → rebuild); "changed" is not
-  "typed"; a guard that dims a whole list reads as a broken list; a mode is set by the opening action, not
-  inherited; a layout exception for one row is written as an exception; a literal about a fixture the owner edits
-  through the product is a test that breaks on use (read the pack).
 
 ## Next
-1. **After M5 (owner's order, 2026-10-24):** boundary tools beyond the edge brush (TODO, under M5's block); the UI
-   icon design pass and an image cache for UI nodes (`Icons` by name, size and role through `minimap::image`); the
-   activities schema when a second kind has engine rules (decided in the M5.7 planning: an editor grouping until
-   then, Service site first, an icon per `ServiceKind`). Then the plan in `tasks/TODO.md`: the look in data, M9.
-2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows; the
-   slider's thumb re-synced after a refused value in the editor; plan edges one pixel at every zoom (may read thin
-   at 128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner).
+1. **Owner's order (2026-10-24), after the boundary tools:** the UI icon design pass and an image cache for UI
+   nodes (`Icons` by name, size and role through `minimap::image`); the activities schema when a second kind
+   has engine rules (decided in the M5.7 planning: an editor grouping until then, Service site first, an icon
+   per `ServiceKind`). Then the plan in `tasks/TODO.md`: the look in data, M9.
+2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows;
+   the slider's thumb re-synced after a refused value; plan edges one pixel at every zoom (may read thin at
+   128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner); an `editor.run` op.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -62,7 +55,8 @@ Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit).
   (since M5.3), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
-- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12.
+- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
+  terrains plus 8 (`brush::palette`: Wall, Door, Ramp, Open, Corners, Freehand, Height, Clear).
 - **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}`; a test that edits a
   pack works on a scratch copy (`omnis-data/tests/common::copy_pack`, `omnis-cli/tests/headless.rs::scratch_pack`,
   `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and reseals it; the bad-pack corpus `broken` carries
@@ -74,11 +68,12 @@ Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit).
   `data`, `text`, `notes`, `migrations` only (normal components, no symlinks, depth 8).
 - **Client test helpers:** `tests/common/app.rs` (`keyboard_on`, `keyboard`, `tap`, `set`, `press_ui`, `top`,
   `churn_fields`, `wheel`, `ui_editor_app` with `UI_PHYSICAL` 2400×1400 at scale 2), `tests/common/editor.rs`
-  (`in_editor`, `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `type_into`,
-  `field_entity`, `field_of`, `panel`). Under Bevy picking a faked `Interaction::Pressed` is reset before the route
-  reads it: drive the model through `shell::editor::act` in `ui_editor_app` tests. Dim kit controls carry no
-  press marker. `tap` sends no character: dirty a field with `keyboard`. `omnis-cli/tests/headless.rs` is its own
-  test binary (`--test headless`), not part of the CLI's `integration`.
+  (`in_editor`, `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`,
+  `type_into`, `field_entity`, `field_of`, `panel`). A written `RelativeCursorPosition` reaches the model on the
+  next `app.update()`: point, then update, then read. Under Bevy picking a faked `Interaction::Pressed` is reset
+  before the route reads it: drive the model through `shell::editor::act` in `ui_editor_app` tests. Dim kit
+  controls carry no press marker (an Undo at depth 0 cannot be pressed). `tap` sends no character: dirty a field
+  with `keyboard`. `omnis-cli/tests/headless.rs` is its own test binary (`--test headless`).
 
 ## Open, carried over
 - `assets/README.md` font rows: the owner's file; report only, never edit.
@@ -93,14 +88,14 @@ Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit).
   the Xcode licence). `cargo fmt --all` first and again after any appended test. Workspace clippy with
   `--all-targets --features omnis-vector/test-fixtures -- -D warnings` before every commit. Sim tests:
   `cargo test -p omnis-sim --test integration <filter>`; data `-p omnis-data --test integration <filter>`; client
-  `-p omnis-vector --test integration <filter>` (one filter per invocation).
+  `-p omnis-vector --test integration <filter>` (one filter per invocation); client unit tests `--lib`.
 - **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, VERIFY-GREEN, no source or pinned-document
   edits while it runs (about seven minutes). Then `git add <paths by name>`, `git commit -F <msg>`, Sentrux `rescan`
   (first `scan` on `/Users/john/code/omnis/crates` in a new session) and `check_rules`. The scratchpad is
   `/private/tmp/claude-501/-Users-john-code-omnis/787890da-120b-4905-befb-f4247b7d8f51/scratchpad` (absolute).
 - **Tests red first; mutations** by sed or a Python runner in the scratchpad (anchor checked unique, source
-  restored by rewriting its text or copying the backup back, then `git status`/`diff -q` to confirm). No cargo
-  command and no fixture edit while a mutation run or the gate runs.
+  restored by copying the backup back, then `diff -q` to confirm). No cargo command and no fixture edit while a
+  mutation run or the gate runs.
 - **Moves and edits** by an anchored Python script in the scratchpad (every anchor asserted unique before writing;
   a file split cuts exact line ranges with the boundary lines asserted). After `cargo fmt` the anchors move, so
   patch the file as it is (lesson 2026-09-12).

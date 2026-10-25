@@ -133,11 +133,19 @@ no loss, and every later map is built with it.
       cell has (height first, later the rest), always in reach instead of a row among the brushes; the
       owner suggested the top of the window. Built as M5.6a, the attribute bar over the plan (owner's choice
       of place 2026-10-24).
-    - [ ] Deferred (owner 2026-10-24, after M5.6 at the earliest): **boundary tools** beyond the edge brush. The
+    - [x] Deferred (owner 2026-10-24, after M5.6 at the earliest): **boundary tools** beyond the edge brush. The
       owner wants both a **point-by-point** tool (click corner after corner, the run of walls follows) and a
       **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the
       line is snapped to the grid's corners and rasterised onto cell sides, the result previewed in the hover
       colour before it is taken, one undo step. The nearest-side edge brush and its hover stand meanwhile.
+      **Built 2026-10-25** (`tasks/acceptance/boundary-tools.md`; owner's choices in the planning: walls only,
+      as two palette entries "Walls by corners" and "Walls freehand"; a freehand line taken on release, a corner
+      run pending until a click on its last corner, Enter or Take run; Backspace drops a corner): `editor/run.rs`
+      (`sides(a, b)` the grid-line walk that hugs the line, `paints` each side once with the boundary left out,
+      `Editor::pointer` the plan's pointer for every tool, `take_run`, `preview`), `View::corner`, the preview in
+      the plan's raster (`Source.preview`, `minimap::PREVIEW`), `Document::paint_many` (one step, all or nothing).
+      Follow-on: an `editor.run` op when a headless author asks for one (a run is `stroke` paints over the socket
+      today).
   - [x] M5.6 Placements, terrains, levels and notes forms; `tasks/acceptance/m5-6.md`. Planned 2026-10-24 (plan
     mode, approved): the owner chose the bar above the plan and **dedicated row editors** for list fields
     (stacks, contents, items, the random table) over RON text. **Accepted by the owner 2026-10-24** after the
@@ -246,8 +254,9 @@ no loss, and every later map is built with it.
     and `editor/forms.rs` (`acts.rs`, `forms/fields.rs`), the documents (ARCHITECTURE §8.2,
     presentation-ARCHITECTURE §6.1–§6.4 and §8.6, PRD §10 and §13, README, code-map).
     **Review:** M5 closed, ten steps from 2026-10-21 to 2026-10-25, each accepted by the owner's hand test;
-    the proof of the "done when" is the authoring test. Left as follow-ons: the boundary tools and the
-    activities schema below, the map's own fields with Resize and New map as forms, the icon design pass.
+    the proof of the "done when" is the authoring test. Left as follow-ons: the activities schema below, the
+    map's own fields with Resize and New map as forms, the icon design pass (the boundary tools: built
+    2026-10-25, above).
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

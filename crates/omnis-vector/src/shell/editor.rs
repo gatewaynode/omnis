@@ -19,6 +19,7 @@ use super::session::{Packs, Session};
 use super::{VectorSet, ViewState};
 use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
+use crate::editor::run::{Pointer, Press};
 use crate::editor::{Asked, EditAct, Editor, playtest, view};
 use crate::pose::Pose;
 use crate::screen::{ControlId, Kind, Screen, ScreenId};
@@ -504,7 +505,8 @@ const DIGITS: [KeyCode; 9] = [
 /// (`Editor::aim`: the cell under it, or with an edge brush its nearest side) is kept as the
 /// hover, a left click paints the brush there (the cursor goes to the cell) and a drag is one
 /// stroke, a right click picks what is there; and the keys while no screen stands over the
-/// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it, the
+/// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it
+/// (or takes a pending wall run; Backspace drops the run's last corner), the
 /// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
 /// screens' (`Nav::escape` opens the menu). A click on the plan while a field has the keyboard
@@ -626,31 +628,28 @@ fn route(
             None if zooming.0 != 0.0 => zooming.0 = 0.0,
             None => {}
         }
-        let target = pixel.and_then(|(px, py)| editing.aim(px, py));
-        if editing.hover != target {
-            editing.hover = target;
-        }
-        if let Some(target) = target {
-            let clicked =
-                mouse.just_pressed(MouseButton::Left) || mouse.just_pressed(MouseButton::Right);
-            if clicked
-                && typing
-                && let Some(mut focus) = focus
-            {
-                focus.clear();
-            }
-            if mouse.just_pressed(MouseButton::Right) {
-                editing.pick(target);
-            } else if mouse.just_pressed(MouseButton::Left) {
-                editing.paint(&data, target, false);
-            } else if mouse.pressed(MouseButton::Left)
-                && editing.stroke.is_some_and(|last| last != target)
-            {
-                editing.paint(&data, target, true);
-            }
-        }
-        if !mouse.pressed(MouseButton::Left) {
-            editing.end_stroke();
+        // The pointer's rules are the model's (`Editor::pointer`): the hover, a click's paint
+        // or pick, a drag's stroke, and the run tools' corners.
+        let left = if mouse.just_pressed(MouseButton::Left) {
+            Press::Down
+        } else if mouse.pressed(MouseButton::Left) {
+            Press::Held
+        } else {
+            Press::Up
+        };
+        let clicked = editing.pointer(
+            &data,
+            Pointer {
+                pixel,
+                left,
+                right_down: mouse.just_pressed(MouseButton::Right),
+            },
+        );
+        if clicked
+            && typing
+            && let Some(mut focus) = focus
+        {
+            focus.clear();
         }
     }
     if !covered && !typing {
@@ -686,9 +685,16 @@ fn route(
                 }
             }
             if open && keys.any_just_pressed([KeyCode::Enter, KeyCode::NumpadEnter]) {
-                let cell = editing.cursor;
-                editing.paint(&data, Target { cell, edge: None }, false);
-                editing.end_stroke();
+                if editing.run.is_some() {
+                    editing.take_run(&data);
+                } else {
+                    let cell = editing.cursor;
+                    editing.paint(&data, Target { cell, edge: None }, false);
+                    editing.end_stroke();
+                }
+            }
+            if open && keys.just_pressed(KeyCode::Backspace) && editing.run.is_some() {
+                editing.drop_corner();
             }
             let digit = DIGITS.iter().position(|k| keys.just_pressed(*k));
             let stepped = [
@@ -897,6 +903,7 @@ fn refresh(
         .is_ground()
         .then_some((def.start.0, def.start.1));
     let marks = plan::marks(&def, data, editing.level);
+    let preview = editing.preview();
     let raster = plan::paint(
         Source {
             grid,
@@ -906,6 +913,7 @@ fn refresh(
             resolved: editing.resolved.as_ref(),
             start,
             marks: &marks,
+            preview: preview.as_ref(),
         },
         editing.view,
         pane,

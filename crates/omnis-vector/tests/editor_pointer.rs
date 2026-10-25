@@ -105,3 +105,48 @@ fn a_click_in_the_window_lands_on_the_cell_under_the_pointer() {
         Some(omnis_sim::omnis_data::edit::EdgeKind::Wall)
     );
 }
+
+#[test]
+fn a_click_in_the_window_near_a_corner_starts_a_wall_run_there() {
+    let (mut app, window) = ui_editor_app();
+    let data = app.world().resource::<Packs>().data.clone();
+    let corners = {
+        let def = app.world().resource::<Editing>().def().expect("open");
+        omnis_vector::editor::brush::palette(&def)
+            .iter()
+            .position(|t| *t == omnis_vector::editor::brush::Tool::Corners)
+            .expect("the corners tool")
+    };
+    app.world_mut().resource_mut::<Editing>().apply(
+        &data,
+        EditAct::Brush(u8::try_from(corners).expect("small")),
+        0,
+    );
+    // Near the bottom right of cell (2, 1): the corner (3, 2) is the nearest.
+    let near = over(&mut app, (2, 1), 0.95, 0.95);
+    click(&mut app, window, MouseButton::Left, near);
+    let editing = app.world().resource::<Editing>();
+    assert_eq!(
+        editing.run.as_ref().map(|r| r.corners.clone()),
+        Some(vec![(3, 2)]),
+        "{:?}",
+        editing.message
+    );
+    assert_eq!(editing.corner, Some((3, 2)));
+    assert_eq!(editing.hover, None, "a run tool shows no side hover");
+    // A second corner, then a click on it takes the run: the sides between become walls.
+    let next = over(&mut app, (5, 1), 0.95, 0.95);
+    click(&mut app, window, MouseButton::Left, next);
+    click(&mut app, window, MouseButton::Left, next);
+    let editing = app.world().resource::<Editing>();
+    assert_eq!(editing.run, None);
+    let grid = editing.grid().expect("the grid");
+    for x in 3..6 {
+        assert_eq!(
+            grid.edge(x, 2, omnis_sim::omnis_core::Facing::North),
+            Some(omnis_sim::omnis_data::edit::EdgeKind::Wall),
+            "x {x}: {:?}",
+            editing.message
+        );
+    }
+}

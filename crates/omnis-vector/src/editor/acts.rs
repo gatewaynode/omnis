@@ -7,6 +7,7 @@ use super::files::Mode;
 use super::form::Form;
 use super::forms::Placing;
 use super::{Asked, Editor, NoteOf};
+use omnis_sim::omnis_core::Level;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::edit::{Brush, Edit, Place, Target as PlaceKey};
 
@@ -31,6 +32,12 @@ pub enum EditAct {
     FaceRight,
     /// Choose a brush of the palette, by its position (M5.5).
     Brush(u8),
+    /// Take the pending wall run: its sides become walls, one undo step (`run`).
+    TakeRun,
+    /// Drop the pending run's last corner.
+    DropCorner,
+    /// Drop the pending run, changing nothing.
+    DropRun,
     /// The height choice: steps the height brush's eighths.
     Eighths,
     /// The bar's terrain choice (M5.6): steps the cursor's cell through the terrains and no
@@ -116,8 +123,28 @@ pub enum EditAct {
 }
 
 impl Editor {
-    /// Use a control of the layer: a press (`step` 0) or a choice's arrow (`step` −1 or 1).
+    /// Use a control of the layer: a press (`step` 0) or a choice's arrow (`step` −1 or 1). A
+    /// pending wall run is dropped when the act changed the tool, the level, the map or its
+    /// history: a run belongs to the place and the tool it was drawn with.
     pub fn apply(&mut self, data: &Data, act: EditAct, step: i8) -> Asked {
+        let before = self.run_holds();
+        let asked = self.act(data, act, step);
+        if self.run.is_some() && self.run_holds() != before {
+            self.run = None;
+        }
+        asked
+    }
+
+    /// What a pending run holds to: the tool, the level, the map and its history's depths.
+    fn run_holds(&self) -> (Tool, Level, Option<String>, usize, usize) {
+        let depths = self
+            .session
+            .document()
+            .map_or((0, 0), |d| (d.undo_depth(), d.redo_depth()));
+        (self.tool, self.level, self.map_id(), depths.0, depths.1)
+    }
+
+    fn act(&mut self, data: &Data, act: EditAct, step: i8) -> Asked {
         self.revision = self.revision.wrapping_add(1);
         match act {
             EditAct::Map => {
@@ -160,6 +187,9 @@ impl Editor {
                     self.tool = tool;
                 }
             }
+            EditAct::TakeRun => self.take_run(data),
+            EditAct::DropCorner => self.drop_corner(),
+            EditAct::DropRun => self.drop_run(),
             EditAct::Eighths => {
                 // A press steps right, as a choice does.
                 let by = if step == 0 { 1 } else { i16::from(step) };
