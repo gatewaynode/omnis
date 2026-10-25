@@ -257,6 +257,15 @@ no loss, and every later map is built with it.
     the proof of the "done when" is the authoring test. Left as follow-ons: the activities schema below, the
     map's own fields with Resize and New map as forms, the icon design pass (the boundary tools: built
     2026-10-25, above).
+- [ ] **The editor's left column as a drawing GUI** (owner, 2026-10-25, on accepting the boundary tools: the
+  column "is functional, but not intuitive or easy on the eyes"). The owner's picture, as given: a **grid of
+  icons for the pointer states**, as drawing programs have them: select (chooses, draws nothing), brush (draws
+  the chosen palette entry: terrain, wall, encounter or object), move (a selected item, or the map when nothing
+  is selected), lasso (area select), fill (fill a space with the palette entry), eraser (a brush that only
+  deletes), undo (a history tool); a **grid for the palette** (terrains, walls, encounters, objects), with the
+  chosen entry's details shown somewhere; and **under the two grids** Save, Revert, Playtest and the menu. This
+  is the icon design pass (above) applied to the editor, and the frame the run tools and a terrain freehand
+  belong in (a pointer state times a palette entry). Planned in plan mode, in steps with a hand test each.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.
