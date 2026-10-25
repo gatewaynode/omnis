@@ -7,6 +7,9 @@ the eraser erases; any other cell pans the map; a chosen selection waits for the
 that is not open bounds a fill** (walls, doors and ramps alike); **the pan moves by whole cells** (a smooth
 pan is a later item).
 
+**Accepted by the owner 2026-10-25** ("Accepted, let's plan step 3"); the start marker's move stays open below,
+taken up with the entrances and exits work.
+
 **A Save reseals the pack on disk.** Hand-test on a scratch copy: `cp -R packs/test /tmp/omnis-scratch`, named
 as the last pack.
 

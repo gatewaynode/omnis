@@ -24,8 +24,8 @@ anyway"). Step 1 was accepted the same day. Rewrite this file every time it is u
   entry or the eraser; `EditAct::Tool`; `run::paints(size, sides, kind)`; keys V B P N X). Owner's choices in the
   planning: view controls on the bar, details under the palette, no Fill yet, the eraser by what is under the
   pointer.
-- **Step 2, Fill and Move (2026-10-25, built and hand-tested by the owner: fill, the services' moves, the pan
-  work; `tasks/acceptance/editor-column-2.md`). One open report: Move does not carry the start marker in the
+- **Step 2, Fill and Move (2026-10-25, accepted by the owner: "Accepted, let's plan step 3";
+  `tasks/acceptance/editor-column-2.md`). One open report, kept past the acceptance: Move does not carry the start marker in the
   owner's window.** `40863b52` made the press take the start first (`grab::Held { Start, Place(Here) }` through
   `Editor::under`, the inspector's order; "Start moved to (5, 2)"); the owner's second run: "Still not working,
   set start here works, but not the move function. The move function does work with the town services." Not
@@ -52,10 +52,9 @@ anyway"). Step 1 was accepted the same day. Rewrite this file every time it is u
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **The owner says what comes next** ("Let's prepare for a compact before moving on"). Step 2 is hand-tested
-   with the one open report above (no acceptance commit yet; the owner has not said "accepted"). Likely: **step 3
-   (placements as palette stamps) in plan mode** (TODO: steps 3 to 5), or the entrances and exits enhancement
-   the owner named, which is where the start marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when a second
+1. **Step 3 of the column (placements as palette stamps) in plan mode**, asked by the owner on accepting step 2
+   (TODO: steps 3 to 5). The entrances and exits enhancement the owner named is where the start marker's move
+   is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when a second
    kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: a smooth (sub-cell) pan; a fill's region previewed on hover; the map's own fields (`Edit::Map`),
    Resize and New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a
