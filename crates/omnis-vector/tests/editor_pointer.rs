@@ -143,3 +143,70 @@ fn a_click_in_the_window_near_a_corner_starts_a_wall_run_there() {
         );
     }
 }
+
+/// A drag in the window with `button`: the cursor set over `from`, pressed, moved over each of
+/// `through` a frame apart, let go on the last.
+fn drag_in_window(
+    app: &mut App,
+    window: Entity,
+    button: MouseButton,
+    from: Vec2,
+    through: &[Vec2],
+) {
+    let set = |app: &mut App, at: Vec2| {
+        app.world_mut()
+            .get_mut::<Window>(window)
+            .expect("the window")
+            .set_cursor_position(Some(at));
+        app.update();
+    };
+    set(app, from);
+    app.world_mut().write_message(MouseButtonInput {
+        button,
+        state: ButtonState::Pressed,
+        window,
+    });
+    app.update();
+    for &at in through {
+        set(app, at);
+    }
+    app.world_mut().write_message(MouseButtonInput {
+        button,
+        state: ButtonState::Released,
+        window,
+    });
+    app.update();
+}
+
+#[test]
+fn a_drag_in_the_window_moves_the_start_marker_from_under_the_cursor() {
+    // The owner, 2026-10-25, twice: "I couldn't move the start marker" in the window, while the
+    // headless move test passed. After Open the cursor stands on the start.
+    let (mut app, window) = ui_editor_app();
+    let data = app.world().resource::<Packs>().data.clone();
+    app.world_mut().resource_mut::<Editing>().apply(
+        &data,
+        EditAct::Tool(omnis_vector::editor::brush::Tool::Move),
+        0,
+    );
+    assert_eq!(
+        app.world().resource::<Editing>().cursor,
+        (10, 2),
+        "the start"
+    );
+    let from = over(&mut app, (10, 2), 0.5, 0.5);
+    let mid = over(&mut app, (8, 2), 0.5, 0.5);
+    let to = over(&mut app, (5, 2), 0.5, 0.5);
+    let origin = app.world().resource::<Editing>().view.origin;
+    drag_in_window(&mut app, window, MouseButton::Left, from, &[mid, to]);
+    let editing = app.world().resource::<Editing>();
+    let start = editing.def().expect("open").start;
+    assert_eq!(
+        (start.0, start.1),
+        (5, 2),
+        "message {:?}, origin {:?} was {origin:?}, grab {:?}",
+        editing.message,
+        editing.view.origin,
+        editing.grab
+    );
+}

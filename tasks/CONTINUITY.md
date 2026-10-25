@@ -1,8 +1,10 @@
 # Continuity notes
 
-Written 2026-10-25, after step 2 of the editor's column as a drawing GUI (Fill and Move, one commit, built
-and gated; awaiting the owner's hand test, `tasks/acceptance/editor-column-2.md`). Step 1 was accepted the same
-day ("This is good, accepted."). Rewrite this file every time it is used. Durable knowledge lives in
+Written 2026-10-25, after step 2 of the editor's column as a drawing GUI (Fill and Move; `54161815`, the
+start-marker fix `40863b52`, the open report recorded in the commit after it) and the owner's hand test of it:
+"Most things are working as expected" but Move does not carry the start marker in the owner's window, left for
+later with the entrances and exits work (owner: "we are going to have to enhance the entrance/exits later
+anyway"). Step 1 was accepted the same day. Rewrite this file every time it is used. Durable knowledge lives in
 `tasks/knowledge/`.
 
 ## Where we are
@@ -22,9 +24,21 @@ day ("This is good, accepted."). Rewrite this file every time it is used. Durabl
   entry or the eraser; `EditAct::Tool`; `run::paints(size, sides, kind)`; keys V B P N X). Owner's choices in the
   planning: view controls on the bar, details under the palette, no Fill yet, the eraser by what is under the
   pointer.
-- **Step 2, Fill and Move (2026-10-25, built; the owner's hand test found one fault, fixed the same day:
-  Move did not take the start marker, since it took `here_at`'s placements only; now `grab::Held { Start,
-  Place(Here) }` through `Editor::under`, the inspector's order; `tasks/acceptance/editor-column-2.md`):**
+- **Step 2, Fill and Move (2026-10-25, built and hand-tested by the owner: fill, the services' moves, the pan
+  work; `tasks/acceptance/editor-column-2.md`). One open report: Move does not carry the start marker in the
+  owner's window.** `40863b52` made the press take the start first (`grab::Held { Start, Place(Here) }` through
+  `Editor::under`, the inspector's order; "Start moved to (5, 2)"); the owner's second run: "Still not working,
+  set start here works, but not the move function. The move function does work with the town services." Not
+  reproduced: the headless move test and `editor_pointer.rs::a_drag_in_the_window_moves_the_start_marker_from_
+  under_the_cursor` (Bevy's real UI focus path, the press on the start cell where the cursor stands after Open)
+  both pass; the binary the owner ran (`target/debug/deps/omnis-1e1d97ae7ba05c9a`, 16:44) was built after the
+  fix; Bevy's `ui_focus_system` fills the pane's `RelativeCursorPosition` under the cursor and hover nodes
+  (`Pickable::IGNORE`). The owner's scratch pack `/tmp/omnis-scratch` is the 0.1.4 town (2026-10-24) with a
+  nested `test/` copy inside it (a second `cp -R`); its start is (10, 2, West) like the shipped one. **When it is
+  taken up:** ask the one question (does the plan pan, or does the cursor follow and nothing land?) or, with
+  the game left open after the attempt, read `editor_status` (the undo depth) and `screen_text` (the message)
+  over the dev socket (`.omnis/dev.addr`). Lesson recorded (`tasks/LESSONS.md`, 2026-10-25, a window report).
+  Step 2's other details:**
   `editor/fill.rs` (`region(grid, start)`: one ground joined through open sides, every closed side a bound;
   `Editor::fill` → `paint_many`, "N cells filled with r street"), `editor/grab.rs` (`Grab`, `Editor.grab`,
   `grabbing` read first by `pointer`; a press on a placement carries it, `moved` → `Document::place_many`
@@ -38,9 +52,10 @@ day ("This is good, accepted."). Rewrite this file every time it is used. Durabl
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **The owner's verdict on step 2** after the start-marker fix (`tasks/acceptance/editor-column-2.md`,
-   step 4's last lines); on acceptance, a prose commit under `tasks/` as for step 1. Then **step 3 (placements as palette stamps) in plan mode** when the owner
-   asks (TODO: steps 3 to 5). The owner's order of 2026-10-24 otherwise: the activities schema when a second
+1. **The owner says what comes next** ("Let's prepare for a compact before moving on"). Step 2 is hand-tested
+   with the one open report above (no acceptance commit yet; the owner has not said "accepted"). Likely: **step 3
+   (placements as palette stamps) in plan mode** (TODO: steps 3 to 5), or the entrances and exits enhancement
+   the owner named, which is where the start marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when a second
    kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: a smooth (sub-cell) pan; a fill's region previewed on hover; the map's own fields (`Edit::Map`),
    Resize and New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a
@@ -91,7 +106,8 @@ day ("This is good, accepted."). Rewrite this file every time it is used. Durabl
   `churn_fields`, `wheel`, `ui_editor_app` with `UI_PHYSICAL` 2400×1400 at scale 2; its window cannot be resized
   for a layout test: crowd the column with content instead), `tests/common/editor.rs` (`in_editor`,
   `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`, `type_into`,
-  `field_entity`, `field_of`, `panel`). A written `RelativeCursorPosition` reaches the model on the next
+  `field_entity`, `field_of`, `panel`); `editor_pointer.rs` has `over` (a window cursor position over a cell),
+  `click` and `drag_in_window` (the real UI path: set the `Window` cursor, write `MouseButtonInput`). A written `RelativeCursorPosition` reaches the model on the next
   `app.update()`: point, then update, then read; `mouse(app, button, state)` writes the button and runs a frame
   (the middle button too). Under Bevy picking a faked `Interaction::Pressed` is reset
   before the route reads it: drive the model through `shell::editor::act` in `ui_editor_app` tests. Dim kit

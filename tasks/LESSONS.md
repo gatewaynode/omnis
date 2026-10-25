@@ -510,3 +510,15 @@
   (`plan::Source`: the start, the marks, the cursor, the edges) and what the inspector lists there, with one
   arm per kind, even the kind that has no key in the placements list; its test presses each drawn kind once.
   Where kinds share a cell, the tool takes them in the inspector's order, so the owner can predict it.
+
+## 2026-10-25 — A window report is reproduced in the window's terms before the fix is called done
+- **What happened**: "I couldn't move the start marker." The code showed a plain cause (Move took the
+  placements list, the start is not in it), the fix was built with a red headless test and reported as done.
+  The owner's second run: still not working, while the services move. The headless test, a test through
+  Bevy's real UI path and the binary's build time all agree the fix is in; what the window does is still
+  unknown, since the first report did not say whether the plan panned or nothing happened.
+- **Rule**: a report from the window names an observation, not a cause. Before building, read back what the
+  owner should see under the suspected cause (here: the plan pans) and, when the report does not say, ask
+  that one question or read the running game over the dev socket (`editor_status`, `screen_text`) while the
+  owner holds it open. A fix for a window report is "done" when the owner's run agrees, not when the test is
+  green; say "built, please try" rather than "fixed".

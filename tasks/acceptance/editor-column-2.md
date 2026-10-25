@@ -56,6 +56,12 @@ cell and off the plan, the start carried with its facing and undone, a bare cell
 own region), `omnis-data/tests/edit_document.rs::many_places_are_one_step_and_fail_together`, and the step-1
 suites unchanged but for the tool count.
 
+## Open
+- **Move and the start marker (owner, 2026-10-25, twice):** "I couldn't move the start marker", then after
+  `40863b52` "Still not working, set start here works, but not the move function. The move function does work
+  with the town services." Not reproduced: the headless and the real-UI tests carry the start, the owner's
+  binary was built after the fix. Left for later with the entrances and exits work (`tasks/TODO.md`, step 2).
+
 ## Known and expected
 - The pan moves by whole cells: imperceptible to 24 px a cell, a visible jump at 64 and 128 (smooth pan is a
   later item). A fill's region is not previewed on hover (later).

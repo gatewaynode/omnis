@@ -284,7 +284,14 @@ no loss, and every later map is built with it.
     already is; a press elsewhere pans the plan by whole cells, as the middle button does under any tool).
     Owner's choices in the planning: Move grabs what is under the pointer (no selection until the lasso), any
     closed side bounds a fill, the pan moves by whole cells. Later: a smooth (sub-cell) pan; a fill's region
-    previewed on hover.
+    previewed on hover. **Open (owner, 2026-10-25, left for later with the entrances and exits work):** in the
+    owner's window Move does not carry the start marker, while Move carries the services and Set start here
+    works. `40863b52` made the press take the start first (`grab::Held::Start`); the headless move test and a
+    test through Bevy's real UI focus path (`editor_pointer.rs`, the press on the start cell under the cursor)
+    both pass, and the binary the owner ran was built after the fix. Not reproduced. Next: with the game left
+    open after an attempt, read the undo depth and the message over the dev socket; ask whether the plan pans
+    (the press misses the start: look at the pack and level the window has) or the cursor follows and nothing
+    lands (the release fails).
   - [ ] Step 3: placements as palette stamps (an encounter, an object, an activity placed with a click, its
     details edited in the inspector).
   - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).
