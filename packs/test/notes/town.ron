@@ -1,0 +1,6 @@
+(
+    schema: 1,
+    entries: {
+        "test:map:town/0/11,2": "A path to the great wide open.",
+    },
+)

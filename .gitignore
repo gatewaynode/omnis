@@ -7,3 +7,6 @@
 .sentrux/
 /screenshots/
 /screenshots/*
+# SVG icon packs
+assets/svg-icons/
+assets/svg-icons/*
