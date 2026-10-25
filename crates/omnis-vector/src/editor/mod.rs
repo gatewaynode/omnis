@@ -16,12 +16,13 @@ pub mod run;
 pub mod view;
 
 pub use acts::EditAct;
-use brush::{Target, Tool};
+use brush::{Entry, Target, Tool};
 use files::{FileEdit, Mode};
 use form::{At, Change, Form};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{
-    Brush, Edit, EditError, EditorStatus, Grid, MapEntry, Place, Session, Target as PlaceKey,
+    Brush, EdgeKind, Edit, EditError, EditorStatus, Grid, MapEntry, Place, Session,
+    Target as PlaceKey,
 };
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
 use run::{Corner, Run};
@@ -85,8 +86,10 @@ pub struct Editor {
     /// The revision at which `resolved` last changed: the preview's scene is rebuilt on it, not
     /// on every move of the cursor (M5.7).
     pub resolved_at: u64,
-    /// The brush a click paints with.
+    /// What the pointer does: the tool grid's state (the owner's column, 2026-10-25).
     pub tool: Tool,
+    /// What the brush paints: the palette's entry.
+    pub entry: Entry,
     /// The height brush's height, in eighths.
     pub eighths: i16,
     /// The last target painted in the stroke the held button keeps open; none between strokes.
@@ -147,7 +150,8 @@ impl Editor {
             resolved: None,
             revision: 0,
             resolved_at: 0,
-            tool: Tool::Clear,
+            tool: Tool::Brush,
+            entry: Entry::Edge(EdgeKind::Wall),
             eighths: 0,
             stroke: None,
             hover: None,
@@ -181,7 +185,10 @@ impl Editor {
         self.cursor = (start.0, start.1);
         self.facing = start.2;
         self.view = plan::View::fitted(size, self.pane);
-        self.tool = def.as_ref().map_or(Tool::Clear, Tool::first);
+        self.tool = Tool::Brush;
+        self.entry = def
+            .as_ref()
+            .map_or(Entry::Edge(EdgeKind::Wall), Entry::first);
         self.stroke = None;
         self.message = None;
         self.resolved = None;
@@ -284,10 +291,16 @@ impl Editor {
     /// encounters, sites, objects, piles, lore.
     #[must_use]
     pub fn here(&self) -> Vec<Here> {
+        self.here_at(self.cursor)
+    }
+
+    /// The placements on `cell` of the shown level, as the inspector would list them.
+    #[must_use]
+    pub fn here_at(&self, cell: (u16, u16)) -> Vec<Here> {
         let Some(def) = self.def() else {
             return Vec::new();
         };
-        let (level, (x, y)) = (self.level, self.cursor);
+        let (level, (x, y)) = (self.level, cell);
         let is_here = |l: Level, px: u16, py: u16| l == level && px == x && py == y;
         let mut out = Vec::new();
         for p in def.portals.iter().filter(|p| is_here(p.level, p.x, p.y)) {
@@ -402,18 +415,22 @@ impl Editor {
         }
     }
 
-    /// What a click at pane pixel `(px, py)` acts on: with an edge brush the cell under it and
-    /// its nearest side, wherever in the cell the pixel lies (never the facing: the mouse shows
-    /// what it will do); otherwise the cell, or its edge when the pixel is within a quarter of
-    /// the side of that border. None off the map, and with a run tool, which aims at a corner
-    /// (`run::Editor::pointer`).
+    /// What a click at pane pixel `(px, py)` acts on: with the brush and an edge entry the cell
+    /// under it and its nearest side, wherever in the cell the pixel lies (never the facing: the
+    /// mouse shows what it will do); with the brush otherwise and the eraser the cell, or its
+    /// edge when the pixel is within a quarter of the side of that border; with select the cell.
+    /// None off the map, and with a run tool, which aims at a corner (`run::Editor::pointer`).
     #[must_use]
     pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
         let size = self.size();
-        match self.tool {
-            Tool::Edge(_) => self.view.edge_target(size, px, py),
-            Tool::Corners | Tool::Freehand => None,
-            _ => self.view.target(size, px, py),
+        match (self.tool, self.entry) {
+            (Tool::Select, _) => self
+                .view
+                .hit(size, px, py)
+                .map(|cell| Target { cell, edge: None }),
+            (Tool::Brush, Entry::Edge(_)) => self.view.edge_target(size, px, py),
+            (Tool::Brush | Tool::Eraser, _) => self.view.target(size, px, py),
+            (Tool::Corners | Tool::Freehand, _) => None,
         }
     }
 
@@ -432,15 +449,38 @@ impl Editor {
         }
     }
 
-    /// Paint the brush at `target` on the shown level and put the cursor on its cell. With
-    /// `stroke` the paint joins the stroke the held button keeps open, so a drag undoes as
-    /// one. A refusal is said and changes nothing. Whether the map changed.
+    /// Use the tool at `target` on the shown level and put the cursor on its cell: the brush
+    /// paints the palette's entry; the eraser opens the edge, removes the first placement on the
+    /// cell (one step of its own) or clears its ground; select only moves the cursor. With
+    /// `stroke` a paint joins the stroke the held button keeps open, so a drag undoes as one. A
+    /// refusal is said and changes nothing. Whether the map changed.
     pub fn paint(&mut self, data: &Data, target: Target, stroke: bool) -> bool {
         let Some(def) = self.def() else {
             self.message = Some("open a map first".to_owned());
             return false;
         };
-        let Some(brush) = self.tool.brush(&def, target, self.facing, self.eighths) else {
+        let brush = match self.tool {
+            Tool::Select => {
+                self.point(target.cell);
+                return false;
+            }
+            Tool::Brush => self.entry.brush(&def, target, self.facing, self.eighths),
+            Tool::Eraser => match target.edge {
+                Some(side) => Some(Brush::Edge {
+                    side,
+                    kind: EdgeKind::Open,
+                }),
+                None => match self.here_at(target.cell).into_iter().next() {
+                    Some(here) => {
+                        self.point(target.cell);
+                        return self.placed(data, Place::Remove(here.key));
+                    }
+                    None => Some(Brush::Clear),
+                },
+            },
+            Tool::Corners | Tool::Freehand => None,
+        };
+        let Some(brush) = brush else {
             return false;
         };
         let joined = stroke && self.stroke.is_some();
@@ -621,12 +661,13 @@ impl Editor {
         let Some(id) = self.map_id() else {
             return;
         };
-        let (cursor, level, facing, view, tool, eighths, mode) = (
+        let (cursor, level, facing, view, tool, entry, eighths, mode) = (
             self.cursor,
             self.level,
             self.facing,
             self.view,
             self.tool,
+            self.entry,
             self.eighths,
             self.mode,
         );
@@ -638,6 +679,7 @@ impl Editor {
         self.facing = facing;
         self.view = view;
         self.tool = tool;
+        self.entry = entry;
         self.eighths = eighths;
         self.mode = mode;
         self.show_level(level);
@@ -719,26 +761,30 @@ impl Editor {
         self.stroke = None;
     }
 
-    /// Take what is under `target` as the brush: the edge's kind, the cell's terrain or no
-    /// ground, and the cell's height; the cursor goes there. Never changes the map. A pending
-    /// run is dropped with its tool.
+    /// Take what is under `target` as the brush and its entry: the edge's kind or the cell's
+    /// terrain, and the cell's height; an open edge or no ground is the eraser. The cursor goes
+    /// there. Never changes the map. A pending run is dropped with its tool.
     pub fn pick(&mut self, target: Target) {
         self.run = None;
         let Some(grid) = self.grid() else {
             return;
         };
         let (x, y) = target.cell;
-        let tool = match target.edge {
-            Some(side) => Tool::Edge(grid.edge(x, y, side).unwrap_or_default()),
+        let (tool, entry) = match target.edge {
+            Some(side) => match grid.edge(x, y, side).unwrap_or_default() {
+                EdgeKind::Open => (Tool::Eraser, self.entry),
+                kind => (Tool::Brush, Entry::Edge(kind)),
+            },
             None => match grid.tile(x, y).flatten() {
-                Some(t) => Tool::Terrain(t),
-                None => Tool::Clear,
+                Some(t) => (Tool::Brush, Entry::Terrain(t)),
+                None => (Tool::Eraser, self.entry),
             },
         };
         if let Some(height) = grid.height_at(x, y) {
             self.eighths = brush::held(height);
         }
         self.tool = tool;
+        self.entry = entry;
         self.message = None;
         self.point(target.cell);
         self.revision = self.revision.wrapping_add(1);

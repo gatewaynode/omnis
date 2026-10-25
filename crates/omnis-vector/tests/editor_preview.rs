@@ -8,7 +8,7 @@ use common::editor::{editing, in_editor, in_editor_on};
 use omnis_sim::Settings;
 use omnis_sim::omnis_core::{Facing, Level, Position};
 use omnis_sim::omnis_data::edit::EdgeKind;
-use omnis_vector::editor::brush::{Target, Tool};
+use omnis_vector::editor::brush::{Entry, Target, Tool};
 use omnis_vector::editor::preview;
 use omnis_vector::geom::yaw_of;
 use omnis_vector::geometry::SegKind;
@@ -74,7 +74,8 @@ fn a_painted_door_shows_in_the_preview_shut() {
     };
     {
         let mut editing = app.world_mut().resource_mut::<Editing>();
-        editing.tool = Tool::Edge(EdgeKind::Door);
+        editing.tool = Tool::Brush;
+        editing.entry = Entry::Edge(EdgeKind::Door);
         assert!(editing.paint(
             &data,
             Target {
@@ -192,7 +193,8 @@ fn the_preview_plugin_keeps_its_scene_in_the_editor_with_no_game_running() {
     );
     {
         let mut editing = app.world_mut().resource_mut::<Editing>();
-        editing.tool = Tool::Edge(EdgeKind::Door);
+        editing.tool = Tool::Brush;
+        editing.entry = Entry::Edge(EdgeKind::Door);
         let cell = (0..editing.size().0 - 1)
             .find(|&x| editing.grid().unwrap().edge(x, 3, Facing::East) == Some(EdgeKind::Open))
             .map(|x| (x, 3))

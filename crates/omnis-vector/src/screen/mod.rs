@@ -320,6 +320,16 @@ pub enum Kind {
         /// Whether this is the grid's current one.
         chosen: bool,
     },
+    /// A square button of one colour with a glyph on it (a terrain of the editor's palette);
+    /// pressed like a button, `chosen` as an icon's.
+    Swatch {
+        /// The square's colour.
+        rgb: (u8, u8, u8),
+        /// The glyph drawn on it.
+        glyph: char,
+        /// Whether this is the grid's current one.
+        chosen: bool,
+    },
 }
 
 /// A control: what it is, what it says, and why it cannot be used now, if it cannot.
@@ -445,7 +455,10 @@ impl Screen {
             for row in &panel.rows {
                 row.spans.len().hash(&mut h);
                 for c in &row.controls {
-                    let chosen = matches!(c.kind, Kind::Icon { chosen: true, .. });
+                    let chosen = matches!(
+                        c.kind,
+                        Kind::Icon { chosen: true, .. } | Kind::Swatch { chosen: true, .. }
+                    );
                     (
                         c.id,
                         core::mem::discriminant(&c.kind),
@@ -794,7 +807,7 @@ pub fn apply(
         return Err(Refused::Dim(why.clone()));
     }
     match (&found.kind, payload) {
-        (Kind::Button | Kind::Icon { .. }, Payload::Press)
+        (Kind::Button | Kind::Icon { .. } | Kind::Swatch { .. }, Payload::Press)
         | (Kind::Choice { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { .. }, Payload::Press | Payload::Left | Payload::Right) => {}
         (Kind::Number { min, max, .. }, Payload::Set(n)) => {

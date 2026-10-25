@@ -1,37 +1,37 @@
 # Continuity notes
 
-Written 2026-10-25, after the boundary tools (the first item after M5 Editor v1, which closed the same day).
-Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-25, after step 1 of the editor's column as a drawing GUI (two commits, awaiting the owner's
+hand test). Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
-  every step accepted; `tasks/acceptance/m5-10.md`). Untracked and never staged: `assets/` and
-  `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` that appear modified or new
-  are committed at once, unedited, in their own commit (`01825db`, `2874be2`, `50796e0`, `9a51bf4`, `3d5e6e5`).
-- **Boundary tools (2026-10-25, `9486183b`; `tasks/acceptance/boundary-tools.md`; accepted by the owner the
-  same day, "I like the jagged corner extend tool"; the owner then asked how hard a freehand mode for terrain
-  would be):** two palette entries after Open edge, "Walls by corners" and "Walls freehand" (owner's choices: walls
-  only; freehand taken on release; a corner run pending until a click on its last corner, Enter or Take run;
-  Backspace drops a corner). `editor/run.rs`: `sides(a, b)` (the grid-line walk, a staircase hugging a slanted
-  line, horizontal at a tie), `paints` (each side once, the boundary dropped and counted), `Editor::pointer`
-  (the plan's pointer for every tool, moved from `shell::editor::route`; `Pointer { pixel, left: Press, right_down
-  }`), `take_run` through the new `Document::paint_many` (one change, all or nothing; `apply_brush` extracted
-  from `paint`), `preview` into `plan::Source.preview` drawn last in the caution colour (`minimap::PREVIEW`);
-  `View::corner`; `EditAct::{TakeRun, DropCorner, DropRun}`, `view::run_rows`; `Editor::apply` wraps `act` and
-  drops a pending run when `run_holds` (tool, level, map, depths) changed; `pick` drops it. Not an op: a headless
-  author paints a run with `stroke`; an `editor.run` op is a follow-on when asked (TODO).
+  every step accepted; `tasks/acceptance/m5-10.md`); the **boundary tools** followed and were accepted the same
+  day (`9486183b`, `tasks/acceptance/boundary-tools.md`). Untracked and never staged: `assets/` and
+  `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` and `docs/locations` that
+  appear modified or new are committed at once, unedited, in their own commit (`3d5e6e5`, `e62012a` today).
+- **The editor's column as a drawing GUI, step 1 (2026-10-25; `tasks/acceptance/editor-column-1.md`; the owner's
+  direction captured in TODO and memory `editor-column-as-drawing-gui`):** `96237cbf` the kit draws icons
+  (`Kind::Icon { name, chosen }`, `shell/icons.rs`: `IconImages` cache by name, side and colour, `NeedsIcon` →
+  `fill`, `IconOf` printed by `screen_text` as `[icon] "name"`; `controls::shade` on `Button`s also under
+  `Editing`; `screen_draw::least_width` 120 under `Mark::Editor`; the bar's view icons). This commit: the
+  column (`brush.rs`: `Tool { Select, Brush, Corners, Freehand, Eraser }` times `Entry { Terrain(u8),
+  Edge(EdgeKind), Height }`; `Kind::Swatch`; `view::tool_rows`/`palette_rows`/`tools`; the bar's level choice;
+  the inspector's Add level and Level...; `Editor::paint` dispatches by tool, `here_at(cell)`, `pick` → brush +
+  entry or the eraser; `EditAct::Tool`; `run::paints(size, sides, kind)`; keys V B P N X). Owner's choices in the
+  planning: view controls on the bar, details under the palette, no Fill yet, the eraser by what is under the
+  pointer. Later steps in TODO: Fill and Move; placements as stamps; Lasso and terrain runs; a history list.
 - **Observed, not fixed (told the owner 2026-10-25):** with the map's own file open as text and typed into, a
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. **Owner's order (2026-10-24), after the boundary tools:** the UI icon design pass and an image cache for UI
-   nodes (`Icons` by name, size and role through `minimap::image`); the activities schema when a second kind
-   has engine rules (decided in the M5.7 planning: an editor grouping until then, Service site first, an icon
-   per `ServiceKind`). Then the plan in `tasks/TODO.md`: the look in data, M9.
+1. The owner's hand test of step 1 (`tasks/acceptance/editor-column-1.md`); then step 2 (Fill and Move) in plan
+   mode. The owner's order of 2026-10-24 otherwise: the activities schema when a second kind has engine rules;
+   then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows;
    the slider's thumb re-synced after a refused value; plan edges one pixel at every zoom (may read thin at
-   128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner); an `editor.run` op.
+   128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner); an `editor.run` op; the
+   icons' keys shown somewhere (a dim icon shows no reason).
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
@@ -45,8 +45,10 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
 - Bug reports: fix directly, with a red test, a lesson in `tasks/LESSONS.md`, then report. Choices with real
   alternatives: AskUserQuestion with a recommended option first; larger additions get plan mode. A study's
   recommended answers become the owner's choices when the owner says "settle" (2026-10-21).
-- Owner UI choices (memory `editor-pickers-are-modals`): pickers as modals over the editor; a decision asked at
-  the action, not spread as dim reasons; wheel zoom about the pointer to room scale.
+- Owner UI choices (memories `editor-pickers-are-modals`, `editor-column-as-drawing-gui`): pickers as modals
+  over the editor; a decision asked at the action, not spread as dim reasons; wheel zoom about the pointer to
+  room scale; the column is a tool grid times a palette grid, never another row of text buttons; icons where
+  they beat the word, words where the reason matters (Save, Revert).
 - The owner edits and saves through the editor and commits checkpoints of their own: tests never pin what those
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
@@ -57,27 +59,31 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
-  terrains plus 8 (`brush::palette`: Wall, Door, Ramp, Open, Corners, Freehand, Height, Clear).
+  terrains plus 4 (`brush::palette`: Wall, Door, Ramp, Height); `Tool::ALL` 5; the kit's `Kind` has 7 members.
 - **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}`; a test that edits a
   pack works on a scratch copy (`omnis-data/tests/common::copy_pack`, `omnis-cli/tests/headless.rs::scratch_pack`,
   `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and reseals it; the bad-pack corpus `broken` carries
   `notes/bad.ron` (not hashed: no reseal was needed). `packs/test` ships notes on all four maps and on the town's
-  cell (11,2); `crates/omnis-sim/tests/saves/v9/.../manifest.ron` still names 0.1.1 and loads with `force`.
+  cell (11,2), which also carries the portal (the eraser tests remove it); the town's sites sit on (1,1), (4,1),
+  (7,1), (10,1), (1,3), (4,3), (7,3): an eraser test that wants bare ground uses the street, row 2.
+  `crates/omnis-sim/tests/saves/v9/.../manifest.ron` still names 0.1.1 and loads with `force`.
 - **Limits the editor uses:** `MAX_STRING_BYTES` 4 KiB (a note, a key), `MAX_FILE_BYTES` 4 MiB (`bounded_file`, a
   check or write text; soft cap by the owner's decision), `MAX_SAVE_BYTES` 8 MiB, `MAX_COLLECTION` 65,536,
   `MAX_MAP_SIDE` 256, `MAX_LEVELS` 16, `UNDO_CAP` 100. `Session::files()` lists `pack.ron` and `.ron` under
   `data`, `text`, `notes`, `migrations` only (normal components, no symlinks, depth 8).
 - **Client test helpers:** `tests/common/app.rs` (`keyboard_on`, `keyboard`, `tap`, `set`, `press_ui`, `top`,
-  `churn_fields`, `wheel`, `ui_editor_app` with `UI_PHYSICAL` 2400×1400 at scale 2), `tests/common/editor.rs`
-  (`in_editor`, `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`,
-  `type_into`, `field_entity`, `field_of`, `panel`). A written `RelativeCursorPosition` reaches the model on the
-  next `app.update()`: point, then update, then read. Under Bevy picking a faked `Interaction::Pressed` is reset
+  `churn_fields`, `wheel`, `ui_editor_app` with `UI_PHYSICAL` 2400×1400 at scale 2; its window cannot be resized
+  for a layout test: crowd the column with content instead), `tests/common/editor.rs` (`in_editor`,
+  `in_editor_scratch`, `press_edit`, `arrow`, `point_at`, `point_frac`, `leave_plan`, `mouse`, `type_into`,
+  `field_entity`, `field_of`, `panel`). A written `RelativeCursorPosition` reaches the model on the next
+  `app.update()`: point, then update, then read. Under Bevy picking a faked `Interaction::Pressed` is reset
   before the route reads it: drive the model through `shell::editor::act` in `ui_editor_app` tests. Dim kit
   controls carry no press marker (an Undo at depth 0 cannot be pressed). `tap` sends no character: dirty a field
-  with `keyboard`. `omnis-cli/tests/headless.rs` is its own test binary (`--test headless`).
+  with `keyboard`. `omnis-cli/tests/headless.rs` is its own test binary (`--test headless`). `screen_text`
+  prints an icon as `[button] [icon] "name"` and a swatch as its glyph.
 
 ## Open, carried over
-- `assets/README.md` font rows: the owner's file; report only, never edit.
+- `assets/README.md` font rows: the owner's file; report only, never edit (it has no row for `svg-icons/`).
 - `docs/dnd_supplemental/`: the owner's, in progress; ask before committing anything there.
 - P6 colours unconfirmed; step 5 revisits colour roles (joins, fills, crest, objects, beings).
 - The automap still records the forward cone (§12.5); no objects or beings on it (owner, 2026-10-14).
@@ -91,15 +97,17 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   `cargo test -p omnis-sim --test integration <filter>`; data `-p omnis-data --test integration <filter>`; client
   `-p omnis-vector --test integration <filter>` (one filter per invocation); client unit tests `--lib`.
 - **Gate:** `scripts/verify.sh > <scratchpad>/gate-<item>.txt 2>&1`, VERIFY-GREEN, no source or pinned-document
-  edits while it runs (about seven minutes). Then `git add <paths by name>`, `git commit -F <msg>`, Sentrux `rescan`
-  (first `scan` on `/Users/john/code/omnis/crates` in a new session) and `check_rules`. The scratchpad is
+  edits while it runs (about seven minutes; it fails fast on a clippy error, so run the workspace clippy first).
+  Then `git add <paths by name>`, `git commit -F <msg>`, Sentrux `rescan` (first `scan` on
+  `/Users/john/code/omnis/crates` in a new session) and `check_rules`. The scratchpad is
   `/private/tmp/claude-501/-Users-john-code-omnis/787890da-120b-4905-befb-f4247b7d8f51/scratchpad` (absolute).
 - **Tests red first; mutations** by sed or a Python runner in the scratchpad (anchor checked unique, source
   restored by copying the backup back, then `diff -q` to confirm). No cargo command and no fixture edit while a
   mutation run or the gate runs.
 - **Moves and edits** by an anchored Python script in the scratchpad (every anchor asserted unique before writing;
   a file split cuts exact line ranges with the boundary lines asserted). After `cargo fmt` the anchors move, so
-  patch the file as it is (lesson 2026-09-12).
+  patch the file as it is (lesson 2026-09-12). A regex over a test body is checked against every match it makes
+  (a `(1, 1)` cell is not a `(1, 1)` count).
 - **Each new op** moves: `ops.rs` (`Op`, `is_host`, the `dispatch` HostOnly arm), `api_doc.rs` (`ops!`, `every_op`,
   the lists and literal counts), `replies.rs` (`tag`, `EVERY`, an ask), `tools.rs` (tool + example + count),
   `bridge.rs` (two counts), `omnis-cli/src/schema.rs` (op dump) and `tests/headless.rs` (count), `docs/api.md`

@@ -2,14 +2,14 @@
 //! each out: a press or a choice's arrow on the tools, the bar, the inspector, a form or the
 //! file picker. Bevy-free, as the rest of the model (`mod.rs`, which held both until M5.10).
 
-use super::brush::{self, Tool};
+use super::brush::{self, Entry, Tool};
 use super::files::Mode;
 use super::form::Form;
 use super::forms::Placing;
 use super::{Asked, Editor, NoteOf};
 use omnis_sim::omnis_core::Level;
 use omnis_sim::omnis_data::Data;
-use omnis_sim::omnis_data::edit::{Brush, Edit, Place, Target as PlaceKey};
+use omnis_sim::omnis_data::edit::{Brush, EdgeKind, Edit, Place, Target as PlaceKey};
 
 /// What a control of the editor's layer asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -30,7 +30,9 @@ pub enum EditAct {
     FaceLeft,
     /// Turn the cursor's facing a quarter right.
     FaceRight,
-    /// Choose a brush of the palette, by its position (M5.5).
+    /// Choose a tool of the tool grid (the owner's column, 2026-10-25).
+    Tool(Tool),
+    /// Choose an entry of the palette, by its position (M5.5; the digits).
     Brush(u8),
     /// Take the pending wall run: its sides become walls, one undo step (`run`).
     TakeRun,
@@ -135,13 +137,21 @@ impl Editor {
         asked
     }
 
-    /// What a pending run holds to: the tool, the level, the map and its history's depths.
-    fn run_holds(&self) -> (Tool, Level, Option<String>, usize, usize) {
+    /// What a pending run holds to: the tool and its entry, the level, the map and its
+    /// history's depths.
+    fn run_holds(&self) -> (Tool, Entry, Level, Option<String>, usize, usize) {
         let depths = self
             .session
             .document()
             .map_or((0, 0), |d| (d.undo_depth(), d.redo_depth()));
-        (self.tool, self.level, self.map_id(), depths.0, depths.1)
+        (
+            self.tool,
+            self.entry,
+            self.level,
+            self.map_id(),
+            depths.0,
+            depths.1,
+        )
     }
 
     fn act(&mut self, data: &Data, act: EditAct, step: i8) -> Asked {
@@ -179,12 +189,24 @@ impl Editor {
             EditAct::Centre => self.view = self.view.centred_on(self.cursor, self.pane),
             EditAct::FaceLeft => self.facing = self.facing.left(),
             EditAct::FaceRight => self.facing = self.facing.right(),
+            EditAct::Tool(tool) => {
+                self.tool = tool;
+                // A run takes an edge: choosing a run tool with a terrain or the height chosen
+                // chooses the wall.
+                if tool.is_run() && !self.entry.is_edge() {
+                    self.entry = Entry::Edge(EdgeKind::Wall);
+                }
+            }
             EditAct::Brush(i) => {
-                if let Some(tool) = self
+                if let Some(entry) = self
                     .def()
                     .and_then(|def| brush::palette(&def).get(usize::from(i)).copied())
                 {
-                    self.tool = tool;
+                    self.entry = entry;
+                    // Choosing what to paint is choosing to paint, unless a run tool can take it.
+                    if !(self.tool.is_run() && entry.is_edge()) {
+                        self.tool = Tool::Brush;
+                    }
                 }
             }
             EditAct::TakeRun => self.take_run(data),
@@ -329,7 +351,7 @@ impl Editor {
                 }
             }
             EditAct::TerrainEdit => {
-                if let (Some(def), Tool::Terrain(i)) = (self.def(), self.tool)
+                if let (Some(def), Entry::Terrain(i)) = (self.def(), self.entry)
                     && let Some(glyph) = def.terrains.get(usize::from(i)).map(|t| t.glyph)
                 {
                     self.open_form(Form::terrain(&def, Some(glyph), self.at()));

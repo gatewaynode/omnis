@@ -16,22 +16,31 @@ use common::editor::{
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::edit::EdgeKind;
 use omnis_vector::editor::EditAct;
-use omnis_vector::editor::brush::{self, Target, Tool};
+use omnis_vector::editor::brush::{self, Entry, Target, Tool};
 use omnis_vector::editor::plan::View;
+use omnis_vector::editor::view;
 use omnis_vector::screen::{ControlId, ScreenId};
 use omnis_vector::shell::editor::{Editing, PlanHover};
 use omnis_vector::shell::screen::{Pressable, Screens};
 use omnis_vector::shell::screen_text::screen_text;
 use omnis_vector::shell::session::Packs;
 
-/// Choose `tool` by its button in the tools column.
-fn choose(app: &mut App, tool: Tool) {
+/// Choose the palette's `entry` by its swatch or icon in the tools column: the tool becomes the
+/// brush.
+fn choose(app: &mut App, entry: Entry) {
     let def = editing(app).def().expect("a map is open");
     let i = brush::palette(&def)
         .iter()
-        .position(|t| *t == tool)
-        .expect("the tool is in the palette");
+        .position(|e| *e == entry)
+        .expect("the entry is in the palette");
     press_edit(app, EditAct::Brush(u8::try_from(i).unwrap()));
+    assert_eq!(editing(app).entry, entry);
+    assert_eq!(editing(app).tool, Tool::Brush);
+}
+
+/// Choose `tool` by its icon in the tool grid.
+fn choose_tool(app: &mut App, tool: Tool) {
+    press_edit(app, EditAct::Tool(tool));
     assert_eq!(editing(app).tool, tool);
 }
 
@@ -68,48 +77,48 @@ fn title_dirty(app: &App) -> bool {
 fn a_click_paints_the_brush_at_the_cell_and_a_drag_is_one_undo_step() {
     let mut app = in_editor("test:map:town");
     assert!(!title_dirty(&app));
-    choose(&mut app, Tool::Clear);
-    point_at(&mut app, (1, 1), None);
+    choose_tool(&mut app, Tool::Eraser);
+    point_at(&mut app, (1, 2), None);
     mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
     let e = editing(&app);
     assert_eq!(
-        e.grid().unwrap().tile(1, 1),
+        e.grid().unwrap().tile(1, 2),
         Some(None),
         "no ground painted"
     );
-    assert_eq!(e.cursor, (1, 1), "the cursor follows the paint");
+    assert_eq!(e.cursor, (1, 2), "the cursor follows the paint");
     assert_eq!((e.status.undo, e.status.dirty), (1, true));
     assert!(title_dirty(&app), "{}", screen_text(app.world()));
     // Still held, the pointer moves on: the same stroke, one step.
-    point_at(&mut app, (2, 1), None);
+    point_at(&mut app, (2, 2), None);
     app.update();
-    point_at(&mut app, (3, 1), None);
+    point_at(&mut app, (3, 2), None);
     app.update();
     let e = editing(&app);
-    assert_eq!(e.grid().unwrap().tile(3, 1), Some(None));
+    assert_eq!(e.grid().unwrap().tile(3, 2), Some(None));
     assert_eq!(e.status.undo, 1, "a drag is one step");
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
-    point_at(&mut app, (4, 1), None);
+    point_at(&mut app, (4, 2), None);
     app.update();
     assert_ne!(
-        editing(&app).grid().unwrap().tile(4, 1),
+        editing(&app).grid().unwrap().tile(4, 2),
         Some(None),
         "nothing painted after the release"
     );
     mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
     let e = editing(&app);
-    assert_eq!(e.grid().unwrap().tile(4, 1), Some(None));
+    assert_eq!(e.grid().unwrap().tile(4, 2), Some(None));
     assert_eq!(e.status.undo, 2, "a new click is a new step");
 
     press_edit(&mut app, EditAct::Undo);
     let e = editing(&app);
-    assert_ne!(e.grid().unwrap().tile(4, 1), Some(None), "the click undone");
-    assert_eq!(e.grid().unwrap().tile(3, 1), Some(None), "the drag stands");
+    assert_ne!(e.grid().unwrap().tile(4, 2), Some(None), "the click undone");
+    assert_eq!(e.grid().unwrap().tile(3, 2), Some(None), "the drag stands");
     press_edit(&mut app, EditAct::Undo);
     let e = editing(&app);
     assert_ne!(
-        e.grid().unwrap().tile(1, 1),
+        e.grid().unwrap().tile(1, 2),
         Some(None),
         "the drag undone whole"
     );
@@ -120,11 +129,11 @@ fn a_click_paints_the_brush_at_the_cell_and_a_drag_is_one_undo_step() {
     assert!(!title_dirty(&app));
     press_edit(&mut app, EditAct::Redo);
     let e = editing(&app);
-    assert_eq!(e.grid().unwrap().tile(3, 1), Some(None), "redone");
+    assert_eq!(e.grid().unwrap().tile(3, 2), Some(None), "redone");
     assert_eq!((e.status.undo, e.status.redo), (1, 1));
     let text = screen_text(app.world());
-    assert!(text.contains("[button] \"Undo"), "{text}");
-    assert!(text.contains("[button] \"Redo"), "{text}");
+    assert!(text.contains("[button] [icon] \"undo-2\""), "{text}");
+    assert!(text.contains("[button] [icon] \"redo-2\""), "{text}");
 }
 
 #[test]
@@ -162,7 +171,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
 
     let mut app = in_editor("test:map:town");
     let cell = open_edge(&app, Facing::East);
-    choose(&mut app, Tool::Edge(EdgeKind::Wall));
+    choose(&mut app, Entry::Edge(EdgeKind::Wall));
     click_at(&mut app, cell, Some(Facing::East));
     let e = editing(&app);
     assert_eq!(
@@ -175,7 +184,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
 
     // From the keys, an edge brush paints the side the cursor faces.
     let cell = open_edge(&app, Facing::West);
-    choose(&mut app, Tool::Edge(EdgeKind::Door));
+    choose(&mut app, Entry::Edge(EdgeKind::Door));
     app.world_mut().resource_mut::<Editing>().point(cell);
     while editing(&app).facing != Facing::West {
         press_edit(&mut app, EditAct::FaceLeft);
@@ -186,7 +195,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
         e.grid().unwrap().edge(cell.0, cell.1, Facing::West),
         Some(EdgeKind::Door)
     );
-    choose(&mut app, Tool::Edge(EdgeKind::Open));
+    choose_tool(&mut app, Tool::Eraser);
     click_at(&mut app, cell, Some(Facing::West));
     assert_eq!(
         editing(&app)
@@ -198,7 +207,7 @@ fn the_band_along_a_cell_s_border_targets_that_edge_and_the_edge_brushes_paint_i
     );
 
     // A boundary edge is always a wall: refused and said, nothing changed.
-    choose(&mut app, Tool::Edge(EdgeKind::Door));
+    choose(&mut app, Entry::Edge(EdgeKind::Door));
     let steps = editing(&app).status.undo;
     click_at(&mut app, (0, 2), Some(Facing::West));
     let e = editing(&app);
@@ -220,18 +229,38 @@ fn the_digits_choose_the_first_nine_brushes_and_the_height_steps_by_key_and_arro
     let def = editing(&app).def().unwrap();
     let palette = brush::palette(&def);
     assert!(palette.len() >= 9, "{palette:?}");
-    assert_eq!(editing(&app).tool, palette[0], "the first terrain to begin");
+    assert_eq!(
+        editing(&app).entry,
+        palette[0],
+        "the first terrain to begin"
+    );
     tap(&mut app, KeyCode::Digit2);
-    assert_eq!(editing(&app).tool, palette[1]);
+    assert_eq!(editing(&app).entry, palette[1]);
+    // The chosen swatch is the one framed; the details name it with its digit.
+    let data = app.world().resource::<Packs>().data.clone();
+    let tools = view::tools(editing(&app), &data);
+    let chosen = |i: u8| {
+        tools
+            .control(ControlId::Edit(EditAct::Brush(i)))
+            .map(|c| match &c.kind {
+                omnis_vector::screen::Kind::Swatch { chosen, .. }
+                | omnis_vector::screen::Kind::Icon { chosen, .. } => *chosen,
+                other => panic!("{other:?}"),
+            })
+            .expect("a palette control")
+    };
+    assert!(chosen(1) && !chosen(0), "the current entry is framed");
     let text = screen_text(app.world());
-    assert!(text.contains("\"> 2  "), "the current brush marked: {text}");
-    assert!(text.contains("\"1  "), "the others by their digit: {text}");
+    assert!(
+        text.contains("\"2  "),
+        "the details carry the digit: {text}"
+    );
     tap(&mut app, KeyCode::Digit9);
-    assert_eq!(editing(&app).tool, palette[8]);
+    assert_eq!(editing(&app).entry, palette[8]);
     press_edit(&mut app, EditAct::Brush(0));
-    assert_eq!(editing(&app).tool, palette[0]);
+    assert_eq!(editing(&app).entry, palette[0]);
 
-    choose(&mut app, Tool::Height);
+    choose(&mut app, Entry::Height);
     assert_eq!(editing(&app).eighths, 0);
     for _ in 0..3 {
         tap(&mut app, KeyCode::Equal);
@@ -266,7 +295,7 @@ fn the_digits_choose_the_first_nine_brushes_and_the_height_steps_by_key_and_arro
 #[test]
 fn a_right_click_picks_what_is_under_the_pointer_and_paints_nothing() {
     let mut app = in_editor("test:map:town");
-    choose(&mut app, Tool::Height);
+    choose(&mut app, Entry::Height);
     for _ in 0..3 {
         tap(&mut app, KeyCode::Equal);
     }
@@ -275,7 +304,7 @@ fn a_right_click_picks_what_is_under_the_pointer_and_paints_nothing() {
     assert_eq!(editing(&app).grid().unwrap().height_at(2, 2), Some(3));
     let before = editing(&app).grid().unwrap().clone();
     let steps = editing(&app).status.undo;
-    choose(&mut app, Tool::Clear);
+    choose_tool(&mut app, Tool::Eraser);
     tap(&mut app, KeyCode::Minus);
 
     point_at(&mut app, (2, 2), None);
@@ -284,8 +313,8 @@ fn a_right_click_picks_what_is_under_the_pointer_and_paints_nothing() {
     let e = editing(&app);
     let terrain = before.tile(2, 2).unwrap().unwrap();
     assert_eq!(
-        e.tool,
-        Tool::Terrain(terrain),
+        (e.tool, e.entry),
+        (Tool::Brush, Entry::Terrain(terrain)),
         "the terrain under the pointer"
     );
     assert_eq!(e.eighths, 3, "and its height");
@@ -297,15 +326,19 @@ fn a_right_click_picks_what_is_under_the_pointer_and_paints_nothing() {
     mouse(&mut app, MouseButton::Right, ButtonState::Pressed);
     mouse(&mut app, MouseButton::Right, ButtonState::Released);
     assert_eq!(
-        editing(&app).tool,
-        Tool::Edge(EdgeKind::Wall),
+        (editing(&app).tool, editing(&app).entry),
+        (Tool::Brush, Entry::Edge(EdgeKind::Wall)),
         "the boundary's wall"
     );
     let cell = open_edge(&app, Facing::North);
     point_at(&mut app, cell, Some(Facing::North));
     mouse(&mut app, MouseButton::Right, ButtonState::Pressed);
     mouse(&mut app, MouseButton::Right, ButtonState::Released);
-    assert_eq!(editing(&app).tool, Tool::Edge(EdgeKind::Open));
+    assert_eq!(
+        editing(&app).tool,
+        Tool::Eraser,
+        "an open edge is the eraser's"
+    );
     assert_eq!(*editing(&app).grid().unwrap(), before);
 }
 
@@ -337,10 +370,10 @@ fn save_is_refused_in_the_loader_s_words_while_invalid_and_writes_reseals_and_re
     // A ramp joining heights three walls apart: the loader refuses, Save is dim with the
     // count and the first refusal.
     let ramp = open_edge(&app, Facing::East);
-    choose(&mut app, Tool::Edge(EdgeKind::Ramp));
+    choose(&mut app, Entry::Edge(EdgeKind::Ramp));
     click_at(&mut app, ramp, Some(Facing::East));
     assert!(editing(&app).status.errors.is_empty(), "a flat ramp walks");
-    choose(&mut app, Tool::Height);
+    choose(&mut app, Entry::Height);
     for _ in 0..24 {
         tap(&mut app, KeyCode::Equal);
     }
@@ -382,7 +415,7 @@ fn save_is_refused_in_the_loader_s_words_while_invalid_and_writes_reseals_and_re
 
     press_edit(&mut app, EditAct::Undo);
     let cell = open_edge(&app, Facing::East);
-    choose(&mut app, Tool::Edge(EdgeKind::Wall));
+    choose(&mut app, Entry::Edge(EdgeKind::Wall));
     click_at(&mut app, cell, Some(Facing::East));
     assert!(editing(&app).status.dirty);
     let text = screen_text(app.world());
@@ -465,8 +498,8 @@ fn revert_reopens_the_file_and_the_menu_warns_before_leaving_with_changes() {
     );
 
     let before = editing(&app).grid().unwrap().clone();
-    choose(&mut app, Tool::Clear);
-    click_at(&mut app, (1, 1), None);
+    choose_tool(&mut app, Tool::Eraser);
+    click_at(&mut app, (1, 2), None);
     assert!(editing(&app).status.dirty);
     tap(&mut app, KeyCode::Escape);
     let top = app.world().resource::<Screens>().nav.top(None);
@@ -483,7 +516,7 @@ fn revert_reopens_the_file_and_the_menu_warns_before_leaving_with_changes() {
     let e = editing(&app);
     assert_eq!(*e.grid().unwrap(), before, "the file's layout again");
     assert_eq!((e.status.dirty, e.status.undo), (false, 0));
-    assert_eq!(e.cursor, (1, 1), "the cursor stays");
+    assert_eq!(e.cursor, (1, 2), "the cursor stays");
     assert!(
         e.message
             .as_deref()
@@ -493,15 +526,15 @@ fn revert_reopens_the_file_and_the_menu_warns_before_leaving_with_changes() {
     );
 
     // Cmd+Z undoes, Cmd+Shift+Z redoes.
-    click_at(&mut app, (1, 1), None);
-    assert_eq!(editing(&app).grid().unwrap().tile(1, 1), Some(None));
+    click_at(&mut app, (1, 2), None);
+    assert_eq!(editing(&app).grid().unwrap().tile(1, 2), Some(None));
     key(&mut app, KeyCode::SuperLeft, ButtonState::Pressed);
     tap(&mut app, KeyCode::KeyZ);
     assert_eq!(*editing(&app).grid().unwrap(), before, "Cmd+Z");
     key(&mut app, KeyCode::ShiftLeft, ButtonState::Pressed);
     tap(&mut app, KeyCode::KeyZ);
     assert_eq!(
-        editing(&app).grid().unwrap().tile(1, 1),
+        editing(&app).grid().unwrap().tile(1, 2),
         Some(None),
         "Cmd+Shift+Z"
     );
@@ -509,7 +542,7 @@ fn revert_reopens_the_file_and_the_menu_warns_before_leaving_with_changes() {
     key(&mut app, KeyCode::SuperLeft, ButtonState::Released);
     app.update();
     // With a modifier held, C is not Centre and Z is not a brush: nothing else moved.
-    assert_eq!(editing(&app).cursor, (1, 1));
+    assert_eq!(editing(&app).cursor, (1, 2));
 }
 
 /// The hover node's place and whether it shows.
@@ -537,7 +570,7 @@ fn an_edge_brush_aims_at_the_nearest_side_wherever_the_click_lands_and_the_hover
     };
     // Past the quarter band, nearer the west side than any other: the aim is that side, and
     // the hover is a bar along it before anything is clicked.
-    choose(&mut app, Tool::Edge(EdgeKind::Wall));
+    choose(&mut app, Entry::Edge(EdgeKind::Wall));
     point_frac(&mut app, cell, 0.35, 0.5);
     app.update();
     assert_eq!(
@@ -577,12 +610,13 @@ fn an_edge_brush_aims_at_the_nearest_side_wherever_the_click_lands_and_the_hover
     );
 
     // The eraser works the same way, and is named for it.
-    choose(&mut app, Tool::Edge(EdgeKind::Open));
+    choose_tool(&mut app, Tool::Eraser);
     assert!(
-        screen_text(app.world()).contains("Open edge (erase)"),
-        "the eraser says what it does"
+        screen_text(app.world()).contains("\"Eraser  X\""),
+        "the tool line names the eraser and its key"
     );
-    point_frac(&mut app, cell, 0.3, 0.5);
+    // The eraser aims with the quarter band: within it, the side.
+    point_frac(&mut app, cell, 0.1, 0.5);
     mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
     assert_eq!(
@@ -599,7 +633,7 @@ fn an_edge_brush_aims_at_the_nearest_side_wherever_the_click_lands_and_the_hover
     assert_eq!(editing(&app).hover.unwrap().edge, Some(Facing::North));
 
     // A terrain brush at the same point aims at the cell: the hover is its outline.
-    choose(&mut app, Tool::Terrain(0));
+    choose(&mut app, Entry::Terrain(0));
     point_frac(&mut app, cell, 0.35, 0.5);
     app.update();
     assert_eq!(editing(&app).hover, Some(Target { cell, edge: None }));
@@ -608,14 +642,14 @@ fn an_edge_brush_aims_at_the_nearest_side_wherever_the_click_lands_and_the_hover
     assert_eq!((px(outline.width), px(outline.height)), (side, side));
 
     // A right click picks what the hover shows: with an edge brush, the nearest side's kind.
-    choose(&mut app, Tool::Edge(EdgeKind::Door));
+    choose(&mut app, Entry::Edge(EdgeKind::Door));
     point_frac(&mut app, cell, 0.35, 0.5);
     mouse(&mut app, MouseButton::Right, ButtonState::Pressed);
     mouse(&mut app, MouseButton::Right, ButtonState::Released);
     assert_eq!(
         editing(&app).tool,
-        Tool::Edge(EdgeKind::Open),
-        "the west side is open"
+        Tool::Eraser,
+        "the west side is open: the eraser"
     );
 
     // Off the plan, no aim and no hover.

@@ -17,7 +17,7 @@ use super::screen_draw::{
 };
 use super::session::{Packs, Session};
 use super::{VectorSet, ViewState};
-use crate::editor::brush::Target;
+use crate::editor::brush::{Target, Tool};
 use crate::editor::plan::{self, Source};
 use crate::editor::run::{Pointer, Press};
 use crate::editor::{Asked, EditAct, Editor, playtest, view};
@@ -509,7 +509,8 @@ const DIGITS: [KeyCode; 9] = [
 /// stroke, a right click picks what is there; and the keys while no screen stands over the
 /// editor and no field has the keyboard: the arrows and WASD move the cursor, Enter paints at it
 /// (or takes a pending wall run; Backspace drops the run's last corner), the
-/// digits choose brushes, `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
+/// digits choose palette entries, V, B, P, N and X the tools (select, brush, run by corners,
+/// freehand run, eraser), `-` and `=` step the height, `[` and `]` zoom, C centres, Q and E
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
 /// screens' (`Nav::escape` opens the menu). A click on the plan while a field has the keyboard
 /// takes it from the field: clicking elsewhere is the way out of a field.
@@ -711,7 +712,20 @@ fn route(
             .into_iter()
             .find(|(key, _, _)| keys.just_pressed(*key))
             .map(|(_, a, step)| (a, step))
-            .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)));
+            .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)))
+            .or_else(|| {
+                // The tools' keys (V, B, P, N, X: `Tool::key`), shortcuts for the grid's icons.
+                [
+                    (KeyCode::KeyV, Tool::Select),
+                    (KeyCode::KeyB, Tool::Brush),
+                    (KeyCode::KeyP, Tool::Corners),
+                    (KeyCode::KeyN, Tool::Freehand),
+                    (KeyCode::KeyX, Tool::Eraser),
+                ]
+                .into_iter()
+                .find(|(key, _)| keys.just_pressed(*key))
+                .map(|(_, tool)| (EditAct::Tool(tool), 0))
+            });
             if let Some((a, step)) = stepped
                 && open
             {

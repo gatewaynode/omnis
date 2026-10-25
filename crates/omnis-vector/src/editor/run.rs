@@ -7,7 +7,7 @@
 //! pointer's rules are the model's. Bevy-free.
 
 use super::Editor;
-use super::brush::Tool;
+use super::brush::{Entry, Tool};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::edit::{Brush, EdgeKind};
@@ -100,11 +100,11 @@ pub fn sides(a: Corner, b: Corner) -> Vec<Side> {
     out
 }
 
-/// The paints that wall `sides` on a map of `size`: each side once, as the wall of the cell
-/// whose north or west side it is; the map's boundary is left out, being walls already. The
-/// paints, and how many sides lay on the boundary.
+/// The paints that set `sides` to `kind` on a map of `size`: each side once, as the side of the
+/// cell whose north or west side it is; the map's boundary is left out, being walls for good.
+/// The paints, and how many sides lay on the boundary.
 #[must_use]
-pub fn paints(size: (u16, u16), sides: &[Side]) -> (Vec<Paint>, usize) {
+pub fn paints(size: (u16, u16), sides: &[Side], kind: EdgeKind) -> (Vec<Paint>, usize) {
     let (w, h) = size;
     let unique: BTreeSet<Side> = sides.iter().copied().collect();
     let mut out = Vec::with_capacity(unique.len());
@@ -124,13 +124,7 @@ pub fn paints(size: (u16, u16), sides: &[Side]) -> (Vec<Paint>, usize) {
         } else {
             Facing::West
         };
-        out.push((
-            (x, y),
-            Brush::Edge {
-                side,
-                kind: EdgeKind::Wall,
-            },
-        ));
+        out.push(((x, y), Brush::Edge { side, kind }));
     }
     (out, boundary)
 }
@@ -240,14 +234,19 @@ impl Editor {
         }
     }
 
-    /// Take the pending run: its sides become walls on the shown level, one undo step, each
-    /// side once and the map's boundary left as it is. Says how many were walled.
+    /// Take the pending run: its sides become the entry's edge kind (walls, doors or ramps) on
+    /// the shown level, one undo step, each side once and the map's boundary left as it is. Says
+    /// how many were set.
     pub fn take_run(&mut self, data: &Data) {
         let Some(run) = self.run.take() else {
             return;
         };
+        let kind = match self.entry {
+            Entry::Edge(kind) => kind,
+            Entry::Terrain(_) | Entry::Height => EdgeKind::Wall,
+        };
         let all: Vec<Side> = run_sides(&run.corners).collect();
-        let (walls, boundary) = paints(self.size(), &all);
+        let (walls, boundary) = paints(self.size(), &all, kind);
         let n = walls.len();
         let level = self.level;
         let result = self
@@ -256,10 +255,16 @@ impl Editor {
             .and_then(|d| d.paint_many(level, &walls));
         match result {
             Ok(()) => {
+                let what = match kind {
+                    EdgeKind::Wall => "walled".to_owned(),
+                    EdgeKind::Door => "set to door".to_owned(),
+                    EdgeKind::Ramp => "set to ramp".to_owned(),
+                    EdgeKind::Open => "opened".to_owned(),
+                };
                 let walled = match n {
                     0 => "nothing to wall".to_owned(),
-                    1 => "1 side walled".to_owned(),
-                    n => format!("{n} sides walled"),
+                    1 => format!("1 side {what}"),
+                    n => format!("{n} sides {what}"),
                 };
                 self.message = Some(if boundary == 0 {
                     walled
@@ -387,7 +392,7 @@ mod tests {
         let mut run = sides((2, 1), (6, 1));
         run.extend(sides((6, 1), (6, 3)));
         run.extend(sides((6, 3), (6, 1)));
-        let (walls, boundary) = paints(size, &run);
+        let (walls, boundary) = paints(size, &run, EdgeKind::Wall);
         assert_eq!(boundary, 0);
         assert_eq!(walls.len(), 6, "the backtrack is the same two sides");
         let wall = |side| Brush::Edge {
@@ -402,13 +407,23 @@ mod tests {
         let mut edge = sides((0, 0), (12, 0));
         edge.extend(sides((12, 0), (12, 5)));
         edge.extend(sides((12, 5), (11, 5)));
-        let (walls, boundary) = paints(size, &edge);
+        let (walls, boundary) = paints(size, &edge, EdgeKind::Wall);
         assert!(walls.is_empty(), "{walls:?}");
         assert_eq!(boundary, 18);
         // The sides against the boundary from inside are inside.
-        let (walls, boundary) = paints(size, &sides((11, 1), (11, 4)));
+        let (walls, boundary) = paints(size, &sides((11, 1), (11, 4)), EdgeKind::Door);
         assert_eq!(boundary, 0);
         assert_eq!(walls.len(), 3);
-        assert_eq!(walls[0], ((11, 1), wall(Facing::West)));
+        assert_eq!(
+            walls[0],
+            (
+                (11, 1),
+                Brush::Edge {
+                    side: Facing::West,
+                    kind: EdgeKind::Door
+                }
+            ),
+            "the kind asked for"
+        );
     }
 }

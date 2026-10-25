@@ -266,6 +266,24 @@ no loss, and every later map is built with it.
   chosen entry's details shown somewhere; and **under the two grids** Save, Revert, Playtest and the menu. This
   is the icon design pass (above) applied to the editor, and the frame the run tools and a terrain freehand
   belong in (a pointer state times a palette entry). Planned in plan mode, in steps with a hand test each.
+  Planned 2026-10-25 (plan mode, approved); owner's choices: the view controls on the bar over the plan, the
+  entry's details under the palette grid, the first step without Fill, the eraser erases what is under the
+  pointer.
+  - [x] Step 1 (2026-10-25, two commits; `tasks/acceptance/editor-column-1.md`): the kit draws icons
+    (`Kind::Icon { name, chosen }`, `Kind::Swatch { rgb, glyph, chosen }`, the chosen state in `Screen::shape`,
+    `shell/icons.rs`'s image cache and `fill`, `screen_text` prints `[icon] "name"`, shades on the editor's
+    buttons, editor buttons 120 wide at least); the column as the tool grid (`Tool::ALL`: Select, Brush, Run by
+    corners, Freehand run, Eraser; Undo, Redo), the palette grid (`brush::Entry`: terrains as swatches, Wall,
+    Door, Ramp, Height as icons), the entry's details, the files, Save/Revert/Playtest/Menu; the bar carries
+    the view icons and the level choice, the inspector Add level and Level...; keys V, B, P, N, X; Select moves
+    the cursor; the Eraser opens an edge, removes the first placement or clears the ground under the pointer; a
+    run takes the entry's edge kind ("3 sides set to door").
+  - [ ] Step 2: Fill (the connected same-terrain region bounded by walls and doors, one step) and Move (a
+    selected placement, or the map panned when none is selected).
+  - [ ] Step 3: placements as palette stamps (an encounter, an object, an activity placed with a click, its
+    details edited in the inspector).
+  - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).
+  - [ ] Step 5: Undo as a history list.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

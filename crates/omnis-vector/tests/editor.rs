@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use common::app::{app_at_title, config, set, shell, tap};
 use common::editor::{arrow, editing, in_editor, press_edit};
 use omnis_sim::omnis_core::{Facing, Level};
+use omnis_vector::editor::brush::{self, Entry};
 use omnis_vector::editor::plan::{self, Source, View};
 use omnis_vector::editor::{EditAct, Editor};
 use omnis_vector::minimap::WALL;
@@ -196,6 +197,13 @@ fn tools_panel(app: &mut App) -> (Entity, f32) {
 #[test]
 fn a_rebuilt_tools_column_keeps_its_scroll() {
     let mut app = in_editor("test:map:town");
+    // The height entry, whose eighths choice lives in the details under the palette.
+    let def = editing(&app).def().unwrap();
+    let height = brush::palette(&def)
+        .iter()
+        .position(|e| *e == Entry::Height)
+        .unwrap();
+    press_edit(&mut app, EditAct::Brush(u8::try_from(height).unwrap()));
     // Scrolled down to the brushes, as the wheel would.
     let (panel, _) = tools_panel(&mut app);
     app.world_mut()

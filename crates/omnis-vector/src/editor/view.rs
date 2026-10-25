@@ -3,7 +3,7 @@
 //! inspector on the right, described like any screen (`crate::screen`) and drawn by the
 //! screens' renderer under the editor's own mark. Bevy-free.
 
-use super::brush::{self, Tool};
+use super::brush::{self, Entry, Tool};
 use super::files::Mode;
 use super::forms::Placing;
 use super::{EditAct, Editor, NoteOf};
@@ -37,50 +37,95 @@ fn level_label(editor: &Editor, data: &Data, level: Level) -> String {
     name.unwrap_or_else(|| level.0.to_string())
 }
 
-/// The brush rows: the palette two to a row, the current one marked and the first nine
-/// numbered for the digit keys, then the height's choice.
-fn brush_rows(editor: &Editor, def: Option<&MapDef>, no_map: Option<&str>) -> Vec<Row> {
-    let Some(def) = def else {
-        return vec![Row::controls(vec![dim(
-            Control::button(ControlId::Edit(EditAct::Brush(0)), "Brush"),
-            no_map,
-        )])];
+/// The tool grid (the owner's drawing-GUI column, 2026-10-25): an icon a tool, the current one
+/// chosen, then Undo and Redo with their reasons; under it the current tool's name and key.
+fn tool_rows(editor: &Editor, no_map: Option<&str>) -> Vec<Row> {
+    let status = &editor.status;
+    let edit = |act| ControlId::Edit(act);
+    let icon = |act, name, chosen| Control {
+        kind: Kind::Icon { name, chosen },
+        ..Control::button(edit(act), name)
     };
+    let mut grid: Vec<Control> = Tool::ALL
+        .iter()
+        .map(|t| dim(icon(EditAct::Tool(*t), t.icon(), *t == editor.tool), no_map))
+        .collect();
+    grid.push(dim(
+        icon(EditAct::Undo, "undo-2", false),
+        no_map.or((status.undo == 0).then_some("nothing to undo")),
+    ));
+    grid.push(dim(
+        icon(EditAct::Redo, "redo-2", false),
+        no_map.or((status.redo == 0).then_some("nothing to redo")),
+    ));
+    vec![
+        Row::controls(grid),
+        Row::text(Span::body(format!(
+            "{}  {}",
+            editor.tool.label(),
+            editor.tool.key()
+        ))),
+    ]
+}
+
+/// The palette grid: a swatch a terrain (its colour and glyph), then the wall, the door, the
+/// ramp and the height as icons, the current one chosen; under it the entry's details (its
+/// words, with its digit while the keys reach it; the height's eighths choice; Edit terrain for
+/// a terrain; Add terrain), then the run's rows while one is pending.
+fn palette_rows(editor: &Editor, def: &MapDef) -> Vec<Row> {
+    let edit = |act| ControlId::Edit(act);
     let palette = brush::palette(def);
-    let button = |(i, tool): (usize, &Tool)| {
-        let name = tool.label(def);
-        let digit = if i < 9 {
-            format!("{}  ", i + 1)
-        } else {
-            String::new()
-        };
-        let mark = if *tool == editor.tool { "> " } else { "" };
-        let id = ControlId::Edit(EditAct::Brush(u8::try_from(i).unwrap_or(u8::MAX)));
-        Control::button(id, format!("{mark}{digit}{name}"))
-    };
-    let mut rows: Vec<Row> = palette
+    let grid: Vec<Control> = palette
         .iter()
         .enumerate()
-        .filter(|(_, t)| **t != Tool::Height)
-        .collect::<Vec<_>>()
-        .chunks(2)
-        .map(|pair| Row::controls(pair.iter().map(|p| button(*p)).collect()))
+        .map(|(i, entry)| {
+            let chosen = *entry == editor.entry;
+            let id = edit(EditAct::Brush(u8::try_from(i).unwrap_or(u8::MAX)));
+            let kind = match entry {
+                Entry::Terrain(t) => {
+                    let terrain = def.terrains.get(usize::from(*t));
+                    Kind::Swatch {
+                        rgb: terrain.map_or((128, 128, 128), |t| t.color),
+                        glyph: terrain.map_or('?', |t| t.glyph),
+                        chosen,
+                    }
+                }
+                Entry::Edge(_) | Entry::Height => Kind::Icon {
+                    name: entry.icon().unwrap_or("square-dashed"),
+                    chosen,
+                },
+            };
+            Control {
+                kind,
+                ..Control::button(id, entry.label(def))
+            }
+        })
         .collect();
-    if let Some(at) = palette.iter().position(|t| *t == Tool::Height) {
+    let digit = palette
+        .iter()
+        .position(|e| *e == editor.entry)
+        .filter(|i| *i < 9)
+        .map_or_else(String::new, |i| format!("{}  ", i + 1));
+    let mut rows = vec![
+        Row::controls(grid),
+        Row::text(Span::body(format!(
+            "{digit}{}",
+            editor.entry.describes(def)
+        ))),
+    ];
+    let mut details = Vec::new();
+    if editor.entry == Entry::Height {
         let options: Vec<String> = brush::EIGHTHS.map(|h| h.to_string()).collect();
-        let chosen =
-            usize::try_from(i32::from(editor.eighths) - i32::from(*brush::EIGHTHS.start()))
-                .unwrap_or(0);
-        rows.push(Row::controls(vec![
-            button((at, &Tool::Height)),
-            choice(
-                ControlId::Edit(EditAct::Eighths),
-                "eighths",
-                options,
-                chosen,
-            ),
-        ]));
+        let at = usize::try_from(i32::from(editor.eighths) - i32::from(*brush::EIGHTHS.start()))
+            .unwrap_or(0);
+        details.push(choice(edit(EditAct::Eighths), "eighths", options, at));
     }
+    if matches!(editor.entry, Entry::Terrain(_)) {
+        details.push(Control::button(edit(EditAct::TerrainEdit), "Edit terrain"));
+    }
+    details.push(Control::button(edit(EditAct::TerrainAdd), "Add terrain"));
+    rows.push(Row::controls(details));
+    rows.extend(run_rows(editor));
     rows
 }
 
@@ -106,10 +151,13 @@ fn run_rows(editor: &Editor) -> Vec<Row> {
     ]
 }
 
-/// The tools column: the map and level choices, Open, the zoom, the facing, the brushes, the
-/// history, Save and Revert, and the menu.
+/// The tools column (the owner's drawing-GUI column, 2026-10-25): the tool grid and the palette
+/// grid with the entry's details (or the open file's rows in Files mode), then the files (the
+/// map choice and Open; Plan, Text and Open file...) and under all Save and Revert, Playtest and
+/// the menu. The view's controls are the bar's, the level's edits the inspector's.
 #[must_use]
 pub fn tools(editor: &Editor, data: &Data) -> Screen {
+    let _ = data;
     let status = &editor.status;
     let def = editor.def();
     let open = def.is_some();
@@ -127,11 +175,6 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         .get(editor.chosen)
         .and_then(|m| m.error.as_deref())
         .map(|_| "that file does not read");
-    let levels = editor.levels();
-    let level_names: Vec<String> = levels
-        .iter()
-        .map(|l| level_label(editor, data, *l))
-        .collect();
     let title = format!(
         "EDITOR  {}{}",
         status.root,
@@ -158,44 +201,28 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
             label.to_owned()
         }
     };
-    let mut rows = vec![
-        Row::controls(vec![
-            Control::button(edit(EditAct::Plan), marked(Mode::Plan, "Plan")),
-            dim(
-                Control::button(edit(EditAct::Files), marked(Mode::Files, "Text")),
-                editor.file.is_none().then_some("open a file first"),
-            ),
-            Control::button(edit(EditAct::OpenFile), "Open file..."),
-        ]),
-        Row::controls(vec![
-            dim(
-                choice(edit(EditAct::Map), "Map", maps, editor.chosen),
-                editor.maps.is_empty().then_some("the pack has no maps"),
-            ),
-            dim(Control::button(edit(EditAct::Open), open_label), bad),
-        ]),
-    ];
+    let mut rows = tool_rows(editor, no_map);
     if editor.mode == Mode::Files {
         rows.extend(file_rows(editor));
+    } else if let Some(def) = &def {
+        rows.extend(palette_rows(editor, def));
     } else {
-        rows.extend(plan_rows(
-            editor,
-            data,
-            def.as_ref(),
-            no_map,
-            &levels,
-            &level_names,
-        ));
+        rows.push(Row::text(Span::body("No map is open.")));
     }
     rows.push(Row::controls(vec![
         dim(
-            Control::button(edit(EditAct::Undo), "Undo  Cmd Z"),
-            no_map.or((status.undo == 0).then_some("nothing to undo")),
+            choice(edit(EditAct::Map), "Map", maps, editor.chosen),
+            editor.maps.is_empty().then_some("the pack has no maps"),
         ),
+        dim(Control::button(edit(EditAct::Open), open_label), bad),
+    ]));
+    rows.push(Row::controls(vec![
+        Control::button(edit(EditAct::Plan), marked(Mode::Plan, "Plan")),
         dim(
-            Control::button(edit(EditAct::Redo), "Redo  Cmd Y"),
-            no_map.or((status.redo == 0).then_some("nothing to redo")),
+            Control::button(edit(EditAct::Files), marked(Mode::Files, "Text")),
+            editor.file.is_none().then_some("open a file first"),
         ),
+        Control::button(edit(EditAct::OpenFile), "Open file..."),
     ]));
     rows.push(Row::controls(vec![
         dim(
@@ -208,14 +235,13 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         ),
     ]));
     let blocked = super::playtest::blocked(editor);
-    rows.push(Row::controls(vec![dim(
-        Control::button(edit(EditAct::Playtest), "Playtest"),
-        blocked.as_deref(),
-    )]));
-    rows.push(Row::controls(vec![Control::button(
-        edit(EditAct::Menu),
-        "Menu  Esc",
-    )]));
+    rows.push(Row::controls(vec![
+        dim(
+            Control::button(edit(EditAct::Playtest), "Playtest"),
+            blocked.as_deref(),
+        ),
+        Control::button(edit(EditAct::Menu), "Menu  Esc"),
+    ]));
     Screen {
         id: ScreenId::EditorTools,
         title: Span::title(title),
@@ -223,51 +249,6 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         keys: Vec::new(),
         message: editor.message.clone().map(Span::alert),
     }
-}
-
-/// The plan's rows of the tools column: the level, the brushes and the terrain buttons (the
-/// zoom and the facing are the bar's, 2026-10-25).
-fn plan_rows(
-    editor: &Editor,
-    _data: &Data,
-    def: Option<&MapDef>,
-    no_map: Option<&str>,
-    levels: &[Level],
-    level_names: &[String],
-) -> Vec<Row> {
-    let edit = |act| ControlId::Edit(act);
-    let at = levels.iter().position(|l| *l == editor.level).unwrap_or(0);
-    let mut rows = vec![Row::controls(vec![
-        dim(
-            choice(edit(EditAct::Level), "Level", level_names.to_vec(), at),
-            no_map.or((levels.len() < 2).then_some("one level")),
-        ),
-        dim(
-            Control::button(edit(EditAct::LevelAdd), "Add level"),
-            no_map,
-        ),
-        dim(
-            Control::button(edit(EditAct::LevelEdit), "Level..."),
-            no_map.or(editor
-                .level
-                .is_ground()
-                .then_some("the ground level is the map")),
-        ),
-    ])];
-    rows.extend(brush_rows(editor, def, no_map));
-    rows.extend(run_rows(editor));
-    rows.push(Row::controls(vec![
-        dim(
-            Control::button(edit(EditAct::TerrainAdd), "Add terrain"),
-            no_map,
-        ),
-        dim(
-            Control::button(edit(EditAct::TerrainEdit), "Edit terrain"),
-            no_map
-                .or((!matches!(editor.tool, Tool::Terrain(_))).then_some("choose a terrain brush")),
-        ),
-    ]));
-    rows
 }
 
 /// The file's rows of the tools column (M5.9): the open file's name (`*` while its text is
@@ -373,8 +354,14 @@ pub fn bar(editor: &Editor, data: &Data) -> Screen {
         )
     };
     // The view's controls (the owner's drawing-GUI column, 2026-10-25: the view is the bar's,
-    // the column holds the tools): zoom out and in, centre, turn left and right, as icons; the
-    // keys are their shortcuts.
+    // the column holds the tools): zoom out and in, centre, turn left and right, as icons, and
+    // the level choice; the keys are their shortcuts.
+    let levels = editor.levels();
+    let level_names: Vec<String> = levels
+        .iter()
+        .map(|l| level_label(editor, data, *l))
+        .collect();
+    let at_level = levels.iter().position(|l| *l == editor.level).unwrap_or(0);
     let views = Row {
         controls: vec![
             view(EditAct::ZoomOut, "zoom-out"),
@@ -382,6 +369,10 @@ pub fn bar(editor: &Editor, data: &Data) -> Screen {
             view(EditAct::Centre, "focus"),
             view(EditAct::FaceLeft, "rotate-ccw"),
             view(EditAct::FaceRight, "rotate-cw"),
+            dim(
+                choice(edit(EditAct::Level), "Level", level_names, at_level),
+                no_map.or((levels.len() < 2).then_some("one level")),
+            ),
         ],
         after: vec![Span::body(format!(
             "{} px a cell   keys [ ] C Q E",
@@ -506,10 +497,20 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         "{}  {} x {}",
         def.id, def.width, def.height
     ))));
-    rows.push(Row::text(Span::body(format!(
-        "Level {}",
-        level_label(editor, data, level)
-    ))));
+    rows.push(Row {
+        spans: vec![Span::body(format!(
+            "Level {}",
+            level_label(editor, data, level)
+        ))],
+        controls: vec![
+            Control::button(ControlId::Edit(EditAct::LevelAdd), "Add level"),
+            dim(
+                Control::button(ControlId::Edit(EditAct::LevelEdit), "Level..."),
+                level.is_ground().then_some("the ground level is the map"),
+            ),
+        ],
+        ..Row::default()
+    });
     rows.push(Row::text(Span::body(format!(
         "Cell ({x}, {y}) facing {}",
         facing_name(editor.facing)

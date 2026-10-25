@@ -85,7 +85,7 @@ fn a_click_in_the_window_lands_on_the_cell_under_the_pointer() {
     let wall = brushes
         .iter()
         .position(|t| {
-            *t == omnis_vector::editor::brush::Tool::Edge(
+            *t == omnis_vector::editor::brush::Entry::Edge(
                 omnis_sim::omnis_data::edit::EdgeKind::Wall,
             )
         })
@@ -110,16 +110,9 @@ fn a_click_in_the_window_lands_on_the_cell_under_the_pointer() {
 fn a_click_in_the_window_near_a_corner_starts_a_wall_run_there() {
     let (mut app, window) = ui_editor_app();
     let data = app.world().resource::<Packs>().data.clone();
-    let corners = {
-        let def = app.world().resource::<Editing>().def().expect("open");
-        omnis_vector::editor::brush::palette(&def)
-            .iter()
-            .position(|t| *t == omnis_vector::editor::brush::Tool::Corners)
-            .expect("the corners tool")
-    };
     app.world_mut().resource_mut::<Editing>().apply(
         &data,
-        EditAct::Brush(u8::try_from(corners).expect("small")),
+        EditAct::Tool(omnis_vector::editor::brush::Tool::Corners),
         0,
     );
     // Near the bottom right of cell (2, 1): the corner (3, 2) is the nearest.

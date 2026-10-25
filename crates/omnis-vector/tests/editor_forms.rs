@@ -381,7 +381,7 @@ fn the_start_the_random_table_and_the_rest_events_have_their_rows() {
 #[test]
 fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
     use common::editor::{field_of, type_into};
-    use omnis_vector::editor::brush::Tool;
+    use omnis_vector::editor::brush::Entry;
     let mut app = in_editor("test:map:town");
     let before = editing(&app).def().unwrap().terrains.len();
     press_edit(&mut app, EditAct::TerrainAdd);
@@ -407,13 +407,32 @@ fn a_terrain_is_added_edited_and_removed_through_the_form_and_the_rules_hold() {
     assert_eq!(mud.color, (90, 128, 128));
     assert_eq!(mud.join, Some(omnis_sim::omnis_data::map::Join::Up));
     assert!(mud.passable);
-    let text = form_text(&app);
-    assert!(text.contains("m mud"), "the new brush: {text}");
+    let data = app
+        .world()
+        .resource::<omnis_vector::shell::session::Packs>()
+        .data
+        .clone();
+    let swatch = omnis_vector::editor::view::tools(editing(&app), &data)
+        .control(omnis_vector::screen::ControlId::Edit(EditAct::Brush(
+            u8::try_from(before).unwrap(),
+        )))
+        .map(|c| c.kind.clone());
+    assert!(
+        matches!(
+            swatch,
+            Some(omnis_vector::screen::Kind::Swatch {
+                glyph: 'm',
+                rgb: (90, 128, 128),
+                ..
+            })
+        ),
+        "the new swatch: {swatch:?}"
+    );
     // Edit terrain works on the brush's terrain; a taken glyph is refused by the document.
     press_edit(&mut app, EditAct::Brush(u8::try_from(before).unwrap()));
     assert_eq!(
-        editing(&app).tool,
-        Tool::Terrain(u8::try_from(before).unwrap())
+        editing(&app).entry,
+        Entry::Terrain(u8::try_from(before).unwrap())
     );
     press_edit(&mut app, EditAct::TerrainEdit);
     let form = editing(&app).form.clone().expect("the mud form");

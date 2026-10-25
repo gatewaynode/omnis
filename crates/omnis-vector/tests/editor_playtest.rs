@@ -9,7 +9,7 @@ use common::app::{set, tap};
 use common::editor::{editing, in_editor, press_edit};
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::EdgeKind;
-use omnis_vector::editor::brush::{Target, Tool};
+use omnis_vector::editor::brush::{Entry, Target, Tool};
 use omnis_vector::editor::{EditAct, view};
 use omnis_vector::screen::{ControlId, ScreenId};
 use omnis_vector::shell::editor::{Editing, Playtesting};
@@ -54,7 +54,8 @@ fn playtest_plays_the_edited_map_from_the_cursor_and_back_to_editor_returns_it_a
     let wall = open_edge(&app, 3);
     {
         let mut e = app.world_mut().resource_mut::<Editing>();
-        e.tool = Tool::Edge(EdgeKind::Wall);
+        e.tool = Tool::Brush;
+        e.entry = Entry::Edge(EdgeKind::Wall);
         assert!(e.paint(
             &data,
             Target {
@@ -144,7 +145,7 @@ fn playtest_is_dim_with_its_reason_until_the_cursor_stands_on_playable_ground() 
     // No ground under the cursor.
     {
         let mut e = app.world_mut().resource_mut::<Editing>();
-        e.tool = Tool::Clear;
+        e.tool = Tool::Eraser;
         let cell = e.cursor;
         assert!(e.paint(&data, Target { cell, edge: None }, false));
     }
@@ -160,7 +161,8 @@ fn playtest_is_dim_with_its_reason_until_the_cursor_stands_on_playable_ground() 
     let ramp = open_edge(&app, 3);
     {
         let mut e = app.world_mut().resource_mut::<Editing>();
-        e.tool = Tool::Edge(EdgeKind::Ramp);
+        e.tool = Tool::Brush;
+        e.entry = Entry::Edge(EdgeKind::Ramp);
         assert!(e.paint(
             &data,
             Target {
@@ -169,7 +171,7 @@ fn playtest_is_dim_with_its_reason_until_the_cursor_stands_on_playable_ground() 
             },
             false
         ));
-        e.tool = Tool::Height;
+        e.entry = Entry::Height;
         e.eighths = 24;
         assert!(e.paint(
             &data,

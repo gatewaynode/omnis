@@ -1,10 +1,10 @@
-//! Brushes (M5.5, `tasks/plans/m5-editor-v1.md` §Client side "Input"): what a click paints.
-//! The palette is the open map's terrains in their order, the four kinds of edge, a height
-//! and no ground; the tools column marks the current one and the first nine answer the digit
-//! keys. What is painted is a target: a cell, or one of its edges when the pointer is within a
-//! quarter of the cell's side of that border (`plan::View::target`). The two run tools
-//! (`Corners`, `Freehand`) paint no target: they draw wall runs between grid corners
-//! (`super::run`). Bevy-free.
+//! The pointer states and the palette (the owner's drawing-GUI column, 2026-10-25, after M5.5's
+//! brushes): what the pointer does is a `Tool` (select, brush, a run by corners, a freehand run,
+//! the eraser), what it paints is an `Entry` of the palette (the open map's terrains in their
+//! order, then wall, door, ramp and the height). A click paints the entry at a target: a cell, or
+//! one of its edges when the pointer is within a quarter of the cell's side of that border
+//! (`plan::View::target`), the nearest side for an edge entry. The eraser needs no entry: it
+//! opens an edge, removes a placement or clears the ground under the pointer. Bevy-free.
 
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::MapDef;
@@ -14,21 +14,72 @@ use omnis_sim::omnis_data::edit::{Brush, EdgeKind};
 /// file's own limit lies far wider; a picked height beyond this is held to it).
 pub const EIGHTHS: core::ops::RangeInclusive<i16> = -64..=64;
 
-/// A brush of the palette.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What the pointer does on the plan: a state of the tool grid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tool {
-    /// A terrain, by its index in the map's list.
-    Terrain(u8),
-    /// An edge of this kind, on the target's side or the side the cursor faces.
-    Edge(EdgeKind),
-    /// The height the tools column holds.
-    Height,
-    /// No ground.
-    Clear,
-    /// A wall run drawn corner by corner, taken by a click on its last corner (`super::run`).
+    /// A click puts the cursor on the cell and paints nothing.
+    Select,
+    /// A click paints the palette's entry at the target; a drag is one stroke.
+    Brush,
+    /// A run of edges drawn corner by corner, taken by a click on its last corner (`super::run`).
     Corners,
-    /// A wall run drawn freehand, taken when the button is let go.
+    /// A run of edges drawn freehand, taken when the button is let go.
     Freehand,
+    /// A click opens the edge, removes the first placement or clears the ground under it.
+    Eraser,
+}
+
+impl Tool {
+    /// Every tool, in the grid's order.
+    pub const ALL: [Tool; 5] = [
+        Tool::Select,
+        Tool::Brush,
+        Tool::Corners,
+        Tool::Freehand,
+        Tool::Eraser,
+    ];
+
+    /// Its name, under the grid.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Tool::Select => "Select",
+            Tool::Brush => "Brush",
+            Tool::Corners => "Run by corners",
+            Tool::Freehand => "Freehand run",
+            Tool::Eraser => "Eraser",
+        }
+    }
+
+    /// Its icon in the set.
+    #[must_use]
+    pub const fn icon(self) -> &'static str {
+        match self {
+            Tool::Select => "mouse-pointer-2",
+            Tool::Brush => "brush",
+            Tool::Corners => "pen-tool",
+            Tool::Freehand => "pencil",
+            Tool::Eraser => "eraser",
+        }
+    }
+
+    /// Its key, the shortcut for its icon.
+    #[must_use]
+    pub const fn key(self) -> char {
+        match self {
+            Tool::Select => 'V',
+            Tool::Brush => 'B',
+            Tool::Corners => 'P',
+            Tool::Freehand => 'N',
+            Tool::Eraser => 'X',
+        }
+    }
+
+    /// Whether this is a run tool, which aims at grid corners and paints through `take_run`.
+    #[must_use]
+    pub const fn is_run(self) -> bool {
+        matches!(self, Tool::Corners | Tool::Freehand)
+    }
 }
 
 /// Where a click lands: a cell, and the edge of it when the pointer is near that border.
@@ -40,67 +91,96 @@ pub struct Target {
     pub edge: Option<Facing>,
 }
 
-/// The palette of `def`: its terrains, then wall, door, ramp and open edge, the two wall runs,
-/// the height and no ground.
+/// An entry of the palette: what the brush paints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Entry {
+    /// A terrain, by its index in the map's list.
+    Terrain(u8),
+    /// An edge of this kind, on the target's side or the side the cursor faces; a run takes it.
+    Edge(EdgeKind),
+    /// The height the details hold.
+    Height,
+}
+
+/// The palette of `def`: its terrains, then wall, door and ramp, and the height. (An open edge
+/// and no ground are the eraser's.)
 #[must_use]
-pub fn palette(def: &MapDef) -> Vec<Tool> {
-    let mut out: Vec<Tool> = (0..def.terrains.len())
+pub fn palette(def: &MapDef) -> Vec<Entry> {
+    let mut out: Vec<Entry> = (0..def.terrains.len())
         .filter_map(|i| u8::try_from(i).ok())
-        .map(Tool::Terrain)
+        .map(Entry::Terrain)
         .collect();
     out.extend([
-        Tool::Edge(EdgeKind::Wall),
-        Tool::Edge(EdgeKind::Door),
-        Tool::Edge(EdgeKind::Ramp),
-        Tool::Edge(EdgeKind::Open),
-        Tool::Corners,
-        Tool::Freehand,
-        Tool::Height,
-        Tool::Clear,
+        Entry::Edge(EdgeKind::Wall),
+        Entry::Edge(EdgeKind::Door),
+        Entry::Edge(EdgeKind::Ramp),
+        Entry::Height,
     ]);
     out
 }
 
-impl Tool {
-    /// The first brush of `def`: its first terrain, else no ground.
+impl Entry {
+    /// The first entry of `def`: its first terrain, else the wall.
     #[must_use]
-    pub fn first(def: &MapDef) -> Tool {
+    pub fn first(def: &MapDef) -> Entry {
         if def.terrains.is_empty() {
-            Tool::Clear
+            Entry::Edge(EdgeKind::Wall)
         } else {
-            Tool::Terrain(0)
+            Entry::Terrain(0)
         }
     }
 
-    /// Its name in the tools column.
+    /// Its name.
     #[must_use]
     pub fn label(self, def: &MapDef) -> String {
         match self {
-            Tool::Terrain(i) => def
+            Entry::Terrain(i) => def
                 .terrains
                 .get(usize::from(i))
                 .map_or_else(|| "?".to_owned(), |t| format!("{} {}", t.glyph, t.name)),
-            Tool::Edge(EdgeKind::Wall) => "Wall".to_owned(),
-            Tool::Edge(EdgeKind::Door) => "Door".to_owned(),
-            Tool::Edge(EdgeKind::Ramp) => "Ramp".to_owned(),
-            Tool::Edge(EdgeKind::Open) => "Open edge (erase)".to_owned(),
-            Tool::Height => "Height".to_owned(),
-            Tool::Clear => "No ground".to_owned(),
-            Tool::Corners => "Walls by corners".to_owned(),
-            Tool::Freehand => "Walls freehand".to_owned(),
+            Entry::Edge(EdgeKind::Wall) => "Wall".to_owned(),
+            Entry::Edge(EdgeKind::Door) => "Door".to_owned(),
+            Entry::Edge(EdgeKind::Ramp) => "Ramp".to_owned(),
+            Entry::Edge(EdgeKind::Open) => "Open edge".to_owned(),
+            Entry::Height => "Height".to_owned(),
         }
     }
 
-    /// Whether this is a run tool, which aims at grid corners and paints through `take_run`.
+    /// What it does, for the details under the palette.
     #[must_use]
-    pub fn is_run(self) -> bool {
-        matches!(self, Tool::Corners | Tool::Freehand)
+    pub fn describes(self, def: &MapDef) -> String {
+        match self {
+            Entry::Terrain(_) => self.label(def),
+            Entry::Edge(EdgeKind::Wall) => "Wall: a solid side".to_owned(),
+            Entry::Edge(EdgeKind::Door) => "Door: a door in the side".to_owned(),
+            Entry::Edge(EdgeKind::Ramp) => "Ramp: a slope over the side".to_owned(),
+            Entry::Edge(EdgeKind::Open) => "Open edge: nothing in the side".to_owned(),
+            Entry::Height => "Height: the cell's floor, in eighths".to_owned(),
+        }
     }
 
-    /// The brush this tool paints at `target`: a terrain on the cell (a stair rising the way
-    /// the cursor `facing`s), an edge on the target's side or, from the keys, the side faced,
-    /// the height in `eighths`, or no ground. None for a terrain the map no longer has, and
-    /// for a run tool, which paints no single target.
+    /// Its icon in the set; a terrain has a swatch of its colour instead.
+    #[must_use]
+    pub const fn icon(self) -> Option<&'static str> {
+        match self {
+            Entry::Terrain(_) => None,
+            Entry::Edge(EdgeKind::Wall) => Some("brick-wall"),
+            Entry::Edge(EdgeKind::Door) => Some("door-closed"),
+            Entry::Edge(EdgeKind::Ramp) => Some("triangle-right"),
+            Entry::Edge(EdgeKind::Open) => Some("square-dashed"),
+            Entry::Height => Some("mountain"),
+        }
+    }
+
+    /// Whether it is an edge kind, which a run takes.
+    #[must_use]
+    pub const fn is_edge(self) -> bool {
+        matches!(self, Entry::Edge(_))
+    }
+
+    /// The brush this entry paints at `target`: a terrain on the cell (a stair rising the way
+    /// the cursor `facing`s), an edge on the target's side or, from the keys, the side faced, or
+    /// the height in `eighths`. None for a terrain the map no longer has.
     #[must_use]
     pub fn brush(
         self,
@@ -110,17 +190,15 @@ impl Tool {
         eighths: i16,
     ) -> Option<Brush> {
         Some(match self {
-            Tool::Terrain(i) => Brush::Tile {
+            Entry::Terrain(i) => Brush::Tile {
                 glyph: def.terrains.get(usize::from(i))?.glyph,
                 rise: Some(facing),
             },
-            Tool::Edge(kind) => Brush::Edge {
+            Entry::Edge(kind) => Brush::Edge {
                 side: target.edge.unwrap_or(facing),
                 kind,
             },
-            Tool::Height => Brush::Height { eighths },
-            Tool::Clear => Brush::Clear,
-            Tool::Corners | Tool::Freehand => return None,
+            Entry::Height => Brush::Height { eighths },
         })
     }
 }
@@ -146,35 +224,52 @@ mod tests {
     }
 
     #[test]
-    fn the_palette_is_the_terrains_then_the_edges_the_height_and_no_ground() {
+    fn the_palette_is_the_terrains_then_wall_door_ramp_and_the_height() {
         let def = town();
         let palette = palette(&def);
         let n = def.terrains.len();
-        assert_eq!(palette.len(), n + 8);
-        assert_eq!(palette[0], Tool::Terrain(0));
-        assert_eq!(palette[n], Tool::Edge(EdgeKind::Wall));
-        assert_eq!(palette[n + 4], Tool::Corners);
-        assert_eq!(palette[n + 5], Tool::Freehand);
-        assert_eq!(palette[n + 6], Tool::Height);
-        assert_eq!(palette[n + 7], Tool::Clear);
-        assert!(Tool::Corners.is_run() && Tool::Freehand.is_run());
-        assert!(!Tool::Height.is_run() && !Tool::Edge(EdgeKind::Wall).is_run());
-        assert_eq!(Tool::Corners.label(&def), "Walls by corners");
-        assert!(Tool::Freehand.label(&def).is_ascii());
-        assert_eq!(Tool::first(&def), Tool::Terrain(0));
+        assert_eq!(palette.len(), n + 4);
+        assert_eq!(palette[0], Entry::Terrain(0));
+        assert_eq!(palette[n], Entry::Edge(EdgeKind::Wall));
+        assert_eq!(palette[n + 1], Entry::Edge(EdgeKind::Door));
+        assert_eq!(palette[n + 2], Entry::Edge(EdgeKind::Ramp));
+        assert_eq!(palette[n + 3], Entry::Height);
+        assert_eq!(Entry::first(&def), Entry::Terrain(0));
         let first = &def.terrains[0];
         assert_eq!(
-            Tool::Terrain(0).label(&def),
+            Entry::Terrain(0).label(&def),
             format!("{} {}", first.glyph, first.name)
         );
-        assert_eq!(Tool::Terrain(200).label(&def), "?");
+        assert_eq!(Entry::Terrain(200).label(&def), "?");
+        for entry in &palette {
+            assert!(entry.label(&def).is_ascii());
+            assert!(entry.describes(&def).is_ascii());
+            if let Some(icon) = entry.icon() {
+                assert!(omnis_icon::get(icon).is_some(), "{icon}");
+            }
+        }
+        assert!(Entry::Terrain(0).icon().is_none());
+        assert!(Entry::Edge(EdgeKind::Wall).is_edge() && !Entry::Height.is_edge());
         let mut bare = def;
         bare.terrains.clear();
-        assert_eq!(Tool::first(&bare), Tool::Clear);
+        assert_eq!(Entry::first(&bare), Entry::Edge(EdgeKind::Wall));
     }
 
     #[test]
-    fn a_brush_takes_the_target_s_edge_or_the_facing_and_a_terrain_rises_the_way_faced() {
+    fn every_tool_has_a_name_an_icon_of_the_set_and_a_key() {
+        let mut keys = Vec::new();
+        for tool in Tool::ALL {
+            assert!(tool.label().is_ascii());
+            assert!(omnis_icon::get(tool.icon()).is_some(), "{}", tool.icon());
+            assert!(!keys.contains(&tool.key()), "{tool:?}");
+            keys.push(tool.key());
+        }
+        assert!(Tool::Corners.is_run() && Tool::Freehand.is_run());
+        assert!(!Tool::Brush.is_run() && !Tool::Eraser.is_run() && !Tool::Select.is_run());
+    }
+
+    #[test]
+    fn an_entry_s_brush_takes_the_target_s_edge_or_the_facing_and_a_terrain_rises_the_way_faced() {
         let def = town();
         let cell = Target {
             cell: (1, 1),
@@ -185,37 +280,34 @@ mod tests {
             edge: Some(Facing::East),
         };
         assert_eq!(
-            Tool::Edge(EdgeKind::Door).brush(&def, cell, Facing::South, 0),
+            Entry::Edge(EdgeKind::Door).brush(&def, cell, Facing::South, 0),
             Some(Brush::Edge {
                 side: Facing::South,
                 kind: EdgeKind::Door
             })
         );
         assert_eq!(
-            Tool::Edge(EdgeKind::Door).brush(&def, east, Facing::South, 0),
+            Entry::Edge(EdgeKind::Door).brush(&def, east, Facing::South, 0),
             Some(Brush::Edge {
                 side: Facing::East,
                 kind: EdgeKind::Door
             })
         );
         assert_eq!(
-            Tool::Terrain(0).brush(&def, east, Facing::North, 0),
+            Entry::Terrain(0).brush(&def, east, Facing::North, 0),
             Some(Brush::Tile {
                 glyph: def.terrains[0].glyph,
                 rise: Some(Facing::North)
             })
         );
-        assert_eq!(Tool::Terrain(200).brush(&def, cell, Facing::North, 0), None);
         assert_eq!(
-            Tool::Height.brush(&def, cell, Facing::North, -5),
+            Entry::Terrain(200).brush(&def, cell, Facing::North, 0),
+            None
+        );
+        assert_eq!(
+            Entry::Height.brush(&def, cell, Facing::North, -5),
             Some(Brush::Height { eighths: -5 })
         );
-        assert_eq!(
-            Tool::Clear.brush(&def, cell, Facing::North, 0),
-            Some(Brush::Clear)
-        );
-        assert_eq!(Tool::Corners.brush(&def, cell, Facing::North, 0), None);
-        assert_eq!(Tool::Freehand.brush(&def, east, Facing::North, 0), None);
         assert_eq!(held(1000), 64);
         assert_eq!(held(-1000), -64);
         assert_eq!(held(3), 3);

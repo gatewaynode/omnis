@@ -176,6 +176,7 @@ pub(super) fn shown_label(keys: &[(Key, ControlId)], control: &Control) -> Strin
         Kind::Choice { options, at } => return options.get(*at).cloned().unwrap_or_default(),
         Kind::Number { value, .. } => return value.to_string(),
         Kind::Icon { name, .. } => return (*name).to_owned(),
+        Kind::Swatch { glyph, .. } => return glyph.to_string(),
         Kind::Button | Kind::Text { .. } | Kind::Document { .. } => {}
     }
     match &control.why_not {
@@ -248,19 +249,16 @@ fn pressed_by(entity: &mut EntityCommands, mark: Mark, id: ControlId) {
     };
 }
 
-/// An icon control's nodes: a square box, framed twice as thick when chosen, holding the icon's
-/// image (asked for through `NeedsIcon`, white when chosen, else the role's colour) named by
-/// `IconOf` for the text readers. A dim one has no `Button`.
-fn icon_node(
-    parent: &mut ChildSpawnerCommands,
+/// The square box of an icon or a swatch: framed twice as thick when chosen, pressable unless
+/// dim (no `Button` then).
+fn square<'a>(
+    parent: &'a mut ChildSpawnerCommands,
     c: &Control,
-    name: &'static str,
     chosen: bool,
     role: Role,
     spawn: Spawn,
-) {
-    let height = spawn.height;
-    let side = scaled(44.0, height);
+) -> EntityCommands<'a> {
+    let side = scaled(44.0, spawn.height);
     let mut entity = parent.spawn((
         Node {
             width: Val::Px(side),
@@ -278,6 +276,54 @@ fn icon_node(
     if c.why_not.is_none() {
         entity.insert(Button);
     }
+    entity
+}
+
+/// A swatch control's nodes: the square box holding a filled square of the colour and the glyph
+/// over it, black on a light colour and white on a dark one (the text readers print the glyph
+/// under its `[button]`).
+fn swatch_node(
+    parent: &mut ChildSpawnerCommands,
+    c: &Control,
+    (r, g, b): (u8, u8, u8),
+    glyph: char,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) {
+    let height = spawn.height;
+    let inner = scaled(28.0, height);
+    let light = u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114 > 128 * 1000;
+    let ink = if light { Color::BLACK } else { Color::WHITE };
+    square(parent, c, chosen, role, spawn).with_children(|box_| {
+        box_.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(inner),
+                height: Val::Px(inner),
+                ..default()
+            },
+            BackgroundColor(Color::srgb_u8(r, g, b)),
+        ));
+        let mut words = words(&glyph.to_string(), Role::Interface, Size::Small, height);
+        words.2 = TextColor(ink);
+        box_.spawn(words);
+    });
+}
+
+/// An icon control's nodes: the square box holding the icon's image (asked for through
+/// `NeedsIcon`, white when chosen, else the role's colour) named by `IconOf` for the text
+/// readers.
+fn icon_node(
+    parent: &mut ChildSpawnerCommands,
+    c: &Control,
+    name: &'static str,
+    chosen: bool,
+    role: Role,
+    spawn: Spawn,
+) {
+    let height = spawn.height;
+    let mut entity = square(parent, c, chosen, role, spawn);
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let px = scaled(28.0, height).round().max(1.0) as u32;
     let colour = if chosen {
@@ -419,6 +465,9 @@ fn control_node(
     };
     match &c.kind {
         Kind::Icon { name, chosen } => icon_node(parent, c, name, *chosen, role, spawn),
+        Kind::Swatch { rgb, glyph, chosen } => {
+            swatch_node(parent, c, *rgb, *glyph, *chosen, role, spawn);
+        }
         Kind::Button => {
             let mut entity = parent.spawn(boxed(role, height, mark));
             pressed_by(&mut entity, mark, c.id);

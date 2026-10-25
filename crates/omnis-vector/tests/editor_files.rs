@@ -297,6 +297,29 @@ fn a_crowded_column_s_rows_keep_their_height_and_the_panel_scrolls() {
     use common::app::ui_editor_app;
     use common::editor::panel;
     let (mut app, _window) = ui_editor_app();
+    // The grids made the column fit the test window (2026-10-25): a palette of fifty more
+    // terrains, a swatch each, crowds it again.
+    let data = app.world().resource::<Packs>().data.clone();
+    {
+        let mut e = app.world_mut().resource_mut::<Editing>();
+        let def = e.def().expect("open");
+        let base = def.terrains[0].clone();
+        for glyph in ('A'..='Z').chain('a'..='z').chain('0'..='9') {
+            if def.terrains.iter().any(|t| t.glyph == glyph) {
+                continue;
+            }
+            let terrain = omnis_sim::omnis_data::Terrain {
+                glyph,
+                name: format!("terrain {glyph}"),
+                ..base.clone()
+            };
+            e.session
+                .document_mut()
+                .and_then(|d| d.edit(omnis_sim::omnis_data::edit::Edit::TerrainAdd(terrain)))
+                .expect("a terrain adds");
+        }
+        e.changed(&data);
+    }
     for _ in 0..3 {
         app.update();
     }
@@ -310,7 +333,7 @@ fn a_crowded_column_s_rows_keep_their_height_and_the_panel_scrolls() {
         area.size().y
     );
     let rows: Vec<Entity> = world.get::<Children>(tools).unwrap().iter().collect();
-    assert!(rows.len() > 10, "{} rows", rows.len());
+    assert!(rows.len() > 5, "{} rows", rows.len());
     for row in rows {
         let tallest = world
             .get::<Children>(row)
@@ -453,8 +476,9 @@ fn a_checked_edit_is_written_as_typed_and_resealed_and_the_map_s_own_file_reopen
     {
         let mut e = app.world_mut().resource_mut::<Editing>();
         e.point((3, 3));
-        e.tool =
-            omnis_vector::editor::brush::Tool::Edge(omnis_sim::omnis_data::edit::EdgeKind::Wall);
+        e.tool = omnis_vector::editor::brush::Tool::Brush;
+        e.entry =
+            omnis_vector::editor::brush::Entry::Edge(omnis_sim::omnis_data::edit::EdgeKind::Wall);
         let cell = e.cursor;
         assert!(e.paint(
             &data,

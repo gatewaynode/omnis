@@ -16,6 +16,7 @@ mod common;
 mod create_party;
 mod debug;
 mod editor;
+mod editor_column;
 mod editor_files;
 mod editor_forms;
 mod editor_paint;

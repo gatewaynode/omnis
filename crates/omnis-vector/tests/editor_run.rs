@@ -11,7 +11,7 @@ use common::editor::{editing, in_editor, leave_plan, mouse, point_frac, press_ed
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::edit::{EdgeKind, Grid};
 use omnis_vector::editor::EditAct;
-use omnis_vector::editor::brush::{self, Tool};
+use omnis_vector::editor::brush::Tool;
 use omnis_vector::editor::plan::{self, Source, View};
 use omnis_vector::editor::run::Preview;
 use omnis_vector::editor::view;
@@ -20,14 +20,9 @@ use omnis_vector::screen::ControlId;
 use omnis_vector::shell::editor::PlanHover;
 use omnis_vector::shell::session::Packs;
 
-/// Choose `tool` by its button in the tools column.
+/// Choose `tool` by its icon in the tool grid.
 fn choose(app: &mut App, tool: Tool) {
-    let def = editing(app).def().expect("a map is open");
-    let i = brush::palette(&def)
-        .iter()
-        .position(|t| *t == tool)
-        .expect("the tool is in the palette");
-    press_edit(app, EditAct::Brush(u8::try_from(i).unwrap()));
+    press_edit(app, EditAct::Tool(tool));
     assert_eq!(editing(app).tool, tool);
 }
 
@@ -197,8 +192,8 @@ fn a_pending_run_is_dropped_with_its_tool_level_or_history_and_a_pick_drops_it()
     // Zoom keeps it.
     press_edit(&mut app, EditAct::ZoomIn);
     assert_eq!(corners(&app).len(), 2);
-    // Another brush drops it.
-    choose(&mut app, Tool::Edge(EdgeKind::Door));
+    // Another tool drops it.
+    choose(&mut app, Tool::Eraser);
     assert_eq!(editing(&app).run, None);
     choose(&mut app, Tool::Corners);
     click_corner(&mut app, (1, 1));
