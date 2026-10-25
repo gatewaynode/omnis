@@ -8,8 +8,9 @@ Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowl
   every step accepted; `tasks/acceptance/m5-10.md`). Untracked and never staged: `assets/` and
   `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` that appear modified or new
   are committed at once, unedited, in their own commit (`01825db`, `2874be2`, `50796e0`, `9a51bf4`, `3d5e6e5`).
-- **Boundary tools (2026-10-25, this commit; `tasks/acceptance/boundary-tools.md`, awaiting the owner's hand
-  test):** two palette entries after Open edge, "Walls by corners" and "Walls freehand" (owner's choices: walls
+- **Boundary tools (2026-10-25, `9486183b`; `tasks/acceptance/boundary-tools.md`; accepted by the owner the
+  same day, "I like the jagged corner extend tool"; the owner then asked how hard a freehand mode for terrain
+  would be):** two palette entries after Open edge, "Walls by corners" and "Walls freehand" (owner's choices: walls
   only; freehand taken on release; a corner run pending until a click on its last corner, Enter or Take run;
   Backspace drops a corner). `editor/run.rs`: `sides(a, b)` (the grid-line walk, a staircase hugging a slanted
   line, horizontal at a tie), `paints` (each side once, the boundary dropped and counted), `Editor::pointer`

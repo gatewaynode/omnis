@@ -138,7 +138,7 @@ no loss, and every later map is built with it.
       **freehand** tool (a drawn line), with a **normalisation** of those lines to the map's granularity: the
       line is snapped to the grid's corners and rasterised onto cell sides, the result previewed in the hover
       colour before it is taken, one undo step. The nearest-side edge brush and its hover stand meanwhile.
-      **Built 2026-10-25** (`tasks/acceptance/boundary-tools.md`; owner's choices in the planning: walls only,
+      **Built 2026-10-25, accepted by the owner the same day** (`tasks/acceptance/boundary-tools.md`; owner's choices in the planning: walls only,
       as two palette entries "Walls by corners" and "Walls freehand"; a freehand line taken on release, a corner
       run pending until a click on its last corner, Enter or Take run; Backspace drops a corner): `editor/run.rs`
       (`sides(a, b)` the grid-line walk that hugs the line, `paints` each side once with the boundary left out,

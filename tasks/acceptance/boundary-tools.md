@@ -8,6 +8,8 @@ Owner's decisions in the planning (2026-10-25): the runs paint **walls only**, a
 **freehand line is taken on release**; a corner run is pending until a click on its last corner, Enter or
 Take run; Backspace drops the last corner.
 
+**Accepted by the owner 2026-10-25** ("Manually tested, looks good. I like the jagged corner extend tool.").
+
 **A Save reseals the pack on disk.** Hand-test on a scratch copy: `cp -R packs/test /tmp/omnis-scratch`, named as
 the last pack.
 
