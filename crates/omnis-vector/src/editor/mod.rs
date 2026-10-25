@@ -110,8 +110,13 @@ pub enum EditAct {
     Plan,
     /// Show the open file's text (M5.9).
     Files,
-    /// List the pack's files and open the picker over the editor (M5.9b).
+    /// List the pack's files and open the picker over the editor (M5.9b); an open file with
+    /// unsaved text is asked about first, a clean one is closed (M5.9c).
     OpenFile,
+    /// The picker's Save and continue: check and write the open file, then close it.
+    FileSaveClose,
+    /// The picker's Discard changes: close the open file as it stands.
+    FileDiscard,
     /// Open the nth listed file as text, or show the open one again.
     File(u16),
     /// The open file's text, as typed.
@@ -591,23 +596,18 @@ impl Editor {
         }
     }
 
-    /// Open the nth listed file as text, fresh (its field takes the keyboard), and show it. The
-    /// open file picked again is shown as it stands, typed text kept; another file is refused
-    /// while the open one has unsaved text (the picker says so before the click). Whether a file
-    /// is shown.
+    /// Open the nth listed file as text, fresh (its field takes the keyboard), and show it. A
+    /// file is refused while the open one has unsaved text (the picker asks about it first, so
+    /// this guards the socket and the tests). Whether a file is shown.
     fn open_file(&mut self, n: usize) -> bool {
         let Some(rel) = self.files.get(n).cloned() else {
             return false;
         };
-        if let Some(file) = &self.file {
-            if file.rel == rel {
-                self.mode = Mode::Files;
-                return true;
-            }
-            if file.dirty() {
-                self.message = Some(format!("save or revert {} first", file.rel));
-                return false;
-            }
+        if let Some(file) = &self.file
+            && file.dirty()
+        {
+            self.message = Some(format!("save or revert {} first", file.rel));
+            return false;
         }
         match self.session.read(&rel) {
             Ok(text) => {
@@ -619,6 +619,31 @@ impl Editor {
             Err(e) => {
                 self.message = Some(format!("Cannot read {rel}: {e}"));
                 false
+            }
+        }
+    }
+
+    /// Ask the loader about the open file's text as typed (M5.9): the verdict in the message and
+    /// on the file. Whether the loader takes it; none with no file open or when the check itself
+    /// could not run.
+    fn check_file(&mut self, data: &Data) -> Option<bool> {
+        let file = self.file.as_ref()?;
+        match self.session.check(&file.rel, &file.text, data) {
+            Ok(errors) => {
+                let words: Vec<String> = errors.iter().map(ToString::to_string).collect();
+                self.message = Some(match words.first() {
+                    None => format!("The loader takes {}", file.rel),
+                    Some(first) => format!("{} error(s); the first: {first}", words.len()),
+                });
+                let clean = words.is_empty();
+                if let Some(file) = &mut self.file {
+                    file.checked(words);
+                }
+                Some(clean)
+            }
+            Err(e) => {
+                self.message = Some(format!("Not checked: {e}"));
+                None
             }
         }
     }
@@ -1081,10 +1106,29 @@ impl Editor {
             EditAct::OpenFile => match self.session.files() {
                 Ok(files) => {
                     self.files = files;
+                    // A clean file is closed here (the owner, 2026-10-24: "finish with clearing
+                    // out the existing editor load"); an unsaved one is asked about in the picker.
+                    if self.file.as_ref().is_some_and(|f| !f.dirty()) {
+                        self.file = None;
+                    }
                     return Asked::Pick;
                 }
                 Err(e) => self.message = Some(format!("Cannot list the files: {e}")),
             },
+            EditAct::FileSaveClose => {
+                // Check, then write: the write refuses on its own while the verdict has errors.
+                self.check_file(data);
+                let asked = self.write_file(data);
+                if asked == Asked::Saved {
+                    self.file = None;
+                }
+                return asked;
+            }
+            EditAct::FileDiscard => {
+                if let Some(file) = self.file.take() {
+                    self.message = Some(format!("{} left as the file holds it", file.rel));
+                }
+            }
             EditAct::File(n) => {
                 if self.open_file(usize::from(n)) {
                     return Asked::Picked;
@@ -1092,22 +1136,7 @@ impl Editor {
             }
             EditAct::FileText => {}
             EditAct::Check => {
-                let Some(file) = self.file.as_ref() else {
-                    return Asked::Nothing;
-                };
-                match self.session.check(&file.rel, &file.text, data) {
-                    Ok(errors) => {
-                        let words: Vec<String> = errors.iter().map(ToString::to_string).collect();
-                        self.message = Some(match words.first() {
-                            None => format!("The loader takes {}", file.rel),
-                            Some(first) => format!("{} error(s); the first: {first}", words.len()),
-                        });
-                        if let Some(file) = &mut self.file {
-                            file.checked(words);
-                        }
-                    }
-                    Err(e) => self.message = Some(format!("Not checked: {e}")),
-                }
+                self.check_file(data);
             }
             EditAct::WriteFile => return self.write_file(data),
             EditAct::RevertFile => {

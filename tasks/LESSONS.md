@@ -459,3 +459,12 @@
   route decides from the model's state (here `fresh`: the drawn field is stale until the rebuild) and never
   from "it changed". A test of such a route runs under a churn system that marks the components changed
   every frame (`common::app::churn_fields`), so the headless test meets the window's condition.
+
+## 2026-10-24 — A guard that dims a whole list reads as a broken list
+- **What happened**: the first file picker dimmed every other file while the open one had unsaved text,
+  the reason appended to each label. In the window that looked like a list that ignored clicks; the owner
+  asked for the check at the Open file... button instead: is a file loaded, does it need saving, then clear
+  the editor and list.
+- **Rule**: a decision the owner must make belongs at the action that needs it, asked once with the ways
+  out (Save and continue, Discard changes, Cancel), not spread over the choices as dim reasons. Dimming
+  with a reason suits one control that cannot act now; it does not suit a whole list.

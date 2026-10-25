@@ -2,9 +2,9 @@
 //! pack's own files, grouped by folder, and opens one as text. The list is the data layer's
 //! (`Session::files`: `pack.ron` and the `.ron` files under the pack's `data`, `text`, `notes`
 //! and `migrations`, no symlink followed, nothing outside the root), so nothing is typed and no
-//! other path is reachable. While the open file has unsaved text, every other file is dim with
-//! the reason, so a pick cannot drop typed work; the open file itself is marked and can be shown
-//! again.
+//! other path is reachable. Opened over a file with unsaved text (M5.9c, the owner's flow), it
+//! asks first: Save and continue, Discard changes, or Cancel; the list comes once the file is
+//! closed, so a pick never drops typed work and always reads its file fresh.
 
 use super::{Control, ControlId, Ctx, Effect, Panel, Row, Screen, ScreenId, Span};
 use crate::editor::EditAct;
@@ -14,9 +14,27 @@ use crate::editor::EditAct;
 pub fn content(ctx: &Ctx) -> Screen {
     let (files, open): (&[String], Option<(&str, bool)>) =
         ctx.editing.map_or((&[], None), |e| (e.files, e.file));
-    let blocked = open
-        .filter(|(_, dirty)| *dirty)
-        .map(|(rel, _)| format!("save or revert {rel} first"));
+    if let Some((rel, true)) = open {
+        return Screen {
+            id: ScreenId::EditorFiles,
+            title: Span::title("OPEN A FILE"),
+            panels: vec![Panel {
+                rows: vec![
+                    Row::text(Span::body(format!("{rel} has unsaved changes."))),
+                    Row::controls(vec![
+                        Control::button(
+                            ControlId::Edit(EditAct::FileSaveClose),
+                            "Save and continue",
+                        ),
+                        Control::button(ControlId::Edit(EditAct::FileDiscard), "Discard changes"),
+                        Control::button(ControlId::Resume, "Cancel"),
+                    ]),
+                ],
+            }],
+            keys: Vec::new(),
+            message: None,
+        };
+    }
     let mut rows: Vec<Row> = Vec::new();
     let mut folder: Option<&str> = None;
     for (i, rel) in files.iter().enumerate() {
@@ -25,20 +43,15 @@ pub fn content(ctx: &Ctx) -> Screen {
             folder = Some(dir);
             rows.push(Row::text(Span::body(format!("{dir}/"))));
         }
-        let is_open = open.is_some_and(|(o, _)| o == rel);
-        let mark = match (is_open, open) {
-            (true, Some((_, true))) => "> * ",
-            (true, _) => "> ",
-            _ => "",
+        let mark = if open.is_some_and(|(o, _)| o == rel) {
+            "> "
+        } else {
+            ""
         };
-        let mut button = Control::button(
+        rows.push(Row::controls(vec![Control::button(
             ControlId::Edit(EditAct::File(u16::try_from(i).unwrap_or(u16::MAX))),
             format!("{mark}{name}"),
-        );
-        if !is_open {
-            button.why_not.clone_from(&blocked);
-        }
-        rows.push(Row::controls(vec![button]));
+        )]));
     }
     if files.is_empty() {
         rows.push(Row::text(Span::body("The pack has no files.")));

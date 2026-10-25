@@ -148,28 +148,39 @@ fn the_picker_lists_the_pack_s_files_by_folder_and_opens_one_as_text_in_the_cent
     assert_eq!(display(&mut app, Column::Text), Display::Flex);
 }
 
-/// The picker guards unsaved text: while the open file differs from disk, every other file is
-/// dim with the reason and the model refuses it too; the open file picked again is shown as it
-/// stands, typed text kept, with no reread.
+/// Open file... over unsaved text asks first (the owner's flow, 2026-10-24): Save and continue,
+/// Discard changes or Cancel, no file list until the file is closed; a clean file is closed at
+/// once. So a pick always reads its file fresh and never drops typed work.
 #[test]
-fn the_picker_dims_other_files_while_the_open_one_is_unsaved_and_keeps_its_text() {
-    let mut app = in_editor("test:map:town");
+fn open_file_asks_about_unsaved_text_and_clears_the_editor() {
+    let (mut app, scratch) = in_editor_scratch("editor-files-unsaved", "test:map:town");
+    let version = |app: &App| {
+        app.world()
+            .resource::<Packs>()
+            .data
+            .packs
+            .iter()
+            .find(|p| p.id == "test")
+            .map(|p| p.version.clone())
+            .unwrap()
+    };
     open_file(&mut app, "text/en/spells.ron");
     let disk = editing(&app).file.clone().unwrap().disk;
     let typed = format!("// Typed.\n{disk}");
     type_into(&mut app, EditAct::FileText, &typed);
-    let text = screen_text(app.world());
-    assert!(text.contains("text/en/spells.ron  *"), "{text}");
     press_edit(&mut app, EditAct::OpenFile);
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles));
     let text = screen_text(app.world());
-    assert!(text.contains("> * spells.ron"), "{text}");
     assert!(
-        text.contains("maps.ron: save or revert text/en/spells.ron first"),
-        "{text}"
+        text.contains("text/en/spells.ron has unsaved changes")
+            && text.contains("Save and continue")
+            && text.contains("Discard changes")
+            && text.contains("Cancel")
+            && !text.contains("\"maps.ron\""),
+        "the question, not the list: {text}"
     );
-    // The model refuses another file while this one is unsaved.
+    // The model refuses another file meanwhile (the guard behind the question).
     let maps = file_index(&app, "text/en/maps.ron");
-    let data = app.world().resource::<Packs>().data.clone();
     let asked = app
         .world_mut()
         .resource_scope(|world, mut editing: Mut<Editing>| {
@@ -177,24 +188,75 @@ fn the_picker_dims_other_files_while_the_open_one_is_unsaved_and_keeps_its_text(
             omnis_vector::shell::editor::act(&mut editing, &mut packs, EditAct::File(maps), 0)
         });
     assert_eq!(asked, omnis_vector::editor::Asked::Nothing);
-    let file = editing(&app).file.clone().unwrap();
-    assert_eq!(file.rel, "text/en/spells.ron");
-    assert_eq!(file.text, typed, "the typed text stands");
     assert_eq!(
-        editing(&app).message.as_deref(),
-        Some("save or revert text/en/spells.ron first")
+        editing(&app).file.as_ref().unwrap().rel,
+        "text/en/spells.ron"
     );
-    drop(data);
-    // The open file picked again: shown as it stands, not reread.
-    let spells = file_index(&app, "text/en/spells.ron");
-    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::File(spells))));
-    assert_eq!(top(&app), None, "the picker closed");
-    assert_eq!(editing(&app).file.as_ref().unwrap().text, typed);
+    // Cancel keeps the file as it stands.
+    press_ui(&mut app, Pressable(ControlId::Resume));
+    assert_eq!(top(&app), None);
+    let file = editing(&app).file.clone().unwrap();
+    assert_eq!(file.text, typed, "kept");
     assert_eq!(field_text(&mut app), typed);
-    // Reverted, the others open again.
-    press_edit(&mut app, EditAct::RevertFile);
-    open_file(&mut app, "text/en/maps.ron");
-    assert_eq!(editing(&app).file.as_ref().unwrap().rel, "text/en/maps.ron");
+    // Discard changes closes it; the list follows in the same picker.
+    press_edit(&mut app, EditAct::OpenFile);
+    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::FileDiscard)));
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles), "the picker stays");
+    assert!(editing(&app).file.is_none(), "closed");
+    let text = screen_text(app.world());
+    assert!(text.contains("\"maps.ron\""), "the list: {text}");
+    assert_eq!(
+        reason(&app, EditAct::Files).as_deref(),
+        Some("open a file first")
+    );
+    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::File(maps))));
+    assert_eq!(top(&app), None);
+    let file = editing(&app).file.clone().unwrap();
+    assert_eq!(file.rel, "text/en/maps.ron");
+    assert_eq!(file.text, file.disk, "read fresh");
+    // Save and continue with a broken text: the loader's words, the question stands.
+    let disk = file.disk;
+    let broken = disk.replacen('"', "", 1);
+    type_into(&mut app, EditAct::FileText, &broken);
+    press_edit(&mut app, EditAct::OpenFile);
+    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::FileSaveClose)));
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles));
+    let file = editing(&app).file.clone().expect("still open");
+    assert!(file.dirty());
+    assert!(
+        editing(&app)
+            .message
+            .as_deref()
+            .is_some_and(|m| m.contains("error")),
+        "{:?}",
+        editing(&app).message
+    );
+    let text = screen_text(app.world());
+    assert!(text.contains("has unsaved changes"), "{text}");
+    // Valid again: written, resealed, closed, the list shown.
+    let before = version(&app);
+    press_ui(&mut app, Pressable(ControlId::Resume));
+    let kept = format!("// Kept.\n{disk}");
+    type_into(&mut app, EditAct::FileText, &kept);
+    press_edit(&mut app, EditAct::OpenFile);
+    press_ui(&mut app, Pressable(ControlId::Edit(EditAct::FileSaveClose)));
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles));
+    assert!(editing(&app).file.is_none(), "closed after the write");
+    assert_ne!(version(&app), before, "resealed");
+    assert_eq!(
+        std::fs::read_to_string(scratch.join("text/en/maps.ron")).unwrap(),
+        kept
+    );
+    let text = screen_text(app.world());
+    assert!(text.contains("\"spells.ron\""), "the list: {text}");
+    press_ui(&mut app, Pressable(ControlId::Resume));
+    assert!(editing(&app).file.is_none());
+    // A clean file is closed at Open file... itself.
+    open_file(&mut app, "text/en/spells.ron");
+    press_edit(&mut app, EditAct::OpenFile);
+    assert!(editing(&app).file.is_none(), "cleared");
+    assert_eq!(top(&app), Some(ScreenId::EditorFiles));
+    press_ui(&mut app, Pressable(ControlId::Resume));
 }
 
 /// A second file opened shows its own text, not the first's (the owner's report, 2026-10-24:
