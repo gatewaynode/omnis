@@ -73,7 +73,8 @@ Written 2026-10-25, after M5.9d (the wheel zooms the plan about the pointer). Re
    row's `min_height: 0` had reached every row; fixed with a layout test under `ui_editor_app`; both lessons
    in LESSONS; both accepted). **M5.9d** (owner's ask, 2026-10-25): the wheel over the plan zooms about the
    pointer (`View::zoomed_at`, `Editor::zoom_at`, `Zooming` in `shell/editor.rs`; in the M5 design since row 4,
-   built now). Awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, step 9). After acceptance: a memory note that the owner wants pickers
+   built now); the zooms run to 128 px a cell (the owner: a small map fitted whole sat at the old largest, 32, with
+   nothing further in). Awaiting the owner's hand test (`tasks/acceptance/m5-9.md`, step 9). After acceptance: a memory note that the owner wants pickers
    as modals over the editor, not lists in a column, and decisions asked at the action, not spread as dim reasons.
    The 4 MiB file cap stays a soft cap (owner, 2026-10-24: "we have ways of working around the limitations").
 2. **M5.10 re-authoring and close** (plan row 10: `tests/edit_authoring.rs` builds each `packs/test` map from

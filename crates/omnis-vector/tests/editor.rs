@@ -277,9 +277,15 @@ fn the_plan_paints_the_town_with_its_walls_and_its_start() {
     let mut editor = Editor::new(roots).expect("the editor");
     editor.open("test:map:town", &data).expect("the town");
     let def = editor.def().expect("open");
-    let pane = (800, 400);
+    // 900 wide: the town's twelve cells at 64 fill 768 and a cell's margin is left either side.
+    let pane = (900, 400);
     let view = View::fitted((def.width, def.height), pane);
-    assert_eq!(view.scale(), 32);
+    assert_eq!(
+        view.scale(),
+        64,
+        "the largest of the zooms the town fits in 900 x 400"
+    );
+    assert_eq!(view.origin, (-1, 0));
     let raster = plan::paint(
         Source {
             grid: editor.grid().expect("the ground"),

@@ -14,8 +14,9 @@ use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{EdgeKind, Grid};
 use omnis_sim::omnis_data::{Data, Join, MapData, MapDef, ServiceKind, Terrain};
 
-/// The zooms, in pixels a cell.
-pub const ZOOMS: [u32; 6] = [4, 8, 12, 16, 24, 32];
+/// The zooms, in pixels a cell: from a whole large map in the pane to a single room across it
+/// (M5.9d, the owner: "zoom in to just a single room or small section").
+pub const ZOOMS: [u32; 10] = [4, 8, 12, 16, 24, 32, 48, 64, 96, 128];
 
 /// Where the pane looks: the cell at its top left (which may lie before the map, so a map
 /// smaller than the pane can be centred) and the zoom.
@@ -456,9 +457,15 @@ mod tests {
     #[test]
     fn the_fitted_view_takes_the_largest_zoom_that_shows_the_whole_map_centred() {
         let view = View::fitted((12, 5), (800, 600));
-        assert_eq!(view.scale(), 32, "12 × 32 = 384 fits 800");
-        // 800 / 32 = 25 cells across, 12 shown: 6 spare each side.
-        assert_eq!(view.origin, (-6, -6));
+        assert_eq!(view.scale(), 64, "12 × 64 = 768 fits 800; 12 × 96 does not");
+        // 800 / 64 = 12 cells across, 12 shown: none spare; 600 / 64 = 9 rows, 5 shown: 2 spare.
+        assert_eq!(view.origin, (0, -2));
+        let wide = View::fitted((12, 5), (1600, 600));
+        assert_eq!(
+            wide.scale(),
+            96,
+            "12 × 96 = 1152 fits 1600, 5 × 96 = 480 fits 600"
+        );
         let tall = View::fitted((40, 40), (300, 300));
         assert_eq!(tall.scale(), 4, "40 × 8 = 320 does not fit 300");
         let huge = View::fitted((256, 256), (100, 100));
@@ -490,7 +497,7 @@ mod tests {
         assert_eq!(closer.centre_cell(pane), (20, 20));
         let farthest = view.zoomed(-9, pane);
         assert_eq!(farthest.scale(), 4, "stops at the smallest");
-        assert_eq!(view.zoomed(9, pane).scale(), 32, "and the largest");
+        assert_eq!(view.zoomed(9, pane).scale(), 128, "and the largest");
     }
 
     #[test]
