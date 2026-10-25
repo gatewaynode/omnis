@@ -289,6 +289,47 @@ fn a_second_file_opened_shows_its_own_text_in_the_field() {
     );
 }
 
+/// A column with more rows than its height scrolls; its rows never shrink into one another (the
+/// owner, 2026-10-25: "button overlap ... in the left column"). The document's row is the one
+/// that gives up its height; every other row keeps its content's.
+#[test]
+fn a_crowded_column_s_rows_keep_their_height_and_the_panel_scrolls() {
+    use common::app::ui_editor_app;
+    use common::editor::panel;
+    let (mut app, _window) = ui_editor_app();
+    for _ in 0..3 {
+        app.update();
+    }
+    let (tools, _) = panel(&mut app, Column::Tools);
+    let world = app.world_mut();
+    let area = world.get::<ComputedNode>(tools).unwrap();
+    assert!(
+        area.content_size().y > area.size().y + 0.5,
+        "the tools run past the column: {} in {}",
+        area.content_size().y,
+        area.size().y
+    );
+    let rows: Vec<Entity> = world.get::<Children>(tools).unwrap().iter().collect();
+    assert!(rows.len() > 10, "{} rows", rows.len());
+    for row in rows {
+        let tallest = world
+            .get::<Children>(row)
+            .map(|children| {
+                children
+                    .iter()
+                    .filter_map(|c| world.get::<ComputedNode>(c))
+                    .map(|n| n.size().y)
+                    .fold(0.0, f32::max)
+            })
+            .unwrap_or(0.0);
+        let height = world.get::<ComputedNode>(row).unwrap().size().y;
+        assert!(
+            height + 0.5 >= tallest,
+            "a row of {height} px holds a control of {tallest} px"
+        );
+    }
+}
+
 /// Opening a map from the tools shows its plan in the centre, whatever was shown before (the
 /// owner, 2026-10-25: "when I switch to opening a map with the map selector to edit the old .ron
 /// file editor remains and I don't get the map editing view in the central column"). The open

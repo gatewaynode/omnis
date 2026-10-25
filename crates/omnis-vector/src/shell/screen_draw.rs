@@ -490,7 +490,10 @@ pub(super) fn rows(
 ) {
     let gap = Val::Px(scaled(6.0, spawn.height));
     for (r, row) in panel.rows.iter().enumerate() {
-        // A document's row takes the panel's remaining height (the document scrolls inside it).
+        // A document's row takes the panel's remaining height (the document scrolls inside it)
+        // and so is the one row allowed to be shorter than its content; every other row keeps
+        // its content's height and a crowded panel scrolls (a zero minimum on all rows let them
+        // shrink into one another; the owner, 2026-10-25).
         let fills = row
             .controls
             .iter()
@@ -508,7 +511,7 @@ pub(super) fn rows(
                     AlignItems::Center
                 },
                 flex_grow: if fills { 1.0 } else { 0.0 },
-                min_height: Val::Px(0.0),
+                min_height: if fills { Val::Px(0.0) } else { Val::Auto },
                 column_gap: gap,
                 row_gap: gap,
                 ..default()

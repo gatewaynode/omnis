@@ -478,3 +478,14 @@
   that pane is read again and sets the flag it needs; the one action that restores (reopen after a save or
   revert) saves and restores it with the rest of the carried state. A test opens the thing from the other
   mode, not only from the default one.
+
+## 2026-10-25 — A layout exception for one row is written as an exception, not a new default
+- **What happened**: the document's row needs `min_height: 0` to take the panel's remaining height and
+  scroll inside it. The change set `min_height: 0` on every row, since one line was simpler than a
+  branch. Every other row then shrank into its neighbours once a column had more rows than height
+  ("button overlap ... in the left column"); the headless tests had no crowded column laid out.
+- **Rule**: a property set for one kind of row stays under that kind's branch, the others keeping the
+  framework's default (`Val::Auto`, the content's height). A change to shared layout code runs against
+  a crowded panel under Bevy's layout (`ui_editor_app`: the tools column overflows at the test window's
+  height), asserting every row is at least as tall as its tallest control.
+
