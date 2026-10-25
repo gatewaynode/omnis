@@ -239,7 +239,7 @@ no loss, and every later map is built with it.
     `screen/editor_files.rs`), M5.9c (Open file... asks about unsaved text; `Kind::Document` with line numbers
     and both scrollbars) and M5.9d (the wheel zooms the plan about the pointer; the zooms run to 128 px a cell).
   - [x] M5.10 (2026-10-25) The four maps re-authored (comments to notes), pack resealed, replays rebaselined,
-    documents as built; `tasks/acceptance/m5-10.md`. Built in three commits: the pack (`tests/edit_authoring.rs`
+    documents as built; `tasks/acceptance/m5-10.md`, accepted by the owner 2026-10-25. Built in three commits: the pack (`tests/edit_authoring.rs`
     builds every shipped map from blank with the editor's requests alone and the save writes the shipped bytes;
     the ignored rewrite; `notes/<map>.ron`; sealed 0.2.0 and the bank cells restored, the owner's choices;
     tests read the manifest's version instead of a literal; replays rebaselined), the split of `editor/mod.rs`

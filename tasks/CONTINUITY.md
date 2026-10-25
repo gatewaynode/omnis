@@ -4,7 +4,7 @@ Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit).
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed**: M5.0 to M5.10 built,
-  M5.0 to M5.9 accepted by hand test, M5.10 awaiting the owner's hand test (`tasks/acceptance/m5-10.md`). Untracked
+  every step accepted by the owner's hand test (M5.10 on 2026-10-25, `tasks/acceptance/m5-10.md`). Untracked
   and never staged: `assets/` and `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background`
   that appear modified or new are committed at once, unedited, in their own commit (`01825db`, `2874be2`, `50796e0`).
 - **M5.10 as built (2026-10-25):** `334243a8` M5.10a the pack: `packs/test`'s four maps in the writer's layout,
@@ -31,13 +31,11 @@ Written 2026-10-25, at the close of M5 Editor v1 (M5.10c, the documents commit).
   through the product is a test that breaks on use (read the pack).
 
 ## Next
-1. **The owner's hand test of M5.10** (`tasks/acceptance/m5-10.md`, on a scratch copy of `packs/test`); fix any
-   report directly with a red test and a lesson.
-2. **After M5 (owner's order, 2026-10-24):** boundary tools beyond the edge brush (TODO, under M5's block); the UI
+1. **After M5 (owner's order, 2026-10-24):** boundary tools beyond the edge brush (TODO, under M5's block); the UI
    icon design pass and an image cache for UI nodes (`Icons` by name, size and role through `minimap::image`); the
    activities schema when a second kind has engine rules (decided in the M5.7 planning: an editor grouping until
    then, Service site first, an icon per `ServiceKind`). Then the plan in `tasks/TODO.md`: the look in data, M9.
-3. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows; the
+2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows; the
    slider's thumb re-synced after a refused value in the editor; plan edges one pixel at every zoom (may read thin
    at 128); the stale-text-over-paint rule above; the 4 MiB file cap stays soft (owner).
 
