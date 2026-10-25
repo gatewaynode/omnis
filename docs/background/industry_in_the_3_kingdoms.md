@@ -1,6 +1,6 @@
 # Domesticated Animal Labor
 
-The 3 kingdoms looks tranquilic from a distance, but it is an area only relatively recently recovered from one of the devestating cataclysms so common on Toel.  Common live stocks were mostly wiped out, with only chickens and goats commonly surviving among the survivors.  The three kingdoms have each filled in the typical rokes for beasts of burden and labor in interesting ways.
+The 3 kingdoms looks tranquilic from a distance, but it is an area only relatively recently recovered from one of the devestating cataclysms so common on Toel.  Common live stocks were mostly wiped out, with only chickens and goats commonly living among the survivors.  The three kingdoms have each filled in the typical rokes for beasts of burden and labor in interesting ways.  The settlement of Resdie stands apart though as a refugee group the greater rift that brought them to Toel also carried cattle and horses, though the numbers of their livestock are just now recovering and either is rare outside of Resdie itself.
 
 ## Sheep variants
 The halflings of the lower respite, just outside of the 3 kingdoms have been widely successful at raising horned sheep, though there is no history of how they came across sheep in the recovering area of the 3 kingdoms.  The halflings sheep are mostly similar to the human domesticated variety, though the males have been bread to be stronger and bigger than normal.  
@@ -24,3 +24,6 @@ The ruins of great hybrid mechanisms and apparati are everywhere, their workings
 
 # Hylomancy
 A magical school of animating basic or prime substances, similar to Golems or animated statues.  This school of magic is impractical on most worlds as being too magical energy intensive to use widely, but on Toel this is commonly explored area of endevour.  The abundance of magical energy makes this school one of the most commonly rediscovered school in rising civilizations on Toel.  Advancing civilizations often adopt magically animated constructs to do all manner of work.
+
+# High Smithing
+An ancient art that the dwarves of Karinguard have preserved, high smithing is the art of using magic to build with tightly controlled and purified metals and minerals.  The outputs are generally mundane but of a quality not possible in the general scientific level of the world.  Perfectly pure steel, exotic metal alloys, bronzes of unfathomable strength, diamond grown into natural tool shapes, and many more outputs are possible.  The outputs of the high smiths of Karinguard are deeply valued for their attributes and their magic neutral properties.
