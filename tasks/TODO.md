@@ -269,7 +269,7 @@ no loss, and every later map is built with it.
   Planned 2026-10-25 (plan mode, approved); owner's choices: the view controls on the bar over the plan, the
   entry's details under the palette grid, the first step without Fill, the eraser erases what is under the
   pointer.
-  - [x] Step 1 (2026-10-25, two commits; `tasks/acceptance/editor-column-1.md`): the kit draws icons
+  - [x] Step 1 (2026-10-25, two commits, **accepted by the owner the same day**; `tasks/acceptance/editor-column-1.md`): the kit draws icons
     (`Kind::Icon { name, chosen }`, `Kind::Swatch { rgb, glyph, chosen }`, the chosen state in `Screen::shape`,
     `shell/icons.rs`'s image cache and `fill`, `screen_text` prints `[icon] "name"`, shades on the editor's
     buttons, editor buttons 120 wide at least); the column as the tool grid (`Tool::ALL`: Select, Brush, Run by

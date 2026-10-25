@@ -10,6 +10,8 @@ Owner's decisions in the planning (2026-10-25): the view controls move to the ba
 entry's details sit under the palette grid; the first step has no Fill; the eraser erases what is under the
 pointer.
 
+**Accepted by the owner 2026-10-25** ("This is good, accepted.").
+
 **A Save reseals the pack on disk.** Hand-test on a scratch copy: `cp -R packs/test /tmp/omnis-scratch`, named as
 the last pack.
 

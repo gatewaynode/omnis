@@ -1,7 +1,8 @@
 # Continuity notes
 
-Written 2026-10-25, after step 1 of the editor's column as a drawing GUI (two commits, awaiting the owner's
-hand test). Rewrite this file every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-10-25, after step 1 of the editor's column as a drawing GUI (`96237cbf`, `289d86d5`, accepted
+by the owner: "This is good, accepted."). Rewrite this file every time it is used. Durable knowledge lives in
+`tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
@@ -9,8 +10,8 @@ hand test). Rewrite this file every time it is used. Durable knowledge lives in 
   day (`9486183b`, `tasks/acceptance/boundary-tools.md`). Untracked and never staged: `assets/` and
   `docs/dnd_supplemental/` (the owner's). Owner world docs under `docs/background` and `docs/locations` that
   appear modified or new are committed at once, unedited, in their own commit (`3d5e6e5`, `e62012a` today).
-- **The editor's column as a drawing GUI, step 1 (2026-10-25; `tasks/acceptance/editor-column-1.md`; the owner's
-  direction captured in TODO and memory `editor-column-as-drawing-gui`):** `96237cbf` the kit draws icons
+- **The editor's column as a drawing GUI, step 1 (2026-10-25, accepted; `tasks/acceptance/editor-column-1.md`;
+  the owner's direction captured in TODO and memory `editor-column-as-drawing-gui`):** `96237cbf` the kit draws icons
   (`Kind::Icon { name, chosen }`, `shell/icons.rs`: `IconImages` cache by name, side and colour, `NeedsIcon` →
   `fill`, `IconOf` printed by `screen_text` as `[icon] "name"`; `controls::shade` on `Button`s also under
   `Editing`; `screen_draw::least_width` 120 under `Mark::Editor`; the bar's view icons). This commit: the
@@ -25,8 +26,9 @@ hand test). Rewrite this file every time it is used. Durable knowledge lives in 
   over the paint. Narrow (needs a dirty text and a map save); a rule if the owner wants one.
 
 ## Next
-1. The owner's hand test of step 1 (`tasks/acceptance/editor-column-1.md`); then step 2 (Fill and Move) in plan
-   mode. The owner's order of 2026-10-24 otherwise: the activities schema when a second kind has engine rules;
+1. **Step 2 of the column (Fill and Move) in plan mode**, when the owner asks (TODO lists steps 2 to 5: Fill
+   and Move; placements as stamps; Lasso and terrain runs; a history list). The owner's order of 2026-10-24
+   otherwise: the activities schema when a second kind has engine rules;
    then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: the map's own fields (`Edit::Map`), Resize and New map as forms; a random entry's creatures as rows;
    the slider's thumb re-synced after a refused value; plan edges one pixel at every zoom (may read thin at
