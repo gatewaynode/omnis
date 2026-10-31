@@ -180,7 +180,8 @@ fn no_ceiling_grid_is_drawn_under_ground_of_the_level_above() {
 fn a_map_without_levels_draws_its_extract_and_nothing_beside_it() {
     let data = data();
     let world = SimWorld::start(&data, SEED, Settings::default()).expect("an entry map");
-    for (&id, m) in &data.maps {
+    // The depths carry the owner's pile, drawn beside the extract: the flat maps only.
+    for (id, m) in crate::common::flat_maps(&data) {
         let scene = Scene::build(&data, id, Level::GROUND, &world);
         let ground = Ground::from_map(m, Level::GROUND);
         // The level's own lines are its extract and its activities' icons (2026-10-24).

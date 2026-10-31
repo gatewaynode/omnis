@@ -192,7 +192,7 @@ fn world(data: &Data) -> SimWorld {
 fn on_the_flat_maps_the_lines_are_what_they_were() {
     let data = data();
     let world = world(&data);
-    for (&id, m) in &data.maps {
+    for (id, m) in crate::common::flat_maps(&data) {
         // The portal and activity marks (2026-10-24) are new lines, not the flat reference's.
         let now: Vec<Segment> = extract(
             m,

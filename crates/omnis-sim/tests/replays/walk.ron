@@ -8,8 +8,8 @@
         ),
         (
             id: "test",
-            version: "0.2.2",
-            hash: 8709105512028013965,
+            version: "0.2.3",
+            hash: 14938603640295087127,
         ),
     ],
     settings: (
@@ -64,5 +64,5 @@
         Step(Back),
         Interact,
     ],
-    fingerprint: 2199440410269168130,
+    fingerprint: 12470972026143835884,
 )

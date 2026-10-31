@@ -117,8 +117,17 @@ fn the_yard_places_every_object_in_the_cells_its_footprint_reaches() {
 #[test]
 fn the_shipped_maps_place_nothing() {
     let data = crate::common::data();
-    for map in data.maps.values() {
-        assert!(map.objects.is_empty() && map.object_cells.is_empty() && map.ground.is_empty());
+    let depths = data.registry.maps.get("test:map:depths").unwrap();
+    for (id, map) in &data.maps {
+        assert!(map.objects.is_empty() && map.object_cells.is_empty());
+        // The owner's pile of arrows at (1, 9) of the depths, dropped in the editor (2026-10-31),
+        // is the one thing shipped on the ground.
+        if *id == depths {
+            assert_eq!(map.ground.len(), 1, "{:?}", map.ground);
+            assert!(map.ground.contains_key(&(omnis_core::Level::GROUND, 1, 9)));
+        } else {
+            assert!(map.ground.is_empty());
+        }
     }
 }
 

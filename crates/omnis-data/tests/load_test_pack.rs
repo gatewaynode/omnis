@@ -233,14 +233,14 @@ fn portals_and_tileset_slots_resolve() {
         (back.to_map, back.to_x, back.to_y, back.to_facing),
         (dungeon_id, 22, 23, Facing::West)
     );
-    // Five of M7b's, each once; the goblin at (5, 4) is the owner's, drawn in the editor
-    // (2026-10-31) with the stamp's default, not once.
-    assert_eq!(depths.encounters.len(), 6);
+    // Five of M7b's, each once; the rest are the owner's, drawn in the editor (2026-10-31)
+    // under the stamp's minted ids and its default, not once.
+    assert_eq!(depths.encounters.len(), 8);
     assert!(
         depths
             .encounters
             .iter()
-            .all(|e| e.once || e.id == "encounter_6_7")
+            .all(|e| e.once || e.id.starts_with("encounter_"))
     );
     // Bob the Rat King's throne room (M7c), east of the four rooms: two rat stacks in front.
     assert_eq!(depths.def.width, 18);

@@ -288,16 +288,22 @@ mod flat {
 fn on_the_flat_maps_sight_is_what_it_was_for_every_pair_of_tiles() {
     let data = data();
     let mut pairs = 0_u32;
+    let mut flat_maps = 0;
     for map in data.maps.values() {
         let (w, h) = (map.def.width, map.def.height);
-        assert!(
-            map.levels
-                .iter()
-                .flat_map(|l| &l.cells)
-                .flatten()
-                .all(|c| c.height == 0),
-            "a shipped map is flat"
-        );
+        // The depths carry the owner's height at (1, 9), drawn in the editor (2026-10-31); the
+        // other shipped maps are flat, and the flat rule is checked on those.
+        let flat = map
+            .levels
+            .iter()
+            .flat_map(|l| &l.cells)
+            .flatten()
+            .all(|c| c.height == 0);
+        assert_eq!(flat, map.def.id != "test:map:depths", "{}", map.def.id);
+        if !flat {
+            continue;
+        }
+        flat_maps += 1;
         for fy in 0..h {
             for fx in 0..w {
                 for ty in fy.saturating_sub(8)..h.min(fy + 9) {
@@ -321,5 +327,6 @@ fn on_the_flat_maps_sight_is_what_it_was_for_every_pair_of_tiles() {
             }
         }
     }
+    assert!(flat_maps >= 3, "{flat_maps} flat maps");
     assert!(pairs > 100_000, "{pairs} pairs");
 }

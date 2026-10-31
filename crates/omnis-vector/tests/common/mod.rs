@@ -17,6 +17,20 @@ use std::path::PathBuf;
 
 pub const SEED: u64 = 7;
 
+/// The shipped maps the flat-map checks run on: every one but the depths, which carry the
+/// owner's height and pile at (1, 9), drawn in the editor (2026-10-31). At least three.
+pub fn flat_maps(data: &Data) -> Vec<(MapId, &omnis_sim::omnis_data::MapData)> {
+    let depths = map(data, "test:map:depths");
+    let flat: Vec<_> = data
+        .maps
+        .iter()
+        .filter(|(id, _)| **id != depths)
+        .map(|(id, m)| (*id, m))
+        .collect();
+    assert!(flat.len() >= 3, "{} flat maps", flat.len());
+    flat
+}
+
 /// Put the party on the meadow cell the test pack started on before it gained the town: the
 /// walking tests were written there. Set directly, so a session placed here does not replay
 /// from its log (`town_session` does).
