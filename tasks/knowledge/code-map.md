@@ -461,7 +461,8 @@ move_selection(data, d) → batch, "N cells moved to (x, y)"}`. `grab.rs`: `Held
 `end_grab` sends a selection with the offset. `run.rs`: `cells(a, b)` (Bresenham, both ends), `run_cells(points)`
 (each once), `Editor::cell_run()` (= `entry.fills()`), a cell run's points are cells (`View::hit`, the hover
 kept), `take_cells` (the entry's brush a cell through `paint_many`, "N cells painted r street" / "N cells set to
-height 2"), `Preview.cells`. `brush.rs`: `Tool::Lasso` (lasso-select, L), `Tool::ALL` 8. `acts.rs`: a run tool
+height 2"), `Preview.cells`; `preview()` returns the lasso's loop in progress as `cells` first (`run_cells` of the
+loop; the owner's hand-test finding of 2026-10-31). `brush.rs`: `Tool::Lasso` (lasso-select, L), `Tool::ALL` 8. `acts.rs`: a run tool
 forces the wall for a stamp only; `Brush(i)` keeps a run tool for any non-stamp entry; `apply` drops the loop.
 `mod.rs`: `open` and `show_level` drop the selection; `aim`/`paint` arms. `view.rs`: "Selection: N cells" under
 the tool's name. `plan.rs`: `Source.selection: Option<&[Side]>`, `SELECT` (white), `bars(out, view, sides,

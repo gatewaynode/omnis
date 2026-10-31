@@ -43,7 +43,8 @@ pub struct Preview {
     pub sides: Vec<Side>,
     /// The corner under the pointer.
     pub corner: Option<Corner>,
-    /// The cells a cell run would paint, with the stretch to the cell under the pointer.
+    /// The cells a cell run would paint, with the stretch to the cell under the pointer; or
+    /// the lasso's loop in progress, the path of cells it has passed.
     pub cells: Vec<(u16, u16)>,
 }
 
@@ -429,9 +430,18 @@ impl Editor {
     /// What the plan previews for a run tool: a run of edges as the pending run's sides, by
     /// corners with the stretch from its last corner to the corner under the pointer, and that
     /// corner; a cell run as its cells, with the stretch to the cell under the pointer (the
-    /// pointer's own cell is the hover's). None with a brush, or with nothing to show.
+    /// pointer's own cell is the hover's). The lasso's loop in progress is previewed as the
+    /// path of cells it has passed, joined cell to cell, so the drawn line is seen before it
+    /// becomes a selection. None with a brush, or with nothing to show.
     #[must_use]
     pub fn preview(&self) -> Option<Preview> {
+        if let Some(lasso) = &self.lasso {
+            return Some(Preview {
+                sides: Vec::new(),
+                corner: None,
+                cells: run_cells(lasso),
+            });
+        }
         if !self.tool.is_run() {
             return None;
         }

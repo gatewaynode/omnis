@@ -545,3 +545,15 @@
   segment, or a summary line of its own.
 - **Also**: two controls under one id break the layer's by-id word sync (`LabelOf`: the first control
   found gives its words to both); a row that wants two entry points for one action gets two acts.
+
+## 2026-10-31 — A "you will see" in an acceptance doc needs a test behind it
+- **What happened**: step 4's acceptance doc and its report promised the lasso's loop "outlined in yellow as
+  you draw". Nothing drew it: `Editor::preview()` returned None unless a run tool was held, and the loop in
+  progress (`Editor.lasso`) reached the plan only once it had become a selection. The tests pinned the
+  selection's outline and a cell run's preview, not the loop's. The owner's hand test found it in a minute:
+  "there is no indicator of the lasso shape you are drawing".
+- **Rule**: a "You will see" line in an acceptance doc is written from a test that asserts it (the
+  `preview()`, `Source` or screen text it names), or it is struck before the report. Every transient the
+  model holds for the pointer (a loop, a run, a carried drag) has a test that reads what the plan paints
+  while it is held, not only what it leaves behind. The report describes what was asserted, not what was
+  meant.

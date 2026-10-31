@@ -150,7 +150,20 @@ fn a_lasso_loop_selects_the_cells_inside_it_and_a_click_clears_the_selection() {
     point_at(&mut app, (7, 3), None);
     app.update();
     assert_eq!(editing(&app).lasso.as_ref().map(Vec::len), Some(2));
+    // The loop in progress is previewed as the path of cells it has passed, joined cell to cell
+    // when the pointer jumps (the owner's hand test of step 4: the drawn line must be seen
+    // before it snaps to a selection).
+    let drawn = editing(&app)
+        .preview()
+        .expect("the loop in progress is previewed");
+    assert_eq!(drawn.cells, run::cells((6, 3), (7, 3)));
+    assert!(drawn.sides.is_empty() && drawn.corner.is_none());
+    point_at(&mut app, (9, 3), None);
+    app.update();
+    let drawn = editing(&app).preview().expect("still previewed");
+    assert_eq!(drawn.cells, vec![(6, 3), (7, 3), (8, 3), (9, 3)]);
     press_edit(&mut app, EditAct::Tool(Tool::Select));
+    assert!(editing(&app).preview().is_none(), "no loop, no preview");
     assert!(editing(&app).lasso.is_none(), "an act ends the loop");
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
     assert!(editing(&app).selection.is_none());

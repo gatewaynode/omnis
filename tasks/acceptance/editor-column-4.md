@@ -12,7 +12,8 @@ packs/test /tmp/omnis-scratch`, named as the last pack.
 
 ## What was built
 - **The lasso** (key L, after the arrows in the tool grid): a drag draws a loop through the cells it passes,
-  outlined in yellow as it goes; letting go selects the loop's cells and every cell inside it (the even-odd rule
+  outlined in yellow as it goes (the path of cells passed, joined cell to cell, through the run's preview;
+  missing in the first build, found by the owner's hand test of 2026-10-31 and fixed the same day); letting go selects the loop's cells and every cell inside it (the even-odd rule
   on the loop's cell centres; a loop that is a line selects its cells). The selection is outlined in white on the
   plan and counted under the tool's name ("Selection: 6 cells"); "6 cells selected" in the message. A click
   without a drag clears it ("selection cleared"). It stands through tool changes; the map or the level changing
@@ -51,8 +52,8 @@ packs/test /tmp/omnis-scratch`, named as the last pack.
 7. Choose the wall, the pen, click two corners. *You will see* the wall run as before.
 8. Save. *You will see* "sealed at 0.2.1" (or the next patch).
 
-Covered by `crates/omnis-vector/tests/editor_select.rs` (three tests: the loop, its count and outline, a click
-clears, an act mid-loop drops, Open drops; the move with the ghost, the walls and the site, Undo, the two
+Covered by `crates/omnis-vector/tests/editor_select.rs` (three tests: the loop and its preview while drawn,
+its count and outline, a click clears, an act mid-loop drops, Open drops; the move with the ghost, the walls and the site, Undo, the two
 refusals, an overlapping move, a press outside the selection; the cell runs by corners and freehand, a stamp's
 fallback), `select.rs` and `run.rs` unit tests, `omnis-data/tests/edit_document.rs::a_batch_of_paints_and_
 places_is_one_step_and_fails_together`. Mutation checks red: the even-odd rule inverted, the destination
