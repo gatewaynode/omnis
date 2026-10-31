@@ -5,6 +5,9 @@ a history list"; the owner's picture of 2026-10-25, "undo (a history tool)". Own
 (2026-10-31): **a History icon beside Undo and Redo** opens the list (the Undo and Redo icons and keys stay); the
 list is **a modal over the editor**, the plan visible beneath so the owner can scrub.
 
+**Hand-tested and accepted by the owner 2026-10-31** ("Looks good in manual testing, let's wrap it up"). The
+column's five steps are closed.
+
 **A Save reseals the pack on disk.** Hand-test on a fresh scratch copy: `rm -rf /tmp/omnis-scratch && cp -R
 packs/test /tmp/omnis-scratch`, named as the last pack.
 

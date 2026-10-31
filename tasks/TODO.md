@@ -257,7 +257,7 @@ no loss, and every later map is built with it.
     the proof of the "done when" is the authoring test. Left as follow-ons: the activities schema below, the
     map's own fields with Resize and New map as forms, the icon design pass (the boundary tools: built
     2026-10-25, above).
-- [ ] **The editor's left column as a drawing GUI** (owner, 2026-10-25, on accepting the boundary tools: the
+- [x] **The editor's left column as a drawing GUI** (owner, 2026-10-25; **five steps built and accepted by 2026-10-31**, on accepting the boundary tools: the
   column "is functional, but not intuitive or easy on the eyes"). The owner's picture, as given: a **grid of
   icons for the pointer states**, as drawing programs have them: select (chooses, draws nothing), brush (draws
   the chosen palette entry: terrain, wall, encounter or object), move (a selected item, or the map when nothing
@@ -321,7 +321,7 @@ no loss, and every later map is built with it.
     choices in the planning: a freehand loop; everything moves; the destination is replaced. Later: the
     eraser or Delete clearing a selection's cells; copy and paste of a selection; a selection across levels;
     Esc dropping a loop or a run (Esc is the menu's).
-  - [x] Step 5 (2026-10-31, one commit; `tasks/acceptance/editor-column-5.md`): Undo as a history list. Every
+  - [x] Step 5 (2026-10-31, one commit, **accepted by the owner the same day**; `tasks/acceptance/editor-column-5.md`): Undo as a history list. Every
     undo step carries the words of what it did (`edit/words.rs`; a stroke counts its cells; the editor's own
     richer words replace them, `Document::name_step`); a History icon after Redo opens a modal over the editor
     listing the map as opened and every step oldest first, the current one marked, a row jumping there

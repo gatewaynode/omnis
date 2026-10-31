@@ -1,9 +1,10 @@
 # Continuity notes
 
-Written 2026-10-31, after step 5 of the editor's column as a drawing GUI (Undo as a history list; one commit,
-built and tested, awaiting the owner's hand test; `tasks/acceptance/editor-column-5.md`). Before it the same day:
-step 4 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the
-editor committed as the test fixture (`6a4f5f2b`, replays re-baselined). Step
+Written 2026-10-31, after step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
+**accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
+closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
+(`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
+committed as the test fixture (`6a4f5f2b`, replays re-baselined). Step
 3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
@@ -43,8 +44,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   line ("giant_rat x3, goblin"; "nothing chosen, the first: <id>"). Owner's choices: the properties open after
   every Finish; piles get them too. Not offered: a per-placement loot (not in the data model). Verified: the
   search field keeps the keyboard and the caret through the rows' rebuild (`editor_pick.rs`, the keyboard test).
-- **Step 5, Undo as a history list (2026-10-31, one commit, awaiting the hand test;
-  `tasks/acceptance/editor-column-5.md`).** `edit/words.rs` names every undo step (a stroke counts its cells;
+- **Step 5, Undo as a history list (2026-10-31, `d845eb4e`, accepted; `tasks/acceptance/editor-column-5.md`).** `edit/words.rs` names every undo step (a stroke counts its cells;
   `Document::name_step` takes the editor's richer words from `report`, fill, a run, a grab); `Document::{steps,
   at, goto}`; `EditAct::{History, HistoryTo}`; `screen/editor_history.rs` the modal (the map as opened, a row a
   step, the current one marked and dim, Undo, Redo, Close), `EditingCtx.history` from the editor's cached list
@@ -69,9 +69,10 @@ Durable knowledge lives in `tasks/knowledge/`.
   over the paint. Narrow; a rule if the owner wants one.
 
 ## Next
-1. **The owner's hand test of step 5** (`tasks/acceptance/editor-column-5.md`, six steps; a fresh scratch copy
-   of `packs/test`). On "accepted": the acceptance commit (prose under `tasks/` only, as `4b92a24c`). The column's
-   five steps are then done; the owner names what follows. Then
+1. **The column is done (five steps accepted). The owner names what follows; plan mode first.** Candidates
+   the owner has named or the work left behind: the entrances and exits enhancement where the start marker's
+   move is taken up again; the editor's later items (the eraser or Delete clearing a selection's cells, copy and
+   paste, `editor.history` over the socket, a quantity for an object kind in the picker). Then
    **step 5 (Undo as a history list) in plan mode**, or the entrances and exits enhancement where the start
    marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
