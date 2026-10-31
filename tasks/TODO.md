@@ -292,7 +292,7 @@ no loss, and every later map is built with it.
     open after an attempt, read the undo depth and the message over the dev socket; ask whether the plan pans
     (the press misses the start: look at the pack and level the window has) or the cursor follows and nothing
     lands (the release fails).
-  - [x] Step 3 (2026-10-25, one commit; `tasks/acceptance/editor-column-3.md`): placements as palette stamps.
+  - [x] Step 3 (2026-10-25, one commit, **accepted with 3b on 2026-10-31**; `tasks/acceptance/editor-column-3.md`): placements as palette stamps.
     The palette ends in a stamp a placement kind (portal, encounter, activity, object, ground pile, lore), each
     with one detail chosen under the palette (the map, the monster, the service, the object kind, the item, the
     text key); a click with the brush places one at once through the kind's form, valid as it lands, refused
@@ -301,7 +301,7 @@ no loss, and every later map is built with it.
     places at once; one detail per stamp; the Add row goes; an occupied tile refuses. Found and fixed on the
     way: a placement edited under a new id left its old entry (now `[Remove(old), new]` in one step,
     `Place::key`; lesson in LESSONS). Later: a stamp's mark previewed under the pointer.
-  - [x] Step 3b (2026-10-31, one commit; `tasks/acceptance/editor-column-3b.md`): the stamp's detail as a modal
+  - [x] Step 3b (2026-10-31, one commit, **accepted by the owner the same day**; `tasks/acceptance/editor-column-3b.md`): the stamp's detail as a modal
     picker, the owner's direction from step 3's hand test ("the left/right selection box is inadequate, the
     texts overflow"): under the palette the stamp's icon and Select... open a modal with a search field, every
     id of the kind, several chosen at once up to what one cell takes, Finish and Cancel; for encounters,

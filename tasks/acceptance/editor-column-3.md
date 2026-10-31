@@ -8,6 +8,9 @@ service; object: the object kind; ground pile: the item; lore: the text key); **
 (Edit and Remove on the listed placements stay); **a stamp on a cell that already holds its kind is refused**
 and says why.
 
+**Hand-tested by the owner 2026-10-31 and sent back with a direction** (the detail's choice box): built as step 3b
+(`tasks/acceptance/editor-column-3b.md`) and **accepted with it the same day**.
+
 **A Save reseals the pack on disk.** Hand-test on a fresh scratch copy: `rm -rf /tmp/omnis-scratch && cp -R
 packs/test /tmp/omnis-scratch`, named as the last pack. The object stamp needs a pack with object kinds (the
 shipped packs have none): add `crates/omnis-sim/tests/packs/objects` to the launch and open `objects:map:yard`

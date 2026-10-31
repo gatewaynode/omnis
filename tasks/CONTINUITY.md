@@ -1,9 +1,9 @@
 # Continuity notes
 
 Written 2026-10-31, after step 3b of the editor's column as a drawing GUI (a stamp's detail chosen in a modal
-picker, with a properties modal; one commit, built and tested, awaiting the owner's hand test;
-`tasks/acceptance/editor-column-3b.md`). Step 3 (`48e73b74`) was hand-tested the same day and sent back with the
-direction that became 3b; it has no acceptance commit of its own. Rewrite this file every time it is used.
+picker, with a properties modal; `35b3e1ac`, **accepted by the owner the same day**: "Accepted, let's plan step
+4"; `tasks/acceptance/editor-column-3b.md`). Step 3 (`48e73b74`) was hand-tested the same day and sent back with
+the direction that became 3b; its acceptance is 3b's. Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -25,7 +25,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   placement's stamp. Every placing form starts valid; `Form::keys` refuses a second portal, site or pile on a
   new form's tile; an edit under a new id goes `[Remove(old), new]` (`Place::key`). The owner's hand test
   (2026-10-31) rejected the detail's left/right choice: step 3b.
-- **Step 3b, the detail as a modal picker with properties (2026-10-31, one commit, awaiting the hand test;
+- **Step 3b, the detail as a modal picker with properties (2026-10-31, `35b3e1ac`, accepted;
   `tasks/acceptance/editor-column-3b.md`).** `editor/stamp.rs`: `Stamps([Vec<Place>; 6])`, a stamp holds what
   it drops as the data model's own places (`limit`, `details`, `short`, `rebuild`, `of_here` whole,
   `Editor::stamp_places` held-or-first, `Editor::stamp` through `Form::for_place` + `request` + `place_many`).
@@ -47,11 +47,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   over the paint. Narrow; a rule if the owner wants one.
 
 ## Next
-1. **The owner's hand test of step 3b** (`tasks/acceptance/editor-column-3b.md`, nine steps; a fresh scratch
-   copy of `packs/test`; the object steps on the yard with the objects pack). On "accepted": the acceptance
-   commit (prose under `tasks/` only, as `c5e6dd8e`; it closes step 3 too). Then **step 4 (Lasso and moving a
-   selection; runs that take a terrain entry) in plan mode**, or the entrances and exits enhancement where the
-   start marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
+1. **Step 4 (Lasso and moving a selection; runs that take a terrain entry), asked for by the owner on
+   accepting 3b: plan mode first.** Or the entrances and exits enhancement where the start marker's move is
+   taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
    pan; a fill's region and a stamp's mark previewed on hover; the map's own fields (`Edit::Map`), Resize and

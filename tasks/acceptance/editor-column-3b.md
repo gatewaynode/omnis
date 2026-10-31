@@ -16,6 +16,8 @@ name and lore, one section a chosen kind; a pile's count an item and its place. 
 offered: a per-placement loot.** A monster's loot is its definition's loot table and gold; a container object's
 items are its contents, in the inspector's Edit.
 
+**Accepted by the owner 2026-10-31** ("Accepted, let's plan step 4"); step 3's record is closed by this one.
+
 **A Save reseals the pack on disk.** Hand-test on a fresh scratch copy: `rm -rf /tmp/omnis-scratch && cp -R
 packs/test /tmp/omnis-scratch`, named as the last pack. The object steps need a pack with object kinds (the
 shipped packs have none): add `crates/omnis-sim/tests/packs/objects` to the launch and open `objects:map:yard`.
