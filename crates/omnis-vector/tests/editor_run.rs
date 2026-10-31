@@ -20,8 +20,17 @@ use omnis_vector::screen::ControlId;
 use omnis_vector::shell::editor::PlanHover;
 use omnis_vector::shell::session::Packs;
 
-/// Choose `tool` by its icon in the tool grid.
+/// Choose `tool` by its icon in the tool grid, with the wall chosen for a run tool (a terrain
+/// would make a cell run, step 4: these are the boundary tools' tests).
 fn choose(app: &mut App, tool: Tool) {
+    if tool.is_run() && !editing(app).entry.is_edge() {
+        let def = editing(app).def().expect("a map");
+        let wall = omnis_vector::editor::brush::palette(&def)
+            .iter()
+            .position(|e| *e == omnis_vector::editor::brush::Entry::Edge(EdgeKind::Wall))
+            .expect("the wall");
+        press_edit(app, EditAct::Brush(u8::try_from(wall).unwrap()));
+    }
     press_edit(app, EditAct::Tool(tool));
     assert_eq!(editing(app).tool, tool);
 }
@@ -319,6 +328,7 @@ fn the_plan_paints_the_preview_in_the_caution_colour_over_the_walls() {
     let preview = Preview {
         sides: vec![(true, 2, 1), (false, 6, 2)],
         corner: Some((2, 1)),
+        cells: Vec::new(),
     };
     let source = Source {
         grid,
@@ -329,6 +339,7 @@ fn the_plan_paints_the_preview_in_the_caution_colour_over_the_walls() {
         start: None,
         marks: &[],
         preview: Some(&preview),
+        selection: None,
     };
     let raster = plan::paint(source, view, (400, 200));
     // Along the north side of (2, 1): the grid line at y 16, x 32 to 48.
@@ -349,6 +360,7 @@ fn the_plan_paints_the_preview_in_the_caution_colour_over_the_walls() {
     let plain = plan::paint(
         Source {
             preview: None,
+            selection: None,
             ..source
         },
         view,

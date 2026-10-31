@@ -610,3 +610,67 @@ fn a_place_names_the_key_it_is_put_by() {
         None
     );
 }
+
+#[test]
+fn a_batch_of_paints_and_places_is_one_step_and_fails_together() {
+    let data = load_test_packs();
+    let mut doc = open(&data, "test:map:town");
+    let site_at = |doc: &Document, x: u16, y: u16| {
+        doc.def()
+            .sites
+            .iter()
+            .find(|s| (s.level, s.x, s.y) == (G, x, y))
+            .cloned()
+    };
+    let inn = site_at(&doc, 1, 1).expect("the inn's site");
+    let glyph = doc.def().terrains[0].glyph;
+    let street = Brush::Tile { glyph, rise: None };
+    let mut moved = inn.clone();
+    moved.x = 2;
+    // A paint and a removal and a placement: one step (a selection moved by the editor).
+    let paints = vec![((1, 1), Brush::Clear), ((2, 1), street.clone())];
+    let places = vec![
+        Place::Remove(Target::Site {
+            level: G,
+            x: 1,
+            y: 1,
+        }),
+        Place::Site(moved),
+    ];
+    assert_eq!(doc.batch(G, &paints, places), Ok(()));
+    assert_eq!(doc.undo_depth(), 1, "paints and places, one step");
+    assert_eq!(doc.grid(G).unwrap().tile(1, 1), Some(None), "no ground");
+    assert_eq!(doc.grid(G).unwrap().tile(2, 1), Some(Some(0)));
+    assert!(site_at(&doc, 1, 1).is_none());
+    assert_eq!(
+        site_at(&doc, 2, 1).map(|s| s.service),
+        Some(inn.service.clone())
+    );
+    // A refused place lands nothing: the paint before it is not kept.
+    let paints = vec![((3, 1), street)];
+    let places = vec![Place::Remove(Target::Site {
+        level: G,
+        x: 9,
+        y: 9,
+    })];
+    assert!(matches!(
+        doc.batch(G, &paints, places),
+        Err(EditError::NoSuchTarget(_))
+    ));
+    assert_eq!(doc.undo_depth(), 1);
+    assert_ne!(
+        doc.grid(G).unwrap().tile(3, 1),
+        Some(Some(0)),
+        "the paint went with it"
+    );
+    // Nothing to do is no step; one undo returns the site and the ground.
+    assert_eq!(doc.batch(G, &[], Vec::new()), Ok(()));
+    assert_eq!(doc.undo_depth(), 1);
+    doc.undo().unwrap();
+    assert_eq!(site_at(&doc, 1, 1), Some(inn));
+    assert_eq!(
+        doc.grid(G).unwrap().tile(1, 1),
+        Some(Some(2)),
+        "the inn's floor"
+    );
+}

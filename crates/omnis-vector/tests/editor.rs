@@ -304,6 +304,7 @@ fn the_plan_paints_the_town_with_its_walls_and_its_start() {
             start: Some((def.start.0, def.start.1)),
             marks: &[],
             preview: None,
+            selection: None,
         },
         view,
         pane,

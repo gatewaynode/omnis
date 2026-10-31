@@ -1,9 +1,8 @@
 # Continuity notes
 
-Written 2026-10-31, after step 3b of the editor's column as a drawing GUI (a stamp's detail chosen in a modal
-picker, with a properties modal; `35b3e1ac`, **accepted by the owner the same day**: "Accepted, let's plan step
-4"; `tasks/acceptance/editor-column-3b.md`). Step 3 (`48e73b74`) was hand-tested the same day and sent back with
-the direction that became 3b; its acceptance is 3b's. Rewrite this file every time it is used.
+Written 2026-10-31, after step 4 of the editor's column as a drawing GUI (the lasso, moving a selection, cell
+runs; one commit, built and tested, awaiting the owner's hand test; `tasks/acceptance/editor-column-4.md`). Step
+3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
@@ -42,16 +41,33 @@ Durable knowledge lives in `tasks/knowledge/`.
   line ("giant_rat x3, goblin"; "nothing chosen, the first: <id>"). Owner's choices: the properties open after
   every Finish; piles get them too. Not offered: a per-placement loot (not in the data model). Verified: the
   search field keeps the keyboard and the caret through the rows' rebuild (`editor_pick.rs`, the keyboard test).
+- **Step 4, the lasso, moving a selection, cell runs (2026-10-31, one commit, awaiting the hand test;
+  `tasks/acceptance/editor-column-4.md`).** `editor/select.rs`: `Selection { level, cells }` on
+  `Editor.selection`, the loop in `Editor.lasso` while drawn; `inside` (the loop's cells through `run::cells`
+  plus the even-odd rule over the bounding box), `outline`, `moving(grid, def, sel, d)` (source paints first:
+  Clear, Height 0, sides Open; then the destination's tile with its stair's rise, height, sides; boundary sides
+  skipped; then the start and the placements by d; refuses off the map and a portal, site or pile on a
+  destination tile not vacated), `Editor::{lasso_start, lasso_extend, lasso_end, selected, selection_outline
+  (the ghost: displaced by cursor - grab.from while Held::Selection), move_selection → Document::batch}`.
+  `grab.rs`: `Held::Selection` first in `under`; `grabbing` reads a loop in progress first and starts one on
+  the lasso's Down. `run.rs`: `cells(a, b)`, `run_cells`, `Editor::cell_run()` = `entry.fills()`, `take_cells`,
+  `Preview.cells`; a cell run's points are cells and the hover stays. `brush.rs`: `Tool::Lasso` (lasso-select,
+  L), `Tool::ALL` 8. `acts.rs`: a run tool forces the wall for a stamp only; `Brush(i)` keeps a run tool for any
+  non-stamp entry; `apply` drops the loop. `plan.rs`: `Source.selection`, `SELECT`, `bars`. `omnis-data`:
+  `Document::batch(level, &paints, places)`. Owner's choices: a freehand loop; everything moves; the destination
+  is replaced. The old run tests choose the wall first now (a terrain is a cell run); `editor_column.rs` flipped.
 - **Observed, not fixed (told the owner 2026-10-25):** with the map's own file open as text and typed into, a
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow; a rule if the owner wants one.
 
 ## Next
-1. **Step 4 (Lasso and moving a selection; runs that take a terrain entry), asked for by the owner on
-   accepting 3b: plan mode first.** Or the entrances and exits enhancement where the start marker's move is
-   taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
+1. **The owner's hand test of step 4** (`tasks/acceptance/editor-column-4.md`, eight steps; a fresh scratch copy
+   of `packs/test`). On "accepted": the acceptance commit (prose under `tasks/` only, as `f51b655d`). Then
+   **step 5 (Undo as a history list) in plan mode**, or the entrances and exits enhancement where the start
+   marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
-2. Later: a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
+2. Later: the eraser or Delete clearing a selection's cells; copy and paste of a selection; Esc dropping a loop
+   or a run (Esc is the menu's); a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
    pan; a fill's region and a stamp's mark previewed on hover; the map's own fields (`Edit::Map`), Resize and
    New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a refused value;
    plan edges one pixel at every zoom; the stale-text-over-paint rule above; the 4 MiB file cap stays soft
@@ -86,7 +102,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   README, code-map).
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
   terrains plus 10 (`brush::palette`: Wall, Door, Ramp, Height, then `Placing::ALL`'s six stamps; `tests/
-  editor_fill.rs` pins WALL 9, DOOR 10, HEIGHT 12 on the town's nine terrains); `Tool::ALL` 7; `Placing::ALL` 6;
+  editor_fill.rs` pins WALL 9, DOOR 10, HEIGHT 12 on the town's nine terrains); `Tool::ALL` 8 (Select, Brush, Move, Lasso, Fill, Corners, Freehand, Eraser; keys V B M L F P N X);
+  `Placing::ALL` 6;
   the kit's `Kind` has 7 members; `Asked` 8; `ScreenId` has EditorMenu, EditorFiles, EditorPick, EditorProps as
   the editor's overlays (`nav::allowed` and `paused`). A stamp's picker limits: 1, `MAX_STACKS` 4,
   `MAX_OBJECTS_PER_CELL` 16, `MAX_PILE_STACKS` 32, `MAX_LORE_PER_CELL` 16. Base + test packs: 7 monsters, 24 items.
@@ -109,7 +126,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   revision bumped), `held`, `field_entity`, `field_of`, `panel`); `editor_pick.rs` has `pick(app, kind, ids)`
   (the UI path through the picker), `props`, `count_of`, `prop_of`, `pressable` (a dim control keeps its
   `Pressable` but loses `Button`), `bare_cells`; `editor_stamp.rs` has `choose(entry)`, `detail_to` (now
-  `hold`), `first`, `click`, `right_click`. A choice control has no press entity: step it by `arrow`, never
+  `hold`), `first`, `click`, `right_click`; `editor_select.rs` has `drag(app, button, from, through)`, `lasso_the_inn`,
+  `selected`, `site_at`; `editor_run.rs::choose(tool)` chooses the wall first for a run tool. A choice control has no press entity: step it by `arrow`, never
   `press_edit`/`press_ui`. A written `RelativeCursorPosition` reaches the model on the next `app.update()`.
   Under Bevy picking a faked `Interaction::Pressed` is reset before the route reads it: drive the model through
   `shell::editor::act` in `ui_editor_app` tests. `screen_text` prints an icon as `[button] [icon] "name"` and a
@@ -136,7 +154,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   `/private/tmp/claude-501/-Users-john-code-omnis/787890da-120b-4905-befb-f4247b7d8f51/scratchpad` (absolute).
 - **Tests red first; mutations** by a Python runner in the scratchpad (anchor checked unique, source restored by
   copying the backup back, then `diff -q`; `mut3b/run.py` is the pattern). No cargo command and no fixture edit
-  while a mutation run or the gate runs.
+  while a mutation run or the gate runs. A mutant must undo the rule it targets, not restate it (a
+  "destination before source" mutant that moved the source paints to the front was still the rule: `mut4/run.py`
+  takes a list of replacements so the source paints can be moved to the end).
 - **Moves and edits** by an anchored Python script in the scratchpad (every anchor asserted unique before
   writing). After `cargo fmt` the anchors move, so patch the file as it is. zsh: quote `echo "===="` (an
   unquoted `====` is a command lookup) and never pass `--include=*.rs` unquoted to grep.

@@ -142,8 +142,9 @@ impl Editor {
     /// pending wall run is dropped when the act changed the tool, the level, the map or its
     /// history: a run belongs to the place and the tool it was drawn with.
     pub fn apply(&mut self, data: &Data, act: EditAct, step: i8) -> Asked {
-        // Any act ends a drag: what it held is let go where it is.
+        // Any act ends a drag: what it held is let go where it is; a loop being drawn is dropped.
         self.grab = None;
+        self.lasso = None;
         let before = self.run_holds();
         let asked = self.act(data, act, step);
         if self.run.is_some() && self.run_holds() != before {
@@ -206,9 +207,9 @@ impl Editor {
             EditAct::FaceRight => self.facing = self.facing.right(),
             EditAct::Tool(tool) => {
                 self.tool = tool;
-                // A run takes an edge: choosing a run tool with a terrain or the height chosen
-                // chooses the wall.
-                if tool.is_run() && !self.entry.is_edge() {
+                // A run takes an edge, a terrain or the height (a cell run, step 4): choosing
+                // a run tool with a stamp chosen chooses the wall.
+                if tool.is_run() && self.entry.stamp().is_some() {
                     self.entry = Entry::Edge(EdgeKind::Wall);
                 }
                 // A fill takes a terrain or the height: choosing it with an edge or a stamp
@@ -227,8 +228,8 @@ impl Editor {
                 {
                     self.entry = entry;
                     // Choosing what to paint is choosing to paint, unless the tool can take
-                    // the entry: a run an edge, the fill a terrain or the height.
-                    let keeps = (self.tool.is_run() && entry.is_edge())
+                    // the entry: a run anything but a stamp, the fill a terrain or the height.
+                    let keeps = (self.tool.is_run() && entry.stamp().is_none())
                         || (self.tool == Tool::Fill && entry.fills());
                     if !keeps {
                         self.tool = Tool::Brush;

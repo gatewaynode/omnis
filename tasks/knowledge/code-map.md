@@ -443,3 +443,32 @@ the row and the picker's search, marks, limit and Cancel; the properties and the
 pile's counts and two lore texts; a portal's moving choice and the dim Finish; a right click's copy; the
 keyboard through the rebuilt rows), `tests/common/editor.rs::{type_ui, top_screen, hold, held}`, `pick.rs` unit
 tests. Mutation checks red: the limit dropped, the minted ids not taken, the filter case-sensitive.
+
+## Column step 4: the lasso, moving a selection, cell runs (2026-10-31)
+`omnis-data/src/edit/document.rs`: `Document::batch(level, &[Paint], Vec<Place>)` (brushes then places in one
+`change`, all or nothing, closes the stroke; `tests/edit_document.rs::a_batch_of_paints_and_places_is_one_step_
+and_fails_together`). `omnis-vector/src/editor/select.rs`: `Selection { level, cells: BTreeSet }` on
+`Editor.selection`, the loop in `Editor.lasso: Option<Vec<cell>>` while drawn; `inside(loop)` (the loop joined
+cell to cell through `run::cells`, closed, plus the bounding box's cells the even-odd rule encloses, `encloses`),
+`outline(cells) -> Vec<Side>` (the sides facing out), `moving(grid, def, sel, d) -> (paints, places)` (refuses a
+cell off the map and a portal, site or pile on a destination tile the move does not vacate; source paints first:
+Clear, Height 0, every side Open; then the destination's tile with its stair's rise, height and sides; boundary
+sides skipped; then the start and every placement moved by d, tile-keyed kinds as Remove + new);
+`Editor::{lasso_start, lasso_extend, lasso_end ("N cells selected" / "selection cleared" for one cell),
+selected (the shown level's), selection_outline (displaced by cursor - grab.from while Held::Selection),
+move_selection(data, d) → batch, "N cells moved to (x, y)"}`. `grab.rs`: `Held::Selection` first in `under`;
+`grabbing` reads a loop in progress first (Held extends, Up/Down ends) and starts one on the lasso's left Down;
+`end_grab` sends a selection with the offset. `run.rs`: `cells(a, b)` (Bresenham, both ends), `run_cells(points)`
+(each once), `Editor::cell_run()` (= `entry.fills()`), a cell run's points are cells (`View::hit`, the hover
+kept), `take_cells` (the entry's brush a cell through `paint_many`, "N cells painted r street" / "N cells set to
+height 2"), `Preview.cells`. `brush.rs`: `Tool::Lasso` (lasso-select, L), `Tool::ALL` 8. `acts.rs`: a run tool
+forces the wall for a stamp only; `Brush(i)` keeps a run tool for any non-stamp entry; `apply` drops the loop.
+`mod.rs`: `open` and `show_level` drop the selection; `aim`/`paint` arms. `view.rs`: "Selection: N cells" under
+the tool's name. `plan.rs`: `Source.selection: Option<&[Side]>`, `SELECT` (white), `bars(out, view, sides,
+colour)` shared with the preview, a cell run's cells as `rect_pixels` outlines. `shell/editor.rs`: key L,
+`selection: outline.as_deref()`. Tests: `tests/editor_select.rs` (3: the loop, the count, the outline, a click
+clears, an act mid-loop, Open drops; the move with the ghost, the walls, Undo, the two refusals, an overlapping
+move, a press outside the selection; the cell runs by corners and freehand, a stamp's fallback), `select.rs` and
+`run.rs` unit tests; `editor_run.rs` and `editor_pointer.rs` choose the wall before a run (a terrain is a cell
+run now); `editor_column.rs` flipped. Mutation checks red: the even-odd rule inverted, the destination painted
+before the source, the line's last cell dropped.

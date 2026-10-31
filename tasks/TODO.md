@@ -311,7 +311,15 @@ no loss, and every later map is built with it.
     piles get them too. Not in the data model, so not offered: a per-placement loot (a monster's loot is its
     definition's table; a container's contents are). Later: a quantity for an object kind (several of one kind
     in a click); the fields' words read against the column's width everywhere.
-  - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).
+  - [x] Step 4 (2026-10-31, one commit; `tasks/acceptance/editor-column-4.md`): the lasso (a freehand loop
+    selects the cells inside it, outlined on the plan, counted under the tool's name; a click clears), Move
+    carrying a selection pressed inside it by the drag's offset (everything on the cells: terrain, heights,
+    sides, placements, the start; the source bare, the destination replaced, a portal, site or pile already
+    there refusing; one undo step, `Document::batch`; the outline a ghost while carried), and runs with a
+    terrain or the height as cell runs (the line's cells between the points painted with the entry). Owner's
+    choices in the planning: a freehand loop; everything moves; the destination is replaced. Later: the
+    eraser or Delete clearing a selection's cells; copy and paste of a selection; a selection across levels;
+    Esc dropping a loop or a run (Esc is the menu's).
   - [ ] Step 5: Undo as a history list.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in

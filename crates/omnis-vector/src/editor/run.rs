@@ -2,12 +2,14 @@
 //! corner (`Tool::Corners`: a click a corner, the run pending until taken by a click on its
 //! last corner, Enter or the Take button) or freehand (`Tool::Freehand`: a drag, taken when
 //! the button is let go), snapped to the grid's corners and rasterised onto cell sides,
-//! previewed in the caution colour, one undo step (`Document::paint_many`). The plan's
-//! pointer for every tool lives here too (`Editor::pointer`), moved from the shell so the
-//! pointer's rules are the model's. Bevy-free.
+//! previewed in the caution colour, one undo step (`Document::paint_many`). With a terrain or
+//! the height chosen a run is a **cell run** (the column's step 4, 2026-10-31): its points are
+//! cells, joined cell to cell (`cells`), and taking it paints the entry on each, a path of
+//! cells. The plan's pointer for every tool lives here too (`Editor::pointer`), moved from the
+//! shell so the pointer's rules are the model's. Bevy-free.
 
 use super::Editor;
-use super::brush::{Entry, Tool};
+use super::brush::{Entry, Target, Tool};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::edit::{Brush, EdgeKind};
@@ -25,21 +27,24 @@ pub type Side = (bool, u16, u16);
 /// A paint of the run: the cell and the brush on it, as `Document::paint_many` takes them.
 pub type Paint = ((u16, u16), Brush);
 
-/// The run being drawn: its corners in order.
+/// The run being drawn: its points in order, grid corners for a run of edges, cells for a
+/// cell run (the entry decides which, and `run_holds` drops the run when the entry changes).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Run {
-    /// The corners clicked or dragged through, first to last.
+    /// The corners (or the cells) clicked or dragged through, first to last.
     pub corners: Vec<Corner>,
 }
 
-/// What the plan previews in the caution colour: the run's sides, with the stretch to the
-/// corner under the pointer, and that corner.
+/// What the plan previews in the caution colour: a run of edges as its sides, with the stretch
+/// to the corner under the pointer, and that corner; a cell run as its cells.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Preview {
     /// The sides the run would wall.
     pub sides: Vec<Side>,
     /// The corner under the pointer.
     pub corner: Option<Corner>,
+    /// The cells a cell run would paint, with the stretch to the cell under the pointer.
+    pub cells: Vec<(u16, u16)>,
 }
 
 /// The pointer over the plan, as the shell reads it each frame.
@@ -136,6 +141,60 @@ fn run_sides(corners: &[Corner]) -> impl Iterator<Item = Side> + '_ {
     corners.windows(2).flat_map(|pair| sides(pair[0], pair[1]))
 }
 
+/// The cells of the line from cell `a` to cell `b`, both included, each once: a straight run
+/// along a row or column, else the line's cells (Bresenham). One cell for `a == b`.
+#[must_use]
+pub fn cells(a: (u16, u16), b: (u16, u16)) -> Vec<(u16, u16)> {
+    let (ax, ay) = (i64::from(a.0), i64::from(a.1));
+    let (bx, by) = (i64::from(b.0), i64::from(b.1));
+    let (dx, dy) = ((bx - ax).abs(), -(by - ay).abs());
+    let (sx, sy) = ((bx - ax).signum(), (by - ay).signum());
+    let mut err = dx + dy;
+    let (mut x, mut y) = (ax, ay);
+    let mut out = Vec::with_capacity(usize::try_from(dx - dy + 1).unwrap_or(1));
+    loop {
+        if let (Ok(cx), Ok(cy)) = (u16::try_from(x), u16::try_from(y)) {
+            out.push((cx, cy));
+        }
+        if (x, y) == (bx, by) {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+    out
+}
+
+/// The cells of a cell run's points, pair by pair, each once in the order first reached.
+fn run_cells(points: &[(u16, u16)]) -> Vec<(u16, u16)> {
+    let mut seen: BTreeSet<(u16, u16)> = BTreeSet::new();
+    let mut out = Vec::new();
+    let mut take = |cell: (u16, u16)| {
+        if seen.insert(cell) {
+            out.push(cell);
+        }
+    };
+    match points {
+        [] => {}
+        [one] => take(*one),
+        many => {
+            for pair in many.windows(2) {
+                for cell in cells(pair[0], pair[1]) {
+                    take(cell);
+                }
+            }
+        }
+    }
+    out
+}
+
 impl Editor {
     /// The pointer's frame over the plan. With a brush: the aim under the pointer is the
     /// hover, a right click picks what is there, a left click paints a new stroke, a held
@@ -175,11 +234,26 @@ impl Editor {
             }
             return down;
         }
-        if self.hover.is_some() {
-            self.hover = None;
-        }
+        // A cell run's points are cells: the hover shows the cell under the pointer, the
+        // run's corner is that cell. A run of edges aims at grid corners and shows no hover.
+        let cell_run = self.cell_run();
         let size = self.size();
-        let corner = p.pixel.and_then(|(px, py)| self.view.corner(size, px, py));
+        let target = (cell_run && p.pixel.is_some())
+            .then(|| {
+                let (px, py) = p.pixel?;
+                self.view
+                    .hit(size, px, py)
+                    .map(|cell| Target { cell, edge: None })
+            })
+            .flatten();
+        if self.hover != target {
+            self.hover = target;
+        }
+        let corner = if cell_run {
+            target.map(|t| t.cell)
+        } else {
+            p.pixel.and_then(|(px, py)| self.view.corner(size, px, py))
+        };
         if self.corner != corner {
             self.corner = corner;
             self.revision = self.revision.wrapping_add(1);
@@ -192,10 +266,14 @@ impl Editor {
             return false;
         };
         if p.right_down {
-            if let Some(target) = p
-                .pixel
-                .and_then(|(px, py)| self.view.edge_target(size, px, py))
-            {
+            let target = p.pixel.and_then(|(px, py)| {
+                if cell_run {
+                    self.view.target(size, px, py)
+                } else {
+                    self.view.edge_target(size, px, py)
+                }
+            });
+            if let Some(target) = target {
                 self.pick(target);
             }
             return true;
@@ -240,13 +318,25 @@ impl Editor {
         }
     }
 
-    /// Take the pending run: its sides become the entry's edge kind (walls, doors or ramps) on
-    /// the shown level, one undo step, each side once and the map's boundary left as it is. Says
-    /// how many were set.
+    /// Whether the pending or next run is a cell run: a terrain or the height is chosen (a
+    /// stamp has no brush, so a run with one walls, as an edge entry's run does).
+    #[must_use]
+    pub fn cell_run(&self) -> bool {
+        self.entry.fills()
+    }
+
+    /// Take the pending run: a cell run paints the entry on each of its cells (the terrain
+    /// rising the way faced, or the height held); a run of edges sets its sides to the entry's
+    /// edge kind (walls, doors or ramps), each side once and the map's boundary left as it is.
+    /// On the shown level, one undo step. Says how many were painted.
     pub fn take_run(&mut self, data: &Data) {
         let Some(run) = self.run.take() else {
             return;
         };
+        if self.cell_run() {
+            self.take_cells(data, &run.corners);
+            return;
+        }
         let kind = match self.entry {
             Entry::Edge(kind) => kind,
             Entry::Terrain(_) | Entry::Height | Entry::Stamp(_) => EdgeKind::Wall,
@@ -286,6 +376,38 @@ impl Editor {
         self.revision = self.revision.wrapping_add(1);
     }
 
+    /// A cell run taken: the entry's brush on each cell of the path (as the fill paints a
+    /// region), one undo step; "N cells painted r street" or "N cells set to height 2".
+    fn take_cells(&mut self, data: &Data, points: &[(u16, u16)]) {
+        let Some(def) = self.def() else {
+            return;
+        };
+        let (entry, facing, eighths) = (self.entry, self.facing, self.eighths);
+        let path = run_cells(points);
+        let paints: Vec<Paint> = path
+            .iter()
+            .filter_map(|&cell| {
+                let target = Target { cell, edge: None };
+                Some((cell, entry.brush(&def, target, facing, eighths)?))
+            })
+            .collect();
+        let n = paints.len();
+        let level = self.level;
+        let result = self
+            .session
+            .document_mut()
+            .and_then(|d| d.paint_many(level, &paints));
+        if self.took(data, result) {
+            let what = match entry {
+                Entry::Height => format!("set to height {eighths}"),
+                _ => format!("painted {}", entry.label(&def)),
+            };
+            let cells = if n == 1 { "cell" } else { "cells" };
+            self.message = Some(format!("{n} {cells} {what}"));
+        }
+        self.revision = self.revision.wrapping_add(1);
+    }
+
     /// Drop the pending run's last corner; the run with none left is dropped.
     pub fn drop_corner(&mut self) {
         if let Some(run) = &mut self.run {
@@ -304,13 +426,33 @@ impl Editor {
         }
     }
 
-    /// What the plan previews for a run tool: the pending run's sides, by corners with the
-    /// stretch from its last corner to the corner under the pointer, and that corner. None
-    /// with a brush, or with nothing to show.
+    /// What the plan previews for a run tool: a run of edges as the pending run's sides, by
+    /// corners with the stretch from its last corner to the corner under the pointer, and that
+    /// corner; a cell run as its cells, with the stretch to the cell under the pointer (the
+    /// pointer's own cell is the hover's). None with a brush, or with nothing to show.
     #[must_use]
     pub fn preview(&self) -> Option<Preview> {
         if !self.tool.is_run() {
             return None;
+        }
+        if self.cell_run() {
+            let mut points: Vec<(u16, u16)> = self
+                .run
+                .as_ref()
+                .map(|run| run.corners.clone())
+                .unwrap_or_default();
+            if self.tool == Tool::Corners
+                && !points.is_empty()
+                && let Some(cell) = self.corner
+            {
+                points.push(cell);
+            }
+            let cells = run_cells(&points);
+            return (!cells.is_empty()).then(|| Preview {
+                sides: Vec::new(),
+                corner: None,
+                cells,
+            });
         }
         let mut sides: Vec<Side> = Vec::new();
         if let Some(run) = &self.run {
@@ -327,6 +469,7 @@ impl Editor {
         Some(Preview {
             sides,
             corner: self.corner,
+            cells: Vec::new(),
         })
     }
 }
@@ -390,6 +533,31 @@ mod tests {
         let steep = sides((1, 1), (2, 5));
         assert_eq!(steep.len(), 5);
         assert!(walks(&steep, (1, 1), (2, 5)), "{steep:?}");
+    }
+
+    #[test]
+    fn a_cell_run_is_the_line_s_cells_each_once() {
+        assert_eq!(
+            cells((2, 2), (6, 2)),
+            vec![(2, 2), (3, 2), (4, 2), (5, 2), (6, 2)]
+        );
+        assert_eq!(cells((3, 4), (3, 1)), vec![(3, 4), (3, 3), (3, 2), (3, 1)]);
+        assert_eq!(cells((1, 1), (1, 1)), vec![(1, 1)]);
+        let slant = cells((2, 2), (6, 4));
+        assert_eq!(slant.len(), 5, "{slant:?}");
+        assert_eq!((slant[0], slant[4]), ((2, 2), (6, 4)));
+        for pair in slant.windows(2) {
+            let (dx, dy) = (
+                (i32::from(pair[1].0) - i32::from(pair[0].0)).abs(),
+                (i32::from(pair[1].1) - i32::from(pair[0].1)).abs(),
+            );
+            assert!(dx <= 1 && dy <= 1, "joined: {slant:?}");
+        }
+        // A path through points, a backtrack painting nothing twice.
+        let path = run_cells(&[(0, 0), (2, 0), (2, 2), (2, 0)]);
+        assert_eq!(path, vec![(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)]);
+        assert_eq!(run_cells(&[(4, 4)]), vec![(4, 4)]);
+        assert!(run_cells(&[]).is_empty());
     }
 
     #[test]

@@ -356,6 +356,33 @@ impl Document {
         })
     }
 
+    /// Paint `paints` on `level` and then place every `Place` of `places`, in order, as one
+    /// step: every one lands or none does (a selection moved by the editor: its cells' terrain,
+    /// heights and sides, then the placements on them). Closes any open stroke. Nothing to do is
+    /// no step.
+    ///
+    /// # Errors
+    /// The brushes' rules, as `paint`, and the places', as `place`.
+    pub fn batch(
+        &mut self,
+        level: Level,
+        paints: &[((u16, u16), Brush)],
+        places: Vec<Place>,
+    ) -> Result<(), EditError> {
+        self.in_stroke = false;
+        if paints.is_empty() && places.is_empty() {
+            return Ok(());
+        }
+        self.change(false, |state| {
+            paints
+                .iter()
+                .try_for_each(|((x, y), brush)| apply_brush(state, level, *x, *y, brush))?;
+            places
+                .into_iter()
+                .try_for_each(|place| apply_place(&mut state.def, place))
+        })
+    }
+
     /// Change the map's structure: its size, its fields, a level or a terrain.
     ///
     /// # Errors

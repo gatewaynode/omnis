@@ -1,10 +1,11 @@
 //! The move tool (the owner's drawing-GUI column, step 2, 2026-10-25): a press on a cell takes
-//! what the inspector lists there first, the map's start or a placement, the drag carries it and
-//! letting go puts it on the cell under the pointer (a start in one `Place::Start`, a placement
-//! as a removal and a placement in one step, `Document::place_many`); a press anywhere else drags
-//! the plan itself by whole cells (`View::origin`). The middle button drags
-//! the plan with any tool, a shortcut for Move's pan. What the pointer holds is what was under
-//! it at the press, as the owner chose (a chosen selection comes with the lasso). Bevy-free.
+//! the selection when the cell is inside it (step 4, `super::select`), else what the inspector
+//! lists there first, the map's start or a placement; the drag carries it and letting go puts it
+//! on the cell under the pointer (a selection by the drag's offset in one `Document::batch`, a
+//! start in one `Place::Start`, a placement as a removal and a placement in one step,
+//! `Document::place_many`); a press anywhere else drags the plan itself by whole cells
+//! (`View::origin`). The middle button drags the plan with any tool, a shortcut for Move's pan.
+//! The lasso's loop is read here too, being a drag. Bevy-free.
 
 use super::run::{Pointer, Press};
 use super::{Editor, Here, PlaceKey};
@@ -15,6 +16,8 @@ use omnis_sim::omnis_data::edit::Place;
 /// it. The start is listed first, so a cell that has both gives the start.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Held {
+    /// The selection, pressed inside (step 4).
+    Selection,
     /// The map's start (the owner could not move it in the step's hand test, 2026-10-25).
     Start,
     /// The first placement the inspector lists on the cell.
@@ -26,6 +29,7 @@ impl Held {
     #[must_use]
     pub fn label(&self) -> &str {
         match self {
+            Held::Selection => "Selection",
             Held::Start => "Start",
             Held::Place(here) => &here.label,
         }
@@ -53,6 +57,22 @@ impl Editor {
     /// what is under it and a right click picks as elsewhere. Some when this frame was a drag's
     /// (whether a button went down on the plan), None for the tool's own pointer rules.
     pub(super) fn grabbing(&mut self, data: &Data, p: Pointer) -> Option<bool> {
+        // The lasso's loop in progress follows the left button: the cell under the pointer
+        // joins it, letting go selects (off the plan too).
+        if self.lasso.is_some() {
+            match p.left {
+                Press::Held => {
+                    if let Some(cell) = p
+                        .pixel
+                        .and_then(|(px, py)| self.view.hit(self.size(), px, py))
+                    {
+                        self.lasso_extend(cell);
+                    }
+                }
+                Press::Up | Press::Down => self.lasso_end(),
+            }
+            return Some(false);
+        }
         if let Some(grab) = &self.grab {
             let button = if grab.middle { p.middle } else { p.left };
             match button {
@@ -67,7 +87,7 @@ impl Editor {
             self.start_grab(pixel, true);
             return Some(true);
         }
-        if self.tool != super::Tool::Move {
+        if !matches!(self.tool, super::Tool::Move | super::Tool::Lasso) {
             return None;
         }
         if self.corner.is_some() {
@@ -87,7 +107,13 @@ impl Editor {
         if p.left == Press::Down
             && let Some(pixel) = p.pixel
         {
-            self.start_grab(pixel, false);
+            if self.tool == super::Tool::Lasso {
+                if let Some(cell) = self.view.hit(self.size(), pixel.0, pixel.1) {
+                    self.lasso_start(cell);
+                }
+            } else {
+                self.start_grab(pixel, false);
+            }
             return Some(true);
         }
         Some(false)
@@ -115,10 +141,13 @@ impl Editor {
         });
     }
 
-    /// What the Move tool takes on `cell` of the shown level, as the inspector lists it: the
-    /// start when it is here (it is on the ground level), else the first listed placement; none
-    /// on a bare cell.
+    /// What the Move tool takes on `cell` of the shown level: the selection when the cell is
+    /// inside it, else as the inspector lists it: the start when it is here (it is on the ground
+    /// level), else the first listed placement; none on a bare cell.
     fn under(&self, cell: (u16, u16)) -> Option<Held> {
+        if self.selected().is_some_and(|s| s.cells.contains(&cell)) {
+            return Some(Held::Selection);
+        }
         let start_here = self
             .def()
             .is_some_and(|d| self.level.is_ground() && (d.start.0, d.start.1) == cell);
@@ -169,6 +198,16 @@ impl Editor {
         if let Some(to) = self.view.hit(self.size(), px, py)
             && Some(to) != grab.from
         {
+            if held == Held::Selection {
+                if let Some(from) = grab.from {
+                    let d = (
+                        i32::from(to.0) - i32::from(from.0),
+                        i32::from(to.1) - i32::from(from.1),
+                    );
+                    self.move_selection(data, d);
+                }
+                return;
+            }
             self.moved(data, &held, to);
         }
     }
@@ -180,6 +219,8 @@ impl Editor {
     pub fn moved(&mut self, data: &Data, held: &Held, to: (u16, u16)) -> bool {
         let (x, y) = to;
         let taken = match held {
+            // A selection moves by an offset (`end_grab`), never to one cell.
+            Held::Selection => return false,
             Held::Start => {
                 let Some(facing) = self.def().map(|d| d.start.2) else {
                     return false;

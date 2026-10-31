@@ -110,6 +110,21 @@ fn a_click_in_the_window_lands_on_the_cell_under_the_pointer() {
 fn a_click_in_the_window_near_a_corner_starts_a_wall_run_there() {
     let (mut app, window) = ui_editor_app();
     let data = app.world().resource::<Packs>().data.clone();
+    // The wall, then the run tool: with a terrain chosen a run paints cells (step 4).
+    let def = app.world().resource::<Editing>().def().expect("a map");
+    let wall = omnis_vector::editor::brush::palette(&def)
+        .iter()
+        .position(|e| {
+            *e == omnis_vector::editor::brush::Entry::Edge(
+                omnis_sim::omnis_data::edit::EdgeKind::Wall,
+            )
+        })
+        .expect("the wall");
+    app.world_mut().resource_mut::<Editing>().apply(
+        &data,
+        EditAct::Brush(u8::try_from(wall).unwrap()),
+        0,
+    );
     app.world_mut().resource_mut::<Editing>().apply(
         &data,
         EditAct::Tool(omnis_vector::editor::brush::Tool::Corners),

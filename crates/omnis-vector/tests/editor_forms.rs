@@ -772,6 +772,7 @@ fn painted(app: &App) -> omnis_vector::minimap::Raster {
             start: None,
             marks: &marks,
             preview: None,
+            selection: None,
         },
         e.view,
         e.pane,

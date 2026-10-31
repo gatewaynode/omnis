@@ -4,7 +4,7 @@
 //! click's pixel maps back to its cell (`hit`). Bevy-free.
 
 use super::brush::Target;
-use super::run::{Corner, Preview};
+use super::run::{Corner, Preview, Side};
 use crate::icons;
 use crate::minimap::{BACKGROUND, CLIFF, DOOR, HOLE, JOIN, PREVIEW, RAMP, WALL};
 use crate::raster::{
@@ -208,8 +208,11 @@ pub struct Source<'a> {
     pub start: Option<(u16, u16)>,
     /// The placements on this level, each marked on its cell (`marks`).
     pub marks: &'a [((u16, u16), Mark)],
-    /// A wall run being drawn and the corner under the pointer, previewed over everything.
+    /// A run being drawn and the corner under the pointer, previewed over everything.
     pub preview: Option<&'a Preview>,
+    /// The selection's outline (its sides facing out), drawn last; displaced while Move
+    /// carries it (step 4).
+    pub selection: Option<&'a [Side]>,
 }
 
 /// What a placement marks its cell with on the plan (owner, 2026-10-24): a portal the
@@ -335,6 +338,8 @@ pub const NO_GROUND: [u8; 4] = [8, 8, 12, 255];
 pub const OUTSIDE: [u8; 4] = [0, 0, 0, 255];
 /// The map's start.
 pub const START: [u8; 4] = [255, 255, 255, 255];
+/// The selection's outline (step 4).
+pub const SELECT: [u8; 4] = [255, 255, 255, 255];
 
 /// Paint the cells of `source` the pane shows under `view`: terrain fills shaded by height, no
 /// ground, the map's edge, then ramps and cliffs, joins, walls and doors over them, the
@@ -467,21 +472,11 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
     }
     if let Some(preview) = source.preview {
         let thick = (si / 6).max(2);
-        let across = -thick / 2..thick - thick / 2;
-        for (horizontal, x, y) in &preview.sides {
-            let (x0, y0) = (
-                (i64::from(*x) - view.origin.0) * si,
-                (i64::from(*y) - view.origin.1) * si,
-            );
-            for along in 0..=si {
-                for t in across.clone() {
-                    let (px, py) = if *horizontal {
-                        (x0 + along, y0 + t)
-                    } else {
-                        (x0 + t, y0 + along)
-                    };
-                    out.put(px, py, PREVIEW);
-                }
+        bars(&mut out, view, &preview.sides, PREVIEW);
+        for &(x, y) in &preview.cells {
+            let cell = (i64::from(x) - view.origin.0, i64::from(y) - view.origin.1);
+            for (px, py) in rect_pixels(s, cell, 1) {
+                out.put(px, py, PREVIEW);
             }
         }
         if let Some((x, y)) = preview.corner {
@@ -496,7 +491,34 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
             }
         }
     }
+    if let Some(sides) = source.selection {
+        bars(&mut out, view, sides, SELECT);
+    }
     out
+}
+
+/// A bar a sixth of a cell thick (two pixels at least) along each of `sides`, in `colour`: a
+/// run's preview, the selection's outline.
+fn bars(out: &mut Raster, view: View, sides: &[Side], colour: [u8; 4]) {
+    let si = i64::from(view.scale());
+    let thick = (si / 6).max(2);
+    let across = -thick / 2..thick - thick / 2;
+    for (horizontal, x, y) in sides {
+        let (x0, y0) = (
+            (i64::from(*x) - view.origin.0) * si,
+            (i64::from(*y) - view.origin.1) * si,
+        );
+        for along in 0..=si {
+            for t in across.clone() {
+                let (px, py) = if *horizontal {
+                    (x0 + along, y0 + t)
+                } else {
+                    (x0 + t, y0 + along)
+                };
+                out.put(px, py, colour);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

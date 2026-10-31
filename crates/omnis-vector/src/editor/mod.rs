@@ -16,6 +16,7 @@ pub mod plan;
 pub mod playtest;
 pub mod preview;
 pub mod run;
+pub mod select;
 pub mod stamp;
 pub mod view;
 
@@ -32,6 +33,7 @@ use omnis_sim::omnis_data::edit::{
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
 use pick::Picking;
 use run::{Corner, Run};
+use select::Selection;
 use stamp::Stamps;
 use std::path::PathBuf;
 
@@ -114,6 +116,10 @@ pub struct Editor {
     pub run: Option<Run>,
     /// The drag under the Move tool or the middle button, while a button holds it (`grab`).
     pub grab: Option<Grab>,
+    /// The lasso's loop while the button draws it: the cells passed, in order (`select`).
+    pub lasso: Option<Vec<(u16, u16)>>,
+    /// The cells selected by the lasso, on their level, until cleared or moved (`select`).
+    pub selection: Option<Selection>,
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
@@ -173,6 +179,8 @@ impl Editor {
             corner: None,
             run: None,
             grab: None,
+            lasso: None,
+            selection: None,
             status,
             form: None,
             stamps: Stamps::default(),
@@ -208,6 +216,8 @@ impl Editor {
             .map_or(Entry::Edge(EdgeKind::Wall), Entry::first);
         self.stroke = None;
         self.grab = None;
+        self.lasso = None;
+        self.selection = None;
         self.message = None;
         self.resolved = None;
         self.form = None;
@@ -417,6 +427,8 @@ impl Editor {
     pub fn show_level(&mut self, level: Level) {
         if self.levels().contains(&level) && self.level != level {
             self.level = level;
+            // A selection is its level's: another level shown, it is gone.
+            self.selection = None;
             self.revision = self.revision.wrapping_add(1);
         }
     }
@@ -443,7 +455,8 @@ impl Editor {
     pub fn aim(&self, px: f32, py: f32) -> Option<Target> {
         let size = self.size();
         match (self.tool, self.entry) {
-            (Tool::Select | Tool::Move | Tool::Fill, _) | (Tool::Brush, Entry::Stamp(_)) => self
+            (Tool::Select | Tool::Move | Tool::Lasso | Tool::Fill, _)
+            | (Tool::Brush, Entry::Stamp(_)) => self
                 .view
                 .hit(size, px, py)
                 .map(|cell| Target { cell, edge: None }),
@@ -501,8 +514,8 @@ impl Editor {
                     None => Some(Brush::Clear),
                 },
             },
-            // Move's drag never comes this way (`grab::Editor::grabbing`).
-            Tool::Move | Tool::Corners | Tool::Freehand => None,
+            // Move's and the lasso's drags never come this way (`grab::Editor::grabbing`).
+            Tool::Move | Tool::Lasso | Tool::Corners | Tool::Freehand => None,
         };
         let Some(brush) = brush else {
             return false;

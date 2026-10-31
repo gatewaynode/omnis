@@ -745,12 +745,13 @@ fn route(
             .map(|(_, a, step)| (a, step))
             .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)))
             .or_else(|| {
-                // The tools' keys (V, B, M, F, P, N, X: `Tool::key`), shortcuts for the grid's
-                // icons.
+                // The tools' keys (V, B, M, L, F, P, N, X: `Tool::key`), shortcuts for the
+                // grid's icons.
                 [
                     (KeyCode::KeyV, Tool::Select),
                     (KeyCode::KeyB, Tool::Brush),
                     (KeyCode::KeyM, Tool::Move),
+                    (KeyCode::KeyL, Tool::Lasso),
                     (KeyCode::KeyF, Tool::Fill),
                     (KeyCode::KeyP, Tool::Corners),
                     (KeyCode::KeyN, Tool::Freehand),
@@ -949,6 +950,7 @@ fn refresh(
         .then_some((def.start.0, def.start.1));
     let marks = plan::marks(&def, data, editing.level);
     let preview = editing.preview();
+    let selection = editing.selection_outline();
     let raster = plan::paint(
         Source {
             grid,
@@ -959,6 +961,7 @@ fn refresh(
             start,
             marks: &marks,
             preview: preview.as_ref(),
+            selection: selection.as_deref(),
         },
         editing.view,
         pane,

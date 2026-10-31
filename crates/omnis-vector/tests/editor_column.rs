@@ -182,20 +182,34 @@ fn choosing_a_tool_or_an_entry_frames_it_and_the_keys_choose_tools() {
     let screen = tools(&app);
     assert!(chosen(&screen, ControlId::Edit(EditAct::Brush(1))));
     assert!(!chosen(&screen, ControlId::Edit(EditAct::Brush(0))));
-    // A run tool takes an edge: with a terrain chosen, the wall is chosen for it.
+    // A run tool takes an edge, a terrain or the height (a cell run, step 4): with a terrain
+    // chosen it stays; with a stamp chosen the wall is chosen for it.
     press_edit(&mut app, EditAct::Tool(Tool::Corners));
-    assert_eq!(editing(&app).entry, Entry::Edge(EdgeKind::Wall));
-    // Choosing the door keeps the run tool; choosing a terrain brings the brush back.
+    assert_eq!(editing(&app).entry, Entry::Terrain(1));
+    // Choosing the door or a terrain keeps the run tool; choosing a stamp brings the brush back.
     let def = editing(&app).def().unwrap();
-    let door = brush::palette(&def)
-        .iter()
-        .position(|e| *e == Entry::Edge(EdgeKind::Door))
-        .unwrap();
-    press_edit(&mut app, EditAct::Brush(u8::try_from(door).unwrap()));
+    let palette = brush::palette(&def);
+    let at =
+        |entry: Entry| u8::try_from(palette.iter().position(|e| *e == entry).unwrap()).unwrap();
+    press_edit(&mut app, EditAct::Brush(at(Entry::Edge(EdgeKind::Door))));
     assert_eq!(editing(&app).tool, Tool::Corners);
     assert_eq!(editing(&app).entry, Entry::Edge(EdgeKind::Door));
     press_edit(&mut app, EditAct::Brush(0));
+    assert_eq!(
+        editing(&app).tool,
+        Tool::Corners,
+        "a terrain is a cell run's"
+    );
+    let lore = Entry::Stamp(omnis_vector::editor::forms::Placing::Lore);
+    press_edit(&mut app, EditAct::Brush(at(lore)));
     assert_eq!(editing(&app).tool, Tool::Brush);
+    press_edit(&mut app, EditAct::Tool(Tool::Corners));
+    assert_eq!(
+        editing(&app).entry,
+        Entry::Edge(EdgeKind::Wall),
+        "a stamp has no run"
+    );
+    press_edit(&mut app, EditAct::Brush(1));
     // The keys.
     for (key, tool) in [
         (KeyCode::KeyV, Tool::Select),

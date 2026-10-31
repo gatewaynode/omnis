@@ -59,14 +59,23 @@ fn tool_rows(editor: &Editor, no_map: Option<&str>) -> Vec<Row> {
         icon(EditAct::Redo, "redo-2", false),
         no_map.or((status.redo == 0).then_some("nothing to redo")),
     ));
-    vec![
+    let mut rows = vec![
         Row::controls(grid),
         Row::text(Span::body(format!(
             "{}  {}",
             editor.tool.label(),
             editor.tool.key()
         ))),
-    ]
+    ];
+    // The selection, while one stands on the shown level (step 4): how many cells.
+    if let Some(sel) = editor.selected() {
+        let n = sel.cells.len();
+        rows.push(Row::text(Span::body(format!(
+            "Selection: {n} {}",
+            if n == 1 { "cell" } else { "cells" }
+        ))));
+    }
+    rows
 }
 
 /// The palette grid: a swatch a terrain (its colour and glyph), then the wall, the door, the

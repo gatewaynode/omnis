@@ -23,15 +23,20 @@ pub enum Tool {
     Select,
     /// A click paints the palette's entry at the target; a drag is one stroke.
     Brush,
-    /// A drag carries the first placement under the press to the cell let go on, or pans the
-    /// plan when the press took none (`super::grab`).
+    /// A drag carries the selection when the press is inside it, else the first placement
+    /// under the press, to the cell let go on, or pans the plan when the press took none
+    /// (`super::grab`, `super::select`).
     Move,
+    /// A drag draws a loop; the cells inside it are selected (`super::select`, step 4). A click
+    /// clears the selection.
+    Lasso,
     /// A click fills the region of one ground under it with the entry, bounded by every closed
     /// side (`super::fill`).
     Fill,
-    /// A run of edges drawn corner by corner, taken by a click on its last corner (`super::run`).
+    /// A run drawn corner by corner, taken by a click on its last corner (`super::run`): of
+    /// edges with an edge entry, of cells with a terrain or the height (step 4).
     Corners,
-    /// A run of edges drawn freehand, taken when the button is let go.
+    /// A run drawn freehand, taken when the button is let go.
     Freehand,
     /// A click opens the edge, removes the first placement or clears the ground under it.
     Eraser,
@@ -39,10 +44,11 @@ pub enum Tool {
 
 impl Tool {
     /// Every tool, in the grid's order.
-    pub const ALL: [Tool; 7] = [
+    pub const ALL: [Tool; 8] = [
         Tool::Select,
         Tool::Brush,
         Tool::Move,
+        Tool::Lasso,
         Tool::Fill,
         Tool::Corners,
         Tool::Freehand,
@@ -56,6 +62,7 @@ impl Tool {
             Tool::Select => "Select",
             Tool::Brush => "Brush",
             Tool::Move => "Move",
+            Tool::Lasso => "Lasso",
             Tool::Fill => "Fill",
             Tool::Corners => "Run by corners",
             Tool::Freehand => "Freehand run",
@@ -70,6 +77,7 @@ impl Tool {
             Tool::Select => "mouse-pointer-2",
             Tool::Brush => "brush",
             Tool::Move => "move",
+            Tool::Lasso => "lasso-select",
             Tool::Fill => "paint-bucket",
             Tool::Corners => "pen-tool",
             Tool::Freehand => "pencil",
@@ -84,6 +92,7 @@ impl Tool {
             Tool::Select => 'V',
             Tool::Brush => 'B',
             Tool::Move => 'M',
+            Tool::Lasso => 'L',
             Tool::Fill => 'F',
             Tool::Corners => 'P',
             Tool::Freehand => 'N',
@@ -326,7 +335,7 @@ mod tests {
 
     #[test]
     fn every_tool_has_a_name_an_icon_of_the_set_and_a_key() {
-        assert_eq!(Tool::ALL.len(), 7);
+        assert_eq!(Tool::ALL.len(), 8);
         let mut keys = Vec::new();
         for tool in Tool::ALL {
             assert!(tool.label().is_ascii());
@@ -336,7 +345,11 @@ mod tests {
         }
         assert!(Tool::Corners.is_run() && Tool::Freehand.is_run());
         assert!(!Tool::Brush.is_run() && !Tool::Eraser.is_run() && !Tool::Select.is_run());
-        assert!(!Tool::Move.is_run() && !Tool::Fill.is_run());
+        assert!(!Tool::Move.is_run() && !Tool::Fill.is_run() && !Tool::Lasso.is_run());
+        assert_eq!(
+            (Tool::Lasso.icon(), Tool::Lasso.key()),
+            ("lasso-select", 'L')
+        );
     }
 
     #[test]
