@@ -3,7 +3,7 @@
 //! Back to title (which closes the editor, and says so when changes would be lost), and Quit
 //! in its own row, apart from the rest (PRD §7).
 
-use super::{Control, ControlId, Ctx, Effect, Panel, Row, Screen, ScreenId, Span};
+use super::{Control, ControlId, Ctx, Effect, Panel, Payload, Row, Screen, ScreenId, Span};
 use crate::editor::EditAct;
 
 /// The screen.
@@ -57,7 +57,7 @@ pub fn apply(control: ControlId) -> Effect {
         ControlId::Settings => Effect::Open(ScreenId::Settings),
         ControlId::QuitToTitle => Effect::ToTitle,
         ControlId::Quit => Effect::Quit,
-        ControlId::Edit(act) => Effect::Editor(act),
+        ControlId::Edit(act) => Effect::Editor(act, Payload::Press),
         _ => Effect::None,
     }
 }

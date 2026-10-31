@@ -22,6 +22,7 @@ mod editor_fill;
 mod editor_forms;
 mod editor_move;
 mod editor_paint;
+mod editor_pick;
 mod editor_playtest;
 mod editor_pointer;
 mod editor_preview;

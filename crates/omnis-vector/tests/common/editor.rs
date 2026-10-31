@@ -9,10 +9,12 @@ use bevy::prelude::*;
 use bevy::ui::RelativeCursorPosition;
 use omnis_sim::omnis_core::Facing;
 use omnis_vector::editor::EditAct;
-use omnis_vector::screen::ControlId;
+use omnis_vector::editor::forms::Placing;
+use omnis_vector::editor::stamp;
+use omnis_vector::screen::{ControlId, ScreenId};
 use omnis_vector::shell::editor::{Column, Editing};
-use omnis_vector::shell::screen::{Arrow, EditorPress, Scrolls};
-use omnis_vector::shell::session::Config;
+use omnis_vector::shell::screen::{Arrow, EditorPress, Pressable, Screens, Scrolls};
+use omnis_vector::shell::session::{Config, Packs};
 use std::path::PathBuf;
 
 /// The shell started in the editor with `map` open, on the shipped packs.
@@ -154,6 +156,46 @@ pub fn type_into(app: &mut App, act: EditAct, text: &str) {
         .entity_mut(field)
         .insert(bevy::text::EditableText::new(text));
     app.update();
+}
+
+/// Type `text` into the field `id` of the screen on top (a modal over the editor), as the
+/// field's editing would leave it, then a frame for the router to read it.
+pub fn type_ui(app: &mut App, id: ControlId, text: &str) {
+    let world = app.world_mut();
+    let mut fields = world.query::<(Entity, &Pressable, &bevy::text::EditableText)>();
+    let field = fields
+        .iter(world)
+        .find(|(_, p, _)| p.0 == id)
+        .map(|(e, _, _)| e)
+        .unwrap_or_else(|| panic!("the {id:?} field on the top screen"));
+    world
+        .entity_mut(field)
+        .insert(bevy::text::EditableText::new(text));
+    app.update();
+}
+
+/// The screen on top of the editor, if any (the editor runs with no game).
+pub fn top_screen(app: &App) -> Option<ScreenId> {
+    app.world().resource::<Screens>().nav.top(None)
+}
+
+/// Hold `ids` in the stamp of `kind`, as the picker's Finish would with the properties left as
+/// they come (the editor's column, step 3b).
+pub fn hold(app: &mut App, kind: Placing, ids: &[&str]) {
+    let data = app.world().resource::<Packs>().data.clone();
+    let def = editing(app).def().expect("a map");
+    let chosen: Vec<String> = ids.iter().map(|s| (*s).to_owned()).collect();
+    let places = stamp::rebuild(kind, &chosen, &[], &def, &data);
+    assert!(!places.is_empty(), "{kind:?} holds {ids:?}");
+    let mut editing = app.world_mut().resource_mut::<Editing>();
+    editing.stamps.set(kind, places);
+    editing.revision = editing.revision.wrapping_add(1);
+    app.update();
+}
+
+/// The details the stamp of `kind` holds.
+pub fn held(app: &App, kind: Placing) -> Vec<String> {
+    editing(app).stamps.ids(kind)
 }
 
 /// The entity of the editor's field `act`, if it is drawn.

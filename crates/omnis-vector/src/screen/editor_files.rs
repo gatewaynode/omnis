@@ -6,7 +6,7 @@
 //! asks first: Save and continue, Discard changes, or Cancel; the list comes once the file is
 //! closed, so a pick never drops typed work and always reads its file fresh.
 
-use super::{Control, ControlId, Ctx, Effect, Panel, Row, Screen, ScreenId, Span};
+use super::{Control, ControlId, Ctx, Effect, Panel, Payload, Row, Screen, ScreenId, Span};
 use crate::editor::EditAct;
 
 /// The screen.
@@ -74,7 +74,7 @@ pub fn content(ctx: &Ctx) -> Screen {
 pub fn apply(control: ControlId) -> Effect {
     match control {
         ControlId::Resume => Effect::Back,
-        ControlId::Edit(act) => Effect::Editor(act),
+        ControlId::Edit(act) => Effect::Editor(act, Payload::Press),
         _ => Effect::None,
     }
 }

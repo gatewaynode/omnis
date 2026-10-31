@@ -5,6 +5,8 @@
 
 use super::brush::{self, Entry, Tool};
 use super::files::Mode;
+use super::pick::Picking;
+use super::stamp;
 use super::{EditAct, Editor, NoteOf};
 use crate::screen::{Control, ControlId, Kind, Panel, Row, Screen, ScreenId, Span};
 use omnis_sim::omnis_core::{Facing, Level};
@@ -70,8 +72,9 @@ fn tool_rows(editor: &Editor, no_map: Option<&str>) -> Vec<Row> {
 /// The palette grid: a swatch a terrain (its colour and glyph), then the wall, the door, the
 /// ramp, the height and a stamp a placement kind as icons, the current one chosen; under it the
 /// entry's details (its words, with its digit while the keys reach it; the height's eighths
-/// choice; a stamp's detail choice; Edit terrain for a terrain; Add terrain), then the run's rows
-/// while one is pending.
+/// choice; a stamp's icon, Select... and, for a kind with properties, the sliders icon, then a
+/// line of what it drops; Edit terrain for a terrain; Add terrain), then the run's rows while
+/// one is pending.
 fn palette_rows(editor: &Editor, data: &Data, def: &MapDef) -> Vec<Row> {
     let edit = |act| ControlId::Edit(act);
     let palette = brush::palette(def);
@@ -120,21 +123,43 @@ fn palette_rows(editor: &Editor, data: &Data, def: &MapDef) -> Vec<Row> {
             .unwrap_or(0);
         details.push(choice(edit(EditAct::Eighths), "eighths", options, at));
     }
+    let mut summary = None;
     if let Entry::Stamp(kind) = editor.entry {
-        let (options, at) = editor.stamps.chosen(kind, data);
-        let none = options
+        // The stamp's icon marks the row and opens the picker, as Select... does; the sliders
+        // open the properties for a kind that has them.
+        let none = stamp::options(kind, data)
             .is_empty()
             .then(|| format!("the packs have no {}", kind.what()));
+        let icon = |act, name: &'static str, chosen| Control {
+            kind: Kind::Icon { name, chosen },
+            ..Control::button(edit(act), name)
+        };
         details.push(dim(
-            choice(edit(EditAct::Stamp), kind.detail(), options, at),
+            icon(
+                EditAct::Stamp,
+                editor.entry.icon().unwrap_or("square-dashed"),
+                true,
+            ),
             none.as_deref(),
         ));
+        details.push(dim(
+            Control::button(edit(EditAct::Pick), "Select..."),
+            none.as_deref(),
+        ));
+        if Picking::has_props(kind) {
+            details.push(dim(
+                icon(EditAct::Props, "sliders-horizontal", false),
+                none.as_deref(),
+            ));
+        }
+        summary = Some(Row::text(Span::body(editor.stamps.summary(kind, data))));
     }
     if matches!(editor.entry, Entry::Terrain(_)) {
         details.push(Control::button(edit(EditAct::TerrainEdit), "Edit terrain"));
     }
     details.push(Control::button(edit(EditAct::TerrainAdd), "Add terrain"));
     rows.push(Row::controls(details));
+    rows.extend(summary);
     rows.extend(run_rows(editor));
     rows
 }

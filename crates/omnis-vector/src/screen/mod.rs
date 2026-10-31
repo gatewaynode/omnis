@@ -16,6 +16,8 @@ pub mod debug;
 pub mod defeat;
 pub mod editor_files;
 pub mod editor_menu;
+pub mod editor_pick;
+pub mod editor_props;
 pub mod fight;
 pub mod inventory;
 pub mod load_report;
@@ -84,6 +86,10 @@ pub enum ScreenId {
     EditorMenu,
     /// The editor's file picker: a modal over the editor (M5.9b).
     EditorFiles,
+    /// A stamp's detail picker: a modal over the editor (the column's step 3b).
+    EditorPick,
+    /// A stamp's properties: a modal over the editor, after the picker.
+    EditorProps,
     /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
     EditorTools,
     /// The editor's inspector column, as the tools.
@@ -581,8 +587,9 @@ pub enum Effect {
     Settings(crate::settings::Prefs),
     /// Open the editor over the loaded packs, with no game (M5.4).
     OpenEditor,
-    /// The editor's own act, from its menu (M5.5: Save).
-    Editor(crate::editor::EditAct),
+    /// The editor's own act, from its menu (M5.5: Save) or a modal over it, with what the
+    /// control reported (a press or an arrow's step, a modal's typed text or set number).
+    Editor(crate::editor::EditAct, Payload),
     /// End a playtest and bring the parked editor back (M5.8).
     ToEditor,
 }
@@ -668,6 +675,8 @@ pub struct EditingCtx<'a> {
     pub files: &'a [String],
     /// The file open as text, and whether its text is unsaved.
     pub file: Option<(&'a str, bool)>,
+    /// A stamp's detail being chosen (step 3b): what the picker and the properties show.
+    pub pick: Option<&'a crate::editor::pick::Picking>,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -758,6 +767,8 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::LoadReport, _) => load_report::content(forms),
         (ScreenId::EditorMenu, _) => editor_menu::content(ctx),
         (ScreenId::EditorFiles, _) => editor_files::content(ctx),
+        (ScreenId::EditorPick, _) => editor_pick::content(ctx),
+        (ScreenId::EditorProps, _) => editor_props::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (
             ScreenId::EditorTools
@@ -830,6 +841,8 @@ pub fn apply(
         (ScreenId::LoadReport, _) => load_report::apply(forms, control),
         (ScreenId::EditorMenu, _) => editor_menu::apply(control),
         (ScreenId::EditorFiles, _) => editor_files::apply(control),
+        (ScreenId::EditorPick, _) => editor_pick::apply(control, payload),
+        (ScreenId::EditorProps, _) => editor_props::apply(control, payload),
         (
             ScreenId::EditorTools
             | ScreenId::EditorInspector

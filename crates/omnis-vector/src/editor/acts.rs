@@ -41,9 +41,24 @@ pub enum EditAct {
     DropRun,
     /// The height choice: steps the height brush's eighths.
     Eighths,
-    /// The stamp's detail choice under the palette: steps what the chosen stamp places (the
-    /// owner's column, step 3).
+    /// The chosen stamp's icon under the palette (the owner's column, step 3b): opens the
+    /// picker modal for its detail, as Select... does (two controls, two acts: the layer syncs
+    /// a control's words by its id).
     Stamp,
+    /// Select... under the palette: open the picker modal for the chosen stamp's detail.
+    Pick,
+    /// The picker's search field, as typed.
+    PickFilter,
+    /// A row of the picker, by its position among the kind's options: chosen or let go.
+    PickToggle(u16),
+    /// The picker's Finish: the stamp holds the choice; a kind with properties goes on to them.
+    PickFinish,
+    /// Open the properties modal for the chosen stamp: the sliders icon under the palette.
+    Props,
+    /// Field `.1` of properties form `.0`.
+    Prop(u8, u8),
+    /// The properties modal's Finish: the forms read into the stamp.
+    PropsFinish,
     /// The bar's terrain choice (M5.6): steps the cursor's cell through the terrains and no
     /// ground.
     CellTerrain,
@@ -265,12 +280,14 @@ impl Editor {
                 let facing = self.facing;
                 self.placed(data, Place::Start { x, y, facing });
             }
-            EditAct::Stamp => {
-                if let Entry::Stamp(kind) = self.entry {
-                    let by = if step == 0 { 1 } else { step };
-                    self.stamps.step(kind, data, by);
-                }
-            }
+            EditAct::Stamp | EditAct::Pick => return self.pick_open(),
+            // The search's text comes through `typed_in`.
+            EditAct::PickFilter => {}
+            EditAct::PickToggle(i) => self.pick_toggle(data, i),
+            EditAct::PickFinish => return self.pick_finish(data),
+            EditAct::Props => return self.props_open(data),
+            EditAct::Prop(n, i) => self.prop(n, i, step),
+            EditAct::PropsFinish => return self.props_finish(),
             EditAct::EditAt(i) => {
                 let found = self
                     .here()

@@ -449,7 +449,14 @@ impl Form {
 impl Field {
     /// The field as a control, under `EditAct::Field(i)`.
     fn control(&self, i: usize) -> Control {
-        let id = ControlId::Edit(EditAct::Field(u8::try_from(i).unwrap_or(u8::MAX)));
+        self.control_as(ControlId::Edit(EditAct::Field(
+            u8::try_from(i).unwrap_or(u8::MAX),
+        )))
+    }
+
+    /// The field as a control under `id` (a properties modal's `EditAct::Prop`).
+    #[must_use]
+    pub fn control_as(&self, id: ControlId) -> Control {
         let kind = match &self.value {
             Value::Text { text, max, lines } => Kind::Text {
                 value: text.clone(),

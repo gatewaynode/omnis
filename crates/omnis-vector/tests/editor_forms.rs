@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use common::editor::{arrow, editing, in_editor, in_editor_on, panel, press_edit};
 use omnis_sim::omnis_core::Facing;
 use omnis_vector::editor::EditAct;
+use omnis_vector::editor::stamp;
 use omnis_vector::shell::editor::{Column, Editing};
 use omnis_vector::shell::screen_text::screen_text;
 
@@ -163,10 +164,7 @@ fn a_portal_stamp_lands_at_the_chosen_map_s_start_then_its_form_edits_and_remove
     use omnis_vector::shell::session::Packs;
     let mut app = in_editor("test:map:town");
     let data = app.world().resource::<Packs>().data.clone();
-    app.world_mut()
-        .resource_mut::<Editing>()
-        .stamps
-        .set(Placing::Portal, "test:map:meadow".to_owned());
+    common::editor::hold(&mut app, Placing::Portal, &["test:map:meadow"]);
     stamp(&mut app, Placing::Portal, (3, 4));
     assert!(editing(&app).form.is_none(), "a stamp opens no form");
     let def = editing(&app).def().unwrap();
@@ -972,7 +970,8 @@ fn an_activity_stamp_places_a_service_s_site_the_inspector_lists() {
         .expect("the site");
     assert_eq!(
         Some(placed.service.clone()),
-        editing(&app).stamps.detail(Placing::Activity, &data)
+        stamp::options(Placing::Activity, &data).first().cloned(),
+        "nothing chosen: the stamp drops the packs' first service"
     );
     assert!(placed.service.starts_with("base:service:"));
     let text = form_text(&app);

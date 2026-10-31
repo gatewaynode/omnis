@@ -23,6 +23,7 @@ use crate::editor::plan::{self, Source};
 use crate::editor::run::{Pointer, Press};
 use crate::editor::{Asked, EditAct, Editor, playtest, view};
 use crate::pose::Pose;
+use crate::screen::nav::Nav;
 use crate::screen::{ControlId, Kind, Screen, ScreenId};
 use crate::sim::game_settings;
 use crate::style::{Role, scaled};
@@ -357,6 +358,32 @@ pub fn act(editing: &mut Editing, packs: &mut Packs, act: EditAct, step: i8) -> 
         }
     }
     asked
+}
+
+/// Open or close the overlays an act asked for: the menu, the file picker, a stamp's detail
+/// picker, its properties (in the picker's place when that is on top), or the modal on top
+/// closed when something was picked. A playtest and a save are the layer's own.
+pub fn answer(nav: &mut Nav, asked: Asked) {
+    match asked {
+        Asked::Menu => nav.open(ScreenId::EditorMenu, None),
+        Asked::Pick => nav.open(ScreenId::EditorFiles, None),
+        Asked::PickDetail => nav.open(ScreenId::EditorPick, None),
+        Asked::Props => {
+            if nav.top(None) == Some(ScreenId::EditorPick) {
+                nav.back();
+            }
+            nav.open(ScreenId::EditorProps, None);
+        }
+        Asked::Picked => {
+            if matches!(
+                nav.top(None),
+                Some(ScreenId::EditorFiles | ScreenId::EditorPick | ScreenId::EditorProps)
+            ) {
+                nav.back();
+            }
+        }
+        Asked::Nothing | Asked::Saved | Asked::Playtest => {}
+    }
 }
 
 /// A game on the edited map as the editor holds it, the fixed party standing on the cursor's
@@ -740,12 +767,7 @@ fn route(
             }
         }
     }
-    if asked == Asked::Menu {
-        screens.nav.open(ScreenId::EditorMenu, None);
-    }
-    if asked == Asked::Pick {
-        screens.nav.open(ScreenId::EditorFiles, None);
-    }
+    answer(&mut screens.nav, asked);
     if asked == Asked::Playtest {
         match start_playtest(&editing, &packs) {
             Ok(session) => {

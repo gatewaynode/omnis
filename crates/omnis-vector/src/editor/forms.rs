@@ -5,6 +5,7 @@
 //! (an encounter, an object, a lore) may be moved. Bevy-free.
 
 mod fields;
+mod props;
 
 use super::form::{self, At, Change, Form, FormKind, List, Value};
 use fields::{
@@ -29,8 +30,21 @@ use omnis_sim::omnis_data::rest_event::{RestEventDef, RestKind};
 use omnis_sim::omnis_data::service::Site;
 use omnis_sim::omnis_data::{Data, MapDef, Portal, SlotKind};
 
+/// Whether `id` names something of `kind`'s id space on the map: an encounter's or an object's
+/// (one space, the loader's rule), a lore's.
+#[must_use]
+pub fn id_taken(def: &MapDef, kind: Placing, id: &str) -> bool {
+    match kind {
+        Placing::Encounter | Placing::Object => {
+            def.encounters.iter().any(|e| e.id == id) || def.objects.iter().any(|o| o.id == id)
+        }
+        Placing::Lore => def.lore.iter().any(|l| l.id == id),
+        Placing::Portal | Placing::Activity | Placing::Ground => false,
+    }
+}
+
 /// The placement kinds, in the palette's order: each is a stamp of the palette (the owner's
-/// column, step 3, 2026-10-25; `super::stamp`), placed on a cell by a click with one detail.
+/// column, step 3, 2026-10-25; `super::stamp`), placed on a cell by a click with what it holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Placing {
     /// A portal to another map.
@@ -359,8 +373,17 @@ impl Form {
     /// # Errors
     /// A field that does not read, or a key the map has: said in one line, the form standing.
     pub fn request(&self, def: &MapDef) -> Result<Change, String> {
-        let at = self.at;
         self.keys(def)?;
+        self.value()
+    }
+
+    /// The request this form's fields make, the map's keys unchecked: what a stamp holds
+    /// (`props`), checked when it lands.
+    ///
+    /// # Errors
+    /// A field that does not read, in one line.
+    pub fn value(&self) -> Result<Change, String> {
+        let at = self.at;
         match &self.kind {
             FormKind::Terrain(glyph) => {
                 let terrain = self.terrain_fields()?;
@@ -453,10 +476,8 @@ impl Form {
                 service: self.choice_of("service").to_owned(),
             }),
             FormKind::RestEvent => {
-                let terrain = def
-                    .terrains
-                    .get(self.chosen_of("terrain"))
-                    .map(|t| t.name.clone())
+                // The choice's words are the map's terrain names, in the map's order.
+                let terrain = optional(self.choice_of("terrain"))
                     .or_else(|| optional(self.text_of("terrain")))
                     .ok_or("the map has no terrains")?;
                 Place::RestEvent(RestEventDef {
@@ -674,7 +695,7 @@ fn encounter(
     let id = was.map_or_else(
         || {
             free_id("encounter", (at.x, at.y), |id| {
-                def.encounters.iter().any(|e| e.id == id)
+                id_taken(def, Placing::Encounter, id)
             })
         },
         |e| e.id.clone(),
@@ -849,7 +870,7 @@ fn object(
     let id = was.map_or_else(
         || {
             free_id("object", (at.x, at.y), |id| {
-                def.objects.iter().any(|o| o.id == id) || def.encounters.iter().any(|e| e.id == id)
+                id_taken(def, Placing::Object, id)
             })
         },
         |o| o.id.clone(),
@@ -953,11 +974,7 @@ fn ground(data: &Data, at: At, was: Option<&GroundDef>, detail: Option<&str>) ->
 /// packs' defined keys.
 fn lore(def: &MapDef, data: &Data, at: At, was: Option<&CellLore>, detail: Option<&str>) -> Form {
     let id = was.map_or_else(
-        || {
-            free_id("lore", (at.x, at.y), |id| {
-                def.lore.iter().any(|l| l.id == id)
-            })
-        },
+        || free_id("lore", (at.x, at.y), |id| id_taken(def, Placing::Lore, id)),
         |l| l.id.clone(),
     );
     let keys: Vec<String> = data.registry.text.names().map(str::to_owned).collect();

@@ -531,3 +531,17 @@
 - **Rule**: an edit of something keyed (an id, a tile) is made as `[Remove(old key), new]` in one step
   whenever the request's key differs from the one the form opened on (`Place::key`), and a test that
   renames or moves asserts the count where it was and where it is, then the loader's verdict.
+
+## 2026-10-31 — A choice over pack content is a picker, not a stepper
+- **What happened**: step 3 gave each stamp its detail as a left/right choice under the palette, with a
+  modal picker noted as "later, when the list is long". The owner's first hand test rejected it: the ids
+  overflowed the 330 px column ("ter < test:monster:bob_the_rat_king") and stepping one by one through
+  monsters would not scale past placeholder content. The stepper was built knowing the lists grow with
+  the packs, and the owner had already asked for pickers as modals (2026-10-24).
+- **Rule**: a control whose options are the packs' content (monsters, items, maps, text keys, services)
+  is a picker modal from the first commit (search, several at once where the data takes several, Finish,
+  Cancel); a choice box is for a short set the code names (facings, dispositions, eighths). A row of the
+  column that would show an id is read against the column's width before it is drawn: the id's last
+  segment, or a summary line of its own.
+- **Also**: two controls under one id break the layer's by-id word sync (`LabelOf`: the first control
+  found gives its words to both); a row that wants two entry points for one action gets two acts.

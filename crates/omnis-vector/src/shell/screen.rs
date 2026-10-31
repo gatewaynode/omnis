@@ -291,6 +291,7 @@ pub fn ctx_with<'a>(
         errors: &e.status.errors,
         files: &e.files,
         file: e.file.as_ref().map(|f| (f.rel.as_str(), f.dirty())),
+        pick: e.picking.as_ref(),
     });
     Ctx {
         prefs,
@@ -600,19 +601,24 @@ fn carry_out(
             host.view.set(ViewState::Explore);
             screens.reset(None);
         }
-        Effect::Editor(act) => {
+        Effect::Editor(act, payload) => {
             if let Some(editing) = host.editing.as_deref_mut() {
-                let asked = super::editor::act(editing, &mut host.packs, act, 0);
-                match asked {
-                    crate::editor::Asked::Menu => screens.nav.open(ScreenId::EditorMenu, None),
-                    crate::editor::Asked::Pick => screens.nav.open(ScreenId::EditorFiles, None),
-                    crate::editor::Asked::Picked
-                        if screens.nav.top(None) == Some(ScreenId::EditorFiles) =>
-                    {
-                        screens.nav.back();
+                // A modal's field or slider sets the model outright; a press or an arrow is the
+                // act, stepped.
+                let asked = match payload {
+                    Payload::Text(text) => {
+                        editing.typed_in(act, text);
+                        crate::editor::Asked::Nothing
                     }
-                    _ => {}
-                }
+                    Payload::Set(n) => {
+                        editing.set_in(act, n);
+                        crate::editor::Asked::Nothing
+                    }
+                    Payload::Press => super::editor::act(editing, &mut host.packs, act, 0),
+                    Payload::Left => super::editor::act(editing, &mut host.packs, act, -1),
+                    Payload::Right => super::editor::act(editing, &mut host.packs, act, 1),
+                };
+                super::editor::answer(&mut screens.nav, asked);
                 screens.forms.message = editing.message.clone().map(Span::body);
             }
         }

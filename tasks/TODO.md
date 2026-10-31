@@ -300,8 +300,17 @@ no loss, and every later map is built with it.
     Remove stay); a right click on a placement picks its stamp and detail. Owner's choices in the planning:
     places at once; one detail per stamp; the Add row goes; an occupied tile refuses. Found and fixed on the
     way: a placement edited under a new id left its old entry (now `[Remove(old), new]` in one step,
-    `Place::key`; lesson in LESSONS). Later: a stamp's mark previewed under the pointer; the detail as a modal
-    picker when the list is long (the text keys).
+    `Place::key`; lesson in LESSONS). Later: a stamp's mark previewed under the pointer.
+  - [x] Step 3b (2026-10-31, one commit; `tasks/acceptance/editor-column-3b.md`): the stamp's detail as a modal
+    picker, the owner's direction from step 3's hand test ("the left/right selection box is inadequate, the
+    texts overflow"): under the palette the stamp's icon and Select... open a modal with a search field, every
+    id of the kind, several chosen at once up to what one cell takes, Finish and Cancel; for encounters,
+    objects and piles Finish opens a properties modal (a count a monster or an item, the disposition and stand,
+    an object's place on the cell), reopened by a sliders icon; a click drops it all in one step. Owner's
+    choices in the planning: the properties open after every Finish (one monster still wants its count);
+    piles get them too. Not in the data model, so not offered: a per-placement loot (a monster's loot is its
+    definition's table; a container's contents are). Later: a quantity for an object kind (several of one kind
+    in a click); the fields' words read against the column's width everywhere.
   - [ ] Step 4: Lasso (area select) and moving a selection; runs that take a terrain entry (a path of cells).
   - [ ] Step 5: Undo as a history list.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an

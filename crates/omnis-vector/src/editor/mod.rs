@@ -11,6 +11,7 @@ pub mod fill;
 pub mod form;
 pub mod forms;
 pub mod grab;
+pub mod pick;
 pub mod plan;
 pub mod playtest;
 pub mod preview;
@@ -29,6 +30,7 @@ use omnis_sim::omnis_data::edit::{
     Target as PlaceKey,
 };
 use omnis_sim::omnis_data::{Data, MapData, MapDef};
+use pick::Picking;
 use run::{Corner, Run};
 use stamp::Stamps;
 use std::path::PathBuf;
@@ -58,8 +60,12 @@ pub enum Asked {
     Playtest,
     /// Open the file picker over the editor (M5.9b).
     Pick,
-    /// A file was picked: the picker closes.
+    /// A file was picked, or a stamp's detail: the modal on top closes (step 3b).
     Picked,
+    /// Open the stamp's detail picker over the editor (step 3b).
+    PickDetail,
+    /// Open the stamp's properties over the editor, in the picker's place when it is open.
+    Props,
 }
 
 /// The editor as the layer reads and changes it.
@@ -113,8 +119,10 @@ pub struct Editor {
     pub status: EditorStatus,
     /// The form being filled at the top of the inspector, if one is (M5.6).
     pub form: Option<Form>,
-    /// The detail each stamp of the palette places (the owner's column, step 3; `stamp`).
+    /// What each stamp of the palette drops (the owner's column, step 3; `stamp`).
     pub stamps: Stamps,
+    /// A stamp's detail being chosen in the picker modal, and its properties (step 3b; `pick`).
+    pub picking: Option<Picking>,
     /// What the centre shows: the plan or a file's text (M5.9).
     pub mode: Mode,
     /// The pack's files, listed when Files mode was entered.
@@ -168,6 +176,7 @@ impl Editor {
             status,
             form: None,
             stamps: Stamps::default(),
+            picking: None,
             mode: Mode::Plan,
             files: Vec::new(),
             file: None,
@@ -800,7 +809,7 @@ impl Editor {
     }
 
     /// Take what is under `target` as the brush and its entry: the edge's kind, or the first
-    /// placement the inspector lists on the cell as its stamp with that placement's detail
+    /// placement the inspector lists on the cell as its stamp holding that placement whole
     /// (`stamp::of_here`), or the cell's terrain, and the cell's height; an open edge or no
     /// ground is the eraser. The cursor goes there. Never changes the map. A pending run is
     /// dropped with its tool.
@@ -832,8 +841,8 @@ impl Editor {
         if let Some(height) = height {
             self.eighths = brush::held(height);
         }
-        if let Some((kind, Some(detail))) = stamped {
-            self.stamps.set(kind, detail);
+        if let Some((kind, places)) = stamped {
+            self.stamps.set(kind, places);
         }
         self.tool = tool;
         self.entry = entry;

@@ -397,10 +397,10 @@ town), `editor_move.rs` (two: the portal carried, the site refused, the same cel
 cell's pan, the middle button's pan, an act ending a drag).
 
 ## Column step 3: placements as stamps (2026-10-25)
-`omnis-vector/src/editor/stamp.rs`: `Stamps([Option<String>; 6])` on `Editor.stamps`, the detail held per
-`forms::Placing` (`Placing::index`, `detail` the choice's label, `what` the refusal's word); `stamp::options(kind,
-data)` (maps, monsters, services, object kinds, items, `data.registry.text.names()`; sorted), `Stamps::{chosen,
-detail, step, set}`, `stamp::of_here(def, &Here)` the stamp and detail a listed placement is (through
+`omnis-vector/src/editor/stamp.rs`: `Stamps` on `Editor.stamps` (since 3b `[Vec<Place>; 6]`, what each stamp
+drops), the detail held per `forms::Placing` (`Placing::index`, `detail` the choice's label, `what` the refusal's word); `stamp::options(kind,
+data)` (maps, monsters, services, object kinds, items, `data.registry.text.names()`; sorted), `Stamps::{held, set, ids,
+summary}` (3b), `stamp::of_here(def, &Here)` the stamp and detail a listed placement is (through
 `forms::find`); `Editor::stamp(data, cell)`: `Form::placing(kind, def, data, at, Some(detail))` → `request` →
 `change` (a re-keyed edit in `apply_form` goes as `[Remove(old), new]` through `place_many`, `Place::key` in
 `omnis-data/src/edit/kinds.rs`), the message "<Here label> placed at (x, y)" through `Editor::report` (the
@@ -408,11 +408,38 @@ loader's first word appended, shared with `apply_form`); "nothing to stamp: the 
 kind has no options. `brush.rs`: `Entry::Stamp(Placing)` last in `palette`, `fills()` (a terrain or the height),
 `stamp()`, `brush()` None, icons door-open, swords, `icons::ACTIVITY`, package, layers, scroll-text. `mod.rs`:
 `aim` a cell for a stamp, `paint` with a stamp returns before `stroke` is set (a drag places once), `pick` takes
-the first listed placement's stamp and detail before the terrain. `acts.rs`: `EditAct::Stamp` (the detail
-choice; `PlaceKind` and `Add` gone), `Tool(Fill)` with `!entry.fills()` → the first terrain, `Brush(i)` keeps Fill
+the first listed placement's stamp and detail before the terrain. `acts.rs`: `EditAct::Stamp` (since 3b the stamp's icon,
+opening the picker; `PlaceKind` and `Add` gone), `Tool(Fill)` with `!entry.fills()` → the first terrain, `Brush(i)` keeps Fill
 for what fills. `forms.rs`: `Form::placing(.., detail)`; every new form valid (portal: the chosen map's start,
 `marker` a choice over the tileset's `SlotKind::Object` surfaces; object: `free_id` over objects and encounters;
 pile: one item; lore: `free_id`, `text` a choice over the defined keys); `Form::keys` refuses a second portal,
 site or pile on a new form's tile. `view.rs`: the detail choice under the palette, the inspector's Add row gone.
 Tests: `tests/editor_stamp.rs` (7), `tests/editor_forms.rs` (the five Add-driven tests now stamp), `brush.rs`,
 `omnis-data/tests/edit_document.rs::a_place_names_the_key_it_is_put_by`.
+
+## Column step 3b: the detail picker and the properties (2026-10-31)
+`editor/pick.rs`: `Picking { kind, filter, chosen, props: Vec<Form> }` on `Editor.picking` (`open(kind, &stamps)`,
+`shown(&options)` the positions whose id holds the filter in any case, `toggle(id)` (a limit of one moves the
+choice; at the limit "at most N <what>s"), `has_props(kind)` for Encounter, Object, Ground); `Editor::{pick_open
+→ Asked::PickDetail, pick_filter, pick_toggle(data, i), pick_finish (held = stamp::rebuild; → props_open or
+Asked::Picked), props_open → Asked::Props (a `Form::for_place` a held place at the cursor, copies), prop(n, i,
+step), props_finish (each form's `value()` into the stamp), typed_in(act, text), set_in(act, n)}`. `stamp.rs`:
+`Stamps([Vec<Place>; 6])`, `limit(kind)` (1, `MAX_STACKS`, `MAX_OBJECTS_PER_CELL`, `MAX_PILE_STACKS`,
+`MAX_LORE_PER_CELL`), `details(places)`, `short(id)`, `rebuild(kind, chosen, prev, def, data)` (a portal and a
+site through `Form::placing(..).value()`, the list kinds as structs, counts and the group's or an object's
+properties carried for an id kept), `of_here` the placement whole (every object or lore on the cell),
+`Editor::stamp_places` (held, else the packs' first), `Editor::stamp` (a `Form::for_place` a place, `request`,
+all through `place_many`, "<labels> placed at"). `forms/props.rs`: `Form::for_place(place, def, data, at,
+minted)` (the builder with `was`, a fresh id free of the map's and `minted`, `remove` none), `Form::props_rows(n)`
+(the own fields but id, x, y, kind under `EditAct::Prop(n, i)`, list rows as a span and the count). `forms.rs`:
+`request` = `keys` + `value()`, `id_taken(def, kind, id)`. `form.rs`: `Field::control_as(id)`. `acts.rs`:
+`EditAct::{Stamp (the icon), Pick, PickFilter, PickToggle(u16), PickFinish, Props, Prop(u8, u8), PropsFinish}`.
+`mod.rs`: `Asked::{PickDetail, Props}`. `view.rs`: the detail row (icon, Select..., sliders) and the summary line.
+`screen/editor_pick.rs`, `screen/editor_props.rs` (`ScreenId::{EditorPick, EditorProps}`, `EditingCtx.pick`,
+`Effect::Editor(act, payload)`; `nav::allowed`/`paused`). `shell/editor.rs::answer(nav, asked)` (the one place
+the `Asked`s open and close overlays; `Props` replaces the picker on top), `shell/screen.rs::carry_out`
+(Text → `typed_in`, Set → `set_in`, Press/Left/Right → `act` stepped). Tests: `tests/editor_pick.rs` (7:
+the row and the picker's search, marks, limit and Cancel; the properties and the drop; two object kinds; a
+pile's counts and two lore texts; a portal's moving choice and the dim Finish; a right click's copy; the
+keyboard through the rebuilt rows), `tests/common/editor.rs::{type_ui, top_screen, hold, held}`, `pick.rs` unit
+tests. Mutation checks red: the limit dropped, the minted ids not taken, the filter case-sensitive.

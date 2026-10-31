@@ -1,14 +1,15 @@
-//! Placements as palette stamps (the editor's column, step 3, 2026-10-25): the palette ends in a
-//! stamp a placement kind, each with one detail chosen under it; a click with the brush places
-//! one at once, valid as it lands, refused where its kind already is; a drag places once; a
-//! right click on a placement picks its stamp and detail; the inspector's Add row is gone.
+//! Placements as palette stamps (the editor's column, step 3, 2026-10-25; step 3b, 2026-10-31):
+//! the palette ends in a stamp a placement kind, each holding what it drops (chosen in the
+//! picker modal, `editor_pick.rs`; here held directly); a click with the brush places it at
+//! once, valid as it lands, refused where its kind already is; a drag places once; a right
+//! click on a placement copies it into its stamp; the inspector's Add row is gone.
 //! Headless on the town: the sites on the shops' door cells, the portal on (11, 2), the street
 //! (row 2) bare with ground.
 
 use crate::common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
-use common::editor::{arrow, editing, in_editor, in_editor_on, mouse, point_at, press_edit};
+use common::editor::{editing, held, hold, in_editor, in_editor_on, mouse, point_at, press_edit};
 use omnis_sim::omnis_data::Data;
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::brush::{self, Entry, Tool};
@@ -41,18 +42,19 @@ fn choose(app: &mut App, entry: Entry) {
     assert_eq!(editing(app).entry, entry);
 }
 
-/// Step the chosen stamp's detail round to `id`.
+/// Hold `id` in the chosen stamp, as the picker's Finish would.
 fn detail_to(app: &mut App, kind: Placing, id: &str) {
-    let data = data(app);
-    let options = stamp::options(kind, &data);
+    let options = stamp::options(kind, &data(app));
     assert!(options.iter().any(|o| o == id), "{id} among {options:?}");
-    for _ in 0..=options.len() {
-        if editing(app).stamps.detail(kind, &data).as_deref() == Some(id) {
-            return;
-        }
-        arrow(app, EditAct::Stamp, true);
-    }
-    panic!("the detail never reached {id}");
+    hold(app, kind, &[id]);
+}
+
+/// The packs' first of `kind`: what a stamp drops while nothing is chosen.
+fn first(app: &App, kind: Placing) -> String {
+    stamp::options(kind, &data(app))
+        .first()
+        .cloned()
+        .expect("the packs have some")
 }
 
 fn click(app: &mut App, cell: (u16, u16)) {
@@ -96,21 +98,23 @@ fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occup
         text.contains("Activity: a service's site, placed with a click"),
         "{text}"
     );
-    // The detail is a choice under the palette, over every loaded service.
+    // Under the palette: the stamp's icon, Select... and what it holds (step 3b).
     let data = data(&app);
     let tools = omnis_vector::editor::view::tools(editing(&app), &data);
-    let detail = tools
+    let select = tools
         .control(ControlId::Edit(EditAct::Stamp))
-        .expect("the detail choice")
+        .expect("the stamp's icon")
         .clone();
-    assert_eq!(detail.label, "service");
-    match &detail.kind {
-        Kind::Choice { options, at } => {
-            assert_eq!(*options, stamp::options(Placing::Activity, &data));
-            assert_eq!(options[*at], "base:service:tavern");
-        }
-        other => panic!("{other:?}"),
-    }
+    assert!(
+        matches!(select.kind, Kind::Icon { name, chosen: true } if Some(name) == Entry::Stamp(Placing::Activity).icon()),
+        "{:?}",
+        select.kind
+    );
+    assert!(text.contains("Select..."), "{text}");
+    assert!(
+        text.contains("tavern"),
+        "the summary names the service: {text}"
+    );
     // A click places it at once, one undo step, the cursor on the cell.
     click(&mut app, (5, 2));
     let def = editing(&app).def().unwrap();
@@ -230,10 +234,7 @@ fn an_object_stamp_mints_a_free_id_of_the_chosen_kind_where_the_packs_have_kinds
     let bare = bare_cells(&app);
     let (cell, other, third) = (bare[0], bare[1], bare[2]);
     choose(&mut app, Entry::Stamp(Placing::Object));
-    let kind = editing(&app)
-        .stamps
-        .detail(Placing::Object, &data)
-        .expect("a kind");
+    let kind = first(&app, Placing::Object);
     assert!(data.objects.values().any(|k| k.id == kind), "{kind}");
     click(&mut app, cell);
     let def = editing(&app).def().unwrap();
@@ -297,10 +298,7 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
     let steps = depth(&app);
     // A pile: one of the chosen item.
     choose(&mut app, Entry::Stamp(Placing::Ground));
-    let item = editing(&app)
-        .stamps
-        .detail(Placing::Ground, &data)
-        .expect("an item");
+    let item = first(&app, Placing::Ground);
     assert!(data.items.values().any(|i| i.id == item), "{item}");
     click(&mut app, (6, 2));
     let def = editing(&app).def().unwrap();
@@ -314,10 +312,7 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
     valid(&app);
     // A lore: a free id, the chosen text key, one the packs define.
     choose(&mut app, Entry::Stamp(Placing::Lore));
-    let key = editing(&app)
-        .stamps
-        .detail(Placing::Lore, &data)
-        .expect("a text key");
+    let key = first(&app, Placing::Lore);
     assert!(data.registry.text.get(&key).is_some(), "{key}");
     click(&mut app, (7, 2));
     let def = editing(&app).def().unwrap();
@@ -405,20 +400,13 @@ fn a_drag_with_a_stamp_places_once() {
 #[test]
 fn a_right_click_on_a_placement_picks_its_stamp_and_detail() {
     let mut app = in_editor("test:map:town");
-    let data = data(&app);
     let steps = depth(&app);
     assert!(matches!(editing(&app).entry, Entry::Terrain(_)));
     // The inn's site: the activity stamp with the inn's service held.
     right_click(&mut app, (1, 1));
     assert_eq!(editing(&app).entry, Entry::Stamp(Placing::Activity));
     assert_eq!(editing(&app).tool, Tool::Brush);
-    assert_eq!(
-        editing(&app)
-            .stamps
-            .detail(Placing::Activity, &data)
-            .as_deref(),
-        Some("base:service:inn")
-    );
+    assert_eq!(held(&app, Placing::Activity), ["base:service:inn"]);
     assert_eq!(editing(&app).cursor, (1, 1));
     // The portal on (11, 2): its stamp with the map it leads to.
     right_click(&mut app, (11, 2));
@@ -429,8 +417,9 @@ fn a_right_click_on_a_placement_picks_its_stamp_and_detail() {
         .portals
         .iter()
         .find(|p| (p.x, p.y) == (11, 2))
-        .map(|p| p.to_map.clone());
-    assert_eq!(editing(&app).stamps.detail(Placing::Portal, &data), to_map);
+        .map(|p| p.to_map.clone())
+        .expect("the portal");
+    assert_eq!(held(&app, Placing::Portal), [to_map]);
     // A bare street cell picks its terrain, as before.
     right_click(&mut app, (5, 2));
     let street = editing(&app)
@@ -463,21 +452,29 @@ fn the_tools_keep_their_entries_and_the_inspector_has_no_add_row() {
         editing(&app).entry,
         Entry::Edge(omnis_sim::omnis_data::edit::EdgeKind::Wall)
     );
-    // The detail steps round.
+    // The summary under the palette: the packs' first while nothing is chosen, then what is
+    // held, by the ids' last segments.
     choose(&mut app, Entry::Stamp(Placing::Lore));
     let options = stamp::options(Placing::Lore, &data);
     assert!(options.len() > 1, "{options:?}");
-    let first = editing(&app).stamps.detail(Placing::Lore, &data);
-    assert_eq!(first.as_deref(), Some(options[0].as_str()));
-    arrow(&mut app, EditAct::Stamp, true);
+    let summary = |app: &App| editing(app).stamps.summary(Placing::Lore, &data);
     assert_eq!(
-        editing(&app).stamps.detail(Placing::Lore, &data).as_deref(),
-        Some(options[1].as_str())
+        summary(&app),
+        format!("nothing chosen, the first: {}", stamp::short(&options[0]))
     );
-    for _ in 1..options.len() {
-        arrow(&mut app, EditAct::Stamp, true);
-    }
-    assert_eq!(editing(&app).stamps.detail(Placing::Lore, &data), first);
+    hold(&mut app, Placing::Lore, &[&options[1], &options[0]]);
+    assert_eq!(
+        summary(&app),
+        format!(
+            "{}, {}",
+            stamp::short(&options[1]),
+            stamp::short(&options[0])
+        )
+    );
+    assert!(
+        screen_text(app.world()).contains(&summary(&app)),
+        "under the palette"
+    );
     // Every stamp has its icon in the palette grid.
     let tools = omnis_vector::editor::view::tools(editing(&app), &data);
     for (i, entry) in brush::palette(&def).iter().enumerate() {
