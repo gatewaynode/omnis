@@ -368,6 +368,7 @@ pub fn answer(nav: &mut Nav, asked: Asked) {
         Asked::Menu => nav.open(ScreenId::EditorMenu, None),
         Asked::Pick => nav.open(ScreenId::EditorFiles, None),
         Asked::PickDetail => nav.open(ScreenId::EditorPick, None),
+        Asked::History => nav.open(ScreenId::EditorHistory, None),
         Asked::Props => {
             if nav.top(None) == Some(ScreenId::EditorPick) {
                 nav.back();

@@ -321,7 +321,14 @@ no loss, and every later map is built with it.
     choices in the planning: a freehand loop; everything moves; the destination is replaced. Later: the
     eraser or Delete clearing a selection's cells; copy and paste of a selection; a selection across levels;
     Esc dropping a loop or a run (Esc is the menu's).
-  - [ ] Step 5: Undo as a history list.
+  - [x] Step 5 (2026-10-31, one commit; `tasks/acceptance/editor-column-5.md`): Undo as a history list. Every
+    undo step carries the words of what it did (`edit/words.rs`; a stroke counts its cells; the editor's own
+    richer words replace them, `Document::name_step`); a History icon after Redo opens a modal over the editor
+    listing the map as opened and every step oldest first, the current one marked, a row jumping there
+    (`Document::goto`) with the modal up, Undo, Redo and Close. Owner's choices in the planning: a History icon
+    beside Undo and Redo; a modal with the plan visible beneath. Before it, the owner's hand test of step 4 had
+    saved onto `packs/test` (the depths): kept at the owner's word, replays re-baselined, own commit. Later:
+    `editor.history` over the socket; a saved mark on the row the file holds.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

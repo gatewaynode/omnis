@@ -234,6 +234,7 @@ impl Editor {
         }
         self.cursor = to;
         self.message = Some(format!("{} moved to ({x}, {y})", held.label()));
+        self.name_step(&format!("{} moved to ({x}, {y})", held.label()));
         true
     }
 

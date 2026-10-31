@@ -292,6 +292,7 @@ pub fn ctx_with<'a>(
         files: &e.files,
         file: e.file.as_ref().map(|f| (f.rel.as_str(), f.dirty())),
         pick: e.picking.as_ref(),
+        history: e.history(),
     });
     Ctx {
         prefs,

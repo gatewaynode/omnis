@@ -106,6 +106,10 @@ pub enum EditAct {
     Undo,
     /// Forward one step.
     Redo,
+    /// Open the history list (step 5): every step named, the current one marked.
+    History,
+    /// Jump to where the map stood after step N of the history (0: the map as opened).
+    HistoryTo(u16),
     /// Write the map to its file and reseal the pack.
     Save,
     /// Reopen the map's file, dropping every unsaved change.
@@ -405,6 +409,8 @@ impl Editor {
             }
             EditAct::Undo => self.walk(data, true),
             EditAct::Redo => self.walk(data, false),
+            EditAct::History => return Asked::History,
+            EditAct::HistoryTo(at) => self.history_to(data, usize::from(at)),
             EditAct::Save => return self.save(data),
             EditAct::Revert => self.revert(data),
             EditAct::Menu => return Asked::Menu,

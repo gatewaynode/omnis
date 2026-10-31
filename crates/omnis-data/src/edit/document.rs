@@ -1,10 +1,13 @@
 //! A map under edit: its definition with the grids held apart, one per level, every change a
 //! step that can be undone. A change works on a copy and lands whole or not at all; a stroke
 //! of paints is one step. Snapshots share the levels a change did not touch, so a hundred of
-//! them on a large map cost a hundred grids, not a hundred maps.
+//! them on a large map cost a hundred grids, not a hundred maps. Every step carries the words
+//! of what it did (`words`), for the history list (the editor's column, step 5): `steps`, `at`,
+//! `goto` and `name_step`.
 
 use crate::edit::grid::Grid;
 use crate::edit::kinds::{Brush, Edit, EditError, MapFields, NewMap, Place, Target};
+use crate::edit::words;
 use crate::error::DataError;
 use crate::levels::{self, LevelDef};
 use crate::limits::{MAX_COLLECTION, MAX_LEVELS, MAX_MAP_SIDE, MAX_OBJECTS_PER_MAP};
@@ -69,9 +72,20 @@ pub struct Document {
     file: String,
     state: State,
     saved: State,
-    undo: Vec<State>,
-    redo: Vec<State>,
-    in_stroke: bool,
+    /// The state before each step done, with the step's words, oldest first.
+    undo: Vec<(State, String)>,
+    /// The state after each step undone, with its words; the next to redo last.
+    redo: Vec<(State, String)>,
+    /// The stroke of paints open for the next paint to join: its first paint's words and how
+    /// many cells it has painted.
+    stroke: Option<Stroke>,
+}
+
+/// An open stroke of paints: one step, its words counting the cells.
+#[derive(Debug, Clone)]
+struct Stroke {
+    first: String,
+    len: usize,
 }
 
 impl Document {
@@ -124,7 +138,7 @@ impl Document {
             state,
             undo: Vec::new(),
             redo: Vec::new(),
-            in_stroke: false,
+            stroke: None,
         })
     }
 
@@ -172,7 +186,7 @@ impl Document {
             saved,
             undo: Vec::new(),
             redo: Vec::new(),
-            in_stroke: false,
+            stroke: None,
         }
     }
 
@@ -233,6 +247,7 @@ impl Document {
             .undo
             .iter()
             .chain(self.redo.iter())
+            .map(|(state, _)| state)
             .chain([&self.state])
         {
             for grid in state.grids.values() {
@@ -264,23 +279,28 @@ impl Document {
         }
     }
 
-    /// Apply `change` to a copy of the state; keep it as a new step (or as part of the open
-    /// stroke) when it succeeds.
+    /// Apply `change` to a copy of the state; keep it as a new step named `words` (or as part
+    /// of the open stroke, whose words become `words`) when it succeeds.
     fn change(
         &mut self,
         coalesce: bool,
+        words: String,
         change: impl FnOnce(&mut State) -> Result<(), EditError>,
     ) -> Result<(), EditError> {
         let mut next = self.state.clone();
         change(&mut next)?;
         if !coalesce {
-            self.undo.push(std::mem::replace(&mut self.state, next));
+            self.undo
+                .push((std::mem::replace(&mut self.state, next), words));
             if self.undo.len() > UNDO_CAP {
                 self.undo.remove(0);
             }
             self.redo.clear();
         } else {
             self.state = next;
+            if let Some((_, top)) = self.undo.last_mut() {
+                *top = words;
+            }
         }
         Ok(())
     }
@@ -299,10 +319,22 @@ impl Document {
         brush: &Brush,
         stroke: bool,
     ) -> Result<(), EditError> {
-        let coalesce = stroke && self.in_stroke;
-        let result = self.change(coalesce, |state| apply_brush(state, level, x, y, brush));
+        let own = words::brush(&self.state.def, level, x, y, brush);
+        let open = self.stroke.take().filter(|_| stroke);
+        let (first, len) = match open {
+            Some(open) => (open.first, open.len + 1),
+            None => (own, 1),
+        };
+        let words = if len > 1 {
+            words::stroke(len, &first)
+        } else {
+            first.clone()
+        };
+        let result = self.change(len > 1, words, |state| {
+            apply_brush(state, level, x, y, brush)
+        });
         // A paint leaves a stroke open for the next paint to join; anything else closes it.
-        self.in_stroke = result.is_ok();
+        self.stroke = result.is_ok().then_some(Stroke { first, len });
         result
     }
 
@@ -317,11 +349,11 @@ impl Document {
         level: Level,
         paints: &[((u16, u16), Brush)],
     ) -> Result<(), EditError> {
-        self.in_stroke = false;
+        self.stroke = None;
         if paints.is_empty() {
             return Ok(());
         }
-        self.change(false, |state| {
+        self.change(false, words::many(paints.len(), 0), |state| {
             paints
                 .iter()
                 .try_for_each(|((x, y), brush)| apply_brush(state, level, *x, *y, brush))
@@ -334,8 +366,9 @@ impl Document {
     /// `Outside` for a start off the map, `TooMany` at a collection's limit, `NoSuchTarget`
     /// for a removal that matches nothing.
     pub fn place(&mut self, place: Place) -> Result<(), EditError> {
-        self.in_stroke = false;
-        self.change(false, |state| apply_place(&mut state.def, place))
+        self.stroke = None;
+        let words = words::place(&place);
+        self.change(false, words, |state| apply_place(&mut state.def, place))
     }
 
     /// Place, replace or remove with every `Place` of `places` in order, as one step: every
@@ -345,11 +378,15 @@ impl Document {
     /// # Errors
     /// The places' rules, as `place`.
     pub fn place_many(&mut self, places: Vec<Place>) -> Result<(), EditError> {
-        self.in_stroke = false;
+        self.stroke = None;
         if places.is_empty() {
             return Ok(());
         }
-        self.change(false, |state| {
+        let words = match places.as_slice() {
+            [one] => words::place(one),
+            many => words::many(0, many.len()),
+        };
+        self.change(false, words, |state| {
             places
                 .into_iter()
                 .try_for_each(|place| apply_place(&mut state.def, place))
@@ -369,11 +406,12 @@ impl Document {
         paints: &[((u16, u16), Brush)],
         places: Vec<Place>,
     ) -> Result<(), EditError> {
-        self.in_stroke = false;
+        self.stroke = None;
         if paints.is_empty() && places.is_empty() {
             return Ok(());
         }
-        self.change(false, |state| {
+        let words = words::many(paints.len(), places.len());
+        self.change(false, words, |state| {
             paints
                 .iter()
                 .try_for_each(|((x, y), brush)| apply_brush(state, level, *x, *y, brush))?;
@@ -388,8 +426,9 @@ impl Document {
     /// # Errors
     /// The edit's rules, named by the variants of [`EditError`].
     pub fn edit(&mut self, edit: Edit) -> Result<(), EditError> {
-        self.in_stroke = false;
-        self.change(false, |state| apply_edit(state, edit))
+        self.stroke = None;
+        let words = words::edit(&edit);
+        self.change(false, words, |state| apply_edit(state, edit))
     }
 
     /// Back one step.
@@ -397,9 +436,10 @@ impl Document {
     /// # Errors
     /// `NothingToUndo`.
     pub fn undo(&mut self) -> Result<(), EditError> {
-        self.in_stroke = false;
-        let previous = self.undo.pop().ok_or(EditError::NothingToUndo)?;
-        self.redo.push(std::mem::replace(&mut self.state, previous));
+        self.stroke = None;
+        let (previous, words) = self.undo.pop().ok_or(EditError::NothingToUndo)?;
+        self.redo
+            .push((std::mem::replace(&mut self.state, previous), words));
         Ok(())
     }
 
@@ -408,10 +448,54 @@ impl Document {
     /// # Errors
     /// `NothingToUndo`.
     pub fn redo(&mut self) -> Result<(), EditError> {
-        self.in_stroke = false;
-        let next = self.redo.pop().ok_or(EditError::NothingToUndo)?;
-        self.undo.push(std::mem::replace(&mut self.state, next));
+        self.stroke = None;
+        let (next, words) = self.redo.pop().ok_or(EditError::NothingToUndo)?;
+        self.undo
+            .push((std::mem::replace(&mut self.state, next), words));
         Ok(())
+    }
+
+    /// The words of every step the history holds, oldest first: the steps done, then the
+    /// steps undone (the next to redo first).
+    #[must_use]
+    pub fn steps(&self) -> Vec<&str> {
+        self.undo
+            .iter()
+            .map(|(_, words)| words.as_str())
+            .chain(self.redo.iter().rev().map(|(_, words)| words.as_str()))
+            .collect()
+    }
+
+    /// How many of the steps are done: the map stands after step `at` (0 is the map as
+    /// opened, or as it stood before the oldest step kept).
+    #[must_use]
+    pub fn at(&self) -> usize {
+        self.undo.len()
+    }
+
+    /// Undo or redo until the map stands after step `at` of `steps`.
+    ///
+    /// # Errors
+    /// `NothingToUndo` when `at` is past the last step; nothing moves.
+    pub fn goto(&mut self, at: usize) -> Result<(), EditError> {
+        if at > self.undo.len() + self.redo.len() {
+            return Err(EditError::NothingToUndo);
+        }
+        while self.undo.len() > at {
+            self.undo()?;
+        }
+        while self.undo.len() < at {
+            self.redo()?;
+        }
+        Ok(())
+    }
+
+    /// Name the newest step done `words` (the editor's own words for what it did), clipped as
+    /// every step's are; nothing when no step is done.
+    pub fn name_step(&mut self, words: &str) {
+        if let Some((_, top)) = self.undo.last_mut() {
+            *top = words::clip(words);
+        }
     }
 }
 

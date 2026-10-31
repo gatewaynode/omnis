@@ -1,9 +1,9 @@
 # Continuity notes
 
-Written 2026-10-31, after step 4 of the editor's column as a drawing GUI (the lasso, moving a selection, cell
-runs; `f6537ddd`, then the owner's hand test found the loop in progress was not drawn, fixed in a second commit:
-`preview()` returns the loop's path first, `4e36a1e0`; **accepted by the owner the same day**: "Accepted, let's plan
-step 5"; `tasks/acceptance/editor-column-4.md`). Step
+Written 2026-10-31, after step 5 of the editor's column as a drawing GUI (Undo as a history list; one commit,
+built and tested, awaiting the owner's hand test; `tasks/acceptance/editor-column-5.md`). Before it the same day:
+step 4 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the
+editor committed as the test fixture (`6a4f5f2b`, replays re-baselined). Step
 3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
@@ -43,6 +43,12 @@ Durable knowledge lives in `tasks/knowledge/`.
   line ("giant_rat x3, goblin"; "nothing chosen, the first: <id>"). Owner's choices: the properties open after
   every Finish; piles get them too. Not offered: a per-placement loot (not in the data model). Verified: the
   search field keeps the keyboard and the caret through the rows' rebuild (`editor_pick.rs`, the keyboard test).
+- **Step 5, Undo as a history list (2026-10-31, one commit, awaiting the hand test;
+  `tasks/acceptance/editor-column-5.md`).** `edit/words.rs` names every undo step (a stroke counts its cells;
+  `Document::name_step` takes the editor's richer words from `report`, fill, a run, a grab); `Document::{steps,
+  at, goto}`; `EditAct::{History, HistoryTo}`; `screen/editor_history.rs` the modal (the map as opened, a row a
+  step, the current one marked and dim, Undo, Redo, Close), `EditingCtx.history` from the editor's cached list
+  (`read_history` in `changed`). Owner's choices: a History icon beside Undo and Redo; a modal, the plan beneath.
 - **Step 4, the lasso, moving a selection, cell runs (2026-10-31, `f6537ddd` and the loop-preview fix
   `4e36a1e0`, accepted; `tasks/acceptance/editor-column-4.md`).** `editor/select.rs`: `Selection { level, cells }` on
   `Editor.selection`, the loop in `Editor.lasso` while drawn; `inside` (the loop's cells through `run::cells`
@@ -63,7 +69,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   over the paint. Narrow; a rule if the owner wants one.
 
 ## Next
-1. **Step 5 (Undo as a history list), asked for by the owner on accepting step 4: plan mode first.** Then
+1. **The owner's hand test of step 5** (`tasks/acceptance/editor-column-5.md`, six steps; a fresh scratch copy
+   of `packs/test`). On "accepted": the acceptance commit (prose under `tasks/` only, as `4b92a24c`). The column's
+   five steps are then done; the owner names what follows. Then
    **step 5 (Undo as a history list) in plan mode**, or the entrances and exits enhancement where the start
    marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.

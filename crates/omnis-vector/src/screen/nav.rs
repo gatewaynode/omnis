@@ -73,7 +73,8 @@ impl Nav {
                 ScreenId::EditorMenu
                 | ScreenId::EditorFiles
                 | ScreenId::EditorPick
-                | ScreenId::EditorProps,
+                | ScreenId::EditorProps
+                | ScreenId::EditorHistory,
                 None,
             ) => self.editing,
             // Wherever Load is: the title, the pause, the fallen party's screen.
@@ -161,6 +162,7 @@ impl Nav {
                     | ScreenId::EditorFiles
                     | ScreenId::EditorPick
                     | ScreenId::EditorProps
+                    | ScreenId::EditorHistory
             )
         )
     }

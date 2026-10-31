@@ -52,6 +52,8 @@ pub enum NoteOf {
 /// picker, reload the packs, or start a playtest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Asked {
+    /// Open the history list over the editor (step 5).
+    History,
     /// Nothing beyond the model's change.
     Nothing,
     /// Open the editor's menu.
@@ -120,6 +122,10 @@ pub struct Editor {
     pub lasso: Option<Vec<(u16, u16)>>,
     /// The cells selected by the lasso, on their level, until cleared or moved (`select`).
     pub selection: Option<Selection>,
+    /// The history list (step 5): every step's words, oldest first, and how many of them the
+    /// map stands after; read from the document whenever it changes.
+    history: Vec<String>,
+    history_at: usize,
     /// The session's state against the packs, as of the last change (the loader's verdict is
     /// costly, so it is read here, never asked for each frame).
     pub status: EditorStatus,
@@ -181,6 +187,8 @@ impl Editor {
             grab: None,
             lasso: None,
             selection: None,
+            history: Vec::new(),
+            history_at: 0,
             status,
             form: None,
             stamps: Stamps::default(),
@@ -232,6 +240,7 @@ impl Editor {
     pub fn changed(&mut self, data: &Data) {
         self.revision = self.revision.wrapping_add(1);
         self.status = self.session.status(data);
+        self.read_history();
         let Some(def) = self.def() else {
             self.resolved = None;
             return;
@@ -260,6 +269,24 @@ impl Editor {
     #[must_use]
     pub fn def(&self) -> Option<MapDef> {
         self.session.document().map(|d| d.def())
+    }
+
+    /// The history list (step 5): the words of every step, oldest first, and how many of them
+    /// the map stands after; None with no map.
+    #[must_use]
+    pub fn history(&self) -> Option<(&[String], usize)> {
+        self.session
+            .document()
+            .is_some()
+            .then_some((self.history.as_slice(), self.history_at))
+    }
+
+    /// Read the history list from the document.
+    fn read_history(&mut self) {
+        (self.history, self.history_at) = self.session.document().map_or_else(
+            || (Vec::new(), 0),
+            |d| (d.steps().iter().map(|s| (*s).to_owned()).collect(), d.at()),
+        );
     }
 
     /// The open map's id.
@@ -784,10 +811,39 @@ impl Editor {
     /// 2026-10-24: the verdict at once, so what was just made saves; Save is dim with the same
     /// words meanwhile).
     fn report(&mut self, what: String) {
+        self.name_step(&what);
         self.message = Some(match self.status.errors.first() {
             Some(first) => format!("{what}; the loader says: {first}"),
             None => what,
         });
+    }
+
+    /// Name the newest step of the history with the editor's own words for what it did (step
+    /// 5): the history list reads as the messages did.
+    pub(super) fn name_step(&mut self, words: &str) {
+        if let Ok(doc) = self.session.document_mut() {
+            doc.name_step(words);
+            self.read_history();
+        }
+    }
+
+    /// Jump to where the map stood after step `at` of the history (step 5); past the end is
+    /// said and nothing moves.
+    fn history_to(&mut self, data: &Data, at: usize) {
+        let result = self.session.document_mut().and_then(|d| d.goto(at));
+        self.stroke = None;
+        match result {
+            Ok(()) => {
+                let n = self.session.document().map_or(0, |d| d.steps().len());
+                self.message = Some(if at == 0 {
+                    "the map as opened".to_owned()
+                } else {
+                    format!("at step {at} of {n}")
+                });
+                self.changed(data);
+            }
+            Err(e) => self.message = Some(e.to_string()),
+        }
     }
 
     /// Make `change`: whether it was taken.

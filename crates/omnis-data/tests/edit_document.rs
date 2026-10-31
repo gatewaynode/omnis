@@ -674,3 +674,84 @@ fn a_batch_of_paints_and_places_is_one_step_and_fails_together() {
         "the inn's floor"
     );
 }
+
+#[test]
+fn steps_are_named_and_goto_walks_the_history() {
+    let data = load_test_packs();
+    let mut doc = open(&data, "test:map:town");
+    let opened = doc.def();
+    assert!(doc.steps().is_empty());
+    assert_eq!(doc.at(), 0);
+    // A paint names its terrain and its cell; a stroke counts its cells under its first words.
+    let street = Brush::Tile {
+        glyph: 'r',
+        rise: None,
+    };
+    doc.paint(G, 1, 1, &street, true).unwrap();
+    assert_eq!(doc.steps(), vec!["painted street at (1, 1)"]);
+    doc.paint(G, 2, 1, &street, true).unwrap();
+    doc.paint(G, 3, 1, &street, true).unwrap();
+    let stroke = "a stroke of 3 cells: painted street at (1, 1)";
+    assert_eq!(doc.steps(), vec![stroke]);
+    let after_stroke = doc.def();
+    // A place, an edit and a batch name themselves; the editor renames the newest step.
+    doc.place(Place::Start {
+        x: 2,
+        y: 2,
+        facing: Facing::South,
+    })
+    .unwrap();
+    doc.edit(Edit::Resize {
+        width: 13,
+        height: 5,
+    })
+    .unwrap();
+    doc.batch(
+        G,
+        &[((0, 0), Brush::Height { eighths: 2 })],
+        vec![Place::Start {
+            x: 1,
+            y: 1,
+            facing: Facing::North,
+        }],
+    )
+    .unwrap();
+    assert_eq!(doc.steps()[3], "1 cell and 1 placement");
+    doc.name_step("6 cells moved to (8, 2)");
+    assert_eq!(
+        doc.steps(),
+        vec![
+            stroke,
+            "start set at (2, 2) facing south",
+            "resized to 13 x 5",
+            "6 cells moved to (8, 2)",
+        ]
+    );
+    assert_eq!(doc.at(), 4);
+    // goto walks back and forth, the words staying; past the end is refused and nothing moves.
+    doc.goto(1).unwrap();
+    assert_eq!(doc.at(), 1);
+    assert_eq!(doc.def(), after_stroke);
+    assert_eq!(doc.steps().len(), 4, "the undone steps are still listed");
+    doc.goto(4).unwrap();
+    assert_eq!(doc.at(), 4);
+    assert_eq!(doc.goto(5), Err(EditError::NothingToUndo));
+    assert_eq!(doc.at(), 4);
+    doc.goto(0).unwrap();
+    assert_eq!(doc.def(), opened);
+    assert!(!doc.dirty());
+    // A change after a jump drops the steps undone.
+    doc.goto(1).unwrap();
+    doc.paint(G, 5, 4, &Brush::Height { eighths: 1 }, false)
+        .unwrap();
+    assert_eq!(doc.steps(), vec![stroke, "height 1 at (5, 4)"]);
+    // The cap drops the oldest steps with their words.
+    for i in 0..(UNDO_CAP + 5) {
+        let h = i16::try_from(i % 8).unwrap();
+        doc.paint(G, 1, 1, &Brush::Height { eighths: h }, false)
+            .unwrap();
+    }
+    assert_eq!(doc.steps().len(), UNDO_CAP);
+    assert_eq!(doc.steps()[0], "height 5 at (1, 1)");
+    assert_eq!(doc.at(), UNDO_CAP);
+}

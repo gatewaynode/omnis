@@ -59,6 +59,11 @@ fn tool_rows(editor: &Editor, no_map: Option<&str>) -> Vec<Row> {
         icon(EditAct::Redo, "redo-2", false),
         no_map.or((status.redo == 0).then_some("nothing to redo")),
     ));
+    // The history list (step 5): a clock run back; open with no steps too ("no steps yet").
+    grid.push(dim(
+        icon(EditAct::History, "rotate-ccw-clock", false),
+        no_map,
+    ));
     let mut rows = vec![
         Row::controls(grid),
         Row::text(Span::body(format!(

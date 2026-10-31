@@ -97,6 +97,7 @@ impl Editor {
         self.cursor = cell;
         let cells = if n == 1 { "cell" } else { "cells" };
         self.message = Some(format!("{n} {cells} {what}"));
+        self.name_step(&format!("{n} {cells} {what}"));
         true
     }
 }

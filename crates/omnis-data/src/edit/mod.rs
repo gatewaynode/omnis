@@ -11,6 +11,7 @@ pub mod grid;
 pub mod kinds;
 pub mod notes_store;
 pub mod session;
+pub mod words;
 
 pub use answer::{Answer, Request, answer};
 pub use document::{Document, UNDO_CAP};

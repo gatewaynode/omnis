@@ -473,3 +473,17 @@ move, a press outside the selection; the cell runs by corners and freehand, a st
 `run.rs` unit tests; `editor_run.rs` and `editor_pointer.rs` choose the wall before a run (a terrain is a cell
 run now); `editor_column.rs` flipped. Mutation checks red: the even-odd rule inverted, the destination painted
 before the source, the line's last cell dropped.
+
+## Column step 5: Undo as a history list (2026-10-31)
+`omnis-data/src/edit/words.rs`: `brush(def, level, x, y, &Brush)` (the terrain by name, a rise only for a joining
+terrain, a side's kind, a height, a clearing; the level named off the ground), `stroke(cells, first)`,
+`place(&Place)`, `edit(&Edit)`, `many(cells, placements)`, `clip` to `WORDS_MAX` 72. `document.rs`: `undo:
+Vec<(State, String)>` (the state before a step and its words), `redo: Vec<(State, String)>`, `stroke:
+Option<Stroke { first, len }>` in place of `in_stroke`; `change(coalesce, words, f)` (a coalesced paint rewrites
+the top's words); `steps()` (done then undone, oldest first), `at()`, `goto(at)` (`NothingToUndo` past the end),
+`name_step(words)`. `omnis-vector`: `EditAct::{History, HistoryTo(u16)}`, `Asked::History`; `Editor::{history()
+-> Option<(&[String], usize)>, read_history (in changed), name_step (in report, fill, run, grab), history_to}`;
+`view.rs` the `rotate-ccw-clock` icon after Redo; `screen/editor_history.rs` (`content`, `apply`), `ScreenId::
+EditorHistory` (nav's editor-only lists), `EditingCtx.history`, `shell::editor::answer`. Tests:
+`tests/editor_history.rs` (1), `edit_document.rs::steps_are_named_and_goto_walks_the_history`, `words.rs` unit
+test. Mutation checks red: `goto` one short, a stroke's words not rewritten, `name_step` a no-op, rows reversed.

@@ -15,6 +15,7 @@ pub mod create_party;
 pub mod debug;
 pub mod defeat;
 pub mod editor_files;
+pub mod editor_history;
 pub mod editor_menu;
 pub mod editor_pick;
 pub mod editor_props;
@@ -90,6 +91,8 @@ pub enum ScreenId {
     EditorPick,
     /// A stamp's properties: a modal over the editor, after the picker.
     EditorProps,
+    /// The editor's history list (the column's step 5).
+    EditorHistory,
     /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
     EditorTools,
     /// The editor's inspector column, as the tools.
@@ -677,6 +680,8 @@ pub struct EditingCtx<'a> {
     pub file: Option<(&'a str, bool)>,
     /// A stamp's detail being chosen (step 3b): what the picker and the properties show.
     pub pick: Option<&'a crate::editor::pick::Picking>,
+    /// The history list's steps and where the map stands (step 5), with a map open.
+    pub history: Option<(&'a [String], usize)>,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -769,6 +774,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::EditorFiles, _) => editor_files::content(ctx),
         (ScreenId::EditorPick, _) => editor_pick::content(ctx),
         (ScreenId::EditorProps, _) => editor_props::content(ctx),
+        (ScreenId::EditorHistory, _) => editor_history::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (
             ScreenId::EditorTools
@@ -843,6 +849,7 @@ pub fn apply(
         (ScreenId::EditorFiles, _) => editor_files::apply(control),
         (ScreenId::EditorPick, _) => editor_pick::apply(control, payload),
         (ScreenId::EditorProps, _) => editor_props::apply(control, payload),
+        (ScreenId::EditorHistory, _) => editor_history::apply(control, payload),
         (
             ScreenId::EditorTools
             | ScreenId::EditorInspector
