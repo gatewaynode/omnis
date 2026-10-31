@@ -72,9 +72,10 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `14253462725385086298`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `12470972026143835884`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `17945880125235734391` under the golden seed (M5.10: the test pack re-authored through the
+  fight `5421927257804437065` under the golden seed (2026-10-31: the owner drew on the depths through the
+  editor, `packs/test` 0.2.3, hash 14938603640295087127; M5.10: the test pack re-authored through the
   editor and sealed at 0.2.0; M8 step 4: the base pack hash, the rumors' minutes; step 3: contacts, party time and the bus in the save, and `Reconciled` at each region entry, every other event unchanged; step 1: the pack hash; before that M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
   with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or

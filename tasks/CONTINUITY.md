@@ -1,6 +1,7 @@
 # Continuity notes
 
-Written 2026-10-31, after step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
+Written 2026-10-31, after the recorded pins caught up with the owner's depths (replays, pack 0.2.3, the
+overlays) and before planning the entrances and exits enhancement; the same day, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
@@ -76,9 +77,8 @@ Durable knowledge lives in `tasks/knowledge/`.
 1. **The column is done (five steps accepted). The owner names what follows; plan mode first.** Candidates
    the owner has named or the work left behind: the entrances and exits enhancement where the start marker's
    move is taken up again; the editor's later items (the eraser or Delete clearing a selection's cells, copy and
-   paste, `editor.history` over the socket, a quantity for an object kind in the picker). Then
-   **step 5 (Undo as a history list) in plan mode**, or the entrances and exits enhancement where the start
-   marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
+   paste, `editor.history` over the socket, a quantity for an object kind in the picker). The owner's order
+   of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: the eraser or Delete clearing a selection's cells; copy and paste of a selection; Esc dropping a loop
    or a run (Esc is the menu's); a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
@@ -109,8 +109,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `c5ce78d4a5d9655a`, fight `f90c92e47e6b2777` (rebaselined in M5.10a, `packs/test` 0.2.0, hash
-  2508070832228001662). `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
+- **Replays:** walk `ad11cafbd62306ec`, fight `4b3e8e1d4770f649` (rebaselined 2026-10-31 in `70251701` after the
+  owner's depths, `packs/test` 0.2.3, hash 14938603640295087127; before that M5.10a at 0.2.0). A rebaseline
+  records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
   (since M5.3), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
@@ -118,8 +119,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   terrains plus 10 (`brush::palette`: Wall, Door, Ramp, Height, then `Placing::ALL`'s six stamps; `tests/
   editor_fill.rs` pins WALL 9, DOOR 10, HEIGHT 12 on the town's nine terrains); `Tool::ALL` 8 (Select, Brush, Move, Lasso, Fill, Corners, Freehand, Eraser; keys V B M L F P N X);
   `Placing::ALL` 6;
-  the kit's `Kind` has 7 members; `Asked` 8; `ScreenId` has EditorMenu, EditorFiles, EditorPick, EditorProps as
-  the editor's overlays (`nav::allowed` and `paused`). A stamp's picker limits: 1, `MAX_STACKS` 4,
+  the kit's `Kind` has 7 members; `Asked` 9; `ScreenId` has EditorMenu, EditorFiles, EditorPick, EditorProps,
+  EditorHistory as the editor's overlays (`nav::allowed` and `paused`). A stamp's picker limits: 1, `MAX_STACKS` 4,
   `MAX_OBJECTS_PER_CELL` 16, `MAX_PILE_STACKS` 32, `MAX_LORE_PER_CELL` 16. Base + test packs: 7 monsters, 24 items.
 - **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}` (the shipped
   packs have no object kinds: a test that places an object opens `objects:map:yard` with the objects pack); a

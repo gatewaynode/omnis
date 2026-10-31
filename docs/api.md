@@ -1116,6 +1116,9 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-10-31: no wire change. The owner drew on `packs/test` through the editor (the depths: heights, walls,
+  a pile at (1, 9), three more encounters; `6a4f5f2b`, `1040d147`), sealed at 0.2.3, hash
+  14938603640295087127, so the goldens moved: walk `ad11cafbd62306ec`, fight `4b3e8e1d4770f649`.
 - 2026-10-25: no wire change. `packs/test` re-authored through the editor (M5.10): the four maps in
   the writer's layout, their comments as `notes/`, sealed at 0.2.0, so the goldens moved: walk
   `c5ce78d4a5d9655a`, fight `f90c92e47e6b2777`.
