@@ -312,7 +312,7 @@ no loss, and every later map is built with it.
     definition's table; a container's contents are). Later: a quantity for an object kind (several of one kind
     in a click); the fields' words read against the column's width everywhere.
   - [x] Step 4 (2026-10-31, one commit and a fix after the owner's hand test: the loop in progress previewed;
-    `tasks/acceptance/editor-column-4.md`): the lasso (a freehand loop, previewed as it is drawn,
+    **accepted by the owner the same day**; `tasks/acceptance/editor-column-4.md`): the lasso (a freehand loop, previewed as it is drawn,
     selects the cells inside it, outlined on the plan, counted under the tool's name; a click clears), Move
     carrying a selection pressed inside it by the drag's offset (everything on the cells: terrain, heights,
     sides, placements, the start; the source bare, the destination replaced, a portal, site or pile already

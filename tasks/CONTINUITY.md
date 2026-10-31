@@ -2,7 +2,8 @@
 
 Written 2026-10-31, after step 4 of the editor's column as a drawing GUI (the lasso, moving a selection, cell
 runs; `f6537ddd`, then the owner's hand test found the loop in progress was not drawn, fixed in a second commit:
-`preview()` returns the loop's path first; the owner's "accepted" is awaited; `tasks/acceptance/editor-column-4.md`). Step
+`preview()` returns the loop's path first, `4e36a1e0`; **accepted by the owner the same day**: "Accepted, let's plan
+step 5"; `tasks/acceptance/editor-column-4.md`). Step
 3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 
@@ -42,8 +43,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   line ("giant_rat x3, goblin"; "nothing chosen, the first: <id>"). Owner's choices: the properties open after
   every Finish; piles get them too. Not offered: a per-placement loot (not in the data model). Verified: the
   search field keeps the keyboard and the caret through the rows' rebuild (`editor_pick.rs`, the keyboard test).
-- **Step 4, the lasso, moving a selection, cell runs (2026-10-31, `f6537ddd` and the loop-preview fix; the
-  owner's hand test found the rest "pretty good"; `tasks/acceptance/editor-column-4.md`).** `editor/select.rs`: `Selection { level, cells }` on
+- **Step 4, the lasso, moving a selection, cell runs (2026-10-31, `f6537ddd` and the loop-preview fix
+  `4e36a1e0`, accepted; `tasks/acceptance/editor-column-4.md`).** `editor/select.rs`: `Selection { level, cells }` on
   `Editor.selection`, the loop in `Editor.lasso` while drawn; `inside` (the loop's cells through `run::cells`
   plus the even-odd rule over the bounding box), `outline`, `moving(grid, def, sel, d)` (source paints first:
   Clear, Height 0, sides Open; then the destination's tile with its stair's rise, height, sides; boundary sides
@@ -62,9 +63,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   over the paint. Narrow; a rule if the owner wants one.
 
 ## Next
-1. **The owner's word on step 4** after the loop-preview fix (`tasks/acceptance/editor-column-4.md`; the one
-   finding of the hand test was the loop not drawn while dragged). On "accepted": the acceptance commit
-   (prose under `tasks/` only, as `f51b655d`). Then
+1. **Step 5 (Undo as a history list), asked for by the owner on accepting step 4: plan mode first.** Then
    **step 5 (Undo as a history list) in plan mode**, or the entrances and exits enhancement where the start
    marker's move is taken up again. The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.

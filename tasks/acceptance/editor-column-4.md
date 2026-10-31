@@ -7,6 +7,9 @@ in the planning (2026-10-31): **the lasso is a freehand loop** (the cells inside
 placements, the start when inside) and the source becomes bare; **the destination is replaced** (a portal, site
 or pile already on a destination tile refuses the whole move and says why).
 
+**Hand-tested by the owner 2026-10-31** ("works pretty good"; one finding, the loop not drawn while dragged, fixed
+in `4e36a1e0`) and **accepted the same day** ("Accepted, let's plan step 5").
+
 **A Save reseals the pack on disk.** Hand-test on a fresh scratch copy: `rm -rf /tmp/omnis-scratch && cp -R
 packs/test /tmp/omnis-scratch`, named as the last pack.
 
