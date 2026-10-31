@@ -4,7 +4,11 @@ Written 2026-10-31, after step 5 of the editor's column as a drawing GUI (Undo a
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
-committed as the test fixture (`6a4f5f2b`, replays re-baselined). Step
+committed as the test fixture (`6a4f5f2b`, replays re-baselined). After the acceptance the owner drew on the
+depths again and **committed and pushed the pack themselves** (`1040d147`: a height and a pile at (1, 9), two
+more encounters); `70251701` makes the tests follow (replays re-baselined, the depths' pins, the flat-map checks
+on `common::flat_maps`, every shipped map but the depths). **The depths are no longer flat or empty: a test that
+assumes a shipped map is flat or carries nothing uses `flat_maps` or names the depths.** Step
 3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
 Durable knowledge lives in `tasks/knowledge/`.
 

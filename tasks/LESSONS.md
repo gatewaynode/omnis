@@ -557,3 +557,14 @@
   model holds for the pointer (a loop, a run, a carried drag) has a test that reads what the plan paints
   while it is held, not only what it leaves behind. The report describes what was asserted, not what was
   meant.
+
+## 2026-10-31 — The test pack is the owner's canvas too; pins name the owner's content
+- **What happened**: the owner's hand tests of steps 4 and 5 saved onto `packs/test` itself, not the scratch
+  copy, and the second time committed and pushed the pack. Eight tests leaned on the fixture as it was: the
+  golden replays (the packs' fingerprint is in them), an encounter count, and five checks assuming every
+  shipped map is flat and carries nothing (sim and client).
+- **Rule**: a change to `packs/test` by the owner is content, kept as they left it; the tests follow in a
+  commit of their own: `cargo test -p omnis-sim rebaseline -- --ignored` for the replays, and a pin that
+  assumed a shape of the fixture (flat, empty, a count) is rewritten to name the owner's content or to run on
+  the maps the assumption still holds for (`tests/common/flat_maps`), never loosened to nothing. A new pin on
+  the fixture's shape is written against the content, not the assumption that the fixture stays still.
