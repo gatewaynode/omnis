@@ -1,15 +1,18 @@
-// Rock, grass, grass. The start is on the rock. The portal at (1, 0) lands on (2, 0) facing east,
-// so its own cell is the way back: a sound pair, yet nothing from the entry map leads here.
+// Rock, then four grass. The start is on the rock. 'k' and 'l' are a sound pair landing on (2, 0)
+// from either side, so the map has a linked portal, yet nothing from the entry map leads here.
+// 'dup' shares its id with a portal of stand.ron.
 (
     schema: 1, id: "ways:map:foot", name: "ways:text:foot", kind: Outdoor, tileset: "test:tileset:outdoor",
-    width: 3, height: 1, start: (0, 0, East),
+    width: 5, height: 1, start: (0, 0, East),
     wall: (front: "hedge", left: "hedge.left", right: "hedge.right"), door: "gate", door_open: Some("gate.open"),
     terrains: [
         (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
         (glyph: 'r', name: "rock", floor: "grass", ceiling: None, block: Some("trees"), passable: false, visibility_depth: 6, step_minutes: 2),
     ],
-    layout: ["+-+-+-+", "|r g g|", "+-+-+-+"],
+    layout: ["+-+-+-+-+-+", "|r g g g g|", "+-+-+-+-+-+"],
     portals: [
-        (x: 1, y: 0, to_map: "ways:map:foot", to_x: 2, to_y: 0, to_facing: East, marker: Some("signpost")),
+        (x: 1, y: 0, id: "k", link: Some("l"), facing: East, marker: Some("signpost")),
+        (x: 3, y: 0, id: "l", facing: West, marker: Some("signpost")),
+        (x: 4, y: 0, id: "dup", facing: East, marker: Some("signpost")),
     ],
 )

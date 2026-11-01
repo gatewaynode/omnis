@@ -711,9 +711,14 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
                 format!("entry map '{entry}' is not defined by any loaded pack"),
             )),
         }
-        // The entrances and exits enhancement (W1): the world pack's maps are all reached.
-        let defs = raw.maps.values().map(|(_, def, _)| def);
-        for missing in map_data::unreached(defs, entry, &pack.id) {
+        // The entrances and exits enhancement (W1): the world pack's maps are all reached, asked
+        // only of a world whose links are sound (an erring link would cut off every map beyond).
+        let maps = map_data::MapTargets::maps(&targets);
+        let sound = errors.len() == before;
+        for missing in map_data::unreached(&maps, entry, &pack.id)
+            .into_iter()
+            .filter(|_| sound)
+        {
             let file = raw
                 .maps
                 .get(&missing)
@@ -744,13 +749,17 @@ struct RawTargets<'a> {
 }
 
 impl map_data::MapTargets for RawTargets<'_> {
-    fn target(&self, id: &str) -> Option<map_data::Target<'_>> {
-        let map_id = *self.ids.get(id)?;
-        self.maps.get(id).map(|(_, def, levels)| map_data::Target {
-            id: map_id,
-            def,
-            levels,
-        })
+    fn maps(&self) -> Vec<map_data::Target<'_>> {
+        self.maps
+            .iter()
+            .filter_map(|(id, (_, def, levels))| {
+                Some(map_data::Target {
+                    id: *self.ids.get(id.as_str())?,
+                    def,
+                    levels,
+                })
+            })
+            .collect()
     }
 
     fn owner(&self, map: MapId) -> Option<RegionId> {

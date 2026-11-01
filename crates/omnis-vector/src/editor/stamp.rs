@@ -20,7 +20,7 @@ use omnis_sim::omnis_data::limits::{
 };
 use omnis_sim::omnis_data::lore::CellLore;
 use omnis_sim::omnis_data::placement::{GroundDef, Placement};
-use omnis_sim::omnis_data::{Data, MapDef};
+use omnis_sim::omnis_data::{Data, MapDef, unlinked_portals_in};
 
 /// What each stamp drops, by `Placing::index`: the places as the model holds them, at a nominal
 /// cell with nominal ids (the click decides both); empty until chosen, when the stamp drops the
@@ -36,11 +36,15 @@ const NOWHERE: At = At {
     facing: Facing::North,
 };
 
-/// What a kind's detail is chosen among: the loaded packs' ids of that kind, sorted.
+/// What a kind's detail is chosen among: the loaded packs' ids of that kind, sorted; a portal's
+/// is the id of a portal nothing links to yet, among the maps as the files hold them.
 #[must_use]
 pub fn options(kind: Placing, data: &Data) -> Vec<String> {
     let mut out: Vec<String> = match kind {
-        Placing::Portal => data.maps.values().map(|m| m.def.id.clone()).collect(),
+        Placing::Portal => unlinked_portals_in(data)
+            .into_iter()
+            .map(|(_, p)| p.id.clone())
+            .collect(),
         Placing::Encounter => data.monsters.values().map(|m| m.id.clone()).collect(),
         Placing::Activity => data.services.values().map(|s| s.id.clone()).collect(),
         Placing::Object => data.objects.values().map(|o| o.id.clone()).collect(),
@@ -65,14 +69,15 @@ pub const fn limit(kind: Placing) -> usize {
     }
 }
 
-/// The details `places` hold with their counts: a portal's map, the stacks' monsters, a site's
-/// service, the objects' kinds, the items, the lore texts; one of each but a stack or an item.
+/// The details `places` hold with their counts: a portal's link (none while unlinked), the
+/// stacks' monsters, a site's service, the objects' kinds, the items, the lore texts; one of
+/// each but a stack or an item.
 #[must_use]
 pub fn details(places: &[Place]) -> Vec<(String, u32)> {
     let mut out = Vec::new();
     for place in places {
         match place {
-            Place::Portal(p) => out.push((p.to_map.clone(), 1)),
+            Place::Portal(p) => out.extend(p.link.clone().map(|link| (link, 1))),
             Place::Encounter(e) => {
                 out.extend(e.stacks.iter().map(|(id, n)| (id.clone(), u32::from(*n))));
             }
@@ -120,6 +125,9 @@ impl Stamps {
     #[must_use]
     pub fn summary(&self, kind: Placing, data: &Data) -> String {
         let held = details(self.held(kind));
+        if kind == Placing::Portal && held.is_empty() {
+            return "unlinked".to_owned();
+        }
         if held.is_empty() {
             return match options(kind, data).first() {
                 Some(first) => format!("nothing chosen, the first: {}", short(first)),
@@ -142,8 +150,8 @@ impl Stamps {
 /// The places a stamp of `kind` holds for `chosen`, carrying what `prev` held for a detail kept
 /// (a stack's count, the group's disposition, once and stand; an object's place on the cell,
 /// state, hidden DC, name, contents and lore; an item's count; the pile's place; a lore's DC and
-/// once). A portal and a site come through their forms (the landing at the map's start and the
-/// tileset's marker are the form's), so a map whose tileset has no marker holds none.
+/// once). A portal and a site come through their forms (the tileset's marker is the form's), so
+/// a map whose tileset has no marker holds none; a portal with nothing chosen is unlinked.
 #[must_use]
 pub fn rebuild(
     kind: Placing,
@@ -158,7 +166,14 @@ pub fn rebuild(
             _ => None,
         };
     match kind {
-        Placing::Portal | Placing::Activity => chosen
+        Placing::Portal => {
+            let link = chosen.first().map(String::as_str);
+            match Form::placing(kind, def, data, NOWHERE, link).value() {
+                Ok(Change::Place(place)) => vec![place],
+                _ => Vec::new(),
+            }
+        }
+        Placing::Activity => chosen
             .first()
             .and_then(|id| one(kind, id))
             .into_iter()
@@ -315,7 +330,11 @@ impl Editor {
         let Some(def) = self.def() else {
             return Vec::new();
         };
-        let first: Vec<String> = options(kind, data).into_iter().take(1).collect();
+        // A portal with nothing chosen is unlinked, not linked to the first candidate.
+        let first: Vec<String> = match kind {
+            Placing::Portal => Vec::new(),
+            _ => options(kind, data).into_iter().take(1).collect(),
+        };
         rebuild(kind, &first, &[], &def, data)
     }
 
@@ -371,6 +390,13 @@ impl Editor {
             .and_then(|d| d.place_many(places));
         if !self.took(data, result) {
             return false;
+        }
+        // A linked portal placed: the partner is taken, so the stamp drops unlinked ones now.
+        if held
+            .iter()
+            .any(|p| matches!(p, Place::Portal(p) if p.link.is_some()))
+        {
+            self.stamps.set(Placing::Portal, Vec::new());
         }
         let landed: Vec<String> = self
             .here_at(cell)

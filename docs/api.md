@@ -224,7 +224,7 @@ socket and the bridge (malformed request).
 | `editor.open` | `map` (`pack:map:name`) | `editor` | `TooLong`, `Invalid` (no file declares the id; its layout does not read) | host. Unsaved changes to the map open before are dropped |
 | `editor.new` | `map` (`NewMap`: `id`, `name`, `kind`, `tileset`, `width`, `height`, `wall`, `door`, `door_open`, `terrain`) | `editor` | `TooLong`, `Invalid` (an id not `<pack>:map:<name>` of the edited pack; `data/maps/<name>.ron` exists) | host. Every tile the terrain, walls round it, the start at (0, 0) facing East; open and unsaved |
 | `editor.paint` | `level` (default 0), `x`, `y`, `brush` (`Brush`: `Tile { glyph, rise }`, `Edge { side, kind }`, `Height { eighths }`, `Clear`), `stroke` (default false) | `editor` | `Invalid` (no such level; outside; no terrain has the glyph; a stair without its rise; a boundary edge that is not a wall; a height beyond ±4096) | host. A stair up or down keeps the `stairs` list consistent; with `stroke` the paint joins the step the last paint opened |
-| `editor.place` | `place` (`Place`: `Start`, `Portal`, `Encounter`, `Random`, `Site`, `RestEvent`, `Object`, `Ground`, `Lore`, or `Remove(Target)`) | `editor` | `Invalid` (a start outside; a collection at its limit; a removal that matches nothing) | host. Upsert by key: a tile for portals, sites and piles, an id for encounters, objects and lore, terrain and rest kind for rest events |
+| `editor.place` | `place` (`Place`: `Start`, `Portal`, `Encounter`, `Random`, `Site`, `RestEvent`, `Object`, `Ground`, `Lore`, or `Remove(Target)`) | `editor` | `Invalid` (a start outside; a collection at its limit; a removal that matches nothing) | host. Upsert by key: a tile for portals, sites and piles, an id for encounters, objects and lore, terrain and rest kind for rest events. A portal (W1 step 2, 2026-11-01) is `{level, x, y, id, link, facing, marker}`: linked by id, its landing the cell ahead of its partner; the authored `to_map`, `to_level`, `to_x`, `to_y`, `to_facing` are gone |
 | `editor.edit` | `edit` (`Edit`: `Resize`, `Map`, `LevelAdd`, `LevelSet`, `LevelRemove`, `TerrainAdd`, `TerrainSet`, `TerrainRemove`, `Rise`) | `editor` | `Invalid` (the edit's rule, one line) | host. The map's structure; what falls outside a resize is dropped and the start clamped; a level removed takes everything on it; a terrain in use cannot go or change its join |
 | `editor.undo`, `editor.redo` | none | `editor` | `Invalid` (nothing to undo; no map open) | host. 100 steps, each named by what it did for the editor's history list (`Document::steps`); a step made over the socket takes the document's own words (`edit/words.rs`). No op reads the words yet |
 | `editor.save` | none | `written` (`path`, `version`) | `Invalid` (the loader's words; nothing written), `Failed` (I/O, the seal) | host. The map written to its file atomically, then the pack resealed at its next patch version (owner, 2026-10-21), so the game loads it; the running world sees the pack after `pack.reload` |
@@ -1116,6 +1116,15 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-11-01 (later): **the `Portal` payload of `editor.place` changed shape** (the entrances and exits
+  enhancement, step 2a, the owner's direction): a portal is `{level, x, y, id, link, facing, marker}`; the
+  authored landing (`to_map`, `to_level`, `to_x`, `to_y`, `to_facing`) is gone, derived from the portal `link`
+  names (the cell ahead of it, facing its way). The payload of a host-tier editor op, so `PROTOCOL` stays 2 and
+  the change is recorded here; the MCP schema of `editor_place` follows. The loader's words moved with it (a
+  link to nothing loaded, to itself, to a portal that links a third; a portal two portals claim; a landing ahead
+  of the partner that cannot be stood on; an id shared across maps; an unlinked portal is legal and a plain tile
+  in play). `packs/test` moves (0.2.5, hash 15167835935440741063: the six portals get ids, three state the
+  links), so the goldens moved: walk `51c76dab1f20982e`, fight `d21d59c1f123f07e`.
 - 2026-11-01: no wire change. The entrances and exits enhancement, step 1 (`omnis-data`): the loader refuses
   a portal landing the party cannot stand on, a portal without its way back directly behind its landing (the
   owner's strict mirror), a start off ground the party can enter, and a map of the pack that sets `entry` that

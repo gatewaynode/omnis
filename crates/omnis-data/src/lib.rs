@@ -61,7 +61,7 @@ pub use loot::{LootEntry, LootTable};
 pub use lore::{CellLore, Lore};
 pub use manifest::{Attribution, PackManifest};
 pub use map::{Cell, Join, MapDef, MapKind, Portal, Terrain, WallSurfaces};
-pub use map_data::{MapData, ResolvedPortal};
+pub use map_data::{MapData, ResolvedPortal, partner_of, unlinked_portals, unlinked_portals_in};
 pub use monster::{Attack, Monster, MonsterCasting};
 pub use notes::{NotesFile, is_note_key};
 pub use object::{

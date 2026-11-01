@@ -126,17 +126,6 @@ fn valid(app: &App) {
     );
 }
 
-/// A portal stamped alone has no way back yet (the entrances and exits enhancement, W1, step 1;
-/// step 2 writes the pair with it): the loader says so, and nothing else is wrong.
-fn orphan(app: &App, (x, y): (u16, u16)) {
-    let errors = &editing(app).status.errors;
-    assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(
-        errors[0].contains(&format!("portal at ({x}, {y}) has no way back")),
-        "{errors:?}"
-    );
-}
-
 /// Cells of the shown level with ground and nothing placed, not the start.
 fn bare_cells(app: &App) -> Vec<(u16, u16)> {
     let e = editing(app);
@@ -496,37 +485,33 @@ fn a_pile_takes_counts_and_two_lore_texts_drop_as_two_entries() {
     valid(&app);
 }
 
+/// W1 step 2: the portal picker offers the portals nothing links to (none among the shipped
+/// maps, every one of which is paired); with nothing chosen a click places an unlinked portal,
+/// valid as it lands. Step 2b lists the open map's unsaved portals too and links from a form.
 #[test]
-fn a_portal_s_choice_moves_and_finish_needs_a_choice() {
+fn the_portal_picker_offers_unlinked_portals_and_a_click_with_none_places_an_unlinked_one() {
     let mut app = in_editor("test:map:town");
     let data = data(&app);
-    let maps = stamp::options(Placing::Portal, &data);
-    assert!(maps.len() >= 2, "{maps:?}");
-    pick(&mut app, Placing::Portal, &[&maps[0], &maps[1]]);
+    assert!(
+        stamp::options(Placing::Portal, &data).is_empty(),
+        "every shipped portal is paired"
+    );
+    choose(&mut app, Entry::Stamp(Placing::Portal));
+    press_edit(&mut app, EditAct::Pick);
+    assert_eq!(top_screen(&app), Some(ScreenId::EditorPick));
     let text = screen_text(app.world());
     assert!(
-        text.contains("CHOOSE MAPS") && text.contains("1 of 1 chosen"),
+        text.contains("CHOOSE PORTALS")
+            && text.contains("The packs have no portal.")
+            && text.contains("0 of 1 chosen"),
         "{text}"
     );
-    assert!(
-        text.contains(&format!("[x] {}", maps[1])) && text.contains(&format!("[ ] {}", maps[0])),
-        "the choice moved: {text}"
-    );
-    press_ui(&mut app, Pressable(edit(EditAct::PickFinish)));
-    assert_eq!(top_screen(&app), None, "a portal has no properties");
-    assert_eq!(held(&app, Placing::Portal), [maps[1].clone()]);
-    // The held choice let go: Finish is dim; Cancel keeps the held.
-    press_edit(&mut app, EditAct::Pick);
-    let row = row_of(&app, Placing::Portal, &maps[1]);
-    press_ui(&mut app, Pressable(edit(row)));
-    assert!(screen_text(app.world()).contains("0 of 1 chosen"));
     assert!(
         !pressable(&mut app, edit(EditAct::PickFinish)),
         "Finish is dim"
     );
     press_ui(&mut app, Pressable(ControlId::Resume));
-    assert_eq!(held(&app, Placing::Portal), [maps[1].clone()]);
-    // What it drops lands at the chosen map's start.
+    assert_eq!(top_screen(&app), None);
     click(&mut app, (8, 2));
     let def = editing(&app).def().unwrap();
     let p = def
@@ -534,8 +519,9 @@ fn a_portal_s_choice_moves_and_finish_needs_a_choice() {
         .iter()
         .find(|p| (p.x, p.y) == (8, 2))
         .expect("the portal");
-    assert_eq!(p.to_map, maps[1]);
-    orphan(&app, (8, 2));
+    assert_eq!((p.id.as_str(), p.link.as_deref()), ("portal_8_2", None));
+    assert_eq!(message(&app), "Portal 'portal_8_2' placed at (8, 2)");
+    valid(&app);
 }
 
 #[test]

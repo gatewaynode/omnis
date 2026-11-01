@@ -1,0 +1,5 @@
+// One fault alone (W1, the entrances and exits enhancement, step 2): a map of the pack that sets
+// the entry has a linked pair of portals, yet nothing from the entry map leads to it. Loaded after
+// the base and test packs for their tileset; the test pack's maps are another pack's, not asked
+// to be reached from this entry.
+(schema: 1, id: "reach", version: "0.1.0", hash: 6653621037949488046, name: "Bad reach", license: "MIT", depends: ["base", "test"], entry: Some("reach:map:stand"))

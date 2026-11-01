@@ -221,8 +221,12 @@ pub struct Source<'a> {
 /// activities' placeholder smiley.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mark {
-    /// A portal to another map.
-    Portal,
+    /// A portal: the game's rectangle with a circle when linked, the rectangle alone while
+    /// unlinked (a plain tile in play until something links it; W1 step 2).
+    Portal {
+        /// Whether a partner links it.
+        linked: bool,
+    },
     /// A fixed encounter.
     Encounter,
     /// A placed object.
@@ -241,12 +245,10 @@ pub enum Mark {
 #[must_use]
 pub fn marks(def: &MapDef, data: &Data, level: Level) -> Vec<((u16, u16), Mark)> {
     let mut out = Vec::new();
-    out.extend(
-        def.portals
-            .iter()
-            .filter(|p| p.level == level)
-            .map(|p| ((p.x, p.y), Mark::Portal)),
-    );
+    out.extend(def.portals.iter().filter(|p| p.level == level).map(|p| {
+        let linked = omnis_sim::omnis_data::partner_of(p, def, data).is_some();
+        ((p.x, p.y), Mark::Portal { linked })
+    }));
     out.extend(
         def.encounters
             .iter()
@@ -290,7 +292,8 @@ pub fn mark_pixels(scale: u32, (c, r): (i64, i64), mark: Mark) -> (Vec<(i64, i64
     let (left, top) = (c * s, r * s);
     let q = s / 4;
     match mark {
-        Mark::Portal => (portal_pixels(scale, (c, r)), DOOR),
+        Mark::Portal { linked: true } => (portal_pixels(scale, (c, r)), DOOR),
+        Mark::Portal { linked: false } => (rect_pixels(scale, (c, r), q), DOOR),
         Mark::Encounter => (
             triangle_pixels(
                 (left + s / 2, top + q),
@@ -651,7 +654,8 @@ mod tests {
         for scale in ZOOMS {
             let s = i64::from(scale);
             for mark in [
-                Mark::Portal,
+                Mark::Portal { linked: true },
+                Mark::Portal { linked: false },
                 Mark::Encounter,
                 Mark::Object,
                 Mark::Ground,

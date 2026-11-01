@@ -642,3 +642,39 @@ fn a_portal_whose_landing_cannot_be_stood_on_is_a_plain_tile() {
         (meadow, 16, 5)
     );
 }
+
+/// The entrances and exits enhancement, step 2 (W1, 2026-11-01, links): a portal nothing links
+/// to is unlinked, saved yet inert: the loader resolves it to nothing, so the engine sees a
+/// plain tile and a step onto it is one `Moved`.
+#[test]
+fn an_unlinked_portal_is_a_plain_tile() {
+    use omnis_core::Level;
+    use omnis_sim::omnis_data::MapData;
+    let mut data = data();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let mut def = data.maps[&meadow].def.clone();
+    // The cell ahead of the meadow's start, where the test world begins facing north.
+    let (sx, sy, facing) = def.start;
+    let (x, y) = facing.ahead_of((sx, sy)).expect("inside the map");
+    let mut spare = def.portals[0].clone();
+    (spare.id, spare.link, spare.x, spare.y) = ("spare".to_owned(), None, x, y);
+    def.portals.push(spare);
+    let resolved = MapData::resolve(&def, &data).unwrap_or_else(|e| panic!("{e:?}"));
+    assert!(
+        resolved.portal_at(Level::GROUND, x, y).is_none(),
+        "unlinked: not among the resolved portals"
+    );
+    assert_eq!(resolved.def.portals.len(), 3, "yet saved in the file");
+    data.maps.insert(meadow, resolved);
+    let mut world = world(&data);
+    let events = without_visible(step(&mut world, &data));
+    let moves = events
+        .iter()
+        .filter(|e| matches!(e, Event::Moved { .. }))
+        .count();
+    assert_eq!(moves, 1, "{events:?}");
+    assert_eq!(
+        (world.position.map, world.position.x, world.position.y),
+        (meadow, x, y)
+    );
+}

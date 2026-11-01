@@ -51,7 +51,7 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
     assert!(!ok);
     assert!(err.contains("pack id 'Broken' is not [a-z0-9_-]+"), "{err}");
     assert!(
-        err.contains("portal at (0, 0) leads to unknown map"),
+        err.contains("portal 'refs-a' at (0, 0) links to 'nowhere', which no loaded map has"),
         "{err}"
     );
 }

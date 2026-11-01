@@ -80,7 +80,7 @@ fn a_move_carries_the_placement_under_the_press_to_the_cell_let_go_on_as_one_ste
     assert_eq!(editing(&app).cursor, (8, 2));
     assert_eq!(
         editing(&app).message.as_deref(),
-        Some("Portal to test:map:meadow moved to (8, 2)")
+        Some("Portal 'town-gate' to 'meadow-gate' moved to (8, 2)")
     );
     // The inspector lists it on the new cell; the note stays the old cell's.
     assert!(

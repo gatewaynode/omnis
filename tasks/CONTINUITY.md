@@ -1,10 +1,11 @@
 # Continuity notes
 
-Written 2026-11-01, during the owner's hand test of step 1 of **the entrances and exits enhancement** (the rules;
-the pack moved to 0.2.4, two arrivals facing east; `tasks/acceptance/entrances-1.md`). The hand test found Save and
-Playtest swallowed by the error's words (fixed: the count alone, this commit) and that no pair can be authored
-until step 2; **the owner redirected step 2** (an unlinked portal state, portal ids, linking by search), to be
-planned in plan mode next. Before it the same
+Written 2026-11-01, after **step 2a of the entrances and exits enhancement** (linked portals, the model: `Portal {
+id, link, facing, marker }`, the landing derived from the partner, unlinked portals legal and inert; the pack 0.2.5;
+re-planned that day on the owner's direction after the step 1 hand test, which also found Save and Playtest
+swallowed by the error's words, fixed in `11455718`). **Step 2b (linking in the editor: the picker with labels and
+the open map's unsaved portals, the form's Link... and Unlink, the inspector's partner row) is next**, then its
+hand test (`tasks/acceptance/entrances-2.md`), then step 3. Before it the same
 day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
@@ -96,22 +97,34 @@ Durable knowledge lives in `tasks/knowledge/`.
   count` gives both buttons the count alone ("1 error"), the words stay the inspector's and the message's
   (`tasks/LESSONS.md`). The test also showed that **no pair can be authored in the editor until step 2** (each
   half is refused until the other is on disk; hand-editing the files and `omnis-cli pack seal` is the only way).
-- **Step 2 is re-planned (plan mode next)** on the owner's direction: "an intermediary state for portals,
-  'unlinked', that does not display the portal or allow its use until it is linked to another portal on the same
-  or a different map"; "a freehand portal_id text field, so editors can match up available portals to link to
-  with ease (best if you can search through all available portals)". Questions for the planning: whether a
-  linked portal's landing is derived from its partner (in front of it, facing away: the mirror by construction,
-  `to_x/to_y/to_facing` leave the file) or stays authored; the id's form and uniqueness (per pack? per world?);
-  whether an unlinked portal is legal in the shipped pack (the loader) or only in the editor's document; what
-  reachability counts (linked portals only); the picker (the object picker's search, filtered to portals,
-  showing map, cell and link state); the two editor tests that pin "has no way back" flip to the new words.
-  The earlier plan's kit work (`Kind::Picture`, the far map's plan) may fall away if linking is by id.
+- **Step 2 re-planned 2026-11-01** on the owner's direction ("an intermediary state for portals, 'unlinked'...";
+  "a freehand portal_id text field... search through all available portals"); owner's choices: **one side is
+  enough** (A's file says `link: Some("b")`, B's may say nothing; the editor never writes a second map), **the
+  landing is derived** (ahead of the partner, facing its way; `to_*` gone from the file), **ids unique across the
+  world**. The earlier plan's far-map document and `Kind::Picture` are withdrawn.
+- **Step 2a built (the model)**: `map.rs` `Portal { level, x, y, id, link, facing, marker }`, `Portal::{ID_MAX,
+  id_fault, landing}`, `validate` (id faults, ids shared within a map); `map_data.rs` `MapTargets::maps()`,
+  `pairing` (partners: the named one and every claimant; errors: nothing loaded, itself, a third, two claimants),
+  `landing` (ahead of the partner: outside, no ground, cannot enter, a portal stands), `resolve_portal` (a
+  `ResolvedPortal` for linked portals only, so the sim, the floor mark, the minimap and `map.text` needed no
+  change), `check_inbound` (other maps' pairings and landings here), `unreached` over linked pairs (maps without a
+  linked portal exempt; **asked only of a sound world**, in the loader and in `resolve`: an erring link would
+  otherwise list every map beyond it), `pub partner_of`, `unlinked_portals`, `unlinked_portals_in`. The editor:
+  `forms::portal(def, data, at, was, detail, fresh)` (id, link, facing, marker; `portal_id`, `portal_id_taken`),
+  `stamp::options(Portal)` = the unlinked portals of the loaded maps as the files hold them (the open map's
+  unsaved ones come in 2b), `rebuild(Portal, [])` an unlinked portal, `summary` "unlinked", the choice cleared
+  after a linked placement, `Mark::Portal { linked }`, the label "Portal 'id' to 'link'". Corpora: `bad-ways`
+  rewritten (12-wide stand: ten rows), `bad-reach` new (one row), `broken` and `bad-objects` converted and resealed.
+  Mutation checks red: the inbound claim ignored, the landing behind, reachability over every portal, the mark.
+- **Step 2b next**: `Picking { options, labels, purpose }` built at open (`stamp::option_label`; the open map's
+  unsaved unlinked portals included; `shown` matching labels), the form's Link.../Unlink (`EditAct::LinkPick`,
+  `Asked::Picked` writing the field), the inspector's partner row with the far map's name (`partner_of`),
+  `tests/editor_link.rs`, `tasks/acceptance/entrances-2.md`. Then the hand test.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner finishes the hand test of step 1** (`tasks/acceptance/entrances-1.md`), then "accepted" gets the
-   prose commit; **plan step 2 anew in plan mode** on the unlinked state and portal ids (the section above),
-   then build it. The editor's later items otherwise (the eraser or Delete clearing a
+1. **Step 2b** (linking in the editor; the section above), its hand test (`tasks/acceptance/entrances-2.md`),
+   then "accepted" gets the prose commit for steps 1 and 2; then step 3 from the plan file. The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
@@ -144,8 +157,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `a0530591b8f700a`, fight `f10bd7fb6604c07a` (rebaselined 2026-11-01 with the two east arrivals, `packs/test`
-  0.2.4, hash 5777870636897639874; before that 2026-10-31 after the owner's depths at 0.2.3, and M5.10a at 0.2.0). A rebaseline
+- **Replays:** walk `51c76dab1f20982e`, fight `d21d59c1f123f07e` (rebaselined 2026-11-01 for step 2a, the portals linked by id,
+  `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at
+  0.2.3; M5.10a at 0.2.0). A rebaseline
   records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
   (since M5.3), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,

@@ -3,7 +3,7 @@
 //! loader's words. The editor, the preview and Playtest stand on it.
 
 use crate::common::{base_pack, fixture_pack, load_test_packs, test_pack};
-use omnis_data::{Data, MapData, load_packs};
+use omnis_data::{Data, MapData, Portal, load_packs, partner_of, unlinked_portals};
 
 fn with_fixture(name: &str) -> Data {
     let roots = [base_pack(), test_pack(), fixture_pack(name)];
@@ -81,13 +81,13 @@ fn shape_errors_come_first_and_alone() {
 }
 
 #[test]
-fn a_portal_landing_outside_its_destination_is_refused() {
+fn a_portal_whose_link_names_nothing_loaded_is_refused() {
     let data = load_test_packs();
     let mut def = town(&data);
-    def.portals[0].to_x = 999;
+    def.portals[0].link = Some("nowhere".to_owned());
     assert_eq!(
         messages(MapData::resolve(&def, &data)),
-        ["portal at (11, 2) lands outside map 'test:map:meadow'"]
+        ["portal 'town-gate' at (11, 2) links to 'nowhere', which no loaded map has"]
     );
 }
 
@@ -102,56 +102,190 @@ fn another_maps_portal_landing_on_this_one_is_checked_too() {
         .expect("the meadow");
     let meadow = data.maps[&meadow_id].def.clone();
     assert!(MapData::resolve(&meadow, &data).is_ok());
-    data.maps.get_mut(&town_id).expect("the town").def.portals[0].to_x = 999;
+    // The town's gate now links to the stairs down, which link to the dungeon: the meadow hears
+    // of its stairs' two claimants, and of the gate's three-way link.
+    data.maps.get_mut(&town_id).expect("the town").def.portals[0].link =
+        Some("meadow-stairs".to_owned());
+    let mut got = messages(MapData::resolve(&meadow, &data));
+    got.sort();
     assert_eq!(
-        messages(MapData::resolve(&meadow, &data)),
-        ["test:map:town: portal at (11, 2) lands outside map 'test:map:meadow'"]
+        got,
+        [
+            "portal 'meadow-stairs' at (16, 5) is linked with both 'dungeon-stairs' on 'test:map:dungeon' and 'town-gate' on 'test:map:town'",
+            "test:map:town: portal 'town-gate' links to 'meadow-stairs', which links to 'dungeon-stairs'",
+        ]
     );
 }
 
-// ---- The entrances and exits enhancement (W1, 2026-11-01) ----
+// ---- The entrances and exits enhancement (W1, 2026-11-01; step 2 on links) ----
 
 fn def_of(data: &Data, id: &str) -> omnis_data::MapDef {
     let id = data.registry.maps.get(id).unwrap_or_else(|| panic!("{id}"));
     data.maps[&id].def.clone()
 }
 
+fn portal(id: &str, (x, y): (u16, u16), facing: omnis_core::Facing, link: Option<&str>) -> Portal {
+    Portal {
+        level: omnis_core::Level::GROUND,
+        x,
+        y,
+        id: id.to_owned(),
+        link: link.map(str::to_owned),
+        facing,
+        marker: Some("signpost".to_owned()),
+    }
+}
+
 #[test]
-fn a_portal_landing_on_rock_or_on_a_portal_is_refused() {
+fn an_unlinked_portal_resolves_clean_and_is_a_plain_tile() {
     let data = load_test_packs();
-    let mut meadow = def_of(&data, "test:map:meadow");
-    assert_eq!(meadow.portals[0].to_map, "test:map:dungeon");
-    // (3, 3) of the dungeon is rock.
-    (meadow.portals[0].to_x, meadow.portals[0].to_y) = (3, 3);
+    let mut town = def_of(&data, "test:map:town");
+    town.portals
+        .push(portal("spare", (5, 2), omnis_core::Facing::South, None));
+    let resolved = MapData::resolve(&town, &data).unwrap_or_else(|e| panic!("{e:?}"));
     assert_eq!(
-        messages(MapData::resolve(&meadow, &data)),
-        ["portal at (16, 5) lands on (3, 3) of 'test:map:dungeon', which the party cannot enter"]
+        resolved.portals.len(),
+        1,
+        "the gate alone: {:?}",
+        resolved.portals
     );
-    // (0, 0) of the dungeon holds the stairs back up.
-    (meadow.portals[0].to_x, meadow.portals[0].to_y) = (0, 0);
+    assert!(
+        resolved
+            .portal_at(omnis_core::Level::GROUND, 5, 2)
+            .is_none()
+    );
+    assert_eq!(partner_of(&town.portals[1], &town, &data), None);
+    let unlinked: Vec<(&str, &str)> = unlinked_portals(&town, &data)
+        .into_iter()
+        .map(|(map, p)| (map, p.id.as_str()))
+        .collect();
+    assert_eq!(unlinked, [("test:map:town", "spare")]);
+}
+
+#[test]
+fn a_link_stated_by_one_side_pairs_both_and_lands_ahead_of_the_partner() {
+    let ground = omnis_core::Level::GROUND;
+    let mut data = load_test_packs();
+    let town_id = data.registry.maps.get("test:map:town").expect("the town");
+    let meadow_id = data
+        .registry
+        .maps
+        .get("test:map:meadow")
+        .expect("the meadow");
+    // The file states the link on the town's side alone.
+    let town = def_of(&data, "test:map:town");
+    let meadow = def_of(&data, "test:map:meadow");
+    assert_eq!(town.portals[0].link.as_deref(), Some("meadow-gate"));
+    assert_eq!(meadow.portals[1].link, None);
+    let check = |data: &Data| {
+        let town = MapData::resolve(&def_of(data, "test:map:town"), data).unwrap();
+        let gate = town.portal_at(ground, 11, 2).expect("the gate");
+        assert_eq!(
+            (gate.to_map, gate.to_x, gate.to_y, gate.to_facing),
+            (meadow_id, 16, 30, omnis_core::Facing::North),
+            "ahead of the meadow's gate, facing its way"
+        );
+        let meadow = MapData::resolve(&def_of(data, "test:map:meadow"), data).unwrap();
+        let home = meadow.portal_at(ground, 16, 31).expect("the road home");
+        assert_eq!(
+            (home.to_map, home.to_x, home.to_y, home.to_facing),
+            (town_id, 10, 2, omnis_core::Facing::West)
+        );
+        let (far, partner) = partner_of(&meadow.def.portals[1], &meadow.def, data).expect("linked");
+        assert_eq!((far, partner.id.as_str()), ("test:map:town", "town-gate"));
+    };
+    check(&data);
+    // Stated on the meadow's side instead: the same pair.
+    data.maps.get_mut(&town_id).unwrap().def.portals[0].link = None;
+    data.maps.get_mut(&meadow_id).unwrap().def.portals[1].link = Some("town-gate".to_owned());
+    check(&data);
+    // Stated on both: the same pair.
+    data.maps.get_mut(&town_id).unwrap().def.portals[0].link = Some("meadow-gate".to_owned());
+    check(&data);
+}
+
+#[test]
+fn two_claimants_of_one_portal_are_refused_on_the_claimed_side() {
+    let data = load_test_packs();
+    let mut town = def_of(&data, "test:map:town");
+    town.portals.push(portal(
+        "spare",
+        (5, 2),
+        omnis_core::Facing::South,
+        Some("meadow-gate"),
+    ));
     assert_eq!(
-        messages(MapData::resolve(&meadow, &data)),
-        ["portal at (16, 5) lands on (0, 0) of 'test:map:dungeon', where a portal stands"]
+        messages(MapData::resolve(&town, &data)),
+        [
+            "test:map:meadow: portal 'meadow-gate' at (16, 31) is linked with both 'town-gate' on 'test:map:town' and 'spare' on 'test:map:town'"
+        ]
     );
 }
 
 #[test]
-fn a_portal_without_a_way_back_behind_its_landing_is_refused_from_both_maps() {
-    let mut data = load_test_packs();
+fn a_portal_id_is_one_across_the_loaded_maps_and_within_a_map() {
+    let data = load_test_packs();
     let mut town = def_of(&data, "test:map:town");
-    // The gate lands on (16, 30) of the meadow facing north, the road home at (16, 31) behind.
-    // Facing south, the way back would have to stand on (16, 29), where nothing does.
-    town.portals[0].to_facing = omnis_core::Facing::South;
-    let words = "portal at (11, 2) has no way back: no portal behind its landing (16, 30) on \
-                 'test:map:meadow' leads to 'test:map:town'";
-    assert_eq!(messages(MapData::resolve(&town, &data)), [words]);
-    let meadow = def_of(&data, "test:map:meadow");
-    let town_id = data.registry.maps.get("test:map:town").expect("the town");
-    data.maps.get_mut(&town_id).expect("the town").def.portals[0].to_facing =
-        omnis_core::Facing::South;
+    town.portals.push(portal(
+        "meadow-gate",
+        (5, 2),
+        omnis_core::Facing::South,
+        None,
+    ));
     assert_eq!(
-        messages(MapData::resolve(&meadow, &data)),
-        [format!("test:map:town: {words}")]
+        messages(MapData::resolve(&town, &data)),
+        ["portal id 'meadow-gate' is also on 'test:map:meadow'"]
+    );
+    town.portals[1].id = "spare".to_owned();
+    town.portals
+        .push(portal("spare", (6, 2), omnis_core::Facing::South, None));
+    assert_eq!(
+        messages(MapData::resolve(&town, &data)),
+        ["portals at (5, 2) and (6, 2) share the id 'spare'"]
+    );
+    town.portals.pop();
+    town.portals[1].id = String::new();
+    assert_eq!(
+        messages(MapData::resolve(&town, &data)),
+        ["portal at (5, 2) has no id"]
+    );
+    town.portals[1].id = " spare".to_owned();
+    assert_eq!(
+        messages(MapData::resolve(&town, &data)),
+        ["portal at (5, 2) has an id that is not 1 to 32 printable ASCII characters"]
+    );
+}
+
+#[test]
+fn a_landing_ahead_of_the_partner_must_be_inside_the_map_and_free_of_portals() {
+    let mut data = load_test_packs();
+    let dungeon_id = data
+        .registry
+        .maps
+        .get("test:map:dungeon")
+        .expect("the dungeon");
+    // The stairs up at (0, 0) turned west: the meadow's stairs down would land off the map.
+    let mut dungeon = def_of(&data, "test:map:dungeon");
+    dungeon.portals[0].facing = omnis_core::Facing::West;
+    let words = "portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon', outside the map";
+    assert_eq!(
+        messages(MapData::resolve(&dungeon, &data)),
+        [format!("test:map:meadow: {words}")]
+    );
+    data.maps.get_mut(&dungeon_id).unwrap().def.portals[0].facing = omnis_core::Facing::West;
+    let meadow = def_of(&data, "test:map:meadow");
+    assert_eq!(messages(MapData::resolve(&meadow, &data)), [words]);
+    // A portal standing on the landing, (1, 0) ahead of the stairs up facing east.
+    let mut dungeon = def_of(&data, "test:map:dungeon");
+    dungeon.portals[0].facing = omnis_core::Facing::East;
+    let mut block = dungeon.portals[0].clone();
+    (block.id, block.x) = ("block".to_owned(), 1);
+    dungeon.portals.push(block);
+    assert_eq!(
+        messages(MapData::resolve(&dungeon, &data)),
+        [
+            "test:map:meadow: portal 'meadow-stairs' at (16, 5) lands ahead of 'dungeon-stairs' on 'test:map:dungeon' at (1, 0), where a portal stands"
+        ]
     );
 }
 
@@ -167,22 +301,25 @@ fn a_start_the_party_cannot_stand_on_is_refused() {
 }
 
 #[test]
-fn a_map_the_entry_no_longer_reaches_is_refused_with_its_orphaned_way_back() {
+fn maps_the_entry_no_longer_reaches_through_linked_portals_are_refused() {
     let data = load_test_packs();
-    let mut dungeon = def_of(&data, "test:map:dungeon");
-    let to_depths = dungeon
-        .portals
-        .iter()
-        .position(|p| p.to_map == "test:map:depths")
-        .expect("the stairs down");
-    dungeon.portals.remove(to_depths);
-    let mut got = messages(MapData::resolve(&dungeon, &data));
+    let mut town = def_of(&data, "test:map:town");
+    // The gate unlinked: the meadow's road home is unlinked too, and the meadow, the dungeon and
+    // the depths, still linked among themselves, are cut off from the entry.
+    town.portals[0].link = None;
+    let mut got = messages(MapData::resolve(&town, &data));
     got.sort();
     assert_eq!(
         got,
         [
             "map 'test:map:depths' cannot be reached from the entry map 'test:map:town' through portals",
-            "test:map:depths: portal at (0, 0) has no way back: no portal behind its landing (22, 23) on 'test:map:dungeon' leads to 'test:map:depths'",
+            "map 'test:map:dungeon' cannot be reached from the entry map 'test:map:town' through portals",
+            "map 'test:map:meadow' cannot be reached from the entry map 'test:map:town' through portals",
         ]
     );
+    // The stairs into the depths removed: the depths' stairs up are unlinked, and a map with no
+    // linked portal is unfinished, not unreached.
+    let mut dungeon = def_of(&data, "test:map:dungeon");
+    dungeon.portals.retain(|p| p.id != "dungeon-depths");
+    assert!(MapData::resolve(&dungeon, &data).is_ok());
 }

@@ -5,6 +5,7 @@
 
 use super::brush::{self, Entry, Tool};
 use super::files::Mode;
+use super::forms::Placing;
 use super::pick::Picking;
 use super::stamp;
 use super::{EditAct, Editor, NoteOf};
@@ -155,8 +156,8 @@ fn palette_rows(editor: &Editor, data: &Data, def: &MapDef) -> Vec<Row> {
     if let Entry::Stamp(kind) = editor.entry {
         // The stamp's icon marks the row and opens the picker, as Select... does; the sliders
         // open the properties for a kind that has them.
-        let none = stamp::options(kind, data)
-            .is_empty()
+        // A portal stamp with no partner to choose places an unlinked portal: never dim.
+        let none = (kind != Placing::Portal && stamp::options(kind, data).is_empty())
             .then(|| format!("the packs have no {}", kind.what()));
         let icon = |act, name: &'static str, chosen| Control {
             kind: Kind::Icon { name, chosen },

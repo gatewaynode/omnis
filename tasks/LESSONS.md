@@ -582,3 +582,13 @@
   something, write the count or the kind and point nowhere (the layout tells where the words are). A test that
   pins a reason compares it whole (`assert_eq!` on the phrase), not `contains("error")`: the loose pin let the
   playtest test pass on the wrong branch after step 1 added the start rule.
+
+## 2026-11-01 — A check that stands on another's soundness runs only on a sound world
+- **What happened**: reachability (every world map reached through portal pairs) ran whatever else the loader
+  had found. With pairs derived from links, one link to nothing loaded broke its pair, and the loader listed every
+  map beyond it as unreached: four rows for one fault, in the editor's status too. The corpus pack built for the
+  link faults could then never show the reachability row, since its world was never sound.
+- **Rule**: a check whose input is another check's result (reachability from pairs, a landing from a link) runs
+  only when that input is sound: gate it on no earlier errors, in the loader and in `MapData::resolve` alike, and
+  say so in its doc comment. A corpus pack holds one fault family; a fault that hides another gets a pack of its
+  own (`bad-reach` beside `bad-ways`). The test that counts a report's rows is the one that catches the cascade.

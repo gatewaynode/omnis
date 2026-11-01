@@ -81,17 +81,6 @@ fn valid(app: &App) {
     );
 }
 
-/// A portal stamped alone has no way back yet (the entrances and exits enhancement, W1, step 1;
-/// step 2 writes the pair with it): the loader says so, and nothing else is wrong.
-fn orphan(app: &App, (x, y): (u16, u16)) {
-    let errors = &editing(app).status.errors;
-    assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(
-        errors[0].contains(&format!("portal at ({x}, {y}) has no way back")),
-        "{errors:?}"
-    );
-}
-
 #[test]
 fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occupied_tile() {
     let mut app = in_editor("test:map:town");
@@ -303,7 +292,7 @@ fn an_object_stamp_mints_a_free_id_of_the_chosen_kind_where_the_packs_have_kinds
 }
 
 #[test]
-fn the_pile_and_lore_stamps_start_valid_and_a_lone_portal_stamp_has_no_way_back_yet() {
+fn the_pile_lore_and_portal_stamps_start_valid() {
     let mut app = in_editor("test:map:town");
     let data = data(&app);
     let steps = depth(&app);
@@ -334,9 +323,13 @@ fn the_pile_and_lore_stamps_start_valid_and_a_lone_portal_stamp_has_no_way_back_
         .expect("the lore");
     assert_eq!((l.id.as_str(), l.text.as_str()), ("lore_7_2", key.as_str()));
     valid(&app);
-    // A portal: the chosen map, landing at its start, a marker of the tileset.
+    // A portal (W1 step 2): unlinked with nothing chosen (every shipped portal is paired, so
+    // there is nothing to choose), a fresh id, facing the author, a marker of the tileset.
     choose(&mut app, Entry::Stamp(Placing::Portal));
-    detail_to(&mut app, Placing::Portal, "test:map:meadow");
+    assert!(
+        stamp::options(Placing::Portal, &data).is_empty(),
+        "no unlinked portal to link to"
+    );
     click(&mut app, (8, 2));
     let def = editing(&app).def().unwrap();
     let p = def
@@ -344,20 +337,9 @@ fn the_pile_and_lore_stamps_start_valid_and_a_lone_portal_stamp_has_no_way_back_
         .iter()
         .find(|p| (p.x, p.y) == (8, 2))
         .expect("the portal");
-    assert_eq!(p.to_map, "test:map:meadow");
-    let meadow = data
-        .maps
-        .values()
-        .find(|m| m.def.id == "test:map:meadow")
-        .expect("the meadow");
     assert_eq!(
-        (p.to_level.0, p.to_x, p.to_y, p.to_facing),
-        (
-            0,
-            meadow.def.start.0,
-            meadow.def.start.1,
-            meadow.def.start.2
-        )
+        (p.id.as_str(), p.link.as_deref(), p.facing),
+        ("portal_8_2", None, editing(&app).facing.opposite())
     );
     let tileset = data
         .registry
@@ -373,14 +355,8 @@ fn the_pile_and_lore_stamps_start_valid_and_a_lone_portal_stamp_has_no_way_back_
         ),
         "{marker}"
     );
-    let said = message(&app);
-    assert!(
-        said.starts_with(
-            "Portal to test:map:meadow placed at (8, 2); the loader says: data/maps/town.ron: portal at (8, 2) has no way back"
-        ),
-        "{said}"
-    );
-    orphan(&app, (8, 2));
+    assert_eq!(message(&app), "Portal 'portal_8_2' placed at (8, 2)");
+    valid(&app);
     assert_eq!(depth(&app), steps + 3, "one step each");
     // A second portal or pile on its tile is refused.
     click(&mut app, (8, 2));
@@ -425,18 +401,18 @@ fn a_right_click_on_a_placement_picks_its_stamp_and_detail() {
     assert_eq!(editing(&app).tool, Tool::Brush);
     assert_eq!(held(&app, Placing::Activity), ["base:service:inn"]);
     assert_eq!(editing(&app).cursor, (1, 1));
-    // The portal on (11, 2): its stamp with the map it leads to.
+    // The portal on (11, 2): its stamp with the portal it links to.
     right_click(&mut app, (11, 2));
     assert_eq!(editing(&app).entry, Entry::Stamp(Placing::Portal));
-    let to_map = editing(&app)
+    let link = editing(&app)
         .def()
         .unwrap()
         .portals
         .iter()
         .find(|p| (p.x, p.y) == (11, 2))
-        .map(|p| p.to_map.clone())
+        .map(|p| p.link.clone().expect("the gate states its link"))
         .expect("the portal");
-    assert_eq!(held(&app, Placing::Portal), [to_map]);
+    assert_eq!(held(&app, Placing::Portal), [link]);
     // A bare street cell picks its terrain, as before.
     right_click(&mut app, (5, 2));
     let street = editing(&app)

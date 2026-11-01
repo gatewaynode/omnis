@@ -5,14 +5,15 @@
 //! (an encounter, an object, a lore) may be moved. Bevy-free.
 
 mod fields;
+mod portal;
 mod props;
 
 use super::form::{self, At, Change, Form, FormKind, List, Value};
 use fields::{
     CLIMB_MAX, COUNT_MAX, CREATURES_MAX, DC_MAX, DISPOSITIONS, HIDDEN_MAX, ID_MAX, ITEMS_MAX,
     JOINS, LEVEL_SPAN, NOTE_LINES, PER_MILLE, RESTS, STEP_MINUTES_MAX, WEIGHT_MAX, among,
-    coordinate, creatures_line, dispositions, facing_of, facings, free_id, i8_of, map_choice,
-    optional, pair_list, pairs, read_creatures, read_pairs, u8_of, u16_of,
+    coordinate, creatures_line, dispositions, facing_of, facings, free_id, i8_of, optional,
+    pair_list, pairs, read_creatures, read_pairs, u8_of, u16_of,
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::edit::{Edit, Place, Target};
@@ -21,14 +22,15 @@ use omnis_sim::omnis_data::encounter::{
 };
 use omnis_sim::omnis_data::levels::LevelDef;
 use omnis_sim::omnis_data::limits::{
-    MAX_HEIGHT, MAX_MAP_SIDE, MAX_STACKS, MAX_STRING_BYTES, MAX_VISIBILITY_DEPTH,
+    MAX_HEIGHT, MAX_STACKS, MAX_STRING_BYTES, MAX_VISIBILITY_DEPTH,
 };
 use omnis_sim::omnis_data::lore::{CellLore, Lore};
 use omnis_sim::omnis_data::map::Terrain;
 use omnis_sim::omnis_data::placement::{GroundDef, MAX_OFFSET, Placement};
 use omnis_sim::omnis_data::rest_event::{RestEventDef, RestKind};
 use omnis_sim::omnis_data::service::Site;
-use omnis_sim::omnis_data::{Data, MapDef, Portal, SlotKind};
+use omnis_sim::omnis_data::{Data, MapDef, Portal};
+use portal::{portal, portal_id};
 
 /// Whether `id` names something of `kind`'s id space on the map: an encounter's or an object's
 /// (one space, the loader's rule), a lore's.
@@ -39,7 +41,8 @@ pub fn id_taken(def: &MapDef, kind: Placing, id: &str) -> bool {
             def.encounters.iter().any(|e| e.id == id) || def.objects.iter().any(|o| o.id == id)
         }
         Placing::Lore => def.lore.iter().any(|l| l.id == id),
-        Placing::Portal | Placing::Activity | Placing::Ground => false,
+        Placing::Portal => def.portals.iter().any(|p| p.id == id),
+        Placing::Activity | Placing::Ground => false,
     }
 }
 
@@ -96,7 +99,7 @@ impl Placing {
     #[must_use]
     pub const fn detail(self) -> &'static str {
         match self {
-            Placing::Portal => "to map",
+            Placing::Portal => "link",
             Placing::Encounter => "monster",
             Placing::Activity => "service",
             Placing::Object => "kind",
@@ -109,7 +112,7 @@ impl Placing {
     #[must_use]
     pub const fn what(self) -> &'static str {
         match self {
-            Placing::Portal => "map",
+            Placing::Portal => "portal",
             Placing::Encounter => "monster",
             Placing::Activity => "service",
             Placing::Object => "object kind",
@@ -179,7 +182,7 @@ impl Form {
     #[must_use]
     pub fn placing(kind: Placing, def: &MapDef, data: &Data, at: At, detail: Option<&str>) -> Form {
         match kind {
-            Placing::Portal => portal(def, data, at, None, detail),
+            Placing::Portal => portal(def, data, at, None, detail, true),
             Placing::Encounter => encounter(def, data, at, None, detail),
             Placing::Activity => site(data, at, None, detail),
             Placing::Object => object(def, data, at, None, detail),
@@ -198,7 +201,7 @@ impl Form {
             facing,
         };
         let mut form = match find(def, key)? {
-            Found::Portal(p) => portal(def, data, at(p.level, p.x, p.y), Some(p), None),
+            Found::Portal(p) => portal(def, data, at(p.level, p.x, p.y), Some(p), None, false),
             Found::Encounter(e) => encounter(def, data, at(e.level, e.x, e.y), Some(e), None),
             Found::Site(s) => site(data, at(s.level, s.x, s.y), Some(s), None),
             Found::RestEvent(r) => rest_event(def, at(Level::GROUND, 0, 0), Some(r)),
@@ -337,6 +340,15 @@ impl Form {
             }
         }
         match self.kind {
+            FormKind::Portal => {
+                let id = portal_id(self.text_of("id"))?;
+                let (level, x, y) = (self.at.level, self.at.x, self.at.y);
+                let own =
+                    |p: &Portal| self.remove.is_some() && (p.level, p.x, p.y) == (level, x, y);
+                if def.portals.iter().any(|p| p.id == id && !own(p)) {
+                    return Err(format!("a portal '{id}' is already on the map"));
+                }
+            }
             FormKind::Encounter => {
                 let id = form::id(self.text_of("id"))?;
                 if def.encounters.iter().any(|e| e.id == id && other(&e.id)) {
@@ -422,11 +434,9 @@ impl Form {
                 level: at.level,
                 x: at.x,
                 y: at.y,
-                to_map: self.choice_of("to map").to_owned(),
-                to_level: Level(i8_of(self.number_of("to level"))),
-                to_x: u16_of(self.number_of("to x")),
-                to_y: u16_of(self.number_of("to y")),
-                to_facing: facing_of(self, "facing"),
+                id: portal_id(self.text_of("id"))?,
+                link: optional(self.text_of("link")),
+                facing: facing_of(self, "facing"),
                 marker: Some(optional(self.choice_of("marker")).ok_or("a portal needs a marker")?),
             }),
             FormKind::Encounter => Place::Encounter(FixedEncounter {
@@ -631,53 +641,6 @@ fn terrain(was: Option<&Terrain>, at: At) -> Form {
         form.remove = Some(Change::Edit(Edit::TerrainRemove { glyph: t.glyph }));
     }
     form
-}
-
-/// A portal's form: the map it leads to and where it lands there (a new one at that map's
-/// start), and its marker, a surface of the map's tileset the game draws on its cell.
-fn portal(def: &MapDef, data: &Data, at: At, was: Option<&Portal>, detail: Option<&str>) -> Form {
-    let side = i64::from(MAX_MAP_SIDE - 1);
-    let to_map = was
-        .map(|p| p.to_map.clone())
-        .or_else(|| detail.map(str::to_owned))
-        .or_else(|| data.maps.values().map(|m| m.def.id.clone()).min());
-    let landing = to_map
-        .as_deref()
-        .and_then(|id| data.registry.maps.get(id))
-        .and_then(|id| data.maps.get(&id))
-        .map(|m| m.def.start);
-    let (to_level, to_x, to_y, to_facing) = was.map_or_else(
-        || landing.map_or((0, 0, 0, at.facing), |(x, y, f)| (0, x, y, f)),
-        |p| (p.to_level.0, p.to_x, p.to_y, p.to_facing),
-    );
-    let markers: Vec<String> = data
-        .registry
-        .tilesets
-        .get(&def.tileset)
-        .and_then(|id| data.tilesets.get(&id))
-        .map(|t| {
-            t.surfaces
-                .iter()
-                .filter(|(_, s)| matches!(s.kind, SlotKind::Object))
-                .map(|(name, _)| name.clone())
-                .collect()
-        })
-        .unwrap_or_default();
-    let (markers, marker) = among(markers, was.and_then(|p| p.marker.as_deref()));
-    Form::new(
-        FormKind::Portal,
-        format!("Portal at ({}, {})", at.x, at.y),
-        at,
-        vec![
-            map_choice(data, to_map.as_deref()),
-            form::number("to level", i64::from(to_level), -16, 16),
-            form::number("to x", i64::from(to_x), 0, side),
-            form::number("to y", i64::from(to_y), 0, side),
-            facings(to_facing),
-            form::choice("marker", markers, marker),
-        ],
-        Vec::new(),
-    )
 }
 
 /// An encounter's form. A new one starts valid (owner, 2026-10-24): an id nothing on the map

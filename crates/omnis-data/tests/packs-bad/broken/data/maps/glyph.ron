@@ -24,6 +24,6 @@
     ],
     heights: ["0 x", "0 4097 1"],
     portals: [
-        (x: 5, y: 5, to_map: "broken:map:glyph", to_x: 0, to_y: 0, to_facing: North),
+        (x: 5, y: 5, id: "glyph-out", facing: North),
     ],
 )

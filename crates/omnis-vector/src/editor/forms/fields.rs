@@ -5,7 +5,6 @@
 use crate::editor::form::{self, Form, List, Value};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_core::rng::Dice;
-use omnis_sim::omnis_data::Data;
 use omnis_sim::omnis_data::encounter::Disposition;
 use omnis_sim::omnis_data::map::Join;
 use omnis_sim::omnis_data::rest_event::RestKind;
@@ -88,12 +87,6 @@ pub(super) fn among(mut options: Vec<String>, held: Option<&str>) -> (Vec<String
         .and_then(|h| options.iter().position(|o| o == h))
         .unwrap_or(0);
     (options, at)
-}
-
-pub(super) fn map_choice(data: &Data, held: Option<&str>) -> form::Field {
-    let maps = data.maps.values().map(|m| m.def.id.clone()).collect();
-    let (options, at) = among(maps, held);
-    form::choice("to map", options, at)
 }
 
 pub(super) fn coordinate(label: &'static str, value: u16, side: u16) -> form::Field {

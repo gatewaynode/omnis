@@ -21,7 +21,7 @@ persistence, minutes }`, `Fidelity::rank()`), `rules.rs` (slots and values), `co
 `service.rs` (`ServiceDef { kind: ServiceKind, items, spells, rumors }`, a list only for its kinds,
 spells on a guild or a temple;
 `MapDef.sites: Vec<Site>`, shapes in `validate_sites`, the service and the tile in
-`resolve_sites`; `MapData::site_at`), `map.rs` (`Portal.marker`, required, an `Object` surface
+`resolve_sites`; `MapData::site_at`), `map.rs` (`Portal { id, link, facing, marker }`, W1 step 2: linked by id, `Portal::{ID_MAX, id_fault, landing}`; `marker` required, an `Object` surface
 checked in `loader::check_surfaces`; `MapData::marker_at`). M7c: `action.rs` (`Cost { Action,
 BonusAction, Reaction, Free }`, `Uses`, `Recharge`, `FeatureEffect { Heal, ExtraAction, Cunning }`);
 `spell.rs` carries `cost` and D24's three fields (required in every file); `character.rs`'s class
@@ -30,7 +30,7 @@ DC, caster level, points, spells). The `turn.*` slots are in `rules/combat.ron` 
 `is_member`).
 The editor's side (M5, 2026-10-21): `notes.rs` (`NotesFile`, `is_note_key`; `notes/*.ron`, read and checked
 by the loader, never hashed, never kept), `map_data.rs` (`MapData::resolve`, `resolve_one`, `MapTargets`,
-`check_inbound`/`check_outbound`: the loader's per-map pass shared with the editor; the entrances and exits enhancement, W1 step 1, 2026-11-01: `Target { id, def, levels }` is what `MapTargets::target` answers, `enterable` (ground the party may enter), `standing_fault`, `arrival_errors` grown (no ground, cannot enter, a portal stands there), `pub way_back(portal, from, far)` (the portal directly behind the landing leading back), `no_way_back`, `pub unreached(maps, entry, pack)` and `unreached_message` (the entry pack's portal-bearing maps the entry does not reach), `check_reached`; the loader runs `unreached` after `check_landings`; `omnis-core` `Facing::{ahead_of, behind}`; the engine's `apply::landing` and `save/places.rs::standable` read `MapData::enterable`; the corpus `tests/packs-bad/bad-ways` and `bad_packs::every_entrance_error_is_reported`), `loader.rs`
+`check_inbound`/`check_outbound`: the loader's per-map pass shared with the editor; the entrances and exits enhancement, W1 steps 1 and 2, 2026-11-01: `MapTargets::maps()` answers every map as `Target { id, def, levels }` (the loader's `RawTargets`, the editor's `DataTargets` with the edited def standing in); `enterable`, `standing_fault`; links: `pairing(portal, own, maps)` (the partner by the link either side states; the errors: to nothing loaded, to itself, to a portal linking a third, two claimants), `landing(portal, far, q)` (the cell ahead of the partner: outside, no ground, cannot enter, a portal stands), `resolve_portal` (a `ResolvedPortal` for a linked portal alone), `unreached(maps, entry, pack)` over linked pairs (maps with none exempt; asked only of a sound world), `check_reached`; `pub partner_of`, `unlinked_portals`, `unlinked_portals_in` for the editor; `omnis-core` `Facing::{ahead_of, behind}`; the engine's `apply::landing` and `save/places.rs::standable` read `MapData::enterable`; the corpora `tests/packs-bad/bad-ways` (links and landings) and `bad-reach` (reachability alone)), `loader.rs`
 (`pub(crate) parse_checked`, `check_manifest`, `check_text_file`, `check_id`, `HasSchema`), `edit/`
 (`grid.rs` `Grid`/`EdgeKind`; `kinds.rs` `Brush`, `Place`, `Target`, `Edit`, `NewMap`, `EditorStatus`,
 `MapEntry`, `EditError`; `document.rs` `Document` with `UNDO_CAP` 100 and `Arc<Grid>` per level; `session.rs`
@@ -384,8 +384,8 @@ button Down starts a pan under any tool; the Move tool's left Down starts a grab
 (none → a pan) and its right click picks. `Editor::moved(data, &Here, to) -> bool` clones the def by the
 `PlaceKey` (portals, sites and ground piles by `(level, x, y)`, encounters, objects and lore by id), sets its
 `x, y`, refuses a tile-keyed kind where one already is ("a site is already at (4, 1)") and
-`Document::place_many(vec![Remove(key), new])`s, one step, the cursor on `to`, "Portal to test:map:meadow
-moved to (8, 2)". `Pointer.middle: Press` (the shell reads `MouseButton::Middle`). `Tool::{Move, Fill}` in
+`Document::place_many(vec![Remove(key), new])`s, one step, the cursor on `to`, "Portal 'town-gate' to
+'meadow-gate' moved to (8, 2)". `Pointer.middle: Press` (the shell reads `MouseButton::Middle`). `Tool::{Move, Fill}` in
 `brush.rs` (`ALL` 7: Select, Brush, Move, Fill, Corners, Freehand, Eraser; icons `move`, `paint-bucket`; keys
 M, F in `route`); `aim` the cell for both; `apply` clears `grab` first (any act ends a drag); `Tool(Fill)` with
 an edge chosen chooses `Entry::first` (the height on a map without a terrain); `Brush(i)` keeps Fill for a
@@ -410,7 +410,7 @@ kind has no options. `brush.rs`: `Entry::Stamp(Placing)` last in `palette`, `fil
 `aim` a cell for a stamp, `paint` with a stamp returns before `stroke` is set (a drag places once), `pick` takes
 the first listed placement's stamp and detail before the terrain. `acts.rs`: `EditAct::Stamp` (since 3b the stamp's icon,
 opening the picker; `PlaceKind` and `Add` gone), `Tool(Fill)` with `!entry.fills()` → the first terrain, `Brush(i)` keeps Fill
-for what fills. `forms.rs`: `Form::placing(.., detail)`; every new form valid (portal: the chosen map's start,
+for what fills. `forms.rs`: `Form::placing(.., detail)`; every new form valid (portal, W1 step 2: a fresh id minted across the loaded maps, the link the stamp holds or none, facing the author,
 `marker` a choice over the tileset's `SlotKind::Object` surfaces; object: `free_id` over objects and encounters;
 pile: one item; lore: `free_id`, `text` a choice over the defined keys); `Form::keys` refuses a second portal,
 site or pile on a new form's tile. `view.rs`: the detail choice under the palette, the inspector's Add row gone.
@@ -440,7 +440,7 @@ minted)` (the builder with `was`, a fresh id free of the map's and `minted`, `re
 the `Asked`s open and close overlays; `Props` replaces the picker on top), `shell/screen.rs::carry_out`
 (Text → `typed_in`, Set → `set_in`, Press/Left/Right → `act` stepped). Tests: `tests/editor_pick.rs` (7:
 the row and the picker's search, marks, limit and Cancel; the properties and the drop; two object kinds; a
-pile's counts and two lore texts; a portal's moving choice and the dim Finish; a right click's copy; the
+pile's counts and two lore texts; the portal picker's empty list and a lone click's unlinked portal; a right click's copy; the
 keyboard through the rebuilt rows), `tests/common/editor.rs::{type_ui, top_screen, hold, held}`, `pick.rs` unit
 tests. Mutation checks red: the limit dropped, the minted ids not taken, the filter case-sensitive.
 

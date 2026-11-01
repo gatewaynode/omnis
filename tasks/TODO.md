@@ -351,17 +351,25 @@ no loss, and every later map is built with it.
     stamped alone says "has no way back" until step 2 writes the pair (`editor_stamp`, `editor_pick` pin it).
     The owner's hand test (2026-11-01) found Save and Playtest swallowed by the error's words: both now dim with
     the count alone, the words stay the inspector's and the message's (fixed the same day, `tasks/LESSONS.md`).
-  - [ ] Step 2, **to be re-planned** on the owner's direction of 2026-11-01 (from the hand test: a pair cannot
-    be authored at all while each half needs the other on disk): a portal has an **unlinked** state (saved,
-    not drawn on the plan or in the view, not usable, until linked), every portal carries a freehand **portal
-    id**, and linking is by picking another portal, with a search over every portal of the loaded packs. The
-    plan below is the earlier one and gives way where the two differ.
-  - [ ] Step 2 as first planned: pairs authored once. `State.far` (other maps' defs this document changed, in every snapshot: one
-    undo step across two maps), `Document::place_pair`, `far_files`, Save writing every file; `edit/pair.rs` (the
-    mirror: the way back behind the landing, landing in front of the portal facing away); `Kind::Picture` and
-    `Payload::At` in the kit; `ScreenId::EditorLanding` (the far map's plan, a click the landing, arrive and
-    come-back facings, Finish, Cancel); the portal stamp and the form's Pick landing... open it; Move and Remove
-    carry the partner.
+  - [x] Step 2a (2026-11-01): **linked portals, the model** (re-planned on the owner's direction after the hand
+    test: a pair could not be authored while each half needed the other on disk; owner's choices: a link stated
+    by one side is enough, the landing derived from the partner, ids unique across the world). `Portal { id, link,
+    facing, marker }`: a portal is linked when its link names a partner or one portal anywhere names it; going
+    through lands the party ahead of the partner facing its way (the mirror by construction); the loader refuses a
+    link to nothing, to itself, to a portal linking a third, a portal two portals claim, a landing ahead of the
+    partner that cannot be stood on, an id shared across maps. An **unlinked** portal is legal: saved, drawn on the
+    plan as the rectangle alone, a plain tile in play. Reachability over linked pairs, asked of a sound world. The
+    editor: the portal form (id, link, facing, marker; a fresh one minted free of every map's ids and facing the
+    author), the stamp (nothing chosen places an unlinked portal; a chosen unlinked portal's id links it; the
+    choice clears after a linked placement), the inspector's "Portal 'id' to 'link'". `packs/test` 0.2.5 (ids and
+    three one-sided links; landings unchanged), replays re-baselined; corpora `bad-ways` rewritten (ten link rows)
+    and `bad-reach` new (reachability alone). The `editor.place` Portal payload changed shape: `docs/api.md`.
+  - [ ] Step 2b: **linking in the editor.** `Picking` carries its options and labels (a portal's "id  -  map
+    (x, y)"; the open map's unsaved unlinked portals offered too; the search over map, id and cell; the current
+    partner shown chosen when a form edits a linked portal); `Picking.purpose` (`Stamp` or a form's field): the
+    form's "Link..." button opens the picker and Finish writes the id into the link field, "Unlink" clears it;
+    the inspector's row names the partner's map ("to meadow 'meadow-gate'", "linked from town 'town-gate'",
+    "unlinked"); `tests/editor_link.rs`; `tasks/acceptance/entrances-2.md`.
   - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
     fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an

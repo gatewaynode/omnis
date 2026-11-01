@@ -61,12 +61,13 @@ fn xy() -> (Value, Value) {
     (u16::schema(), u16::schema())
 }
 
-/// A `Portal` as the map file writes it.
+/// A `Portal` as the map file writes it (W1 step 2: linked by id, the landing ahead of the
+/// partner; unlinked until something links it).
 fn portal() -> Value {
     let (x, y) = xy();
     obj(
-        json!({"level": level(), "x": x, "y": y, "to_map": id(), "to_level": level(), "to_x": u16::schema(), "to_y": u16::schema(), "to_facing": Facing::schema(), "marker": {"type": ["string", "null"], "description": "An Object surface of the tileset; every portal must be visible"}}),
-        &["x", "y", "to_map", "to_x", "to_y", "to_facing"],
+        json!({"level": level(), "x": x, "y": y, "id": {"type": "string", "description": "The portal's id, unique across every loaded map: 1 to 32 printable ASCII characters"}, "link": {"type": ["string", "null"], "description": "The id of the portal this one leads to; the other side may state the link instead. None: unlinked, a plain tile in play"}, "facing": Facing::schema(), "marker": {"type": ["string", "null"], "description": "An Object surface of the tileset; every portal must be visible"}}),
+        &["x", "y", "id", "facing"],
     )
 }
 
@@ -286,7 +287,7 @@ mod tests {
         );
         let places = [
             json!({"Start": {"x": 1, "y": 2, "facing": "South"}}),
-            json!({"Portal": {"x": 11, "y": 2, "to_map": "test:map:meadow", "to_x": 16, "to_y": 30, "to_facing": "North", "marker": "signpost"}}),
+            json!({"Portal": {"x": 11, "y": 2, "id": "town-gate", "link": "meadow-gate", "facing": "West", "marker": "signpost"}}),
             json!({"Encounter": {"id": "rats", "x": 3, "y": 3, "stacks": [["test:monster:rat", 3]], "disposition": "Wary", "once": true, "stand": {"pos": [0, -3], "facing": "South"}}}),
             json!({"Random": {"chance_percent": 3, "entries": [{"weight": 2, "stacks": [["test:monster:goblin", {"count": 1, "sides": 3, "modifier": 0}]]}]}}),
             json!({"Site": {"x": 1, "y": 1, "service": "base:service:inn"}}),

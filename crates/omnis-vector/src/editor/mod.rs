@@ -360,7 +360,10 @@ impl Editor {
         let mut out = Vec::new();
         for p in def.portals.iter().filter(|p| is_here(p.level, p.x, p.y)) {
             out.push(Here {
-                label: format!("Portal to {}", p.to_map),
+                label: match &p.link {
+                    Some(link) => format!("Portal '{}' to '{link}'", p.id),
+                    None => format!("Portal '{}'", p.id),
+                },
                 key: PlaceKey::Portal { level, x, y },
             });
         }

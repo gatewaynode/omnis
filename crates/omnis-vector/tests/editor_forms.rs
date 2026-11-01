@@ -157,57 +157,50 @@ fn stamp(app: &mut App, kind: omnis_vector::editor::forms::Placing, cell: (u16, 
 }
 
 #[test]
-fn a_portal_stamp_lands_at_the_chosen_map_s_start_then_its_form_edits_and_removes_it() {
-    use common::editor::field_of;
+fn a_portal_stamp_places_an_unlinked_portal_facing_the_author_then_its_form_edits_and_removes_it() {
+    use common::editor::{field_of, held};
     use omnis_vector::editor::form::FormKind;
     use omnis_vector::editor::forms::Placing;
-    use omnis_vector::shell::session::Packs;
     let mut app = in_editor("test:map:town");
-    let data = app.world().resource::<Packs>().data.clone();
-    common::editor::hold(&mut app, Placing::Portal, &["test:map:meadow"]);
+    assert!(held(&app, Placing::Portal).is_empty(), "nothing chosen");
     stamp(&mut app, Placing::Portal, (3, 4));
     assert!(editing(&app).form.is_none(), "a stamp opens no form");
+    let facing = editing(&app).facing;
     let def = editing(&app).def().unwrap();
     let portal = def
         .portals
         .iter()
         .find(|p| p.x == 3 && p.y == 4)
         .expect("the portal");
-    assert_eq!(portal.to_map, "test:map:meadow");
-    let meadow = data
-        .maps
-        .values()
-        .find(|m| m.def.id == "test:map:meadow")
-        .unwrap();
     assert_eq!(
-        (portal.to_x, portal.to_y, portal.to_facing),
-        meadow.def.start,
-        "a new portal lands at the map's start"
+        (portal.id.as_str(), portal.link.as_deref(), portal.facing),
+        ("portal_3_4", None, facing.opposite()),
+        "a fresh portal is unlinked and faces the author (W1 step 2)"
     );
     let marker = portal.marker.clone().expect("a marker of the tileset");
+    assert!(
+        editing(&app).status.errors.is_empty(),
+        "an unlinked portal is legal: {:?}",
+        editing(&app).status.errors
+    );
     // The inspector lists it at its cell, with Edit and Remove; its form holds what landed.
     let text = form_text(&app);
-    assert!(text.contains("Portal to test:map:meadow"), "{text}");
+    assert!(text.contains("Portal 'portal_3_4'"), "{text}");
     press_edit(&mut app, EditAct::EditAt(0));
     let form = editing(&app).form.clone().expect("the portal's form");
     assert_eq!(form.kind, FormKind::Portal);
-    assert_eq!(form.choice_of("to map"), "test:map:meadow");
+    assert_eq!(form.text_of("id"), "portal_3_4");
+    assert_eq!(form.text_of("link"), "");
     assert_eq!(form.choice_of("marker"), marker);
     assert!(form.remove.is_some(), "Remove is offered");
     let text = form_text(&app);
     assert!(
-        text.contains("Portal at (3, 4)") && text.contains("to map") && text.contains("marker"),
+        text.contains("Portal at (3, 4)") && text.contains("link") && text.contains("marker"),
         "{text}"
     );
-    // The choice and the numbers step with the arrows; Apply changes it in one step.
-    let to_map = EditAct::Field(field_of(&form, "to map"));
-    while editing(&app).form.as_ref().unwrap().choice_of("to map") != "test:map:town" {
-        arrow(&mut app, to_map, true);
-    }
-    let to_x = EditAct::Field(field_of(&form, "to x"));
-    for _ in 0..3 {
-        arrow(&mut app, to_x, true);
-    }
+    // The facing steps with the arrows; Apply changes it in one step.
+    let facing_field = EditAct::Field(field_of(&form, "facing"));
+    arrow(&mut app, facing_field, true);
     let steps = editing(&app).status.undo;
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{:?}", editing(&app).message);
@@ -217,8 +210,11 @@ fn a_portal_stamp_lands_at_the_chosen_map_s_start_then_its_form_edits_and_remove
         .iter()
         .find(|p| p.x == 3 && p.y == 4)
         .expect("the portal");
-    assert_eq!(portal.to_map, "test:map:town");
-    assert_eq!(portal.to_x, meadow.def.start.0 + 3);
+    assert_eq!(
+        portal.facing,
+        facing.opposite().right(),
+        "one step clockwise"
+    );
     assert_eq!(editing(&app).status.undo, steps + 1);
     press_edit(&mut app, EditAct::RemoveAt(0));
     assert!(editing(&app).here().is_empty());
@@ -792,7 +788,10 @@ fn the_plan_marks_placements_on_their_cells() {
         .data
         .clone();
     let marks = plan::marks(&def, &data, Level::GROUND);
-    assert!(marks.contains(&((11, 2), Mark::Portal)), "{marks:?}");
+    assert!(
+        marks.contains(&((11, 2), Mark::Portal { linked: true })),
+        "the gate is linked: {marks:?}"
+    );
     // The inn's site is an activity of the inn's kind: its icon, a bed.
     let site = def.sites[0].clone();
     assert_eq!(site.service, "base:service:inn");

@@ -35,7 +35,7 @@ impl Form {
             })
         };
         Some(match place {
-            Place::Portal(p) => portal(def, data, at, Some(p), None),
+            Place::Portal(p) => portal(def, data, at, Some(p), None, true),
             Place::Encounter(e) => {
                 let mut e = e.clone();
                 e.id = fresh(Placing::Encounter, "encounter");

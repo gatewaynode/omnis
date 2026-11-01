@@ -1,5 +1,7 @@
 //! A map as the simulation reads it: its parsed levels and cells, and the references the
-//! loader resolved (portals, encounters, sites, rest events), with the lookups by tile.
+//! loader resolved (portals, encounters, sites, rest events), with the lookups by tile. A
+//! portal resolves through its link (the entrances and exits enhancement, W1 step 2): its
+//! landing is the cell ahead of its partner; an unlinked portal resolves to nothing.
 
 use crate::encounter::{self, ResolvedEncounter, ResolvedRandom};
 use crate::error::DataError;
@@ -16,7 +18,8 @@ use omnis_core::{Facing, Level, MapId, RegionId, ServiceId, TextKey, TilesetId};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// A portal with its destination resolved to an interned map.
+/// A linked portal with its landing derived from its partner and the partner's map interned.
+/// An unlinked portal has none: it is a plain tile in play.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedPortal {
     /// Trigger level.
@@ -49,7 +52,7 @@ pub struct MapData {
     pub tileset: TilesetId,
     /// The interned display-name key.
     pub name: TextKey,
-    /// Portals with interned destinations.
+    /// The linked portals with their landings (an unlinked portal is not among them).
     pub portals: Vec<ResolvedPortal>,
     /// Fixed encounters with interned monsters, in file order.
     pub encounters: Vec<ResolvedEncounter>,
@@ -122,7 +125,7 @@ impl MapData {
         &self.def.terrains[usize::from(cell.terrain)]
     }
 
-    /// The portal on a tile, if any.
+    /// The linked portal on a tile, if any (an unlinked one is a plain tile).
     #[must_use]
     pub fn portal_at(&self, level: Level, x: u16, y: u16) -> Option<&ResolvedPortal> {
         self.portals
@@ -180,11 +183,12 @@ impl MapData {
 
 // ---- Resolution: the loader's per-map pass, shared with the editor (M5.1) ----
 
-/// What a map's resolution asks of the other maps: a portal's destination, and the region that
-/// owns a map. The loader answers from the files it read; the editor from loaded [`Data`].
+/// What a map's resolution asks of the other maps: every map (a portal's partner may stand on
+/// any of them), and the region that owns a map. The loader answers from the files it read; the
+/// editor from loaded [`Data`] with the edited map standing in for its file.
 pub(crate) trait MapTargets {
-    /// The interned id, definition and parsed levels of the map `id` names.
-    fn target(&self, id: &str) -> Option<Target<'_>>;
+    /// Every map, in id order, with its interned id, definition and parsed levels.
+    fn maps(&self) -> Vec<Target<'_>>;
     /// The region owning `map`.
     fn owner(&self, map: MapId) -> Option<RegionId>;
 }
@@ -242,61 +246,247 @@ fn standing_fault(
     }
 }
 
-/// The way back from a portal's landing (the entrances and exits enhancement, W1, the owner's
-/// strict mirror of 2026-11-01): the portal of `far` standing directly behind the landing, so
-/// the party arrives facing away from it, and leading back to `from`. `None` when no portal
-/// stands there, or nothing stands behind the landing (the map's edge).
-#[must_use]
-pub fn way_back<'a>(portal: &Portal, from: &str, far: &'a MapDef) -> Option<&'a Portal> {
-    let (x, y) = portal.to_facing.behind((portal.to_x, portal.to_y))?;
-    far.portals
-        .iter()
-        .find(|p| p.level == portal.to_level && (p.x, p.y) == (x, y) && p.to_map == from)
+// ---- Links (the entrances and exits enhancement, W1 step 2, the owner's direction of
+// 2026-11-01): a pair is stated by either side; the landing is ahead of the partner ----
+
+/// The portal `id` names among `maps`, with its map; the first in map order when two share it
+/// (which is its own error).
+fn find_portal<'a>(maps: &[Target<'a>], id: &str) -> Option<(Target<'a>, &'a Portal)> {
+    maps.iter()
+        .find_map(|t| t.def.portals.iter().find(|p| p.id == id).map(|p| (*t, p)))
 }
 
-fn no_way_back(portal: &Portal, from: &str) -> String {
-    format!(
-        "portal at ({}, {}) has no way back: no portal behind its landing ({}, {}) on '{}' leads to '{from}'",
-        portal.x, portal.y, portal.to_x, portal.to_y, portal.to_map
+/// A portal's partner: the portal its `link` names, or the one portal anywhere whose `link`
+/// names it (one side stating the link is enough; both may, agreeing), with the map it stands
+/// on. `Ok(None)` for an unlinked portal. `own` is the id of the map `portal` stands on.
+///
+/// # Errors
+/// The loader's words: the link names the portal itself, names no portal of any loaded map, or
+/// names a portal that links to a third; or two portals claim this one.
+pub(crate) fn pairing<'a>(
+    portal: &Portal,
+    own: &str,
+    maps: &[Target<'a>],
+) -> Result<Option<(Target<'a>, &'a Portal)>, String> {
+    let this = format!("portal '{}' at ({}, {})", portal.id, portal.x, portal.y);
+    let mut partners: Vec<(Target<'a>, &'a Portal)> = Vec::new();
+    if let Some(link) = &portal.link {
+        if *link == portal.id {
+            return Err(format!("{this} links to itself"));
+        }
+        let Some((far, q)) = find_portal(maps, link) else {
+            return Err(format!("{this} links to '{link}', which no loaded map has"));
+        };
+        if let Some(back) = &q.link
+            && *back != portal.id
+        {
+            return Err(format!(
+                "portal '{}' links to '{link}', which links to '{back}'",
+                portal.id
+            ));
+        }
+        partners.push((far, q));
+    }
+    for far in maps {
+        for q in &far.def.portals {
+            let itself = far.def.id == own && q.id == portal.id;
+            let claims = q.link.as_deref() == Some(portal.id.as_str());
+            let held = partners
+                .iter()
+                .any(|(t, p)| t.def.id == far.def.id && p.id == q.id);
+            if claims && !itself && !held {
+                partners.push((*far, q));
+            }
+        }
+    }
+    match partners.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(*one)),
+        [(t1, a), (t2, b), ..] => Err(format!(
+            "{this} is linked with both '{}' on '{}' and '{}' on '{}'",
+            a.id, t1.def.id, b.id, t2.def.id
+        )),
+    }
+}
+
+/// Where `portal` lands: the cell ahead of its partner `q` on `far`, where the party can stand
+/// and no portal stands.
+///
+/// # Errors
+/// The loader's words: the cell ahead is outside the map, has no ground, cannot be entered, or
+/// holds a portal.
+pub(crate) fn landing(
+    portal: &Portal,
+    far: Target<'_>,
+    q: &Portal,
+) -> Result<(Level, u16, u16), String> {
+    let at = format!(
+        "portal '{}' at ({}, {}) lands ahead of '{}' on '{}'",
+        portal.id, portal.x, portal.y, q.id, far.def.id
+    );
+    let Some((x, y)) = q
+        .landing()
+        .filter(|&(x, y)| x < far.def.width && y < far.def.height)
+    else {
+        return Err(format!("{at}, outside the map"));
+    };
+    match standing_fault(far.def, far.levels, q.level, x, y) {
+        Some("is on no ground") => Err(format!("{at} at ({x}, {y}), where there is no ground")),
+        Some(_) => Err(format!("{at} at ({x}, {y}), which the party cannot enter")),
+        None if far
+            .def
+            .portals
+            .iter()
+            .any(|p| p.level == q.level && (p.x, p.y) == (x, y)) =>
+        {
+            Err(format!("{at} at ({x}, {y}), where a portal stands"))
+        }
+        None => Ok((q.level, x, y)),
+    }
+}
+
+/// `portal` resolved through its partner, if it has one and lands clean.
+fn resolve_portal(
+    portal: &Portal,
+    own: &str,
+    maps: &[Target<'_>],
+) -> Result<Option<ResolvedPortal>, String> {
+    let Some((far, q)) = pairing(portal, own, maps)? else {
+        return Ok(None);
+    };
+    let (to_level, to_x, to_y) = landing(portal, far, q)?;
+    Ok(Some(ResolvedPortal {
+        level: portal.level,
+        x: portal.x,
+        y: portal.y,
+        to_map: far.id,
+        to_level,
+        to_x,
+        to_y,
+        to_facing: q.facing,
+    }))
+}
+
+/// Every loaded map with `edited` standing in for its id (or added, for a map the packs lack),
+/// in id order: what the editor's resolution sees.
+fn data_maps<'a>(data: &'a Data, edited: Target<'a>) -> Vec<Target<'a>> {
+    let mut out: Vec<Target<'a>> = data
+        .maps
+        .iter()
+        .filter(|(_, m)| m.def.id != edited.def.id)
+        .map(|(id, m)| Target {
+            id: *id,
+            def: &m.def,
+            levels: &m.levels,
+        })
+        .collect();
+    out.push(edited);
+    out.sort_by(|a, b| a.def.id.cmp(&b.def.id));
+    out
+}
+
+/// The maps as the editor sees them: `def` standing in for its id among the loaded maps.
+fn editor_maps<'a>(def: &'a MapDef, data: &'a Data) -> Vec<Target<'a>> {
+    let id = data
+        .registry
+        .maps
+        .get(&def.id)
+        .unwrap_or_else(|| MapId::from(u32::MAX));
+    data_maps(
+        data,
+        Target {
+            id,
+            def,
+            levels: &[],
+        },
     )
 }
 
-/// The maps of `pack` that `entry` does not reach through portals, among the maps that have a
-/// portal at all (a map with none is unfinished, not unreached), in id order. Nothing when
-/// `entry` is not among `maps`: that is reported on its own.
+/// A portal's partner as the editor sees it: among the loaded maps, with `def` standing in for
+/// its id. `None` when the portal is unlinked or its links are in error (the loader's words say
+/// which).
 #[must_use]
-pub fn unreached<'a>(
-    maps: impl Iterator<Item = &'a MapDef>,
-    entry: &str,
-    pack: &str,
-) -> Vec<String> {
-    let by_id: BTreeMap<&str, &MapDef> = maps.map(|d| (d.id.as_str(), d)).collect();
-    if !by_id.contains_key(entry) {
+pub fn partner_of<'a>(
+    portal: &Portal,
+    def: &'a MapDef,
+    data: &'a Data,
+) -> Option<(&'a str, &'a Portal)> {
+    let maps = editor_maps(def, data);
+    pairing(portal, &def.id, &maps)
+        .ok()
+        .flatten()
+        .map(|(far, q)| (far.def.id.as_str(), q))
+}
+
+/// Every portal nothing links to, as the editor sees it, with its map: what a new link may
+/// name. In map order, then file order.
+#[must_use]
+pub fn unlinked_portals<'a>(def: &'a MapDef, data: &'a Data) -> Vec<(&'a str, &'a Portal)> {
+    unlinked_among(&editor_maps(def, data))
+}
+
+/// Every portal nothing links to among the loaded maps as the files hold them, with its map.
+#[must_use]
+pub fn unlinked_portals_in(data: &Data) -> Vec<(&str, &Portal)> {
+    let maps: Vec<Target<'_>> = data
+        .maps
+        .iter()
+        .map(|(id, m)| Target {
+            id: *id,
+            def: &m.def,
+            levels: &m.levels,
+        })
+        .collect();
+    unlinked_among(&maps)
+}
+
+fn unlinked_among<'a>(maps: &[Target<'a>]) -> Vec<(&'a str, &'a Portal)> {
+    let mut out = Vec::new();
+    for t in maps {
+        for p in &t.def.portals {
+            if matches!(pairing(p, &t.def.id, maps), Ok(None)) {
+                out.push((t.def.id.as_str(), p));
+            }
+        }
+    }
+    out
+}
+
+/// The maps of `pack` that `entry` does not reach through linked portals, among the maps that
+/// have a linked portal at all (a map with none is unfinished, not unreached), in id order.
+/// Nothing when `entry` is not among `maps`: that is reported on its own.
+pub(crate) fn unreached(maps: &[Target<'_>], entry: &str, pack: &str) -> Vec<String> {
+    if !maps.iter().any(|t| t.def.id == entry) {
         return Vec::new();
+    }
+    let mut edges: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut linked = std::collections::BTreeSet::new();
+    for t in maps {
+        for portal in &t.def.portals {
+            if let Ok(Some((far, _))) = pairing(portal, &t.def.id, maps) {
+                let (a, b) = (t.def.id.as_str(), far.def.id.as_str());
+                edges.entry(a).or_default().push(b);
+                edges.entry(b).or_default().push(a);
+                linked.insert(a);
+                linked.insert(b);
+            }
+        }
     }
     let mut reached = std::collections::BTreeSet::from([entry]);
     let mut queue = vec![entry];
     while let Some(id) = queue.pop() {
-        for portal in by_id
-            .get(id)
-            .map(|d| d.portals.as_slice())
-            .unwrap_or_default()
-        {
-            if let Some(&to) = by_id.get_key_value(portal.to_map.as_str()).map(|(k, _)| k)
-                && reached.insert(to)
-            {
+        for &to in edges.get(id).map(Vec::as_slice).unwrap_or_default() {
+            if reached.insert(to) {
                 queue.push(to);
             }
         }
     }
-    by_id
-        .values()
-        .filter(|d| {
-            !reached.contains(d.id.as_str())
-                && d.id.split(':').next() == Some(pack)
-                && !d.portals.is_empty()
+    maps.iter()
+        .map(|t| t.def.id.as_str())
+        .filter(|id| {
+            !reached.contains(id) && id.split(':').next() == Some(pack) && linked.contains(id)
         })
-        .map(|d| d.id.clone())
+        .map(str::to_owned)
         .collect()
 }
 
@@ -466,91 +656,32 @@ fn check_surfaces(def: &MapDef, tileset: &Tileset, file: &Path, errors: &mut Vec
     }
 }
 
-/// Portals must lead to a known map, land inside it where the party can stand and no portal
-/// stands, and have their way back behind the landing.
+/// Every portal's id is its own across the loaded maps; a linked portal lands ahead of its
+/// partner where the party can stand and no portal stands; an unlinked one resolves to nothing.
 fn resolve_portals(
     def: &MapDef,
     file: &Path,
     targets: &dyn MapTargets,
     errors: &mut Vec<DataError>,
 ) -> Vec<ResolvedPortal> {
-    let mut portals = Vec::with_capacity(def.portals.len());
+    let maps = targets.maps();
+    let mut portals = Vec::new();
     for portal in &def.portals {
-        let Some(target) = targets.target(&portal.to_map) else {
-            errors.push(DataError::new(
-                file,
-                format!(
-                    "portal at ({}, {}) leads to unknown map '{}'",
-                    portal.x, portal.y, portal.to_map
-                ),
-            ));
-            continue;
-        };
-        let messages = arrival_errors(portal, target.def, target.levels);
-        let on_map = portal.x < def.width && portal.y < def.height;
-        if on_map && messages.is_empty() && way_back(portal, &def.id, target.def).is_none() {
-            errors.push(DataError::new(file, no_way_back(portal, &def.id)));
-        }
-        for message in messages {
-            errors.push(DataError::new(file, message));
-        }
-        portals.push(ResolvedPortal {
-            level: portal.level,
-            x: portal.x,
-            y: portal.y,
-            to_map: target.id,
-            to_level: portal.to_level,
-            to_x: portal.to_x,
-            to_y: portal.to_y,
-            to_facing: portal.to_facing,
-        });
-    }
-    portals
-}
-
-/// Why a portal cannot land on `target`: a level it does not have, a cell outside it, no
-/// ground, terrain the party cannot enter, or a portal standing there.
-fn arrival_errors(portal: &Portal, target: &MapDef, levels: &[LevelData]) -> Vec<String> {
-    let mut out = Vec::new();
-    let has_level = portal.to_level.is_ground()
-        || target
-            .levels
-            .iter()
-            .any(|l| Level(l.level) == portal.to_level);
-    if !has_level {
-        out.push(format!(
-            "portal at ({}, {}) lands on level {}, which map '{}' does not have",
-            portal.x, portal.y, portal.to_level, portal.to_map
-        ));
-    }
-    if portal.to_x >= target.width || portal.to_y >= target.height {
-        out.push(format!(
-            "portal at ({}, {}) lands outside map '{}'",
-            portal.x, portal.y, portal.to_map
-        ));
-    }
-    if !out.is_empty() {
-        return out;
-    }
-    let (level, x, y) = (portal.to_level, portal.to_x, portal.to_y);
-    let at = format!(
-        "portal at ({}, {}) lands on ({x}, {y}) of '{}'",
-        portal.x, portal.y, portal.to_map
-    );
-    match standing_fault(target, levels, level, x, y) {
-        Some("is on no ground") => out.push(format!("{at}, where there is no ground")),
-        Some(_) => out.push(format!("{at}, which the party cannot enter")),
-        None => {
-            if target
-                .portals
-                .iter()
-                .any(|p| p.level == level && (p.x, p.y) == (x, y))
-            {
-                out.push(format!("{at}, where a portal stands"));
+        for other in maps.iter().filter(|t| t.def.id != def.id) {
+            if other.def.portals.iter().any(|p| p.id == portal.id) {
+                errors.push(DataError::new(
+                    file,
+                    format!("portal id '{}' is also on '{}'", portal.id, other.def.id),
+                ));
             }
         }
+        match resolve_portal(portal, &def.id, &maps) {
+            Ok(Some(resolved)) => portals.push(resolved),
+            Ok(None) => {}
+            Err(message) => errors.push(DataError::new(file, message)),
+        }
     }
-    out
+    portals
 }
 
 /// Why a resolved portal cannot land where it points: an object blocks the centre of the cell
@@ -575,16 +706,8 @@ struct DataTargets<'a> {
 }
 
 impl MapTargets for DataTargets<'_> {
-    fn target(&self, id: &str) -> Option<Target<'_>> {
-        if id == self.edited.def.id {
-            return Some(self.edited);
-        }
-        let map = self.data.registry.maps.get(id)?;
-        self.data.maps.get(&map).map(|m| Target {
-            id: map,
-            def: &m.def,
-            levels: &m.levels,
-        })
+    fn maps(&self) -> Vec<Target<'_>> {
+        data_maps(self.data, self.edited)
     }
 
     fn owner(&self, map: MapId) -> Option<RegionId> {
@@ -626,9 +749,13 @@ impl MapData {
         else {
             return Err(errors);
         };
-        check_inbound(id, def, &resolved.centres, data, &file, &mut errors);
+        check_inbound(id, def, &resolved.centres, &targets, &file, &mut errors);
         check_outbound(id, &resolved, data, &file, &mut errors);
-        check_reached(def, data, &file, &mut errors);
+        // Reachability over sound pairs only: a link in error would otherwise cut off every map
+        // beyond it and say so for each.
+        if errors.is_empty() {
+            check_reached(def, data, &targets, &file, &mut errors);
+        }
         if errors.is_empty() {
             Ok(resolved.map)
         } else {
@@ -637,56 +764,58 @@ impl MapData {
     }
 }
 
-/// The other maps' portals that land on this map still land inside it, on a level it has, and
-/// not where an object blocks the centre. Reported against this map's file, since it is the
-/// one being changed, with the other map's id first.
+/// The other maps' portals as this map now stands: their links still resolve (a link this map
+/// held or answered may be gone), and those landing on this map still land where the party
+/// can stand and no object blocks the centre. Reported against this map's file, since it is
+/// the one being changed, with the other map's id first.
 fn check_inbound(
     id: MapId,
     def: &MapDef,
     centres: &BTreeMap<(Level, u16, u16), String>,
-    data: &Data,
+    targets: &dyn MapTargets,
     file: &Path,
     errors: &mut Vec<DataError>,
 ) {
-    let levels = resolved_levels(def);
-    for other in data.maps.values().filter(|m| m.def.id != def.id) {
-        for portal in other.def.portals.iter().filter(|p| p.to_map == def.id) {
-            let mut messages = arrival_errors(portal, def, &levels);
-            if messages.is_empty() {
-                if way_back(portal, &other.def.id, def).is_none() {
-                    messages.push(no_way_back(portal, &other.def.id));
-                }
-                let resolved = ResolvedPortal {
-                    level: portal.level,
-                    x: portal.x,
-                    y: portal.y,
-                    to_map: id,
-                    to_level: portal.to_level,
-                    to_x: portal.to_x,
-                    to_y: portal.to_y,
-                    to_facing: portal.to_facing,
-                };
-                messages.extend(landing_message(&resolved, centres));
-            }
-            for message in messages {
+    let maps = targets.maps();
+    for other in maps.iter().filter(|t| t.def.id != def.id) {
+        for portal in &other.def.portals {
+            let message = match pairing(portal, &other.def.id, &maps) {
+                Err(message) => Some(message),
+                Ok(Some((far, q))) if far.def.id == def.id => match landing(portal, far, q) {
+                    Err(message) => Some(message),
+                    Ok((to_level, to_x, to_y)) => landing_message(
+                        &ResolvedPortal {
+                            level: portal.level,
+                            x: portal.x,
+                            y: portal.y,
+                            to_map: id,
+                            to_level,
+                            to_x,
+                            to_y,
+                            to_facing: q.facing,
+                        },
+                        centres,
+                    ),
+                },
+                Ok(_) => None,
+            };
+            if let Some(message) = message {
                 errors.push(DataError::new(file, format!("{}: {message}", other.def.id)));
             }
         }
     }
 }
 
-/// The edited map's levels as `resolve` parsed them, for the other maps' portals landing on it.
-/// Parsed again here (cheaply: the layout is text) rather than threaded through, since the
-/// shape passed before this is reached.
-fn resolved_levels(def: &MapDef) -> Vec<LevelData> {
-    let mut errors = Vec::new();
-    levels::parse(def, Path::new(""), &mut errors).unwrap_or_default()
-}
-
-/// Every map of the pack that sets the entry is reached from the entry map through portals, the
-/// edited map standing in for its file (the entrances and exits enhancement, W1): the editor
-/// hears it when a change cuts a map off, as the loader would on the next load.
-fn check_reached(def: &MapDef, data: &Data, file: &Path, errors: &mut Vec<DataError>) {
+/// Every map of the pack that sets the entry is reached from the entry map through linked
+/// portals, the edited map standing in for its file (the entrances and exits enhancement, W1):
+/// the editor hears it when a change cuts a map off, as the loader would on the next load.
+fn check_reached(
+    def: &MapDef,
+    data: &Data,
+    targets: &dyn MapTargets,
+    file: &Path,
+    errors: &mut Vec<DataError>,
+) {
     let Some(entry) = data.entry else {
         return;
     };
@@ -698,13 +827,7 @@ fn check_reached(def: &MapDef, data: &Data, file: &Path, errors: &mut Vec<DataEr
         Some(_) => def.id.as_str(),
         None => return,
     };
-    let maps = data
-        .maps
-        .values()
-        .map(|m| &m.def)
-        .filter(|d| d.id != def.id)
-        .chain(std::iter::once(def));
-    for missing in unreached(maps, entry, &pack.id) {
+    for missing in unreached(&targets.maps(), entry, &pack.id) {
         errors.push(DataError::new(file, unreached_message(&missing, entry)));
     }
 }

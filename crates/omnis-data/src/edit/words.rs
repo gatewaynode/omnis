@@ -76,7 +76,14 @@ pub fn stroke(cells: usize, first: &str) -> String {
 pub fn place(place: &Place) -> String {
     clip(&match place {
         Place::Start { x, y, facing } => format!("start set at ({x}, {y}) facing {facing}"),
-        Place::Portal(p) => format!("portal at {} to {}", at(p.level, p.x, p.y), p.to_map),
+        Place::Portal(p) => match &p.link {
+            Some(link) => format!(
+                "portal '{}' at {} linked to '{link}'",
+                p.id,
+                at(p.level, p.x, p.y)
+            ),
+            None => format!("portal '{}' at {}", p.id, at(p.level, p.x, p.y)),
+        },
         Place::Encounter(e) => format!("encounter {} at {}", e.id, at(e.level, e.x, e.y)),
         Place::Random(Some(_)) => "random encounters set".to_owned(),
         Place::Random(None) => "random encounters cleared".to_owned(),

@@ -1,5 +1,5 @@
 // Entrance and exit faults (W1, the entrances and exits enhancement), loaded after the base and
 // test packs: their tileset is used, so every error here is about where a portal or a start lands,
-// a portal's way back, and what the entry map reaches. The test pack's maps are another pack's,
-// so they are not asked to be reached from this pack's entry.
-(schema: 1, id: "ways", version: "0.1.0", hash: 5851007526817096721, name: "Bad ways", license: "MIT", depends: ["base", "test"], entry: Some("ways:map:stand"))
+// a portal's links and id, and what the entry map reaches. The test pack's maps are another
+// pack's, so they are not asked to be reached from this pack's entry.
+(schema: 1, id: "ways", version: "0.1.1", hash: 17446207683032440030, name: "Bad ways", license: "MIT", depends: ["base", "test"], entry: Some("ways:map:stand"))

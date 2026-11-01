@@ -208,7 +208,7 @@ pub enum Place {
         /// Facing.
         facing: Facing,
     },
-    /// A portal; the key is its tile.
+    /// A portal, linked or not; the key is its tile.
     Portal(Portal),
     /// A fixed encounter; the key is its id.
     Encounter(FixedEncounter),
