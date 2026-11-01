@@ -349,7 +349,14 @@ no loss, and every later map is built with it.
     (two arrivals faced sideways to it); the replay scripts turn right after each stairs; replays re-baselined.
     Corpus `tests/packs-bad/bad-ways` (seven rows), `bad-objects` gains the way back its portal lacked. A portal
     stamped alone says "has no way back" until step 2 writes the pair (`editor_stamp`, `editor_pick` pin it).
-  - [ ] Step 2: pairs authored once. `State.far` (other maps' defs this document changed, in every snapshot: one
+    The owner's hand test (2026-11-01) found Save and Playtest swallowed by the error's words: both now dim with
+    the count alone, the words stay the inspector's and the message's (fixed the same day, `tasks/LESSONS.md`).
+  - [ ] Step 2, **to be re-planned** on the owner's direction of 2026-11-01 (from the hand test: a pair cannot
+    be authored at all while each half needs the other on disk): a portal has an **unlinked** state (saved,
+    not drawn on the plan or in the view, not usable, until linked), every portal carries a freehand **portal
+    id**, and linking is by picking another portal, with a search over every portal of the loaded packs. The
+    plan below is the earlier one and gives way where the two differ.
+  - [ ] Step 2 as first planned: pairs authored once. `State.far` (other maps' defs this document changed, in every snapshot: one
     undo step across two maps), `Document::place_pair`, `far_files`, Save writing every file; `edit/pair.rs` (the
     mirror: the way back behind the landing, landing in front of the portal facing away); `Kind::Picture` and
     `Payload::At` in the kit; `ScreenId::EditorLanding` (the far map's plan, a click the landing, arrive and

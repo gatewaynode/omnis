@@ -390,9 +390,22 @@ fn save_is_refused_in_the_loader_s_words_while_invalid_and_writes_reseals_and_re
     );
     let text = screen_text(app.world());
     assert!(!text.contains("[button] \"Save"), "dim: {text}");
+    // The count alone (owner, 2026-11-01: the words swallowed the button); the inspector
+    // lists the words, the message says them.
     assert!(
-        text.contains("\"Save  Cmd S: 1 error: "),
-        "with the reason: {text}"
+        text.contains("\"Save  Cmd S: 1 error\""),
+        "with the count, not the words: {text}"
+    );
+    assert!(
+        text.contains("\"Playtest: 1 error\""),
+        "Playtest dims with the count too: {text}"
+    );
+    assert!(
+        e.message
+            .as_deref()
+            .is_some_and(|m| m.contains("more than 16 apart")),
+        "the words are the message's: {:?}",
+        e.message
     );
     key(&mut app, KeyCode::SuperLeft, ButtonState::Pressed);
     tap(&mut app, KeyCode::KeyS);

@@ -142,18 +142,23 @@ fn playtest_is_dim_with_its_reason_until_the_cursor_stands_on_playable_ground() 
             .clone()
     };
     assert_eq!(reason(&app), None);
-    // No ground under the cursor.
+    // No ground under the cursor: a street cell, not the start (erasing the start's ground is
+    // the loader's error since the entrances step 1, and the reason would be its count).
     {
         let mut e = app.world_mut().resource_mut::<Editing>();
         e.tool = Tool::Eraser;
+        e.cursor = (8, 2);
         let cell = e.cursor;
         assert!(e.paint(&data, Target { cell, edge: None }, false));
     }
     app.update();
     assert!(
-        reason(&app).is_some_and(|r| r.contains("no ground")),
-        "{:?}",
-        reason(&app)
+        editing(&app).status.errors.is_empty(),
+        "the map still loads"
+    );
+    assert_eq!(
+        reason(&app).as_deref(),
+        Some("the cursor stands on no ground")
     );
     press_edit(&mut app, EditAct::Undo);
     assert_eq!(reason(&app), None);
@@ -183,10 +188,10 @@ fn playtest_is_dim_with_its_reason_until_the_cursor_stands_on_playable_ground() 
         ));
     }
     app.update();
-    assert!(
-        reason(&app).is_some_and(|r| r.contains("error")),
-        "{:?}",
-        reason(&app)
+    assert_eq!(
+        reason(&app).as_deref(),
+        Some("1 error"),
+        "the count alone; the inspector lists the words"
     );
 }
 

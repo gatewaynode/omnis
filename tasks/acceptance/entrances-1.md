@@ -37,8 +37,19 @@ start on rock; a cut-off map with its orphaned way back), `bad_packs::every_entr
 arrival), `movement::a_portal_whose_landing_cannot_be_stood_on_is_a_plain_tile`, `binding::the_portal_snaps_
 the_pose_into_the_dungeon`, `editor_stamp` and `editor_pick` (a lone portal stamp says it has no way back).
 
+## Found in the owner's hand test (2026-11-01)
+- **Save and Playtest were swallowed by the words**: both dimmed with the loader's first error quoted in full
+  (five lines each), and the owner read the column as Playtest lost and Save overlapped. Fixed the same day:
+  the two buttons dim with the count alone ("1 error"); the words are the inspector's rows and the message's
+  (`editor_paint` and `editor_playtest` pin the phrase whole; `tasks/LESSONS.md`).
+- **A pair cannot be authored in the editor until step 2**: a portal stamped alone is refused, and so is its
+  return placed first on the other map (each half needs the other on disk). The owner's direction for step 2:
+  an **unlinked** state for a portal (saved, not drawn, not usable until linked), a freehand **portal id** on
+  every portal, and linking by picking another portal with a search over every portal of the loaded packs.
+  Step 2 is re-planned on it.
+
 ## Known and expected
-- A portal placed by the stamp has no way back until step 2 writes the pair; Save is refused meanwhile.
+- A portal placed by the stamp has no way back until step 2; Save is refused meanwhile (above).
 - A landing on a service site stays legal: arriving there enters the service, as a step does.
 - The two re-faced arrivals move the golden replays (re-baselined) and the fight route turns right after the
   stairs; the frozen schema 8 and 9 saves still load and are compared with a fresh replay only when the packs are

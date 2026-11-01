@@ -17,13 +17,8 @@ pub fn blocked(editor: &Editor) -> Option<String> {
         return Some("needs the dev tools build".to_owned());
     }
     let def = editor.def()?;
-    let errors = &editor.status.errors;
-    if let Some(first) = errors.first() {
-        return Some(format!(
-            "{} error{}: {first}",
-            errors.len(),
-            if errors.len() == 1 { "" } else { "s" }
-        ));
+    if let Some(count) = super::view::error_count(&editor.status.errors) {
+        return Some(count);
     }
     if editor.resolved.is_none() {
         return Some("the map has not loaded".to_owned());

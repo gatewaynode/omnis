@@ -568,3 +568,17 @@
   assumed a shape of the fixture (flat, empty, a count) is rewritten to name the owner's content or to run on
   the maps the assumption still holds for (`tests/common/flat_maps`), never loosened to nothing. A new pin on
   the fixture's shape is written against the content, not the assumption that the fixture stays still.
+
+## 2026-11-01 — A button's dim reason is a phrase; the words live where text lives
+- **What happened**: Save and Playtest dimmed with the loader's first error quoted in full ("1 error: data/maps/
+  dungeon.ron: portal at (0, 5) has no way back: no portal behind its landing ..."). Step 1 of the entrances
+  enhancement made the errors long, and the owner's hand test read the column as the Save button gone and the
+  Playtest option lost: "I seem to have lost the 'test play' option", "the save file seems overlapped by the
+  red error text". The same words stood three times in one column (both buttons and the red message), and a
+  fourth in the inspector.
+- **Rule**: a control's `why_not` is a phrase the column's width holds in a line or two ("1 error", "no
+  changes", "open a map first"); it never quotes a message. The words of a verdict are shown once, where text
+  lives: the inspector's rows for what stands, the message for what just happened. When a reason would quote
+  something, write the count or the kind and point nowhere (the layout tells where the words are). A test that
+  pins a reason compares it whole (`assert_eq!` on the phrase), not `contains("error")`: the loose pin let the
+  playtest test pass on the wrong branch after step 1 added the start rule.

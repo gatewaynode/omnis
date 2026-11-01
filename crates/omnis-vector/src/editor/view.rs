@@ -29,6 +29,20 @@ fn dim(mut control: Control, why: Option<&str>) -> Control {
     control
 }
 
+/// The loader's verdict as a button's reason: the count alone ("1 error", "3 errors"), none
+/// when the map is clean. The words are the inspector's rows and the message's (owner,
+/// 2026-11-01: quoted in full, the words swallowed Save and Playtest).
+#[must_use]
+pub fn error_count(errors: &[String]) -> Option<String> {
+    (!errors.is_empty()).then(|| {
+        format!(
+            "{} error{}",
+            errors.len(),
+            if errors.len() == 1 { "" } else { "s" }
+        )
+    })
+}
+
 /// A level's name in the choice: its number, and its name when the map has several.
 fn level_label(editor: &Editor, data: &Data, level: Level) -> String {
     let name = editor
@@ -229,14 +243,7 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         if status.dirty { "  *" } else { "" }
     );
     let edit = |act| ControlId::Edit(act);
-    let errors = &status.errors;
-    let invalid = errors.first().map(|first| {
-        format!(
-            "{} error{}: {first}",
-            errors.len(),
-            if errors.len() == 1 { "" } else { "s" }
-        )
-    });
+    let invalid = error_count(&status.errors);
     let open_label = if status.dirty {
         "Open (drops changes)"
     } else {

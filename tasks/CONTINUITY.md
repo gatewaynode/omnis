@@ -1,7 +1,10 @@
 # Continuity notes
 
-Written 2026-11-01, after step 1 of **the entrances and exits enhancement** (the rules; the pack moved to 0.2.4,
-two arrivals facing east; `tasks/acceptance/entrances-1.md`, awaiting the owner's hand test). Before it the same
+Written 2026-11-01, during the owner's hand test of step 1 of **the entrances and exits enhancement** (the rules;
+the pack moved to 0.2.4, two arrivals facing east; `tasks/acceptance/entrances-1.md`). The hand test found Save and
+Playtest swallowed by the error's words (fixed: the count alone, this commit) and that no pair can be authored
+until step 2; **the owner redirected step 2** (an unlinked portal state, portal ids, linking by search), to be
+planned in plan mode next. Before it the same
 day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
@@ -88,14 +91,27 @@ Durable knowledge lives in `tasks/knowledge/`.
   stairs; `disk.rs`'s frozen-save comparisons guard on `report.fit == PackFit::Same` (the world's `packs` field
   records today's packs on a load by name, so the old guard was always true). **A portal stamped alone says "has
   no way back" until step 2**; `editor_stamp` and `editor_pick` pin that wording for now.
-- **Step 2 next (plan mode is done; build from the plan file)**: `State.far`, `place_pair`, `far_files`, Save of
-  every file, `edit/pair.rs`, `Kind::Picture` + `Payload::At`, `ScreenId::EditorLanding`, the stamp and the form
-  opening it, Move/Remove carrying the partner; the two tests above flip back to valid.
+- **The owner's hand test of step 1 (2026-11-01)**: Save and Playtest dimmed with the loader's first error in
+  full, read as "lost the test play option" and Save "overlapped by the red error text"; fixed: `view::error_
+  count` gives both buttons the count alone ("1 error"), the words stay the inspector's and the message's
+  (`tasks/LESSONS.md`). The test also showed that **no pair can be authored in the editor until step 2** (each
+  half is refused until the other is on disk; hand-editing the files and `omnis-cli pack seal` is the only way).
+- **Step 2 is re-planned (plan mode next)** on the owner's direction: "an intermediary state for portals,
+  'unlinked', that does not display the portal or allow its use until it is linked to another portal on the same
+  or a different map"; "a freehand portal_id text field, so editors can match up available portals to link to
+  with ease (best if you can search through all available portals)". Questions for the planning: whether a
+  linked portal's landing is derived from its partner (in front of it, facing away: the mirror by construction,
+  `to_x/to_y/to_facing` leave the file) or stays authored; the id's form and uniqueness (per pack? per world?);
+  whether an unlinked portal is legal in the shipped pack (the loader) or only in the editor's document; what
+  reachability counts (linked portals only); the picker (the object picker's search, filtered to portals,
+  showing map, cell and link state); the two editor tests that pin "has no way back" flip to the new words.
+  The earlier plan's kit work (`Kind::Picture`, the far map's plan) may fall away if linking is by id.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner's hand test of step 1** (`tasks/acceptance/entrances-1.md`), then "accepted" gets the prose
-   commit; then **step 2** from the plan. The editor's later items otherwise (the eraser or Delete clearing a
+1. **The owner finishes the hand test of step 1** (`tasks/acceptance/entrances-1.md`), then "accepted" gets the
+   prose commit; **plan step 2 anew in plan mode** on the unlinked state and portal ids (the section above),
+   then build it. The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
