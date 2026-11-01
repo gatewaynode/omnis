@@ -188,7 +188,8 @@ fn the_portal_snaps_the_pose_into_the_dungeon() {
         .and_then(|o| o.pose)
         .expect("a snap");
     assert_eq!((snap.x, snap.z), (1.5, 0.5));
-    assert!((snap.yaw - yaw_of(Facing::South)).abs() < 1e-5);
+    // Facing east, away from the stairs back up (the way back stands behind the landing).
+    assert!((snap.yaw - yaw_of(Facing::East)).abs() < 1e-5);
     // This driver keeps asking for yaw 0 afterwards (a real shell integrates from the snapped
     // yaw), so the party turns north into the map edge; the pose stays in the simulation's cell.
     assert_eq!(at_rest(&world, &data, &binder, pose), position(&world));

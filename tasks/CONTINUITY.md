@@ -1,7 +1,8 @@
 # Continuity notes
 
-Written 2026-10-31, after the recorded pins caught up with the owner's depths (replays, pack 0.2.3, the
-overlays) and before planning the entrances and exits enhancement; the same day, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
+Written 2026-11-01, after step 1 of **the entrances and exits enhancement** (the rules; the pack moved to 0.2.4,
+two arrivals facing east; `tasks/acceptance/entrances-1.md`, awaiting the owner's hand test). Before it the same
+day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
@@ -73,12 +74,30 @@ Durable knowledge lives in `tasks/knowledge/`.
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow; a rule if the owner wants one.
 
+## The entrances and exits enhancement (planned 2026-11-01, `/Users/john/.claude/plans/reflective-orbiting-magpie.md`; `tasks/TODO.md` W1)
+- Owner's scope (all four): loader rules on landings and starts; every map reached and every portal paired; pairs
+  authored once in the editor; the start as a real entrance. Owner's choices: **the strict mirror** (the way back
+  stands directly behind the landing; the party arrives facing away from it), **reachability for the maps of the
+  pack that sets `entry`** (fixture packs exempt), **the landing picked on the far map's plan**. The
+  Move-the-start report of 2026-10-25 is closed ("works now").
+- **Step 1 built 2026-11-01 (the rules)**: `map_data.rs` `Target`, `enterable`, `standing_fault`, `arrival_errors`
+  (no ground / cannot enter / a portal stands), `way_back`, `no_way_back`, `unreached`, `check_reached`;
+  `Facing::{ahead_of, behind}`; the engine's `landing` and `standable` on `enterable`. A map with no portals is
+  exempt from reachability (else New map could never be saved: the loader is all or nothing). The shipped stairs
+  into the dungeon and the depths now land facing east (the pack 0.2.4); the replay scripts turn right after the
+  stairs; `disk.rs`'s frozen-save comparisons guard on `report.fit == PackFit::Same` (the world's `packs` field
+  records today's packs on a load by name, so the old guard was always true). **A portal stamped alone says "has
+  no way back" until step 2**; `editor_stamp` and `editor_pick` pin that wording for now.
+- **Step 2 next (plan mode is done; build from the plan file)**: `State.far`, `place_pair`, `far_files`, Save of
+  every file, `edit/pair.rs`, `Kind::Picture` + `Payload::At`, `ScreenId::EditorLanding`, the stamp and the form
+  opening it, Move/Remove carrying the partner; the two tests above flip back to valid.
+- Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
+
 ## Next
-1. **The column is done (five steps accepted). The owner names what follows; plan mode first.** Candidates
-   the owner has named or the work left behind: the entrances and exits enhancement where the start marker's
-   move is taken up again; the editor's later items (the eraser or Delete clearing a selection's cells, copy and
-   paste, `editor.history` over the socket, a quantity for an object kind in the picker). The owner's order
-   of 2026-10-24 otherwise: the activities schema when
+1. **The owner's hand test of step 1** (`tasks/acceptance/entrances-1.md`), then "accepted" gets the prose
+   commit; then **step 2** from the plan. The editor's later items otherwise (the eraser or Delete clearing a
+   selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
+   picker). The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
 2. Later: the eraser or Delete clearing a selection's cells; copy and paste of a selection; Esc dropping a loop
    or a run (Esc is the menu's); a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
@@ -109,8 +128,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `ad11cafbd62306ec`, fight `4b3e8e1d4770f649` (rebaselined 2026-10-31 in `70251701` after the
-  owner's depths, `packs/test` 0.2.3, hash 14938603640295087127; before that M5.10a at 0.2.0). A rebaseline
+- **Replays:** walk `a0530591b8f700a`, fight `f10bd7fb6604c07a` (rebaselined 2026-11-01 with the two east arrivals, `packs/test`
+  0.2.4, hash 5777870636897639874; before that 2026-10-31 after the owner's depths at 0.2.3, and M5.10a at 0.2.0). A rebaseline
   records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
   (since M5.3), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,

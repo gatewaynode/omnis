@@ -1,0 +1,19 @@
+// Six cells in a row: grass, rock, no ground, grass, grass, grass. The start is on no ground.
+// Portals from (0, 0) land on the rock and on no ground; one from (3, 0) lands where portals
+// stand; one from (4, 0) lands on (5, 0) facing west, so its way back would stand off the map.
+(
+    schema: 1, id: "ways:map:stand", name: "ways:text:stand", kind: Outdoor, tileset: "test:tileset:outdoor",
+    width: 6, height: 1, start: (2, 0, North),
+    wall: (front: "hedge", left: "hedge.left", right: "hedge.right"), door: "gate", door_open: Some("gate.open"),
+    terrains: [
+        (glyph: 'g', name: "grass", floor: "grass", ceiling: None, passable: true, visibility_depth: 6, step_minutes: 2),
+        (glyph: 'r', name: "rock", floor: "grass", ceiling: None, block: Some("trees"), passable: false, visibility_depth: 6, step_minutes: 2),
+    ],
+    layout: ["+-+-+-+-+-+-+", "|g r _ g g g|", "+-+-+-+-+-+-+"],
+    portals: [
+        (x: 0, y: 0, to_map: "ways:map:stand", to_x: 1, to_y: 0, to_facing: North, marker: Some("signpost")),
+        (x: 0, y: 0, to_map: "ways:map:stand", to_x: 2, to_y: 0, to_facing: North, marker: Some("signpost")),
+        (x: 3, y: 0, to_map: "ways:map:stand", to_x: 0, to_y: 0, to_facing: East, marker: Some("signpost")),
+        (x: 4, y: 0, to_map: "ways:map:stand", to_x: 5, to_y: 0, to_facing: West, marker: Some("signpost")),
+    ],
+)

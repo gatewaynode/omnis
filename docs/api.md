@@ -1116,6 +1116,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-11-01: no wire change. The entrances and exits enhancement, step 1 (`omnis-data`): the loader refuses
+  a portal landing the party cannot stand on, a portal without its way back directly behind its landing (the
+  owner's strict mirror), a start off ground the party can enter, and a map of the pack that sets `entry` that
+  has portals yet is not reached from the entry map; `Invalid` and the editor's status carry the new words.
+  `packs/test` moves with it: the stairs into the dungeon and into the depths land facing east, away from the
+  way back (0.2.4, hash 5777870636897639874), so the goldens moved: walk `a0530591b8f700a`, fight `f10bd7fb6604c07a`.
 - 2026-10-31: no wire change. The owner drew on `packs/test` through the editor (the depths: heights, walls,
   a pile at (1, 9), three more encounters; `6a4f5f2b`, `1040d147`), sealed at 0.2.3, hash
   14938603640295087127, so the goldens moved: walk `ad11cafbd62306ec`, fight `4b3e8e1d4770f649`.

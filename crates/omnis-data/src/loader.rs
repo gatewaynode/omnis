@@ -702,13 +702,27 @@ fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
         }
     }
     check_landings(&landings, &centres, errors);
-    if let Some(entry) = data.packs.iter().rev().find_map(|p| p.entry.as_deref()) {
+    if let Some(pack) = data.packs.iter().rev().find(|p| p.entry.is_some()) {
+        let entry = pack.entry.as_deref().unwrap_or_default();
         match data.registry.maps.get(entry) {
             Some(id) => data.entry = Some(id),
             None => errors.push(DataError::new(
                 "pack.ron",
                 format!("entry map '{entry}' is not defined by any loaded pack"),
             )),
+        }
+        // The entrances and exits enhancement (W1): the world pack's maps are all reached.
+        let defs = raw.maps.values().map(|(_, def, _)| def);
+        for missing in map_data::unreached(defs, entry, &pack.id) {
+            let file = raw
+                .maps
+                .get(&missing)
+                .map(|(f, _, _)| f.clone())
+                .unwrap_or_default();
+            errors.push(DataError::new(
+                file,
+                map_data::unreached_message(&missing, entry),
+            ));
         }
     }
     if errors.len() == before {
@@ -730,9 +744,13 @@ struct RawTargets<'a> {
 }
 
 impl map_data::MapTargets for RawTargets<'_> {
-    fn target(&self, id: &str) -> Option<(MapId, &MapDef)> {
+    fn target(&self, id: &str) -> Option<map_data::Target<'_>> {
         let map_id = *self.ids.get(id)?;
-        self.maps.get(id).map(|(_, def, _)| (map_id, def))
+        self.maps.get(id).map(|(_, def, levels)| map_data::Target {
+            id: map_id,
+            def,
+            levels,
+        })
     }
 
     fn owner(&self, map: MapId) -> Option<RegionId> {

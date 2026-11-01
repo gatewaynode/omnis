@@ -30,7 +30,7 @@ DC, caster level, points, spells). The `turn.*` slots are in `rules/combat.ron` 
 `is_member`).
 The editor's side (M5, 2026-10-21): `notes.rs` (`NotesFile`, `is_note_key`; `notes/*.ron`, read and checked
 by the loader, never hashed, never kept), `map_data.rs` (`MapData::resolve`, `resolve_one`, `MapTargets`,
-`check_inbound`/`check_outbound`: the loader's per-map pass shared with the editor), `loader.rs`
+`check_inbound`/`check_outbound`: the loader's per-map pass shared with the editor; the entrances and exits enhancement, W1 step 1, 2026-11-01: `Target { id, def, levels }` is what `MapTargets::target` answers, `enterable` (ground the party may enter), `standing_fault`, `arrival_errors` grown (no ground, cannot enter, a portal stands there), `pub way_back(portal, from, far)` (the portal directly behind the landing leading back), `no_way_back`, `pub unreached(maps, entry, pack)` and `unreached_message` (the entry pack's portal-bearing maps the entry does not reach), `check_reached`; the loader runs `unreached` after `check_landings`; `omnis-core` `Facing::{ahead_of, behind}`; the engine's `apply::landing` and `save/places.rs::standable` read `MapData::enterable`; the corpus `tests/packs-bad/bad-ways` and `bad_packs::every_entrance_error_is_reported`), `loader.rs`
 (`pub(crate) parse_checked`, `check_manifest`, `check_text_file`, `check_id`, `HasSchema`), `edit/`
 (`grid.rs` `Grid`/`EdgeKind`; `kinds.rs` `Brush`, `Place`, `Target`, `Edit`, `NewMap`, `EditorStatus`,
 `MapEntry`, `EditError`; `document.rs` `Document` with `UNDO_CAP` 100 and `Arc<Grid>` per level; `session.rs`

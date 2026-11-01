@@ -423,3 +423,28 @@ fn every_placement_error_is_reported() {
     ];
     assert_same(&got, &expected);
 }
+
+/// The entrances and exits enhancement (W1, 2026-11-01): a portal lands where the party can stand
+/// and no portal stands, every portal has its way back directly behind its landing, every map of
+/// the pack that sets the entry is reached from it once it has a portal at all, and a start stands
+/// too. The test pack's maps belong to another pack and are not asked to be reached.
+#[test]
+fn every_entrance_error_is_reported() {
+    let [base, test] = common::test_packs();
+    let got = match load_packs(&[&base, &test, &common::bad_pack("bad-ways")]) {
+        Ok(_) => panic!("bad-ways loaded"),
+        Err(report) => report.messages(),
+    };
+    let expected = [
+        // data/maps/stand.ron
+        "start (2, 0) is on no ground",
+        "portal at (0, 0) lands on (1, 0) of 'ways:map:stand', which the party cannot enter",
+        "portal at (0, 0) lands on (2, 0) of 'ways:map:stand', where there is no ground",
+        "portal at (3, 0) lands on (0, 0) of 'ways:map:stand', where a portal stands",
+        "portal at (4, 0) has no way back: no portal behind its landing (5, 0) on 'ways:map:stand' leads to 'ways:map:stand'",
+        // data/maps/foot.ron
+        "start (0, 0) is on a tile the party cannot enter",
+        "map 'ways:map:foot' cannot be reached from the entry map 'ways:map:stand' through portals",
+    ];
+    assert_same(&got, &expected);
+}

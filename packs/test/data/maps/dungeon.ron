@@ -118,7 +118,7 @@
             to_level: 0,
             to_x: 1,
             to_y: 0,
-            to_facing: South,
+            to_facing: East,
             marker: Some("stairs.up"),
         ),
     ],

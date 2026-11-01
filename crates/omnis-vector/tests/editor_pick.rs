@@ -126,6 +126,17 @@ fn valid(app: &App) {
     );
 }
 
+/// A portal stamped alone has no way back yet (the entrances and exits enhancement, W1, step 1;
+/// step 2 writes the pair with it): the loader says so, and nothing else is wrong.
+fn orphan(app: &App, (x, y): (u16, u16)) {
+    let errors = &editing(app).status.errors;
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0].contains(&format!("portal at ({x}, {y}) has no way back")),
+        "{errors:?}"
+    );
+}
+
 /// Cells of the shown level with ground and nothing placed, not the start.
 fn bare_cells(app: &App) -> Vec<(u16, u16)> {
     let e = editing(app);
@@ -524,7 +535,7 @@ fn a_portal_s_choice_moves_and_finish_needs_a_choice() {
         .find(|p| (p.x, p.y) == (8, 2))
         .expect("the portal");
     assert_eq!(p.to_map, maps[1]);
-    valid(&app);
+    orphan(&app, (8, 2));
 }
 
 #[test]

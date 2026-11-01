@@ -81,6 +81,17 @@ fn valid(app: &App) {
     );
 }
 
+/// A portal stamped alone has no way back yet (the entrances and exits enhancement, W1, step 1;
+/// step 2 writes the pair with it): the loader says so, and nothing else is wrong.
+fn orphan(app: &App, (x, y): (u16, u16)) {
+    let errors = &editing(app).status.errors;
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(
+        errors[0].contains(&format!("portal at ({x}, {y}) has no way back")),
+        "{errors:?}"
+    );
+}
+
 #[test]
 fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occupied_tile() {
     let mut app = in_editor("test:map:town");
@@ -292,7 +303,7 @@ fn an_object_stamp_mints_a_free_id_of_the_chosen_kind_where_the_packs_have_kinds
 }
 
 #[test]
-fn the_pile_lore_and_portal_stamps_start_valid() {
+fn the_pile_and_lore_stamps_start_valid_and_a_lone_portal_stamp_has_no_way_back_yet() {
     let mut app = in_editor("test:map:town");
     let data = data(&app);
     let steps = depth(&app);
@@ -362,8 +373,14 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
         ),
         "{marker}"
     );
-    assert_eq!(message(&app), "Portal to test:map:meadow placed at (8, 2)");
-    valid(&app);
+    let said = message(&app);
+    assert!(
+        said.starts_with(
+            "Portal to test:map:meadow placed at (8, 2); the loader says: data/maps/town.ron: portal at (8, 2) has no way back"
+        ),
+        "{said}"
+    );
+    orphan(&app, (8, 2));
     assert_eq!(depth(&app), steps + 3, "one step each");
     // A second portal or pile on its tile is refused.
     click(&mut app, (8, 2));

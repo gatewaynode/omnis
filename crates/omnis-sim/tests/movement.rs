@@ -329,7 +329,9 @@ fn portals_link_the_maps_both_ways() {
                 level: omnis_core::Level::GROUND,
                 x: 1,
                 y: 0,
-                facing: Facing::South
+                // Away from the stairs back up at (0, 0): the way back stands behind the landing
+                // (the entrances and exits enhancement, W1).
+                facing: Facing::East
             }
         }
     );
@@ -608,4 +610,35 @@ fn the_log_is_bounded_and_not_saved() {
     );
     let text = world.to_ron().unwrap();
     assert!(!text.contains("log"), "the log is not part of the save");
+}
+
+/// The entrances and exits enhancement (W1, 2026-11-01): the loader refuses a portal whose
+/// landing the party cannot stand on; should one reach the engine, the step onto the portal's
+/// tile is a plain step, with no second `Moved`.
+#[test]
+fn a_portal_whose_landing_cannot_be_stood_on_is_a_plain_tile() {
+    let mut data = data();
+    let meadow = data.registry.maps.get("test:map:meadow").unwrap();
+    let stairs = data.maps.get_mut(&meadow).unwrap();
+    let down = stairs
+        .portals
+        .iter_mut()
+        .find(|p| (p.x, p.y) == (16, 5))
+        .expect("the stairs down");
+    // (3, 3) of the dungeon is rock; before the rule the landing was only asked for ground.
+    (down.to_x, down.to_y) = (3, 3);
+    let mut world = world(&data);
+    for _ in 0..10 {
+        step(&mut world, &data);
+    }
+    let events = without_visible(step(&mut world, &data));
+    let moves = events
+        .iter()
+        .filter(|e| matches!(e, Event::Moved { .. }))
+        .count();
+    assert_eq!(moves, 1, "{events:?}");
+    assert_eq!(
+        (world.position.map, world.position.x, world.position.y),
+        (meadow, 16, 5)
+    );
 }

@@ -329,6 +329,34 @@ no loss, and every later map is built with it.
     beside Undo and Redo; a modal with the plan visible beneath. Before it, the owner's hand test of step 4 had
     saved onto `packs/test` (the depths): kept at the owner's word, replays re-baselined, own commit. Later:
     `editor.history` over the socket; a saved mark on the row the file holds.
+- [ ] **The entrances and exits enhancement** (owner, 2026-10-25: "we are going to have to enhance the
+  entrance/exits later anyway", back to the hand test of 2026-09-27: the town's way out and the dungeon's
+  entrance invisible, "required validations on sub maps and maybe maps in general"; M7 3b made every portal
+  visible, the model never moved). Scope fixed by the owner 2026-11-01, all four: loader rules on landings and
+  starts; every map reached and every portal paired (the "no way-out rule" of 2026-09-27 withdrawn); two-way
+  portals authored once in the editor; the start as a real entrance. The Move-the-start report of 2026-10-25 is
+  closed ("works now"). Planned in plan mode 2026-11-01; owner's choices: **the strict mirror** (the way back
+  stands directly behind the landing, the party arrives facing away from it), **reachability for the maps of the
+  pack that sets `entry`** (fixture packs exempt), **the landing picked on the far map's plan**. Three steps, one
+  commit each, `tasks/acceptance/entrances-N.md`:
+  - [x] Step 1 (2026-11-01): the rules. `MapData::enterable`; a landing refused on no ground, on terrain the
+    party cannot enter, on a portal; `way_back` (the portal directly behind the landing leading back) and "has no
+    way back" for this map's portals and, through `check_inbound`, the other maps' portals landing here; a start
+    refused off enterable ground; `unreached` (the entry pack's maps with a portal that the entry does not reach;
+    a map with no portals is unfinished, the deadlock a New map would otherwise meet) in the loader and in
+    `MapData::resolve`; the engine's landing and the save's `standable` read `enterable`. **The shipped pack
+    moves** (0.2.4): the stairs into the dungeon and into the depths land facing east, away from the way back
+    (two arrivals faced sideways to it); the replay scripts turn right after each stairs; replays re-baselined.
+    Corpus `tests/packs-bad/bad-ways` (seven rows), `bad-objects` gains the way back its portal lacked. A portal
+    stamped alone says "has no way back" until step 2 writes the pair (`editor_stamp`, `editor_pick` pin it).
+  - [ ] Step 2: pairs authored once. `State.far` (other maps' defs this document changed, in every snapshot: one
+    undo step across two maps), `Document::place_pair`, `far_files`, Save writing every file; `edit/pair.rs` (the
+    mirror: the way back behind the landing, landing in front of the portal facing away); `Kind::Picture` and
+    `Payload::At` in the kit; `ScreenId::EditorLanding` (the far map's plan, a click the landing, arrive and
+    come-back facings, Finish, Cancel); the portal stamp and the form's Pick landing... open it; Move and Remove
+    carry the partner.
+  - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
+    fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

@@ -183,10 +183,7 @@ fn standable(
     map: &MapData,
     (level, x, y): (Level, u16, u16),
 ) -> bool {
-    let Some(cell) = map.cell(level, x, y) else {
-        return false;
-    };
-    if !map.terrain(cell).passable {
+    if !map.enterable(level, x, y) {
         return false;
     }
     !map.objects_at(level, x, y).any(|(_, p)| {

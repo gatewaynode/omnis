@@ -34,6 +34,23 @@ impl Facing {
         }
     }
 
+    /// The cell one step this way from `(x, y)`, unless that is below zero.
+    #[must_use]
+    pub fn ahead_of(self, (x, y): (u16, u16)) -> Option<(u16, u16)> {
+        let (dx, dy) = self.delta();
+        Some((
+            u16::try_from(i32::from(x) + dx).ok()?,
+            u16::try_from(i32::from(y) + dy).ok()?,
+        ))
+    }
+
+    /// The cell one step against this way from `(x, y)`: what stands behind a party there
+    /// facing this way, unless that is below zero.
+    #[must_use]
+    pub fn behind(self, at: (u16, u16)) -> Option<(u16, u16)> {
+        self.opposite().ahead_of(at)
+    }
+
     /// The facing after a turn.
     #[must_use]
     pub const fn rotated(self, rotation: Rotation) -> Facing {
@@ -276,6 +293,16 @@ mod tests {
         assert_eq!(Facing::North.left(), Facing::West);
         assert_eq!(Facing::West.toward(Direction::Left), Facing::South);
         assert_eq!(Facing::West.toward(Direction::Back), Facing::East);
+    }
+
+    #[test]
+    fn behind_is_the_cell_against_the_facing_and_none_below_zero() {
+        assert_eq!(Facing::North.behind((16, 30)), Some((16, 31)));
+        assert_eq!(Facing::East.behind((1, 0)), Some((0, 0)));
+        assert_eq!(Facing::West.behind((5, 0)), Some((6, 0)));
+        assert_eq!(Facing::South.behind((1, 0)), None, "nothing north of row 0");
+        assert_eq!(Facing::East.ahead_of((5, 0)), Some((6, 0)));
+        assert_eq!(Facing::West.ahead_of((0, 3)), None);
     }
 
     #[test]

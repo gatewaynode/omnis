@@ -193,7 +193,7 @@ fn portals_and_tileset_slots_resolve() {
     let down = meadow.portal_at(Level::GROUND, 16, 5).expect("entrance");
     assert_eq!(
         (down.to_map, down.to_x, down.to_y, down.to_facing),
-        (dungeon_id, 1, 0, Facing::South)
+        (dungeon_id, 1, 0, Facing::East)
     );
     assert_eq!(
         dungeon.encounters.len(),
@@ -225,7 +225,7 @@ fn portals_and_tileset_slots_resolve() {
         .expect("the way down");
     assert_eq!(
         (deeper.to_map, deeper.to_x, deeper.to_y, deeper.to_facing),
-        (depths_id, 1, 0, Facing::South)
+        (depths_id, 1, 0, Facing::East)
     );
     let depths = &data.maps[&depths_id];
     let back = depths.portal_at(Level::GROUND, 0, 0).expect("the way up");

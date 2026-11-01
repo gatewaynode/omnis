@@ -108,3 +108,81 @@ fn another_maps_portal_landing_on_this_one_is_checked_too() {
         ["test:map:town: portal at (11, 2) lands outside map 'test:map:meadow'"]
     );
 }
+
+// ---- The entrances and exits enhancement (W1, 2026-11-01) ----
+
+fn def_of(data: &Data, id: &str) -> omnis_data::MapDef {
+    let id = data.registry.maps.get(id).unwrap_or_else(|| panic!("{id}"));
+    data.maps[&id].def.clone()
+}
+
+#[test]
+fn a_portal_landing_on_rock_or_on_a_portal_is_refused() {
+    let data = load_test_packs();
+    let mut meadow = def_of(&data, "test:map:meadow");
+    assert_eq!(meadow.portals[0].to_map, "test:map:dungeon");
+    // (3, 3) of the dungeon is rock.
+    (meadow.portals[0].to_x, meadow.portals[0].to_y) = (3, 3);
+    assert_eq!(
+        messages(MapData::resolve(&meadow, &data)),
+        ["portal at (16, 5) lands on (3, 3) of 'test:map:dungeon', which the party cannot enter"]
+    );
+    // (0, 0) of the dungeon holds the stairs back up.
+    (meadow.portals[0].to_x, meadow.portals[0].to_y) = (0, 0);
+    assert_eq!(
+        messages(MapData::resolve(&meadow, &data)),
+        ["portal at (16, 5) lands on (0, 0) of 'test:map:dungeon', where a portal stands"]
+    );
+}
+
+#[test]
+fn a_portal_without_a_way_back_behind_its_landing_is_refused_from_both_maps() {
+    let mut data = load_test_packs();
+    let mut town = def_of(&data, "test:map:town");
+    // The gate lands on (16, 30) of the meadow facing north, the road home at (16, 31) behind.
+    // Facing south, the way back would have to stand on (16, 29), where nothing does.
+    town.portals[0].to_facing = omnis_core::Facing::South;
+    let words = "portal at (11, 2) has no way back: no portal behind its landing (16, 30) on \
+                 'test:map:meadow' leads to 'test:map:town'";
+    assert_eq!(messages(MapData::resolve(&town, &data)), [words]);
+    let meadow = def_of(&data, "test:map:meadow");
+    let town_id = data.registry.maps.get("test:map:town").expect("the town");
+    data.maps.get_mut(&town_id).expect("the town").def.portals[0].to_facing =
+        omnis_core::Facing::South;
+    assert_eq!(
+        messages(MapData::resolve(&meadow, &data)),
+        [format!("test:map:town: {words}")]
+    );
+}
+
+#[test]
+fn a_start_the_party_cannot_stand_on_is_refused() {
+    let data = load_test_packs();
+    let mut dungeon = def_of(&data, "test:map:dungeon");
+    dungeon.start = (3, 3, omnis_core::Facing::North);
+    assert_eq!(
+        messages(MapData::resolve(&dungeon, &data)),
+        ["start (3, 3) is on a tile the party cannot enter"]
+    );
+}
+
+#[test]
+fn a_map_the_entry_no_longer_reaches_is_refused_with_its_orphaned_way_back() {
+    let data = load_test_packs();
+    let mut dungeon = def_of(&data, "test:map:dungeon");
+    let to_depths = dungeon
+        .portals
+        .iter()
+        .position(|p| p.to_map == "test:map:depths")
+        .expect("the stairs down");
+    dungeon.portals.remove(to_depths);
+    let mut got = messages(MapData::resolve(&dungeon, &data));
+    got.sort();
+    assert_eq!(
+        got,
+        [
+            "map 'test:map:depths' cannot be reached from the entry map 'test:map:town' through portals",
+            "test:map:depths: portal at (0, 0) has no way back: no portal behind its landing (22, 23) on 'test:map:dungeon' leads to 'test:map:depths'",
+        ]
+    );
+}

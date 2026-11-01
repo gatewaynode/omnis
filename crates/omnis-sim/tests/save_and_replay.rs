@@ -26,11 +26,14 @@ fn replay_path(name: &str) -> PathBuf {
         .join(format!("{name}.ron"))
 }
 
-/// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon,
-/// through the first door, and a bump against a pillar.
+/// The command script behind `tests/replays/walk.ron`: down the road, into the dungeon (arriving
+/// facing east, away from the stairs back up, so a right turn faces the rooms), through the first
+/// door, and a bump against a pillar.
 /// A walk through the first row of rooms, for the determinism checks under any seed.
 fn walk() -> Vec<Command> {
-    let mut commands = vec![Command::Step(Direction::Forward); 14];
+    let mut commands = vec![Command::Step(Direction::Forward); 11];
+    commands.push(Command::Turn(Rotation::Right));
+    commands.extend(vec![Command::Step(Direction::Forward); 3]);
     commands.extend([
         Command::Turn(Rotation::Left),
         Command::Step(Direction::Forward),
