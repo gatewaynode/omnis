@@ -440,7 +440,7 @@ minted)` (the builder with `was`, a fresh id free of the map's and `minted`, `re
 the `Asked`s open and close overlays; `Props` replaces the picker on top), `shell/screen.rs::carry_out`
 (Text → `typed_in`, Set → `set_in`, Press/Left/Right → `act` stepped). Tests: `tests/editor_pick.rs` (7:
 the row and the picker's search, marks, limit and Cancel; the properties and the drop; two object kinds; a
-pile's counts and two lore texts; the portal picker's empty list and a lone click's unlinked portal; a right click's copy; the
+pile's counts and two lore texts; the portal picker's empty list and a lone click's unlinked portal (W1 step 2b: `pick.rs` `For::{Stamp, Field}`, `Picking { purpose, options, labels }` built by `pick::options(kind, def, data, except)`, a portal's rows "id  -  Map (x, y)" over `unlinked_portals`, `shown()` on labels; `pick_open_for_link`/`unlink` for the form's Link... and Unlink, `EditAct::{LinkPick, Unlink}`; `view::partner_line`; `tests/editor_link.rs`); a right click's copy (a portal's without its link); the
 keyboard through the rebuilt rows), `tests/common/editor.rs::{type_ui, top_screen, hold, held}`, `pick.rs` unit
 tests. Mutation checks red: the limit dropped, the minted ids not taken, the filter case-sensitive.
 

@@ -1,11 +1,11 @@
 # Continuity notes
 
-Written 2026-11-01, after **step 2a of the entrances and exits enhancement** (linked portals, the model: `Portal {
-id, link, facing, marker }`, the landing derived from the partner, unlinked portals legal and inert; the pack 0.2.5;
-re-planned that day on the owner's direction after the step 1 hand test, which also found Save and Playtest
-swallowed by the error's words, fixed in `11455718`). **Step 2b (linking in the editor: the picker with labels and
-the open map's unsaved portals, the form's Link... and Unlink, the inspector's partner row) is next**, then its
-hand test (`tasks/acceptance/entrances-2.md`), then step 3. Before it the same
+Written 2026-11-01, after **step 2 of the entrances and exits enhancement**, both commits: 2a the model
+(`232cc839`: `Portal { id, link, facing, marker }`, the landing derived from the partner, unlinked portals legal
+and inert, the pack 0.2.5) and 2b linking in the editor (the picker carrying its options and labels, the form's
+Link... and Unlink, the inspector's partner line). Re-planned that day on the owner's direction after the step 1
+hand test (which also found Save and Playtest swallowed by the error's words, fixed in `11455718`). **The owner's
+hand test of step 2 is next** (`tasks/acceptance/entrances-2.md`), then "accepted" gets the prose commit, then step 3. Before it the same
 day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
@@ -116,15 +116,21 @@ Durable knowledge lives in `tasks/knowledge/`.
   after a linked placement, `Mark::Portal { linked }`, the label "Portal 'id' to 'link'". Corpora: `bad-ways`
   rewritten (12-wide stand: ten rows), `bad-reach` new (one row), `broken` and `bad-objects` converted and resealed.
   Mutation checks red: the inbound claim ignored, the landing behind, reachability over every portal, the mark.
-- **Step 2b next**: `Picking { options, labels, purpose }` built at open (`stamp::option_label`; the open map's
-  unsaved unlinked portals included; `shown` matching labels), the form's Link.../Unlink (`EditAct::LinkPick`,
-  `Asked::Picked` writing the field), the inspector's partner row with the far map's name (`partner_of`),
-  `tests/editor_link.rs`, `tasks/acceptance/entrances-2.md`. Then the hand test.
+- **Step 2b built (linking in the editor)**: `pick.rs` `For::{Stamp, Field(u8)}`, `Picking { purpose, options,
+  labels, .. }` built at open by `pick::options(kind, def, data, except)` (a portal's rows over
+  `unlinked_portals(def, data)`, the open map's unsaved ones among them, labelled "id  -  Map (x, y)" through
+  `labels::map`; `shown()` matches the label), `pick_open_for_link` (the form's Link...: the edited portal left
+  out, its partner offered and shown chosen), `unlink`, `pick_finish` writing a field's choice through
+  `Form::typed`; `EditAct::{LinkPick, Unlink}`; `Form::rows` adds the Link.../Unlink row for a portal form;
+  `view::partner_line` under a portal's inspector row; `stamp::of_here` drops a copied portal's link. The
+  picker screen reads `p.options`/`p.labels`, no longer `stamp::options`. `tests/editor_link.rs` (two flows).
+  Mutation checks red: the edited portal offered, the choice kept, the field left empty.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **Step 2b** (linking in the editor; the section above), its hand test (`tasks/acceptance/entrances-2.md`),
-   then "accepted" gets the prose commit for steps 1 and 2; then step 3 from the plan file. The editor's later items otherwise (the eraser or Delete clearing a
+1. **The owner's hand test of step 2** (`tasks/acceptance/entrances-2.md`, eight steps on a fresh scratch copy),
+   then "accepted" gets the prose commit for steps 1 and 2; then **step 3** from the plan file (`MapDef.start_level`,
+   Set start here on every level, the diamond's notch toward the start's facing). The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when
    a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.

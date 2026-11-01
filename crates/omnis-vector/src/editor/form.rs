@@ -419,6 +419,17 @@ impl Form {
                 rows.push(Row::controls(vec![f.control(i)]));
             }
         }
+        if self.kind == FormKind::Portal {
+            // The link chosen among the portals nothing links to (W1 step 2b), or let go.
+            let mut unlink = Control::button(edit(EditAct::Unlink), "Unlink");
+            if self.text_of("link").trim().is_empty() {
+                unlink.why_not = Some("unlinked".to_owned());
+            }
+            rows.push(Row::controls(vec![
+                Control::button(edit(EditAct::LinkPick), "Link..."),
+                unlink,
+            ]));
+        }
         for (l, list) in self.lists.iter().enumerate() {
             let l = u8::try_from(l).unwrap_or(u8::MAX);
             rows.push(Row {

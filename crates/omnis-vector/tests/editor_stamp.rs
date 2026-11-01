@@ -11,6 +11,7 @@ use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::editor::{editing, held, hold, in_editor, in_editor_on, mouse, point_at, press_edit};
 use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_data::edit::Place;
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::brush::{self, Entry, Tool};
 use omnis_vector::editor::forms::Placing;
@@ -401,18 +402,27 @@ fn a_right_click_on_a_placement_picks_its_stamp_and_detail() {
     assert_eq!(editing(&app).tool, Tool::Brush);
     assert_eq!(held(&app, Placing::Activity), ["base:service:inn"]);
     assert_eq!(editing(&app).cursor, (1, 1));
-    // The portal on (11, 2): its stamp with the portal it links to.
+    // The portal on (11, 2): its stamp with the portal's facing and marker, the link left
+    // behind (a link is one portal's; a copy would claim the partner twice).
     right_click(&mut app, (11, 2));
     assert_eq!(editing(&app).entry, Entry::Stamp(Placing::Portal));
-    let link = editing(&app)
+    let gate = editing(&app)
         .def()
         .unwrap()
         .portals
         .iter()
         .find(|p| (p.x, p.y) == (11, 2))
-        .map(|p| p.link.clone().expect("the gate states its link"))
+        .cloned()
         .expect("the portal");
-    assert_eq!(held(&app, Placing::Portal), [link]);
+    assert!(gate.link.is_some(), "the gate states its link");
+    match editing(&app).stamps.held(Placing::Portal) {
+        [Place::Portal(p)] => assert_eq!(
+            (p.link.as_deref(), p.facing, &p.marker),
+            (None, gate.facing, &gate.marker)
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert!(held(&app, Placing::Portal).is_empty(), "no link held");
     // A bare street cell picks its terrain, as before.
     right_click(&mut app, (5, 2));
     let street = editing(&app)

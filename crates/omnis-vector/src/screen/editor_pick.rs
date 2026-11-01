@@ -1,9 +1,11 @@
 //! The stamp's detail picker (the editor's column, step 3b, owner 2026-10-31): a modal over the
-//! editor listing what the loaded packs have of the chosen stamp's kind (maps, monsters,
-//! services, object kinds, items, text keys; `editor::stamp::options`), searched by a text field
-//! and chosen several at once, up to what one cell takes; Finish holds the choice in the stamp
-//! (and goes on to the properties modal for the kinds that have them), Cancel keeps what the
-//! stamp held. Built from `EditingCtx::pick`, the model's own state (`editor::pick::Picking`).
+//! editor listing what the loaded packs have of the chosen stamp's kind (monsters, services,
+//! object kinds, items, text keys; for a portal, the portals nothing links to, as "id  -  map
+//! (x, y)"; `editor::pick::options`), searched by a text field and chosen several at once, up to
+//! what one cell takes; Finish holds the choice in the stamp (and goes on to the properties
+//! modal for the kinds that have them) or writes it into a form's field (a portal's link),
+//! Cancel keeps what was held. Built from `EditingCtx::pick`, the model's own state
+//! (`editor::pick::Picking`), which carries its options.
 
 use super::{Control, ControlId, Ctx, Effect, Kind, Panel, Payload, Row, Screen, ScreenId, Span};
 use crate::editor::EditAct;
@@ -33,7 +35,6 @@ pub fn content(ctx: &Ctx) -> Screen {
     };
     let kind = p.kind;
     let what = kind.what();
-    let options = stamp::options(kind, ctx.data);
     let limit = stamp::limit(kind);
     let mut rows = vec![
         Row::controls(vec![Control {
@@ -46,20 +47,20 @@ pub fn content(ctx: &Ctx) -> Screen {
         }]),
         Row::text(Span::body(format!("{} of {limit} chosen", p.chosen.len()))),
     ];
-    let shown = p.shown(&options);
-    if options.is_empty() {
+    let shown = p.shown();
+    if p.options.is_empty() {
         rows.push(Row::text(Span::body(format!("The packs have no {what}."))));
     } else if shown.is_empty() {
         rows.push(Row::text(Span::body(format!("No {what} matches."))));
     }
     let full = limit > 1 && p.chosen.len() >= limit;
     for i in shown {
-        let id = &options[i];
+        let (id, label) = (&p.options[i], &p.labels[i]);
         let chosen = p.is_chosen(id);
         let mark = if chosen { "[x]" } else { "[ ]" };
         let mut row = Control::button(
             edit(EditAct::PickToggle(u16::try_from(i).unwrap_or(u16::MAX))),
-            format!("{mark} {id}"),
+            format!("{mark} {label}"),
         );
         if full && !chosen {
             row.why_not = Some(format!("at most {limit} {what}s"));

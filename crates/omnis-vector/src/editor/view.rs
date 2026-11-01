@@ -307,6 +307,16 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     }
 }
 
+/// A portal's partner in a line: where going through it lands ("to Meadow 'meadow-gate'",
+/// whichever side states the link), a link the loader cannot resolve, or "unlinked".
+fn partner_line(p: &omnis_sim::omnis_data::Portal, def: &MapDef, data: &Data) -> String {
+    match (omnis_sim::omnis_data::partner_of(p, def, data), &p.link) {
+        (Some((map, q)), _) => format!("to {} '{}'", crate::labels::map(data, map), q.id),
+        (None, Some(link)) => format!("link '{link}' unresolved: see the errors"),
+        (None, None) => "unlinked".to_owned(),
+    }
+}
+
 /// The file's rows of the tools column (M5.9): the open file's name (`*` while its text is
 /// unsaved), then Check, Save file and Revert file with their reasons. The list itself is the
 /// picker's (M5.9b).
@@ -630,7 +640,8 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         )],
         ..Row::default()
     });
-    // What is placed on the cell, each with Edit and Remove (a stamp of the palette adds).
+    // What is placed on the cell, each with Edit and Remove (a stamp of the palette adds); a
+    // portal's partner under it (W1 step 2b): where it leads, or unlinked.
     for (i, here) in editor.here().iter().enumerate() {
         let i = u8::try_from(i).unwrap_or(u8::MAX);
         rows.push(Row {
@@ -641,6 +652,14 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
             ],
             ..Row::default()
         });
+        if let super::PlaceKey::Portal { level, x, y } = &here.key
+            && let Some(p) = def
+                .portals
+                .iter()
+                .find(|p| (p.level, p.x, p.y) == (*level, *x, *y))
+        {
+            rows.push(Row::text(Span::body(partner_line(p, &def, data))));
+        }
     }
     // The map's own: the random table and the rest events.
     rows.push(Row {

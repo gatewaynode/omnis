@@ -4,22 +4,42 @@
 //! the stamp (`stamp::rebuild`) and, for a kind with properties (an encounter, an object, a
 //! pile), opens the properties modal: the kind's own form a held place, without the fields a
 //! click decides; its Finish reads the forms back into the stamp. Cancel on either closes it and
-//! keeps what the stamp held; the state here is dropped unread. Bevy-free: the screens in
+//! keeps what the stamp held; the state here is dropped unread. The portal picker (the entrances
+//! and exits enhancement, W1 step 2b) lists the portals nothing links to, the open map's unsaved
+//! ones among them, each as "id  -  map (x, y)", and serves a portal form's link field too
+//! (Link...: Finish writes the chosen id into the field). Bevy-free: the screens in
 //! `screen/editor_pick.rs` and `screen/editor_props.rs` draw it.
 
 use super::brush::Entry;
-use super::form::{Change, Form};
+use super::form::{Change, Form, FormKind};
 use super::forms::Placing;
 use super::stamp::{self, Stamps};
 use super::{Asked, EditAct, Editor};
-use omnis_sim::omnis_data::Data;
+use omnis_sim::omnis_core::Level;
+use omnis_sim::omnis_data::{Data, MapDef, partner_of, unlinked_portals};
+
+/// Whose choice the picker makes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum For {
+    /// The chosen stamp's detail.
+    Stamp,
+    /// A field of the open form (a portal's link), by its position.
+    Field(u8),
+}
 
 /// A stamp's detail being chosen: the picker's filter and choices, then the properties forms.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Picking {
     /// The stamp's kind.
     pub kind: Placing,
-    /// The search field's text: an option is listed while its id holds it, in any case.
+    /// Whose choice this is: the stamp's, or a form field's.
+    pub purpose: For,
+    /// What may be chosen, by id, in the order listed.
+    pub options: Vec<String>,
+    /// What each option's row shows (the id alone for most kinds; a portal's with its map and
+    /// cell).
+    pub labels: Vec<String>,
+    /// The search field's text: an option is listed while its label holds it, in any case.
     pub filter: String,
     /// The ids chosen, in the order chosen.
     pub chosen: Vec<String>,
@@ -28,26 +48,40 @@ pub struct Picking {
 }
 
 impl Picking {
-    /// The picker opened for `kind`: its choices as the stamp holds them.
+    /// The picker opened for `kind` over `options` (id and label each): its choices as the
+    /// stamp holds them.
     #[must_use]
-    pub fn open(kind: Placing, stamps: &Stamps) -> Picking {
+    pub fn open(kind: Placing, stamps: &Stamps, options: Vec<(String, String)>) -> Picking {
+        Picking::new(kind, For::Stamp, options, stamps.ids(kind))
+    }
+
+    fn new(
+        kind: Placing,
+        purpose: For,
+        options: Vec<(String, String)>,
+        chosen: Vec<String>,
+    ) -> Picking {
+        let (options, labels) = options.into_iter().unzip();
         Picking {
             kind,
+            purpose,
+            options,
+            labels,
             filter: String::new(),
-            chosen: stamps.ids(kind),
+            chosen,
             props: Vec::new(),
         }
     }
 
-    /// The positions in `options` the filter leaves: every one on an empty filter, else those
-    /// whose id holds the filter's text in any case.
+    /// The positions among the options the filter leaves: every one on an empty filter, else
+    /// those whose label holds the filter's text in any case.
     #[must_use]
-    pub fn shown(&self, options: &[String]) -> Vec<usize> {
+    pub fn shown(&self) -> Vec<usize> {
         let needle = self.filter.trim().to_lowercase();
-        options
+        self.labels
             .iter()
             .enumerate()
-            .filter(|(_, o)| needle.is_empty() || o.to_lowercase().contains(&needle))
+            .filter(|(_, l)| needle.is_empty() || l.to_lowercase().contains(&needle))
             .map(|(i, _)| i)
             .collect()
     }
@@ -86,6 +120,41 @@ impl Picking {
     }
 }
 
+/// What the picker of `kind` offers (id and label each): the packs' ids of the kind; for a
+/// portal, every portal nothing links to among the loaded maps with `def` standing in for its
+/// file (its unsaved portals among them), but the one at `except`, each labelled with its map's
+/// name and cell.
+#[must_use]
+pub fn options(
+    kind: Placing,
+    def: &MapDef,
+    data: &Data,
+    except: Option<(Level, u16, u16)>,
+) -> Vec<(String, String)> {
+    if kind != Placing::Portal {
+        return stamp::options(kind, data)
+            .into_iter()
+            .map(|id| (id.clone(), id))
+            .collect();
+    }
+    unlinked_portals(def, data)
+        .into_iter()
+        .filter(|(_, p)| except != Some((p.level, p.x, p.y)))
+        .map(|(map, p)| (p.id.clone(), portal_label(data, map, p)))
+        .collect()
+}
+
+/// A portal's row in the picker: "id  -  map (x, y)".
+fn portal_label(data: &Data, map: &str, p: &omnis_sim::omnis_data::Portal) -> String {
+    format!(
+        "{}  -  {} ({}, {})",
+        p.id,
+        crate::labels::map(data, map),
+        p.x,
+        p.y
+    )
+}
+
 impl Editor {
     /// The chosen stamp's kind, if the entry is a stamp.
     fn stamp_kind(&self) -> Option<Placing> {
@@ -97,13 +166,60 @@ impl Editor {
 
     /// Open the picker for the chosen stamp (`EditAct::Pick`): its choices start as the stamp
     /// holds them.
-    pub(super) fn pick_open(&mut self) -> Asked {
-        let Some(kind) = self.stamp_kind() else {
+    pub(super) fn pick_open(&mut self, data: &Data) -> Asked {
+        let Some((kind, def)) = self.stamp_kind().zip(self.def()) else {
             return Asked::Nothing;
         };
-        self.picking = Some(Picking::open(kind, &self.stamps));
+        let options = options(kind, &def, data, None);
+        self.picking = Some(Picking::open(kind, &self.stamps, options));
         self.message = None;
         Asked::PickDetail
+    }
+
+    /// Open the picker for the open portal form's link (`EditAct::LinkPick`, the form's
+    /// Link...): the portals nothing links to, but this one, and its partner when it has one,
+    /// shown chosen; Finish writes the chosen id into the link field.
+    pub(super) fn pick_open_for_link(&mut self, data: &Data) -> Asked {
+        let Some((form, def)) = self.form.as_ref().zip(self.def()) else {
+            return Asked::Nothing;
+        };
+        if form.kind != FormKind::Portal {
+            return Asked::Nothing;
+        }
+        let Some(field) = form.fields.iter().position(|f| f.label == "link") else {
+            return Asked::Nothing;
+        };
+        let at = (form.at.level, form.at.x, form.at.y);
+        let mut options = options(Placing::Portal, &def, data, Some(at));
+        let own = def.portals.iter().find(|p| (p.level, p.x, p.y) == at);
+        if let Some((map, q)) = own.and_then(|p| partner_of(p, &def, data))
+            && !options.iter().any(|(id, _)| *id == q.id)
+        {
+            options.push((q.id.clone(), portal_label(data, map, q)));
+        }
+        let chosen = Some(form.text_of("link").trim().to_owned())
+            .filter(|l| !l.is_empty())
+            .into_iter()
+            .collect();
+        let field = u8::try_from(field).unwrap_or(u8::MAX);
+        self.picking = Some(Picking::new(
+            Placing::Portal,
+            For::Field(field),
+            options,
+            chosen,
+        ));
+        self.message = None;
+        Asked::PickDetail
+    }
+
+    /// The open portal form's Unlink: its link field cleared.
+    pub(super) fn unlink(&mut self) {
+        if let Some(form) = &mut self.form
+            && let Some(i) = form.fields.iter().position(|f| f.label == "link")
+        {
+            form.typed(i, String::new());
+            self.revision = self.revision.wrapping_add(1);
+        }
     }
 
     /// The picker's search field was typed into.
@@ -114,21 +230,36 @@ impl Editor {
         }
     }
 
-    /// The picker's row `i` (a position in `stamp::options`) was pressed: chosen or let go.
-    pub(super) fn pick_toggle(&mut self, data: &Data, i: u16) {
+    /// The picker's row `i` (a position among its options) was pressed: chosen or let go.
+    pub(super) fn pick_toggle(&mut self, i: u16) {
         let Some(p) = &mut self.picking else {
             return;
         };
-        let options = stamp::options(p.kind, data);
-        let Some(id) = options.get(usize::from(i)) else {
+        let Some(id) = p.options.get(usize::from(i)).cloned() else {
             return;
         };
-        self.message = p.toggle(id).err();
+        self.message = p.toggle(&id).err();
     }
 
-    /// The picker's Finish: the stamp holds the choice (what it held carries over for a detail
-    /// kept); a kind with properties goes on to the properties modal, the rest close.
+    /// The picker's Finish: a form field's choice is written into the field; otherwise the
+    /// stamp holds the choice (what it held carries over for a detail kept) and a kind with
+    /// properties goes on to the properties modal, the rest close.
     pub(super) fn pick_finish(&mut self, data: &Data) -> Asked {
+        if let Some(Picking {
+            purpose: For::Field(i),
+            chosen,
+            ..
+        }) = &self.picking
+        {
+            let text = chosen.first().cloned().unwrap_or_default();
+            if let Some(form) = &mut self.form {
+                form.typed(usize::from(*i), text);
+            }
+            self.picking = None;
+            self.message = None;
+            self.revision = self.revision.wrapping_add(1);
+            return Asked::Picked;
+        }
         let Some((p, def)) = self.picking.as_ref().zip(self.def()) else {
             return Asked::Nothing;
         };
@@ -162,8 +293,8 @@ impl Editor {
         let mut picking = self
             .picking
             .take()
-            .filter(|p| p.kind == kind)
-            .unwrap_or_else(|| Picking::open(kind, &self.stamps));
+            .filter(|p| p.kind == kind && p.purpose == For::Stamp)
+            .unwrap_or_else(|| Picking::open(kind, &self.stamps, options(kind, &def, data, None)));
         picking.props = props;
         self.picking = Some(picking);
         self.message = None;
@@ -249,27 +380,31 @@ mod tests {
     use super::*;
 
     fn picking(kind: Placing) -> Picking {
-        Picking::open(kind, &Stamps::default())
+        Picking::open(kind, &Stamps::default(), Vec::new())
     }
 
     #[test]
-    fn the_filter_keeps_the_ids_that_hold_it_in_any_case() {
-        let options: Vec<String> = ["a:monster:giant_rat", "a:monster:goblin", "b:monster:rat"]
-            .iter()
-            .map(|s| (*s).to_owned())
-            .collect();
-        let mut p = picking(Placing::Encounter);
-        assert_eq!(
-            p.shown(&options),
-            vec![0, 1, 2],
-            "everything on an empty filter"
-        );
+    fn the_filter_keeps_the_rows_whose_label_holds_it_in_any_case() {
+        let options: Vec<(String, String)> =
+            ["a:monster:giant_rat", "a:monster:goblin", "b:monster:rat"]
+                .iter()
+                .map(|s| ((*s).to_owned(), (*s).to_owned()))
+                .collect();
+        let mut p = Picking::open(Placing::Encounter, &Stamps::default(), options);
+        assert_eq!(p.shown(), vec![0, 1, 2], "everything on an empty filter");
         p.filter = "RAT".to_owned();
-        assert_eq!(p.shown(&options), vec![0, 2]);
+        assert_eq!(p.shown(), vec![0, 2]);
         p.filter = " b: ".to_owned();
-        assert_eq!(p.shown(&options), vec![2], "trimmed");
+        assert_eq!(p.shown(), vec![2], "trimmed");
         p.filter = "wolf".to_owned();
-        assert!(p.shown(&options).is_empty());
+        assert!(p.shown().is_empty());
+        // A portal's row carries its map and cell: the search finds it by any of them.
+        let portals = vec![("gate".to_owned(), "gate  -  Town (5, 2)".to_owned())];
+        let mut p = Picking::open(Placing::Portal, &Stamps::default(), portals);
+        for needle in ["gate", "town", "(5, 2)"] {
+            p.filter = needle.to_owned();
+            assert_eq!(p.shown(), vec![0], "{needle}");
+        }
     }
 
     #[test]

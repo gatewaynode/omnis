@@ -51,8 +51,13 @@ pub enum EditAct {
     PickFilter,
     /// A row of the picker, by its position among the kind's options: chosen or let go.
     PickToggle(u16),
-    /// The picker's Finish: the stamp holds the choice; a kind with properties goes on to them.
+    /// The picker's Finish: the stamp holds the choice; a kind with properties goes on to them;
+    /// a form field's choice is written into the field.
     PickFinish,
+    /// The open portal form's Link...: the picker opened for its link field (W1 step 2b).
+    LinkPick,
+    /// The open portal form's Unlink: its link field cleared.
+    Unlink,
     /// Open the properties modal for the chosen stamp: the sliders icon under the palette.
     Props,
     /// Field `.1` of properties form `.0`.
@@ -285,10 +290,12 @@ impl Editor {
                 let facing = self.facing;
                 self.placed(data, Place::Start { x, y, facing });
             }
-            EditAct::Stamp | EditAct::Pick => return self.pick_open(),
+            EditAct::Stamp | EditAct::Pick => return self.pick_open(data),
+            EditAct::LinkPick => return self.pick_open_for_link(data),
+            EditAct::Unlink => self.unlink(),
             // The search's text comes through `typed_in`.
             EditAct::PickFilter => {}
-            EditAct::PickToggle(i) => self.pick_toggle(data, i),
+            EditAct::PickToggle(i) => self.pick_toggle(i),
             EditAct::PickFinish => return self.pick_finish(data),
             EditAct::Props => return self.props_open(data),
             EditAct::Prop(n, i) => self.prop(n, i, step),

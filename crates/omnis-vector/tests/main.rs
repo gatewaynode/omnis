@@ -21,6 +21,7 @@ mod editor_files;
 mod editor_fill;
 mod editor_forms;
 mod editor_history;
+mod editor_link;
 mod editor_move;
 mod editor_paint;
 mod editor_pick;

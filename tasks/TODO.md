@@ -364,12 +364,14 @@ no loss, and every later map is built with it.
     choice clears after a linked placement), the inspector's "Portal 'id' to 'link'". `packs/test` 0.2.5 (ids and
     three one-sided links; landings unchanged), replays re-baselined; corpora `bad-ways` rewritten (ten link rows)
     and `bad-reach` new (reachability alone). The `editor.place` Portal payload changed shape: `docs/api.md`.
-  - [ ] Step 2b: **linking in the editor.** `Picking` carries its options and labels (a portal's "id  -  map
-    (x, y)"; the open map's unsaved unlinked portals offered too; the search over map, id and cell; the current
-    partner shown chosen when a form edits a linked portal); `Picking.purpose` (`Stamp` or a form's field): the
-    form's "Link..." button opens the picker and Finish writes the id into the link field, "Unlink" clears it;
-    the inspector's row names the partner's map ("to meadow 'meadow-gate'", "linked from town 'town-gate'",
-    "unlinked"); `tests/editor_link.rs`; `tasks/acceptance/entrances-2.md`.
+  - [x] Step 2b (2026-11-01): **linking in the editor.** `Picking { purpose, options, labels, .. }` built at
+    open (`pick::options`: a portal's rows "id  -  Map (x, y)" over the portals nothing links to, the open map's
+    unsaved ones among them; the search matches the label), `For::{Stamp, Field}`: the portal form's **Link...**
+    opens the picker for its link field (the current partner offered and shown chosen) and Finish fills it,
+    **Unlink** clears it; the inspector's line under a portal ("to Meadow 'meadow-gate'" whichever side states
+    the link, an unresolved link, "unlinked"); a right-click copy of a portal drops its link.
+    `tests/editor_link.rs` (the pair across maps through the picker, the one-sided save, the far map's error on
+    a removal; the form's Link... and Unlink on one map). `tasks/acceptance/entrances-2.md`.
   - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
     fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an

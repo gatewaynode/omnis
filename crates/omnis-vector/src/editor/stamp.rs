@@ -20,7 +20,7 @@ use omnis_sim::omnis_data::limits::{
 };
 use omnis_sim::omnis_data::lore::CellLore;
 use omnis_sim::omnis_data::placement::{GroundDef, Placement};
-use omnis_sim::omnis_data::{Data, MapDef, unlinked_portals_in};
+use omnis_sim::omnis_data::{Data, MapDef, Portal, unlinked_portals_in};
 
 /// What each stamp drops, by `Placing::index`: the places as the model holds them, at a nominal
 /// cell with nominal ids (the click decides both); empty until chosen, when the stamp drops the
@@ -272,14 +272,21 @@ pub fn rebuild(
 }
 
 /// The stamp a listed placement is, holding that placement whole (every object or lore on its
-/// cell when it is one of those); none for a rest event or for one the map no longer has.
+/// cell when it is one of those; a portal without its link, since a link is one portal's and a
+/// copy would claim the partner twice); none for a rest event or for one the map no longer has.
 #[must_use]
 pub fn of_here(def: &MapDef, here: &Here) -> Option<(Placing, Vec<Place>)> {
     let on = |level: Level, x: u16, y: u16| {
         move |l: Level, px: u16, py: u16| (l, px, py) == (level, x, y)
     };
     Some(match forms::find(def, &here.key)? {
-        Found::Portal(p) => (Placing::Portal, vec![Place::Portal(p.clone())]),
+        Found::Portal(p) => (
+            Placing::Portal,
+            vec![Place::Portal(Portal {
+                link: None,
+                ..p.clone()
+            })],
+        ),
         Found::Encounter(e) => (Placing::Encounter, vec![Place::Encounter(e.clone())]),
         Found::Site(s) => (Placing::Activity, vec![Place::Site(s.clone())]),
         Found::Object(o) => {
