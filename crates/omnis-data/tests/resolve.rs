@@ -306,6 +306,23 @@ fn a_start_the_party_cannot_stand_on_is_refused() {
     );
 }
 
+/// The start stands on its own level (W1 step 3): on the tower's bridge of the upper floor it
+/// resolves; beside the bridge, where the upper floor has no ground, it is refused in the level's
+/// words.
+#[test]
+fn a_start_on_an_upper_level_stands_on_that_level_s_ground() {
+    let data = with_fixture("levels");
+    let mut tower = def_of(&data, "levels:map:tower");
+    tower.start = (4, 2, omnis_core::Facing::South);
+    tower.start_level = omnis_core::Level(1);
+    assert!(MapData::resolve(&tower, &data).is_ok(), "the bridge stands");
+    tower.start = (6, 2, omnis_core::Facing::South);
+    assert_eq!(
+        messages(MapData::resolve(&tower, &data)),
+        ["start (6, 2) on level 1 is on no ground"]
+    );
+}
+
 #[test]
 fn maps_the_entry_no_longer_reaches_through_linked_portals_are_refused() {
     let data = load_test_packs();

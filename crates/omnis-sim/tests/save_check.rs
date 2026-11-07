@@ -286,6 +286,21 @@ fn a_party_stands_only_where_the_terrain_lets_it() {
         },
         "nowhere to stand: the map's start"
     );
+    // The fallback carries the start's level (W1 step 3).
+    other.maps.get_mut(&yard).unwrap().def.start_level = Level(1);
+    let report = examined(&disk, &other).into_report();
+    assert_eq!(
+        report.places[0].fix,
+        PlaceFix::PartyMoved {
+            from: spot(2, 2),
+            to: Spot {
+                level: Level(1),
+                x: start.0,
+                y: start.1
+            }
+        },
+        "the start on its level"
+    );
 }
 
 #[test]

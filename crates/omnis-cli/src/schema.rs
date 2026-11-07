@@ -517,6 +517,7 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         },
         Op::EditorPlace {
             place: omnis_data::edit::Place::Start {
+                level: Level::GROUND,
                 x: 0,
                 y: 0,
                 facing: Facing::East,

@@ -2,4 +2,4 @@
 // test packs: their tileset is used, so every error here is about where a portal or a start lands,
 // a portal's links and id, and what the entry map reaches. The test pack's maps are another
 // pack's, so they are not asked to be reached from this pack's entry.
-(schema: 1, id: "ways", version: "0.1.1", hash: 17446207683032440030, name: "Bad ways", license: "MIT", depends: ["base", "test"], entry: Some("ways:map:stand"))
+(schema: 1, id: "ways", version: "0.1.2", hash: 5813588559323771099, name: "Bad ways", license: "MIT", depends: ["base", "test"], entry: Some("ways:map:stand"))

@@ -137,7 +137,12 @@ fn requests_for(def: &MapDef) -> (NewMap, Vec<Request>) {
         });
     }
     let (x, y, facing) = def.start;
-    let mut places = vec![Place::Start { x, y, facing }];
+    let mut places = vec![Place::Start {
+        level: def.start_level,
+        x,
+        y,
+        facing,
+    }];
     places.extend(def.portals.iter().cloned().map(Place::Portal));
     places.extend(def.encounters.iter().cloned().map(Place::Encounter));
     if def.random.is_some() {

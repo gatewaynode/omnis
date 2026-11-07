@@ -212,10 +212,13 @@ impl Editor {
             self.chosen = i;
         }
         let def = self.def();
-        let (start, size) = def.as_ref().map_or(((0, 0, Facing::North), (0, 0)), |d| {
-            (d.start, (d.width, d.height))
-        });
-        self.level = Level::GROUND;
+        // The map opens on its start's level, the cursor on the start (W1 step 3).
+        let (start, level, size) = def
+            .as_ref()
+            .map_or(((0, 0, Facing::North), Level::GROUND, (0, 0)), |d| {
+                (d.start, d.start_level, (d.width, d.height))
+            });
+        self.level = level;
         self.cursor = (start.0, start.1);
         self.facing = start.2;
         self.view = plan::View::fitted(size, self.pane);

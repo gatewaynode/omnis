@@ -202,6 +202,9 @@ pub struct MapDef {
     pub height: u16,
     /// Where a new party appears: column, row, facing.
     pub start: (u16, u16, Facing),
+    /// The level the start is on; the ground when left out (W1 step 3, 2026-11-07).
+    #[serde(default, skip_serializing_if = "Level::is_ground")]
+    pub start_level: Level,
     /// Tileset surfaces for walls on this map.
     pub wall: WallSurfaces,
     /// Tileset surface for closed doors on this map.
@@ -379,10 +382,8 @@ impl MapDef {
         }
         let has =
             |level: Level| level.is_ground() || self.levels.iter().any(|l| Level(l.level) == level);
-        let placed = self
-            .portals
-            .iter()
-            .map(|p| ("portal", p.level, p.x, p.y))
+        let placed = std::iter::once(("start", self.start_level, sx, sy))
+            .chain(self.portals.iter().map(|p| ("portal", p.level, p.x, p.y)))
             .chain(
                 self.encounters
                     .iter()
@@ -426,6 +427,7 @@ mod tests {
             width: 2,
             height: 2,
             start: (0, 0, Facing::East),
+            start_level: Level::GROUND,
             wall: WallSurfaces {
                 front: "wall".into(),
                 left: "wall.left".into(),

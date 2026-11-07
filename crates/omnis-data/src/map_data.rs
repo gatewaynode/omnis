@@ -530,9 +530,15 @@ pub(crate) fn resolve_one(
     let (sx, sy, _) = def.start;
     if sx < def.width
         && sy < def.height
-        && let Some(fault) = standing_fault(def, levels, Level::GROUND, sx, sy)
+        && let Some(fault) = standing_fault(def, levels, def.start_level, sx, sy)
     {
-        errors.push(DataError::new(file, format!("start ({sx}, {sy}) {fault}")));
+        let level = def.start_level;
+        let at = if level.is_ground() {
+            format!("({sx}, {sy})")
+        } else {
+            format!("({sx}, {sy}) on level {}", level.0)
+        };
+        errors.push(DataError::new(file, format!("start {at} {fault}")));
     }
     let name = names(def, levels, &data.registry.text, file, errors);
     let portals = resolve_portals(def, file, targets, errors);

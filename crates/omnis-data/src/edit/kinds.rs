@@ -201,6 +201,9 @@ pub enum Target {
 pub enum Place {
     /// Where a new party appears.
     Start {
+        /// The level; the ground when left out (W1 step 3).
+        #[serde(default)]
+        level: Level,
         /// Column.
         x: u16,
         /// Row.

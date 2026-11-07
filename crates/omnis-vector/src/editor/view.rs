@@ -630,20 +630,24 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
     let edit = |act| ControlId::Edit(act);
     // The author's note on the cell: its first line, and the form to write it.
     rows.push(note_row(editor, NoteOf::Cell, "Note", "Edit note"));
-    // The start, and the button that moves it here.
-    let start_here = level.is_ground() && def.start.0 == x && def.start.1 == y;
+    // The start, named with its level when it is not the ground, and the button that moves it
+    // here, on the shown level (W1 step 3).
+    let start_here = level == def.start_level && def.start.0 == x && def.start.1 == y;
+    let start_level = if def.start_level.is_ground() {
+        String::new()
+    } else {
+        format!(" on level {}", level_label(editor, data, def.start_level))
+    };
     rows.push(Row {
         spans: vec![Span::body(format!(
-            "Start ({}, {}) facing {}",
+            "Start ({}, {}){start_level} facing {}",
             def.start.0,
             def.start.1,
             facing_name(def.start.2)
         ))],
         controls: vec![dim(
             Control::button(edit(EditAct::SetStart), "Set start here"),
-            (!level.is_ground())
-                .then_some("the start is on the ground level")
-                .or((start_here && def.start.2 == editor.facing).then_some("the start is here")),
+            (start_here && def.start.2 == editor.facing).then_some("the start is here"),
         )],
         ..Row::default()
     });

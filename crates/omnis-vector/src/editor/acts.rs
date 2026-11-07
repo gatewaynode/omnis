@@ -288,7 +288,16 @@ impl Editor {
             EditAct::SetStart => {
                 let (x, y) = self.cursor;
                 let facing = self.facing;
-                self.placed(data, Place::Start { x, y, facing });
+                let level = self.level;
+                self.placed(
+                    data,
+                    Place::Start {
+                        level,
+                        x,
+                        y,
+                        facing,
+                    },
+                );
             }
             EditAct::Stamp | EditAct::Pick => return self.pick_open(data),
             EditAct::Link(n) => self.link(n, data),

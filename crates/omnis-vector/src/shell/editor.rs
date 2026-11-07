@@ -875,10 +875,7 @@ fn refresh(
         }
         return;
     };
-    let start = editing
-        .level
-        .is_ground()
-        .then_some((def.start.0, def.start.1));
+    let start = (editing.level == def.start_level).then_some(def.start);
     let marks = plan::marks(&def, data, editing.level);
     let preview = editing.preview();
     let selection = editing.selection_outline();

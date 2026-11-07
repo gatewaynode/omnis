@@ -247,7 +247,7 @@ fn party(world: &mut World, data: &Data, out: &mut Vec<PlaceWarning>) {
     });
     let (level, x, y) = match to {
         Some((x, y)) => (level, x, y),
-        None => (Level::GROUND, map.def.start.0, map.def.start.1),
+        None => (map.def.start_level, map.def.start.0, map.def.start.1),
     };
     out.push(PlaceWarning {
         map: map_name(data, p.map),

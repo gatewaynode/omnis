@@ -501,6 +501,7 @@ fn placements_upsert_by_key_and_remove_by_target() {
     );
     assert_eq!(
         doc.place(Place::Start {
+            level: G,
             x: 50,
             y: 0,
             facing: Facing::North
@@ -508,6 +509,7 @@ fn placements_upsert_by_key_and_remove_by_target() {
         Err(EditError::Outside { x: 50, y: 0 })
     );
     doc.place(Place::Start {
+        level: G,
         x: 2,
         y: 2,
         facing: Facing::North,
@@ -548,6 +550,77 @@ fn a_resize_keeps_the_top_left_and_drops_what_falls_outside() {
     assert_eq!(after.layout[1].len(), 13);
     doc.undo().unwrap();
     assert_eq!(doc.def(), before);
+}
+
+/// The start sits on a level (W1 step 3): set on the tower's bridge upstairs it stands there; a
+/// level the map lacks is `validate`'s row, the edit kept; a resize keeps the level; the start's
+/// level removed returns it to the ground at its cell; a place written without a level is the
+/// ground's.
+#[test]
+fn the_start_sits_on_a_level_and_returns_to_the_ground_when_its_level_goes() {
+    let data = with_fixture("levels");
+    let mut doc = open(&data, "levels:map:tower");
+    assert_eq!(doc.def().start_level, G);
+    doc.place(Place::Start {
+        level: Level(1),
+        x: 4,
+        y: 2,
+        facing: Facing::South,
+    })
+    .unwrap();
+    assert_eq!(doc.def().start, (4, 2, Facing::South));
+    assert_eq!(doc.def().start_level, Level(1));
+    assert_eq!(
+        doc.steps().last().copied(),
+        Some("start set at (4, 2) on level 1 facing south")
+    );
+    let errors = doc.validate(Some(&data));
+    assert!(errors.is_empty(), "{errors:?}");
+    let def = doc.def().clone();
+    assert!(
+        omnis_data::MapData::resolve(&def, &data).is_ok(),
+        "the bridge stands"
+    );
+    // A level the map does not have is reported, the edit kept.
+    doc.place(Place::Start {
+        level: Level(3),
+        x: 4,
+        y: 2,
+        facing: Facing::South,
+    })
+    .unwrap();
+    let errors = format!("{:?}", doc.validate(Some(&data)));
+    assert!(
+        errors.contains("start at (4, 2) is on level 3, which the map does not have"),
+        "{errors}"
+    );
+    doc.undo().unwrap();
+    assert_eq!(doc.def().start_level, Level(1));
+    // A resize keeps the level.
+    doc.edit(Edit::Resize {
+        width: 6,
+        height: 5,
+    })
+    .unwrap();
+    assert_eq!(doc.def().start, (4, 2, Facing::South));
+    assert_eq!(doc.def().start_level, Level(1));
+    // The level removed: the start returns to the ground at its cell; undo brings it back.
+    doc.edit(Edit::LevelRemove { level: 1 }).unwrap();
+    assert_eq!(doc.def().start, (4, 2, Facing::South));
+    assert_eq!(doc.def().start_level, G);
+    doc.undo().unwrap();
+    assert_eq!(doc.def().start_level, Level(1));
+    // A place written without a level is the ground's.
+    let place: Place = ron::from_str("Start(x: 1, y: 1, facing: East)").unwrap();
+    assert_eq!(
+        place,
+        Place::Start {
+            level: G,
+            x: 1,
+            y: 1,
+            facing: Facing::East
+        }
+    );
 }
 
 #[test]
@@ -597,6 +670,7 @@ fn a_place_names_the_key_it_is_put_by() {
     );
     assert_eq!(
         Place::Start {
+            level: G,
             x: 0,
             y: 0,
             facing: Facing::North,
@@ -696,6 +770,7 @@ fn steps_are_named_and_goto_walks_the_history() {
     let after_stroke = doc.def();
     // A place, an edit and a batch name themselves; the editor renames the newest step.
     doc.place(Place::Start {
+        level: G,
         x: 2,
         y: 2,
         facing: Facing::South,
@@ -710,6 +785,7 @@ fn steps_are_named_and_goto_walks_the_history() {
         G,
         &[((0, 0), Brush::Height { eighths: 2 })],
         vec![Place::Start {
+            level: G,
             x: 1,
             y: 1,
             facing: Facing::North,

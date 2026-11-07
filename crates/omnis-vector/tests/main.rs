@@ -31,6 +31,7 @@ mod editor_preview;
 mod editor_run;
 mod editor_select;
 mod editor_stamp;
+mod editor_start;
 mod fight;
 mod fight_screen;
 mod fill;

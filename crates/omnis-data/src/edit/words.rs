@@ -75,7 +75,12 @@ pub fn stroke(cells: usize, first: &str) -> String {
 #[must_use]
 pub fn place(place: &Place) -> String {
     clip(&match place {
-        Place::Start { x, y, facing } => format!("start set at ({x}, {y}) facing {facing}"),
+        Place::Start {
+            level,
+            x,
+            y,
+            facing,
+        } => format!("start set at {} facing {facing}", at(*level, *x, *y)),
         Place::Portal(p) => match &p.link {
             Some(link) => format!(
                 "portal '{}' at {} linked to '{link}'",
@@ -160,11 +165,21 @@ mod tests {
         );
         assert_eq!(
             place(&Place::Start {
+                level: Level::GROUND,
                 x: 1,
                 y: 2,
                 facing: omnis_core::Facing::South
             }),
             "start set at (1, 2) facing south"
+        );
+        assert_eq!(
+            place(&Place::Start {
+                level: Level(1),
+                x: 1,
+                y: 2,
+                facing: omnis_core::Facing::South
+            }),
+            "start set at (1, 2) on level 1 facing south"
         );
         assert_eq!(
             edit(&Edit::Resize {

@@ -21,7 +21,14 @@ overflows in the tools column are fixed: the pack root on its own row under "EDI
 chooser naming a map by its last segment, `stamp::short`, since `the_lower_kingdoms:map:depths` with its arrows ran
 past the 330 px column on both sides (`74ad5f74`, the owner's screenshot; lesson "a renamed pack lengthens every id
 it is drawn in"; a headless measure of every text's `TextLayoutInfo` against its box found nothing else over at
-1600x900). The owner has not yet confirmed the chooser fix in hand. Told the owner: restart
+1600x900). The owner accepted steps 1, 2 and 2c (`da508c70`, "That fixed it, accepted"). **Step 3 is built** (the start as
+a real entrance, the step 3 commit; plan approved 2026-11-07): `MapDef.start_level` (the ground when left out, so
+ground starts' files are byte-identical) and `Place::Start { level, x, y, facing }`; the loader's level-existence
+and standing rows for the start (corpus `bad-ways` 0.1.2: `up.ron`, `far.ron`); a new game and the save's
+fallback on the start's level; the editor's Set start here on the shown level, Move and a selection carry it
+there, a map opens on its start's level, `plan::start_pixels` draws the diamond notched toward the facing, a
+level removed returns its start to the ground; `tasks/acceptance/entrances-3.md` holds the hand test (on a scratch
+copy of the `levels` fixture's tower). The owner has not yet hand-tested it. Told the owner: restart
 the game before the next Save (an editor holding the old path would recreate `packs/test`); their saves and world
 folders under `.omnis/` name `test` and will not load. Before all this the same day the recorded pins caught up
 with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
@@ -155,11 +162,9 @@ Durable knowledge lives in `tasks/knowledge/`.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner's word on the chooser fix** (`74ad5f74`, "I still see the pack name overflow"). Then **the owner's word on 2c**: "accepted" gets the
-   prose commit for steps 1, 2 and 2c (`tasks/acceptance/entrances-2.md` carries the hand test and the findings);
-   then **step 3** from the plan file's earlier plan (`MapDef.start_level`, Set start here on every level, the
-   diamond's notch toward the start's facing; the new game and the save's fallback on it; `editor.place` Start
-   gains the optional level, `docs/api.md`; tests on the `levels` fixture; hand test on the tower). The frozen
+1. **The owner's hand test of step 3** (`tasks/acceptance/entrances-3.md`, on `/tmp/omnis-levels`, a scratch copy
+   of `crates/omnis-sim/tests/packs/levels`; a finding gets a fix in its own commit with a test): "accepted" gets
+   the prose acceptance commit and closes the W1 enhancement (`tasks/TODO.md` top-level `[x]`, a review line). The frozen
    fixture carries the portals as they were at 0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and
    `portal_bank_hidden` included): a test names them by content, never by count. Then, when the owner orders it,
    **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a press as a message first). The

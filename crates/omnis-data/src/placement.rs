@@ -562,7 +562,7 @@ pub(crate) fn check_beings(
 /// join (a stair, a ladder, a hole), every site and every fixed encounter, by level.
 fn arrivals(def: &MapDef, levels: &[LevelData]) -> BTreeMap<Level, Vec<(u16, u16)>> {
     let mut out: BTreeMap<Level, Vec<(u16, u16)>> = BTreeMap::new();
-    out.entry(Level::GROUND)
+    out.entry(def.start_level)
         .or_default()
         .push((def.start.0, def.start.1));
     for level in levels {

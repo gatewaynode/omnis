@@ -255,11 +255,12 @@ pub fn moving(
     let moved_to = |x: u16, y: u16| pairs.iter().find(|p| p.0 == (x, y)).map(|p| p.1);
     let on = |l: Level, x: u16, y: u16| l == level && sel.cells.contains(&(x, y));
     let mut places: Vec<Place> = Vec::new();
-    if level.is_ground()
+    if level == def.start_level
         && sel.cells.contains(&(def.start.0, def.start.1))
         && let Some((x, y)) = moved_to(def.start.0, def.start.1)
     {
         places.push(Place::Start {
+            level,
             x,
             y,
             facing: def.start.2,

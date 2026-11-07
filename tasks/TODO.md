@@ -386,8 +386,14 @@ no loss, and every later map is built with it.
     the switch), `pick.rs` `fits`. **Steps 1, 2 and 2c accepted by the owner 2026-11-07** ("I think this is
     usable"; "That fixed it, accepted" after the two tools-column overflows the rename to `the_lower_kingdoms`
     exposed: the root on its own row, `d8f53d94`; the map chooser by the map's name, `74ad5f74`).
-  - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
-    fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
+  - [x] Step 3 (2026-11-07): **the start as a real entrance.** `MapDef.start_level` (the ground when left out: a
+    ground start's file is written as before) and `Place::Start { level, x, y, facing }`; the loader refuses a start
+    on a level the map lacks or off that level's ground ("start (x, y) on level N is on no ground"; corpus
+    `bad-ways` `up.ron`, `far.ron`); a new game and the save's fallback begin on the start's level; Set start here
+    on the shown level, the Move tool and a moved selection carry it there, a map opens on its start's level, the
+    plan's diamond notched toward the start's facing (`plan::start_pixels`); a level removed returns its start to
+    the ground. `tasks/acceptance/entrances-3.md`; tests on the tower (`editor_start.rs`, `edit_document.rs`,
+    `resolve.rs`, `omnis-sim/tests/levels.rs`, `save_check.rs`).
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

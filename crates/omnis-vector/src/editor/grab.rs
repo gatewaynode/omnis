@@ -142,15 +142,15 @@ impl Editor {
     }
 
     /// What the Move tool takes on `cell` of the shown level: the selection when the cell is
-    /// inside it, else as the inspector lists it: the start when it is here (it is on the ground
-    /// level), else the first listed placement; none on a bare cell.
+    /// inside it, else as the inspector lists it: the start when it is here on this level, else
+    /// the first listed placement; none on a bare cell.
     fn under(&self, cell: (u16, u16)) -> Option<Held> {
         if self.selected().is_some_and(|s| s.cells.contains(&cell)) {
             return Some(Held::Selection);
         }
         let start_here = self
             .def()
-            .is_some_and(|d| self.level.is_ground() && (d.start.0, d.start.1) == cell);
+            .is_some_and(|d| self.level == d.start_level && (d.start.0, d.start.1) == cell);
         if start_here {
             return Some(Held::Start);
         }
@@ -225,7 +225,16 @@ impl Editor {
                 let Some(facing) = self.def().map(|d| d.start.2) else {
                     return false;
                 };
-                self.placed(data, Place::Start { x, y, facing })
+                let level = self.level;
+                self.placed(
+                    data,
+                    Place::Start {
+                        level,
+                        x,
+                        y,
+                        facing,
+                    },
+                )
             }
             Held::Place(here) => self.moved_place(data, here, to),
         };

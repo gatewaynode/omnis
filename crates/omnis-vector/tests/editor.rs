@@ -301,7 +301,7 @@ fn the_plan_paints_the_town_with_its_walls_and_its_start() {
             size: (def.width, def.height),
             level: Level::GROUND,
             resolved: editor.resolved.as_ref(),
-            start: Some((def.start.0, def.start.1)),
+            start: Some(def.start),
             marks: &[],
             preview: None,
             selection: None,

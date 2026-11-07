@@ -220,7 +220,7 @@ impl Schema for Place {
     fn schema() -> Value {
         let (x, y) = xy();
         json!({"description": "A placement put on the map (replacing one with the same key) or removed.", "oneOf": [
-            variant("Start", obj(json!({"x": x, "y": y, "facing": Facing::schema()}), &["x", "y", "facing"])),
+            variant("Start", obj(json!({"level": level(), "x": x, "y": y, "facing": Facing::schema()}), &["x", "y", "facing"])),
             variant("Portal", portal()), variant("Encounter", encounter()),
             variant("Random", json!({"anyOf": [random(), {"type": "null"}]})),
             variant("Site", site()), variant("RestEvent", rest_event()), variant("Object", placement()),
@@ -300,6 +300,11 @@ mod tests {
         for p in &places {
             serde_json::from_value::<Place>(p.clone()).unwrap_or_else(|e| panic!("{p}: {e}"));
         }
+        // A start names its level when it is not the ground (W1 step 3).
+        serde_json::from_value::<Place>(
+            json!({"Start": {"level": 1, "x": 4, "y": 2, "facing": "North"}}),
+        )
+        .expect("a start with its level");
         assert_eq!(
             Place::schema()["oneOf"].as_array().unwrap().len(),
             places.len()

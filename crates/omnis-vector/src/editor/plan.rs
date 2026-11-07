@@ -204,8 +204,8 @@ pub struct Source<'a> {
     /// The map as the loader last took it, for what is derived (cliffs, a stair's rise); none
     /// while the map has never resolved.
     pub resolved: Option<&'a MapData>,
-    /// The map's start, marked when it is on this level.
-    pub start: Option<(u16, u16)>,
+    /// The map's start with its facing, marked when it is on this level.
+    pub start: Option<(u16, u16, Facing)>,
     /// The placements on this level, each marked on its cell (`marks`).
     pub marks: &'a [((u16, u16), Mark)],
     /// A run being drawn and the corner under the pointer, previewed over everything.
@@ -281,6 +281,32 @@ pub fn marks(def: &MapDef, data: &Data, level: Level) -> Vec<((u16, u16), Mark)>
             .filter(|l| l.level == level)
             .map(|l| ((l.x, l.y), Mark::Lore)),
     );
+    out
+}
+
+/// The start's mark in the cell at (`left`, `top`) of `side` pixels: a diamond, notched toward
+/// `facing` (the vertex the party walks out of runs on to the cell's side, W1 step 3). The plan
+/// never turns, so a facing is a screen direction: north up, east right.
+#[must_use]
+pub fn start_pixels(left: i64, top: i64, side: i64, facing: Facing) -> Vec<(i64, i64)> {
+    let m = (left + side / 2, top + side / 2);
+    let q = side / 4;
+    let mut out = Vec::new();
+    for (a, b) in [
+        ((m.0, m.1 - q), (m.0 + q, m.1)),
+        ((m.0 + q, m.1), (m.0, m.1 + q)),
+        ((m.0, m.1 + q), (m.0 - q, m.1)),
+        ((m.0 - q, m.1), (m.0, m.1 - q)),
+    ] {
+        out.extend(line_pixels(a, b));
+    }
+    let (dx, dy) = facing.delta();
+    let (dx, dy) = (i64::from(dx), i64::from(dy));
+    let reach = (side / 2 - 1).max(q);
+    out.extend(line_pixels(
+        (m.0 + q * dx, m.1 + q * dy),
+        (m.0 + reach * dx, m.1 + reach * dy),
+    ));
     out
 }
 
@@ -456,21 +482,10 @@ pub fn paint(source: Source, view: View, pane: (u32, u32)) -> Raster {
             out.put(px, py, colour);
         }
     }
-    if let Some(start) = source.start {
-        let (left, top, side) = view.cell_rect(start);
-        let side = i64::from(side);
-        // A diamond in the cell.
-        let m = (left + side / 2, top + side / 2);
-        let q = side / 4;
-        for (a, b) in [
-            ((m.0, m.1 - q), (m.0 + q, m.1)),
-            ((m.0 + q, m.1), (m.0, m.1 + q)),
-            ((m.0, m.1 + q), (m.0 - q, m.1)),
-            ((m.0 - q, m.1), (m.0, m.1 - q)),
-        ] {
-            for (px, py) in line_pixels(a, b) {
-                out.put(px, py, START);
-            }
+    if let Some((sx, sy, facing)) = source.start {
+        let (left, top, side) = view.cell_rect((sx, sy));
+        for (px, py) in start_pixels(left, top, i64::from(side), facing) {
+            out.put(px, py, START);
         }
     }
     if let Some(preview) = source.preview {
@@ -667,6 +682,38 @@ mod tests {
                     assert!(
                         (2 * s..3 * s).contains(&x) && (3 * s..4 * s).contains(&y),
                         "{mark:?} at {scale}: ({x}, {y}) off the cell"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_start_s_diamond_stays_in_its_cell_and_its_notch_runs_toward_the_facing() {
+        for scale in ZOOMS {
+            let s = i64::from(scale);
+            let (left, top) = (2 * s, 3 * s);
+            let m = (left + s / 2, top + s / 2);
+            for facing in Facing::ALL {
+                let pixels = start_pixels(left, top, s, facing);
+                assert!(!pixels.is_empty(), "{facing:?} at {scale}");
+                for (x, y) in &pixels {
+                    assert!(
+                        (left..left + s).contains(x) && (top..top + s).contains(y),
+                        "{facing:?} at {scale}: ({x}, {y}) off the cell"
+                    );
+                }
+                if s >= 8 {
+                    let (dx, dy) = facing.delta();
+                    let (dx, dy) = (i64::from(dx), i64::from(dy));
+                    let reach = s / 2 - 1;
+                    assert!(
+                        pixels.contains(&(m.0 + reach * dx, m.1 + reach * dy)),
+                        "{facing:?} at {scale}: the notch reaches the side"
+                    );
+                    assert!(
+                        !pixels.contains(&(m.0 - reach * dx, m.1 - reach * dy)),
+                        "{facing:?} at {scale}: the back has no notch"
                     );
                 }
             }

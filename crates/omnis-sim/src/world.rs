@@ -410,7 +410,8 @@ impl World {
     /// A new game on the packs' entry map, with an empty party and the given settings.
     pub fn new(data: &Data, seed: u64, settings: Settings) -> Result<World, NewGameError> {
         let map = data.entry.ok_or(NewGameError::NoEntryMap)?;
-        let (x, y, facing) = data.maps[&map].def.start;
+        let def = &data.maps[&map].def;
+        let (x, y, facing) = def.start;
         let mut clocks = BTreeMap::new();
         clocks.insert(PARTY, Clock::new(EraId(0)));
         Ok(World {
@@ -424,7 +425,7 @@ impl World {
             bus: crate::time::subscriptions(data),
             position: Position {
                 map,
-                level: omnis_core::Level::GROUND,
+                level: def.start_level,
                 x,
                 y,
                 facing,

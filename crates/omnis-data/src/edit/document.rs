@@ -155,6 +155,7 @@ impl Document {
             width: new.width,
             height: new.height,
             start: (0, 0, Facing::East),
+            start_level: Level::GROUND,
             wall: new.wall,
             door: new.door,
             door_open: new.door_open,
@@ -584,11 +585,17 @@ fn take<T>(list: &mut Vec<T>, gone: impl Fn(&T) -> bool, what: String) -> Result
 fn apply_place(def: &mut MapDef, place: Place) -> Result<(), EditError> {
     let many = MAX_COLLECTION;
     match place {
-        Place::Start { x, y, facing } => {
+        Place::Start {
+            level,
+            x,
+            y,
+            facing,
+        } => {
             if x >= def.width || y >= def.height {
                 return Err(EditError::Outside { x, y });
             }
             def.start = (x, y, facing);
+            def.start_level = level;
             Ok(())
         }
         Place::Portal(p) => upsert(
@@ -846,6 +853,11 @@ fn remove_level(state: &mut State, level: i8) -> Result<(), EditError> {
     def.objects.retain(|o| o.level != gone);
     def.ground.retain(|g| g.level != gone);
     def.lore.retain(|l| l.level != gone);
+    // The start cannot go with its level: it returns to the ground at its cell (the loader's
+    // standing check names the cell if the ground has none there; W1 step 3).
+    if def.start_level == gone {
+        def.start_level = Level::GROUND;
+    }
     Ok(())
 }
 

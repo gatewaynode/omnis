@@ -220,9 +220,15 @@ pub fn field_of(form: &omnis_vector::editor::form::Form, label: &str) -> u8 {
     u8::try_from(i).unwrap()
 }
 
-/// A scratch copy of the shipped test pack under the target directory, named `name`: what a
-/// test that saves or writes notes edits, never `crates/omnis-sim/tests/packs/test` itself.
+/// A scratch copy of the fixture pack under the target directory, named `name`: what a test
+/// that saves or writes notes edits, never `crates/omnis-sim/tests/packs/test` itself.
 pub fn scratch_pack(name: &str) -> PathBuf {
+    scratch_of(&config().packs.pop().unwrap(), name)
+}
+
+/// A scratch copy of the pack at `src` (its `pack.ron`, data, text, notes and migrations) under
+/// the target directory, named `name`.
+pub fn scratch_of(src: &std::path::Path, name: &str) -> PathBuf {
     fn copy_dir(src: &std::path::Path, dst: &std::path::Path) {
         let Ok(entries) = std::fs::read_dir(src) else {
             return;
@@ -237,7 +243,6 @@ pub fn scratch_pack(name: &str) -> PathBuf {
             }
         }
     }
-    let src = config().packs.pop().unwrap();
     let dst = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);
     let _ = std::fs::remove_dir_all(&dst);
     std::fs::create_dir_all(&dst).unwrap();

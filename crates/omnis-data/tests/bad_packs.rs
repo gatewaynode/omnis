@@ -454,6 +454,10 @@ fn every_entrance_error_is_reported() {
         // data/maps/foot.ron
         "start (0, 0) is on a tile the party cannot enter",
         "portal id 'dup' is also on 'ways:map:stand'",
+        // data/maps/up.ron (W1 step 3: the start on an upper floor, over no ground)
+        "start (0, 0) on level 1 is on no ground",
+        // data/maps/far.ron (the start on a level the map does not have)
+        "start at (0, 0) is on level 3, which the map does not have",
     ];
     assert_same(&got, &expected);
 }

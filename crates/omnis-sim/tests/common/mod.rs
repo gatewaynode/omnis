@@ -37,7 +37,7 @@ pub fn new_world(data: &Data, seed: u64, settings: Settings) -> World {
     let (x, y, facing) = data.maps[&map].def.start;
     world.position = Position {
         map,
-        level: omnis_core::Level::GROUND,
+        level: data.maps[&map].def.start_level,
         x,
         y,
         facing,
