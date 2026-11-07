@@ -1116,6 +1116,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-11-07: no wire change. The owner's hand test of the entrances and exits enhancement moved `packs/test`
+  through the editor (0.2.8 committed by the owner with the tests; 0.2.9, hash 14523718773761627429: three
+  unlinked portals `portal_bank_hidden` on the town, `portal_23_0` on the dungeon, `portal_23_28` on the meadow,
+  two street cells cut and the meadow's last road cell grassed), so the goldens moved: walk `0370ab07b628f193`,
+  fight `c81c08bde3a070e9`. The same day the picker's Finish stopped dropping the stamp on the plan beneath it (a
+  press on the frame a screen closes is that screen's; `tasks/LESSONS.md`).
 - 2026-11-01 (later): **the `Portal` payload of `editor.place` changed shape** (the entrances and exits
   enhancement, step 2a, the owner's direction): a portal is `{level, x, y, id, link, facing, marker}`; the
   authored landing (`to_map`, `to_level`, `to_x`, `to_y`, `to_facing`) is gone, derived from the portal `link`

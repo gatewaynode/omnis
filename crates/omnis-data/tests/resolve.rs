@@ -154,12 +154,17 @@ fn an_unlinked_portal_resolves_clean_and_is_a_plain_tile() {
             .portal_at(omnis_core::Level::GROUND, 5, 2)
             .is_none()
     );
-    assert_eq!(partner_of(&town.portals[1], &town, &data), None);
+    let spare = town.portals.last().expect("the spare");
+    assert_eq!(partner_of(spare, &town, &data), None);
+    // The fixture may hold the owner's own unlinked portals: the spare is among them.
     let unlinked: Vec<(&str, &str)> = unlinked_portals(&town, &data)
         .into_iter()
         .map(|(map, p)| (map, p.id.as_str()))
         .collect();
-    assert_eq!(unlinked, [("test:map:town", "spare")]);
+    assert!(
+        unlinked.contains(&("test:map:town", "spare")),
+        "{unlinked:?}"
+    );
 }
 
 #[test]
@@ -236,7 +241,8 @@ fn a_portal_id_is_one_across_the_loaded_maps_and_within_a_map() {
         messages(MapData::resolve(&town, &data)),
         ["portal id 'meadow-gate' is also on 'test:map:meadow'"]
     );
-    town.portals[1].id = "spare".to_owned();
+    let last = town.portals.len() - 1;
+    town.portals[last].id = "spare".to_owned();
     town.portals
         .push(portal("spare", (6, 2), omnis_core::Facing::South, None));
     assert_eq!(
@@ -244,12 +250,12 @@ fn a_portal_id_is_one_across_the_loaded_maps_and_within_a_map() {
         ["portals at (5, 2) and (6, 2) share the id 'spare'"]
     );
     town.portals.pop();
-    town.portals[1].id = String::new();
+    town.portals[last].id = String::new();
     assert_eq!(
         messages(MapData::resolve(&town, &data)),
         ["portal at (5, 2) has no id"]
     );
-    town.portals[1].id = " spare".to_owned();
+    town.portals[last].id = " spare".to_owned();
     assert_eq!(
         messages(MapData::resolve(&town, &data)),
         ["portal at (5, 2) has an id that is not 1 to 32 printable ASCII characters"]

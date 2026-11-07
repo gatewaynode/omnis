@@ -658,13 +658,18 @@ fn an_unlinked_portal_is_a_plain_tile() {
     let (x, y) = facing.ahead_of((sx, sy)).expect("inside the map");
     let mut spare = def.portals[0].clone();
     (spare.id, spare.link, spare.x, spare.y) = ("spare".to_owned(), None, x, y);
+    let before = def.portals.len();
     def.portals.push(spare);
     let resolved = MapData::resolve(&def, &data).unwrap_or_else(|e| panic!("{e:?}"));
     assert!(
         resolved.portal_at(Level::GROUND, x, y).is_none(),
         "unlinked: not among the resolved portals"
     );
-    assert_eq!(resolved.def.portals.len(), 3, "yet saved in the file");
+    assert_eq!(
+        resolved.def.portals.len(),
+        before + 1,
+        "yet saved in the file"
+    );
     data.maps.insert(meadow, resolved);
     let mut world = world(&data);
     let events = without_visible(step(&mut world, &data));

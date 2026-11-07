@@ -72,9 +72,11 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `5892799219166648366`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `247886029114634643`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `15140356211798700158` under the golden seed (2026-11-01, step 2a of the entrances enhancement: the
+  fight `14419409718594269417` under the golden seed (2026-11-07: the owner's hand test of step 2 moved `packs/test` to
+  0.2.9, hash 14523718773761627429, three unlinked portals and four cells; 0.2.8 before it, committed by the
+  owner with the tests; 2026-11-01, step 2a of the entrances enhancement: the
   portals linked by id, `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two stairs' arrivals
   faced east, 0.2.4, hash 5777870636897639874; 2026-10-31: the owner drew on the depths through the
   editor, 0.2.3; M5.10: the test pack re-authored through the
