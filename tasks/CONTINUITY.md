@@ -16,12 +16,12 @@ tests mid-build, and at their word **the fixture and the canvas became two packs
 fixture `crates/omnis-sim/tests/packs/test`, id `test`, 0.2.9, hash 14523718773761627429, every test and the
 replays on it, never saved onto; `2c2bd3a7`: the canvas renamed `packs/the_lower_kingdoms`, id prefix
 `the_lower_kingdoms:`, 114 ids rewritten, resealed 0.2.20, the game's, the CLI's and the MCP's default beside
-`packs/base`; memory `fixture-and-canvas`). Their world docs were renamed by them (`18d06409`). **Pending at this
-compact:** the tools column's title fix (the pack root on its own row under "EDITOR"; `view.rs::tools`,
-`editor_paint.rs::title_dirty`, `editor_forms.rs`) is built, its gate `scripts/verify.sh` running in the
-background (`scratchpad/gate-root.txt`); when VERIFY-GREEN, commit `crates/omnis-vector/src/editor/view.rs`,
-`crates/omnis-vector/tests/editor_paint.rs`, `crates/omnis-vector/tests/editor_forms.rs` with the message
-`scratchpad/msg-root.txt`, then Sentrux rescan + check_rules; if red, read the log and fix. Told the owner: restart
+`packs/base`; memory `fixture-and-canvas`). Their world docs were renamed by them (`18d06409`). The rename's two
+overflows in the tools column are fixed: the pack root on its own row under "EDITOR" (`d8f53d94`) and the map
+chooser naming a map by its last segment, `stamp::short`, since `the_lower_kingdoms:map:depths` with its arrows ran
+past the 330 px column on both sides (`74ad5f74`, the owner's screenshot; lesson "a renamed pack lengthens every id
+it is drawn in"; a headless measure of every text's `TextLayoutInfo` against its box found nothing else over at
+1600x900). The owner has not yet confirmed the chooser fix in hand. Told the owner: restart
 the game before the next Save (an editor holding the old path would recreate `packs/test`); their saves and world
 folders under `.omnis/` name `test` and will not load. Before all this the same day the recorded pins caught up
 with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
@@ -155,7 +155,7 @@ Durable knowledge lives in `tasks/knowledge/`.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **Commit the title fix when its gate is green** (above). Then **the owner's word on 2c**: "accepted" gets the
+1. **The owner's word on the chooser fix** (`74ad5f74`, "I still see the pack name overflow"). Then **the owner's word on 2c**: "accepted" gets the
    prose commit for steps 1, 2 and 2c (`tasks/acceptance/entrances-2.md` carries the hand test and the findings);
    then **step 3** from the plan file's earlier plan (`MapDef.start_level`, Set start here on every level, the
    diamond's notch toward the start's facing; the new game and the save's fallback on it; `editor.place` Start
