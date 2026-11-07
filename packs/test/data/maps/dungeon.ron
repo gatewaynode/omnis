@@ -117,6 +117,15 @@
             facing: West,
             marker: Some("stairs.up"),
         ),
+        (
+            level: 0,
+            x: 23,
+            y: 0,
+            id: "portal_23_0",
+            link: None,
+            facing: North,
+            marker: Some("stairs.up"),
+        ),
     ],
     encounters: [
         (

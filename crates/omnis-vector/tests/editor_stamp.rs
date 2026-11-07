@@ -324,13 +324,10 @@ fn the_pile_lore_and_portal_stamps_start_valid() {
         .expect("the lore");
     assert_eq!((l.id.as_str(), l.text.as_str()), ("lore_7_2", key.as_str()));
     valid(&app);
-    // A portal (W1 step 2): unlinked with nothing chosen (every shipped portal is paired, so
-    // there is nothing to choose), a fresh id, facing the author, a marker of the tileset.
+    // A portal (W1 step 2): unlinked with nothing chosen, whatever the picker could offer; a
+    // fresh id, facing the author, a marker of the tileset.
     choose(&mut app, Entry::Stamp(Placing::Portal));
-    assert!(
-        stamp::options(Placing::Portal, &data).is_empty(),
-        "no unlinked portal to link to"
-    );
+    assert!(held(&app, Placing::Portal).is_empty(), "nothing chosen");
     click(&mut app, (8, 2));
     let def = editing(&app).def().unwrap();
     let p = def

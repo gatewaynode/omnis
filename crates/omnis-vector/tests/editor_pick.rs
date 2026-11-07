@@ -492,20 +492,25 @@ fn a_pile_takes_counts_and_two_lore_texts_drop_as_two_entries() {
 fn the_portal_picker_offers_unlinked_portals_and_a_click_with_none_places_an_unlinked_one() {
     let mut app = in_editor("test:map:town");
     let data = data(&app);
-    assert!(
-        stamp::options(Placing::Portal, &data).is_empty(),
-        "every shipped portal is paired"
-    );
+    // The portals nothing links to, as the owner's pack holds them (none, or the owner's own).
+    let unlinked: Vec<String> = omnis_sim::omnis_data::unlinked_portals_in(&data)
+        .into_iter()
+        .map(|(_, p)| p.id.clone())
+        .collect();
+    assert_eq!(stamp::options(Placing::Portal, &data), unlinked);
     choose(&mut app, Entry::Stamp(Placing::Portal));
     press_edit(&mut app, EditAct::Pick);
     assert_eq!(top_screen(&app), Some(ScreenId::EditorPick));
     let text = screen_text(app.world());
     assert!(
-        text.contains("CHOOSE PORTALS")
-            && text.contains("The packs have no portal.")
-            && text.contains("0 of 1 chosen"),
+        text.contains("CHOOSE PORTALS") && text.contains("0 of 1 chosen"),
         "{text}"
     );
+    if unlinked.is_empty() {
+        assert!(text.contains("The packs have no portal."), "{text}");
+    } else {
+        assert!(text.contains(&format!("[ ] {}  -  ", unlinked[0])), "{text}");
+    }
     assert!(
         !pressable(&mut app, edit(EditAct::PickFinish)),
         "Finish is dim"

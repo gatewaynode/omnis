@@ -17,6 +17,7 @@ use common::editor::{
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::Data;
+use common::editor::field_entity;
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::brush::{self, Entry};
 use omnis_vector::editor::forms::Placing;
@@ -101,6 +102,30 @@ fn mark_at(app: &App, cell: (u16, u16)) -> Option<Mark> {
         .map(|(_, m)| m)
 }
 
+/// What the window does every frame to a drawn text field: Bevy's layout takes it mutably, so
+/// it reads as changed, and the column pushes its text into the model when the two differ (the
+/// owner's report, 2026-11-01: a link chosen in the picker was gone by Apply). The drawn field
+/// of the form's `label` touched that way, then a frame; its drawn text.
+fn window_touches(app: &mut App, label: &str) -> String {
+    let form = editing(app).form.clone().expect("a form");
+    let i = form
+        .fields
+        .iter()
+        .position(|f| f.label == label)
+        .expect("the field");
+    let entity = field_entity(app, EditAct::Field(u8::try_from(i).unwrap())).expect("drawn");
+    let text = {
+        let mut field = app
+            .world_mut()
+            .get_mut::<bevy::text::EditableText>(entity)
+            .expect("a text field");
+        field.set_changed();
+        field.value().to_string()
+    };
+    app.update();
+    text
+}
+
 fn portal_link(app: &App, cell: (u16, u16)) -> Option<String> {
     let def = editing(app).def().expect("a map");
     def.portals
@@ -139,11 +164,18 @@ fn a_portal_links_to_another_map_s_unlinked_portal_through_the_picker_and_both_m
     let data = data(&app);
     let town_name = labels::map(&data, "test:map:town").to_owned();
     let label = format!("portal_5_2  -  {town_name} (5, 2)");
-    {
+    // The fixture may hold the owner's own unlinked portals too: the row is found by its id.
+    let row = {
         let p = editing(&app).picking.clone().expect("the picker");
-        assert_eq!(p.options, ["portal_5_2"]);
-        assert_eq!(p.labels, std::slice::from_ref(&label));
-    }
+        let row = p
+            .options
+            .iter()
+            .position(|o| o == "portal_5_2")
+            .unwrap_or_else(|| panic!("{:?}", p.options));
+        assert_eq!(p.labels[row], label);
+        row
+    };
+    let row = u16::try_from(row).unwrap();
     let text = screen_text(app.world());
     assert!(text.contains(&format!("[ ] {label}")), "{text}");
     for needle in [town_name.to_uppercase(), "(5, 2)".to_owned()] {
@@ -154,7 +186,7 @@ fn a_portal_links_to_another_map_s_unlinked_portal_through_the_picker_and_both_m
     type_ui(&mut app, edit(EditAct::PickFilter), "nothing of the kind");
     assert!(screen_text(app.world()).contains("No portal matches."));
     type_ui(&mut app, edit(EditAct::PickFilter), "");
-    press_ui(&mut app, Pressable(edit(EditAct::PickToggle(0))));
+    press_ui(&mut app, Pressable(edit(EditAct::PickToggle(row))));
     assert!(screen_text(app.world()).contains(&format!("[x] {label}")));
     press_ui(&mut app, Pressable(edit(EditAct::PickFinish)));
     assert_eq!(top_screen(&app), None);
@@ -232,25 +264,42 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
     for cell in [(16, 20), (16, 24)] {
         assert_eq!(mark_at(&app, cell), Some(Mark::Portal { linked: false }));
     }
-    // The form of the second: Link... offers the first alone (this one is left out; every
-    // shipped portal is paired); Finish fills the link field; Apply links them.
+    // The form of the second: Link... offers the first (this one is left out; the fixture's own
+    // unlinked portals may be there too); Finish fills the link field; Apply links them.
     press_edit(&mut app, EditAct::EditAt(0));
     assert!(editing(&app).form.is_some(), "the portal's form");
     press_edit(&mut app, EditAct::LinkPick);
     assert_eq!(top_screen(&app), Some(ScreenId::EditorPick));
-    assert_eq!(
-        editing(&app).picking.as_ref().map(|p| p.options.clone()),
-        Some(vec!["portal_16_20".to_owned()])
+    let options = editing(&app)
+        .picking
+        .as_ref()
+        .map(|p| p.options.clone())
+        .expect("the picker");
+    assert!(
+        options.contains(&"portal_16_20".to_owned())
+            && !options.contains(&"portal_16_24".to_owned()),
+        "the first offered, this one left out: {options:?}"
     );
-    press_ui(&mut app, Pressable(edit(EditAct::PickToggle(0))));
+    let row = options.iter().position(|o| o == "portal_16_20").unwrap();
+    press_ui(
+        &mut app,
+        Pressable(edit(EditAct::PickToggle(u16::try_from(row).unwrap()))),
+    );
     press_ui(&mut app, Pressable(edit(EditAct::PickFinish)));
     assert_eq!(top_screen(&app), None);
-    assert_eq!(
-        editing(&app)
+    let link = |app: &App| {
+        editing(app)
             .form
             .as_ref()
-            .map(|f| f.text_of("link").to_owned()),
-        Some("portal_16_20".to_owned())
+            .map(|f| f.text_of("link").to_owned())
+    };
+    assert_eq!(link(&app), Some("portal_16_20".to_owned()));
+    // The window's frame: the drawn field follows the model, and the model keeps the choice.
+    assert_eq!(window_touches(&mut app, "link"), "portal_16_20");
+    assert_eq!(
+        link(&app),
+        Some("portal_16_20".to_owned()),
+        "the choice survives the window's frame"
     );
     let steps = editing(&app).status.undo;
     press_edit(&mut app, EditAct::Apply);
@@ -292,12 +341,12 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
         "Cancel keeps the field"
     );
     press_edit(&mut app, EditAct::Unlink);
+    assert_eq!(link(&app), Some(String::new()));
+    assert_eq!(window_touches(&mut app, "link"), "");
     assert_eq!(
-        editing(&app)
-            .form
-            .as_ref()
-            .map(|f| f.text_of("link").to_owned()),
-        Some(String::new())
+        link(&app),
+        Some(String::new()),
+        "Unlink survives the window's frame"
     );
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{}", message(&app));

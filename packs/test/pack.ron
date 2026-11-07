@@ -4,8 +4,8 @@
 (
     schema: 1,
     id: "test",
-    version: "0.2.5",
-    hash: 15167835935440741063,
+    version: "0.2.8",
+    hash: 2170463291755038075,
     name: "Omnis test fixtures",
     license: "MIT OR Apache-2.0",
     attribution: [
