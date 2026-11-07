@@ -153,7 +153,8 @@ Durable knowledge lives in `tasks/knowledge/`.
 1. **The owner's run of step 2c**; the pack and replays following their session in a commit of their own
    (re-baseline at that time; the town's sites are no longer on rows 1 and 3: a test that wants bare ground
    uses the street, row 2, and finds a site by its service); then "accepted" gets the prose commit for steps 1
-   and 2; then **step 3** from the plan file (`MapDef.start_level`,
+   and 2; then **step 3**; then, when the owner orders it, **the client's use of Bevy's ECS** (`tasks/TODO.md`,
+   Open: four tasks, a press as a message first) from the plan file (`MapDef.start_level`,
    Set start here on every level, the diamond's notch toward the start's facing). The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when

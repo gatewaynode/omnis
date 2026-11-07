@@ -499,6 +499,40 @@ the documentation alone.
   sidecar (D10), aging (D13), general scripting for mods on the sandboxed engine.
 
 ## Open, outside the phases (the owner sets the order)
+- [ ] **The client's use of Bevy's ECS** (owner, 2026-11-07: "could we be using Bevy ECS better?"; the survey that
+  day: 27 resources, about 45 components, 73 systems; the game and editor state in four large resources handed
+  whole to Bevy-free view functions; dirtiness tracked by hand; every press found by polling `Changed<Interaction>`
+  in five routers; observers twice, messages once). **Kept as is:** the simulation crates stay Bevy-free (the lint,
+  ARCHITECTURE §4.1, §11); the thin-host pattern (big resources, Bevy-free `Screen` and `Scene` builders) stays,
+  since it is what keeps the client testable without a window; one mesh and gizmo lines for the scene until the
+  look lands in data (M9). Four tasks, in the order of their value; each its own commit, plan mode when reached,
+  the full gate and the window tests as today:
+  - [ ] **1. A press is a message, not a poll.** One system turns a control's `Interaction::Pressed` into a
+    `Pressed(ControlId)` message (`add_message`, written once a frame per control); the screen router
+    (`shell/screen.rs::route`), the editor's (`shell/editor.rs::route`), the fight's (`combat.rs`), the roster's and
+    the notice's consume it, none of them reading `Interaction` or the raw mouse for a press again, so the order
+    between routers is structural and the modal-closing frame cannot leak a press to the plan. The frame-memory
+    guard `stood` in `shell/editor.rs` (2026-11-07) goes, its test `editor_link.rs::a_press_that_closes_the_picker_
+    places_nothing_on_the_plan_beneath_it` rewritten against the message; the harness's `press_ui`/`press_edit`
+    send the message (or set `Interaction` and run the one producer). Arrows and sliders follow the same path if
+    the change is small; otherwise they wait for 2.
+  - [ ] **2. A text field speaks through its change event.** Today `shell/editor.rs::route` compares every drawn
+    `EditableText` with the model every frame (the field reads as changed under layout), with `fresh` and `refill`
+    guards; `screen_draw::sync` never rewrites a field. Find what Bevy 0.19's text input offers (an observer on
+    the field's value change, as `On<ValueChange<f32>>` serves sliders through `Slid`); the model hears typing
+    from it alone; a model-set text (`Form::set_text`) still draws the field anew. The guards `fresh`/`refill`
+    stay only if the event path cannot carry their cases; the tests `window_touches` (editor_link.rs) and the
+    "replaced under the window's churn" tests (editor_forms.rs) are the acceptance.
+  - [ ] **3. The two big routers split.** `shell/editor.rs::route` (174 lines, 15 parameters behind `Inputs`) and
+    `refresh` (202 lines), `shell/screen.rs::paint` (17 parameters): smaller systems, one concern each (fields,
+    presses, the plan's pointer, the wheel; per-column refresh), ordered with explicit `.after()` edges or a
+    chained tuple that says the order out loud, their shared state as `SystemParam` bundles. No behaviour change;
+    the editor suites and `kit_icons`/`screens` are the acceptance; file sizes under 1000 lines.
+  - [ ] **4. Change detection where the hand keys are coarse anyway.** Measure first: a `resource_changed::<Session>`
+    run condition on `VectorSet::Draw` (and `Editing` on the editor's refresh) against the hand-made keys
+    (`Session.reshape`, `Preview.scene_key`, `Screens.drawn`, `editor::Drawn`, the minimap's `Local`); keep a hand
+    key only where change detection would redraw too often (a resource mutated every frame). Record the frame
+    counts in `tasks/knowledge/verification.md`; drop what the measurement does not justify.
 - [ ] Party creation: remove or edit a member after adding them (owner, 2026-10-11; found in P3 as "not in P3").
   Today Add member is final: the CreateParty screen can only add, and Back drops the whole unfinished game. Neither
   client could ever do this, and the engine has no command for it (`PartyCommand` is `Create`, `Reorder`,
