@@ -55,8 +55,9 @@ fingerprint on every platform. A CI job fails the build if any of them breaks th
 | `omnis-icon` | The Lucide icon set (ISC, `assets/svg-icons/`) compiled in and read as strokes: a dependency-free SVG subset reader, path flattening with arcs, every icon by name |
 
 Game content lives in `packs/`. `packs/base` is the shipped content (SRD 5.1 material under
-CC-BY-4.0, see `ATTRIBUTION.md`); `packs/test` holds the fixtures the tests and golden replays
-use. Every number a rule needs is a value or a Rhai slot in the pack's `rules/` files: Rust rolls
+CC-BY-4.0, see `ATTRIBUTION.md`); `packs/test` is the owner's world under construction. The tests and the
+golden replays run against `crates/omnis-sim/tests/packs/test`, a frozen copy of it (id `test`, sealed once,
+never saved onto), so building the world moves no test. Every number a rule needs is a value or a Rhai slot in the pack's `rules/` files: Rust rolls
 the dice, Rhai adds and compares.
 
 ## Building and running
@@ -103,7 +104,8 @@ blocks (PRD D31).
 ```sh
 scripts/verify.sh
 cargo run -p omnis-cli -- validate packs/base packs/test
-cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron
+cargo run -p omnis-cli -- validate packs/base crates/omnis-sim/tests/packs/test
+cargo run -p omnis-cli -- replay crates/omnis-sim/tests/replays/walk.ron --pack packs/base --pack crates/omnis-sim/tests/packs/test
 ```
 
 On macOS, `cc` finds clang through `xcodebuild -find clang`, which reads Xcode's license file. A

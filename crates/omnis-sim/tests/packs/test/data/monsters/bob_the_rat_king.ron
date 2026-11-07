@@ -1,0 +1,28 @@
+// Homebrew (owner, 2026-10-04): not an SRD stat block. A CR 1 caster built the way the SRD builds
+// one: Intelligence 16 (+3), proficiency +2, so spell attack +5 and save DC 13; caster level 5
+// for a cantrip's dice (Fire Bolt 2d10). Until monster runbooks, a dice roll picks among what he
+// can do each turn (his staff, or a spell he has the points for); Shield answers a hit it would
+// turn, or a Magic Missile, while his stack has its reaction. The test pack's first caster.
+(
+    schema: 1,
+    id: "test:monster:bob_the_rat_king",
+    name: "test:text:monster.bob_the_rat_king.name",
+    size: Medium,
+    ac: 12,
+    hit_points: (count: 5, sides: 8, modifier: 5),
+    speed: 30,
+    abilities: (9, 14, 12, 16, 12, 11),
+    challenge: (1, 1),
+    xp: 200,
+    attacks: [
+        (name: "test:text:monster.bob_the_rat_king.quarterstaff", to_hit: 1, damage: (count: 1, sides: 6, modifier: -1), damage_type: Bludgeoning),
+    ],
+    gold: Some((count: 3, sides: 6, modifier: 0)),
+    casting: Some((
+        spell_attack: 5,
+        save_dc: 13,
+        caster_level: 5,
+        points: 5,
+        spells: ["base:spell:fire_bolt", "base:spell:magic_missile", "base:spell:thunderwave", "base:spell:shield"],
+    )),
+)

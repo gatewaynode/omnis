@@ -40,7 +40,8 @@ fn a_rewritten_pack_loads_identically() {
         write_ron(&dir.join(format!("data/spells/s{i}.ron")), spell).unwrap();
     }
     // Regions keep only their resolved form; the files go across as written.
-    let regions = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packs/test/data/regions");
+    let regions = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/omnis-sim/tests/packs/test/data/regions");
     for entry in std::fs::read_dir(&regions).unwrap() {
         let path = entry.unwrap().path();
         let to = dir.join("data/regions").join(path.file_name().unwrap());

@@ -12,7 +12,7 @@ use omnis_sim::{
 use std::path::PathBuf;
 
 pub fn test_pack() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/omnis-sim/tests/packs/test")
 }
 
 pub fn base_pack() -> PathBuf {

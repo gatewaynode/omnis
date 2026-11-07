@@ -6,6 +6,9 @@ use omnis_sim::parse_script;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// The frozen fixture the tests load beside the base pack (never the owner's pack under `packs/`).
+const FIXTURE: &str = "crates/omnis-sim/tests/packs/test";
+
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -33,14 +36,18 @@ fn cli(args: &[&str]) -> (bool, String, String) {
 
 #[test]
 fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
-    let (ok, out, _) = cli(&["validate", "packs/base", "packs/test"]);
+    let (ok, out, _) = cli(&[
+        "validate",
+        "packs/base",
+        "crates/omnis-sim/tests/packs/test",
+    ]);
     assert!(ok);
     assert!(out.starts_with("ok: 2 packs, 4 maps, 2 tilesets"), "{out}");
     assert!(
         out.ends_with("36 rule slots, 7 services, 0 objects\n"),
         "{out}"
     );
-    let (ok, _, err) = cli(&["validate", "packs/test"]);
+    let (ok, _, err) = cli(&["validate", "crates/omnis-sim/tests/packs/test"]);
     assert!(!ok);
     assert!(
         err.contains("depends on 'base', which is not loaded before this pack"),
@@ -58,7 +65,15 @@ fn validate_accepts_the_test_pack_and_reports_every_error_of_a_broken_one() {
 
 #[test]
 fn map_text_marks_the_start_and_names_unknown_maps() {
-    let (ok, out, _) = cli(&["map", "text", "test:map:town"]);
+    let (ok, out, _) = cli(&[
+        "map",
+        "text",
+        "test:map:town",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok);
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 11);
@@ -67,7 +82,15 @@ fn map_text_marks_the_start_and_names_unknown_maps() {
         Some('<'),
         "a new game faces west on the town's street"
     );
-    let (ok, _, err) = cli(&["map", "text", "nope:map:x"]);
+    let (ok, _, err) = cli(&[
+        "map",
+        "text",
+        "nope:map:x",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("no map 'nope:map:x' is loaded"), "{err}");
 }
@@ -78,7 +101,17 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let script = dir.join("walk.txt");
     let text = "forward, forward\nturn-left # face west\nuse\n";
     std::fs::write(&script, text).unwrap();
-    let (ok, out, err) = cli(&["play", "--script", script.to_str().unwrap(), "--seed", "9"]);
+    let (ok, out, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--seed",
+        "9",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     let lines: Vec<&str> = out.lines().collect();
     assert!(lines[0].starts_with("0 forward: Moved"), "{}", lines[0]);
@@ -86,7 +119,11 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
         lines.iter().any(|l| l.starts_with("3 use: Message")),
         "{out}"
     );
-    let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")]).unwrap();
+    let data = load_packs(&[
+        &repo().join("packs/base"),
+        &repo().join("crates/omnis-sim/tests/packs/test"),
+    ])
+    .unwrap();
     // The headless driver is a dev world (`Settings.devtools`), and a save says so.
     let settings = Settings {
         devtools: true,
@@ -106,13 +143,29 @@ fn play_prints_events_and_the_fingerprint_the_library_computes() {
     );
 
     std::fs::write(&script, "forward\nfly\n").unwrap();
-    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("line 2: unknown command 'fly'"), "{err}");
     // A word names a slot, resolved when it is applied: the headless party is empty, so the
     // fourth slot names nobody.
     std::fs::write(&script, "forward\ncast-0-m3\n").unwrap();
-    let (ok, _, err) = cli(&["play", "--script", script.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "play",
+        "--script",
+        script.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(
         err.contains("turn 1: 'cast-0-m3' names an empty slot"),
@@ -131,7 +184,7 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
         "--pack",
         "packs/base",
         "--pack",
-        "packs/test",
+        "crates/omnis-sim/tests/packs/test",
     ]);
     assert!(ok, "{err}");
     assert!(
@@ -145,7 +198,14 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
     let tampered = format!("{}{}{}", &text[..start], recorded ^ 1, &text[end..]);
     let file = scratch("cli-replay").join("tampered.ron");
     std::fs::write(&file, tampered).unwrap();
-    let (ok, _, err) = cli(&["replay", file.to_str().unwrap()]);
+    let (ok, _, err) = cli(&[
+        "replay",
+        file.to_str().unwrap(),
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok);
     assert!(err.contains("differs from recorded"), "{err}");
 }
@@ -154,16 +214,44 @@ fn replay_checks_the_golden_file_and_catches_tampering() {
 fn wander_writes_a_replay_that_replay_times() {
     let file = scratch("cli-wander").join("w.ron");
     let path = file.to_str().unwrap();
-    let (ok, out, err) = cli(&["wander", "--seed", "3", "--commands", "120", "--out", path]);
+    let (ok, out, err) = cli(&[
+        "wander",
+        "--seed",
+        "3",
+        "--commands",
+        "120",
+        "--out",
+        path,
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     assert!(out.starts_with("wrote 120 commands to "), "{out}");
     assert!(out.contains("bytes of events a command"), "{out}");
-    let (ok, out, err) = cli(&["replay", path, "--time"]);
+    let (ok, out, err) = cli(&[
+        "replay",
+        path,
+        "--time",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(ok, "{err}");
     assert!(out.starts_with("ok: 120 commands reproduce"), "{out}");
     assert!(out.contains("µs a command"), "{out}");
     assert!(out.contains(" interactions, "), "{out}");
-    let (ok, _, err) = cli(&["wander", "--commands", "5"]);
+    let (ok, _, err) = cli(&[
+        "wander",
+        "--commands",
+        "5",
+        "--pack",
+        "packs/base",
+        "--pack",
+        FIXTURE,
+    ]);
     assert!(!ok && err.contains("--out"), "{err}");
 }
 
@@ -251,7 +339,7 @@ fn migration_draft_writes_each_name_gone_as_a_remove() {
         "--pack",
         "packs/base",
         "--pack",
-        "packs/test",
+        "crates/omnis-sim/tests/packs/test",
         "--pack",
         "crates/omnis-sim/tests/packs/objects",
     ];
@@ -282,7 +370,11 @@ fn migration_draft_writes_each_name_gone_as_a_remove() {
     assert!(!ok, "the pack changed: it must be resealed first");
     assert!(err.contains("reseal"), "{err}");
     assert!(cli(&["pack", "seal", new_dir]).0);
-    let mut validate = vec!["validate", "packs/base", "packs/test"];
+    let mut validate = vec![
+        "validate",
+        "packs/base",
+        "crates/omnis-sim/tests/packs/test",
+    ];
     validate.push("crates/omnis-sim/tests/packs/objects");
     validate.push(new_dir);
     let (ok, out, err) = cli(&validate);
@@ -297,7 +389,7 @@ fn save_check_prints_the_report_and_fails_when_the_save_does_not_load() {
     let root = scratch("cli-save-check");
     let old = load_packs(&[
         &repo().join("packs/base"),
-        &repo().join("packs/test"),
+        &repo().join("crates/omnis-sim/tests/packs/test"),
         &fixture("objects"),
         &fixture("chain/v1"),
     ])
@@ -318,7 +410,7 @@ fn save_check_prints_the_report_and_fails_when_the_save_does_not_load() {
         ];
         let mut packs = vec![
             repo().join("packs/base"),
-            repo().join("packs/test"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
             fixture("objects"),
         ];
         if chain {
@@ -363,7 +455,7 @@ fn migration_draft_leaves_what_cannot_be_removed_open() {
     let load = |chain: &str| {
         load_packs(&[
             &repo().join("packs/base"),
-            &repo().join("packs/test"),
+            &repo().join("crates/omnis-sim/tests/packs/test"),
             &fixture("objects"),
             &fixture(chain),
         ])

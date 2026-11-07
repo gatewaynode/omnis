@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 /// The repository's test fixture pack.
 pub fn test_pack() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/omnis-sim/tests/packs/test")
 }
 
 /// The base content pack, which the test pack depends on.

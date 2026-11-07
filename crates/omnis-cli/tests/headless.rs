@@ -15,7 +15,7 @@ use omnis_sim::{Command, Op, OpError, Replay, Reply};
 use std::path::{Path, PathBuf};
 
 fn test_pack() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/omnis-sim/tests/packs/test")
 }
 
 fn base_pack() -> PathBuf {

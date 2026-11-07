@@ -72,19 +72,21 @@ repository root (the root has no rules file).
 - Base pack tuple in `omnis-data/tests/load_base_pack.rs`: `(races 4, classes 4, backgrounds 3,
   items 24, conditions 16, spells 18, monsters 3, rule slots 36, services 7)` (slots 31 → 34 in M7c step 2: `turn.*`; 34 → 36 in M8 step 1: `time.settled`, `time.wild`)`; `chain_mail`'s
   shape and the bad-pack error wording are pinned in the same directory.
-- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `13261161800621763871`
+- Golden replays `crates/omnis-sim/tests/replays/{walk,fight}.ron`: walk `247886029114634643`
   under its own seed `WALK_SEED = 2` (the smallest that meets the random table on the way),
-  fight `9361429818070468341` under the golden seed (2026-11-07, later: the owner built in `packs/test` during the step 2c
-  hand test, 0.2.18, hash 6618162262592301701, the town's sites on rows 0 and 4; earlier that day 0.2.9, hash
-  14523718773761627429, three unlinked portals and four cells; 0.2.8 before it, committed by the
+  fight `14419409718594269417` under the golden seed, **against the frozen fixture
+  `crates/omnis-sim/tests/packs/test`** (id `test`, 0.2.9, hash 14523718773761627429: `packs/test` as committed at
+  `8d58c3e2`; since 2026-11-07 the owner's canvas under `packs/` is a pack of its own and moves no test; the replays
+  move only when the fixture is re-sealed on purpose. History: that day the canvas reached 0.2.18, hash
+  6618162262592301701, the town's sites on rows 0 and 4; before it 0.2.9, three unlinked portals and four cells; 0.2.8 before it, committed by the
   owner with the tests; 2026-11-01, step 2a of the entrances enhancement: the
   portals linked by id, `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two stairs' arrivals
   faced east, 0.2.4, hash 5777870636897639874; 2026-10-31: the owner drew on the depths through the
   editor, 0.2.3; M5.10: the test pack re-authored through the
   editor and sealed at 0.2.0; M8 step 4: the base pack hash, the rumors' minutes; step 3: contacts, party time and the bus in the save, and `Reconciled` at each region entry, every other event unchanged; step 1: the pack hash; before that M7c acceptance c, B1: the fighter's `EndTurn` went; both leave town through the
   gate and walk up the road to the meadow's start first). Rebaseline
-  with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any `packs/` or
-  serialized-`World` change.
+  with `cargo test -p omnis-sim rebaseline -- --ignored` in the same commit as any change to the fixture
+  or to the serialized `World`.
 - `SAVE_SCHEMA 9` (M8.5 7d, the character save: ARCHITECTURE §4.1.1; 7h2, fixed encounters by id and the manifest's name table); a schema 1 to 7 save is migrated to 7, then converted on load, and a schema 8 save has its encounter rows converted (`save/rows.rs`). `migrate.rs` holds `v2_to_v3`, the data-aware `v3_to_v4`, `v4_to_v5`
   (gold ×100, a saved fight's loot too), `v5_to_v6` (M7c: auto-cast spells become declared sets; a
   saved fight gets its budget and reactions) and `v6_to_v7` (M8: the past counted in full as shared

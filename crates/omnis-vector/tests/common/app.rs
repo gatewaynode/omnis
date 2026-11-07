@@ -92,11 +92,11 @@ pub fn app_with(log: PathBuf, seed: u64) -> App {
     )
 }
 
-/// The command line the tests run with: the shipped packs.
+/// The command line the tests run with: the base pack and the frozen fixture.
 pub fn config() -> Config {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     Config {
-        packs: vec![root.join("base"), root.join("test")],
+        packs: vec![root.join("packs/base"), root.join(super::FIXTURE)],
         // Never the player's quick save: a test that saves names its own file.
         save: ".omnis/test-saves/none.ron".to_owned(),
         // Never the player's settings: a test that applies names its own file.

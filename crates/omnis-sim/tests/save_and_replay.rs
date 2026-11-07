@@ -461,7 +461,7 @@ fn replays_are_deterministic() {
     assert_eq!(other_packs.check(&data), Err(ReplayError::PackMismatch));
 }
 
-/// The golden replay. When `packs/test` or the simulation changes on purpose, re-baseline in
+/// The golden replay. When `crates/omnis-sim/tests/packs/test` or the simulation changes on purpose, re-baseline in
 /// the same commit with `cargo test -p omnis-sim rebaseline -- --ignored`.
 #[test]
 fn golden_walk_replay_reproduces() {

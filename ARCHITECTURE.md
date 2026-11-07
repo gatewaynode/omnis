@@ -481,7 +481,7 @@ packs/<pack_id>/
 - Every data file is one RON struct with a `schema: u32` field first. Schema migrations are functions `vN -> vN+1` registered per type; loading an old schema runs them in order and reports it. They are the engine's, for a file's format; a pack's `migrations/` are the pack's, for its content's names and places (§4.1.1).
 - IDs are strings `pack:type:name` in files and are interned to `u32` newtypes (`SpellId`, `MonsterId`, ...) in a `Registry` at load. Unknown references are load errors with the referencing file named.
 - Later packs override earlier packs by ID. The manifest declares `depends: ["base >= 1.0"]` and load order is a topological sort; cycles are errors.
-- The base campaign is `packs/base`. A mod is any other directory in the user's packs folder. The editor writes the same format.
+- The base campaign is `packs/base`. A mod is any other directory in the user's packs folder. The editor writes the same format. The tests and the golden replays load `crates/omnis-sim/tests/packs/test`, a frozen fixture (id `test`, sealed once, never saved onto; owner 2026-11-07), beside the engine's fixture packs there; the owner's world under `packs/` is never a test's.
 
 ### 6.2 Validation as untrusted input
 Applies to packs, saves, and anything crossing the dev socket.
@@ -637,7 +637,7 @@ Serves PRD goal 7, §11.1, R6, R9, and `CLAUDE.md` verification rules.
   - **Later**: multiplayer shares the world seed and gives each party its own `party:<id>` stream.
 - **No floats** in simulation crates, enforced by a CI lint. Ordered collections only.
 - **Test tiers**:
-  1. Unit tests in each leaf crate on real pack data (`packs/test`), no mocks.
+  1. Unit tests in each leaf crate on real pack data (the frozen fixture `crates/omnis-sim/tests/packs/test`), no mocks.
   2. Golden tests: seed → fingerprint for gen and eco; a change must be intentional and re-baselined in the same commit.
   3. Replay tests: recorded command scripts under `tests/replays/` reproduce fingerprints; run on macOS and Linux in CI. This is the only place commands are replayed; a load lays changes (§4.1.1).
   4. Save round-trip: the goldens save and load after every command and keep their fingerprints; `split` then `join` gives back the same world; a fold, saves either side of it, and each loading at its own moment; the schema 8 fixture, and fixtures v1 to v7 converting on load.

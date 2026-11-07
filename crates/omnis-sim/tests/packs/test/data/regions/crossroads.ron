@@ -1,0 +1,13 @@
+// The crossroads: a settlement with no map of its own yet, coupled to the town by a road, so
+// coupling can be seen through `time.clocks`.
+(
+    schema: 1,
+    id: "test:region:crossroads",
+    name: "test:text:region.crossroads.name",
+    kind: Settlement,
+    company: 700,
+    stability: 950,
+    rule: "time.settled",
+    couplings: ["test:region:town"],
+    maps: [],
+)

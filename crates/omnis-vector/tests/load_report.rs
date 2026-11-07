@@ -28,7 +28,7 @@ fn packs(ahead: bool) -> Vec<PathBuf> {
     let root = repo();
     let mut packs = vec![
         root.join("packs/base"),
-        root.join("packs/test"),
+        root.join("crates/omnis-sim/tests/packs/test"),
         root.join("crates/omnis-sim/tests/packs/objects"),
     ];
     if ahead {

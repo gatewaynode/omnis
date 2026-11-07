@@ -21,18 +21,20 @@ fn scratch(name: &str) -> PathBuf {
 fn committed_tilesets_match_a_fresh_bake() {
     for name in ["dungeon", "outdoor"] {
         let out = scratch(&format!("bake-{name}"));
-        let spec = repo().join(format!("packs/test/bake/{name}.ron"));
+        let spec = repo().join(format!("crates/omnis-sim/tests/packs/test/bake/{name}.ron"));
         let report = bake_to(&spec, &out).unwrap_or_else(|e| panic!("{e}"));
         assert!(report.sprites > 0);
         let fresh: Tileset = read_ron(&report.tileset_file, Path::new("fresh")).unwrap();
         let committed: Tileset = read_ron(
-            &repo().join(format!("packs/test/data/tiles/{name}.ron")),
+            &repo().join(format!(
+                "crates/omnis-sim/tests/packs/test/data/tiles/{name}.ron"
+            )),
             Path::new("committed"),
         )
         .unwrap();
         assert_eq!(
             fresh, committed,
-            "{name}: re-run `omnis-cli tileset bake packs/test/bake/{name}.ron` and commit the result"
+            "{name}: re-run `omnis-cli tileset bake crates/omnis-sim/tests/packs/test/bake/{name}.ron` and commit the result"
         );
         let mut files = 0;
         for surface in fresh.surfaces.values() {
@@ -63,7 +65,9 @@ fn committed_tilesets_match_a_fresh_bake() {
                     "{}: an empty sprite would not have been written",
                     slot.path
                 );
-                let committed_png = repo().join("packs/test").join(&slot.path);
+                let committed_png = repo()
+                    .join("crates/omnis-sim/tests/packs/test")
+                    .join(&slot.path);
                 assert!(
                     committed_png.exists(),
                     "{} is missing from the pack",
@@ -83,11 +87,14 @@ fn committed_tilesets_match_a_fresh_bake() {
 
 #[test]
 fn the_baked_pack_loads() {
-    let data = load_packs(&[&repo().join("packs/base"), &repo().join("packs/test")])
-        .unwrap_or_else(|r| panic!("{r}"));
+    let data = load_packs(&[
+        &repo().join("packs/base"),
+        &repo().join("crates/omnis-sim/tests/packs/test"),
+    ])
+    .unwrap_or_else(|r| panic!("{r}"));
     let dungeon = &data.tilesets[&data.registry.tilesets.get("test:tileset:dungeon").unwrap()];
     let spec: BakeSpec = read_ron(
-        &repo().join("packs/test/bake/dungeon.ron"),
+        &repo().join("crates/omnis-sim/tests/packs/test/bake/dungeon.ron"),
         Path::new("spec"),
     )
     .unwrap();

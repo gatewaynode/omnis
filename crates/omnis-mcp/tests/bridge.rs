@@ -32,7 +32,7 @@ impl Server {
 
     fn headless() -> Server {
         let base = repo().join("packs/base");
-        let test = repo().join("packs/test");
+        let test = repo().join("crates/omnis-sim/tests/packs/test");
         Server::start(&[
             "--headless",
             "--pack",

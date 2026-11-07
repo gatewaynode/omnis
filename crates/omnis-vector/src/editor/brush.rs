@@ -283,7 +283,8 @@ mod tests {
 
     /// The test pack's town, as its file holds it.
     fn town() -> MapDef {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../packs/test");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/omnis-sim/tests/packs/test");
         let mut session = Session::new(vec![root]).expect("the test pack");
         session.open("test:map:town").expect("the town");
         session.document().expect("open").def()

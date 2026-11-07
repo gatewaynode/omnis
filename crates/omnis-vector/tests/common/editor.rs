@@ -221,7 +221,7 @@ pub fn field_of(form: &omnis_vector::editor::form::Form, label: &str) -> u8 {
 }
 
 /// A scratch copy of the shipped test pack under the target directory, named `name`: what a
-/// test that saves or writes notes edits, never `packs/test` itself.
+/// test that saves or writes notes edits, never `crates/omnis-sim/tests/packs/test` itself.
 pub fn scratch_pack(name: &str) -> PathBuf {
     fn copy_dir(src: &std::path::Path, dst: &std::path::Path) {
         let Ok(entries) = std::fs::read_dir(src) else {

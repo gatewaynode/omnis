@@ -1,4 +1,4 @@
-//! `edit::Session` (M5.2) on a scratch copy of `packs/test`: open by id, save refused while the
+//! `edit::Session` (M5.2) on a scratch copy of `crates/omnis-sim/tests/packs/test`: open by id, save refused while the
 //! loader would refuse, save then reseal (the patch version rises) so the pack loads again with
 //! the map as the document holds it; every other file read, checked and written as typed; the
 //! notes store written at once and never sealed.

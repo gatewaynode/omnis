@@ -334,7 +334,7 @@ inner edge that differs from blank, the stairs in the list's order, a `Place` pe
 copy with the map's file removed, then saves and compares the document, the reloaded def and the file's bytes
 to the shipped pack; the ignored `rewrite_the_shipped_maps_through_the_editor` is the rewrite itself
 (`Session::save` per map, `set_note` for the comments' texts, `seal::seal(root, Some("0.2.0"))`), kept as the
-replays' rebaseline tests are. `packs/test`: the four maps in the writer's layout, `notes/{town,dungeon,meadow,
+replays' rebaseline tests are. The frozen fixture `crates/omnis-sim/tests/packs/test` (id `test`, 0.2.9, `packs/test` as committed at `8d58c3e2`; since 2026-11-07 every test loads it and never the owner's pack under `packs/`): the four maps in the writer's layout, `notes/{town,dungeon,meadow,
 depths}.ron`, sealed 0.2.0. Tests read the manifest's version through `seal::status` instead of pinning a
 literal (`edit_session.rs`, `omnis-cli/tests/headless.rs`), and count notes from the shipped ones. Client:
 `editor/acts.rs` (`EditAct`, `Editor::apply`) and `editor/forms/fields.rs` (the forms' limits, shared choice

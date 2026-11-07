@@ -69,7 +69,10 @@ const EVERY: usize = 27;
 
 #[test]
 fn every_reply_names_itself_and_reads_back_without_its_op() {
-    let packs = vec![repo().join("packs/base"), repo().join("packs/test")];
+    let packs = vec![
+        repo().join("packs/base"),
+        repo().join("crates/omnis-sim/tests/packs/test"),
+    ];
     let mut game = Headless::new(packs, 1).unwrap();
     let ask = |game: &mut Headless, op: Op| game.handle(&op).unwrap();
     let mut replies = vec![

@@ -1,0 +1,12 @@
+// The town: a settlement, coupled by a road to the crossroads.
+(
+    schema: 1,
+    id: "test:region:town",
+    name: "test:text:region.town.name",
+    kind: Settlement,
+    company: 900,
+    stability: 980,
+    rule: "time.settled",
+    couplings: ["test:region:crossroads"],
+    maps: ["test:map:town"],
+)

@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "test:region:dungeon",
+    name: "test:text:region.dungeon.name",
+    kind: Wild,
+    company: 50,
+    stability: 600,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["test:map:dungeon", "test:map:depths"],
+)

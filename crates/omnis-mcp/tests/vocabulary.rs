@@ -207,7 +207,10 @@ struct Seen {
 
 fn headless() -> Headless {
     Headless::new(
-        vec![repo().join("packs/base"), repo().join("packs/test")],
+        vec![
+            repo().join("packs/base"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
+        ],
         1,
     )
     .unwrap()
@@ -241,7 +244,7 @@ fn everything() -> Seen {
     let mut game = Headless::new(
         vec![
             repo().join("packs/base"),
-            repo().join("packs/test"),
+            repo().join("crates/omnis-sim/tests/packs/test"),
             repo().join("crates/omnis-sim/tests/packs/objects"),
         ],
         1,

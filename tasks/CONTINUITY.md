@@ -188,9 +188,9 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `b8091c65a30a2d1f`, fight `81ea7ad20fd706f5` (rebaselined 2026-11-07, later, for the owner's pack at 0.2.18,
-  hash 6618162262592301701, the town's sites on rows 0 and 4, portals named and linked; earlier that day 0.2.9, hash
-  14523718773761627429, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
+- **Replays:** walk `0370ab07b628f193`, fight `c81c08bde3a070e9` (against the frozen fixture at 0.2.9, hash
+  14523718773761627429, since 2026-11-07; the owner's canvas moved on to 0.2.18 and beyond and moves them no more;
+  earlier that day 0.2.9 for the owner's pack, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at
   0.2.3; M5.10a at 0.2.0). A rebaseline
   records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
@@ -204,7 +204,10 @@ Durable knowledge lives in `tasks/knowledge/`.
   the kit's `Kind` has 7 members; `Asked` 9; `ScreenId` has EditorMenu, EditorFiles, EditorPick, EditorProps,
   EditorHistory as the editor's overlays (`nav::allowed` and `paused`). A stamp's picker limits: 1, `MAX_STACKS` 4,
   `MAX_OBJECTS_PER_CELL` 16, `MAX_PILE_STACKS` 32, `MAX_LORE_PER_CELL` 16. Base + test packs: 7 monsters, 24 items.
-- **Fixtures:** `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}` (the shipped
+- **Fixtures:** `crates/omnis-sim/tests/packs/test` is **the frozen fixture** (id `test`, 0.2.9, hash
+  14523718773761627429: `packs/test` as committed at `8d58c3e2`; owner 2026-11-07: never saved onto, and a test never
+  loads the owner's own pack under `packs/`; `common::FIXTURE` in the vector harness);
+  `crates/omnis-sim/tests/packs/{ahead,chain/v1,chain/v3,heights,levels,objects}` (the shipped
   packs have no object kinds: a test that places an object opens `objects:map:yard` with the objects pack); a
   test that edits a pack works on a scratch copy (`omnis-data/tests/common::copy_pack`,
   `omnis-cli/tests/headless.rs::scratch_pack`, `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and

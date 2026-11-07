@@ -10,8 +10,11 @@ use std::time::Instant;
 
 fn data() -> Data {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    load_packs(&[&repo.join("packs/base"), &repo.join("packs/test")])
-        .unwrap_or_else(|r| panic!("{r}"))
+    load_packs(&[
+        &repo.join("packs/base"),
+        &repo.join("crates/omnis-sim/tests/packs/test"),
+    ])
+    .unwrap_or_else(|r| panic!("{r}"))
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! The authoring proof (M5.10): every map `packs/test` ships is built from blank with the
+//! The authoring proof (M5.10): every map `crates/omnis-sim/tests/packs/test` ships is built from blank with the
 //! editor's requests alone, derived from the map's own definition, and the file the save then
 //! writes is the file the pack ships, byte for byte. So the request vocabulary covers every
 //! field the maps use, and the content round-trips through the editor with no loss (PRD §13,
@@ -239,7 +239,7 @@ const NOTES: [(&str, &str); 5] = [
 /// notes above written; the pack sealed at `REWRITE_VERSION`. Run deliberately, from the
 /// repository: `cargo test -p omnis-data --test integration rewrite_the_shipped -- --ignored`.
 #[test]
-#[ignore = "rewrites the shipped maps and reseals packs/test; run deliberately"]
+#[ignore = "rewrites the shipped maps and reseals crates/omnis-sim/tests/packs/test; run deliberately"]
 fn rewrite_the_shipped_maps_through_the_editor() {
     const REWRITE_VERSION: &str = "0.2.0";
     let data = load_test_packs();

@@ -1,0 +1,8 @@
+// English strings for the test pack's spells. Keys are `test:text:spell.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "test:text:spell.ward.description": "A reaction heal for the tactics tests.",
+        "test:text:spell.ward.name": "Ward",
+    },
+)

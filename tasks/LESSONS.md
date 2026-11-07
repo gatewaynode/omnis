@@ -618,3 +618,17 @@
   `Form::set_text`, which marks the form `refill`, and the column is drawn anew for it (`shell/editor.rs`
   `refresh`), the keyboard kept. When a behaviour is seen to work, name the mechanism that makes it work; "it
   rebuilt" is not one until the condition that rebuilt it is the one meant.
+
+## 2026-11-07 — The fixture and the canvas are two packs
+- **What happened**: `packs/test` was the fixture every test loaded and the owner's authoring canvas at once. Every
+  save through the editor resealed it, moving the hash the golden replays fingerprint, and the lesson of 2026-10-31
+  made the tests follow each save in a commit of their own. On 2026-11-07 the owner moved the town's shops while a
+  step was being built: 71 tests outside the editor went red, and a gate could only be run in a worktree on the
+  committed pack. The owner: "a specific test map, that is not used in play but lets us move all the tests against
+  an unchanging pack."
+- **Rule**: the tests and the replays load the frozen fixture `crates/omnis-sim/tests/packs/test` (id `test`, a copy
+  of the pack as committed at `8d58c3e2`, sealed once; the vector harness's `common::FIXTURE`), never the owner's
+  pack under `packs/`. The fixture is never saved onto: a test that writes works on a scratch copy of it. A change
+  to the fixture is deliberate, re-baselines the replays in the same commit and records the fingerprints. The
+  owner's canvas is theirs alone: committed as they leave it, loaded by the game, the CLI and the MCP by default,
+  and no test's. The 2026-10-31 lesson's "tests follow in a commit of their own" is retired.
