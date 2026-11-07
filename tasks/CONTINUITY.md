@@ -1,25 +1,30 @@
 # Continuity notes
 
-Written 2026-11-07, during **the owner's hand test of step 2 of the entrances and exits enhancement** (2a the
-model `232cc839`, 2b linking in the editor `f6a0e21b`; re-planned 2026-11-01 on the owner's direction after the
-step 1 hand test, which also found Save and Playtest swallowed by the error's words, `11455718`). The hand test
-found **the palette's portal stamp never linked**: the picker's Finish pressed with the mouse closed the modal and
-the plan took the same press beneath it (the screens' router runs first in the frame), so the stamp dropped its
-linked portal under the button and the owner's click placed an unlinked one. Fixed the same day: a press on the
-frame a screen closes is that screen's (`shell/editor.rs` `route` keeps whether a screen stood last frame;
-`editor_link.rs` presses Finish and Cancel with a real mouse button over the plan). The form's path was never at
-fault; the report of 2026-11-01 had the same cause, and the `Form.refill` idea is dropped. The owner committed
-their pack at 0.2.8 with the tests (`a39b37f4`) and moved it to 0.2.9 during the test (three unlinked portals,
-the strays at x = 23 among them; the replays and pins follow in their own commit). Then **step 2c** the same day at the owner's word ("an autocomplete function on the form"; chosen "always
-listed while editing"): `editor/links.rs`, the list under the portal form's link field, Link... and the form's
-picker gone, `Form::set_text` + `refill` drawing a model-set field anew (a link switched to another portal was
-undone by the window's frame before: a latent 2b fault, its test red without the fix). **The owner is building
-in `packs/test` as this is written** (0.2.9 → 0.2.18 during the build: the town's sites moved to rows 0 and 4,
-portals named `hill_a`/`hill_b`/`hill_c`, `town_3`, `dungeon_2`, linked): the tests that pinned the inn at
-(1, 1) or stamped on row 4 now find the inn by its service and use the street; the pack and the replays follow
-in a commit of their own once the owner's session settles. **Next: the owner's run of 2c** ("built, please
-try"), then "accepted" gets the prose commit, then step 3. Before it the same
-day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
+Written 2026-11-07 at a compact (the session past 478K tokens), after a long day on **W1, the entrances and
+exits enhancement**, and on the test fixture. In order: the owner's hand test of step 2 (2a `232cc839`, 2b
+`f6a0e21b`) found the palette's portal stamp never linked: the picker's Finish pressed with the mouse closed the
+modal and the plan took the same press beneath it, so the stamp dropped its linked portal under the button and the
+owner's click placed an unlinked one; fixed in `64a8e5f3` (a press on the frame a screen closes is that screen's;
+`route` keeps whether a screen stood last frame, `Inputs` bundles the keys, mouse and wheel; the keyboard block
+moved to `shell/editor_keys.rs`; `editor_link.rs::real_click` presses with the mouse). **Step 2c** `8d58c3e2` at the
+owner's word ("an autocomplete function on the form"; chosen "always listed while editing"): `editor/links.rs`,
+the list under the portal form's link field, Link... and the form's picker gone (`pick.rs` the stamp's alone),
+`Form::set_text` + `refill` drawing a model-set field anew (a latent 2b fault: a link switched to another portal
+was undone by the window's frame). The owner said 2c is "usable" (not yet "accepted"). The owner's question on
+Bevy's ECS became four tasks in `tasks/TODO.md` Open (`331c690c`). The owner's edits to the shared pack broke 71
+tests mid-build, and at their word **the fixture and the canvas became two packs** (`741171c9`: the frozen
+fixture `crates/omnis-sim/tests/packs/test`, id `test`, 0.2.9, hash 14523718773761627429, every test and the
+replays on it, never saved onto; `2c2bd3a7`: the canvas renamed `packs/the_lower_kingdoms`, id prefix
+`the_lower_kingdoms:`, 114 ids rewritten, resealed 0.2.20, the game's, the CLI's and the MCP's default beside
+`packs/base`; memory `fixture-and-canvas`). Their world docs were renamed by them (`18d06409`). **Pending at this
+compact:** the tools column's title fix (the pack root on its own row under "EDITOR"; `view.rs::tools`,
+`editor_paint.rs::title_dirty`, `editor_forms.rs`) is built, its gate `scripts/verify.sh` running in the
+background (`scratchpad/gate-root.txt`); when VERIFY-GREEN, commit `crates/omnis-vector/src/editor/view.rs`,
+`crates/omnis-vector/tests/editor_paint.rs`, `crates/omnis-vector/tests/editor_forms.rs` with the message
+`scratchpad/msg-root.txt`, then Sentrux rescan + check_rules; if red, read the log and fix. Told the owner: restart
+the game before the next Save (an editor holding the old path would recreate `packs/test`); their saves and world
+folders under `.omnis/` name `test` and will not load. Before all this the same day the recorded pins caught up
+with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
 (`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
@@ -150,15 +155,18 @@ Durable knowledge lives in `tasks/knowledge/`.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner's run of step 2c**; the pack and replays following their session in a commit of their own
-   (re-baseline at that time; the town's sites are no longer on rows 1 and 3: a test that wants bare ground
-   uses the street, row 2, and finds a site by its service); then "accepted" gets the prose commit for steps 1
-   and 2; then **step 3**; then, when the owner orders it, **the client's use of Bevy's ECS** (`tasks/TODO.md`,
-   Open: four tasks, a press as a message first) from the plan file (`MapDef.start_level`,
-   Set start here on every level, the diamond's notch toward the start's facing). The editor's later items otherwise (the eraser or Delete clearing a
-   selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
-   picker). The owner's order of 2026-10-24 otherwise: the activities schema when
-   a second kind has engine rules; then the plan in `tasks/TODO.md`: the look in data, M9.
+1. **Commit the title fix when its gate is green** (above). Then **the owner's word on 2c**: "accepted" gets the
+   prose commit for steps 1, 2 and 2c (`tasks/acceptance/entrances-2.md` carries the hand test and the findings);
+   then **step 3** from the plan file's earlier plan (`MapDef.start_level`, Set start here on every level, the
+   diamond's notch toward the start's facing; the new game and the save's fallback on it; `editor.place` Start
+   gains the optional level, `docs/api.md`; tests on the `levels` fixture; hand test on the tower). The frozen
+   fixture carries the portals as they were at 0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and
+   `portal_bank_hidden` included): a test names them by content, never by count. Then, when the owner orders it,
+   **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a press as a message first). The
+   editor's later items otherwise (the eraser or Delete clearing a selection's cells, copy and paste,
+   `editor.history` over the socket, a quantity for an object kind in the picker). The owner's order of 2026-10-24
+   otherwise: the activities schema when a second kind has engine rules; then the plan in `tasks/TODO.md`: the
+   look in data, M9.
 2. Later: the eraser or Delete clearing a selection's cells; copy and paste of a selection; Esc dropping a loop
    or a run (Esc is the menu's); a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
    pan; a fill's region and a stamp's mark previewed on hover; the map's own fields (`Edit::Map`), Resize and

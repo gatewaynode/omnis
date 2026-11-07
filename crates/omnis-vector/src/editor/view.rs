@@ -238,11 +238,13 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         .get(editor.chosen)
         .and_then(|m| m.error.as_deref())
         .map(|_| "that file does not read");
-    let title = format!(
-        "EDITOR  {}{}",
+    // The pack's root on a line of its own under the title (owner, 2026-11-07: a long root
+    // broke the title across two lines), the unsaved mark after it.
+    let root = Row::text(Span::body(format!(
+        "{}{}",
         status.root,
         if status.dirty { "  *" } else { "" }
-    );
+    )));
     let edit = |act| ControlId::Edit(act);
     let invalid = error_count(&status.errors);
     let open_label = if status.dirty {
@@ -257,7 +259,8 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
             label.to_owned()
         }
     };
-    let mut rows = tool_rows(editor, no_map);
+    let mut rows = vec![root];
+    rows.extend(tool_rows(editor, no_map));
     if editor.mode == Mode::Files {
         rows.extend(file_rows(editor));
     } else if let Some(def) = &def {
@@ -300,7 +303,7 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     ]));
     Screen {
         id: ScreenId::EditorTools,
-        title: Span::title(title),
+        title: Span::title("EDITOR"),
         panels: vec![Panel { rows }],
         keys: Vec::new(),
         message: editor.message.clone().map(Span::alert),

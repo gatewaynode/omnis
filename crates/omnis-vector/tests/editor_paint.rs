@@ -70,7 +70,7 @@ fn open_edge(app: &App, side: Facing) -> (u16, u16) {
 fn title_dirty(app: &App) -> bool {
     screen_text(app.world())
         .lines()
-        .any(|l| l.contains("EDITOR  ") && l.trim_end_matches('"').ends_with("  *"))
+        .any(|l| l.contains("packs") && l.trim_end_matches('"').ends_with("  *"))
 }
 
 #[test]

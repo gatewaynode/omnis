@@ -122,7 +122,7 @@ fn a_column_whose_words_change_keeps_its_nodes_and_no_column_takes_the_keyboard(
     assert!(text.contains("Height 2 eighths"), "{text}");
     // Each column's words are its own: the bar's title overwrote no other column's.
     assert!(
-        text.contains("EDITOR  ") && text.contains("INSPECTOR") && text.contains("Cell ("),
+        text.contains("EDITOR") && text.contains("INSPECTOR") && text.contains("Cell ("),
         "{text}"
     );
     assert!(
