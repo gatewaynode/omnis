@@ -3,8 +3,8 @@
 //! object kinds, items, text keys; for a portal, the portals nothing links to, as "id  -  map
 //! (x, y)"; `editor::pick::options`), searched by a text field and chosen several at once, up to
 //! what one cell takes; Finish holds the choice in the stamp (and goes on to the properties
-//! modal for the kinds that have them) or writes it into a form's field (a portal's link),
-//! Cancel keeps what was held. Built from `EditingCtx::pick`, the model's own state
+//! modal for the kinds that have them), Cancel keeps what was held (a portal form's link has
+//! its own list under the field: `editor::links`). Built from `EditingCtx::pick`, the model's own state
 //! (`editor::pick::Picking`), which carries its options.
 
 use super::{Control, ControlId, Ctx, Effect, Kind, Panel, Payload, Row, Screen, ScreenId, Span};

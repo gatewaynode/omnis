@@ -1116,6 +1116,13 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-11-07 (later still): no wire change. The owner built in `packs/test` through the editor during the hand
+  test of step 2c (0.2.18, hash 6618162262592301701: the town's sites moved to rows 0 and 4, portals named and linked
+  across the town, the meadow and the dungeon), so the goldens moved: walk `b8091c65a30a2d1f`, fight `81ea7ad20fd706f5`. Tests that
+  pinned the inn at (1, 1) or stamped on row 4 find a site by its service and use the street.
+- 2026-11-07 (later): no wire change. The portal form lists the portals it may link to under its link field
+  (step 2c, the owner's direction); the form's picker and its Link... button are gone; `editor.edit` and the
+  form's fields are as they were.
 - 2026-11-07: no wire change. The owner's hand test of the entrances and exits enhancement moved `packs/test`
   through the editor (0.2.8 committed by the owner with the tests; 0.2.9, hash 14523718773761627429: three
   unlinked portals `portal_bank_hidden` on the town, `portal_23_0` on the dungeon, `portal_23_28` on the meadow,

@@ -31,9 +31,14 @@ packs/test /tmp/omnis-scratch`, named as the last pack.
   the tileset's first marker. **Select...** opens the picker over the portals nothing links to, the open map's
   unsaved ones among them, each as "id  -  Map (x, y)"; the search matches the id, the map's name or the cell.
   With one chosen, the click places a portal linked to it and lets the choice go (the partner is taken).
-- **The portal's form** (Edit in the inspector): id, link, facing, marker; **Link...** opens the same picker for
-  the link field (the current partner shown chosen when it has one), Finish fills the field, **Unlink** clears
-  it; Apply is one undo step. **The inspector** lists "Portal 'id' to 'link'" (or "Portal 'id'") with a line
+- **The portal's form** (Edit in the inspector): id, link, facing, marker. **Under the link field, the list**
+  (step 2c, owner 2026-11-07, "always listed while editing"): every portal nothing links to across the loaded
+  maps, this one left out, and the current partner, each a row "[ ] id  -  Map (x, y)", narrowed by what is
+  typed in the field (id, map name or cell, any case); the field's text as a whole id marks its row "[x]" and
+  shows the whole list, so a chosen link still lets you switch; at most 10 rows, then "and N more: type to
+  narrow"; "No portal matches." / "No portal to link: stamp one on any map.". A row pressed fills the field,
+  the marked one pressed clears it, **Unlink** clears it; Apply is one undo step. (Link... and its modal are
+  gone.) **The inspector** lists "Portal 'id' to 'link'" (or "Portal 'id'") with a line
   under it: "to Meadow 'meadow-gate'" whichever side states the link, "link 'x' unresolved: see the errors", or
   "unlinked". A right click on a portal copies it into the stamp without its link.
 - **Move** keeps a portal's id and link. **Removing** a portal another names is the loader's error on this map
@@ -59,10 +64,11 @@ packs/test /tmp/omnis-scratch`, named as the last pack.
    at (6, 2) facing east, the new portal's mark behind you to the west. Step back onto (5, 2): the meadow's road
    at (17, 20) facing east.
 7. Editor, the meadow. Choose the portal stamp, click (16, 24) and (16, 26) (both unlinked). Press Edit on the
-   second; press Link... *You will see* the picker with "portal_16_24  -  Meadow (16, 24)" alone (this portal
-   is left out; every shipped portal is paired). Press it, Finish: the link field reads "portal_16_24". Apply.
-   *You will see* both marks full and "to Meadow 'portal_16_24'". Edit it again, Unlink, Apply: both hollow,
-   "unlinked".
+   second. *You will see* under the link field the row "[ ] portal_16_24  -  Meadow (16, 24)" (this portal is
+   left out; the pack's other unlinked portals are listed too). Type "town" in the link field: the meadow's
+   rows go ("No portal matches." if nothing else fits); clear it. Press the row: the field reads
+   "portal_16_24", the row "[x]". Apply. *You will see* both marks full and "to Meadow 'portal_16_24'". Edit it
+   again: the row is marked; Unlink, Apply: both hollow, "unlinked".
 8. `omnis-cli validate packs/base crates/omnis-data/tests/packs-bad/bad-ways` (with `packs/test` between). *You
    will see* the thirteen link and landing rows (`bad_packs::every_entrance_error_is_reported`); with `bad-reach`
    in place of `bad-ways`, the one row "map 'reach:map:foot' cannot be reached from the entry map
@@ -70,8 +76,8 @@ packs/test /tmp/omnis-scratch`, named as the last pack.
 
 Covered by `omnis-data/tests/resolve.rs` (seven link tests), `bad_packs.rs` (`bad-ways`, `bad-reach`),
 `omnis-sim/tests/movement.rs::an_unlinked_portal_is_a_plain_tile`, `omnis-vector/tests/editor_link.rs` (the two
-flows above: the picker across maps with the search and the one-sided save, the form's Link... and Unlink on one
-map), `editor_forms`, `editor_stamp`, `editor_pick`, `editor_move`, `pick.rs` unit tests. Mutation checks red: the
+flows above: the picker across maps with the search and the one-sided save, the list under the form's link
+field and Unlink on one map, a link switched to another portal kept through the window's frame), `editor_forms`, `editor_stamp`, `editor_pick`, `editor_move`, `pick.rs` unit tests. Mutation checks red: the
 inbound claim ignored, the landing behind the partner, reachability over every portal-bearing map, the mark drawn
 linked for an unlinked portal (2a); the form's picker offering the edited portal, the stamp keeping its choice,
 the field's Finish writing nothing (2b).
@@ -91,3 +97,10 @@ the field's Finish writing nothing (2b).
   is that screen's (`shell/editor.rs` `route`; `editor_link.rs` presses Finish and Cancel with a real mouse
   button over the plan: nothing placed, the choice kept, the next click linked; `tasks/LESSONS.md`).
 - The form's Link... and Apply were never at fault: the earlier report of 2026-11-01 had the same cause.
+
+## Step 2c (2026-11-07): the list under the link field
+The owner's direction after the leak fix: "an autocomplete function on the form, so that the global list provides
+a drop down of selectable portal locations to link"; chosen: **always listed while editing**. Built as above
+(`editor/links.rs`; the picker is the stamp's alone again). Found and fixed with it: a link switched from one
+portal to another was undone by the window's frame (the drawn field was never redrawn when the column's shape
+stood); every text the model sets in a field now draws the field anew (`Form::set_text`, `tasks/LESSONS.md`).

@@ -377,6 +377,13 @@ no loss, and every later map is built with it.
     button, the owner's click placed an unlinked one); a press on the frame a screen closes is that screen's
     (`shell/editor.rs` `route`, `editor_link.rs` with a real mouse press). The owner's pack moved to 0.2.9
     during the test (the replays and pins follow in their own commit).
+  - [x] Step 2c (2026-11-07, owner's direction after the leak fix: "an autocomplete function on the form";
+    chosen "always listed while editing"): **the list under the portal form's link field** (`editor/links.rs`:
+    every portal nothing links to and the current partner, narrowed by the field's text, the whole id marking
+    its row; a row pressed fills the field, the marked one clears it; at most 10 rows); Link... and the form's
+    picker gone (`pick.rs` the stamp's alone); `Form::set_text` + `refill` draw a model-set field anew (a link
+    switched to another portal was undone by the window's frame before). `tests/editor_link.rs` (the list,
+    the switch), `pick.rs` `fits`.
   - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
     fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an

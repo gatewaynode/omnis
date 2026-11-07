@@ -35,6 +35,18 @@ fn site_at(app: &App, cell: (u16, u16)) -> Option<String> {
         .map(|s| s.service.clone())
 }
 
+/// The cell of the town's site of `service`: the owner moves the town's sites.
+fn cell_of(app: &App, service: &str) -> (u16, u16) {
+    editing(app)
+        .def()
+        .expect("open")
+        .sites
+        .iter()
+        .find(|s| s.service == service)
+        .map(|s| (s.x, s.y))
+        .unwrap_or_else(|| panic!("the {service} site"))
+}
+
 /// A drag with `button` from `from` over `through` to the last of them, let go there.
 fn drag(app: &mut App, button: MouseButton, from: (u16, u16), through: &[(u16, u16)]) {
     point_at(app, from, None);
@@ -101,31 +113,39 @@ fn a_move_carries_the_placement_under_the_press_to_the_cell_let_go_on_as_one_ste
     assert!(portal_at(&app, (11, 2)) && !portal_at(&app, (8, 2)));
     assert_eq!(depth(&app), steps);
     // Where one of its kind already is, the move is refused and said.
-    let inn = site_at(&app, (1, 1)).expect("the inn's site");
-    let temple = site_at(&app, (4, 1)).expect("the temple's site");
-    drag(&mut app, MouseButton::Left, (1, 1), &[(2, 1), (4, 1)]);
+    let inn_at = cell_of(&app, "base:service:inn");
+    let temple_at = cell_of(&app, "base:service:temple");
+    let inn = site_at(&app, inn_at).expect("the inn's site");
+    let temple = site_at(&app, temple_at).expect("the temple's site");
+    drag(&mut app, MouseButton::Left, inn_at, &[temple_at]);
     assert_eq!(
         editing(&app).message.as_deref(),
-        Some("a site is already at (4, 1)")
+        Some(format!("a site is already at ({}, {})", temple_at.0, temple_at.1).as_str())
     );
-    assert_eq!(site_at(&app, (1, 1)), Some(inn.clone()));
-    assert_eq!(site_at(&app, (4, 1)), Some(temple));
+    assert_eq!(site_at(&app, inn_at), Some(inn.clone()));
+    assert_eq!(site_at(&app, temple_at), Some(temple));
     assert_eq!(depth(&app), steps);
     // Let go on its own cell, or off the plan: nothing moves.
-    drag(&mut app, MouseButton::Left, (1, 1), &[(2, 1), (1, 1)]);
-    assert_eq!(site_at(&app, (1, 1)), Some(inn.clone()));
+    drag(
+        &mut app,
+        MouseButton::Left,
+        inn_at,
+        &[(inn_at.0 + 1, inn_at.1), inn_at],
+    );
+    assert_eq!(site_at(&app, inn_at), Some(inn.clone()));
     assert_eq!(depth(&app), steps);
-    point_at(&mut app, (1, 1), None);
+    point_at(&mut app, inn_at, None);
     mouse(&mut app, MouseButton::Left, ButtonState::Pressed);
     leave_plan(&mut app);
     app.update();
     mouse(&mut app, MouseButton::Left, ButtonState::Released);
     assert!(editing(&app).grab.is_none());
-    assert_eq!(site_at(&app, (1, 1)), Some(inn));
+    assert_eq!(site_at(&app, inn_at), Some(inn));
     assert_eq!(depth(&app), steps);
-    // A site moved onto a bare cell lands there.
-    drag(&mut app, MouseButton::Left, (7, 1), &[(8, 1)]);
-    assert!(site_at(&app, (7, 1)).is_none() && site_at(&app, (8, 1)).is_some());
+    // A site moved onto a bare cell (the street) lands there.
+    let trainer_at = cell_of(&app, "base:service:trainer");
+    drag(&mut app, MouseButton::Left, trainer_at, &[(5, 2)]);
+    assert!(site_at(&app, trainer_at).is_none() && site_at(&app, (5, 2)).is_some());
     assert_eq!(depth(&app), steps + 1);
 }
 

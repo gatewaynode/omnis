@@ -577,6 +577,8 @@ fn route(
         // so "changed" is not "typed". A field drawn for an older form or file is stale while the
         // model is `fresh` and the rebuild has not run: its text never flows into the model (the
         // owner's report, 2026-10-24: the first file's text typed into the second at the pick).
+        // The same while a field's text was set by the model (`refill`: a link's row pressed,
+        // Unlink), until the rebuild draws it anew (W1 step 2c).
         for (field, press) in &fields {
             if !field.is_changed() {
                 continue;
@@ -587,7 +589,7 @@ fn route(
                     if editing
                         .form
                         .as_ref()
-                        .is_some_and(|f| !f.fresh && f.text(usize::from(i)) != text)
+                        .is_some_and(|f| !f.fresh && !f.refill && f.text(usize::from(i)) != text)
                     {
                         editing.typed(i, text);
                     }
@@ -802,7 +804,11 @@ fn refresh(
             Column::Text => editing.file.as_ref().is_some_and(|f| f.fresh),
             _ => false,
         };
-        let need = if fresh {
+        // A field's text set by the model (a link's row pressed, Unlink) needs a new field too,
+        // the keyboard staying where it was: the words' sync never rewrites a field.
+        let refill =
+            *column == Column::Inspector && editing.form.as_ref().is_some_and(|f| f.refill);
+        let need = if fresh || refill {
             Need::Nodes
         } else {
             need(last.as_ref(), want, bucket)
@@ -825,6 +831,7 @@ fn refresh(
             && let Some(form) = &mut editing.form
         {
             form.fresh = false;
+            form.refill = false;
         }
         if *column == Column::Text
             && let Some(file) = &mut editing.file

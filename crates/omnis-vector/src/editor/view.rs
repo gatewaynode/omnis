@@ -546,7 +546,8 @@ pub fn inspector(editor: &Editor, data: &Data) -> Screen {
         };
     }
     if let Some(form) = &editor.form {
-        rows.extend(form.rows());
+        // A portal form's rows carry the list under its link field (`links`, W1 step 2c).
+        rows.extend(super::links::with_list(editor, data, form.rows()));
     }
     let Some(def) = editor.def() else {
         rows.push(Row::text(Span::body("No map is open.")));

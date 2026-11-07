@@ -152,6 +152,11 @@ pub struct Form {
     pub remove: Option<Change>,
     /// Just opened: its first field takes the keyboard when it is drawn.
     pub fresh: bool,
+    /// A field's text was set by the model, not typed (`set_text`): the column draws its fields
+    /// anew, the keyboard staying where it was. The window pushes a drawn field's text into the
+    /// model when the two differ, so a stale field would undo the model's word; the words' sync
+    /// never rewrites a field (W1 step 2c, 2026-11-07).
+    pub refill: bool,
 }
 
 /// The most rows any list takes.
@@ -238,6 +243,7 @@ impl Form {
             lists,
             remove: None,
             fresh: true,
+            refill: false,
         }
     }
 
@@ -344,6 +350,14 @@ impl Form {
         }
     }
 
+    /// Field `i` set by the model (a row of a list pressed, Unlink): as `typed`, and the field
+    /// is drawn anew so the window shows it.
+    pub fn set_text(&mut self, i: usize, text: String) {
+        if self.typed(i, text) {
+            self.refill = true;
+        }
+    }
+
     /// Field `i` stepped by `by` (a press steps right): a choice goes round, a number stops at
     /// its ends, a flag turns.
     pub fn step(&mut self, i: usize, by: i8) {
@@ -420,15 +434,13 @@ impl Form {
             }
         }
         if self.kind == FormKind::Portal {
-            // The link chosen among the portals nothing links to (W1 step 2b), or let go.
+            // The link is chosen in the list under its field (`links`, W1 step 2c); Unlink lets
+            // it go.
             let mut unlink = Control::button(edit(EditAct::Unlink), "Unlink");
             if self.text_of("link").trim().is_empty() {
                 unlink.why_not = Some("unlinked".to_owned());
             }
-            rows.push(Row::controls(vec![
-                Control::button(edit(EditAct::LinkPick), "Link..."),
-                unlink,
-            ]));
+            rows.push(Row::controls(vec![unlink]));
         }
         for (l, list) in self.lists.iter().enumerate() {
             let l = u8::try_from(l).unwrap_or(u8::MAX);

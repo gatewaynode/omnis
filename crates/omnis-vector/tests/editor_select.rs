@@ -4,7 +4,7 @@
 //! drag's offset in one undo step, the source left bare and the destination replaced, a
 //! tile-keyed kind already there refusing; a run tool with a terrain or the height paints the
 //! cells of the line between its points. Headless on the town: the inn's block at the top left
-//! (cells (0..2, 0..1), its site on (1, 1)), the shops' sites on their door cells, the portal on
+//! (cells (0..2, 0..1), its site inside it), the shops' sites where the owner put them, the portal on
 //! (11, 2), the street row 2.
 
 use crate::common;
@@ -43,6 +43,18 @@ fn site_at(app: &App, cell: (u16, u16)) -> Option<String> {
         .iter()
         .find(|s| (s.x, s.y) == cell)
         .map(|s| s.service.clone())
+}
+
+/// The cell of the town's site of `service`: the owner moves the town's sites.
+fn cell_of(app: &App, service: &str) -> (u16, u16) {
+    editing(app)
+        .def()
+        .expect("open")
+        .sites
+        .iter()
+        .find(|s| s.service == service)
+        .map(|s| (s.x, s.y))
+        .unwrap_or_else(|| panic!("the {service} site"))
 }
 
 fn selected(app: &App) -> BTreeSet<(u16, u16)> {
@@ -178,7 +190,9 @@ fn a_lasso_loop_selects_the_cells_inside_it_and_a_click_clears_the_selection() {
 fn move_carries_the_selection_by_the_drag_s_offset_as_one_step_and_undo_puts_it_back() {
     let mut app = in_editor("test:map:town");
     let before = (editing(&app).def().unwrap(), grid(&app));
-    let inn = site_at(&app, (1, 1)).expect("the inn's site");
+    let inn_at = cell_of(&app, "base:service:inn");
+    assert!(INN.contains(&inn_at), "the inn's site is in its block");
+    let inn = site_at(&app, inn_at).expect("the inn's site");
     lasso_the_inn(&mut app);
     let steps = depth(&app);
     press_edit(&mut app, EditAct::Tool(Tool::Move));
@@ -211,8 +225,11 @@ fn move_carries_the_selection_by_the_drag_s_offset_as_one_step_and_undo_puts_it_
         assert_eq!(after.tile(x, y), Some(None), "({x}, {y}) is bare");
         assert_eq!(after.height_at(x, y), Some(0));
     }
-    assert_eq!(site_at(&app, (9, 3)).as_deref(), Some(inn.as_str()));
-    assert!(site_at(&app, (1, 1)).is_none());
+    assert_eq!(
+        site_at(&app, (inn_at.0 + 8, inn_at.1 + 2)).as_deref(),
+        Some(inn.as_str())
+    );
+    assert!(site_at(&app, inn_at).is_none());
     // The inn's east wall (east of (2, 0) and (2, 1)) went with it; its old side is open; the
     // shop wall the block landed over is replaced by the block's open inside.
     assert_eq!(after.edge(10, 2, Facing::East), Some(EdgeKind::Wall));
@@ -229,11 +246,16 @@ fn move_carries_the_selection_by_the_drag_s_offset_as_one_step_and_undo_puts_it_
     assert_eq!(depth(&app), steps);
     assert_eq!(editing(&app).def().unwrap(), before.0);
     assert_eq!(grid(&app), before.1);
-    // A move onto a shop's door cell refuses: its site stands there.
+    // A move onto a shop's cell refuses: its site stands there (the block's east column put on
+    // the temple's cell, wherever the owner has it, so nothing east of the temple is covered).
+    let temple_at = cell_of(&app, "base:service:temple");
     lasso_the_inn(&mut app);
     press_edit(&mut app, EditAct::Tool(Tool::Move));
-    drag(&mut app, MouseButton::Left, (1, 0), &[(4, 1), (7, 2)]);
-    assert_eq!(message(&app), "a site is already at (7, 3)");
+    drag(&mut app, MouseButton::Left, (2, 0), &[temple_at]);
+    assert_eq!(
+        message(&app),
+        format!("a site is already at ({}, {})", temple_at.0, temple_at.1)
+    );
     assert_eq!(depth(&app), steps);
     assert_eq!(grid(&app), before.1);
     // A move off the map refuses.
@@ -258,9 +280,12 @@ fn move_carries_the_selection_by_the_drag_s_offset_as_one_step_and_undo_puts_it_
         Some(EdgeKind::Open),
         "its old side opened"
     );
-    assert_eq!(site_at(&app, (2, 1)).as_deref(), Some(inn.as_str()));
     assert_eq!(
-        site_at(&app, (4, 1)).as_deref(),
+        site_at(&app, (inn_at.0 + 1, inn_at.1)).as_deref(),
+        Some(inn.as_str())
+    );
+    assert_eq!(
+        site_at(&app, temple_at).as_deref(),
         Some("base:service:temple"),
         "untouched"
     );
@@ -268,7 +293,7 @@ fn move_carries_the_selection_by_the_drag_s_offset_as_one_step_and_undo_puts_it_
     press_edit(&mut app, EditAct::Undo);
     lasso_the_inn(&mut app);
     press_edit(&mut app, EditAct::Tool(Tool::Move));
-    drag(&mut app, MouseButton::Left, (4, 1), &[(5, 2)]);
+    drag(&mut app, MouseButton::Left, temple_at, &[(5, 2)]);
     assert_eq!(
         site_at(&app, (5, 2)).as_deref(),
         Some("base:service:temple")

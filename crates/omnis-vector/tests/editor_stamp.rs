@@ -82,6 +82,18 @@ fn valid(app: &App) {
     );
 }
 
+/// The town's inn's cell, found by its service: the owner moves the town's sites.
+fn inn_cell(app: &App) -> (u16, u16) {
+    editing(app)
+        .def()
+        .expect("a map")
+        .sites
+        .iter()
+        .find(|s| s.service == "base:service:inn")
+        .map(|s| (s.x, s.y))
+        .expect("the inn")
+}
+
 #[test]
 fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occupied_tile() {
     let mut app = in_editor("test:map:town");
@@ -135,9 +147,13 @@ fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occup
     valid(&app);
     let text = screen_text(app.world());
     assert!(text.contains("Service base:service:tavern"), "{text}");
-    // On the inn's tile the site is refused and nothing changes.
-    click(&mut app, (1, 1));
-    assert_eq!(message(&app), "a site is already at (1, 1)");
+    // On the inn's tile (wherever the owner put it) the site is refused and nothing changes.
+    let inn = inn_cell(&app);
+    click(&mut app, inn);
+    assert_eq!(
+        message(&app),
+        format!("a site is already at ({}, {})", inn.0, inn.1)
+    );
     assert_eq!(depth(&app), steps + 1);
     assert_eq!(editing(&app).def().unwrap().sites.len(), sites + 1);
     assert_eq!(
@@ -146,7 +162,7 @@ fn an_activity_stamp_places_the_chosen_service_with_a_click_and_refuses_an_occup
             .unwrap()
             .sites
             .iter()
-            .find(|s| (s.x, s.y) == (1, 1))
+            .find(|s| (s.x, s.y) == inn)
             .map(|s| s.service.clone()),
         Some("base:service:inn".to_owned()),
         "the inn stands"
@@ -393,12 +409,14 @@ fn a_right_click_on_a_placement_picks_its_stamp_and_detail() {
     let mut app = in_editor("test:map:town");
     let steps = depth(&app);
     assert!(matches!(editing(&app).entry, Entry::Terrain(_)));
-    // The inn's site: the activity stamp with the inn's service held.
-    right_click(&mut app, (1, 1));
+    // The inn's site (wherever the owner put it): the activity stamp with the inn's service
+    // held.
+    let inn = inn_cell(&app);
+    right_click(&mut app, inn);
     assert_eq!(editing(&app).entry, Entry::Stamp(Placing::Activity));
     assert_eq!(editing(&app).tool, Tool::Brush);
     assert_eq!(held(&app, Placing::Activity), ["base:service:inn"]);
-    assert_eq!(editing(&app).cursor, (1, 1));
+    assert_eq!(editing(&app).cursor, inn);
     // The portal on (11, 2): its stamp with the portal's facing and marker, the link left
     // behind (a link is one portal's; a copy would claim the partner twice).
     right_click(&mut app, (11, 2));

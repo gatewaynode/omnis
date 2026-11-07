@@ -195,7 +195,11 @@ fn a_portal_stamp_places_an_unlinked_portal_facing_the_author_then_its_form_edit
     assert!(form.remove.is_some(), "Remove is offered");
     let text = form_text(&app);
     assert!(
-        text.contains("Portal at (3, 4)") && text.contains("link") && text.contains("marker"),
+        text.contains("Portal at (3, 4)")
+            && text.contains("link")
+            && text.contains("marker")
+            && text.contains("Unlink")
+            && !text.contains("Link..."),
         "{text}"
     );
     // The facing steps with the arrows; Apply changes it in one step.
@@ -792,9 +796,14 @@ fn the_plan_marks_placements_on_their_cells() {
         marks.contains(&((11, 2), Mark::Portal { linked: true })),
         "the gate is linked: {marks:?}"
     );
-    // The inn's site is an activity of the inn's kind: its icon, a bed.
-    let site = def.sites[0].clone();
-    assert_eq!(site.service, "base:service:inn");
+    // The inn's site is an activity of the inn's kind: its icon, a bed (found by its service:
+    // the owner moves the town's sites).
+    let site = def
+        .sites
+        .iter()
+        .find(|s| s.service == "base:service:inn")
+        .expect("the inn")
+        .clone();
     assert!(
         marks.contains(&(
             (site.x, site.y),
@@ -887,10 +896,11 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     );
     assert_eq!(editing(&app).status.undo, steps);
     // A taken id on another cell is refused too, the form standing.
-    stamp(&mut app, Placing::Encounter, (4, 4));
+    // The street (row 2): the owner's sites hold the rows above and below.
+    stamp(&mut app, Placing::Encounter, (4, 2));
     press_edit(&mut app, EditAct::EditAt(0));
     let form = editing(&app).form.clone().expect("the form");
-    assert_eq!(form.text_of("id"), "encounter_4_4", "a free id");
+    assert_eq!(form.text_of("id"), "encounter_4_2", "a free id");
     type_into(
         &mut app,
         EditAct::Field(field_of(&form, "id")),
@@ -943,7 +953,11 @@ fn a_new_encounter_starts_valid_and_the_form_keeps_the_loader_s_keys() {
     );
     assert!(!editing(&app).status.errors.is_empty());
     press_edit(&mut app, EditAct::Undo);
-    assert!(editing(&app).status.errors.is_empty());
+    assert!(
+        editing(&app).status.errors.is_empty(),
+        "{:?}",
+        editing(&app).status.errors
+    );
 }
 
 /// The palette offers "Activity" (owner, 2026-10-24: the category the services fall under) as a

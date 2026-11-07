@@ -607,3 +607,14 @@
   pressed with the mouse button down and the pointer somewhere real (`real_click` in `editor_link.rs`); the
   system order the window runs is the harness's as well, so the harness can show it once the input is honest.
   Two reports with one symptom ("the link is lost") get one cause looked for before two fixes.
+
+## 2026-11-07 — A field's text set by the model needs the field drawn anew; a shape that happens to change is no mechanism
+- **What happened**: step 2b's picker wrote the chosen id into the form's link field and it showed in the window,
+  so the path was taken as sound. It showed only because Unlink's dim reason flipped with the field going empty or
+  not, which changed the column's shape and rebuilt it. A link changed from one id to another changed no shape: the
+  drawn field kept the old id and the window's frame pushed it back into the model (found while planning the list
+  under the field; the switch test in `editor_link.rs` is red without the fix).
+- **Rule**: the words' sync never rewrites a drawn text field. Every model-side write to a field goes through
+  `Form::set_text`, which marks the form `refill`, and the column is drawn anew for it (`shell/editor.rs`
+  `refresh`), the keyboard kept. When a behaviour is seen to work, name the mechanism that makes it work; "it
+  rebuilt" is not one until the condition that rebuilt it is the one meant.

@@ -10,8 +10,15 @@ frame a screen closes is that screen's (`shell/editor.rs` `route` keeps whether 
 `editor_link.rs` presses Finish and Cancel with a real mouse button over the plan). The form's path was never at
 fault; the report of 2026-11-01 had the same cause, and the `Form.refill` idea is dropped. The owner committed
 their pack at 0.2.8 with the tests (`a39b37f4`) and moved it to 0.2.9 during the test (three unlinked portals,
-the strays at x = 23 among them; the replays and pins follow in their own commit). **Next: the owner's run of the
-fix** ("built, please try"), their word on the stray portals, then "accepted" gets the prose commit, then step 3. Before it the same
+the strays at x = 23 among them; the replays and pins follow in their own commit). Then **step 2c** the same day at the owner's word ("an autocomplete function on the form"; chosen "always
+listed while editing"): `editor/links.rs`, the list under the portal form's link field, Link... and the form's
+picker gone, `Form::set_text` + `refill` drawing a model-set field anew (a link switched to another portal was
+undone by the window's frame before: a latent 2b fault, its test red without the fix). **The owner is building
+in `packs/test` as this is written** (0.2.9 → 0.2.18 during the build: the town's sites moved to rows 0 and 4,
+portals named `hill_a`/`hill_b`/`hill_c`, `town_3`, `dungeon_2`, linked): the tests that pinned the inn at
+(1, 1) or stamped on row 4 now find the inn by its service and use the street; the pack and the replays follow
+in a commit of their own once the owner's session settles. **Next: the owner's run of 2c** ("built, please
+try"), then "accepted" gets the prose commit, then step 3. Before it the same
 day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
@@ -136,12 +143,17 @@ Durable knowledge lives in `tasks/knowledge/`.
   `SystemParam`, the routine being at Bevy's sixteen). Mutation check red: the guard dropped. The harness's
   `press_ui` sends no mouse button: a window report that resists a headless reproduction gets the window's input
   (`real_click`) before a second theory (`tasks/LESSONS.md`).
+- **Step 2c (2026-11-07)**: `links.rs` `candidates` (= `pick::options(Portal, def, data, Some(at))` + the
+  partner), `matches` → `Listed { shown, more, any }` (the whole id marks and leads; `SHOWN` 10), `with_list`,
+  `Editor::{link, unlink}` through `fill_link` → `Form::set_text`; `EditAct::Link(u16)` in `LinkPick`'s place
+  (the `EditAct` count unchanged); `pick.rs` without `For`/`purpose`/`pick_open_for_link`, `fits` shared.
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner's run of the Finish fix**, their word on the stray portals (`portal_23_0`, `portal_23_28`: the
-   leak's, removed through the editor if they say so; `portal_bank_hidden` is theirs), then "accepted" gets the
-   prose commit for steps 1 and 2; then **step 3** from the plan file (`MapDef.start_level`,
+1. **The owner's run of step 2c**; the pack and replays following their session in a commit of their own
+   (re-baseline at that time; the town's sites are no longer on rows 1 and 3: a test that wants bare ground
+   uses the street, row 2, and finds a site by its service); then "accepted" gets the prose commit for steps 1
+   and 2; then **step 3** from the plan file (`MapDef.start_level`,
    Set start here on every level, the diamond's notch toward the start's facing). The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when
@@ -175,7 +187,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `0370ab07b628f193`, fight `c81c08bde3a070e9` (rebaselined 2026-11-07 for the owner's pack at 0.2.9, hash
+- **Replays:** walk `b8091c65a30a2d1f`, fight `81ea7ad20fd706f5` (rebaselined 2026-11-07, later, for the owner's pack at 0.2.18,
+  hash 6618162262592301701, the town's sites on rows 0 and 4, portals named and linked; earlier that day 0.2.9, hash
   14523718773761627429, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at
   0.2.3; M5.10a at 0.2.0). A rebaseline
@@ -195,8 +208,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   test that edits a pack works on a scratch copy (`omnis-data/tests/common::copy_pack`,
   `omnis-cli/tests/headless.rs::scratch_pack`, `omnis-vector/tests/common/editor.rs::in_editor_scratch`) and
   reseals it; the bad-pack corpus `broken` carries `notes/bad.ron`. `packs/test` ships notes on all four maps and
-  on the town's cell (11,2), which also carries the portal; the town's sites sit on (1,1), (4,1), (7,1), (10,1),
-  (1,3), (4,3), (7,3): a test that wants bare ground uses the street, row 2. The dungeon's encounters carry
+  on the town's cell (11,2), which also carries the portal; the town's sites are the owner's to move (rows 0 and
+  4 since 2026-11-07): a test that wants bare ground uses the street, row 2, and finds a site by its service. The dungeon's encounters carry
   dispositions and counts above one (a right click's copy is tested there).
 - **Limits the editor uses:** `MAX_STRING_BYTES` 4 KiB, `MAX_FILE_BYTES` 4 MiB (soft cap by the owner's decision),
   `MAX_SAVE_BYTES` 8 MiB, `MAX_COLLECTION` 65,536, `MAX_MAP_SIDE` 256, `MAX_LEVELS` 16, `UNDO_CAP` 100.

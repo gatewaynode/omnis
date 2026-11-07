@@ -3,7 +3,7 @@
 //! picker lists the portals nothing links to, the open map's unsaved ones among them, each with
 //! its map and cell, searched by any of them; a stamp with one chosen places a portal linked to
 //! it (one side stating the link is enough, so the far map's file is never written) and lets
-//! the choice go; a portal form's Link... picks for its link field and Unlink clears it; the
+//! the choice go; the list under a portal form's link field fills it and Unlink clears it; the
 //! inspector names where a portal leads; removing a portal another names is the loader's error
 //! on this map, with the other map's id.
 
@@ -13,8 +13,8 @@ use bevy::prelude::*;
 use common::app::{press_ui, set};
 use common::editor::field_entity;
 use common::editor::{
-    arrow, editing, held, in_editor, in_editor_scratch, mouse, point_at, press_edit, top_screen,
-    type_ui,
+    arrow, editing, field_of, held, in_editor, in_editor_scratch, mouse, point_at, press_edit,
+    top_screen, type_into, type_ui,
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::Data;
@@ -253,8 +253,44 @@ fn a_portal_links_to_another_map_s_unlinked_portal_through_the_picker_and_both_m
     valid(&app);
 }
 
+/// The open form's link field.
+fn link(app: &App) -> Option<String> {
+    editing(app)
+        .form
+        .as_ref()
+        .map(|f| f.text_of("link").to_owned())
+}
+
+/// The position of the row under the link field that offers `id`, as the inspector draws it.
+fn row_of(app: &App, id: &str) -> u16 {
+    let data = data(app);
+    let screen = omnis_vector::editor::view::inspector(editing(app), &data);
+    screen
+        .panels
+        .iter()
+        .flat_map(|p| p.rows.iter())
+        .flat_map(|r| r.controls.iter())
+        .find_map(|c| match c.id {
+            ControlId::Edit(EditAct::Link(n)) if c.label.contains(&format!("] {id}  -  ")) => {
+                Some(n)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("a row for {id}"))
+}
+
+/// Press the row under the link field that offers `id`.
+fn press_row(app: &mut App, id: &str) {
+    let n = row_of(app, id);
+    press_edit(app, EditAct::Link(n));
+}
+
+/// The list under a portal form's link field (W1 step 2c, the owner's direction of
+/// 2026-11-07): every portal nothing links to, this one left out, narrowed by the field's text;
+/// a row pressed fills the field (drawn anew, so the window's frame keeps it), pressed again it
+/// lets the link go; Apply links both; Unlink clears it.
 #[test]
-fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
+fn the_list_under_a_portal_form_s_link_field_links_and_unlinks_on_the_same_map() {
     let mut app = in_editor("test:map:meadow");
     face(&mut app, Facing::West);
     choose(&mut app, Entry::Stamp(Placing::Portal));
@@ -264,43 +300,50 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
     for cell in [(16, 20), (16, 24)] {
         assert_eq!(mark_at(&app, cell), Some(Mark::Portal { linked: false }));
     }
-    // The form of the second: Link... offers the first (this one is left out; the fixture's own
-    // unlinked portals may be there too); Finish fills the link field; Apply links them.
+    // The form of the second: the list under its link field offers the first (this one is left
+    // out; the fixture's own unlinked portals may be there too).
     press_edit(&mut app, EditAct::EditAt(0));
-    assert!(editing(&app).form.is_some(), "the portal's form");
-    press_edit(&mut app, EditAct::LinkPick);
-    assert_eq!(top_screen(&app), Some(ScreenId::EditorPick));
-    let options = editing(&app)
-        .picking
-        .as_ref()
-        .map(|p| p.options.clone())
-        .expect("the picker");
+    let form = editing(&app).form.clone().expect("the portal's form");
+    let field = EditAct::Field(field_of(&form, "link"));
+    let data = data(&app);
+    let meadow_name = labels::map(&data, "test:map:meadow").to_owned();
+    let row_20 = format!("portal_16_20  -  {meadow_name} (16, 20)");
+    let text = screen_text(app.world());
     assert!(
-        options.contains(&"portal_16_20".to_owned())
-            && !options.contains(&"portal_16_24".to_owned()),
-        "the first offered, this one left out: {options:?}"
+        text.contains(&format!("[ ] {row_20}")) && !text.contains("portal_16_24  -  "),
+        "{text}"
     );
-    let row = options.iter().position(|o| o == "portal_16_20").unwrap();
-    press_ui(
-        &mut app,
-        Pressable(edit(EditAct::PickToggle(u16::try_from(row).unwrap()))),
-    );
-    press_ui(&mut app, Pressable(edit(EditAct::PickFinish)));
-    assert_eq!(top_screen(&app), None);
-    let link = |app: &App| {
-        editing(app)
-            .form
-            .as_ref()
-            .map(|f| f.text_of("link").to_owned())
-    };
+    assert!(!text.contains("Link..."), "{text}");
+    // Typed text narrows the list by id, map or cell; the id whole marks its row; a text
+    // matching nothing says so.
+    for needle in ["16, 2", &meadow_name.to_uppercase(), "portal_16_2"] {
+        type_into(&mut app, field, needle);
+        let text = screen_text(app.world());
+        assert!(text.contains(&format!("[ ] {row_20}")), "{needle}: {text}");
+    }
+    type_into(&mut app, field, "portal_16_20");
+    assert!(screen_text(app.world()).contains(&format!("[x] {row_20}")));
+    type_into(&mut app, field, "nothing of the kind");
+    assert!(screen_text(app.world()).contains("No portal matches."));
+    type_into(&mut app, field, "");
+    assert!(screen_text(app.world()).contains(&format!("[ ] {row_20}")));
+    // The row pressed fills the field; the drawn field follows the model and the model keeps
+    // the choice through the window's frame; the row is marked.
+    press_row(&mut app, "portal_16_20");
     assert_eq!(link(&app), Some("portal_16_20".to_owned()));
-    // The window's frame: the drawn field follows the model, and the model keeps the choice.
     assert_eq!(window_touches(&mut app, "link"), "portal_16_20");
     assert_eq!(
         link(&app),
         Some("portal_16_20".to_owned()),
         "the choice survives the window's frame"
     );
+    assert!(screen_text(app.world()).contains(&format!("[x] {row_20}")));
+    // The marked row pressed lets the link go; pressed again it is back.
+    press_row(&mut app, "portal_16_20");
+    assert_eq!(link(&app), Some(String::new()));
+    assert_eq!(window_touches(&mut app, "link"), "");
+    press_row(&mut app, "portal_16_20");
+    assert_eq!(link(&app), Some("portal_16_20".to_owned()));
     let steps = editing(&app).status.undo;
     press_edit(&mut app, EditAct::Apply);
     assert!(editing(&app).form.is_none(), "{}", message(&app));
@@ -310,36 +353,15 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
     for cell in [(16, 20), (16, 24)] {
         assert_eq!(mark_at(&app, cell), Some(Mark::Portal { linked: true }));
     }
-    let data = data(&app);
-    let meadow_name = labels::map(&data, "test:map:meadow").to_owned();
     let text = screen_text(app.world());
     assert!(
         text.contains(&format!("to {meadow_name} 'portal_16_20'")),
         "{text}"
     );
-    // Edited again: Link... offers the partner, shown chosen; Cancel keeps it. Unlink clears the
-    // field; Apply unlinks both.
+    // Edited again: the partner is listed and marked though nothing links to it no more; Unlink
+    // clears the field; Apply unlinks both.
     press_edit(&mut app, EditAct::EditAt(0));
-    press_edit(&mut app, EditAct::LinkPick);
-    {
-        let p = editing(&app).picking.clone().expect("the picker");
-        assert!(
-            p.options.contains(&"portal_16_20".to_owned()),
-            "{:?}",
-            p.options
-        );
-        assert!(p.is_chosen("portal_16_20"));
-    }
-    press_ui(&mut app, Pressable(ControlId::Resume));
-    assert_eq!(top_screen(&app), None);
-    assert_eq!(
-        editing(&app)
-            .form
-            .as_ref()
-            .map(|f| f.text_of("link").to_owned()),
-        Some("portal_16_20".to_owned()),
-        "Cancel keeps the field"
-    );
+    assert!(screen_text(app.world()).contains(&format!("[x] {row_20}")));
     press_edit(&mut app, EditAct::Unlink);
     assert_eq!(link(&app), Some(String::new()));
     assert_eq!(window_touches(&mut app, "link"), "");
@@ -356,6 +378,31 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
         assert_eq!(mark_at(&app, cell), Some(Mark::Portal { linked: false }));
     }
     assert!(screen_text(app.world()).contains("unlinked"));
+}
+
+/// A link changed from one portal to another (W1 step 2c; a latent fault of 2b): the column's
+/// shape stands, so nothing redrew the field, and the window's frame pushed the drawn field's
+/// old id back into the model. A field's text set by the model is drawn anew (`Form::set_text`).
+#[test]
+fn a_link_switched_to_another_portal_is_drawn_anew_so_the_window_s_frame_keeps_it() {
+    let mut app = in_editor("test:map:meadow");
+    face(&mut app, Facing::West);
+    choose(&mut app, Entry::Stamp(Placing::Portal));
+    for cell in [(16, 20), (16, 22), (16, 24)] {
+        click(&mut app, cell);
+    }
+    valid(&app);
+    press_edit(&mut app, EditAct::EditAt(0));
+    press_row(&mut app, "portal_16_22");
+    assert_eq!(window_touches(&mut app, "link"), "portal_16_22");
+    press_row(&mut app, "portal_16_20");
+    assert_eq!(link(&app), Some("portal_16_20".to_owned()));
+    assert_eq!(window_touches(&mut app, "link"), "portal_16_20");
+    assert_eq!(
+        link(&app),
+        Some("portal_16_20".to_owned()),
+        "the switch survives the window's frame"
+    );
 }
 
 /// A click on a modal's control as the window gives it: the control pressed and the mouse
