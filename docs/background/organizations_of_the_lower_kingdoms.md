@@ -9,3 +9,6 @@ Of Shoentran.
 
 ## The Toelean University of Magic Craft
 The Resdie wizards school rebuilt.
+
+## The Merchants Guild of Resdie
+A creation of the surviving house Tourien that has agressively connected the settlements of the lower kingdoms 
