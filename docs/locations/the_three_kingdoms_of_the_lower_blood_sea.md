@@ -1,4 +1,4 @@
-# The Three Kingdoms
+# The Lower Kingdoms
 
 **World:** Toel
 **Continent:** Parva
@@ -7,7 +7,7 @@
 **Biospheres:** piedmont, coastline, mountains
  
 
-On the southern coast of the lower blood sea are three kingdoms that have reached relative stability.  Karinguard, the dwarvish town and fortress of traditional dwarvish mining and smithing that sits on a tall foothill of a large mountain range that grows off to the west into a vast set of peaks and valleys.  Shoentran is a small sea side city at the mouth of "P'ta" river that has grown up around an economy of maritime trade. Resdie is a riftborn town of refugees who have managed to carve out an agrarian living in the ruin strewed alluvial plains above an ancient lake and dam on the river.
+On the southern coast of the lower blood sea are a handful of little kingdoms and settlements that have reached relative stability following the last cataclysm here.  Karinguard, the dwarvish town and fortress of traditional dwarvish mining and smithing that sits on a tall foothill of a large mountain range that grows off to the west into a vast set of peaks and valleys.  Shoentran is a small sea side city at the mouth of "P'ta" river that has grown up around an economy of maritime trade. Resdie is a riftborn town of refugees who have managed to carve out an agrarian living in the ruin strewed alluvial plains above an ancient lake and dam on the river.  Fairday is a collection of villages and hamlets home to allied halfling communities.
 
 ## History
 The lands of the three kingdoms are strewn with the ruins of multiple civilizations that came before the current residents.  Ancient battlefields and the debris of these previous civilizations are everywhere.  General assessments of the ruins puts the youngest at around 250 years old to some that must be thousands of years old.  Most ruins are layered on top of other ruins, with overlapping patchworks of previous inhabitants.  The most recent ruins appear to have been from a goblinoid civilization of considerable technological achievements, but older ruins appear gnomish and occasionally elvish.   
@@ -16,24 +16,44 @@ The lands of the three kingdoms are strewn with the ruins of multiple civilizati
 ## Karinguard
 - **Type:** City State
 - **Government:** Council of Clans
-- **Size:** 1k residents
+- **Size:** Town
+- **Population:** 1k residents
 
 ### History
 The dwarves of Karinguard claim to have sought out their settlement almost 200 years ago, restoring an older dwarvish outpost in the high foothills of the mountain range.  The clans that make up their people have histories of a dispersed dwarven civilization called the Denath Combine, or just Denathi, that suffered from a magical calamity in a different mountain range far south of the 3 kingdoms lands.  In their settlement histories goblins did indeed exist commonly when they arrived, but only as small nomadic tribes, far fallen from the more advanced civilization that might have existed here.  The initial 300 dwarves were able to find and restore their long lost outpost and in true dwarven fashion they restored its mines and forges and began to slowly grow.  The dwarves are self sufficient but do like to trade with their newer neighbors seeking out mostly food and drink in trade for their ores and metal works.
+
+### Features
+* **Lentincular Projectory**: A large torsioncraft apparatus built into the outer wall of the Karinguard entrance, the device projects a beam of imperceptable but very hot light to carry communication instantly to Daphert and other nearby outposts without magic.  Numerous high smithed crystals are used to both produce the light beam and create a receiving eye that directs the light to the clockwork of decoding systems.  The output is displayed on a wall of 32 by 32 tiles that are flipped to reveal dwarvish runes carrying the message.
+
+### Daphert
+- **Type:** 
+- **Government:** Vassal of Karinguard
+- **Size:** Village
+- **Population:** 300 residents
+
+#### History
+Founded with the opening of trade with Shoentran 150 years ago, more as a capitulation to the need for trade but as a military way of keeping interaction with the outsiders at a distance from Karinguard.  The outpost of Daphert grew at astonishing speed for a Dwarven settlement, this is largely due to the intermixing of the inital garrison with traders from other settlements.  Thusly Daphert is known as a friendly and accepting front door to the much more reclusive and dour Dwarves within, and home to a community of dwarves and mixed race peoples.
+
+#### Features
+- **Wee Lentincular Projectory:** A smaller version of the system at Karinguard that connects the two settlements despite the kilometers of difficult mountainous terrain between them.  Occupies the central position of the village in large domed building. 
 
 
 ## Shoentran
 - **Type:** City State
 - **Government:** Feudal Lord
 - **Size:** 2k residents
-### History: 
+ ### History: 
 Shoentran on the other hand claims no prior organized founding, instead having grown up from a simple fishing village some 7 generations ago.  The village slowly grew taking in ship wrecked survivors, and wanderers common from a time of heavy disturbances in the blood sea.  About 40 years ago the blood sea disturbance ended and the sailors of Shoentran began opening up trade with distant kingdoms.  A family by the name of Van Trahrun claims leadership of the city that has grown up, demanding fealty from the merchant groups that have begun to rise to prominence.  The Van Trahrun’s created the Warden organization whose continuing mission is largely regarded as the reason for the stabilization of the area, though the Warden’s consider themselves politically neutral.  The Wardens are headquartered in Shoentran but maintain chapter houses in Karinguard and Resdie.  The merchants guild is relatively young, but is the fastest growing guild in Shoentran.
+
+### Features
+- **Endolithic Maritime Hoist:** The town of Shoentran is built on the top of a sheer cliff over 400 meters above the sea, the EMH is a huge cargo elevator from the the top of the cliffs through the inside of the cliff rock and to a carved harbor at the base of the cliffs.  A torsioncraft mechanism of ancient Gnomish design that has survived several civilizations and is currently maintained by the Gnomish crafters guild.
  
 
 ## Resdie
 - **Type:** City State
 - **Government:** Wizard Council
 - **Size:** 2k residents
+
 ### History:
 The people of Resdie appeared from the last rift recorded in the lands of the 3 kingdoms some 50 or so years ago.  Tens of thousands of people fleeing from their homeworld through the rift from a war in their capital city.  The rift unfortunately dropped the refugees in what was considered an impassibly dangerous ruin of considerable age.  The refugees had to fight for their lives in the ruins as undead swarmed from the catacombs beneath during their arrival.  The area was considered off limits by the settlements of Karinguard and Shoentran, though wardens made their way as best they could when it became apparent what was happening.  The Resdie refugees, as luck would have it, had a large contingent of wizards from their fallen magic school who quickly learned to take advantage of Toel’s abundant ambient mana and turned the tide against the undead of the ruins.  After months of fighting and losing over half of their population the wizards eventually overcame the undead by hunting down an ancient lich deep beneath the ruins with the help of a pair of wardens from Shoentran.  The survivors began the process of building a new settlement in the ruins which proceeded at a rapid pace thanks to their surviving wizard school.  The town quickly became a center of learning and trade ruled by the wizards but also with many noble family survivors vying for power and influence.
 
@@ -51,14 +71,17 @@ The people of Resdie appeared from the last rift recorded in the lands of the 3 
 ### History:
 An high elf retreat that predates the last civilization collapse in the area.  The elves of this town defend the forest it's located in and do not interact with outsiders.  The elves actively hide their settlement's location, even working to remove it's knowledge from the groups that come and go in the area.  Elves who venture from the small town do not talk about where they are from and will simply refuse to speak when questioned.  Trade does occur through their allies the druids who maintain a small village at the west edge of the forest, but it is meager and usually indistinguishable from the Druids.
 
-### The Sunken Grove (uncharted)
+## The Sunken Grove (uncharted)
 - **Type:** Hamlet
 - **Government:** Chieftan
 - **Size:** 30 residents
 ### History:
 The sunken grove is the location of coven of druids that have existed for hundreds of years in this area, the druids settled when an ancient elven temple became abandoned hundreds of years ago.
 
-
+## Fairday (uncharted)
+- **Type:** Collective
+- **Government:** Commune
+- **Size:** 
 
 ## Places of Interest
 
