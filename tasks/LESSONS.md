@@ -632,3 +632,16 @@
   to the fixture is deliberate, re-baselines the replays in the same commit and records the fingerprints. The
   owner's canvas is theirs alone: committed as they leave it, loaded by the game, the CLI and the MCP by default,
   and no test's. The 2026-10-31 lesson's "tests follow in a commit of their own" is retired.
+
+## 2026-11-07 — A renamed pack lengthens every id it is drawn in
+- **What happened**: after the canvas became `the_lower_kingdoms`, the owner reported the pack name overflowing the
+  tools column. The first fix put the pack root on its own row under the title, where the owner's first report
+  pointed. The second report, with a screenshot, showed the overflow was the map chooser: its value
+  `the_lower_kingdoms:map:depths` with its two arrows ran past the 330 px column on both sides. `test:map:depths`
+  had fit. A headless measure of every text in the column (the row's `TextLayoutInfo` against its box) found the
+  chooser's value a few pixels inside the column and the arrows outside it.
+- **Rule**: an id's length is content, not layout: when a pack or an id's prefix changes, every place that draws
+  the id in a narrow column is read again (the chooser, the palette, the pick lists, the file list), and where
+  room is short the id is drawn by its last segment (`stamp::short`), the prefix being the pack shown above. A
+  report of an overflow names a place; before the fix, measure every text of the column headless (the harness
+  lays the UI out with fonts) and fix the one that measures over, not the one the report named.

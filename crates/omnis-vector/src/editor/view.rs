@@ -225,12 +225,15 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
     let def = editor.def();
     let open = def.is_some();
     let no_map = (!open).then_some("open a map first");
+    // A map by its name alone: its pack is the root above, its kind the chooser's label, and
+    // the whole id ran the chooser past the column on both sides once the pack was renamed
+    // (the owner's screenshot, 2026-11-07).
     let maps: Vec<String> = editor
         .maps
         .iter()
         .map(|m| match &m.error {
             Some(e) => format!("{} ({e})", m.file),
-            None => m.id.clone(),
+            None => super::stamp::short(&m.id).to_owned(),
         })
         .collect();
     let bad = editor

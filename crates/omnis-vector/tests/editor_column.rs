@@ -10,7 +10,7 @@ use crate::common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use common::app::tap;
-use common::editor::{editing, in_editor, mouse, point_at, point_frac, press_edit};
+use common::editor::{arrow, editing, in_editor, mouse, point_at, point_frac, press_edit};
 use omnis_sim::omnis_core::Facing;
 use omnis_sim::omnis_data::edit::EdgeKind;
 use omnis_vector::editor::brush::{self, Entry, Tool};
@@ -158,6 +158,40 @@ fn the_column_is_a_tool_grid_a_palette_grid_the_details_the_files_and_the_button
             .control(ControlId::Edit(EditAct::LevelEdit))
             .is_some_and(|c| c.why_not.is_some()),
         "the ground level is the map"
+    );
+}
+
+/// The map chooser names a map without its pack and kind: the pack is the root at the top of
+/// the column and the chooser is labelled "Map". The whole id, `the_lower_kingdoms:map:depths`
+/// with its arrows, ran past the 330 px column on both sides (the owner's screenshot,
+/// 2026-11-07). The map opens by its full id all the same.
+#[test]
+fn the_map_chooser_names_a_map_by_its_name_alone_and_opens_it_by_its_id() {
+    let mut app = in_editor("test:map:town");
+    let screen = tools(&app);
+    let Kind::Choice { options, at } = &screen
+        .control(ControlId::Edit(EditAct::Map))
+        .expect("the chooser")
+        .kind
+    else {
+        panic!("the chooser is a choice");
+    };
+    assert_eq!(options[*at], "town");
+    assert_eq!(options.len(), 4, "{options:?}");
+    assert!(
+        options.iter().all(|o| !o.contains(':')),
+        "no pack, no kind: {options:?}"
+    );
+    assert!(options.contains(&"depths".to_owned()), "{options:?}");
+    let text = screen_text(app.world());
+    assert!(!text.contains("\"test:map:town\""), "{text}");
+    arrow(&mut app, EditAct::Map, true);
+    press_edit(&mut app, EditAct::Open);
+    let id = editing(&app).map_id();
+    assert!(
+        id.as_deref()
+            .is_some_and(|id| id.starts_with("test:map:") && id != "test:map:town"),
+        "{id:?}"
     );
 }
 
