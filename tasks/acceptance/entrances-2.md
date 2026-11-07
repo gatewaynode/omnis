@@ -82,3 +82,12 @@ the field's Finish writing nothing (2b).
 - Two unlinked portals on one map link through the form or the stamp alike; a portal cannot link to itself.
 - The inspector's partner line names the map by its display name ("Meadow"), the picker's rows too.
 - Step 3 (the start on any level, its facing drawn) follows.
+
+## Found in the owner's hand test (2026-11-07)
+- **The palette's portal stamp never linked**: the picker's Finish, pressed with the mouse, closed the modal
+  and the plan took the same button press beneath it (the screens' router runs first in the frame), so the
+  stamp dropped its linked portal under the Finish button and the owner's click placed an unlinked one (the
+  stray portals at x = 23 on the meadow and the dungeon are these). Fixed: a press on the frame a screen closes
+  is that screen's (`shell/editor.rs` `route`; `editor_link.rs` presses Finish and Cancel with a real mouse
+  button over the plan: nothing placed, the choice kept, the next click linked; `tasks/LESSONS.md`).
+- The form's Link... and Apply were never at fault: the earlier report of 2026-11-01 had the same cause.

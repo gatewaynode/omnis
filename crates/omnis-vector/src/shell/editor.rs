@@ -18,7 +18,7 @@ use super::screen_draw::{
 };
 use super::session::{Packs, Session};
 use super::{VectorSet, ViewState};
-use crate::editor::brush::{Target, Tool};
+use crate::editor::brush::Target;
 use crate::editor::plan::{self, Source};
 use crate::editor::run::{Pointer, Press};
 use crate::editor::{Asked, EditAct, Editor, playtest, view};
@@ -519,19 +519,6 @@ fn pane_size(node: Option<&ComputedNode>, editing: &Editing) -> (u32, u32) {
     }
 }
 
-/// The digit keys, for the first nine brushes.
-const DIGITS: [KeyCode; 9] = [
-    KeyCode::Digit1,
-    KeyCode::Digit2,
-    KeyCode::Digit3,
-    KeyCode::Digit4,
-    KeyCode::Digit5,
-    KeyCode::Digit6,
-    KeyCode::Digit7,
-    KeyCode::Digit8,
-    KeyCode::Digit9,
-];
-
 /// The layer's input: a pressed control or a choice's arrow; on the plan, the pointer's aim
 /// (`Editor::aim`: the cell under it, or with an edge brush its nearest side) is kept as the
 /// hover, a left click paints the brush there (the cursor goes to the cell) and a drag is one
@@ -543,26 +530,41 @@ const DIGITS: [KeyCode; 9] = [
 /// turn the facing, and with Cmd or Ctrl, Z undoes, Shift+Z and Y redo, S saves. Esc is the
 /// screens' (`Nav::escape` opens the menu). A click on the plan while a field has the keyboard
 /// takes it from the field: clicking elsewhere is the way out of a field.
+/// The window's input as the frame reads it: the keys, the mouse's buttons and its wheel.
+#[derive(SystemParam)]
+struct Inputs<'w> {
+    keys: Res<'w, ButtonInput<KeyCode>>,
+    mouse: Res<'w, ButtonInput<MouseButton>>,
+    scroll: Res<'w, AccumulatedMouseScroll>,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn route(
     buttons: Query<(&Interaction, &EditorPress), Changed<Interaction>>,
     arrows: Query<(&Interaction, &Arrow), Changed<Interaction>>,
-    keys: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
+    input: Inputs,
     pane: Query<(&RelativeCursorPosition, &ComputedNode), With<Column>>,
     interactions: Query<&Interaction>,
     focus: Option<ResMut<InputFocus>>,
     fields: Query<(Ref<EditableText>, &EditorPress)>,
     mut slid: ResMut<Slid>,
-    scroll: Res<AccumulatedMouseScroll>,
     mut zooming: ResMut<Zooming>,
     mut packs: ResMut<Packs>,
     mut editing: ResMut<Editing>,
     mut screens: ResMut<Screens>,
     mut commands: Commands,
     mut view: ResMut<NextState<ViewState>>,
+    mut stood: Local<bool>,
 ) {
+    let (keys, mouse, scroll) = (&*input.keys, &*input.mouse, &*input.scroll);
     let covered = screens.nav.top(None).is_some();
+    // A press on the frame a screen over the editor closes is that screen's (the screens'
+    // router may run first in the frame, so the plan would see the button go down with
+    // nothing over it): the plan takes no button that went down while a screen stood (the
+    // owner's report, 2026-11-07: the picker's Finish dropped the stamp under the pointer, so
+    // the click meant for the plan placed an unlinked portal).
+    let closing = *stood && !covered;
+    *stood = covered;
     let typing = focus
         .as_ref()
         .and_then(|f| f.get())
@@ -663,7 +665,7 @@ fn route(
         // The pointer's rules are the model's (`Editor::pointer`): the hover, a click's paint
         // or pick, a drag's stroke, and the run tools' corners.
         let press = |button| {
-            if mouse.just_pressed(button) {
+            if mouse.just_pressed(button) && !closing {
                 Press::Down
             } else if mouse.pressed(button) {
                 Press::Held
@@ -676,7 +678,7 @@ fn route(
             Pointer {
                 pixel,
                 left: press(MouseButton::Left),
-                right_down: mouse.just_pressed(MouseButton::Right),
+                right_down: mouse.just_pressed(MouseButton::Right) && !closing,
                 middle: press(MouseButton::Middle),
             },
         );
@@ -688,86 +690,7 @@ fn route(
         }
     }
     if !covered && !typing {
-        let held = |list: [KeyCode; 2]| keys.any_pressed(list);
-        let command = held([KeyCode::SuperLeft, KeyCode::SuperRight])
-            || held([KeyCode::ControlLeft, KeyCode::ControlRight]);
-        let shift = held([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-        let open = editing.map_id().is_some();
-        if command {
-            let key_act = if keys.just_pressed(KeyCode::KeyZ) {
-                Some(if shift { EditAct::Redo } else { EditAct::Undo })
-            } else if keys.just_pressed(KeyCode::KeyY) {
-                Some(EditAct::Redo)
-            } else if keys.just_pressed(KeyCode::KeyS) {
-                Some(EditAct::Save)
-            } else {
-                None
-            };
-            if let Some(a) = key_act
-                && open
-            {
-                act(&mut editing, &mut packs, a, 0);
-            }
-        } else {
-            for (keys_for, facing) in [
-                ([KeyCode::ArrowUp, KeyCode::KeyW], Facing::North),
-                ([KeyCode::ArrowRight, KeyCode::KeyD], Facing::East),
-                ([KeyCode::ArrowDown, KeyCode::KeyS], Facing::South),
-                ([KeyCode::ArrowLeft, KeyCode::KeyA], Facing::West),
-            ] {
-                if keys.any_just_pressed(keys_for) {
-                    editing.step(facing);
-                }
-            }
-            if open && keys.any_just_pressed([KeyCode::Enter, KeyCode::NumpadEnter]) {
-                if editing.run.is_some() {
-                    editing.take_run(&data);
-                } else {
-                    let cell = editing.cursor;
-                    editing.paint(&data, Target { cell, edge: None }, false);
-                    editing.end_stroke();
-                }
-            }
-            if open && keys.just_pressed(KeyCode::Backspace) && editing.run.is_some() {
-                editing.drop_corner();
-            }
-            let digit = DIGITS.iter().position(|k| keys.just_pressed(*k));
-            let stepped = [
-                (KeyCode::BracketLeft, EditAct::ZoomOut, 0),
-                (KeyCode::BracketRight, EditAct::ZoomIn, 0),
-                (KeyCode::KeyC, EditAct::Centre, 0),
-                (KeyCode::KeyQ, EditAct::FaceLeft, 0),
-                (KeyCode::KeyE, EditAct::FaceRight, 0),
-                (KeyCode::Minus, EditAct::Eighths, -1),
-                (KeyCode::Equal, EditAct::Eighths, 1),
-            ]
-            .into_iter()
-            .find(|(key, _, _)| keys.just_pressed(*key))
-            .map(|(_, a, step)| (a, step))
-            .or_else(|| digit.map(|i| (EditAct::Brush(u8::try_from(i).unwrap_or(0)), 0)))
-            .or_else(|| {
-                // The tools' keys (V, B, M, L, F, P, N, X: `Tool::key`), shortcuts for the
-                // grid's icons.
-                [
-                    (KeyCode::KeyV, Tool::Select),
-                    (KeyCode::KeyB, Tool::Brush),
-                    (KeyCode::KeyM, Tool::Move),
-                    (KeyCode::KeyL, Tool::Lasso),
-                    (KeyCode::KeyF, Tool::Fill),
-                    (KeyCode::KeyP, Tool::Corners),
-                    (KeyCode::KeyN, Tool::Freehand),
-                    (KeyCode::KeyX, Tool::Eraser),
-                ]
-                .into_iter()
-                .find(|(key, _)| keys.just_pressed(*key))
-                .map(|(_, tool)| (EditAct::Tool(tool), 0))
-            });
-            if let Some((a, step)) = stepped
-                && open
-            {
-                editing.apply(&data, a, step);
-            }
-        }
+        super::editor_keys::keys(keys, &mut editing, &mut packs, &data);
     }
     answer(&mut screens.nav, asked);
     if asked == Asked::Playtest {

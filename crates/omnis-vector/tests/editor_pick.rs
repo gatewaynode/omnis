@@ -509,7 +509,10 @@ fn the_portal_picker_offers_unlinked_portals_and_a_click_with_none_places_an_unl
     if unlinked.is_empty() {
         assert!(text.contains("The packs have no portal."), "{text}");
     } else {
-        assert!(text.contains(&format!("[ ] {}  -  ", unlinked[0])), "{text}");
+        assert!(
+            text.contains(&format!("[ ] {}  -  ", unlinked[0])),
+            "{text}"
+        );
     }
     assert!(
         !pressable(&mut app, edit(EditAct::PickFinish)),

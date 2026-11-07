@@ -1,11 +1,17 @@
 # Continuity notes
 
-Written 2026-11-01, after **step 2 of the entrances and exits enhancement**, both commits: 2a the model
-(`232cc839`: `Portal { id, link, facing, marker }`, the landing derived from the partner, unlinked portals legal
-and inert, the pack 0.2.5) and 2b linking in the editor (the picker carrying its options and labels, the form's
-Link... and Unlink, the inspector's partner line). Re-planned that day on the owner's direction after the step 1
-hand test (which also found Save and Playtest swallowed by the error's words, fixed in `11455718`). **The owner's
-hand test of step 2 is next** (`tasks/acceptance/entrances-2.md`), then "accepted" gets the prose commit, then step 3. Before it the same
+Written 2026-11-07, during **the owner's hand test of step 2 of the entrances and exits enhancement** (2a the
+model `232cc839`, 2b linking in the editor `f6a0e21b`; re-planned 2026-11-01 on the owner's direction after the
+step 1 hand test, which also found Save and Playtest swallowed by the error's words, `11455718`). The hand test
+found **the palette's portal stamp never linked**: the picker's Finish pressed with the mouse closed the modal and
+the plan took the same press beneath it (the screens' router runs first in the frame), so the stamp dropped its
+linked portal under the button and the owner's click placed an unlinked one. Fixed the same day: a press on the
+frame a screen closes is that screen's (`shell/editor.rs` `route` keeps whether a screen stood last frame;
+`editor_link.rs` presses Finish and Cancel with a real mouse button over the plan). The form's path was never at
+fault; the report of 2026-11-01 had the same cause, and the `Form.refill` idea is dropped. The owner committed
+their pack at 0.2.8 with the tests (`a39b37f4`) and moved it to 0.2.9 during the test (three unlinked portals,
+the strays at x = 23 among them; the replays and pins follow in their own commit). **Next: the owner's run of the
+fix** ("built, please try"), their word on the stray portals, then "accepted" gets the prose commit, then step 3. Before it the same
 day the recorded pins caught up with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
 **accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
 closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
@@ -125,11 +131,17 @@ Durable knowledge lives in `tasks/knowledge/`.
   `view::partner_line` under a portal's inspector row; `stamp::of_here` drops a copied portal's link. The
   picker screen reads `p.options`/`p.labels`, no longer `stamp::options`. `tests/editor_link.rs` (two flows).
   Mutation checks red: the edited portal offered, the choice kept, the field left empty.
+- **The hand test of 2026-11-07**: the stamp's Finish leak (above), fixed in `route` with `Local<bool>` `stood`
+  (the frame the cover lifts takes no `Down`; `Inputs` bundles the keys, the mouse and the wheel as one
+  `SystemParam`, the routine being at Bevy's sixteen). Mutation check red: the guard dropped. The harness's
+  `press_ui` sends no mouse button: a window report that resists a headless reproduction gets the window's input
+  (`real_click`) before a second theory (`tasks/LESSONS.md`).
 - Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
 
 ## Next
-1. **The owner's hand test of step 2** (`tasks/acceptance/entrances-2.md`, eight steps on a fresh scratch copy),
-   then "accepted" gets the prose commit for steps 1 and 2; then **step 3** from the plan file (`MapDef.start_level`,
+1. **The owner's run of the Finish fix**, their word on the stray portals (`portal_23_0`, `portal_23_28`: the
+   leak's, removed through the editor if they say so; `portal_bank_hidden` is theirs), then "accepted" gets the
+   prose commit for steps 1 and 2; then **step 3** from the plan file (`MapDef.start_level`,
    Set start here on every level, the diamond's notch toward the start's facing). The editor's later items otherwise (the eraser or Delete clearing a
    selection's cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the
    picker). The owner's order of 2026-10-24 otherwise: the activities schema when
@@ -163,7 +175,8 @@ Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `51c76dab1f20982e`, fight `d21d59c1f123f07e` (rebaselined 2026-11-01 for step 2a, the portals linked by id,
+- **Replays:** walk `0370ab07b628f193`, fight `c81c08bde3a070e9` (rebaselined 2026-11-07 for the owner's pack at 0.2.9, hash
+  14523718773761627429, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at
   0.2.3; M5.10a at 0.2.0). A rebaseline
   records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**

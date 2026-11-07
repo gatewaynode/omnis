@@ -10,14 +10,14 @@
 use crate::common;
 use bevy::input::ButtonState;
 use bevy::prelude::*;
-use common::app::press_ui;
+use common::app::{press_ui, set};
+use common::editor::field_entity;
 use common::editor::{
     arrow, editing, held, in_editor, in_editor_scratch, mouse, point_at, press_edit, top_screen,
     type_ui,
 };
 use omnis_sim::omnis_core::{Facing, Level};
 use omnis_sim::omnis_data::Data;
-use common::editor::field_entity;
 use omnis_vector::editor::EditAct;
 use omnis_vector::editor::brush::{self, Entry};
 use omnis_vector::editor::forms::Placing;
@@ -356,4 +356,92 @@ fn a_portal_form_links_and_unlinks_through_the_picker_on_the_same_map() {
         assert_eq!(mark_at(&app, cell), Some(Mark::Portal { linked: false }));
     }
     assert!(screen_text(app.world()).contains("unlinked"));
+}
+
+/// A click on a modal's control as the window gives it: the control pressed and the mouse
+/// button down in one frame, the control let go and the button up in the next (`press_ui`
+/// carries no mouse button, so the plan's frame never saw one).
+fn real_click(app: &mut App, id: ControlId) {
+    set(app, &Pressable(id), Interaction::Pressed);
+    mouse(app, MouseButton::Left, ButtonState::Pressed);
+    let world = app.world_mut();
+    let mut controls = world.query::<(&Pressable, &mut Interaction)>();
+    for (c, mut i) in controls.iter_mut(world) {
+        if c.0 == id {
+            *i = Interaction::None;
+        }
+    }
+    mouse(app, MouseButton::Left, ButtonState::Released);
+    app.update();
+}
+
+/// The map's portals as "id (x, y) link".
+fn portals(app: &App) -> Vec<String> {
+    editing(app)
+        .def()
+        .expect("a map")
+        .portals
+        .iter()
+        .map(|p| format!("{} ({}, {}) {:?}", p.id, p.x, p.y, p.link))
+        .collect()
+}
+
+/// The owner's report of 2026-11-07: a portal chosen in the stamp's picker never linked
+/// anything from the palette. The picker's Finish, pressed with the mouse while the pointer
+/// stood over the plan beneath the modal, dropped the stamp on that cell in the same frame
+/// (the screens close the modal first, so the plan saw the button go down with nothing over
+/// it), spending the choice; the click meant for the plan then placed an unlinked portal. A
+/// press on the frame a screen closes is that screen's: Finish and Cancel place nothing, and
+/// the next click places the linked portal.
+#[test]
+fn a_press_that_closes_the_picker_places_nothing_on_the_plan_beneath_it() {
+    let (mut app, _scratch) = in_editor_scratch("editor-link-close", "test:map:meadow");
+    face(&mut app, Facing::West);
+    choose(&mut app, Entry::Stamp(Placing::Portal));
+    click(&mut app, (16, 24));
+    assert_eq!(message(&app), "Portal 'portal_16_24' placed at (16, 24)");
+    let before = portals(&app);
+    // The picker, the new portal chosen, the pointer over the road beneath the modal.
+    press_edit(&mut app, EditAct::Pick);
+    let row = editing(&app)
+        .picking
+        .clone()
+        .expect("the picker")
+        .options
+        .iter()
+        .position(|o| o == "portal_16_24")
+        .expect("the new portal offered");
+    press_ui(
+        &mut app,
+        Pressable(edit(EditAct::PickToggle(u16::try_from(row).unwrap()))),
+    );
+    point_at(&mut app, (16, 20), None);
+    real_click(&mut app, edit(EditAct::PickFinish));
+    assert_eq!(top_screen(&app), None);
+    assert_eq!(portals(&app), before, "Finish placed nothing on the plan");
+    assert_eq!(
+        held(&app, Placing::Portal),
+        ["portal_16_24"],
+        "the choice kept"
+    );
+    // Cancel over the plan likewise.
+    press_edit(&mut app, EditAct::Pick);
+    point_at(&mut app, (18, 20), None);
+    real_click(&mut app, ControlId::Resume);
+    assert_eq!(top_screen(&app), None);
+    assert_eq!(portals(&app), before, "Cancel placed nothing on the plan");
+    assert_eq!(held(&app, Placing::Portal), ["portal_16_24"]);
+    // The click meant for the plan places the linked portal.
+    click(&mut app, (16, 20));
+    assert_eq!(
+        message(&app),
+        "Portal 'portal_16_20' to 'portal_16_24' placed at (16, 20)"
+    );
+    valid(&app);
+    assert_eq!(mark_at(&app, (16, 20)), Some(Mark::Portal { linked: true }));
+    assert_eq!(mark_at(&app, (16, 24)), Some(Mark::Portal { linked: true }));
+    assert!(
+        held(&app, Placing::Portal).is_empty(),
+        "the partner is taken"
+    );
 }

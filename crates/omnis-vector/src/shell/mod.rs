@@ -7,6 +7,7 @@ pub mod combat;
 pub mod controls;
 pub mod document;
 pub mod editor;
+pub mod editor_keys;
 pub mod fonts;
 pub mod host;
 pub mod hud;

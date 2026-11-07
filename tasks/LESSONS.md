@@ -592,3 +592,18 @@
   only when that input is sound: gate it on no earlier errors, in the loader and in `MapData::resolve` alike, and
   say so in its doc comment. A corpus pack holds one fault family; a fault that hides another gets a pack of its
   own (`bad-reach` beside `bad-ways`). The test that counts a report's rows is the one that catches the cascade.
+
+## 2026-11-07 — A press on the frame a screen closes is that screen's; the harness's press carries no mouse
+- **What happened**: "the left column palette based controls don't seem to actually link anything." The model
+  was airtight headless: the picker's Finish held the choice and the next click placed the linked portal. In
+  the window the Finish press closed the modal in the screens' router, and the editor's router, running later
+  in the same frame, saw the plan uncovered with the left button just down and the pointer over it: the stamp
+  dropped its linked portal under the Finish button, spending the choice, and the owner's click placed an
+  unlinked one. Three sessions of diagnosis went to the form's text field first, because the harness's
+  `press_ui` sets a control's `Interaction` and sends no mouse button, so the plan's frame never saw a press.
+- **Rule**: a button that went down while a screen stood over the editor belongs to that screen, whatever the
+  system order (`route` keeps whether a screen stood last frame; the frame the cover lifts takes no `Down`).
+  When a window report resists a headless reproduction, reproduce the window's *input* too: a modal control is
+  pressed with the mouse button down and the pointer somewhere real (`real_click` in `editor_link.rs`); the
+  system order the window runs is the harness's as well, so the harness can show it once the input is honest.
+  Two reports with one symptom ("the link is lost") get one cause looked for before two fixes.

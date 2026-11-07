@@ -372,6 +372,11 @@ no loss, and every later map is built with it.
     the link, an unresolved link, "unlinked"); a right-click copy of a portal drops its link.
     `tests/editor_link.rs` (the pair across maps through the picker, the one-sided save, the far map's error on
     a removal; the form's Link... and Unlink on one map). `tasks/acceptance/entrances-2.md`.
+    **Found in the owner's hand test (2026-11-07), fixed:** the picker's Finish pressed with the mouse closed
+    the modal and the plan took the same press beneath it (the stamp dropped its linked portal under the
+    button, the owner's click placed an unlinked one); a press on the frame a screen closes is that screen's
+    (`shell/editor.rs` `route`, `editor_link.rs` with a real mouse press). The owner's pack moved to 0.2.9
+    during the test (the replays and pins follow in their own commit).
   - [ ] Step 3: the start as a real entrance. `MapDef.start_level` (serde default), the new game and the save
     fallback on it, Set start here on every level, the diamond drawn with a notch toward its facing.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
