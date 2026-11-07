@@ -58,7 +58,9 @@ fn parse_args() -> Result<Options, String> {
     }
     if options.packs.is_empty() {
         options.packs.push(options.root.join("packs/base"));
-        options.packs.push(options.root.join("packs/test"));
+        options
+            .packs
+            .push(options.root.join("packs/the_lower_kingdoms"));
     }
     Ok(options)
 }

@@ -171,10 +171,11 @@ Durable knowledge lives in `tasks/knowledge/`.
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to
   stand, what to press, what appears). The owner replies "tested" or "accepted" and asks for the next; a hand
   test can also come back as a direction (step 3 → 3b), which gets plan mode and its own commit.
-- Hand-test launch: `just run --windowed --pack packs/base --pack packs/test --pack
-  crates/omnis-sim/tests/packs/objects`, New game, devtools on; teleport with Esc, Debug, the World page, to
+- Hand-test launch: `just run --windowed --pack packs/base --pack packs/the_lower_kingdoms` (the owner's world; with the
+  objects fixture: `--pack packs/base --pack crates/omnis-sim/tests/packs/test --pack
+  crates/omnis-sim/tests/packs/objects`, the fixture standing in for the world), New game, devtools on; teleport with Esc, Debug, the World page, to
   `objects:map:yard`. The editor: Title → Editor, or `--editor test:map:town`. A Save reseals the pack on disk:
-  hand tests of the editor run on a scratch copy (`cp -R packs/test /tmp/omnis-scratch`, named as the last pack).
+  hand tests of the editor run on a scratch copy (`cp -R packs/the_lower_kingdoms /tmp/omnis-scratch`, named as the last pack).
 - Offscreen captures: `scratchpad/yardshot.sh name x y facing walk [--screen ...]` (`cargo build -p omnis-vector`
   first). A capture cannot run a command first.
 - Bug reports: fix directly, with a red test, a lesson in `tasks/LESSONS.md`, then report. Choices with real

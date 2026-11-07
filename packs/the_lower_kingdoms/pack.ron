@@ -1,0 +1,17 @@
+// The owner's world, under construction through the editor (renamed from `test` on 2026-11-07;
+// the tests run against the frozen fixture crates/omnis-sim/tests/packs/test instead). It loads
+// after the base pack: the town's services and their stock are the base pack's.
+// Schema: ARCHITECTURE.md §6.1. Every data file starts with `schema`.
+(
+    schema: 1,
+    id: "the_lower_kingdoms",
+    version: "0.2.20",
+    hash: 11294889560162973154,
+    name: "The Lower Kingdoms",
+    license: "MIT OR Apache-2.0",
+    attribution: [
+        ("OpenRTP tiles by finalbossblues", "CC0-1.0", "assets/openrtp-tiles/LICENSE.txt"),
+    ],
+    depends: ["base"],
+    entry: Some("the_lower_kingdoms:map:town"),
+)

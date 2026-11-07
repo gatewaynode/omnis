@@ -15,6 +15,6 @@ scripts/lint-sim.sh
 scripts/check-duplicates.sh
 scripts/check-test-modules.sh --self-test
 scripts/check-test-modules.sh
-cargo run -q -p omnis-cli -- validate packs/base packs/test
+cargo run -q -p omnis-cli -- validate packs/base packs/the_lower_kingdoms
 cargo run -q -p omnis-cli -- validate packs/base crates/omnis-sim/tests/packs/test
 echo VERIFY-GREEN

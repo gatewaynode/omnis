@@ -1,0 +1,8 @@
+// English strings for the test pack's spells. Keys are `the_lower_kingdoms:text:spell.<name>.<field>`.
+(
+    schema: 1,
+    entries: {
+        "the_lower_kingdoms:text:spell.ward.description": "A reaction heal for the tactics tests.",
+        "the_lower_kingdoms:text:spell.ward.name": "Ward",
+    },
+)

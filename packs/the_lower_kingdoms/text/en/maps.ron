@@ -1,0 +1,19 @@
+// English strings for the test pack. Keys are `the_lower_kingdoms:text:<name>`; `{arg}` marks an argument.
+(
+    schema: 1,
+    entries: {
+        "the_lower_kingdoms:text:map.depths.name": "Test Depths",
+        "the_lower_kingdoms:text:map.dungeon.name": "Test Dungeon",
+        "the_lower_kingdoms:text:map.meadow.name": "Test Meadow",
+        "the_lower_kingdoms:text:map.town.name": "Test Town",
+        "the_lower_kingdoms:text:region.town.name": "Test Town",
+        "the_lower_kingdoms:text:region.meadow.name": "Test Meadow",
+        "the_lower_kingdoms:text:region.dungeon.name": "Test Dungeon",
+        "the_lower_kingdoms:text:region.crossroads.name": "Test Crossroads",
+        // Rest events: placeholders at chance 0 until the owner's ideas fill them.
+        "the_lower_kingdoms:text:rest.town.street": "The night watch passes by",
+        "the_lower_kingdoms:text:rest.town.green": "Dogs bark somewhere in town",
+        "the_lower_kingdoms:text:rest.meadow.road": "A cart rattles past on the road",
+        "the_lower_kingdoms:text:rest.meadow.grass": "Crickets sing in the long grass",
+    },
+)

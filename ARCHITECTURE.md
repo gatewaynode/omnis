@@ -481,7 +481,7 @@ packs/<pack_id>/
 - Every data file is one RON struct with a `schema: u32` field first. Schema migrations are functions `vN -> vN+1` registered per type; loading an old schema runs them in order and reports it. They are the engine's, for a file's format; a pack's `migrations/` are the pack's, for its content's names and places (§4.1.1).
 - IDs are strings `pack:type:name` in files and are interned to `u32` newtypes (`SpellId`, `MonsterId`, ...) in a `Registry` at load. Unknown references are load errors with the referencing file named.
 - Later packs override earlier packs by ID. The manifest declares `depends: ["base >= 1.0"]` and load order is a topological sort; cycles are errors.
-- The base campaign is `packs/base`. A mod is any other directory in the user's packs folder. The editor writes the same format. The tests and the golden replays load `crates/omnis-sim/tests/packs/test`, a frozen fixture (id `test`, sealed once, never saved onto; owner 2026-11-07), beside the engine's fixture packs there; the owner's world under `packs/` is never a test's.
+- The base campaign is `packs/base`. A mod is any other directory in the user's packs folder. The editor writes the same format. The tests and the golden replays load `crates/omnis-sim/tests/packs/test`, a frozen fixture (id `test`, sealed once, never saved onto; owner 2026-11-07), beside the engine's fixture packs there; the owner's world, `packs/the_lower_kingdoms` (renamed from `test` the same day), is the game's default and never a test's.
 
 ### 6.2 Validation as untrusted input
 Applies to packs, saves, and anything crossing the dev socket.

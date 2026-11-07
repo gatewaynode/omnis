@@ -63,7 +63,10 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Config {
         Config {
-            packs: vec![PathBuf::from("packs/base"), PathBuf::from("packs/test")],
+            packs: vec![
+                PathBuf::from("packs/base"),
+                PathBuf::from("packs/the_lower_kingdoms"),
+            ],
             seed: 1,
             play: false,
             screen: None,

@@ -1,6 +1,0 @@
-(
-    schema: 1,
-    entries: {
-        "test:map:depths": "The depths below the test dungeon (M7b): four 6x6 rooms of goblins and skeletons, the stairs back up in the first; east of them (M7c, 2026-10-04) the throne room of Bob the Rat King, a homebrew caster behind two stacks of giant rats (two front stacks: Bob stands in the back row until a rat stack falls), and an empty antechamber north of it. Measured by `clear_over_seeds` before the owner plays.",
-    },
-)

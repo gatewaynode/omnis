@@ -41,7 +41,7 @@ change without notice. In particular:
 use omnis_sim::api::*;
 use std::path::Path;
 
-let data = load_packs(&[Path::new("packs/base"), Path::new("packs/test")])?; // Result<Data, LoadReport>
+let data = load_packs(&[Path::new("packs/base"), Path::new("crates/omnis-sim/tests/packs/test")])?; // Result<Data, LoadReport>
 let mut world = World::new(&data, 1, Settings::default())?;                  // seed 1
 match apply(&mut world, &data, Command::Step(Direction::Forward)) {
     Ok(events) => { /* Vec<Event>, in the order they happened */ }
@@ -1116,6 +1116,10 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
+- 2026-11-07 (latest): no wire change. The tests and the replays run against the frozen fixture
+  `crates/omnis-sim/tests/packs/test` (id `test`, 0.2.9); the owner's canvas is renamed `packs/the_lower_kingdoms` (id
+  `the_lower_kingdoms`: in play the ids read `the_lower_kingdoms:map:town`), the default packs of the game, the CLI and the
+  MCP server being `packs/base` and `packs/the_lower_kingdoms`. The op examples here keep the fixture's `test:` ids.
 - 2026-11-07 (later still): no wire change. The owner built in `packs/test` through the editor during the hand
   test of step 2c (0.2.18, hash 6618162262592301701: the town's sites moved to rows 0 and 4, portals named and linked
   across the town, the meadow and the dungeon), so the goldens moved: walk `b8091c65a30a2d1f`, fight `81ea7ad20fd706f5`. Tests that

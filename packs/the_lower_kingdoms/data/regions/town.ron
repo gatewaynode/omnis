@@ -1,0 +1,12 @@
+// The town: a settlement, coupled by a road to the crossroads.
+(
+    schema: 1,
+    id: "the_lower_kingdoms:region:town",
+    name: "the_lower_kingdoms:text:region.town.name",
+    kind: Settlement,
+    company: 900,
+    stability: 980,
+    rule: "time.settled",
+    couplings: ["the_lower_kingdoms:region:crossroads"],
+    maps: ["the_lower_kingdoms:map:town"],
+)

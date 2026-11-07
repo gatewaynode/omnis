@@ -1,0 +1,11 @@
+(
+    schema: 1,
+    id: "the_lower_kingdoms:region:dungeon",
+    name: "the_lower_kingdoms:text:region.dungeon.name",
+    kind: Wild,
+    company: 50,
+    stability: 600,
+    rule: "time.wild",
+    couplings: [],
+    maps: ["the_lower_kingdoms:map:dungeon", "the_lower_kingdoms:map:depths"],
+)

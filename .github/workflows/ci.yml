@@ -44,7 +44,7 @@ jobs:
           cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/fight.ron --pack packs/base --pack crates/omnis-sim/tests/packs/test
       - name: Pack validation
         run: |
-          cargo run -p omnis-cli --locked -- validate packs/base packs/test
+          cargo run -p omnis-cli --locked -- validate packs/base packs/the_lower_kingdoms
           cargo run -p omnis-cli --locked -- validate packs/base crates/omnis-sim/tests/packs/test
 
   linux:
@@ -77,5 +77,5 @@ jobs:
           cargo run -p omnis-cli --locked -- replay crates/omnis-sim/tests/replays/fight.ron --pack packs/base --pack crates/omnis-sim/tests/packs/test
       - name: Pack validation
         run: |
-          cargo run -p omnis-cli --locked -- validate packs/base packs/test
+          cargo run -p omnis-cli --locked -- validate packs/base packs/the_lower_kingdoms
           cargo run -p omnis-cli --locked -- validate packs/base crates/omnis-sim/tests/packs/test
