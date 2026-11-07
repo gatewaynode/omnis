@@ -17,7 +17,7 @@ The lands of the three kingdoms are strewn with the ruins of multiple civilizati
 - **Type:** City State
 - **Government:** Council of Clans
 - **Size:** Town
-- **Population:** 1k residents
+- **Population:** 1000 residents
 
 ### History
 The dwarves of Karinguard claim to have sought out their settlement almost 200 years ago, restoring an older dwarvish outpost in the high foothills of the mountain range.  The clans that make up their people have histories of a dispersed dwarven civilization called the Denath Combine, or just Denathi, that suffered from a magical calamity in a different mountain range far south of the 3 kingdoms lands.  In their settlement histories goblins did indeed exist commonly when they arrived, but only as small nomadic tribes, far fallen from the more advanced civilization that might have existed here.  The initial 300 dwarves were able to find and restore their long lost outpost and in true dwarven fashion they restored its mines and forges and began to slowly grow.  The dwarves are self sufficient but do like to trade with their newer neighbors seeking out mostly food and drink in trade for their ores and metal works.
@@ -41,7 +41,8 @@ Founded with the opening of trade with Shoentran 150 years ago, more as a capitu
 ## Shoentran
 - **Type:** City State
 - **Government:** Feudal Lord
-- **Size:** 2k residents
+- **Size:** Town
+- **Population:** 2000 residents
  ### History: 
 Shoentran on the other hand claims no prior organized founding, instead having grown up from a simple fishing village some 7 generations ago.  The village slowly grew taking in ship wrecked survivors, and wanderers common from a time of heavy disturbances in the blood sea.  About 40 years ago the blood sea disturbance ended and the sailors of Shoentran began opening up trade with distant kingdoms.  A family by the name of Van Trahrun claims leadership of the city that has grown up, demanding fealty from the merchant groups that have begun to rise to prominence.  The Van Trahrun’s created the Warden organization whose continuing mission is largely regarded as the reason for the stabilization of the area, though the Warden’s consider themselves politically neutral.  The Wardens are headquartered in Shoentran but maintain chapter houses in Karinguard and Resdie.  The merchants guild is relatively young, but is the fastest growing guild in Shoentran.
 
@@ -52,7 +53,8 @@ Shoentran on the other hand claims no prior organized founding, instead having g
 ## Resdie
 - **Type:** City State
 - **Government:** Wizard Council
-- **Size:** 2k residents
+- **Size:** Tillage
+- **Population:** 3000 residents
 
 ### History:
 The people of Resdie appeared from the last rift recorded in the lands of the 3 kingdoms some 50 or so years ago.  Tens of thousands of people fleeing from their homeworld through the rift from a war in their capital city.  The rift unfortunately dropped the refugees in what was considered an impassibly dangerous ruin of considerable age.  The refugees had to fight for their lives in the ruins as undead swarmed from the catacombs beneath during their arrival.  The area was considered off limits by the settlements of Karinguard and Shoentran, though wardens made their way as best they could when it became apparent what was happening.  The Resdie refugees, as luck would have it, had a large contingent of wizards from their fallen magic school who quickly learned to take advantage of Toel’s abundant ambient mana and turned the tide against the undead of the ruins.  After months of fighting and losing over half of their population the wizards eventually overcame the undead by hunting down an ancient lich deep beneath the ruins with the help of a pair of wardens from Shoentran.  The survivors began the process of building a new settlement in the ruins which proceeded at a rapid pace thanks to their surviving wizard school.  The town quickly became a center of learning and trade ruled by the wizards but also with many noble family survivors vying for power and influence.
@@ -65,7 +67,7 @@ The people of Resdie appeared from the last rift recorded in the lands of the 3 
 
 
 ## Foloen (uncharted)
-- **Type:** Small Town
+- **Type:** Village
 - **Government:** Elder Council
 - **Size:** 400 residents
 ### History:
@@ -81,7 +83,11 @@ The sunken grove is the location of coven of druids that have existed for hundre
 ## Fairday (uncharted)
 - **Type:** Collective
 - **Government:** Commune
-- **Size:** 
+- **Size:** Town
+- **Population:** 4000 residents
+
+### History
+Fairday lives in one of the most fertile areas of the lower kingdoms that attracted nomadic halflings to settle at least 200 years ago as recorded by the fleeing Dwarves of what would become Karinguard.  Fairday is composed of close knit settlements that are almost like traditional agrarian halfling communities.  The largest difference is that their nomadic roots have been maintained through wagons and large herds of torams (Toil Rams), but the nomadic culture is only practiced by the Jitee clans amongst the communities of Fairday.   Fairday operates as a distributed commune, with all community members deeply engrained in the culture of strength through community.  Five villages
 
 ## Places of Interest
 
