@@ -48,6 +48,9 @@ the_pose_into_the_dungeon`, `editor_stamp` and `editor_pick` (a lone portal stam
   every portal, and linking by picking another portal with a search over every portal of the loaded packs.
   Step 2 is re-planned on it.
 
+**Accepted by the owner 2026-11-07, with steps 2 and 2c** (`tasks/acceptance/entrances-2.md`), after the hand
+test of 2026-11-01 and its fix (Save and Playtest dim with the count alone).
+
 ## Known and expected
 - A portal placed by the stamp has no way back until step 2; Save is refused meanwhile (above).
 - A landing on a service site stays legal: arriving there enters the service, as a step does.

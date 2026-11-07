@@ -104,3 +104,12 @@ a drop down of selectable portal locations to link"; chosen: **always listed whi
 (`editor/links.rs`; the picker is the stamp's alone again). Found and fixed with it: a link switched from one
 portal to another was undone by the window's frame (the drawn field was never redrawn when the column's shape
 stood); every text the model sets in a field now draws the field anew (`Form::set_text`, `tasks/LESSONS.md`).
+
+## Accepted
+**Steps 1, 2 and 2c accepted by the owner 2026-11-07** ("I think this is usable, how close are we to closing out
+the portals work?"; "That fixed it, accepted"), after the hand tests of 2026-11-01 and 2026-11-07 on their own
+world. Between the word and the acceptance the same day: the tests moved to the frozen fixture
+`crates/omnis-sim/tests/packs/test` and the owner's canvas became `packs/the_lower_kingdoms` (`741171c9`,
+`2c2bd3a7`), and the longer pack name showed two overflows in the editor's tools column, fixed before the
+acceptance: the pack root on its own row under the title (`d8f53d94`) and the map chooser naming a map by its
+last segment (`74ad5f74`). Step 3 (the start as a real entrance) follows.
