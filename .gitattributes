@@ -1,0 +1,4 @@
+# Every text file is LF on every checkout. The pack seals, the golden replay fingerprints, the
+# frozen world folders and scripts/duplicates.allow are hashed or compared as text, so a CRLF
+# checkout (git's default on Windows) would change every one of them (Windows CI, 2026-11-08).
+* text=auto eol=lf

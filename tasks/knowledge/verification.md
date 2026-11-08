@@ -8,9 +8,14 @@ fails the script), `scripts/lint-sim.sh --self-test` and the lint, `scripts/chec
 and `omnis-cli validate packs/base packs/test`; it prints `VERIFY-GREEN` and exits zero only when
 every step passed. Run it unpiped and read the status. CI (`.github/workflows/ci.yml`) runs the
 same steps, the release clippy included since M7 step 1, plus both golden replays through the CLI
-with `--pack packs/base --pack packs/test`. The shipped configuration (`--no-default-features`)
-carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a push to `main` and on a pull request only: a
-push to a work branch with no PR open shows the Socket scans alone, which is not a green build.
+with `--pack packs/base --pack crates/omnis-sim/tests/packs/test`, on macOS as the required check and on
+Linux (W0.6) and Windows (2026-11-08) as advisory jobs that report and never block. The shipped configuration
+(`--no-default-features`) carries `bevy_ui` like every other build; only `devtools` is a feature. It runs on a
+push to `main`, on a pull request, and by hand from the Actions tab (`workflow_dispatch`, so a branch's
+advisory jobs can be read before its PR): a push to a work branch with no PR open and no run started by hand
+shows the Socket scans alone, which is not a green build. The Windows job needs an LF checkout
+(`.gitattributes`) and LF pretty RON (`ron_io::to_string`): the seals, the fingerprints and the frozen world
+folders are hashed as text.
 
 Test count at the gate: 712 passed, 12 ignored (2026-10-14, after M8.5 1c and the hills' crests; 708 after 1c; 697 after step 3; 678 after 1b; 715 and 13
 ignored after parity P3, before `omnis-app` retired; 583 before `omnis-vector` joined). The gate's log says it

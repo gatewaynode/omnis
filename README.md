@@ -88,7 +88,8 @@ Settings, Debug (in a game with developer tools; also the backtick key), Quit to
 A member's sheet, inventory and spells open from the party column. In a fight, the buttons pick
 the action and a click on a figure the target; the number keys pick from a list. Saves are RON
 files; the quick save defaults to `.omnis/quick.ron`, the player's settings to
-`.omnis/settings.ron`. A save holds the party and what it changed; the world it plays in is kept
+`.omnis/settings.ron`; a start that fails leaves its reason in `.omnis/last-error.txt` as well as on stderr
+(Windows shows the game no console). A save holds the party and what it changed; the world it plays in is kept
 beside it under `.omnis/worlds/`, and `omnis-cli world tidy` (or the debug page's Tidy) lists the
 world files no save names and deletes them only when asked.
 
@@ -98,8 +99,8 @@ world files no save names and deletes them only when asked.
 on every target and on the client's library with and without developer tools, every test, the simulation-crate
 lint, the dependency-duplicate check, and pack validation, and it exits non-zero on any failure.
 CI runs the same steps plus the golden replays
-through the CLI, on macOS as the required check and on Linux as an advisory job that reports and never
-blocks (PRD D31).
+through the CLI, on macOS as the required check and on Linux and Windows as advisory jobs that report and
+never block (PRD D31).
 
 ```sh
 scripts/verify.sh

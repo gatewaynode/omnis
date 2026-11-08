@@ -411,9 +411,19 @@ no loss, and every later map is built with it.
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.
 - [ ] A bridge probe in the repo: `scripts/mcp-probe.py` drives `target/debug/omnis-mcp` over stdio so a session
   whose MCP client did not launch the bridge still runs the MCP acceptance steps. When needed.
-- [ ] Windows CI at W1's close (D31): a `windows-latest` job with the same steps, the `windows_subsystem` line on
-  the client, 2x minutes; whether it blocks is the owner's call then (the Linux job does not). Captures stay on
-  the owner's machine until the look settles at W2.
+- [x] Windows CI at W1's close (D31; built 2026-11-08, **advisory** at the owner's word, as the Linux job): a
+  `windows-latest` job with the same steps under Git Bash, `workflow_dispatch` so a branch's run can be read
+  before its PR, the `windows_subsystem` line on the client with a failed start's reason kept in
+  `.omnis/last-error.txt` (owner's choices: the attribute now; the reason in a file, no unsafe). A sweep of the
+  tree before the build found two faults that would have failed the job before any Windows code ran, both
+  fixed: git on Windows checks out CRLF and the seals, the fingerprints, the frozen world folders and
+  `duplicates.allow` are hashed or compared as text (`.gitattributes`, `* text=auto eol=lf`; shown on a
+  scratch clone: both packs "changed since sealed"); and ron's pretty serializer ends lines with CRLF on
+  Windows, so a seal, a world id or a fingerprint computed there differed from macOS's
+  (`ron_io::to_string` `.new_line("\n")`, own commit). The Bevy-free crates type-checked for
+  `x86_64-pc-windows-msvc` from the Mac (the client needs MSVC's assembler for `blake3`, the runner's); the
+  first run on GitHub is the Bevy build's proof (`tasks/acceptance/windows-ci.md`). Whether it blocks
+  is the owner's call later. Captures stay on the owner's machine until the look settles at W2.
 
 ## W2 — The look, and the engine under it (presentation-PRD §11 steps 3 and 5; no PRD §13 phase)
 Done when a region's biosphere sets what the player sees from pack data, the first authored set piece stands in a

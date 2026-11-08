@@ -1,7 +1,21 @@
 # Continuity notes
 
-Written 2026-11-08 after the owner accepted step 3 of **W1, the entrances and exits enhancement**, which closes
-the enhancement. The day before (2026-11-07, a compact past 478K tokens): the owner's hand test of step 2 (2a
+Written 2026-11-08 after **Windows CI** was built (W1's close, PRD D31; the owner's order "Windows CI first,
+advisory"; planned in plan mode, `tasks/acceptance/windows-ci.md`). The owner pushed the acceptance of step 3
+(`456e7959`) and named the four items left in `tasks/TODO.md` before W1 closes: Windows CI (built), the `data.*`
+ops, the pass-time dev command, the MCP bridge probe (the last two "when needed"). Windows CI in two commits
+after the owner's world docs (`e88abe8c`: the Jaelian empire's edit and the Parva map, a 25 MB PSD among them):
+`98e13b20` pretty RON ends its lines with LF on every platform (`ron_io::to_string` `.new_line("\n")`; ron's
+default is CRLF on Windows and the seal, the world id and the fingerprint are over that text; found by the
+pre-build sweep, fingerprints on macOS unchanged), and the job commit: `.github/workflows/ci.yml` `windows`
+(advisory, `shell: bash`, `workflow_dispatch` added), `.gitattributes` `* text=auto eol=lf` (a CRLF checkout
+broke both seals on a scratch clone; the owner's checkout untouched), `#![windows_subsystem = "windows"]` with
+`shell/failure.rs::record` writing a failed start's words to `.omnis/last-error.txt` (owner's choices: the
+attribute now; the file, no unsafe), the Bevy-free crates type-checked for `x86_64-pc-windows-msvc` from the Mac (the
+target's std installed by `rustup target add`; the client needs MSVC's `ml64.exe` for `blake3` in Bevy's tree). **Not run: the job itself.** The owner runs the workflow on the
+branch from the Actions tab (or opens the PR) and reads the `windows` job; a red step is a Windows fault for its
+own commit with a test. `gh` is blocked in this sandbox. Earlier on 2026-11-08 the owner accepted step 3 of
+**W1, the entrances and exits enhancement**, which closed the enhancement (`456e7959`). The day before (2026-11-07, a compact past 478K tokens): the owner's hand test of step 2 (2a
 `232cc839`, 2b `f6a0e21b`) found the palette's portal stamp never linked (the picker's Finish pressed with the
 mouse closed the modal and the plan took the same press beneath it; fixed in `64a8e5f3`: a press on the frame a
 screen closes is that screen's, `route` keeps whether a screen stood last frame, `Inputs` bundles the keys, mouse
@@ -155,8 +169,11 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Playtest from the start.
 
 ## Next
-1. **Nothing is in flight.** The enhancement is closed; the branch `W1-authoring-tools` is not pushed (the owner
-   pushes). When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
+1. **The owner's first Windows run** (`tasks/acceptance/windows-ci.md`: push, Actions, Run workflow on the branch,
+   read `windows (advisory, never blocks)`; expected 30 to 45 minutes cold). A red step gets a fix in its own
+   commit with a test; "accepted" gets the prose acceptance commit. Then, in the owner's order of 2026-11-08
+   if they keep it: the **`data.*` ops** (plan mode; the first known gap in `docs/api.md` section 14; moves every
+   count pin), the pass-time dev command and the MCP bridge probe when needed. When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
    press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at
    0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and `portal_bank_hidden` included): a test names them
    by content, never by count. The editor's later items otherwise (the eraser or Delete clearing a selection's

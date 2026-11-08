@@ -8,6 +8,7 @@ pub mod controls;
 pub mod document;
 pub mod editor;
 pub mod editor_keys;
+pub mod failure;
 pub mod fonts;
 pub mod host;
 pub mod hud;

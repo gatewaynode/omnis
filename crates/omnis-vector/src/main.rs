@@ -4,6 +4,10 @@
 //! `[--editor [MAP-ID]]` (start in the editor, M5.4),
 //! and with feature `devtools` `[--dev-socket IP:PORT | --no-dev-socket]`. It starts at the
 //! title, or in a game with `--seed`, a capture of the game view, or a screen shown over a game.
+//!
+//! On Windows the binary is a GUI process (no console window; 2026-11-08, Windows CI), so what it
+//! says before a window is up goes to `.omnis/last-error.txt` as well as stderr (`shell::failure`).
+#![windows_subsystem = "windows"]
 
 use bevy::app::ScheduleRunnerPlugin;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
@@ -32,20 +36,27 @@ use omnis_vector::shell::{
 use omnis_vector::sim::game_settings;
 use std::time::Duration;
 
+/// Say `line` on stderr and keep it under `.omnis/` for a platform with no console (Windows).
+fn said(line: &str) {
+    eprintln!("omnis: {line}");
+    // The line was said; the file is a courtesy, so a failure to write it is not a second one.
+    let _ = omnis_vector::shell::failure::record(std::path::Path::new("."), line);
+}
+
+/// A start that fails: its reason said and kept, the exit code an error's.
+fn fail(reason: &str) -> AppExit {
+    said(reason);
+    AppExit::error()
+}
+
 fn main() -> AppExit {
     let config = match parse(std::env::args().skip(1)) {
         Ok(config) => config,
-        Err(e) => {
-            eprintln!("omnis: {e}");
-            return AppExit::error();
-        }
+        Err(e) => return fail(&e.to_string()),
     };
     let packs = match Packs::load(&config) {
         Ok(packs) => packs,
-        Err(e) => {
-            eprintln!("omnis: {e}");
-            return AppExit::error();
-        }
+        Err(e) => return fail(&e.to_string()),
     };
     let session = if config.starts_in_game() {
         // Party creation starts with no one; every other start takes the fixed party.
@@ -57,10 +68,7 @@ fn main() -> AppExit {
         let settings = game_settings(Settings::default());
         match Session::with_party(&packs, config.seed, settings, &drafts) {
             Ok(session) => Some(session),
-            Err(e) => {
-                eprintln!("omnis: {e}");
-                return AppExit::error();
-            }
+            Err(e) => return fail(&e.to_string()),
         }
     } else {
         None
@@ -127,15 +135,12 @@ fn main() -> AppExit {
             Ok(editing) => {
                 app.insert_resource(editing);
             }
-            Err(e) => {
-                eprintln!("omnis: {e}");
-                return AppExit::error();
-            }
+            Err(e) => return fail(&e.to_string()),
         }
     }
     let (prefs, note) = omnis_vector::settings::read(std::path::Path::new("."), &config.settings);
     if let Some(note) = note {
-        eprintln!("omnis: {note}; the defaults are used");
+        said(&format!("{note}; the defaults are used"));
     }
     app.insert_resource(Current(prefs));
     if let Some(screen) = config.screen {

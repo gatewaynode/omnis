@@ -231,5 +231,5 @@ with what it waits for:
 Planned in `tasks/TODO.md` (2026-10-21) as phases toward world building: the editor (M5, W1), the look and the
 engine under it (M8.5 steps 5 and 6, set pieces, W2), procedural generation (M9, W3), the ecosystem and the story
 engine (M10, M11, W4), the campaign, GFDL backgrounds and packaging (M12, W5). Accounts, multiplayer and
-multi-platform were studies first (W0.5) and are decided (PRD D29 to D31, 2026-10-21): Linux CI advisory now,
-Windows at W1's close, the `PartyState` refactor with M9, multiplayer's first step at W4, signed packs at W5.
+multi-platform were studies first (W0.5) and are decided (PRD D29 to D31, 2026-10-21): Linux CI advisory since W0.6,
+Windows advisory since W1's close (2026-11-08), the `PartyState` refactor with M9, multiplayer's first step at W4, signed packs at W5.
