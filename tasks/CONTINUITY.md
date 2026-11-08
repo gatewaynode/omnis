@@ -1,47 +1,34 @@
 # Continuity notes
 
-Written 2026-11-07 at a compact (the session past 478K tokens), after a long day on **W1, the entrances and
-exits enhancement**, and on the test fixture. In order: the owner's hand test of step 2 (2a `232cc839`, 2b
-`f6a0e21b`) found the palette's portal stamp never linked: the picker's Finish pressed with the mouse closed the
-modal and the plan took the same press beneath it, so the stamp dropped its linked portal under the button and the
-owner's click placed an unlinked one; fixed in `64a8e5f3` (a press on the frame a screen closes is that screen's;
-`route` keeps whether a screen stood last frame, `Inputs` bundles the keys, mouse and wheel; the keyboard block
-moved to `shell/editor_keys.rs`; `editor_link.rs::real_click` presses with the mouse). **Step 2c** `8d58c3e2` at the
-owner's word ("an autocomplete function on the form"; chosen "always listed while editing"): `editor/links.rs`,
-the list under the portal form's link field, Link... and the form's picker gone (`pick.rs` the stamp's alone),
-`Form::set_text` + `refill` drawing a model-set field anew (a latent 2b fault: a link switched to another portal
-was undone by the window's frame). The owner said 2c is "usable" (not yet "accepted"). The owner's question on
-Bevy's ECS became four tasks in `tasks/TODO.md` Open (`331c690c`). The owner's edits to the shared pack broke 71
-tests mid-build, and at their word **the fixture and the canvas became two packs** (`741171c9`: the frozen
-fixture `crates/omnis-sim/tests/packs/test`, id `test`, 0.2.9, hash 14523718773761627429, every test and the
-replays on it, never saved onto; `2c2bd3a7`: the canvas renamed `packs/the_lower_kingdoms`, id prefix
-`the_lower_kingdoms:`, 114 ids rewritten, resealed 0.2.20, the game's, the CLI's and the MCP's default beside
-`packs/base`; memory `fixture-and-canvas`). Their world docs were renamed by them (`18d06409`). The rename's two
-overflows in the tools column are fixed: the pack root on its own row under "EDITOR" (`d8f53d94`) and the map
-chooser naming a map by its last segment, `stamp::short`, since `the_lower_kingdoms:map:depths` with its arrows ran
-past the 330 px column on both sides (`74ad5f74`, the owner's screenshot; lesson "a renamed pack lengthens every id
-it is drawn in"; a headless measure of every text's `TextLayoutInfo` against its box found nothing else over at
-1600x900). The owner accepted steps 1, 2 and 2c (`da508c70`, "That fixed it, accepted"). **Step 3 is built** (the start as
-a real entrance, the step 3 commit; plan approved 2026-11-07): `MapDef.start_level` (the ground when left out, so
-ground starts' files are byte-identical) and `Place::Start { level, x, y, facing }`; the loader's level-existence
-and standing rows for the start (corpus `bad-ways` 0.1.2: `up.ron`, `far.ron`); a new game and the save's
-fallback on the start's level; the editor's Set start here on the shown level, Move and a selection carry it
-there, a map opens on its start's level, `plan::start_pixels` draws the diamond notched toward the facing, a
-level removed returns its start to the ground; `tasks/acceptance/entrances-3.md` holds the hand test (on a scratch
-copy of the `levels` fixture's tower). The owner has not yet hand-tested it. Told the owner: restart
-the game before the next Save (an editor holding the old path would recreate `packs/test`); their saves and world
-folders under `.omnis/` name `test` and will not load. Before all this the same day the recorded pins caught up
-with the owner's depths (`2bca6eaf`). On 2026-10-31, step 5 of the editor's column as a drawing GUI (Undo as a history list; `d845eb4e`,
-**accepted by the owner the same day**: "Looks good in manual testing, let's wrap it up"; the acceptance commit
-closes the column's five steps; `tasks/acceptance/editor-column-5.md`). Before it the same day: step 4
-(`f6537ddd`, the loop-preview fix `4e36a1e0`, accepted `4b92a24c`) and the owner's depths drawn in the editor
-committed as the test fixture (`6a4f5f2b`, replays re-baselined). After the acceptance the owner drew on the
-depths again and **committed and pushed the pack themselves** (`1040d147`: a height and a pile at (1, 9), two
-more encounters); `70251701` makes the tests follow (replays re-baselined, the depths' pins, the flat-map checks
-on `common::flat_maps`, every shipped map but the depths). **The depths are no longer flat or empty: a test that
-assumes a shipped map is flat or carries nothing uses `flat_maps` or names the depths.** Step
-3b (`35b3e1ac`) and step 3 (`48e73b74`) were accepted the same day (`f51b655d`). Rewrite this file every time it is used.
-Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-11-08 after the owner accepted step 3 of **W1, the entrances and exits enhancement**, which closes
+the enhancement. The day before (2026-11-07, a compact past 478K tokens): the owner's hand test of step 2 (2a
+`232cc839`, 2b `f6a0e21b`) found the palette's portal stamp never linked (the picker's Finish pressed with the
+mouse closed the modal and the plan took the same press beneath it; fixed in `64a8e5f3`: a press on the frame a
+screen closes is that screen's, `route` keeps whether a screen stood last frame, `Inputs` bundles the keys, mouse
+and wheel, the keyboard block in `shell/editor_keys.rs`, `editor_link.rs::real_click` presses with the mouse).
+**Step 2c** `8d58c3e2` at the owner's word ("an autocomplete function on the form"; chosen "always listed while
+editing"): `editor/links.rs`, the list under the portal form's link field, Link... and the form's picker gone
+(`pick.rs` the stamp's alone), `Form::set_text` + `refill`. The owner's question on Bevy's ECS became four tasks
+in `tasks/TODO.md` Open (`331c690c`). The owner's edits to the shared pack broke 71 tests mid-build, and at their
+word **the fixture and the canvas became two packs** (`741171c9`: the frozen fixture
+`crates/omnis-sim/tests/packs/test`, id `test`, 0.2.9, hash 14523718773761627429, every test and the replays on it,
+never saved onto; `2c2bd3a7`: the canvas renamed `packs/the_lower_kingdoms`, id prefix `the_lower_kingdoms:`, 114
+ids rewritten, resealed 0.2.20, the game's, the CLI's and the MCP's default beside `packs/base`; memory
+`fixture-and-canvas`). The rename's two overflows in the tools column: the pack root on its own row under "EDITOR"
+(`d8f53d94`) and the map chooser naming a map by its last segment, `stamp::short` (`74ad5f74`, from the owner's
+screenshot; lesson "measure every text of the column headless, fix the one that measures over, not the one the
+report named"). Steps 1, 2 and 2c accepted (`da508c70`). **Step 3 built and committed** (`76572568`, the start as
+a real entrance, plan approved 2026-11-07): `MapDef.start_level` (the ground when left out, so ground starts'
+files are byte-identical) and `Place::Start { level, x, y, facing }`; the loader's level-existence and standing
+rows for the start (corpus `bad-ways` 0.1.2: `up.ron`, `far.ron`); a new game and the save's fallback on the
+start's level; Set start here on the shown level, Move and a selection carry it there, a map opens on its start's
+level, `plan::start_pixels` draws the diamond notched toward the facing, a level removed returns its start to the
+ground; `tasks/acceptance/entrances-3.md`. Their four world docs went in their own commit (`80aaccdd`).
+**Accepted 2026-11-08** ("Step 3 tested, accepted", on `/tmp/omnis-levels`, a scratch copy of the `levels`
+fixture; no finding): the acceptance commit ticks the enhancement in `tasks/TODO.md` with a review line. Told
+the owner 2026-11-07: their saves and world folders under `.omnis/` name `test` and will not load. Earlier
+history (the editor's column as a drawing GUI, M5) is under "Where we are". Rewrite this file every time it is
+used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
@@ -103,7 +90,7 @@ Durable knowledge lives in `tasks/knowledge/`.
   paint and Save from the plan leave the text view older than the file; Save file would then write the old text
   over the paint. Narrow; a rule if the owner wants one.
 
-## The entrances and exits enhancement (planned 2026-11-01, `/Users/john/.claude/plans/reflective-orbiting-magpie.md`; `tasks/TODO.md` W1)
+## The entrances and exits enhancement (planned 2026-11-01; `tasks/TODO.md` W1; **closed, every step accepted, 2026-11-08**)
 - Owner's scope (all four): loader rules on landings and starts; every map reached and every portal paired; pairs
   authored once in the editor; the start as a real entrance. Owner's choices: **the strict mirror** (the way back
   stands directly behind the landing; the party arrives facing away from it), **reachability for the maps of the
@@ -159,26 +146,30 @@ Durable knowledge lives in `tasks/knowledge/`.
   partner), `matches` → `Listed { shown, more, any }` (the whole id marks and leads; `SHOWN` 10), `with_list`,
   `Editor::{link, unlink}` through `fill_link` → `Form::set_text`; `EditAct::Link(u16)` in `LinkPick`'s place
   (the `EditAct` count unchanged); `pick.rs` without `For`/`purpose`/`pick_open_for_link`, `fits` shared.
-- Step 3 after: `start_level`, Set start here on every level, the diamond's notch.
+- **Step 3 (2026-11-07, `76572568`, accepted 2026-11-08)**: `MapDef.start_level`, `Place::Start { level, .. }`,
+  `validate`'s start row, `resolve_one`'s standing check on the start's level, `arrivals` under it; `World::new`
+  and `places::party` on it; `SetStart` on the shown level, `grab::under`/`select` by level, `open` on the start's
+  level, `Source.start` with its facing, `plan::start_pixels` (diamond + notch to the cell's side);
+  `remove_level` returns a start on it to the ground. `tests/editor_start.rs`; `common::editor::scratch_of`.
+  Follow-ons noted in the TODO review line: a start mark in the 3D preview, `omnis-cli`/`editor_new` starts,
+  Playtest from the start.
 
 ## Next
-1. **The owner's hand test of step 3** (`tasks/acceptance/entrances-3.md`, on `/tmp/omnis-levels`, a scratch copy
-   of `crates/omnis-sim/tests/packs/levels`; a finding gets a fix in its own commit with a test): "accepted" gets
-   the prose acceptance commit and closes the W1 enhancement (`tasks/TODO.md` top-level `[x]`, a review line). The frozen
-   fixture carries the portals as they were at 0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and
-   `portal_bank_hidden` included): a test names them by content, never by count. Then, when the owner orders it,
-   **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a press as a message first). The
-   editor's later items otherwise (the eraser or Delete clearing a selection's cells, copy and paste,
-   `editor.history` over the socket, a quantity for an object kind in the picker). The owner's order of 2026-10-24
-   otherwise: the activities schema when a second kind has engine rules; then the plan in `tasks/TODO.md`: the
-   look in data, M9.
+1. **Nothing is in flight.** The enhancement is closed; the branch `W1-authoring-tools` is not pushed (the owner
+   pushes). When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
+   press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at
+   0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and `portal_bank_hidden` included): a test names them
+   by content, never by count. The editor's later items otherwise (the eraser or Delete clearing a selection's
+   cells, copy and paste, `editor.history` over the socket, a quantity for an object kind in the picker). The
+   owner's order of 2026-10-24 otherwise: the activities schema when a second kind has engine rules; then the
+   plan in `tasks/TODO.md`: the look in data, M9. W1's remaining items: Windows CI at W1's close (D31).
 2. Later: the eraser or Delete clearing a selection's cells; copy and paste of a selection; Esc dropping a loop
    or a run (Esc is the menu's); a quantity for an object kind in the picker (several of one kind in a click); a smooth (sub-cell)
    pan; a fill's region and a stamp's mark previewed on hover; the map's own fields (`Edit::Map`), Resize and
    New map as forms; a random entry's creatures as rows; the slider's thumb re-synced after a refused value;
    plan edges one pixel at every zoom; the stale-text-over-paint rule above; the 4 MiB file cap stays soft
    (owner); an `editor.run` op (and a fill, a move, a stamp); the icons' keys shown somewhere; `grab.rs`'s
-   `moved_place` could reuse `Form::for_place` (a tidy).
+   `moved_place` could reuse `Form::for_place` (a tidy); a start mark in the 3D preview with the icon pass.
 
 ## The owner's way of working (keep)
 - Each item ends with something visible or clickable, and the report says how to try it (numbered: where to

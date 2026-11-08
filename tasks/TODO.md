@@ -329,7 +329,7 @@ no loss, and every later map is built with it.
     beside Undo and Redo; a modal with the plan visible beneath. Before it, the owner's hand test of step 4 had
     saved onto `packs/test` (the depths): kept at the owner's word, replays re-baselined, own commit. Later:
     `editor.history` over the socket; a saved mark on the row the file holds.
-- [ ] **The entrances and exits enhancement** (owner, 2026-10-25: "we are going to have to enhance the
+- [x] **The entrances and exits enhancement** (owner, 2026-10-25; **four steps built and accepted by 2026-11-08**: "we are going to have to enhance the
   entrance/exits later anyway", back to the hand test of 2026-09-27: the town's way out and the dungeon's
   entrance invisible, "required validations on sub maps and maybe maps in general"; M7 3b made every portal
   visible, the model never moved). Scope fixed by the owner 2026-11-01, all four: loader rules on landings and
@@ -393,7 +393,16 @@ no loss, and every later map is built with it.
     on the shown level, the Move tool and a moved selection carry it there, a map opens on its start's level, the
     plan's diamond notched toward the start's facing (`plan::start_pixels`); a level removed returns its start to
     the ground. `tasks/acceptance/entrances-3.md`; tests on the tower (`editor_start.rs`, `edit_document.rs`,
-    `resolve.rs`, `omnis-sim/tests/levels.rs`, `save_check.rs`).
+    `resolve.rs`, `omnis-sim/tests/levels.rs`, `save_check.rs`). **Accepted by the owner 2026-11-08** ("Step 3
+    tested, accepted", on a scratch copy of the `levels` fixture's tower; no finding).
+    **Review:** the enhancement closed, four steps from 2026-11-01 to 2026-11-08, each accepted by the owner's
+    hand test; two findings from those tests fixed in their own commits (the error words over Save and
+    Playtest, step 1; the picker's Finish leaking a press to the plan, step 2b) and one direction taken as a
+    step (2c, the link list under the form). What the loader now holds: every landing on enterable ground with
+    its way back behind it, every portal paired or openly unlinked, every map of the entry's pack reached, the
+    start on a level of its map. Left as follow-ons: a start mark in the 3D preview (the icon pass); `omnis-cli`
+    and `editor_new` still start a new map at (0, 0) on the ground; Playtest from the start rather than the
+    cursor if the owner wants it.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.

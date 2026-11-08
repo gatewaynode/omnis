@@ -43,3 +43,9 @@ itself: `rm -rf /tmp/omnis-levels && cp -R crates/omnis-sim/tests/packs/levels /
 - The 3D preview draws no start mark (it never did); the icon pass later may give it one.
 - A start on a level the map lacks can only come from a file or the socket: the editor sets it on a shown level.
 - `omnis-cli` and the MCP's `editor_new` still start a new map at (0, 0) facing east on the ground.
+
+## Accepted
+**Accepted by the owner 2026-11-08** ("Step 3 tested, accepted"), after their hand test on the scratch copy of the
+`levels` fixture's tower. No finding. With it the entrances and exits enhancement is closed: the loader's rules
+(step 1), linked portals in the model and the editor (steps 2a, 2b, 2c) and the start on a level of its map (step 3),
+every step accepted by the owner's hand test between 2026-11-01 and 2026-11-08.
