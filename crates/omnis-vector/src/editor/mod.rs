@@ -36,7 +36,7 @@ use pick::Picking;
 use run::{Corner, Run};
 use select::Selection;
 use stamp::Stamps;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Whose note: the cursor's cell's, the shown level's or the map's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -249,7 +249,9 @@ impl Editor {
             self.resolved = None;
             return;
         };
-        match MapData::resolve(&def, data) {
+        // The document's file, as the session names it; the status was just read from it.
+        let file = self.status.file.clone().unwrap_or_default();
+        match MapData::resolve(&def, Path::new(&file), data) {
             Ok(map) => {
                 self.resolved = Some(map);
                 self.resolved_at = self.revision;

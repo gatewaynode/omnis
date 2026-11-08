@@ -268,7 +268,9 @@ impl Document {
     pub fn validate(&self, data: Option<&Data>) -> Vec<DataError> {
         let def = self.def();
         match data {
-            Some(data) => MapData::resolve(&def, data).err().unwrap_or_default(),
+            Some(data) => MapData::resolve(&def, Path::new(&self.file), data)
+                .err()
+                .unwrap_or_default(),
             None => {
                 let path = Path::new(&self.file);
                 let mut errors = Vec::new();

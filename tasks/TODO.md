@@ -423,7 +423,12 @@ no loss, and every later map is built with it.
   (`ron_io::to_string` `.new_line("\n")`, own commit). The Bevy-free crates type-checked for
   `x86_64-pc-windows-msvc` from the Mac (the client needs MSVC's assembler for `blake3`, the runner's); the
   first run on GitHub is the Bevy build's proof (`tasks/acceptance/windows-ci.md`). Whether it blocks
-  is the owner's call later. Captures stay on the owner's machine until the look settles at W2.
+  is the owner's call later. Captures stay on the owner's machine until the look settles at W2. **First run
+  2026-11-08**: green through the toolchain, fmt, the scripts and clippy; `cargo test` stopped in `omnis-data`'s
+  integration tests at one fault, the editor's loader words naming a map's file with a backslash
+  (`MapData::resolve` built the name with `Path::join`; now it takes the file as the session names it, with a
+  test under a file named otherwise than its id). The crates after `omnis-data`, the replays and the validation
+  have not run on Windows yet: the second run reads them.
 
 ## W2 — The look, and the engine under it (presentation-PRD §11 steps 3 and 5; no PRD §13 phase)
 Done when a region's biosphere sets what the player sees from pack data, the first authored set piece stands in a

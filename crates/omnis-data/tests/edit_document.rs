@@ -6,7 +6,7 @@ use crate::common::{base_pack, fixture_pack, load_test_packs, test_pack};
 use omnis_core::{Facing, Level};
 use omnis_data::edit::{Brush, Document, EdgeKind, Edit, EditError, Place, Target, UNDO_CAP};
 use omnis_data::{Data, MapDef, Site, Terrain, load_packs};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn with_fixture(name: &str) -> Data {
     let roots = [base_pack(), test_pack(), fixture_pack(name)];
@@ -578,7 +578,7 @@ fn the_start_sits_on_a_level_and_returns_to_the_ground_when_its_level_goes() {
     assert!(errors.is_empty(), "{errors:?}");
     let def = doc.def().clone();
     assert!(
-        omnis_data::MapData::resolve(&def, &data).is_ok(),
+        omnis_data::MapData::resolve(&def, Path::new(doc.file()), &data).is_ok(),
         "the bridge stands"
     );
     // A level the map does not have is reported, the edit kept.

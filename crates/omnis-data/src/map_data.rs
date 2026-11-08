@@ -726,17 +726,17 @@ impl MapTargets for DataTargets<'_> {
 }
 
 impl MapData {
-    /// The editor's path: `def` resolved against the loaded `data` exactly as the loader would
-    /// resolve its file, without touching disk. Shape and layout first (the loader's per-file
-    /// checks), then the references, then the other maps' portals that land on this one and this
-    /// map's portals that land among their objects. `Err` carries every problem, as a load does.
-    pub fn resolve(def: &MapDef, data: &Data) -> Result<MapData, Vec<DataError>> {
-        let name = def.id.rsplit(':').next().unwrap_or(&def.id);
-        let file = Path::new("data/maps").join(format!("{name}.ron"));
+    /// The editor's path: `def`, the map in `file` (pack-relative, with `/`, as the session names
+    /// its files), resolved against the loaded `data` exactly as the loader would resolve that
+    /// file, without touching disk. Shape and layout first (the loader's per-file checks), then
+    /// the references, then the other maps' portals that land on this one and this map's portals
+    /// that land among their objects. `Err` carries every problem, as a load does, each naming
+    /// `file` as given: a name made here with `Path::join` carried a backslash on Windows.
+    pub fn resolve(def: &MapDef, file: &Path, data: &Data) -> Result<MapData, Vec<DataError>> {
         let mut errors = Vec::new();
-        crate::loader::check_id(&def.id, "map", &file, &mut errors);
-        def.validate(&file, &mut errors);
-        let levels = levels::parse(def, &file, &mut errors);
+        crate::loader::check_id(&def.id, "map", file, &mut errors);
+        def.validate(file, &mut errors);
+        let levels = levels::parse(def, file, &mut errors);
         let (Some(levels), true) = (levels, errors.is_empty()) else {
             return Err(errors);
         };
@@ -751,16 +751,16 @@ impl MapData {
                 levels: &levels,
             },
         };
-        let Some(resolved) = resolve_one(id, &file, def, &levels, data, &targets, &mut errors)
+        let Some(resolved) = resolve_one(id, file, def, &levels, data, &targets, &mut errors)
         else {
             return Err(errors);
         };
-        check_inbound(id, def, &resolved.centres, &targets, &file, &mut errors);
-        check_outbound(id, &resolved, data, &file, &mut errors);
+        check_inbound(id, def, &resolved.centres, &targets, file, &mut errors);
+        check_outbound(id, &resolved, data, file, &mut errors);
         // Reachability over sound pairs only: a link in error would otherwise cut off every map
         // beyond it and say so for each.
         if errors.is_empty() {
-            check_reached(def, data, &targets, &file, &mut errors);
+            check_reached(def, data, &targets, file, &mut errors);
         }
         if errors.is_empty() {
             Ok(resolved.map)

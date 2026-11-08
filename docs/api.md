@@ -1118,7 +1118,10 @@ Additive (§13), so `PROTOCOL` stays 2:
 
 - 2026-11-08 (latest, Windows CI): no wire change. Pretty RON (`ron_io::to_string`) ends its lines with LF on
   every platform; ron's default is CRLF on Windows, and the pack hash, the world id and the fingerprint are taken
-  over that text, so a seal, a world id or a fingerprint computed on Windows now equals macOS's.
+  over that text, so a seal, a world id or a fingerprint computed on Windows now equals macOS's. The loader's
+  words in `editor.status`, `editor.check` and the editor's message name a map's file as the session does
+  (`data/maps/<name>.ron`, with `/`): `MapData::resolve` takes the file it is read from instead of joining one
+  with the platform's separator, a backslash on Windows (the first Windows run, 2026-11-08).
 - 2026-11-07 (W1 step 3): `MapDef.start_level` (the ground when left out, so a map file whose start is on
   the ground is written as before) and `Place::Start { level, x, y, facing }` (`level` optional, the ground): the
   map's start is on a level. `editor.place` takes it; a new game and a save's `party_moved` fallback begin there;

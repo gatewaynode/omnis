@@ -645,3 +645,15 @@
   room is short the id is drawn by its last segment (`stamp::short`), the prefix being the pack shown above. A
   report of an overflow names a place; before the fix, measure every text of the column headless (the harness
   lays the UI out with fonts) and fix the one that measures over, not the one the report named.
+
+## 2026-11-08 — A pack-relative name is a string with `/`, never a `Path::join`
+- **What happened**: the first Windows CI run failed one test: the editor's loader words named a new map's file
+  `data/maps\hamlet.ron`. `MapData::resolve` made the name with `Path::new("data/maps").join(...)`, which uses the
+  platform's separator, while every other pack-relative name in the tree is a string built with `/`
+  (`ron_io::list_under`, `new_map`) and the pack hasher already replaced `\` with `/`. The pre-build sweep looked
+  for CRLF, shells and symlinks and not for this; macOS could not show it.
+- **Rule**: a pack-relative name (a file in a pack, a path in a message, a key in a hash) is a `String` with `/`
+  on every platform, built with `format!` and carried as a `&str` or `Path::new(&str)` unchanged; `Path::join`
+  is for a real filesystem path under a root the OS gave, never for a name that is displayed, compared or
+  hashed. A Windows failure in a path's text is found by `grep -rn "\.join(" crates/*/src` read against this
+  rule, and the fix passes the name from where it is known rather than deriving it again.

@@ -660,7 +660,8 @@ fn an_unlinked_portal_is_a_plain_tile() {
     (spare.id, spare.link, spare.x, spare.y) = ("spare".to_owned(), None, x, y);
     let before = def.portals.len();
     def.portals.push(spare);
-    let resolved = MapData::resolve(&def, &data).unwrap_or_else(|e| panic!("{e:?}"));
+    let file = std::path::Path::new("data/maps/meadow.ron");
+    let resolved = MapData::resolve(&def, file, &data).unwrap_or_else(|e| panic!("{e:?}"));
     assert!(
         resolved.portal_at(Level::GROUND, x, y).is_none(),
         "unlinked: not among the resolved portals"

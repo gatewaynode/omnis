@@ -1,6 +1,13 @@
 # Continuity notes
 
-Written 2026-11-08 after **Windows CI** was built (W1's close, PRD D31; the owner's order "Windows CI first,
+Written 2026-11-08 after the **first Windows CI run's one fault was fixed** (the owner pasted the run: green
+through the toolchain, fmt, the scripts and clippy, 33 minutes to build the tests cold; `cargo test` stopped in
+`omnis-data`'s integration tests at `data/maps\\hamlet.ron` in the editor's loader words, `MapData::resolve`
+having made the name with `Path::join`; now `MapData::resolve(def, file, data)` takes the file as the session
+names it, six callers changed, a test under a file named otherwise than its id in `edit_document.rs`; lesson
+"a pack-relative name is a string with `/`, never a `Path::join`"; the crates after `omnis-data`, the replays
+and the validation have not run on Windows yet, the second run reads them: `tasks/acceptance/windows-ci.md`
+"First run"). Before that, **Windows CI** was built (W1's close, PRD D31; the owner's order "Windows CI first,
 advisory"; planned in plan mode, `tasks/acceptance/windows-ci.md`). The owner pushed the acceptance of step 3
 (`456e7959`) and named the four items left in `tasks/TODO.md` before W1 closes: Windows CI (built), the `data.*`
 ops, the pass-time dev command, the MCP bridge probe (the last two "when needed"). Windows CI in two commits
@@ -169,9 +176,11 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Playtest from the start.
 
 ## Next
-1. **The owner's first Windows run** (`tasks/acceptance/windows-ci.md`: push, Actions, Run workflow on the branch,
-   read `windows (advisory, never blocks)`; expected 30 to 45 minutes cold). A red step gets a fix in its own
-   commit with a test; "accepted" gets the prose acceptance commit. Then, in the owner's order of 2026-11-08
+1. **The owner's second Windows run** (`tasks/acceptance/windows-ci.md` "First run": push the fix, Actions, Run
+   workflow on the branch, read `windows (advisory, never blocks)`; the test build is cached, so shorter). What it
+   reads for the first time: the tests of every crate after `omnis-data`, both replays' fingerprints and the
+   pack validation. A red step gets a fix in its own commit with a test (grep `.join(` against the lesson first);
+   "accepted" gets the prose acceptance commit. Then, in the owner's order of 2026-11-08
    if they keep it: the **`data.*` ops** (plan mode; the first known gap in `docs/api.md` section 14; moves every
    count pin), the pass-time dev command and the MCP bridge probe when needed. When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
    press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at

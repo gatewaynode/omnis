@@ -58,7 +58,7 @@ pub fn check_text(rel: &str, text: &str, data: &Data) -> Result<Vec<DataError>, 
                 def.validate(path, &mut errors);
                 levels::parse(&def, path, &mut errors);
                 if errors.is_empty() {
-                    errors.extend(MapData::resolve(&def, data).err().unwrap_or_default());
+                    errors.extend(MapData::resolve(&def, path, data).err().unwrap_or_default());
                 }
             }
         }

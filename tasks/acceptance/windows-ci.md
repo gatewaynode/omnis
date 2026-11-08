@@ -43,3 +43,18 @@ the client library forbids unsafe code).
   last line said. The capture's `--timing` report is lost there too (captures stay on the owner's Mac, W2).
 - The five `#[cfg(unix)]` symlink tests are skipped on Windows: symlink refusal is proven on macOS and Linux.
 - Whether the Windows job blocks is the owner's call later, as the Linux job's is.
+
+## First run (2026-11-08, the owner's reading)
+Green through the toolchain, fmt, the three scripts and clippy; the test build took 33 minutes cold. `cargo test`
+passed `omnis-bus`, `omnis-cli` (its headless and integration tests, the golden replay check among them),
+`omnis-core` with its known answers, and `omnis-data`'s unit tests, then stopped at one fault in `omnis-data`'s
+integration tests: `edit_session::a_new_map_takes_its_pack_and_a_free_file` read the loader's words as
+`data/maps\hamlet.ron: map 'test:map:hamlet' belongs to no region`. `MapData::resolve` made the map's display
+name with `Path::join`, which uses the platform's separator, while the session names the same file with `/`
+(`list_under`, `new_map`), as the pack hasher does. Fixed in its own commit: `MapData::resolve(def, file, data)`
+takes the file it is read from, as the loader passes its files; the six callers (the document, the file check,
+the vector editor's `changed`, and the tests) pass the session's name. Test: a blank map under a file named
+otherwise than its id reports its one error against that file (`edit_document.rs`), which fails on every platform
+with the old derivation. **Not yet run on Windows**: the crates after `omnis-data` (`omnis-expr`, `omnis-rules`,
+`omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-sim`, `omnis-mcp`, `omnis-vector`), the two replays and the pack
+validation. The second run reads them; the test build is cached now.
