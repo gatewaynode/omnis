@@ -1116,7 +1116,10 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-07 (latest, W1 step 3): `MapDef.start_level` (the ground when left out, so a map file whose start is on
+- 2026-11-08 (latest, Windows CI): no wire change. Pretty RON (`ron_io::to_string`) ends its lines with LF on
+  every platform; ron's default is CRLF on Windows, and the pack hash, the world id and the fingerprint are taken
+  over that text, so a seal, a world id or a fingerprint computed on Windows now equals macOS's.
+- 2026-11-07 (W1 step 3): `MapDef.start_level` (the ground when left out, so a map file whose start is on
   the ground is written as before) and `Place::Start { level, x, y, facing }` (`level` optional, the ground): the
   map's start is on a level. `editor.place` takes it; a new game and a save's `party_moved` fallback begin there;
   the loader refuses a start on a level the map lacks ("start at (x, y) is on level N, which the map does not

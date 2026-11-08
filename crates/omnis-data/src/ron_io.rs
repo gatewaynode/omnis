@@ -23,9 +23,12 @@ pub fn parse<T: DeserializeOwned>(text: &str) -> Result<T, DataError> {
     from_str(text, Path::new("<memory>"))
 }
 
-/// Render a value as pretty RON, the way the editor writes it.
+/// Render a value as pretty RON, the way the editor writes it. Lines end with LF on every
+/// platform: the pack hash, the world fingerprint and the world id are taken over this text, and
+/// ron's default line ending is CRLF on Windows.
 pub fn to_string<T: Serialize>(value: &T) -> Result<String, DataError> {
     let config = ron::ser::PrettyConfig::new()
+        .new_line("\n")
         .depth_limit(RON_RECURSION_LIMIT)
         .struct_names(false);
     options()
