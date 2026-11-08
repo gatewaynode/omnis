@@ -2,9 +2,12 @@
 
 **World:** Toel
 **Continent:** Parva
-**Locality:** eastern blood sea
+**Locality:** southern ocean
 **Climate:** Sub-trpoical and Temperate
-**Biospheres:** archipelageo, jungle, savanah, volcanic, desert
+**Biospheres:** coastal, piedmont, mountainous, plains, forested
+**cities:** Jael, Mettis, Thrakkan
+**major towns:** Parsus, Troindae, Cattulus, Beginottum
+**population:** 200,000
 
 ## History of The Jaelian Empire
 The founding of Jael is lost to time as an almost entirely human settlement built on huge rock outcroppings in the middle of the Rheunch (flūvia Řeūnc).  Three vast natural stone arches provided natural bridges across the turbulent flow of the Rheunch to the verdant low lands on either side.  This naturally fertile and defended position served the inital founders with an tremendous advantage over many other settlements.  And centering the settlement in the river provided rare protection from wild magic swings and cataclysms. The Jaelian empire started in a good position and their empire grew with the strength of Jael at their backs.
