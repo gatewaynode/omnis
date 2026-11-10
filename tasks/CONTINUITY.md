@@ -56,6 +56,25 @@ the owner 2026-11-07: their saves and world folders under `.omnis/` name `test` 
 history (the editor's column as a drawing GUI, M5) is under "Where we are". Rewrite this file every time it is
 used. Durable knowledge lives in `tasks/knowledge/`.
 
+## When you resume (handoff for the restart of 2026-11-10, system updates)
+- **State**: branch `W1-authoring-tools`, tree clean. The one commit not yet pushed is `60ffce0a` (the Windows CI
+  acceptance, prose only); the owner pushes. Nothing of mine runs: no game, no MCP bridge, no dev socket.
+- **Read first**: this file in full, then `tasks/knowledge/README.md` (durable knowledge), `tasks/LESSONS.md`
+  (the 2026-11-08 lesson is the newest), the open part of `tasks/TODO.md` (W1's three remaining items, the Open
+  list's four Bevy ECS tasks). `PRD.md` and `ARCHITECTURE.md` are the truth; read a section when a task names it.
+- **Next task**: the **`data.*` ops** in plan mode, at the owner's word (the order they set 2026-11-08: Windows
+  CI done, then `data.*`, then the pass-time dev command and the MCP bridge probe when needed). Start from
+  `docs/api.md` section 14 (the known gap) and §4.9 of the architecture; every count pin in the tests moves.
+- **The machine after updates**: check `DEVELOPER_DIR=/Library/Developer/CommandLineTools` still holds the
+  command line tools (`xcode-select -p`), `rustup show` names 1.98.0 with the `x86_64-pc-windows-msvc` std
+  added 2026-11-08, and `scripts/verify.sh` prints VERIFY-GREEN once before the next source change (about 7
+  minutes; a macOS update can move the linker). `gh` stays blocked in this sandbox.
+- **Per commit, unchanged**: `cargo fmt --all`; clippy workspace all targets with `omnis-vector/test-fixtures`,
+  `-D warnings`; the gate to a scratchpad file; `git add` by name (never `-A`; `assets/` and
+  `docs/dnd_supplemental/` are the owner's, never staged; owner world docs under `docs/background` and
+  `docs/locations` commit at once, unedited, own commit); `git commit -F`; Sentrux `rescan` + `check_rules`; the
+  two trailers; never push.
+
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
   every step accepted; `tasks/acceptance/m5-10.md`); the **boundary tools** followed and were accepted
