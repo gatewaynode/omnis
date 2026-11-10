@@ -58,3 +58,10 @@ otherwise than its id reports its one error against that file (`edit_document.rs
 with the old derivation. **Not yet run on Windows**: the crates after `omnis-data` (`omnis-expr`, `omnis-rules`,
 `omnis-gen`, `omnis-eco`, `omnis-story`, `omnis-sim`, `omnis-mcp`, `omnis-vector`), the two replays and the pack
 validation. The second run reads them; the test build is cached now.
+
+## Accepted
+Accepted by the owner 2026-11-10 ("Windows CI now passes"): the second run, after the fix `9325b9d4`, was green
+through every step, the first time the Bevy client built on Windows, the crates after `omnis-data` ran their
+tests there, and both golden replays reproduced their macOS fingerprints with the pack validation. Two faults
+found by the sweep before the first run (the CRLF checkout, ron's CRLF default) and one by the first run (a
+pack-relative name made with `Path::join`); the job is advisory and stays so until the owner says otherwise.

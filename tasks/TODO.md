@@ -428,7 +428,11 @@ no loss, and every later map is built with it.
   integration tests at one fault, the editor's loader words naming a map's file with a backslash
   (`MapData::resolve` built the name with `Path::join`; now it takes the file as the session names it, with a
   test under a file named otherwise than its id). The crates after `omnis-data`, the replays and the validation
-  have not run on Windows yet: the second run reads them.
+  have not run on Windows yet: the second run reads them. **Second run green, accepted by the owner 2026-11-10**
+  ("Windows CI now passes"): the client builds on Windows, every crate's tests, both replays' fingerprints and
+  the validation; `tasks/acceptance/windows-ci.md`. **Review:** three Windows faults in all, none in the job's
+  own YAML; the sweep found two before a run, a pattern (a name joined with the platform's separator) found the
+  third, now a lesson. Advisory stays until the owner says otherwise.
 
 ## W2 — The look, and the engine under it (presentation-PRD §11 steps 3 and 5; no PRD §13 phase)
 Done when a region's biosphere sets what the player sees from pack data, the first authored set piece stands in a

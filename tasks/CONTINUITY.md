@@ -1,6 +1,11 @@
 # Continuity notes
 
-Written 2026-11-08 after the **first Windows CI run's one fault was fixed** (the owner pasted the run: green
+Written 2026-11-10 after the owner **accepted Windows CI** ("Windows CI now passes": the second run green
+through every step, the Bevy client built on Windows, every crate's tests, both replays' fingerprints and the
+validation; acceptance commit after `9325b9d4`, `tasks/acceptance/windows-ci.md` "Accepted"). Three of the
+four items the owner named before W1 closes remain: the `data.*` ops next, the pass-time dev command and the
+MCP bridge probe when needed. The fix before (2026-11-08, `9325b9d4`): the **first Windows CI run's one fault**
+(the owner pasted the run: green
 through the toolchain, fmt, the scripts and clippy, 33 minutes to build the tests cold; `cargo test` stopped in
 `omnis-data`'s integration tests at `data/maps\\hamlet.ron` in the editor's loader words, `MapData::resolve`
 having made the name with `Path::join`; now `MapData::resolve(def, file, data)` takes the file as the session
@@ -176,13 +181,10 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Playtest from the start.
 
 ## Next
-1. **The owner's second Windows run** (`tasks/acceptance/windows-ci.md` "First run": push the fix, Actions, Run
-   workflow on the branch, read `windows (advisory, never blocks)`; the test build is cached, so shorter). What it
-   reads for the first time: the tests of every crate after `omnis-data`, both replays' fingerprints and the
-   pack validation. A red step gets a fix in its own commit with a test (grep `.join(` against the lesson first);
-   "accepted" gets the prose acceptance commit. Then, in the owner's order of 2026-11-08
-   if they keep it: the **`data.*` ops** (plan mode; the first known gap in `docs/api.md` section 14; moves every
-   count pin), the pass-time dev command and the MCP bridge probe when needed. When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
+1. In the owner's order of 2026-11-08 if they keep it: the **`data.*` ops** (plan mode; the first known gap in
+   `docs/api.md` section 14; moves every count pin), then the pass-time dev command and the MCP bridge probe
+   when needed. Windows CI is closed and advisory (`tasks/acceptance/windows-ci.md`); a red Windows step on a
+   later push is a fault for its own commit with a test (grep `.join(` against the 2026-11-08 lesson first). When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
    press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at
    0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and `portal_bank_hidden` included): a test names them
    by content, never by count. The editor's later items otherwise (the eraser or Delete clearing a selection's
