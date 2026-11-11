@@ -110,7 +110,10 @@ fn a_definition_is_written_as_its_file_wrote_it() {
 #[test]
 fn a_definition_s_name_is_its_text_key_and_some_kinds_have_none() {
     let data = loaded();
-    let name = |id: &str| catalog::get(&data, id).unwrap().name().map(str::to_owned);
+    let name = |id: &str| {
+        let kind = catalog::kind(catalog::kind_word(id).unwrap()).unwrap();
+        kind.name(&data, id).map(str::to_owned)
+    };
     assert_eq!(
         name("objects:monster:pack_rat").as_deref(),
         Some("objects:text:monster.pack_rat.name")
@@ -122,6 +125,20 @@ fn a_definition_s_name_is_its_text_key_and_some_kinds_have_none() {
     assert_eq!(name("objects:loot:hoard"), None);
     assert_eq!(name("objects:flag:lever"), None);
     assert_eq!(name("test:tileset:outdoor"), None);
+    assert_eq!(
+        name("test:map:town").as_deref(),
+        catalog::get(&data, "test:map:town")
+            .map(|d| match d {
+                Definition::Map(map) => map.name,
+                other => panic!("{other:?}"),
+            })
+            .as_deref()
+    );
+    assert_eq!(
+        name("test:region:dungeon").as_deref(),
+        Some("test:text:region.dungeon.name")
+    );
+    assert_eq!(name("base:item:no_such_thing"), None);
 }
 
 #[test]

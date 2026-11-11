@@ -59,33 +59,13 @@ pub enum Definition {
     Flag(FlagDef),
 }
 
-impl Definition {
-    /// The text key of its display name; `None` for a kind that has none.
-    #[must_use]
-    pub fn name(&self) -> Option<&str> {
-        Some(match self {
-            Definition::Map(d) => &d.name,
-            Definition::Race(d) => &d.name,
-            Definition::Class(d) => &d.name,
-            Definition::Background(d) => &d.name,
-            Definition::Item(d) => &d.name,
-            Definition::Condition(d) => &d.name,
-            Definition::Spell(d) => &d.name,
-            Definition::Monster(d) => &d.name,
-            Definition::Service(d) => &d.name,
-            Definition::Region(d) => &d.name,
-            Definition::Object(d) => &d.name,
-            Definition::Tileset(_) | Definition::Loot(_) | Definition::Flag(_) => return None,
-        })
-    }
-}
-
 /// One kind of definition: the word its ids carry and how the loaded data answers for it.
 pub struct Kind {
     /// The kind as an id writes it (`pack:item:name`).
     pub word: &'static str,
     ids: for<'a> fn(&'a Data) -> Vec<&'a str>,
     get: fn(&Data, &str) -> Option<Definition>,
+    name: for<'a> fn(&'a Data, &str) -> Option<&'a str>,
 }
 
 impl Kind {
@@ -102,14 +82,33 @@ impl Kind {
     pub fn get(&self, data: &Data, id: &str) -> Option<Definition> {
         (self.get)(data, id)
     }
+
+    /// The text key of the display name of the definition `id` names; `None` for a kind that
+    /// has none (a tileset, a loot table, a flag). Read in place: a listing asks it of every row.
+    #[must_use]
+    pub fn name<'a>(&self, data: &'a Data, id: &str) -> Option<&'a str> {
+        (self.name)(data, id)
+    }
 }
 
-/// A kind whose definitions [`Data`] holds as written, under the registry table of the same name.
+/// A kind whose definitions [`Data`] holds as written, under the registry table of the same name:
+/// its word, that table, the variant, and where its name is (`unnamed` for a kind without one).
 macro_rules! kind {
     ($word:literal, $field:ident, $variant:ident) => {
-        kind!($word, $field, |d| Definition::$variant(d.clone().into()))
+        kind!($word, $field, $variant, |d| Some(d.name.as_str()))
     };
-    ($word:literal, $field:ident, $made:expr) => {
+    ($word:literal, $field:ident, $variant:ident, unnamed) => {
+        kind!($word, $field, $variant, |_| None)
+    };
+    ($word:literal, $field:ident, $variant:ident, $name:expr) => {
+        kind!(
+            $word,
+            $field,
+            |d| Definition::$variant(d.clone().into()),
+            $name
+        )
+    };
+    ($word:literal, $field:ident, $made:expr, $name:expr) => {
         Kind {
             word: $word,
             ids: |data| {
@@ -122,19 +121,28 @@ macro_rules! kind {
                 let key = data.registry.$field.get(id)?;
                 data.$field.get(&key).map($made)
             },
+            name: |data, id| {
+                let key = data.registry.$field.get(id)?;
+                data.$field.get(&key).and_then($name)
+            },
         }
     };
 }
 
-/// Every kind of definition, in the order a listing gives them.
+/// Every kind of definition, in the order a listing gives them: by word.
 pub const KINDS: [Kind; 14] = [
     kind!("background", backgrounds, Background),
     kind!("class", classes, Class),
     kind!("condition", conditions, Condition),
-    kind!("flag", flags, Flag),
+    kind!("flag", flags, Flag, unnamed),
     kind!("item", items, Item),
-    kind!("loot", loot, Loot),
-    kind!("map", maps, |m| Definition::Map(Box::new(m.def.clone()))),
+    kind!("loot", loot, Loot, unnamed),
+    kind!(
+        "map",
+        maps,
+        |m| Definition::Map(Box::new(m.def.clone())),
+        |m| Some(m.def.name.as_str())
+    ),
     kind!("monster", monsters, Monster),
     kind!("object", objects, Object),
     kind!("race", races, Race),
@@ -147,10 +155,14 @@ pub const KINDS: [Kind; 14] = [
                 .collect()
         },
         get: region,
+        name: |data, id| {
+            let loaded = data.regions.get(&data.registry.regions.get(id)?)?;
+            data.registry.text.name(loaded.name)
+        },
     },
     kind!("service", services, Service),
     kind!("spell", spells, Spell),
-    kind!("tileset", tilesets, Tileset),
+    kind!("tileset", tilesets, Tileset, unnamed),
 ];
 
 /// A region as its file wrote it: the loaded one holds registry numbers, which never leave the

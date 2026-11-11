@@ -60,12 +60,13 @@ variants!(Rejection, REJECTIONS, rejection_name:
     NoSuchBeing);
 
 variants!(OpError, ERROR_KINDS, error_kind:
-    Rejected UnknownMap UnknownSlot TooLong TooMany HostOnly NoEncounter NoService BadRequest
-    Failed Invalid);
+    Rejected UnknownMap UnknownSlot UnknownId TooLong TooMany HostOnly NoEncounter NoService
+    BadRequest Failed Invalid);
 
 variants!(Reply, REPLIES, reply_variant:
     Status Viewport Script Events Automap Text Written Party Rules Rule Combat Service Time Rest
-    Casts Objects Creation Value Done Check Editor Maps Files File Checked Note Notes);
+    Casts Objects Creation Value Done Check Editor Maps Files File Checked Note Notes Kinds
+    Definitions Definition Words);
 
 /// The op variants, each with its wire name; the `match` is exhaustive like the others.
 macro_rules! ops {
@@ -96,6 +97,8 @@ ops! {
     EditorSave => "editor.save", EditorFiles => "editor.files", EditorRead => "editor.read",
     EditorCheck => "editor.check", EditorWrite => "editor.write", EditorNote => "editor.note",
     EditorNoteSet => "editor.note_set", EditorNotes => "editor.notes",
+    DataKinds => "data.kinds", DataList => "data.list", DataGet => "data.get",
+    DataText => "data.text",
 }
 
 /// A terrain for the ops that carry one.
@@ -230,6 +233,24 @@ fn every_op() -> Vec<Op> {
             text: None,
         },
         Op::EditorNotes { prefix: None },
+        Op::DataKinds,
+        Op::DataList {
+            kind: None,
+            prefix: None,
+            matching: None,
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: None,
+        },
+        Op::DataGet {
+            id: text(),
+            lang: None,
+        },
+        Op::DataText {
+            keys: Vec::new(),
+            lang: None,
+        },
     ]
 }
 
@@ -309,8 +330,8 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
         (DEV_COMMANDS.len(), "`DevCommand` (14 variants"),
         (EVENTS.len(), "`Event` has 73 variants"),
         (REJECTIONS.len(), "`Rejection` (71 variants)"),
-        (ERROR_KINDS.len(), "`OpError` (11 kinds)"),
-        (OPS.len(), "44 ops."),
+        (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
+        (OPS.len(), "48 ops."),
     ] {
         assert_eq!(
             count,
@@ -377,9 +398,9 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &readme,
             "README.md",
             tools.len(),
-            "The bridge exposes 44 tools",
+            "The bridge exposes 48 tools",
         ),
-        (&map, "code-map.md", tools.len(), "44 tools"),
+        (&map, "code-map.md", tools.len(), "48 tools"),
         (
             &map,
             "code-map.md",

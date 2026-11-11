@@ -11,6 +11,7 @@ use crate::beings::BeingView;
 use crate::cast_view::{CastView, cast_view};
 use crate::command::{Command, Rejection};
 use crate::creation_view::{CreationView, creation_view};
+use crate::data_ops::{DefinitionRow, DefinitionView, KindCount, Words};
 use crate::dev::DevCommand;
 use crate::event::Event;
 use crate::names::Place;
@@ -182,6 +183,55 @@ pub enum Op {
     RulesGet {
         /// Slot name such as `spell_points.pool`.
         slot: String,
+    },
+    /// The kinds of definition the loaded packs hold, each with its count, and the languages
+    /// of their text. Needs no game, as every `data.*` op.
+    #[serde(rename = "data.kinds")]
+    DataKinds,
+    /// The loaded definitions that pass every filter given, in kind then id order, a page at a
+    /// time: each with its name, the name's text, and the pack that supplied it.
+    #[serde(rename = "data.list")]
+    DataList {
+        /// Only this kind (`item`, `monster`, ...); a kind this engine lacks lists nothing.
+        #[serde(default)]
+        kind: Option<String>,
+        /// Only ids starting with this.
+        #[serde(default)]
+        prefix: Option<String>,
+        /// Only definitions whose id or name holds this, whatever the case.
+        #[serde(default)]
+        matching: Option<String>,
+        /// Only definitions that name this id anywhere in them.
+        #[serde(default)]
+        refers_to: Option<String>,
+        /// The language of the words; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
+        /// The `cursor` of the page before, to go on from it.
+        #[serde(default)]
+        cursor: Option<String>,
+        /// How many at most: 100 when left out, never over 500.
+        #[serde(default)]
+        limit: Option<usize>,
+    },
+    /// One definition as its pack wrote it, with the text of every key in it, the ids it
+    /// names, and the pack that supplied it.
+    #[serde(rename = "data.get")]
+    DataGet {
+        /// `pack:kind:name`.
+        id: String,
+        /// The language of the words; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
+    },
+    /// The text of text keys, as any view carries them.
+    #[serde(rename = "data.text")]
+    DataText {
+        /// The keys, at most 256.
+        keys: Vec<String>,
+        /// The language; `en` when left out.
+        #[serde(default)]
+        lang: Option<String>,
     },
     /// Every holder's clock and contact, and the party's age, shared time and date (M8).
     #[serde(rename = "time.clocks")]
@@ -599,6 +649,34 @@ pub enum Reply {
         /// The keys whose target is nowhere, sorted.
         orphans: Vec<String>,
     },
+    /// `data.kinds`.
+    Kinds {
+        /// Every kind of definition this engine reads, with how many are loaded, by word.
+        kinds: Vec<KindCount>,
+        /// The languages the loaded text is in.
+        languages: Vec<String>,
+    },
+    /// `data.list`.
+    Definitions {
+        /// One page, in kind then id order.
+        definitions: Vec<DefinitionRow>,
+        /// What to pass as `cursor` for the next page; null when this page is the last.
+        cursor: Option<String>,
+    },
+    /// `data.get`.
+    Definition {
+        /// The definition.
+        definition: Box<DefinitionView>,
+    },
+    /// `data.text`.
+    Words {
+        /// The language answered in.
+        lang: String,
+        /// Each key some language file has, with its text; null where `lang` has none.
+        words: Words,
+        /// The keys no language file has, sorted.
+        unknown: Vec<String>,
+    },
 }
 
 /// A failed op. The world is unchanged unless the message says otherwise.
@@ -620,12 +698,17 @@ pub enum OpError {
         /// The name given.
         slot: String,
     },
+    /// No loaded pack defines that id, or its kind is one this engine does not read.
+    UnknownId {
+        /// The id given.
+        id: String,
+    },
     /// A string argument is longer than `limits::MAX_STRING_BYTES`.
     TooLong {
         /// The limit in bytes.
         limit: usize,
     },
-    /// A script has more than `MAX_SCRIPT` commands.
+    /// A script has more than `MAX_SCRIPT` commands, or a `data.text` more than its 256 keys.
     TooMany {
         /// The limit.
         limit: usize,
@@ -660,8 +743,9 @@ impl fmt::Display for OpError {
             OpError::Rejected { rejection } => write!(f, "{rejection}"),
             OpError::UnknownMap { map } => write!(f, "no map '{map}' is loaded"),
             OpError::UnknownSlot { slot } => write!(f, "no rule slot '{slot}'"),
+            OpError::UnknownId { id } => write!(f, "no loaded pack defines '{id}'"),
             OpError::TooLong { limit } => write!(f, "string longer than {limit} bytes"),
-            OpError::TooMany { limit } => write!(f, "more than {limit} commands"),
+            OpError::TooMany { limit } => write!(f, "more than {limit} in one request"),
             OpError::HostOnly => f.write_str("this op needs the host, not the simulation"),
             OpError::NoEncounter => f.write_str("no encounter or fight is in progress"),
             OpError::NoService => f.write_str("the party is not inside a service"),
@@ -810,6 +894,9 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
             rules: rules_view(data),
         }),
         Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
+        Op::DataKinds | Op::DataList { .. } | Op::DataGet { .. } | Op::DataText { .. } => {
+            op.data(data).unwrap_or(Err(OpError::HostOnly))
+        }
         Op::SaveWrite { .. }
         | Op::SaveRead { .. }
         | Op::SaveCheck { .. }

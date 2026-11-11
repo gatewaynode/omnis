@@ -23,6 +23,7 @@ mod checks;
 pub mod combat;
 pub mod command;
 pub mod creation_view;
+pub mod data_ops;
 pub mod dev;
 pub mod editor_ops;
 pub mod effects;

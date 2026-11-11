@@ -65,7 +65,7 @@ let party: PartyView = party_view(&world, &data);
 - The new world's party is empty; create members with `Command::Party(PartyCommand::Create(..))`.
 - `Dev` commands are refused (`DevOnly`) unless `Settings.devtools` is true.
 - Tier 1 also has `dispatch(&mut World, &Data, &Op) -> Result<Reply, OpError>`, the Tier 2
-  protocol in process without JSON; it refuses the six host ops with `HostOnly`.
+  protocol in process without JSON; it refuses the host ops (`Op::is_host`) with `HostOnly`.
 
 ## 3. Quick start, Tier 2 (JSON)
 
@@ -184,7 +184,7 @@ the whole gold pieces as rolled. Time is in minutes. `company` and `shared` time
 
 ## 5. Ops
 
-44 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
+48 ops. "Host" ops touch files, packs or the window; `dispatch` refuses them (`HostOnly`) and
 every host (the socket, `Headless`) implements them around I/O-free rules: the save's in `save` (`save_files`, `load_save`, `examine`) and the
 rest in `ops.rs` (`reload`, `rules_set`); the editor's (M5.3) over an `omnis_data::edit::Session` the host owns, through
 `Op::editor()` and `edit::answer` (`editor_ops.rs`). `BadRequest` can answer any op on the
@@ -235,6 +235,10 @@ socket and the bridge (malformed request).
 | `editor.note` | `key` (a content id, or one followed by `/` and a path inside it: `test:map:town/0/3,1`, `/level/-1`, `/chest.1`, `/terrain/r`) | `note` | `TooLong` | host. The author's note on the key, if any; the game never reads notes |
 | `editor.note_set` | `key`, `text` (optional; absent takes the note away) | `note` | `TooLong`, `Invalid` (a key of another shape; a text over 4 KiB; a notes file full), `Failed` | host. Written at once to `notes/<map name>.ron` for a map's keys, `notes/<kind>.ron` otherwise; never sealed; a key whose target is not built is allowed |
 | `editor.notes` | `prefix` (optional) | `notes` | `TooLong` | host. The keys with notes (those starting with `prefix`), and the orphans among all: keys whose target is nowhere in the loaded packs nor in the open map |
+| `data.kinds` | none | `kinds` | | No game needed, as every `data.*` op (`Op::data`): on the game's socket they answer at the title and in the editor too, from the running game's packs when a game runs (a `pack.reload` or a `rules.set` replaces those), else from the packs loaded at start. The kinds of definition this engine reads, by word, each with how many are loaded, and the languages of the loaded text |
+| `data.list` | `kind`, `prefix`, `matching`, `refers_to`, `lang`, `cursor`, `limit` (all optional) | `definitions` | `TooLong` | The definitions that pass every filter given, in kind then id order (§7.12). `matching` is a substring of the id or of the name's text, whatever the case; `refers_to` keeps what names that id anywhere in it; a `kind` this engine lacks lists nothing. `limit` is 100 when absent and never over 500; pass the reply's `cursor` back for the next page |
+| `data.get` | `id` (`pack:kind:name`), `lang` (optional) | `definition` | `TooLong`, `UnknownId` | One definition as its pack wrote it, with the text of every key in it, the ids it names and the pack that supplied it (§7.12) |
+| `data.text` | `keys` (`[string]`, at most 256), `lang` (optional) | `words` | `TooLong`, `TooMany` | The text of text keys as views carry them. Placeholders (`{ago}`) are left as written |
 
 Notes:
 
@@ -281,6 +285,10 @@ Notes:
 | `checked` | `Reply::Checked` | `errors` (`[string]`, the loader's words; empty when the text loads) | `editor.check` |
 | `note` | `Reply::Note` | `key`, `text` (string or null) | `editor.note`, `editor.note_set` |
 | `notes` | `Reply::Notes` | `keys` (`[string]`), `orphans` (`[string]`) | `editor.notes` |
+| `kinds` | `Reply::Kinds` | `kinds` (`[KindCount]`: `kind`, `count`), `languages` (`[string]`) | `data.kinds` |
+| `definitions` | `Reply::Definitions` | `definitions` (`[DefinitionRow]`, §7.12), `cursor` (string, or null on the last page) | `data.list` |
+| `definition` | `Reply::Definition` | `definition` (`DefinitionView`, §7.12) | `data.get` |
+| `words` | `Reply::Words` | `lang`, `words` (key to text, or null where `lang` has none), `unknown` (`[string]`: keys no language file has) | `data.text` |
 
 `KnownTile` is `{"x", "y", "known": Known}` (see §7.10). `map.text` renders the map in the pack
 map layout (`2h+1` lines of `2w+1` characters): walls `-` `|`, closed doors `=` `:`, open doors
@@ -698,6 +706,43 @@ pack's ids:
 - `RenameEncounter { map, from, to }` and `RenameObject { map, from, to }`: a placement's id, in the
   cleared encounters, a fight met there, the object states and what the party noticed or was told.
 
+### 7.12 `DefinitionRow`, `DefinitionView`, `KindCount`, `Definition` (the `data.*` ops)
+
+What the loaded packs define, for a client that holds an id or a text key from any view, event
+or definition and wants its words or the thing itself, and for an author or an agent looking
+for what there is. Tier 1: `data_ops::{kinds, list, get, text}` over `&Data` alone, and
+`omnis_data::catalog` beneath them (`KINDS`, the one table of kinds; `links`; `referrers`).
+From a shell: `omnis-cli op data.get '(id: "base:item:mace")'` (any op by its name, its
+arguments as RON, on a new headless game).
+
+**The author's tier.** These answer from everything loaded, whatever the party has met: a
+monster's numbers, a hidden object's kind, any text. A client that shows them to a player
+decides what to show. A per-party gate is a requirement of the multiplayer step (PRD D30).
+
+`KindCount`: `kind` (the word an id carries: `background`, `class`, `condition`, `flag`, `item`,
+`loot`, `map`, `monster`, `object`, `race`, `region`, `service`, `spell`, `tileset`), `count`. A
+kind the packs gain later appears here with no change to the ops. Rules files are the one kind
+not listed: `rules.list` serves the compiled slots, values and tables.
+
+`DefinitionRow` (a `data.list` row) and `DefinitionView` (`data.get`) share an envelope, which
+is under this protocol:
+
+| Field | Meaning |
+|---|---|
+| `id` | `pack:kind:name` |
+| `kind` | The id's second segment |
+| `name` | (text key) of the display name, or null for a kind that has none (`tileset`, `loot`, `flag`) |
+| `words` | Text keys with their text in the language asked for, or null where that language has none; never the key standing in for its text. A row carries its name's; a `DefinitionView` every key in the definition (its name, a description, an attack's or a feature's name, an object's messages) |
+| `pack` | The pack that supplied the definition: the last loaded that wrote this id. The id's first segment is a namespace and may differ |
+| `replaces` | The packs whose definition under this id it replaced, in load order; empty for most |
+
+A `DefinitionView` adds:
+
+| Field | Meaning |
+|---|---|
+| `def` | The definition as its pack file wrote it, as JSON. **Outside this protocol's field rules**: its fields are the pack format's, versioned by `omnis_data::SCHEMA` (§12) and free to gain fields, and its ids are strings. A map's `def` is the whole `MapDef` (its `terrains` are the rows `ViewTile.terrain` counts) and can be megabytes; a region's is written again from the loaded one |
+| `refers` | Every loaded definition and every flag the definition names, by id, sorted; never itself. Found by reading every string in `def`, so a tag or a field that names an id counts. `data.list` with `refers_to` asks it from the other side |
+
 ## 8. Commands
 
 `Command` (16 variants). Commands name members by `CharacterId` (`MemberView.member`) and
@@ -1020,15 +1065,16 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `NoSuchEntry` | `entry` | The default runbook has no entry there. |
 | `Rule` | `RuleError` | A rule formula failed while resolving: bad pack data, reported instead of a panic. |
 
-`OpError` (11 kinds). The world is unchanged unless the message says otherwise.
+`OpError` (12 kinds). The world is unchanged unless the message says otherwise.
 
 | Kind | Fields | Meaning |
 |---|---|---|
 | `Rejected` | `rejection` | The rules refused the command. |
 | `UnknownMap` | `map` (the id given) | No such map is loaded. |
 | `UnknownSlot` | `slot` | No rule slot has that name. |
+| `UnknownId` | `id` (the id given) | No loaded pack defines that id, or its kind is one this engine does not read (`data.get`). |
 | `TooLong` | `limit` (bytes) | A string argument is over `MAX_STRING_BYTES`. |
-| `TooMany` | `limit` | A script is over `MAX_SCRIPT` commands. |
+| `TooMany` | `limit` | A script is over `MAX_SCRIPT` commands, or a `data.text` over `MAX_KEYS` keys. |
 | `HostOnly` | | Sent to `dispatch`; the op needs a host. |
 | `NoEncounter` | | No encounter or fight is in progress. |
 | `NoService` | | The party is not inside a service. |
@@ -1046,6 +1092,8 @@ verb for logs (`party`, `item`, `cast`, `dev` for those without a word of their 
 | `MAX_FILE_BYTES` | 4 MiB per file read (a world folder's files included); symlinks refused. Also the most an `editor.check` or `editor.write` text may be (`ops::bounded_file`); on the dev socket `MAX_LINE` is the tighter cap | `omnis-data/src/limits.rs`, `ron_io::read_text` |
 | `MAX_SAVE_BYTES` | 8 MiB per character save, read (`ron_io::read_save_under`) or written (`save_files` refuses a larger one). A full log and a full journal measure about 4 MB | `omnis-data/src/limits.rs` |
 | `LOG_CAPACITY` | 16384 events in the party's log (`events.tail`, `history`) | `omnis-sim/src/lib.rs` |
+| `LIST_DEFAULT`, `LIST_MAX` | 100 and 500 definitions per `data.list` page; a `limit` outside 1 to 500 is brought inside | `omnis-sim/src/data_ops.rs` |
+| `MAX_KEYS` | 256 keys per `data.text` (`TooMany`) | `omnis-sim/src/data_ops.rs` |
 | Paths | Relative; only ASCII letters, digits, `.`, `_`, `-`, `/`; no `.` or `..` components; the extension checked (`.ron` for saves, `.png` for screenshots) | `ops::client_path` |
 
 Every argument from a client is untrusted (ARCHITECTURE.md §6.2) and bounded before it is
@@ -1078,12 +1126,12 @@ From ARCHITECTURE.md §4.9:
 
 As of protocol 2:
 
-- **No pack definitions or text over Tier 2.** No op exposes pack data or the `text/` tables.
-  Commands, events and views name definitions by string id and carry text keys
-  (`base:text:item.mace.name`), not display text, and no op turns an id or a key into a label or
-  a definition (the planned `data.*` ops); `creation.get` lists the races, classes and
-  backgrounds with their text keys, but not the text. `ViewTile.terrain` indexes terrains no op
-  lists. Only Tier 1 has `Data`.
+- **Definitions are the author's tier.** The `data.*` ops (§7.12) answer from everything loaded,
+  whatever the party has met; no op answers "what does this party know of it". Views still carry
+  text keys, not text: a client resolves them with `data.text`. Text placeholders (`{ago}`) are
+  left as written, and no op takes the arguments to fill them. Rules files are not a kind
+  (`rules.list`), and a text key reports no supplying pack. `refers_to` reads every loaded
+  definition once per call.
 - **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `history`, `told`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
 - **No push.** Clients poll (`events.tail`); events from a command go to whoever sent it. After
@@ -1116,7 +1164,12 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-08 (latest, Windows CI): no wire change. Pretty RON (`ron_io::to_string`) ends its lines with LF on
+- 2026-11-11 (latest, the `data.*` ops, W1): `data.kinds`, `data.list`, `data.get` and `data.text` with their
+  replies `kinds`, `definitions`, `definition` and `words`, the views `KindCount`, `DefinitionRow` and
+  `DefinitionView` (§7.12), and the error kind `UnknownId`; the ops to 48, the replies to 31, the error kinds to
+  12. The game's socket answers them with no game running. `omnis-cli op <name> [<args>]` sends one op from a shell. A definition's `def` is the pack format's shape (`omnis_data::SCHEMA`), outside this protocol's field
+  rules. `TooMany` also answers a `data.text` over 256 keys. No pack, save or fingerprint moves.
+- 2026-11-08 (Windows CI): no wire change. Pretty RON (`ron_io::to_string`) ends its lines with LF on
   every platform; ron's default is CRLF on Windows, and the pack hash, the world id and the fingerprint are taken
   over that text, so a seal, a world id or a fingerprint computed on Windows now equals macOS's. The loader's
   words in `editor.status`, `editor.check` and the editor's message name a map's file as the session does

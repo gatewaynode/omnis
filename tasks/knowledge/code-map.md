@@ -94,6 +94,7 @@ old saves only).
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
+- The `data.*` ops (W1, 2026-11-11): `omnis-data/src/catalog.rs` (`KINDS`, the one table of kinds: a new kind is a `Definition` variant and a row; `Definition` tagged `kind` beside `def`; `links` and `referrers` from one walk over a definition's strings; `supplier`, `replaced` over `Data.sources`), `omnis-data/src/strings.rs` (the strings of any value from its compact RON), `omnis-sim/src/data_ops.rs` (`Op::data`, `kinds`, `list`, `get`, `text`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_MAX`, `MAX_KEYS`). They need no world.
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
   `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and
   `combat/reaction.rs::Fight`.
@@ -240,7 +241,7 @@ and a thin shell in `src/shell/`; it depends only on `omnis-sim` and Bevy (`2d`,
   `capture.rs` `ShotRequest`/`ShotSaved` (both cameras into an image of the window's size for 4 frames).
 
 ## omnis-mcp and omnis-cli
-`omnis-mcp/src/{tools,schema,editor_schema,bridge,backend,rpc}.rs`: 44 tools (17 the editor's, M5.3), the hand-written `Command` and editor argument
+`omnis-mcp/src/{tools,schema,editor_schema,bridge,backend,rpc}.rs`: 48 tools (17 the editor's, M5.3; 4 `data_*`, W1), the hand-written `Command` and editor argument
 schemas (proven against the Rust types by `tests/schema_proof.rs`), `compact_tiles` for `Visible` and `Sensed`. `omnis-cli/src/{main,headless,args,schema,bake,wander,draft}.rs` (`main.rs` has `world tidy [--yes]`, and since M8.5 7h6 `save check` and `migration draft`; `draft.rs` drafts a pack's next migration from what its old version had; `wander.rs` the seeded wandering party, M8.5 7a):
 `Headless` (a devtools world) is what the MCP `--headless` mode and the tests drive.
 `omnis-mcp/tests/`: `api_doc.rs` (`docs/api.md` names every wire variant; ARCHITECTURE, README and this map state the code's counts, M8.5 7g), `replies.rs`, `schema_proof.rs`,

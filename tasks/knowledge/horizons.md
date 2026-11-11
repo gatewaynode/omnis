@@ -225,6 +225,14 @@ with what it waits for:
   service, none planned;
 - a `wasm32-wasip1` golden job on Linux as a fourth fingerprint target: cheap, when the owner wants it;
 - the offscreen capture in CI (macOS runners expose Metal): after the look settles at W2;
+- **a knowledge gate on the `data.*` ops** (owner 2026-11-11: "author tier, gate later"): today they answer from
+  everything loaded, whatever a party has met. With multiplayer's first step (D30, W4), where views are already
+  per party, decide what "met" means per kind (a monster seen, an item identified, a place entered) and give the
+  ops an optional `party` that limits answers to it; the reply's shape needs no change. Until then a client that
+  shows definitions to a player chooses what to show;
+- with the `data.*` ops, later and each when asked for: the supplying pack of a text key; rules files as a kind;
+  an op that fills a text's `{placeholders}`; the reverse-reference walk cached (it reads every definition once
+  per call); `migration::Kind` and the loader's kind words folded into `catalog::KINDS`;
 - a blocking Linux job: when someone plays on Linux (the owner's call; today it reports and never blocks).
 
 ## Later phases

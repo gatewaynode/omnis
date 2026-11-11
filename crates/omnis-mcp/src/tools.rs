@@ -40,7 +40,80 @@ pub fn tools() -> Vec<Tool> {
     let mut all = game_tools();
     all.extend(party_tools());
     all.extend(editor_tools());
+    all.extend(data_tools());
     all
+}
+
+/// The language of a `data.*` answer.
+fn lang() -> Field {
+    Field::new::<Option<String>>(
+        "lang",
+        false,
+        "Language code of the words, one of data_kinds' languages; en when absent. A key with no text in it gives null, never the key.",
+    )
+}
+
+/// What the loaded packs define: kinds, listings, one definition, text.
+fn data_tools() -> Vec<Tool> {
+    let filter = |name: &'static str, description: &'static str| {
+        Field::new::<Option<String>>(name, false, description)
+    };
+    vec![
+        tool(
+            "data_kinds",
+            "data.kinds",
+            "The kinds of definition the loaded packs hold (item, monster, spell, map, object, ...), each with how many are loaded, and the languages of their text. Call it first to see what there is. Needs no game, like every data tool; these read everything loaded, whatever the party has met (the author's view).",
+            &[],
+        ),
+        tool(
+            "data_list",
+            "data.list",
+            "List loaded definitions, in kind then id order: each row has id, kind, name (a text key, or null), words (the name's text by its key), pack (the pack that supplied it) and replaces (packs it overrode). Every filter given must hold. refers_to answers 'what uses this': everything that names an id anywhere in it (the classes, services and loot tables that name an item; the maps that place a monster). A page holds at most limit rows; pass the reply's cursor back for the next, until it is null.",
+            &[
+                filter(
+                    "kind",
+                    "Only this kind, a word from data_kinds such as monster. A kind this engine lacks lists nothing.",
+                ),
+                filter(
+                    "prefix",
+                    "Only ids starting with this, such as base: or test:map:.",
+                ),
+                filter(
+                    "matching",
+                    "Only definitions whose id or name text holds this, whatever the case, such as rat.",
+                ),
+                filter(
+                    "refers_to",
+                    "Only definitions that name this id anywhere in them, such as base:item:dagger.",
+                ),
+                lang(),
+                filter("cursor", "The cursor of the page before, to go on from it."),
+                Field::new::<Option<usize>>(
+                    "limit",
+                    false,
+                    "Rows at most: 100 when absent, never over 500.",
+                ),
+            ],
+        ),
+        tool(
+            "data_get",
+            "data.get",
+            "One definition by id: kind, def (the definition exactly as its pack file wrote it; its fields follow the pack format, which can gain fields), name, words (the text of every text key in it), refers (every loaded id and flag it names), pack and replaces. A map's def is the whole map and can be large. Any id a view, an event or another definition carries can be passed.",
+            &[
+                Field::new::<String>("id", true, "pack:kind:name, such as base:monster:goblin."),
+                lang(),
+            ],
+        ),
+        tool(
+            "data_text",
+            "data.text",
+            "The text of text keys, as views carry them in name and label fields (base:text:item.mace.name): words maps each known key to its text (null where the language has none), unknown lists keys no language file has. Text may hold {placeholders} the game fills in play.",
+            &[
+                Field::new::<Vec<String>>("keys", true, "Text keys, at most 256."),
+                lang(),
+            ],
+        ),
+    ]
 }
 
 /// A root-relative `.ron` path inside the edited pack.
@@ -558,6 +631,18 @@ mod tests {
                 json!({"key": "test:map:town/0/1,1", "text": "The inn's front room."}),
             ),
             ("editor_notes", json!({"prefix": "test:map:town"})),
+            ("data_kinds", json!({})),
+            (
+                "data_list",
+                json!({"kind": "item", "prefix": "base:", "matching": "sword",
+                    "refers_to": "base:item:dagger", "lang": "en", "cursor": "base:item:mace",
+                    "limit": 20}),
+            ),
+            ("data_get", json!({"id": "base:item:mace", "lang": "en"})),
+            (
+                "data_text",
+                json!({"keys": ["base:text:item.mace.name"], "lang": "en"}),
+            ),
         ];
         assert_eq!(tools().len(), examples.len());
         for (name, arguments) in examples {
@@ -587,6 +672,6 @@ mod tests {
                 );
             }
         }
-        assert_eq!(list()["tools"].as_array().unwrap().len(), 44);
+        assert_eq!(list()["tools"].as_array().unwrap().len(), 48);
     }
 }

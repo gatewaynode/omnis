@@ -10,6 +10,7 @@ mod casting;
 mod combat;
 mod common;
 mod creation_view;
+mod data_ops;
 mod dev;
 mod disk;
 mod effects;

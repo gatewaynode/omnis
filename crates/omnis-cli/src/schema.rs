@@ -554,6 +554,24 @@ fn world_sections(out: &mut String) -> Result<(), DataError> {
         Op::EditorNotes {
             prefix: Some("example:map:start".into()),
         },
+        Op::DataKinds,
+        Op::DataList {
+            kind: Some("item".into()),
+            prefix: Some("base:".into()),
+            matching: Some("sword".into()),
+            refers_to: None,
+            lang: None,
+            cursor: None,
+            limit: Some(20),
+        },
+        Op::DataGet {
+            id: "base:item:mace".into(),
+            lang: None,
+        },
+        Op::DataText {
+            keys: vec!["base:text:item.mace.name".into()],
+            lang: Some("en".into()),
+        },
     ];
     section(out, &format!("save (schema {SAVE_SCHEMA})"), &save)?;
     section(out, ".omnis/worlds/<id>/manifest.ron", &manifest)?;

@@ -125,13 +125,14 @@ about the linker; check a toolchain change with a fresh target directory.
 
 `omnis-mcp` speaks the Model Context Protocol on stdio. `.mcp.json` launches it against a running
 dev build through the address the game writes to `.omnis/dev.addr`; with `--headless` it hosts a
-world of its own. The bridge exposes 44 tools: `game_status`, `world_query`, `sim_command`,
+world of its own. The bridge exposes 48 tools: `game_status`, `world_query`, `sim_command`,
 `sim_script`, `events_tail`, `viewport_get`, `map_text`, `automap_get`, `save_write`, `save_read`,
 `save_check`, `pack_reload`, `screenshot`, `screen_text`, `party_get`, `party_create`, `combat_get`,
 `service_get`, `rest_get`, `cast_get`, `objects_get`, `creation_get`, `rules_list`, `rules_get`, `rules_set`, `time_clocks`,
 `time_reconcile`, and the editor's (M5.3) `editor_status`, `editor_maps`, `editor_open`, `editor_new`, `editor_paint`,
 `editor_place`, `editor_edit`, `editor_undo`, `editor_redo`, `editor_save`, `editor_files`, `editor_read`, `editor_check`,
-`editor_write`, `editor_note`, `editor_note_set` and `editor_notes`. Each tool is an op of the simulation's JSON protocol, the engine's API for
+`editor_write`, `editor_note`, `editor_note_set` and `editor_notes`, and for what the loaded packs define
+`data_kinds`, `data_list`, `data_get` and `data_text`. Each tool is an op of the simulation's JSON protocol, the engine's API for
 clients other than the Rust library (`ARCHITECTURE.md` §4.9).
 
 ```sh
