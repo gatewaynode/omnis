@@ -1,15 +1,15 @@
 #!/bin/sh
-# The verification chain a commit is gated on: every step must pass, and a failing test fails
-# the chain even though the summary is filtered. Run after the last change to the tree.
+# The verification chain a commit is gated on: every step must pass, and a failing test, a test
+# binary that does not build, or a run with no test at all fails the chain even though the
+# summary is filtered (`test-summary.sh`). Run after the last change to the tree.
 set -e
 cd "$(dirname "$0")/.."
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo clippy -p omnis-vector --lib --locked -- -D warnings
 cargo clippy -p omnis-vector --no-default-features --lib --locked -- -D warnings
-cargo test --workspace --locked --no-fail-fast 2>&1 \
-  | grep -E "^test result|FAILED|panicked" \
-  | awk '/^test result/{p+=$4; f+=$6; i+=$8} !/^test result/{print} END {print "tests passed", p, "failed", f, "ignored", i; exit (f > 0)}'
+scripts/test-summary.sh --self-test
+cargo test --workspace --locked --no-fail-fast 2>&1 | scripts/test-summary.sh
 scripts/lint-sim.sh --self-test
 scripts/lint-sim.sh
 scripts/check-duplicates.sh

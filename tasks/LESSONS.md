@@ -657,3 +657,17 @@
   is for a real filesystem path under a root the OS gave, never for a name that is displayed, compared or
   hashed. A Windows failure in a path's text is found by `grep -rn "\.join(" crates/*/src` read against this
   rule, and the fix passes the name from where it is known rather than deriving it again.
+
+## 2026-11-11 — A gate that counts results must fail on none; a stopped build leaves artifacts to distrust
+- **What happened**: a gate run for the catalogue (step 1 of the `data.*` ops) printed `tests passed  failed
+  ignored` with no numbers and then VERIFY-GREEN. Every test binary had failed to link (`ld: symbol(s) not found`
+  in `libomnis_data`'s rlib): I had stopped an earlier gate mid-build to change a type, and the incremental
+  artifacts it left were inconsistent. `verify.sh` kept only `test result|FAILED|panicked` lines and failed on
+  a failed count alone, so a run in which nothing ran passed. Caught by reading the count line before the
+  commit, not by the chain.
+- **Rule**: the test stage fails on a failed test, on any `^error` line from cargo, and on zero tests passed
+  (`scripts/test-summary.sh`, with a `--self-test` of each case that the gate runs first). Before a commit the
+  count line is read as a number against the last known one (1228 on 2026-11-11), not only the green word.
+- **Rule**: a gate or a build is never stopped part-way; if one must be, `cargo clean -p <crate>` for every
+  crate whose sources changed since the last whole build comes before the next run. A link error naming
+  `anon.*.llvm.*` symbols in a workspace rlib is a stale artifact, not the code.
