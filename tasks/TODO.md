@@ -403,7 +403,7 @@ no loss, and every later map is built with it.
     start on a level of its map. Left as follow-ons: a start mark in the 3D preview (the icon pass); `omnis-cli`
     and `editor_new` still start a new map at (0, 0) on the ground; Playtest from the start rather than the
     cursor if the owner wants it.
-- [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
+- [x] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.
   **Planned 2026-11-11** (plan mode, approved; the owner's direction: "forward thinking flexibility above all
@@ -418,11 +418,14 @@ no loss, and every later map is built with it.
     definition, so references and text keys are found with no code per kind), `catalog.rs` (the one table of
     kinds, `Definition`, `links`, `referrers`), `Data.sources` from the loader. Tests on the frozen fixture,
     the `objects` pack and a scratch pack that overrides a base item.
-  - [ ] **Step 2, the ops**: `omnis-sim/src/data_ops.rs`, the four ops in `dispatch`, every count pin, the MCP
+  - [x] **Step 2, the ops**: `omnis-sim/src/data_ops.rs`, the four ops in `dispatch`, every count pin, the MCP
     tools and schemas, the CLI's schema dump, the vocabulary test (the envelope checked, `def` skipped by name).
-  - [ ] **Step 3, the socket and the documents**: `data.*` answers at the title and in the editor (from the
+  - [x] **Step 3, the socket and the documents**: `data.*` answers at the title and in the editor (from the
     game's data when one runs, else the packs loaded at start); `docs/api.md`, ARCHITECTURE §4.9 and §9.3,
     `horizons.md` (the knowledge gate), `tasks/acceptance/data-ops.md`.
+  **Review (2026-11-11, built, awaiting the owner's test)**: four ops over one table of 14 kinds; `cursor` for
+  the page; `omnis-cli op <name> [<args>]` added so the hand test needs no client; the gate's hole found and
+  closed on the way (`scripts/test-summary.sh`). Departures and what is left: `tasks/acceptance/data-ops.md`.
 - [ ] A dev command to pass time (owner, 2026-10-08): `DevCommand::Pass { minutes }` lives the minutes at the
   region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 14 moves).
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.

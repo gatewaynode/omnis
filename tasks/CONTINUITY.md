@@ -1,79 +1,53 @@
 # Continuity notes
 
-Written 2026-11-10 after the owner **accepted Windows CI** ("Windows CI now passes": the second run green
-through every step, the Bevy client built on Windows, every crate's tests, both replays' fingerprints and the
-validation; acceptance commit after `9325b9d4`, `tasks/acceptance/windows-ci.md` "Accepted"). Three of the
-four items the owner named before W1 closes remain: the `data.*` ops next, the pass-time dev command and the
-MCP bridge probe when needed. The fix before (2026-11-08, `9325b9d4`): the **first Windows CI run's one fault**
-(the owner pasted the run: green
-through the toolchain, fmt, the scripts and clippy, 33 minutes to build the tests cold; `cargo test` stopped in
-`omnis-data`'s integration tests at `data/maps\\hamlet.ron` in the editor's loader words, `MapData::resolve`
-having made the name with `Path::join`; now `MapData::resolve(def, file, data)` takes the file as the session
-names it, six callers changed, a test under a file named otherwise than its id in `edit_document.rs`; lesson
-"a pack-relative name is a string with `/`, never a `Path::join`"; the crates after `omnis-data`, the replays
-and the validation have not run on Windows yet, the second run reads them: `tasks/acceptance/windows-ci.md`
-"First run"). Before that, **Windows CI** was built (W1's close, PRD D31; the owner's order "Windows CI first,
-advisory"; planned in plan mode, `tasks/acceptance/windows-ci.md`). The owner pushed the acceptance of step 3
-(`456e7959`) and named the four items left in `tasks/TODO.md` before W1 closes: Windows CI (built), the `data.*`
-ops, the pass-time dev command, the MCP bridge probe (the last two "when needed"). Windows CI in two commits
-after the owner's world docs (`e88abe8c`: the Jaelian empire's edit and the Parva map, a 25 MB PSD among them):
-`98e13b20` pretty RON ends its lines with LF on every platform (`ron_io::to_string` `.new_line("\n")`; ron's
-default is CRLF on Windows and the seal, the world id and the fingerprint are over that text; found by the
-pre-build sweep, fingerprints on macOS unchanged), and the job commit: `.github/workflows/ci.yml` `windows`
-(advisory, `shell: bash`, `workflow_dispatch` added), `.gitattributes` `* text=auto eol=lf` (a CRLF checkout
-broke both seals on a scratch clone; the owner's checkout untouched), `#![windows_subsystem = "windows"]` with
-`shell/failure.rs::record` writing a failed start's words to `.omnis/last-error.txt` (owner's choices: the
-attribute now; the file, no unsafe), the Bevy-free crates type-checked for `x86_64-pc-windows-msvc` from the Mac (the
-target's std installed by `rustup target add`; the client needs MSVC's `ml64.exe` for `blake3` in Bevy's tree). **Not run: the job itself.** The owner runs the workflow on the
-branch from the Actions tab (or opens the PR) and reads the `windows` job; a red step is a Windows fault for its
-own commit with a test. `gh` is blocked in this sandbox. Earlier on 2026-11-08 the owner accepted step 3 of
-**W1, the entrances and exits enhancement**, which closed the enhancement (`456e7959`). The day before (2026-11-07, a compact past 478K tokens): the owner's hand test of step 2 (2a
-`232cc839`, 2b `f6a0e21b`) found the palette's portal stamp never linked (the picker's Finish pressed with the
-mouse closed the modal and the plan took the same press beneath it; fixed in `64a8e5f3`: a press on the frame a
-screen closes is that screen's, `route` keeps whether a screen stood last frame, `Inputs` bundles the keys, mouse
-and wheel, the keyboard block in `shell/editor_keys.rs`, `editor_link.rs::real_click` presses with the mouse).
-**Step 2c** `8d58c3e2` at the owner's word ("an autocomplete function on the form"; chosen "always listed while
-editing"): `editor/links.rs`, the list under the portal form's link field, Link... and the form's picker gone
-(`pick.rs` the stamp's alone), `Form::set_text` + `refill`. The owner's question on Bevy's ECS became four tasks
-in `tasks/TODO.md` Open (`331c690c`). The owner's edits to the shared pack broke 71 tests mid-build, and at their
-word **the fixture and the canvas became two packs** (`741171c9`: the frozen fixture
-`crates/omnis-sim/tests/packs/test`, id `test`, 0.2.9, hash 14523718773761627429, every test and the replays on it,
-never saved onto; `2c2bd3a7`: the canvas renamed `packs/the_lower_kingdoms`, id prefix `the_lower_kingdoms:`, 114
-ids rewritten, resealed 0.2.20, the game's, the CLI's and the MCP's default beside `packs/base`; memory
-`fixture-and-canvas`). The rename's two overflows in the tools column: the pack root on its own row under "EDITOR"
-(`d8f53d94`) and the map chooser naming a map by its last segment, `stamp::short` (`74ad5f74`, from the owner's
-screenshot; lesson "measure every text of the column headless, fix the one that measures over, not the one the
-report named"). Steps 1, 2 and 2c accepted (`da508c70`). **Step 3 built and committed** (`76572568`, the start as
-a real entrance, plan approved 2026-11-07): `MapDef.start_level` (the ground when left out, so ground starts'
-files are byte-identical) and `Place::Start { level, x, y, facing }`; the loader's level-existence and standing
-rows for the start (corpus `bad-ways` 0.1.2: `up.ron`, `far.ron`); a new game and the save's fallback on the
-start's level; Set start here on the shown level, Move and a selection carry it there, a map opens on its start's
-level, `plan::start_pixels` draws the diamond notched toward the facing, a level removed returns its start to the
-ground; `tasks/acceptance/entrances-3.md`. Their four world docs went in their own commit (`80aaccdd`).
-**Accepted 2026-11-08** ("Step 3 tested, accepted", on `/tmp/omnis-levels`, a scratch copy of the `levels`
-fixture; no finding): the acceptance commit ticks the enhancement in `tasks/TODO.md` with a review line. Told
-the owner 2026-11-07: their saves and world folders under `.omnis/` name `test` and will not load. Earlier
-history (the editor's column as a drawing GUI, M5) is under "Where we are". Rewrite this file every time it is
-used. Durable knowledge lives in `tasks/knowledge/`.
+Written 2026-11-11 after the **`data.*` ops** were built (W1's first remaining item; plan mode, approved the
+same day; `tasks/acceptance/data-ops.md`). **Built, awaiting the owner's test.** The owner's direction for the
+plan: "we need forward thinking flexibility above all else, TTRPGs are filled with creative solutions and we
+want to capture some of that magic" (memory `forward-flexibility-above-all`). Owner's choices: the definition as
+its pack wrote it inside a stable envelope (`def` follows `omnis_data::SCHEMA`, not `PROTOCOL`); the author's
+tier, a per-party gate for D30; generic filters now; the supplying pack recorded now.
 
-## When you resume (handoff for the restart of 2026-11-10, system updates)
-- **State**: branch `W1-authoring-tools`, tree clean. The one commit not yet pushed is `60ffce0a` (the Windows CI
-  acceptance, prose only); the owner pushes. Nothing of mine runs: no game, no MCP bridge, no dev socket.
-- **Read first**: this file in full, then `tasks/knowledge/README.md` (durable knowledge), `tasks/LESSONS.md`
-  (the 2026-11-08 lesson is the newest), the open part of `tasks/TODO.md` (W1's three remaining items, the Open
-  list's four Bevy ECS tasks). `PRD.md` and `ARCHITECTURE.md` are the truth; read a section when a task names it.
-- **Next task**: the **`data.*` ops** in plan mode, at the owner's word (the order they set 2026-11-08: Windows
-  CI done, then `data.*`, then the pass-time dev command and the MCP bridge probe when needed). Start from
-  `docs/api.md` section 14 (the known gap) and §4.9 of the architecture; every count pin in the tests moves.
-- **The machine after updates**: check `DEVELOPER_DIR=/Library/Developer/CommandLineTools` still holds the
-  command line tools (`xcode-select -p`), `rustup show` names 1.98.0 with the `x86_64-pc-windows-msvc` std
-  added 2026-11-08, and `scripts/verify.sh` prints VERIFY-GREEN once before the next source change (about 7
-  minutes; a macOS update can move the linker). `gh` stays blocked in this sandbox.
+What stands: `omnis-data/src/catalog.rs` (`KINDS`, 14 rows, every kind the loader gathers but the rules files;
+`Definition` tagged `kind` beside `def`; `links`, `referrers`, `supplier`, `replaced`; `Kind::{ids, get, name}`),
+`strings.rs` (a value's strings from its compact RON: a serializer of its own would name the float types, and
+the lint's allow marker was not used), `Data.sources` from the loader; `omnis-sim/src/data_ops.rs` (`Op::data`,
+`kinds`, `list`, `get`, `text`; `Listing`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_DEFAULT`
+100, `LIST_MAX` 500, `MAX_KEYS` 256; the page's field is `cursor` both ways); `OpError::UnknownId`; the socket
+answers `data.*` with no game (`socket.rs` `serve`: the game's data when one runs, else `Packs.data`);
+`omnis-cli op <name> [<args>]` (any op from a shell, arguments as RON with bare optionals). Tests:
+`omnis-data/tests/catalog.rs`, `omnis-sim/tests/data_ops.rs`, `omnis-mcp/tests/{replies,vocabulary}.rs` (the
+envelope under the vocabulary, `def` left out by name), `omnis-vector/tests/socket.rs` (the title),
+`omnis-cli/tests/cli.rs`. Mutation runners: `mut-data1/run.py`, `mut-data2/run.py` in the scratchpad.
+
+**The gate had a hole, closed the same day** (`fb69f172`): it passed with no test run when every test binary
+failed to link (stale artifacts after I stopped a gate mid-build). `scripts/test-summary.sh` fails on a failed
+test, a cargo `^error`, or zero passed, and self-tests. Read the count line as a number (1228 before step 2).
+Never stop a gate part-way; if one was, `cargo clean -p <crate>` first (`tasks/LESSONS.md` 2026-11-11).
+
+Before this (2026-11-10): Windows CI accepted, advisory (`tasks/acceptance/windows-ci.md`); the entrances and
+exits enhancement closed 2026-11-08; the fixture and the canvas two packs since 2026-11-07. Rewrite this file
+every time it is used. Durable knowledge lives in `tasks/knowledge/`.
+
+## When you resume
+- **State**: branch `W1-authoring-tools`. Read `git status` and `git log --oneline -6` first: the `data.*`
+  commits follow `2967303b`; the owner pushes, never me. Nothing of mine runs.
+- **Read first**: this file, `tasks/knowledge/README.md`, `tasks/LESSONS.md` (2026-11-11 is the newest), the
+  open part of `tasks/TODO.md`.
+- **Waiting on the owner**: the hand test of `tasks/acceptance/data-ops.md` (nine steps from a shell). A report
+  from it is fixed with a red test first. Two things told to the owner and open: whether to use the structural
+  serializer with two `lint-sim: allow` lines instead of the RON text walk; rule slots override by rules-file id
+  order, not pack load order (existing behaviour; theirs to decide).
+- **Next after acceptance**, in the owner's order of 2026-11-08: the pass-time dev command
+  (`DevCommand::Pass { minutes }`) and the MCP bridge probe, both "when needed"; then W1 closes. Otherwise the
+  four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
+- **The machine** (checked 2026-11-11 after the system updates): command line tools in place, Rust 1.98.0 with
+  the `x86_64-pc-windows-msvc` std, a fresh link of `omnis-cli` good. `gh` stays blocked in this sandbox.
 - **Per commit, unchanged**: `cargo fmt --all`; clippy workspace all targets with `omnis-vector/test-fixtures`,
-  `-D warnings`; the gate to a scratchpad file; `git add` by name (never `-A`; `assets/` and
-  `docs/dnd_supplemental/` are the owner's, never staged; owner world docs under `docs/background` and
-  `docs/locations` commit at once, unedited, own commit); `git commit -F`; Sentrux `rescan` + `check_rules`; the
-  two trailers; never push.
+  `-D warnings`; the gate to a scratchpad file, the commit chained on `grep -q VERIFY-GREEN`; `git add` by name
+  (never `-A`; `assets/` and `docs/dnd_supplemental/` are the owner's, never staged; owner world docs under
+  `docs/background` and `docs/locations` commit at once, unedited, own commit); `git commit -F`; Sentrux `scan`
+  on `crates/` once a session, then `rescan` + `check_rules`; the Co-Authored-By trailer the system gives;
+  never push.
 
 ## Where we are
 - **Branch `W1-authoring-tools`**, not pushed (the owner pushes). **M5 Editor v1 is closed** (M5.0 to M5.10,
@@ -200,9 +174,8 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   Playtest from the start.
 
 ## Next
-1. In the owner's order of 2026-11-08 if they keep it: the **`data.*` ops** (plan mode; the first known gap in
-   `docs/api.md` section 14; moves every count pin), then the pass-time dev command and the MCP bridge probe
-   when needed. Windows CI is closed and advisory (`tasks/acceptance/windows-ci.md`); a red Windows step on a
+1. The `data.*` ops are built and await the owner's test (`tasks/acceptance/data-ops.md`). Then, in the owner's
+   order of 2026-11-08 if they keep it: the pass-time dev command and the MCP bridge probe when needed. Windows CI is closed and advisory (`tasks/acceptance/windows-ci.md`); a red Windows step on a
    later push is a fault for its own commit with a test (grep `.join(` against the 2026-11-08 lesson first). When the owner orders it: **the client's use of Bevy's ECS** (`tasks/TODO.md`, Open: four tasks, a
    press as a message first; plan mode, one step a commit). The frozen fixture carries the portals as they were at
    0.2.9 (the owner's strays `portal_23_0`, `portal_23_28` and `portal_bank_hidden` included): a test names them
@@ -245,8 +218,8 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   earlier that day 0.2.9 for the owner's pack, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at
   0.2.3; M5.10a at 0.2.0). A rebaseline
-  records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 44, MCP tools 44, `Reply` 27 (`EVERY`), `OpError` 11**
-  (since M5.3), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
+  records the new fingerprints here, in `docs/api.md`'s changelog and in `tasks/knowledge/verification.md`. `SAVE_SCHEMA` 9, `PROTOCOL` 2, **ops 48, MCP tools 48, `Reply` 31 (`EVERY`), `OpError` 12**
+  (since the `data.*` ops, 2026-11-11), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
 - **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
@@ -303,7 +276,7 @@ used. Durable knowledge lives in `tasks/knowledge/`.
   edits while it runs (about seven minutes; it fails fast on a clippy error, so run the workspace clippy first).
   Then `git add <paths by name>`, `git commit -F <msg>`, Sentrux `rescan` (first `scan` on
   `/Users/john/code/omnis/crates` in a new session) and `check_rules`. The scratchpad is
-  `/private/tmp/claude-501/-Users-john-code-omnis/787890da-120b-4905-befb-f4247b7d8f51/scratchpad` (absolute).
+  `/private/tmp/claude-501/-Users-john-code-omnis/762beda3-a95d-40a0-9a67-8bf9680a2cb8/scratchpad` (absolute).
 - **Tests red first; mutations** by a Python runner in the scratchpad (anchor checked unique, source restored by
   copying the backup back, then `diff -q`; `mut3b/run.py` is the pattern). No cargo command and no fixture edit
   while a mutation run or the gate runs. A mutant must undo the rule it targets, not restate it (a

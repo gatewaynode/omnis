@@ -18,6 +18,11 @@ const USAGE: &str = "usage:
   omnis-cli validate <pack-dir>...                 load packs and report every error
   omnis-cli schema dump                            the data files, save, replay, and ops by example
   omnis-cli map text <map-id> [--pack <dir>]...    a map as text with the party at its start
+  omnis-cli op <name> [<args>] [--pack <dir>]... [--seed <n>]
+                                                   one op of the engine's API on a new game, its
+                                                   arguments as RON; the reply as RON. Such as
+                                                   op data.kinds
+                                                   op data.get '(id: \"base:item:mace\")'
   omnis-cli play --script <file> [--pack <dir>]... [--seed <n>]
                                                    run a command script, print events and the fingerprint
   omnis-cli replay <replay.ron> [--pack <dir>]... [--time]
@@ -50,6 +55,7 @@ fn main() -> ExitCode {
             .map(|s| print!("{s}")),
         ["tileset", "bake", specs @ ..] if !specs.is_empty() => bake_all(specs),
         ["map", "text", rest @ ..] => Args::parse(rest).and_then(map_text),
+        ["op", rest @ ..] => Args::parse(rest).and_then(op),
         ["play", rest @ ..] => Args::parse(rest).and_then(play),
         ["replay", rest @ ..] => Args::parse(rest).and_then(replay),
         ["wander", rest @ ..] => Args::parse(rest).and_then(wander),
@@ -237,6 +243,32 @@ fn map_text(args: Args) -> Result<(), String> {
         Ok(other) => Err(format!("unexpected reply {other:?}")),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// One op against a new headless game, the reply printed as RON: the engine's API from a shell,
+/// for trying an op without a client (`docs/api.md` §5 lists them). The op is its dotted name,
+/// then its arguments as a RON struct when it takes any.
+fn op(args: Args) -> Result<(), String> {
+    let text = match args.positional.as_slice() {
+        [name] => format!("(op: r#{name})"),
+        // An optional argument is written bare: `(kind: "item")`, not `Some("item")`.
+        [name, arguments] => {
+            format!("#![enable(implicit_some)]\n(op: r#{name}, args: {arguments})")
+        }
+        _ => {
+            return Err(
+                "op needs an op's name and, when it takes any, its arguments as RON: \
+                 omnis-cli op data.get '(id: \"base:item:mace\")'"
+                    .into(),
+            );
+        }
+    };
+    let op: Op = ron_io::parse(&text).map_err(|e| e.to_string())?;
+    let mut game = Headless::new(args.packs_or_default(), args.seed.unwrap_or(0))
+        .map_err(|e| e.to_string())?;
+    let reply = game.handle(&op).map_err(|e| e.to_string())?;
+    println!("{}", ron_io::to_string(&reply).map_err(|e| e.to_string())?);
+    Ok(())
 }
 
 fn play(args: Args) -> Result<(), String> {

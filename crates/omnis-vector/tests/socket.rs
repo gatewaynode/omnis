@@ -267,6 +267,17 @@ fn party_and_rules(app: &mut App, peer: &mut Peer) {
     );
     let why = s.save_log().expect_err("a rule set is not in the log");
     assert!(why.contains("spell_points.pool"), "{why}");
+    // In a game the `data.*` ops answer too, from the game's packs.
+    let reply = peer.send(
+        app,
+        r#"{"id": 9, "op": "data.get", "args": {"id": "test:map:town"}}"#,
+    );
+    assert_eq!(
+        reply["result"]["definition"]["kind"],
+        json!("map"),
+        "{reply}"
+    );
+    assert_eq!(reply["result"]["definition"]["pack"], json!("test"));
 }
 
 fn saves_stop_the_log_replaying(app: &mut App, peer: &mut Peer, dir: &Path) {
@@ -398,5 +409,46 @@ fn at_the_title_the_socket_says_no_game_runs_and_reads_the_screen() {
     let text = reply["result"]["text"].as_str().unwrap();
     assert!(text.contains("\"OMNIS\""), "{text}");
     assert!(text.contains("[button] \"New game\""), "{text}");
+    // The `data.*` ops need no game (W1): they answer from the packs loaded at start.
+    let reply = peer.send(&mut app, r#"{"id": 3, "op": "data.kinds"}"#);
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    assert_eq!(reply["result"]["reply"], json!("kinds"));
+    assert_eq!(reply["result"]["languages"], json!(["en"]));
+    let reply = peer.send(
+        &mut app,
+        r#"{"id": 4, "op": "data.get", "args": {"id": "base:item:mace"}}"#,
+    );
+    assert_eq!(reply["ok"], json!(true), "{reply}");
+    let mace = &reply["result"]["definition"];
+    assert_eq!(mace["words"]["base:text:item.mace.name"], json!("Mace"));
+    assert_eq!(mace["def"]["cost_cp"], json!(500));
+    let reply = peer.send(
+        &mut app,
+        r#"{"id": 5, "op": "data.list", "args": {"refers_to": "base:item:dagger", "kind": "class"}}"#,
+    );
+    let rows = reply["result"]["definitions"].as_array().unwrap();
+    assert!(
+        rows.iter().any(|r| r["id"] == json!("base:class:rogue")),
+        "{reply}"
+    );
+    let reply = peer.send(
+        &mut app,
+        r#"{"id": 6, "op": "data.text", "args": {"keys": ["base:text:item.mace.name"]}}"#,
+    );
+    assert_eq!(
+        reply["result"]["words"]["base:text:item.mace.name"],
+        json!("Mace")
+    );
+    let reply = peer.send(
+        &mut app,
+        r#"{"id": 7, "op": "data.get", "args": {"id": "base:item:no_such_thing"}}"#,
+    );
+    assert_eq!(reply["error"]["kind"], json!("UnknownId"), "{reply}");
+    // Still no game for the rest.
+    let reply = peer.send(&mut app, r#"{"id": 8, "op": "party.get"}"#);
+    assert_eq!(
+        reply["error"]["message"],
+        json!(omnis_vector::shell::socket::NO_GAME)
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

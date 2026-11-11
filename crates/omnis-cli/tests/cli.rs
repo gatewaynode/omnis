@@ -95,6 +95,54 @@ fn map_text_marks_the_start_and_names_unknown_maps() {
     assert!(err.contains("no map 'nope:map:x' is loaded"), "{err}");
 }
 
+/// `op`: one op of the engine's API from a shell (W1, with the `data.*` ops), its name a word and
+/// its arguments RON, an optional one written bare; the reply as RON, a refusal on stderr.
+#[test]
+fn op_answers_one_op_as_ron_and_says_why_not() {
+    let packs = |rest: &[&'static str]| -> Vec<&'static str> {
+        let mut args = rest.to_vec();
+        args.extend([
+            "--pack",
+            "packs/base",
+            "--pack",
+            "crates/omnis-sim/tests/packs/test",
+        ]);
+        args
+    };
+    let (ok, out, err) = cli(&packs(&["op", "data.kinds"]));
+    assert!(ok, "{err}");
+    assert!(out.contains("reply: \"kinds\""), "{out}");
+    assert!(out.contains("kind: \"monster\""), "{out}");
+    let (ok, out, err) = cli(&packs(&["op", "data.get", "(id: \"base:item:mace\")"]));
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("\"base:text:item.mace.name\": Some(\"Mace\")"),
+        "{out}"
+    );
+    assert!(out.contains("cost_cp: 500"), "{out}");
+    let (ok, out, err) = cli(&packs(&[
+        "op",
+        "data.list",
+        "(refers_to: \"base:item:dagger\", kind: \"class\")",
+    ]));
+    assert!(ok, "{err}");
+    assert!(out.contains("id: \"base:class:rogue\""), "{out}");
+    assert!(!out.contains("base:service:smith"), "{out}");
+    // Any op, not only the data's.
+    let (ok, out, _) = cli(&packs(&["op", "game.status"]));
+    assert!(ok && out.contains("protocol: 2"), "{out}");
+    let (ok, _, err) = cli(&packs(&["op", "data.get", "(id: \"base:item:nope\")"]));
+    assert!(!ok);
+    assert!(
+        err.contains("no loaded pack defines 'base:item:nope'"),
+        "{err}"
+    );
+    let (ok, _, err) = cli(&packs(&["op", "no.such.op"]));
+    assert!(!ok && err.contains("no.such.op"), "{err}");
+    let (ok, _, err) = cli(&packs(&["op"]));
+    assert!(!ok && err.contains("op needs an op's name"), "{err}");
+}
+
 #[test]
 fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let dir = scratch("cli-play");

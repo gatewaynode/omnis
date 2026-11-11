@@ -337,10 +337,17 @@ fn serve(
                         answer.map(Reply::from).map_err(OpError::from)
                     }
                     (Some(Ok(_)), None) => Err(OpError::failed(NO_EDITOR)),
-                    (None, _) => match session.as_deref_mut() {
-                        Some(session) => host::handle(session, &root, &op),
-                        None => Err(OpError::failed(NO_GAME)),
-                    },
+                    (None, _) => {
+                        // What the packs define needs no game (the `data.*` ops, W1): the
+                        // game's own data when one runs, since a reload or a rule set replaces
+                        // it, else the packs loaded at start.
+                        let loaded = session.as_deref().map_or(&packs.data, |s| &s.data);
+                        match (op.data(loaded), session.as_deref_mut()) {
+                            (Some(answer), _) => answer,
+                            (None, Some(session)) => host::handle(session, &root, &op),
+                            (None, None) => Err(OpError::failed(NO_GAME)),
+                        }
+                    }
                 };
                 socket.queue(&id, &result);
             }
