@@ -1,7 +1,8 @@
 # Continuity notes
 
-Written 2026-11-11 after **rule priority and conflict tracking** was built (plan mode, approved the same day;
-`tasks/acceptance/rule-priority.md`). **Built, awaiting the owner's test.** The owner's direction: "We do need to
+Written 2026-11-11 for a restart: **the owner is updating the terminal and Xcode's command line tools**, so
+the machine check below comes first. **Rule priority and conflict tracking** was built the same day (plan mode;
+`tasks/acceptance/rule-priority.md`) and **accepted by the owner** ("manually tested. Looks like it is working"). The owner's direction: "We do need to
 start tracking rule conflicts and consider all rules have a required priority value that is used to determine
 rule precedence." Owner's choices: `priority` required on every slot, value and table (none on a file; the
 higher number wins; base writes 0); two definitions of one name at one priority are always a load error; an
@@ -38,10 +39,16 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   pushes, never me. Nothing of mine runs.
 - **Read first**: this file, `tasks/knowledge/README.md`, `tasks/LESSONS.md` (2026-11-11 is the newest), the
   open part of `tasks/TODO.md`.
-- **Waiting on the owner**: the hand test of `tasks/acceptance/rule-priority.md` (eight steps, the last in the
-  editor). A report from it is fixed with a red test first. Told to the owner and open: ARCHITECTURE §6.1
-  describes pack load order as a topological sort with cycle errors, which is not built.
-- **Next after acceptance**, in the owner's order of 2026-11-08: the pass-time dev command
+- **First, the machine check** (the command line tools and the terminal were updated after 2026-11-11):
+  `xcode-select -p` and `DEVELOPER_DIR=/Library/Developer/CommandLineTools` still resolve; `rustc --version`
+  is 1.98.0 with the `x86_64-pc-windows-msvc` std; `scripts/verify.sh` to a scratchpad log prints VERIFY-GREEN
+  with `tests passed 1252 failed 0 ignored 16 errors 0`; a fresh link (`cargo clean -p omnis-cli`, then
+  `cargo run -q -p omnis-cli -- op data.kinds`). A link error after a toolchain change is cleared with
+  `cargo clean`, not by editing code.
+- **Nothing waits on the owner.** Open and told to them: ARCHITECTURE §6.1 describes pack load order as a
+  topological sort with cycle errors, which is not built (build it, or correct the document: their call).
+  Six commits of 2026-11-11 are unpushed (`970e943a` to this one); the owner pushes.
+- **Next**, in the owner's order of 2026-11-08: the pass-time dev command
   (`DevCommand::Pass { minutes }`) and the MCP bridge probe, both "when needed"; then W1 closes. Otherwise the
   four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
 - **The machine** (checked 2026-11-11 after the system updates): command line tools in place, Rust 1.98.0 with

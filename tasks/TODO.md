@@ -447,7 +447,7 @@ no loss, and every later map is built with it.
   - [x] **Step 3, the editor rules view** (`omnis-vector`; built 2026-11-11): a modal list of every slot, value and table with
     its file, pack and priority, an overridden rule marked with what it beat, Open file into the text editor.
   - [x] `tasks/acceptance/rule-priority.md`, the review line here, `tasks/CONTINUITY.md`.
-  **Review (2026-11-11, built, awaiting the owner's test)**: the merge is one function and the only place a
+  **Review (2026-11-11; accepted by the owner the same day, "manually tested. Looks like it is working")**: the merge is one function and the only place a
   rule set is made; nothing about file ids or load order decides between files any more. Departures: the
   golden replays rebaselined (base resealed at 0.1.1; the compiled rules unchanged), the editor's mark a word
   and not an icon, a rule's file opened only under its id's name. Not built: the topological pack order of
