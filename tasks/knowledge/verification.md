@@ -109,7 +109,7 @@ repository root (the root has no rules file).
   `omnis-cli`'s schema dump, 25, in `omnis-cli/tests/headless.rs`: a hand list, so a new op is added to
   `omnis-cli/src/schema.rs` by hand; the gate does not catch a missing one); the hand-written
   `Command` schema has `oneOf` 12 (M8.5 1b: `Climb`), combat arms 6 (M7c: `Feature`; `EndTurn` in the string enum), `item_schema` 6, `service_schema` 12,
-  `rest_schema` 2, `dev_schema` 13 (M8: `Reconcile`).
+  `rest_schema` 2, `dev_schema` 15 (2026-11-11: `Pass`).
 - The schema proof (`omnis-mcp/tests/schema_proof.rs`): 96 instances from the `next` chain of
   exhaustive matches (M8.5 1b: `Climb`), 145 offered `oneOf` branches and `enum` values, all used; the drift test's
   padded branch is `/oneOf/12`. A new `Command`

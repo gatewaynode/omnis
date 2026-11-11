@@ -579,7 +579,7 @@ dim controls' reasons and field values.
 - The simulation's `Settings` (save rule, permadeath, devtools) are world rules, chosen on the new-game screen (P2) and kept in the save. P2 also gives vector a devtools world in debug builds, as `omnis-app`'s `game_settings` does, so `time.reconcile` and `Dev` commands work over the socket.
 
 ### 10.6 The debug panel (as built, P8)
-A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags and a teleport (with a Level choice, M8.5 step 1b), and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
+A `Screen` (`screen/debug.rs`) in a devtools world of a `devtools` build: four pages (owner) of member numbers and conditions, money, food and items, flags, a teleport (with a Level choice, M8.5 step 1b) and minutes to pass (`DevCommand::Pass`), and the fight's stacks (§6.7), each button sending one `DevCommand` lit by its trial. Opened from the pause's Debug or with backtick; the game waits; Esc closes it. `Views.flags` (`api::flags`) is filled only in a devtools world. The edits are logged and replay like any command; `shell/text.rs` words their `Event::Dev` echo. `DevCommand::Reconcile` stays the socket's (`time.reconcile`).
 
 ## 11. The test and capture contract
 

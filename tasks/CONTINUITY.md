@@ -48,8 +48,10 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 - **Nothing waits on the owner.** Open and told to them: ARCHITECTURE §6.1 describes pack load order as a
   topological sort with cycle errors, which is not built (build it, or correct the document: their call).
   Six commits of 2026-11-11 are unpushed (`970e943a` to this one); the owner pushes.
-- **Next**, in the owner's order of 2026-11-08: the pass-time dev command
-  (`DevCommand::Pass { minutes }`) and the MCP bridge probe, both "when needed"; then W1 closes. Otherwise the
+- **The machine check passed 2026-11-11** after the owner's update of the terminal and the command line tools
+  (the gate green at 1252, a fresh link good). **`DevCommand::Pass { minutes }` is built** the same day and
+  awaits the owner's test (`tasks/TODO.md` W1, the review line; tests 1256).
+- **Next**, in the owner's order of 2026-11-08: the MCP bridge probe, "when needed"; then W1 closes. Otherwise the
   four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
 - **The machine** (checked 2026-11-11 after the system updates): command line tools in place, Rust 1.98.0 with
   the `x86_64-pc-windows-msvc` std, a fresh link of `omnis-cli` good. `gh` stays blocked in this sandbox.
@@ -233,7 +235,7 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   (since the `data.*` ops, 2026-11-11), `MAX_MIGRATIONS` 1024, `MAX_STEPS` 4096 (pinned to the docs by `omnis-mcp/tests/api_doc.rs`, run as
   `--test integration api_doc`; the tool counts also in `tools.rs`, `bridge.rs` twice, `omnis-cli/tests/headless.rs`,
   README, code-map).
-- **Counts:** `Command` 16, `DevCommand` 14, `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
+- **Counts:** `Command` 16, `DevCommand` 15 (`Pass`, 2026-11-11), `Event` 73, `Rejection` 71, `LoadError` 12. The palette is the
   terrains plus 10 (`brush::palette`: Wall, Door, Ramp, Height, then `Placing::ALL`'s six stamps; `tests/
   editor_fill.rs` pins WALL 9, DOOR 10, HEIGHT 12 on the town's nine terrains); `Tool::ALL` 8 (Select, Brush, Move, Lasso, Fill, Corners, Freehand, Eraser; keys V B M L F P N X);
   `Placing::ALL` 6;

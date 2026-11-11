@@ -91,6 +91,8 @@ pub enum Num {
     Y,
     /// The chosen stack's first living monster's hit points.
     Lead,
+    /// How many minutes to pass.
+    Minutes,
 }
 
 /// A control of the panel.
@@ -134,6 +136,8 @@ pub enum DebugAct {
     Split,
     /// Fold the world now (M8.5 7e).
     Fold,
+    /// Live the minutes typed, where the party stands.
+    Pass,
     /// List the world-folder files no save names (M8.5 7e): the host's work.
     Tidy,
     /// Delete the files Tidy listed: the host's work, lit once Tidy found some.
@@ -303,6 +307,7 @@ impl<'a> Look<'a> {
             Num::Copper => self.game.views.party.gold.to_string(),
             Num::Food => self.game.views.party.food.to_string(),
             Num::Count | Num::Flag => "1".to_owned(),
+            Num::Minutes => "60".to_owned(),
             Num::X if self.form.map.is_none() => here.x.to_string(),
             Num::Y if self.form.map.is_none() => here.y.to_string(),
             Num::X | Num::Y => "0".to_owned(),
@@ -412,6 +417,9 @@ impl<'a> Look<'a> {
                 stack: self.stack.map(|s| s.stack).ok_or("no fight is on")?,
             },
             DebugAct::Fold => DevCommand::Fold,
+            DebugAct::Pass => DevCommand::Pass {
+                minutes: self.number(Num::Minutes).ok_or(typed)?,
+            },
             _ => return Err(String::new()),
         })
     }
@@ -632,6 +640,10 @@ fn world_rows(look: &Look) -> Vec<Row> {
             FACINGS.iter().position(|f| *f == facing).unwrap_or(0),
         ),
         look.button(DebugAct::Go, "Go"),
+    ]));
+    rows.push(Row::controls(vec![
+        look.field(Num::Minutes, "Minutes"),
+        look.button(DebugAct::Pass, "Pass"),
     ]));
     if let Some((turn, lines)) = &look.form.split
         && *turn == look.game.views.here.turn
@@ -920,7 +932,8 @@ pub fn apply(
         | DebugAct::ToStores
         | DebugAct::Go
         | DebugAct::Kill
-        | DebugAct::Fold => {
+        | DebugAct::Fold
+        | DebugAct::Pass => {
             return Ok(look
                 .command(act)
                 .map_or(Effect::None, |dev| Effect::Command {

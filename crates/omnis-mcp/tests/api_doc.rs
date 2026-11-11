@@ -34,7 +34,7 @@ variants!(Command, COMMANDS, command_name:
 
 variants!(DevCommand, DEV_COMMANDS, dev_name:
     GiveItem SetHp SetSpellPoints SetGold SetFood SetXp SetScore SetCondition SetFlag Teleport
-    SetMonsterHp KillStack Reconcile Fold);
+    SetMonsterHp KillStack Reconcile Fold Pass);
 
 variants!(Event, EVENTS, event_name:
     Moved Blocked Reconciled SignalsDropped TimeAdvanced Visible Door Message PartyChanged
@@ -327,7 +327,7 @@ fn the_api_document_names_every_op_reply_error_command_event_and_rejection() {
     // The counts the document states are the types' counts.
     for (count, what) in [
         (COMMANDS.len(), "`Command` (16 variants)"),
-        (DEV_COMMANDS.len(), "`DevCommand` (14 variants"),
+        (DEV_COMMANDS.len(), "`DevCommand` (15 variants"),
         (EVENTS.len(), "`Event` has 73 variants"),
         (REJECTIONS.len(), "`Rejection` (71 variants)"),
         (ERROR_KINDS.len(), "`OpError` (12 kinds)"),
@@ -380,7 +380,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &architecture,
             "ARCHITECTURE.md",
             DEV_COMMANDS.len(),
-            "Dev(DevCommand),                // 14 variants",
+            "Dev(DevCommand),                // 15 variants",
         ),
         (
             &architecture,
@@ -405,7 +405,7 @@ fn the_architecture_the_readme_and_the_code_map_state_the_code_s_counts() {
             &map,
             "code-map.md",
             DEV_COMMANDS.len(),
-            "`DevCommand`, 14 variants",
+            "`DevCommand`, 15 variants",
         ),
         (&map, "code-map.md", COMMANDS.len(), "16 variants"),
     ] {

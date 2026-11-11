@@ -452,9 +452,17 @@ no loss, and every later map is built with it.
   golden replays rebaselined (base resealed at 0.1.1; the compiled rules unchanged), the editor's mark a word
   and not an icon, a rule's file opened only under its id's name. Not built: the topological pack order of
   ARCHITECTURE §6.1. `tasks/acceptance/rule-priority.md`.
-- [ ] A dev command to pass time (owner, 2026-10-08): `DevCommand::Pass { minutes }` lives the minutes at the
-  region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 14 moves).
-  Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.
+- [x] A dev command to pass time (owner, 2026-10-08; built 2026-11-11 at the owner's word): `DevCommand::Pass { minutes }` lives the minutes at the
+  region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 15).
+  Replaces the 720 short rests in `tasks/acceptance/m8.md`.
+  **Review (2026-11-11, awaits the owner's test)**: one arm in `dev.rs` over `apply::advance`, the function a
+  step and a rest spend minutes through, so the age, the shared time, the date and timed effects move as they
+  do in play; no food, no healing, no encounter. One to `DevCommand::MAX_PASS` (518,400, a year of 360 days),
+  else `OutOfRange`; `WrongMode` in a fight or an encounter. The Debug World page has a Minutes field (60
+  until typed over, kept after a press) and Pass, lit by the engine's trial. `DevCommand` 15, the schema proof
+  118 instances and 169 offered. Mutations caught: the mode check, each bound, the age not lived, the panel's
+  number. To try: `just run --windowed --pack packs/base --pack packs/the_lower_kingdoms`, New game with
+  devtools on, Esc, Debug, World, type 1440, Pass: the HUD's day moves on by one.
 - [ ] A bridge probe in the repo: `scripts/mcp-probe.py` drives `target/debug/omnis-mcp` over stdio so a session
   whose MCP client did not launch the bridge still runs the MCP acceptance steps. When needed.
 - [x] Windows CI at W1's close (D31; built 2026-11-08, **advisory** at the owner's word, as the Linux job): a

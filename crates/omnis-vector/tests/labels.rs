@@ -400,6 +400,7 @@ fn dev_edits_read_as_lines_with_names() {
         ),
         (DevCommand::KillStack { stack: 1 }, "dev: stack 2 slain"),
         (DevCommand::Fold, "dev: fold"),
+        (DevCommand::Pass { minutes: 90 }, "dev: 90 minutes pass"),
     ];
     for (command, line) in cases {
         assert_eq!(

@@ -188,8 +188,8 @@ pub enum Command {                  // 16 variants
     Item(ItemCommand),              // M6b: equip, unequip, give, stow, take, use (a sense item's use is PRD §7.2, M6c)
     Service(ServiceCommand),        // M7a: Leave, Room, Rumor, BuyFood, Heal, Cure, Raise, Buy, Sell, Deposit, Withdraw; M7b: Train, Choose, Learn
     Rest(RestCommand),              // Short { dice per member } | Long (M7a)
-    Dev(DevCommand),                // 14 variants: give item, set hp/points/gold/food/xp/score/condition/flag, teleport,
-                                    // monster hp, kill stack, reconcile (M8), fold (M8.5 7e); refused unless `Settings.devtools` (§12)
+    Dev(DevCommand),                // 15 variants: give item, set hp/points/gold/food/xp/score/condition/flag, teleport,
+                                    // monster hp, kill stack, reconcile (M8), fold (M8.5 7e), pass minutes; refused unless `Settings.devtools` (§12)
     Act { object, verb, option },   // a verb on an object in reach (M8.5 2)
     Approach { being },             // go up to a group in reach (M8.5 2c)
 }

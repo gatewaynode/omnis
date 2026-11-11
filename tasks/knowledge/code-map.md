@@ -157,7 +157,7 @@ old saves only).
 - Items: `items.rs` (`ItemCommand`, `UsePlan`, `UseKind`, `validate_use`, `use_item`, `transfer`,
   `drop_worn`, stock helpers `add_to`/`take_from`/`count_of`/`consume`/`item_id`).
 - Sensing: `sense.rs` (`LAYERS`, `best_eyes`, `dc`, `reach_for_layer`, `resolve`).
-- Dev: `dev.rs` (`DevCommand`, 14 variants, gated by `Settings.devtools`).
+- Dev: `dev.rs` (`DevCommand`, 15 variants, gated by `Settings.devtools`).
 - Saves (PRD D28, M8.5 7a–7f; ARCHITECTURE §4.1.1): `journal.rs` (`Journal`, `Entry { minute, at, command, changes }`,
   `Change` values after, `Held` (the before-and-after compare in `apply`), `apply_changes`, `journal_len`, `archive_len`);
   `log.rs` (`Logged { minute, map, event }`, `told`, `history`, `bound` to `LOG_CAPACITY`; stamped in `World::record`);

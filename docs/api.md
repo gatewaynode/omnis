@@ -849,7 +849,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 `MemberTwice`; the dice are rolled in marching order), `Long` (the night; eats food; once per
 24 hours).
 
-`DevCommand` (14 variants; every one is raised back as `Event::Dev`):
+`DevCommand` (15 variants; every one is raised back as `Event::Dev`):
 
 | Variant | Fields | Meaning |
 |---|---|---|
@@ -867,6 +867,7 @@ stocks), `Sell { item, count }` (smith: an item in the stores), `Deposit { amoun
 | `KillStack` | `stack` | Fights only; the stack dies without gold. |
 | `Reconcile` | `region` (id) | Outside a fight: meet a region as on entering it (`time.reconcile`). |
 | `Fold` | | Outside a fight: fold the world now, as a safe point past the threshold does (`Folded`). On the wire the bare string `"Fold"`. |
+| `Pass` | `minutes` (1 to 518,400, a year of 360 days) | Outside a fight and an encounter: the party lives the minutes where it stands (`TimeAdvanced`: its age, its shared time at the region's company, its date, timed effects). No food, no healing, no encounter. `OutOfRange` outside the bounds. |
 
 **Script words.** A typing aid for the CLI's `play --script`, the app's dev script and tests
 (`word.rs`). `parse_script(text) -> Result<Vec<Word>, ScriptError>` reads a text script: words
@@ -1190,7 +1191,10 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-11 (latest, rule priority): `rules.list` gains `origins` and `rules.get` / `rules.set` gain `origin`
+- 2026-11-11 (latest, pass time): `DevCommand::Pass { minutes }` (15 variants; additive, `PROTOCOL` stays 2):
+  the party lives one to 518,400 minutes where it stands, outside a fight and an encounter. The MCP `Dev`
+  schema has 15 branches.
+- 2026-11-11 (rule priority): `rules.list` gains `origins` and `rules.get` / `rules.set` gain `origin`
   (`RuleOrigin`, §7.13): the file, pack and priority of each rule that stands and the definitions it beat.
   Rules files are the fifteenth kind of the `data.*` ops (`rules`). Not a wire change but a pack format one:
   every slot, value and table in a rules file states a required `priority`, a value is written
