@@ -423,10 +423,10 @@ no loss, and every later map is built with it.
   - [x] **Step 3, the socket and the documents**: `data.*` answers at the title and in the editor (from the
     game's data when one runs, else the packs loaded at start); `docs/api.md`, ARCHITECTURE §4.9 and §9.3,
     `horizons.md` (the knowledge gate), `tasks/acceptance/data-ops.md`.
-  **Review (2026-11-11, built, awaiting the owner's test)**: four ops over one table of 14 kinds; `cursor` for
+  **Review (2026-11-11; accepted by the owner the same day, "It seems to work well")**: four ops over one table of 14 kinds; `cursor` for
   the page; `omnis-cli op <name> [<args>]` added so the hand test needs no client; the gate's hole found and
   closed on the way (`scripts/test-summary.sh`). Departures and what is left: `tasks/acceptance/data-ops.md`.
-- [ ] Rule priority and conflict tracking (owner, 2026-11-11: "We do need to start tracking rule conflicts and
+- [x] Rule priority and conflict tracking (owner, 2026-11-11: "We do need to start tracking rule conflicts and
   consider all rules have a required priority value that is used to determine rule precedence"; plan mode,
   approved the same day). Found by the `data.*` survey: rules files merged in file-id order, the last
   definition of a name winning silently, with nothing recording where a rule came from. Owner's choices: a
@@ -444,9 +444,14 @@ no loss, and every later map is built with it.
     `omnis-sim/src/rules_ops.rs`): `rules` the 15th row of `catalog::KINDS`; `origins`
     on `rules.list` and `origin` on `rules.get`; the override lines of `omnis-cli validate`; pins and
     `docs/api.md`.
-  - [ ] **Step 3, the editor rules view** (`omnis-vector`): a modal list of every slot, value and table with
+  - [x] **Step 3, the editor rules view** (`omnis-vector`; built 2026-11-11): a modal list of every slot, value and table with
     its file, pack and priority, an overridden rule marked with what it beat, Open file into the text editor.
-  - [ ] `tasks/acceptance/rule-priority.md`, the review line here, `tasks/CONTINUITY.md`.
+  - [x] `tasks/acceptance/rule-priority.md`, the review line here, `tasks/CONTINUITY.md`.
+  **Review (2026-11-11, built, awaiting the owner's test)**: the merge is one function and the only place a
+  rule set is made; nothing about file ids or load order decides between files any more. Departures: the
+  golden replays rebaselined (base resealed at 0.1.1; the compiled rules unchanged), the editor's mark a word
+  and not an icon, a rule's file opened only under its id's name. Not built: the topological pack order of
+  ARCHITECTURE §6.1. `tasks/acceptance/rule-priority.md`.
 - [ ] A dev command to pass time (owner, 2026-10-08): `DevCommand::Pass { minutes }` lives the minutes at the
   region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 14 moves).
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.

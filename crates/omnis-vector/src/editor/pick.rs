@@ -268,6 +268,7 @@ impl Editor {
     pub fn typed_in(&mut self, act: EditAct, text: String) {
         match act {
             EditAct::PickFilter => self.pick_filter(text),
+            EditAct::RulesFilter => self.rules_filter = text,
             EditAct::Prop(n, i) => {
                 if let Some(form) = self
                     .picking

@@ -1,42 +1,46 @@
 # Continuity notes
 
-Written 2026-11-11 after the **`data.*` ops** were built (W1's first remaining item; plan mode, approved the
-same day; `tasks/acceptance/data-ops.md`). **Built, awaiting the owner's test.** The owner's direction for the
-plan: "we need forward thinking flexibility above all else, TTRPGs are filled with creative solutions and we
-want to capture some of that magic" (memory `forward-flexibility-above-all`). Owner's choices: the definition as
-its pack wrote it inside a stable envelope (`def` follows `omnis_data::SCHEMA`, not `PROTOCOL`); the author's
-tier, a per-party gate for D30; generic filters now; the supplying pack recorded now.
+Written 2026-11-11 after **rule priority and conflict tracking** was built (plan mode, approved the same day;
+`tasks/acceptance/rule-priority.md`). **Built, awaiting the owner's test.** The owner's direction: "We do need to
+start tracking rule conflicts and consider all rules have a required priority value that is used to determine
+rule precedence." Owner's choices: `priority` required on every slot, value and table (none on a file; the
+higher number wins; base writes 0); two definitions of one name at one priority are always a load error; an
+override declares the inputs of the rule it replaces; shown in the rules ops, `validate`, `data.*` and the
+editor.
 
-What stands: `omnis-data/src/catalog.rs` (`KINDS`, 14 rows, every kind the loader gathers but the rules files;
-`Definition` tagged `kind` beside `def`; `links`, `referrers`, `supplier`, `replaced`; `Kind::{ids, get, name}`),
-`strings.rs` (a value's strings by a serializer of its own, the owner's choice of 2026-11-11; the two float
-aliases carry the lint's allow marker, as `query/path.rs` does), `Data.sources` from the loader; `omnis-sim/src/data_ops.rs` (`Op::data`,
-`kinds`, `list`, `get`, `text`; `Listing`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_DEFAULT`
-100, `LIST_MAX` 500, `MAX_KEYS` 256; the page's field is `cursor` both ways); `OpError::UnknownId`; the socket
-answers `data.*` with no game (`socket.rs` `serve`: the game's data when one runs, else `Packs.data`);
-`omnis-cli op <name> [<args>]` (any op from a shell, arguments as RON with bare optionals). Tests:
-`omnis-data/tests/catalog.rs`, `omnis-sim/tests/data_ops.rs`, `omnis-mcp/tests/{replies,vocabulary}.rs` (the
-envelope under the vocabulary, `def` left out by name), `omnis-vector/tests/socket.rs` (the title),
-`omnis-cli/tests/cli.rs`. Mutation runners: `mut-data1/run.py`, `mut-data2/run.py` in the scratchpad.
+What stands: `omnis-data/src/rules.rs` (`SlotDef`, `ValueDef`, `TableDef` with `priority`; `merge`, the one
+place files become a rule set; `Standings` by `(RuleKind, name)`, `Standing`, `Beaten`), `Data.standings`,
+`Data.rule_files`; `rules` the 15th row of `catalog::KINDS`; `omnis-sim/src/rules_ops.rs` (the rules ops moved
+out of `ops.rs`, re-exported; `RuleOrigin`, `origin`, `rule_reply`; `RulesView.origins`, `Reply::Rule.origin`);
+`omnis-cli validate` prints `override:` lines; the editor's rules list (`omnis-vector/src/screen/editor_rules.rs`,
+`ScreenId::EditorRules`, `EditAct::{Rules, RulesFilter, RuleFile}`, `Editor::open_rule_file`). Tests:
+`omnis-data/tests/rule_priority.rs`, `omnis-sim/tests/rules_ops.rs`, `omnis-cli/tests/cli.rs`,
+`omnis-vector/tests/editor_rules.rs`. Mutation runners in the scratchpad: `mut-rules/run.py`, `run2.py`,
+`run3.py`.
 
-**The gate had a hole, closed the same day** (`fb69f172`): it passed with no test run when every test binary
-failed to link (stale artifacts after I stopped a gate mid-build). `scripts/test-summary.sh` fails on a failed
-test, a cargo `^error`, or zero passed, and self-tests. Read the count line as a number (1228 before step 2).
-Never stop a gate part-way; if one was, `cargo clean -p <crate>` first (`tasks/LESSONS.md` 2026-11-11).
+**Pins moved**: base is sealed at 0.1.1, so the golden replays were rebaselined: walk `d48a913cec6c5735`,
+fight `9f52f48c5364e17f` (the compiled rules are byte for byte the ones before). Tests 1250 after step 2.
+
+**The `data.*` ops are accepted** (owner, 2026-11-11: "It seems to work well"). `strings.rs` is the serializer
+the plan named, at the owner's word the same day (two float aliases on `lint-sim: allow` lines, as
+`omnis-sim/src/query/path.rs`).
+
+**Lessons of the day** (`tasks/LESSONS.md`, four entries of 2026-11-11): the gate fails when no test ran; look
+for a rule's precedent in the tree before departing from a plan; another checkout never builds into this
+tree's `target/`; a sealed pack's text change rebaselines the replays in the same commit.
 
 Before this (2026-11-10): Windows CI accepted, advisory (`tasks/acceptance/windows-ci.md`); the entrances and
 exits enhancement closed 2026-11-08; the fixture and the canvas two packs since 2026-11-07. Rewrite this file
 every time it is used. Durable knowledge lives in `tasks/knowledge/`.
 
 ## When you resume
-- **State**: branch `W1-authoring-tools`. Read `git status` and `git log --oneline -6` first: the `data.*`
-  commits follow `2967303b`; the owner pushes, never me. Nothing of mine runs.
+- **State**: branch `W1-authoring-tools`. Read `git status` and `git log --oneline -8` first; the owner
+  pushes, never me. Nothing of mine runs.
 - **Read first**: this file, `tasks/knowledge/README.md`, `tasks/LESSONS.md` (2026-11-11 is the newest), the
   open part of `tasks/TODO.md`.
-- **Waiting on the owner**: the hand test of `tasks/acceptance/data-ops.md` (nine steps from a shell). A report
-  from it is fixed with a red test first. Two things told to the owner and open: whether to use the structural
-  serializer with two `lint-sim: allow` lines instead of the RON text walk; rule slots override by rules-file id
-  order, not pack load order (existing behaviour; theirs to decide).
+- **Waiting on the owner**: the hand test of `tasks/acceptance/rule-priority.md` (eight steps, the last in the
+  editor). A report from it is fixed with a red test first. Told to the owner and open: ARCHITECTURE §6.1
+  describes pack load order as a topological sort with cycle errors, which is not built.
 - **Next after acceptance**, in the owner's order of 2026-11-08: the pass-time dev command
   (`DevCommand::Pass { minutes }`) and the MCP bridge probe, both "when needed"; then W1 closes. Otherwise the
   four Bevy ECS tasks (`tasks/TODO.md`, Open), Bevy 0.20 (W2's first item, its date has passed).
@@ -213,7 +217,7 @@ every time it is used. Durable knowledge lives in `tasks/knowledge/`.
   saves move (the pack's version, its notes); a content change the owner did not intend is asked about, not fixed.
 
 ## Pins
-- **Replays:** walk `0370ab07b628f193`, fight `c81c08bde3a070e9` (against the frozen fixture at 0.2.9, hash
+- **Replays:** walk `d48a913cec6c5735`, fight `9f52f48c5364e17f` since base was resealed at 0.1.1 on 2026-11-11 (before: `0370ab07b628f193`, `c81c08bde3a070e9`; against the frozen fixture at 0.2.9, hash
   14523718773761627429, since 2026-11-07; the owner's canvas moved on to 0.2.18 and beyond and moves them no more;
   earlier that day 0.2.9 for the owner's pack, three unlinked portals and four cells; 2026-11-01 for step 2a, the portals linked by id,
   `packs/test` 0.2.5, hash 15167835935440741063; earlier that day the two east arrivals at 0.2.4; 2026-10-31 the owner's depths at

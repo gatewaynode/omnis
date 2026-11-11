@@ -1195,8 +1195,8 @@ Additive (§13), so `PROTOCOL` stays 2:
   Rules files are the fifteenth kind of the `data.*` ops (`rules`). Not a wire change but a pack format one:
   every slot, value and table in a rules file states a required `priority`, a value is written
   `(priority, value)` and a table `(priority, rows)`; the highest priority stands and a tie refuses the load.
-  `base` is resealed at 0.1.1, so a replay or a save names other packs than before; the compiled rules are
-  unchanged.
+  `base` is resealed at 0.1.1, so a replay or a save names other packs than before and the goldens moved (walk
+  `d48a913cec6c5735`, fight `9f52f48c5364e17f`); the compiled rules are unchanged.
 - 2026-11-11 (the `data.*` ops, W1): `data.kinds`, `data.list`, `data.get` and `data.text` with their
   replies `kinds`, `definitions`, `definition` and `words`, the views `KindCount`, `DefinitionRow` and
   `DefinitionView` (§7.12), and the error kind `UnknownId`; the ops to 48, the replies to 31, the error kinds to

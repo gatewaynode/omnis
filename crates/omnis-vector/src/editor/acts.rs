@@ -115,6 +115,13 @@ pub enum EditAct {
     History,
     /// Jump to where the map stood after step N of the history (0: the map as opened).
     HistoryTo(u16),
+    /// Open the rules list: every slot, value and table, where it came from and what it beat.
+    Rules,
+    /// The rules list's search field.
+    RulesFilter,
+    /// Open as text the file of rule N of the rules list (N counts every loaded rule, in kind
+    /// then name order), when the pack being edited wrote it.
+    RuleFile(u16),
     /// Write the map to its file and reseal the pack.
     Save,
     /// Reopen the map's file, dropping every unsaved change.
@@ -427,6 +434,14 @@ impl Editor {
             EditAct::Redo => self.walk(data, false),
             EditAct::History => return Asked::History,
             EditAct::HistoryTo(at) => self.history_to(data, usize::from(at)),
+            EditAct::Rules => return Asked::Rules,
+            // The search's text comes through `typed_in`.
+            EditAct::RulesFilter => {}
+            EditAct::RuleFile(n) => {
+                if self.open_rule_file(data, usize::from(n)) {
+                    return Asked::Picked;
+                }
+            }
             EditAct::Save => return self.save(data),
             EditAct::Revert => self.revert(data),
             EditAct::Menu => return Asked::Menu,

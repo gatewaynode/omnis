@@ -19,6 +19,7 @@ pub mod editor_history;
 pub mod editor_menu;
 pub mod editor_pick;
 pub mod editor_props;
+pub mod editor_rules;
 pub mod fight;
 pub mod inventory;
 pub mod load_report;
@@ -93,6 +94,8 @@ pub enum ScreenId {
     EditorProps,
     /// The editor's history list (the column's step 5).
     EditorHistory,
+    /// The editor's rules list: every rule, where it came from and what it beat.
+    EditorRules,
     /// The editor's tools column, built by the editor's layer, never on the overlays' stack.
     EditorTools,
     /// The editor's inspector column, as the tools.
@@ -682,6 +685,10 @@ pub struct EditingCtx<'a> {
     pub pick: Option<&'a crate::editor::pick::Picking>,
     /// The history list's steps and where the map stands (step 5), with a map open.
     pub history: Option<(&'a [String], usize)>,
+    /// What the rules list's search field holds.
+    pub rules_filter: &'a str,
+    /// The id of the pack being edited: the one whose rules files open as text.
+    pub pack: &'a str,
 }
 
 /// What screens keep between frames: the forms being filled, and the last outcome to report.
@@ -775,6 +782,7 @@ pub fn content(id: ScreenId, ctx: &Ctx, forms: &Forms) -> Screen {
         (ScreenId::EditorPick, _) => editor_pick::content(ctx),
         (ScreenId::EditorProps, _) => editor_props::content(ctx),
         (ScreenId::EditorHistory, _) => editor_history::content(ctx),
+        (ScreenId::EditorRules, _) => editor_rules::content(ctx),
         // The editor's columns are built by its layer (`shell/editor.rs`), not here.
         (
             ScreenId::EditorTools
@@ -850,6 +858,7 @@ pub fn apply(
         (ScreenId::EditorPick, _) => editor_pick::apply(control, payload),
         (ScreenId::EditorProps, _) => editor_props::apply(control, payload),
         (ScreenId::EditorHistory, _) => editor_history::apply(control, payload),
+        (ScreenId::EditorRules, _) => editor_rules::apply(control, payload),
         (
             ScreenId::EditorTools
             | ScreenId::EditorInspector

@@ -28,6 +28,7 @@ mod editor_pick;
 mod editor_playtest;
 mod editor_pointer;
 mod editor_preview;
+mod editor_rules;
 mod editor_run;
 mod editor_select;
 mod editor_stamp;

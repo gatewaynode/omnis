@@ -286,6 +286,10 @@ pub fn tools(editor: &Editor, data: &Data) -> Screen {
         ),
         Control::button(edit(EditAct::OpenFile), "Open file..."),
     ]));
+    rows.push(Row::controls(vec![Control::button(
+        edit(EditAct::Rules),
+        "Rules...",
+    )]));
     rows.push(Row::controls(vec![
         dim(
             Control::button(edit(EditAct::Save), "Save  Cmd S"),

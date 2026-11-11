@@ -55,6 +55,8 @@ pub enum NoteOf {
 pub enum Asked {
     /// Open the history list over the editor (step 5).
     History,
+    /// Open the rules list over the editor.
+    Rules,
     /// Nothing beyond the model's change.
     Nothing,
     /// Open the editor's menu.
@@ -142,6 +144,8 @@ pub struct Editor {
     pub files: Vec<String>,
     /// The file open as text, if one is.
     pub file: Option<FileEdit>,
+    /// What the rules list's search field holds.
+    pub rules_filter: String,
 }
 
 /// A placement at the cursor, as the inspector lists it: its words and the key that names it.
@@ -197,6 +201,7 @@ impl Editor {
             mode: Mode::Plan,
             files: Vec::new(),
             file: None,
+            rules_filter: String::new(),
         })
     }
 
@@ -635,6 +640,43 @@ impl Editor {
     /// Open the nth listed file as text, fresh (its field takes the keyboard), and show it. A
     /// file is refused while the open one has unsaved text (the picker asks about it first, so
     /// this guards the socket and the tests). Whether a file is shown.
+    /// The id of the pack being edited.
+    #[must_use]
+    pub fn pack(&self) -> &str {
+        self.session.pack()
+    }
+
+    /// Open as text the file that wrote rule `n` of the loaded rules, when the pack being edited
+    /// supplied it and keeps it under the name its id ends in (`data/rules/<name>.ron`).
+    fn open_rule_file(&mut self, data: &Data, n: usize) -> bool {
+        let Some(stands) = data.standings.values().nth(n) else {
+            return false;
+        };
+        if stands.pack != self.session.pack() {
+            self.message = Some(format!(
+                "{} is the pack {}'s, not the one being edited",
+                stands.file, stands.pack
+            ));
+            return false;
+        }
+        let name = stands.file.rsplit(':').next().unwrap_or_default();
+        let rel = format!("data/rules/{name}.ron");
+        match self.session.files() {
+            Ok(files) => self.files = files,
+            Err(e) => {
+                self.message = Some(format!("Cannot list the files: {e}"));
+                return false;
+            }
+        }
+        match self.files.iter().position(|f| *f == rel) {
+            Some(at) => self.open_file(at),
+            None => {
+                self.message = Some(format!("{} is not in {rel}", stands.file));
+                false
+            }
+        }
+    }
+
     fn open_file(&mut self, n: usize) -> bool {
         let Some(rel) = self.files.get(n).cloned() else {
             return false;
