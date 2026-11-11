@@ -20,14 +20,15 @@ use crate::party::PartyCommand;
 pub use crate::party_view::{ItemView, MemberView, PartyView, party_view};
 use crate::query::{self, ViewportModel};
 use crate::rest_view::{RestView, rest_view};
+pub use crate::rules_ops::{
+    RuleOrigin, RulesView, SlotView, rule_reply, rules_set, rules_view, slot_view,
+};
 use crate::save::{SaveCheck, examine_running, restore};
 use crate::service_view::{ServiceView, service_view};
 use crate::time_view::{DateView, TimeView, time_view};
 use crate::view::{CombatView, combat_view};
 use crate::world::{Known, ModeKind, Settings, World};
-use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -469,28 +470,6 @@ pub struct KnownTile {
     pub known: Known,
 }
 
-/// One rule slot.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SlotView {
-    /// Slot name.
-    pub name: String,
-    /// Declared inputs.
-    pub inputs: Vec<String>,
-    /// The expression.
-    pub source: String,
-}
-
-/// The loaded rules.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RulesView {
-    /// Every slot.
-    pub slots: Vec<SlotView>,
-    /// Plain values.
-    pub values: BTreeMap<String, i64>,
-    /// Tables.
-    pub tables: BTreeMap<String, Vec<i64>>,
-}
-
 /// A successful result. Tagged inside: the wire carries the plain object with `"reply"` naming
 /// the variant in snake case, so a client can decode a reply without knowing the op it sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -551,6 +530,8 @@ pub enum Reply {
     Rule {
         /// The slot.
         rule: SlotView,
+        /// Where its definition came from and what it beat; null for a slot no file wrote.
+        origin: Option<RuleOrigin>,
     },
     /// `combat.get`.
     Combat {
@@ -893,7 +874,7 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         Op::RulesList => Ok(Reply::Rules {
             rules: rules_view(data),
         }),
-        Op::RulesGet { slot } => slot_view(data, slot).map(|rule| Reply::Rule { rule }),
+        Op::RulesGet { slot } => rule_reply(data, slot),
         Op::DataKinds | Op::DataList { .. } | Op::DataGet { .. } | Op::DataText { .. } => {
             op.data(data).unwrap_or(Err(OpError::HostOnly))
         }
@@ -922,33 +903,6 @@ pub fn dispatch(world: &mut World, data: &Data, op: &Op) -> Result<Reply, OpErro
         | Op::EditorNoteSet { .. }
         | Op::EditorNotes { .. } => Err(OpError::HostOnly),
     }
-}
-
-/// `rules.list`.
-#[must_use]
-pub fn rules_view(data: &Data) -> RulesView {
-    RulesView {
-        slots: data
-            .rules
-            .slot_names()
-            .filter_map(|name| slot_view(data, name).ok())
-            .collect(),
-        values: data.rules.values().clone(),
-        tables: data.rules.tables().clone(),
-    }
-}
-
-/// `rules.get`, and what `rules.set` answers with.
-pub fn slot_view(data: &Data, name: &str) -> Result<SlotView, OpError> {
-    bounded(name)?;
-    let slot = data.rules.slot(name).ok_or_else(|| OpError::UnknownSlot {
-        slot: name.to_owned(),
-    })?;
-    Ok(SlotView {
-        name: name.to_owned(),
-        inputs: slot.inputs().to_vec(),
-        source: slot.source().to_owned(),
-    })
 }
 
 /// `game.status`.
@@ -1028,17 +982,6 @@ impl From<ReloadRefused> for OpError {
     fn from(refused: ReloadRefused) -> OpError {
         refused.error
     }
-}
-
-/// `rules.set`: hot-swap a slot's expression, checked as the loader checks it, and answer with
-/// the slot.
-pub fn rules_set(data: &mut Data, slot: &str, source: &str) -> Result<Reply, OpError> {
-    bounded(source)?;
-    slot_view(data, slot)?;
-    data.rules
-        .set_slot(slot, source)
-        .map_err(OpError::bad_request)?;
-    slot_view(data, slot).map(|rule| Reply::Rule { rule })
 }
 
 fn script(world: &mut World, data: &Data, commands: &[Command]) -> Result<Reply, OpError> {

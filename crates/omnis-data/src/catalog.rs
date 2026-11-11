@@ -3,7 +3,8 @@
 //! [`Definition`] and one row of [`KINDS`]; its references and its text keys are found by the same
 //! walk as every other kind's ([`links`]), with no code of their own.
 //!
-//! Rules files are not here: [`Data`] keeps the compiled set, which `rules.list` serves.
+//! A rules file is a definition as the others are; what its entries come to once every file is
+//! merged by priority is the compiled set, which `rules.list` serves with each rule's origin.
 
 use crate::character::{Background, Class, Race};
 use crate::condition::Condition;
@@ -16,6 +17,7 @@ use crate::map::MapDef;
 use crate::monster::Monster;
 use crate::object::ObjectKind;
 use crate::region::RegionDef;
+use crate::rules::RulesFile;
 use crate::service::ServiceDef;
 use crate::spell::Spell;
 use crate::strings::strings;
@@ -51,6 +53,8 @@ pub enum Definition {
     Service(ServiceDef),
     /// A region, written again from the loaded one: its ids as strings.
     Region(RegionDef),
+    /// A rules file: slots, values and tables, each with its priority.
+    Rules(RulesFile),
     /// An object kind.
     Object(Box<ObjectKind>),
     /// A loot table.
@@ -130,7 +134,7 @@ macro_rules! kind {
 }
 
 /// Every kind of definition, in the order a listing gives them: by word.
-pub const KINDS: [Kind; 14] = [
+pub const KINDS: [Kind; 15] = [
     kind!("background", backgrounds, Background),
     kind!("class", classes, Class),
     kind!("condition", conditions, Condition),
@@ -159,6 +163,12 @@ pub const KINDS: [Kind; 14] = [
             let loaded = data.regions.get(&data.registry.regions.get(id)?)?;
             data.registry.text.name(loaded.name)
         },
+    },
+    Kind {
+        word: "rules",
+        ids: |data| data.rule_files.keys().map(String::as_str).collect(),
+        get: |data, id| data.rule_files.get(id).cloned().map(Definition::Rules),
+        name: |_, _| None,
     },
     kind!("service", services, Service),
     kind!("spell", spells, Spell),

@@ -448,7 +448,8 @@ fn the_host_ops_rules_hold_for_every_host() {
         "as rules.get answers it (B5)"
     );
     assert_eq!(rules, data, "a refused swap changes nothing");
-    let Ok(Reply::Rule { rule }) = rules_set(&mut rules, "spell_points.pool", "level * 10") else {
+    let Ok(Reply::Rule { rule, .. }) = rules_set(&mut rules, "spell_points.pool", "level * 10")
+    else {
         panic!("a good formula swaps");
     };
     assert_eq!(rule.source, "level * 10");

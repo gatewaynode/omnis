@@ -96,9 +96,11 @@ pub use crate::view::{
 
 // The JSON op protocol.
 pub use crate::ops::{
-    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RulesView,
-    ShotTarget, SlotView, Status, bounded_file, client_path, dispatch, reload, rules_set,
+    ClockView, KnownTile, MAX_SCRIPT, Op, OpError, PROTOCOL, ReloadRefused, Reply, RuleOrigin,
+    RulesView, ShotTarget, SlotView, Status, bounded_file, client_path, dispatch, reload,
+    rules_set,
 };
+pub use omnis_data::rules::{Beaten, RuleKind};
 // The `data.*` ops: what the loaded packs define. `Definition` is the pack format's own shape.
 pub use crate::data_ops::{
     DEFAULT_LANG, DefinitionRow, DefinitionView, KindCount, LIST_DEFAULT, LIST_MAX, Listing,

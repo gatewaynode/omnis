@@ -7,7 +7,8 @@ use omnis_cli::Headless;
 use omnis_cli::omnis_sim::api::{examine, save_files};
 use omnis_cli::omnis_sim::omnis_core::{Facing, Position};
 use omnis_cli::omnis_sim::omnis_data::Disposition;
-use omnis_cli::omnis_sim::ops::{PROTOCOL, SlotView};
+use omnis_cli::omnis_sim::omnis_data::rules::{Beaten, RuleKind};
+use omnis_cli::omnis_sim::ops::{PROTOCOL, RuleOrigin, SlotView};
 use omnis_cli::omnis_sim::{
     Command, EncounterSource, EncounterState, Mode, Op, Reply, Stack, ops::client_path,
 };
@@ -164,6 +165,18 @@ fn every_reply_names_itself_and_reads_back_without_its_op() {
                 inputs: vec!["level".into()],
                 source: "level".into(),
             },
+            origin: Some(RuleOrigin {
+                kind: RuleKind::Slot,
+                name: "x".into(),
+                file: "test:rules:x".into(),
+                pack: "test".into(),
+                priority: 100,
+                overrides: vec![Beaten {
+                    file: "base:rules:x".into(),
+                    pack: "base".into(),
+                    priority: 0,
+                }],
+            }),
         },
     ];
     let town = game.data.registry.maps.get("test:map:town").unwrap();

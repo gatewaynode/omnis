@@ -188,6 +188,30 @@ fn report(check: &omnis_sim::api::SaveCheck) -> String {
     out
 }
 
+/// One line for every rule that beat another definition of its name, the highest beaten first:
+/// what an author checks before the game runs. A tie is not here; it refuses the load.
+fn overrides(data: &Data) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    for ((kind, name), stands) in &data.standings {
+        if stands.beats.is_empty() {
+            continue;
+        }
+        let beaten: Vec<String> = (stands.beats.iter())
+            .map(|b| format!("{} (pack {}, priority {})", b.file, b.pack, b.priority))
+            .collect();
+        let _ = writeln!(
+            out,
+            "override: {kind} {name}: {} (pack {}, priority {}) over {}",
+            stands.file,
+            stands.pack,
+            stands.priority,
+            beaten.join(", ")
+        );
+    }
+    out
+}
+
 fn validate(roots: &[&str]) -> Result<(), String> {
     let roots: Vec<&Path> = roots.iter().map(Path::new).collect();
     let data = load_packs(&roots).map_err(|report| report.to_string())?;
@@ -208,6 +232,7 @@ fn validate(roots: &[&str]) -> Result<(), String> {
         data.services.len(),
         data.objects.len(),
     );
+    print!("{}", overrides(&data));
     Ok(())
 }
 

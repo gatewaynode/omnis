@@ -227,7 +227,7 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
             source: "level * 10".into(),
         })
         .unwrap();
-    assert!(matches!(reply, Reply::Rule { rule } if rule.source == "level * 10"));
+    assert!(matches!(reply, Reply::Rule { rule, .. } if rule.source == "level * 10"));
     game.handle(&Op::PartyCreate { character: wizard }).unwrap();
     assert_eq!(
         pool(&mut game, 1),
@@ -260,7 +260,7 @@ fn rules_set_changes_the_pool_without_a_rebuild() {
     );
     assert!(matches!(
         game.handle(&Op::RulesGet { slot: "spell_points.pool".into() }).unwrap(),
-        Reply::Rule { rule } if rule.source == "level * 10" && rule.inputs.len() == 4
+        Reply::Rule { rule, .. } if rule.source == "level * 10" && rule.inputs.len() == 4
     ));
     assert_eq!(
         game.handle(&Op::RulesGet {

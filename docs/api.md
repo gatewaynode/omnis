@@ -210,8 +210,8 @@ socket and the bridge (malformed request).
 | `creation.get` | none | `creation` | | |
 | `time.clocks` | none | `time` | | |
 | `time.reconcile` | `region` (`pack:region:name`) | `events` | `Rejected` | dev only |
-| `rules.list` | none | `rules` | | |
-| `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | |
+| `rules.list` | none | `rules` | | Each slot, value and table with where it came from (`origins`, §7.13) |
+| `rules.get` | `slot` (e.g. `spell_points.pool`) | `rule` | `TooLong`, `UnknownSlot` | With the slot's `origin` (§7.13) |
 | `rules.set` | `slot`, `source` | `rule` | `TooLong`, `UnknownSlot`, `BadRequest` (a formula that does not compile) | host |
 | `save.write` | `path` (relative `.ron`) | `written` | `TooLong`, `Failed` (bad path, the save rule forbids saving here, I/O) | host. Writes a character save at `path` and, under `.omnis/worlds/<id>/` beside the host's root, the world's manifest and the bases its journal starts from (`save::save_files`; each file whole, a base kept when already there). Also writes the archive segments folded since the last save (`archive/<hash>.ron`). The save holds the party as it stands, the interactions since the base, each with its changes to the world, and the party's log. `Failed` without writing anything when the save would be over 8 MiB (`MAX_SAVE_BYTES`) or a world file over 4 MiB (`MAX_FILE_BYTES`), sizes its reader would refuse |
 | `save.read` | `path`, `force` (default false), `migrate` (default false) | `status` | `TooLong`, `Failed` (bad path, unreadable, unknown schema, a name the loaded packs lack (each listed with where the save holds it), other packs without `force` for a save with no name table, the packs' migrations change it and `migrate` is not given (each file named), inconsistent save, a base missing or altered, a rebuilt world other than the one the save recorded) | host. A character save's bases are joined with its party and its journal's changes laid over them; no rule runs (`save::load_save`). The archive segments come back by name (none is read) and the party's log with them. A schema 1 to 7 save, a whole world, is converted: it becomes the base of an empty journal |
@@ -266,8 +266,8 @@ Notes:
 | `text` | `Reply::Text` | `text` (string) | `map.text`, `screen.text` |
 | `written` | `Reply::Written` | `path` (string), `version` (string; only when the write resealed the pack, M5.3) | `save.write`, `screenshot`, `editor.save`, `editor.write` |
 | `party` | `Reply::Party` | `party` (`PartyView`) | `party.get` |
-| `rules` | `Reply::Rules` | `rules` (`RulesView`: `slots` `[SlotView]`, `values` map name → integer, `tables` map name → `[integer]`) | `rules.list` |
-| `rule` | `Reply::Rule` | `rule` (`SlotView`: `name`, `inputs` `[string]`, `source`) | `rules.get`, `rules.set` |
+| `rules` | `Reply::Rules` | `rules` (`RulesView`: `slots` `[SlotView]`, `values` map name → integer, `tables` map name → `[integer]`, `origins` `[RuleOrigin]`, §7.13) | `rules.list` |
+| `rule` | `Reply::Rule` | `rule` (`SlotView`: `name`, `inputs` `[string]`, `source`), `origin` (`RuleOrigin`, §7.13, or null for a slot no file wrote) | `rules.get`, `rules.set` |
 | `combat` | `Reply::Combat` | `combat` (`CombatView`) | `combat.get` |
 | `service` | `Reply::Service` | `view` (`ServiceView`) | `service.get` |
 | `time` | `Reply::Time` | `time` (`TimeView`) | `time.clocks` |
@@ -720,9 +720,10 @@ monster's numbers, a hidden object's kind, any text. A client that shows them to
 decides what to show. A per-party gate is a requirement of the multiplayer step (PRD D30).
 
 `KindCount`: `kind` (the word an id carries: `background`, `class`, `condition`, `flag`, `item`,
-`loot`, `map`, `monster`, `object`, `race`, `region`, `service`, `spell`, `tileset`), `count`. A
-kind the packs gain later appears here with no change to the ops. Rules files are the one kind
-not listed: `rules.list` serves the compiled slots, values and tables.
+`loot`, `map`, `monster`, `object`, `race`, `region`, `rules`, `service`, `spell`, `tileset`),
+`count`. A kind the packs gain later appears here with no change to the ops. A `rules` definition
+is one rules file as written, each entry with its priority; what the files come to once merged
+is `rules.list` (§7.13).
 
 `DefinitionRow` (a `data.list` row) and `DefinitionView` (`data.get`) share an envelope, which
 is under this protocol:
@@ -742,6 +743,31 @@ A `DefinitionView` adds:
 |---|---|
 | `def` | The definition as its pack file wrote it, as JSON. **Outside this protocol's field rules**: its fields are the pack format's, versioned by `omnis_data::SCHEMA` (§12) and free to gain fields, and its ids are strings. A map's `def` is the whole `MapDef` (its `terrains` are the rows `ViewTile.terrain` counts) and can be megabytes; a region's is written again from the loaded one |
 | `refers` | Every loaded definition and every flag the definition names, by id, sorted; never itself. Found by reading every string in `def`, so a tag or a field that names an id counts. `data.list` with `refers_to` asks it from the other side |
+
+### 7.13 `RuleOrigin` (the `rules.*` ops)
+
+Every slot, value and table in a rules file states a `priority` (an integer; `base` writes 0).
+Where several loaded files define one name, the highest priority stands, whatever the files' ids
+or their packs' place in the load order. The loader refuses packs in which two definitions of
+one name share a priority, an overriding slot declares other inputs than the rule it replaces,
+or any formula does not compile, standing or not. A slot, a value and a table are named apart:
+one name may be each.
+
+`rules.list` gives one `RuleOrigin` per slot, value and table in `origins` (slots, then values,
+then tables, each by name); `rules.get` and `rules.set` give the slot's as `origin`.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `slot`, `value` or `table` |
+| `name` | The rule's name |
+| `file` | The rules file that wrote the definition that stands (`pack:rules:name`); `data.get` gives it as written |
+| `pack` | The pack that supplied that file |
+| `priority` | Its priority, the highest among the definitions of this rule |
+| `overrides` | The definitions it beat, from the highest priority down, each `file`, `pack`, `priority`; empty for most |
+
+A `rules.set` swaps a slot's formula in the running game and leaves its `origin` as loaded: the
+origin says which file defined the slot, not that the formula is still that file's. From a shell,
+`omnis-cli validate <packs>` prints one `override:` line per rule that beat another.
 
 ## 8. Commands
 
@@ -1129,8 +1155,8 @@ As of protocol 2:
 - **Definitions are the author's tier.** The `data.*` ops (§7.12) answer from everything loaded,
   whatever the party has met; no op answers "what does this party know of it". Views still carry
   text keys, not text: a client resolves them with `data.text`. Text placeholders (`{ago}`) are
-  left as written, and no op takes the arguments to fill them. Rules files are not a kind
-  (`rules.list`), and a text key reports no supplying pack. `refers_to` reads every loaded
+  left as written, and no op takes the arguments to fill them. A text key reports no supplying
+  pack, and a `rules.set` hot swap is not marked in a rule's `origin`. `refers_to` reads every loaded
   definition once per call.
 - **Tier 1 reads without an op**: `flags`, `flag_scope`, `journal_len`, `archive_len`, `history`, `told`, `split_report`, `split`, `join`, `step_lands`, `site_ahead`, `door_open`, `objects_on_level`. `here` is reachable only
   inside `game.status`, which also serializes the world for its fingerprint.
@@ -1164,7 +1190,14 @@ As of protocol 2:
 
 Additive (§13), so `PROTOCOL` stays 2:
 
-- 2026-11-11 (latest, the `data.*` ops, W1): `data.kinds`, `data.list`, `data.get` and `data.text` with their
+- 2026-11-11 (latest, rule priority): `rules.list` gains `origins` and `rules.get` / `rules.set` gain `origin`
+  (`RuleOrigin`, §7.13): the file, pack and priority of each rule that stands and the definitions it beat.
+  Rules files are the fifteenth kind of the `data.*` ops (`rules`). Not a wire change but a pack format one:
+  every slot, value and table in a rules file states a required `priority`, a value is written
+  `(priority, value)` and a table `(priority, rows)`; the highest priority stands and a tie refuses the load.
+  `base` is resealed at 0.1.1, so a replay or a save names other packs than before; the compiled rules are
+  unchanged.
+- 2026-11-11 (the `data.*` ops, W1): `data.kinds`, `data.list`, `data.get` and `data.text` with their
   replies `kinds`, `definitions`, `definition` and `words`, the views `KindCount`, `DefinitionRow` and
   `DefinitionView` (§7.12), and the error kind `UnknownId`; the ops to 48, the replies to 31, the error kinds to
   12. The game's socket answers them with no game running. `omnis-cli op <name> [<args>]` sends one op from a shell. A definition's `def` is the pack format's shape (`omnis_data::SCHEMA`), outside this protocol's field

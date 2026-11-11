@@ -440,7 +440,8 @@ no loss, and every later map is built with it.
     losing formula that does not compile are errors); `Standings` and the raw files kept on `Data`; every
     rules file rewritten (base 10, `objects` 1, the bad fixtures 3), base's version raised and resealed;
     ARCHITECTURE §5.
-  - [ ] **Step 2, showing it over the API and the CLI**: `rules` the 15th row of `catalog::KINDS`; `origins`
+  - [x] **Step 2, showing it over the API and the CLI** (built 2026-11-11; the rules ops moved to
+    `omnis-sim/src/rules_ops.rs`): `rules` the 15th row of `catalog::KINDS`; `origins`
     on `rules.list` and `origin` on `rules.get`; the override lines of `omnis-cli validate`; pins and
     `docs/api.md`.
   - [ ] **Step 3, the editor rules view** (`omnis-vector`): a modal list of every slot, value and table with

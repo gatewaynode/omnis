@@ -33,7 +33,7 @@ Each "you will see" below is asserted by `omnis-cli/tests/cli.rs::op_answers_one
 `omnis-sim/tests/data_ops.rs` or `omnis-mcp/tests/replies.rs`.
 
 1. `cargo run -q -p omnis-cli -- op data.kinds`
-   You will see `reply: "kinds"`, fourteen kinds from `background` to `tileset` with their counts for
+   You will see `reply: "kinds"`, fifteen kinds from `background` to `tileset` (fourteen until rules files became one, 2026-11-11) with their counts for
    `packs/base` and `packs/the_lower_kingdoms`, and `languages: ["en"]`.
 2. `cargo run -q -p omnis-cli -- op data.list '(kind: "monster")'`
    You will see one row per monster: `id`, `kind`, `name` (the text key), `words` (the key with its text, as

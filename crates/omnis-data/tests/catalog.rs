@@ -31,11 +31,14 @@ fn gathered_kinds() -> BTreeSet<&'static str> {
 }
 
 #[test]
-fn the_table_has_a_row_for_every_kind_the_loader_gathers_but_the_rules() {
+fn the_table_has_a_row_for_every_kind_the_loader_gathers() {
     let rows: BTreeSet<&str> = KINDS.iter().map(|k| k.word).collect();
     assert_eq!(rows.len(), KINDS.len(), "no kind twice");
-    let mut gathered = gathered_kinds();
-    assert!(gathered.remove("rules"), "the loader gathers rules files");
+    let gathered = gathered_kinds();
+    assert!(
+        gathered.contains("rules"),
+        "rules files are a kind as the others are"
+    );
     assert_eq!(rows, gathered);
     let sorted: Vec<&str> = rows.iter().copied().collect();
     let listed: Vec<&str> = KINDS.iter().map(|k| k.word).collect();
@@ -318,5 +321,23 @@ fn every_loaded_definition_has_a_supplier_among_the_loaded_packs() {
     assert_eq!(
         catalog::supplier(&data, "test:tileset:outdoor"),
         Some("test")
+    );
+}
+
+#[test]
+fn a_rules_file_is_a_definition_as_written_with_its_priorities() {
+    let data = loaded();
+    let Some(Definition::Rules(file)) = catalog::get(&data, "base:rules:combat") else {
+        panic!("the combat rules are loaded")
+    };
+    assert_eq!(file.slots["attack.total"].priority, 0);
+    assert_eq!(file.values["death_save_dc"].value, 10);
+    assert_eq!(file.tables["run_dc"].rows, [15, 12, 10, 0]);
+    assert_eq!(catalog::supplier(&data, "base:rules:combat"), Some("base"));
+    assert_eq!(
+        catalog::kind("rules")
+            .unwrap()
+            .name(&data, "base:rules:combat"),
+        None
     );
 }

@@ -37,6 +37,7 @@ mod reactions;
 mod reload;
 mod rest;
 mod rest_view;
+mod rules_ops;
 mod save_and_replay;
 mod save_check;
 mod sense;

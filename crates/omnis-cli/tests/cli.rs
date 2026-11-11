@@ -143,6 +143,92 @@ fn op_answers_one_op_as_ron_and_says_why_not() {
     assert!(!ok && err.contains("op needs an op's name"), "{err}");
 }
 
+/// A scratch pack `house` over base with one rules file of these entries, sealed.
+fn house(dir: &str, entries: &str) -> String {
+    let root = scratch(dir);
+    std::fs::create_dir_all(root.join("data/rules")).unwrap();
+    std::fs::write(
+        root.join("pack.ron"),
+        r#"(schema: 1, id: "house", version: "0.1.0", name: "house", license: "MIT",
+            attribution: [], depends: ["base"], entry: None)"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("data/rules/table.ron"),
+        format!(r#"(schema: 1, id: "house:rules:table", {entries})"#),
+    )
+    .unwrap();
+    let root = root.to_str().unwrap().to_owned();
+    let (ok, _, err) = cli(&["pack", "seal", &root]);
+    assert!(ok, "{err}");
+    root
+}
+
+/// Rule priority from a shell (owner, 2026-11-11): `validate` lists every override, the ops say
+/// where a rule came from, a rules file is a definition, and a tie refuses the load.
+#[test]
+fn an_override_is_listed_by_validate_and_named_by_the_ops_and_a_tie_is_refused() {
+    let root = house(
+        "cli-house",
+        r#"slots: {"attack.total": (priority: 200, inputs: ["die", "bonus", "proficiency"], expr: "die + bonus")},
+           values: {"death_save_dc": (priority: 200, value: 12), "house_only": (priority: 0, value: 1)}"#,
+    );
+    let (ok, out, err) = cli(&["validate", "packs/base", &root]);
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(lines[0].starts_with("ok: 2 packs"), "{out}");
+    assert_eq!(
+        lines[1..],
+        [
+            "override: slot attack.total: house:rules:table (pack house, priority 200) over base:rules:combat (pack base, priority 0)",
+            "override: value death_save_dc: house:rules:table (pack house, priority 200) over base:rules:combat (pack base, priority 0)",
+        ],
+        "{out}"
+    );
+    // Base alone overrides nothing.
+    let (_, out, _) = cli(&["validate", "packs/base"]);
+    assert_eq!(out.lines().count(), 1, "{out}");
+
+    // `op` starts a game, so a pack with a starting map loads between them.
+    let fixture = "crates/omnis-sim/tests/packs/test";
+    let packs = ["--pack", "packs/base", "--pack", fixture, "--pack", &root];
+    let op = |args: &[&str]| cli(&[args, &packs[..]].concat());
+    let (ok, out, err) = op(&["op", "rules.get", "(slot: \"attack.total\")"]);
+    assert!(ok, "{err}");
+    for part in [
+        "source: \"die + bonus\"",
+        "file: \"house:rules:table\"",
+        "pack: \"house\"",
+        "priority: 200",
+        "file: \"base:rules:combat\"",
+    ] {
+        assert!(out.contains(part), "{part}: {out}");
+    }
+    let (ok, out, err) = op(&["op", "data.list", "(kind: \"rules\")"]);
+    assert!(ok, "{err}");
+    assert!(out.contains("id: \"house:rules:table\""), "{out}");
+    assert!(out.contains("id: \"base:rules:combat\""), "{out}");
+    let (ok, out, err) = op(&["op", "data.get", "(id: \"house:rules:table\")"]);
+    assert!(ok, "{err}");
+    // A definition's envelope is flattened around `def`, which RON writes as a map.
+    assert!(out.contains("\"kind\": rules"), "{out}");
+    assert!(out.contains("\"pack\": \"house\""), "{out}");
+    assert!(out.contains("priority: 200"), "{out}");
+
+    let tied = house(
+        "cli-house-tied",
+        r#"values: {"death_save_dc": (priority: 0, value: 12)}"#,
+    );
+    let (ok, _, err) = cli(&["validate", "packs/base", &tied]);
+    assert!(!ok);
+    assert!(
+        err.contains(
+            "value 'death_save_dc': priority 0 in both 'base:rules:combat' and 'house:rules:table'"
+        ),
+        "{err}"
+    );
+}
+
 #[test]
 fn play_prints_events_and_the_fingerprint_the_library_computes() {
     let dir = scratch("cli-play");

@@ -497,13 +497,13 @@ fn party_tools() -> Vec<Tool> {
         tool(
             "rules_list",
             "rules.list",
-            "Every rule slot with its inputs and source, plus the rule values and tables.",
+            "Every rule slot with its inputs and source, the rule values and tables, and in origins where each came from: the rules file, its pack, its priority and the definitions it beat.",
             &[],
         ),
         tool(
             "rules_get",
             "rules.get",
-            "One rule slot's inputs and source.",
+            "One rule slot's inputs and source, with its origin: the rules file that defined it, its pack, its priority and the definitions it beat.",
             &[Field::new::<String>(
                 "slot",
                 true,
