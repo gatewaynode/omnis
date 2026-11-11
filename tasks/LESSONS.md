@@ -671,3 +671,16 @@
 - **Rule**: a gate or a build is never stopped part-way; if one must be, `cargo clean -p <crate>` for every
   crate whose sources changed since the last whole build comes before the next run. A link error naming
   `anon.*.llvm.*` symbols in a workspace rlib is a stale artifact, not the code.
+
+## 2026-11-11 — Before departing from a plan over a rule, look for the rule's precedent in the tree
+- **What happened**: the approved plan for the `data.*` ops named a string-collecting `serde::Serializer`. I
+  built a walk over RON text instead, because the trait's signatures name the float types the sim lint bans,
+  and reported that I "did not use the lint's exemption marker". `omnis-sim/src/query/path.rs` had carried
+  exactly that case since `world.query`: two aliases, `type Float32` and `type Float64`, each on a
+  `lint-sim: allow` line. One `grep -rn "lint-sim: allow" crates` would have shown it. The owner chose the
+  serializer when asked (it takes each string from the type, not from how a format prints it).
+- **Rule**: when a lint or a rule seems to block what a plan approved, grep the tree for how the same case is
+  already handled before choosing a departure; a departure is the owner's choice, asked before it is built,
+  not reported after.
+- **Rule** (the owner's preference, 2026-11-11): a value is walked through its type (a serializer, a visitor),
+  not through its printed text.

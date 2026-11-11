@@ -8,7 +8,7 @@ per-party gate left for D30; generic filters in the first version; the supplying
 ## What was built
 - **Step 1, the catalogue** (`4c5bf51b`): `omnis-data/src/catalog.rs`, one table of the 14 kinds the loader
   gathers (every kind but the rules files); `Definition`, tagged `kind` beside `def`; `links` and `referrers`,
-  both from one walk over a definition's strings (`strings.rs`: read from its compact RON), so a field or a kind
+  both from one walk over a definition's strings (`strings.rs`: a serializer that keeps the strings), so a field or a kind
   added later needs no reference code; `Data.sources`, the packs that wrote each id.
 - **Step 2, the ops**: `data.kinds`, `data.list`, `data.get`, `data.text` in `omnis-sim/src/data_ops.rs`; the
   ops to 48, the MCP tools to 48, `Reply` to 31, `OpError` to 12 (`UnknownId`); `docs/api.md` §5, §6, §7.12,
@@ -20,8 +20,9 @@ per-party gate left for D30; generic filters in the first version; the supplying
   `scripts/test-summary.sh`; `tasks/LESSONS.md` 2026-11-11).
 
 ## Departures from the plan as approved
-- The strings of a definition are read from its compact RON, not by a serializer of its own: that trait's
-  signatures name `f32` and `f64`, which the sim lint bans. The lint's `lint-sim: allow` marker was not used.
+- The strings of a definition were first read from its compact RON. Since 2026-11-11 (the owner's choice)
+  they are collected by a serializer of its own, as planned, with the two float aliases on `lint-sim: allow`
+  lines as `omnis-sim/src/query/path.rs` already does. Strings now come unescaped.
 - The paging field is `cursor` in the request and the reply (not `after` and `next`).
 - `data.get` on an unknown language gives null words rather than an error.
 - Not built: a socket test of `data.*` after a `pack.reload` onto changed packs (the routing reads the game's

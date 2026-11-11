@@ -413,8 +413,8 @@ no loss, and every later map is built with it.
   the first version (kind, prefix, a substring, `refers_to`); provenance recorded now (`pack`, `replaces`).
   Four ops: `data.kinds`, `data.list`, `data.get`, `data.text` (ops 44 to 48, tools 48, `Reply` 31, `OpError`
   12 with `UnknownId`). Rules files are not a kind (`rules.*` serves them).
-  - [x] **Step 1, the catalogue in `omnis-data`** (built 2026-11-11; the strings are read from a
-    definition's compact RON, a serializer of its own would name the float types): `strings.rs` (a serializer that collects every string of a
+  - [x] **Step 1, the catalogue in `omnis-data`** (built 2026-11-11; first as a walk over a
+    definition's compact RON, the serializer as planned since the owner's choice the same day): `strings.rs` (a serializer that collects every string of a
     definition, so references and text keys are found with no code per kind), `catalog.rs` (the one table of
     kinds, `Definition`, `links`, `referrers`), `Data.sources` from the loader. Tests on the frozen fixture,
     the `objects` pack and a scratch pack that overrides a base item.

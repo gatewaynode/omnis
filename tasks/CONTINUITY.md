@@ -9,8 +9,8 @@ tier, a per-party gate for D30; generic filters now; the supplying pack recorded
 
 What stands: `omnis-data/src/catalog.rs` (`KINDS`, 14 rows, every kind the loader gathers but the rules files;
 `Definition` tagged `kind` beside `def`; `links`, `referrers`, `supplier`, `replaced`; `Kind::{ids, get, name}`),
-`strings.rs` (a value's strings from its compact RON: a serializer of its own would name the float types, and
-the lint's allow marker was not used), `Data.sources` from the loader; `omnis-sim/src/data_ops.rs` (`Op::data`,
+`strings.rs` (a value's strings by a serializer of its own, the owner's choice of 2026-11-11; the two float
+aliases carry the lint's allow marker, as `query/path.rs` does), `Data.sources` from the loader; `omnis-sim/src/data_ops.rs` (`Op::data`,
 `kinds`, `list`, `get`, `text`; `Listing`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_DEFAULT`
 100, `LIST_MAX` 500, `MAX_KEYS` 256; the page's field is `cursor` both ways); `OpError::UnknownId`; the socket
 answers `data.*` with no game (`socket.rs` `serve`: the game's data when one runs, else `Packs.data`);

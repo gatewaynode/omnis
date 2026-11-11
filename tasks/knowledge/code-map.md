@@ -94,7 +94,7 @@ old saves only).
   number no pack names), `action_named`: events and views name definitions by string id here); the views `query::here`, `party_view.rs`, `view.rs`,
   `service_view.rs`, `rest_view.rs`, `time_view.rs`, `cast_view.rs`, `objects_view.rs`; `omnis-cli/src/headless.rs` (`Headless`, the in-process host);
   `omnis-vector/src/shell/{socket,host}.rs` (the dev socket host, `MAX_LINE`); `omnis-mcp/src/tools.rs` (tool → op).
-- The `data.*` ops (W1, 2026-11-11): `omnis-data/src/catalog.rs` (`KINDS`, the one table of kinds: a new kind is a `Definition` variant and a row; `Definition` tagged `kind` beside `def`; `links` and `referrers` from one walk over a definition's strings; `supplier`, `replaced` over `Data.sources`), `omnis-data/src/strings.rs` (the strings of any value from its compact RON), `omnis-sim/src/data_ops.rs` (`Op::data`, `kinds`, `list`, `get`, `text`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_MAX`, `MAX_KEYS`). They need no world.
+- The `data.*` ops (W1, 2026-11-11): `omnis-data/src/catalog.rs` (`KINDS`, the one table of kinds: a new kind is a `Definition` variant and a row; `Definition` tagged `kind` beside `def`; `links` and `referrers` from one walk over a definition's strings; `supplier`, `replaced` over `Data.sources`), `omnis-data/src/strings.rs` (the strings of any value, by a serializer that keeps only them), `omnis-sim/src/data_ops.rs` (`Op::data`, `kinds`, `list`, `get`, `text`; `DefinitionRow`, `DefinitionView`, `KindCount`, `Words`; `LIST_MAX`, `MAX_KEYS`). They need no world.
 - Bus vocabulary: `bus.rs` (`Topic { Region, Battle }`, `Subscriber { Reconcile, Reactions }`,
   `Signal { Entered, Battle(Cue) }`, `type Bus`); the hosts are `time.rs::Sim` and
   `combat/reaction.rs::Fight`.
