@@ -3,5 +3,5 @@
 (
     schema: 1,
     id: "base:rules:items",
-    values: {"don_armor_minutes": 5, "use_item_minutes": 1},
+    values: {"don_armor_minutes": (priority: 0, value: 5), "use_item_minutes": (priority: 0, value: 1)},
 )

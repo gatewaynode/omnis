@@ -426,6 +426,26 @@ no loss, and every later map is built with it.
   **Review (2026-11-11, built, awaiting the owner's test)**: four ops over one table of 14 kinds; `cursor` for
   the page; `omnis-cli op <name> [<args>]` added so the hand test needs no client; the gate's hole found and
   closed on the way (`scripts/test-summary.sh`). Departures and what is left: `tasks/acceptance/data-ops.md`.
+- [ ] Rule priority and conflict tracking (owner, 2026-11-11: "We do need to start tracking rule conflicts and
+  consider all rules have a required priority value that is used to determine rule precedence"; plan mode,
+  approved the same day). Found by the `data.*` survey: rules files merged in file-id order, the last
+  definition of a name winning silently, with nothing recording where a rule came from. Owner's choices: a
+  required `priority` on every slot, value and table (the higher number wins; no file-level priority); two
+  definitions of one name at one priority are always a load error; an override declares the inputs of the rule
+  it replaces, else a load error; shown in `rules.list`/`rules.get`, `omnis-cli validate`, `data.*` (rules
+  files as a kind) and an editor rules view. `SCHEMA` stays 1 (nothing released; every rules file changes in
+  the same commit). Additive on the wire, protocol stays 2.
+  - [x] **Step 1, the format and the merge** (`omnis-data`; built 2026-11-11): entries with `priority` in `rules.rs`; the merge
+    there in place of `content.rs` `build_rules` (highest priority stands; a tie, an input mismatch and a
+    losing formula that does not compile are errors); `Standings` and the raw files kept on `Data`; every
+    rules file rewritten (base 10, `objects` 1, the bad fixtures 3), base's version raised and resealed;
+    ARCHITECTURE §5.
+  - [ ] **Step 2, showing it over the API and the CLI**: `rules` the 15th row of `catalog::KINDS`; `origins`
+    on `rules.list` and `origin` on `rules.get`; the override lines of `omnis-cli validate`; pins and
+    `docs/api.md`.
+  - [ ] **Step 3, the editor rules view** (`omnis-vector`): a modal list of every slot, value and table with
+    its file, pack and priority, an overridden rule marked with what it beat, Open file into the text editor.
+  - [ ] `tasks/acceptance/rule-priority.md`, the review line here, `tasks/CONTINUITY.md`.
 - [ ] A dev command to pass time (owner, 2026-10-08): `DevCommand::Pass { minutes }` lives the minutes at the
   region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 14 moves).
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.

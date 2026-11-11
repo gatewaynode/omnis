@@ -22,7 +22,7 @@ use crate::object::ObjectKind;
 use crate::region::{self, Region, RegionDef};
 use crate::registry::Registry;
 use crate::ron_io::{from_str, read_text};
-use crate::rules::RulesFile;
+use crate::rules::{RulesFile, Standings};
 use crate::service::ServiceDef;
 use crate::spell::Spell;
 use crate::text::TextFile;
@@ -83,6 +83,10 @@ pub struct Data {
     pub services: BTreeMap<ServiceId, ServiceDef>,
     /// The compiled rule set from every `data/rules` file.
     pub rules: Rules,
+    /// Where each slot, value and table of `rules` came from, and what it beat.
+    pub standings: Standings,
+    /// The rules files as written, by id.
+    pub rule_files: BTreeMap<String, RulesFile>,
     /// Regions by id.
     pub regions: BTreeMap<RegionId, Region>,
     /// Object kinds by id.

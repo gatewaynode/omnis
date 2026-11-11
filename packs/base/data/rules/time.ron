@@ -8,21 +8,23 @@
     id: "base:rules:time",
     slots: {
         "time.settled": (
+            priority: 0,
             inputs: ["shared_time", "stability"],
             expr: "shared_time * (1000 + d(1, 2 * (1000 - stability) + 1) - (1000 - stability) - 1) / 1000",
         ),
         "time.wild": (
+            priority: 0,
             inputs: ["lived", "stability"],
             expr: "lived * (1000 + d(1, 2 * (1000 - stability) + 1) - (1000 - stability) - 1) / 1000",
         ),
     },
     values: {
         // The calendar: a day of 1440 minutes, a year of 360 days, night from 20:00 to 06:00.
-        "minutes_per_day": 1440,
-        "days_per_year": 360,
-        "night_from": 1200,
-        "night_to": 360,
+        "minutes_per_day": (priority: 0, value: 1440),
+        "days_per_year": (priority: 0, value: 360),
+        "night_from": (priority: 0, value: 1200),
+        "night_to": (priority: 0, value: 360),
         // Ten years: the most one reconciliation catches a holder up by.
-        "time_cap_minutes": 5184000,
+        "time_cap_minutes": (priority: 0, value: 5184000),
     },
 )

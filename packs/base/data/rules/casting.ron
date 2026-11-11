@@ -10,24 +10,27 @@
     id: "base:rules:casting",
     slots: {
         "spell_points.pool": (
+            priority: 0,
             inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
             expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
         ),
-        "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
-        "spell.save_dc": (inputs: ["cast_mod", "proficiency"], expr: "8 + proficiency + cast_mod"),
+        "spell_points.cost": (priority: 0, inputs: ["spell_level"], expr: "spell_level"),
+        "spell.save_dc": (priority: 0, inputs: ["cast_mod", "proficiency"], expr: "8 + proficiency + cast_mod"),
         "spell.save_damage": (
+            priority: 0,
             inputs: ["amount", "saved", "half_on_save"],
             expr: "if saved { if half_on_save { amount / 2 } else { 0 } } else { amount }",
         ),
-        "heal.total": (inputs: ["dice", "cast_mod", "add_mod"], expr: "dice + (if add_mod { cast_mod } else { 0 })"),
+        "heal.total": (priority: 0, inputs: ["dice", "cast_mod", "add_mod"], expr: "dice + (if add_mod { cast_mod } else { 0 })"),
         "cantrip.dice": (
+            priority: 0,
             inputs: ["level"],
             expr: "if level >= 17 { 4 } else if level >= 11 { 3 } else if level >= 5 { 2 } else { 1 }",
         ),
-        "concentration.dc": (inputs: ["damage"], expr: "max(10, damage / 2)"),
+        "concentration.dc": (priority: 0, inputs: ["damage"], expr: "max(10, damage / 2)"),
     },
     tables: {
-        "max_spell_level": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 9, 9],
+        "max_spell_level": (priority: 0, rows: [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 9, 9]),
     },
-    values: {"component_threshold": 5, "cast_minutes": 1},
+    values: {"component_threshold": (priority: 0, value: 5), "cast_minutes": (priority: 0, value: 1)},
 )

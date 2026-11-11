@@ -684,3 +684,17 @@
   not reported after.
 - **Rule** (the owner's preference, 2026-11-11): a value is walked through its type (a serializer, a visitor),
   not through its printed text.
+
+## 2026-11-11 — A second checkout never builds into this tree's `target/`
+- **What happened**: to compare `rules.list` before and after a format change I built the previous commit from a
+  temporary `git worktree` with `CARGO_TARGET_DIR` pointed at this tree's `target/`. It left the old
+  `omnis-cli` binary in place; cargo then took it as fresh, and the gate's `validate` step ran the old loader
+  against the new files and failed. The gate caught it (no VERIFY-GREEN), and `cargo clean -p` for the crates
+  involved cleared it.
+- **Rule**: another checkout builds into its own target directory (the scratchpad), never this tree's. The
+  cost is a cold build; the saving is not worth a wrong binary.
+- **Rule**: a change to a sealed pack's files moves its version and hash, and the world's fingerprint covers the
+  packs it was made on, so the golden replays are rebaselined in the same commit
+  (`cargo test -p omnis-sim rebaseline -- --ignored`) and the plan says so. "Replays stay at their pins" holds
+  only when no sealed pack's text changes; equality of behaviour is then shown another way (here `rules.list`
+  compared across the two commits).

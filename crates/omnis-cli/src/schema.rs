@@ -239,10 +239,10 @@ const RULES: &str = r#"(
     schema: 1,
     id: "example:rules:casting",
     slots: {
-        "spell_points.pool": (inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"], expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)"),
+        "spell_points.pool": (priority: 0, inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"], expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)"),
     },
-    values: {"component_threshold": 5},
-    tables: {"point_cost": [0, 1, 2, 3, 4, 5, 7, 9]},
+    values: {"component_threshold": (priority: 0, value: 5)},
+    tables: {"point_cost": (priority: 0, rows: [0, 1, 2, 3, 4, 5, 7, 9])},
 )"#;
 
 const REGION: &str = r#"(

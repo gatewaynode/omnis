@@ -17,4 +17,5 @@ mod load_test_pack;
 mod migrations;
 mod resolve;
 mod round_trip;
+mod rule_priority;
 mod seal;

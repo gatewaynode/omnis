@@ -442,7 +442,7 @@ Engine limits per profile:
 - Dependency footprint: `rhai` pulls `smallvec`, `thin-vec`, `ahash`, `num-traits`, `once_cell`, `bitflags`, `smartstring`, and the `rhai_codegen` proc-macro crate. `smartstring` is MPL-2.0; it is file-scoped copyleft, compatible with linking into MIT or Apache-2.0 code, and is listed in the attribution file. Several of these crates are already in Bevy's tree and must resolve to Bevy's versions (§12).
 
 ### 5.5 Example rules file (data, not code)
-Every `data/rules/*.ron` file has one shape: named formula `slots`, plain integer `values`, and integer `tables`. Files merge into one rule set in id order; a later file's slot, value, or table with the same name replaces the earlier one, so a mod can override one formula. Slots are addressed by name everywhere (`rules.get { slot: "spell_points.pool" }`).
+Every `data/rules/*.ron` file has one shape: named formula `slots`, plain integer `values`, and integer `tables`. Files merge into one rule set, and every slot, value and table states a `priority` (owner, 2026-11-11): where two files define one name the higher number stands, whatever the files' ids or their packs' place in the load order, so a mod overrides one formula by outranking it. `base` writes 0 throughout; by convention a setting writes around 100 and a table's house rules around 200, and a negative priority is a fallback offered beneath the core. Two definitions of one name at one priority refuse the load, as does an override that declares other inputs than the rule it replaces and any formula that does not compile, standing or not. What stands and what it beat is kept on `Data` (`standings`, with the files as written in `rule_files`). A pack that writes a rules file under an id an earlier pack used replaces that file whole, as with every kind. Slots are addressed by name everywhere (`rules.get { slot: "spell_points.pool" }`).
 ```ron
 // packs/base/data/rules/casting.ron
 (
@@ -450,12 +450,13 @@ Every `data/rules/*.ron` file has one shape: named formula `slots`, plain intege
     id: "base:rules:casting",
     slots: {
         "spell_points.pool": (
+            priority: 0,
             inputs: ["level", "cast_mod", "other_mental_mods", "half_caster"],
             expr: "max(level, (if half_caster { level / 2 } else { level }) * cast_mod + other_mental_mods)",
         ),
-        "spell_points.cost": (inputs: ["spell_level"], expr: "spell_level"),
+        "spell_points.cost": (priority: 0, inputs: ["spell_level"], expr: "spell_level"),
     },
-    values: {"component_threshold": 5},
+    values: {"component_threshold": (priority: 0, value: 5)},
 )
 ```
 

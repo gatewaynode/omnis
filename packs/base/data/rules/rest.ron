@@ -8,16 +8,16 @@
     schema: 1,
     id: "base:rules:rest",
     slots: {
-        "rest.ambush_chance": (inputs: ["map_chance"], expr: "map_chance * 10"),
-        "rest.short_ambush_chance": (inputs: ["map_chance"], expr: "map_chance * 10"),
+        "rest.ambush_chance": (priority: 0, inputs: ["map_chance"], expr: "map_chance * 10"),
+        "rest.short_ambush_chance": (priority: 0, inputs: ["map_chance"], expr: "map_chance * 10"),
         // One spent hit die: the die plus the Constitution modifier, never below nothing.
-        "rest.hit_die_heal": (inputs: ["die", "con_mod"], expr: "max(0, die + con_mod)"),
+        "rest.hit_die_heal": (priority: 0, inputs: ["die", "con_mod"], expr: "max(0, die + con_mod)"),
     },
     values: {
-        "short_rest_minutes": 60,
-        "long_rest_minutes": 480,
-        "long_rest_every_minutes": 1440,
-        "rest_food_per_member": 1,
-        "rest_ambush_surprise": 0,
+        "short_rest_minutes": (priority: 0, value: 60),
+        "long_rest_minutes": (priority: 0, value: 480),
+        "long_rest_every_minutes": (priority: 0, value: 1440),
+        "rest_food_per_member": (priority: 0, value: 1),
+        "rest_ambush_surprise": (priority: 0, value: 0),
     },
 )

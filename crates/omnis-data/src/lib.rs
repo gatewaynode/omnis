@@ -75,7 +75,7 @@ pub use placement::{GroundDef, Pile, Placement, ResolvedPlacement};
 pub use region::{Region, RegionDef, RegionKind};
 pub use registry::Registry;
 pub use rest_event::{ResolvedRestEvent, RestEventDef, RestKind};
-pub use rules::{RulesFile, SlotDef};
+pub use rules::{RulesFile, SlotDef, TableDef, ValueDef};
 pub use sense::{Fidelity, Geometry, Persistence, SenseSource};
 pub use service::{ResolvedSite, RumorDef, ServiceDef, ServiceKind, Site};
 pub use spell::{BuffOn, Reach, Spell, SpellEffect, Utility};
