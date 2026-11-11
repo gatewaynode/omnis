@@ -93,6 +93,9 @@ pub struct Data {
     pub flags: BTreeMap<FlagId, FlagDef>,
     /// Each pack's migrations, by pack id, in file order (M8.5 7h6).
     pub migrations: Migrations,
+    /// The packs that wrote each definition, by its id, in load order: the last supplied the one
+    /// loaded, the others were replaced by it (the catalogue's `pack` and `replaces`).
+    pub sources: BTreeMap<String, Vec<String>>,
 }
 
 impl Data {
@@ -150,6 +153,8 @@ struct Raw {
     content: RawContent,
     /// Every pack's migrations, checked against the loaded packs once all are read.
     migrations: Vec<(PathBuf, String, PackMigration)>,
+    /// The packs that wrote each definition, in load order.
+    sources: BTreeMap<String, Vec<String>>,
 }
 
 /// Load packs from `roots`, in order. A pack's dependencies must appear earlier in the list.
@@ -210,6 +215,7 @@ fn load_one(
     }
     check_manifest(&manifest, &root.join(manifest_rel), &data.packs, errors);
     let pack = manifest.id.clone();
+    let mut supplied = Vec::new();
 
     gather(
         root,
@@ -218,6 +224,7 @@ fn load_one(
         &mut hasher,
         errors,
         &mut raw.tilesets,
+        &mut supplied,
     );
     for rel in list_ron(root, Path::new("data/maps"), errors) {
         let Some(map) = read_checked::<MapDef>(root, &rel, &mut hasher, errors) else {
@@ -227,9 +234,16 @@ fn load_one(
         check_id(&map.id, "map", &file, errors);
         map.validate(&file, errors);
         let levels = levels::parse(&map, &file, errors).unwrap_or_default();
+        supplied.push(map.id.clone());
         raw.maps.insert(map.id.clone(), (file, map, levels));
     }
-    gather_content(root, &mut hasher, errors, &mut raw.content);
+    gather_content(root, &mut hasher, errors, &mut raw.content, &mut supplied);
+    for id in supplied {
+        let packs = raw.sources.entry(id).or_default();
+        if packs.last() != Some(&pack) {
+            packs.push(pack.clone());
+        }
+    }
     for lang in list_dirs(root, Path::new("text"), errors) {
         let lang_name = lang
             .file_name()
@@ -435,7 +449,7 @@ pub(crate) fn parse_checked<T: DeserializeOwned + HasSchema>(
 }
 
 /// Read, check, and validate every `.ron` file of one content type under `root/dir`, keyed
-/// by id so a later pack overrides an earlier one.
+/// by id so a later pack overrides an earlier one. `supplied` gains each id this pack wrote.
 fn gather<T: DeserializeOwned + HasSchema + Content>(
     root: &Path,
     dir: &str,
@@ -443,6 +457,7 @@ fn gather<T: DeserializeOwned + HasSchema + Content>(
     hasher: &mut PackHasher,
     errors: &mut Vec<DataError>,
     out: &mut Files<T>,
+    supplied: &mut Vec<String>,
 ) {
     for rel in list_ron(root, Path::new(dir), errors) {
         let Some(value) = read_checked::<T>(root, &rel, hasher, errors) else {
@@ -451,6 +466,7 @@ fn gather<T: DeserializeOwned + HasSchema + Content>(
         let file = root.join(&rel);
         check_id(value.id(), kind, &file, errors);
         value.validate(&file, errors);
+        supplied.push(value.id().to_owned());
         out.insert(value.id().to_owned(), (file, value));
     }
 }
@@ -461,6 +477,7 @@ fn gather_content(
     hasher: &mut PackHasher,
     errors: &mut Vec<DataError>,
     content: &mut RawContent,
+    supplied: &mut Vec<String>,
 ) {
     gather(
         root,
@@ -469,6 +486,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.races,
+        supplied,
     );
     gather(
         root,
@@ -477,6 +495,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.classes,
+        supplied,
     );
     gather(
         root,
@@ -485,6 +504,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.backgrounds,
+        supplied,
     );
     gather(
         root,
@@ -493,6 +513,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.items,
+        supplied,
     );
     gather(
         root,
@@ -501,6 +522,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.conditions,
+        supplied,
     );
     gather(
         root,
@@ -509,6 +531,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.spells,
+        supplied,
     );
     gather(
         root,
@@ -517,6 +540,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.monsters,
+        supplied,
     );
     gather(
         root,
@@ -525,6 +549,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.rules,
+        supplied,
     );
     gather(
         root,
@@ -533,6 +558,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.services,
+        supplied,
     );
     gather(
         root,
@@ -541,6 +567,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.regions,
+        supplied,
     );
     gather(
         root,
@@ -549,8 +576,17 @@ fn gather_content(
         hasher,
         errors,
         &mut content.objects,
+        supplied,
     );
-    gather(root, "data/loot", "loot", hasher, errors, &mut content.loot);
+    gather(
+        root,
+        "data/loot",
+        "loot",
+        hasher,
+        errors,
+        &mut content.loot,
+        supplied,
+    );
     gather(
         root,
         "data/flags",
@@ -558,6 +594,7 @@ fn gather_content(
         hasher,
         errors,
         &mut content.flags,
+        supplied,
     );
 }
 
@@ -651,6 +688,7 @@ fn list_entries(
 /// Intern ids and check every cross-reference. Runs once after all packs are read.
 fn resolve(mut raw: Raw, data: &mut Data, errors: &mut Vec<DataError>) {
     let before = errors.len();
+    data.sources = std::mem::take(&mut raw.sources);
     let region_files = std::mem::take(&mut raw.content.regions);
     for (id, (_, tileset)) in raw.tilesets {
         let tid = data.registry.tilesets.intern(&id);

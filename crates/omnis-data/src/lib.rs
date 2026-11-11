@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 pub mod action;
+pub mod catalog;
 pub mod character;
 pub mod condition;
 mod content;
@@ -40,6 +41,7 @@ pub mod sense;
 pub mod service;
 pub mod spell;
 pub mod stairs;
+pub mod strings;
 pub mod terms;
 pub mod text;
 pub mod tileset;

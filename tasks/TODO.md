@@ -406,6 +406,23 @@ no loss, and every later map is built with it.
 - [ ] Ops for pack definitions and text labels (owner, 2026-10-08): a `data.*` op family so a JSON client, an
   agent authoring content among them, turns ids and text keys into names and definitions; the main known gap in
   `docs/api.md` §14; additive, protocol stays 2. With the editor's ops, since both read the same registry.
+  **Planned 2026-11-11** (plan mode, approved; the owner's direction: "forward thinking flexibility above all
+  else, TTRPGs are filled with creative solutions and we want to capture some of that magic"). Owner's choices:
+  a stable envelope around `def`, the definition as the pack wrote it (`def` follows `omnis_data::SCHEMA`, not
+  `PROTOCOL`); the author's tier, everything loaded, a per-party gate a requirement for D30; generic filters in
+  the first version (kind, prefix, a substring, `refers_to`); provenance recorded now (`pack`, `replaces`).
+  Four ops: `data.kinds`, `data.list`, `data.get`, `data.text` (ops 44 to 48, tools 48, `Reply` 31, `OpError`
+  12 with `UnknownId`). Rules files are not a kind (`rules.*` serves them).
+  - [x] **Step 1, the catalogue in `omnis-data`** (built 2026-11-11; the strings are read from a
+    definition's compact RON, a serializer of its own would name the float types): `strings.rs` (a serializer that collects every string of a
+    definition, so references and text keys are found with no code per kind), `catalog.rs` (the one table of
+    kinds, `Definition`, `links`, `referrers`), `Data.sources` from the loader. Tests on the frozen fixture,
+    the `objects` pack and a scratch pack that overrides a base item.
+  - [ ] **Step 2, the ops**: `omnis-sim/src/data_ops.rs`, the four ops in `dispatch`, every count pin, the MCP
+    tools and schemas, the CLI's schema dump, the vocabulary test (the envelope checked, `def` skipped by name).
+  - [ ] **Step 3, the socket and the documents**: `data.*` answers at the title and in the editor (from the
+    game's data when one runs, else the packs loaded at start); `docs/api.md`, ARCHITECTURE §4.9 and §9.3,
+    `horizons.md` (the knowledge gate), `tasks/acceptance/data-ops.md`.
 - [ ] A dev command to pass time (owner, 2026-10-08): `DevCommand::Pass { minutes }` lives the minutes at the
   region's company, bounded, refused in a fight; a debug-panel field and the MCP schema (`dev_schema` 14 moves).
   Replaces the 720 short rests in `tasks/acceptance/m8.md`. When a test of time needs it.
